@@ -127,7 +127,7 @@ jobs:
     env:
       COVERAGE_CORE: ctrace
       PYTEST_SHARD_INDEX: ${{ matrix.shard }}
-      PYTEST_SHARD_COUNT: ${{ needs.changes.outputs.pytest == 'full' && 4 || 1 }}
+      PYTEST_SHARD_COUNT: ${{ strategy.job-total }}
       PYTEST_SCOPE: ${{ needs.changes.outputs.pytest }}
     steps:
       - name: Use runner temporary storage
@@ -325,6 +325,7 @@ jobs:
       - name: Combine coverage and enforce the floor
         if: needs.changes.outputs.pytest == 'full'
         run: |
+          test "$(ls cov/shard-* | wc -l)" -eq 4 || { echo "Expected 4 cov/shard-* files, found: $(ls cov)" >&2; exit 1; }
           coverage combine cov/shard-*
           coverage report --fail-under=95
           coverage xml -o coverage.xml

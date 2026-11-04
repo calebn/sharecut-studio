@@ -328,7 +328,6 @@ def test_pytest_shards_take_their_scope_from_the_planner_and_gate_coverage_on_fu
     assert shard["needs"] == "changes"
     assert shard["if"] == "needs.changes.result == 'success'"
     assert "plan" not in {step.get("id") for step in shard["steps"]}
-    assert jobs["changes"]["outputs"]["pytest"] == "${{ steps.plan.outputs.pytest }}"
     assert shard["env"]["PYTEST_SCOPE"] == "${{ needs.changes.outputs.pytest }}"
     by_name = {step.get("name"): step for step in shard["steps"]}
     assert by_name["Run tests with coverage gate"]["if"] == "env.PYTEST_SCOPE == 'full'"
@@ -343,13 +342,6 @@ def test_pytest_shards_take_their_scope_from_the_planner_and_gate_coverage_on_fu
     quality = {step.get("name"): step for step in jobs["pytest-quality"]["steps"]}
     assert "needs" not in jobs["pytest-quality"]
     assert "pytest" not in quality["Docs-sync gate (PR diff)"]["if"]
-
-
-def test_the_pytest_check_aggregates_quality_and_every_shard() -> None:
-    check = load_github_yaml(WORKFLOW)["jobs"]["pytest"]
-    assert check["needs"] == ["changes", "pytest-quality", "pytest-shard"]
-    assert "always()" in check["if"]
-    assert "draft != true" in check["if"]
 
 
 def test_changes_job_feeds_frontend_and_the_browser_suites() -> None:

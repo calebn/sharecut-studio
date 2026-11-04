@@ -39,7 +39,9 @@ browser matrix dimension by the distinct failure it can catch. Keep broad
 exploratory sweeps and deliberate faults in PR evidence unless a case protects
 a distinct important regression.
 
-`make test` runs under [`pytest-xdist`](https://pytest-xdist.readthedocs.io/) (`-n auto`), capped at four workers to keep local runs and CI reliable under contention. An explicit `-n N` remains unchanged. `pytest-cov` merges the per-worker coverage data, so the 95% gate is unchanged. CI (`.github/workflows/test.yml`) runs the same marker filter in four shards, in parallel with a `frontend-suite` job for ShareCut Studio (`gui/web`). **Sharding.** `tests/conftest.py` keeps the tests whose node id hashes (`zlib.crc32`) to shard `PYTEST_SHARD_INDEX` of `PYTEST_SHARD_COUNT`. With neither variable set every test runs. A partial or out-of-range pair is a usage error. To reproduce shard 2 locally, run `PYTEST_SHARD_INDEX=2 PYTEST_SHARD_COUNT=4 COVERAGE_FILE=cov/shard-2 .venv/bin/pytest -n auto -m "not e2e_slow and not e2e_real" --cov-fail-under=0`. After running every shard, `coverage combine cov/shard-*` and `coverage report --fail-under=95` give the whole-suite total.
+`make test` runs under [`pytest-xdist`](https://pytest-xdist.readthedocs.io/) (`-n auto`), capped at four workers to keep local runs and CI reliable under contention. An explicit `-n N` remains unchanged. `pytest-cov` merges the per-worker coverage data, so the 95% gate is unchanged. CI (`.github/workflows/test.yml`) runs the same marker filter in four shards, in parallel with a `frontend-suite` job for ShareCut Studio (`gui/web`).
+
+**Sharding.** `tests/conftest.py` keeps the tests whose node id hashes (`zlib.crc32`) to shard `PYTEST_SHARD_INDEX` of `PYTEST_SHARD_COUNT`. With neither variable set every test runs. A partial or out-of-range pair is a usage error. To reproduce shard 2 locally, run `PYTEST_SHARD_INDEX=2 PYTEST_SHARD_COUNT=4 COVERAGE_FILE=cov/shard-2 .venv/bin/pytest -n auto -m "not e2e_slow and not e2e_real" --cov-fail-under=0`. After running every shard, `coverage combine cov/shard-*` and `coverage report --fail-under=95` give the whole-suite total.
 
 Hang protection: `pytest-timeout` (`--timeout=60` in `pyproject.toml` addopts) and job `timeout-minutes` on the GitHub Actions workflow. Nested guest+tunnel WebSocket tests use a live uvicorn server because Starlette `TestClient` nested sockets can deadlock. Enter socket contexts before handshake and explicitly close test-owned SQLite resources; see [ownership and Python runtime checks](testing-ci.md#python-test-runtime).
 
@@ -1192,8 +1194,5 @@ checks real no-replace promotion and occupied destination preservation.
 through that extracted helper. The episode shape lock is regenerated and replayed
 with `scripts/project_compat.py lock --base <trusted-main-ref>`.
 
-Synthetic PCM, browser and schema checks establish their measured behavior only.
-They do not replace owner listening, supported native interaction, independent
-Shipping, exact-head CI or the full action-transcript audit. Registry-backed
-guest/recovery acceptance requires the application's real trusted directory
-ownership checks to pass; tests must not bypass those checks to manufacture a pass.
+Synthetic PCM, browser and schema checks establish their measured behavior only. They do not replace owner listening, supported native interaction, independent Shipping, exact-head CI or the full
+action-transcript audit. Registry-backed guest/recovery acceptance requires the application's real trusted directory ownership checks to pass; tests must not bypass those checks to manufacture a pass.

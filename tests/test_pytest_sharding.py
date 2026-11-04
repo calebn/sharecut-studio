@@ -1,8 +1,8 @@
-"""The pytest shard hook and the `pytest` aggregate check that fronts the shard jobs."""
-
 from __future__ import annotations
 
+import json
 import os
+import re
 import subprocess
 import sys
 import textwrap
@@ -133,3 +133,39 @@ def test_the_pytest_check_requires_the_plan_quality_and_every_shard(
     assert (result.returncode == 0) is accepted, result.stderr
     if not accepted:
         assert f"{plan}/{scope}/{quality}/{shards}" in result.stderr
+
+
+def test_the_matrix_length_is_the_shard_count_the_hook_and_aggregate_expect() -> None:
+    jobs = load_github_yaml(WORKFLOW)["jobs"]
+    shard = jobs["pytest-shard"]
+    assert shard["env"]["PYTEST_SHARD_COUNT"] == "${{ strategy.job-total }}"
+    matrix = shard["strategy"]["matrix"]["shard"]
+    (full,) = re.findall(r"== 'full' && '(\[[\d,]+\])'", matrix)
+    assert json.loads(full) == [1, 2, 3, 4]
+    combine = next(
+        step["run"]
+        for step in jobs["pytest"]["steps"]
+        if step.get("name", "").startswith("Combine coverage")
+    )
+    assert f"-eq {len(json.loads(full))} " in combine
+
+
+def test_combining_coverage_fails_unless_every_shard_file_arrived(tmp_path: Path) -> None:
+    jobs = load_github_yaml(WORKFLOW)["jobs"]
+    combine = next(
+        step["run"]
+        for step in jobs["pytest"]["steps"]
+        if step.get("name", "").startswith("Combine coverage")
+    )
+    guard = combine.splitlines()[0]
+    (tmp_path / "cov").mkdir()
+    for count in range(5):
+        (tmp_path / "cov" / f"shard-{count + 1}").write_text("")
+        result = subprocess.run(
+            ["bash", "-e", "-o", "pipefail", "-c", guard],
+            cwd=tmp_path,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert (result.returncode == 0) is (count == 3), result.stderr
