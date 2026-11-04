@@ -335,7 +335,8 @@ export function checkEntryOf(
   };
 }
 
-const needsReview = (e: PendingEditView) => !e.applied && e.review_required;
+export const needsReview = (e: PendingEditView) =>
+  !e.applied && e.review_required;
 
 export const reviewEntriesOf = (
   pending: readonly PendingEditView[],

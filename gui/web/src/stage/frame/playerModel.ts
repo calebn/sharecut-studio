@@ -61,12 +61,19 @@ export function playerTicks(
   chapters: readonly PlayerChapter[],
   commentTimes: readonly number[],
   durationSec: number,
+  suggestionTimes: readonly number[] = [],
 ): OverviewTick[] {
+  const at = (time: number) => Math.min(1, Math.max(0, time / durationSec));
   const comments: OverviewTick[] =
     durationSec > 0
-      ? commentTimes.map((time) => ({
-          at: Math.min(1, Math.max(0, time / durationSec)),
-          kind: "comment",
+      ? commentTimes.map((time) => ({ at: at(time), kind: "comment" }))
+      : [];
+  // Clamp before deduping so two times past the end share one tick (and key).
+  const suggestions: OverviewTick[] =
+    durationSec > 0
+      ? [...new Set(suggestionTimes.map(at))].map((a) => ({
+          at: a,
+          kind: "suggestion",
         }))
       : [];
   return [
@@ -75,5 +82,6 @@ export function playerTicks(
       kind: "chapter" as const,
     })),
     ...comments,
+    ...suggestions,
   ];
 }

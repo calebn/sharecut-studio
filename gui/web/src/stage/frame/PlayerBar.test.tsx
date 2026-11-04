@@ -4,7 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { useDawStore } from "../../state/dawStore";
-import { minimalProject, sampleTrack } from "../../test/fixtures";
+import {
+  minimalProject,
+  pendingEditView,
+  sampleTrack,
+} from "../../test/fixtures";
 import { NO_PREVIEW_ERROR } from "../../utils/audioErrorLabel";
 import { PlayerBar } from "./PlayerBar";
 
@@ -114,6 +118,56 @@ describe("PlayerBar", () => {
         }),
       );
       expect(useDawStore.getState().stage).toBe("review");
+    });
+  });
+
+  describe("suggestion ticks", () => {
+    const edits = [
+      pendingEditView({ id: "a", timeline_start: 15 }),
+      pendingEditView({ id: "b", timeline_start: 15 }),
+      pendingEditView({ id: "c", timeline_start: 30 }),
+      pendingEditView({ id: "d", timeline_start: 45, applied: true }),
+      pendingEditView({ id: "e", timeline_start: 50, review_required: false }),
+      pendingEditView({
+        id: "f",
+        timeline_start: 55,
+        unsure_words: [{ text: "um", start: 55, end: 56 }],
+      }),
+      pendingEditView({ id: "g", timeline_start: null }),
+    ];
+    const ticks = async () => {
+      const user = userEvent.setup();
+      const { container } = render(<PlayerBar />);
+      await user.click(screen.getByRole("button", { name: /Expand player/ }));
+      return container.ownerDocument.querySelectorAll(
+        ".sys-overview-tick--suggestion",
+      );
+    };
+    const open = (
+      key: string,
+      guestMode: "edit" | "comment",
+      caps: string[],
+    ) => {
+      useDawStore
+        .getState()
+        .hydrate(key, minimalProject({ pending_edits: edits }));
+      useDawStore.setState({ guestMode, shareCapabilities: caps });
+    };
+
+    it("shows an Editor guest a tick per distinct qualifying edit", async () => {
+      open("share:player-bar-token", "edit", ["comment", "edit"]);
+      expect(await ticks()).toHaveLength(2);
+    });
+
+    it("shows a Commenter guest none", async () => {
+      open("share:player-bar-token", "comment", ["comment"]);
+      expect(await ticks()).toHaveLength(0);
+    });
+
+    it("shows the host none", async () => {
+      open("/tmp/player-bar/episode.sharecut", "edit", ["comment", "edit"]);
+      useDawStore.setState({ guestMode: null });
+      expect(await ticks()).toHaveLength(0);
     });
   });
 
