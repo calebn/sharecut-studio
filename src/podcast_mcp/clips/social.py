@@ -8,7 +8,7 @@ import time
 import unicodedata
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.tighten_reasons import is_filler_reason
@@ -24,6 +24,8 @@ from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.review import approve_by_id, reject_by_id
 from podcast_mcp.util.timebase import SourceSec
+
+_MANUAL_CLIP_PREFIX = "manual_"
 
 _HOOK_PATTERNS = [
     re.compile(r"\?", re.I),
@@ -187,14 +189,24 @@ def _episode_duration(project: EpisodeProject) -> float:
     return 0.0
 
 
+def is_manual_social_clip(clip: SocialClipCandidate) -> bool:
+    return clip.id.startswith(_MANUAL_CLIP_PREFIX)
+
+
 def propose_social_clips(
     project: EpisodeProject,
     defaults: dict[str, Any],
     *,
     platform: str | None = None,
     max_clips: int | None = None,
-    replace_existing: bool = True,
+    replace_existing: Literal["unapproved", "all"] = "unapproved",
 ) -> list[SocialClipCandidate]:
+    """Propose clips; returns the new candidates only.
+
+    ``"unapproved"`` keeps approved and manually added clips and replaces the rest;
+    new proposals skip any span that overlaps a kept clip on the same track, and
+    the limit counts new proposals only. ``"all"`` discards every candidate first.
+    """
     cfg = defaults.get("social_clips", {})
     min_sec, max_sec = _platform_limits(defaults, platform)
     limit = max_clips or int(cfg.get("max_candidates", 12))
@@ -250,12 +262,19 @@ def propose_social_clips(
             )
         )
 
+    kept = (
+        []
+        if replace_existing == "all"
+        else [c for c in project.social_clip_candidates if c.approved or is_manual_social_clip(c)]
+    )
+    scored = [
+        c
+        for c in scored
+        if not any(k.track_id == c.track_id and k.start < c.end and c.start < k.end for k in kept)
+    ]
     scored.sort(key=lambda c: c.score, reverse=True)
     top = scored[:limit]
-    if replace_existing:
-        project.social_clip_candidates = top
-    else:
-        project.social_clip_candidates.extend(top)
+    project.social_clip_candidates = [*kept, *top]
     return top
 
 
@@ -312,7 +331,7 @@ def add_manual_social_clip(
     if project.track_by_id(track_id) is None:
         raise ValueError(f"unknown track_id: {track_id!r}")
     clip = SocialClipCandidate(
-        id=f"manual_{uuid.uuid4().hex[:10]}",
+        id=f"{_MANUAL_CLIP_PREFIX}{uuid.uuid4().hex[:10]}",
         track_id=track_id,
         start=float(start),
         end=float(end),

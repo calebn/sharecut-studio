@@ -430,12 +430,11 @@ def test_propose_extend_existing_and_list_filters(tmp_path):
     )
     defaults = {"social_clips": {"min_sec": 15, "max_candidates": 1}}
     first = propose_social_clips(proj, defaults)
-    second = propose_social_clips(proj, defaults, replace_existing=False)
-    assert len(proj.social_clip_candidates) == 2
-    assert len(second) == 1
     approve_social_clips(proj, [first[0].id])
+    second = propose_social_clips(proj, defaults)
+    assert second == []
+    assert proj.social_clip_candidates == [first[0]]
     assert list_social_clips(proj, approved=True) == [first[0]]
-    assert list_social_clips(proj, review_required=True)
 
 
 def test_episode_duration_returns_zero_without_sources(tmp_path):

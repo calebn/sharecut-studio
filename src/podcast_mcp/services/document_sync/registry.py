@@ -541,6 +541,14 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             mcp=named(GENERIC_MCP),
             cli=named("podcast clips list", GENERIC_CLI),
         ),
+        "ProposeSocialClips": CommandSpec(
+            payload=p.ProposeSocialClipsPayload,
+            handler=markers.propose_social_clips,
+            host_only_reason="a rerun recomputes the whole candidate list and holds the project lock, so a share link never starts one",
+            gui=GUI_SENT,
+            mcp=named("propose_social_clips_tool", GENERIC_MCP),
+            cli=named("podcast clips propose", GENERIC_CLI),
+        ),
         "UpdateSocialClipDetails": CommandSpec(
             payload=p.UpdateSocialClipDetailsPayload,
             handler=markers.update_social_clip_details,

@@ -580,6 +580,13 @@ class AddSocialClipPayload(BaseModel):
     title: str | None = None
 
 
+class ProposeSocialClipsPayload(BaseModel):
+    """Rerun clip proposals; approved and manual clips stay, the rest are replaced."""
+
+    platform: str | None = None
+    max_clips: int | None = Field(default=None, gt=0)
+
+
 class UpdateSocialClipPayload(BaseModel):
     id: str
     start: float
@@ -1222,6 +1229,11 @@ class AddSocialClipCommand(DocumentCommandEnvelope):
     payload: AddSocialClipPayload
 
 
+class ProposeSocialClipsCommand(DocumentCommandEnvelope):
+    type: Literal["ProposeSocialClips"] = "ProposeSocialClips"
+    payload: ProposeSocialClipsPayload
+
+
 class UpdateSocialClipCommand(DocumentCommandEnvelope):
     type: Literal["UpdateSocialClip"] = "UpdateSocialClip"
     payload: UpdateSocialClipPayload
@@ -1472,6 +1484,7 @@ DocumentCommandBody = Annotated[
     | SetFeedFieldCommand
     | ClearFeedFieldCommand
     | AddSocialClipCommand
+    | ProposeSocialClipsCommand
     | UpdateSocialClipCommand
     | UpdateSocialClipDetailsCommand
     | DeleteSocialClipCommand
