@@ -469,6 +469,106 @@ def test_linux_available_ram_is_capped_by_the_cgroup_v1_limit(monkeypatch, tmp_p
     assert hardware.available_ram_bytes() == 1_500_000_000
 
 
+@pytest.mark.parametrize("controllers", ["memory", "cpu,memory", "memory,cpuacct"])
+@pytest.mark.parametrize(
+    ("leaf_limit", "leaf_used", "parent_limit", "parent_used", "expected"),
+    [
+        ("4000000000", "3500000000", "9223372036854771712", "0", 500_000_000),
+        ("9223372036854771712", "0", "1500000000", "1400000000", 100_000_000),
+        ("4000000000", "1000000000", "1500000000", "1400000000", 100_000_000),
+        ("1000", "2000", "9223372036854771712", "0", 0),
+    ],
+)
+def test_linux_available_ram_respects_nested_v1_memory_membership(
+    monkeypatch, tmp_path, controllers, leaf_limit, leaf_used, parent_limit, parent_used, expected
+) -> None:
+    _linux_ram(
+        monkeypatch,
+        tmp_path,
+        {
+            "memory/memory.limit_in_bytes": "9223372036854771712",
+            "memory/memory.usage_in_bytes": "0",
+            "memory/work/memory.limit_in_bytes": parent_limit,
+            "memory/work/memory.usage_in_bytes": parent_used,
+            "memory/work/job/memory.limit_in_bytes": leaf_limit,
+            "memory/work/job/memory.usage_in_bytes": leaf_used,
+        },
+    )
+    _self_cgroup(monkeypatch, tmp_path, f"7:{controllers}:/work/job\n")
+    assert hardware.available_ram_bytes() == expected
+
+
+@pytest.mark.parametrize("v2_directory", ["", "unified/"])
+@pytest.mark.parametrize("v1_room", [0, 100_000_000, 900_000_000])
+def test_linux_available_ram_uses_the_minimum_across_hybrid_memory_layouts(
+    monkeypatch, tmp_path, v2_directory, v1_room
+) -> None:
+    _linux_ram(
+        monkeypatch,
+        tmp_path,
+        {
+            f"{v2_directory}work/job/memory.max": "1000000000",
+            f"{v2_directory}work/job/memory.current": "500000000",
+            "memory/work/job/memory.limit_in_bytes": str(1_000_000_000 + v1_room),
+            "memory/work/job/memory.usage_in_bytes": "1000000000",
+        },
+    )
+    _self_cgroup(monkeypatch, tmp_path, "0::/work/job\n7:cpu,memory:/work/job\n")
+    assert hardware.available_ram_bytes() == min(500_000_000, v1_room)
+
+
+@pytest.mark.parametrize("leaf_limit", ["9223372036854771712", "junk", None])
+def test_linux_available_ram_keeps_a_valid_v1_parent_when_the_leaf_has_no_limit(
+    monkeypatch, tmp_path, leaf_limit
+) -> None:
+    files = {
+        "memory/work/memory.limit_in_bytes": "2000000000",
+        "memory/work/memory.usage_in_bytes": "1000000000",
+        "memory/work/job/memory.usage_in_bytes": "1",
+    }
+    if leaf_limit is not None:
+        files["memory/work/job/memory.limit_in_bytes"] = leaf_limit
+    _linux_ram(monkeypatch, tmp_path, files)
+    _self_cgroup(monkeypatch, tmp_path, "7:memory:/work/job\n")
+    assert hardware.available_ram_bytes() == 1_000_000_000
+
+
+@pytest.mark.parametrize(
+    "membership",
+    ["7:notmemory:/work/job\n", "7:memory:work/job\n", "7:memory:/../escape\n", "garbage\n"],
+)
+def test_linux_available_ram_ignores_invalid_v1_membership(
+    monkeypatch, tmp_path, membership
+) -> None:
+    _linux_ram(
+        monkeypatch,
+        tmp_path,
+        {
+            "memory/work/job/memory.limit_in_bytes": "1",
+            "memory/work/job/memory.usage_in_bytes": "0",
+            "memory/memory.limit_in_bytes": "2000000000",
+            "memory/memory.usage_in_bytes": "500000000",
+        },
+    )
+    _self_cgroup(monkeypatch, tmp_path, membership)
+    assert hardware.available_ram_bytes() == 1_500_000_000
+
+
+def test_linux_available_ram_keeps_valid_membership_beside_malformed_lines(
+    monkeypatch, tmp_path
+) -> None:
+    _linux_ram(
+        monkeypatch,
+        tmp_path,
+        {
+            "memory/work/job:task/memory.limit_in_bytes": "1000",
+            "memory/work/job:task/memory.usage_in_bytes": "400",
+        },
+    )
+    _self_cgroup(monkeypatch, tmp_path, "bad\n0::relative\n7:memory:/work/job:task\n")
+    assert hardware.available_ram_bytes() == 600
+
+
 @pytest.mark.parametrize(
     "files",
     [
