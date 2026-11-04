@@ -460,6 +460,7 @@ describe("Review queue for a guest", () => {
       render(<ReviewHost guestShare />);
       expect(document.querySelector(".rv-compose")).not.toBeNull();
       expect(docked()).toBe(false);
+      expect(after()).toBe(false);
     });
 
     it("keeps the field docked when only the visual viewport is short", () => {

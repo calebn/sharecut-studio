@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useShortLayoutViewport } from "../hooks/useShortLayoutViewport";
 import type { AuditionSide } from "../system/auditionWindow";
 import { DecisionCard } from "../system/DecisionCard";
 import { Sheet } from "../system/Sheet";
@@ -159,6 +160,8 @@ export function ReviewStage({
   }
 
   const phone = layout === "phone";
+  const short = useShortLayoutViewport();
+  const dockedComposer = phone && guest && !short;
   const selected = items.find((item) => item.id === selectedId) ?? null;
   const gate = !waived && hasCheck;
   const holdsGate = (ids: readonly string[]) =>
@@ -436,7 +439,7 @@ export function ReviewStage({
           queue
         )}
         <div className="rv-card">
-          {!(phone && guest) && composer}
+          {!dockedComposer && composer}
           <DecisionCard
             key={selected?.id ?? "none"}
             kind={selected?.kind ?? "filler"}
@@ -514,7 +517,7 @@ export function ReviewStage({
               onComment ? () => selected && onComment(selected.id) : undefined
             }
           />
-          {phone && guest && composer}
+          {dockedComposer && composer}
         </div>
       </div>
       <div className="rv-foot">
