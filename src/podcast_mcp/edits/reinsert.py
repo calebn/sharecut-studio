@@ -190,9 +190,6 @@ def pad_record(
     )
 
 
-# --- restore -------------------------------------------------------------------------------
-
-
 def _find(
     clips: Sequence[Clip], edge: SourceEdge, attr: str, *, skip: Collection[str] = ()
 ) -> Clip | None:
