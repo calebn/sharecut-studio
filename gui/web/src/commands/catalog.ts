@@ -329,7 +329,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Cut selected range",
     shortLabel: "Cut",
     keywords: ["remove", "delete"],
-    when: "editStage",
+    when: "editStageOrRangeSuggest",
   },
   "range.mute": {
     id: "range.mute",
@@ -338,7 +338,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Mute selected range",
     shortLabel: "Mute",
     keywords: ["silence"],
-    when: "editStage",
+    when: "editStageOrRangeSuggest",
   },
   "range.fillRoomTone": {
     id: "range.fillRoomTone",

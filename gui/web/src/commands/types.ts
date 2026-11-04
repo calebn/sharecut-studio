@@ -29,6 +29,7 @@ export type ContextPredicateId =
   | "editStageMoveSelectedTrackUp"
   | "editStageMoveSelectedTrackDown"
   | "editStageSplitSpeakers"
+  | "editStageOrRangeSuggest"
   | "hasProject"
   | "canApplyPass12"
   | "canRefreshMix"
