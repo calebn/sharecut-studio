@@ -11,6 +11,8 @@ from typer.testing import CliRunner
 from podcast_mcp.cli.main import app
 from podcast_mcp.models import Clip, EpisodeProject, Track, save_project
 from podcast_mcp.models.episode import MediaAsset
+from podcast_mcp.segments.store import SegmentStore
+from segment_helpers import make_segment_dir
 
 runner = CliRunner()
 
@@ -102,6 +104,98 @@ def test_an_empty_library_says_how_to_start() -> None:
     assert result.exit_code == 0
     assert "podcast segment save" in result.stdout
     assert json.loads(runner.invoke(app, ["segment", "list", "--json"]).stdout) == []
+
+
+@pytest.mark.parametrize("output_flags", [[], ["--json"]])
+def test_listing_reads_audio_only_with_deep(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, output_flags: list[str]
+) -> None:
+    store = SegmentStore()
+    added = store.add(make_segment_dir(tmp_path / "source"))
+    audio = store.path(added.id) / "clip-01.flac"
+    reads: list[Path] = []
+    real_open = Path.open
+
+    def observe_open(path: Path, *args, **kwargs):
+        if path == audio:
+            reads.append(path)
+        return real_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", observe_open)
+    listed = runner.invoke(app, ["segment", "list", *output_flags])
+    assert listed.exit_code == 0, listed.output
+    assert added.id in listed.output
+    assert reads == []
+
+    deep = runner.invoke(app, ["segment", "list", "--deep", *output_flags])
+    assert deep.exit_code == 0, deep.output
+    assert added.id in deep.output
+    assert reads == [audio]
+
+
+@pytest.mark.parametrize("output_flags", [[], ["--json"]])
+def test_only_deep_listing_reports_same_size_audio_damage(
+    tmp_path: Path, output_flags: list[str]
+) -> None:
+    store = SegmentStore()
+    added = store.add(make_segment_dir(tmp_path / "source"))
+    (store.path(added.id) / "clip-01.flac").write_bytes(b"fLaC-onX")
+
+    listed = runner.invoke(app, ["segment", "list", *output_flags])
+    deep = runner.invoke(app, ["segment", "list", "--deep", *output_flags])
+    assert listed.exit_code == 0, listed.output
+    assert deep.exit_code == 0, deep.output
+    if output_flags:
+        row = json.loads(listed.stdout)[0]
+        assert row["id"] == added.id and row["versions"] == [1]
+        assert "damaged" not in row
+        damaged = json.loads(deep.stdout)[0]
+        assert damaged["id"] == added.id and damaged["damaged"] is True
+        assert damaged["code"] == "segment_hash_mismatch"
+    else:
+        assert added.id in listed.stdout and "DAMAGED" not in listed.stdout
+        assert added.id in deep.stdout and "DAMAGED" in deep.stdout
+
+
+@pytest.mark.parametrize("output_flags", [[], ["--json"]])
+@pytest.mark.parametrize("damage", ["missing", "resized", "manifest"])
+def test_default_listing_still_reports_visible_damage(
+    tmp_path: Path, output_flags: list[str], damage: str
+) -> None:
+    store = SegmentStore()
+    added = store.add(make_segment_dir(tmp_path / "source"))
+    folder = store.path(added.id)
+    if damage == "missing":
+        (folder / "clip-01.flac").unlink()
+    elif damage == "resized":
+        (folder / "clip-01.flac").write_bytes(b"short")
+    else:
+        (folder / "segment.json").write_text("{", encoding="utf-8")
+
+    listed = runner.invoke(app, ["segment", "list", *output_flags])
+    assert listed.exit_code == 0, listed.output
+    if output_flags:
+        row = json.loads(listed.stdout)[0]
+        assert row["id"] == added.id and row["damaged"] is True
+        if damage != "manifest":
+            assert row["code"] == "segment_hash_mismatch"
+    else:
+        assert added.id in listed.stdout and "DAMAGED" in listed.stdout
+    if damage == "resized":
+        assert "recorded size" in listed.stdout
+        assert "recorded hash" not in listed.stdout
+
+
+def test_mcp_listing_keeps_full_content_verification(tmp_path: Path) -> None:
+    from podcast_mcp.mcp.tools.segments import segment_list_tool
+
+    store = SegmentStore()
+    added = store.add(make_segment_dir(tmp_path / "source"))
+    (store.path(added.id) / "clip-01.flac").write_bytes(b"fLaC-onX")
+
+    row = json.loads(segment_list_tool())[0]
+    assert row["id"] == added.id and row["damaged"] is True
+    assert row["code"] == "segment_hash_mismatch"
 
 
 @pytest.mark.parametrize(
