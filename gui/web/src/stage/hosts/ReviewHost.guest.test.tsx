@@ -462,6 +462,29 @@ describe("Review queue for a guest", () => {
       expect(docked()).toBe(false);
     });
 
+    it("keeps the field docked when only the visual viewport is short", () => {
+      stubViewportShell("phone");
+      vi.stubGlobal("visualViewport", {
+        height: 300,
+        scale: 1,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      });
+      useDawStore.setState({ shellBreakpoint: "phone" });
+      join("comment");
+      render(<ReviewHost guestShare />);
+      expect(docked()).toBe(true);
+    });
+
+    it("leaves a guest on a tablet undocked", () => {
+      stubViewportShell("tablet");
+      useDawStore.setState({ shellBreakpoint: "tablet" });
+      join("comment");
+      render(<ReviewHost guestShare />);
+      expect(document.querySelector(".rv-compose")).not.toBeNull();
+      expect(docked()).toBe(false);
+    });
+
     const after = () => {
       const compose = document.querySelector(".rv-compose") as Element;
       const card = document.querySelector(".rv-card > :not(.rv-compose)");
