@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { seekTransport } from "../../commands/seek";
 import { useShortViewport } from "../../hooks/useShortViewport";
@@ -48,6 +48,16 @@ function GuestScriptHostAdapter() {
       playheadWord: last === "" ? undefined : Number(last),
     };
   }, [positionKey]);
+  const hidden = role === "host" ? false : short || !mayRange;
+  const wasHidden = useRef(hidden);
+  useEffect(() => {
+    const turnedOff = hidden && !wasHidden.current;
+    wasHidden.current = hidden;
+    if (!turnedOff) return;
+    const { selection, setSelection } = useDawStore.getState();
+    if (selection?.kind === "transcriptRange" || selection?.kind === "range")
+      setSelection(null);
+  }, [hidden]);
   if (role === "host" || short) return null;
   return (
     <div className="stage-host-guest-script">
