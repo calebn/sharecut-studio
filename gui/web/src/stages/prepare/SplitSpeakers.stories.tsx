@@ -48,9 +48,9 @@ function recordingFor(phase: SplitPhase, source: PrepareSource): PrepareSource {
 }
 
 /**
- * The live split flow, as the stage mounts it: SessionSources renders the
- * Source cards and the Toast offers Undo. Story-only; the stage derives the
- * card states from usePrepareSources.
+ * The live split flow's states: SessionSources renders the Source cards and
+ * the Toast stands in for the app's feedback toast that offers Undo.
+ * Story-only; the stage derives the card states from usePrepareSources.
  */
 function SplitSpeakers({
   phase,
