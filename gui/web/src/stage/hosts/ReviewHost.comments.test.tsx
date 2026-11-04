@@ -69,11 +69,12 @@ const server = {
   comments: [] as TimelineComment[],
   seq: 0,
   refuse: new Set<string>(),
+  tracks: [sampleTrack()],
 };
 
 const projectOf = () =>
   minimalProject({
-    tracks: [sampleTrack()],
+    tracks: server.tracks,
     timeline_duration_sec: 600,
     comments: server.comments,
   });
@@ -217,6 +218,7 @@ beforeEach(() => {
   Object.assign(server, { comments: [], seq: 100 * runs });
   wire.rows = [];
   server.refuse.clear();
+  server.tracks = [sampleTrack()];
   wire.post.mockImplementation(async (_path: string, body) => answer(body));
   vi.stubGlobal(
     "fetch",
@@ -779,6 +781,40 @@ describe("Review host comments", () => {
       );
       expect(useDawStore.getState().commentDraft).toBeNull();
       expect(heading()).toBe("Comment from Rosa");
+    });
+
+    it("scopes a comment to the chosen tracks and shows no picker for one track", async () => {
+      mount();
+      act(() => {
+        press("c");
+      });
+      expect(
+        screen.queryByRole("group", { name: "Comment on tracks" }),
+      ).toBeNull();
+      server.tracks = [
+        sampleTrack({ id: "t1", label: "Host" }),
+        sampleTrack({ id: "t2", label: "Guest" }),
+      ];
+      act(() => {
+        useDawStore.getState().hydrate(PATH, projectOf());
+      });
+      const scope = await screen.findByRole("group", {
+        name: "Comment on tracks",
+      });
+      expect(
+        within(scope).getByRole("button", { name: "All tracks" }),
+      ).toHaveAttribute("aria-pressed", "true");
+      await userEvent.click(
+        within(scope).getByRole("button", { name: "Guest" }),
+      );
+      expect(
+        within(scope).getByRole("button", { name: "All tracks" }),
+      ).toHaveAttribute("aria-pressed", "false");
+      await userEvent.type(field(), "Mic hiss{Enter}");
+      await waitFor(() => expect(sent("AddComment")).toHaveLength(1));
+      expect(sent("AddComment")[0].payload).toMatchObject({
+        track_ids: ["t2"],
+      });
     });
 
     it("posts under a changed name", async () => {

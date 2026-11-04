@@ -214,3 +214,18 @@
   white-space: nowrap;
   max-width: 10ch;
 }
+
+.rv-scope {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.rv-scope .rv-scope-name {
+  display: inline-block;
+  max-inline-size: 12ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}

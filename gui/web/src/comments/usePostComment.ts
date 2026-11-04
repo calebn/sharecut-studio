@@ -11,7 +11,7 @@ import { commentTimeLabel } from "./commentTimeLabel";
 export type CommentInput = {
   body: string;
   author: string;
-  /** Session-wide when empty; a draft or selected range names its own. */
+  /** Tracks the person chose. Empty: the draft's or selected range's own, else session-wide. */
   trackIds?: string[];
   actionTexts?: string[];
 };
@@ -72,7 +72,9 @@ export function usePostComment(): {
         author,
         timelineStart: draft.startSec,
         timelineEnd: draft.endSec,
-        trackIds: draft.trackIds ?? input.trackIds ?? [],
+        trackIds: input.trackIds?.length
+          ? input.trackIds
+          : (draft.trackIds ?? []),
         timelineSpans: draft.intervals,
         actionTexts: input.actionTexts ?? [],
       });
