@@ -506,3 +506,39 @@ def test_download_progress_percent_is_derived() -> None:
     assert DownloadProgress(50, 200).percent == 25.0
     assert DownloadProgress(5, None).percent is None
     assert DownloadProgress(0, 0).percent == 100.0
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://cdn.example/file",
+        "https://secret@cdn.example/file",
+        "https://cdn.example/file?token=secret",
+        "https://127.0.0.1/file",
+        "https://cdn.example:bad/file",
+    ],
+)
+def test_public_request_rejects_url_without_logging(monkeypatch, caplog, url):
+    from podcast_mcp.util.asset_sources import PublicRequestError, public_request
+
+    def fail(*args, **kwargs):
+        pytest.fail("invalid public URL must fail before opening")
+
+    monkeypatch.setattr(urllib.request, "build_opener", fail)
+    with pytest.raises(PublicRequestError, match="unsafe_url"):
+        with public_request(url, method="HEAD", timeout=10):
+            pytest.fail("invalid public URL must fail")
+    assert "secret" not in caplog.text
+
+
+@pytest.mark.parametrize("timeout", [0, -1, float("nan"), float("inf"), 61])
+def test_public_request_bounds_timeout(monkeypatch, timeout):
+    from podcast_mcp.util.asset_sources import PublicRequestError, public_request
+
+    def fail(*args, **kwargs):
+        pytest.fail("invalid timeout must fail before opening")
+
+    monkeypatch.setattr(urllib.request, "build_opener", fail)
+    with pytest.raises(PublicRequestError, match="invalid_request"):
+        with public_request("https://cdn.example/file", method="HEAD", timeout=timeout):
+            pytest.fail("invalid timeout must fail")

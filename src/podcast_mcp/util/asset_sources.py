@@ -5,15 +5,18 @@ from __future__ import annotations
 import copy
 import ipaddress
 import logging
+import math
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from podcast_mcp import settings
 from podcast_mcp.util.atomic_file import publish_completed_file
@@ -100,6 +103,100 @@ def _is_blocked_host(host: str) -> bool:
         or ip.is_multicast
         or ip.is_unspecified
     )
+
+
+class PublicRequestError(AssetSourceError):
+    """Public probe failed; only a safe category and optional HTTP status are exposed."""
+
+    def __init__(self, reason: str, status: int | None = None) -> None:
+        super().__init__(reason)
+        self.reason = reason
+        self.status = status
+
+
+def validate_public_url(url: str) -> None:
+    """Validate a public HTTPS URL without logging input or resolving configuration.
+
+    Host policy checks names and literal addresses, not DNS resolution.
+    """
+    try:
+        if not url or any(ord(char) <= 32 or ord(char) >= 127 for char in url):
+            raise ValueError
+        parsed = urllib.parse.urlsplit(url)
+        host = parsed.hostname or ""
+        if (
+            parsed.scheme != "https"
+            or not host
+            or parsed.username is not None
+            or parsed.password is not None
+            or "?" in url
+            or "#" in url
+            or "\\" in url
+            or "%" in host
+            or host.endswith(".")
+            or parsed.netloc.endswith(":")
+            or len(host) > 253
+            or _is_blocked_host(host)
+            or parsed.port == 0
+        ):
+            raise ValueError
+        try:
+            ipaddress.ip_address(host)
+        except ValueError:
+            labels = host.split(".")
+            if (
+                len(labels) < 2
+                or not re.fullmatch(r"[A-Za-z]{2,63}", labels[-1])
+                or any(
+                    not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?", label)
+                    for label in labels
+                )
+            ):
+                raise ValueError from None
+    except ValueError:
+        raise PublicRequestError("unsafe_url") from None
+
+
+class _RefusePublicRedirects(urllib.request.HTTPRedirectHandler):
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: Any,
+        code: int,
+        msg: str,
+        headers: Any,
+        newurl: str,
+    ) -> None:
+        fp.close()
+        raise PublicRequestError("redirect", code)
+
+
+@contextmanager
+def public_request(url: str, *, method: Literal["GET", "HEAD"], timeout: float) -> Iterator[Any]:
+    """Open an unauthenticated public request and refuse every redirect.
+
+    No application credentials, cookies, or caller headers are loaded. Inherited
+    proxy and CA routing remain in effect. The caller owns bounded metadata reads.
+    """
+    validate_public_url(url)
+    if method not in {"GET", "HEAD"} or not math.isfinite(timeout) or not 0 < timeout <= 60:
+        raise PublicRequestError("invalid_request")
+    request = urllib.request.Request(url, method=method)
+    try:
+        with urllib.request.build_opener(_RefusePublicRedirects).open(
+            request, timeout=timeout
+        ) as response:
+            status = response.status
+            if not 200 <= status < 300:
+                raise PublicRequestError("http_status", status)
+            yield response
+    except urllib.error.HTTPError as exc:
+        exc.close()
+        raise PublicRequestError("http_status", exc.code) from None
+    except TimeoutError:
+        raise PublicRequestError("timeout") from None
+    except (OSError, urllib.error.URLError):
+        raise PublicRequestError("transport") from None
 
 
 def _sanitize_cdn_base(value: str | None) -> str | None:
