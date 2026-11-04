@@ -1,5 +1,5 @@
 import { capitalize, plural } from "../utils/format";
-import type { RecordParticipant, RecordSegmentAck } from "./types";
+import type { RecordSegmentAck } from "./types";
 
 /**
  * Where one segment of a participant's full-quality recording stands. A
@@ -105,56 +105,6 @@ export function saveAnnouncement(
     })
     .map((line) => line.announce)
     .join(". ");
-}
-
-/**
- * One line per participant segment for the host, in roster order. A recorded
- * participant with nothing uploaded yet reads as saving, and a participant with
- * several segments gets each one named so the lines stay distinguishable.
- */
-export function hostSaveLines(
-  participants: readonly RecordParticipant[],
-  segments: readonly SegmentAckRow[],
-): SaveLine[] {
-  const names = new Map(
-    participants
-      .filter((person) => person.role !== "producer")
-      .map((person) => [person.participant_id, person.display_name]),
-  );
-  const byParticipant = new Map<string, SegmentSave[]>(
-    [...names.keys()].map((id) => [id, []]),
-  );
-  for (const row of segments) {
-    const saves = byParticipant.get(row.participant_id) ?? [];
-    saves.push(segmentSaveFromAck(row));
-    byParticipant.set(row.participant_id, saves);
-  }
-  const lines: SaveLine[] = [];
-  for (const [id, saves] of byParticipant) {
-    const name = names.get(id) || id;
-    if (saves.length === 0) {
-      lines.push({
-        key: id,
-        text: `${name}: ${SAVE_STATE_COPY.saving}`,
-        state: "saving",
-        announce: `${name}: ${SAVE_STATE_COPY.saving}`,
-      });
-      continue;
-    }
-    const ordered = [...saves].sort(
-      (a, b) => a.take - b.take || a.segment - b.segment,
-    );
-    for (const save of ordered) {
-      const who = ordered.length > 1 ? `${name}, ${segmentLabel(save)}` : name;
-      lines.push({
-        key: `${id}:${save.take}:${save.segment}`,
-        text: `${who}: ${segmentStatusText(save)}`,
-        state: save.state,
-        announce: `${who}: ${SAVE_STATE_COPY[save.state]}`,
-      });
-    }
-  }
-  return lines;
 }
 
 /** The signed-in participant's own segments, one line each. */

@@ -47,7 +47,6 @@ export {
   type CaptureHealth,
   END_SESSION_PENDING_COPY,
   HEARING_COPY,
-  isRecordTransportVisible,
   LOCAL_KEEPER_COPY,
   RECORD_ROOM_RECONNECTING_COPY,
   type RecordRoomState,

@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { recordParticipant } from "../test/fixtures";
 import {
-  hostSaveLines,
   mergeSegmentSaves,
   ownSaveLines,
   SAVE_STATE_COPY,
@@ -12,18 +10,6 @@ import {
   segmentSaveFromAck,
   segmentStatusText,
 } from "./saveStatus";
-
-const ava = recordParticipant({ participant_id: "p_a", display_name: "Ava" });
-const host = recordParticipant({
-  participant_id: "p_host",
-  role: "host",
-  display_name: "Host",
-});
-const pat = recordParticipant({
-  participant_id: "p_pat",
-  role: "producer",
-  display_name: "Pat",
-});
 
 function row(overrides: Partial<SegmentAckRow> = {}): SegmentAckRow {
   return {
@@ -86,64 +72,6 @@ describe("segmentStatusText", () => {
     expect(
       segmentStatusText({ ...saving, state: "saved", landFailed: true }),
     ).toBe("Saved to project. Landing failed. Use Retry land.");
-  });
-});
-
-describe("hostSaveLines", () => {
-  it("lists a recorded participant with nothing uploaded as saving, never a producer", () => {
-    expect(hostSaveLines([host, ava, pat], [])).toEqual([
-      {
-        key: "p_host",
-        text: "Host: Saving to project…",
-        state: "saving",
-        announce: "Host: Saving to project…",
-      },
-      {
-        key: "p_a",
-        text: "Ava: Saving to project…",
-        state: "saving",
-        announce: "Ava: Saving to project…",
-      },
-    ]);
-  });
-
-  it("names the take and segment only when a participant has several", () => {
-    const lines = hostSaveLines(
-      [ava, host],
-      [
-        row({ participant_id: "p_a", take_index: 1, segment_index: 0 }),
-        row({
-          participant_id: "p_a",
-          take_index: 0,
-          segment_index: 1,
-          file_ack: true,
-        }),
-        row({
-          participant_id: "p_a",
-          take_index: 0,
-          segment_index: 0,
-          file_ack: true,
-        }),
-        row({ participant_id: "p_host", file_ack: true }),
-      ],
-    );
-    expect(lines.map((line) => line.text)).toEqual([
-      "Ava, take 1 segment 1: Saved to project",
-      "Ava, take 1 segment 2: Saved to project",
-      "Ava, take 2 segment 1: Saving to project…",
-      "Host: Saved to project",
-    ]);
-  });
-
-  it("falls back to the participant id for a row outside the roster", () => {
-    expect(hostSaveLines([], [row({ participant_id: "p_gone" })])).toEqual([
-      {
-        key: "p_gone:0:0",
-        text: "p_gone: Saving to project…",
-        state: "saving",
-        announce: "p_gone: Saving to project…",
-      },
-    ]);
   });
 });
 

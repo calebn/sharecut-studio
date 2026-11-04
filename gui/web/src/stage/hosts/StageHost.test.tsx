@@ -1,11 +1,14 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { FeaturesContext } from "../../extensions/FeaturesContext";
 import { FEATURE_SHARE_UI_MENU } from "../../extensions/features";
+import { HostRoomProvider } from "../../record/hostRoomContext";
 import { useRecordHostStore } from "../../record/hostStore";
+import { useHostRoom } from "../../record/useHostRoom";
 import { useDawStore } from "../../state/dawStore";
 import { fakeExportServer } from "../../test/fakeExportServer";
 import {
@@ -42,6 +45,11 @@ function asGuest(stage: StageId, mode: "view" | "comment" | "edit") {
   useDawStore.setState({ stage, guestMode: mode });
 }
 
+function HostRoom({ children }: { children: ReactNode }) {
+  const room = useHostRoom({}, { hydrate: true });
+  return <HostRoomProvider value={room}>{children}</HostRoomProvider>;
+}
+
 function mount(guestShare = false) {
   return render(
     <FeaturesContext.Provider
@@ -53,7 +61,9 @@ function mount(guestShare = false) {
       <ExportFlowProvider>
         <BounceFlowProvider>
           <ShareFlowProvider>
-            <StageHost guestShare={guestShare} />
+            <HostRoom>
+              <StageHost guestShare={guestShare} />
+            </HostRoom>
           </ShareFlowProvider>
         </BounceFlowProvider>
       </ExportFlowProvider>
