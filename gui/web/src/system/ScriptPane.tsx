@@ -102,6 +102,14 @@ export type ScriptPaneHandle = {
   focusWord: (index: number) => boolean;
 };
 
+export type ScriptGuest = "viewer" | "commenter" | "suggester";
+
+const GUEST_SCRIPT_LABEL: Record<ScriptGuest, string> = {
+  viewer: "Read only",
+  commenter: "Read only · you can comment",
+  suggester: "You can comment and suggest edits",
+};
+
 /**
  * Every callback is optional. A pane without them reads, and a header control
  * whose callback is missing is not drawn, which is how a guest's pane is made.
@@ -131,14 +139,6 @@ export type ScriptPaneHandle = {
  * selection when it changes (once, on release, while a grip is dragged),
  * says "Selection cleared" when it clears, and speaks `findStatus`.
  */
-export type ScriptGuest = "viewer" | "commenter" | "suggester";
-
-export const GUEST_SCRIPT_LABEL: Record<ScriptGuest, string> = {
-  viewer: "Read only",
-  commenter: "Read only · you can comment",
-  suggester: "You can comment and suggest edits",
-};
-
 export type ScriptPaneProps = {
   turns: readonly ScriptTurn[];
   status?: ScriptStatus;

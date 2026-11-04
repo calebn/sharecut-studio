@@ -1,5 +1,3 @@
-export type GuestRole = "viewer" | "commenter" | "editor";
-
 export function lastStartedWordAt(
   wordStarts: readonly number[],
   seconds: number,
