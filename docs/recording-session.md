@@ -1482,8 +1482,9 @@ the lost span. A stopped, incomplete local `.wav` remains in OPFS for recovery
 with only its pending `complete: false` `.json`; it is never given a file ACK,
 landed, or reclaimed until **Recover partial take** finalizes it. Once all
 complete segments are acknowledged, that retained partial no longer traps the
-guest Leave button or the host's End session. Repeated errors remain visible and do not
-silently discard or count queued samples.
+guest Leave button, and the host's End session waits only for every take to land.
+Repeated errors remain visible and do not silently discard or count queued
+samples.
 Host and guest upload polling treats capture as unsettled while a keeper Stop
 or stream-loss finalization is pending; it does not mark a pending WAV
 abandoned until the flush has actually settled.
