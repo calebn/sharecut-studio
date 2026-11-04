@@ -146,9 +146,6 @@
 
 .rv-stage[data-layout="phone"] .rv-compose[data-docked] {
   flex: none;
-}
-
-.rv-stage[data-layout="phone"] .rv-compose[data-docked] {
   position: sticky;
   inset-block-end: 0;
   z-index: 1;
