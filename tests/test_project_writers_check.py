@@ -161,9 +161,11 @@ def test_rows_must_be_unique_sorted_and_justified() -> None:
 def test_main_exit_codes_and_census(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     src = _tree(tmp_path, {"cli/edit.py": CLI_SOURCE})
     contract = tmp_path / "writers.json"
-    contract.write_text(json.dumps([_row("cli/edit.py", "apply_external_document_edit", 2)]))
+    contract.write_text(
+        json.dumps({"writers": [_row("cli/edit.py", "apply_external_document_edit", 2)]})
+    )
     assert checker.main(["--src", str(src), "--contract", str(contract)]) == 0
-    contract.write_text("[]")
+    contract.write_text('{"writers": []}')
     assert checker.main(["--src", str(src), "--contract", str(contract)]) == 1
     capsys.readouterr()
     assert checker.main(["--src", str(src), "--census"]) == 0
@@ -200,6 +202,26 @@ def test_grown_flags_new_rows_and_higher_counts() -> None:
 def test_base_ref_unreadable_is_skipped(tmp_path: Path) -> None:
     src = _tree(tmp_path, {"cli/edit.py": CLI_SOURCE})
     contract = tmp_path / "writers.json"
-    contract.write_text(json.dumps([_row("cli/edit.py", "apply_external_document_edit", 2)]))
+    contract.write_text(
+        json.dumps({"writers": [_row("cli/edit.py", "apply_external_document_edit", 2)]})
+    )
     args = ["--src", str(src), "--contract", str(contract), "--base", "no-such-ref"]
     assert checker.main(args) == 0
+
+
+def test_option_like_base_ref_is_refused_and_noted(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    src = _tree(tmp_path, {"cli/edit.py": CLI_SOURCE})
+    contract = tmp_path / "writers.json"
+    contract.write_text(
+        json.dumps({"writers": [_row("cli/edit.py", "apply_external_document_edit", 2)]})
+    )
+    assert checker.main(["--src", str(src), "--contract", str(contract), "--base=--output=x"]) == 0
+    assert "growth check skipped" in capsys.readouterr().err
+    assert not (tmp_path / "x").exists()
+
+
+def test_contract_must_be_an_object_with_writers() -> None:
+    with pytest.raises(ValueError, match="writers"):
+        checker.load_rows("[]")

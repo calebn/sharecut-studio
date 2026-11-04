@@ -217,7 +217,17 @@ def grown(base: Sequence[dict[str, Any]], rows: Sequence[dict[str, Any]]) -> lis
     return problems
 
 
+def load_rows(text: str) -> list[dict[str, Any]]:
+    data = json.loads(text)
+    rows = data.get("writers") if isinstance(data, dict) else None
+    if not isinstance(rows, list):
+        raise ValueError('the contract must be a JSON object with a "writers" list')
+    return rows
+
+
 def base_rows(ref: str, contract: Path) -> list[dict[str, Any]] | None:
+    if ref.startswith("-"):
+        return None
     try:
         rel = contract.resolve().relative_to(ROOT).as_posix()
         out = subprocess.run(
@@ -229,7 +239,10 @@ def base_rows(ref: str, contract: Path) -> list[dict[str, Any]] | None:
         ).stdout
     except (ValueError, OSError, subprocess.CalledProcessError):
         return None
-    return json.loads(out)
+    try:
+        return load_rows(out)
+    except ValueError:
+        return None
 
 
 def census(actual: dict[Key, int]) -> list[dict[str, Any]]:
@@ -248,7 +261,7 @@ def main(argv: Iterable[str] | None = None) -> int:
     parser.add_argument(
         "--base",
         metavar="REF",
-        help="git ref whose contract the rows may not grow beyond (skipped if unreadable)",
+        help="git ref whose contract the rows may not grow beyond (skipped with a note if unreadable)",
     )
     parser.add_argument("--census", action="store_true", help="print current writers as JSON rows")
     args = parser.parse_args(list(argv) if argv is not None else None)
@@ -256,11 +269,16 @@ def main(argv: Iterable[str] | None = None) -> int:
     if args.census:
         print(json.dumps(census(actual), indent=2))
         return 0
-    rows = json.loads(args.contract.read_text(encoding="utf-8"))
+    rows = load_rows(args.contract.read_text(encoding="utf-8"))
     problems = validate_rows(rows) + compare(rows, actual)
     if args.base:
         base = base_rows(args.base, args.contract)
-        if base is not None:
+        if base is None:
+            print(
+                f"project-writers: --base {args.base} is unreadable; growth check skipped",
+                file=sys.stderr,
+            )
+        else:
             problems += grown(base, rows)
     for problem in problems:
         print(f"project-writers: {problem}", file=sys.stderr)
