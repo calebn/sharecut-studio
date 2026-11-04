@@ -66,6 +66,8 @@ export type EndedSessionCardProps = {
   /** Edit hand-off; the primary button shows only for a landed session with clips on the timeline. */
   onEdit?: () => void;
   hasClips?: boolean;
+  /** A session suggestion for this session waits in Review; its primary replaces Edit. */
+  onReviewPickup?: () => void;
   /** Saves the session's name; an empty name clears it. Offered for a landed, numbered session only. */
   onRename?: (name: string) => void;
 };
@@ -154,6 +156,7 @@ export function EndedSessionCard({
   onNewTrack,
   onEdit,
   hasClips = false,
+  onReviewPickup,
   onRename,
 }: EndedSessionCardProps) {
   const [renaming, setRenaming] = useState(false);
@@ -248,7 +251,13 @@ export function EndedSessionCard({
           );
         })}
       </ul>
-      {session.landed && hasClips && onEdit ? (
+      {onReviewPickup ? (
+        <div className="stage-host-actions">
+          <Button variant="primary" onClick={onReviewPickup}>
+            Review pickup
+          </Button>
+        </div>
+      ) : session.landed && hasClips && onEdit ? (
         <div className="stage-host-actions">
           <Button variant="primary" onClick={onEdit}>
             {session.number === null

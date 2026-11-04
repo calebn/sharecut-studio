@@ -212,10 +212,17 @@ function App() {
   );
 }
 
-const mount = (suggestions: SessionSuggestionView[] = [INSERT, REPLACE]) => {
+const mount = (
+  suggestions: SessionSuggestionView[] = [INSERT, REPLACE],
+  asked: string | null = null,
+) => {
   server.suggestions = suggestions;
   useDawStore.getState().hydrate(PATH, projectOf());
-  useDawStore.setState({ stage: "review", guestMode: null });
+  useDawStore.setState({
+    stage: "review",
+    guestMode: null,
+    pendingReviewItem: asked,
+  });
   return render(<App />);
 };
 
@@ -583,6 +590,31 @@ describe("Review host pickups", () => {
     await userEvent.click(screen.getByRole("button", { name: /Open in Edit/ }));
     expect(useDawStore.getState().stage).toBe("edit");
     expect(useDawStore.getState().playheadSec).toBe(300);
+  });
+
+  describe("opened from the Record card", () => {
+    const current = () =>
+      document.querySelector('[aria-current="true"]')?.textContent ?? "";
+
+    it("selects the asked pickup and clears the request", () => {
+      mount([INSERT, REPLACE], `session:${INSERT.id}`);
+      expect(current()).toMatch(/Insert Session 2 at 12:04/);
+      expect(useDawStore.getState().pendingReviewItem).toBeNull();
+    });
+
+    it("falls back to the first undecided item when the pickup is gone", () => {
+      mount([INSERT, REPLACE], "session:ss-gone");
+      expect(current()).toMatch(/Replace 5:00/);
+      expect(useDawStore.getState().pendingReviewItem).toBeNull();
+    });
+
+    it("does not reselect on a later mount", () => {
+      const first = mount([INSERT, REPLACE], `session:${INSERT.id}`);
+      expect(current()).toMatch(/Insert Session 2 at 12:04/);
+      first.unmount();
+      mount();
+      expect(current()).toMatch(/Replace 5:00/);
+    });
   });
 
   it("drops a pickup the server no longer lists", () => {

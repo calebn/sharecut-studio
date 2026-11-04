@@ -126,6 +126,35 @@ export const EditHandoff: Story = {
   },
 };
 
+const pickupPlay: Story["play"] = async ({ canvasElement, args }) => {
+  const canvas = within(canvasElement);
+  await userEvent.click(canvas.getByRole("button", { name: "Review pickup" }));
+  await expect(args.onReviewPickup).toHaveBeenCalledTimes(1);
+};
+
+export const ReviewPickupInsert: Story = {
+  args: {
+    session: { ...session, landed: false, number: null, target_kind: "insert" },
+    hasClips: false,
+    onReviewPickup: fn(),
+  },
+  play: pickupPlay,
+};
+
+export const ReviewPickupReplace: Story = {
+  args: {
+    session: {
+      ...session,
+      landed: false,
+      number: null,
+      target_kind: "replace",
+    },
+    hasClips: false,
+    onReviewPickup: fn(),
+  },
+  play: pickupPlay,
+};
+
 export const NoClipsOnTimeline: Story = {
   args: { hasClips: false, movable: new Set<string>() },
 };

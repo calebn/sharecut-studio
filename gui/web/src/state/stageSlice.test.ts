@@ -208,6 +208,19 @@ describe("stageSlice", () => {
     expect(st().pendingRecordTarget).toBeNull();
   });
 
+  it("keeps the pending Review item into Review and drops it on leaving or a project switch", () => {
+    st().setPendingReviewItem("session:ss-1");
+    st().openStage("review");
+    expect(st().pendingReviewItem).toBe("session:ss-1");
+    st().openStage("edit");
+    expect(st().pendingReviewItem).toBeNull();
+
+    st().setPendingReviewItem("session:ss-1");
+    st().hydrate("/tmp/stage-e.json", minimalProject());
+    st().hydrate("/tmp/stage-f.json", minimalProject());
+    expect(st().pendingReviewItem).toBeNull();
+  });
+
   it("keeps the Record script into Record and drops it on leaving or a project switch", () => {
     const script = { fromSec: 1, toSec: 2, trackIds: ["t1"], text: "…a…" };
     st().setRecordScript(script);
