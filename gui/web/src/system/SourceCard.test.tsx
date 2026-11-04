@@ -417,6 +417,27 @@ describe("SourceCard focus", () => {
     );
   }
 
+  it("calls onSplit once when Split is pressed", async () => {
+    const onSplit = vi.fn();
+    render(
+      <SourceCard
+        state="split-prompt"
+        index={1}
+        name=""
+        onName={vi.fn()}
+        fileName="a.wav"
+        onRemove={vi.fn()}
+        onSplit={onSplit}
+        onCancelSplit={vi.fn()}
+        onRetry={vi.fn()}
+      />,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Split voice 1" }),
+    );
+    expect(onSplit).toHaveBeenCalledTimes(1);
+  });
+
   it("stays in the card when Split replaces the controls", async () => {
     const { rerender } = render(<Stage state="split-prompt" />);
     const card = screen.getByRole("region", { name: "Voice 1" });
