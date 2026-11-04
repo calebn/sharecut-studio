@@ -85,4 +85,22 @@ describe("stage commands", () => {
     expect(COMMANDS["project.home"]).toBeDefined();
     expect(COMMANDS["project.open"]).toBeDefined();
   });
+
+  const RANGE_EDITS = ["range.cut", "range.mute", "range.fillRoomTone"] as const;
+  const OFF_EDIT = STAGE_IDS.filter((s) => s !== "edit");
+
+  it.each(
+    RANGE_EDITS.flatMap((id) => OFF_EDIT.map((st) => [id, st] as const)),
+  )("%s is disabled on %s", async (id, stage) => {
+    useDawStore.setState({ stage });
+    expect(await execute(id)).toEqual({
+      status: "disabled",
+      reason: "Open Edit to change the timeline",
+    });
+  });
+
+  it.each(RANGE_EDITS)("%s is not stage-disabled on edit", async (id) => {
+    const r = await execute(id);
+    expect(r.status === "disabled" && r.reason === "Open Edit to change the timeline").toBe(false);
+  });
 });

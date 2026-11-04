@@ -51,6 +51,7 @@ beforeEach(() => {
   useDawStore.setState({
     project: p,
     projectPath: "/tmp/ep",
+    stage: "edit",
     guestMode: null,
     shareCapabilities: null,
     projectEpoch: 1,
