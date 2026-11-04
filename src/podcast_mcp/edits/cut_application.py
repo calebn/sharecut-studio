@@ -93,6 +93,7 @@ from podcast_mcp.engines.clips_ops import (
     set_track_clips,
     shell_copy_clip,
 )
+from podcast_mcp.engines.ffmpeg import LateMpegAudioError
 from podcast_mcp.engines.mute_regions import add_source_mute
 from podcast_mcp.engines.off_speaker_regions import MuteOwnership, add_off_speaker_mute
 from podcast_mcp.engines.session_timeline import (
@@ -192,7 +193,7 @@ def _completed_holds(
                 return peer_holds
     if ids <= manual_ids:
         return []
-    unavailable: frozenset[str] = frozenset()
+    unavailable: dict[str, cut_safety.UnavailableAudioFinding] = {}
     try:
         effects = cut_effects.completed_audio_effects(
             before,
@@ -209,10 +210,14 @@ def _completed_holds(
             manual_ids=manual_ids,
             mode=mode,
         )
+    except LateMpegAudioError:
+        verdict_cache.mark_unstable()
+        effects = ()
+        unavailable = dict.fromkeys(ids, "late_mpeg_audio")
     except (OSError, ValueError, subprocess.SubprocessError):
         verdict_cache.mark_unstable()
         effects = ()
-        unavailable = ids
+        unavailable = dict.fromkeys(ids, "audio_unavailable")
     return cut_safety.apply_safety_actions(
         before,
         cut_safety.complete_effect_acoustics(

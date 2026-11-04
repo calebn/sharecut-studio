@@ -555,6 +555,7 @@ class HeldAcoustics:
 
 
 MeasuredSources: TypeAlias = dict[tuple[Any, ...], tuple[HeldAcoustics, tuple[object, ...]]]
+UnavailableAudioFinding: TypeAlias = Literal["audio_unavailable", "late_mpeg_audio"]
 
 
 def complete_effect_acoustics(
@@ -565,7 +566,7 @@ def complete_effect_acoustics(
     manual_ids: frozenset[str] = frozenset(),
     pauses: Mapping[str, HeldPause | CutRejected | None] | None = None,
     join: CutJoin | None = None,
-    unavailable: frozenset[str] = frozenset(),
+    unavailable: Mapping[str, UnavailableAudioFinding] | None = None,
     measured: MeasuredSources | None = None,
 ) -> list[CutScopeHold]:
     """Holds for the acoustics of ``effects`` on ``project``.
@@ -649,11 +650,11 @@ def complete_effect_acoustics(
                     join_subjects[edit_id] = (track_id, offset, recording)
             except (KeyError, OSError, ValueError, subprocess.SubprocessError):
                 join_subjects[edit_id] = None
-    if unavailable - manual_ids - paused:
+    unavailable = unavailable or {}
+    unavailable_ids = frozenset(unavailable) - manual_ids - paused
+    if unavailable_ids:
         verdict_cache.mark_unstable()
-    flags: dict[str, list[str]] = {
-        edit_id: ["audio_unavailable"] for edit_id in unavailable - manual_ids - paused
-    }
+    flags: dict[str, list[str]] = {edit_id: [unavailable[edit_id]] for edit_id in unavailable_ids}
     for effect in effects:
         ids = effect.contributors - manual_ids - paused
         if not ids:

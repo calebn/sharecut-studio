@@ -1116,6 +1116,14 @@ the shared `probe_media` cache. A WAV, a fill or a native decode starts at its a
 
 ### Audio extent admission
 
+When a cut's completed-effect check encounters a late-start MPEG recording already
+saved in a project, the cut stays unapplied with `cut_scope_changed`. The host
+message says to re-encode the recording and re-add it as a track. The recording
+may be anywhere in the checked audio, so the message does not attribute the
+failure to each held cut's track. Other unreadable audio keeps the generic
+audio-review message. Guests keep the fixed `cut_scope_changed` review message.
+The diagnostic does not change cut policy or audio-check override eligibility.
+
 `FFmpegEngine.probe` reports the selected first audio stream's length, counted from its first sample, as `duration_sec`, and the lead between the container origin and that first sample as `audio_start_sec` (see [Late-start audio](#late-start-audio-2175)). A late audio start no longer lengthens the extent. `AudioProbe.duration_estimated` describes endpoint uncertainty. Multiple streams alone do not imply uncertainty.
 
 `AudioProbe.require_duration_sec()` rejects uncertain, nonpositive, non-finite, and missing-audio results before source and media duration writes, source edits, or implicit full-span render bounds. Pipeline ingest preflights every track before metadata updates or dialogue clip creation. Strip silence admits extent before rebuilding clips. Full-track and segment renderers admit implicit clip extent before rendering. These boundaries return `invalid_audio` without changing project state or existing output. Upload finalization additionally caps known extents at seven days and removes rejected files. A late-start MPEG-TS, M2TS or MPEG-PS upload is refused with `LATE_MPEG_AUDIO_MESSAGE`, which says to re-encode it, to the host; a guest sees the generic "not a playable audio file" copy. Any other probe failure, including a probe timeout, keeps that generic text.
