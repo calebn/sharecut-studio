@@ -86,7 +86,7 @@ describe("ScriptHost guest matrix", () => {
     expect(screen.queryByRole("button", { name: "Show replace" })).toBeNull();
   });
 
-  it("labels a comment-only link read only, and selects nothing", async () => {
+  it("labels a comment-without-suggest set comment-only, and selects nothing", async () => {
     seedScript({
       projectPath: "share:abc",
       guestMode: "comment",
