@@ -400,8 +400,8 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 - Story: `System/DecisionCard`: Filler, Pause, Sound, Pickup, Comment, Check, Adjusting, CompactInEdit, CompactEmpty, CompactLoading, CompactError, Phone, PhoneSwipe. Built (S8b, #2294): `layout="compact"` (CompactInEdit, CompactComment, CompactGuest, CompactEmpty, CompactLoading, CompactError); not yet placed in an Edit Sheet.
 
 **25. Composer**
-- One field with a leading time chip, which pins when typing starts or takes the selection. Tap the chip to re-anchor, or clear it to make a whole-episode note. In the guest review dock, typing the first character pins the time to where the playhead was and clearing the field returns it to following the playhead; a time set by **C**, Comment here or a range command stays, and a selected range keeps showing as the time. Undo (Ctrl+Z) after clearing restores the text and pins again at the playhead as it is now.
-- A send arrow sits inside the field. Enter posts and Shift+Enter adds a line. On a coarse pointer, Return adds a line; Cmd or Ctrl+Enter posts on either pointer type. Holding a submit key does not request another post until a fresh press.
+- One field with a leading time chip, which pins when typing starts or takes the selection. The chip is a static label in the Review field: it offers no re-anchor and no clear control. A host or guest changes the time with **C**, Comment here or a range command. Where the caller passes `onAnchor`, the chip becomes a button that moves the time to the playhead or selection, with a clear control for a whole-episode note. In the review field, typing the first character pins the time to where the playhead was and clearing the field returns it to following the playhead; a time set by **C**, Comment here or a range command stays, and a selected range keeps showing as the time. Undo (Ctrl+Z) after clearing restores the text and pins again at the time the first keystroke pinned, not the playhead as it is now. A composition that passes through an empty value does not unpin.
+- A send arrow sits inside the field. While Post is off, its reason ("Write a comment to post." or the busy reason) shows as a visible note under the field, wired to Post as its description. Enter posts and Shift+Enter adds a line. On a coarse pointer, Return adds a line; Cmd or Ctrl+Enter posts on either pointer type. Holding a submit key does not request another post until a fresh press.
 - On a guest's first post, a name line appears above. Enter in the name moves focus to the comment without posting. Keeping Enter held after that move does not post the comment; release it and press a submit shortcut to post.
 - Optional visibility chip (Record, open-questions Q6).
 - Used: PNL-COMMENTS, CMP-GUEST-NAME, CMP-GUEST-COMMENT, CMP-REC-LIVECOMMENTS, the Decision card reply, INS-COMMENT reply, the expanded Player comment.
@@ -711,7 +711,8 @@ The same glyphs are used in Status rows, badges, the Save indicator, tiles and p
 | Not yet | hollow `circle` |
 | Needs you | amber `triangle-alert` (an 8 px amber dot in badges) |
 | Failed | red `octagon-alert` |
-| Offline / waiting to send | amber `cloud-off` |
+| Offline | amber `cloud-off` |
+| Waiting to send (a queued comment or queue row) | amber `clock` |
 | Live | record-red dot and clock |
 
 ### 4.7 The one primary-button rule

@@ -384,7 +384,7 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 - **Spec:**
   - Comment row (queue, 56 px): avatar 24 px, first line of body, time in monospace, reply count glyph. The unread accent dot is not shipped (owner decision: no unread state; follow-up if wanted).
   - Comment thread (card): author line = avatar + display name + relative time; body 15/22; anchor shown once as a time range button with a play glyph; editing a comment body in place is not shipped (owner decision; follow-up if wanted); action items as checkboxes with the item text; reply composer; Resolve primary. Resolved threads show the comment-check icon and "Reopen" text button.
-  - Composer: a single field with the anchor time as a leading chip inside the field ("18:36"), tap the chip to re-anchor to the playhead; Enter posts, ⇧Enter newline; on phone the Post button is an arrow icon 44 px inside the field's right edge.
+  - Composer: a single field with the anchor time as a leading chip inside the field ("18:36"), the chip is a static label that follows the playhead until typing pins it (C, Comment here or a range command set the time); Enter posts, ⇧Enter newline; on phone the Post button is an arrow icon 44 px inside the field's right edge.
   - Swipe right on a comment card (touch) = Resolve, with Undo toast. Swipe left does nothing on a comment: Keep does not apply, and Remove would delete it.
 - **Shared elements used:** Person tile avatar, Comment verb, Toast with Undo.
 - **Story to build:** `Stages/Review/CommentCard` (as above) and `Stages/Review/Composer` stories `Empty`, `Anchored`, `Posting`, `Offline`, `GuestFirstPost`, `Phone`.

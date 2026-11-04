@@ -9,5 +9,6 @@ export const STATUS_TEXT: Record<StatusState, string> = {
   "needs-you": "Needs you",
   failed: "Failed",
   offline: "Waiting to send",
+  queued: "Waiting to send",
   live: "Live",
 };

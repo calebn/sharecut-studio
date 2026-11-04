@@ -90,11 +90,7 @@ export function CommentCard({
             <span
               className={`sys-comment-pending sys-tone-${pending.state === "queued" ? "warning" : "danger"}`}
             >
-              <StatusGlyph
-                state={pending.state === "queued" ? "offline" : "failed"}
-                size={14}
-                text={false}
-              />
+              <StatusGlyph state={pending.state} size={14} text={false} />
               {PENDING_TEXT[pending.state]}
             </span>
           ) : null}

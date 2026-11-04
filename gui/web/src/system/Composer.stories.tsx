@@ -1,31 +1,19 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
-import { ComposerHarness } from "../storybook/ComposerHarness";
+import type { ComposerHarness } from "../storybook/ComposerHarness";
 import {
-  columnStoryDecorator,
-  viewportStoryParameters,
-} from "../storybook/storyLayout";
+  composerStoryMeta,
+  storyParameters,
+} from "../storybook/commentStoryMeta";
 import { playInCanvas } from "../storybook/storyPlay";
-import { Composer } from "./Composer";
 
-const meta: Meta<typeof ComposerHarness> = {
+const meta = {
+  ...composerStoryMeta,
   title: "System/Composer",
-  component: Composer as never,
-  render: (args) => <ComposerHarness {...args} />,
-  tags: ["autodocs"],
-  args: { onSubmit: fn(), onAnchor: fn() },
-  decorators: [columnStoryDecorator],
-  parameters: {
-    ...viewportStoryParameters,
-    docs: {
-      ...viewportStoryParameters.docs,
-      description: {
-        component:
-          "The one comment field, props only. The anchor chip leads inside the field and pins on the first keystroke. Tap the chip to move it to the playhead or the selection, and clear it for a whole-episode note. Enter posts and Shift+Enter adds a line; on a phone Return adds a line and the arrow posts. Post stays off until there is text and the control says why. A guest's name is optional, and a blank name posts as Guest. Offline, the arrow is named Queue comment and shows the offline glyph.\n\n**Motion.** Animations come later: the chip settles when it pins.",
-      },
-    },
-  },
-};
+  parameters: storyParameters(
+    "The one comment field, props only. The anchor chip leads inside the field and pins on the first keystroke. When the caller passes `onAnchor`, the chip is a button that moves the time to the playhead or the selection, with a clear control for a whole-episode note. Enter posts and Shift+Enter adds a line; on a phone Return adds a line and the arrow posts. Post stays off until there is text and the control says why. A guest's name is optional, and a blank name posts as Guest. Offline, the arrow is named Queue comment and shows the offline glyph; a queued comment on its card shows a clock.\n\n**Motion.** Animations come later: the chip settles when it pins.",
+  ),
+} satisfies Meta<typeof ComposerHarness>;
 
 export default meta;
 type Story = StoryObj<typeof ComposerHarness>;

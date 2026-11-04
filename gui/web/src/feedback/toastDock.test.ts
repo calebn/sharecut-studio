@@ -302,7 +302,7 @@ describe("useToastDock", () => {
     const H = window.innerHeight;
     const { readBottom } = mountRegion();
     box("stage-frame-player", H - 28, H);
-    box("comment-compose", H - 84, H - 36);
+    box("sys-composer", H - 84, H - 36);
     expect(readBottom()).toBe(H - (H - 84) + 8);
   });
 
@@ -313,7 +313,7 @@ describe("useToastDock", () => {
     box("stage-frame-player", H - 28, H);
     const panel = box("panel", H - 200, H - 100);
     panel.style.overflowY = "auto";
-    panel.append(box("comment-compose", H - 60, H - 10));
+    panel.append(box("sys-composer", H - 60, H - 10));
     expect(readBottom()).toBe(28 + 8);
   });
 
@@ -334,23 +334,18 @@ describe("useToastDock", () => {
       box("stage-frame-player", 872, 900, 0, 1440);
       const inspector = box("inspector", 57, 871, 0, 1440);
       inspector.style.overflowY = "auto";
-      inspector.append(
-        box("comment-compose", 588.78125, 901.78125, left, right),
-      );
+      inspector.append(box("sys-composer", 588.78125, 901.78125, left, right));
       expect(readBottom()).toBe(expected);
     },
   );
 
-  it.each(["comment-compose", "sys-composer"])(
-    "ignores a disjoint protected %s",
-    (className) => {
-      const H = window.innerHeight;
-      const { readBottom } = mountRegion();
-      box("stage-frame-player", H - 28, H);
-      box(className, H - 84, H - 36, 360, 390);
-      expect(readBottom()).toBe(36);
-    },
-  );
+  it("ignores a disjoint protected composer", () => {
+    const H = window.innerHeight;
+    const { readBottom } = mountRegion();
+    box("stage-frame-player", H - 28, H);
+    box("sys-composer", H - 84, H - 36, 360, 390);
+    expect(readBottom()).toBe(36);
+  });
 
   it("projects the pressed control against the card", () => {
     document.documentElement.dataset.shell = "phone";
@@ -382,7 +377,7 @@ describe("useToastDock", () => {
       const panel = box("panel", top, bottom, left, right);
       panel.style.overflowX = overflowX;
       panel.style.overflowY = overflowY;
-      panel.append(box("comment-compose", 684, 732, 300, 380));
+      panel.append(box("sys-composer", 684, 732, 300, 380));
       expect(readBottom()).toBe(expected);
     },
   );
@@ -396,7 +391,7 @@ describe("useToastDock", () => {
       const H = window.innerHeight;
       const { readBottom } = mountRegion();
       box("stage-frame-player", H - 28, H);
-      box("comment-compose", H - 84, H - 84 + height, 40, 40 + width);
+      box("sys-composer", H - 84, H - 84 + height, 40, 40 + width);
       expect(readBottom()).toBe(36);
     },
   );
@@ -410,7 +405,7 @@ describe("useToastDock", () => {
     const H = window.innerHeight;
     const { region, card } = mountRegion();
     box("stage-frame-player", H - 28, H);
-    box("comment-compose", H - 84, H - 36, 360, 390);
+    box("sys-composer", H - 84, H - 36, 360, 390);
     const { unmount } = renderHook(() =>
       useToastDock({ current: region }, true),
     );

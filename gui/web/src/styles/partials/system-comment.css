@@ -7,6 +7,11 @@
   min-inline-size: 0;
 }
 
+.sys-composer > .export-dialog-note {
+  font-size: var(--font-size-small);
+  text-align: end;
+}
+
 .sys-composer-who {
   display: flex;
   align-items: flex-end;

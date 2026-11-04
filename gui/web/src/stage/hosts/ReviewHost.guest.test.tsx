@@ -355,6 +355,57 @@ describe("Review queue for a guest", () => {
     expect(useDawStore.getState().commentDraft).toBeNull();
   });
 
+  it("unpins when a composition is cancelled and leaves the field empty", () => {
+    join("comment");
+    render(<ReviewHost guestShare />);
+    fireEvent.change(field(), { target: { value: "a" } });
+    fireEvent.compositionStart(field());
+    fireEvent.input(field(), { target: { value: "" }, isComposing: true });
+    expect(useDawStore.getState().commentDraft).not.toBeNull();
+    fireEvent.compositionEnd(field());
+    expect(useDawStore.getState().commentDraft).toBeNull();
+  });
+
+  it("keeps the pin through a whole composition that ends with text", () => {
+    join("comment");
+    render(<ReviewHost guestShare />);
+    fireEvent.change(field(), { target: { value: "a" } });
+    const typed = useDawStore.getState().commentDraft;
+    fireEvent.compositionStart(field());
+    fireEvent.input(field(), { target: { value: "" }, isComposing: true });
+    fireEvent.input(field(), { target: { value: "に" }, isComposing: true });
+    fireEvent.compositionEnd(field());
+    expect(useDawStore.getState().commentDraft).toBe(typed);
+  });
+
+  it("restores the originally typed time when undo brings the text back after emptying", () => {
+    join("comment");
+    useDawStore.setState({ playheadSec: 12 });
+    render(<ReviewHost guestShare />);
+    fireEvent.change(field(), { target: { value: "Lose the cough" } });
+    const typed = useDawStore.getState().commentDraft;
+    expect(typed?.startSec).toBe(12);
+    fireEvent.change(field(), { target: { value: "" } });
+    expect(useDawStore.getState().commentDraft).toBeNull();
+    act(() => useDawStore.setState({ playheadSec: 90 }));
+    fireEvent.input(field(), {
+      target: { value: "Lose the cough" },
+      inputType: "historyUndo",
+    });
+    expect(useDawStore.getState().commentDraft).toBe(typed);
+  });
+
+  it("pins at the current playhead when new text, not undo, follows emptying", () => {
+    join("comment");
+    useDawStore.setState({ playheadSec: 12 });
+    render(<ReviewHost guestShare />);
+    fireEvent.change(field(), { target: { value: "a" } });
+    fireEvent.change(field(), { target: { value: "" } });
+    act(() => useDawStore.setState({ playheadSec: 90 }));
+    fireEvent.change(field(), { target: { value: "b" } });
+    expect(useDawStore.getState().commentDraft?.startSec).toBe(90);
+  });
+
   it("posts a blank name as Guest and keeps no saved name", async () => {
     const user = userEvent.setup();
     join("comment");

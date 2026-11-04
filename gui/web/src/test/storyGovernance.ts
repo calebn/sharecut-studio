@@ -12,6 +12,7 @@ export const STORY_SUPPORT_MODULES = new Set([
   "storybook/docsTheme.ts",
   "storybook/StudioDocsContainer.tsx",
   "storybook/openDialog.ts",
+  "storybook/commentStoryMeta.tsx",
   "storybook/storyLayout.tsx",
   "test/hitRouterStub.ts",
   "test/modelsStory.tsx",

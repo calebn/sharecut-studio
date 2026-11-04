@@ -156,7 +156,7 @@ export function QueueRow({
         ) : null}
         {offline ? (
           <SystemIcon
-            name="cloud-off"
+            name="clock"
             size={14}
             title="Waiting to send"
             className="sys-tone-warning"

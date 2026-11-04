@@ -9,6 +9,7 @@ import {
 import { HANDLE_DRAG_MIN_PX } from "../hooks/gestureConstants";
 import { CloseButton } from "../ui";
 import type { SystemIconName } from "./icons";
+import { isImeKey } from "./imeKey";
 import {
   CARD_WIDTH_PX,
   DOCK_PX,
@@ -98,7 +99,7 @@ function Name({ name, onRename }: Pick<InspectorBase, "name" | "onRename">) {
       onChange={(event) => setDraft(event.target.value)}
       onBlur={() => finish(true)}
       onKeyDown={(event) => {
-        if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+        if (isImeKey(event)) return;
         if (event.key === "Enter") {
           event.preventDefault();
           finish(true);
@@ -196,7 +197,7 @@ function Sections({ sections }: { sections: readonly InspectorSection[] }) {
 function closeOnEscape(onClose: () => void) {
   return (event: KeyboardEvent<HTMLElement>) => {
     if (event.key !== "Escape" || event.defaultPrevented) return;
-    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+    if (isImeKey(event)) return;
     event.stopPropagation();
     onClose();
   };

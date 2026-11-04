@@ -1,31 +1,20 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
-import { ComposerHarness, PhoneFrame } from "../storybook/ComposerHarness";
+import type { ComposerHarness } from "../storybook/ComposerHarness";
+import { PhoneFrame } from "../storybook/ComposerHarness";
 import {
-  columnStoryDecorator,
-  viewportStoryParameters,
-} from "../storybook/storyLayout";
+  composerStoryMeta,
+  storyParameters,
+} from "../storybook/commentStoryMeta";
 import { playInCanvas } from "../storybook/storyPlay";
-import { Composer } from "../system/Composer";
 
-const meta: Meta<typeof ComposerHarness> = {
+const meta = {
+  ...composerStoryMeta,
   title: "Stages/Review/Composer",
-  component: Composer as never,
-  render: (args) => <ComposerHarness {...args} />,
-  tags: ["autodocs"],
-  args: { onSubmit: fn(), onAnchor: fn() },
-  decorators: [columnStoryDecorator],
-  parameters: {
-    ...viewportStoryParameters,
-    docs: {
-      ...viewportStoryParameters.docs,
-      description: {
-        component:
-          "The Review comment field in its states. The anchor chip leads and pins on the first keystroke; Enter posts and Shift+Enter adds a line.\n\n**Motion.** Animations come later.",
-      },
-    },
-  },
-};
+  parameters: storyParameters(
+    "The Review comment field in its states. The anchor chip leads and pins on the first keystroke; Enter posts and Shift+Enter adds a line.\n\n**Motion.** Animations come later.",
+  ),
+} satisfies Meta<typeof ComposerHarness>;
 
 export default meta;
 type Story = StoryObj<typeof ComposerHarness>;
@@ -44,6 +33,27 @@ export const Empty: Story = {
 
 export const Anchored: Story = {
   args: { anchor: { kind: "follow", seconds: 724 } },
+};
+
+export const EmptyingATypedPin: Story = {
+  args: { anchor: { kind: "follow", seconds: 724 } },
+  play: playInCanvas(async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const field = canvas.getByRole("textbox", { name: "Comment" });
+    await userEvent.type(field, "Hm");
+    await expect(args.onAnchor).toHaveBeenCalledWith("pin");
+    await expect(
+      canvas.getByRole("button", {
+        name: "Pinned at 12:04. Move to the playhead",
+      }),
+    ).toBeVisible();
+    await userEvent.clear(field);
+    await expect(
+      canvas.getByRole("button", {
+        name: "Comment at 12:04, follows the playhead. Pin it here",
+      }),
+    ).toBeVisible();
+  }),
 };
 
 export const Posting: Story = {
