@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import http.client
 import io
 import json
 import runpy
@@ -269,8 +270,9 @@ def test_checked_in_manifest_uses_declared_repos(checker, monkeypatch, tmp_path)
 
 
 @pytest.mark.parametrize("status", [301, 302, 303, 307, 308])
-def test_redirect_refused_and_response_closed(monkeypatch, status):
-    response = Response(b"secret")
+@pytest.mark.parametrize("location", ["https://[", None, "https://signed.example/?token=secret"])
+def test_redirect_refused_and_response_closed(monkeypatch, status, location):
+    response = Response(b"secret", head=True)
     opener = urllib.request.build_opener(asset_sources._RefusePublicRedirects)
     monkeypatch.setattr(urllib.request, "build_opener", lambda *handlers: opener)
     request = urllib.request.Request("https://cdn.example/file", method="HEAD")
@@ -284,7 +286,7 @@ def test_redirect_refused_and_response_closed(monkeypatch, status):
             response,
             status,
             "secret",
-            {"location": "https://signed.example/?token=secret"},
+            {"location": location} if location is not None else {},
         )
 
     monkeypatch.setattr(opener, "open", perform_open)
@@ -431,3 +433,71 @@ def test_checker_never_resolves_application_credentials(checker, monkeypatch, tm
     assert run(checker, monkeypatch, tmp_path, manifest, extra=("--timeout", "0.5")) == 0
     assert all(timeout == 0.5 for _, timeout in calls)
     assert all(not req.header_items() for req, _ in calls)
+
+
+@pytest.mark.parametrize("metadata", [True, False])
+def test_stdlib_protocol_failures_are_sanitized_and_closed(
+    checker, monkeypatch, tmp_path, manifest, capsys, metadata
+):
+    wire = (
+        b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n3\r\nabc\r\n"
+        if metadata
+        else b"status-line-secret\r\n"
+    )
+    stream = io.BytesIO(wire)
+    calls = []
+    responses = []
+
+    class Socket:
+        def makefile(self, *args, **kwargs):
+            return stream
+
+    class Opener:
+        def open(self, request, *, timeout):
+            calls.append(request.get_method())
+            response = http.client.HTTPResponse(Socket(), method=request.get_method())
+            responses.append(response)
+            response.begin()
+            return response
+
+    monkeypatch.setattr(urllib.request, "build_opener", lambda *handlers: Opener())
+    manifest["assets"].pop("http" if metadata else "hf")
+    assert run(checker, monkeypatch, tmp_path, manifest) == (2 if metadata else 1)
+    assert calls == ["GET" if metadata else "HEAD"]
+    assert stream.closed
+    assert all(response.isclosed() for response in responses)
+    output = capsys.readouterr()
+    assert "secret" not in output.out + output.err
+    assert "Traceback" not in output.out + output.err
+    assert "error=transport" in output.out
+    assert ("inventory asset=hf status=none" if metadata else "asset=http") in output.out
+    assert ("checked=0" if metadata else "checked=1") in output.out
+
+
+@pytest.mark.parametrize("location", ["https://[", None, "https://signed.example/?token=secret"])
+def test_redirect_cli_output_is_sanitized(
+    checker, monkeypatch, tmp_path, manifest, capsys, location
+):
+    response = Response(b"payload-secret", head=True)
+    opener = urllib.request.build_opener(asset_sources._RefusePublicRedirects)
+
+    def perform_open(request, *, timeout):
+        assert request.get_method() == "HEAD"
+        return opener.error(
+            "http",
+            request,
+            response,
+            302,
+            "secret",
+            {"location": location} if location is not None else {},
+        )
+
+    monkeypatch.setattr(urllib.request, "build_opener", lambda *handlers: opener)
+    monkeypatch.setattr(opener, "open", perform_open)
+    manifest["assets"].pop("hf")
+    assert run(checker, monkeypatch, tmp_path, manifest) == 1
+    assert response.closed
+    output = capsys.readouterr()
+    assert "status=302 error=redirect" in output.out
+    assert "secret" not in output.out + output.err
+    assert "Traceback" not in output.out + output.err

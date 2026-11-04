@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import http.client
 import ipaddress
 import logging
 import math
@@ -158,17 +159,21 @@ def validate_public_url(url: str) -> None:
 
 
 class _RefusePublicRedirects(urllib.request.HTTPRedirectHandler):
-    def redirect_request(
+    def http_error_302(
         self,
         req: urllib.request.Request,
         fp: Any,
         code: int,
         msg: str,
         headers: Any,
-        newurl: str,
     ) -> None:
         fp.close()
         raise PublicRequestError("redirect", code)
+
+    http_error_301 = http_error_302
+    http_error_303 = http_error_302
+    http_error_307 = http_error_302
+    http_error_308 = http_error_302
 
 
 @contextmanager
@@ -195,7 +200,7 @@ def public_request(url: str, *, method: Literal["GET", "HEAD"], timeout: float) 
         raise PublicRequestError("http_status", exc.code) from None
     except TimeoutError:
         raise PublicRequestError("timeout") from None
-    except (OSError, urllib.error.URLError):
+    except (OSError, urllib.error.URLError, http.client.HTTPException):
         raise PublicRequestError("transport") from None
 
 

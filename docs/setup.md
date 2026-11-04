@@ -237,7 +237,9 @@ and each asset's encoded mirror path, HTTP status or safe error category.
 
 Only metadata uses GET. Each CDN object receives one HEAD, with no response body
 read, retries, GET fallback, or redirects. A redirect is unverifiable and fails.
-All 2xx statuses establish availability at check time only. They do not establish
+Redirect responses close without parsing their Location headers, and malformed
+HTTP responses report a safe transport error. All 2xx statuses establish
+availability at check time only. They do not establish
 hashes, byte integrity, or agreement with a resolved repository revision. A 403 or
 405 means access is unavailable to this check; it does not prove an object is
 absent. DNS names are checked syntactically and against the shared blocked-host
