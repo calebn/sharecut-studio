@@ -7624,7 +7624,7 @@
           },
           "expected": {
             "$ref": "#/components/schemas/ClipFadeBaseline",
-            "description": "Both saved fades captured when the edit began. A changed pair returns clip_fade_changed without changing fades, history, or the journal."
+            "description": "Both saved fades captured when the edit began. A changed pair returns clip_fade_changed without changing fades, history, or the journal. Read the clip's current {fade_in_ms, fade_out_ms} with podcast edit list-clips."
           },
           "fade_in_ms": {
             "title": "Fade In Ms",
@@ -8036,6 +8036,7 @@
       "SetEnvelopePayload": {
         "properties": {
           "expected_points": {
+            "description": "The track's current volume points as [{id, time, value}], echoed verbatim (floats compare exactly); a changed envelope is a conflict. Read them with podcast edit list-envelope --project P --track T (the set_envelope tool reads them for you), or send [] for a track with no envelope.",
             "items": {
               "$ref": "#/components/schemas/ExpectedEnvelopePoint"
             },
@@ -11312,6 +11313,7 @@
             "type": "string"
           },
           "expected_token": {
+            "description": "The boundary revision token of this edge. Only trim_clip_edge_tool and podcast edit trim-clip mint it, so use one of them rather than a bare submit.",
             "minLength": 1,
             "title": "Expected Token",
             "type": "string"

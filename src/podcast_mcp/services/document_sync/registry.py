@@ -201,7 +201,7 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             handler=comments.delete_comment,
             family="comments",
             gui=NO_GUI_SENDER,
-            mcp=named("delete_comment_tool"),
+            mcp=named("delete_comment_tool", GENERIC_MCP),
             cli=named("podcast comment delete"),
         ),
         "AddReply": CommandSpec(
@@ -225,7 +225,7 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             handler=comments.add_action,
             family="comments",
             gui=NO_GUI_SENDER,
-            mcp=named("add_comment_action_tool"),
+            mcp=named("add_comment_action_tool", GENERIC_MCP),
             cli=named("podcast comment add-action"),
         ),
         "UndoHistory": CommandSpec(
@@ -539,7 +539,7 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             guest=ReviewRole.EDITOR,
             gui=GUI_SENT,
             mcp=named(GENERIC_MCP),
-            cli=named(GENERIC_CLI),
+            cli=named("podcast clips list", GENERIC_CLI),
         ),
         "UpdateSocialClipDetails": CommandSpec(
             payload=p.UpdateSocialClipDetailsPayload,
@@ -547,15 +547,15 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             host_only_reason="approving a clip decides what exports, so a share link never retitles or approves one",
             gui=GUI_SENT,
             mcp=named("approve_social_clips_tool", GENERIC_MCP),
-            cli=named("podcast clips approve", GENERIC_CLI),
+            cli=named("podcast clips approve", "podcast clips list", GENERIC_CLI),
         ),
         "DeleteSocialClip": CommandSpec(
             payload=p.DeleteSocialClipPayload,
             handler=markers.delete_social_clip,
             guest=ReviewRole.EDITOR,
             gui=GUI_SENT,
-            mcp=named("reject_social_clips_tool"),
-            cli=named(GENERIC_CLI),
+            mcp=named("reject_social_clips_tool", GENERIC_MCP),
+            cli=named("podcast clips list", GENERIC_CLI),
         ),
         "SetEnvelope": CommandSpec(
             payload=p.SetEnvelopePayload,
@@ -563,7 +563,7 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             guest=ReviewRole.EDITOR,
             gui=GUI_SENT,
             mcp=named("set_envelope"),
-            cli=named(GENERIC_CLI),
+            cli=named("podcast edit list-envelope", GENERIC_CLI),
         ),
         "EditSelectedRange": CommandSpec(
             payload=p.EditSelectedRangePayload,
@@ -824,7 +824,7 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             handler=episode.add_track,
             guest=ReviewRole.EDITOR,
             gui=GUI_SENT,
-            mcp=named("track_add_empty_tool"),
+            mcp=named("track_add_empty_tool", GENERIC_MCP),
             cli=named(GENERIC_CLI),
         ),
         "SetTrackMedia": CommandSpec(
@@ -845,7 +845,7 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             handler=episode.set_track_meta,
             guest=ReviewRole.EDITOR,
             gui=GUI_SENT,
-            mcp=named("track_set_meta_tool"),
+            mcp=named("track_set_meta_tool", GENERIC_MCP),
             cli=named(GENERIC_CLI),
         ),
         "SetTrackFader": CommandSpec(
@@ -869,7 +869,7 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             handler=episode.remove_track,
             guest=ReviewRole.EDITOR,
             gui=GUI_SENT,
-            mcp=named("track_remove_tool"),
+            mcp=named("track_remove_tool", GENERIC_MCP),
             cli=named(GENERIC_CLI),
         ),
         "ReorderTrack": CommandSpec(

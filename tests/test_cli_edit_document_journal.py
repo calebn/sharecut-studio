@@ -337,6 +337,7 @@ READ_COMMANDS = [
     ["copy-segment", "--start", "2", "--end", "3"],
     ["list-chapters"],
     ["list-clips"],
+    ["list-envelope", "--track", "host"],
     ["list-applied"],
     ["render-status"],
     ["analyze-cleanup", "--track", "host"],
@@ -560,7 +561,7 @@ def test_every_registered_edit_command_has_a_documented_journal_owner():
     table = doc.split("| CLI edit command | Journal owner | Contract |", 1)[1].split("\n\n", 1)[0]
     documented = {line.split("`", 2)[1] for line in table.splitlines() if line.startswith("| `")}
     assert documented == registered
-    assert len(registered) == 57
+    assert len(registered) == 58
 
 
 def test_add_chapter_with_fresh_stems_does_not_decode_under_submit(edit_project, monkeypatch):
