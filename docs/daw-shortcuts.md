@@ -123,9 +123,9 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Resolve comment | `comment.resolve` | Loaded host project | Args: { commentId: string, resolved: boolean, by: string } — host only; use a comment's Resolve/Reopen control |
 | Open history | `edit.history` | Host or shared edit mode | Opens the History sheet, which stays reachable when Undo and Redo are both empty. Host or Editor. |
 | Play range | `range.play` | Project loaded |  |
-| Cut selected range | `range.cut` | Project loaded |  |
-| Mute selected range | `range.mute` | Project loaded |  |
-| Fill range with room tone | `range.fillRoomTone` | Project loaded |  |
+| Cut selected range | `range.cut` | editStage |  |
+| Mute selected range | `range.mute` | editStage |  |
+| Fill range with room tone | `range.fillRoomTone` | editStage |  |
 | Move to speaker | `range.moveSpeakerLane` | Project loaded | Args: { toLaneId }. The Action bar's More menu shows Move to {speaker} on one split lane |
 | Comment on range | `range.comment` | Project loaded |  |
 | Bounce selected range | `range.bounce` | Project loaded |  |
