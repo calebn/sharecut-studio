@@ -26,6 +26,20 @@ MAXIMUM_FIELDS = 128
 INSTALL = Path("/usr/local/lib/sharecut-ci-apt")
 SUITES = {"resolute", "resolute-updates", "resolute-security", "resolute-backports"}
 COMPONENTS = {"main", "universe", "restricted", "multiverse"}
+PUBLIC_HOST = (
+    r"(?P<host>[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+    r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*)"
+)
+PUBLIC_URI = (
+    rf"(?:(?:https?|{METHOD}|mirror\+https?)://{PUBLIC_HOST}(?:/[A-Za-z0-9._~/-]*)?"
+    r"|mirror\+file:/[A-Za-z0-9._/-]+)"
+)
+
+
+class UnsupportedSourceLayout(ValueError):
+    def __init__(self, uris: tuple[str, ...]) -> None:
+        super().__init__("unsupported Ubuntu source layout")
+        self.uris = uris
 
 
 def unsigned(value: str) -> int:
@@ -211,9 +225,7 @@ def rewrite_mirrors(source: str) -> str:
             public_entry = None
             if len(entry) <= 512:
                 public_entry = re.fullmatch(
-                    r"[ \t]{0,16}https?://"
-                    r"(?P<host>[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
-                    r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*)"
+                    rf"[ \t]{{0,16}}https?://{PUBLIC_HOST}"
                     r"/ubuntu/?(?:[ \t]{1,16}priority:[0-9]{1,6})?[ \t]{0,16}",
                     entry,
                 )
@@ -244,8 +256,15 @@ def owned_target(path: Path) -> None:
             raise ValueError("configuration file must be owned without other writers")
 
 
+def public_uri(token: str) -> str:
+    match = re.fullmatch(PUBLIC_URI, token) if len(token) <= 512 else None
+    if match and len(match["host"] or "") <= 253:
+        return token
+    return "<redacted>"
+
+
 def rewrite_sources(source: str) -> str:
-    uri_lines = re.findall(r"^URIs:[ \t]+(.+)$", source, re.M)
+    uri_fields = re.findall(r"(?m)^URIs:(.*(?:\n[ \t].*)*)", source)
     allowed = {"mirror+file:/etc/apt/apt-mirrors.txt"}
     for host in CANONICAL:
         allowed.update(
@@ -253,8 +272,11 @@ def rewrite_sources(source: str) -> str:
             for scheme in ("https", METHOD)
             for slash in ("", "/")
         )
-    if not uri_lines or any(uri not in allowed for line in uri_lines for uri in line.split()):
-        raise ValueError("unsupported Ubuntu source layout")
+    foreign = tuple(
+        public_uri(uri) for field in uri_fields for uri in field.split() if uri not in allowed
+    )
+    if not uri_fields or foreign:
+        raise UnsupportedSourceLayout(foreign)
     suites = re.findall(r"^Suites:[ \t]+(.+)$", source, re.M)
     components = re.findall(r"^Components:[ \t]+(.+)$", source, re.M)
     if not suites or any(suite not in SUITES for line in suites for suite in line.split()):
@@ -274,7 +296,7 @@ def configure(
     apt_root: Path = Path("/etc/apt"),
     install: Path = INSTALL,
     method_directory: Path = Path("/usr/lib/apt/methods"),
-) -> None:
+) -> bool:
     for directory in (apt_root, method_directory):
         if directory.resolve(strict=True) != directory or directory.stat().st_uid != os.geteuid():
             raise ValueError("configuration directory is not owned or traverses a symlink")
@@ -285,7 +307,14 @@ def configure(
     for path in (mirrors, ubuntu, executable, configuration):
         owned_target(path)
     changed = rewrite_mirrors(mirrors.read_text())
-    sources = rewrite_sources(ubuntu.read_text())
+    try:
+        sources = rewrite_sources(ubuntu.read_text())
+    except UnsupportedSourceLayout as declined:
+        print(
+            "::warning title=Bounded Ubuntu acquisition skipped::"
+            f"unsupported Ubuntu source layout, using stock apt; uris={json.dumps(declined.uris)}"
+        )
+        return False
     for command in ("curl", "/usr/bin/python3"):
         if shutil.which(command) is None:
             raise ValueError("runner lacks Ubuntu transport prerequisites")
@@ -309,6 +338,7 @@ def configure(
     configuration.chmod(0o644)
     mirrors.write_text(changed)
     ubuntu.write_text(sources)
+    return True
 
 
 if __name__ == "__main__":
