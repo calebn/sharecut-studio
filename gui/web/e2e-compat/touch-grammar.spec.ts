@@ -1122,7 +1122,11 @@ test("#1135: a long-press at a join offers the ripple trim, which shows where la
   const chip = await centerOfLocator(trimChip);
   await finger.slide(chip, 6, 30);
   await page.waitForTimeout(HOLD_MS);
-  await finger.slide({ x: chip.x + 40, y: chip.y }, 8, 30);
+  await expect(chooser).toBeVisible();
+  // Resting never grabs; a slide along the axis that stays on the chip does,
+  // and the drag then goes on past it.
+  await finger.slide({ x: chip.x + 16, y: chip.y }, 4, 30);
+  await finger.slide({ x: chip.x + 40, y: chip.y }, 4, 30);
   await expect(page.locator(".trim-readout")).toContainText("Ripple");
   await expect(page.locator(".clip-landing")).toBeVisible();
   await frame(page, info, `ripple-drag-${browserName}`);

@@ -489,6 +489,8 @@ test("resting on a chip never grabs it; a slide along the axis does", async ({
   await touch(cdp, "touchMove", [{ x: onChip.x, y: onChip.y - 10 }]);
   await touch(cdp, "touchMove", [{ x: onChip.x, y: onChip.y - 20 }]);
   await expect(chooser(page)).toHaveCount(0);
+  await touch(cdp, "touchMove", [{ x: onChip.x, y: onChip.y - 30 }]);
+  await touch(cdp, "touchMove", [{ x: onChip.x, y: onChip.y - 40 }]);
   await touch(cdp, "touchEnd");
   await expect
     .poll(() => commands.some((c) => c.type === "SetEnvelope"))
@@ -511,7 +513,7 @@ test("resting on a chip never grabs it; a slide along the axis does", async ({
   expect(caption).toMatch(/^0\.80× at /);
   expect(openAfterRest).toBe(true);
   // Grabbed from the chip 56 px away, the point keeps its time (to a pixel)
-  // and rises with the 20 px drag instead of jumping to the finger.
+  // and rises with the drag instead of jumping to the finger.
   expect(Math.abs((edge?.time ?? 0) - 10)).toBeLessThan(1 / pxPerSec);
   expect(edge?.value).toBeGreaterThan(0.8);
 });
