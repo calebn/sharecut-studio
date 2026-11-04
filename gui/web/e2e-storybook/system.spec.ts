@@ -3494,18 +3494,18 @@ for (const [label, rootPx] of [
     const names = ["Mute", "Comment", "Stop take", "Pause take", "More"];
     for (const name of names) {
       const button = page.getByRole("button", { name, exact: true });
-      await button.scrollIntoViewIfNeeded();
       await expect(button).toBeVisible();
       const box = await button.boundingBox();
       if (!box) throw new Error(`${name} did not render`);
       expect(box.x).toBeGreaterThanOrEqual(0);
       expect(box.x + box.width).toBeLessThanOrEqual(360);
     }
-    const overflow = await page.evaluate(
+    const clipped = await page.evaluate(
       () =>
-        document.documentElement.scrollWidth -
-        document.documentElement.clientWidth,
+        [...document.querySelectorAll(".sys-dock, .sys-dock *")].filter(
+          (el) => el.getBoundingClientRect().right > 360.5,
+        ).length,
     );
-    expect(overflow).toBeLessThanOrEqual(0);
+    expect(clipped).toBe(0);
   });
 }
