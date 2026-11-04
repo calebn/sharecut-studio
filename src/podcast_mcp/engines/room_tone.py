@@ -624,18 +624,27 @@ def _note_unrecorded(key: PoolKey) -> None:
             del _UNRECORDED[next(iter(_UNRECORDED))]
 
 
-def _claim_pool(project: EpisodeProject, key: PoolKey) -> bool:
+def _claim_pool(
+    project: EpisodeProject, track_id: str, key: PoolKey, claimed: list[tuple[str, PoolKey]]
+) -> None:
     """Mark ``key`` as being recorded, unless it is known, pending or failed a moment ago."""
     if _stored_pool(project, key) is not None:
-        return False
+        return
     with _POOLS_LOCK:
         failed = _UNRECORDED.get(key)
         if key in _PENDING_POOLS or (
             failed is not None and time.monotonic() - failed < UNRECORDED_RETRY_SEC
         ):
-            return False
-        _PENDING_POOLS.add(key)
-    return True
+            return
+        before = len(claimed)
+        try:
+            _PENDING_POOLS.add(key)
+            claimed.append((track_id, key))
+        except BaseException:
+            del claimed[before:]
+            _PENDING_POOLS.discard(key)
+            _POOLS_DONE.notify_all()
+            raise
 
 
 def schedule_room_tone_pools(
@@ -650,7 +659,9 @@ def schedule_room_tone_pools(
     that is known, being recorded or recently unrecordable is skipped. Returns at once with
     how many tracks were queued; 0 when the project's state lock stays busy past
     ``POOL_SNAPSHOT_LOCK_SEC`` or the thread cannot start, and the next call tries again.
-    Nothing is queued for a project whose workspace directory is not absolute.
+    Preparation failures release this call's claims. Ordinary exceptions return 0;
+    interruptions propagate. Nothing is queued for a project whose workspace directory
+    is not absolute.
     """
     claimed: list[tuple[str, PoolKey]] = []
     own: EpisodeProject | None = None
@@ -658,62 +669,67 @@ def schedule_room_tone_pools(
     if lock is not None and not lock.acquire(timeout=POOL_SNAPSHOT_LOCK_SEC):
         return 0
     try:
-        wanted = (
-            [t.id for t in project.tracks if t.role == TrackRole.DIALOGUE]
-            if track_ids is None
-            else list(dict.fromkeys(track_ids))
-        )
-        if not Path(project.meta.workspace_dir).is_absolute():
-            wanted = []  # a save in progress shows its portable "." and would resolve to the cwd
-        for track_id in wanted:
-            track = project.track_by_id(track_id)
-            key = _pool_key(project, track_id) if track and track.media else None
-            if key is not None and _claim_pool(project, key):
-                claimed.append((track_id, key))
-        own = project.model_copy(deep=True) if claimed else None
-    except Exception:
-        log.debug("room tone pools not scheduled", exc_info=True)
-    finally:
-        if lock is not None:
-            lock.release()
-    if own is None:
+        try:
+            wanted = (
+                [t.id for t in project.tracks if t.role == TrackRole.DIALOGUE]
+                if track_ids is None
+                else list(dict.fromkeys(track_ids))
+            )
+            if not Path(project.meta.workspace_dir).is_absolute():
+                wanted = []
+            for track_id in wanted:
+                track = project.track_by_id(track_id)
+                key = _pool_key(project, track_id) if track and track.media else None
+                if key is not None:
+                    _claim_pool(project, track_id, key, claimed)
+            own = project.model_copy(deep=True) if claimed else None
+        finally:
+            if lock is not None:
+                lock.release()
+        if own is None:
+            return 0
+
+        released: set[PoolKey] = set()
+
+        def record(item: tuple[str, PoolKey]) -> None:
+            track_id, key = item
+            try:
+                if _record_room_tone_pool(own, track_id) is None:
+                    _note_unrecorded(key)
+            except Exception:
+                log.debug("room tone pool not recorded for %s", track_id, exc_info=True)
+                _note_unrecorded(key)
+            finally:
+                _release_pool(key)
+                released.add(key)
+
+        def run() -> None:
+            from podcast_mcp.util.process import low_priority
+
+            try:
+                with unscoped(), low_priority():
+                    if len(claimed) > 1:
+                        try:
+                            _warm_floors(own)
+                        except Exception:
+                            log.debug("room tone floors not measured together", exc_info=True)
+                    run_parallel(claimed, record)
+            finally:
+                for _, key in claimed:
+                    if key not in released:
+                        _release_pool(key)
+
+        name = "+".join(track_id for track_id, _ in claimed)
+        thread = threading.Thread(target=run, name=f"room-tone-pool-{name}", daemon=True)
+    except BaseException as exc:
         for _, key in claimed:
             _release_pool(key)
+        if not isinstance(exc, Exception):
+            raise
+        log.debug("room tone pools not scheduled", exc_info=True)
         return 0
-
-    released: set[PoolKey] = set()
-
-    def record(item: tuple[str, PoolKey]) -> None:
-        track_id, key = item
-        try:
-            if _record_room_tone_pool(own, track_id) is None:
-                _note_unrecorded(key)
-        except Exception:
-            log.debug("room tone pool not recorded for %s", track_id, exc_info=True)
-            _note_unrecorded(key)
-        finally:
-            _release_pool(key)
-            released.add(key)
-
-    def run() -> None:
-        from podcast_mcp.util.process import low_priority
-
-        try:
-            with unscoped(), low_priority():
-                if len(claimed) > 1:
-                    try:
-                        _warm_floors(own)
-                    except Exception:
-                        log.debug("room tone floors not measured together", exc_info=True)
-                run_parallel(claimed, record)
-        finally:
-            for _, key in claimed:
-                if key not in released:
-                    _release_pool(key)
-
-    name = "+".join(track_id for track_id, _ in claimed)
     try:
-        threading.Thread(target=run, name=f"room-tone-pool-{name}", daemon=True).start()
+        thread.start()
     except Exception:
         log.debug("room tone pool thread did not start", exc_info=True)
         for _, key in claimed:
