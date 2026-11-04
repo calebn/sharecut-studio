@@ -309,13 +309,17 @@ describe("guestScriptModelOf", () => {
       utterance("Anneke", [indexed("c", 3, 0)], "t2"),
     ]);
     const model = guestScriptModelOf(g);
-    expect(wordsTargetOf(model, { anchor: 0, head: 1 })).toMatchObject({
+    expect(
+      wordsTargetOf(model, { kind: "words", anchor: 0, head: 1 }),
+    ).toMatchObject({
       kind: "track",
       trackId: "t1",
       startWordIndex: 0,
       endWordIndex: 1,
     });
-    expect(wordsTargetOf(model, { anchor: 0, head: 2 })).toMatchObject({
+    expect(
+      wordsTargetOf(model, { kind: "words", anchor: 0, head: 2 }),
+    ).toMatchObject({
       kind: "time",
       start: 1,
       end: 3.5,
