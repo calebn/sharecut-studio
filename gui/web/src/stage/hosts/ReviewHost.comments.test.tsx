@@ -817,6 +817,48 @@ describe("Review host comments", () => {
       });
     });
 
+    it("posts session-wide when the chosen track is gone, and hides the row for a range that names tracks", async () => {
+      server.tracks = [
+        sampleTrack({ id: "t1", label: "Host" }),
+        sampleTrack({ id: "t2", label: "Guest" }),
+      ];
+      mount();
+      act(() => {
+        press("c");
+      });
+      const scope = await screen.findByRole("group", {
+        name: "Comment on tracks",
+      });
+      await userEvent.click(
+        within(scope).getByRole("button", { name: "Guest" }),
+      );
+      server.tracks = [sampleTrack({ id: "t1", label: "Host" })];
+      act(() => {
+        useDawStore.getState().hydrate(PATH, projectOf());
+      });
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("group", { name: "Comment on tracks" }),
+        ).toBeNull(),
+      );
+      await userEvent.type(field(), "Gone{Enter}");
+      await waitFor(() => expect(sent("AddComment")).toHaveLength(1));
+      expect(sent("AddComment")[0].payload).toMatchObject({ track_ids: [] });
+
+      server.tracks = [
+        sampleTrack({ id: "t1", label: "Host" }),
+        sampleTrack({ id: "t2", label: "Guest" }),
+      ];
+      act(() => {
+        useDawStore.getState().hydrate(PATH, projectOf());
+        openCommentDraft({ startSec: 5, endSec: 9, trackIds: ["t2"] });
+      });
+      await screen.findByText("0:05 to 0:09");
+      expect(
+        screen.queryByRole("group", { name: "Comment on tracks" }),
+      ).toBeNull();
+    });
+
     it("posts under a changed name", async () => {
       mount();
       act(() => {
