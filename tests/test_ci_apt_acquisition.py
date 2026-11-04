@@ -327,7 +327,7 @@ def test_configuration_is_idempotent_and_preserves_source_metadata(api, tmp_path
     )
     installation = tmp_path / "installed"
     for _ in range(2):
-        method.configure(apt, installation, methods)
+        assert method.configure(apt, installation, methods) is True
     assert mirrors.read_text() == (
         "# runner mirrors\nsharecut-https://archive.ubuntu.com/ubuntu/\tpriority:2\n"
         "sharecut-https://security.ubuntu.com/ubuntu/\tpriority:3\n"
@@ -655,6 +655,137 @@ def test_unsupported_runner_sources_fail_before_rewrite(api, source):
     _, method = api
     with pytest.raises(ValueError):
         method.rewrite_sources(source)
+
+
+def stanza(uris):
+    return (
+        f"Types: deb\n{uris}\nSuites: resolute resolute-updates resolute-backports\n"
+        "Components: main universe restricted multiverse\n"
+        "Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\n"
+    )
+
+
+def declined_warning(uris):
+    return (
+        "::warning title=Bounded Ubuntu acquisition skipped::"
+        f"unsupported Ubuntu source layout, using stock apt; uris={uris}\n"
+    )
+
+
+def snapshot(root):
+    return {
+        path.relative_to(root): (
+            path.stat().st_mode,
+            path.stat().st_mtime_ns,
+            path.read_bytes() if path.is_file() else None,
+        )
+        for path in root.rglob("*")
+    }
+
+
+def runner_tree(tmp_path, sources):
+    apt = tmp_path / "apt"
+    (apt / "sources.list.d").mkdir(parents=True)
+    (apt / "apt.conf.d").mkdir()
+    methods = tmp_path / "methods"
+    methods.mkdir()
+    (apt / "apt-mirrors.txt").write_text(
+        "http://us-east-2.ec2.archive.ubuntu.com/ubuntu/\tpriority:1\n"
+        "https://archive.ubuntu.com/ubuntu/\tpriority:2\n"
+    )
+    (apt / "sources.list.d/ubuntu.sources").write_text(sources)
+    return apt, tmp_path / "installed", methods
+
+
+@pytest.mark.parametrize(
+    ("sources", "uris"),
+    [
+        (
+            stanza("URIs: http://azure.archive.ubuntu.com/ubuntu/"),
+            '["http://azure.archive.ubuntu.com/ubuntu/"]',
+        ),
+        (
+            stanza("URIs: http://us-east-2.ec2.archive.ubuntu.com/ubuntu/"),
+            '["http://us-east-2.ec2.archive.ubuntu.com/ubuntu/"]',
+        ),
+        (
+            stanza("URIs: http://archive.ubuntu.com/ubuntu/"),
+            '["http://archive.ubuntu.com/ubuntu/"]',
+        ),
+        (stanza("uris: https://archive.ubuntu.com/ubuntu/"), "[]"),
+        (
+            stanza("URIs: mirror+http://mirrors.ubuntu.com/mirrors.txt"),
+            '["mirror+http://mirrors.ubuntu.com/mirrors.txt"]',
+        ),
+        (
+            stanza("URIs: https://archive.ubuntu.com/ubuntu/")
+            + "\n"
+            + stanza("URIs: http://ports.ubuntu.com/ubuntu-ports/"),
+            '["http://ports.ubuntu.com/ubuntu-ports/"]',
+        ),
+        (
+            stanza(
+                "URIs: https://archive.ubuntu.com/ubuntu/\n http://azure.archive.ubuntu.com/ubuntu/"
+            ),
+            '["http://azure.archive.ubuntu.com/ubuntu/"]',
+        ),
+        (
+            stanza("URIs: https://user:pw@mirror.example/ubuntu"),
+            '["<redacted>"]',
+        ),
+    ],
+    ids=[
+        "azure",
+        "ec2",
+        "plain-http",
+        "lowercase-field",
+        "mirror-http",
+        "second-stanza",
+        "continuation",
+        "userinfo",
+    ],
+)
+def test_unrecognised_source_layout_keeps_stock_apt(api, tmp_path, capsys, sources, uris):
+    _, method = api
+    apt, installation, methods = runner_tree(tmp_path, sources)
+    before = snapshot(tmp_path)
+    assert method.configure(apt, installation, methods) is False
+    assert snapshot(tmp_path) == before
+    captured = capsys.readouterr()
+    assert captured.out == declined_warning(uris)
+    assert "pw" not in captured.out + captured.err
+
+
+def test_canonical_source_layout_is_configured(api, tmp_path, capsys):
+    _, method = api
+    apt, installation, methods = runner_tree(
+        tmp_path,
+        stanza("URIs: https://archive.ubuntu.com/ubuntu/ https://security.ubuntu.com/ubuntu/"),
+    )
+    assert method.configure(apt, installation, methods) is True
+    assert (apt / "apt.conf.d/99sharecut-acquisition").is_file()
+    assert capsys.readouterr().out == ""
+
+
+@pytest.mark.parametrize(
+    ("field", "message"),
+    [
+        ("Suites: resolute future", "unsupported runner Ubuntu suites"),
+        ("Components: main bogus", "unsupported runner Ubuntu components"),
+    ],
+)
+def test_unrecognised_suites_and_components_still_fail(api, tmp_path, field, message):
+    _, method = api
+    name = field.split(":")[0]
+    sources = "".join(
+        field + "\n" if line.startswith(name + ":") else line + "\n"
+        for line in stanza("URIs: https://archive.ubuntu.com/ubuntu/").splitlines()
+    )
+    apt, installation, methods = runner_tree(tmp_path, sources)
+    before = snapshot(tmp_path)
+    with pytest.raises(ValueError, match=message):
+        method.configure(apt, installation, methods)
+    assert snapshot(tmp_path) == before
 
 
 @pytest.mark.parametrize(
