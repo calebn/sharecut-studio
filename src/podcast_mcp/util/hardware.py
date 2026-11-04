@@ -293,7 +293,6 @@ def _read_cgroup_int(path: Path) -> int | None:
 
 
 def _memory_cgroup_file_pairs() -> Iterator[tuple[Path, Path]]:
-    """Memory limit and usage files from each supported layout, leaf through mount root."""
     try:
         lines = _SELF_CGROUP.read_text(encoding="ascii").splitlines()
     except (OSError, ValueError):
@@ -327,11 +326,6 @@ def _memory_cgroup_file_pairs() -> Iterator[tuple[Path, Path]]:
 
 
 def _cgroup_headroom_bytes() -> int | None:
-    """Bytes left under the tightest v1 or v2 memory limit above this process.
-
-    Inspect each layout's root alone when its membership is missing or invalid.
-    Return None when no readable finite limit and usage pair exists.
-    """
     headrooms = []
     for limit_file, usage_file in _memory_cgroup_file_pairs():
         limit = _read_cgroup_int(limit_file)
