@@ -687,6 +687,7 @@ export const STATUS_GLYPHS = [
   { state: "needs-you", glyph: "triangle-alert", tone: "warning" },
   { state: "failed", glyph: "octagon-alert", tone: "danger" },
   { state: "offline", glyph: "cloud-off", tone: "warning" },
+  { state: "queued", glyph: "clock", tone: "warning" },
   { state: "live", glyph: "record", tone: "record" },
 ] as const satisfies readonly {
   state: string;

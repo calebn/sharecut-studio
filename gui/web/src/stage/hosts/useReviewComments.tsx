@@ -28,6 +28,7 @@ import { useDawStore } from "../../state/dawStore";
 import type { CommentDraft } from "../../state/types";
 import { useDaw } from "../../state/useDaw";
 import { CommentCard } from "../../system/CommentCard";
+import type { BodyEdit } from "../../system/Composer";
 import { InlineError } from "../../ui";
 import { errorMessage } from "../../utils/apiError";
 import {
@@ -255,10 +256,12 @@ export function useReviewComments(guest: boolean) {
   const stageOf = () =>
     composeRef.current?.closest<HTMLElement>(".rv-stage") ?? null;
 
+  const droppedDraft = useRef<CommentDraft | null>(null);
   const session = useRef(0);
   const close = () => {
     session.current += 1;
     const stage = stageOf();
+    droppedDraft.current = null;
     setBody("");
     setScope([]);
     setActionLines([]);
@@ -291,6 +294,7 @@ export function useReviewComments(guest: boolean) {
       }
       if (!result.ok) return;
       if (guest && capCommentName(name)) saveCommentAuthor(name, role);
+      droppedDraft.current = null;
       setBody("");
       setScope([]);
       setActionLines([]);
@@ -306,13 +310,17 @@ export function useReviewComments(guest: boolean) {
   // The draft the first keystroke made. Emptying the field drops it, so the
   // time follows the playhead (or the selected range) again, but only while it
   // is still this object: C, Comment here or the range command each set a new
-  // draft, which stays. A ref is enough: the draft is never reset on close or
-  // post, because a later draft is always a different object.
+  // draft, which stays. Undo of that emptying brings the dropped draft back, so
+  // the comment keeps the time its first keystroke pinned. A ref is enough: a
+  // later draft is always a different object.
   const typedDraft = useRef<CommentDraft | null>(null);
-  const type = (value: string, composing = false) => {
+  const type = (value: string, edit?: BodyEdit) => {
     const state = useDawStore.getState();
+    const composing = edit?.composing ?? false;
     if (value && !state.commentDraft) {
-      typedDraft.current = resolveCommentAnchor(state).draft;
+      const restored = edit?.undo ? droppedDraft.current : null;
+      typedDraft.current = restored ?? resolveCommentAnchor(state).draft;
+      droppedDraft.current = null;
       state.setCommentDraft(typedDraft.current);
     } else if (
       !value &&
@@ -320,6 +328,7 @@ export function useReviewComments(guest: boolean) {
       typedDraft.current &&
       typedDraft.current === state.commentDraft
     ) {
+      droppedDraft.current = typedDraft.current;
       state.setCommentDraft(null);
     }
     if (!value && !composing) typedDraft.current = null;

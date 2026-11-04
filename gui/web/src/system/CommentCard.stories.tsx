@@ -2,38 +2,22 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import {
   COMMENT_WITH_ACTIONS,
-  OPEN_COMMENT,
   RESOLVED_COMMENT,
 } from "../storybook/commentFixtures";
 import {
-  columnStoryDecorator,
-  viewportStoryParameters,
-} from "../storybook/storyLayout";
+  commentCardStoryMeta,
+  storyParameters,
+} from "../storybook/commentStoryMeta";
 import { playInCanvas } from "../storybook/storyPlay";
-import { CommentCard } from "./CommentCard";
+import type { CommentCard } from "./CommentCard";
 
-const meta: Meta<typeof CommentCard> = {
+const meta = {
+  ...commentCardStoryMeta,
   title: "System/CommentCard",
-  component: CommentCard,
-  tags: ["autodocs"],
-  args: {
-    comment: OPEN_COMMENT,
-    onSelect: fn(),
-    onResolve: fn(),
-    onToggleAction: fn(),
-  },
-  decorators: [columnStoryDecorator],
-  parameters: {
-    ...viewportStoryParameters,
-    docs: {
-      ...viewportStoryParameters.docs,
-      description: {
-        component:
-          "A comment as plain data: author, time in mono, body, replies and action items. Select jumps the playhead. Resolve hands the Undo toast to the caller. A callback left out removes its control: with no resolve and no toggles the action items are a plain list, and with no reply the card has no field. An unsent comment shows the offline glyph, or Not sent with Try again and Remove when the server refused it. Replying reuses the Composer.\n\n**Motion.** Animations come later: a resolved card settles to its quiet line. A phone queue row swipes right for its verb, which resolves a comment; the card has no swipe of its own.",
-      },
-    },
-  },
-};
+  parameters: storyParameters(
+    "A comment as plain data: author, time in mono, body, replies and action items. Select jumps the playhead. Resolve hands the Undo toast to the caller. A callback left out removes its control: with no resolve and no toggles the action items are a plain list, and with no reply the card has no field. An unsent comment shows the queued clock, or Not sent with Try again and Remove when the server refused it. Replying reuses the Composer.\n\n**Motion.** Animations come later: a resolved card settles to its quiet line. A phone queue row swipes right for its verb, which resolves a comment; the card has no swipe of its own.",
+  ),
+} satisfies Meta<typeof CommentCard>;
 
 export default meta;
 type Story = StoryObj<typeof CommentCard>;

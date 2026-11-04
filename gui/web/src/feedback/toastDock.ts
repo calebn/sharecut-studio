@@ -15,7 +15,7 @@ const FLOOR_SELECTORS = [
   ".sys-inspector--phone",
 ] as const;
 
-const PROTECT_SELECTORS = [".comment-compose", ".sys-composer"] as const;
+const PROTECT_SELECTORS = [".sys-composer"] as const;
 
 /** Phone chrome docked to the top edge; the toast stays below it. */
 const CEILING_SELECTORS = [".stage-frame--phone .stage-frame-header"] as const;
