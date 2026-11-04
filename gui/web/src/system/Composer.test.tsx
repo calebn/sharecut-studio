@@ -59,6 +59,19 @@ describe("Composer", () => {
     });
   });
 
+  it("does not flag a redo as an undo", () => {
+    const onBodyChange = vi.fn();
+    render(<Harness onBodyChange={onBodyChange} />);
+    fireEvent.input(field(), {
+      target: { value: "a" },
+      inputType: "historyRedo",
+    });
+    expect(onBodyChange).toHaveBeenCalledWith("a", {
+      composing: false,
+      undo: false,
+    });
+  });
+
   it("flags a change the browser's undo made", () => {
     const onBodyChange = vi.fn();
     render(<Harness onBodyChange={onBodyChange} />);

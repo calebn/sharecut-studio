@@ -210,7 +210,7 @@ export function Composer(props: ComposerProps) {
             const native = event.nativeEvent as InputEvent;
             onBodyChange(event.target.value, {
               composing: native.isComposing === true,
-              undo: native.inputType?.startsWith("history") ?? false,
+              undo: native.inputType === "historyUndo",
             });
           }}
           onKeyDown={onBodyKeyDown}
