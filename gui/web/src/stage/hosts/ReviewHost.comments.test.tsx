@@ -817,6 +817,43 @@ describe("Review host comments", () => {
       });
     });
 
+    it("posts the action items typed under the comment, skipping empty lines, up to five", async () => {
+      mount();
+      act(() => {
+        press("c");
+      });
+      await userEvent.type(field(), "Fix the intro");
+      const add = () => screen.getByRole("button", { name: "Add action item" });
+      await userEvent.click(add());
+      await userEvent.type(
+        screen.getByRole("textbox", { name: "Action item 1" }),
+        "  Re-record intro ",
+      );
+      await userEvent.click(add());
+      await userEvent.click(add());
+      await userEvent.type(
+        screen.getByRole("textbox", { name: "Action item 3" }),
+        "Trim the cough",
+      );
+      await userEvent.click(
+        screen.getByRole("button", { name: "Remove action item 2" }),
+      );
+      await userEvent.click(add());
+      await userEvent.click(add());
+      await userEvent.click(add());
+      expect(
+        screen.getAllByRole("textbox", { name: /^Action item/ }),
+      ).toHaveLength(5);
+      expect(
+        screen.queryByRole("button", { name: "Add action item" }),
+      ).toBeNull();
+      await userEvent.type(field(), "{Enter}");
+      await waitFor(() => expect(sent("AddComment")).toHaveLength(1));
+      expect(sent("AddComment")[0].payload).toMatchObject({
+        action_texts: ["Re-record intro", "Trim the cough"],
+      });
+    });
+
     it("posts session-wide when the chosen track is gone, and hides the row for a range that names tracks", async () => {
       server.tracks = [
         sampleTrack({ id: "t1", label: "Host" }),

@@ -38,6 +38,7 @@ import {
   savedGuestName,
   sessionDisplayName,
 } from "../../utils/commentAuthor";
+import { ActionItemsField, filledActions } from "./ActionItemsField";
 import { ComposeAnchor } from "./ComposeAnchor";
 import { commentCardOf } from "./commentCardData";
 import { TrackScope } from "./TrackScope";
@@ -102,6 +103,7 @@ export function useReviewComments(guest: boolean) {
   >({});
   const [asked, setAsked] = useState<string | null>(null);
   const [scope, setScope] = useState<string[]>([]);
+  const [actionLines, setActionLines] = useState<string[]>([]);
   const tracks = project?.tracks;
   const draftNamesTracks = (commentDraft?.trackIds?.length ?? 0) > 0;
   const scopeTracks =
@@ -110,6 +112,9 @@ export function useReviewComments(guest: boolean) {
   const chosen = scopeTracks
     ? scope.filter((id) => scopeTracks.some((t) => t.id === id))
     : [];
+
+  // Action items are an editor's tool; a guest comment never carries them.
+  const mayAct = !guest;
 
   useEffect(() => {
     const landed = new Set(sent.current);
@@ -125,7 +130,10 @@ export function useReviewComments(guest: boolean) {
 
   // The next comment starts on all tracks again.
   useEffect(() => {
-    if (!commentDraft) setScope([]);
+    if (!commentDraft) {
+      setScope([]);
+      setActionLines([]);
+    }
   }, [commentDraft]);
 
   // A new draft, from C or the Edit verb, opens the field with focus.
@@ -252,6 +260,7 @@ export function useReviewComments(guest: boolean) {
     const stage = stageOf();
     setBody("");
     setScope([]);
+    setActionLines([]);
     postComment.cancel();
     useDawStore.getState().setCommentDraft(null);
     stage?.focus({ preventScroll: true });
@@ -267,6 +276,7 @@ export function useReviewComments(guest: boolean) {
       const result = await postComment.post({
         body,
         trackIds: chosen,
+        actionTexts: mayAct ? filledActions(actionLines) : [],
         author: commitCommentActor(
           name,
           role,
@@ -282,6 +292,7 @@ export function useReviewComments(guest: boolean) {
       if (guest && capCommentName(name)) saveCommentAuthor(name, role);
       setBody("");
       setScope([]);
+      setActionLines([]);
       useDawStore
         .getState()
         .announceStatus(commentPostedStatus(result.comment));
@@ -334,6 +345,13 @@ export function useReviewComments(guest: boolean) {
           tracks={scopeTracks}
           value={scope}
           onChange={setScope}
+          disabled={postComment.busy}
+        />
+      ) : null}
+      {mayAct ? (
+        <ActionItemsField
+          lines={actionLines}
+          onChange={setActionLines}
           disabled={postComment.busy}
         />
       ) : null}
