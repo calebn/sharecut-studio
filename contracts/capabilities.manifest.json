@@ -3133,7 +3133,7 @@
       "service": "EditService.edit_selected_range",
       "industry_standard_key": false,
       "gates": [
-        "hasProject"
+        "editStage"
       ],
       "surfaces": {
         "command": "range.cut",
@@ -3161,7 +3161,7 @@
       "service": "EditService.edit_selected_range",
       "industry_standard_key": false,
       "gates": [
-        "hasProject"
+        "editStage"
       ],
       "surfaces": {
         "command": "range.mute",
@@ -3188,7 +3188,7 @@
       "service": "TimelineService.fill_room_tone",
       "industry_standard_key": false,
       "gates": [
-        "hasProject"
+        "editStage"
       ],
       "surfaces": {
         "command": "range.fillRoomTone",

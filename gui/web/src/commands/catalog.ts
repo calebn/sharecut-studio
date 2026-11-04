@@ -329,7 +329,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Cut selected range",
     shortLabel: "Cut",
     keywords: ["remove", "delete"],
-    when: "hasProject",
+    when: "editStage",
   },
   "range.mute": {
     id: "range.mute",
@@ -338,7 +338,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Mute selected range",
     shortLabel: "Mute",
     keywords: ["silence"],
-    when: "hasProject",
+    when: "editStage",
   },
   "range.fillRoomTone": {
     id: "range.fillRoomTone",
@@ -347,7 +347,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Fill range with room tone",
     shortLabel: "Fill room tone",
     keywords: ["silence", "gap", "ambience", "noise floor"],
-    when: "hasProject",
+    when: "editStage",
   },
   "range.moveSpeakerLane": {
     id: "range.moveSpeakerLane",
