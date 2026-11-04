@@ -225,24 +225,28 @@ def load_rows(text: str) -> list[dict[str, Any]]:
     return rows
 
 
-def base_rows(ref: str, contract: Path) -> list[dict[str, Any]] | None:
-    if ref.startswith("-"):
-        return None
+def _git(*args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(["git", *args], cwd=ROOT, check=False, capture_output=True, text=True)
+
+
+def base_rows(ref: str, contract: Path) -> tuple[list[dict[str, Any]] | None, str | None]:
+    """Return the base contract rows, or ``(None, None)`` when that ref has no contract yet.
+
+    A ref that does not resolve, or a base file that cannot be parsed, is an error message.
+    """
+    if (
+        ref.startswith("-")
+        or _git("rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}").returncode
+    ):
+        return None, f"--base {ref} is not a commit in this checkout"
+    rel = contract.resolve().relative_to(ROOT).as_posix()
+    shown = _git("show", f"{ref}:{rel}")
+    if shown.returncode:
+        return None, None
     try:
-        rel = contract.resolve().relative_to(ROOT).as_posix()
-        out = subprocess.run(
-            ["git", "show", f"{ref}:{rel}"],
-            cwd=ROOT,
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout
-    except (ValueError, OSError, subprocess.CalledProcessError):
-        return None
-    try:
-        return load_rows(out)
-    except ValueError:
-        return None
+        return load_rows(shown.stdout), None
+    except ValueError as exc:
+        return None, f"{ref}:{rel}: {exc}"
 
 
 def census(actual: dict[Key, int]) -> list[dict[str, Any]]:
@@ -261,7 +265,7 @@ def main(argv: Iterable[str] | None = None) -> int:
     parser.add_argument(
         "--base",
         metavar="REF",
-        help="git ref whose contract the rows may not grow beyond (skipped with a note if unreadable)",
+        help="git ref whose contract the rows may not grow beyond (an unresolvable ref fails; a ref without the file skips the check)",
     )
     parser.add_argument("--census", action="store_true", help="print current writers as JSON rows")
     args = parser.parse_args(list(argv) if argv is not None else None)
@@ -269,15 +273,18 @@ def main(argv: Iterable[str] | None = None) -> int:
     if args.census:
         print(json.dumps(census(actual), indent=2))
         return 0
-    rows = load_rows(args.contract.read_text(encoding="utf-8"))
+    try:
+        rows = load_rows(args.contract.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print(f"project-writers: {args.contract}: {exc}", file=sys.stderr)
+        return 1
     problems = validate_rows(rows) + compare(rows, actual)
     if args.base:
-        base = base_rows(args.base, args.contract)
-        if base is None:
-            print(
-                f"project-writers: --base {args.base} is unreadable; growth check skipped",
-                file=sys.stderr,
-            )
+        base, error = base_rows(args.base, args.contract)
+        if error:
+            problems.append(error)
+        elif base is None:
+            print(f"project-writers: {args.base} has no contract yet; growth check skipped")
         else:
             problems += grown(base, rows)
     for problem in problems:

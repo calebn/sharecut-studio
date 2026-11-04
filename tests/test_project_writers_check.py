@@ -191,6 +191,30 @@ def test_checked_in_contract_matches_main() -> None:
     assert proc.returncode == 0, proc.stderr + proc.stdout
 
 
+def test_checked_in_contract_has_not_grown_since_origin_main() -> None:
+    resolves = subprocess.run(
+        ["git", "rev-parse", "--verify", "--quiet", "origin/main^{commit}"],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+    )
+    if resolves.returncode:
+        pytest.skip("origin/main is not available in this checkout")
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "check_project_writers.py"),
+            "--base",
+            "origin/main",
+        ],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 0, proc.stderr + proc.stdout
+
+
 def test_grown_flags_new_rows_and_higher_counts() -> None:
     base = [_row("a.py", "ws.save", 2)]
     assert checker.grown(base, [_row("a.py", "ws.save", 2)]) == []
@@ -199,27 +223,43 @@ def test_grown_flags_new_rows_and_higher_counts() -> None:
     assert any("new row" in p for p in checker.grown(base, [_row("b.py", "ws.save", 1)]))
 
 
-def test_base_ref_unreadable_is_skipped(tmp_path: Path) -> None:
+def _contract_file(tmp_path: Path) -> tuple[Path, Path]:
     src = _tree(tmp_path, {"cli/edit.py": CLI_SOURCE})
     contract = tmp_path / "writers.json"
-    contract.write_text(
-        json.dumps({"writers": [_row("cli/edit.py", "apply_external_document_edit", 2)]})
-    )
-    args = ["--src", str(src), "--contract", str(contract), "--base", "no-such-ref"]
-    assert checker.main(args) == 0
+    rows = [_row("cli/edit.py", "apply_external_document_edit", 2)]
+    contract.write_text(json.dumps({"writers": rows}))
+    return src, contract
 
 
-def test_option_like_base_ref_is_refused_and_noted(
+def test_base_ref_without_the_contract_skips_the_growth_check(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    src, contract = _contract_file(tmp_path)
+    monkeypatch.setattr(checker, "ROOT", tmp_path)
+    ok = subprocess.CompletedProcess([], 0, "", "")
+    missing = subprocess.CompletedProcess([], 128, "", "missing")
+    monkeypatch.setattr(checker, "_git", lambda *a: ok if a[0] == "rev-parse" else missing)
+    assert checker.main(["--src", str(src), "--contract", str(contract), "--base", "main"]) == 0
+    assert "no contract yet" in capsys.readouterr().out
+
+
+def test_unresolvable_or_option_like_base_ref_fails(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    src, contract = _contract_file(tmp_path)
+    for ref in ("--base=--output=x", "--base=no-such-ref-anywhere"):
+        assert checker.main(["--src", str(src), "--contract", str(contract), ref]) == 1
+        assert "not a commit" in capsys.readouterr().err
+    assert not (tmp_path / "x").exists()
+
+
+def test_unparseable_contract_exits_one(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     src = _tree(tmp_path, {"cli/edit.py": CLI_SOURCE})
     contract = tmp_path / "writers.json"
-    contract.write_text(
-        json.dumps({"writers": [_row("cli/edit.py", "apply_external_document_edit", 2)]})
-    )
-    assert checker.main(["--src", str(src), "--contract", str(contract), "--base=--output=x"]) == 0
-    assert "growth check skipped" in capsys.readouterr().err
-    assert not (tmp_path / "x").exists()
+    for text in ("[]", "{}", "not json"):
+        contract.write_text(text)
+        assert checker.main(["--src", str(src), "--contract", str(contract)]) == 1
+        assert str(contract) in capsys.readouterr().err
 
 
 def test_contract_must_be_an_object_with_writers() -> None:
