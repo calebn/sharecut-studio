@@ -798,7 +798,9 @@ def map_applied_edits_to_timeline(
     """Fill missing timeline_* on applied-edit records for the GUI view.
 
     Legacy edit_log rows may only have source clocks. Mapping is view-only -
-    does not mutate ``editorial.edit_log`` on disk.
+    does not mutate ``editorial.edit_log`` on disk. The inverse stays in the stored record:
+    it carries the removed clips and dropped comment bodies, and the client reads only
+    ``restore``.
     """
     records_in = applied.get("records", []) if isinstance(applied, dict) else list(applied)
 
@@ -806,9 +808,9 @@ def map_applied_edits_to_timeline(
     records: list[dict[str, Any]] = []
     for raw in records_in:
         if isinstance(raw, AppliedEditRecord):
-            row = raw.model_dump()
+            row = raw.model_dump(exclude={"inverse"})
         elif isinstance(raw, dict):
-            row = dict(raw)
+            row = {k: v for k, v in raw.items() if k != "inverse"}
         else:
             continue
 

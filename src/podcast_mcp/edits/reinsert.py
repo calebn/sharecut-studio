@@ -9,7 +9,7 @@ typed conflict, naming the applied edit that removed the audio when one did.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 
 from podcast_mcp.config.defaults import EffectiveConfig
@@ -40,6 +40,7 @@ from podcast_mcp.models import (
     TrackSeam,
 )
 from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.tracks import dialogue_track_ids
 
 _TL_EPS = 1e-4
 _SRC_EPS = 1e-6
@@ -192,12 +193,21 @@ def pad_record(
 # --- restore -------------------------------------------------------------------------------
 
 
-def _find(clips: Sequence[Clip], edge: SourceEdge, attr: str) -> Clip | None:
+def _find(
+    clips: Sequence[Clip], edge: SourceEdge, attr: str, *, skip: Collection[str] = ()
+) -> Clip | None:
+    """The clip whose ``attr`` clock is ``edge``; ``skip`` leaves out the cut's own pad fill.
+
+    A room-tone fill shares its source clock with a neighbouring cut's fill, so the pad this
+    cut inserted must not stand in for the clip it sits next to.
+    """
     return next(
         (
             c
             for c in clips
-            if c.source_id == edge.source_id and abs(getattr(c, attr) - edge.sec) <= _SRC_EPS
+            if c.id not in skip
+            and c.source_id == edge.source_id
+            and abs(getattr(c, attr) - edge.sec) <= _SRC_EPS
         ),
         None,
     )
@@ -244,7 +254,8 @@ def _pad_shifts(pad: ReinsertPad | None) -> tuple[float, float]:
 def locate_seam(
     project: EpisodeProject, record: AppliedEditRecord, inverse: ReinsertClips
 ) -> SeamLocation | SeamConflict:
-    shift_left, shift_right = _pad_shifts(inverse.pad)
+    padded = set(dialogue_track_ids(project))
+    pad_ids = set(inverse.pad.clip_ids) if inverse.pad is not None else set()
     times: list[float] = []
     for seam in inverse.tracks:
         if project.track_by_id(seam.track_id) is None:
@@ -253,6 +264,8 @@ def locate_seam(
                 f"Track {seam.track_id} is no longer in the project.",
                 seam.track_id,
             )
+        # The pad is inserted on dialogue tracks only; an edited track beside them stays put.
+        shift_left, shift_right = _pad_shifts(inverse.pad if seam.track_id in padded else None)
         clips = clips_for_track(project, seam.track_id)
         left = right = None
         for edge, attr, name in (
@@ -261,7 +274,7 @@ def locate_seam(
         ):
             if edge is None:
                 continue
-            clip = _find(clips, edge, attr)
+            clip = _find(clips, edge, attr, skip=pad_ids)
             if clip is None:
                 blockers = _blockers(project.editorial.edit_log, record.id, seam.track_id, edge)
                 return SeamConflict(
@@ -300,7 +313,7 @@ def locate_seam(
             "seam_misaligned", "The tracks no longer meet at one point for this cut."
         )
     ripple = tuple(ripple_track_ids(project, record.track_ids))
-    pad_conflict = _check_pad(project, inverse, times[0], ripple)
+    pad_conflict = _check_pad(project, inverse, times[0], [t for t in ripple if t in padded])
     if pad_conflict is not None:
         return pad_conflict
     return SeamLocation(times[0], ripple)
@@ -344,7 +357,8 @@ def apply_reinsert(
     at, ripple = located.time, located.ripple_tracks
     if inverse.pad is not None:
         pad_start = at + inverse.pad.offset_from_seam
-        for tid in ripple:
+        padded = set(dialogue_track_ids(project))
+        for tid in (t for t in ripple if t in padded):
             set_track_clips(
                 project,
                 tid,
@@ -370,7 +384,7 @@ def apply_reinsert(
             seam.track_id,
             place_clips_at(clips_for_track(project, seam.track_id), pieces, at),
         )
-    _restore_fades(project, inverse.edges)
+    _restore_fades(project, inverse.edges, at, inverse.duration_sec)
     restore_archived_words(
         project, {*record.track_ids, *(seam.track_id for seam in inverse.tracks)}
     )
@@ -378,17 +392,24 @@ def apply_reinsert(
     update_timeline_duration(project)
 
 
-def _restore_fades(project: EpisodeProject, edges: Sequence[EdgeFade]) -> None:
+def _restore_fades(
+    project: EpisodeProject, edges: Sequence[EdgeFade], at: float, duration: float
+) -> None:
+    """Put back each seam clip's fade; a clip sharing the source clock is told apart by position."""
     for edge in edges:
-        clip = next(
-            (
-                c
-                for c in clips_for_track(project, edge.track_id)
-                if c.source_id == edge.source_id
-                and abs((c.source_end if edge.side == "out" else c.source_start) - edge.source_sec)
-                <= _SRC_EPS
+        out = edge.side == "out"
+        candidates = [
+            c
+            for c in clips_for_track(project, edge.track_id)
+            if c.source_id == edge.source_id
+            and abs((c.source_end if out else c.source_start) - edge.source_sec) <= _SRC_EPS
+        ]
+        clip = min(
+            candidates,
+            key=lambda c: (
+                abs(c.timeline_end - at) if out else abs(c.timeline_start - at - duration)
             ),
-            None,
+            default=None,
         )
         if clip is None:
             continue
@@ -403,10 +424,11 @@ def _restore_anchors(project: EpisodeProject, inverse: ReinsertClips, at: float)
     """Move anchors across the reopened span and return the ones the cut dropped or clamped.
 
     An anchor the cut moved is put back only while it still sits where the cut left it, so a
-    later hand edit stays.
+    later hand edit stays. A comment's two ends are judged separately: a cut applied later may
+    have moved one of them, and the other still goes home.
     """
     review, editorial = project.review, project.editorial
-    moved_comments: list[tuple[AnchorBefore, int]] = []
+    moved_comments: list[tuple[AnchorBefore, int, bool, bool]] = []
     moved_chapters: list[tuple[AnchorBefore, int]] = []
     claimed: set[int] = set()
     comment_index = {c.id: i for i, c in enumerate(review.comments)}
@@ -418,14 +440,16 @@ def _restore_anchors(project: EpisodeProject, inverse: ReinsertClips, at: float)
             if i is None:
                 continue
             comment = review.comments[i]
-            same_end = (
+            # Each end is judged alone: a later cut may have moved the other one.
+            start_here = abs(comment.timeline_start - (at + anchor.post_start)) <= _ANCHOR_EPS
+            end_here = (
                 comment.timeline_end is None
                 if anchor.post_end is None
                 else comment.timeline_end is not None
                 and abs(comment.timeline_end - (at + anchor.post_end)) <= _ANCHOR_EPS
             )
-            if abs(comment.timeline_start - (at + anchor.post_start)) <= _ANCHOR_EPS and same_end:
-                moved_comments.append((anchor, i))
+            if start_here or end_here:
+                moved_comments.append((anchor, i, start_here, end_here))
             continue
         chapter = anchor.chapter
         assert chapter is not None
@@ -447,13 +471,13 @@ def _restore_anchors(project: EpisodeProject, inverse: ReinsertClips, at: float)
     shift_review_anchors_for_insert(project, at, inverse.duration_sec)
     for comment in review.comments:
         comment.timeline_spans = spans[comment.id]
-    for anchor, i in moved_comments:
-        review.comments[i] = review.comments[i].model_copy(
-            update={
-                "timeline_start": at + anchor.start,
-                "timeline_end": None if anchor.end is None else at + anchor.end,
-            }
-        )
+    for anchor, i, start_here, end_here in moved_comments:
+        update: dict[str, float | None] = {}
+        if start_here:
+            update["timeline_start"] = at + anchor.start
+        if end_here:
+            update["timeline_end"] = None if anchor.end is None else at + anchor.end
+        review.comments[i] = review.comments[i].model_copy(update=update)
     for anchor, i in moved_chapters:
         editorial.chapters[i] = editorial.chapters[i].model_copy(update={"time": at + anchor.start})
     for anchor in sorted(
