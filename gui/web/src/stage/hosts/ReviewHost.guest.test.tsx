@@ -486,6 +486,19 @@ describe("Review queue for a guest", () => {
       expect(docked()).toBe(false);
     });
 
+    it("keeps the same field element when the shell changes under it", () => {
+      stubViewportShell("phone");
+      useDawStore.setState({ shellBreakpoint: "phone" });
+      join("comment");
+      render(<ReviewHost guestShare />);
+      const field = screen.getByRole("textbox", { name: "Comment" });
+      expect(docked()).toBe(true);
+      act(() => useDawStore.setState({ shellBreakpoint: "desktop" }));
+      expect(docked()).toBe(false);
+      expect(screen.getByRole("textbox", { name: "Comment" })).toBe(field);
+      expect(field.isConnected).toBe(true);
+    });
+
     const after = () => {
       const compose = document.querySelector(".rv-compose") as Element;
       const card = document.querySelector(".rv-card > :not(.rv-compose)");
