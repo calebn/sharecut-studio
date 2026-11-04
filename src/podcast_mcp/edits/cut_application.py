@@ -414,7 +414,7 @@ def _apply_replace_gap_pad(
         cut_effects.native_pad_origins().update((clip_id, effect) for clip_id in effect.clip_ids)
         samples = report["pad_samples"]
     else:
-        insert_gap(project, pad_start_sec, gap, defaults=defaults)
+        insert_gap(project, pad_start_sec, gap, defaults=defaults, shift_anchors=True)
         samples = []
     pad_end_sec = pad_start_sec + gap
     fills = [

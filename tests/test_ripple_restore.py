@@ -374,21 +374,30 @@ def test_a_comment_spanning_two_cuts_gets_each_end_back_from_its_own_cut(
     assert _rounded(_state(load_project(ws.path))) == _rounded(before)
 
 
-def test_a_comment_start_goes_home_with_its_cut_even_when_a_pad_sits_at_the_other_cut(
-    tmp_path, monkeypatch
+@pytest.mark.parametrize("pad_mode", ["silence", "room_tone"])
+@pytest.mark.parametrize("order", ["a-b", "b-a", "together"])
+def test_comments_and_chapters_return_exactly_across_replace_gap_pads(
+    tmp_path, monkeypatch, pad_mode, order
 ):
     project = build(tmp_path)
     project.edit_decisions = [cut("a", 1.0, 1.9, gap=0.25), cut("b", 3.0, 3.3, gap=0.25)]
-    ws = workspace(project, monkeypatch, tmp_path, pad_mode="silence")
+    ws = workspace(project, monkeypatch, tmp_path, pad_mode=pad_mode)
+    before = _state(ws.project)
+    assert _comment_span(ws.project, "overlap-start") == (1.8, 3.5)
     assert EditService(ws).approve(["a"]) == 1
     assert EditService(ws).approve(["b"]) == 1
     a, b = (r.id for r in ws.project.editorial.edit_log)
 
-    assert EditService(ws).revert_applied([a])["status"] == "restored"
+    steps = [[a, b]] if order == "together" else [[a], [b]] if order == "a-b" else [[b], [a]]
+    for step in steps:
+        assert EditService(ws).revert_applied(step)["status"] == "restored"
 
-    assert _comment_span(load_project(ws.path), "overlap-start")[0] == pytest.approx(1.8)
-    assert EditService(ws).revert_applied([b])["status"] == "restored"
-    assert _comment_span(load_project(ws.path), "overlap-start")[0] == pytest.approx(1.8)
+    restored = _state(load_project(ws.path))
+    assert _comment_span(load_project(ws.path), "overlap-start") == (
+        pytest.approx(1.8),
+        pytest.approx(3.5),
+    )
+    assert _rounded(restored) == _rounded(before)
 
 
 def test_adjacent_cuts_with_room_tone_pads_restore_even_though_their_fills_share_a_clock(
