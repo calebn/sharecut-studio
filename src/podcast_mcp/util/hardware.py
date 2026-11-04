@@ -292,42 +292,53 @@ def _read_cgroup_int(path: Path) -> int | None:
         return None
 
 
-def _own_cgroup_dirs(root: Path) -> list[Path]:
-    """This process's cgroup v2 directory and every ancestor up to the root, innermost first.
-
-    Only the root when the own group cannot be read or has no usable v2 line.
-    """
+def _memory_cgroup_file_pairs() -> Iterator[tuple[Path, Path]]:
+    """Memory limit and usage files from each supported layout, leaf through mount root."""
     try:
         lines = _SELF_CGROUP.read_text(encoding="ascii").splitlines()
     except (OSError, ValueError):
-        return [root]
-    own = next((line[3:] for line in lines if line.startswith("0::")), None)
-    parts = [part for part in (own or "").split("/") if part]
-    if ".." in parts:
-        return [root]
-    return [root.joinpath(*parts[:depth]) for depth in range(len(parts), -1, -1)]
+        lines = []
+    memberships: dict[str, list[str]] = {}
+    for line in lines:
+        fields = line.split(":", 2)
+        if len(fields) != 3:
+            continue
+        hierarchy, controllers, own = fields
+        if hierarchy == "0" and not controllers:
+            version = "v2"
+        elif "memory" in controllers.split(","):
+            version = "v1"
+        else:
+            continue
+        parts = [part for part in own.split("/") if part]
+        if own.startswith("/") and ".." not in parts:
+            memberships.setdefault(version, parts)
+
+    layouts = (
+        (_CGROUP_ROOT, "v2", "memory.max", "memory.current"),
+        (_CGROUP_ROOT / "unified", "v2", "memory.max", "memory.current"),
+        (_CGROUP_ROOT / "memory", "v1", "memory.limit_in_bytes", "memory.usage_in_bytes"),
+    )
+    for root, version, limit_file, usage_file in layouts:
+        parts = memberships.get(version, [])
+        for depth in range(len(parts), -1, -1):
+            directory = root.joinpath(*parts[:depth])
+            yield directory / limit_file, directory / usage_file
 
 
 def _cgroup_headroom_bytes() -> int | None:
-    """Bytes left under the tightest memory limit above this process; None when unlimited.
+    """Bytes left under the tightest v1 or v2 memory limit above this process.
 
-    cgroup v2 reads the process's own group and every ancestor, because a limit can sit on
-    any of them (the root alone when the own group is unknown); v1 reads the root of the
-    memory controller.
+    Inspect each layout's root alone when its membership is missing or invalid.
+    Return None when no readable finite limit and usage pair exists.
     """
     headrooms = []
-    for directory in _own_cgroup_dirs(_CGROUP_ROOT):
-        limit = _read_cgroup_int(directory / "memory.max")
-        used = _read_cgroup_int(directory / "memory.current")
+    for limit_file, usage_file in _memory_cgroup_file_pairs():
+        limit = _read_cgroup_int(limit_file)
+        used = _read_cgroup_int(usage_file)
         if limit is not None and used is not None and limit < _NO_LIMIT_BYTES:
             headrooms.append(max(0, limit - used))
-    if headrooms:
-        return min(headrooms)
-    limit = _read_cgroup_int(_CGROUP_ROOT / "memory" / "memory.limit_in_bytes")
-    used = _read_cgroup_int(_CGROUP_ROOT / "memory" / "memory.usage_in_bytes")
-    if limit is None or used is None or limit >= _NO_LIMIT_BYTES:
-        return None
-    return max(0, limit - used)
+    return min(headrooms) if headrooms else None
 
 
 def _onnx_providers() -> tuple[str, ...]:
