@@ -4,9 +4,9 @@ are listened to one at a time.
 The rules behind ``pending_edits[].harsh`` and ``pending_edits[].listen_one_by_one``. ``harsh``
 means only a real harsh-join risk (reason carries ``:risky`` or ``:join_review``); needing review
 is a separate fact (``review_required``) with many causes and does not make a hit harsh. Studio
-reads ``listen_one_by_one`` from the server and holds no rule of its own; no Studio surface
-reads ``harsh`` now that the harsh-only filter is gone. Apply suggested actions does not filter on
-them: the server applies each sound's own action and names what stays pending.
+reads ``listen_one_by_one`` from the server and holds no rule of its own. The Review Queue reads
+``harsh`` as its top risk flag, though no filter gates on it any more. Apply suggested actions does
+not filter on them: the server applies each sound's own action and names what stays pending.
 
 """
 
