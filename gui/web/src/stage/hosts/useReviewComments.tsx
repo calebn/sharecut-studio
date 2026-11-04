@@ -103,7 +103,13 @@ export function useReviewComments(guest: boolean) {
   const [asked, setAsked] = useState<string | null>(null);
   const [scope, setScope] = useState<string[]>([]);
   const tracks = project?.tracks;
-  const scopeTracks = !guest && tracks && tracks.length > 1 ? tracks : null;
+  const draftNamesTracks = (commentDraft?.trackIds?.length ?? 0) > 0;
+  const scopeTracks =
+    !guest && !draftNamesTracks && tracks && tracks.length > 1 ? tracks : null;
+  // A person who picked A and then lost A (deleted, or the row hid) posts session-wide, not at a ghost.
+  const chosen = scopeTracks
+    ? scope.filter((id) => scopeTracks.some((t) => t.id === id))
+    : [];
 
   useEffect(() => {
     const landed = new Set(sent.current);
@@ -116,6 +122,11 @@ export function useReviewComments(guest: boolean) {
       return kept.length === prev.size ? prev : new Map(kept);
     });
   }, [comments]);
+
+  // The next comment starts on all tracks again.
+  useEffect(() => {
+    if (!commentDraft) setScope([]);
+  }, [commentDraft]);
 
   // A new draft, from C or the Edit verb, opens the field with focus.
   useEffect(() => {
@@ -255,7 +266,7 @@ export function useReviewComments(guest: boolean) {
     try {
       const result = await postComment.post({
         body,
-        trackIds: scope,
+        trackIds: chosen,
         author: commitCommentActor(
           name,
           role,
