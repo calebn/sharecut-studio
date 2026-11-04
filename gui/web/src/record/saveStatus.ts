@@ -30,20 +30,6 @@ export type SegmentAckRow = RecordSegmentAck & {
   segment_index: number;
 };
 
-export function segmentSaveFromAck(row: SegmentAckRow): SegmentSave {
-  const saved = Boolean(row.file_ack);
-  return {
-    take: row.take_index,
-    segment: row.segment_index,
-    state: saved ? "saved" : "saving",
-    chunks:
-      !saved && row.expected_parts != null
-        ? { acked: row.acked_parts.length, total: row.expected_parts }
-        : null,
-    landFailed: Boolean(row.land_failed),
-  };
-}
-
 /**
  * `fresh` replaces the same segment in `known`; a known segment this pass has
  * not reached yet stays listed, so the list never drops a row mid-pass.

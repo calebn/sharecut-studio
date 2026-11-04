@@ -458,7 +458,7 @@ while finalized WAV totals are known, then "Saved to project" once the file is A
 several segments, a list shows one "Saving to project…" or "Saved to project" line per segment. Each segment's
 line appears the moment its upload starts and flips as its chunks and file ACK land (the upload hook publishes during
 the pass, not once at its end); a polite, screen-reader-only live region speaks a segment starting or finishing, never
-each chunk (`SaveAnnouncer`, mounted by the guest room for its own save lines and by the host stage). The visible list, the "N of M chunks" line,
+each chunk (`SaveAnnouncer`, mounted by the guest room for its own save lines). The visible list, the "N of M chunks" line,
 and the host roster sit outside every other live region, so a moving count is never read twice; saving outcomes without
 counts (failed, saved and landed, waiting to land) are their own `role="status"` lines (`UploadStatus`). Resume on the **same `/rec/` token** inside a **7-day recovery window**.
 A pending segment is never uploaded automatically; the More sheet offers
@@ -663,8 +663,9 @@ errors never fall back. A successful
 reacquisition opens the next segment at the current recording-clock offset,
 extrapolated from the last room snapshot when the stream changes. Keeper gate
 transitions are applied in order so a quick reconnect cannot skip the
-loss/segment close. The host sees the lost-microphone alert in the room and, off the Record
-stage, the Record tab badge, until the microphone is back. A normal unmount or application stop removes the
+loss/segment close. While a take is recording or paused, the host sees the lost-microphone alert in
+the room and, off the Record stage, the Record tab badge, until the microphone
+is back. A normal unmount or application stop removes the
 listener before stopping tracks and does not show the warning.
 
 **Silent PCM watchdog.** A live track can still deliver nothing (a suspended
@@ -1481,7 +1482,7 @@ the lost span. A stopped, incomplete local `.wav` remains in OPFS for recovery
 with only its pending `complete: false` `.json`; it is never given a file ACK,
 landed, or reclaimed until **Recover partial take** finalizes it. Once all
 complete segments are acknowledged, that retained partial no longer traps the
-guest Leave button or the host's More sheet. Repeated errors remain visible and do not
+guest Leave button or the host's End session. Repeated errors remain visible and do not
 silently discard or count queued samples.
 Host and guest upload polling treats capture as unsettled while a keeper Stop
 or stream-loss finalization is pending; it does not mark a pending WAV

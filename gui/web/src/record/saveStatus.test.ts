@@ -4,40 +4,10 @@ import {
   ownSaveLines,
   SAVE_STATE_COPY,
   type SaveLine,
-  type SegmentAckRow,
   type SegmentSave,
   saveAnnouncement,
-  segmentSaveFromAck,
   segmentStatusText,
 } from "./saveStatus";
-
-function row(overrides: Partial<SegmentAckRow> = {}): SegmentAckRow {
-  return {
-    participant_id: "p_a",
-    take_index: 0,
-    segment_index: 0,
-    acked_parts: [],
-    ...overrides,
-  };
-}
-
-describe("segmentSaveFromAck", () => {
-  it("is saving until the file is acknowledged", () => {
-    expect(segmentSaveFromAck(row({ acked_parts: [0] })).state).toBe("saving");
-    expect(segmentSaveFromAck(row({ file_ack: true })).state).toBe("saved");
-  });
-
-  it("carries chunk progress only while saving and the total is declared", () => {
-    expect(
-      segmentSaveFromAck(row({ acked_parts: [0, 1], expected_parts: 5 }))
-        .chunks,
-    ).toEqual({ acked: 2, total: 5 });
-    expect(segmentSaveFromAck(row({ acked_parts: [0] })).chunks).toBeNull();
-    expect(
-      segmentSaveFromAck(row({ file_ack: true, expected_parts: 5 })).chunks,
-    ).toBeNull();
-  });
-});
 
 describe("segmentStatusText", () => {
   const saving: SegmentSave = {
