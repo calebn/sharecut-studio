@@ -432,7 +432,10 @@ describe("Review queue for a guest", () => {
   });
 
   describe("comment field docking", () => {
-    afterEach(() => useDawStore.setState({ shellBreakpoint: "desktop" }));
+    afterEach(() => {
+      useDawStore.setState({ shellBreakpoint: "desktop" });
+      vi.unstubAllGlobals();
+    });
 
     const docked = () =>
       document.querySelector(".rv-compose")?.hasAttribute("data-docked");
