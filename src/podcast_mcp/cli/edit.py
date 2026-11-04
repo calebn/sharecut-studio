@@ -432,10 +432,8 @@ def edit_list_envelope_cmd(
     track: str = typer.Option(..., "--track"),
 ) -> None:
     """Print a track's volume envelope points with their ids: the `expected_points` baseline."""
-    from podcast_mcp.edits.envelopes import volume_envelope_baseline
-
     ws = ProjectWorkspace.open(project)
-    typer.echo(json.dumps({"points": volume_envelope_baseline(ws.project, track)}, indent=2))
+    typer.echo(json.dumps({"points": EditService(ws).envelope_points(track)}, indent=2))
 
 
 @edit_app.command("impact")
