@@ -864,7 +864,8 @@ class AnchorBefore(BaseModel):
 
     ``start``/``end`` are the pre-cut times relative to the cut start. ``post_start`` and
     ``post_end`` are where the cut left it, None for ``post_start`` when it was dropped.
-    ``item`` holds the pre-cut object (times relative) so a dropped anchor can return.
+    ``comment`` or ``chapter`` holds the pre-cut object (times relative to the cut) so a
+    dropped anchor can return.
     """
 
     kind: Literal["comment", "chapter"]

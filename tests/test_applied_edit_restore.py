@@ -186,9 +186,9 @@ def test_mute_and_ripple_report_ready_and_a_trim_reports_history_only(tmp_path):
     ready = {"state": "ready", "code": None, "message": None, "blocked_by": []}
     assert mute["restore"] == ready
     assert ripple["restore"] == ready
-    assert ripple["inverse"]["kind"] == "reinsert_clips"
+    # The listing carries the restore state; the inverse (clips, comment bodies) stays stored.
+    assert "inverse" not in mute and "inverse" not in ripple and "inverse" not in trim
     assert trim["restore"]["state"] == "history_only"
-    assert trim["inverse"] is None
     listed = CliRunner().invoke(edit_app, ["applied", "--project", str(trim_ws.path), "--json"])
     assert listed.exit_code == 0
     assert json.loads(listed.stdout)["records"][0]["restore"]["state"] == "history_only"

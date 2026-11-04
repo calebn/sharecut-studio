@@ -52,7 +52,10 @@ def applied_edits_with_restore(
     return {
         "count": len(records),
         "records": [
-            {**r.model_dump(), "restore": restore_state(ws.project, r).model_dump()}
+            {
+                **r.model_dump(exclude={"inverse"}),
+                "restore": restore_state(ws.project, r).model_dump(),
+            }
             for r in records
         ],
     }

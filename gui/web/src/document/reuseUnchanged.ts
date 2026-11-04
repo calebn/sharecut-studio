@@ -140,7 +140,7 @@ function sameAppliedRecord(
   a: AppliedEditRecord,
   b: AppliedEditRecord,
 ): boolean {
-  return sameExcept(a, b, ["params", "track_ids", "inverse", "restore"]);
+  return sameExcept(a, b, ["params", "track_ids", "restore"]);
 }
 
 /**

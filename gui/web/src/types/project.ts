@@ -229,7 +229,6 @@ export interface AppliedEditRecord {
   crossfade_ms?: number | null;
   cut_confidence?: number | null;
   params: Record<string, unknown>;
-  inverse?: { kind: string } | null;
   restore: RestoreState;
 }
 

@@ -580,13 +580,18 @@ def complete_effect_receipts(
         if previous or not written:
             bad.add(edit.id)
             continue
-        row = min(written, key=lambda r: r.timeline_start or 0.0)
-        if edit.exact_range is None and (
-            row.source_start != edit.start or row.source_end != edit.end
-        ):
-            bad.add(edit.id)
-        if edit.source_timeline_span is not None and row.params.get("source_id") != edit.source_id:
-            bad.add(edit.id)
+        # A removal of several spans writes one row per span; every one must match the edit.
+        for row in written:
+            if edit.exact_range is None and (
+                row.source_start != edit.start or row.source_end != edit.end
+            ):
+                bad.add(edit.id)
+            if (
+                edit.source_timeline_span is not None
+                and row.params.get("source_id") != edit.source_id
+            ):
+                bad.add(edit.id)
+        row = written_by_edit[edit.id]
         if (
             edit.type is EditDecisionType.REMOVE
             and edit.exact_range is None

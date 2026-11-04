@@ -40,7 +40,7 @@ from podcast_mcp.models import (
 from podcast_mcp.models.episode import RangeInterval
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.share import ShareService
-from podcast_mcp.services.document import HistoryService, SessionSuggestionService
+from podcast_mcp.services.document import EditService, HistoryService, SessionSuggestionService
 from podcast_mcp.services.record.landing import RecordLandingService
 from podcast_mcp.util.coded_error import CodedValueError
 from test_record_staging import (
@@ -1001,3 +1001,13 @@ def test_the_refine_gate_refuses_a_replace_accept_in_plain_words(ws) -> None:
     assert "The transcript clean-up needs to finish first" in str(gated.value)
     assert "focus/tighten" not in str(gated.value)
     assert _everything(ws) == before
+
+
+def test_an_accepted_replace_is_history_only_because_its_take_sits_in_the_seam(ws) -> None:
+    sid = _stage_replace(ws, 2.0, 4.0, {0: [("host", 0.0, 3.0)]})
+    SessionSuggestionService(ws).accept(sid)
+    ws.reload()
+    [record] = ws.project.editorial.edit_log
+    assert record.inverse is None
+    [row] = EditService(ws).list_applied_edits()["records"]
+    assert row["restore"]["state"] == "history_only"

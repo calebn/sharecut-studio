@@ -917,6 +917,16 @@ def sanitize_guest_project_view(
     # History can embed local paths in labels/params - keep only the opaque head.
     if "history" in out:
         out["history"] = _guest_history(out["history"])
+    applied = out.get("applied_edits")
+    if isinstance(applied, dict) and isinstance(applied.get("records"), list):
+        # The restore payload holds dropped comment bodies; the client reads only `restore`.
+        out["applied_edits"] = {
+            **applied,
+            "records": [
+                {k: v for k, v in row.items() if k != "inverse"} if isinstance(row, dict) else row
+                for row in applied["records"]
+            ],
+        }
     # Guest ShareCut Studio keeps a zeroed impact stub so StatusBar stays safe.
     if full or "edit_impact" in out:
         out["edit_impact"] = dict(_GUEST_IMPACT_STUB)

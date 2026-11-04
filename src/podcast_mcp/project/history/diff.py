@@ -47,7 +47,11 @@ def diff_snapshots(
 
     b_log = {r["id"]: r for r in before.editorial.get("edit_log", [])}
     a_log = {r["id"]: r for r in after.editorial.get("edit_log", [])}
-    edit_log_added = [a_log[k] for k in sorted(a_log.keys() - b_log.keys())]
+    # The inverse (removed clips, dropped comment bodies) stays in the stored record.
+    edit_log_added = [
+        {k: v for k, v in a_log[key].items() if k != "inverse"}
+        for key in sorted(a_log.keys() - b_log.keys())
+    ]
 
     b_tracks = {t["id"]: t for t in before.timeline.get("tracks", [])}
     a_tracks = {t["id"]: t for t in after.timeline.get("tracks", [])}

@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from podcast_mcp.edits.cut_application import apply_prefix_edits
 from podcast_mcp.edits.timeline_ops import insert_gap
-from podcast_mcp.models import EpisodeProject, load_project
+from podcast_mcp.models import Clip, EpisodeProject, Track, TrackRole, load_project
 from podcast_mcp.services.document import EditService
 from ripple_helpers import ripple_cut
 from ripple_restore_helpers import build, cut, workspace
@@ -327,3 +329,157 @@ def test_a_dry_run_of_several_ripple_records_leaves_the_project_untouched(tmp_pa
     assert _state(ws.project) == memory
     assert [r.model_dump_json() for r in ws.project.editorial.edit_log] == log
     assert _state(load_project(ws.path)) == memory
+
+
+def _rounded(value):
+    """Float noise of shifting there and back (6.9999999 for 7.0) is not a difference."""
+    if isinstance(value, float):
+        return round(value, 6)
+    if isinstance(value, dict):
+        return {k: _rounded(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_rounded(v) for v in value]
+    return value
+
+
+def _comment_span(project: EpisodeProject, comment_id: str) -> tuple[float, float | None]:
+    found = next(c for c in project.review.comments if c.id == comment_id)
+    return found.timeline_start, found.timeline_end
+
+
+@pytest.mark.parametrize("order", ["a-b", "b-a", "together"])
+def test_a_comment_spanning_two_cuts_gets_each_end_back_from_its_own_cut(
+    tmp_path, monkeypatch, order
+):
+    project = build(tmp_path)
+    project.edit_decisions = [cut("a", 1.0, 1.9), cut("b", 3.0, 3.3)]
+    ws = workspace(project, monkeypatch, tmp_path, pad_mode="silence")
+    before = _state(ws.project)
+    assert _comment_span(ws.project, "overlap-start") == (1.8, 3.5)
+    assert EditService(ws).approve(["a"]) == 1
+    assert EditService(ws).approve(["b"]) == 1
+    a, b = (r.id for r in ws.project.editorial.edit_log)
+
+    if order == "together":
+        assert EditService(ws).revert_applied([a, b])["status"] == "restored"
+    else:
+        first, second = (a, b) if order == "a-b" else (b, a)
+        assert EditService(ws).revert_applied([first])["status"] == "restored"
+        halfway = _comment_span(load_project(ws.path), "overlap-start")
+        # The restored cut returns its own end of the comment and no more.
+        expected = (1.8, 3.2) if first == a else (1.0, 3.5 - 0.9)
+        assert halfway == (pytest.approx(expected[0]), pytest.approx(expected[1]))
+        assert EditService(ws).revert_applied([second])["status"] == "restored"
+
+    assert _rounded(_state(load_project(ws.path))) == _rounded(before)
+
+
+def test_a_comment_start_goes_home_with_its_cut_even_when_a_pad_sits_at_the_other_cut(
+    tmp_path, monkeypatch
+):
+    project = build(tmp_path)
+    project.edit_decisions = [cut("a", 1.0, 1.9, gap=0.25), cut("b", 3.0, 3.3, gap=0.25)]
+    ws = workspace(project, monkeypatch, tmp_path, pad_mode="silence")
+    assert EditService(ws).approve(["a"]) == 1
+    assert EditService(ws).approve(["b"]) == 1
+    a, b = (r.id for r in ws.project.editorial.edit_log)
+
+    assert EditService(ws).revert_applied([a])["status"] == "restored"
+
+    assert _comment_span(load_project(ws.path), "overlap-start")[0] == pytest.approx(1.8)
+    assert EditService(ws).revert_applied([b])["status"] == "restored"
+    assert _comment_span(load_project(ws.path), "overlap-start")[0] == pytest.approx(1.8)
+
+
+def test_adjacent_cuts_with_room_tone_pads_restore_even_though_their_fills_share_a_clock(
+    tmp_path, monkeypatch
+):
+    project = build(tmp_path)
+    project.edit_decisions = [cut("a", 2.0, 2.9, gap=0.25), cut("b", 1.0, 2.0, gap=0.25)]
+    ws = workspace(project, monkeypatch, tmp_path, pad_mode="room_tone")
+    before = _state(ws.project)
+    assert EditService(ws).approve(["a"]) == 1
+    assert EditService(ws).approve(["b"]) == 1
+    a, b = (r.id for r in ws.project.editorial.edit_log)
+    states = {r["id"]: r["restore"] for r in EditService(ws).list_applied_edits()["records"]}
+    assert (states[b]["state"], states[a]["code"], states[a]["blocked_by"]) == (
+        "ready",
+        "seam_gone",
+        [b],
+    )
+
+    assert EditService(ws).revert_applied([a, b])["status"] == "restored"
+
+    assert _rounded(_state(load_project(ws.path))) == _rounded(before)
+
+
+@pytest.mark.parametrize("pad_mode", ["silence", "room_tone"])
+def test_a_cut_on_an_edited_non_dialogue_track_with_a_pad_restores(tmp_path, monkeypatch, pad_mode):
+    project = build(tmp_path)
+    project.tracks.append(
+        Track(
+            id="bed",
+            label="Bed",
+            role=TrackRole.MUSIC,
+            media=project.tracks[0].media.model_copy(),
+        )
+    )
+    project.clips.append(
+        Clip(id="bed", track_id="bed", source_start=0, source_end=12.0, timeline_start=0)
+    )
+    (tmp_path / "raw" / "bed.wav").write_bytes((tmp_path / "raw" / "host.wav").read_bytes())
+    project.tracks[-1].media.path = "raw/bed.wav"
+    project.edit_decisions = [cut("c", 4.6, 5.4, gap=0.25).model_copy(update={"track_id": "bed"})]
+    ws = workspace(project, monkeypatch, tmp_path, pad_mode=pad_mode)
+    before = _state(ws.project)
+    assert EditService(ws).approve(["c"]) == 1
+    [record] = ws.project.editorial.edit_log
+    assert record.inverse.pad is not None
+    [state] = [r["restore"] for r in EditService(ws).list_applied_edits()["records"]]
+    assert state["state"] == "ready", state
+
+    assert EditService(ws).revert_applied([record.id])["status"] == "restored"
+
+    assert _rounded(_state(load_project(ws.path))) == _rounded(before)
+
+
+def test_the_inverse_and_the_comment_bodies_in_it_stay_out_of_listings_views_and_diffs(
+    tmp_path, monkeypatch
+):
+    from podcast_mcp.gui.mapper import map_applied_edits_to_timeline
+    from podcast_mcp.models.history import ProjectStateSnapshot
+    from podcast_mcp.project.history.diff import diff_snapshots
+    from podcast_mcp.services.collaboration.share import sanitize_guest_project_view
+
+    secret = "HOST-ONLY-COMMENT-BODY"
+    project = build(tmp_path)
+    next(c for c in project.review.comments if c.id == "inside").body = secret
+    project.edit_decisions = [cut("c", 1.0, 1.9)]
+    ws = workspace(project, monkeypatch, tmp_path, pad_mode="silence")
+    empty = ProjectStateSnapshot(editorial={"edit_log": []})
+    assert EditService(ws).approve(["c"]) == 1
+    [record] = ws.project.editorial.edit_log
+    assert secret in record.model_dump_json()
+
+    listing = EditService(ws).list_applied_edits()
+    mapped = map_applied_edits_to_timeline(ws.project, listing)
+    mapped_models = map_applied_edits_to_timeline(ws.project, [record])
+    guest = sanitize_guest_project_view(
+        {
+            "project_path": "/p",
+            "applied_edits": {
+                "count": 1,
+                "records": [{**record.model_dump(), "restore": {"state": "ready"}}],
+            },
+        }
+    )
+    after = ProjectStateSnapshot(editorial={"edit_log": [record.model_dump(mode="json")]})
+    diff = diff_snapshots(empty, after)
+
+    for payload in (listing, mapped, mapped_models, guest["applied_edits"], diff["edit_log"]):
+        assert secret not in json.dumps(payload)
+        assert all(
+            "inverse" not in row for row in payload["records" if "records" in payload else "added"]
+        )
+    assert listing["records"][0]["restore"]["state"] == "ready"
+    assert guest["applied_edits"]["records"][0]["restore"] == {"state": "ready"}
