@@ -386,8 +386,9 @@ def test_capture_failure_does_not_publish_partial_fixture(
 def test_every_pr_runs_compatibility_outside_pytest_scope() -> None:
     workflow = load_github_yaml(ROOT / ".github/workflows/test.yml")
     # Only the draft gate may skip this job; no change-scope gate may.
-    assert workflow["jobs"]["pytest"].get("if") == "github.event.pull_request.draft != true"
-    steps = workflow["jobs"]["pytest"]["steps"]
+    quality = workflow["jobs"]["pytest-quality"]
+    assert quality.get("if") == "github.event.pull_request.draft != true"
+    steps = quality["steps"]
     guard = next(step for step in steps if step.get("name") == "Project and history compatibility")
     assert "if" not in guard
     assert "scripts/project_compat.py check --base" in guard["run"]
@@ -404,8 +405,9 @@ def test_every_pr_runs_compatibility_outside_pytest_scope() -> None:
         == "github.event_name == 'workflow_dispatch' && inputs.compatibility-base != ''"
     )
     assert steps.index(identity) < steps.index(guard)
-    scoped = [step for step in steps if "steps.plan.outputs.pytest" in step.get("if", "")]
-    assert all(steps.index(guard) < steps.index(step) for step in scoped)
+    assert not [step for step in steps if "PYTEST_SCOPE" in step.get("if", "")]
+    shard_steps = workflow["jobs"]["pytest-shard"]["steps"]
+    assert not [step for step in shard_steps if step.get("name") == guard["name"]]
 
 
 def test_schema_normalization_preserves_persisted_names_and_defaults() -> None:

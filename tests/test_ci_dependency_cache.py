@@ -23,25 +23,28 @@ def test_workflow_keeps_installs_checks_and_pinned_prebuilt_consumers() -> None:
     assert set(jobs) == {
         "changes",
         "pytest",
+        "pytest-quality",
+        "pytest-shard",
         "pytest-python-floor",
         "frontend",
         "frontend-suite",
         "frontend-e2e-suites",
         "frontend-e2e",
     }
-    for name in ("pytest", "pytest-python-floor", "frontend-e2e-suites"):
+    for name in ("pytest-quality", "pytest-shard", "pytest-python-floor", "frontend-e2e-suites"):
         steps = jobs[name]["steps"]
-        ffmpeg = next(
-            step for step in steps if step.get("uses") == "./.github/actions/setup-ffmpeg"
-        )
-        assert "if" not in ffmpeg and not ffmpeg.get("continue-on-error")
+        ffmpegs = [step for step in steps if step.get("uses") == "./.github/actions/setup-ffmpeg"]
+        assert len(ffmpegs) == (name != "pytest-quality")
+        for ffmpeg in ffmpegs:
+            assert "if" not in ffmpeg and not ffmpeg.get("continue-on-error")
         python = next(
             step for step in steps if step.get("uses", "").startswith("actions/setup-python@")
         )
         assert (
             python["with"]["python-version"]
             == {
-                "pytest": "3.14",
+                "pytest-quality": "3.14",
+                "pytest-shard": "3.14",
                 "pytest-python-floor": "3.11",
                 "frontend-e2e-suites": "3.12",
             }[name]
@@ -50,9 +53,11 @@ def test_workflow_keeps_installs_checks_and_pinned_prebuilt_consumers() -> None:
         assert python["with"]["cache-dependency-path"].splitlines() == ["pyproject.toml", "uv.lock"]
         install = next(step for step in steps if step.get("uses") == LOCKED_INSTALL)
         assert "if" not in install and not install.get("continue-on-error")
-        extras = {"pytest": "dev gui relay prosody", "pytest-python-floor": "dev gui"}.get(
-            name, "gui"
-        )
+        extras = {
+            "pytest-quality": "dev gui relay prosody",
+            "pytest-shard": "dev gui relay prosody",
+            "pytest-python-floor": "dev gui",
+        }.get(name, "gui")
         assert install["with"] == {"extras": extras}
     frontend_python = next(
         step
@@ -85,9 +90,11 @@ def test_workflow_keeps_installs_checks_and_pinned_prebuilt_consumers() -> None:
     assert next(
         i for i, step in enumerate(frontend_steps) if step.get("run") == "npm ci"
     ) < frontend_steps.index(exporters)
-    assert jobs["pytest"]["env"]["COVERAGE_CORE"] == "ctrace"
+    assert jobs["pytest-shard"]["env"]["COVERAGE_CORE"] == "ctrace"
     assert all(
-        "COVERAGE_CORE" not in job.get("env", {}) for name, job in jobs.items() if name != "pytest"
+        "COVERAGE_CORE" not in job.get("env", {})
+        for name, job in jobs.items()
+        if name != "pytest-shard"
     )
     project = tomllib.loads((ROOT / "pyproject.toml").read_text())
     assert "coverage[toml]>=7.16.2" in project["project"]["optional-dependencies"]["dev"]
@@ -97,21 +104,22 @@ def test_workflow_keeps_installs_checks_and_pinned_prebuilt_consumers() -> None:
     lock = tomllib.loads((ROOT / "uv.lock").read_text())
     coverage = next(package for package in lock["package"] if package["name"] == "coverage")
     assert Version(coverage["version"]) >= Version("7.16.2")
-    pytest_steps = jobs["pytest"]["steps"]
+    pytest_steps = jobs["pytest-shard"]["steps"]
     test = next(step for step in pytest_steps if step.get("name") == "Run tests with coverage gate")
-    assert test["if"] == "steps.plan.outputs.pytest == 'full'"
+    assert test["if"] == "env.PYTEST_SCOPE == 'full'"
     assert not test.get("continue-on-error")
     assert (
         test["run"]
-        == 'set -o pipefail\npytest -n auto -m "not e2e_slow and not e2e_real" --durations=100 --durations-min=0.1 --junitxml=test-results/pytest.xml | tee test-results/pytest.log\ncoverage report --fail-under=95\n'
+        == 'set -o pipefail\nCOVERAGE_FILE=cov/shard-$PYTEST_SHARD_INDEX pytest -n auto -m "not e2e_slow and not e2e_real" --cov-fail-under=0 --durations=100 --durations-min=0.1 --junitxml=test-results/pytest.xml | tee test-results/pytest.log\n'
     )
     reports = next(step for step in pytest_steps if step.get("name") == "Upload pytest reports")
     assert reports["if"] == "always()"
     assert reports["uses"] == "actions/upload-artifact@v7"
     assert reports["with"] == {
-        "name": "pytest-reports",
+        "name": "pytest-reports-${{ matrix.shard }}",
         "path": "test-results/",
         "retention-days": 7,
+        "overwrite": True,
     }
     browser_steps = jobs["frontend-e2e-suites"]["steps"]
     browser = next(step for step in browser_steps if "playwright install" in step.get("run", ""))
@@ -188,7 +196,7 @@ def test_every_native_consumer_uses_catalog_importer_without_compilation():
     assert consumers == {
         "desktop.yml": ["project-commit-lock-windows", "ffmpeg-native-payload"],
         "registry-backup-windows.yml": ["native-registry-backup"],
-        "test.yml": ["pytest", "pytest-python-floor", "frontend-e2e-suites"],
+        "test.yml": ["pytest-shard", "pytest-python-floor", "frontend-e2e-suites"],
         "release-desktop-build.yml": ["prepare-extension-runtime", "bundle"],
     }
     action = load_github_yaml(ROOT / ".github/actions/setup-ffmpeg/action.yml")
@@ -560,7 +568,12 @@ def test_locked_exporter_recipe_stops_on_dependency_check_failure(
 
 @pytest.mark.parametrize(
     ("workflow", "job_name"),
-    [("test.yml", "pytest"), ("test.yml", "frontend-e2e-suites"), ("extras-import.yml", "extras")],
+    [
+        ("test.yml", "pytest-quality"),
+        ("test.yml", "pytest-shard"),
+        ("test.yml", "frontend-e2e-suites"),
+        ("extras-import.yml", "extras"),
+    ],
 )
 def test_ci_jobs_use_runner_owned_temporary_storage(
     workflow: str, job_name: str, tmp_path: Path
@@ -632,7 +645,7 @@ def test_ci_jobs_use_runner_owned_temporary_storage(
     assert Path(node.stdout.strip()).resolve() == private_temp.resolve()
 
 
-def test_only_the_three_quota_affected_jobs_select_runner_temporary_storage() -> None:
+def test_only_the_quota_affected_jobs_select_runner_temporary_storage() -> None:
     selected = {
         (workflow, name)
         for workflow in ("test.yml", "extras-import.yml")
@@ -640,7 +653,8 @@ def test_only_the_three_quota_affected_jobs_select_runner_temporary_storage() ->
         if any(step.get("name") == "Use runner temporary storage" for step in job["steps"])
     }
     assert selected == {
-        ("test.yml", "pytest"),
+        ("test.yml", "pytest-quality"),
+        ("test.yml", "pytest-shard"),
         ("test.yml", "frontend-e2e-suites"),
         ("extras-import.yml", "extras"),
     }
@@ -649,7 +663,7 @@ def test_only_the_three_quota_affected_jobs_select_runner_temporary_storage() ->
 @pytest.mark.parametrize(
     ("workflow", "job_name", "step_name"),
     [
-        ("test.yml", "pytest", "Record pytest run context"),
+        ("test.yml", "pytest-shard", "Record pytest run context"),
         ("test.yml", "frontend-e2e-suites", "Install frontend deps and browser engines"),
         ("extras-import.yml", "extras", "Import each extra in a clean venv"),
     ],
@@ -667,8 +681,8 @@ def test_quota_affected_jobs_record_temporary_paths_and_filesystem_capacity(
 @pytest.mark.parametrize(
     ("workflow", "job_name", "step_name", "coverage_core"),
     [
-        ("test.yml", "pytest", "Record pytest run context", "ctrace"),
-        ("test.yml", "pytest", "Record pytest run context", "pytrace"),
+        ("test.yml", "pytest-shard", "Record pytest run context", "ctrace"),
+        ("test.yml", "pytest-shard", "Record pytest run context", "pytrace"),
         ("test.yml", "frontend-e2e-suites", "Install frontend deps and browser engines", "ctrace"),
         ("extras-import.yml", "extras", "Import each extra in a clean venv", "ctrace"),
     ],
@@ -684,7 +698,7 @@ def test_ci_temporary_storage_preflight_validates_without_changing_permissions(
     start = step["run"].index(command + " - <<'PY'")
     end = step["run"].index("\nPY", start) + len("\nPY")
     preflight = step["run"][start:end]
-    if job_name == "pytest":
+    if job_name == "pytest-shard":
         workload = next(s for s in job["steps"] if s.get("name") == "Run tests with coverage gate")
         assert job["steps"].index(step) < job["steps"].index(workload)
     else:
@@ -744,7 +758,7 @@ def test_ci_temporary_storage_preflight_validates_without_changing_permissions(
         assert sentinel.exists() == accepted
         assert not (project / ".venv").exists()
         assert not list(project.glob(".coverage*"))
-        if job_name == "pytest" and mode == 0o700:
+        if job_name == "pytest-shard" and mode == 0o700:
             assert f"Coverage core: {'CTracer' if accepted else 'PyTracer'}" in result.stdout
             if not accepted:
                 assert "Expected CTracer, got PyTracer" in result.stderr
