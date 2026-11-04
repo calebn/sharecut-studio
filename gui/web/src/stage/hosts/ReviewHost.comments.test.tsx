@@ -931,6 +931,60 @@ describe("Review host comments", () => {
       expect(sent("AddComment")).toHaveLength(0);
     });
 
+    it("keeps focus in the action items, drops duplicates, and starts empty on the next comment", async () => {
+      mount();
+      act(() => {
+        press("c");
+      });
+      await userEvent.type(field(), "Fix it");
+      const add = () => screen.getByRole("button", { name: "Add action item" });
+      await userEvent.click(add());
+      expect(
+        screen.getByRole("textbox", { name: "Action item 1" }),
+      ).toHaveFocus();
+      await userEvent.type(
+        screen.getByRole("textbox", { name: "Action item 1" }),
+        "Re-record",
+      );
+      await userEvent.click(add());
+      await userEvent.type(
+        screen.getByRole("textbox", { name: "Action item 2" }),
+        "re-record",
+      );
+      await userEvent.click(
+        screen.getByRole("button", { name: "Remove action item 1" }),
+      );
+      expect(
+        screen.getByRole("textbox", { name: "Action item 1" }),
+      ).toHaveFocus();
+      await userEvent.click(
+        screen.getByRole("button", { name: "Remove action item 1" }),
+      );
+      expect(add()).toHaveFocus();
+      await userEvent.click(add());
+      await userEvent.type(
+        screen.getByRole("textbox", { name: "Action item 1" }),
+        "Re-record",
+      );
+      await userEvent.click(add());
+      await userEvent.type(
+        screen.getByRole("textbox", { name: "Action item 2" }),
+        "RE-RECORD",
+      );
+      await userEvent.type(field(), "{Enter}");
+      await waitFor(() => expect(sent("AddComment")).toHaveLength(1));
+      expect(sent("AddComment")[0].payload).toMatchObject({
+        action_texts: ["Re-record"],
+      });
+      act(() => {
+        press("c");
+      });
+      await waitFor(() => expect(field()).toHaveFocus());
+      expect(
+        screen.queryAllByRole("textbox", { name: /^Action item/ }),
+      ).toHaveLength(0);
+    });
+
     it("stays open with the text when the post is refused", async () => {
       server.refuse.add("AddComment");
       mount();
