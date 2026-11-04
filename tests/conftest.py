@@ -64,7 +64,6 @@ _UNSCOPED_OK_MODULES = Path(__file__).with_name("unscoped_ok_modules.txt")
 
 
 def unscoped_ok_modules() -> frozenset[str]:
-    """Test modules that save projects outside a write grant, as paths relative to tests/."""
     lines = _UNSCOPED_OK_MODULES.read_text(encoding="utf-8").splitlines()
     return frozenset(line.strip() for line in lines if line.strip() and not line.startswith("#"))
 
@@ -143,12 +142,6 @@ def _object_store_config_parent(tmp_path_factory: pytest.TempPathFactory) -> Pat
 def _strict_project_write_guard(
     request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
 ) -> Iterator[None]:
-    """Run the project write guard strict: a save outside a write grant raises.
-
-    A direct-service unit test that legitimately saves outside the dispatcher opts out
-    with ``@pytest.mark.unscoped_ok``; the session summary counts those tests so the
-    list can only shrink as writers migrate.
-    """
     from podcast_mcp.project import store
 
     store.reset_write_counts_for_tests()
