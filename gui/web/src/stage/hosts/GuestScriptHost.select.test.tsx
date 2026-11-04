@@ -104,7 +104,10 @@ const CLIPS = {
   clip_count: 2,
 };
 
-const as = (guestMode: "view" | "comment", shareCapabilities: string[]) =>
+const as = (
+  guestMode: "view" | "comment" | "edit",
+  shareCapabilities: string[],
+) =>
   seedScript({
     projectPath: "share:abc",
     guestMode,
