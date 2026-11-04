@@ -271,7 +271,7 @@ native menus keep the toast ordering in
 
 | Stage | Content | Primary jobs |
 |-------|---------|--------------|
-| **Record** | Launcher with live-take status; the record dialog stays mounted in `DawApp`, so a take survives stage switches | Capture |
+| **Record** | Launcher with live-take status; the host room state is held in `DawApp`, so a take survives stage switches | Capture |
 | **Prepare** | Import, pipeline jobs, vocabulary | Get audio ready |
 | **Edit** | Timeline surface (playhead that starts at 0 and holds the center once passed; Ferrite lane gutter; eye sheet) and Script surface (transcript), switched by an icon pair | Spatial edit, word fix, suggest cut |
 | **Review** | Queue (guests: Comments) | Guest review and comments, approve or reject edits |
