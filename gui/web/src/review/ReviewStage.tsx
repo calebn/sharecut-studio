@@ -1,4 +1,5 @@
 import {
+  Fragment,
   type ReactNode,
   type Ref,
   useEffectEvent,
@@ -439,7 +440,7 @@ export function ReviewStage({
           queue
         )}
         <div className="rv-card">
-          {!dockedComposer && composer}
+          {!dockedComposer && <Fragment key="composer">{composer}</Fragment>}
           <DecisionCard
             key={selected?.id ?? "none"}
             kind={selected?.kind ?? "filler"}
@@ -517,7 +518,7 @@ export function ReviewStage({
               onComment ? () => selected && onComment(selected.id) : undefined
             }
           />
-          {dockedComposer && composer}
+          {dockedComposer && <Fragment key="composer">{composer}</Fragment>}
         </div>
       </div>
       <div className="rv-foot">
