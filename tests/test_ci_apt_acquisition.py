@@ -539,24 +539,10 @@ def test_rejected_mirror_configuration_preserves_all_files(
         ):
             path.write_bytes(b"existing configuration\n")
             path.chmod(0o600)
-    before = {
-        path.relative_to(tmp_path): (
-            path.stat().st_mode,
-            path.stat().st_mtime_ns,
-            path.read_bytes() if path.is_file() else None,
-        )
-        for path in tmp_path.rglob("*")
-    }
+    before = snapshot(tmp_path)
     with pytest.raises(ValueError, match="unsupported runner Ubuntu mirror entry") as error:
         method.configure(apt, installation, methods)
-    after = {
-        path.relative_to(tmp_path): (
-            path.stat().st_mode,
-            path.stat().st_mtime_ns,
-            path.read_bytes() if path.is_file() else None,
-        )
-        for path in tmp_path.rglob("*")
-    }
+    after = snapshot(tmp_path)
     assert after == before
     prefix = "unsupported runner Ubuntu mirror entry "
     assert str(error.value).startswith(prefix)
@@ -665,18 +651,11 @@ def stanza(uris):
     )
 
 
-def declined_warning(uris):
-    return (
-        "::warning title=Bounded Ubuntu acquisition skipped::"
-        f"unsupported Ubuntu source layout, using stock apt; uris={uris}\n"
-    )
-
-
 def snapshot(root):
     return {
         path.relative_to(root): (
-            path.stat().st_mode,
-            path.stat().st_mtime_ns,
+            (st := path.stat()).st_mode,
+            st.st_mtime_ns,
             path.read_bytes() if path.is_file() else None,
         )
         for path in root.rglob("*")
@@ -752,8 +731,10 @@ def test_unrecognised_source_layout_keeps_stock_apt(api, tmp_path, capsys, sourc
     assert method.configure(apt, installation, methods) is False
     assert snapshot(tmp_path) == before
     captured = capsys.readouterr()
-    assert captured.out == declined_warning(uris)
-    assert "pw" not in captured.out + captured.err
+    assert captured.out == (
+        "::warning title=Bounded Ubuntu acquisition skipped::"
+        f"unsupported Ubuntu source layout, using stock apt; uris={uris}\n"
+    )
 
 
 def test_canonical_source_layout_is_configured(api, tmp_path, capsys):
@@ -768,24 +749,60 @@ def test_canonical_source_layout_is_configured(api, tmp_path, capsys):
 
 
 @pytest.mark.parametrize(
-    ("field", "message"),
+    ("sources", "message"),
     [
-        ("Suites: resolute future", "unsupported runner Ubuntu suites"),
-        ("Components: main bogus", "unsupported runner Ubuntu components"),
+        (
+            "Types: deb\nURIs: https://archive.ubuntu.com/ubuntu/\nSuites: resolute future\n"
+            "Components: main\n",
+            "unsupported runner Ubuntu suites",
+        ),
+        (
+            "Types: deb\nURIs: https://archive.ubuntu.com/ubuntu/\nSuites: resolute\n"
+            "Components: main bogus\n",
+            "unsupported runner Ubuntu components",
+        ),
     ],
 )
-def test_unrecognised_suites_and_components_still_fail(api, tmp_path, field, message):
+def test_unrecognised_suites_and_components_still_fail(api, tmp_path, sources, message):
     _, method = api
-    name = field.split(":")[0]
-    sources = "".join(
-        field + "\n" if line.startswith(name + ":") else line + "\n"
-        for line in stanza("URIs: https://archive.ubuntu.com/ubuntu/").splitlines()
-    )
     apt, installation, methods = runner_tree(tmp_path, sources)
     before = snapshot(tmp_path)
     with pytest.raises(ValueError, match=message):
         method.configure(apt, installation, methods)
     assert snapshot(tmp_path) == before
+
+
+@pytest.mark.parametrize(
+    ("mirrors", "error"),
+    [
+        (None, FileNotFoundError),
+        ("http://us-east-2.ec2.archive.ubuntu.com/ubuntu/\tpriority:1\n", ValueError),
+        ("https://archive.ubuntu.com/ubuntu/\neu-west-1.ec2.example/ubuntu/\n", ValueError),
+    ],
+    ids=["absent", "no-canonical", "unknown-entry"],
+)
+def test_bad_mirrors_file_fails_before_the_sources_decline(api, tmp_path, capsys, mirrors, error):
+    _, method = api
+    apt, installation, methods = runner_tree(
+        tmp_path, stanza("URIs: http://azure.archive.ubuntu.com/ubuntu/")
+    )
+    if mirrors is None:
+        (apt / "apt-mirrors.txt").unlink()
+    else:
+        (apt / "apt-mirrors.txt").write_text(mirrors)
+    before = snapshot(tmp_path)
+    with pytest.raises(error):
+        method.configure(apt, installation, methods)
+    assert snapshot(tmp_path) == before
+    assert capsys.readouterr().out == ""
+
+
+def test_public_uri_redacts_a_513_character_token(api):
+    _, method = api
+    token = "https://mirror.example/" + "a" * 490
+    assert len(token) == 513
+    assert method.public_uri(token) == "<redacted>"
+    assert method.public_uri(token[:512]) == token[:512]
 
 
 @pytest.mark.parametrize(

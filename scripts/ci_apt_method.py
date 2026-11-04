@@ -38,7 +38,7 @@ PUBLIC_URI = (
 
 class UnsupportedSourceLayout(ValueError):
     def __init__(self, uris: tuple[str, ...]) -> None:
-        super().__init__("unsupported Ubuntu source layout")
+        super().__init__()
         self.uris = uris
 
 
