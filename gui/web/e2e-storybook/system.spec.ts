@@ -3494,9 +3494,12 @@ for (const [label, rootPx] of [
     const names = ["Mute", "Comment", "Stop take", "Pause take", "More"];
     for (const name of names) {
       const button = page.getByRole("button", { name, exact: true });
+      await button.scrollIntoViewIfNeeded();
       await expect(button).toBeVisible();
       const box = await button.boundingBox();
       if (!box) throw new Error(`${name} did not render`);
+      expect(box.y).toBeGreaterThanOrEqual(0);
+      expect(box.y + box.height).toBeLessThanOrEqual(800);
       expect(box.x).toBeGreaterThanOrEqual(0);
       expect(box.x + box.width).toBeLessThanOrEqual(360);
     }
