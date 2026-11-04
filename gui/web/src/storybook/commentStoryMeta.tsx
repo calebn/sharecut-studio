@@ -6,12 +6,11 @@ import { ComposerHarness } from "./ComposerHarness";
 import { OPEN_COMMENT } from "./commentFixtures";
 import { columnStoryDecorator, viewportStoryParameters } from "./storyLayout";
 
-/** What the System and Review stories of one part share; each file adds its `title` and its description. */
 export const composerStoryMeta = {
   component: Composer as never,
   render: (args) => <ComposerHarness {...args} />,
   tags: ["autodocs"],
-  args: { onSubmit: fn(), onAnchor: fn() },
+  args: { onSubmit: fn(), onAnchor: fn(), explainEmpty: true },
   decorators: [columnStoryDecorator],
 } satisfies Meta<typeof ComposerHarness>;
 

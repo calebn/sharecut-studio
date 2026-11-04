@@ -12,7 +12,7 @@ import {
   type ComposerAnchor,
   formatAnchor,
 } from "./composerAnchor";
-import { composerBlock } from "./composerBlock";
+import { composerBlock, WRITE_REASON } from "./composerBlock";
 import { isImeKey } from "./imeKey";
 import { StatusGlyph } from "./StatusGlyph";
 import { SystemIcon } from "./SystemIcon";
@@ -32,9 +32,6 @@ export type ComposerState = "idle" | "posting" | "offline";
  */
 export type ComposerProps = {
   body: string;
-  /** `edit.composing` is true while an IME composition is active, when a
-   *  transient empty value is not the person clearing the field. `edit.undo` is
-   *  true when the browser's undo or redo restored the text. */
   onBodyChange: (value: string, edit?: BodyEdit) => void;
   /** Fires only when Post can fire. The caller clears `body` once the send is
    *  accepted, not before. A send failure shows on the CommentCard, never here. */
@@ -59,6 +56,8 @@ export type ComposerProps = {
   onEscape?: () => void;
   /** One line that grows to four (reply, phone dock). */
   compact?: boolean;
+  /** Say why Post is off while the field is empty. Reply and Ask fields keep only the busy reason. */
+  explainEmpty?: boolean;
   /** Focus from outside: C on a mounted card, the guest's first key press. */
   inputRef?: Ref<HTMLTextAreaElement>;
 };
@@ -104,6 +103,7 @@ export function Composer(props: ComposerProps) {
     compact = false,
     onEscape,
     inputRef,
+    explainEmpty = false,
   } = props;
   const bodyRef = useRef<HTMLTextAreaElement | null>(null);
   const setBodyRef = useCallback(
@@ -120,7 +120,10 @@ export function Composer(props: ComposerProps) {
     onEscape();
   };
   const block = composerBlock(props);
-  const reason = useDisabledReasonNote(block);
+  const reason = useDisabledReasonNote(
+    block === WRITE_REASON && !explainEmpty ? undefined : block,
+    "sys-composer-note",
+  );
   const posting = state === "posting";
   const offline = state === "offline";
   const coarse = isCoarsePointer();
@@ -211,12 +214,10 @@ export function Composer(props: ComposerProps) {
             });
           }}
           onKeyDown={onBodyKeyDown}
-          onCompositionEnd={(event) =>
-            onBodyChange(event.currentTarget.value, {
-              composing: false,
-              undo: false,
-            })
-          }
+          onCompositionEnd={(event) => {
+            if (event.currentTarget.value === "")
+              onBodyChange("", { composing: false, undo: false });
+          }}
         />
         <Button
           className="sys-composer-submit"

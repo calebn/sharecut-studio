@@ -73,13 +73,32 @@ describe("Composer", () => {
   });
 
   it("shows why Post is off beside it, wired as its description, until there is text", async () => {
-    render(<Harness />);
+    render(<Harness explainEmpty />);
     const note = screen.getByText("Write a comment to post.");
     expect(note).toBeVisible();
     expect(submit()).toHaveAccessibleDescription("Write a comment to post.");
     await userEvent.type(field(), "Cut this");
     expect(screen.queryByText("Write a comment to post.")).toBeNull();
     expect(submit()).not.toHaveAttribute("aria-describedby");
+  });
+
+  it("keeps the empty-field reason off reply and Ask fields, which still show the busy reason", () => {
+    const { rerender } = render(<Harness compact />);
+    expect(screen.queryByText("Write a comment to post.")).toBeNull();
+    expect(submit()).toHaveAttribute("title", "Write a comment to post.");
+    rerender(<Harness compact start="Hi" state="posting" />);
+    expect(
+      screen.getByText("Wait for the current action to finish."),
+    ).toBeVisible();
+  });
+
+  it("does not report a composition that ends with text", () => {
+    const onBodyChange = vi.fn();
+    render(<Harness onBodyChange={onBodyChange} />);
+    fireEvent.input(field(), { target: { value: "に" }, isComposing: true });
+    onBodyChange.mockClear();
+    fireEvent.compositionEnd(field());
+    expect(onBodyChange).not.toHaveBeenCalled();
   });
 
   it("shows the busy reason while a post is in flight", () => {

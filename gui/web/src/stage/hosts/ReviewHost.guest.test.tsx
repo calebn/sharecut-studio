@@ -395,6 +395,25 @@ describe("Review queue for a guest", () => {
     expect(useDawStore.getState().commentDraft).toBe(typed);
   });
 
+  it("does not bring a stale time back by undo after C set a new draft", () => {
+    join("comment");
+    useDawStore.setState({ playheadSec: 12 });
+    const { container } = render(<ReviewHost guestShare />);
+    fireEvent.change(field(), { target: { value: "a" } });
+    fireEvent.change(field(), { target: { value: "" } });
+    act(() => useDawStore.setState({ playheadSec: 90 }));
+    const stage = container.querySelector(".rv-stage") as HTMLElement;
+    fireEvent.keyDown(stage, { key: "c" });
+    expect(useDawStore.getState().commentDraft?.startSec).toBe(90);
+    act(() => useDawStore.setState({ commentDraft: null }));
+    act(() => useDawStore.setState({ playheadSec: 200 }));
+    fireEvent.input(field(), {
+      target: { value: "a" },
+      inputType: "historyUndo",
+    });
+    expect(useDawStore.getState().commentDraft?.startSec).toBe(200);
+  });
+
   it("pins at the current playhead when new text, not undo, follows emptying", () => {
     join("comment");
     useDawStore.setState({ playheadSec: 12 });

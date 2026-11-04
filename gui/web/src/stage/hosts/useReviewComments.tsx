@@ -245,8 +245,10 @@ export function useReviewComments(guest: boolean) {
     );
   };
 
+  const droppedDraft = useRef<CommentDraft | null>(null);
   const open = () => {
     const state = useDawStore.getState();
+    droppedDraft.current = null;
     if (state.commentDraft) composeRef.current?.focus();
     else state.setCommentDraft(resolveCommentAnchor(state).draft);
   };
@@ -256,7 +258,6 @@ export function useReviewComments(guest: boolean) {
   const stageOf = () =>
     composeRef.current?.closest<HTMLElement>(".rv-stage") ?? null;
 
-  const droppedDraft = useRef<CommentDraft | null>(null);
   const session = useRef(0);
   const close = () => {
     session.current += 1;
@@ -339,6 +340,7 @@ export function useReviewComments(guest: boolean) {
     <div className="rv-compose" data-docked={docked ? "" : undefined}>
       <ComposeAnchor
         compact
+        explainEmpty
         onEscape={close}
         body={body}
         onBodyChange={type}
