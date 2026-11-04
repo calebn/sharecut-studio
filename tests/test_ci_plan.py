@@ -322,24 +322,34 @@ def test_changed_files_diffs_from_the_merge_base(tmp_path: Path) -> None:
     assert cp.changed_files("main", "pr", root=tmp_path) == ["docs/x.md"]
 
 
-def test_pytest_job_plans_in_job_and_gates_coverage_on_full_runs() -> None:
-    steps = load_github_yaml(WORKFLOW)["jobs"]["pytest"]["steps"]
-    assert "needs" not in load_github_yaml(WORKFLOW)["jobs"]["pytest"]
-    by_name = {step.get("name"): step for step in steps}
-    plan = by_name["Plan the pytest scope"]
-    assert plan["id"] == "plan"
-    assert plan["uses"] == "./.github/actions/ci-plan"
-    assert by_name["Run tests with coverage gate"]["if"] == "steps.plan.outputs.pytest == 'full'"
+def test_pytest_shards_take_their_scope_from_the_planner_and_gate_coverage_on_full_runs() -> None:
+    jobs = load_github_yaml(WORKFLOW)["jobs"]
+    shard = jobs["pytest-shard"]
+    assert shard["needs"] == "changes"
+    assert shard["if"] == "needs.changes.result == 'success'"
+    assert "plan" not in {step.get("id") for step in shard["steps"]}
+    assert jobs["changes"]["outputs"]["pytest"] == "${{ steps.plan.outputs.pytest }}"
+    assert shard["env"]["PYTEST_SCOPE"] == "${{ needs.changes.outputs.pytest }}"
+    by_name = {step.get("name"): step for step in shard["steps"]}
+    assert by_name["Run tests with coverage gate"]["if"] == "env.PYTEST_SCOPE == 'full'"
     web = by_name["Run the tests that read gui/web"]
-    assert web["if"] == "steps.plan.outputs.pytest == 'web'"
+    assert web["if"] == "env.PYTEST_SCOPE == 'web'"
     assert '"$(python3 scripts/ci_plan.py subset-tests web)"' in web["run"]
     assert "--no-cov" in web["run"]
     docs = by_name["Run the tests that read docs"]
-    assert docs["if"] == "steps.plan.outputs.pytest == 'docs'"
+    assert docs["if"] == "env.PYTEST_SCOPE == 'docs'"
     assert '"$(python3 scripts/ci_plan.py subset-tests docs)"' in docs["run"]
     assert "--no-cov" in docs["run"]
-    docs_sync = by_name["Docs-sync gate (PR diff)"]
-    assert "pytest" not in docs_sync["if"]
+    quality = {step.get("name"): step for step in jobs["pytest-quality"]["steps"]}
+    assert "needs" not in jobs["pytest-quality"]
+    assert "pytest" not in quality["Docs-sync gate (PR diff)"]["if"]
+
+
+def test_the_pytest_check_aggregates_quality_and_every_shard() -> None:
+    check = load_github_yaml(WORKFLOW)["jobs"]["pytest"]
+    assert check["needs"] == ["changes", "pytest-quality", "pytest-shard"]
+    assert "always()" in check["if"]
+    assert "draft != true" in check["if"]
 
 
 def test_changes_job_feeds_frontend_and_the_browser_suites() -> None:
@@ -349,6 +359,7 @@ def test_changes_job_feeds_frontend_and_the_browser_suites() -> None:
         "gui": "${{ steps.plan.outputs.gui }}",
         "e2e-matrix": "${{ steps.plan.outputs.e2e-matrix }}",
         "release-only": "${{ steps.plan.outputs.release-only }}",
+        "pytest": "${{ steps.plan.outputs.pytest }}",
     }
     (plan,) = [step for step in changes["steps"] if step.get("id") == "plan"]
     assert plan["uses"] == "./.github/actions/ci-plan"

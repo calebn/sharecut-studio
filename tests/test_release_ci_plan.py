@@ -607,9 +607,10 @@ for (const [label, job] of Object.entries(jobs)) {
 
 def test_release_scope_keeps_policy_and_compatibility_checks() -> None:
     workflow = load_github_yaml(ROOT / ".github/workflows/test.yml")
-    steps = {step.get("name"): step for step in workflow["jobs"]["pytest"]["steps"]}
-    release = steps["Run release policy and planner tests"]
-    assert release["if"] == "steps.plan.outputs.pytest == 'release'"
+    shard = {step.get("name"): step for step in workflow["jobs"]["pytest-shard"]["steps"]}
+    steps = {step.get("name"): step for step in workflow["jobs"]["pytest-quality"]["steps"]}
+    release = shard["Run release policy and planner tests"]
+    assert release["if"] == "env.PYTEST_SCOPE == 'release'"
     assert "python3 scripts/version_policy.py" in release["run"]
     assert "scripts/ci_plan.py subset-tests release" in release["run"]
     assert "--no-cov" in release["run"]
@@ -638,7 +639,7 @@ def test_dispatch_guard_checks_real_head_current_main_and_ancestry(release_repo:
     workflow = load_github_yaml(ROOT / ".github/workflows/test.yml")
     guard = next(
         step["run"]
-        for step in workflow["jobs"]["pytest"]["steps"]
+        for step in workflow["jobs"]["pytest-quality"]["steps"]
         if step.get("name") == "Verify final release integration identity"
     )
     git(release_repo, "remote", "add", "origin", str(release_repo))
