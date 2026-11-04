@@ -10,6 +10,7 @@ import json
 from typing import Any
 
 import pytest
+from pydantic import BaseModel
 
 from podcast_mcp.gui.assembler import _effects_by_track
 from podcast_mcp.mcp.tools import timeline as tools
@@ -50,7 +51,8 @@ DEESSER = {"effect": "deesser", "params": {"intensity": 0.5, "frequency": 0.5}, 
 
 
 def _same(actual: Any, expected: Any) -> None:
-    assert json.dumps(actual) == json.dumps(expected)
+    dumped = actual.model_dump() if isinstance(actual, BaseModel) else actual
+    assert json.dumps(dumped) == json.dumps(expected)
 
 
 def _with_supported(entry: dict[str, Any], **over: Any) -> dict[str, Any]:
@@ -300,3 +302,46 @@ def test_gui_assembler_reads_the_track_effect_rows(ws, minimal_project):
     svc.set_effect_bypass(track_id="host", effect_index=0, bypass=True)
     rows = _effects_by_track(ProjectWorkspace.open(minimal_project))
     _same(rows, {"host": [_with_supported(DEESSER, bypass=True)], "other": []})
+
+
+def test_mcp_list_effects_keeps_non_ascii_escapes(ws, minimal_project):
+    project = ws.project
+    project.processing_chains.append(
+        ProcessingChain(
+            track_id="host",
+            effects=[ProcessingEffect(effect="höst", params={"label": "café"})],
+        )
+    )
+    save_project(project, minimal_project)
+    text = tools.list_effects_tool(str(minimal_project), track_id="host")
+    assert "h\\u00f6st" in text
+    assert "caf\\u00e9" in text
+    warning = (
+        "Unsupported effect 'höst' will not be rendered. Remove it from this chain before export."
+    )
+    assert text == json.dumps(
+        {
+            "track_id": "host",
+            "effects": [
+                {
+                    "effect": "höst",
+                    "params": {"label": "café"},
+                    "bypass": False,
+                    "supported": False,
+                    "warning": warning,
+                }
+            ],
+            "supported_effects": SUPPORTED,
+        },
+        indent=2,
+    )
+
+
+def test_mcp_list_effects_writes_nan_as_a_bare_token(ws, minimal_project, monkeypatch):
+    rows = [{"effect": "highpass", "params": {"frequency": float("nan")}, "bypass": False}]
+    monkeypatch.setattr(
+        "podcast_mcp.services.document.effects.list_track_effects", lambda project, tid: rows
+    )
+    text = tools.list_effects_tool(str(minimal_project), track_id="host")
+    assert '"frequency": NaN' in text
+    assert "null" not in text

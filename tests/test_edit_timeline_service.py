@@ -98,5 +98,5 @@ def test_edit_service_timeline_and_transcript(tmp_path, sample_wav) -> None:
         TranscriptService(svc.ws).correct_word("host", 0, "hello")
     AnalysisService(svc.ws).add_effect(speaker="Host", preset="gate")
     fx = AnalysisService(svc.ws).list_effects(speaker="Host")
-    assert fx["effects"]
+    assert fx.model_dump()["effects"]
     AnalysisService(svc.ws).remove_effect(speaker="Host", effect="agate")

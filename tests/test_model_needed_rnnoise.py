@@ -86,22 +86,22 @@ def test_an_explicit_model_param_is_allowed(project: Path, model: Path) -> None:
     result = AnalysisService(ProjectWorkspace.open(project)).add_effect(
         track_id="host", effect="arnndn", params={"model": str(model)}
     )
-    assert [e["effect"] for e in result["effects"]] == ["arnndn"]
+    assert [e["effect"] for e in result.effects] == ["arnndn"]
 
 
 def test_apply_with_the_model_installed_is_unchanged(project: Path, model: Path) -> None:
     model.parent.mkdir(parents=True)
     model.write_bytes(b"x")
     svc = AnalysisService(ProjectWorkspace.open(project))
-    assert svc.add_effect(track_id="host", preset="noise_reduction_rnnoise")["effects"]
-    assert svc.add_effect(track_id="host", effect="agate")["effects"]
+    assert svc.add_effect(track_id="host", preset="noise_reduction_rnnoise").effects
+    assert svc.add_effect(track_id="host", effect="agate").effects
 
 
 def test_other_effects_never_ask_for_the_model(project: Path, model: Path) -> None:
     result = AnalysisService(ProjectWorkspace.open(project)).add_effect(
         track_id="host", effect="highpass"
     )
-    assert [e["effect"] for e in result["effects"]] == ["highpass"]
+    assert [e["effect"] for e in result.effects] == ["highpass"]
 
 
 def _add_effect_command() -> dict:

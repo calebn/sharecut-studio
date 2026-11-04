@@ -17,6 +17,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from podcast_mcp.config.defaults import EffectiveConfig
+from podcast_mcp.effects.results import EffectBypassResult
 from podcast_mcp.engines.effect_filters import (
     is_supported_effect,
     supported_effect_names,
@@ -165,7 +166,7 @@ def set_effect_bypass(
     track_id: str,
     effect_index: int,
     bypass: bool,
-) -> dict[str, Any]:
+) -> EffectBypassResult:
     """Toggle bypass on one effect by index without removing it from the chain."""
     chain = next(
         (c for c in project.processing_chains if c.track_id == track_id),
@@ -179,13 +180,13 @@ def set_effect_bypass(
             f"(len={len(chain.effects)})"
         )
     chain.effects[effect_index].bypass = bool(bypass)
-    return {
-        "track_id": track_id,
-        "effect_index": effect_index,
-        "bypass": chain.effects[effect_index].bypass,
-        "effect": chain.effects[effect_index].effect,
-        "effects": list_track_effects(project, track_id),
-    }
+    return EffectBypassResult(
+        track_id=track_id,
+        effect_index=effect_index,
+        bypass=chain.effects[effect_index].bypass,
+        effect=chain.effects[effect_index].effect,
+        effects=list_track_effects(project, track_id),
+    )
 
 
 def list_track_effects(project: EpisodeProject, track_id: str) -> list[dict[str, Any]]:
