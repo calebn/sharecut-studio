@@ -8,14 +8,17 @@ import { Composer, type ComposerProps } from "./Composer";
 import { composerBlock } from "./composerBlock";
 
 function Harness(props: Partial<ComposerProps> & { start?: string }) {
-  const { start = "", ...rest } = props;
+  const { start = "", onBodyChange, ...rest } = props;
   const [body, setBody] = useState(start);
   return (
     <Composer
       body={body}
-      onBodyChange={setBody}
       onSubmit={() => undefined}
       {...rest}
+      onBodyChange={(value, edit) => {
+        setBody(value);
+        onBodyChange?.(value, edit);
+      }}
     />
   );
 }
@@ -34,9 +37,56 @@ describe("Composer", () => {
     render(<Harness onBodyChange={onBodyChange} start="a" />);
     fireEvent.input(field(), { target: { value: "" }, isComposing: true });
     fireEvent.change(field(), { target: { value: "b" } });
-    expect(onBodyChange).toHaveBeenNthCalledWith(1, "", true);
-    expect(onBodyChange.mock.calls[1]?.[0]).toBe("b");
-    expect(onBodyChange.mock.calls[1]?.[1]).toBeFalsy();
+    expect(onBodyChange).toHaveBeenNthCalledWith(1, "", {
+      composing: true,
+      undo: false,
+    });
+    expect(onBodyChange).toHaveBeenNthCalledWith(2, "b", {
+      composing: false,
+      undo: false,
+    });
+  });
+
+  it("reports the settled value when a composition ends, so a cancelled one that left the field empty is not missed", () => {
+    const onBodyChange = vi.fn();
+    render(<Harness onBodyChange={onBodyChange} start="a" />);
+    fireEvent.compositionStart(field());
+    fireEvent.input(field(), { target: { value: "" }, isComposing: true });
+    fireEvent.compositionEnd(field());
+    expect(onBodyChange).toHaveBeenLastCalledWith("", {
+      composing: false,
+      undo: false,
+    });
+  });
+
+  it("flags a change the browser's undo made", () => {
+    const onBodyChange = vi.fn();
+    render(<Harness onBodyChange={onBodyChange} />);
+    fireEvent.input(field(), {
+      target: { value: "a" },
+      inputType: "historyUndo",
+    });
+    expect(onBodyChange).toHaveBeenCalledWith("a", {
+      composing: false,
+      undo: true,
+    });
+  });
+
+  it("shows why Post is off beside it, wired as its description, until there is text", async () => {
+    render(<Harness />);
+    const note = screen.getByText("Write a comment to post.");
+    expect(note).toBeVisible();
+    expect(submit()).toHaveAccessibleDescription("Write a comment to post.");
+    await userEvent.type(field(), "Cut this");
+    expect(screen.queryByText("Write a comment to post.")).toBeNull();
+    expect(submit()).not.toHaveAttribute("aria-describedby");
+  });
+
+  it("shows the busy reason while a post is in flight", () => {
+    render(<Harness start="Hi" state="posting" />);
+    expect(
+      screen.getByText("Wait for the current action to finish."),
+    ).toBeVisible();
   });
 
   it("calls onEscape from the name, the comment, the chip and Post, but not during an IME composition", async () => {

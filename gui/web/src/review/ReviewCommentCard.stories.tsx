@@ -3,38 +3,22 @@ import { expect, fn, userEvent, within } from "storybook/test";
 import { PhoneFrame } from "../storybook/ComposerHarness";
 import {
   COMMENT_WITH_ACTIONS,
-  OPEN_COMMENT,
   RESOLVED_COMMENT,
 } from "../storybook/commentFixtures";
 import {
-  columnStoryDecorator,
-  viewportStoryParameters,
-} from "../storybook/storyLayout";
+  commentCardStoryMeta,
+  storyParameters,
+} from "../storybook/commentStoryMeta";
 import { playInCanvas } from "../storybook/storyPlay";
-import { CommentCard } from "../system/CommentCard";
+import type { CommentCard } from "../system/CommentCard";
 
-const meta: Meta<typeof CommentCard> = {
+const meta = {
+  ...commentCardStoryMeta,
   title: "Stages/Review/CommentCard",
-  component: CommentCard,
-  tags: ["autodocs"],
-  args: {
-    comment: OPEN_COMMENT,
-    onSelect: fn(),
-    onResolve: fn(),
-    onToggleAction: fn(),
-  },
-  decorators: [columnStoryDecorator],
-  parameters: {
-    ...viewportStoryParameters,
-    docs: {
-      ...viewportStoryParameters.docs,
-      description: {
-        component:
-          "A Review comment with its thread, in the states the stage meets. The caller owns the Undo toast for Resolve.\n\n**Motion.** Animations come later.",
-      },
-    },
-  },
-};
+  parameters: storyParameters(
+    "A Review comment with its thread, in the states the stage meets. The caller owns the Undo toast for Resolve.\n\n**Motion.** Animations come later.",
+  ),
+} satisfies Meta<typeof CommentCard>;
 
 export default meta;
 type Story = StoryObj<typeof CommentCard>;

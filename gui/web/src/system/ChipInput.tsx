@@ -6,6 +6,7 @@ import {
   useState,
 } from "react";
 import { Button, Field, StatusLiveRegion } from "../ui";
+import { isImeKey } from "./imeKey";
 import { SystemIcon } from "./SystemIcon";
 
 /**
@@ -119,7 +120,7 @@ export function ChipInput({
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+    if (isImeKey(event)) return;
     if (event.key === "Backspace") {
       const input = event.currentTarget;
       if (

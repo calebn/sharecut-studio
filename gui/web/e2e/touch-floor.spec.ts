@@ -1,5 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
+import { postDocumentCommand } from "./documentCommand";
 import { e2eProjectPath } from "./env";
+import { withShareableProject } from "./shareableProject";
 import {
   goToStage,
   openPanel,
@@ -37,11 +39,12 @@ const CONTROLS =
 const STAGES = ["record", "prepare", "edit", "review", "deliver"] as const;
 
 /** Visible controls whose touch target is under the floor and not a documented exception. */
-async function undersized(page: Page, exceptions: string) {
+async function undersized(page: Page, exceptions: string, scope = "body") {
   return page.evaluate(
-    ({ controls, exceptions, floor }) => {
+    ({ controls, exceptions, floor, scope }) => {
       const out: string[] = [];
-      for (const el of document.querySelectorAll(controls)) {
+      const root = document.querySelector(scope);
+      for (const el of root?.querySelectorAll(controls) ?? []) {
         if (el.matches(exceptions)) continue;
         const style = getComputedStyle(el);
         if (style.visibility === "hidden" || style.pointerEvents === "none")
@@ -64,7 +67,7 @@ async function undersized(page: Page, exceptions: string) {
       }
       return out;
     },
-    { controls: CONTROLS, exceptions, floor: FLOOR_PX },
+    { controls: CONTROLS, exceptions, floor: FLOOR_PX, scope },
   );
 }
 
@@ -134,6 +137,68 @@ for (const size of SIZES) {
     const box = (await last.boundingBox())!;
     expect(box.y + box.height).toBeLessThanOrEqual(size.height);
     expect(found).toEqual([]);
+    await context.close();
+  });
+}
+
+for (const size of SIZES.filter(
+  (s) => s.name.startsWith("phone") || s.name.startsWith("tablet"),
+)) {
+  test(`coarse pointer, ${size.name}: a Decided comment row and its toggle hold 44px`, async ({
+    browser,
+  }) => {
+    const context = await browser.newContext({
+      viewport: { width: size.width, height: size.height },
+      isMobile: true,
+      hasTouch: true,
+    });
+    const page = await context.newPage();
+    await withShareableProject(async (projectPath) => {
+      for (const [index, body] of ["Open question", "Settled note"].entries()) {
+        await postDocumentCommand(
+          page,
+          `floor-comment-${index}`,
+          "AddComment",
+          {
+            body,
+            author: "Host reviewer",
+            timeline_start: index + 1,
+            timeline_end: null,
+            track_ids: [],
+            action_texts: [],
+          },
+          projectPath,
+        );
+      }
+      const snapshot = await page.request.get(
+        `/api/document/comments?path=${encodeURIComponent(projectPath)}`,
+      );
+      const settled = (await snapshot.json()).comments.find(
+        (comment: { body: string }) => comment.body === "Settled note",
+      );
+      await postDocumentCommand(
+        page,
+        "floor-resolve",
+        "ResolveComment",
+        { comment_id: settled.id, by: "Host reviewer", resolved: true },
+        projectPath,
+      );
+      await openProject(page, projectPath);
+      await openPanel(page, "comments");
+      const panel = page.locator(".rv-stage");
+      await expect(panel).toBeVisible();
+      if (size.phone)
+        await panel.getByRole("button", { name: / of \d+$/ }).click();
+      await page.getByRole("button", { name: /^Decided/ }).click();
+      const row = page.locator(".sys-queue-row--decided").first();
+      await expect(row).toBeVisible();
+      const exceptions = DOCUMENTED_EXCEPTIONS.join(", ");
+      expect(
+        await undersized(page, exceptions, ".rv-group[aria-label='Decided']"),
+      ).toEqual([]);
+      const box = (await row.boundingBox())!;
+      expect(box.height).toBeGreaterThanOrEqual(FLOOR_PX);
+    });
     await context.close();
   });
 }

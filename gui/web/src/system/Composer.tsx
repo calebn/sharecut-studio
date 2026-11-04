@@ -6,6 +6,7 @@ import {
   useRef,
 } from "react";
 import { Button, Field } from "../ui";
+import { useDisabledReasonNote } from "../ui/disabledReason";
 import {
   type AnchorIntent,
   type ComposerAnchor,
@@ -16,6 +17,8 @@ import { isImeKey } from "./imeKey";
 import { StatusGlyph } from "./StatusGlyph";
 import { SystemIcon } from "./SystemIcon";
 import { verbOf } from "./verbDisplay";
+
+export type BodyEdit = { composing: boolean; undo: boolean };
 
 export type ComposerState = "idle" | "posting" | "offline";
 
@@ -29,9 +32,10 @@ export type ComposerState = "idle" | "posting" | "offline";
  */
 export type ComposerProps = {
   body: string;
-  /** `composing` is true while an IME composition is active, when a transient
-   *  empty value is not the person clearing the field. */
-  onBodyChange: (value: string, composing?: boolean) => void;
+  /** `edit.composing` is true while an IME composition is active, when a
+   *  transient empty value is not the person clearing the field. `edit.undo` is
+   *  true when the browser's undo or redo restored the text. */
+  onBodyChange: (value: string, edit?: BodyEdit) => void;
   /** Fires only when Post can fire. The caller clears `body` once the send is
    *  accepted, not before. A send failure shows on the CommentCard, never here. */
   onSubmit: () => void;
@@ -116,6 +120,7 @@ export function Composer(props: ComposerProps) {
     onEscape();
   };
   const block = composerBlock(props);
+  const reason = useDisabledReasonNote(block);
   const posting = state === "posting";
   const offline = state === "offline";
   const coarse = isCoarsePointer();
@@ -199,17 +204,25 @@ export function Composer(props: ComposerProps) {
           ref={setBodyRef}
           onChange={(event) => {
             if (anchor?.kind === "follow") onAnchor?.("pin");
-            onBodyChange(
-              event.target.value,
-              (event.nativeEvent as InputEvent).isComposing,
-            );
+            const native = event.nativeEvent as InputEvent;
+            onBodyChange(event.target.value, {
+              composing: native.isComposing === true,
+              undo: native.inputType?.startsWith("history") ?? false,
+            });
           }}
           onKeyDown={onBodyKeyDown}
+          onCompositionEnd={(event) =>
+            onBodyChange(event.currentTarget.value, {
+              composing: false,
+              undo: false,
+            })
+          }
         />
         <Button
           className="sys-composer-submit"
           aria-label={sendLabel}
           disabledReason={block}
+          {...reason.describedBy}
           aria-busy={posting || undefined}
           onClick={() => {
             onSubmit();
@@ -225,6 +238,7 @@ export function Composer(props: ComposerProps) {
           )}
         </Button>
       </div>
+      {reason.note}
     </div>
   );
 }

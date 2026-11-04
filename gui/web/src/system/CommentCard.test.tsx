@@ -221,6 +221,12 @@ describe("CommentCard", () => {
         />,
       );
       expect(screen.getByText("Waiting to send")).toBeVisible();
+      expect(
+        document.querySelector(".sys-comment-pending svg.lucide-clock"),
+      ).not.toBeNull();
+      expect(
+        document.querySelector(".sys-comment-pending svg.lucide-cloud-off"),
+      ).toBeNull();
       expect(screen.queryByRole("button", { name: "Resolve" })).toBeNull();
       expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
     });
