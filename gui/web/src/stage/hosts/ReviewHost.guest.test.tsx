@@ -431,14 +431,40 @@ describe("Review queue for a guest", () => {
   });
 
   describe("comment field docking", () => {
+    afterEach(() => useDawStore.setState({ shellBreakpoint: "desktop" }));
+
     const docked = () =>
       document.querySelector(".rv-compose")?.hasAttribute("data-docked");
 
     it("docks the field for a Commenter on a phone", () => {
       stubViewportShell("phone");
+      useDawStore.setState({ shellBreakpoint: "phone" });
       join("comment");
       render(<ReviewHost guestShare />);
       expect(docked()).toBe(true);
+    });
+
+    const after = () => {
+      const compose = document.querySelector(".rv-compose") as Element;
+      const card = document.querySelector(".rv-card > :not(.rv-compose)");
+      return !!(
+        card &&
+        compose.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_PRECEDING
+      );
+    };
+
+    it("puts the docked field after the card in tab order", () => {
+      stubViewportShell("phone");
+      useDawStore.setState({ shellBreakpoint: "phone" });
+      join("comment");
+      render(<ReviewHost guestShare />);
+      expect(after()).toBe(true);
+    });
+
+    it("keeps the field before the card on a desktop", () => {
+      join("comment");
+      render(<ReviewHost guestShare />);
+      expect(after()).toBe(false);
     });
 
     it("leaves it in the card on a desktop", () => {
@@ -449,6 +475,7 @@ describe("Review queue for a guest", () => {
 
     it("leaves a host's field undocked on a phone", () => {
       stubViewportShell("phone");
+      useDawStore.setState({ shellBreakpoint: "phone" });
       useDawStore.getState().hydrate("/p", minimalProject());
       useDawStore.setState({
         stage: "review",
@@ -456,6 +483,7 @@ describe("Review queue for a guest", () => {
       });
       render(<ReviewHost />);
       expect(docked()).toBe(false);
+      expect(after()).toBe(false);
     });
   });
 
