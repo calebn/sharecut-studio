@@ -146,4 +146,17 @@ describe("player model", () => {
       { at: 0.25, kind: "comment" },
     ]);
   });
+
+  it("adds one suggestion tick per clamped time, after the comments", () => {
+    expect(playerTicks([], [15], 60, [30, 30, 90, 75, -5])).toEqual([
+      { at: 0.25, kind: "comment" },
+      { at: 0.5, kind: "suggestion" },
+      { at: 1, kind: "suggestion" },
+      { at: 0, kind: "suggestion" },
+    ]);
+  });
+
+  it("draws no suggestion ticks over a zero duration", () => {
+    expect(playerTicks([], [], 0, [3])).toEqual([]);
+  });
 });

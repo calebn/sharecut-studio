@@ -4,7 +4,13 @@ import { seekTransport } from "../../commands/seek";
 import { useStaleRenderBreakdown } from "../../hooks/useStaleRenderBreakdown";
 import { rosterDisplayName } from "../../presence/colors";
 import { rosterEntry } from "../../presence/roster";
-import { canComment, guestHearsMixOnly } from "../../shareMode";
+import { needsReview } from "../../review/reviewItems";
+import {
+  canComment,
+  canReviewPendingEdit,
+  guestHearsMixOnly,
+  isShareProjectKey,
+} from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { transportAvailability } from "../../state/transportAvailability";
 import { useDaw } from "../../state/useDaw";
@@ -92,14 +98,25 @@ export function usePlayerProps(
     [sortedMarkers, duration],
   );
   const comments = project?.comments;
+  const pendingEdits = project?.pending_edits;
+  const suggestionsShown =
+    isShareProjectKey(projectPath) &&
+    canReviewPendingEdit(projectPath, shareCapabilities);
   const ticks = useMemo(
     () =>
       playerTicks(
         chapters,
         (comments ?? NONE).map((c) => c.timeline_start),
         duration,
+        suggestionsShown
+          ? (pendingEdits ?? NONE)
+              .filter((e) => needsReview(e) && !e.unsure_words?.length)
+              .flatMap((e) =>
+                e.timeline_start === null ? [] : [e.timeline_start],
+              )
+          : NONE,
       ),
-    [chapters, comments, duration],
+    [chapters, comments, duration, suggestionsShown, pendingEdits],
   );
 
   const clock = transportTimecode(playheadSec, duration);
