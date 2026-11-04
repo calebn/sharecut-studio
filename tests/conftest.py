@@ -69,7 +69,10 @@ def unscoped_ok_modules() -> frozenset[str]:
 
 
 def pytest_itemcollected(item: pytest.Item) -> None:
-    if item.path.parent == Path(__file__).parent and item.path.name in unscoped_ok_modules():
+    tests_dir = Path(__file__).parent
+    if tests_dir in item.path.parents and (
+        item.path.relative_to(tests_dir).as_posix() in unscoped_ok_modules()
+    ):
         item.add_marker(pytest.mark.unscoped_ok)
 
 

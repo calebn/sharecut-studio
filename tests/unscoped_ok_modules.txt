@@ -1,5 +1,8 @@
 # Test modules that save a project outside a write grant (direct-service or legacy-path tests).
 # They run the guard in warn mode via the unscoped_ok marker. Delete a line when its module migrates; never add one.
+e2e/test_fixture_edits.py
+e2e/test_fixture_hygiene.py
+e2e/test_fixture_social.py
 test_acoustic_gap_peer_lag.py
 test_agent_document.py
 test_align_accept.py
@@ -64,6 +67,7 @@ test_document_sync.py
 test_edit_modes.py
 test_edit_timeline_service.py
 test_effective_config.py
+test_effects_wire_pin.py
 test_envelopes.py
 test_episode_export_transcripts.py
 test_episode_result_wire.py
@@ -120,7 +124,9 @@ test_manual_cut_intent_role.py
 test_manual_pending_ownership_contract.py
 test_master_retarget.py
 test_mcp_extra.py
+test_mcp_free_text_args.py
 test_mcp_nl.py
+test_mcp_structured_args.py
 test_mcp_timeline.py
 test_mcp_timeline_extended.py
 test_mcp_tool_errors.py
