@@ -40,6 +40,7 @@ import {
 } from "../../utils/commentAuthor";
 import { ComposeAnchor } from "./ComposeAnchor";
 import { commentCardOf } from "./commentCardData";
+import { TrackScope } from "./TrackScope";
 
 export type CommentNav = {
   items: readonly ReviewItem[];
@@ -100,6 +101,9 @@ export function useReviewComments(guest: boolean) {
     Readonly<Record<string, string | null>>
   >({});
   const [asked, setAsked] = useState<string | null>(null);
+  const [scope, setScope] = useState<string[]>([]);
+  const tracks = project?.tracks;
+  const scopeTracks = !guest && tracks && tracks.length > 1 ? tracks : null;
 
   useEffect(() => {
     const landed = new Set(sent.current);
@@ -236,6 +240,7 @@ export function useReviewComments(guest: boolean) {
     session.current += 1;
     const stage = stageOf();
     setBody("");
+    setScope([]);
     postComment.cancel();
     useDawStore.getState().setCommentDraft(null);
     stage?.focus({ preventScroll: true });
@@ -250,6 +255,7 @@ export function useReviewComments(guest: boolean) {
     try {
       const result = await postComment.post({
         body,
+        trackIds: scope,
         author: commitCommentActor(
           name,
           role,
@@ -264,6 +270,7 @@ export function useReviewComments(guest: boolean) {
       if (!result.ok) return;
       if (guest && capCommentName(name)) saveCommentAuthor(name, role);
       setBody("");
+      setScope([]);
       useDawStore
         .getState()
         .announceStatus(commentPostedStatus(result.comment));
@@ -311,6 +318,14 @@ export function useReviewComments(guest: boolean) {
         state={postComment.busy ? "posting" : "idle"}
         inputRef={composeRef}
       />
+      {scopeTracks ? (
+        <TrackScope
+          tracks={scopeTracks}
+          value={scope}
+          onChange={setScope}
+          disabled={postComment.busy}
+        />
+      ) : null}
       <InlineError message={postComment.error} />
     </div>
   ) : undefined;

@@ -29,3 +29,24 @@ describe("usePostComment", () => {
     expect(result.current.busy).toBe(false);
   });
 });
+
+describe("usePostComment track scope", () => {
+  it("sends the tracks the person chose, else the whole session", async () => {
+    createComment.mockResolvedValue(null);
+    const { result } = renderHook(() => usePostComment());
+    await act(async () => {
+      await result.current.post({ body: "A", author: "Sam", trackIds: ["t2"] });
+    });
+    expect(createComment).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({ trackIds: ["t2"] }),
+    );
+    await act(async () => {
+      await result.current.post({ body: "B", author: "Sam", trackIds: [] });
+    });
+    expect(createComment).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({ trackIds: [] }),
+    );
+  });
+});
