@@ -97,9 +97,10 @@
 .sys-dock {
   container: sys-dock / inline-size;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: var(--space-6);
+  gap: var(--space-3) var(--space-6);
   min-block-size: 5rem;
   padding: var(--space-3) var(--space-5);
   padding-block-end: max(var(--space-3), env(safe-area-inset-bottom));
@@ -109,9 +110,10 @@
 
 .sys-dock-center {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: var(--space-5);
+  gap: var(--space-3) var(--space-5);
 }
 
 .sys-dock-far {
@@ -627,7 +629,8 @@
   box-sizing: border-box;
   block-size: 100%;
   min-block-size: 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   background: var(--color-bg-canvas);
   color: var(--color-text-primary);
 }
