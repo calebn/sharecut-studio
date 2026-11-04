@@ -577,7 +577,7 @@ export function attachHitRouting(
     index: number,
     source: PointerEvent,
     anchor: HitPoint,
-    at: HitPoint = anchor,
+    at: HitPoint,
   ) => {
     if (phase.kind !== "open") return;
     const { candidate, element } = phase.view.hits[index];

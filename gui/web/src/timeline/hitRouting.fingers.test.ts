@@ -98,16 +98,24 @@ describe("a second finger after the first began on a chooser chip", () => {
     const { fade, chips } = crowdedWithChips();
     openChooser(fade);
     press(chips[1], "pointerdown", 250, 40, 9);
-    vi.advanceTimersByTime(600);
-    expect(log).toEqual(["fade:pointerdown"]);
+    press(chips[1], "pointermove", 266, 40, 9);
+    expect(log).toEqual(["fade:pointerdown", "fade:pointermove"]);
     press(fade, "pointerdown", 300, 140, 10);
-    expect(log).toEqual(["fade:pointerdown", "fade:pointercancel"]);
+    expect(log).toEqual([
+      "fade:pointerdown",
+      "fade:pointermove",
+      "fade:pointercancel",
+    ]);
     expect(restored).toBe(1);
     press(chips[1], "pointerup", 250, 40, 9);
     press(fade, "pointerup", 300, 140, 10);
     vi.runAllTimers();
     for (const chip of chips) chip.remove();
-    expect(log).toEqual(["fade:pointerdown", "fade:pointercancel"]);
+    expect(log).toEqual([
+      "fade:pointerdown",
+      "fade:pointermove",
+      "fade:pointercancel",
+    ]);
   });
 
   it("drops the chip pick when the second finger lands before it rests", () => {
