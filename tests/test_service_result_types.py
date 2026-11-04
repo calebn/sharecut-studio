@@ -13,6 +13,8 @@ import ast
 from collections import Counter
 from pathlib import Path
 
+import pytest
+
 SERVICES = Path(__file__).resolve().parents[1] / "src" / "podcast_mcp" / "services"
 
 DICT_RETURNS: dict[str, int] = {
@@ -181,10 +183,61 @@ def test_the_ratchet_recognises_every_bare_dict_spelling() -> None:
         "builtins.dict",
         "typing.Dict[str, int]",
         "Optional[dict[str, Any]]",
+        "typing.Optional[dict[str, Any]]",
+        "Union[dict, None]",
+        "typing.Union[None, dict[str, Any]]",
+        "typing.Union[str, typing.Optional[dict]]",
+        "'typing.Optional[dict[str, Any]]'",
+        "Optional['Union[dict, None]']",
         "dict | None",
         "None | dict",
         "'dict[str, Any]'",
     ]
-    ignored = ["str", "list[dict]", "Model", "None", "Mapping[str, Any]"]
+    ignored = [
+        "str",
+        "list[dict]",
+        "Model",
+        "None",
+        "Mapping[str, Any]",
+        "Union[list[dict], None]",
+        "typing.Optional[Mapping[str, Any]]",
+        "typing.Union[Model, None]",
+        "list[typing.Optional[dict]]",
+        "Mapping[str, dict]",
+        "tuple[dict, None]",
+        "Annotated[dict, 'metadata']",
+    ]
     assert all(_is_dict(_annotation(text)) for text in flagged)
     assert not any(_is_dict(_annotation(text)) for text in ignored)
+
+
+@pytest.mark.parametrize("definition", ["def", "async def"])
+def test_the_scanner_counts_nullable_dict_returns(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, definition: str
+) -> None:
+    annotations = [
+        "typing.Optional[dict[str, Any]]",
+        "Union[dict, None]",
+        "typing.Union[None, dict[str, Any]]",
+        "typing.Union[str, typing.Optional[dict]]",
+        "'typing.Optional[dict[str, Any]]'",
+        "Optional['Union[dict, None]']",
+    ]
+    (tmp_path / "nullable.py").write_text(
+        "\n".join(
+            f"{definition} f{index}() -> {annotation}: ..."
+            for index, annotation in enumerate(annotations)
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "containers.py").write_text(
+        f"{definition} f() -> typing.Union[list[dict], tuple[dict], None]: ...",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(f"{__name__}.SERVICES", tmp_path)
+
+    counts = _counts()
+    assert counts == {"nullable.py": 6}
+    assert _over_cap(counts, {}) == {"nullable.py": 6}
+    assert _over_cap(counts, {"nullable.py": 6}) == {}
+    assert _over_cap(counts, {"nullable.py": 5}) == {"nullable.py": 6}
