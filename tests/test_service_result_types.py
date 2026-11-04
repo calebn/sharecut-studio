@@ -1,10 +1,12 @@
 """Ratchet for #1811: service functions that return a bare ``dict``.
 
-Each entry is the most functions under ``services/`` that may carry a ``-> dict`` or
-``-> dict[...]`` in that file. A typed result model lowers a cap and the lowered cap must be
-written here. A count above its cap fails, so a file cannot gain a bare ``-> dict``. A count
-below its cap does not fail, so two PRs that each type a different function cannot turn main
-red; a cap that no longer matches any function at all is reported as stale.
+Each entry caps functions under ``services/`` with a bare dictionary return, including
+``Optional`` and ``Union`` members, qualified names, quoted annotations, and ``|`` unions.
+Dictionaries nested inside other containers do not count. A typed result model lowers a
+cap and the lowered cap must be written here. A count above its cap fails, so a file
+cannot gain a bare dictionary return. A count below its cap does not fail, so two PRs
+that each type a different function cannot turn main red. A cap that no longer matches
+any function at all is reported as stale.
 """
 
 from __future__ import annotations
@@ -124,8 +126,20 @@ def _is_dict(annotation: ast.expr | None) -> bool:
         return _is_dict(annotation.left) or _is_dict(annotation.right)
     if isinstance(annotation, ast.Subscript):
         outer = annotation.value
-        if isinstance(outer, ast.Name) and outer.id == "Optional":
-            return _is_dict(annotation.slice)
+        name = (
+            outer.id
+            if isinstance(outer, ast.Name)
+            else outer.attr
+            if isinstance(outer, ast.Attribute)
+            else None
+        )
+        if name in {"Optional", "Union"}:
+            members = (
+                annotation.slice.elts
+                if isinstance(annotation.slice, ast.Tuple)
+                else [annotation.slice]
+            )
+            return any(_is_dict(member) for member in members)
         annotation = outer
     if isinstance(annotation, ast.Attribute):
         return annotation.attr in {"dict", "Dict"}
