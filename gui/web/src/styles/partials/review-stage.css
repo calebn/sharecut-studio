@@ -146,14 +146,19 @@
 
 .rv-stage[data-layout="phone"] .rv-compose[data-docked] {
   flex: none;
-  position: sticky;
-  inset-block-end: 0;
-  z-index: 1;
-  max-block-size: 40dvh;
-  overflow-y: auto;
-  padding-block-end: var(--space-3);
-  background: var(--color-bg-canvas);
-  border-block-start: 1px solid var(--color-border-subtle);
+}
+
+@media (min-height: 480px) {
+  .rv-stage[data-layout="phone"] .rv-compose[data-docked] {
+    position: sticky;
+    inset-block-end: 0;
+    z-index: 1;
+    max-block-size: 40dvh;
+    overflow-y: auto;
+    padding-block-end: var(--space-3);
+    background: var(--color-bg-canvas);
+    border-block-start: 1px solid var(--color-border-subtle);
+  }
 }
 
 .rv-foot {
