@@ -52,6 +52,8 @@ vi.mock("../../commands/seek", () => ({ seekTransport: wire.seek }));
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { requestHostDrain } from "../../services/offlineQueue/drainOfflineQueue";
+import { READY } from "../../stages/deliver/feedFixture";
+import { KEY } from "../../stages/deliver/feedLogic";
 import { useDawStore } from "../../state/dawStore";
 import { commandLocks } from "../../test/commandLocks";
 import { fakeExportServer } from "../../test/fakeExportServer";
@@ -868,6 +870,47 @@ describe("Deliver host export while an edit is not saved", () => {
       expect(useDawStore.getState().chrome.exportRequested).toBe(false),
     );
     expect(exportStarts(fetched)).toBe(0);
+  });
+
+  it("starts no export from the feed's Export episode while an edit waits in the offline queue", async () => {
+    const standard = globalThis.fetch;
+    const unexported = {
+      ...READY,
+      findings: [
+        {
+          key: KEY.published,
+          severity: "blocker" as const,
+          platform: null,
+          message: "Set when you export.",
+          fix: { kind: "command" as const, command: "export_episode" as const },
+        },
+      ],
+    };
+    const fetched = vi.fn((input: RequestInfo | URL, init?: RequestInit) =>
+      String(input).includes("/api/feed")
+        ? Promise.resolve(
+            new Response(
+              JSON.stringify({ view: unexported, itemXml: "<item/>" }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          )
+        : standard(input, init),
+    );
+    vi.stubGlobal("fetch", fetched);
+    network.mode = "down";
+    render(<DeliverStage />);
+    const fix = await screen.findByRole("button", { name: "Export episode" });
+    await removeMiddle();
+    await screen.findByRole("status");
+    await userEvent.click(fix);
+    expect(exportStarts(fetched)).toBe(0);
+    network.mode = "up";
+    await act(async () => requestHostDrain(PATH));
+    await waitFor(() => expect(exportHeld()).toBeEnabled());
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Export episode" }),
+    );
+    await waitFor(() => expect(exportStarts(fetched)).toBe(1));
   });
 
   it("holds Export after a refused save until the saved version is shown", async () => {

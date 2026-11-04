@@ -295,6 +295,18 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     },
     [formatsBlocker, exportBlockedReason, startExport],
   );
+  const currentRequest = useCallback(
+    () =>
+      exportRequest(
+        episodeSettings,
+        page.clips,
+        page.chapters,
+        undefined,
+        edits,
+        exportOptions.target,
+      ),
+    [episodeSettings, page.clips, page.chapters, edits, exportOptions.target],
+  );
   useEffect(() => {
     liveHosts += 1;
     return () => {
@@ -325,17 +337,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     )
       return;
     setExportRequested(false);
-    guardedStart(
-      chosenFormats,
-      exportRequest(
-        episodeSettings,
-        page.clips,
-        page.chapters,
-        undefined,
-        edits,
-        exportOptions.target,
-      ),
-    );
+    guardedStart(chosenFormats, currentRequest());
   }, [
     exportRequested,
     state,
@@ -345,11 +347,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     setExportRequested,
     guardedStart,
     chosenFormats,
-    episodeSettings,
-    page.clips,
-    page.chapters,
-    edits,
-    exportOptions.target,
+    currentRequest,
   ]);
   const [findingClips, setFindingClips] = useState(false);
   const [focusShare, setFocusShare] = useState(false);
@@ -527,17 +525,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
                     fix.kind === "command" &&
                     fix.command === "export_episode"
                   )
-                    guardedStart(
-                      chosenFormats,
-                      exportRequest(
-                        episodeSettings,
-                        page.clips,
-                        page.chapters,
-                        undefined,
-                        edits,
-                        exportOptions.target,
-                      ),
-                    );
+                    guardedStart(chosenFormats, currentRequest());
                 }}
                 onOpenSource={openFeedSource}
               />

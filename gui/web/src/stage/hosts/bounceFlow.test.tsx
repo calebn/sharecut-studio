@@ -606,6 +606,25 @@ describe("BounceFlowProvider", () => {
       expect(flow.run).toEqual({ kind: "idle" });
     });
 
+    it("changes nothing when the decline lands after the project changed", async () => {
+      vi.mocked(followJobToOk).mockRejectedValue(needed());
+      mountGated();
+      act(() => useDawStore.setState({ bounceRangeTarget: RANGE }));
+      act(() => flow.start());
+      await waitFor(() => expect(flow.gate.prompt).not.toBeNull());
+      const before = useDawStore.getState().feedbackToast;
+
+      act(() =>
+        useDawStore.setState({ projectPath: "/tmp/other.project.json" }),
+      );
+      await waitFor(() => expect(flow.gate.prompt).toBeNull());
+      await act(async () => {});
+      expect(flow.run).toEqual({ kind: "idle" });
+      expect(flow.gate.declined).toBeNull();
+      expect(useDawStore.getState().feedbackToast).toBe(before);
+      expect(useDawStore.getState().bounceRangeTarget).toBe(RANGE);
+    });
+
     it("does not loop when the same model is still missing after the download", async () => {
       vi.mocked(followJobToOk).mockRejectedValue(needed());
       mountGated();

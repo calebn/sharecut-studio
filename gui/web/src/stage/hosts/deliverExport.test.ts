@@ -247,6 +247,23 @@ describe("exportStateOf", () => {
     });
   });
 
+  it("shows no export when a run is done but no request is held", () => {
+    expect(
+      exportStateOf(
+        flowOf({
+          request: null,
+          run: {
+            kind: "done",
+            paths: ["/p/export/ep.wav"],
+            measured: null,
+            finishedAt: 0,
+          },
+        }),
+        0,
+      ),
+    ).toEqual({ phase: "never" });
+  });
+
   it("names a failure", () => {
     expect(
       exportStateOf(flowOf({ run: { kind: "failed", reason: "no disk" } }), 0),

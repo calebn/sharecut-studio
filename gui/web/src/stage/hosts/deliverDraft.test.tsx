@@ -1,5 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { deferred } from "../../test/deferred";
 import {
   patchDeliverDraft,
@@ -8,6 +8,21 @@ import {
 } from "./deliverDraft";
 
 describe("deliver drafts", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("stamps the page's start on the first render, not after the seed", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(5000);
+    const sinces: number[] = [];
+    renderHook(() => {
+      const draft = useDeliverDraft("/draft/fresh.json");
+      sinces.push(draft.since);
+      return draft;
+    });
+    expect(sinces[0]).toBe(5000);
+    expect(new Set(sinces)).toEqual(new Set([5000]));
+  });
+
   it("keeps each project's pending count and refusal apart", async () => {
     const first = renderHook(() => useDeliverDraft("/draft/a.json"));
     const second = renderHook(() => useDeliverDraft("/draft/b.json"));
