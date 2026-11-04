@@ -211,11 +211,15 @@ def stage_words_cut(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
 
 
 def add_effect(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return AnalysisService(ws).add_effect(
-        track_id=str(p["track_id"]),
-        preset=p.get("preset"),
-        effect=p.get("effect"),
-        params=p.get("params"),
+    return (
+        AnalysisService(ws)
+        .add_effect(
+            track_id=str(p["track_id"]),
+            preset=p.get("preset"),
+            effect=p.get("effect"),
+            params=p.get("params"),
+        )
+        .model_dump()
     )
 
 
@@ -259,14 +263,22 @@ def set_bleed_alignment_mode(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[st
 
 
 def remove_effect(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return AnalysisService(ws).remove_effect(track_id=str(p["track_id"]), effect=p.get("effect"))
+    return (
+        AnalysisService(ws)
+        .remove_effect(track_id=str(p["track_id"]), effect=p.get("effect"))
+        .model_dump()
+    )
 
 
 def set_effect_bypass(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return AnalysisService(ws).set_effect_bypass(
-        track_id=str(p["track_id"]),
-        effect_index=int(p["effect_index"]),
-        bypass=bool(p["bypass"]),
+    return (
+        AnalysisService(ws)
+        .set_effect_bypass(
+            track_id=str(p["track_id"]),
+            effect_index=int(p["effect_index"]),
+            bypass=bool(p["bypass"]),
+        )
+        .model_dump()
     )
 
 

@@ -740,7 +740,9 @@ def list_effects_tool(
 ) -> str:
     """List the effect chain for a track or speaker."""
     ws = ProjectWorkspace.open(project_path)
-    return to_json(AnalysisService(ws).list_effects(track_id=track_id, speaker=speaker))
+    return to_json(
+        AnalysisService(ws).list_effects(track_id=track_id, speaker=speaker).model_dump()
+    )
 
 
 def analyze_cleanup_tool(

@@ -8,6 +8,7 @@ from typing import Any, Literal
 from podcast_mcp.edits.comments import comments_for_view
 from podcast_mcp.edits.join_modes import track_fade_max_ms
 from podcast_mcp.edits.speaker_split import split_for_track
+from podcast_mcp.effects.results import EffectTrackListResult
 from podcast_mcp.gui.mapper import (
     map_applied_edits_to_timeline,
     map_edit_boundaries,
@@ -89,7 +90,7 @@ def _effects_by_track(ws: ProjectWorkspace) -> dict[str, list[dict[str, Any]]]:
     out: dict[str, list[dict[str, Any]]] = {}
     for track in ws.project.tracks:
         fx = AnalysisService(ws).list_effects(track_id=track.id)
-        out[track.id] = fx.get("effects", [])
+        out[track.id] = fx.effects if isinstance(fx, EffectTrackListResult) else []
     return out
 
 

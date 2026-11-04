@@ -1421,14 +1421,14 @@ def test_edit_remove_effect(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     AnalysisService(ws).add_effect(speaker="Host", preset="gate")
     out = AnalysisService(ws).remove_effect(speaker="Host", effect="agate")
-    assert out["track_id"] == "host"
-    assert out["removed"] >= 0
+    assert out.track_id == "host"
+    assert out.removed >= 0
 
 
 def test_edit_list_effects_presets_only(minimal_project) -> None:
     ws = ProjectWorkspace.open(minimal_project)
     out = AnalysisService(ws).list_effects()
-    assert "presets" in out
+    assert "presets" in out.model_dump()
 
 
 def test_edit_add_effect_requires_arg(minimal_project, sample_wav) -> None:
@@ -1928,7 +1928,7 @@ def test_edit_add_effect_custom(minimal_project, sample_wav) -> None:
             effect="highpass",
             params={"frequency": 300},
         )
-    assert out["effects"][0]["effect"] == "eq"
+    assert out.effects[0]["effect"] == "eq"
 
 
 def test_edit_optional_track_filters_without_speaker(minimal_project, sample_wav) -> None:

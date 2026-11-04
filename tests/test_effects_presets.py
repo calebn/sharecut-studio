@@ -54,9 +54,9 @@ def test_set_effect_bypass_and_list() -> None:
     assert listed[0]["bypass"] is False
 
     out = set_effect_bypass(p, "host", 1, True)
-    assert out["bypass"] is True
-    assert out["effect"] == "agate"
-    assert len(out["effects"]) == 2
+    assert out.bypass is True
+    assert out.effect == "agate"
+    assert len(out.effects) == 2
     assert list_track_effects(p, "host")[1]["bypass"] is True
     assert list_track_effects(p, "host")[0]["bypass"] is False
 

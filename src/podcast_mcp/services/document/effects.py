@@ -13,6 +13,13 @@ from podcast_mcp.effects.presets import (
     remove_effect,
     set_effect_bypass,
 )
+from podcast_mcp.effects.results import (
+    AddEffectResult,
+    EffectBypassResult,
+    EffectPresetListResult,
+    EffectTrackListResult,
+    RemoveEffectResult,
+)
 from podcast_mcp.engines.effect_filters import is_supported_effect, supported_effect_names
 from podcast_mcp.engines.models.registry import require_model
 from podcast_mcp.services.document.service_base import WorkspaceService
@@ -32,7 +39,7 @@ class EffectsService(WorkspaceService):
         preset: str | None = None,
         effect: str | None = None,
         params: dict[str, Any] | None = None,
-    ) -> dict:
+    ) -> AddEffectResult:
         tid = self._resolve(track_id, speaker)
         specs = get_preset(preset, defaults=self.ws.effective_config()) if preset else None
         requested = (
@@ -56,14 +63,14 @@ class EffectsService(WorkspaceService):
         if needs_model:
             require_model("rnnoise")
 
-        def mutate(p) -> dict:
+        def mutate(p) -> AddEffectResult:
             if preset and specs is not None:
                 chain = apply_specs_to_chain(p, tid, specs)
             elif effect:
                 chain = add_effect(p, tid, effect, params)
             else:
                 raise CodedValueError("preset or effect is required", code="effect_required")
-            return {"track_id": tid, "effects": [e.model_dump() for e in chain.effects]}
+            return AddEffectResult(track_id=tid, effects=[e.model_dump() for e in chain.effects])
 
         return self.ws.mutate("before add effect", "after add effect", mutate)
 
@@ -73,12 +80,12 @@ class EffectsService(WorkspaceService):
         track_id: str | None = None,
         speaker: str | None = None,
         effect: str | None = None,
-    ) -> dict:
+    ) -> RemoveEffectResult:
         tid = self._resolve(track_id, speaker)
 
-        def mutate(p) -> dict:
+        def mutate(p) -> RemoveEffectResult:
             removed = remove_effect(p, tid, effect)
-            return {"track_id": tid, "removed": removed}
+            return RemoveEffectResult(track_id=tid, removed=removed)
 
         return self.ws.mutate("before remove effect", "after remove effect", mutate)
 
@@ -89,7 +96,7 @@ class EffectsService(WorkspaceService):
         speaker: str | None = None,
         effect_index: int,
         bypass: bool,
-    ) -> dict:
+    ) -> EffectBypassResult:
         tid = self._resolve(track_id, speaker)
         return self.ws.mutate(
             "before set effect bypass",
@@ -108,15 +115,15 @@ class EffectsService(WorkspaceService):
         *,
         track_id: str | None = None,
         speaker: str | None = None,
-    ) -> dict:
+    ) -> EffectTrackListResult | EffectPresetListResult:
         tid = self._resolve(track_id, speaker) if (track_id or speaker) else None
         if tid:
-            return {
-                "track_id": tid,
-                "effects": list_track_effects(self.ws.project, tid),
-                "supported_effects": list(supported_effect_names()),
-            }
-        return {
-            "presets": list_presets(defaults=self.ws.effective_config()),
-            "supported_effects": list(supported_effect_names()),
-        }
+            return EffectTrackListResult(
+                track_id=tid,
+                effects=list_track_effects(self.ws.project, tid),
+                supported_effects=list(supported_effect_names()),
+            )
+        return EffectPresetListResult(
+            presets=list_presets(defaults=self.ws.effective_config()),
+            supported_effects=list(supported_effect_names()),
+        )
