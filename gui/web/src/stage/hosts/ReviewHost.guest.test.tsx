@@ -251,6 +251,17 @@ describe("Review queue for a guest", () => {
       expect(screen.queryByRole("button", { name: label })).toBeNull();
   });
 
+  it("offers a commenter no action items and posts none", async () => {
+    join("comment");
+    render(<ReviewHost guestShare />);
+    expect(
+      screen.queryByRole("button", { name: "Add action item" }),
+    ).toBeNull();
+    await userEvent.type(field(), "Lovely{Enter}");
+    await waitFor(() => expect(createComment).toHaveBeenCalledTimes(1));
+    expect(createComment.mock.calls[0][1]).toMatchObject({ actionTexts: [] });
+  });
+
   it("pins the guest's chip on typing and lets it follow again when the field is emptied", async () => {
     const user = userEvent.setup();
     join("comment");

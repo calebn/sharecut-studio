@@ -997,6 +997,36 @@ describe("Review host comments", () => {
       expect(useDawStore.getState().commentDraft).not.toBeNull();
     });
 
+    it("drops typed action items on Escape and keeps them when the post is refused", async () => {
+      server.refuse.add("AddComment");
+      mount();
+      act(() => {
+        press("c");
+      });
+      await userEvent.type(field(), "Needs work");
+      await userEvent.click(
+        screen.getByRole("button", { name: "Add action item" }),
+      );
+      await userEvent.type(
+        screen.getByRole("textbox", { name: "Action item 1" }),
+        "Re-record",
+      );
+      await userEvent.type(field(), "{Enter}");
+      await waitFor(() => expect(screen.getByRole("alert")).toBeVisible());
+      expect(
+        screen.getByRole("textbox", { name: "Action item 1" }),
+      ).toHaveValue("Re-record");
+      await userEvent.type(field(), "{Escape}");
+      expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
+      act(() => {
+        press("c");
+      });
+      await waitFor(() => expect(field()).toHaveFocus());
+      expect(
+        screen.queryByRole("textbox", { name: /^Action item/ }),
+      ).toBeNull();
+    });
+
     it("opens once on C: the card key and the window keymap do not both write a draft", async () => {
       mount();
       let writes = 0;
