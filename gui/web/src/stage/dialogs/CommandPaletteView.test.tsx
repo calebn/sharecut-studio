@@ -28,7 +28,7 @@ const COMMANDS: PaletteCommand[] = [
     id: "export.deliverables",
     label: "Export deliverables…",
     category: "ui",
-    shortcut: "⌘+Shift+E",
+    shortcut: "⌘+E",
     defaultKey: "E",
     disabledReason: null,
   },
@@ -179,8 +179,8 @@ describe("CommandPaletteView", () => {
       "2 commands. Enter runs Export deliverables…",
     );
     const top = screen.getByRole("option", { name: /^Export deliverables…/ });
-    expect(top).toHaveAccessibleName("Export deliverables… App ⌘+Shift+E");
-    expect(top).toHaveTextContent(/^Export deliverables… App ⌘\+Shift\+E$/);
+    expect(top).toHaveAccessibleName("Export deliverables… App ⌘+E");
+    expect(top).toHaveTextContent(/^Export deliverables… App ⌘\+E$/);
     const unavailable = screen.getByRole("option", {
       name: /^Export diagnostics…/,
     });

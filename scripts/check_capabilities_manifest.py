@@ -40,6 +40,18 @@ def _unescape_ts_string(captured: str) -> str:
     return "".join(out)
 
 
+def _keyless_keymap_ids() -> set[str]:
+    text = (ROOT / "gui/web/src/keymap/registry.ts").read_text(encoding="utf-8")
+    start = text.index("export const KEYMAP_COMMANDS")
+    end = text.index("] as const", start)
+    out: set[str] = set()
+    for chunk in re.split(r"\n  \{\n", text[start:end])[1:]:
+        id_m = re.search(r'id:\s*"([^"]+)"', chunk)
+        if id_m and re.search(r"keys:\s*\[\s*\]", chunk):
+            out.add(id_m.group(1))
+    return out
+
+
 def _keymap_chords() -> dict[str, str]:
     text = (ROOT / "gui/web/src/keymap/registry.ts").read_text(encoding="utf-8")
     start = text.index("export const KEYMAP_COMMANDS")
@@ -575,6 +587,13 @@ def main() -> int:
             errors.append(f"KEYMAP id {cmd} missing surfaces.keyboard in manifest")
         elif declared != chord:
             errors.append(f"keyboard mismatch for {cmd}: manifest={declared!r} keymap={chord!r}")
+
+    for cmd in sorted(_keyless_keymap_ids()):
+        if cmd in keymap_in_manifest:
+            errors.append(
+                f"KEYMAP id {cmd} has no keys but manifest surfaces.keyboard is "
+                f"{keymap_in_manifest[cmd]!r}"
+            )
 
     for tool in sorted(live_mcp - mcp_in_manifest - untracked):
         errors.append(f"MCP tool missing from manifest: {tool}")

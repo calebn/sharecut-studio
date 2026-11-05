@@ -3,10 +3,8 @@ import { Cover } from "../../system/Cover";
 import type { LinkCopyState } from "../../system/LinkRow";
 import { Player } from "../../system/Player";
 import { Skeleton } from "../../system/Skeleton";
-import { VERBS } from "../../system/verbs";
 import type { StageId } from "../../types/stage";
 import { Toast, type ToastState } from "../../ui";
-import { isApplePlatform } from "../../utils/platform";
 import { BounceSection } from "./BounceSection";
 import type { BounceOptions } from "./bounceLogic";
 import { ChaptersList } from "./ChaptersList";
@@ -121,8 +119,6 @@ export type DeliverStageProps = {
   onGetModel?: () => void;
   onRetry?: () => void;
 };
-
-const EXPORT_KEY = VERBS.find((verb) => verb.id === "export")?.keys[0];
 
 let nextChapter = 0;
 
@@ -242,11 +238,11 @@ export function DeliverStage({
     clearInFlight();
   }, [exportState]);
   useEffect(() => clearInFlight, []);
-  const startExport = (viaKey = false) => {
+  const startExport = () => {
     if (guest || blocker || exporting || inFlight.current) return;
     inFlight.current = true;
     release.current = window.setTimeout(clearInFlight, IN_FLIGHT_MS);
-    onExport(viaKey ? keyRequest : request);
+    onExport(request);
   };
   const exportAgain = exportOptions?.onExportAgain;
   const exportAgainAndStart = exportAgain
@@ -256,29 +252,6 @@ export function DeliverStage({
         startExport();
       }
     : undefined;
-  const onKey = useRef(startExport);
-  useEffect(() => {
-    onKey.current = startExport;
-  });
-  useEffect(() => {
-    if (!rootEl || !EXPORT_KEY) return;
-    const listener = (event: KeyboardEvent) => {
-      if (
-        (isApplePlatform()
-          ? event.metaKey && !event.ctrlKey
-          : event.ctrlKey && !event.metaKey) &&
-        !event.shiftKey &&
-        !event.altKey &&
-        !event.repeat &&
-        event.key.toUpperCase() === EXPORT_KEY.key
-      ) {
-        event.preventDefault();
-        onKey.current(true);
-      }
-    };
-    rootEl.addEventListener("keydown", listener);
-    return () => rootEl.removeEventListener("keydown", listener);
-  }, [rootEl]);
   useFocusRecovery(rootEl);
 
   if (guest) {

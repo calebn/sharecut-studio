@@ -10,7 +10,7 @@ description: >-
 # Bounce export (stems / range)
 
 Lightweight mixdown — **not** the ship-to-host path. Same tooling as the **Bounce**
-section of Sharecut Studio's Deliver stage / `Mod+Shift+B`.
+section of Sharecut Studio's Deliver stage (palette: Bounce…; Mod+E with one range selected opens it with that range).
 
 ## When to use
 
