@@ -950,14 +950,12 @@ test("the drawer follows the finger; a flick opens or closes it fully, a slow dr
   await flick(-60, 200);
   await expect(sheet).toHaveClass(/bottom-sheet--half/);
 
-  // Slowly up past the middle of half and full: it follows 1:1 and lands full.
   const toFull = await drag(-0.7 * (slot.full - slot.half));
   await expect(sheet).toHaveClass(/bottom-sheet--full/);
   await frame(page, info, `grammar-drawer-slow-full-${browserName}`);
   // Down a little and held: still full, not a detent lower.
   await drag(40);
   await expect(sheet).toHaveClass(/bottom-sheet--full/);
-  // Slowly down past the middle of full and half: half.
   const toHalf = await drag(0.7 * (slot.full - slot.half));
   await expect(sheet).toHaveClass(/bottom-sheet--half/);
   json(info, `grammar-drawer-${browserName}`, { slot, toFull, toHalf });

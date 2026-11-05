@@ -83,13 +83,11 @@ const project = minimalProject({
 const announce = vi.fn<(message: string, options?: AnnounceOptions) => void>();
 const FADE_HEAD = parseHistoryEntryId("h-fade");
 
-/** One value the sheet draws nudge buttons beside, as its section declares it. */
 interface Nudged {
   field: NudgeField;
   name: string;
 }
 
-/** The buttons as the sheet draws them: one SheetNudge per Scrub field. */
 function Sheet({ fields }: { fields: readonly Nudged[] }) {
   return (
     <>

@@ -620,7 +620,6 @@ async function dragStowsDrawer(
 ): Promise<void> {
   const finger = await setUp(page, context, browserName);
   await open(page, size);
-  // Select the trim start through the chooser: the drawer opens on it.
   await holdOpen(page, finger);
   await finger.slide(await centerOfBox(trimChip(page)), 8, 16);
   await page.waitForTimeout(SETTLE_MS);
@@ -1255,7 +1254,6 @@ test("a timeline tap while a track's sheet is open selects, and Inspect opens th
   const track = await sheetState(page);
   await frame(page, info, `tap-while-track-sheet-1-track-${browserName}`);
   await tapClipBody(page, finger);
-  // Selecting shuts the track's sheet; Inspect opens the clip's drawer.
   await settleSheetShut(page);
   await ensureInspected(page);
   await expect(page.locator(".bottom-sheet--compact")).toBeVisible();

@@ -194,7 +194,7 @@ describe("the compact drawer's Expand and Collapse", () => {
   const size = () =>
     document
       .querySelector(".bottom-sheet")
-      ?.className.match(/bottom-sheet--(peek|half|full)/)?.[1];
+      ?.className.match(/bottom-sheet--(half|full)/)?.[1];
 
   it("steps up to full with Expand, opens the next selection there, and Collapse returns to half", () => {
     const { unmount } = render(<CompactSheet />);
