@@ -426,7 +426,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 
 **28. Toast**
 - One position: centered 12 px above the Player bar (above the dock on phone). Max 480 × 44. Icon, past-tense result, at most one action (Undo, or the next step).
-- Lasts 8 s, paused on hover or focus (touch does not pause it), and 60 s when it offers Undo (applied edits). End session is not a Toast: its 10 s undo window is the server's, shown in the Record notices row. A new toast replaces the old one, and same-kind toasts merge ("3 cuts · Undo all").
+- Lasts 8 s, paused on hover or focus (touch does not pause it), and 60 s when it offers Undo (applied edits). End session is not a Toast: its 10 s undo window is a client-side timer, shown in the Record notices row. A new toast replaces the old one, and same-kind toasts merge ("3 cuts · Undo all").
 - Used: TOAST-MAIN, every undoable action.
 - Story: `System/Toast`.
 
@@ -810,8 +810,8 @@ Every place the specs disagreed or collided with each other or with themselves. 
 | L5 | Review context strip at 56 (D) versus Overview strip (E) | Overview strip, 32 px, in the Review stage under the action dock and above the Player | One miniature |
 | L6 | Status cover (D) versus Room cover (R) versus Empty state (E); glyph 48 versus 64; phone text in the lower half versus at 30 % | One Cover. 48 px glyph. Text from 30 %, primary pinned in the thumb zone | Reads well and reaches well |
 | L7 | Loading: 4 s (E, R) versus 8 s (D) | 300 ms blank, then skeleton, then 4 s "Still loading…" with Retry | Two of the three specs agreed. Sooner honesty |
-| L8 | Toast 5 s (E) versus 6 s (D) versus 10 s (R, End session) | 8 s, and 60 s when the toast offers Undo. End session keeps the server's 10 s window in the Record notices row | Enough to reach Undo. The long form only where the server's window applies |
-| L9 | Stop sharing as an inline confirm (D) versus End session as an undo toast (R) | Stop sharing is an inline confirm in its row. End session is an undo row in Record notices (10 s, the server's window). Confirm in place for Stop sharing (breaks a URL people hold) and Remove person from the room | Confirm only when Undo is impossible (rubric) |
+| L8 | Toast 5 s (E) versus 6 s (D) versus 10 s (R, End session) | 8 s, and 60 s when the toast offers Undo. End session keeps its client-side 10 s window in the Record notices row | Enough to reach Undo. The long form only where the server's window applies |
+| L9 | Stop sharing as an inline confirm (D) versus End session as an undo toast (R) | Stop sharing is an inline confirm in its row. End session is an undo row in Record notices (10 s, a client-side window). Confirm in place for Stop sharing (breaks a URL people hold) and Remove person from the room | Confirm only when Undo is impossible (rubric) |
 | L10 | Home: a New sheet with Record and Import (R) versus Start tiles on Home (D) | Start tiles on Home. No New sheet. Name and folder default | One click fewer. D removed the create form |
 | L11 | Invites: header Invite (E), Review header Invite (D), Invite tiles (R), Deliver share card (E, D) | One Invite sheet of Link rows, from the header on every stage. The empty Person tile opens it at Record links. Deliver embeds the Listen row | One sharing object. D's Q4 is answered |
 | L12 | Commenter guest: Edit in suggest mode (E) versus Review only with "Suggest a cut" (D) | Review only. The Commenter's Cut verb makes a Suggestion. No separate "Suggest cut" verb | Same verb, result by role |
