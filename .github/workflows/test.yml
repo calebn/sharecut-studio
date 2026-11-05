@@ -237,7 +237,6 @@ jobs:
           pytest -n auto --no-cov -m "not e2e_slow and not e2e_real" --durations=100 --durations-min=0.1 --junitxml=test-results/pytest.xml $docs_tests | tee test-results/pytest.log
 
       - name: Run the tests that read gui/web or docs
-        # A PR split between gui/web and docs touches no Python; main and nightly keep the full suite.
         if: env.PYTEST_SCOPE == 'web-docs'
         run: |
           set -o pipefail
