@@ -57,6 +57,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     notes:
       "J jumps back 3 s, 6 s, then 12 s; L plays, then 2×, then 4×. Args: { dir: back | forward }",
     breaksFollow: true,
+    announcesRefusal: true,
   },
   "presence.follow": {
     id: "presence.follow",

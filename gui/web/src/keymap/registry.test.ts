@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   argsFromKeyEvent,
   ariaKeyShortcutsFor,
+  bareKeyConflict,
   displayShortcutFor,
   displayShortcutKeys,
   formatShortcutKeys,
@@ -358,6 +359,33 @@ describe("keymap registry", () => {
     expect(
       matchKeymapCommand(keyEvent({ key: "s", code: "KeyS" }))?.id,
     ).not.toBe("track.soloToggle");
+  });
+});
+
+describe("bare transport keys", () => {
+  it("ignore Shift and Alt", () => {
+    for (const [key, code] of [
+      ["j", "KeyJ"],
+      ["l", "KeyL"],
+      ["z", "KeyZ"],
+    ] as const) {
+      const ids = (extra: object) =>
+        matchKeymapCommands(keyEvent({ key, code, ...extra })).map((c) => c.id);
+      expect(ids({ shiftKey: true })).toEqual([]);
+      expect(ids({ altKey: true })).toEqual([]);
+    }
+  });
+
+  it("flags a remap onto a key another bare-key command holds", () => {
+    _resetKeymapOverridesForTests();
+    expect(bareKeyConflict("track.soloToggle", "L")?.id).toBe(
+      "transport.shuttle",
+    );
+    expect(bareKeyConflict("track.soloToggle", "z")?.id).toBe(
+      "view.zoomToSelection",
+    );
+    expect(bareKeyConflict("track.soloToggle", "Q")).toBeUndefined();
+    expect(bareKeyConflict("transport.shuttle", "J")).toBeUndefined();
   });
 });
 

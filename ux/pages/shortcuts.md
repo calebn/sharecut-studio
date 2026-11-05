@@ -65,7 +65,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | `Shift+F10` | Create here (`create.menu`) | Timeline focused | Shift+F10: create menu at the focused target or the playhead; the Menu key too |
 | `Backspace` | Cut selection (`edit.delete`) | editStageStructural |  |
 | `Mod+Backspace` | Ripple delete clip (`edit.rippleDelete`) | editStageStructural | Mod+Backspace |
-| `Mod+K` | Split at playhead (`edit.bladeCut`) | editStageStructural | Mod+K: split at the playhead — Mod+K splits; K alone stops playback |
+| `Mod+K` | Split at playhead (`edit.bladeCut`) | editStageStructural | Mod+K: split at the playhead — Mod+K splits; K alone pauses and returns |
 | `Mod+A` | Select all tracks (`track.selectAll`) | Timeline focused | Mod+A: Logic-style track targeting |
 | `Mod+Shift+A` | Deselect all tracks (`track.deselectAll`) | Timeline focused | Mod+Shift+A: Logic-style; empty targeting |
 | `M` | Mute (`edit.mute`) | Project loaded | M mutes what is selected (words, a range, a clip), else the targeted track; on the Record stage, M drops a marker instead |
