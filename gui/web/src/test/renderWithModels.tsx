@@ -59,11 +59,6 @@ export function renderWithModels(
   return Object.assign(result, { api });
 }
 
-/**
- * Like `renderWithModels`, but `land(id)` marks a model installed afterwards, as a finished
- * download does, so a test can watch a step resume by itself. `refresh` and `download` stay the
- * same spies throughout.
- */
 export function renderWithLanding(
   ui: ReactElement,
   fixture: ModelsFixture,

@@ -11,10 +11,6 @@ import {
   notDownloadedLine,
 } from "../../utils/apiError";
 
-/**
- * The kinds the banner runs again by itself. Export and Bounce keep their own Model need row on
- * Deliver and a split keeps its on the Source card; each resumes there, so none shows a second Get.
- */
 const RESUMABLE = new Set(["pipeline", "render_preview"]);
 
 type Stopped = { job: PipelineJobSnapshot; epoch: number };
@@ -43,10 +39,6 @@ async function resumeJob({ job, epoch }: Stopped) {
   }
 }
 
-/**
- * Under the header while the latest job failed for a missing model: the Model need row, in place.
- * Get downloads it and the failed step runs again by itself when it lands. Guests never see it.
- */
 export function JobModelBanner({ guestShare }: { guestShare: boolean }) {
   const job = useDaw((s) => s.activityJob);
   const need =
