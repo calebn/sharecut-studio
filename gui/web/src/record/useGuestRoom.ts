@@ -37,8 +37,15 @@ export function useGuestRoom(
   token: string,
   { rejoining = false }: { rejoining?: boolean } = {},
 ) {
-  const [bootstrap, setBootstrap] = useState<RecordBootstrap | null>(null);
-  const [bootError, setBootError] = useState<string | null>(null);
+  const [boot, setBoot] = useState<{
+    owner: { token: string };
+    data: RecordBootstrap | null;
+    error: string | null;
+  }>(() => ({ owner: { token }, data: null, error: null }));
+  if (boot.owner.token !== token) {
+    setBoot({ owner: { token }, data: null, error: null });
+  }
+  const { owner: bootOwner, data: bootstrap, error: bootError } = boot;
   const [name, setName] = useState(
     () => readLocal(storageKey(token, "name")) || "",
   );
@@ -50,24 +57,29 @@ export function useGuestRoom(
 
   useEffect(() => {
     const controller = new AbortController();
-    setBootError(null);
-    setBootstrap(null);
     loadRecordBootstrap(token, controller.signal)
       .then((data) => {
         if (!controller.signal.aborted) {
-          setBootstrap(data);
+          setBoot((current) =>
+            current.owner === bootOwner ? { ...current, data } : current,
+          );
         }
       })
       .catch((e: unknown) => {
         if (controller.signal.aborted) {
           return;
         }
-        setBootError(errorMessage(e));
+        const message = errorMessage(e);
+        setBoot((current) =>
+          current.owner === bootOwner
+            ? { ...current, error: message }
+            : current,
+        );
       });
     return () => {
       controller.abort();
     };
-  }, [token]);
+  }, [token, bootOwner]);
 
   useEffect(() => {
     writeLocal(storageKey(token, "name"), name);
