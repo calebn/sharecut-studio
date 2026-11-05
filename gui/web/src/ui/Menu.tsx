@@ -1,12 +1,13 @@
 import {
   type ReactNode,
   type PointerEvent as ReactPointerEvent,
-  type RefObject,
+  type RefCallback,
   useCallback,
   useId,
   useLayoutEffect,
   useMemo,
   useRef,
+  useState,
 } from "react";
 import { createPortal } from "react-dom";
 import { placeAnchored, tokenPx, visualViewportBox } from "./anchoredPlacement";
@@ -63,7 +64,7 @@ export type MenuTriggerProps = {
   "aria-haspopup": "menu";
   "aria-controls": string;
   onClick: () => void;
-  ref: RefObject<HTMLButtonElement | null>;
+  ref: RefCallback<HTMLButtonElement>;
 };
 
 type MenuProps = {
@@ -95,6 +96,12 @@ export function Menu({
   const menuId = menuIdProp ?? autoId;
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
+  const fallbackRef = useRef(false);
+  const attachTrigger = useCallback((node: HTMLButtonElement | null) => {
+    triggerRef.current = node;
+    if (fallbackRef.current) setPortalTarget(node?.ownerDocument.body ?? null);
+  }, []);
   const mode = useMemo<"native" | "fallback" | null>(() => {
     if (!open) return null;
     return popoverSupported() ? "native" : "fallback";
@@ -116,8 +123,15 @@ export function Menu({
     onOpenChange(false);
   }, [onOpenChange]);
 
+  const fallback = mode === "fallback";
   useLayoutEffect(() => {
-    if (!open) {
+    fallbackRef.current = fallback;
+    if (!fallback) return;
+    setPortalTarget(triggerRef.current?.ownerDocument.body ?? document.body);
+  }, [fallback]);
+
+  useLayoutEffect(() => {
+    if (!open || (mode === "fallback" && !portalTarget)) {
       return;
     }
     const layout = () => {
@@ -140,7 +154,7 @@ export function Menu({
     return () => {
       cancelAnimationFrame(raf);
     };
-  }, [open]);
+  }, [open, mode, portalTarget]);
 
   useMenuKeyboard({
     open,
@@ -200,13 +214,12 @@ export function Menu({
         "aria-haspopup": "menu",
         "aria-controls": menuId,
         onClick: () => onOpenChange(!open),
-        ref: triggerRef,
+        ref: attachTrigger,
       })}
       {mode === "fallback" && panel
-        ? createPortal(
-            panel,
-            (triggerRef.current?.ownerDocument ?? document).body,
-          )
+        ? portalTarget
+          ? createPortal(panel, portalTarget)
+          : null
         : panel}
     </div>
   );

@@ -4,11 +4,13 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
+import { stubRaf } from "../test/raf";
 import { BottomSheet } from "./BottomSheet";
 import { Menu, MenuItem, MenuSeparator } from "./Menu";
 import { menuOpen } from "./modalGate";
@@ -94,6 +96,151 @@ describe("Menu", () => {
     fireEvent.keyDown(window, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
     expect(trigger).toHaveFocus();
+  });
+
+  it.each([false, true])(
+    "uses the trigger document for a fallback menu initially open=%s",
+    (initialOpen) => {
+      const proto = HTMLElement.prototype as Partial<HTMLElement>;
+      const { showPopover, hidePopover } = proto;
+      delete proto.showPopover;
+      delete proto.hidePopover;
+      const frame = document.createElement("iframe");
+      document.body.append(frame);
+      const doc = frame.contentDocument!;
+      let unmount: (() => void) | undefined;
+      try {
+        function OwnedDocumentMenu() {
+          const [open, setOpen] = useState(initialOpen);
+          return (
+            <Menu
+              open={open}
+              onOpenChange={setOpen}
+              label="Frame menu"
+              trigger={(props) => (
+                <button type="button" {...props}>
+                  Frame trigger
+                </button>
+              )}
+            >
+              <MenuItem>Frame item</MenuItem>
+            </Menu>
+          );
+        }
+        ({ unmount } = render(<OwnedDocumentMenu />, {
+          container: doc.body,
+          baseElement: doc.body,
+        }));
+        if (!initialOpen)
+          fireEvent.click(
+            within(doc.body).getByRole("button", { name: "Frame trigger" }),
+          );
+        const panel = doc.querySelector('[role="menu"]');
+        expect(panel?.ownerDocument).toBe(doc);
+        expect(panel?.parentElement).toBe(doc.body);
+        expect(document.body.querySelector('[role="menu"]')).toBeNull();
+      } finally {
+        unmount?.();
+        frame.remove();
+        proto.showPopover = showPopover;
+        proto.hidePopover = hidePopover;
+      }
+    },
+  );
+
+  it("positions an initially open fallback panel before any animation frame", () => {
+    const proto = HTMLElement.prototype as Partial<HTMLElement>;
+    const { showPopover, hidePopover } = proto;
+    delete proto.showPopover;
+    delete proto.hidePopover;
+    stubRaf();
+    try {
+      render(
+        <Menu
+          open
+          onOpenChange={vi.fn()}
+          label="Initially open"
+          trigger={(props) => (
+            <button type="button" {...props}>
+              Open
+            </button>
+          )}
+        >
+          <MenuItem>One</MenuItem>
+        </Menu>,
+      );
+      const panel = screen.getByRole("menu", { name: "Initially open" });
+      expect(panel.style.getPropertyValue("--menu-available-height")).toMatch(
+        /rem$/,
+      );
+      expect(panel.style.left).toMatch(/px$/);
+      expect(panel.style.top).toMatch(/px$/);
+    } finally {
+      vi.unstubAllGlobals();
+      proto.showPopover = showPopover;
+      proto.hidePopover = hidePopover;
+    }
+  });
+
+  it("retains the open fallback panel across inline merged trigger registrations and retires it with the trigger", async () => {
+    const proto = HTMLElement.prototype as Partial<HTMLElement>;
+    const { showPopover, hidePopover } = proto;
+    delete proto.showPopover;
+    delete proto.hidePopover;
+    try {
+      function BoundMenu({
+        revision,
+        attached,
+      }: {
+        revision: number;
+        attached: boolean;
+      }) {
+        const [open, setOpen] = useState(true);
+        const ownButton = useRef<HTMLButtonElement | null>(null);
+        return (
+          <Menu
+            open={open}
+            onOpenChange={setOpen}
+            label="Bound menu"
+            trigger={({ ref, ...props }) =>
+              attached ? (
+                <button
+                  type="button"
+                  {...props}
+                  ref={(node) => {
+                    ref(node);
+                    ownButton.current = node;
+                  }}
+                >
+                  Open {revision}
+                </button>
+              ) : null
+            }
+          >
+            <MenuItem>One</MenuItem>
+            <input aria-label="Menu draft" />
+          </Menu>
+        );
+      }
+      const { rerender } = render(<BoundMenu revision={1} attached />);
+      await waitFor(() =>
+        expect(screen.getByRole("menuitem", { name: "One" })).toHaveFocus(),
+      );
+      const panel = screen.getByRole("menu", { name: "Bound menu" });
+      expect(panel).toHaveAttribute("data-menu-mode", "fallback");
+      const input = screen.getByRole("textbox", { name: "Menu draft" });
+      await userEvent.type(input, "draft");
+      rerender(<BoundMenu revision={2} attached />);
+      expect(screen.getByRole("menu", { name: "Bound menu" })).toBe(panel);
+      expect(screen.getByRole("textbox", { name: "Menu draft" })).toBe(input);
+      expect(input).toHaveValue("draft");
+      expect(input).toHaveFocus();
+      rerender(<BoundMenu revision={2} attached={false} />);
+      expect(screen.queryByRole("menu", { name: "Bound menu" })).toBeNull();
+    } finally {
+      proto.showPopover = showPopover;
+      proto.hidePopover = hidePopover;
+    }
   });
 
   it("opens, traps arrows among menuitems, closes on Escape", async () => {
