@@ -203,7 +203,10 @@ export function useClipSections(
     );
   };
 
-  const leftClip = index > 0 ? lane[index - 1] : undefined;
+  const leftClip =
+    leftClipId === null
+      ? undefined
+      : lane.find((item) => item.id === leftClipId);
   const joinLength =
     leftClip === undefined ? null : appliedJoinLength(leftClip, clip, capMs);
   const fadeHint = cutFadeHint(cutIn, cutOut);
@@ -256,7 +259,7 @@ export function useClipSections(
                   joinModeLabel(clip.join_in_mode)
                 ),
               },
-              ...(cutIn || !editable
+              ...(cutIn || !editable || joinLength === null
                 ? []
                 : [
                     {
@@ -265,13 +268,13 @@ export function useClipSections(
                       control: (
                         <ScrubField
                           label="Transition length"
-                          value={joinLength?.saved ?? null}
+                          value={joinLength.saved}
                           unit="ms"
                           decimals={0}
                           integerOnly
-                          min={joinLength?.min}
-                          max={joinLength?.max}
-                          readOnly={locked}
+                          min={joinLength.min}
+                          max={joinLength.max}
+                          readOnly={locked || !capKnown}
                           onCommit={(value) =>
                             void join(clip.join_in_mode, value)
                           }
