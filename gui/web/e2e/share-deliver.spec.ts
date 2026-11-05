@@ -28,17 +28,31 @@ test.use({
   permissions: ["clipboard-read", "clipboard-write"],
 });
 
-function share(page: Page): Locator {
-  return deliverPage(page).getByRole("region", { name: "Share" });
+/** The Invite sheet, opened from the header's Invite on `stage`. */
+async function openInvite(
+  page: Page,
+  projectPath: string,
+  stage: "edit" | "deliver" = "edit",
+): Promise<Locator> {
+  await openProject(page, projectPath);
+  await goToStage(page, stage);
+  await openProjectDialog(page, "share");
+  const sheet = page.getByRole("dialog", { name: "Invite" });
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByText("Looking for your links…")).toBeHidden();
+  return sheet;
 }
 
-async function openShare(page: Page, projectPath: string): Promise<Locator> {
+/** The Listen link region on Deliver. */
+async function openListen(page: Page, projectPath: string): Promise<Locator> {
   await openProject(page, projectPath);
   await goToStage(page, "deliver");
-  const section = share(page);
-  await expect(section).toBeVisible();
-  await expect(section.getByText("Looking for your links…")).toBeHidden();
-  return section;
+  const region = deliverPage(page).getByRole("region", {
+    name: "Listen link",
+  });
+  await expect(region).toBeVisible();
+  await expect(region.getByText("Looking for your links…")).toBeHidden();
+  return region;
 }
 
 async function rows(page: Page, projectPath: string): Promise<Row[]> {
@@ -65,70 +79,70 @@ function tunnel(state: string, extra: Record<string, unknown> = {}) {
   };
 }
 
-test.describe("Share on Deliver", () => {
-  test("Create review link makes the link and copies it, and Copy on its row copies it again", async ({
+test.describe("Invite sheet", () => {
+  test("Copy on the ready row makes the link and copies it, and Copy on its row copies it again", async ({
     page,
   }) => {
     await withShareableProject(async (projectPath) => {
-      const section = await openShare(page, projectPath);
-      await expect(section.getByText("No review links yet.")).toBeVisible();
+      const sheet = await openInvite(page, projectPath);
       await expect(
-        section.getByRole("button", { name: "Commenter" }),
+        sheet.getByRole("heading", { name: "Review links" }),
+      ).toBeVisible();
+      await expect(
+        sheet.getByRole("button", { name: /^Commenter/ }),
       ).toHaveAttribute("aria-pressed", "true");
+      expect(await rows(page, projectPath)).toEqual([]);
 
-      await section.getByRole("button", { name: "Create review link" }).click();
+      await sheet
+        .getByRole("button", { name: "Copy new Commenter link" })
+        .click();
       await expect(
-        section.getByRole("button", { name: "Copied Commenter link" }),
+        sheet.getByRole("button", { name: "Copied Commenter link" }),
       ).toBeVisible();
-      const [made] = await rows(page, projectPath);
-      expect(made.docs_role).toBe("commenter");
-      expect(made.mcp_url).toBeNull();
-      expect(made.follow_latest).toBe(true);
-      expect(await clipboard(page)).toBe(made.url);
-      await expect(section.getByText(made.token)).toBeVisible();
-      await expect(
-        section.getByText("Review link created and copied"),
-      ).toBeVisible();
+      const made = (await rows(page, projectPath)).find(
+        (r) => r.docs_role === "commenter",
+      );
+      expect(made?.mcp_url).toBeNull();
+      expect(made?.follow_latest).toBe(true);
+      expect(await clipboard(page)).toBe(made?.url);
 
       await page.evaluate(() => navigator.clipboard.writeText("elsewhere"));
-      await expect(
-        section.getByRole("button", { name: "Copy Commenter link" }),
-      ).toBeVisible();
-      await section
-        .getByRole("button", { name: "Copy Commenter link" })
-        .click();
-      expect(await clipboard(page)).toBe(made.url);
-      await expectPageAxeClean(page, ".dv-stage");
+      await sheet.getByRole("button", { name: "Copy Commenter link" }).click();
+      expect(await clipboard(page)).toBe(made?.url);
+      await expectPageAxeClean(page, '[role="dialog"]');
     });
   });
 
-  test("the role, MCP and Freeze choices reach the link", async ({ page }) => {
+  test("the role, AI assistants and pin choices reach the link", async ({
+    page,
+  }) => {
     await withShareableProject(async (projectPath) => {
-      const section = await openShare(page, projectPath);
-      await section.getByRole("button", { name: "Editor" }).click();
-      await section
-        .getByRole("button", { name: "Allow AI assistants (MCP)" })
+      const sheet = await openInvite(page, projectPath);
+      await sheet.getByRole("button", { name: /^Editor/ }).click();
+      await sheet
+        .getByRole("button", { name: "More for new Editor link" })
         .click();
-      await section
-        .getByRole("button", { name: "Freeze on the current version" })
+      await page
+        .getByRole("menuitemradio", { name: "Allow AI assistants" })
         .click();
-      await section.getByRole("button", { name: "Create review link" }).click();
+      await sheet
+        .getByRole("button", { name: "Pin to this version" })
+        .first()
+        .click();
+      await sheet.getByRole("button", { name: "Copy new Editor link" }).click();
       await expect(
-        section
+        sheet
           .getByRole("button", { name: "Copy Editor link" })
-          .or(section.getByRole("button", { name: "Copied Editor link" })),
+          .or(sheet.getByRole("button", { name: "Copied Editor link" })),
       ).toBeVisible();
-      const [made] = await rows(page, projectPath);
-      expect(made.docs_role).toBe("editor");
-      expect(made.mcp_url).toBeTruthy();
-      expect(made.follow_latest).toBe(false);
-      await expect(section.getByText(/Frozen on /)).toBeVisible();
-      await expect(section.getByText(/AI assistants allowed/)).toBeVisible();
-      await section.getByRole("button", { name: "Copy MCP URL" }).click();
-      await expect(
-        section.getByRole("button", { name: "Copied MCP URL" }),
-      ).toBeVisible();
-      expect(await clipboard(page)).toBe(made.mcp_url);
+      const made = (await rows(page, projectPath)).find(
+        (r) => r.docs_role === "editor",
+      );
+      expect(made?.mcp_url).toBeTruthy();
+      expect(made?.follow_latest).toBe(false);
+      await sheet.getByRole("button", { name: "More for Editor link" }).click();
+      await page.getByRole("menuitem", { name: "Copy MCP URL" }).click();
+      expect(await clipboard(page)).toBe(made?.mcp_url);
     });
   });
 
@@ -143,38 +157,39 @@ test.describe("Share on Deliver", () => {
         nativeDialogs.push(native.message());
         void native.dismiss();
       });
-      const section = await openShare(page, projectPath);
-      const stop = section.getByRole("button", { name: "Stop sharing" });
-      await stop.click();
-      const confirm = section.getByRole("group", {
+      const sheet = await openInvite(page, projectPath);
+      const more = sheet.getByRole("button", { name: "More for Viewer link" });
+      const stop = async () => {
+        await more.click();
+        await page.getByRole("menuitem", { name: "Stop sharing" }).click();
+      };
+      await stop();
+      const confirm = sheet.getByRole("group", {
         name: "Stop sharing this Viewer link? Anyone using it loses access.",
       });
       await expect(confirm).toBeVisible();
       await expect(
         confirm.getByRole("button", { name: "Keep link" }),
       ).toBeFocused();
-      await expectPageAxeClean(page, ".dv-stage");
 
       await page.keyboard.press("Escape");
       await expect(confirm).toBeHidden();
-      await expect(stop).toBeFocused();
+      await expect(sheet).toBeVisible();
+      await expect(more).toBeFocused();
       expect(
         (await rows(page, projectPath)).find((r) => r.token === token)?.usable,
       ).toBe(true);
 
-      await stop.click();
+      await stop();
       await confirm.getByRole("button", { name: "Keep link" }).click();
-      await expect(stop).toBeFocused();
+      await expect(more).toBeFocused();
 
-      await stop.click();
+      await stop();
       await confirm.getByRole("button", { name: "Stop sharing" }).click();
-      await expect(section.getByText("No review links yet.")).toBeVisible();
+      await expect(more).toBeHidden();
       await expect(
-        section.getByRole("heading", { name: "Review links" }),
+        sheet.getByRole("heading", { name: "Review links" }),
       ).toBeFocused();
-      await expect(
-        section.getByText("Stopped sharing the Viewer link"),
-      ).toBeVisible();
       expect((await rows(page, projectPath)).filter((r) => r.usable)).toEqual(
         [],
       );
@@ -192,36 +207,38 @@ test.describe("Share on Deliver", () => {
       await page.route("**/api/tunnel/status", (route) =>
         route.fulfill({ json: current }),
       );
-      const section = await openShare(page, projectPath);
-      const reach =
-        "Only people on this network can listen. Turn on online sharing to reach anyone.";
-      await expect(section.getByText("Online sharing is off")).toBeVisible();
-      await expect(section.getByText(reach)).toBeVisible();
+      const sheet = await openInvite(page, projectPath);
+      await expect(sheet.getByText("Online sharing is off")).toBeVisible();
+      const globe = sheet.getByRole("button", { name: "Only on this network" });
+      await globe.click();
+      await expect(
+        sheet.getByText(/Only people on this network can listen/),
+      ).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(sheet).toBeVisible();
 
       current = tunnel("online");
-      await expect(
-        section.getByText("Guests can open your links"),
-      ).toBeVisible();
-      await expect(section.getByText(reach)).toBeHidden();
+      await expect(sheet.getByText("Guests can open your links")).toBeVisible();
 
       current = tunnel("reconnecting", {
         reason_kind: "network",
         retry_at: Date.now() / 1000 + 30,
       });
-      await expect(section.getByText(/^Reconnecting…/)).toBeVisible();
-      await expect(section.getByText(/Trying again|Next try at/)).toBeVisible();
+      await expect(sheet.getByText(/^Reconnecting…/)).toBeVisible();
 
       current = tunnel("offline", { reason_kind: "auth" });
-      await expect(section.getByText(/^Not reachable online/)).toBeVisible();
-      await section.getByText("How to fix").click();
+      await expect(sheet.getByText(/^Not reachable online/)).toBeVisible();
+      await sheet.getByText("How to fix").click();
       await expect(
-        section.getByRole("link", { name: /Online sharing guide/ }),
+        sheet.getByRole("link", { name: /Online sharing guide/ }),
       ).toBeVisible();
-      await expectPageAxeClean(page, ".dv-stage");
+      await expectPageAxeClean(page, '[role="dialog"]');
     });
   });
 
-  test("polls online sharing only while Deliver shows", async ({ page }) => {
+  test("polls online sharing only while the sheet or Deliver shows", async ({
+    page,
+  }) => {
     await withShareableProject(async (projectPath) => {
       let polls = 0;
       await page.route("**/api/tunnel/status", (route) => {
@@ -231,14 +248,10 @@ test.describe("Share on Deliver", () => {
       await page.route("**/api/test-barrier", (route) =>
         route.fulfill({ json: {} }),
       );
-      // Requests reach routes in order, so once the barrier has answered every
-      // earlier poll has been counted.
       const settled = () => page.evaluate(() => fetch("/api/test-barrier"));
       await page.clock.install();
-      const section = await openShare(page, projectPath);
-      await expect(
-        section.getByText("Guests can open your links"),
-      ).toBeVisible();
+      const sheet = await openInvite(page, projectPath);
+      await expect(sheet.getByText("Guests can open your links")).toBeVisible();
       await page.clock.pauseAt(Date.now() + 1_000);
       await settled();
       const shown = polls;
@@ -246,7 +259,8 @@ test.describe("Share on Deliver", () => {
       await settled();
       expect(polls).toBe(shown + 1);
       await page.clock.resume();
-      await goToStage(page, "edit");
+      await page.keyboard.press("Escape");
+      await expect(sheet).toBeHidden();
       await settled();
       const left = polls;
       await page.clock.runFor(2 * TUNNEL_POLL_MS + 100);
@@ -260,7 +274,7 @@ test.describe("Share on Deliver", () => {
       page,
     }) => {
       await withShareableProject(async (projectPath) => {
-        const section = await openShare(page, projectPath);
+        const sheet = await openInvite(page, projectPath);
         let refuse = true;
         await page.route("**/api/shares", async (route) => {
           if (route.request().method() === "POST" && refuse) {
@@ -275,25 +289,25 @@ test.describe("Share on Deliver", () => {
           }
           await route.fallback();
         });
-        await section
-          .getByRole("button", { name: "Create review link" })
+        await sheet
+          .getByRole("button", { name: "Copy new Commenter link" })
           .click();
-        await expect(section.getByRole("alert")).toContainText(
+        await expect(sheet.getByRole("alert")).toContainText(
           refusal === "no_mix"
             ? "This project has no mix yet. Refresh the mix to create the link."
             : "The mix preview is out of date. Refresh it before creating a review link.",
         );
-        await expect(section).not.toContainText("premix.wav");
+        await expect(sheet).not.toContainText("premix.wav");
         expect(await rows(page, projectPath)).toEqual([]);
 
         refuse = false;
-        await section.getByRole("button", { name: "Refresh mix" }).click();
+        await sheet.getByRole("button", { name: "Refresh mix" }).click();
         await expect(
-          section.getByRole("button", { name: /Commenter link$/ }),
+          sheet.getByRole("button", { name: /Commenter link$/ }).first(),
         ).toBeVisible({ timeout: 60_000 });
         expect(await rows(page, projectPath)).toHaveLength(1);
         await expect(
-          section.getByRole("button", { name: "Refresh mix" }),
+          sheet.getByRole("button", { name: "Refresh mix" }),
         ).toBeHidden();
       });
     });
@@ -303,7 +317,7 @@ test.describe("Share on Deliver", () => {
     page,
   }) => {
     await withShareableProject(async (projectPath) => {
-      const section = await openShare(page, projectPath);
+      const sheet = await openInvite(page, projectPath);
       await page.route("**/api/shares", async (route) => {
         if (route.request().method() === "POST") {
           await route.fulfill({
@@ -315,90 +329,128 @@ test.describe("Share on Deliver", () => {
         }
         await route.fallback();
       });
-      await section.getByRole("button", { name: "Create review link" }).click();
-      await expect(section.getByRole("alert")).toHaveText(
+      await sheet
+        .getByRole("button", { name: "Copy new Commenter link" })
+        .click();
+      await expect(sheet.getByRole("alert")).toHaveText(
         "The mastered mix is out of date. Export a new master before creating a review link.",
       );
       await expect(
-        section.getByRole("button", { name: "Refresh mix" }),
+        sheet.getByRole("button", { name: "Refresh mix" }),
       ).toHaveCount(0);
-      await expect(section).not.toContainText("master_loudness");
+      await expect(sheet).not.toContainText("master_loudness");
     });
   });
 
-  test("record rooms: create, copy the guest link, and end the room after the confirm", async ({
+  test("record links: create, copy the guest link, and end the room after the confirm", async ({
     page,
   }) => {
     await withShareableProject(async (projectPath) => {
-      const section = await openShare(page, projectPath);
-      await expect(section.getByText("No record rooms yet.")).toBeVisible();
-      await section
-        .getByRole("button", { name: "Create record links" })
-        .click();
+      const sheet = await openInvite(page, projectPath);
+      await sheet.getByRole("button", { name: "Create record links" }).click();
       await expect(
-        section.getByText("Guest link", { exact: true }),
+        sheet.getByText("Guest link", { exact: true }),
       ).toBeVisible();
       await expect(
-        section.getByText("Producer link", { exact: true }),
-      ).toBeVisible();
-      await expect(
-        section.getByRole("button", { name: "Copied guest link" }),
+        sheet.getByText("Producer link", { exact: true }),
       ).toBeVisible();
       const room = (await rows(page, projectPath)).find(
         (r) => r.session_id && r.docs_role === null,
       );
       expect(room).toBeTruthy();
 
-      await section.getByRole("button", { name: "End room" }).click();
-      const confirm = section.getByRole("group", {
+      await sheet.getByRole("button", { name: "End room" }).click();
+      const confirm = sheet.getByRole("group", {
         name: "End this record room? Both guest and producer links will stop working.",
       });
       await expect(
         confirm.getByRole("button", { name: "Keep room" }),
       ).toBeFocused();
       await confirm.getByRole("button", { name: "End room" }).click();
-      await expect(section.getByText("No record rooms yet.")).toBeVisible();
+      await expect(
+        sheet.getByRole("button", { name: "Create record links" }),
+      ).toBeVisible();
       expect((await rows(page, projectPath)).filter((r) => r.usable)).toEqual(
         [],
       );
     });
   });
 
-  test("a room made elsewhere is listed, and Open Record stage goes there", async ({
+  test("a room made elsewhere is listed under Record links", async ({
     page,
   }) => {
     await withShareableProject(async (projectPath) => {
       await openProject(page, projectPath);
       await createRecordRoom(page, projectPath);
-      const section = await openShare(page, projectPath);
+      const sheet = await openInvite(page, projectPath);
       await expect(
-        section.getByText("Record room", { exact: true }),
+        sheet.getByRole("heading", { name: "Record links" }),
       ).toBeVisible();
-      await section.getByRole("button", { name: "Open Record stage" }).click();
-      await expect(page.getByRole("tab", { name: /Record/ })).toHaveAttribute(
-        "aria-selected",
-        "true",
-      );
+      await expect(
+        sheet.getByRole("button", { name: "End room" }),
+      ).toBeVisible();
     });
   });
 
-  test("the Share a listen link button focuses the section, and the header Invite brings Share into focus from another stage", async ({
+  test("the header Invite opens on every stage, and Escape returns focus to it", async ({
     page,
   }) => {
     await withShareableProject(async (projectPath) => {
-      const section = await openShare(page, projectPath);
-      await page.getByRole("button", { name: "Share a listen link" }).click();
-      await expect(
-        section.getByRole("button", { name: "Create review link" }),
-      ).toBeFocused();
-      await expect(page.getByRole("dialog")).toBeHidden();
+      await openProject(page, projectPath);
+      for (const stage of ["edit", "deliver"] as const) {
+        await goToStage(page, stage);
+        await openProjectDialog(page, "share");
+        const sheet = page.getByRole("dialog", { name: "Invite" });
+        await expect(sheet).toBeVisible();
+        await expect(
+          sheet.getByRole("heading", { name: "Listen link" }),
+        ).toBeVisible();
+        await page.keyboard.press("Escape");
+        await expect(sheet).toBeHidden();
+      }
+    });
+  });
+});
 
-      await goToStage(page, "edit");
-      await openProjectDialog(page, "share");
+test.describe("Listen link on Deliver", () => {
+  test("Copy makes the listen link once, then copies it again", async ({
+    page,
+  }) => {
+    await withShareableProject(async (projectPath) => {
+      const region = await openListen(page, projectPath);
+      expect(await rows(page, projectPath)).toEqual([]);
+      await region.getByRole("button", { name: /^Copy .*link/ }).click();
       await expect(
-        section.getByRole("button", { name: "Create review link" }),
-      ).toBeFocused();
-      await expect(page.getByRole("dialog")).toBeHidden();
+        region.getByRole("button", { name: /^Copied .*link/ }),
+      ).toBeVisible();
+      const [made] = await rows(page, projectPath);
+      expect(made.docs_role).toBe("viewer");
+      expect(made.mcp_url).toBeNull();
+      expect(made.follow_latest).toBe(false);
+      expect(await clipboard(page)).toBe(made.url);
+
+      await page.evaluate(() => navigator.clipboard.writeText("elsewhere"));
+      await region.getByRole("button", { name: /^Copy .*link/ }).click();
+      expect(await clipboard(page)).toBe(made.url);
+      expect(await rows(page, projectPath)).toHaveLength(1);
+      await expectPageAxeClean(page, ".dv-stage");
+    });
+  });
+
+  test("Export is the only primary button, and the Listen link sits in the right column", async ({
+    page,
+  }) => {
+    await withShareableProject(async (projectPath) => {
+      await openListen(page, projectPath);
+      await expect(
+        deliverPage(page).getByRole("button", { name: "Share a listen link" }),
+      ).toHaveCount(0);
+      await expect(
+        deliverPage(page).getByRole("region", { name: "Share" }),
+      ).toHaveCount(0);
+      await expect(
+        deliverPage(page).locator("button.ui-control.primary"),
+      ).toHaveCount(1);
     });
   });
 });

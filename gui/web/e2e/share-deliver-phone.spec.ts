@@ -2,7 +2,12 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { withShareableProject } from "./shareableProject";
 import { createReviewShare } from "./shareNavigation";
-import { deliverPage, goToStage, openProject } from "./stageNav";
+import {
+  deliverPage,
+  goToStage,
+  openProject,
+  openProjectDialog,
+} from "./stageNav";
 
 test.use({
   hasTouch: true,
@@ -10,19 +15,16 @@ test.use({
   permissions: ["clipboard-read", "clipboard-write"],
 });
 
-function share(page: Page): Locator {
-  return deliverPage(page).getByRole("region", { name: "Share" });
-}
-
-async function openShare(page: Page, projectPath: string): Promise<Locator> {
+/** The Invite sheet on a phone: a bottom sheet over the stage. */
+async function openInvite(page: Page, projectPath: string): Promise<Locator> {
   await page.setViewportSize({ width: 390, height: 844 });
   await openProject(page, projectPath);
-  await goToStage(page, "deliver");
-  const section = share(page);
-  await section.scrollIntoViewIfNeeded();
-  await expect(section).toBeVisible();
-  await expect(section.getByText("Looking for your links…")).toBeHidden();
-  return section;
+  await goToStage(page, "edit");
+  await openProjectDialog(page, "share");
+  const sheet = page.getByRole("dialog", { name: "Invite" });
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByText("Looking for your links…")).toBeHidden();
+  return sheet;
 }
 
 async function expectWithinWidth(locator: Locator): Promise<void> {
@@ -45,57 +47,62 @@ async function expectNoHorizontalScroll(page: Page): Promise<void> {
     .toBeLessThanOrEqual(390);
 }
 
-test("phone 390x844: Share follows Episode file in the one column, with 44 px controls", async ({
+test("phone 390x844: Listen link follows Episode file in the one column", async ({
+  page,
+}) => {
+  await withShareableProject(async (projectPath) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openProject(page, projectPath);
+    await goToStage(page, "deliver");
+    const region = deliverPage(page).getByRole("region", {
+      name: "Listen link",
+    });
+    await region.scrollIntoViewIfNeeded();
+    await expect(region).toBeVisible();
+    const titles = await deliverPage(page)
+      .getByRole("heading", { level: 2 })
+      .allTextContents();
+    expect(titles.indexOf("Listen link")).toBeGreaterThan(
+      titles.indexOf("Episode file"),
+    );
+    await expectWithinWidth(region);
+    await expectNoHorizontalScroll(page);
+    await expectPageAxeClean(page, ".dv-stage");
+  });
+});
+
+test("phone 390x844: the sheet's controls are 44 px and fit the width", async ({
   page,
 }) => {
   await withShareableProject(async (projectPath) => {
     await openProject(page, projectPath);
     await createReviewShare(page, projectPath, "editor");
-    const section = await openShare(page, projectPath);
-    const titles = await deliverPage(page)
-      .getByRole("heading", { level: 2 })
-      .allTextContents();
-    expect(titles.indexOf("Share")).toBeGreaterThan(
-      titles.indexOf("Episode file"),
-    );
-
-    const controls = section.locator(
-      ".ui-segmented button, .dv-chips button, .dv-primary button, .dv-share-actions button, .sys-link button",
-    );
+    const sheet = await openInvite(page, projectPath);
+    await expectWithinWidth(sheet);
+    const controls = sheet.locator(".sys-link button, .ui-segmented button");
     const sizes = await controls.evaluateAll((els) =>
       els.map((el) => ({
         height: el.getBoundingClientRect().height,
         layoutHeight: el instanceof HTMLElement ? el.offsetHeight : 0,
       })),
     );
-    expect(sizes.length).toBeGreaterThanOrEqual(9);
+    expect(sizes.length).toBeGreaterThanOrEqual(4);
     for (const size of sizes) expectTouchHeight(size.height, size.layoutHeight);
-
     await expectNoHorizontalScroll(page);
-    await expectPageAxeClean(page, ".dv-stage");
+    await expectPageAxeClean(page, '[role="dialog"]');
   });
 });
 
-test("phone 390x844: Create makes the link, a row's Copy and Stop sharing fit, and the confirm fits", async ({
+test("phone 390x844: Stop sharing's confirm fits and keeps 44 px buttons", async ({
   page,
 }) => {
   await withShareableProject(async (projectPath) => {
-    const section = await openShare(page, projectPath);
-    await section.getByRole("button", { name: "Editor" }).click();
-    await section
-      .getByRole("button", { name: "Allow AI assistants (MCP)" })
-      .click();
-    await section.getByRole("button", { name: "Create review link" }).click();
-    await expect(
-      section.getByRole("button", { name: "Copied Editor link" }),
-    ).toBeVisible();
-    for (const name of ["Copied Editor link", "Copy MCP URL", "Stop sharing"]) {
-      await expectWithinWidth(section.getByRole("button", { name }));
-    }
-    await expectWithinWidth(section.getByText(/AI assistants allowed/));
-
-    await section.getByRole("button", { name: "Stop sharing" }).click();
-    const confirm = section.getByRole("group", {
+    await openProject(page, projectPath);
+    await createReviewShare(page, projectPath, "editor");
+    const sheet = await openInvite(page, projectPath);
+    await sheet.getByRole("button", { name: "More for Editor link" }).click();
+    await page.getByRole("menuitem", { name: "Stop sharing" }).click();
+    const confirm = sheet.getByRole("group", {
       name: "Stop sharing this Editor link? Anyone using it loses access.",
     });
     await expectWithinWidth(confirm);
@@ -109,9 +116,8 @@ test("phone 390x844: Create makes the link, a row's Copy and Stop sharing fit, a
       expectTouchHeight(size.height, size.layoutHeight);
     }
     await expectNoHorizontalScroll(page);
-    await expectPageAxeClean(page, ".dv-stage");
     await confirm.getByRole("button", { name: "Stop sharing" }).click();
-    await expect(section.getByText("No review links yet.")).toBeVisible();
+    await expect(confirm).toBeHidden();
   });
 });
 
@@ -119,10 +125,9 @@ test("phone 390x844: a stale mix shows its notice and Refresh mix inside the wid
   page,
 }) => {
   await withShareableProject(async (projectPath) => {
-    const section = await openShare(page, projectPath);
-    let refuse = true;
+    const sheet = await openInvite(page, projectPath);
     await page.route("**/api/shares", async (route) => {
-      if (route.request().method() === "POST" && refuse) {
+      if (route.request().method() === "POST") {
         await route.fulfill({
           status: 409,
           headers: { "X-Sharecut-Error-Code": "stale_mix" },
@@ -132,21 +137,17 @@ test("phone 390x844: a stale mix shows its notice and Refresh mix inside the wid
       }
       await route.fallback();
     });
-    await section.getByRole("button", { name: "Create review link" }).click();
-    const notice = section.getByRole("alert");
-    await expectWithinWidth(notice);
-    const refresh = section.getByRole("button", { name: "Refresh mix" });
+    await sheet
+      .getByRole("button", { name: "Copy new Commenter link" })
+      .click();
+    await expectWithinWidth(sheet.getByRole("alert"));
+    const refresh = sheet.getByRole("button", { name: "Refresh mix" });
     await expectWithinWidth(refresh);
     const size = await refresh.evaluate((el) => ({
       height: el.getBoundingClientRect().height,
       layoutHeight: el instanceof HTMLElement ? el.offsetHeight : 0,
     }));
     expectTouchHeight(size.height, size.layoutHeight);
-    refuse = false;
-    await refresh.click();
-    await expect(
-      section.getByRole("button", { name: /Commenter link$/ }),
-    ).toBeVisible({ timeout: 60_000 });
   });
 });
 
@@ -170,13 +171,13 @@ test("phone 390x844: every online sharing state fits the width", async ({
         },
       }),
     );
-    const section = await openShare(page, projectPath);
-    const headline = section.locator(".share-tunnel-headline");
+    const sheet = await openInvite(page, projectPath);
+    const headline = sheet.locator(".share-tunnel-headline");
     await expect(headline).toContainText("Not reachable online");
     await expectWithinWidth(headline);
-    await section.getByText("How to fix").click();
+    await sheet.getByText("How to fix").click();
     await expectWithinWidth(
-      section.getByRole("link", { name: /Online sharing guide/ }),
+      sheet.getByRole("link", { name: /Online sharing guide/ }),
     );
     for (const [next, text] of [
       ["reconnecting", /^Reconnecting…/],

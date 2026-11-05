@@ -7,8 +7,9 @@ import {
 } from "../../extensions/features";
 import type { ShareOptions } from "../../stages/deliver/shareLogic";
 import { useDawStore } from "../../state/dawStore";
-import { Sheet, type SheetProps } from "../../system/Sheet";
+import { Sheet } from "../../system/Sheet";
 import type { InviteGroup } from "../../types/stage";
+import type { DrawerDetent } from "../../ui/BottomSheet";
 import { useCommand } from "../../ui/useCommand";
 import { shareOptionsOf } from "../hosts/deliverShare";
 import { useShareFlow } from "../hosts/shareFlowContext";
@@ -20,12 +21,12 @@ export const INVITE_TITLE = "Invite";
 type ViewProps = {
   options: ShareOptions;
   at?: InviteGroup | null;
-  form: SheetProps["form"];
+  form: "anchored" | "side" | "centered" | "bottom";
   onClose: () => void;
   /** Dialog and bottom forms: whether the sheet is showing. Open by default. */
   open?: boolean;
-  detent?: SheetProps["detent"];
-  onDetentChange?: SheetProps["onDetentChange"];
+  detent?: DrawerDetent | "fit";
+  onDetentChange?: (detent: DrawerDetent) => void;
 };
 
 /** The Invite sheet: Link rows grouped Review links, Record links and Listen link. */
