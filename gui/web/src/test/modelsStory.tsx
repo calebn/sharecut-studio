@@ -76,6 +76,7 @@ function storyModelsApi(over: Partial<ModelsApi> = {}): ModelsApi {
     whisper: WHISPER,
     download: () => Promise.resolve({ kind: "ok" }),
     cancel: () => Promise.resolve(),
+    remove: () => Promise.resolve({ kind: "ok" }),
     refresh: () => Promise.resolve(),
     ...over,
   };

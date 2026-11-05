@@ -1,7 +1,10 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { runPointerCommand } from "../commands/pointer";
+import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
+import { answerQuestions } from "../test/ask";
 import {
   modelStatus,
   modelsApi,
@@ -10,6 +13,8 @@ import {
 } from "../test/renderWithModels";
 import { ModelNeedRow, ModelNeedRowView } from "./ModelNeedRow";
 import type { ModelState } from "./types";
+
+vi.mock("../commands/pointer", () => ({ runPointerCommand: vi.fn() }));
 
 const WHISPER = {
   id: "whisper",
@@ -239,13 +244,66 @@ describe("ModelNeedRowView, list placement", () => {
   });
 });
 
+describe("ModelNeedRowView, Remove in the sheet row", () => {
+  const SIZED = { ...WHISPER, id: "word-aligner", label: "Word aligner" };
+
+  it("offers Remove in a more menu for an installed model and for one that needs an update", async () => {
+    const onRemove = vi.fn();
+    const { rerender } = render(
+      <ModelNeedRowView
+        placement="list"
+        model={SIZED}
+        state={{ kind: "installed" }}
+        onGet={vi.fn()}
+        onCancel={vi.fn()}
+        onRemove={onRemove}
+      />,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "More for Word timing" }),
+    );
+    await userEvent.click(
+      screen.getByRole("menuitem", { name: "Remove Word timing" }),
+    );
+    expect(onRemove).toHaveBeenCalledOnce();
+    rerender(
+      <ModelNeedRowView
+        placement="list"
+        model={SIZED}
+        state={{ kind: "update_needed" }}
+        onGet={vi.fn()}
+        onCancel={vi.fn()}
+        onRemove={onRemove}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Update Word timing" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "More for Word timing" }),
+    ).toBeVisible();
+    rerender(
+      <ModelNeedRowView
+        placement="list"
+        model={SIZED}
+        state={{ kind: "missing" }}
+        onGet={vi.fn()}
+        onCancel={vi.fn()}
+        onRemove={onRemove}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: /^More for/ })).toBeNull();
+  });
+});
+
 describe("ModelNeedRow with a models provider", () => {
   function mount(
     model: Parameters<typeof ModelNeedRow>[0]["model"],
     rows = registryRows(),
+    placement: "need" | "list" = "need",
   ) {
     const api = modelsApi({ status: modelStatus(rows) });
-    const out = render(<ModelNeedRow model={model} />, {
+    const out = render(<ModelNeedRow model={model} placement={placement} />, {
       wrapper: modelsWrapper(api),
     });
     return { api, ...out };
@@ -259,6 +317,80 @@ describe("ModelNeedRow with a models provider", () => {
     expect(api.download).toHaveBeenCalledWith(["whisper"], {
       whisperModel: "small.en",
     });
+  });
+
+  it("opens the Models sheet from Manage for a host, and offers no Manage to a guest", async () => {
+    useDawStore.setState({ projectPath: "/tmp/p.json" });
+    const { unmount } = mount(WHISPER);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Manage models" }),
+    );
+    expect(runPointerCommand).toHaveBeenCalledWith("models.open");
+    unmount();
+    useDawStore.setState({ projectPath: "share:abc" });
+    mount(WHISPER);
+    expect(screen.queryByRole("button", { name: "Manage models" })).toBeNull();
+    useDawStore.setState({ projectPath: "/tmp/p.json" });
+  });
+
+  it("removes an installed model from the sheet row after a confirm", async () => {
+    const { asked } = answerQuestions(true);
+    const rows = registryRows().map((r) =>
+      r.id === "rnnoise" ? { ...r, state: "installed" as const } : r,
+    );
+    const { api } = mount(
+      { id: "rnnoise", variant: null, label: "RNNoise", size: "~0.3 MB" },
+      rows,
+      "list",
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "More for Noise reduction" }),
+    );
+    await userEvent.click(
+      screen.getByRole("menuitem", { name: "Remove Noise reduction" }),
+    );
+    await waitFor(() =>
+      expect(api.remove).toHaveBeenCalledWith("rnnoise", null),
+    );
+    expect(asked[0]).toMatchObject({ title: "Remove Noise reduction?" });
+    await waitFor(() =>
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "Noise reduction removed.",
+      ),
+    );
+  });
+
+  it("keeps the model when the confirm is declined", async () => {
+    answerQuestions(null);
+    const rows = registryRows().map((r) =>
+      r.id === "rnnoise" ? { ...r, state: "installed" as const } : r,
+    );
+    const { api } = mount(
+      { id: "rnnoise", variant: null, label: "RNNoise", size: "~0.3 MB" },
+      rows,
+      "list",
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "More for Noise reduction" }),
+    );
+    await userEvent.click(
+      screen.getByRole("menuitem", { name: "Remove Noise reduction" }),
+    );
+    await act(async () => undefined);
+    expect(api.remove).not.toHaveBeenCalled();
+  });
+
+  it("calls onGet as the download starts", async () => {
+    const onGet = vi.fn();
+    const api = modelsApi({ status: modelStatus(registryRows()) });
+    render(<ModelNeedRow model={WHISPER} onGet={onGet} />, {
+      wrapper: modelsWrapper(api),
+    });
+    await userEvent.click(
+      screen.getByRole("button", { name: "Get the transcription model" }),
+    );
+    expect(onGet).toHaveBeenCalledOnce();
+    expect(api.download).toHaveBeenCalledOnce();
   });
 
   it("renders nothing once the model is installed", () => {

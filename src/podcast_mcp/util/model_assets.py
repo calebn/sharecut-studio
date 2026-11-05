@@ -34,9 +34,15 @@ logger = logging.getLogger(__name__)
 RNNOISE_MODEL_NAME = "somnolent-hogwash.rnnn"
 
 
+def rnnoise_override() -> Path | None:
+    """A user-supplied model file (``PODCAST_MCP_RNNOISE_MODEL``)."""
+    override = settings.raw("PODCAST_MCP_RNNOISE_MODEL")
+    return Path(override).expanduser() if override else None
+
+
 def rnnoise_model_path() -> Path:
-    if override := settings.raw("PODCAST_MCP_RNNOISE_MODEL"):
-        return Path(override).expanduser()
+    if (override := rnnoise_override()) is not None:
+        return override
     return models_dir() / RNNOISE_MODEL_NAME
 
 

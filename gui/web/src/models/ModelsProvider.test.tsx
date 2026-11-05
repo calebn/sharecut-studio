@@ -18,6 +18,7 @@ vi.mock("../api", () => ({
   runBootstrap: vi.fn(),
   waitForBootstrapJob: vi.fn(),
   cancelBootstrap: vi.fn(),
+  removeBootstrapModel: vi.fn(),
 }));
 
 const fetchStatus = vi.mocked(api.fetchBootstrapStatus);
@@ -25,6 +26,7 @@ const fetchJob = vi.mocked(api.fetchBootstrapJob);
 const run = vi.mocked(api.runBootstrap);
 const wait = vi.mocked(api.waitForBootstrapJob);
 const cancel = vi.mocked(api.cancelBootstrap);
+const removeModel = vi.mocked(api.removeBootstrapModel);
 
 function row(over: Partial<ModelStatus> & { id: string }): ModelStatus {
   return {
@@ -397,6 +399,73 @@ describe("ModelsProvider", () => {
     expect(alert).not.toBe("");
     expect(alert).not.toMatch(/PODCAST_/);
     expect(alert).not.toMatch(/\/home\/|C:\\/);
+  });
+
+  it("is busy from Get until the server answers, so the Size control cannot change under the start", async () => {
+    let answer: (value: { job: ReturnType<typeof job> }) => void = () =>
+      undefined;
+    run.mockImplementation(() => new Promise((resolve) => (answer = resolve)));
+    const { result } = await mounted();
+    expect(result.current.busy).toBe(false);
+    act(() => {
+      void result.current.download(["whisper"]);
+    });
+    expect(result.current.busy).toBe(true);
+    await act(async () => answer({ job: job() }));
+    await waitFor(() => expect(waiters).toHaveLength(1));
+    expect(result.current.busy).toBe(true);
+    await act(async () => {
+      waiters[0]!.finish(job({ status: "ok" }));
+    });
+    await waitFor(() => expect(result.current.busy).toBe(false));
+  });
+
+  it("is not busy after a start that failed", async () => {
+    run.mockRejectedValue(new Error("down"));
+    const { result } = await mounted();
+    await act(async () => {
+      await result.current.download(["whisper"]);
+    });
+    expect(result.current.busy).toBe(false);
+  });
+
+  it("removes a model, names the Whisper size, and reads status again", async () => {
+    removeModel.mockResolvedValue({ freed_bytes: 1, model: MISSING[0]! });
+    const { result } = await mounted();
+    fetchStatus.mockClear();
+    let outcome: unknown;
+    await act(async () => {
+      outcome = await result.current.remove("whisper", "small.en");
+    });
+    expect(outcome).toEqual({ kind: "ok" });
+    expect(removeModel).toHaveBeenCalledWith("whisper", "small.en");
+    expect(fetchStatus).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await result.current.remove("rnnoise", "ignored");
+    });
+    expect(removeModel).toHaveBeenLastCalledWith("rnnoise", null);
+  });
+
+  it("reports a busy server and a failed removal without reading status", async () => {
+    const { result } = await mounted();
+    fetchStatus.mockClear();
+    removeModel.mockRejectedValueOnce(
+      new ApiError("running", "bootstrap_job_running", 409),
+    );
+    let busy: unknown;
+    await act(async () => {
+      busy = await result.current.remove("rnnoise");
+    });
+    expect(busy).toEqual({ kind: "busy" });
+    removeModel.mockRejectedValueOnce(
+      new ApiError("Studio leaves it alone.", "model_not_removable", 409),
+    );
+    let failed: unknown;
+    await act(async () => {
+      failed = await result.current.remove("rnnoise");
+    });
+    expect(failed).toMatchObject({ kind: "failed" });
+    expect(fetchStatus).not.toHaveBeenCalled();
   });
 
   it("does not reject when cancel fails, and reads status again", async () => {

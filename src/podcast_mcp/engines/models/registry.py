@@ -8,6 +8,7 @@ downloads every model that is not installed, so a ``recommended`` row is in that
 
 from __future__ import annotations
 
+import shutil
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -20,15 +21,19 @@ from podcast_mcp.engines.models.speaker_ecapa import (
     SPEAKER_ECAPA_SIZE,
     SPEAKER_ECAPA_SIZE_BYTES,
     bootstrap_speaker_ecapa,
+    speaker_ecapa_override,
     speaker_ecapa_path,
     speaker_ecapa_problem,
 )
 from podcast_mcp.engines.models.whisper import (
     WHISPER_MODEL_CATALOG,
+    WHISPER_PINS,
     WHISPER_SIZE_BYTES,
     WhisperPinMismatchError,
     bootstrap_whisper_model,
+    cache_path_matches_model,
     resolve_whisper_model,
+    validate_whisper_model,
     whisper_bootstrap_command,
     whisper_model_problem,
 )
@@ -41,14 +46,22 @@ from podcast_mcp.engines.models.word_aligner import (
     word_aligner_problem,
 )
 from podcast_mcp.util.asset_sources import OnProgress, asset_entry
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.model_assets import (
     bootstrap_rnnoise_model,
     resolve_rnnoise_model,
     rnnoise_model_path,
+    rnnoise_override,
 )
 from podcast_mcp.util.model_missing import ModelMissing
 
 SetupTier = Literal["required", "recommended"]
+
+
+class ModelNotRemovable(CodedValueError):
+    """Studio cannot remove this model: its files are not ones Studio downloaded."""
+
+    code = "model_not_removable"
 
 
 @dataclass(frozen=True)
@@ -68,6 +81,9 @@ class ModelSpec:
     problem: Callable[[str | None, bool], ModelProblem | None]
     install: Callable[[str | None, bool, OnProgress | None], dict[str, Any]]
     location: Callable[[], Path]
+    #: What Studio downloaded for the model, as paths to delete; raises ``ModelNotRemovable``
+    #: when the model is a file the person supplied.
+    downloaded: Callable[[str | None], list[Path]]
     install_without_preference: (
         Callable[[str | None, bool, OnProgress | None], dict[str, Any]] | None
     ) = None
@@ -192,6 +208,37 @@ def _rnnoise_sizes(variant: str | None) -> tuple[str | None, int | None]:
     return None, pinned if isinstance(pinned, int) else None
 
 
+def _whisper_downloaded(variant: str | None) -> list[Path]:
+    model = validate_whisper_model(resolve_whisper_model(requested=variant))
+    root = whisper_cache_dir()
+    pin = WHISPER_PINS.get(model)
+    if pin is not None:
+        return [root / f"models--{pin.hf_repo.replace('/', '--')}"]
+    return [
+        entry for entry in root.iterdir() if cache_path_matches_model(f"{entry.as_posix()}/", model)
+    ]
+
+
+def _rnnoise_downloaded(variant: str | None) -> list[Path]:
+    if rnnoise_override() is not None:
+        raise ModelNotRemovable(
+            "Noise reduction is a file you supplied, so Studio leaves it alone."
+        )
+    return [rnnoise_model_path()]
+
+
+def _word_aligner_downloaded(variant: str | None) -> list[Path]:
+    return list(word_aligner_cache_dir().iterdir())
+
+
+def _speaker_ecapa_downloaded(variant: str | None) -> list[Path]:
+    if speaker_ecapa_override() is not None:
+        raise ModelNotRemovable(
+            "The speaker model is a file you supplied, so Studio leaves it alone."
+        )
+    return [speaker_ecapa_path()]
+
+
 _WORD_ALIGNER = word_aligner_model(DEFAULT_WORD_ALIGNER)
 
 
@@ -215,6 +262,7 @@ MODELS: tuple[ModelSpec, ...] = (
         install=_whisper_install,
         install_without_preference=_whisper_install_without_preference,
         location=whisper_cache_dir,
+        downloaded=_whisper_downloaded,
         variant_sizes=_whisper_sizes,
     ),
     ModelSpec(
@@ -226,6 +274,7 @@ MODELS: tuple[ModelSpec, ...] = (
         problem=_rnnoise_problem,
         install=_rnnoise_install,
         location=rnnoise_model_path,
+        downloaded=_rnnoise_downloaded,
         variant_sizes=_rnnoise_sizes,
     ),
     ModelSpec(
@@ -237,6 +286,7 @@ MODELS: tuple[ModelSpec, ...] = (
         problem=_word_aligner_problem,
         install=_word_aligner_install,
         location=word_aligner_cache_dir,
+        downloaded=_word_aligner_downloaded,
         default_variant=DEFAULT_WORD_ALIGNER,
         variant_sizes=_word_aligner_sizes,
     ),
@@ -250,6 +300,7 @@ MODELS: tuple[ModelSpec, ...] = (
         install=_speaker_ecapa_install,
         location=speaker_ecapa_path,
         variant_sizes=_speaker_ecapa_sizes,
+        downloaded=_speaker_ecapa_downloaded,
     ),
 )
 
@@ -304,3 +355,19 @@ def require_model(model_id: str, variant: str | None = None, *, memoize: bool = 
     rec = model_record(model_id, variant, memoize=memoize)
     if rec["state"] != "installed":
         raise ModelMissing.from_record(rec)
+
+
+def remove_model(model_id: str, variant: str | None = None) -> int:
+    """Delete what Studio downloaded for ``model_id`` (one Whisper size for ``whisper``) and
+    return the bytes freed. A model that is not installed frees nothing; it is not an error.
+    Raises ``ModelNotRemovable`` for a file the person supplied. Callers keep it away from a
+    running download or job."""
+    freed = 0
+    for path in model_spec(model_id).downloaded(variant):
+        if path.is_dir():
+            freed += sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
+            shutil.rmtree(path)
+        elif path.is_file():
+            freed += path.stat().st_size
+            path.unlink()
+    return freed
