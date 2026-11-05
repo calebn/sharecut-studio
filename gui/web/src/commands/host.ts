@@ -348,7 +348,8 @@ export function registerHostCommands(): void {
   const roomKey =
     (pick: (k: RoomKeyHandlers) => (() => void) | undefined) =>
     (): ExecuteResult => {
-      const run = pick(roomKeys() ?? { take: "idle" });
+      const k = roomKeys();
+      const run = k ? pick(k) : undefined;
       if (!run) return { status: "disabled", reason: "Not available here" };
       run();
       return { status: "ok" };

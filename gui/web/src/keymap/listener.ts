@@ -17,7 +17,7 @@ import { isButtonActivation, isScrubValue, isTypingTarget } from "./typing";
  * see commands/governance.test.ts allowlist. One gate decides what runs while
  * an overlay is open (`keymapHandoff` in `ui/modalGate`): an open menu holds
  * every key; an open modal dialog holds every app shortcut but the ones it
- * hands on (M for a marker on the Record stage), so nothing runs behind an
+ * hands on (C for a marker on the Record stage), so nothing runs behind an
  * in-app confirm. Native keys inside the dialog (typing in its field, Tab,
  * Enter on its buttons) are left to the browser.
  *
@@ -33,12 +33,13 @@ export function useDawKeymapListener(): void {
     // Shift+Space was handled on keydown: its keyup must not click the button.
     let hearHeld = false;
     let holdTimer: ReturnType<typeof setTimeout> | null = null;
+    let holdKey = "";
     const cancelHold = () => {
       if (holdTimer) clearTimeout(holdTimer);
       holdTimer = null;
     };
     const onKeyUp = (e: KeyboardEvent) => {
-      cancelHold();
+      if (e.key.toLowerCase() === holdKey) cancelHold();
       if (e.key !== " " || !hearHeld) return;
       hearHeld = false;
       e.preventDefault();
@@ -85,10 +86,11 @@ export function useDawKeymapListener(): void {
           }
           if (cmd.holdMs) {
             if (!e.repeat && !holdTimer) {
-              const id = cmd.id;
+              holdKey = e.key.toLowerCase();
               holdTimer = setTimeout(() => {
                 holdTimer = null;
-                void execute(id, {}, { skipWhen: true });
+                if (!evaluateWhen(def.when, buildCommandContext()).ok) return;
+                void execute(cmd.id, {}, { skipWhen: true });
               }, cmd.holdMs);
             }
             return;

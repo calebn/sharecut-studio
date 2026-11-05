@@ -416,7 +416,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     noRepeat: true,
     when: "hasProject",
     collision:
-      "M mutes what is selected (words, a range, a clip), else the targeted track; on the Record stage, M drops a marker instead",
+      "M mutes what is selected (words, a range, a clip), else the targeted track; with a room open, M mutes your mic instead",
   },
   {
     id: "record.marker",

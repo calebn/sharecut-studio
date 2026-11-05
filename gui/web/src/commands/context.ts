@@ -63,7 +63,6 @@ export type CommandContext = {
   hasInspectorSelection: boolean;
   following: boolean;
   recordStageActive: boolean;
-  /** The room view's key handlers: null when no room is open. */
   roomKeys: RoomKeyHandlers | null;
 };
 

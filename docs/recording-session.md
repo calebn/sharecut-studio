@@ -94,7 +94,7 @@ download; it is at most a lossy backup. Keepers must target WAV/PCM.
 | **Guest** | Recorded role: `join monitor comment`. |
 | **Producer** | Listen + comment, not recorded; shown in the "Not recorded" roster group. |
 | **Host** | Owns the episode; starts/stops/pauses; is also a recorded participant. |
-| **Live marker (comment)** | Same `TimelineComment` as review notes. `M` posts `body` `"Marker"` — a live marker comment, **not** a `ChapterMarker` or a second type. Lands in `review.comments[]`. |
+| **Live marker (comment)** | Same `TimelineComment` as review notes. `C` (host; a guest keeps `M`) posts `body` `"Marker"` — a live marker comment, **not** a `ChapterMarker` or a second type. Lands in `review.comments[]`. |
 | **Full-quality recording** (code: *keeper*) | Local dry WAV per recorded participant. UI status per participant and segment: "Saving to project…", then "Saved to project". |
 | **Monitor** | WebRTC send/receive graph (lossy, may use AEC). |
 | **Mix-minus** | Speaker bus plays remotes only; local capture never to destination. |

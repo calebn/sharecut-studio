@@ -732,3 +732,28 @@ it("starts a take on R, stops it only on a 600 ms hold, and pauses on P", async 
   expect(calls).toEqual(["start", "stop", "pause"]);
   setRoomKeys(null);
 });
+
+it("keeps the R hold through other keyups and drops it when the take ends mid-hold", async () => {
+  const calls: string[] = [];
+  const handlers = (take: "idle" | "live") => ({
+    take,
+    stop: () => calls.push("stop"),
+  });
+  setRoomKeys(handlers("live"));
+  render(<KeymapHost />);
+  const canvas = screen.getByTestId("canvas");
+  vi.useFakeTimers();
+  fireEvent.keyDown(canvas, { key: "r", code: "KeyR" });
+  await vi.advanceTimersByTimeAsync(300);
+  fireEvent.keyUp(canvas, { key: "Shift", code: "ShiftLeft" });
+  await vi.advanceTimersByTimeAsync(400);
+  expect(calls).toEqual(["stop"]);
+  fireEvent.keyUp(canvas, { key: "r", code: "KeyR" });
+  fireEvent.keyDown(canvas, { key: "r", code: "KeyR" });
+  await vi.advanceTimersByTimeAsync(300);
+  setRoomKeys(handlers("idle"));
+  await vi.advanceTimersByTimeAsync(400);
+  vi.useRealTimers();
+  expect(calls).toEqual(["stop"]);
+  setRoomKeys(null);
+});
