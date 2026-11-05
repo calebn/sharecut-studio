@@ -331,7 +331,6 @@ export function usePrepareRun(input: PrepareRunInput) {
     void askToReplace("update");
   }, [refusal, askToReplace]);
 
-  // Word timing: Get on its Model need row re-times the words once it lands.
   const alignerRow = models?.find((m) => m.id === WORD_ALIGNER) ?? null;
   const alignerIn = rowInstalled(alignerRow, {
     id: WORD_ALIGNER,
