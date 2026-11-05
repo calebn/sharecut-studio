@@ -1116,7 +1116,13 @@ and freezes the stow slide halfway, in Chromium and WebKit at 360×800 and
 The owner asked for the strip's nudges as "a pattern worth repeating for a
 consistent visual language", and for press-and-hold to repeat them.
 
-- **One row per value.** `inspector/InspectorPeek.tsx` draws the same row for
+- **Also in the sheet (#2294 W3c2a).** The same row (`inspector/NudgeRow.tsx`,
+  drawn by `inspector/SheetNudge.tsx`) sits beside the Scrub fields of the
+  inspector sheet in every placement: a clip's Source start, Source end, Fade
+  in and Fade out, a pending edit's Source start and Source end, an envelope
+  point's Time and Level. The strip is unchanged; the sheet is the shell's
+  full view, so the two are never mounted together.
+- **One row per value.** `inspector/NudgeRow.tsx` (through `inspector/InspectorPeek.tsx`) draws the same row for
   every value a target has: four buttons of at least `--touch-min`, smaller
   steps inside, earlier or shorter on the left. A clip's fade (1 and 10 ms)
   or trim (0.01 and 0.1 s) has one row beside its key value. A pending edit
