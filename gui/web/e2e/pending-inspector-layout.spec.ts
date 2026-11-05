@@ -222,7 +222,6 @@ test.describe("Pending inspector layout", () => {
     // the whole pending inspector.
     const dialog = page.locator(".bottom-sheet--compact");
     await expect(dialog).toBeVisible();
-    await dialog.getByRole("button", { name: "Expand to half height" }).click();
     await dialog.getByRole("button", { name: "Expand to full height" }).click();
     await expect(
       dialog.getByRole("heading", { name: "Pending edit" }),

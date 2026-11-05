@@ -55,7 +55,7 @@ const AXIS_LOOPS: Record<string, { loops: number; reason: string }> = {
     loops: 2,
     reason: "the create-menu sweep over text sizes is the subject",
   },
-  "touch-peek.spec.ts": {
+  "touch-drawer.spec.ts": {
     loops: 1,
     reason: "16 and 32 px root text are the two boundary sizes",
   },

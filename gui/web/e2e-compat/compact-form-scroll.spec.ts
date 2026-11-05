@@ -63,7 +63,7 @@ for (const { cell: viewport, theme } of withAppearance([
           });
           const chrome = page.locator(".bottom-sheet-chrome");
           const checkHeader = async (checkpoint: string) => {
-            for (const name of ["Undo", "Redo", "Collapse to strip", "Close"]) {
+            for (const name of ["Undo", "Redo", "Close"]) {
               const action = page
                 .locator(".bottom-sheet-header")
                 .getByRole("button", { name, exact: true });
@@ -171,7 +171,7 @@ for (const { cell: viewport, theme } of withAppearance([
             expect(geometry.rect.height).toBeGreaterThanOrEqual(88);
             await checkHeader("feedback-action-discovered-header");
           }
-          for (const name of ["Undo", "Redo", "Collapse to strip", "Close"]) {
+          for (const name of ["Undo", "Redo", "Close"]) {
             const action = page
               .locator(".bottom-sheet-header")
               .getByRole("button", { name, exact: true });

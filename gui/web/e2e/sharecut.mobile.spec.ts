@@ -184,7 +184,6 @@ test.describe("ShareCut Studio mobile smoke", () => {
     await inspectSelection(page);
     const drawer = page.locator(".bottom-sheet--compact");
     await expect(drawer).toBeVisible();
-    await drawer.getByRole("button", { name: "Expand to half height" }).click();
     await expect(drawer.getByRole("button", { name: "Copy" })).toBeVisible();
     await expect(drawer.getByRole("button", { name: "Cut" })).toBeVisible();
     await expectPageAxeClean(page);

@@ -63,7 +63,7 @@ for (const { cell: width, theme } of withAppearance([667, 767])) {
           await inspectSelection(page);
           const panel = page.locator(".bottom-sheet--compact");
           await expect(panel).toBeVisible();
-          for (const name of ["Undo", "Redo", "Collapse to strip", "Close"]) {
+          for (const name of ["Undo", "Redo", "Close"]) {
             const header = await controlGeometry(
               panel.getByRole("button", { name, exact: true }),
             );
