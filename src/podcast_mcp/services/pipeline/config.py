@@ -343,7 +343,7 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
 
     out["rnnoise"] = model_status("rnnoise")
 
-    # Opt-in download: the Pipeline tab lists it as missing only when forced alignment is
+    # A recommended model: the Pipeline tab lists it as missing only when forced alignment is
     # explicitly on without it (`forced_alignment.blocked`).
     out["word-aligner"] = model_status("word-aligner")
     return out

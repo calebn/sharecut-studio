@@ -4129,6 +4129,29 @@ def _not_served_payload(text: str) -> dict:
     return json.loads(match.group(1))
 
 
+def test_not_served_page_escapes_a_hostile_episode_name(minimal_project, tmp_path) -> None:
+    """An episode name cannot close the embedded JSON element or break out of it."""
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+    from podcast_mcp.models import load_project, save_project
+
+    hostile = 'Ep </script><b>"x"</b> \u2028 &'
+    project = load_project(minimal_project)
+    project.meta.name = hostile
+    save_project(project, minimal_project)
+    other = minimal_project.parent / "other" / "episode.sharecut"
+    client = TestClient(
+        create_app(static_dir=_recovery_static_root(tmp_path), served_project=minimal_project)
+    )
+    res = client.get("/", params={"project": str(other)}, headers={"Accept": "text/html"})
+    assert res.status_code == 403
+    assert res.text.count("<script") == 1
+    assert "</script><b>" not in res.text
+    assert _not_served_payload(res.text)["name"] == hostile
+
+
 def test_index_project_mismatch_returns_the_app_with_403(minimal_project, tmp_path) -> None:
     """Browser navigation to a non-served ?project= gets the app shell (403) that draws the cover."""
     pytest.importorskip("fastapi")

@@ -8,7 +8,7 @@ Lint: Stylelint in `gui/web` (`meowtec/no-px`, `declaration-strict-value`, viewp
 
 | Token | Where |
 | ----- | ----- |
-| Shared type / space / brand color | `deploy/brand/brand-tokens.css` (synced to Studio theme + public dirs) |
+| Shared type / space / brand color | `deploy/brand/brand-tokens.css` (synced to the Studio theme, the splash and the relay static dir) |
 | Primitive color values (raw literals, no `var()`) | `gui/web/src/styles/theme/primitives.css` |
 | Studio density (`--space-*`, `--font-size-*`, `--radius-xs/sm/xl`, `--focus-ring-*`, `--z-*`, stage layout: regions, sheets, targets) | `gui/web/src/styles/theme/tokens.css` |
 | Light / dark functional colors (semantic roles mapped onto primitives) | `theme-dark.css` / `theme-light.css` |

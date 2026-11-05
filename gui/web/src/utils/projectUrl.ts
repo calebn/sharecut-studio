@@ -26,14 +26,17 @@ export function projectUrl(href: string, projectPath: string): string {
   return url.toString();
 }
 
+/** What a project file name ends in. */
+const PROJECT_FILE_EXTENSION = ".sharecut";
+
 /**
  * The episode's name as the path gives it: the folder that holds the project
- * file (`~/ShareCut/Rosa and Maya/episode.sharecut`), or the file's own name.
+ * file (`~/ShareCut/Rosa and Maya/episode.sharecut`), or the file's own name. A folder name with a dot in it is a name, not a file.
  * Used before the project has loaded; empty when the path gives none.
  */
 export function projectNameFromPath(projectPath: string): string {
   const parts = projectPath.split(/[\\/]/).filter(Boolean);
-  const file = parts.pop() ?? "";
-  if (/\.[^.]+$/.test(file)) return parts.pop() ?? file.replace(/\.[^.]+$/, "");
-  return file;
+  const last = parts.pop() ?? "";
+  if (!last.endsWith(PROJECT_FILE_EXTENSION)) return last;
+  return parts.pop() ?? last.slice(0, -PROJECT_FILE_EXTENSION.length);
 }

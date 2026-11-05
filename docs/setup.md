@@ -46,7 +46,7 @@ again after setting the executable paths.
 Optional next steps:
 
 ```bash
-podcast bootstrap --component all
+podcast bootstrap
 cd gui/web && npm ci && npm run build && cd ../..   # ShareCut Studio static assets
 make hooks                                          # lint-staged + check-only pre-commit hooks
 make worktree-setup                                 # per git worktree: hooks + venv (incl. pre-commit) + gui/web node_modules
@@ -77,13 +77,13 @@ summary table.
 
 ## Maximal install (all extras)
 
-Install **every** pip extra. No extra pulls torch; the download beyond `./install.sh` is the models `podcast bootstrap --component all` fetches: the word aligner, ~360 MB, and the speaker model, ~80 MB. The speaker model downloads from a direct first-party CDN url in the manifest.
+Install **every** pip extra. No extra pulls torch; the download beyond `./install.sh` is the models `podcast bootstrap` fetches: the word aligner, ~360 MB, and the speaker model, ~80 MB. The speaker model downloads from a direct first-party CDN url in the manifest.
 
 ```bash
 git clone https://github.com/calebn/sharecut-studio.git && cd sharecut-studio
 uv sync --all-extras
 source .venv/bin/activate   # or: uv run …
-podcast bootstrap --component all
+podcast bootstrap
 podcast doctor
 # Optional ShareCut Studio UI (Node 24+):
 cd gui/web && npm ci && npm run build && cd ../..
@@ -95,7 +95,7 @@ Without `uv`:
 python3 -m venv .venv
 .venv/bin/pip install -e ".[all]"
 source .venv/bin/activate
-podcast bootstrap --component all
+podcast bootstrap
 podcast doctor
 ```
 
@@ -138,7 +138,7 @@ A new extra must be added to `EXTRA_IMPORTS` in that file; a fast test fails oth
 
 ### Bootstrap cache downloads (`podcast bootstrap`)
 
-Assets land under `~/.cache/podcast_mcp/` (override with `PODCAST_MCP_CACHE`). The rows below are the model registry (`engines/models/registry.py`); `podcast bootstrap --component` choices, the Studio setup status and `podcast setup` all derive from it. A bare `podcast bootstrap` installs the `required` and `recommended` rows, which is every row (`whisper`, `rnnoise`, `word-aligner`, `speaker-ecapa`), so `--component all` names the same set. Studio's **Get ready** card downloads the same bundle (about 2 GB with the default Whisper size). `podcast setup` prints each model as ready or missing, with the `podcast bootstrap --component <id>` line that fixes it. Silero VAD ships inside `faster-whisper`, so it has no row and is not in the bootstrap status; `podcast doctor` reports it.
+Assets land under `~/.cache/podcast_mcp/` (override with `PODCAST_MCP_CACHE`). The rows below are the model registry (`engines/models/registry.py`); `podcast bootstrap --component` choices, the Studio setup status and `podcast setup` all derive from it. A bare `podcast bootstrap` installs the `required` and `recommended` rows, which is every row (`whisper`, `rnnoise`, `word-aligner`, `speaker-ecapa`). Studio's **Get ready** card downloads the same bundle (about 2 GB with the default Whisper size). `podcast setup` prints each model as ready or missing, with the `podcast bootstrap --component <id>` line that fixes it. Silero VAD ships inside `faster-whisper`, so it has no row and is not in the bootstrap status; `podcast doctor` reports it.
 
 **Download progress and failures.** A download reports bytes against a total when its source gives one: the CDN or upstream stream uses `Content-Length`, a pinned Hugging Face snapshot (the word aligner and the catalog Whisper sizes) sums the files a dry run says it will fetch, and an unpinned Whisper size has no byte source, so it shows the registry's size text with no percentage. On a terminal `podcast bootstrap` draws a byte bar; piped, it prints `[get] <id> (<size>)` before each model and `[ok]` / `[fail]` after (see [cli-progress.md](cli-progress.md#podcast-bootstrap)). A failure is one of `http` (with the status), `pin_mismatch`, `network` or `disk`, worded in plain text that names no path, URL or environment variable; the cause with its traceback is logged at warning level (`podcast bootstrap` keeps it off the terminal unless `PODCAST_DEBUG=1`). A `pin_mismatch` ends with the `podcast bootstrap ... --upgrade` command that fetches the model again. Anything else is a bug: it is logged and reported as "<model> could not be installed." with no detail, in the `[fail]` line, the job and the progress events. A Studio bootstrap job carries `download` (`component`, `bytes`, `total`; null between downloads) and, once a component failed, `failure` (`kind`, `status`, `plain`). For a known failure its `error` is that `plain` text; for an unexpected one `error` is the generic text and `failure` is null. Cancelling a job stops a CDN stream within about a megabyte. A Hugging Face download is asked to stop at its next byte update, which the library delivers from its download threads. That the exception ends a transfer already running in one is checked only against a stand-in for the hub, so a large file may finish first.
 
@@ -267,7 +267,6 @@ this command changes neither uploads nor runtime pins and upstream fallbacks.
 
 ```bash
 podcast bootstrap                     # every model in the table: whisper, rnnoise, word-aligner and speaker-ecapa
-podcast bootstrap --component all     # the same set, named
 podcast bootstrap --component whisper --whisper-model small.en
 podcast setup --whisper-model medium.en   # persist without downloading
 # Use another downloaded model for one standalone transcription run.
@@ -579,7 +578,7 @@ All bootstrapped/downloaded assets live under `~/.cache/podcast_mcp/`
 | `prefs.yaml` | Machine Whisper model preference (setup / bootstrap / Models dialog) |
 | `bin/` | Existing source-use location for a locally supplied supported `ffmpeg`/`ffprobe` pair |
 | `models/` | Bootstrapped model assets (RNNoise `.rnnn`, the speaker ECAPA ONNX file) |
-| `word-aligner/` | Opt-in forced-aligner Hugging Face snapshot |
+| `word-aligner/` | Forced-aligner Hugging Face snapshot (recommended: installed by Get ready and a bare bootstrap) |
 
 Model weights stay outside the repository and installed package. Fetch models
 with `podcast bootstrap` or the ShareCut Studio Setup card / Models dialog. Pipeline
