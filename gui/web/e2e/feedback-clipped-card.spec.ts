@@ -4,7 +4,7 @@ import { withShareableProject } from "./shareableProject";
 import { openProject } from "./stageNav";
 
 const TOAST_MS = 6000;
-const CLIPPED_MAX_MS = 8000;
+const CLIPPED_MAX_MS = 6000;
 
 test.use({
   viewport: { width: 320, height: 460 },
