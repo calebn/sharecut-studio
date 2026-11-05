@@ -280,18 +280,12 @@ export function PrepareView({
       </p>
     </>
   );
-  const replacingName = (() => {
-    if (replacingId === null) return null;
-    let at = 0;
-    for (const one of sessions) {
-      for (const source of one.sources) {
-        at += 1;
-        if (source.id === replacingId)
-          return source.name.trim() || `voice ${at}`;
-      }
-    }
-    return null;
-  })();
+  const allSources = sessions.flatMap((one) => one.sources);
+  const replacingAt = allSources.findIndex((one) => one.id === replacingId);
+  const replacingName =
+    replacingAt < 0
+      ? null
+      : allSources[replacingAt]!.name.trim() || `voice ${replacingAt + 1}`;
   const overlay = dropActive ? (
     <DropOverlay label={dropLabel(dropCount, replacingName)} />
   ) : null;
