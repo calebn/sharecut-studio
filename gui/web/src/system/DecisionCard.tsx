@@ -193,13 +193,13 @@ function UnsureWord({
   );
 }
 
-/** One decidable item. On phone it fills the screen and swipes decide it. */
 /** The keys, said once per session in the card's footer and then only on hover. */
 const KEYS_LINE =
-  "Enter decides · X keeps · Tab for later · A and B hear it · E opens it in Edit · C comments · Shift+Enter does the whole group";
+  "Enter decides · X keeps · Tab for later · A and B hear it · Space plays · E opens it in Edit · C comments · Shift+Enter does the whole group";
 
 let keysIntroSeen = false;
 
+/** One decidable item. On phone it fills the screen and swipes decide it. */
 export function DecisionCard(props: DecisionCardProps) {
   const {
     kind,
