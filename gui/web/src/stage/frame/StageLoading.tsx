@@ -98,7 +98,9 @@ export function StageLoading({
       header={
         <div className="stage-loading-head">
           <span className="stage-loading-name">{name}</span>
-          {shell === "phone" ? null : bar("bar")}
+          {shell === "phone" ? null : (
+            <div className="stage-loading-bar">{bar("bar")}</div>
+          )}
         </div>
       }
       tabs={shell === "phone" ? bar("tabs") : null}
