@@ -62,11 +62,6 @@ export function useFindMoreFlow(): FindMoreFlow {
   return useContext(Flow);
 }
 
-/**
- * Holds Find more's run and its pending model above the stages, so a Get pressed in Review still
- * resumes the run after the person has moved to another stage. The wait belongs to one project: a
- * model that lands after the project closed starts nothing.
- */
 export function FindMoreFlowProvider({ children }: { children: ReactNode }) {
   const projectPath = useDawStore((s) => s.projectPath);
   const [run, setRun] = useState<FindMoreRun | null>(null);
