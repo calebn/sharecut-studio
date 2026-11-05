@@ -325,7 +325,6 @@ export function useKeeperCapture({
       if (existing) {
         disposeSession(existing);
       }
-      setWriting(false);
       return;
     }
     let cancelled = false;

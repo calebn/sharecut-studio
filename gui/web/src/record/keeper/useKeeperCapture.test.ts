@@ -742,6 +742,81 @@ describe("useKeeperCapture", () => {
     }
   });
 
+  it.each(["disabled", "participant", "session"] as const)(
+    "retires writing on %s loss while retaining close protection through actual WAV close",
+    async (reason) => {
+      let finish!: () => void;
+      const held = new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      const sink = new MemorySink();
+      const open = sink.open.bind(sink);
+      const closing = vi.fn();
+      sink.open = async (path): Promise<ByteStream> => {
+        const writable = await open(path);
+        return {
+          write: (bytes, offset) => writable.write(bytes, offset),
+          close: async () => {
+            closing();
+            await held;
+            await writable.close();
+          },
+        };
+      };
+      const stream = { getTracks: () => [] } as unknown as MediaStream;
+      type Input = Pick<
+        Parameters<typeof useKeeperCapture>[0],
+        "enabled" | "participantId" | "acceptedSnapshot" | "resetKey"
+      >;
+      const initial: Input = {
+        enabled: true,
+        participantId: "p_g",
+        acceptedSnapshot: args.acceptedSnapshot,
+        resetKey: 0,
+      };
+      const { result, rerender } = renderHook(
+        (input: Input) => useKeeperCapture({ ...args, ...input, stream, sink }),
+        { initialProps: initial },
+      );
+      await waitFor(() => expect(result.current.recordingLocally).toBe(true));
+      act(() => {
+        graphEmit.fn(new Float32Array(128).fill(0.1));
+      });
+      const retired: Input = {
+        ...initial,
+        ...(reason === "disabled"
+          ? { enabled: false }
+          : reason === "participant"
+            ? { participantId: null }
+            : { acceptedSnapshot: EMPTY_ACCEPTED_RECORD_SNAPSHOT }),
+      };
+      rerender(retired);
+      await waitFor(() => expect(closing).toHaveBeenCalled());
+      expect(result.current.recordingLocally).toBe(false);
+      expect(result.current.finalizing).toBe(true);
+      expect(
+        window.dispatchEvent(new Event("beforeunload", { cancelable: true })),
+      ).toBe(false);
+      rerender({ ...retired, resetKey: 1 });
+      expect(result.current.recordingLocally).toBe(false);
+      expect(result.current.finalizing).toBe(true);
+      await act(async () => {
+        finish();
+      });
+      await waitFor(() => expect(result.current.finalizing).toBe(false));
+      expect(
+        window.dispatchEvent(new Event("beforeunload", { cancelable: true })),
+      ).toBe(true);
+      const metadata = [...sink.files.entries()].find(([path]) =>
+        path.endsWith(".json"),
+      );
+      expect(metadata).toBeDefined();
+      expect(JSON.parse(new TextDecoder().decode(metadata?.[1]))).toMatchObject(
+        { complete: true },
+      );
+    },
+  );
+
   it("keeps close risk active until local finalization settles", async () => {
     let finish: (() => void) | undefined;
     const pending = new Promise<void>((resolve) => {
