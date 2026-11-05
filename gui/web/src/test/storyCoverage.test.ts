@@ -47,7 +47,8 @@ const COVERED: Record<string, string[]> = {
     "System/ScrubField",
     "Stages/Edit/PendingInspector",
   ],
-  "SCR-LOADING": ["Organisms/LoadingScreen"],
+  "SCR-LOADING": ["Stages/Frame/Loading"],
+  "SCR-RECOVERY": ["Stages/Frame/StatusCover"],
   "SCR-ERROR": ["Organisms/ErrorScreen"],
   "SCR-COVER": ["Organisms/CoverScreen"],
   "CMP-TRANSPORT-PILLS": ["Atoms/Pill"],
@@ -222,9 +223,6 @@ const NOT_A_SURFACE: Record<string, string> = {
     "A window close guard in the desktop wrapper, not React.",
 };
 
-/** Server-rendered HTML outside the React app. */
-const OUTSIDE_APP = ["SCR-RECOVERY"];
-
 const storyModules = import.meta.glob(
   ["../**/*.stories.ts", "../**/*.stories.tsx"],
   {
@@ -257,11 +255,7 @@ function inventoryIds(): string[] {
 const INVENTORY_IDS = inventoryIds();
 
 describe("story coverage manifest", () => {
-  const ids = [
-    ...Object.keys(COVERED),
-    ...Object.keys(NOT_A_SURFACE),
-    ...OUTSIDE_APP,
-  ];
+  const ids = [...Object.keys(COVERED), ...Object.keys(NOT_A_SURFACE)];
 
   it("lists each surface once", () => {
     expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([]);

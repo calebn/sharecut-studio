@@ -4109,18 +4109,28 @@ def test_create_app_serves_index_when_dist_exists() -> None:
 
 
 def _recovery_static_root(tmp_path):
-    """Minimal public files needed by recovery-page server tests."""
+    """A minimal built app for the not-served page tests."""
     dist = tmp_path / "dist"
     dist.mkdir()
-    (dist / "index.html").write_text("<!doctype html><title>Studio</title>")
-    public = Path(__file__).resolve().parents[1] / "gui" / "web" / "public"
-    for name in ("recovery.css", "brand-tokens.css"):
-        (dist / name).write_text((public / name).read_text(encoding="utf-8"))
+    (dist / "index.html").write_text(
+        "<!doctype html><html><head><title>Studio</title></head><body></body></html>"
+    )
     return dist
 
 
-def test_index_project_mismatch_returns_recovery_page(minimal_project, tmp_path) -> None:
-    """Browser navigation to a non-served ?project= gets a friendly HTML page."""
+def _not_served_payload(text: str) -> dict:
+    import json
+    import re
+
+    match = re.search(
+        r'<script type="application/json" id="sharecut-not-served">(.*?)</script>', text
+    )
+    assert match, text
+    return json.loads(match.group(1))
+
+
+def test_index_project_mismatch_returns_the_app_with_403(minimal_project, tmp_path) -> None:
+    """Browser navigation to a non-served ?project= gets the app shell (403) that draws the cover."""
     pytest.importorskip("fastapi")
     from urllib.parse import urlencode
 
@@ -4139,10 +4149,12 @@ def test_index_project_mismatch_returns_recovery_page(minimal_project, tmp_path)
     )
     assert res.status_code == 403
     assert "text/html" in res.headers["content-type"]
-    assert "isn&rsquo;t served by this server" in res.text
-    assert "Choose a different project" in res.text
-    assert f"/?{urlencode({'project': str(minimal_project)})}" in res.text
-    assert 'href="/?home=1"' in res.text
+    assert "<title>This episode isn&rsquo;t open on this computer" in res.text
+    assert "recovery.css" not in res.text
+    payload = _not_served_payload(res.text)
+    assert payload["open_href"] == f"/?{urlencode({'project': str(minimal_project)})}"
+    assert payload["home_href"] == "/?home=1"
+    assert payload["name"]
 
 
 def test_index_project_mismatch_keeps_json_for_non_html_accept(minimal_project, tmp_path) -> None:
@@ -4202,8 +4214,9 @@ def test_index_project_mismatch_requires_remote_token_and_preserves_it(
     )
     assert res.status_code == 403
     open_query = urlencode({"project": str(minimal_project), "session_token": "recovery-token"})
-    assert f'href="/?{open_query}"' in res.text
-    assert 'href="/?home=1&session_token=recovery-token"' in res.text
+    payload = _not_served_payload(res.text)
+    assert payload["open_href"] == f"/?{open_query}"
+    assert payload["home_href"] == "/?home=1&session_token=recovery-token"
     assert "ignored=no" not in res.text
 
 
@@ -4339,6 +4352,21 @@ def test_recovery_home_link_keeps_the_pin(minimal_project, tmp_path) -> None:
     assert client.get("/", follow_redirects=False).status_code == 307
 
 
+def test_not_served_element_id_matches_the_gui() -> None:
+    """The element the server embeds is the one the web client reads."""
+    pytest.importorskip("fastapi")
+    import re
+
+    from podcast_mcp.gui.server import NOT_SERVED_ELEMENT_ID
+
+    ts = (
+        Path(__file__).resolve().parents[1] / "gui" / "web" / "src" / "utils" / "notServed.ts"
+    ).read_text(encoding="utf-8")
+    match = re.search(r'export const NOT_SERVED_ELEMENT_ID = "([\w-]+)";', ts)
+    assert match
+    assert match.group(1) == NOT_SERVED_ELEMENT_ID
+
+
 def test_home_query_param_matches_the_gui() -> None:
     """The web client's /?home=1 must be the flag the pinned-root redirect skips."""
     pytest.importorskip("fastapi")
@@ -4388,23 +4416,6 @@ def test_api_project_mismatch_still_json_403(minimal_project, tmp_path) -> None:
     res = client.get("/api/project/meta", params={"path": str(other)})
     assert res.status_code == 403
     assert res.json() == {"detail": "project path not allowed for this server instance"}
-
-
-def test_recovery_css_served_from_dist(tmp_path) -> None:
-    """The recovery page stylesheet is served from dist."""
-    pytest.importorskip("fastapi")
-    from fastapi.testclient import TestClient
-
-    from podcast_mcp.gui.server import create_app
-
-    client = TestClient(create_app(static_dir=_recovery_static_root(tmp_path)))
-    res = client.get("/recovery.css")
-    assert res.status_code == 200
-    assert "text/css" in res.headers["content-type"]
-    assert ".recovery-page" in res.text
-    tokens = client.get("/brand-tokens.css")
-    assert tokens.status_code == 200
-    assert "--color-bg-canvas" in tokens.text
 
 
 def test_favicon_svg_served_from_dist() -> None:

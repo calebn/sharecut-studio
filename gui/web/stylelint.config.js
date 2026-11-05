@@ -2,7 +2,7 @@
 export default {
   extends: ["stylelint-config-standard"],
   plugins: ["stylelint-declaration-strict-value", "stylelint-no-px"],
-  ignoreFiles: ["src/styles/theme/**", "public/brand-tokens.css"],
+  ignoreFiles: ["src/styles/theme/**"],
   overrides: [
     {
       files: [

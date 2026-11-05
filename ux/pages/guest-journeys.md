@@ -33,7 +33,7 @@ flowchart TD
 
 A Viewer (listen-only) link shows no comment field.
 
-An unavailable or revoked link shows an error. A share built without `view` (API only, no role mints one) opens the same kind of error: "This link does not open the project. Ask the person who shared it for a new link."
+An unavailable or revoked link shows an error. A share built without `view` (API only, no role mints one) opens the same kind of error: "This link doesn't open anything. Ask the person who sent it for a new link."
 
 The comment fields fit narrow phones without horizontal page scrolling.
 

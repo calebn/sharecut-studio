@@ -11,6 +11,7 @@ import {
   importingLine,
   importStoppedLine,
   setupOf,
+  timeLeftText,
   toolsMissing,
   untitledEpisodeName,
 } from "./homeModel";
@@ -147,8 +148,11 @@ describe("setupOf", () => {
     loadError: null,
     tools: { ffmpeg: "installed" as const, hint: null },
   };
-  it("shows nothing while the first status is on its way", () => {
-    expect(setupOf({ ...base, models: null })).toBeNull();
+  it("is checking while the first status is on its way", () => {
+    expect(setupOf({ ...base, models: null })).toEqual({
+      state: "checking",
+      sizeLabel: "",
+    });
   });
   it("offers a check again when the status never came", () => {
     expect(setupOf({ ...base, models: null, loadError: "x" })?.state).toBe(
@@ -169,8 +173,8 @@ describe("setupOf", () => {
       ...base,
       models: [
         model(),
-        model({ id: "ecapa", tier: "recommended", sizeBytes: 400_000_000 }),
-        model({ id: "extra", tier: "offered", sizeBytes: 9_000_000_000 }),
+        model({ id: "aligner", tier: "recommended", sizeBytes: 360_000_000 }),
+        model({ id: "ecapa", tier: "recommended", sizeBytes: 80_000_000 }),
       ],
     });
     expect(data).toEqual({ state: "needed", sizeLabel: "about 2 GB" });
@@ -201,6 +205,21 @@ describe("setupOf", () => {
       detail: "800 MB of 1.6 GB",
     });
   });
+  it("adds the time left to a download that has a rate", () => {
+    const models = [
+      model({
+        state: {
+          kind: "downloading",
+          bytes: 1_100_000_000,
+          total: 2_000_000_000,
+        },
+      }),
+    ];
+    expect(setupOf({ ...base, models }, 180)?.detail).toBe(
+      "1.1 GB of 2.0 GB · about 3 min",
+    );
+    expect(setupOf({ ...base, models }, null)?.detail).toBe("1.1 GB of 2.0 GB");
+  });
   it("leaves progress open when a total is unknown", () => {
     const data = setupOf({
       ...base,
@@ -214,10 +233,7 @@ describe("setupOf", () => {
     expect(data?.detail).toBe("5 MB downloaded");
   });
   it("names missing audio tools with nothing to download", () => {
-    const models = [
-      model({ state: { kind: "installed" } }),
-      model({ id: "opt", tier: "offered" }),
-    ];
+    const models = [model({ state: { kind: "installed" } })];
     const tools = { ffmpeg: "missing" as const, hint: "Cannot run ffprobe" };
     expect(setupOf({ ...base, tools, models })).toEqual({
       state: "tools-missing",
@@ -245,20 +261,30 @@ describe("setupOf", () => {
   });
 });
 
+describe("timeLeftText", () => {
+  it("words the time left", () => {
+    expect(timeLeftText(20)).toBe("less than a minute");
+    expect(timeLeftText(170)).toBe("about 3 min");
+    expect(timeLeftText(3600)).toBe("about 1 h");
+    expect(timeLeftText(3900)).toBe("about 1 h 5 min");
+  });
+});
+
 describe("bundleToGet", () => {
-  it("lists the required and recommended models still to fetch", () => {
+  it("lists every model still to fetch, the word aligner and speaker model included", () => {
     expect(
       bundleToGet([
         model(),
         model({ id: "done", state: { kind: "installed" } }),
-        model({ id: "opt", tier: "offered" }),
+        model({ id: "word-aligner", tier: "recommended" }),
+        model({ id: "speaker-ecapa", tier: "recommended" }),
         model({
           id: "fix",
           tier: "recommended",
           state: { kind: "update_needed" },
         }),
       ]),
-    ).toEqual(["whisper", "fix"]);
+    ).toEqual(["whisper", "word-aligner", "speaker-ecapa", "fix"]);
     expect(bundleToGet(null)).toEqual([]);
   });
 });

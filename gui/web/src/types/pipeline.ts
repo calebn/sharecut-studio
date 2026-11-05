@@ -125,7 +125,7 @@ export type ModelInstallState = "installed" | "missing" | "update_needed";
 /** One component's readiness, as GET /api/pipeline/config lists it; the bootstrap `ModelStatus` is the same record. */
 export interface PipelineComponentStatus {
   state: ModelInstallState;
-  tier?: "required" | "recommended" | "offered";
+  tier?: "required" | "recommended";
   label?: string;
   size?: string;
   model?: string;

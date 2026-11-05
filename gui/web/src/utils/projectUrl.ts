@@ -25,3 +25,15 @@ export function projectUrl(href: string, projectPath: string): string {
   url.searchParams.set("project", projectPath);
   return url.toString();
 }
+
+/**
+ * The episode's name as the path gives it: the folder that holds the project
+ * file (`~/ShareCut/Rosa and Maya/episode.sharecut`), or the file's own name.
+ * Used before the project has loaded; empty when the path gives none.
+ */
+export function projectNameFromPath(projectPath: string): string {
+  const parts = projectPath.split(/[\\/]/).filter(Boolean);
+  const file = parts.pop() ?? "";
+  if (/\.[^.]+$/.test(file)) return parts.pop() ?? file.replace(/\.[^.]+$/, "");
+  return file;
+}

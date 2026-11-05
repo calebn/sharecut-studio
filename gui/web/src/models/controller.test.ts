@@ -17,7 +17,7 @@ function row(over: Partial<ModelStatus> & { id: string }): ModelStatus {
   return {
     label: over.id,
     purpose: "purpose",
-    tier: "offered",
+    tier: "recommended",
     model: over.id,
     size: "~1 MB",
     size_bytes: 1_000_000,

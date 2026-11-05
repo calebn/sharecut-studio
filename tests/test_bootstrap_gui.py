@@ -48,7 +48,12 @@ def test_component_status_reports_structure(tmp_path: Path, monkeypatch) -> None
     }
     assert [row["id"] for row in status["models"]] == [spec.id for spec in MODELS]
     by_id = {row["id"]: row for row in status["models"]}
-    assert [by_id[i]["tier"] for i in by_id] == ["required", "recommended", "offered", "offered"]
+    assert [by_id[i]["tier"] for i in by_id] == [
+        "required",
+        "recommended",
+        "recommended",
+        "recommended",
+    ]
     assert by_id["whisper"]["purpose"] == "transcription"
     assert by_id["whisper"]["state"] == "missing"
     assert by_id["whisper"]["model"] == "large-v3-turbo"
@@ -65,7 +70,7 @@ def test_component_status_reports_structure(tmp_path: Path, monkeypatch) -> None
     aligner = by_id["word-aligner"]
     assert aligner["state"] == "missing"
     assert aligner["model"] == "onnx-base"
-    assert aligner["size_bytes"] is None
+    assert aligner["size_bytes"] == 360_000_000
     assert aligner["bootstrap"] == "podcast bootstrap --component word-aligner"
     removed = {
         "components",
@@ -103,7 +108,7 @@ def test_ready_needs_ffmpeg_and_every_required_model(monkeypatch) -> None:
         "model_status",
         lambda model_id, variant=None: {
             "id": model_id,
-            "tier": "required" if model_id == "whisper" else "offered",
+            "tier": "required" if model_id == "whisper" else "recommended",
             "state": "installed" if model_id == "whisper" else "missing",
         },
     )
