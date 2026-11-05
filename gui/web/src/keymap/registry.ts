@@ -58,6 +58,8 @@ export type KeymapCommand = {
   shiftKeys?: string[];
   /** A toggle a held key must not flip back and forth (M saves the mix mute). */
   noRepeat?: boolean;
+  /** The command runs after the key is held this long; a shorter press does nothing. */
+  holdMs?: number;
   /** Keyboard when-clause: must match command catalog when for that id. */
   when: ContextPredicateId;
   notes?: string;
@@ -420,12 +422,56 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     id: "record.marker",
     category: "ui",
     label: "Record marker",
+    keys: ["C"],
+    bareKey: true,
+    requireShift: false,
+    noRepeat: true,
+    when: "recordStageActive",
+    notes: "C on the Record stage: live marker; elsewhere C comments",
+    collision:
+      "C drops a marker only on the Record stage; otherwise C comments",
+  },
+  {
+    id: "room.mute",
+    category: "ui",
+    label: "Mute your mic in the room",
     keys: ["M"],
     bareKey: true,
-    when: "recordStageActive",
-    notes:
-      "M: live marker on the Record stage; on any other stage, M still mutes",
-    collision: "M drops a marker only on the Record stage; otherwise M mutes",
+    noRepeat: true,
+    when: "roomKeysActive",
+    collision: "M mutes your mic while a room is open; otherwise M mutes",
+  },
+  {
+    id: "room.take",
+    category: "ui",
+    label: "Record",
+    keys: ["R"],
+    bareKey: true,
+    requireShift: false,
+    noRepeat: true,
+    when: "roomTakeIdle",
+    notes: "R starts a take; hold R to stop it",
+  },
+  {
+    id: "room.stop",
+    category: "ui",
+    label: "Stop take",
+    keys: ["R"],
+    bareKey: true,
+    requireShift: false,
+    holdMs: 600,
+    when: "roomTakeLive",
+    notes: "Hold R for 600 ms to stop the take",
+  },
+  {
+    id: "room.pause",
+    category: "ui",
+    label: "Pause or resume take",
+    keys: ["P"],
+    bareKey: true,
+    requireShift: false,
+    noRepeat: true,
+    when: "roomTakeLive",
   },
   {
     id: "track.soloToggle",
@@ -768,8 +814,18 @@ export const SHARED_KEY_ORDER: readonly SharedKeyOrder[] = [
   },
   {
     key: "M",
-    order: ["record.marker", "edit.mute"],
-    why: "while the Record stage is active M drops a marker; its when-clause fails otherwise and M mutes",
+    order: ["room.mute", "edit.mute"],
+    why: "while a room is open M mutes your mic; its when-clause fails otherwise and M mutes on the timeline",
+  },
+  {
+    key: "R",
+    order: ["room.take", "room.stop"],
+    why: "with no take open R starts one; with a take open the first row's when-clause fails and holding R stops it",
+  },
+  {
+    key: "C",
+    order: ["record.marker", "comment.draftAt"],
+    why: "while the Record stage is active C drops a marker; its when-clause fails otherwise and C comments",
   },
 ];
 

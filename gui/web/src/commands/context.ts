@@ -14,6 +14,7 @@ import {
 import { useDawStore } from "../state/dawStore";
 import { documentActivityBusy } from "../state/documentSendOrder";
 import { stageRoleOf, stagesForRole } from "../state/stageRoutes";
+import { type RoomKeyHandlers, roomKeys } from "../system/roomKeys";
 import type { StageId } from "../types/stage";
 import { splitSpeakersBlocker } from "../utils/speakerSplit";
 import { focusedClipHandleKind } from "./focusedClipHandle";
@@ -62,6 +63,8 @@ export type CommandContext = {
   hasInspectorSelection: boolean;
   following: boolean;
   recordStageActive: boolean;
+  /** The room view's key handlers: null when no room is open. */
+  roomKeys: RoomKeyHandlers | null;
 };
 
 function editUnsaved(projectPath: string): boolean {
@@ -144,6 +147,7 @@ export function buildCommandContext(): CommandContext {
     hasInspectorSelection: selection != null,
     following: s.followingClientId != null,
     recordStageActive: s.stage === "record",
+    roomKeys: roomKeys(),
   };
 }
 
@@ -364,6 +368,18 @@ export function evaluateWhen(
       return ctx.recordStageActive
         ? { ok: true }
         : { ok: false, reason: "Record stage is not open" };
+    case "roomKeysActive":
+      return ctx.roomKeys
+        ? { ok: true }
+        : { ok: false, reason: "No room is open" };
+    case "roomTakeIdle":
+      return ctx.roomKeys?.take === "idle"
+        ? { ok: true }
+        : { ok: false, reason: "A take is open" };
+    case "roomTakeLive":
+      return ctx.roomKeys?.take === "live"
+        ? { ok: true }
+        : { ok: false, reason: "No take is open" };
     default:
       return { ok: false, reason: `Unknown when: ${String(when)}` };
   }

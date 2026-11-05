@@ -32,7 +32,13 @@ export function useDawKeymapListener(): void {
   useEffect(() => {
     // Shift+Space was handled on keydown: its keyup must not click the button.
     let hearHeld = false;
+    let holdTimer: ReturnType<typeof setTimeout> | null = null;
+    const cancelHold = () => {
+      if (holdTimer) clearTimeout(holdTimer);
+      holdTimer = null;
+    };
     const onKeyUp = (e: KeyboardEvent) => {
+      cancelHold();
       if (e.key !== " " || !hearHeld) return;
       hearHeld = false;
       e.preventDefault();
@@ -77,6 +83,16 @@ export function useDawKeymapListener(): void {
           if (ignoresKeyRepeat(e, cmd)) {
             return;
           }
+          if (cmd.holdMs) {
+            if (!e.repeat && !holdTimer) {
+              const id = cmd.id;
+              holdTimer = setTimeout(() => {
+                holdTimer = null;
+                void execute(id, {}, { skipWhen: true });
+              }, cmd.holdMs);
+            }
+            return;
+          }
           const result = await execute(cmd.id, argsFromKeyEvent(e, cmd.id), {
             ctx,
             skipWhen: true,
@@ -95,7 +111,10 @@ export function useDawKeymapListener(): void {
     };
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", cancelHold);
     return () => {
+      cancelHold();
+      window.removeEventListener("blur", cancelHold);
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("keyup", onKeyUp);
     };

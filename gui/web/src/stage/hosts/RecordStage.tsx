@@ -38,6 +38,7 @@ import { sessionItemId } from "../../review/reviewItems";
 import { useDawStore } from "../../state/dawStore";
 import { DeviceSheet } from "../../system/DeviceSheet";
 import type { RoomViewProps } from "../../system/RoomView";
+import { setRoomKeys } from "../../system/roomKeys";
 import { TakesTray } from "../../system/TakesTray";
 import { dbToFraction } from "../../ui/metering";
 import { hostStateOf, type LoadFailure } from "./hostModels";
@@ -383,6 +384,35 @@ function RecordStageBody({
   ) : undefined;
 
   const canRecord = snapshot !== null && room.control !== null;
+  const keyProps = snapshot
+    ? {
+        take: live || paused ? ("live" as const) : ("idle" as const),
+        start: canRecord
+          ? () => void room.runCommand("record.start")
+          : undefined,
+        stop: canRecord ? () => void room.runCommand("record.stop") : undefined,
+        pause: () =>
+          void room.runCommand(paused ? "record.resume" : "record.pause"),
+        mute: host ? () => room.setMuted(!host.muted) : undefined,
+      }
+    : null;
+  const keyStart = keyProps?.start;
+  const keyStop = keyProps?.stop;
+  const keyMute = keyProps?.mute;
+  const keyTake = keyProps?.take;
+  const keyPause = keyProps?.pause;
+  useEffect(() => {
+    if (!keyTake) return;
+    setRoomKeys({
+      take: keyTake,
+      start: keyStart,
+      stop: keyStop,
+      pause: keyPause,
+      mute: keyMute,
+    });
+    return () => setRoomKeys(null);
+  }, [keyTake, keyStart, keyStop, keyPause, keyMute]);
+
   const roomProps: RoomViewProps | null = snapshot
     ? {
         seat: "host",
