@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useInsertionEffect,
+  useRef,
+  useState,
+} from "react";
 import { MIX_MINUS_RAMP_S, MixMinusGraph } from "../../audio/mixMinus";
 import { errorMessage } from "../../utils/apiError";
 import { audioContextCtor } from "../../utils/audio";
@@ -89,11 +95,8 @@ export function useRecordMonitor({
   const [contextGeneration, setContextGeneration] = useState(0);
   const sessionId = snapshot?.session_id ?? null;
   const sendRef = useRef(send);
-  sendRef.current = send;
   const streamRef = useRef(localStream);
-  streamRef.current = localStream;
   const snapshotRef = useRef(snapshot);
-  snapshotRef.current = snapshot;
   const graphRef = useRef<MixMinusGraph | null>(null);
   const sourcesRef = useRef(new Map<string, AudioNode>());
   const oscillatorsRef = useRef(new Map<string, OscillatorNode>());
@@ -112,42 +115,47 @@ export function useRecordMonitor({
       )
       .join("|") ?? "";
 
-  syncRosterRef.current = () => {
-    const mesh = meshRef.current;
-    const graph = graphRef.current;
-    const snap = snapshotRef.current;
-    if (!mesh || !snap || !localId) {
-      return;
-    }
-    const peers = snap.participants.filter(
-      (person) => person.connected && person.participant_id !== localId,
-    );
-    mesh.syncPeers(
-      peers.map((person) => ({
-        id: person.participant_id,
-        gen: person.connected_wall_ms ?? person.joined_wall_ms ?? 0,
-      })),
-    );
-    const ctx = ctxRef.current;
-    const sources = sourcesRef.current;
-    const oscillators = oscillatorsRef.current;
-    for (const person of peers) {
-      graph?.setRemoteMuted(person.participant_id, person.muted);
-      if (recordE2eEnabled() && ctx && graph) {
-        const injected = injectE2eRemote(
-          ctx,
-          graph,
-          sources,
-          oscillators,
-          person.participant_id,
-          person.muted,
-        );
-        if (injected) {
-          setRemoteCount(sources.size);
+  useInsertionEffect(() => {
+    sendRef.current = send;
+    streamRef.current = localStream;
+    snapshotRef.current = snapshot;
+    syncRosterRef.current = () => {
+      const mesh = meshRef.current;
+      const graph = graphRef.current;
+      const snap = snapshotRef.current;
+      if (!mesh || !snap || !localId) {
+        return;
+      }
+      const peers = snap.participants.filter(
+        (person) => person.connected && person.participant_id !== localId,
+      );
+      mesh.syncPeers(
+        peers.map((person) => ({
+          id: person.participant_id,
+          gen: person.connected_wall_ms ?? person.joined_wall_ms ?? 0,
+        })),
+      );
+      const ctx = ctxRef.current;
+      const sources = sourcesRef.current;
+      const oscillators = oscillatorsRef.current;
+      for (const person of peers) {
+        graph?.setRemoteMuted(person.participant_id, person.muted);
+        if (recordE2eEnabled() && ctx && graph) {
+          const injected = injectE2eRemote(
+            ctx,
+            graph,
+            sources,
+            oscillators,
+            person.participant_id,
+            person.muted,
+          );
+          if (injected) {
+            setRemoteCount(sources.size);
+          }
         }
       }
-    }
-  };
+    };
+  }, [send, localStream, snapshot, localId]);
 
   useEffect(() => {
     const sources = sourcesRef.current;
