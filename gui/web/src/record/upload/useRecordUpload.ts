@@ -412,22 +412,31 @@ export function useHostUploadSegments(
   transport: RecordUploadTransport | null,
   enabled: boolean,
 ): RecordUploadStatus["segments"] {
-  const [segments, setSegments] = useState<RecordUploadStatus["segments"]>([]);
+  const [view, setView] = useState<{
+    owner: { enabled: boolean; transport: RecordUploadTransport | null };
+    segments: RecordUploadStatus["segments"];
+  }>(() => ({ owner: { enabled, transport }, segments: [] }));
+  if (view.owner.enabled !== enabled || view.owner.transport !== transport) {
+    setView({
+      owner: { enabled, transport },
+      segments: enabled && transport ? view.segments : [],
+    });
+  }
+  const owner = view.owner;
   useEffect(() => {
-    if (!enabled || !transport) {
-      setSegments([]);
-      return;
-    }
+    if (!enabled || !transport) return;
     let cancelled = false;
     const tick = async () => {
       try {
         const remote = await transport.status();
         if (!cancelled) {
-          setSegments(remote.segments);
+          setView((current) =>
+            current.owner === owner
+              ? { owner, segments: remote.segments }
+              : current,
+          );
         }
-      } catch {
-        /* keep last successful snapshot */
-      }
+      } catch {}
     };
     void tick();
     const timer = window.setInterval(() => void tick(), 2000);
@@ -435,6 +444,6 @@ export function useHostUploadSegments(
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [enabled, transport]);
-  return segments;
+  }, [enabled, transport, owner]);
+  return view.segments;
 }
