@@ -12,7 +12,7 @@ import type { ReverseAction } from "../state/types";
 import { useDaw } from "../state/useDaw";
 import { useDocumentBusy } from "../state/useDocumentBusy";
 import type { HistoryEntryId } from "../types/project";
-import { TOAST_MS, TOAST_UNDO_MS, Toast } from "../ui";
+import { Toast } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
 import { registerFocusHold } from "../ui/focusHold";
 import { isValidFocusTarget } from "../ui/focusTarget";
@@ -284,7 +284,6 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
             ? readyAfterSaveCopy("undo")
             : undefined
       }
-      timeoutMs={onUndo ? TOAST_UNDO_MS : TOAST_MS}
       visibility={visibility}
     />,
     portal,

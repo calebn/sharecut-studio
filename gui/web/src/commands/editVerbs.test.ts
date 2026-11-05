@@ -505,6 +505,110 @@ describe("Cut, and the Backspace order", () => {
   });
 });
 
+describe("Backspace while playing with nothing selected", () => {
+  const timelined = () => {
+    const project = editFixtureProject();
+    for (const u of project.transcript!.utterances)
+      for (const w of u.words!) {
+        w.timeline_start = w.start;
+        w.timeline_end = w.end;
+        w.mappable = true;
+      }
+    return project;
+  };
+  const playing = (extra: Record<string, unknown> = {}) =>
+    host(null, {
+      project: timelined(),
+      isPlaying: true,
+      playheadSec: 7.5,
+      ...extra,
+    });
+
+  it("pauses in place and selects the word under the playhead", async () => {
+    playing();
+    expect(await execute("edit.delete")).toEqual({ status: "ok" });
+    const s = useDawStore.getState();
+    expect(s.isPlaying).toBe(false);
+    expect(s.playheadSec).toBe(7.5);
+    expect(s.selection).toMatchObject({
+      kind: "transcriptRange",
+      trackId: MIRA,
+      startWordIndex: 2,
+      endWordIndex: 2,
+    });
+    expect(announced()).toBe('Selected "this". Backspace cuts it');
+    expect(runRangeAction).not.toHaveBeenCalled();
+  });
+
+  it("cuts the selected word on the second press, through the range cut", async () => {
+    playing();
+    await execute("edit.delete");
+    await execute("edit.delete");
+    expect(runRangeAction).toHaveBeenCalledOnce();
+    expect(runRangeAction).toHaveBeenCalledWith("cut");
+  });
+
+  it("takes the last word that started when the playhead is between words", async () => {
+    playing({ playheadSec: 5 });
+    await execute("edit.delete");
+    expect(useDawStore.getState().selection).toMatchObject({
+      startWordIndex: 0,
+    });
+  });
+
+  it("prefers the targeted track, then the topmost audible one", async () => {
+    const project = timelined();
+    project.transcript!.utterances.push({
+      track_id: JONAS,
+      speaker: "Jonas",
+      start: 7,
+      end: 8,
+      text: "yes",
+      words: [
+        {
+          text: "yes",
+          start: 7,
+          end: 8,
+          timeline_start: 7,
+          timeline_end: 8,
+          mappable: true,
+          word_index: 0,
+        },
+      ],
+    });
+    playing({ project, rangeScopeTrackIds: [JONAS] });
+    await execute("edit.delete");
+    expect(useDawStore.getState().selection).toMatchObject({ trackId: JONAS });
+    playing({ project, viewerMute: { [MIRA]: true } });
+    await execute("edit.delete");
+    expect(useDawStore.getState().selection).toMatchObject({ trackId: JONAS });
+  });
+
+  it("keeps playing and says so when no word is under the playhead", async () => {
+    playing({ playheadSec: 0.5 });
+    expect(await execute("edit.delete", {}, { skipWhen: true })).toEqual({
+      status: "disabled",
+      reason: "No word under the playhead",
+    });
+    expect(useDawStore.getState().isPlaying).toBe(true);
+    expect(useDawStore.getState().selection).toBeNull();
+  });
+
+  it("leaves the old refusal when not playing or outside Edit", async () => {
+    host(null, { playheadSec: 7.5, isPlaying: false });
+    expect(await execute("edit.delete")).toEqual({
+      status: "disabled",
+      reason: "No clip selected",
+    });
+    playing({ stage: "review" });
+    expect((await execute("edit.delete", {}, { skipWhen: true })).status).toBe(
+      "disabled",
+    );
+    expect(useDawStore.getState().isPlaying).toBe(true);
+    expect(useDawStore.getState().selection).toBeNull();
+  });
+});
+
 describe("Keep", () => {
   it("rejects a suggestion", async () => {
     host(EDIT_SELECTIONS.suggestion);

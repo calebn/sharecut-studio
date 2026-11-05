@@ -16,9 +16,10 @@ import { Button } from "./Button";
 import { isValidFocusTarget } from "./focusTarget";
 
 /** How long a toast stays up while not hovered or focused. */
-export const TOAST_MS = 8000;
+export const TOAST_MS = 6000;
 
-export const TOAST_UNDO_MS = 60_000;
+/** A toast with Undo stays longer: the person has to read it and then reach for the button. */
+export const TOAST_UNDO_MS = 10_000;
 
 /**
  * Most a toast waits, in total, while it reports as clipped. It protects
@@ -108,7 +109,7 @@ function ToastCard({
   onDismiss,
   undoDisabledReason,
   undoNote,
-  timeoutMs = TOAST_MS,
+  timeoutMs = onUndo ? TOAST_UNDO_MS : TOAST_MS,
   visibility = "visible",
   returnFocusRef,
 }: CardProps) {

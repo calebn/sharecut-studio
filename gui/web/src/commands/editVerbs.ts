@@ -44,7 +44,7 @@ import {
   finishPendingReview,
 } from "../utils/pendingReviewPass";
 import { playTimelineRange } from "../utils/playRange";
-import { oneWordOf } from "../utils/rangeSelect";
+import { oneWordOf, wordSelection } from "../utils/rangeSelect";
 import {
   siblingSplitLanes,
   speakerLaneMoveTarget,
@@ -66,6 +66,7 @@ import { seekTransport } from "./seek";
 import { ignoreWouldRestore } from "./transcriptIgnore";
 import { requestInlineEdit } from "./transcriptWord";
 import type { ExecuteResult } from "./types";
+import { wordUnderPlayhead } from "./wordUnderPlayhead";
 
 type VerbArg = string | undefined;
 
@@ -287,12 +288,27 @@ async function runCutSelection(
     case "envelopePoint":
       return removeMarker(selection);
     default:
+      if (!selection && s.isPlaying && s.stage === "edit")
+        return selectWordUnderPlayhead();
       return disabled(
         selection
           ? "There is nothing to cut in this selection"
           : "No clip selected",
       );
   }
+}
+
+function selectWordUnderPlayhead(): ExecuteResult {
+  const s = useDawStore.getState();
+  const word = s.project
+    ? wordUnderPlayhead(s.project, s.playheadSec, s.rangeScopeTrackIds, s)
+    : null;
+  if (!word) return disabled("No word under the playhead");
+  s.stopFollow("local");
+  s.setIsPlaying(false);
+  s.setSelection(wordSelection(word));
+  s.announceStatus(`Selected "${word.text}". Backspace cuts it`);
+  return OK;
 }
 
 async function removeMarker(

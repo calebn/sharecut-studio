@@ -150,7 +150,7 @@ export function DeliverStage({
   layout = "desktop",
   state = "ready",
   guest = false,
-  toastMs = 6000,
+  toastMs,
   showLink = true,
   showPlayer = true,
   exportOptions,
