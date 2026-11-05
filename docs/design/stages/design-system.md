@@ -164,7 +164,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
   - Verbs that don't apply are absent, never disabled.
 - Primary per object: cut suggestion → Cut; pause → Shorten; sound → Lower; pickup → Replace or Insert; words or range → Cut; comment → Resolve; check or clip idea → Approve. Clip, seam, marker, track and envelope point have no primary.
 - **Floating** (desktop and tablet): a 40 px pill (44 px on touch) beside the selection: below it by default so the ruler stays uncovered, above a selected word so the next Script line stays clickable, flipping when there is no room. Icon only, tooltip with name and key.
-- **Dock** (phone): one 64 px row above the Player bar, a 48 px icon over a 10 px label, and it is the Sheet's first detent.
+- **Dock** (phone): one 64 px row above the Player bar (in Review the Overview strip and hand-off sit between them), a 48 px icon over a 10 px label, and it is the Sheet's first detent.
   - Phone Edit always shows the dock. With nothing selected it shows playhead verbs (Split, Add chapter, Record, Paste).
   - Phone Review always shows it (an item is always current): Keep (left), A/B (center), verb (right).
   - Record uses the dock in its transport layout, replacing the Player bar: centered round buttons, secondaries 48, primary 64, 16 px gaps, Leave or More set 24 px apart at the far right. Host: Mute, Comment, Record, Pause, More. Guest: Mute, Comment, Rail, Leave. Producer: Comment, Rail, Leave.
@@ -652,7 +652,7 @@ Keys that browsers reserve are never used: Mod+N, Mod+T, Mod+W, Mod+R, Mod+D. F6
 | List rail (navigation lists: Review queue, Prepare Sources) | Left, 360 | Becomes a Sheet |
 | Companion rail (Record Comments/Takes, Prepare "Help the transcriber") | Right, 360 | Becomes a Sheet with a peek |
 | Script pane | Right split pane, 400 default (320 to 640), 480 at 1920. Stacked 50/50 on tablet portrait | Its own surface (segmented switch) |
-| Action bar | Floating by the selection | Dock, 64, above the Player |
+| Action bar | Floating by the selection | Dock, 64, above the Player (Review: above the Overview strip) |
 | Player bar / Record dock | Bottom, 56 / 80 | 56 / 80, above the tab bar |
 | Stage bar | Header center | Bottom tab bar, 56 + safe area |
 
