@@ -328,7 +328,7 @@ export const GuestNewVersion: Story = {
 
 export const GuestNewVersionPhone: Story = {
   render: () => (
-    <div style={{ inlineSize: 390 }}>
+    <div style={{ maxInlineSize: 390 }}>
       <Header
         guest={{
           version: "Rough cut · 25 Oct",
