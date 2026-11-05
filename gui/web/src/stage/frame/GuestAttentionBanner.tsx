@@ -17,7 +17,7 @@ export function GuestAttentionBanner({
 }) {
   const { projectPath } = useDaw((s) => ({ projectPath: s.projectPath }));
   const {
-    pending,
+    pending: queued,
     conflicts: allConflicts,
     recoverySelection,
     status,
@@ -30,6 +30,7 @@ export function GuestAttentionBanner({
     ? [...activeConflicts, recoverySelection]
     : activeConflicts;
   const guest = isShareProjectKey(projectPath);
+  const pending = guest ? 0 : queued;
   const unreadable = status === "unreadable" || status === "retrying";
   useOfflineAttentionAnnouncement({
     projectPath,

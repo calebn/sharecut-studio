@@ -167,7 +167,7 @@ describe("dismissal transaction results", () => {
       otherConflictKey: hostConflicts,
       otherQueue: () => loadHostCommandQueue("/project"),
       otherConflicts: () => loadHostConflicts("/project"),
-      pending: 0,
+      pending: 2,
     },
   ])(
     "returns the committed $name queue and conflict snapshot",

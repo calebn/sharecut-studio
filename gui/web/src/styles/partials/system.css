@@ -155,6 +155,7 @@
 }
 
 .sys-save--offline svg,
+.sys-save--unreachable svg,
 .sys-save--failed svg {
   inline-size: 1rem;
   block-size: 1rem;
