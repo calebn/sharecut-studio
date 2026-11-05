@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { type ReactNode, useCallback, useState } from "react";
+import { type ReactNode, StrictMode, useCallback, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setClipJoin } from "../api";
 import { LONG_PRESS_MS } from "../hooks/gestureConstants";
@@ -134,6 +134,69 @@ beforeEach(() => {
   HTMLElement.prototype.releasePointerCapture = releaseCapture;
 });
 describe("JoinEditor coupled length", () => {
+  it.each([
+    ["normal", right],
+    ["blocked", { ...right, join_crossfade_blocked: "no_headroom" }],
+    ["zero width", { ...right, join_crossfade_ms: 0 }],
+  ] as const)("finds the initially open %s join's real host", (kind, row) => {
+    useDawStore.getState().setProject(
+      minimalProject({
+        tracks: [sampleTrack()],
+        clips: { tracks: { host: [left, row] }, clip_count: 2 },
+      }),
+    );
+    useDawStore.setState({ openJoinId: row.id });
+    const { container } = render(
+      <RoutedLanes>
+        <JoinWithGlyph {...base} right={row} />
+      </RoutedLanes>,
+    );
+    const glyph = screen.getByRole("button", { name: /join at/ });
+    const host = container.querySelector(".timeline-area");
+    const rail = screen.getByRole("group", {
+      name: "Crossfade endpoint editing",
+    });
+    expect(glyph).toBeInTheDocument();
+    expect(host).not.toBeNull();
+    expect(rail.parentElement).toBe(host);
+    expect(grip()).toBeInTheDocument();
+    if (kind !== "normal")
+      expect(container.querySelector(".join-blend")).toBeNull();
+    expect(setClipJoin).not.toHaveBeenCalled();
+  });
+
+  it("uses the real join host after StrictMode replay and retires it on unmount", () => {
+    const { container, unmount } = render(
+      <StrictMode>
+        <RoutedLanes>
+          <JoinWithGlyph {...base} />
+        </RoutedLanes>
+      </StrictMode>,
+    );
+    expect(
+      screen.queryByRole("group", { name: "Crossfade endpoint editing" }),
+    ).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /join at/ }));
+    const rail = screen.getByRole("group", {
+      name: "Crossfade endpoint editing",
+    });
+    expect(rail.parentElement).toBe(container.querySelector(".timeline-area"));
+    expect(rail).toBeInTheDocument();
+    unmount();
+    expect(rail).not.toBeInTheDocument();
+    expect(setClipJoin).not.toHaveBeenCalled();
+  });
+
+  it("leaves the endpoint rail absent when its join glyph has no host", () => {
+    useDawStore.setState({ openJoinId: right.id });
+    render(<JoinEditor {...base} />);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("group", { name: "Crossfade endpoint editing" }),
+    ).toBeNull();
+    expect(setClipJoin).not.toHaveBeenCalled();
+  });
+
   it("previews a centered X, submits one doubled relative delta and restores authoritative paint", async () => {
     const { container } = mount();
     expect(container.querySelector(".join-blend")).toHaveStyle({

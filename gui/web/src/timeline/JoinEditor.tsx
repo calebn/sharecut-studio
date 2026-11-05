@@ -85,10 +85,10 @@ function JoinEditorLive(props: JoinEditorProps) {
   useLayoutEffect(() => {
     if (open) {
       setHost(
-        findJoinGlyph(right.id)?.closest<HTMLElement>(".timeline-area") ?? null,
+        anchorRef.current?.closest<HTMLElement>(".timeline-area") ?? null,
       );
     }
-  }, [open, right.id]);
+  }, [open, anchorRef]);
   const draft =
     (edit.state.kind === "pointer" && edit.state.moved) ||
     edit.state.kind === "range";
