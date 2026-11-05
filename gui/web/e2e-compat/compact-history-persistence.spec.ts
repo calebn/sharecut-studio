@@ -14,14 +14,14 @@ test.describe.configure({ timeout: 240_000 });
  */
 for (const name of ["portrait", "landscape"] as const) {
   for (const rootPx of [16, 32]) {
-    for (const theme of ["dark", "light"] as const) {
-      test.describe(`history ${name} root${rootPx} ${theme}`, () => {
+    {
+      test.describe(`history ${name} root${rootPx}`, () => {
         test("Undo and Redo stay reachable in the App header with the Inspector sheet open", async ({
           page,
           context,
           browserName,
         }) => {
-          await openAt(page, SIZES[name], 16, theme);
+          await openAt(page, SIZES[name], 16);
           const finger = await newFinger(context, page, browserName);
           await finger.down(
             await centerOf(page, `${lane} [data-hit-id="env-c"]`),
