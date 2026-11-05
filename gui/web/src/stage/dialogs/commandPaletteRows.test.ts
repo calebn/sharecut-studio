@@ -143,6 +143,23 @@ describe("paletteEntries", () => {
     }
   });
 
+  it("gives chapters that share a time and title distinct, stable ids", () => {
+    const build = () =>
+      paletteEntries(buildCommandContext(), {
+        ...sources,
+        chapters: [
+          { time: 5, title: "" },
+          { time: 5, title: "" },
+          { time: 5, title: "Intro" },
+        ],
+      })
+        .filter((e) => e.group === "chapters")
+        .map((e) => e.id);
+    const ids = build();
+    expect(new Set(ids).size).toBe(3);
+    expect(build()).toEqual(ids);
+  });
+
   it("leaves Projects out on a guest link but keeps chapters and people", () => {
     useDawStore
       .getState()

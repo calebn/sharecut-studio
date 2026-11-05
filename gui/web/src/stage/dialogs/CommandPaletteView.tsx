@@ -272,14 +272,15 @@ export function CommandPaletteView({
           aria-label="Commands"
           className="command-palette-listbox"
         >
-          {sections.map((section) => {
+          {sections.map((section, i) => {
             if (section.label == null) {
               return section.rows.map((row) => option(row, true));
             }
-            const labelId = `${baseId}-group-${section.key}`;
+            // Index-keyed: the same category can head two runs of commands.
+            const labelId = `${baseId}-group-${i}`;
             return (
               <div
-                key={section.key}
+                key={`${section.key}:${i}`}
                 role="group"
                 aria-labelledby={labelId}
                 className="command-palette-group"

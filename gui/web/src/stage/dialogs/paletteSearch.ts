@@ -112,7 +112,8 @@ export const PALETTE_ENTRY_GROUP_LABELS: Readonly<
 /**
  * A palette row that is data rather than a catalog command: a recent project,
  * a person in the session, a chapter. Running it runs `commandId` with `args`
- * through the command registry, so it follows the same gates as the command.
+ * through the command registry. Its row is built only when the command's gate
+ * passes (`paletteEntries`), and the palette re-checks the gate when it runs.
  */
 export type PaletteEntry = {
   /** Stable across opens (not a DOM id): recents are stored by it. */

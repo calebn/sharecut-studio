@@ -118,11 +118,16 @@ export function paletteEntries(
     }
   }
   if (allowed("transport.seek")) {
+    const seen = new Map<string, number>();
     [...src.chapters]
       .sort((a, b) => a.time - b.time)
       .forEach((c) => {
+        // The nth chapter with the same time and title gets `#n`, so ids stay unique and stable.
+        const base = `chapter:${c.time}:${c.title}`;
+        const n = seen.get(base) ?? 0;
+        seen.set(base, n + 1);
         out.push({
-          id: `chapter:${c.time}:${c.title}`,
+          id: n === 0 ? base : `${base}#${n}`,
           group: "chapters",
           label: c.title || "Untitled chapter",
           context: formatTimeShort(c.time),

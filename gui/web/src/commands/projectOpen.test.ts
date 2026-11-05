@@ -302,4 +302,73 @@ describe("project.open", () => {
     });
     expect(assign).not.toHaveBeenCalled();
   });
+  describe("with a path", () => {
+    const GUARDED = "http://127.0.0.1:8765/?project=old&sc_close_guard=host";
+
+    it("opens that path without the picker", async () => {
+      vi.stubGlobal("location", {
+        href: "http://127.0.0.1:8765/?project=old",
+        assign,
+      });
+      openMock.mockResolvedValue({ project_path: "/p/show", name: "show" });
+      expect(
+        (await execute("project.open", { path: " /p/show " })).status,
+      ).toBe("ok");
+      await waitFor(() => expect(assign).toHaveBeenCalled());
+      expect(pickMock).not.toHaveBeenCalled();
+      expect(openMock).toHaveBeenCalledWith("/p/show");
+      const opened = new URL(String(assign.mock.calls[0]?.[0]));
+      expect(opened.searchParams.get("project")).toBe("/p/show");
+    });
+
+    it("is refused while the guard is armed", async () => {
+      vi.stubGlobal("location", { href: GUARDED, assign });
+      expect((await execute("project.open", { path: "/p/show" })).status).toBe(
+        "disabled",
+      );
+      expect(openMock).not.toHaveBeenCalled();
+      expect(assign).not.toHaveBeenCalled();
+    });
+
+    it("does not switch if the guard arms before the open answers", async () => {
+      let finishOpen!: (v: { project_path: string; name: string }) => void;
+      openMock.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishOpen = resolve;
+          }),
+      );
+      expect((await execute("project.open", { path: "/p/show" })).status).toBe(
+        "ok",
+      );
+      await waitFor(() => expect(openMock).toHaveBeenCalled());
+      vi.stubGlobal("location", { href: GUARDED, assign });
+      await act(async () => {
+        finishOpen({ project_path: "/p/show", name: "show" });
+      });
+      expect(assign).not.toHaveBeenCalled();
+    });
+
+    it("ignores a repeat while an open is in flight", async () => {
+      openMock.mockImplementation(() => new Promise(() => {}));
+      expect((await execute("project.open", { path: "/p/a" })).status).toBe(
+        "ok",
+      );
+      expect((await execute("project.open", { path: "/p/b" })).status).toBe(
+        "ok",
+      );
+      await waitFor(() => expect(openMock).toHaveBeenCalledTimes(1));
+      expect(openMock).toHaveBeenCalledWith("/p/a");
+    });
+
+    it("falls back to the picker for a blank or non-string path", async () => {
+      pickMock.mockResolvedValue({ cancelled: true });
+      await execute("project.open", { path: "   " });
+      await waitFor(() => expect(pickMock).toHaveBeenCalledTimes(1));
+      _resetProjectOpenInFlightForTests();
+      await execute("project.open", { path: 7 });
+      await waitFor(() => expect(pickMock).toHaveBeenCalledTimes(2));
+      expect(openMock).not.toHaveBeenCalled();
+    });
+  });
 });

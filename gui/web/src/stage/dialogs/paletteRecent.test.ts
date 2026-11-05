@@ -22,6 +22,11 @@ describe("palette recents", () => {
     expect(readPaletteRecent()).toEqual(["a", "b"]);
   });
 
+  it("reads repeated ids once", () => {
+    localStorage.setItem("sharecut.palette.recent.v1", '["a","b","a","b","c"]');
+    expect(readPaletteRecent()).toEqual(["a", "b", "c"]);
+  });
+
   it("does not throw when storage is blocked", () => {
     const spy = vi
       .spyOn(Storage.prototype, "getItem")
