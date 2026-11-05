@@ -36,10 +36,10 @@ for (const [width, height] of [
       .getByRole("button", { name: "Approve", exact: true })
       .first()
       .click();
-    const waive = sheet.getByRole("button", { name: "Waive with reason" });
+    const waive = sheet.getByRole("button", { name: "Cut anyway" });
     await expect(waive).toBeVisible();
 
-    await expect(page.getByText(/refinement is (required|done)/i)).toHaveCount(
+    await expect(page.getByText(/transcript isn.t checked yet/i)).toHaveCount(
       1,
     );
     await expect(page.locator("body")).not.toContainText(
@@ -54,7 +54,7 @@ for (const [width, height] of [
       const box = (selector: string) =>
         document.querySelector(selector)?.getBoundingClientRect() ?? null;
       const button = [...document.querySelectorAll("button")].find(
-        (candidate) => candidate.textContent === "Waive with reason",
+        (candidate) => candidate.textContent === "Cut anyway",
       );
       const rect = button?.getBoundingClientRect();
       const recovery = document.querySelector(".transcript-refine-recovery");

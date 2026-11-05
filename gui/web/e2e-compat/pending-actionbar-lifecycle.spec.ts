@@ -71,17 +71,16 @@ test("live waiver draft survives a short to tall tablet resize", async ({
   });
   const bar = page.locator(".pending-actionbar");
   await bar.getByRole("button", { name: "Approve", exact: true }).click();
-  const reason = bar.getByRole("textbox", { name: "Waiver reason" });
+  const reason = bar.getByRole("button", { name: "Cut anyway" });
   await expect(reason).toBeVisible();
-  await reason.fill("Reviewed every flagged transcript word");
   await reason.focus();
   await page.setViewportSize({ width: 844, height: 900 });
   await expect(page.locator(".pending-actionbar")).toBeVisible();
   await page.waitForTimeout(700);
   const moved = page
     .locator(".pending-actionbar")
-    .getByRole("textbox", { name: "Waiver reason" });
-  const actual = await moved.inputValue();
+    .getByRole("button", { name: "Cut anyway" });
+  const actual = await moved.textContent();
   await info.attach("relocation", {
     body: JSON.stringify({
       browserName,
@@ -91,6 +90,5 @@ test("live waiver draft survives a short to tall tablet resize", async ({
     contentType: "application/json",
   });
   await page.screenshot({ path: info.outputPath("waiver-transition.png") });
-  await expect(moved).toHaveValue("Reviewed every flagged transcript word");
   await expect(moved).toBeFocused();
 });

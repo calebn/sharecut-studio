@@ -25,6 +25,10 @@ import {
 } from "../document/authorityState";
 import { FeedbackToast } from "../feedback/FeedbackToast";
 import { useWaveformSnapTicks } from "../hooks/useWaveformSnapTicks";
+import {
+  CUT_ANYWAY_REASON,
+  REFINE_GATE_GUI_MESSAGE,
+} from "../inspector/TranscriptRefineRecovery";
 import { QUEUED_NOTICE_POLL_MS } from "../inspector/useQueuedReviewNotice";
 import {
   submitLiveHistoryCommand,
@@ -1258,25 +1262,19 @@ describe("PendingEditOverlayView", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Approve" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Transcript refinement is required before approval.",
+      REFINE_GATE_GUI_MESSAGE,
     );
     expect(
       await screen.findByRole("region", { name: "Transcript refine recovery" }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Waiver reason")).toBeInTheDocument();
-    await userEvent.type(
-      screen.getByLabelText("Waiver reason"),
-      "Reviewed transcript audio",
-    );
-    await userEvent.click(
-      screen.getByRole("button", { name: "Waive with reason" }),
-    );
+    expect(screen.queryByLabelText("Waiver reason")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Cut anyway" }));
     expect(await screen.findByRole("status")).toHaveTextContent(
       "Waiver recorded. Retry approval to apply pending edits.",
     );
     expect(waiveTranscriptRefine).toHaveBeenCalledWith(
       "/tmp/p.json",
-      "Reviewed transcript audio",
+      CUT_ANYWAY_REASON,
     );
     expect(onReviewAction).toHaveBeenCalledOnce();
     await userEvent.click(screen.getByRole("button", { name: "Approve" }));
@@ -1342,10 +1340,10 @@ it("keeps the same review draft and focus in body flow for compact half and full
       expect(chrome.querySelector(".pending-actionbar")).not.toBeNull(),
     );
     await userEvent.click(screen.getByRole("button", { name: "Approve" }));
-    const reason = await screen.findByRole("textbox", {
-      name: "Waiver reason",
+    const reason = await screen.findByRole("button", {
+      name: "Cut anyway",
     });
-    await userEvent.type(reason, "Reviewed the selected source audio");
+    reason.focus();
     const host = reason.closest(".pending-actionbar-host");
     for (const detent of ["half", "full"] as const) {
       panel.classList.remove(
@@ -1359,7 +1357,6 @@ it("keeps the same review draft and focus in body flow for compact half and full
       expect(body.firstElementChild).toBe(host);
       expect(chrome).not.toContainElement(reason);
       expect(reason).toHaveFocus();
-      expect(reason).toHaveValue("Reviewed the selected source audio");
       expect(document.querySelectorAll(".pending-actionbar-host")).toHaveLength(
         1,
       );
@@ -1372,12 +1369,10 @@ it("keeps the same review draft and focus in body flow for compact half and full
     await waitFor(() => expect(replacement).toContainElement(reason));
     expect(replacement.firstElementChild).toBe(host);
     expect(reason).toHaveFocus();
-    expect(reason).toHaveValue("Reviewed the selected source audio");
     panel.classList.replace("bottom-sheet--full", "bottom-sheet--peek");
     await act(() => window.dispatchEvent(new Event("resize")));
     await waitFor(() => expect(chrome).toContainElement(reason));
     expect(reason).toHaveFocus();
-    expect(reason).toHaveValue("Reviewed the selected source audio");
     expect(onReviewAction).toHaveBeenCalledTimes(1);
     view.unmount();
     expect(document.querySelector(".pending-actionbar-host")).toBeNull();
@@ -1387,28 +1382,25 @@ it("keeps the same review draft and focus in body flow for compact half and full
   }
 });
 
-it("retains a waiver draft and textarea focus when the portal destination changes", async () => {
+it("retains the Cut anyway focus when the portal destination changes", async () => {
   const { root, panel, chrome, view } = mount();
   try {
     await waitFor(() =>
       expect(chrome.querySelector(".pending-actionbar")).not.toBeNull(),
     );
     await userEvent.click(screen.getByRole("button", { name: "Approve" }));
-    const reason = await screen.findByRole("textbox", {
-      name: "Waiver reason",
+    const reason = await screen.findByRole("button", {
+      name: "Cut anyway",
     });
-    await userEvent.type(reason, "Reviewed every flagged transcript word");
+    reason.focus();
     expect(reason).toHaveFocus();
     await undock(panel);
-    const moved = screen.getByRole("textbox", { name: "Waiver reason" });
-
-    expect(moved).toHaveValue("Reviewed every flagged transcript word");
+    const moved = screen.getByRole("button", { name: "Cut anyway" });
     expect(moved).toHaveFocus();
     expect(moved).toBe(reason);
     panel.classList.add("bottom-sheet--inspector", "bottom-sheet--compact");
     await act(() => window.dispatchEvent(new Event("resize")));
     await waitFor(() => expect(chrome.contains(reason)).toBe(true));
-    expect(reason).toHaveValue("Reviewed every flagged transcript word");
     expect(reason).toHaveFocus();
   } finally {
     view.unmount();
@@ -1459,21 +1451,19 @@ it("recovers the same review subtree after compact chrome is detached and replac
       expect(chrome.querySelector(".pending-actionbar")).not.toBeNull(),
     );
     await userEvent.click(screen.getByRole("button", { name: "Approve" }));
-    const reason = await screen.findByRole("textbox", {
-      name: "Waiver reason",
+    const reason = await screen.findByRole("button", {
+      name: "Cut anyway",
     });
-    await userEvent.type(reason, "Reviewed audio before resize");
+    reason.focus();
     chrome.remove();
     await act(() => window.dispatchEvent(new Event("resize")));
     await waitFor(() => expect(document.body.contains(reason)).toBe(true));
-    expect(reason).toHaveValue("Reviewed audio before resize");
     expect(document.body).toHaveFocus();
     const replacement = document.createElement("div");
     replacement.className = "bottom-sheet-chrome";
     panel.append(replacement);
     await act(() => window.dispatchEvent(new Event("resize")));
     await waitFor(() => expect(replacement.contains(reason)).toBe(true));
-    expect(reason).toHaveValue("Reviewed audio before resize");
     expect(reason).toHaveFocus();
     expect(onReviewAction).toHaveBeenCalledTimes(1);
     view.unmount();
@@ -1494,16 +1484,15 @@ it("keeps a waiver save busy across relocation and shows its failure on the same
       expect(chrome.querySelector(".pending-actionbar")).not.toBeNull(),
     );
     await userEvent.click(screen.getByRole("button", { name: "Approve" }));
-    const reason = await screen.findByRole("textbox", {
-      name: "Waiver reason",
+    const reason = await screen.findByRole("button", {
+      name: "Cut anyway",
     });
-    await userEvent.type(reason, "Reviewed audio before saving");
-    const save = screen.getByRole("button", { name: "Waive with reason" });
+    reason.focus();
+    const save = reason;
     await userEvent.click(save);
     expect(save).toBeDisabled();
     await undock(panel);
-    expect(screen.getByRole("textbox", { name: "Waiver reason" })).toBe(reason);
-    expect(reason).toHaveValue("Reviewed audio before saving");
+    expect(screen.getByRole("button", { name: "Cut anyway" })).toBe(reason);
     expect(reason).toBeDisabled();
     expect(save).toBeDisabled();
     await act(async () =>
@@ -1514,7 +1503,7 @@ it("keeps a waiver save busy across relocation and shows its failure on the same
     expect(save).toBeEnabled();
     expect(waiveTranscriptRefine).toHaveBeenCalledExactlyOnceWith(
       "/tmp/p.json",
-      "Reviewed audio before saving",
+      CUT_ANYWAY_REASON,
     );
   } finally {
     view.unmount();

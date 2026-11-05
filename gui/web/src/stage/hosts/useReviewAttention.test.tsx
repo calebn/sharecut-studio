@@ -201,7 +201,7 @@ describe("useReviewAttention", () => {
       render(<Queue />);
       await act(() => vi.advanceTimersByTimeAsync(0));
       expect(
-        screen.queryByRole("button", { name: "Waive with reason" }) !== null,
+        screen.queryByRole("button", { name: "Cut anyway" }) !== null,
       ).toBe(offered);
     },
   );
