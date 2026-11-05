@@ -131,7 +131,7 @@ const ALIGNER_NEED: NeedTarget = {
 export const ROWS = {
   queued: [
     ADD_DONE,
-    QUEUED("transcribe", "Transcribe", "Starts in a moment"),
+    QUEUED("transcribe", "Transcribe", "Starting"),
     ALIGN,
     CLEAN,
     SUGGEST,
@@ -305,9 +305,22 @@ export const ROWS = {
       id: "transcribe",
       state: "needs-you",
       title: "Transcribe",
-      detail:
-        "Transcribed. Word timing is approximate, so cuts may clip word edges.",
+      detail: "Transcribed. Word timing is approximate",
       model: ALIGNER_NEED,
+    },
+    ALIGN,
+    { id: "clean", state: "done", title: "Clean and level" },
+    SUGGEST,
+  ],
+  retimeWords: [
+    ADD_DONE,
+    {
+      id: "transcribe",
+      state: "needs-you",
+      title: "Transcribe",
+      detail:
+        "Word timing is installed. Words keep their rough timing until you re-time them",
+      action: { label: "Re-time words", run: "retime" },
     },
     ALIGN,
     { id: "clean", state: "done", title: "Clean and level" },

@@ -1,23 +1,15 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { ModelNeedRow, type NeedTarget, WORD_ALIGNER } from "../../models";
+import { ModelNeedRow, type NeedTarget } from "../../models";
 import type { SystemIconName } from "../../system/icons";
 import { StatusList } from "../../system/StatusList";
 import { StatusRow, type StatusRowState } from "../../system/StatusRow";
 import { SystemIcon } from "../../system/SystemIcon";
 import { Button } from "../../ui";
 
-/** `scan` has a row only in the plan, while the sound scan is on. */
-export type ReadyRowId =
-  | "add"
-  | "transcribe"
-  | "align"
-  | "clean"
-  | "scan"
-  | "suggest";
+export type ReadyRowId = "add" | "transcribe" | "align" | "clean" | "suggest";
 
 export type ReadyAction =
-  /** Get was pressed on the word timing ask; the words are re-timed when it lands. */
-  | "get-word-timing"
+  | "retime"
   | "try-again"
   | "hear"
   | "looks-right"
@@ -179,14 +171,7 @@ export function ReadyList({ rows, onAction }: ReadyListProps) {
             {row.body ? (
               <BodyButtons row={row} focusKeep={expanded} onAction={onAction} />
             ) : row.model ? (
-              <ModelNeedRow
-                model={row.model}
-                onGet={
-                  row.model.id === WORD_ALIGNER
-                    ? () => onAction(row.id, "get-word-timing")
-                    : undefined
-                }
-              />
+              <ModelNeedRow model={row.model} />
             ) : undefined}
           </StatusRow>
         );

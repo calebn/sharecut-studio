@@ -6,11 +6,10 @@ import {
 } from "../../api";
 import type { PipelineWorkingSet } from "../../hooks/usePipelineWorkingSet";
 import {
+  clearRetimeOffer,
   type NeedTarget,
-  rowInstalled,
   useModelResume,
-  useModels,
-  WORD_ALIGNER,
+  useWordTiming,
 } from "../../models";
 import { useDawStore } from "../../state/dawStore";
 import {
@@ -96,11 +95,11 @@ type KeepFixes = {
  * Runs the pipeline for Prepare. An initial import starts it once the files
  * are in. Audio added beside transcribed tracks waits for Process new audio.
  * A missing model shows Get and the run continues after its download.
- * Re-transcribe and Re-time words ask before replacing hand fixes.
+ * Re-transcribe and Re-time words ask before replacing hand fixes. Word timing
+ * installed from a row waits for the Re-time words action.
  */
 export function usePrepareRun(input: PrepareRunInput) {
   const { ingestBusy, canRun, mediaKey } = input;
-  const { models } = useModels();
   const [starting, setStarting] = useState(false);
   const [waiting, setWaiting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
@@ -198,6 +197,7 @@ export function usePrepareRun(input: PrepareRunInput) {
         if (runIncludesTranscribe({ fromStep: options.fromStep }))
           recordJobMedia(job.id, keyAtRequest);
         retried.current = null;
+        clearRetimeOffer(latest.current.projectPath);
         refusedRef.current = null;
         failedRef.current = null;
         waitingRef.current = false;
@@ -331,13 +331,7 @@ export function usePrepareRun(input: PrepareRunInput) {
     void askToReplace("update");
   }, [refusal, askToReplace]);
 
-  const alignerRow = models?.find((m) => m.id === WORD_ALIGNER) ?? null;
-  const alignerIn = rowInstalled(alignerRow, {
-    id: WORD_ALIGNER,
-    variant: null,
-  });
-  const retime = useModelResume<NeedTarget>(() => void askToReplace("retime"));
-  const approximate = alignerRow && !alignerIn ? alignerRow : null;
+  const { row: alignerRow, missing, retime } = useWordTiming();
 
   return {
     starting,
@@ -346,9 +340,9 @@ export function usePrepareRun(input: PrepareRunInput) {
     model: need,
     keepFixes,
     /** Word timing is missing; null when the model is in or unknown. */
-    approximateTiming: approximate,
-    /** Get on the word timing row: the words are re-timed when it lands. */
-    awaitAligner: retime.stopFor,
+    approximateTiming: missing ? alignerRow : null,
+    /** Word timing arrived after a transcript without it: offer to redo the timing. */
+    retimeWords: retime,
     run: start,
     tryAgain: () => {
       if (refusal) return void askToReplace("update");
@@ -361,6 +355,7 @@ export function usePrepareRun(input: PrepareRunInput) {
       );
     },
     retranscribe: () => void askToReplace("retranscribe"),
+    retime: () => void askToReplace("retime"),
     keepMyFixes: () => setKeepFixes(null),
     replaceFixes: () => {
       const pending = keepFixes;

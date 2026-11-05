@@ -178,3 +178,13 @@ export const ApproximateTiming: Story = {
     ).toBeVisible();
   },
 };
+
+export const RetimeWords: Story = {
+  args: { rows: ROWS.retimeWords },
+  play: async ({ args, canvasElement }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole("button", { name: /^Re-time words/ }),
+    );
+    await expect(args.onAction).toHaveBeenCalledWith("transcribe", "retime");
+  },
+};

@@ -221,20 +221,20 @@ describe("audio added to a project that already ran", () => {
     ).toBe(false);
   });
 
-  it("adds the sound scan row, with its cost, while the project has the scan on", () => {
+  it("puts the sound scan and its cost on Find suggestions while the project has the scan on", () => {
     config.enabled = STEPS;
     const { view } = render().result.current;
-    expect(view.rows.map((r) => r.id)).toContain("scan");
-    expect(view.rows.find((r) => r.id === "scan")?.detail).toMatch(
-      /^Whole episode · about /,
+    expect(view.rows).toHaveLength(5);
+    expect(view.rows.find((r) => r.id === "suggest")?.detail).toMatch(
+      /^Whole episode · sound scan about /,
     );
   });
 
   it("sizes the scan by all the audio, not the longest track", () => {
     config.enabled = STEPS;
     const { view } = render().result.current;
-    expect(view.rows.find((r) => r.id === "scan")?.detail).toBe(
-      "Whole episode · about 20 s",
+    expect(view.rows.find((r) => r.id === "suggest")?.detail).toBe(
+      "Whole episode · sound scan about 20 s",
     );
   });
 
@@ -323,16 +323,6 @@ describe("audio added to a project that already ran", () => {
       }),
     );
     expect(result.current.view.readyNote).toBeUndefined();
-  });
-
-  it("offers Run everything again for a project that has results", () => {
-    const { view } = render().result.current;
-    expect(view.onRunAll).toBeTypeOf("function");
-  });
-
-  it("offers it for nothing when no source has results yet", () => {
-    useDawStore.setState({ project: project([MAYA], []) });
-    expect(render().result.current.view.onRunAll).toBeUndefined();
   });
 });
 
@@ -443,8 +433,7 @@ describe("the saved steps in the new-audio plan", () => {
     expect(view.rows.find((r) => r.id === "suggest")?.detail).toBe(
       "Off in Advanced",
     );
-    expect(view.rows.find((r) => r.id === "scan")?.action).toBeUndefined();
-    expect(view.rows.some((r) => r.id === "scan")).toBe(false);
+    expect(view.rows).toHaveLength(5);
   });
 
   it.each([null, "Settings could not be loaded"])(
@@ -484,19 +473,16 @@ describe("the saved steps in the new-audio plan", () => {
 });
 
 describe("the plan's sound action and recovery controls", () => {
-  it("skips automatic sound actions while leaving included analysis enabled", async () => {
+  it("skips the sound scan with Find suggestions, the one row that holds it", async () => {
     config.enabled = STEPS;
     const { result } = render();
-    expect(result.current.view.rows.find((r) => r.id === "scan")?.title).toBe(
-      "Apply sound actions",
-    );
-    act(() => result.current.view.onRowAction("scan", "skip"));
-    expect(result.current.view.rows.find((r) => r.id === "scan")?.detail).toBe(
-      "Skipped this time. Sound actions are not applied automatically.",
-    );
+    act(() => result.current.view.onRowAction("suggest", "skip"));
+    expect(
+      result.current.view.rows.find((r) => r.id === "suggest")?.detail,
+    ).toBe("Skipped this time. Filler, pause and sound analysis is skipped.");
     await act(async () => result.current.view.onHandoff());
     expect(start.mock.calls[0][1]?.skipSteps).toContain("apply_sound_actions");
-    expect(start.mock.calls[0][1]?.skipSteps).not.toContain(
+    expect(start.mock.calls[0][1]?.skipSteps).toContain(
       "analyze_fillers_pauses",
     );
     expect(start.mock.calls[0][1]?.config).toMatchObject({

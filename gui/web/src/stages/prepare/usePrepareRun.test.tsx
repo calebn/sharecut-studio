@@ -439,7 +439,16 @@ describe("usePrepareRun after a model download", () => {
 });
 
 describe("usePrepareRun word timing", () => {
-  function alignerSetup() {
+  let episode = 0;
+
+  function alignerSetup(transcribed = true) {
+    const path = `/tmp/p/timing-${(episode += 1)}.sharecut`;
+    useDawStore.setState({
+      projectPath: path,
+      project: minimalProject({
+        transcript: transcribed ? { utterances: [{ id: "u" } as never] } : null,
+      }),
+    });
     const row = (state: "missing" | "installed") =>
       modelsApi({
         status: modelStatus(
@@ -470,42 +479,65 @@ describe("usePrepareRun word timing", () => {
     );
     return {
       ...view,
+      api,
       land: () => {
         api.current = row("installed");
         view.rerender();
       },
+      /** The aligner arrives while this hook is not mounted, as from Review's Check. */
+      installElsewhere: () => {
+        view.unmount();
+        api.current = row("installed");
+        return renderHook(
+          () =>
+            usePrepareRun({
+              projectPath: path,
+              workingSet: workingSet(),
+              transcribed: 1,
+              untranscribed: 0,
+              mediaKey: "a:/a.wav",
+              ingestBusy: false,
+              canRun: true,
+              nameOf: (id) => id,
+            }),
+          { wrapper },
+        );
+      },
     };
   }
 
-  it("offers the aligner as a Model need and re-times the words once Get lands it", async () => {
-    vocabulary.mockResolvedValue({
-      show_title: null,
-      prompt_limit: null,
-      prompt_primer: "",
-      terms: [],
-      guest_names: [],
-      revision: "r1",
-      needs_retranscription: false,
-      edited_tracks: [],
-    });
-    start.mockResolvedValue(pipelineJobSnapshot({ status: "running" }));
+  it("offers the aligner as a Model need, then Re-time words once it lands, without running it", async () => {
     const { result, land } = alignerSetup();
     expect(result.current.approximateTiming).toMatchObject({
       id: "word-aligner",
     });
-    act(() => result.current.awaitAligner(result.current.approximateTiming!));
-    expect(start).not.toHaveBeenCalled();
+    expect(result.current.retimeWords).toBe(false);
     land();
-    await waitFor(() => expect(start).toHaveBeenCalledOnce());
-    expect(start.mock.calls[0][1]).toMatchObject({ retimeWords: true });
+    await waitFor(() => expect(result.current.retimeWords).toBe(true));
     expect(result.current.approximateTiming).toBeNull();
+    expect(start).not.toHaveBeenCalled();
   });
 
-  it("does not re-time when the aligner lands without Get having been pressed on the row", async () => {
-    const { land } = alignerSetup();
+  it("keeps offering Re-time words when the aligner was installed while Prepare was not open, and runs only the timing when asked", async () => {
+    const { installElsewhere } = alignerSetup();
+    const { result } = installElsewhere();
+    await waitFor(() => expect(result.current.retimeWords).toBe(true));
+    expect(start).not.toHaveBeenCalled();
+    await act(async () => result.current.retime());
+    await waitFor(() => expect(start).toHaveBeenCalledOnce());
+    expect(start.mock.calls[0][1]).toMatchObject({
+      fromStep: "transcribe_tracks",
+      retimeWords: true,
+    });
+    await waitFor(() => expect(result.current.retimeWords).toBe(false));
+  });
+
+  it("offers nothing when no transcript was timed without the aligner", async () => {
+    const { result, land } = alignerSetup(false);
+    expect(result.current.retimeWords).toBe(false);
     land();
     await act(async () => undefined);
-    expect(start).not.toHaveBeenCalled();
+    expect(result.current.retimeWords).toBe(false);
   });
 });
 

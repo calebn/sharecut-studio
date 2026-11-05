@@ -242,6 +242,9 @@ export function usePrepareModel(): PrepareModel {
     pendingSuggestions: project?.edit_impact.pending_review_count ?? 0,
     model: run.model,
     approximateTiming: run.approximateTiming,
+    retimeWords: run.retimeWords,
+    transcribedCount: sourcesNow.length - untranscribed.length,
+    enabledSteps: cfg?.enabled_steps,
     keepFixes: run.keepFixes,
     plan,
   });
@@ -290,8 +293,8 @@ export function usePrepareModel(): PrepareModel {
           return next;
         });
         break;
-      case "get-word-timing":
-        if (run.approximateTiming) run.awaitAligner(run.approximateTiming);
+      case "retime":
+        run.retime();
         break;
       case "try-again":
         run.tryAgain();
@@ -372,10 +375,6 @@ export function usePrepareModel(): PrepareModel {
       ? planNote(plan)
       : job && !running && jobCoversMedia
         ? reuseNote(job)
-        : undefined,
-    onRunAll:
-      canIngest && sourcesNow.length > untranscribed.length
-        ? run.retranscribe
         : undefined,
     terms: vocabulary.terms,
     onTermsChange: vocabulary.onTermsChange,

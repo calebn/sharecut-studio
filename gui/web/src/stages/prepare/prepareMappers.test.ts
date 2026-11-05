@@ -20,6 +20,7 @@ import {
   rowOutcome,
   STILL_GETTING_READY,
   sourceTracks,
+  timeLeft,
   transcriptIndex,
   vocabularyChips,
   vocabularyFromChips,
@@ -331,7 +332,7 @@ describe("readyRows", () => {
       readyRows({ ...base, job: finished, starting: true })[1],
     ).toMatchObject({
       state: "queued",
-      detail: "Starts in a moment",
+      detail: "Starting",
     });
     expect(
       preparePhase({
@@ -947,21 +948,20 @@ describe("the plan for audio added after a run", () => {
     );
   });
 
-  it("adds the sound scan row, with its cost, only while the project has it on", () => {
+  it("folds the sound scan and its cost into Find suggestions, keeping five rows", () => {
     const withScan = rows(plan({ scan: { time: "about 1 min 10 s" } }));
     expect(withScan.map((r) => r.id)).toEqual([
       "add",
       "transcribe",
       "align",
       "clean",
-      "scan",
       "suggest",
     ]);
     expect(withScan[4]).toMatchObject({
-      title: "Apply sound actions",
-      detail: "Whole episode · about 1 min 10 s",
+      title: "Find suggestions",
+      detail: "Whole episode · sound scan about 1 min 10 s",
     });
-    expect(rows(plan()).some((r) => r.id === "scan")).toBe(false);
+    expect(rows(plan())[4].detail).toBe("Whole episode");
   });
 
   it("is the usual rows without a plan", () => {
@@ -1043,7 +1043,7 @@ describe("what a one-run Skip may leave out", () => {
   it("never omits the steps that build the transcript and the stems", () => {
     const skipped = oneRunSkipSteps(
       { step_names: all, enabled_steps: all },
-      new Set(["transcribe", "align", "clean", "scan", "suggest"]),
+      new Set(["transcribe", "align", "clean", "suggest"]),
     );
     for (const kept of [
       "merge_transcript",
@@ -1064,8 +1064,8 @@ describe("what a one-run Skip may leave out", () => {
     );
   });
 
-  it("says plainly what Clean, Scan and Suggestions leave undone", () => {
-    const text = (id: "clean" | "scan" | "suggest") =>
+  it("says plainly what Clean and Suggestions leave undone", () => {
+    const text = (id: "clean" | "suggest") =>
       readyRows({
         ...base,
         sourceCount: 4,
@@ -1080,11 +1080,8 @@ describe("what a one-run Skip may leave out", () => {
     expect(text("clean")).toBe(
       "Skipped this time. Priya is not cleaned or levelled.",
     );
-    expect(text("scan")).toBe(
-      "Skipped this time. Sound actions are not applied automatically.",
-    );
     expect(text("suggest")).toBe(
-      "Skipped this time. Filler and pause analysis is skipped.",
+      "Skipped this time. Filler, pause and sound analysis is skipped.",
     );
   });
 
@@ -1133,16 +1130,14 @@ describe("skipping for one run", () => {
     ]);
   });
 
-  it("leaves the sound scan out when its row is skipped", () => {
+  it("leaves the sound scan out along with Find suggestions when that row is skipped", () => {
     const on = {
       ...cfg,
       enabled_steps: [...cfg.enabled_steps, "apply_sound_actions"],
     };
-    expect(oneRunSkipSteps(on, new Set(["scan"]))).toEqual([
-      "apply_sound_actions",
-    ]);
     expect(oneRunSkipSteps(on, new Set(["suggest"]))).toEqual([
       "analyze_fillers_pauses",
+      "apply_sound_actions",
     ]);
   });
 });
@@ -1167,7 +1162,7 @@ describe("what a run reused", () => {
       "1 new · 3 reused",
       "Line up tracks · No moves needed",
       "Clean · 1 new · 3 reused",
-      "Find suggestions · None to decide yet",
+      "None to decide yet",
     ]);
   });
 
@@ -1438,8 +1433,7 @@ describe("successful selected work", () => {
     const rows = rowsFor(selected(), { transcribed: true });
     expect(rows[1]).toMatchObject({
       state: "needs-you",
-      detail:
-        "Existing transcripts kept. Word timing is approximate, so cuts may clip word edges.",
+      detail: "Existing transcripts kept. Word timing is approximate",
       model: ALIGNER_NEED,
     });
   });
@@ -1740,5 +1734,109 @@ describe("successful selected work", () => {
       detail: "3 speakers",
     });
     expect(phaseFor(transcribed, { stoppedRun }).phase).toBe("failed");
+  });
+});
+
+describe("progress on running rows", () => {
+  const running = (steps: ReturnType<typeof step>[], extra = {}) =>
+    pipelineJobSnapshot({ status: "running", steps, ...extra });
+
+  it("counts speakers on Transcribe and says how long is left", () => {
+    const job = running([
+      step("ingest_tracks", "ok"),
+      { ...step("transcribe_tracks", "running"), elapsed_sec: 120 },
+    ]);
+    const [, transcribe] = readyRows({
+      ...base,
+      transcribedCount: 2,
+      job,
+    });
+    expect(transcribe).toMatchObject({
+      state: "running",
+      detail: "2 of 3 speakers · about 1 min left",
+    });
+    expect(transcribe.progress).toBeCloseTo(2 / 3);
+  });
+
+  it("shows an empty bar and no time before any speaker is done", () => {
+    const job = running([step("transcribe_tracks", "running")]);
+    const [, transcribe] = readyRows({ ...base, transcribedCount: 0, job });
+    expect(transcribe).toMatchObject({
+      detail: "0 of 3 speakers",
+      progress: 0,
+    });
+  });
+
+  it("falls back to the step when every speaker already has a transcript", () => {
+    const job = running([step("transcribe_tracks", "running")]);
+    const [, transcribe] = readyRows({ ...base, transcribedCount: 3, job });
+    expect(transcribe.detail).toBe("Listening to 3 tracks");
+  });
+
+  it("counts finished steps of the row against the steps this run does", () => {
+    const job = running(
+      [
+        step("ingest_tracks", "ok"),
+        step("transcribe_tracks", "ok"),
+        { ...step("align_tracks", "ok"), elapsed_sec: 30 },
+        step("merge_transcript", "running"),
+      ],
+      { skip_steps: ["require_align_accept"] },
+    );
+    const align = readyRows({
+      ...base,
+      transcribed: true,
+      job,
+      enabledSteps: [
+        "align_tracks",
+        "require_align_accept",
+        "merge_transcript",
+        "reconcile_transcript",
+      ],
+    })[2];
+    expect(align.state).toBe("running");
+    expect(align.progress).toBeCloseTo(1 / 3);
+    expect(align.detail).toBe("Lining up tracks · about 1 min left");
+  });
+
+  it("never fills the bar while the row still runs", () => {
+    const job = running([
+      step("align_tracks", "ok"),
+      step("merge_transcript", "running"),
+    ]);
+    const align = readyRows({
+      ...base,
+      job,
+      enabledSteps: ["align_tracks"],
+    })[2];
+    expect(align.progress).toBeLessThan(1);
+  });
+
+  it("says nothing about time left until enough work has finished", () => {
+    expect(timeLeft(5, 0.5)).toBeNull();
+    expect(timeLeft(60, 0)).toBeNull();
+    expect(timeLeft(60, 1)).toBeNull();
+    expect(timeLeft(10, 0.5)).toBe("under a minute left");
+    expect(timeLeft(120, 0.5)).toBe("about 2 min left");
+    expect(timeLeft(7200, 0.5)).toBe("about 2 h left");
+  });
+});
+
+describe("missing model and word timing rows", () => {
+  it("says Starting once the model is in and the run begins", () => {
+    const [, transcribe] = readyRows({ ...base, starting: true });
+    expect(transcribe).toMatchObject({ state: "queued", detail: "Starting" });
+  });
+
+  it("offers Re-time words after word timing is installed", () => {
+    const [, transcribe] = readyRows({
+      ...base,
+      transcribed: true,
+      retimeWords: true,
+    });
+    expect(transcribe).toMatchObject({
+      state: "needs-you",
+      action: { label: "Re-time words", run: "retime" },
+    });
   });
 });

@@ -273,7 +273,6 @@ const NEW_AUDIO: Partial<PrepareViewProps> = {
   readySummary: "Getting ready: new audio waiting",
   readyNote: "Priya’s audio is new. The other 3 tracks keep their transcripts.",
   handoff: { label: "Process new audio" },
-  onRunAll: fn(),
 };
 
 export const NewAudioWaiting: Story = {
@@ -281,7 +280,7 @@ export const NewAudioWaiting: Story = {
     docs: {
       description: {
         story:
-          'Audio added to a project that already ran. Prepare shows the plan before anything starts: each Getting ready row says what it does and keeps ("Priya only · 3 kept", "All 4 tracks, Priya joins", "Whole episode"). The stage hand-off is the one primary, "Process new audio", and goes back to "Review N suggestions" when the run is done. The new Source card reads "New · not processed yet" and the session "New audio waiting". Skip on a row leaves it out of this run only; nothing is saved. "Run everything again" sits behind the ⋯ next to Advanced.',
+          'Audio added to a project that already ran. Prepare shows the plan before anything starts: each Getting ready row says what it does and keeps ("Priya only · 3 kept", "All 4 tracks, Priya joins", "Whole episode"). The stage hand-off is the one primary, "Process new audio", and goes back to "Review N suggestions" when the run is done. The new Source card reads "New · not processed yet" and the session "New audio waiting". Skip on a row leaves it out of this run only; nothing is saved.',
       },
     },
   },
@@ -305,13 +304,6 @@ export const NewAudioWaiting: Story = {
       canvas.getByRole("button", { name: /Process new audio/ }),
     );
     await expect(args.onHandoff).toHaveBeenCalled();
-    await userEvent.click(
-      canvas.getByRole("button", { name: "More ways to run" }),
-    );
-    await userEvent.click(
-      canvas.getByRole("menuitem", { name: "Run everything again" }),
-    );
-    await expect(args.onRunAll).toHaveBeenCalled();
   },
 };
 
