@@ -847,6 +847,8 @@ posix_only = pytest.mark.skipif(os.name == "nt", reason="the spill is POSIX only
 
 
 def _fds() -> int:
+    """Open descriptors once unreachable garbage from earlier tests has released its own."""
+    gc.collect()
     return len(os.listdir("/dev/fd"))
 
 
@@ -936,8 +938,27 @@ def test_a_changed_ffmpeg_build_misses_and_drops_the_spilled_tier(
 
 
 def _no_spill_file_or_fd_left(baseline: int) -> None:
-    gc.collect()
     assert _spool_files() == [] and _fds() == baseline
+
+
+@posix_only
+def test_the_descriptor_count_ignores_garbage_an_earlier_test_left_holding_a_file(
+    tmp_path: Path,
+) -> None:
+    class Cycle:
+        def __init__(self) -> None:
+            self.me = self
+            self.handle = (tmp_path / "held").open("w")
+
+    gc.collect()
+    gc.disable()
+    try:
+        Cycle()  # unreachable, but only the collector can close its handle
+        baseline = _fds()
+    finally:
+        gc.enable()
+    _no_spill_file_or_fd_left(baseline)
+    assert _fds() == baseline
 
 
 def _refuse_with_enospc(array: np.ndarray) -> np.ndarray:
