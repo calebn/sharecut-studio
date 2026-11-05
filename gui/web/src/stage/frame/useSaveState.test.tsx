@@ -2,13 +2,19 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
+import { ReviewQueue } from "../../review/ReviewQueue";
+import {
+  OPEN_REVIEW_ATTENTION_EVENT,
+  REVIEW_ATTENTION_ID,
+} from "../../review/reviewQueueModel";
 import type { OfflineConflict } from "../../services/offlineQueue/offlineStore";
 import { useDawStore } from "../../state/dawStore";
 import { beginDocumentSend } from "../../state/documentSendOrder";
+import { useDaw } from "../../state/useDaw";
+import { reviewContent } from "../../storybook/reviewContent";
 import { SaveIndicator } from "../../system/SaveIndicator";
 import { minimalProject, offlineConflict } from "../../test/fixtures";
-import { GuestAttentionBanner } from "./GuestAttentionBanner";
-import { ATTENTION_BANNER_ID } from "./GuestAttentionBannerView";
+import { useReviewAttention } from "../hosts/useReviewAttention";
 import { saveIndicatorOf } from "./useSaveIndicator";
 import { useSaveState } from "./useSaveState";
 
@@ -59,29 +65,34 @@ function SaveDot() {
   );
 }
 
+/** The Review queue as the host sees it, for the Needs attention rows. */
+function Rows() {
+  const projectPath = useDaw((s) => s.projectPath);
+  return (
+    <ReviewQueue
+      items={[]}
+      content={reviewContent}
+      selectedId={null}
+      filter="all"
+      attention={useReviewAttention(projectPath)}
+      onFilter={vi.fn()}
+      onSelect={vi.fn()}
+    />
+  );
+}
+
 async function settle(ms = 0) {
   await act(async () => {
     await vi.advanceTimersByTimeAsync(ms);
   });
 }
 
-function openDetails() {
-  const details = screen.getByLabelText(/^Needs attention (?:\d+|!) Details$/);
-  if (!details.closest("details")?.hasAttribute("open"))
-    fireEvent.click(details);
-}
-
-function getActionButton(name: string) {
-  openDetails();
-  return screen.getByRole("button", { name });
-}
-
-function mountBannerTarget() {
-  const banner = document.createElement("div");
-  banner.id = ATTENTION_BANNER_ID;
-  banner.tabIndex = -1;
-  document.body.append(banner);
-  return banner;
+function mountAttentionTarget() {
+  const target = document.createElement("div");
+  target.id = REVIEW_ATTENTION_ID;
+  target.tabIndex = -1;
+  document.body.append(target);
+  return target;
 }
 
 beforeEach(() => {
@@ -182,30 +193,30 @@ describe("useSaveState", () => {
     expect(screen.getByRole("status")).toHaveTextContent("1 waiting");
   });
 
-  it("stays saved on a refused edit and the Needs attention banner gives the reason", async () => {
+  it("stays saved on a refused edit and the Needs attention rows give the reason", async () => {
     offlineStore.loadHostConflicts.mockResolvedValue([
       offlineConflict({ reason: "The clip moved" }),
     ]);
     render(
       <>
         <SaveDot />
-        <GuestAttentionBanner />
+        <Rows />
       </>,
     );
     await settle();
     expect(screen.getByRole("status")).toHaveTextContent("Saved");
-    const banner = screen.getByRole("region", { name: /Needs attention/ });
-    openDetails();
-    expect(banner).toHaveTextContent("The clip moved");
+    expect(
+      screen.getByRole("group", { name: /Needs attention/ }),
+    ).toHaveTextContent("The clip moved");
   });
 
-  it("moves focus to Needs attention when a failed save's Retry is pressed", async () => {
+  it("opens Review and moves focus to Needs attention when a failed save's Retry is pressed", async () => {
     const blocking = {
       ...offlineConflict({ reason: "The project file is missing." }),
       blocksSave: true,
     } as OfflineConflict;
     offlineStore.loadHostConflicts.mockResolvedValue([blocking]);
-    const banner = mountBannerTarget();
+    const target = mountAttentionTarget();
     render(<SaveDot />);
     await settle();
     expect(screen.getByTestId("attention")).toHaveAttribute(
@@ -213,18 +224,40 @@ describe("useSaveState", () => {
       "button",
     );
     fireEvent.click(screen.getByRole("button", { name: /Retry/ }));
-    expect(banner).toHaveFocus();
+    await settle();
+    expect(useDawStore.getState().stage).toBe("review");
+    expect(target).toHaveFocus();
     expect(drain.requestHostDrain).not.toHaveBeenCalled();
-    banner.remove();
+    target.remove();
   });
 
-  it("fails on unreadable saved edits, is not pressable, and the banner offers Retry", async () => {
+  it("asks a phone Review stage to open its queue while the group is not mounted yet", async () => {
+    const blocking = {
+      ...offlineConflict({ reason: "The project file is missing." }),
+      blocksSave: true,
+    } as OfflineConflict;
+    offlineStore.loadHostConflicts.mockResolvedValue([blocking]);
+    const asked = vi.fn();
+    window.addEventListener(OPEN_REVIEW_ATTENTION_EVENT, asked);
+    render(<SaveDot />);
+    await settle();
+    fireEvent.click(screen.getByRole("button", { name: /Retry/ }));
+    await settle(100);
+    expect(asked).toHaveBeenCalled();
+    const target = mountAttentionTarget();
+    await settle(100);
+    expect(target).toHaveFocus();
+    target.remove();
+    window.removeEventListener(OPEN_REVIEW_ATTENTION_EVENT, asked);
+  });
+
+  it("fails on unreadable saved edits, is not pressable, and the queue offers Retry", async () => {
     offlineStore.loadHostCommandCount.mockRejectedValueOnce(new Error("idb"));
-    const target = mountBannerTarget();
+    const target = mountAttentionTarget();
     render(
       <>
         <SaveDot />
-        <GuestAttentionBanner />
+        <Rows />
       </>,
     );
     await settle();
@@ -237,12 +270,11 @@ describe("useSaveState", () => {
     expect(target).not.toHaveFocus();
     target.remove();
     offlineStore.loadHostCommandCount.mockResolvedValue(0);
-    openDetails();
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     await settle();
-    expect(screen.getByRole("status")).toHaveTextContent("Saved");
+    expect(document.querySelector(".sys-save")).toHaveTextContent("Saved");
     expect(
-      screen.queryByRole("region", { name: /Needs attention/ }),
+      screen.queryByRole("group", { name: /Needs attention/ }),
     ).not.toBeInTheDocument();
   });
 
@@ -262,16 +294,16 @@ describe("useSaveState", () => {
     const tree = (
       <>
         <SaveDot />
-        <GuestAttentionBanner />
+        <Rows />
       </>
     );
     const rendered = render(tree);
     await settle();
 
-    fireEvent.click(getActionButton("Dismiss all"));
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss all" }));
     await settle();
     expect(
-      screen.getByRole("region", { name: /Needs attention/ }),
+      screen.getByRole("group", { name: /Needs attention/ }),
     ).toHaveAccessibleName(/1 pending/);
     rendered.unmount();
     offlineStore.loadHostConflicts.mockResolvedValue([
@@ -280,7 +312,7 @@ describe("useSaveState", () => {
     render(tree);
     await settle();
     expect(
-      screen.getByRole("region", { name: /Needs attention/ }),
+      screen.getByRole("group", { name: /Needs attention/ }),
     ).toHaveAccessibleName(/1 pending/);
     fireEvent.click(
       screen.getByRole("button", {
@@ -288,20 +320,19 @@ describe("useSaveState", () => {
       }),
     );
 
-    const banner = screen.getByRole("region", { name: /Needs attention/ });
+    const rows = screen.getByRole("group", { name: /Needs attention/ });
     await settle();
-    expect(banner).toHaveFocus();
-    expect(banner.querySelector("details")).toHaveAttribute("open");
-    expect(getActionButton("Inspect History")).toBeInTheDocument();
+    expect(rows).toHaveFocus();
+    expect(useDawStore.getState().stage).toBe("review");
     expect(
       screen.queryByRole("button", { name: "Dismiss all" }),
     ).not.toBeInTheDocument();
-    fireEvent.click(getActionButton("Inspect History"));
+    fireEvent.click(screen.getByRole("button", { name: "Inspect History" }));
     expect(useDawStore.getState().openSheet).toBe("history");
     expect(drain.requestHostDrain).not.toHaveBeenCalled();
   });
 
-  it("focuses the Needs attention banner that a dismissed History outcome brings back", async () => {
+  it("focuses the Needs attention rows that a dismissed History outcome brings back", async () => {
     const history = offlineConflict({
       kind: "unknown",
       reason: "Undo may have been applied.",
@@ -314,21 +345,22 @@ describe("useSaveState", () => {
     render(
       <>
         <SaveDot />
-        <GuestAttentionBanner />
+        <Rows />
       </>,
     );
     await settle();
     expect(
-      screen.queryByRole("region", { name: /Needs attention/ }),
+      screen.queryByRole("group", { name: /Needs attention/ }),
     ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /^Retry/ }));
     await settle();
 
-    const banner = screen.getByRole("region", { name: /Needs attention/ });
-    expect(banner).toHaveFocus();
-    expect(banner.querySelector("details")).toHaveAttribute("open");
-    expect(getActionButton("Inspect History")).toBeInTheDocument();
+    const rows = screen.getByRole("group", { name: /Needs attention/ });
+    expect(rows).toHaveFocus();
+    expect(
+      screen.getByRole("button", { name: "Inspect History" }),
+    ).toBeInTheDocument();
   });
 
   describe("as a share guest", () => {

@@ -9,7 +9,7 @@ import {
   snapshot,
 } from "./lifecycleAudit";
 import { hostOfflineQueueCount } from "./offlineQueue";
-import { inspectSelectionByKey } from "./stageNav";
+import { inspectSelectionByKey, saveStatus } from "./stageNav";
 import { openScript } from "./transcriptEdit";
 
 test.use({ viewport: { width: 1440, height: 900 }, reducedMotion: "reduce" });
@@ -132,11 +132,8 @@ for (const delivery of ["409", "abort-replay"] as const)
         await expect(block.locator(".clip-fade-line")).toHaveCount(0);
       } else {
         await expect.poll(() => hostOfflineQueueCount(page, p)).toBe(1);
-        await expect(
-          page.getByRole("region", {
-            name: /^Needs attention\. 1 pending(?:,|$)/,
-          }),
-        ).toBeVisible();
+        // The aborted send leaves an unknown outcome, so the dot says Save failed; its Retry opens the queue.
+        await expect(saveStatus(page)).toContainText("Save failed");
         expect(snapshot(p)).toEqual(origin);
         const first = attempts[0];
         expect(first.command_id).toEqual(expect.stringMatching(/\S/));

@@ -291,11 +291,12 @@ with `useId()`, so several footers on one autodocs page never share an
 `aria-describedby` target.
 
 `Templates/GuestAttentionBanner` renders the production `GuestAttentionBannerView` used by the live
-`GuestAttentionBanner`, which polls IndexedDB every 2s for pending host
-edits and host/guest 409 conflicts and resolves the share-token vs.
-host-project path; the view renders the pending/conflict summary, the
+`GuestAttentionBanner`, which polls IndexedDB every 2s for a share
+guest's 409 conflicts; the view renders the conflict summary, the
 conflict list (first 5 items, then a muted, unbulleted "+N more" summary
-item), and the dismiss control from props alone.
+item), and the dismiss control from props alone. A host project's waiting
+edits, conflicts and unreadable queue are Check rows in the Review queue
+(`Stages/Review/Queue`).
 The story shares `frameStoryDecorator` for a real `.stage-frame` at
 desktop and 360px widths.
 

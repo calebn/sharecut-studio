@@ -20,6 +20,7 @@ import type { VerbId } from "../system/verbs";
 import { Button, EmptyState, SegmentedControl, ToggleButton } from "../ui";
 import { disabledAttrs, useDisabledReasonNote } from "../ui/disabledReason";
 import { formatTimeShort } from "../utils/time";
+import { RefineGateWaiver } from "./RefineGateWaiver";
 import {
   attentionLabelOf,
   attentionVisible,
@@ -31,7 +32,9 @@ import {
   groupQueue,
   kindInFilter,
   lowRiskBulk,
+  pendingLabelOf,
   progressLine,
+  REVIEW_ATTENTION_ID,
   type ReviewAttention,
   type ReviewFilter,
   type ReviewGroup,
@@ -222,12 +225,16 @@ function GroupHeader({
 
 function AttentionGroup({
   attention,
+  waivedIds,
+  onWaived,
   onFocusChange,
 }: {
   attention: ReviewAttention;
+  waivedIds: ReadonlySet<string>;
+  onWaived: (ids: readonly string[]) => void;
   onFocusChange: (inside: boolean) => void;
 }) {
-  const { rows } = attention;
+  const { rows, pending, refineWaiverProject } = attention;
   const reasonId = useId();
   const groupRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -254,14 +261,18 @@ function AttentionGroup({
   return (
     <div
       ref={groupRef}
+      id={REVIEW_ATTENTION_ID}
       role="group"
       className="rv-group"
+      tabIndex={-1}
       aria-label={attentionLabelOf(attention)}
     >
       <div className="rv-group-head">
         <SystemIcon name="triangle-alert" size={16} />
         <span className="rv-group-name">{NEEDS_ATTENTION}</span>
-        <span className="sys-mono rv-group-count">{rows.length || "!"}</span>
+        <span className="sys-mono rv-group-count">
+          {pending + rows.length || "!"}
+        </span>
         {rows.length > 0 && attention.canDismiss ? (
           <>
             <Button
@@ -289,9 +300,49 @@ function AttentionGroup({
           action={{ label: "Retry", onAction: attention.onRetry }}
         />
       ) : null}
+      {pending > 0 ? (
+        <div className="rv-check">
+          <StatusRow
+            state="needs-you"
+            title={pendingLabelOf(pending)}
+            action={
+              attention.onSendNow
+                ? { label: "Send now", onAction: attention.onSendNow }
+                : undefined
+            }
+          />
+        </div>
+      ) : null}
       {rows.map((row) => (
         <div key={row.id} className="rv-check">
-          <StatusRow state="needs-you" title={row.title} detail={row.detail} />
+          <StatusRow
+            state="needs-you"
+            title={row.title}
+            detail={row.detail || undefined}
+            action={
+              row.inspectHistory && attention.onInspectHistory
+                ? {
+                    label: "Inspect History",
+                    onAction: attention.onInspectHistory,
+                  }
+                : undefined
+            }
+          />
+          {row.refineReason !== undefined &&
+          refineWaiverProject !== undefined ? (
+            <RefineGateWaiver
+              projectPath={refineWaiverProject}
+              reason={row.refineReason}
+              waived={waivedIds.has(row.id)}
+              onWaived={() =>
+                onWaived(
+                  rows
+                    .filter((other) => other.refineReason !== undefined)
+                    .map((other) => other.id),
+                )
+              }
+            />
+          ) : null}
         </div>
       ))}
     </div>
@@ -322,6 +373,7 @@ export function ReviewQueue({
   onRetry,
 }: ReviewQueueProps) {
   const [showDecided, setShowDecided] = useState(false);
+  const [waived, setWaived] = useState<ReadonlySet<string>>(() => new Set());
   const counts = filterCounts(items, speaker);
   const shown = filterItems(items, filter, speaker);
   const people = canDecide && onSpeaker ? speakersOf(items) : [];
@@ -337,6 +389,9 @@ export function ReviewQueue({
     kindInFilter(bulkRunning.kind, filter) &&
     !groups.some((g) => g.kind === bulkRunning.kind);
   const showAttention = attentionVisible(attention, filter);
+  const listed = new Set(attention?.rows.map((row) => row.id));
+  if ([...waived].some((id) => !listed.has(id)))
+    setWaived(new Set([...waived].filter((id) => listed.has(id))));
   const attentionFocused = useRef(false);
   const progressRef = useRef<HTMLParagraphElement>(null);
   useEffect(() => {
@@ -468,6 +523,8 @@ export function ReviewQueue({
       {showAttention ? (
         <AttentionGroup
           attention={attention}
+          waivedIds={waived}
+          onWaived={(ids) => setWaived(new Set(ids))}
           onFocusChange={(inside) => {
             attentionFocused.current = inside;
           }}

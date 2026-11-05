@@ -2,9 +2,6 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { recordMobileViewport } from "../../record/recordStoryDecorator";
 import { offlineConflict } from "../../test/fixtures";
-import { episodeBeforeEach } from "../../test/withEpisode";
-import { DocumentCommand } from "../../types/documentCommands.generated";
-import { TRANSCRIPT_REFINE_REFUSAL } from "../../utils/apiError";
 import { frameStoryDecorator } from "./frameStoryDecorator";
 import { GuestAttentionBannerView } from "./GuestAttentionBannerView";
 
@@ -20,24 +17,12 @@ const meta: Meta<typeof GuestAttentionBannerView> = {
   parameters: { layout: "fullscreen" },
   decorators: [frameStoryDecorator],
   args: {
-    pending: 0,
     conflicts: [],
     onDismissAll: fn(),
   },
 };
 export default meta;
 type Story = StoryObj<typeof GuestAttentionBannerView>;
-
-export const PendingHostEdits: Story = {
-  args: { pending: 2 },
-  play: async ({ canvasElement }) => {
-    await expect(
-      within(canvasElement.ownerDocument.body).getByRole("region", {
-        name: "Needs attention. 2 pending",
-      }),
-    ).toBeInTheDocument();
-  },
-};
 
 export const Conflicts: Story = {
   args: {
@@ -64,24 +49,6 @@ export const Conflicts: Story = {
   },
 };
 
-export const PendingAndConflict: Story = {
-  args: {
-    pending: 1,
-    conflicts: [
-      offlineConflict({
-        command: { command_id: "conflict-3", type: "SetEnvelope" },
-      }),
-    ],
-  },
-  play: async ({ canvasElement }) => {
-    await expect(
-      within(canvasElement.ownerDocument.body).getByRole("region", {
-        name: "Needs attention. 1 pending, 1 conflict",
-      }),
-    ).toBeInTheDocument();
-  },
-};
-
 export const PhoneManyConflicts: Story = {
   parameters: { ...recordMobileViewport.parameters, framePhone: true },
   globals: recordMobileViewport.globals,
@@ -101,64 +68,6 @@ export const PhoneManyConflicts: Story = {
     await expect(canvas.getByText("+2 more")).toHaveClass(
       "guest-attention-more",
     );
-  },
-};
-
-export const RefineWaiver: Story = {
-  beforeEach: episodeBeforeEach,
-  parameters: {
-    episode: { responses: { "POST /api/transcript/refine/waive": {} } },
-  },
-  args: {
-    refineWaiverProject: "/episodes/mira/episode.sharecut",
-    conflicts: [
-      offlineConflict({
-        reason: TRANSCRIPT_REFINE_REFUSAL,
-        command: {
-          command_id: "approve-1",
-          type: DocumentCommand.ApproveEdits,
-        },
-      }),
-    ],
-  },
-  play: async ({ canvasElement }) => {
-    const banner = region(canvasElement, "Needs attention. 1 conflict");
-    await userEvent.click(banner.getByLabelText("Needs attention 1 Details"));
-    await expect(banner.getByText(/^Approve:/)).toBeVisible();
-    await expect(
-      banner.getByRole("region", { name: "Transcript refine recovery" }),
-    ).toBeVisible();
-    await expect(banner.getByLabelText("Waiver reason")).toBeVisible();
-    await userEvent.click(
-      banner.getByRole("button", { name: "Waive with reason" }),
-    );
-    await expect(
-      await banner.findByText(
-        "A reason is required to waive transcript refinement.",
-      ),
-    ).toBeVisible();
-    await userEvent.type(
-      banner.getByLabelText("Waiver reason"),
-      "Host approved the raw transcript",
-    );
-    await userEvent.click(
-      banner.getByRole("button", { name: "Waive with reason" }),
-    );
-    await expect(
-      await banner.findByText(
-        "Waiver recorded. Retry approval to apply pending edits.",
-      ),
-    ).toBeVisible();
-  },
-};
-
-export const SendPendingNow: Story = {
-  args: { pending: 2, onSendNow: fn() },
-  play: async ({ canvasElement, args }) => {
-    const banner = region(canvasElement, "Needs attention. 2 pending");
-    await userEvent.click(banner.getByLabelText("Needs attention 2 Details"));
-    await userEvent.click(banner.getByRole("button", { name: "Send now" }));
-    await expect(args.onSendNow).toHaveBeenCalledTimes(1);
   },
 };
 
@@ -214,34 +123,8 @@ export const CheckingSavedEdits: Story = {
   },
 };
 
-export const InspectHistory: Story = {
-  args: {
-    onInspectHistory: fn(),
-    conflicts: [
-      offlineConflict({
-        kind: "unknown",
-        recovery: "inspect-history",
-        reason: "The host did not confirm this edit",
-        command: { command_id: "unknown-1", type: "TrimClip" },
-      }),
-    ],
-  },
-  play: async ({ canvasElement, args }) => {
-    const banner = region(canvasElement, "Needs attention. 1 conflict");
-    await userEvent.click(banner.getByLabelText("Needs attention 1 Details"));
-    await expect(
-      banner.getByText("Inspect History before trying this action again."),
-    ).toBeVisible();
-    await userEvent.click(
-      banner.getByRole("button", { name: "Inspect History" }),
-    );
-    await expect(args.onInspectHistory).toHaveBeenCalledTimes(1);
-  },
-};
-
 export const GuestProjectFileBroken: Story = {
   args: {
-    guest: true,
     conflicts: [
       offlineConflict({
         reason: "The project file is damaged",

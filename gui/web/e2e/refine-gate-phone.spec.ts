@@ -46,7 +46,7 @@ for (const [width, height] of [
       /podcast transcript|ApproveEdits|refine-waive|transcript_refine/,
     );
     await expect(
-      page.getByRole("region", { name: /^Needs attention/ }),
+      page.getByRole("group", { name: /^Needs attention/ }),
     ).toHaveCount(0);
     await expect(waive).toBeInViewport();
 

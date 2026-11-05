@@ -4,6 +4,7 @@ import { postDocumentCommand } from "./documentCommand";
 import { e2eProjectPath } from "./env";
 import { openPhoneTimeline, rememberInspectorDetent } from "./phoneTimeline";
 import {
+  goToStage,
   inspectSelection,
   openProject,
   openProjectMenu,
@@ -251,7 +252,7 @@ async function headerScroll(header: Locator) {
   }));
 }
 
-test("tablet unreadable save indicator names the failure and the banner Retry has a full touch target", async ({
+test("tablet unreadable save indicator names the failure and the Review queue Retry has a full touch target", async ({
   browser,
 }) => {
   const context = await browser.newContext({
@@ -272,10 +273,10 @@ test("tablet unreadable save indicator names the failure and the banner Retry ha
     expect(scrollHeight, "failed header does not scroll").toBeLessThanOrEqual(
       clientHeight,
     );
-    const attention = page.getByRole("region", {
+    await goToStage(page, "review");
+    const attention = page.getByRole("group", {
       name: /Saved edits could not be read/,
     });
-    await attention.locator("summary").click();
     const retry = attention.getByRole("button", { name: "Retry", exact: true });
     const retryBox = await retry.boundingBox();
     expect(retryBox).not.toBeNull();

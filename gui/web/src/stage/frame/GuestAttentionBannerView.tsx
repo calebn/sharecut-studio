@@ -1,13 +1,7 @@
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { TranscriptRefineRecovery } from "../../inspector/TranscriptRefineRecovery";
 import type { OfflineConflict } from "../../services/offlineQueue/offlineStore";
-import { DocumentCommand } from "../../types/documentCommands.generated";
 import { Button } from "../../ui/Button";
-import {
-  TRANSCRIPT_REFINE_REFUSAL,
-  TRANSCRIPT_REFINE_REQUIRED_CODE,
-} from "../../utils/apiError";
 import { overflowLabel } from "../../utils/format";
 import {
   attentionCountLabel,
@@ -26,74 +20,24 @@ const ATTENTION_LISTED_CONFLICTS = 5;
 export const ATTENTION_BANNER_ID = "needs-attention";
 
 export interface GuestAttentionBannerViewProps {
-  /** Count of host edits queued but not yet applied. */
-  pending: number;
   host?: HTMLElement | null;
   conflicts: readonly OfflineConflict[];
   canDismiss?: boolean;
-  guest?: boolean;
   unreadable?: boolean;
   dismissFailed?: boolean;
   checking?: boolean;
   onDismissAll: () => void;
-  /** Send the queued host edits now. Offered beside a pending count. */
-  onSendNow?: () => void;
   /** Read the saved edits again. Offered when they could not be read. */
   onRetry?: () => void;
-  /** Open the History surface for a command that may have applied. */
-  onInspectHistory?: () => void;
-  /** The host's project, set so a refine-gate refusal can be waived from here. */
-  refineWaiverProject?: string;
-}
-
-const REFINE_WAIVED_MESSAGE =
-  "Waiver recorded. Retry approval to apply pending edits.";
-
-function RefineGateWaiver({
-  projectPath,
-  reason,
-  waived,
-  onWaived,
-}: {
-  projectPath: string;
-  reason: string;
-  waived: boolean;
-  onWaived: () => void;
-}) {
-  const statusRef = useRef<HTMLParagraphElement>(null);
-  const wasWaived = useRef(waived);
-  useLayoutEffect(() => {
-    if (waived && !wasWaived.current) statusRef.current?.focus();
-    wasWaived.current = waived;
-  }, [waived]);
-  if (waived)
-    return (
-      <p ref={statusRef} role="status" tabIndex={-1}>
-        {REFINE_WAIVED_MESSAGE}
-      </p>
-    );
-  return (
-    <TranscriptRefineRecovery
-      projectPath={projectPath}
-      error={reason}
-      errorCode={TRANSCRIPT_REFINE_REQUIRED_CODE}
-      onRecovered={onWaived}
-    />
-  );
 }
 
 /** Props-only guest-attention rendering for live state and static catalog cases. */
 export function GuestAttentionBannerView({
-  pending,
   host = null,
   conflicts,
   canDismiss = true,
-  guest = false,
   onDismissAll,
-  onSendNow,
   onRetry,
-  onInspectHistory,
-  refineWaiverProject,
   unreadable = false,
   dismissFailed = false,
   checking = false,
@@ -102,10 +46,7 @@ export function GuestAttentionBannerView({
   const slotRef = useRef<HTMLDivElement>(null);
   const bannerRef = useRef<HTMLDivElement>(null);
   const [portalHost] = useState(() => document.createElement("div"));
-  const visible = unreadable || conflicts.length > 0 || pending > 0;
-  const [refineWaivedIds, setRefineWaivedIds] = useState<ReadonlySet<string>>(
-    () => new Set(),
-  );
+  const visible = unreadable || conflicts.length > 0;
 
   const focusedRef = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {
@@ -143,10 +84,6 @@ export function GuestAttentionBannerView({
     place();
     return () => cancelAnimationFrame(frame);
   }, [visible, host, portalHost]);
-  const listedIds = new Set(conflicts.map((c) => c.command.command_id));
-  const keptWaivedIds = [...refineWaivedIds].filter((id) => listedIds.has(id));
-  if (keptWaivedIds.length !== refineWaivedIds.size)
-    setRefineWaivedIds(new Set(keptWaivedIds));
   const dismissUnavailable = unreadable || checking || dismissFailed;
   const dismissalReason = dismissReason({ unreadable, dismissFailed });
 
@@ -158,10 +95,10 @@ export function GuestAttentionBannerView({
     0,
     conflicts.length - ATTENTION_LISTED_CONFLICTS,
   );
-  const attentionCount = pending + conflicts.length;
-  const countLabel = attentionCountLabel(pending, conflicts.length);
+  const attentionCount = conflicts.length;
+  const countLabel = attentionCountLabel(0, conflicts.length);
   const regionLabel = attentionRegionLabel({
-    pending,
+    pending: 0,
     conflictCount: conflicts.length,
     unreadable,
     dismissFailed,
@@ -193,15 +130,7 @@ export function GuestAttentionBannerView({
           tabIndex={-1}
           aria-label={regionLabel}
         >
-          <details
-            className="guest-attention-details"
-            onToggle={(event) => {
-              if (!event.currentTarget.open) return;
-              event.currentTarget
-                .querySelector(".transcript-refine-recovery")
-                ?.scrollIntoView?.({ block: "nearest" });
-            }}
-          >
+          <details className="guest-attention-details">
             <summary
               className="guest-attention-head"
               aria-label={`${NEEDS_ATTENTION} ${attentionCount || "!"} Details`}
@@ -213,15 +142,9 @@ export function GuestAttentionBannerView({
               <span>Details</span>
             </summary>
             <div className="guest-attention-details-content">
-              {(pending > 0 && onSendNow) ||
-              ((unreadable || dismissFailed) && onRetry) ? (
+              {(unreadable || dismissFailed) && onRetry ? (
                 <span className="guest-attention-actions">
-                  {pending > 0 && onSendNow && (
-                    <Button onClick={onSendNow}>Send now</Button>
-                  )}
-                  {(unreadable || dismissFailed) && onRetry && (
-                    <Button onClick={onRetry}>Retry</Button>
-                  )}
+                  <Button onClick={onRetry}>Retry</Button>
                 </span>
               ) : null}
               {conflicts.length > 0 && canDismiss && (
@@ -246,57 +169,12 @@ export function GuestAttentionBannerView({
               <ul className="guest-attention-list">
                 {unreadable && <li>{UNREADABLE_NOTE}</li>}
                 {dismissFailed && <li>{DISMISS_FAILED_NOTE}</li>}
-                {conflicts.slice(0, ATTENTION_LISTED_CONFLICTS).map((c) => {
-                  const waivable =
-                    c.kind === "refused" &&
-                    refineWaiverProject !== undefined &&
-                    c.reason === TRANSCRIPT_REFINE_REFUSAL;
-                  return (
-                    <li key={c.command.command_id}>
-                      {waivable &&
-                      c.command.type === DocumentCommand.ApproveEdits ? (
-                        "Approve"
-                      ) : (
-                        <code>{c.command.type}</code>
-                      )}
-                      : {c.reason}{" "}
-                      {waivable ? (
-                        <RefineGateWaiver
-                          projectPath={refineWaiverProject}
-                          reason={c.reason}
-                          waived={refineWaivedIds.has(c.command.command_id)}
-                          onWaived={() =>
-                            setRefineWaivedIds(
-                              new Set(
-                                conflicts
-                                  .filter(
-                                    (other) =>
-                                      other.reason ===
-                                      TRANSCRIPT_REFINE_REFUSAL,
-                                  )
-                                  .map((other) => other.command.command_id),
-                              ),
-                            )
-                          }
-                        />
-                      ) : (
-                        <span>{conflictAdvice(c, guest)}</span>
-                      )}
-                    </li>
-                  );
-                })}
-                {onInspectHistory &&
-                  conflicts.some(
-                    (conflict) =>
-                      conflict.kind === "unknown" &&
-                      conflict.recovery === "inspect-history",
-                  ) && (
-                    <li>
-                      <Button onClick={onInspectHistory}>
-                        Inspect History
-                      </Button>
-                    </li>
-                  )}
+                {conflicts.slice(0, ATTENTION_LISTED_CONFLICTS).map((c) => (
+                  <li key={c.command.command_id}>
+                    <code>{c.command.type}</code>: {c.reason}{" "}
+                    <span>{conflictAdvice(c, true)}</span>
+                  </li>
+                ))}
                 {hiddenConflicts > 0 && (
                   <li key="more" className="guest-attention-more">
                     {overflowLabel(hiddenConflicts)}

@@ -1,52 +1,43 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { offlineConflict } from "../../test/fixtures";
-import { DocumentCommand } from "../../types/documentCommands.generated";
-import { TRANSCRIPT_REFINE_REFUSAL } from "../../utils/apiError";
 import { GuestAttentionBannerView } from "./GuestAttentionBannerView";
-
-const waive = vi.hoisted(() => vi.fn());
-vi.mock("../../api", () => ({ waiveTranscriptRefine: waive }));
 
 afterEach(() => {
   vi.useRealTimers();
-  waive.mockReset();
 });
+
+const conflictsOf = (count: number) =>
+  Array.from({ length: count }, (_, i) =>
+    offlineConflict({ command: { command_id: `cmd-${i}` } }),
+  );
 
 function expandDetails() {
   fireEvent.click(screen.getByLabelText(/^Needs attention (?:\d+|!) Details$/));
 }
 
 describe("GuestAttentionBannerView", () => {
-  it("renders nothing when there is no pending work and no conflicts", () => {
+  it("renders nothing when there are no conflicts", () => {
     const { container } = render(
-      <GuestAttentionBannerView
-        pending={0}
-        conflicts={[]}
-        onDismissAll={vi.fn()}
-      />,
+      <GuestAttentionBannerView conflicts={[]} onDismissAll={vi.fn()} />,
     );
     expect(container.firstChild).toBeNull();
   });
 
   it.each([
     {
-      state: "pending and conflicting edits",
-      pending: 1,
-      conflicts: [
-        offlineConflict({ kind: "unknown", recovery: "inspect-history" }),
-      ],
+      state: "a conflicting edit",
+      conflicts: [offlineConflict()],
       unreadable: false,
-      visibleLabel: /^Needs attention\s+2\s+Details$/,
-      accessibleLabel: /^Needs attention\s+2\s+Details\b/,
-      recoveryAction: "Inspect History",
+      visibleLabel: /^Needs attention\s+1\s+Details$/,
+      accessibleLabel: /^Needs attention\s+1\s+Details\b/,
+      recoveryAction: "Dismiss all",
     },
     {
       state: "unreadable saved edits with no count",
-      pending: 0,
       conflicts: [],
       unreadable: true,
       visibleLabel: /^Needs attention\s+!\s+Details$/,
@@ -56,7 +47,6 @@ describe("GuestAttentionBannerView", () => {
   ])(
     "includes the visible summary label and opens recovery details for $state",
     async ({
-      pending,
       conflicts,
       unreadable,
       visibleLabel,
@@ -65,11 +55,9 @@ describe("GuestAttentionBannerView", () => {
     }) => {
       render(
         <GuestAttentionBannerView
-          pending={pending}
           conflicts={conflicts}
           unreadable={unreadable}
           onDismissAll={vi.fn()}
-          onInspectHistory={vi.fn()}
           onRetry={vi.fn()}
         />,
       );
@@ -90,8 +78,7 @@ describe("GuestAttentionBannerView", () => {
     const first = render(
       <StrictMode>
         <GuestAttentionBannerView
-          pending={1}
-          conflicts={[]}
+          conflicts={conflictsOf(1)}
           onDismissAll={vi.fn()}
         />
         <button type="button">Transport</button>
@@ -100,8 +87,7 @@ describe("GuestAttentionBannerView", () => {
     const second = render(
       <StrictMode>
         <GuestAttentionBannerView
-          pending={2}
-          conflicts={[]}
+          conflicts={conflictsOf(2)}
           onDismissAll={vi.fn()}
         />
       </StrictMode>,
@@ -137,10 +123,8 @@ describe("GuestAttentionBannerView", () => {
     header.textContent = "Inspector close";
     document.body.append(header, host);
     const props = {
-      pending: 1,
-      conflicts: [],
+      conflicts: conflictsOf(1),
       onDismissAll: vi.fn(),
-      onSendNow: vi.fn(),
     };
     const { rerender, unmount, container } = render(
       <StrictMode>
@@ -150,7 +134,7 @@ describe("GuestAttentionBannerView", () => {
     const summary = screen.getByLabelText("Needs attention 1 Details");
     await userEvent.click(summary);
     const details = summary.closest("details")!;
-    const action = screen.getByRole("button", { name: "Send now" });
+    const action = screen.getByRole("button", { name: "Dismiss all" });
     action.focus();
     rerender(
       <StrictMode>
@@ -191,7 +175,7 @@ describe("GuestAttentionBannerView", () => {
   });
 
   it("does not carry open state or focus into another project", async () => {
-    const props = { pending: 1, conflicts: [], onDismissAll: vi.fn() };
+    const props = { conflicts: conflictsOf(1), onDismissAll: vi.fn() };
     const { rerender } = render(
       <GuestAttentionBannerView key="first-project" {...props} />,
     );
@@ -211,8 +195,7 @@ describe("GuestAttentionBannerView", () => {
   it("removes an open disclosure when attention disappears and starts closed next time", () => {
     const { rerender } = render(
       <GuestAttentionBannerView
-        pending={1}
-        conflicts={[]}
+        conflicts={conflictsOf(1)}
         onDismissAll={vi.fn()}
       />,
     );
@@ -221,19 +204,14 @@ describe("GuestAttentionBannerView", () => {
       screen.getByLabelText("Needs attention 1 Details").closest("details"),
     ).toHaveAttribute("open");
     rerender(
-      <GuestAttentionBannerView
-        pending={0}
-        conflicts={[]}
-        onDismissAll={vi.fn()}
-      />,
+      <GuestAttentionBannerView conflicts={[]} onDismissAll={vi.fn()} />,
     );
     expect(
       screen.queryByLabelText("Needs attention 1 Details"),
     ).not.toBeInTheDocument();
     rerender(
       <GuestAttentionBannerView
-        pending={1}
-        conflicts={[]}
+        conflicts={conflictsOf(1)}
         onDismissAll={vi.fn()}
       />,
     );
@@ -242,24 +220,7 @@ describe("GuestAttentionBannerView", () => {
     ).not.toHaveAttribute("open");
   });
 
-  it("shows pending-only state with no dismiss button", async () => {
-    const { baseElement } = render(
-      <GuestAttentionBannerView
-        pending={2}
-        conflicts={[]}
-        onDismissAll={vi.fn()}
-      />,
-    );
-    expect(
-      screen.getByRole("region", { name: /Needs attention/ }),
-    ).toHaveAccessibleName(/2 pending/);
-    expect(
-      screen.queryByRole("button", { name: "Dismiss all" }),
-    ).not.toBeInTheDocument();
-    await expectNoA11yViolations(baseElement);
-  });
-
-  it("shows pending and conflicts, lists items and dismisses", async () => {
+  it("lists conflicts and dismisses", async () => {
     const onDismissAll = vi.fn();
     const conflicts = [
       offlineConflict({
@@ -273,14 +234,13 @@ describe("GuestAttentionBannerView", () => {
     ];
     const { baseElement } = render(
       <GuestAttentionBannerView
-        pending={1}
         conflicts={conflicts}
         onDismissAll={onDismissAll}
       />,
     );
     expect(
       screen.getByRole("region", { name: /Needs attention/ }),
-    ).toHaveAccessibleName(/1 pending, 2 conflicts/);
+    ).toHaveAccessibleName(/2 conflicts/);
     expandDetails();
     expandDetails();
     const items = screen.getAllByRole("listitem");
@@ -300,11 +260,7 @@ describe("GuestAttentionBannerView", () => {
       offlineConflict({ command: { command_id: `cmd-${i}` } }),
     );
     render(
-      <GuestAttentionBannerView
-        pending={0}
-        conflicts={conflicts}
-        onDismissAll={vi.fn()}
-      />,
+      <GuestAttentionBannerView conflicts={conflicts} onDismissAll={vi.fn()} />,
     );
     const items = screen.getAllByRole("listitem");
     expect(items).toHaveLength(6);
@@ -323,11 +279,7 @@ describe("GuestAttentionBannerView", () => {
       offlineConflict({ command: { command_id: `cmd-${i}` } }),
     );
     render(
-      <GuestAttentionBannerView
-        pending={0}
-        conflicts={conflicts}
-        onDismissAll={vi.fn()}
-      />,
+      <GuestAttentionBannerView conflicts={conflicts} onDismissAll={vi.fn()} />,
     );
     expandDetails();
     expect(screen.getAllByRole("listitem")).toHaveLength(5);
@@ -337,7 +289,6 @@ describe("GuestAttentionBannerView", () => {
   it("renders unreadable saved work accessibly and withholds dismissal", async () => {
     const { baseElement, rerender } = render(
       <GuestAttentionBannerView
-        pending={0}
         conflicts={[]}
         unreadable
         onDismissAll={vi.fn()}
@@ -350,7 +301,6 @@ describe("GuestAttentionBannerView", () => {
     await expectNoA11yViolations(baseElement);
     rerender(
       <GuestAttentionBannerView
-        pending={2}
         conflicts={[offlineConflict()]}
         unreadable
         onDismissAll={vi.fn()}
@@ -358,7 +308,7 @@ describe("GuestAttentionBannerView", () => {
     );
     expect(
       screen.getByRole("region", { name: /Needs attention/ }),
-    ).toHaveAccessibleName(/2 pending, 1 conflict/);
+    ).toHaveAccessibleName(/1 conflict/);
     expect(screen.getByRole("button", { name: "Dismiss all" })).toHaveAttribute(
       "aria-disabled",
       "true",
@@ -374,7 +324,6 @@ describe("GuestAttentionBannerView", () => {
   it("retains visible values while checking and admits dismissal afterward", async () => {
     const { baseElement, rerender } = render(
       <GuestAttentionBannerView
-        pending={2}
         conflicts={[offlineConflict()]}
         checking
         onDismissAll={vi.fn()}
@@ -382,7 +331,7 @@ describe("GuestAttentionBannerView", () => {
     );
     expect(
       screen.getByRole("region", { name: /Needs attention/ }),
-    ).toHaveAccessibleName(/2 pending, 1 conflict/);
+    ).toHaveAccessibleName(/1 conflict/);
     expect(screen.getByRole("button", { name: "Dismiss all" })).toHaveAttribute(
       "aria-disabled",
       "true",
@@ -390,7 +339,6 @@ describe("GuestAttentionBannerView", () => {
     await expectNoA11yViolations(baseElement);
     rerender(
       <GuestAttentionBannerView
-        pending={2}
         conflicts={[offlineConflict()]}
         onDismissAll={vi.fn()}
       />,
@@ -403,7 +351,6 @@ describe("GuestAttentionBannerView", () => {
   it("uses the singular form for a single conflict", () => {
     render(
       <GuestAttentionBannerView
-        pending={0}
         conflicts={[offlineConflict()]}
         onDismissAll={vi.fn()}
       />,
@@ -413,30 +360,10 @@ describe("GuestAttentionBannerView", () => {
     ).toHaveAccessibleName(/1 conflict/);
   });
 
-  it("offers Send now beside pending edits and calls it", async () => {
-    const onSendNow = vi.fn();
-    const { baseElement } = render(
-      <GuestAttentionBannerView
-        pending={2}
-        conflicts={[]}
-        onDismissAll={vi.fn()}
-        onSendNow={onSendNow}
-      />,
-    );
-    expandDetails();
-    await userEvent.click(screen.getByRole("button", { name: "Send now" }));
-    expect(onSendNow).toHaveBeenCalledOnce();
-    expect(
-      screen.queryByRole("button", { name: "Retry" }),
-    ).not.toBeInTheDocument();
-    await expectNoA11yViolations(baseElement);
-  });
-
   it("offers Retry when saved edits are unreadable and calls it", async () => {
     const onRetry = vi.fn();
     render(
       <GuestAttentionBannerView
-        pending={0}
         conflicts={[]}
         unreadable
         onDismissAll={vi.fn()}
@@ -446,313 +373,6 @@ describe("GuestAttentionBannerView", () => {
     expandDetails();
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(onRetry).toHaveBeenCalledOnce();
-    expect(
-      screen.queryByRole("button", { name: "Send now" }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("offers no Send now without pending edits", () => {
-    render(
-      <GuestAttentionBannerView
-        pending={0}
-        conflicts={[offlineConflict()]}
-        onDismissAll={vi.fn()}
-        onSendNow={vi.fn()}
-      />,
-    );
-    expect(
-      screen.queryByRole("button", { name: "Send now" }),
-    ).not.toBeInTheDocument();
-  });
-
-  describe("a refine-gate refusal", () => {
-    const gated = () =>
-      offlineConflict({
-        reason: TRANSCRIPT_REFINE_REFUSAL,
-        command: { type: DocumentCommand.ApproveEdits },
-      });
-
-    describe("when the details open", () => {
-      const scrollIntoView = vi.fn();
-      const original = Object.getOwnPropertyDescriptor(
-        Element.prototype,
-        "scrollIntoView",
-      );
-      beforeEach(() => {
-        scrollIntoView.mockReset();
-        Element.prototype.scrollIntoView = scrollIntoView;
-      });
-      afterEach(() => {
-        if (original) {
-          Object.defineProperty(Element.prototype, "scrollIntoView", original);
-        } else {
-          Reflect.deleteProperty(Element.prototype, "scrollIntoView");
-        }
-      });
-
-      function renderGated(conflict = gated(), project: string | null = "/p") {
-        render(
-          <GuestAttentionBannerView
-            pending={0}
-            conflicts={[conflict]}
-            onDismissAll={vi.fn()}
-            refineWaiverProject={project ?? undefined}
-          />,
-        );
-        return screen
-          .getByLabelText("Needs attention 1 Details")
-          .closest("details") as HTMLDetailsElement;
-      }
-
-      it("brings the waiver form into view and leaves focus on the summary", async () => {
-        const details = renderGated();
-        const summary = screen.getByLabelText("Needs attention 1 Details");
-        summary.focus();
-        scrollIntoView.mockClear();
-        details.open = true;
-        await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
-        expect(scrollIntoView).toHaveBeenCalledOnce();
-        expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
-        expect(scrollIntoView.mock.contexts[0]).toBe(
-          details.querySelector(".transcript-refine-recovery"),
-        );
-        expect(summary).toHaveFocus();
-      });
-
-      it("does not scroll when the details close", () => {
-        const details = renderGated();
-        scrollIntoView.mockClear();
-        details.open = false;
-        fireEvent(details, new Event("toggle"));
-        expect(scrollIntoView).not.toHaveBeenCalled();
-      });
-
-      it("does not scroll when there is no waiver form", () => {
-        const details = renderGated(gated(), null);
-        scrollIntoView.mockClear();
-        details.open = true;
-        fireEvent(details, new Event("toggle"));
-        expect(scrollIntoView).not.toHaveBeenCalled();
-      });
-
-      it("copes with a browser that cannot scroll an element into view", () => {
-        const details = renderGated();
-        Reflect.deleteProperty(Element.prototype, "scrollIntoView");
-        const errors: unknown[] = [];
-        const onError = (event: ErrorEvent) => {
-          event.preventDefault();
-          errors.push(event.error);
-        };
-        window.addEventListener("error", onError);
-        try {
-          details.open = true;
-          fireEvent(details, new Event("toggle"));
-        } finally {
-          window.removeEventListener("error", onError);
-        }
-        expect(errors).toEqual([]);
-      });
-    });
-
-    it("lets the host waive from the banner and says to approve again", async () => {
-      waive.mockResolvedValue({});
-      render(
-        <GuestAttentionBannerView
-          pending={0}
-          conflicts={[gated()]}
-          onDismissAll={vi.fn()}
-          refineWaiverProject="/p"
-        />,
-      );
-      expandDetails();
-      expect(screen.getByText(/^Approve:/)).toBeVisible();
-      expect(
-        screen.queryByText("Edit the change and submit it again."),
-      ).not.toBeInTheDocument();
-      await userEvent.type(
-        screen.getByLabelText("Waiver reason"),
-        "episode is a rerun",
-      );
-      await userEvent.click(
-        screen.getByRole("button", { name: "Waive with reason" }),
-      );
-      expect(waive).toHaveBeenCalledWith("/p", "episode is a rerun");
-      const status = await screen.findByRole("status");
-      expect(status).toHaveTextContent(
-        "Waiver recorded. Retry approval to apply pending edits.",
-      );
-      expect(status).toHaveFocus();
-      expect(
-        screen.queryByRole("button", { name: "Waive with reason" }),
-      ).not.toBeInTheDocument();
-    });
-
-    it("names Approve only for an approve command", () => {
-      render(
-        <GuestAttentionBannerView
-          pending={0}
-          conflicts={[
-            offlineConflict({
-              reason: TRANSCRIPT_REFINE_REFUSAL,
-              command: {
-                command_id: "tighten-1",
-                type: DocumentCommand.RemoveTrack,
-              },
-            }),
-          ]}
-          onDismissAll={vi.fn()}
-          refineWaiverProject="/p"
-        />,
-      );
-      expandDetails();
-      expect(screen.getByText(DocumentCommand.RemoveTrack)).toBeVisible();
-      expect(screen.queryByText(/^Approve$/)).not.toBeInTheDocument();
-    });
-
-    it("clears every gated entry with one waiver", async () => {
-      waive.mockResolvedValue({});
-      render(
-        <GuestAttentionBannerView
-          pending={0}
-          conflicts={[
-            offlineConflict({
-              reason: TRANSCRIPT_REFINE_REFUSAL,
-              command: { command_id: "a-1" },
-            }),
-            offlineConflict({
-              reason: TRANSCRIPT_REFINE_REFUSAL,
-              command: { command_id: "a-2" },
-            }),
-          ]}
-          onDismissAll={vi.fn()}
-          refineWaiverProject="/p"
-        />,
-      );
-      expandDetails();
-      await userEvent.type(
-        screen.getAllByLabelText("Waiver reason")[0],
-        "rerun",
-      );
-      await userEvent.click(
-        screen.getAllByRole("button", { name: "Waive with reason" })[0],
-      );
-      expect(await screen.findAllByRole("status")).toHaveLength(2);
-      expect(
-        screen.queryByRole("button", { name: "Waive with reason" }),
-      ).not.toBeInTheDocument();
-    });
-
-    it("offers no waiver on an entry that was not refused", () => {
-      render(
-        <GuestAttentionBannerView
-          pending={0}
-          conflicts={[
-            offlineConflict({
-              kind: "unknown",
-              recovery: "inspect-history",
-              reason: TRANSCRIPT_REFINE_REFUSAL,
-            }),
-          ]}
-          onDismissAll={vi.fn()}
-          refineWaiverProject="/p"
-        />,
-      );
-      expandDetails();
-      expect(
-        screen.queryByRole("button", { name: "Waive with reason" }),
-      ).not.toBeInTheDocument();
-    });
-
-    it("offers the form again for a refusal that arrives after a waiver", async () => {
-      waive.mockResolvedValue({});
-      const entry = (id: string) =>
-        offlineConflict({
-          reason: TRANSCRIPT_REFINE_REFUSAL,
-          command: { command_id: id },
-        });
-      const view = (ids: string[]) => (
-        <GuestAttentionBannerView
-          pending={0}
-          conflicts={ids.map(entry)}
-          onDismissAll={vi.fn()}
-          refineWaiverProject="/p"
-        />
-      );
-      const { rerender } = render(view(["first"]));
-      expandDetails();
-      await userEvent.type(screen.getByLabelText("Waiver reason"), "rerun");
-      await userEvent.click(
-        screen.getByRole("button", { name: "Waive with reason" }),
-      );
-      await screen.findByRole("status");
-      rerender(view(["first", "second"]));
-      expect(
-        screen.getAllByRole("button", { name: "Waive with reason" }),
-      ).toHaveLength(1);
-      expect(screen.getAllByRole("status")).toHaveLength(1);
-    });
-
-    it("forgets a waiver once its entry leaves the list", async () => {
-      waive.mockResolvedValue({});
-      const gatedEntry = () =>
-        offlineConflict({
-          reason: TRANSCRIPT_REFINE_REFUSAL,
-          command: { command_id: "same-id" },
-        });
-      const view = (entries: ReturnType<typeof gatedEntry>[]) => (
-        <GuestAttentionBannerView
-          pending={0}
-          conflicts={entries}
-          onDismissAll={vi.fn()}
-          refineWaiverProject="/p"
-        />
-      );
-      const { rerender } = render(view([gatedEntry()]));
-      expandDetails();
-      await userEvent.type(screen.getByLabelText("Waiver reason"), "rerun");
-      await userEvent.click(
-        screen.getByRole("button", { name: "Waive with reason" }),
-      );
-      await screen.findByRole("status");
-      rerender(view([]));
-      rerender(view([gatedEntry()]));
-      expandDetails();
-      expect(
-        await screen.findByRole("button", { name: "Waive with reason" }),
-      ).toBeVisible();
-    });
-
-    it("offers a guest no waiver", () => {
-      render(
-        <GuestAttentionBannerView
-          pending={0}
-          conflicts={[gated()]}
-          onDismissAll={vi.fn()}
-        />,
-      );
-      expandDetails();
-      expect(
-        screen.queryByRole("button", { name: "Waive with reason" }),
-      ).not.toBeInTheDocument();
-      expect(
-        screen.getByText("Edit the change and submit it again."),
-      ).toBeVisible();
-    });
-
-    it("keeps other refusals on the edit-and-resubmit line", () => {
-      render(
-        <GuestAttentionBannerView
-          pending={0}
-          conflicts={[offlineConflict()]}
-          onDismissAll={vi.fn()}
-          refineWaiverProject="/p"
-        />,
-      );
-      expandDetails();
-      expect(
-        screen.queryByRole("button", { name: "Waive with reason" }),
-      ).not.toBeInTheDocument();
-    });
   });
 });
 
@@ -762,20 +382,17 @@ describe("a refusal that blocks saving", () => {
     blocksSave: true,
   } as ReturnType<typeof offlineConflict>;
 
-  it.each([
-    [false, "Fix the project file first; this change was not saved."],
-    [true, "Ask the project owner to check the project."],
-  ])("for guest=%s says %s", (guest, words) => {
+  it("tells the guest to ask the project owner", () => {
     render(
       <GuestAttentionBannerView
-        pending={0}
         conflicts={[blocking]}
         onDismissAll={vi.fn()}
-        guest={guest}
       />,
     );
     expandDetails();
-    expect(screen.getByText(words)).toBeVisible();
+    expect(
+      screen.getByText("Ask the project owner to check the project."),
+    ).toBeVisible();
     expect(
       screen.queryByText("Edit the change and submit it again."),
     ).not.toBeInTheDocument();

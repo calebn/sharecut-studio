@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
 import { expectFeedback } from "./feedback";
-import { openProject } from "./stageNav";
+import { openProject, saveStatus } from "./stageNav";
 import {
   openScript,
   servePendingEditsCleared,
@@ -76,11 +76,8 @@ test("queued speaker save stays visible and reports pending delivery", async ({
       })
       .first(),
   ).toBeVisible();
-  await expect(
-    page.getByRole("region", {
-      name: /^Needs attention\. 1 pending(?:,|$)/,
-    }),
-  ).toBeVisible();
+  // The aborted send leaves an unknown outcome, so the dot says Save failed; its Retry opens the queue.
+  await expect(saveStatus(page)).toContainText("Save failed");
   await expectFeedback(page, "Track metadata change queued. Still sending.", {
     superseded: true,
   });

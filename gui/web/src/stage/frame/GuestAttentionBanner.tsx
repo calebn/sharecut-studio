@@ -1,6 +1,4 @@
-import { runPointerCommand } from "../../commands/pointer";
 import { useOfflineAttentionAnnouncement } from "../../hooks/useOfflineAttentionAnnouncement";
-import { requestHostDrain } from "../../services/offlineQueue/drainOfflineQueue";
 import {
   dismissAllConflicts,
   refreshOfflineAttention,
@@ -17,7 +15,7 @@ export function GuestAttentionBanner({
 }) {
   const { projectPath } = useDaw((s) => ({ projectPath: s.projectPath }));
   const {
-    pending: queued,
+    pending,
     conflicts: allConflicts,
     recoverySelection,
     status,
@@ -30,25 +28,23 @@ export function GuestAttentionBanner({
     ? [...activeConflicts, recoverySelection]
     : activeConflicts;
   const guest = isShareProjectKey(projectPath);
-  const pending = guest ? 0 : queued;
   const unreadable = status === "unreadable" || status === "retrying";
   useOfflineAttentionAnnouncement({
     projectPath,
-    pending,
+    pending: guest ? 0 : pending,
     conflictCount: conflicts.length,
     unreadable,
     dismissFailed: status === "dismiss-failed",
     loaded,
     status,
   });
+  if (!guest) return null;
   return (
     <GuestAttentionBannerView
       key={projectPath}
       host={host}
-      pending={pending}
       conflicts={conflicts}
       canDismiss={activeConflicts.length > 0}
-      guest={guest}
       unreadable={unreadable}
       dismissFailed={status === "dismiss-failed"}
       checking={
@@ -57,20 +53,7 @@ export function GuestAttentionBanner({
         status === "dismissing"
       }
       onDismissAll={() => dismissAllConflicts(projectPath)}
-      onSendNow={
-        isShareProjectKey(projectPath)
-          ? undefined
-          : () => {
-              void requestHostDrain(projectPath);
-            }
-      }
       onRetry={() => refreshOfflineAttention(projectPath)}
-      refineWaiverProject={guest ? undefined : projectPath}
-      onInspectHistory={
-        guest
-          ? undefined
-          : () => runPointerCommand("stage.edit", { sheet: "history" })
-      }
     />
   );
 }
