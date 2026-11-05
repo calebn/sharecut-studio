@@ -59,7 +59,7 @@ SCRIPT_REF_RES = (
     re.compile(r"""^\s*(?:from|import)\s+(\w+)""", re.MULTILINE),
 )
 MAIN_SHARDS = 4
-PR_WEBKIT_SHARDS = 2
+PR_WEBKIT_SHARDS = 3
 
 
 @dataclass(frozen=True)
