@@ -307,7 +307,7 @@ function selectWordUnderPlayhead(): ExecuteResult {
   s.stopFollow("local");
   s.setIsPlaying(false);
   s.setSelection(wordSelection(word));
-  s.announceStatus(`Selected "${word.text}". Backspace cuts it`);
+  s.announceStatus(`Selected "${word.text}". Cut it to remove`);
   return OK;
 }
 

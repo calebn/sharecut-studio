@@ -7,7 +7,7 @@ import type { SystemIconName } from "./icons";
 import { Player } from "./Player";
 import { SystemIcon } from "./SystemIcon";
 
-/** Design system lifetimes: 6 s, and 10 s for session-level undo. The app keeps 8 s and 60 s until #2292. */
+/** Design system lifetimes: 6 s, and 10 s for session-level undo. */
 const DS_TOAST_S = 6;
 const DS_SESSION_UNDO_S = 10;
 
@@ -113,7 +113,7 @@ const meta: Meta<Args> = {
     docs: {
       ...viewportStoryParameters.docs,
       description: {
-        component: `One position: centered 12 px above the Player bar. An icon, a past-tense result and at most one action. The design system lifetime is ${DS_TOAST_S} s (paused on hover or focus) and ${DS_SESSION_UNDO_S} s for session-level undo; a new toast replaces the old one and same-kind toasts merge. Wraps \`ui/Toast\`. The app keeps its own 8 s and 60 s constants until the wiring slice (#2292), so these stories hold the toast at rest instead of timing out.\n\n**Motion.** Rises from the dock with \`--motion-panel\` and fades with \`--motion-state\` in the animation pass; not implemented here.`,
+        component: `One position: centered 12 px above the Player bar. An icon, a past-tense result and at most one action. The design system lifetime is ${DS_TOAST_S} s (paused on hover or focus) and ${DS_SESSION_UNDO_S} s for session-level undo; a new toast replaces the old one and same-kind toasts merge. Wraps \`ui/Toast\`. The app uses the same lifetimes; these stories hold the toast at rest instead of timing out.\n\n**Motion.** Rises from the dock with \`--motion-panel\` and fades with \`--motion-state\` in the animation pass; not implemented here.`,
       },
     },
   },

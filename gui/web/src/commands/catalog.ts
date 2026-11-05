@@ -288,7 +288,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     keywords: ["remove", "delete"],
     when: "editStageStructural",
     notes:
-      "Backspace/Delete: cut the selection. Clips (gap left), words and ranges (the Cut verb), a suggestion (accept), a chapter or envelope point (remove)",
+      "Backspace/Delete: cut the selection; while playing with nothing selected, pause and select the word under the playhead. Clips (gap left), words and ranges (the Cut verb), a suggestion (accept), a chapter or envelope point (remove)",
   },
   "edit.clearSelection": {
     id: "edit.clearSelection",

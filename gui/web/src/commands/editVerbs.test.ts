@@ -505,6 +505,25 @@ describe("Cut, and the Backspace order", () => {
   });
 });
 
+const jonasUtterance = (start: number, end: number) => ({
+  track_id: JONAS,
+  speaker: "Jonas",
+  start,
+  end,
+  text: "yes",
+  words: [
+    {
+      text: "yes",
+      start,
+      end,
+      timeline_start: start,
+      timeline_end: end,
+      mappable: true,
+      word_index: 0,
+    },
+  ],
+});
+
 describe("Backspace while playing with nothing selected", () => {
   const timelined = () => {
     const project = editFixtureProject();
@@ -536,7 +555,7 @@ describe("Backspace while playing with nothing selected", () => {
       startWordIndex: 2,
       endWordIndex: 2,
     });
-    expect(announced()).toBe('Selected "this". Backspace cuts it');
+    expect(announced()).toBe('Selected "this". Cut it to remove');
     expect(runRangeAction).not.toHaveBeenCalled();
   });
 
@@ -548,12 +567,51 @@ describe("Backspace while playing with nothing selected", () => {
     expect(runRangeAction).toHaveBeenCalledWith("cut");
   });
 
-  it("takes the last word that started when the playhead is between words", async () => {
-    playing({ playheadSec: 5 });
+  it("takes a word that ended within a second before the playhead", async () => {
+    const project = timelined();
+    const first = project.transcript!.utterances[0]!.words![0]!;
+    playing({ project, playheadSec: first.end + 0.5 });
     await execute("edit.delete");
     expect(useDawStore.getState().selection).toMatchObject({
       startWordIndex: 0,
     });
+  });
+
+  it("refuses in a silence longer than a second and keeps playing", async () => {
+    const project = timelined();
+    const first = project.transcript!.utterances[0]!.words![0]!;
+    playing({ project, playheadSec: first.end + 1.5 });
+    expect(await execute("edit.delete", {}, { skipWhen: true })).toEqual({
+      status: "disabled",
+      reason: "No word under the playhead",
+    });
+    expect(useDawStore.getState().isPlaying).toBe(true);
+    expect(useDawStore.getState().selection).toBeNull();
+  });
+
+  it("prefers the word at the playhead on a lower track over a stale word above", async () => {
+    const project = timelined();
+    project.transcript!.utterances.push(jonasUtterance(7, 8));
+    playing({ project, playheadSec: 7.5, rangeScopeTrackIds: null });
+    const mira = project.transcript!.utterances[0]!.words!;
+    for (const w of mira) {
+      w.timeline_start = 2;
+      w.timeline_end = 2.2;
+    }
+    await execute("edit.delete");
+    expect(useDawStore.getState().selection).toMatchObject({ trackId: JONAS });
+  });
+
+  it("skips a muted targeted track", async () => {
+    const project = timelined();
+    project.transcript!.utterances.push(jonasUtterance(7, 8));
+    playing({
+      project,
+      rangeScopeTrackIds: [MIRA],
+      viewerMute: { [MIRA]: true },
+    });
+    await execute("edit.delete");
+    expect(useDawStore.getState().selection).toMatchObject({ trackId: JONAS });
   });
 
   it("prefers the targeted track, then the topmost audible one", async () => {

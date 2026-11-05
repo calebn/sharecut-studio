@@ -138,14 +138,17 @@ function ToastCard({
     (visibility === "clipped" && clippedSpentFor !== toast.id);
   const toastId = toast.id;
   const dismiss = useEffectEvent(onDismiss);
-  const lifetime = useRef({ id: toastId, remaining: timeoutMs });
+  const lifetime = useRef({ id: toastId, timeoutMs, remaining: timeoutMs });
   const returnFocus = useEffectEvent(() => {
     const target = returnFocusRef?.current ?? null;
     if (isValidFocusTarget(target)) target.focus({ preventScroll: true });
   });
   useEffect(() => {
-    if (lifetime.current.id !== toastId)
-      lifetime.current = { id: toastId, remaining: timeoutMs };
+    if (
+      lifetime.current.id !== toastId ||
+      lifetime.current.timeoutMs !== timeoutMs
+    )
+      lifetime.current = { id: toastId, timeoutMs, remaining: timeoutMs };
     if (paused) return;
     const started = Date.now();
     const timer = window.setTimeout(
