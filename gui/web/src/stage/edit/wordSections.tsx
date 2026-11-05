@@ -5,8 +5,7 @@ import type { InspectorSection } from "../../system/InspectorSheet";
 import type { Selection } from "../../types/project";
 import { oneWordOf } from "../../utils/rangeSelect";
 import { findTranscriptWord } from "../../utils/transcript";
-import { rangeSection } from "./rangeSection";
-import { WordFix } from "./WordFix";
+import { passageRangeSection, rangeSection } from "./rangeSection";
 import { WordActions, WordFacts, WordTiming } from "./WordParts";
 import type { WordRef } from "./wordTarget";
 
@@ -38,7 +37,8 @@ export function useWordSections(
             ],
           },
         ];
-  if (!word || !hydrated || !canHostMutate(projectPath))
+  if (!word) return [passageRangeSection, ...related];
+  if (!hydrated || !canHostMutate(projectPath))
     return [rangeSection, ...related];
   if (
     !project ||
@@ -67,10 +67,6 @@ export function useWordSections(
     id: "word",
     rows: [{ id: "facts", control: <WordFacts key={key} {...ref} /> }],
   };
-  const fix: InspectorSection = {
-    id: "fix",
-    rows: [{ id: "fix", control: <WordFix key={key} {...ref} /> }],
-  };
   const rest: InspectorSection = {
     id: "actions",
     rows: [
@@ -78,5 +74,5 @@ export function useWordSections(
       { id: "timing", control: <WordTiming key={key} {...ref} /> },
     ],
   };
-  return [rangeSection, facts, fix, rest, ...related];
+  return [rangeSection, facts, rest, ...related];
 }

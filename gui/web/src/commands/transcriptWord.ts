@@ -1,6 +1,6 @@
 import { isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
-import { oneWordOf } from "../utils/rangeSelect";
+import { oneWordOf, wordSelection } from "../utils/rangeSelect";
 import { findTranscriptWord, wordSeekSec } from "../utils/transcript";
 import { registerCommand } from "./execute";
 import type { ExecuteResult } from "./types";
@@ -32,12 +32,9 @@ export function registerTranscriptWordCommands(): void {
         ?.timing_target
     )
       return { status: "disabled", reason: "Select a source transcript word" };
-    s.setTranscriptTimingRequest({
-      projectPath: s.projectPath,
-      trackId,
-      sourceId,
-      wordIndex,
-    });
+    // The word Inspector carries the timing fields and the waveform handles.
+    s.setSelection(wordSelection({ trackId, sourceId, wordIndex }));
+    s.setInspectorOpen(true);
     return { status: "ok" };
   });
   registerCommand("transcript.editWordInline", () => {

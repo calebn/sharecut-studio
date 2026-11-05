@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { makeRangeTarget } from "../edit/rangeSelection";
@@ -46,11 +46,36 @@ describe("range fields", () => {
     const { container } = render(<RangeFields />);
     expect(container).toBeEmptyDOMElement();
   });
-  it("has no verb buttons, Clear range or speaker move: those moved to the bar", () => {
-    useDawStore.setState({ rangeArmed: true, selection: null });
-    render(<RangeFields sheet />);
-    const names = screen.getAllByRole("button").map((b) => b.textContent);
-    expect(names).toEqual(["Select range", "Cancel range selection"]);
+  it("has no In and Out inputs, Select range, Cancel or Apply: a range is edited by its Scrub fields", () => {
+    render(<RangeFields sheet always />);
+    expect(screen.queryAllByRole("button")).toEqual([
+      expect.objectContaining({ textContent: "Speaker" }),
+    ]);
+    for (const name of ["In", "Out", "Length"])
+      expect(screen.getByRole("spinbutton", { name })).toBeVisible();
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(document.querySelector('input[type="number"]')).toBeNull();
+  });
+  it("commits In, Out and Length as a new range selection", async () => {
+    render(<RangeFields sheet always />);
+    const field = (name: string) => screen.getByRole("spinbutton", { name });
+    expect(field("In")).toHaveAttribute("aria-valuenow", "1");
+    expect(field("Out")).toHaveAttribute("aria-valuenow", "2");
+    expect(field("Length")).toHaveAttribute("aria-valuenow", "1");
+    field("Length").focus();
+    fireEvent.keyDown(field("Length"), { key: "ArrowUp" });
+    expect(useDawStore.getState().selection).toMatchObject({
+      kind: "range",
+      target: { intervals: [{ start: 1, end: 2.01 }] },
+    });
+  });
+  it("narrows the scope with track toggles and keeps one on", async () => {
+    const user = userEvent.setup();
+    render(<RangeFields sheet always />);
+    const speaker = screen.getByRole("button", { name: "Speaker" });
+    expect(speaker).toHaveAttribute("aria-pressed", "true");
+    await user.click(speaker);
+    expect(speaker).toHaveAttribute("aria-pressed", "true");
   });
   it("asks which audible occurrence when repeated material has two", async () => {
     const user = userEvent.setup();
@@ -118,7 +143,7 @@ describe("range fields", () => {
       target: { intervals: [{ start: 11, end: 17 }] },
     });
   });
-  it("keeps the word handles with a words selection", () => {
+  it("draws no word step buttons for a words selection", () => {
     useDawStore.setState({
       selection: {
         kind: "transcriptRange",
@@ -128,7 +153,8 @@ describe("range fields", () => {
       },
     });
     render(<RangeFields />);
-    expect(screen.getByRole("group", { name: /word/i })).toBeTruthy();
+    expect(screen.queryByRole("group", { name: /word/i })).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
   });
   it("requires deliberate lane selection for numeric and agent ranges", async () => {
     const user = userEvent.setup();
@@ -140,11 +166,14 @@ describe("range fields", () => {
       followingClientId: "agent",
     });
     render(<RangeFields sheet />);
-    await user.click(screen.getByRole("button", { name: "Select range" }));
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "choose at least one track",
+    expect(
+      screen.getByRole("button", {
+        name: "Use agent range on selected tracks",
+      }),
+    ).toHaveAccessibleDescription(
+      "Select at least one track to use the agent range.",
     );
-    await user.click(screen.getByRole("checkbox", { name: "Speaker" }));
+    await user.click(screen.getByRole("button", { name: "Speaker" }));
     await user.click(
       screen.getByRole("button", {
         name: "Use agent range on selected tracks",
@@ -164,7 +193,7 @@ describe("range fields", () => {
       sessionRegion: { start_sec: 3, end_sec: 4 },
     });
     render(<RangeFields sheet />);
-    await user.click(screen.getByRole("checkbox", { name: "Speaker" }));
+    await user.click(screen.getByRole("button", { name: "Speaker" }));
     expect(useDawStore.getState().rangeScopeTrackIds).toEqual(["a"]);
     await user.click(
       screen.getByRole("button", {
@@ -188,17 +217,5 @@ describe("range fields", () => {
     );
     expect(useDawStore.getState().selection).toMatchObject({ kind: "range" });
     expect(useDawStore.getState().inspectorKey).toBe("range");
-  });
-  it("clears a track selection made while armed when the range is cancelled", async () => {
-    const user = userEvent.setup();
-    useDawStore.setState({
-      rangeArmed: true,
-      selection: { kind: "track", trackId: "a" },
-    });
-    render(<RangeFields sheet />);
-    await user.click(
-      screen.getByRole("button", { name: "Cancel range selection" }),
-    );
-    expect(useDawStore.getState().selection).toBeNull();
   });
 });

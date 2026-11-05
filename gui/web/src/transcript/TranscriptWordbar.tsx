@@ -1,6 +1,6 @@
 import {
   type CSSProperties,
-  type KeyboardEvent,
+  type PointerEvent,
   useEffect,
   useEffectEvent,
   useId,
@@ -14,12 +14,12 @@ import {
   saveWordTiming,
   type WordTimingContext,
 } from "../api/transcriptTiming";
-import { currentDocumentSeq } from "../document/cursor";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
+import { ScrubField } from "../system/ScrubField";
 import { WaveformLayer } from "../timeline/WaveformLayer";
-import type { ProjectView, TranscriptWordView } from "../types/project";
-import { Button, CommandButton, InlineError } from "../ui";
+import type { TranscriptWordView } from "../types/project";
+import { Button, InlineError } from "../ui";
 import { useResizeObserver } from "../ui/useResizeObserver";
 import { errorMessage } from "../utils/apiError";
 
@@ -33,7 +33,6 @@ type Editor =
       draft: Bounds;
       message: string;
     };
-type Saved = { project: ProjectView | null; seq: number };
 
 function SourceProgress({
   ownerId,
@@ -75,38 +74,26 @@ export function TranscriptWordbar({
   trackId: string;
   wordIndex: number;
 }) {
-  const { projectPath, request } = useDaw((s) => ({
-    projectPath: s.projectPath,
-    request: s.transcriptTimingRequest,
-  }));
-  const open =
-    request?.projectPath === projectPath &&
-    request.trackId === trackId &&
-    (request.sourceId ?? null) === word.timing_target?.source_id &&
-    request.wordIndex === wordIndex;
+  const projectPath = useDaw((s) => s.projectPath);
   if (!word.timing_target) return null;
   return (
     <section className="transcript-wordbar" aria-label="Word timing">
-      <CommandButton
-        commandId="transcript.adjustTiming"
-        args={{ trackId, sourceId: word.timing_target.source_id, wordIndex }}
-        short
+      <TimingEditor
+        key={JSON.stringify([
+          projectPath,
+          trackId,
+          word.timing_target.source_id,
+          word.timing_target.word_index,
+          wordIndex,
+        ])}
+        projectPath={projectPath}
+        word={word}
       />
-      {open && (
-        <TimingEditor
-          key={JSON.stringify([
-            projectPath,
-            word.timing_target.track_id,
-            word.timing_target.source_id,
-            word.timing_target.word_index,
-          ])}
-          projectPath={projectPath}
-          word={word}
-        />
-      )}
     </section>
   );
 }
+
+const HANDLE_NAMES = { start: "Word start", end: "Word end" } as const;
 
 function TimingEditor({
   projectPath,
@@ -116,11 +103,8 @@ function TimingEditor({
   word: TranscriptWordView;
 }) {
   const [state, setState] = useState<Editor>({ kind: "loading" });
-  const [saved, setSaved] = useState<Saved | null>(null);
-  const [listen, setListen] = useState(false);
   const [width, setWidth] = useState(1);
   const ownerId = useId();
-  const id = useId();
   const mounted = useRef(true);
   const stateRef = useRef(state);
   useLayoutEffect(() => {
@@ -128,13 +112,12 @@ function TimingEditor({
   }, [state]);
   const initialWord = useRef(word);
   const gesture = useRef<{ pointerId: number; before: Bounds } | null>(null);
-  const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const edge = useRef<keyof Bounds>("start");
   const busy = useRef(false);
   const frame = useRef<HTMLDivElement>(null);
-  const { project, epoch } = useDaw((s) => ({
+  const { project, epoch, hearing } = useDaw((s) => ({
     project: s.project,
     epoch: s.projectEpoch,
+    hearing: s.sourcePreview?.ownerId === ownerId,
   }));
   const openingEpoch = useRef(epoch);
   const valid = () =>
@@ -144,16 +127,12 @@ function TimingEditor({
   useResizeObserver(frame, (entries) =>
     setWidth(entries[0]?.contentRect.width ?? 1),
   );
-  const stopPreview = () => {
-    if (previewTimer.current != null) clearTimeout(previewTimer.current);
-    previewTimer.current = null;
+  const stopPreview = () =>
     useDawStore.getState().releaseSourcePreview(ownerId);
-  };
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
-      if (previewTimer.current != null) clearTimeout(previewTimer.current);
       useDawStore.getState().releaseSourcePreview(ownerId);
     };
   }, [ownerId]);
@@ -183,21 +162,14 @@ function TimingEditor({
   useEffect(() => {
     initialize();
   }, []);
-  const preview = (boundary?: keyof Bounds) => {
+  const hear = () => {
     const latest = stateRef.current;
     if (latest.kind !== "ready" || !valid()) return;
     const { context, draft } = latest;
     const duration = context.media.duration_sec;
     if (duration == null) return;
-    const center = boundary ? draft[boundary] : null;
-    const start = Math.max(
-      0,
-      center == null ? draft.start - 0.15 : center - 0.18,
-    );
-    const end = Math.min(
-      duration,
-      center == null ? draft.end + 0.15 : center + 0.18,
-    );
+    const start = Math.max(0, draft.start - 0.15);
+    const end = Math.min(duration, draft.end + 0.15);
     if (!(end > start)) return;
     useDawStore.getState().beginSourcePreview({
       ownerId,
@@ -232,18 +204,9 @@ function TimingEditor({
       };
     stateRef.current = next;
     setState(next);
-    edge.current = field;
-    if (listen && previewTimer.current == null) {
-      const generation = useDawStore.getState().sourcePreviewGeneration;
-      previewTimer.current = setTimeout(() => {
-        previewTimer.current = null;
-        if (generation === useDawStore.getState().sourcePreviewGeneration)
-          preview(edge.current);
-      }, 250);
-    }
   };
+  // Esc during a drag, a lost pointer or a cancelled scrub puts the saved bounds back.
   const cancel = () => {
-    stopPreview();
     const latest = stateRef.current;
     if (latest.kind !== "ready") return;
     const next = {
@@ -252,13 +215,14 @@ function TimingEditor({
         start: latest.context.word.start,
         end: latest.context.word.end,
       },
-      message: "Timing adjustment cancelled.",
+      message: "",
     };
     gesture.current = null;
     stateRef.current = next;
     setState(next);
   };
-  const apply = async () => {
+  // Saves the draft as it stands: on release of a handle, or when a field commits.
+  const save = async () => {
     const latest = stateRef.current;
     if (latest.kind !== "ready" || busy.current || !valid()) return;
     stopPreview();
@@ -273,8 +237,10 @@ function TimingEditor({
       latest.draft.start < 0 ||
       latest.draft.end > latest.context.media.duration_sec ||
       latest.draft.end - latest.draft.start < minimum - 1e-12
-    )
+    ) {
+      cancel();
       return;
+    }
     if (
       latest.draft.start === latest.context.word.start &&
       latest.draft.end === latest.context.word.end
@@ -298,12 +264,6 @@ function TimingEditor({
         });
         return;
       }
-      setSaved(
-        typeof result.server_seq === "number" &&
-          result.server_seq === currentDocumentSeq()
-          ? { project: useDawStore.getState().project, seq: result.server_seq }
-          : null,
-      );
       const context = await loadWordTimingContext(
         projectPath,
         latest.context.target,
@@ -330,12 +290,9 @@ function TimingEditor({
       busy.current = false;
     }
   };
-  const cancelOnEscape = (event: KeyboardEvent<HTMLElement>) => {
-    if (event.key === "Escape" && stateRef.current.kind === "ready") {
-      event.preventDefault();
-      event.stopPropagation();
-      cancel();
-    }
+  const commitField = (field: keyof Bounds, value: number) => {
+    change(field, value);
+    void save();
   };
   const viewport = useMemo(() => ({ scrollLeft: 0, width }), [width]);
   if (state.kind === "loading")
@@ -349,45 +306,52 @@ function TimingEditor({
     );
   const { context, draft } = state;
   const duration = context.media.duration_sec;
-  const step = context.media.sample_rate
-    ? 1 / context.media.sample_rate
-    : 0.001;
-  const validBounds =
-    duration != null &&
-    Number.isFinite(draft.start) &&
-    Number.isFinite(draft.end) &&
-    draft.start >= 0 &&
-    draft.end <= duration &&
-    draft.end - draft.start >= step - 1e-12;
   const disabled = state.kind === "saving" || duration == null;
-  const busyReason = state.kind === "saving" ? "Saving the timing." : undefined;
-  const readyReason =
-    busyReason ??
-    (duration == null
-      ? "Wait for the recording waveform, then reload timing."
-      : undefined);
-  const boundsReason = !validBounds
-    ? "Choose a positive span within the recording."
-    : undefined;
-  const changed =
-    draft.start !== context.word.start || draft.end !== context.word.end;
   const window = context.window;
+  const span = window.end - window.start;
   const previous = context.neighbors.find(
     (n) => n.word_index === context.target.word_index - 1,
   );
   const next = context.neighbors.find(
     (n) => n.word_index === context.target.word_index + 1,
   );
+  const timeAt = (clientX: number) => {
+    const rect = frame.current?.getBoundingClientRect();
+    if (!rect || rect.width <= 0) return null;
+    const ratio = (clientX - rect.left) / rect.width;
+    return window.start + Math.max(0, Math.min(1, ratio)) * span;
+  };
+  const dragHandle = (field: keyof Bounds) => ({
+    onPointerDown: (event: PointerEvent<HTMLSpanElement>) => {
+      if (disabled || event.button !== 0 || gesture.current) return;
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      gesture.current = { pointerId: event.pointerId, before: { ...draft } };
+    },
+    onPointerMove: (event: PointerEvent<HTMLSpanElement>) => {
+      if (gesture.current?.pointerId !== event.pointerId) return;
+      const at = timeAt(event.clientX);
+      if (at != null) change(field, Math.max(0, Math.round(at * 1000) / 1000));
+    },
+    onPointerUp: (event: PointerEvent<HTMLSpanElement>) => {
+      if (gesture.current?.pointerId !== event.pointerId) return;
+      void save();
+    },
+    onPointerCancel: cancel,
+  });
   return (
+    // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- Escape drops a handle drag in progress; focus stays on whatever opened the editor
     <div
       role="group"
       aria-label="Adjust source timing"
       className="wordbar-editor"
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && gesture.current) {
+          event.preventDefault();
+          event.stopPropagation();
+          cancel();
+        }
+      }}
     >
-      <p>
-        Source recording · {context.target.source_id ?? context.target.track_id}{" "}
-        · seconds
-      </p>
       <div className="wordbar-waveform" ref={frame}>
         <WaveformLayer
           mediaRef={context.media.ref}
@@ -395,7 +359,7 @@ function TimingEditor({
           mediaStartSec={window.start}
           clipLeftCss={0}
           clipWidthCss={width}
-          zoom={width / (window.end - window.start)}
+          zoom={width / span}
           colorVar="var(--color-clip-dialogue-0)"
           role={
             project?.tracks.find(
@@ -409,12 +373,20 @@ function TimingEditor({
           <span
             key={boundary}
             className="wordbar-boundary-mark"
+            data-boundary={boundary}
             style={
               {
-                "--wordbar-position": `${Math.max(0, Math.min(100, ((draft[boundary] - window.start) / (window.end - window.start)) * 100))}%`,
+                "--wordbar-position": `${Math.max(0, Math.min(100, ((draft[boundary] - window.start) / span) * 100))}%`,
               } as CSSProperties
             }
-          />
+          >
+            <span
+              className="wordbar-handle"
+              aria-hidden="true"
+              data-testid={`handle-${boundary}`}
+              {...dragHandle(boundary)}
+            />
+          </span>
         ))}
         <SourceProgress
           ownerId={ownerId}
@@ -438,7 +410,7 @@ function TimingEditor({
               title={`${neighbor.start.toFixed(3)}–${neighbor.end.toFixed(3)} source seconds`}
               style={
                 {
-                  "--wordbar-position": `${Math.max(0, Math.min(100, ((neighbor.start - window.start) / (window.end - window.start)) * 100))}%`,
+                  "--wordbar-position": `${Math.max(0, Math.min(100, ((neighbor.start - window.start) / span) * 100))}%`,
                 } as CSSProperties
               }
             >
@@ -447,58 +419,24 @@ function TimingEditor({
           ))}
       </div>
       {(["start", "end"] as const).map((field) => (
-        <div key={field} className="wordbar-boundary">
-          <label htmlFor={`${id}-${field}`}>
-            {field === "start" ? "Word start" : "Word end"}
-          </label>
-          <input
-            onKeyDown={cancelOnEscape}
-            id={`${id}-${field}`}
-            type="range"
-            min={window.start}
-            max={window.end}
-            step={step}
-            value={Number.isFinite(draft[field]) ? draft[field] : window.start}
-            disabled={disabled}
-            aria-valuetext={`${draft[field].toFixed(3)} source seconds`}
-            onChange={(event) =>
-              change(field, event.currentTarget.valueAsNumber)
-            }
-            onPointerDown={(event) => {
-              gesture.current = {
-                pointerId: event.pointerId,
-                before: { ...draft },
-              };
-            }}
-            onPointerUp={(event) => {
-              if (gesture.current?.pointerId !== event.pointerId) return;
-              gesture.current = null;
-              void apply();
-            }}
-            onPointerCancel={cancel}
-            onLostPointerCapture={() => {
-              if (gesture.current) cancel();
-            }}
-          />
-          <input
-            onKeyDown={cancelOnEscape}
-            type="number"
-            aria-label={`${field === "start" ? "Start" : "End"} source seconds`}
+        <label key={field} className="range-field">
+          <span>{field === "start" ? "Start" : "End"}</span>
+          <ScrubField
+            label={HANDLE_NAMES[field]}
+            value={Number.isFinite(draft[field]) ? draft[field] : null}
+            unit="s"
+            step={0.001}
+            decimals={3}
             min={0}
             max={duration ?? undefined}
-            step={step}
-            value={Number.isFinite(draft[field]) ? draft[field] : ""}
-            disabled={disabled}
-            onChange={(event) =>
-              change(field, event.currentTarget.valueAsNumber)
-            }
+            readOnly={disabled}
+            skipUnchanged
+            onPreview={(value) => change(field, value)}
+            onCancel={cancel}
+            onCommit={(value) => commitField(field, value)}
           />
-        </div>
+        </label>
       ))}
-      <p className="ui-field-hint">
-        Drag a boundary to save on release. Use Apply timing for keyboard or
-        numeric changes. Escape cancels the draft.
-      </p>
       {(previous && draft.start < previous.end) ||
       (next && draft.end > next.start) ? (
         <p role="status">
@@ -517,102 +455,15 @@ function TimingEditor({
       ) : null}
       {duration == null ? (
         <p role="status">
-          Recording duration is unavailable. Wait for its waveform, then reload
-          timing.
+          Recording duration is unavailable. Wait for its waveform.
         </p>
-      ) : !validBounds ? (
-        <p role="status">Choose a positive span within the recording.</p>
       ) : null}
-      <label>
-        <input
-          onKeyDown={cancelOnEscape}
-          type="checkbox"
-          checked={listen}
-          disabled={disabled}
-          onChange={(event) => {
-            setListen(event.target.checked);
-            if (!event.target.checked) stopPreview();
-          }}
-        />{" "}
-        Listen while adjusting
-      </label>
-      <p className="ui-field-hint">
-        Preview keeps the timeline in place until you stop it or close timing.
-      </p>
       <div className="wordbar-actions">
         <Button
-          onKeyDown={cancelOnEscape}
-          disabledReason={readyReason ?? boundsReason}
-          onClick={() => preview()}
+          disabledReason={disabled ? "Saving the timing." : undefined}
+          onClick={hearing ? stopPreview : hear}
         >
-          Play draft
-        </Button>
-        <Button onKeyDown={cancelOnEscape} onClick={stopPreview}>
-          Stop preview
-        </Button>
-        <Button
-          onKeyDown={cancelOnEscape}
-          disabledReason={
-            readyReason ??
-            boundsReason ??
-            (!changed ? "Change a boundary to apply timing." : undefined)
-          }
-          onClick={() => void apply()}
-        >
-          Apply timing
-        </Button>
-        <Button
-          onKeyDown={cancelOnEscape}
-          disabledReason={busyReason}
-          onClick={cancel}
-        >
-          Cancel draft
-        </Button>
-        {saved && (
-          <CommandButton
-            commandId="history.undo"
-            disabledReason={
-              project !== saved.project || currentDocumentSeq() !== saved.seq
-                ? "The transcript changed since this timing. Use History to review newer changes."
-                : undefined
-            }
-            onKeyDown={cancelOnEscape}
-            onClick={(event) => {
-              const current = useDawStore.getState();
-              if (
-                current.project !== saved.project ||
-                currentDocumentSeq() !== saved.seq
-              ) {
-                event.preventDefault();
-                setSaved(null);
-                return;
-              }
-              stopPreview();
-              current.setTranscriptTimingRequest(null);
-            }}
-          >
-            Undo timing
-          </CommandButton>
-        )}
-        <Button
-          onKeyDown={cancelOnEscape}
-          disabledReason={busyReason}
-          onClick={() => {
-            stopPreview();
-            void reload(word);
-          }}
-        >
-          Reload timing
-        </Button>
-        <Button
-          onKeyDown={cancelOnEscape}
-          disabledReason={busyReason}
-          onClick={() => {
-            stopPreview();
-            useDawStore.getState().setTranscriptTimingRequest(null);
-          }}
-        >
-          Close timing
+          {hearing ? "Stop" : "Hear"}
         </Button>
       </div>
       <p role="status">{state.message}</p>

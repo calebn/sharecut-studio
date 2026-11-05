@@ -201,14 +201,11 @@ type Reach = {
  * fail to compile until it names its actions.
  */
 const REACH: Record<SelectionKind, Reach[]> = {
-  range: [{ role: "button", name: "Select range" }],
-  transcriptRange: [
-    { role: "button", name: "Add word before" },
-    { role: "button", name: "Ignore" },
-  ],
+  range: [{ role: "spinbutton", name: "In" }],
+  transcriptRange: [{ role: "spinbutton", name: "Length" }],
   clip: [
     { role: "spinbutton", name: "Fade in" },
-    { role: "button", name: "Move clip" },
+    { role: "spinbutton", name: "Start" },
     { role: "button", name: "Ripple delete" },
   ],
   bleedAttenuation: [{ role: "button", name: "Restore original audio" }],
@@ -333,41 +330,32 @@ describe("selection surfaces reach every kind on every shell", () => {
   }
 
   for (const shell of SHELLS) {
-    it(`Select range over a clip puts In and Out where the ${shell} shell can reach them`, () => {
-      const { container } = mount(shell);
+    it(`Select range over a clip opens no form: the range is dragged on the lanes (${shell})`, () => {
+      mount(shell);
       select(SELECTIONS.clip);
       act(() => useDawStore.getState().setRangeArmed(true));
-      const regions = rangeRegions();
-      expect(regions).toHaveLength(1);
-      const home =
-        shell === "desktop"
-          ? container.querySelector(".edit-timeline-col")
-          : sheet();
-      expect(home?.contains(regions[0]!)).toBe(true);
-      expect(within(regions[0]!).getByLabelText("In")).toBeVisible();
-      expect(within(regions[0]!).getByLabelText("Out")).toBeVisible();
       expect(
-        within(regions[0]!).getByRole("button", {
-          name: "Cancel range selection",
-        }),
-      ).toBeVisible();
+        rangeRegions().flatMap((region) =>
+          within(region).queryAllByRole("spinbutton"),
+        ),
+      ).toEqual([]);
+      expect(
+        screen.queryByRole("button", { name: "Cancel range selection" }),
+      ).toBeNull();
     });
 
-    it(`Select range over nothing puts In and Out ${shell === "desktop" ? "in the bar" : "in the sheet"} on the ${shell} shell`, () => {
-      const { container } = mount(shell);
-      act(() => useDawStore.getState().setRangeArmed(true));
+    it(`a made range puts In, Out and Length where the ${shell} shell can reach them`, () => {
+      mount(shell);
+      select(SELECTIONS.range);
+      inspect();
       const regions = rangeRegions();
       expect(regions).toHaveLength(1);
-      const home =
-        shell === "desktop"
-          ? container.querySelector(".edit-timeline-col")
-          : sheet();
+      const home = sheet();
       expect(home?.contains(regions[0]!)).toBe(true);
-      if (shell !== "desktop") {
+      for (const name of ["In", "Out", "Length"])
         expect(
-          within(home as HTMLElement).queryByText(/Click a clip/),
-        ).toBeNull();
-      }
+          within(regions[0]!).getByRole("spinbutton", { name }),
+        ).toBeVisible();
     });
 
     it(`an agent range over a clip stays ${shell === "phone" ? "out of the bar" : "in the bar"} on the ${shell} shell, and an armed Select range moves it into ${shell === "desktop" ? "the bar" : "the sheet"}`, () => {
@@ -465,7 +453,7 @@ describe("a tapped word is one kind", () => {
       inspect();
       const home = sheet();
       expect(home).not.toBeNull();
-      for (const name of ["Add word after", "Suppress", "Copy"]) {
+      for (const name of ["Suppress", "Copy"]) {
         expect(within(home!).getByRole("button", { name })).toBeVisible();
       }
       expect(

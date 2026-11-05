@@ -253,7 +253,10 @@ async function sweepCell(
       dense: DENSE,
       sizeExempt: SIZE_EXEMPT,
     });
-    await page.getByRole("button", { name: "Cancel range selection" }).click();
+    await page
+      .getByRole("button", { name: "Select range", exact: true })
+      .first()
+      .tap();
   }
 
   if (phone) {

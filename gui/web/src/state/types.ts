@@ -108,23 +108,6 @@ export type ShellBreakpoint = "phone" | "tablet" | "desktop";
  */
 export type PointerKind = "fine" | "coarse";
 
-/**
- * Typed but unsaved word-editor fields and the word they belong to. It lives
- * in the store, not in the inspector, so it outlives the shells swapping on
- * rotation; `dawStore` drops it when the selection leaves its word.
- */
-export type WordDraftEntry = {
-  projectPath: string;
-  projectEpoch: number;
-  trackId: string;
-  sourceId: string | null;
-  wordIndex: number;
-  text: string;
-  endIndexStr: string;
-  /** The span text the draft was checked against (#650); Apply still sends this snapshot. */
-  expectedText: string | null;
-};
-
 export interface CommentDraft {
   startSec: number;
   endSec: number | null;
@@ -269,9 +252,7 @@ export interface DawState {
   userZoomed: boolean;
   layers: LayerVisibility;
   commentDraft: CommentDraft | null;
-  wordDraft: WordDraftEntry | null;
   transcriptFollowPlayhead: boolean;
-  transcriptTimingRequest: TranscriptInlineEditRequest | null;
   transcriptInlineEditRequest: TranscriptInlineEditRequest | null;
   /** Late failure of an inline word fix; outlives a Script remount. */
   transcriptInlineEditFailure: TranscriptInlineEditFailure | null;
@@ -416,9 +397,6 @@ export interface DawState {
   ) => void;
   setTranscriptFollowPlayhead: (on: boolean) => void;
   toggleTranscriptFollowPlayhead: () => void;
-  setTranscriptTimingRequest: (
-    request: TranscriptInlineEditRequest | null,
-  ) => void;
   setTranscriptInlineEditRequest: (
     request: TranscriptInlineEditRequest | null,
   ) => void;
@@ -483,7 +461,6 @@ export interface DawState {
   resetTimelineViewportWidth: () => void;
   setLayerVisible: (key: keyof LayerVisibility, visible: boolean) => void;
   setCommentDraft: (draft: CommentDraft | null) => void;
-  setWordDraft: (entry: WordDraftEntry | null) => void;
   selectTracks: (trackIds: readonly string[]) => void;
   toggleTrackSelected: (trackId: string, additive: boolean) => void;
   fitToWindow: (viewportWidth: number) => void;

@@ -10,7 +10,7 @@ import {
   openGuestShare,
   openHostShare,
 } from "./shareNavigation";
-import { armRange, inspectSelectionByKey, openPanel } from "./stageNav";
+import { inspectSelectionByKey, openPanel, selectRangeSec } from "./stageNav";
 import { openScript } from "./transcriptEdit";
 
 function repeatedProject(prefix: string) {
@@ -44,14 +44,7 @@ function repeatedProject(prefix: string) {
 }
 
 async function selectRange(page: Page) {
-  await armRange(page);
-  const range = page.getByRole("region", { name: "Range fields" });
-  await range.getByRole("spinbutton", { name: "In", exact: true }).fill("11");
-  await range.getByRole("spinbutton", { name: "Out", exact: true }).fill("12");
-  await range.getByRole("checkbox", { name: "reference", exact: true }).check();
-  await range
-    .getByRole("button", { name: "Select range", exact: true })
-    .click();
+  const range = await selectRangeSec(page, "11", "12");
   await expect(page.locator(".range-overlay")).toHaveCount(1);
   await expect(actionBar(page)).toBeVisible();
   return range;
@@ -295,15 +288,8 @@ test("host cuts and mutes the repeated copy and arms a phone clip-body range", a
           .getByRole("button", { name: "Select range", exact: true })
           .tap();
         await expect(
-          phone.getByRole("button", {
-            name: "Cancel range selection",
-            exact: true,
-          }),
-        ).toBeVisible();
-        await expect(phone.locator(".range-actions--sheet")).toHaveCSS(
-          "overflow-y",
-          "visible",
-        );
+          phone.getByRole("button", { name: "Select range", exact: true }),
+        ).toHaveAttribute("aria-pressed", "true");
         const body = phone.locator('[data-clip-id="first-copy"] .clip-hit');
         const bounds = await body.boundingBox();
         expect(bounds).toBeTruthy();
@@ -388,20 +374,7 @@ test("host gets a plain reason when a range has no room tone to fill with", asyn
       await page.setViewportSize({ width: 1440, height: 900 });
       await openHostShare(page, projectPath);
       const before = geometry(projectPath);
-      await armRange(page);
-      const range = page.getByRole("region", { name: "Range fields" });
-      await range
-        .getByRole("spinbutton", { name: "In", exact: true })
-        .fill("5.5");
-      await range
-        .getByRole("spinbutton", { name: "Out", exact: true })
-        .fill("7.5");
-      await range
-        .getByRole("checkbox", { name: "reference", exact: true })
-        .check();
-      await range
-        .getByRole("button", { name: "Select range", exact: true })
-        .click();
+      await selectRangeSec(page, "5.5", "7.5");
       await expect(page.locator(".range-overlay")).toHaveCount(1);
       await rangeAxe(page);
       await chooseMore(page, "Fill room tone");
@@ -431,22 +404,7 @@ test.describe("a phone with a touch screen", () => {
       async (projectPath) => {
         await openHostShare(page, projectPath);
         await openPhoneTimeline(page);
-        await page
-          .getByRole("button", { name: "Select range", exact: true })
-          .tap();
-        const range = page.getByRole("region", { name: "Range fields" });
-        await range
-          .getByRole("spinbutton", { name: "In", exact: true })
-          .fill("1");
-        await range
-          .getByRole("spinbutton", { name: "Out", exact: true })
-          .fill("2");
-        await range
-          .getByRole("checkbox", { name: "reference", exact: true })
-          .check();
-        await range
-          .getByRole("button", { name: "Select range", exact: true })
-          .click();
+        await selectRangeSec(page, "1", "2");
         await actionBar(page).getByRole("button", { name: "More" }).click();
         await expect(
           page.getByRole("menuitem", { name: "Fill room tone", exact: true }),

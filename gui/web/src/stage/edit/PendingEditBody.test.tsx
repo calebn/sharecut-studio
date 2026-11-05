@@ -1474,7 +1474,7 @@ describe("PendingEditBody", () => {
       expect(args[3]).toBe(2.3804);
     });
 
-    it("describes the time format on every nudge field", async () => {
+    it("gives every timing field a Scrub value and a split no text input", async () => {
       const { container } = render(<PendingEditBody edit={guestCut} />);
       expect(screen.getByLabelText("Source start")).toHaveAttribute(
         "aria-valuetext",
@@ -1498,9 +1498,35 @@ describe("PendingEditBody", () => {
           }}
         />,
       );
-      expect(screen.getByLabelText("Cut time")).toHaveAccessibleDescription(
-        "m:ss.mmm or seconds",
+      expect(screen.getByLabelText("Cut time")).toHaveAttribute(
+        "aria-valuetext",
+        "10.000000 s",
       );
+      expect(screen.queryByRole("button", { name: /^Apply/ })).toBeNull();
+      expect(screen.queryByRole("textbox", { name: "Track ids" })).toBeNull();
+    });
+
+    it("saves a split's cut time and tracks as they are set, with no Apply", async () => {
+      const user = userEvent.setup();
+      const split = {
+        ...sessionCut,
+        id: "sp1",
+        type: "split" as const,
+        source_start: 10,
+        source_end: 10,
+        timeline_end: 10,
+        timeline_spans: [{ start: 10, end: 10 }],
+      };
+      useDawStore
+        .getState()
+        .hydrate("/tmp/p.json", minimalProject({ pending_edits: [split] }));
+      render(<PendingEditBody edit={split} />);
+      await commitField(user, "Cut time", "10.5");
+      expect(updatePendingEdit).toHaveBeenCalledTimes(1);
+      const args = updatePendingEdit.mock.calls[0] as unknown[];
+      expect(args[2]).toBe(10.5);
+      expect(args[3]).toBe(10.5);
+      expect(args[4]).toBe(false);
     });
 
     it("accepts m:ss.mmm in the nudge fields", async () => {

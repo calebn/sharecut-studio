@@ -19,7 +19,6 @@ import {
 import { muteRegionsOverlapping } from "../../edit/muteRegions";
 import { trimEdgeLimits } from "../../edit/trimLimits";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
-import { ClipPlacementControls } from "../../inspector/views/ClipPlacementControls";
 import { canApplyPass12, canSuggestStructural } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
@@ -30,6 +29,7 @@ import type { Selection } from "../../types/project";
 import { Button, InspectorSeekFooter } from "../../ui";
 import { BUSY_REASON } from "../../ui/disabledReason";
 import { JOIN_MODE_OPTIONS } from "../../utils/editMarkerRegistry";
+import { ClipStartField, ClipTrackRow } from "./clipPlacementFields";
 import { note } from "./sheetNote";
 
 const FADE_LIMIT_LOADING = "The fade limit is still loading. Wait a moment.";
@@ -216,6 +216,25 @@ export function useClipSections(
     {
       id: "clip",
       rows: [
+        {
+          id: "start",
+          label: "Start",
+          control: <ClipStartField clip={clip} disabled={locked} />,
+        },
+        {
+          id: "track",
+          label: "Track",
+          control: (
+            <ClipTrackRow
+              clip={clip}
+              tracks={(project?.tracks ?? []).map((t) => ({
+                id: t.id,
+                label: t.label || t.id,
+              }))}
+              disabled={locked}
+            />
+          ),
+        },
         { id: "in", label: "Source start", control: edge("in") },
         { id: "out", label: "Source end", control: edge("out") },
         { id: "fadeIn", label: "Fade in", control: fadeField("in") },
@@ -337,11 +356,6 @@ export function useClipSections(
               Inspect automatic audio reduction
             </Button>
           ),
-        },
-        {
-          id: "move",
-          label: "Move",
-          control: <ClipPlacementControls clipId={clip.id} busy={busy} />,
         },
         ...(error
           ? [

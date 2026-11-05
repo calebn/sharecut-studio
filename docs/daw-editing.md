@@ -209,20 +209,12 @@ Speaker labels in the transcript open a name editor for hosts and shares with th
 
 Shipped:
 
-- The Script shows cut words as pills at the join they were cut from, low-confidence words with an underline and a `?` chip that walks to the next one, and each clip join as an in-text edit-boundary mark (`ScriptJoin`, from ProjectView `edit_boundaries`). There is no Annotate toggle; the **Show cut text** toggle in the Script header lists the cut words (the command palette runs it as **Show cut away**, `view.showCutAway`).
-- The Script pane (`system/ScriptPane`, mounted by `stage/edit/script/ScriptHost`) has no mode toggles. A click selects a word and seeks; Shift-click, Shift-arrows and a drag extend the selection by word, and across speakers the selection covers that time on both tracks. Hosts **press Enter or F2 on the selection, or double-click or double-tap a word, to fix its text** (the Fix text field; Enter commits via `CorrectTranscriptWord` = one undo step, sending the words as they read when the field opened as `expected_text` so a correction whose word index shifted under a remote edit is refused with a 409 conflict instead of changing another word (#650); Esc cancels; Tab fixes and jumps to the next unsure word; a phrase must sit on one speaker and hold no cut words). The selection is a `transcriptRange` for Mod+C/X/V clipboard and the Action bar. On touch, one finger moving scrolls and never selects; a long press on a word arms a range and moving on drags it over the words under the finger, with the list scrolling at its top and bottom edge. A second finger cancels the drag and puts the earlier selection back. The Range fields list **Add word before**, **Add word after**, **Drop first word** and **Drop last word** for every range, so the gesture is never the only route (`transcript.extendRange`, `utils/rangeSelect.ts`; a hold repeats, a range never drops below one word). Share guests can select only when `rangeEditMode` is `edit` or `suggest`: an Editor's Cut applies as for the host and an Editor's Mute on words is the exact-range mute (`range.mute`, not the host-only Ignore), while a Commenter's Suggest cut / Suggest mute creates a pending edit. Viewers get no selection and keep untimed utterance text. Ignore, Fix text and Replace all stay host-only. Ignore mutes audio at render without a cut; Fix text is text-only (audio and timing unchanged).
+- The Script shows cut words as pills at the join they were cut from, low-confidence words with an underline and a `?` chip that walks to the next one, and each clip join as a Seam in the text (`System/Seam`, from ProjectView `edit_boundaries`); dragging its pill rolls the join and Esc cancels. There is no Annotate toggle; the **Show cut text** toggle in the Script header lists the cut words (the command palette runs it as **Show cut away**, `view.showCutAway`).
+- The Script pane (`system/ScriptPane`, mounted by `stage/edit/script/ScriptHost`) has no mode toggles. A click selects a word and seeks; Shift-click, Shift-arrows and a drag extend the selection by word, and across speakers the selection covers that time on both tracks. Hosts **press Enter or F2 on the selection, or double-click or double-tap a word, to fix its text** (the Fix text field; Enter commits via `CorrectTranscriptWord` = one undo step, sending the words as they read when the field opened as `expected_text` so a correction whose word index shifted under a remote edit is refused with a 409 conflict instead of changing another word (#650); Esc cancels; Tab fixes and jumps to the next unsure word; a phrase must sit on one speaker and hold no cut words). The selection is a `transcriptRange` for Mod+C/X/V clipboard and the Action bar. On touch, one finger moving scrolls and never selects; a long press on a word arms a range and moving on drags it over the words under the finger, with the list scrolling at its top and bottom edge. A second finger cancels the drag and puts the earlier selection back. Selection handles at both ends of the range, and Shift+Arrow (Alt+Shift+Arrow to shrink from the start), extend or shrink it by a word, so the gesture is never the only route (`transcript.extendRange`, `utils/rangeSelect.ts`; a range never drops below one word). There are no step buttons. Share guests can select only when `rangeEditMode` is `edit` or `suggest`: an Editor's Cut applies as for the host and an Editor's Mute on words is the exact-range mute (`range.mute`, not the host-only Ignore), while a Commenter's Suggest cut / Suggest mute creates a pending edit. Viewers get no selection and keep untimed utterance text. Ignore, Fix text and Replace all stay host-only. Ignore mutes audio at render without a cut; Fix text is text-only (audio and timing unchanged).
 
 Word actions retain the exact source identity `(track_id, source_id, word_index)` through selection, presence, correction, ignore/restore and source-scoped timing. Two takes on the same lane may both have word zero at source time zero; actions on one take affect only that transcript. See [GUI integration](gui-integration.md) for the API identity and combined-projection lifecycle.
 
-On a phone or tablet, a one-word **Correct** sheet leads with **Corrected text**,
-**End index**, and **Apply**. The initial 320×568 phone sheet fits both the text
-field and Apply without scrolling. Suppress, Ignore, the full track and word
-index, metadata, timing, and Play remain below the form. The Action bar keeps
-its Correct-mode refusal reasons below the word inspector. **Select** keeps
-the Range fields (In and Out, the occurrence chooser, word handles) first; the
-range's verbs are on the Action bar. Correction errors appear beside the form; other word-action
-errors stay with the inspector's secondary controls. The word sheet is a list of Inspector sheet sections (`stage/edit/wordSections.tsx`), so the
-desktop card and the phone sheet show the same fields.
+The one-word Inspector sheet has no text form: **Fix text** is the inline field in the Script (Enter or F2 on the selection). The sheet shows the word's facts (confidence, suppressed, ignored), then Suppress, Ignore and Return to automatic, then the timing editor (see Wordbar source timing). Word-action errors appear with those controls. The word sheet is a list of Inspector sheet sections (`stage/edit/wordSections.tsx`), so the desktop card and the phone sheet show the same fields.
 
 In **Select** mode, Shift-click extends from the original word on the same track, including backward selections. Shift-click on another track selects only that word and starts a new range there. A mouse drag stays on its starting track, ignores words on other tracks, and resumes extending when the pointer returns.
 
@@ -528,9 +520,9 @@ Replacement tokens must each contain a letter or number; attach punctuation to t
 
 ### Wordbar source timing
 
-Hosts can select a word and press Inspect (I), then choose **Adjust timing** in its inspector. The inline Wordbar shows the raw recording waveform, nearby words, and source seconds. Start and end handles share the waveform's local viewport; scrolling the main timeline does not move this view. Drag a handle and release to save one history action. Native keyboard range changes and numeric edits stay in the draft until **Apply timing**. Escape while editing, pointer cancellation, lost capture before release, and **Cancel draft** discard that gesture. A zero-length imported word can be repaired to a positive span.
+Hosts can select a word and press Inspect (I); the Adjust word timing command selects the word and opens the same Inspector. The word's Wordbar shows the raw recording waveform, nearby words, and **Start** and **End** Scrub fields in source seconds. Start and end handles share the waveform's local viewport; scrolling the main timeline does not move this view. Drag a handle and release, or commit a Scrub field (Enter, an arrow key or a release), to save one history action. There is no Apply or Cancel. Escape during a drag, pointer cancellation and lost capture before release discard that gesture. A zero-length imported word can be repaired to a positive span.
 
-**Play draft** auditions the exact raw recording around the draft boundaries. **Listen while adjusting** opts into short, throttled edge previews. The existing audio controller temporarily owns that source clock, shows local progress, and keeps the timeline playhead in place. Stop, closing the editor, changing project, or taking over with timeline playback cancels preview. Preview does not create renders or document edits. It intentionally hears raw audio, including ignored words. No new public play mode is introduced.
+**Hear** auditions the exact raw recording around the draft boundaries and becomes **Stop** while it plays. The existing audio controller temporarily owns that source clock, shows local progress, and keeps the timeline playhead in place. Stop, closing the editor, changing project, or taking over with timeline playback cancels preview. Preview does not create renders or document edits. It intentionally hears raw audio, including ignored words. No new public play mode is introduced.
 
 Words in repeated clips, cut-away words, and retained unplaced recordings edit their stored source word once, so all placements reflect the change. The mapper supplies the exact stored transcript key, including a null primary source key; a primary recording alias does not turn that into a different transcript. The current transcript view still chooses its existing track transcript; this control does not add a recording browser or migrate text-correction APIs.
 
@@ -684,18 +676,18 @@ carry every contributing accepted ID. Temporary measurement audio may be rendere
 
 ## Move clips without dragging
 
-Select a clip and choose **Move clip** beside Timeline in its inspector. Choose
-**Target track** and use **Earlier 10 ms**, **Later 10 ms**, or **Use playhead**.
-For an exact destination, enter **Timeline start (seconds)**. Review the timeline
-preview, then choose **Apply move** or **Cancel**. A selected group moves together,
-with each clip clamped at zero and the outer tracks. Exact input does not snap.
-Apply uses one existing move History action. Cancel and unchanged Apply save
-nothing. The preview stays visible while Apply waits for an earlier edit to finish.
+Select a clip and open its inspector. Scrub **Start** to move it in time: the
+drag previews the move on the timeline, a release or Enter saves it, and Escape
+drops it. To move it to another track at the same time, tap that track in the
+**Track** row. A selected group moves together, with each clip clamped at zero
+and the outer tracks. A typed Start does not snap. A move is one existing move
+History action. An unchanged value saves nothing. The preview stays visible while
+the save waits for an earlier edit to finish.
 A late load of transcript words, the hydration flags, or history groups keeps
 the preview open. A change to any other project field (clips, tracks, duration,
 name or other metadata, history head or cursor) or to the document authority
 closes it.
-A refused save keeps a current draft and an error so you can retry. The
+A refused save leaves the clip where it was and shows an error. The
 **Moved clips** feedback offers **Undo** for the saved move, including the whole
 selected group. Queued or unchanged replies offer no Undo. Late move feedback
 cannot replace the status after another episode opens or this one reopens.

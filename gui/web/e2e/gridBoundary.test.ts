@@ -67,10 +67,6 @@ const AXIS_LOOPS: Record<string, { loops: number; reason: string }> = {
     loops: 1,
     reason: "16 and 32 px root text are the two boundary sizes",
   },
-  "precision-boundary-timeout.spec.ts": {
-    loops: 2,
-    reason: "axe contrast for the timeout alert in both themes",
-  },
   "envelope-creation.spec.ts": {
     loops: 2,
     reason: "hand-picked viewport and theme profiles, one per boundary cell",
@@ -87,11 +83,6 @@ const AXIS_LOOPS: Record<string, { loops: number; reason: string }> = {
     loops: 1,
     reason:
       "#2908 requires readable desktop and phone screenshot receipts in light and dark for real selected processing and sound-action/session preferences",
-  },
-  "edit-boundary-precision.spec.ts": {
-    loops: 1,
-    reason:
-      "screenshot receipts for the desktop and phone cells in both themes",
   },
   "edit-markers.spec.ts": {
     loops: 2,

@@ -4,51 +4,19 @@ import { openHostProject } from "./overlayReachability";
 // The Select range toggle is a touch control in the Edit corner; isMobile makes the pointer coarse from the first paint.
 test.use({ hasTouch: true, isMobile: true });
 
-test("tablet Select range puts In, Out, Select range and Cancel in the Inspector card at the bottom", async ({
+test("tablet Select range arms and disarms from the Edit corner toggle", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1194, height: 834 });
   await openHostProject(page);
   // The toggle follows the last pointer; opening the project used a mouse.
   await page.touchscreen.tap(1, 1);
-  await page
+  const toggle = page
     .getByRole("button", { name: "Select range", exact: true })
-    .first()
-    .tap();
-
-  const sheet = page.getByRole("dialog", { name: "Inspector", exact: true });
-  const actions = sheet.getByRole("region", { name: "Range fields" });
-  await expect(actions).toBeVisible();
-  await expect(actions.getByLabel("In")).toBeVisible();
-  await expect(actions.getByLabel("Out")).toBeVisible();
-  await expect(
-    actions.getByRole("button", { name: "Select range", exact: true }),
-  ).toBeVisible();
-  const cancel = actions.getByRole("button", {
-    name: "Cancel range selection",
-  });
-  await expect(cancel).toBeVisible();
-
-  // Nothing of it hangs under the App header at the top.
-  await expect(
-    page.locator(".stage-frame-header").getByRole("region", {
-      name: "Range fields",
-    }),
-  ).toHaveCount(0);
-  // The card sits below the lanes it selects across, so they stay in view.
-  await expect
-    .poll(async () => {
-      const sheetBox = await sheet.boundingBox();
-      if (!sheetBox) return 0;
-      const bottoms = await page
-        .locator(".lane-row")
-        .evaluateAll((rows) =>
-          rows.map((row) => row.getBoundingClientRect().bottom),
-        );
-      return bottoms.filter((bottom) => bottom <= sheetBox.y + 1).length;
-    })
-    .toBeGreaterThanOrEqual(2);
-
-  await cancel.click();
-  await expect(actions).toHaveCount(0);
+    .first();
+  await toggle.tap();
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("[data-range-armed]").first()).toBeAttached();
+  await toggle.tap();
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
 });

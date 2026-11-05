@@ -111,7 +111,6 @@ props-only view (`CommentPlaybackBubbleView`); the live adapter keeps the store,
 API and timeline-metrics reads. It has a 360px story alongside its desktop ones, and a guard
 test keeps the view itself free of direct store/API imports. The volume envelope
 is the `System/Envelope` leaf mounted by `timeline/LaneEnvelope.tsx`.
-`Templates/GhostWordChips` shows the shipped transcript preview component with fictional, local-only state, including a 360px phone variant.
 They do not mount the live comment panel.
 `System/ScriptPane` is the production Script pane; `Stages/Edit/ScriptHost`
 runs `stage/edit/script/ScriptHost` over fixture store data for mapped,
@@ -138,10 +137,8 @@ show the production `AvatarStackView` and `OverlayLegendView`
 used by the live `AvatarStack` and `OverlayLegend` adapters,
 including header-hosted and overflow states built from the same
 fixtures as the app.
-`Templates/EditBoundaryMark` previews the production `EditBoundaryMarkView`
-inline in a transcript row, with a roll join, a live roll drag, a
-single-clip trim edge and a 360px row. The live adapter commits
-`RollClipJoin` / `TrimClipEdge`.
+`System/Seam` previews a join in a transcript row, with a roll drag and a
+single-clip edge. The Script host commits `RollClipJoin`.
 `Templates/HostMcpDialog` and `Templates/GesturesSheet` show the shipped
 agent-connection and mobile gesture dialogs. The MCP story passes a fixed
 loopback URL so its preview is independent of Storybook's port; the live
@@ -335,11 +332,7 @@ Mobile transcript touch E2E should wait for an indexed word chip
 CDP touch events. The first unindexed chip can be a temporary turn-level
 placeholder while the transcript hydrates.
 
-The post-reload drag in `edit-boundary-precision.spec.ts` also waits for the
-fixture's restored `dissatisfied` word. Detail hydration can replace a nearby
-boundary mark, so this check precedes scrolling or measuring that mark.
-
-Vitest's `node` project runs 17 explicitly listed pure edit and timeline utility
+Vitest's `node` project runs 16 explicitly listed pure edit and timeline utility
 test files without DOM setup. Its `jsdom` project runs the remaining tests with
 [`src/test/setup.ts`](src/test/setup.ts). Both projects inherit four worker
 threads from [`vitest.config.ts`](vitest.config.ts).

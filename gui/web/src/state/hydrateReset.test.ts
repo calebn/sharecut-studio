@@ -5,7 +5,6 @@ import { useDawStore } from "./dawStore";
 type Reset = Record<string, unknown>;
 
 const ALWAYS: Reset = {
-  wordDraft: null,
   heldTrim: null,
   transcriptInlineEditRequest: null,
   ingestBusy: false,
@@ -18,7 +17,6 @@ const KEPT_ON_SAME_PATH: Reset = {
   followingClientId: null,
   localClientId: null,
   followDegraded: {},
-  transcriptTimingRequest: null,
   transcriptScrollRequest: null,
   transcriptViewAnchor: null,
   playbackRate: 1,

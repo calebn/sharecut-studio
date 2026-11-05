@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
@@ -82,84 +82,6 @@ describe("Inspector clip lookup", () => {
     expect(screen.getByText(/0\.200–0\.800 s/)).toBeInTheDocument();
   });
 
-  it("resets a transcript draft when primary switches to a recording named primary", () => {
-    useDawStore.getState().hydrate(
-      "/tmp/ep",
-      minimalProject({
-        tracks: [track("host")],
-        transcript: {
-          utterances: [
-            {
-              track_id: "host",
-              source_id: null,
-              speaker: "Host",
-              start: 0,
-              end: 1,
-              text: "primary word",
-              mappable: true,
-              timeline_start: 0,
-              timeline_end: 1,
-              words: [
-                {
-                  text: "primary word",
-                  start: 0,
-                  end: 1,
-                  timeline_start: 0,
-                  timeline_end: 1,
-                  word_index: 0,
-                  confidence: 0.9,
-                },
-              ],
-            },
-            {
-              track_id: "host",
-              source_id: "primary",
-              speaker: "Host",
-              start: 0,
-              end: 1,
-              text: "recording word",
-              mappable: true,
-              timeline_start: 0,
-              timeline_end: 1,
-              words: [
-                {
-                  text: "recording word",
-                  start: 0,
-                  end: 1,
-                  timeline_start: 0,
-                  timeline_end: 1,
-                  word_index: 0,
-                  confidence: 0.9,
-                },
-              ],
-            },
-          ],
-        },
-      }),
-    );
-    useDawStore
-      .getState()
-      .setSelection(
-        wordSelection({ trackId: "host", sourceId: null, wordIndex: 0 }),
-      );
-    render(<Inspector />);
-
-    const correction = screen.getByLabelText("Corrected text");
-    expect(correction).toHaveValue("primary word");
-    fireEvent.change(correction, { target: { value: "primary draft" } });
-    act(() => {
-      useDawStore
-        .getState()
-        .setSelection(
-          wordSelection({ trackId: "host", sourceId: "primary", wordIndex: 0 }),
-        );
-    });
-
-    expect(screen.getByLabelText("Corrected text")).toHaveValue(
-      "recording word",
-    );
-  });
-
   it.each([
     [
       "range",
@@ -173,7 +95,7 @@ describe("Inspector clip lookup", () => {
           media_seals: {},
         },
       },
-      "Select range",
+      "Length",
     ],
     [
       "transcriptRange",
@@ -268,14 +190,20 @@ describe("SelectionSheetBody", () => {
   });
 
   it("shows range actions without empty inspector while range is armed with no selection", () => {
-    useDawStore.setState({ selection: null, rangeArmed: true });
+    useDawStore.setState({
+      selection: null,
+      rangeArmed: true,
+      sessionRegion: { start_sec: 1, end_sec: 2 },
+    });
     render(
       <div className="bottom-sheet-body">
         <SelectionSheetBody rangeActionsInSheet />
       </div>,
     );
     expect(
-      screen.getByRole("button", { name: "Cancel range selection" }),
+      screen.getByRole("button", {
+        name: "Use agent range on selected tracks",
+      }),
     ).toBeVisible();
     expect(screen.queryByText(/Click a clip/)).toBeNull();
   });
@@ -283,6 +211,7 @@ describe("SelectionSheetBody", () => {
   it("dual-mounts range actions above the inspector when something else is selected", () => {
     useDawStore.setState({
       rangeArmed: true,
+      sessionRegion: { start_sec: 1, end_sec: 2 },
       selection: { kind: "clip", id: "c1", trackId: "guest" },
     });
     render(
@@ -291,7 +220,9 @@ describe("SelectionSheetBody", () => {
       </div>,
     );
     expect(
-      screen.getByRole("button", { name: "Cancel range selection" }),
+      screen.getByRole("button", {
+        name: "Use agent range on selected tracks",
+      }),
     ).toBeVisible();
     expect(
       screen.getByRole("spinbutton", { name: "Source start" }),

@@ -35,7 +35,7 @@ export function useInspectorOpen(
   );
   const touch = shell !== "desktop";
   const open =
-    (touch && rangeArmed) ||
+    (touch && rangeArmed && sessionRegion != null) ||
     (selection != null &&
       inspectorOpenFor(selection, inspectorKey) &&
       (!touch || opensSheet(selection, screen)));

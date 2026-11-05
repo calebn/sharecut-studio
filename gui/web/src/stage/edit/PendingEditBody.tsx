@@ -1,7 +1,6 @@
 import {
   useCallback,
   useEffect,
-  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -23,6 +22,7 @@ import {
 } from "../../commands/pendingDecision";
 import { useCommentActions } from "../../comments";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
+import { TrackToggleRow } from "../../inspector/TrackToggleRow";
 import {
   REFINE_GATE_GUI_MESSAGE,
   TranscriptRefineRecovery,
@@ -47,13 +47,7 @@ import { ScrubField } from "../../system/ScrubField";
 import { SystemIcon } from "../../system/SystemIcon";
 import { formatSeconds } from "../../system/seconds";
 import type { PendingEditView } from "../../types/project";
-import {
-  Button,
-  DefItem,
-  DefinitionList,
-  FieldRow,
-  InlineError,
-} from "../../ui";
+import { Button, DefItem, DefinitionList, InlineError } from "../../ui";
 import { BUSY_REASON } from "../../ui/disabledReason";
 import {
   errorMessage,
@@ -73,7 +67,7 @@ import {
   finishPendingReview,
 } from "../../utils/pendingReviewPass";
 import type { PreviewMode } from "../../utils/playRange";
-import { formatTimeMs, parseTimecode } from "../../utils/time";
+import { formatTimeMs } from "../../utils/time";
 import { commentCardOf } from "../hosts/commentCardData";
 import { PendingPreview } from "./PendingPreview";
 import { usePendingCutSuggestion } from "./usePendingCutSuggestion";
@@ -96,11 +90,6 @@ function exactSourceTime(seconds: number | null): string {
   return `${minutes}:${secondField}.${fraction.padEnd(3, "0")}`;
 }
 
-type TimingDraft = Readonly<{
-  identity: string;
-  start: string;
-  commandId?: string;
-}>;
 type TimingCapture = Readonly<{
   projectPath: string;
   projectEpoch: number;
@@ -188,10 +177,6 @@ export function PendingEditBody({
     value: number;
     commandId: string;
   }> | null>(null);
-  const [startStr, setStartStr] = useState(sourceTime(edit.source_start));
-  const [tracksStr, setTracksStr] = useState(
-    (edit.track_ids ?? [edit.track_id]).join(", "),
-  );
   const timingIdentity = JSON.stringify([
     projectPath,
     projectEpoch,
@@ -200,12 +185,7 @@ export function PendingEditBody({
     edit.type,
     edit.timebase ?? "source",
   ]);
-  const previousTiming = useRef({
-    identity: timingIdentity,
-    start: edit.source_start,
-    end: edit.source_end,
-  });
-  const submittedTiming = useRef<TimingDraft | null>(null);
+  const previousTiming = useRef({ identity: timingIdentity });
   const role = commentRole(projectPath, guestMode);
   const [author, setAuthor] = useState(() => sessionDisplayName(role));
   const [askBody, setAskBody] = useState("");
@@ -221,7 +201,6 @@ export function PendingEditBody({
   useEffect(() => {
     focusReplyOnMount.current = false;
   }, [edit.id]);
-  const timeHintId = useId();
   const {
     busy: threadBusy,
     error: threadError,
@@ -244,60 +223,14 @@ export function PendingEditBody({
   }, [timingIdentity, setError, setQueued]);
 
   useEffect(() => {
-    const previous = previousTiming.current;
-    const submitted = submittedTiming.current;
-    const sameIdentity = previous.identity === timingIdentity;
-    const boundsChanged =
-      previous.start !== edit.source_start || previous.end !== edit.source_end;
-    setStartStr((text) =>
-      !sameIdentity ||
-      text.trim() === sourceTime(previous.start) ||
-      (boundsChanged &&
-        submitted?.identity === timingIdentity &&
-        !submitted.commandId &&
-        text === submitted.start)
-        ? sourceTime(edit.source_start)
-        : text,
-    );
-    previousTiming.current = {
-      identity: timingIdentity,
-      start: edit.source_start,
-      end: edit.source_end,
-    };
-    if (!sameIdentity || (boundsChanged && !submitted?.commandId))
-      submittedTiming.current = null;
-    setTracksStr((edit.track_ids ?? [edit.track_id]).join(", "));
+    const sameIdentity = previousTiming.current.identity === timingIdentity;
+    previousTiming.current = { identity: timingIdentity };
     if (!sameIdentity) {
       setAskBody("");
       setSnapToSilence(true);
     }
     setPreviewMode(edit.suggest_reason ? "current" : "suggested");
-  }, [
-    timingIdentity,
-    edit.id,
-    edit.source_start,
-    edit.source_end,
-    edit.track_id,
-    edit.track_ids,
-    edit.suggest_reason,
-  ]);
-
-  useEffect(() => {
-    const draft = submittedTiming.current;
-    if (
-      !settlement ||
-      !draft ||
-      draft.identity !== timingIdentity ||
-      draft.commandId !== settlement.commandId
-    )
-      return;
-    if (settlement.outcome === "applied") {
-      setStartStr((text) =>
-        text === draft.start ? sourceTime(edit.source_start) : text,
-      );
-    }
-    submittedTiming.current = null;
-  }, [settlement, timingIdentity, edit.source_start, edit.source_end]);
+  }, [timingIdentity, edit.id, edit.suggest_reason]);
 
   const runAction = async (
     action: "approve" | "reject",
@@ -435,7 +368,6 @@ export function PendingEditBody({
     end,
     snap,
     trackIds,
-    draft,
     entered,
   }: {
     capture: TimingCapture;
@@ -443,7 +375,6 @@ export function PendingEditBody({
     end: number;
     snap: boolean;
     trackIds?: string[];
-    draft?: TimingDraft;
     entered?: Readonly<{ edge: "start" | "end"; value: number }>;
   }) => {
     await run(async () => {
@@ -457,56 +388,26 @@ export function PendingEditBody({
           trackIds,
           capture.expected,
         );
-        const saved = currentTimingEdit(capture);
-        if (!saved) return;
-        if (result.queued && draft && submittedTiming.current === draft) {
-          submittedTiming.current = { ...draft, commandId: result.commandId };
-        }
+        if (!currentTimingEdit(capture)) return;
         setQueued(result.queued, result.queued ? result.commandId : undefined);
         setEnteredEdge(
           result.queued && entered
             ? { ...entered, commandId: result.commandId }
             : null,
         );
-        if (!result.queued && draft) {
-          setStartStr((text) =>
-            text === draft.start ? sourceTime(saved.source_start) : text,
-          );
-          if (submittedTiming.current === draft) submittedTiming.current = null;
-        }
       } catch (error) {
-        if (submittedTiming.current === draft) submittedTiming.current = null;
         if (currentTimingEdit(capture)) throw error;
       }
     });
   };
 
-  const applySplit = async () => {
+  // A split has one time and a set of tracks, each saved as it is set.
+  const commitSplit = async (value: number | null, trackIds?: string[]) => {
     if (timingBusy) return;
     const capture = captureTiming();
     if (!capture) return;
-    const start =
-      startStr.trim() === formatTimeMs(capture.expected.start)
-        ? capture.expected.start
-        : parseTimecode(startStr);
-    if (start == null) {
-      setError("Times must be m:ss.mmm or seconds");
-      return;
-    }
-    const trackIds = tracksStr
-      .split(",")
-      .map((value) => value.trim())
-      .filter(Boolean);
-    const draft: TimingDraft = { identity: timingIdentity, start: startStr };
-    submittedTiming.current = draft;
-    await saveTiming({
-      capture,
-      start,
-      end: start,
-      snap: false,
-      trackIds,
-      draft,
-    });
+    const start = value ?? capture.expected.start;
+    await saveTiming({ capture, start, end: start, snap: false, trackIds });
   };
 
   const commitEdge = async (edge: "start" | "end", value: number) => {
@@ -699,50 +600,37 @@ export function PendingEditBody({
             </>
           ) : isSplit ? (
             <>
-              <DefItem label="Cut time (timeline)">
+              <DefItem label="Cut time (source)">
                 {canNudge ? (
-                  <FieldRow>
-                    <input
-                      type="text"
-                      spellCheck={false}
-                      placeholder="m:ss.mmm"
-                      value={startStr}
-                      disabled={timingBusy}
-                      aria-label="Cut time"
-                      aria-describedby={timeHintId}
-                      onChange={(e) => setStartStr(e.target.value)}
+                  <span id={pendingEditTimingFieldId(edit.id, "start")}>
+                    <ScrubField
+                      label="Cut time"
+                      value={edit.source_start}
+                      unit="s"
+                      step={0.01}
+                      decimals={6}
+                      min={0}
+                      skipUnchanged
+                      readOnly={timingBusy}
+                      onCommit={(value) => void commitSplit(value)}
                     />
-                    <span id={timeHintId} className="ui-field-hint">
-                      m:ss.mmm or seconds
-                    </span>
-                    <Button
-                      disabledReason={timingBusy ? BUSY_REASON : undefined}
-                      onClick={() => void applySplit()}
-                    >
-                      Apply
-                    </Button>
-                  </FieldRow>
+                  </span>
                 ) : (
                   sourceTime(edit.source_start)
                 )}
               </DefItem>
               <DefItem label="Tracks">
                 {canNudge ? (
-                  <FieldRow>
-                    <input
-                      type="text"
-                      value={tracksStr}
-                      disabled={timingBusy}
-                      aria-label="Track ids"
-                      onChange={(e) => setTracksStr(e.target.value)}
-                    />
-                    <Button
-                      disabledReason={timingBusy ? BUSY_REASON : undefined}
-                      onClick={() => void applySplit()}
-                    >
-                      Apply tracks
-                    </Button>
-                  </FieldRow>
+                  <TrackToggleRow
+                    label="Tracks"
+                    tracks={(project?.tracks ?? []).map((track) => ({
+                      id: track.id,
+                      label: track.label,
+                    }))}
+                    value={edit.track_ids ?? [edit.track_id]}
+                    disabled={timingBusy}
+                    onChange={(ids) => void commitSplit(null, ids)}
+                  />
                 ) : (
                   (edit.track_ids ?? [edit.track_id]).join(", ")
                 )}

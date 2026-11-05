@@ -448,7 +448,7 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
   "daw.transcript.extendRange": {
     label: "Extend transcript range",
     tooltip:
-      "Extend the selected word range by a word at either edge; on touch, long-press a word and drag",
+      "Extend the selected word range by a word at either edge with Shift+Arrow or the selection handles; on touch, long-press a word and drag",
   },
   "daw.transcript.ignore": {
     label: "Ignore / restore transcript words",
@@ -470,7 +470,7 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
   "daw.edit.moveClips": {
     label: "Move clips",
     tooltip:
-      "Move clip in the inspector previews time and target track before Apply move; clip-body drag also moves clips",
+      "Scrub Start or tap a track in the clip inspector to move a clip; clip-body drag also moves clips",
   },
   "daw.edit.addChapter": {
     label: "Add chapter at playhead",
@@ -634,7 +634,6 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   projectMenu: "daw.project.home",
   trackLane: "daw.track.add",
   drop: "daw.media.import",
-  "rangeActions.words": "daw.transcript.ignore",
   "transcript.ignore": "daw.transcript.ignore",
   "transcript.restoreIgnored": "daw.transcript.ignore",
   "inspector.word.ignore": "daw.transcript.ignore",

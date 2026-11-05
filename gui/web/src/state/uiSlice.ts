@@ -46,7 +46,6 @@ import type {
   ToastTone,
   TranscriptInlineEditFailure,
   TranscriptInlineEditRequest,
-  WordDraftEntry,
 } from "./types";
 
 /** Most job ids `useJobStatusAnnouncement` remembers as spoken (oldest dropped first, #704). */
@@ -165,10 +164,7 @@ type UiSlice = Pick<
   | "userZoomed"
   | "layers"
   | "commentDraft"
-  | "wordDraft"
   | "transcriptFollowPlayhead"
-  | "transcriptTimingRequest"
-  | "setTranscriptTimingRequest"
   | "transcriptInlineEditRequest"
   | "setTranscriptInlineEditRequest"
   | "transcriptInlineEditFailure"
@@ -204,7 +200,6 @@ type UiSlice = Pick<
   | "zoomToSpan"
   | "setLayerVisible"
   | "setCommentDraft"
-  | "setWordDraft"
   | "setShellBreakpoint"
   | "setPointerKind"
   | "setSelectionHit"
@@ -242,7 +237,6 @@ type UiSlice = Pick<
 /** UI state `hydrate` clears on every call. */
 export function uiAlwaysInitial() {
   return {
-    wordDraft: null as WordDraftEntry | null,
     transcriptInlineEditRequest: null as TranscriptInlineEditRequest | null,
     ingestBusy: false,
     ingestFileCount: 0,
@@ -253,7 +247,6 @@ export function uiAlwaysInitial() {
 /** UI state tied to one project; `hydrate` clears it when the project path changes. */
 export function uiProjectInitial() {
   return {
-    transcriptTimingRequest: null,
     highlightStaleRender: false,
     renderPreviewBusy: false,
     chapterAddPending: false,
@@ -495,8 +488,6 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       set({ transcriptFollowPlayhead }),
     toggleTranscriptFollowPlayhead: () =>
       set((s) => ({ transcriptFollowPlayhead: !s.transcriptFollowPlayhead })),
-    setTranscriptTimingRequest: (transcriptTimingRequest) =>
-      set({ transcriptTimingRequest }),
     setTranscriptInlineEditRequest: (transcriptInlineEditRequest) =>
       set({ transcriptInlineEditRequest }),
     setTranscriptInlineEditFailure: (transcriptInlineEditFailure) =>
@@ -604,7 +595,6 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     setLayerVisible: (key, visible) =>
       set((s) => ({ layers: { ...s.layers, [key]: visible } })),
     setCommentDraft: (commentDraft) => set({ commentDraft }),
-    setWordDraft: (wordDraft) => set({ wordDraft }),
     setShellBreakpoint: (shellBreakpoint) => {
       set({ shellBreakpoint });
       // Re-derive from the live timeline: a registered scrollport that measures

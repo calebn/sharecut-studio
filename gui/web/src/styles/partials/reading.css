@@ -58,30 +58,11 @@
   border-inline-start: var(--focus-ring-width) solid var(--color-text-primary);
   pointer-events: none;
 }
-.wordbar-boundary {
-  display: grid;
-  gap: var(--space-1);
-}
-.wordbar-boundary input[type="range"] {
-  width: 100%;
-  margin-inline: 0;
-}
 .wordbar-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
 }
-@container wordbar (min-width: 28rem) {
-  .wordbar-boundary {
-    grid-template-columns: 1fr 7rem;
-    align-items: center;
-  }
-  .wordbar-boundary input[type="range"] {
-    grid-column: 1 / -1;
-    grid-row: 2;
-  }
-}
-
 .wordbar-boundary-mark {
   position: absolute;
   inset-block: 0;
@@ -89,32 +70,24 @@
   border-inline-start: var(--focus-ring-width) solid var(--color-accent);
   pointer-events: none;
 }
-.wordbar-boundary input[type="range"] {
-  appearance: none;
-  background: transparent;
+.wordbar-handle {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: calc(var(--space-5) / -2);
+  inline-size: var(--space-5);
+  min-inline-size: var(--space-5);
+  cursor: ew-resize;
+  touch-action: none;
+  pointer-events: auto;
 }
-.wordbar-boundary input[type="range"]::-webkit-slider-runnable-track {
-  height: var(--space-1);
-  background: var(--color-border-strong);
-  border-radius: var(--radius-sm);
-}
-.wordbar-boundary input[type="range"]::-webkit-slider-thumb {
-  appearance: none;
-  width: var(--wordbar-handle-size);
-  height: var(--wordbar-handle-size);
-  margin-block-start: calc((var(--space-1) - var(--wordbar-handle-size)) / 2);
-  background: var(--color-accent-solid);
-  border-radius: 50%;
-}
-.wordbar-boundary input[type="range"]::-moz-range-track {
-  height: var(--space-1);
-  background: var(--color-border-strong);
-  border-radius: var(--radius-sm);
-}
-.wordbar-boundary input[type="range"]::-moz-range-thumb {
-  width: var(--wordbar-handle-size);
-  height: var(--wordbar-handle-size);
-  border: 0;
+.wordbar-handle::after {
+  content: "";
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  inline-size: var(--wordbar-handle-size);
+  block-size: var(--wordbar-handle-size);
+  translate: -50% -50%;
   background: var(--color-accent-solid);
   border-radius: 50%;
 }

@@ -459,13 +459,13 @@ export async function runPaletteCommand(
 }
 
 /**
- * Arm range selection; the Range fields form opens. A touch screen has the
- * bracket toggle in the timeline corner; a mouse drags a range directly, so
- * the same command `range.arm` runs from the palette there.
+ * Arm range selection. A touch screen has the bracket toggle in the timeline
+ * corner; a mouse drags a range directly, so the same command `range.arm`
+ * runs from the palette there. The Range fields fill in once a range exists.
  */
 export async function armRange(page: Page): Promise<void> {
   await goToStage(page, "edit");
-  // Folded, the Range fields open over the Tools sheet and leave it be.
+  // Folded, the toggle lives in the Tools sheet.
   const folded = await openToolsIfFolded(page);
   const toggle = page
     .getByRole("group", { name: "Timeline view" })
@@ -477,9 +477,53 @@ export async function armRange(page: Page): Promise<void> {
     if (folded) await closeTools(page);
     await runPaletteCommand(page, "Select a range");
   }
-  await expect(
-    page.getByRole("region", { name: "Range fields" }),
-  ).toBeVisible();
+  await expect(page.locator("[data-range-armed]").first()).toBeAttached();
+}
+
+/** Type a value into a Scrub field: Enter opens its text input, Enter commits. */
+export async function setScrub(
+  page: Page,
+  field: Locator,
+  value: string,
+): Promise<void> {
+  await field.focus();
+  await field.press("Enter");
+  await page.keyboard.press("Control+A");
+  await page.keyboard.type(value);
+  await page.keyboard.press("Enter");
+}
+
+/**
+ * Arm, drag a short range across the reference lane, then set its exact In
+ * and Out (seconds) in the Range fields. Out goes first so In stays below it.
+ */
+export async function selectRangeSec(
+  page: Page,
+  from: string,
+  to: string,
+): Promise<Locator> {
+  await armRange(page);
+  const lane = page.locator('.lane-row[data-track-id="reference"]').first();
+  const box = await lane.boundingBox();
+  if (!box) throw new Error("reference lane has no box");
+  const y = box.y + box.height / 2;
+  await page.mouse.move(box.x + box.width * 0.3, y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.5, y, { steps: 6 });
+  await page.mouse.up();
+  const fields = page.getByRole("region", { name: "Range fields" });
+  await expect(fields).toBeVisible();
+  await setScrub(
+    page,
+    fields.getByRole("spinbutton", { name: "Out", exact: true }),
+    to,
+  );
+  await setScrub(
+    page,
+    fields.getByRole("spinbutton", { name: "In", exact: true }),
+    from,
+  );
+  return fields;
 }
 
 /** Pick how the Player plays: the hear menu next to A/B. It closes on a pick. */
