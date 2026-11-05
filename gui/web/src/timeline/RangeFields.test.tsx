@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { makeRangeTarget } from "../edit/rangeSelection";
@@ -52,6 +52,26 @@ describe("range fields", () => {
     const names = screen.getAllByRole("button").map((b) => b.textContent);
     expect(names).toEqual(["Select range", "Cancel range selection"]);
   });
+  it("retains numeric drafts through a missing target and replaces them for the next target", () => {
+    render(<RangeFields always />);
+    const start = screen.getByRole("spinbutton", { name: "In" });
+    const end = screen.getByRole("spinbutton", { name: "Out" });
+    fireEvent.change(start, { target: { value: "3" } });
+    fireEvent.change(end, { target: { value: "4" } });
+    act(() => {
+      useDawStore.setState({ selection: null, rangeArmed: true });
+    });
+    expect(screen.getByRole("spinbutton", { name: "In" })).toBe(start);
+    expect(start).toHaveValue(3);
+    expect(end).toHaveValue(4);
+    const next = makeRangeTarget(project, [{ start: 0.5, end: 2.5 }], ["a"])!;
+    act(() => {
+      useDawStore.setState({ selection: { kind: "range", target: next } });
+    });
+    expect(start).toHaveValue(0.5);
+    expect(end).toHaveValue(2.5);
+  });
+
   it("asks which audible occurrence when repeated material has two", async () => {
     const user = userEvent.setup();
     const repeated = minimalProject({

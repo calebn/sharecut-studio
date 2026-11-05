@@ -1,4 +1,4 @@
-import { type KeyboardEvent, useEffect, useState } from "react";
+import { type KeyboardEvent, useState } from "react";
 import { updateChapter } from "../../api";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
 import { isShareProjectKey } from "../../shareMode";
@@ -19,10 +19,15 @@ export function useChapterSections(
   const chapter = selection?.kind === "chapter" ? selection : null;
   const { busy, error, setError, run } = useProjectMutation();
   const [titleStr, setTitleStr] = useState(chapter?.id ?? "");
-  useEffect(() => {
+  const [draftChapter, setDraftChapter] = useState(chapter);
+  if (
+    draftChapter?.id !== chapter?.id ||
+    draftChapter?.time !== chapter?.time
+  ) {
+    setDraftChapter(chapter);
     setTitleStr(chapter?.id ?? "");
     setError(null);
-  }, [chapter?.id, chapter?.time, setError]);
+  }
   if (!chapter) return null;
 
   const { id: title, time } = chapter;

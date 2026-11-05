@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { makeRangeTarget, resolveSelectionRange } from "../edit/rangeSelection";
 import { useDawStore } from "../state/dawStore";
 import { inspectorOpenFor, selectedTrackIdsOf } from "../state/selection";
@@ -37,16 +37,22 @@ export function RangeFields({
   );
   const target =
     resolution.targets.length === 1 ? resolution.targets[0]! : null;
-  const [start, setStart] = useState("0");
-  const [end, setEnd] = useState("1");
+  const [draftTarget, setDraftTarget] = useState(target);
+  const [start, setStart] = useState(
+    target ? String(target.intervals[0]!.start) : "0",
+  );
+  const [end, setEnd] = useState(
+    target ? String(target.intervals.at(-1)!.end) : "1",
+  );
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
+  if (draftTarget !== target) {
+    setDraftTarget(target);
     setError(null);
     if (target) {
       setStart(String(target.intervals[0]!.start));
       setEnd(String(target.intervals.at(-1)!.end));
     }
-  }, [target]);
+  }
   if (
     !project ||
     (!rangeArmed &&

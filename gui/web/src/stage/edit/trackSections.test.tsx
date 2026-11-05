@@ -92,6 +92,35 @@ describe("track content", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("keeps a focused name draft until the saved track fields change", async () => {
+    const user = userEvent.setup();
+    open();
+    const name = screen.getByRole("textbox", { name: "Name" });
+    await user.clear(name);
+    await user.type(name, "Unsubmitted");
+    const project = useDawStore.getState().project!;
+    act(() => {
+      useDawStore.setState({
+        project: { ...project, tracks: [...project.tracks] },
+      });
+    });
+    expect(screen.getByRole("textbox", { name: "Name" })).toBe(name);
+    expect(name).toHaveFocus();
+    expect(name).toHaveValue("Unsubmitted");
+    act(() => {
+      useDawStore.setState({
+        project: {
+          ...project,
+          tracks: project.tracks.map((track) => ({ ...track, label: "Saved" })),
+        },
+      });
+    });
+    expect(screen.getByRole("textbox", { name: "Name" })).toBe(name);
+    expect(name).toHaveFocus();
+    expect(name).toHaveValue("Saved");
+    expect(setTrackMetaCommand).not.toHaveBeenCalled();
+  });
+
   it("offers the same five roles and saves a role on change", async () => {
     const user = userEvent.setup();
     setTrackMetaCommand.mockResolvedValue({});

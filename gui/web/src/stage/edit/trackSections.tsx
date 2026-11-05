@@ -1,4 +1,4 @@
-import { type KeyboardEvent, useEffect, useState } from "react";
+import { type KeyboardEvent, useState } from "react";
 import { applyFadeRecommendations, setEffectBypass } from "../../api";
 import {
   executePointerCommand,
@@ -79,12 +79,19 @@ export function useTrackSections(
   const [label, setLabel] = useState(track?.label ?? "");
   const [speaker, setSpeaker] = useState(track?.speaker ?? "");
   const [role, setRole] = useState(track?.role ?? "dialogue");
-  useEffect(() => {
+  const [draftTrack, setDraftTrack] = useState(track);
+  if (
+    draftTrack?.id !== track?.id ||
+    draftTrack?.label !== track?.label ||
+    draftTrack?.speaker !== track?.speaker ||
+    draftTrack?.role !== track?.role
+  ) {
+    setDraftTrack(track);
     setLabel(track?.label ?? "");
     setSpeaker(track?.speaker ?? "");
     setRole(track?.role ?? "dialogue");
     setError(null);
-  }, [track?.id, track?.label, track?.speaker, track?.role, setError]);
+  }
   if (trackId === null) return null;
   if (rangeArmed && selection?.kind === "track") return [];
   if (!track)

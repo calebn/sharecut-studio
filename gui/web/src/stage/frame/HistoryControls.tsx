@@ -47,15 +47,14 @@ export function HistoryControls({
     ? enabled(history, blocked.action)
     : false;
   const historyMissing = history === null;
+  if (blocked && (historyMissing || selectedActionAvailable)) {
+    setBlocked(null);
+  }
   useEffect(() => {
     if (!blocked) return;
-    if (historyMissing || selectedActionAvailable) {
-      setBlocked(null);
-      return;
-    }
     const timer = window.setTimeout(() => setBlocked(null), HINT_MS);
     return () => window.clearTimeout(timer);
-  }, [blocked, historyMissing, selectedActionAvailable]);
+  }, [blocked]);
   if (!history) return null;
   const blockedAction =
     blocked && !selectedActionAvailable ? blocked.action : null;

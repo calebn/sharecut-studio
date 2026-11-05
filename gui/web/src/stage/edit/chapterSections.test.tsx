@@ -69,6 +69,31 @@ describe("chapter content", () => {
     });
   });
 
+  it("keeps the focused draft for the same chapter and resets it for a new chapter", async () => {
+    const user = userEvent.setup();
+    open();
+    const title = screen.getByRole("textbox", { name: "Title" });
+    await user.clear(title);
+    await user.type(title, "Unsubmitted");
+    act(() => {
+      useDawStore.setState({
+        selection: { kind: "chapter", id: "Opening", time: 5 },
+      });
+    });
+    expect(screen.getByRole("textbox", { name: "Title" })).toBe(title);
+    expect(title).toHaveFocus();
+    expect(title).toHaveValue("Unsubmitted");
+    act(() => {
+      useDawStore.setState({
+        selection: { kind: "chapter", id: "Interview", time: 20 },
+      });
+    });
+    expect(screen.getByRole("textbox", { name: "Title" })).toBe(title);
+    expect(title).toHaveFocus();
+    expect(title).toHaveValue("Interview");
+    expect(updateChapter).not.toHaveBeenCalled();
+  });
+
   it("saves a retitle on Enter", async () => {
     const user = userEvent.setup();
     open();
