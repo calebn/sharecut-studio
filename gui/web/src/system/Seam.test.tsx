@@ -145,3 +145,106 @@ describe("Seam as a text pill", () => {
     expect(screen.getByRole("button")).toHaveAttribute("aria-pressed", "true");
   });
 });
+
+describe("Seam pill rolling", () => {
+  const pill = {
+    form: "pill",
+    removed: "2.4 s",
+    onSelect: () => undefined,
+  } as const;
+  const edge = (container: HTMLElement, side: "left" | "right") =>
+    container.querySelector<HTMLElement>(
+      `.sys-seam-edge[data-side="${side}"]`,
+    )!;
+
+  it("has no edges without a roll", () => {
+    const { container } = render(<Seam {...pill} />);
+    expect(container.querySelector(".sys-seam-edge")).toBeNull();
+  });
+
+  it("rolls by the drag, shows the ms readout, and saves once on release", () => {
+    const onCommit = vi.fn();
+    const { container } = render(
+      <Seam
+        {...pill}
+        roll={{ limits: () => ({ minMs: -500, maxMs: 500 }), onCommit }}
+      />,
+    );
+    const right = edge(container, "right");
+    fireEvent.pointerDown(right, { pointerId: 1, button: 0, clientX: 100 });
+    fireEvent.pointerMove(right, { pointerId: 1, clientX: 108 });
+    fireEvent.pointerMove(right, { pointerId: 1, clientX: 140 });
+    expect(container.querySelector(".sys-seam-readout")).toHaveTextContent(
+      "+500 ms",
+    );
+    expect(onCommit).not.toHaveBeenCalled();
+    fireEvent.pointerUp(right, { pointerId: 1 });
+    expect(onCommit).toHaveBeenCalledTimes(1);
+    expect(onCommit.mock.calls[0]![0]).toBe(500);
+    expect(container.querySelector(".sys-seam-readout")).toBeNull();
+  });
+
+  it("holds the roll to the room the clips leave", () => {
+    const onCommit = vi.fn();
+    const { container } = render(
+      <Seam
+        {...pill}
+        roll={{ limits: () => ({ minMs: -100, maxMs: 100 }), onCommit }}
+      />,
+    );
+    const left = edge(container, "left");
+    fireEvent.pointerDown(left, { pointerId: 1, button: 0, clientX: 100 });
+    fireEvent.pointerMove(left, { pointerId: 1, clientX: 20 });
+    fireEvent.pointerUp(left, { pointerId: 1 });
+    expect(onCommit).toHaveBeenCalledWith(-100);
+  });
+
+  it("Escape drops the roll, and a press without a move selects the seam", () => {
+    const onCommit = vi.fn();
+    const onSelect = vi.fn();
+    const { container } = render(
+      <Seam
+        {...pill}
+        onSelect={onSelect}
+        roll={{ limits: () => ({ minMs: -500, maxMs: 500 }), onCommit }}
+      />,
+    );
+    const right = edge(container, "right");
+    fireEvent.pointerDown(right, { pointerId: 1, button: 0, clientX: 100 });
+    fireEvent.pointerMove(right, { pointerId: 1, clientX: 130 });
+    expect(screen.getByRole("button")).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole("button"), { key: "Escape" });
+    fireEvent.pointerUp(right, { pointerId: 1 });
+    expect(onCommit).not.toHaveBeenCalled();
+    fireEvent.pointerDown(right, { pointerId: 2, button: 0, clientX: 100 });
+    fireEvent.pointerUp(right, { pointerId: 2 });
+    expect(onSelect).toHaveBeenCalledTimes(1);
+  });
+
+  it("takes no roll when the clips cannot roll", () => {
+    const onCommit = vi.fn();
+    const { container } = render(
+      <Seam {...pill} roll={{ limits: () => null, onCommit }} />,
+    );
+    const right = edge(container, "right");
+    fireEvent.pointerDown(right, { pointerId: 1, button: 0, clientX: 100 });
+    fireEvent.pointerMove(right, { pointerId: 1, clientX: 140 });
+    fireEvent.pointerUp(right, { pointerId: 1 });
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it("Alt with an arrow key rolls 1 ms", () => {
+    const onCommit = vi.fn();
+    render(
+      <Seam
+        {...pill}
+        roll={{ limits: () => ({ minMs: -500, maxMs: 500 }), onCommit }}
+      />,
+    );
+    fireEvent.keyDown(screen.getByRole("button"), {
+      key: "ArrowLeft",
+      altKey: true,
+    });
+    expect(onCommit).toHaveBeenCalledWith(-1);
+  });
+});
