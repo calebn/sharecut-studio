@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { HostMcpDialog } from "./HostMcpDialog";
@@ -135,6 +141,45 @@ describe("HostMcpDialog", () => {
     expect(screen.queryByText("Copied MCP URL")).toBeNull();
     expect(screen.getByRole("button", { name: "Copy URL" })).toBeTruthy();
   });
+
+  it.each([true, false])(
+    "ignores a copy settled after close and reopen (success: %s)",
+    async (succeeds) => {
+      const pending: { resolve: () => void; reject: (error: Error) => void }[] =
+        [];
+      const writeText = vi
+        .fn()
+        .mockImplementationOnce(
+          () =>
+            new Promise<void>((resolve, reject) =>
+              pending.push({ resolve, reject }),
+            ),
+        )
+        .mockResolvedValueOnce(undefined);
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: { writeText },
+      });
+      const { rerender } = render(
+        <HostMcpDialog open onClose={() => undefined} hasProject />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Copy URL" }));
+      await waitFor(() => expect(pending).toHaveLength(1));
+      rerender(
+        <HostMcpDialog open={false} onClose={() => undefined} hasProject />,
+      );
+      rerender(<HostMcpDialog open onClose={() => undefined} hasProject />);
+      await act(async () => {
+        if (succeeds) pending[0]!.resolve();
+        else pending[0]!.reject(new Error("Old copy failed"));
+      });
+      expect(screen.queryByText("Copied MCP URL")).toBeNull();
+      expect(screen.queryByText("Old copy failed")).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Copy URL" }));
+      expect(await screen.findByText("Copied MCP URL")).toBeVisible();
+      expect(writeText).toHaveBeenCalledTimes(2);
+    },
+  );
 
   it("warns when no episode is open", async () => {
     const { baseElement: container } = render(
