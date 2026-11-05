@@ -120,3 +120,20 @@ def test_agent_skills_stay_out_of_the_wheel_and_sdist(tmp_path: Path) -> None:
     assert not [
         name for name in wheel_names if "skills" in name.split("/") or name.endswith("SKILL.md")
     ]
+
+
+def test_wheel_leaves_out_the_private_provider_and_keeps_relay_static(tmp_path: Path) -> None:
+    root = _source_tree(tmp_path / "src-tree", web_build=False)
+    provider = root / "src/podcast_online"
+    provider.mkdir()
+    (provider / "__init__.py").write_text("", encoding="utf-8")
+    shutil.copytree(_ROOT / "src/podcast_relay/static", root / "src/podcast_relay/static")
+    names = _wheel_names(root, tmp_path / "out")
+    assert not [name for name in names if name.startswith("podcast_online")]
+    static = {
+        f"podcast_relay/static/{path.name}"
+        for path in (_ROOT / "src/podcast_relay/static").iterdir()
+        if path.is_file()
+    }
+    assert static
+    assert static <= names
