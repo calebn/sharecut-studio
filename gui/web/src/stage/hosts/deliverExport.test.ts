@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ModelGate } from "../../models";
 import type { ExportRequest } from "../../stages/deliver/deliverLogic";
 import type { PipelineJobSnapshot } from "../../types/pipeline";
+import type { ModelNeeded } from "../../utils/apiError";
 import { exportOptionsOf, exportStateOf } from "./deliverExport";
 import type { ExportFlow, ExportRun } from "./exportFlowContext";
 import { exportSettingsFromConfig } from "./exportSettings";
@@ -21,15 +21,14 @@ const REQUEST: ExportRequest = {
   range: null,
 };
 
-const GATE: ModelGate = {
-  run: vi.fn(),
-  prompt: null,
-  declined: null,
-  accept: vi.fn(),
-  decline: vi.fn(),
-  cancelDownload: vi.fn(),
-  openModels: vi.fn(),
-  reset: vi.fn(),
+const SPEAKER: ModelNeeded = {
+  id: "speaker-ecapa",
+  variant: null,
+  label: "Speaker model",
+  purpose: "speaker recognition and split",
+  size: "~25 MB",
+  sizeBytes: null,
+  state: "missing",
 };
 
 function flowOf(over: Partial<ExportFlow> = {}): ExportFlow {
@@ -42,7 +41,7 @@ function flowOf(over: Partial<ExportFlow> = {}): ExportFlow {
     loadedGeneration: 1,
     selected: ["mp3"],
     setSelected: vi.fn(),
-    gate: GATE,
+    needs: null,
     request: REQUEST,
     start: vi.fn(),
     cancel: vi.fn(),
@@ -113,7 +112,6 @@ describe("exportOptionsOf", () => {
       loudness: false,
       target: "-16/-1.5",
       range: false,
-      gate: GATE,
       onExportAgain: undefined,
     });
   });
@@ -210,18 +208,13 @@ describe("exportStateOf", () => {
     ).toMatchObject({ cancelError: "gone", cancelReason: undefined });
   });
 
-  it("asks for the model while the gate has a prompt, whatever the run is", () => {
-    const gate = {
-      ...GATE,
-      prompt: { label: "Speaker model", size: "25 MB" },
-    } as unknown as ModelGate;
+  it("shows the Model need row while the flow waits on a model, whatever the run is", () => {
     expect(
-      exportStateOf(flowOf({ run: running({ jobId: null }), gate }), 0),
-    ).toEqual({
-      phase: "needs-model",
-      model: "Speaker model",
-      size: "25 MB",
-    });
+      exportStateOf(
+        flowOf({ run: running({ jobId: null }), needs: SPEAKER }),
+        0,
+      ),
+    ).toEqual({ phase: "needs-model", model: SPEAKER });
   });
 
   it("lists what a finished export wrote, with the request it covers", () => {

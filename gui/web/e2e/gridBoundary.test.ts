@@ -24,10 +24,10 @@ const AXIS_LOOPS: Record<string, { loops: number; reason: string }> = {
     loops: 5,
     reason: "each test reads computed colors, which differ per theme",
   },
-  "modelGate.spec.ts": {
+  "modelNeed.spec.ts": {
     loops: 1,
     reason:
-      "the model gate acceptance asks for contrast-enabled axe on the prompt at three viewports in both themes (#2046)",
+      "the Model need row acceptance asks for contrast-enabled axe on the row at three viewports in both themes (#2046)",
   },
   "guest-name.spec.ts": {
     loops: 1,

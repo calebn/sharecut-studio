@@ -1,7 +1,7 @@
 import { createContext, useContext } from "react";
-import type { ModelGate } from "../../models";
 import type { ExportRequest } from "../../stages/deliver/deliverLogic";
 import type { PipelineJobSnapshot } from "../../types/pipeline";
+import type { ModelNeeded } from "../../utils/apiError";
 import type { ExportSettings } from "./exportSettings";
 
 export type ExportRun =
@@ -30,7 +30,8 @@ export type ExportFlow = {
   loadedGeneration: number;
   selected: readonly string[];
   setSelected: (keys: readonly string[]) => void;
-  gate: ModelGate;
+  /** The model a start stopped on; the Deliver page shows its Get and the export resumes when it lands. */
+  needs: ModelNeeded | null;
   request: ExportRequest | null;
   start: (keys: readonly string[], request: ExportRequest) => void;
   cancel: () => void;

@@ -27,7 +27,7 @@ function flow(run: BounceRun, job: PipelineJobSnapshot | null = null) {
     job,
     choices: BOUNCE_DEFAULTS,
     setChoices: vi.fn(),
-    gate: {} as BounceFlow["gate"],
+    needs: null,
     start: vi.fn(),
     cancel: vi.fn(),
     again: vi.fn(),
@@ -45,6 +45,21 @@ const running = (over: Partial<Extract<BounceRun, { kind: "running" }>> = {}) =>
   }) as const;
 
 describe("bounceStateOf", () => {
+  it("shows the Model need row while the flow waits on a model", () => {
+    const model = {
+      id: "rnnoise",
+      variant: null,
+      label: "Noise reduction (RNNoise)",
+      purpose: "noise reduction",
+      size: "~0.3 MB",
+      sizeBytes: null,
+      state: "missing",
+    };
+    expect(
+      bounceStateOf({ ...flow({ kind: "idle" }), needs: model }, 0),
+    ).toEqual({ phase: "needs-model", model });
+  });
+
   it("is idle until a bounce starts", () => {
     expect(bounceStateOf(flow({ kind: "idle" }), 0)).toEqual({
       phase: "idle",
