@@ -76,6 +76,9 @@ export const SuggestionLowConfidence: Story = {
     const canvas = within(canvasElement);
     await expect(await canvas.findByText("0.31")).toBeVisible();
     await expect(
+      canvas.getByRole("group", { name: "Nudge pending remove start" }),
+    ).toBeVisible();
+    await expect(
       canvas.getByRole("region", { name: "Ask about this edit" }),
     ).toBeVisible();
   },
@@ -90,6 +93,9 @@ export const SuggestionGuest: Story = {
     const ask = await canvas.findByRole("region", {
       name: "Ask about this edit",
     });
+    await expect(
+      canvas.queryByRole("group", { name: /^Nudge pending/ }),
+    ).toBeNull();
     await expect(
       within(ask).getByRole("textbox", { name: "Your name" }),
     ).toBeVisible();
