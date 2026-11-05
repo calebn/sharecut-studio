@@ -8,6 +8,7 @@ import type {
 import { isAbortError } from "../utils/apiError";
 import { createFallbackPoll, type FallbackPoll } from "../utils/fallbackPoll";
 import { isPipelineKindJob, isPipelineRunning } from "../utils/pipeline";
+import { useStableCallback } from "../utils/useStableCallback";
 
 const STATUS_POLL_MS = 1000;
 const DISCOVER_POLL_MS = 5000;
@@ -107,16 +108,6 @@ export function usePipelineJob(
   const silenceTimerRef = useRef<number | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(false);
-  const setJobRef = useRef(setPipelineJob);
-  setJobRef.current = setPipelineJob;
-  const setActivityRef = useRef(options.setActivityJob);
-  setActivityRef.current = options.setActivityJob;
-  const setCountRef = useRef(options.setActivityRunningCount);
-  setCountRef.current = options.setActivityRunningCount;
-  const activityRef = useRef(activityJob);
-  activityRef.current = activityJob;
-  const enabledRef = useRef(enabled);
-  enabledRef.current = enabled;
   const discoverKeyRef = useRef<string | null>(null);
 
   const stopPoll = () => {
@@ -153,21 +144,37 @@ export function usePipelineJob(
    */
   const streamOwnsChrome = () => esRef.current != null;
 
-  const apply = (st: StatusPayload, opts?: { skipUnchanged?: boolean }) => {
-    const count =
-      st.running_count ?? statusJobs(st).filter(isPipelineRunning).length;
-    const key = chromeKey(st.job, count);
-    if (opts?.skipUnchanged && discoverKeyRef.current === key) {
-      return;
+  const apply = useStableCallback(
+    (st: StatusPayload, opts?: { skipUnchanged?: boolean }) => {
+      const count =
+        st.running_count ?? statusJobs(st).filter(isPipelineRunning).length;
+      const key = chromeKey(st.job, count);
+      if (opts?.skipUnchanged && discoverKeyRef.current === key) {
+        return;
+      }
+      discoverKeyRef.current = key;
+      applyPipelineJobStatus(
+        st,
+        setPipelineJob,
+        options.setActivityJob,
+        options.setActivityRunningCount,
+      );
+    },
+  );
+
+  const acceptsAttachment = useStableCallback(
+    () => enabled && mountedRef.current,
+  );
+  const publishFrame = useStableCallback((job: PipelineJobSnapshot) => {
+    if (isPipelineKindJob(job)) setPipelineJob(job);
+    if (
+      activityJob == null ||
+      activityJob.id === job.id ||
+      !isPipelineRunning(activityJob)
+    ) {
+      options.setActivityJob?.(job);
     }
-    discoverKeyRef.current = key;
-    applyPipelineJobStatus(
-      st,
-      setJobRef.current,
-      setActivityRef.current,
-      setCountRef.current,
-    );
-  };
+  });
 
   // One tick of the stream-down status poll.
   const pollStatusOnce = useEffectEvent(() => {
@@ -195,8 +202,10 @@ export function usePipelineJob(
       });
   });
 
-  const attachEvents = useEffectEvent((jobId: string) => {
-    if (!enabledRef.current || !mountedRef.current) {
+  const attachEvents = useStableCallback(function attachJobEvents(
+    jobId: string,
+  ) {
+    if (!acceptsAttachment()) {
       return;
     }
     if (attachedJobId.current === jobId && esRef.current) {
@@ -242,14 +251,10 @@ export function usePipelineJob(
           reconnectTimerRef.current = window.setTimeout(() => {
             reconnectTimerRef.current = null;
             // A stream attached during the 2s wait already recovered.
-            if (
-              !enabledRef.current ||
-              !mountedRef.current ||
-              streamOwnsChrome()
-            ) {
+            if (!acceptsAttachment() || streamOwnsChrome()) {
               return;
             }
-            attachEvents(next);
+            attachJobEvents(next);
           }, 2000);
         })
         .catch((err: unknown) => {
@@ -276,17 +281,7 @@ export function usePipelineJob(
       armSilenceWatchdog();
       stopPoll();
       if (data.job) {
-        if (isPipelineKindJob(data.job)) {
-          setJobRef.current(data.job);
-        }
-        const primary = activityRef.current;
-        if (
-          primary == null ||
-          primary.id === data.job.id ||
-          !isPipelineRunning(primary)
-        ) {
-          setActivityRef.current?.(data.job);
-        }
+        publishFrame(data.job);
       }
       if (data.type === "done") {
         closeStream();
@@ -306,7 +301,7 @@ export function usePipelineJob(
             }
             const next = attachTargetId(st);
             if (next) {
-              attachEvents(next);
+              attachJobEvents(next);
             }
           })
           .catch((err: unknown) => {
@@ -378,7 +373,7 @@ export function usePipelineJob(
       statusPoll.stop();
       statusPollRef.current = null;
     };
-  }, [enabled]);
+  }, [enabled, apply, attachEvents]);
 
   const runningJobId = (() => {
     if (pipelineJob && isPipelineRunning(pipelineJob)) {
@@ -394,5 +389,5 @@ export function usePipelineJob(
       return;
     }
     attachEvents(runningJobId);
-  }, [enabled, runningJobId]);
+  }, [enabled, runningJobId, attachEvents]);
 }

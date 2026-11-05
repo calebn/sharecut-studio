@@ -79,6 +79,82 @@ describe("useHostSync presence", () => {
     interval.mockRestore();
   });
 
+  it("uses the latest receiver on the same socket for its first agent snapshot", async () => {
+    const first = vi.fn();
+    const next = vi.fn();
+    const { rerender } = renderHook(
+      ({ apply }) =>
+        useHostSync(
+          "/tmp/ep.project.json",
+          apply,
+          () => ({}),
+          true,
+          0,
+          null,
+          false,
+          "k",
+        ),
+      { initialProps: { apply: first } },
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    rerender({ apply: next });
+    act(() => {
+      FakeWebSocket.instances[0].emit({
+        plane: "session",
+        type: "Snapshot",
+        snapshot: {
+          server_seq: 1,
+          last_command_id: "agent-1",
+          origin: "agent",
+          playhead_sec: 9,
+        },
+      });
+    });
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(first).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith(
+      expect.objectContaining({ server_seq: 1, playhead_sec: 9 }),
+    );
+  });
+
+  it("starts a fresh session cursor when the project epoch changes", async () => {
+    const apply = vi.fn();
+    const { rerender } = renderHook(
+      ({ path, revision }) =>
+        useHostSync(path, apply, () => ({}), true, revision, null, false, "k"),
+      { initialProps: { path: "/tmp/ep.project.json", revision: 30 } },
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    act(() => {
+      useDawStore
+        .getState()
+        .hydrate("/tmp/next.project.json", minimalProject());
+      rerender({ path: "/tmp/next.project.json", revision: 0 });
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    act(() => {
+      FakeWebSocket.instances.at(-1)!.emit({
+        plane: "session",
+        type: "Snapshot",
+        snapshot: {
+          server_seq: 1,
+          last_command_id: "agent-next",
+          origin: "agent",
+          playhead_sec: 4,
+        },
+      });
+    });
+    expect(apply).toHaveBeenLastCalledWith(
+      expect.objectContaining({ server_seq: 1, playhead_sec: 4 }),
+    );
+  });
+
   it("does not stamp localClientId when session sync is disabled", () => {
     useDawStore.setState({ localClientId: null });
     renderHook(() =>

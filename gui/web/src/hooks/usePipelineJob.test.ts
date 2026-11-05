@@ -642,6 +642,44 @@ describe("usePipelineJob", () => {
     }
   });
 
+  it("uses new callbacks and primary activity without replacing the attached stream", async () => {
+    const pipe = job();
+    const first = vi.fn();
+    const next = vi.fn();
+    const setActivityJob = vi.fn();
+    loadPipelineStatus.mockResolvedValue({
+      running: true,
+      job: pipe,
+      jobs: [pipe],
+      running_count: 1,
+    });
+    const { rerender } = renderHook(
+      ({ receive, activity }) =>
+        usePipelineJob(pipe, receive, {
+          activityJob: activity,
+          setActivityJob,
+        }),
+      { initialProps: { receive: first, activity: pipe } },
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    const stream = FakeEventSource.instances.at(-1)!;
+    rerender({ receive: next, activity: agent() });
+    first.mockClear();
+    next.mockClear();
+    setActivityJob.mockClear();
+    const updated = job({ message: "Rendering" });
+    act(() => {
+      stream.emit({ type: "status", job: updated });
+    });
+    expect(FakeEventSource.instances).toHaveLength(1);
+    expect(stream.closed).toBe(false);
+    expect(first).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith(updated);
+    expect(setActivityJob).not.toHaveBeenCalled();
+  });
+
   it("a stream frame updates activity when it is the primary job", async () => {
     vi.useFakeTimers();
     const pipe = job();
