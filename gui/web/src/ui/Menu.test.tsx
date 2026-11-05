@@ -75,6 +75,9 @@ function MixedFocusFixture({
             <p>Supporting note</p>
             {pointerControls && (
               <>
+                <button type="button" disabled>
+                  Native disabled
+                </button>
                 <div tabIndex={-1} data-testid="negative-control">
                   Negative control
                 </div>
@@ -84,6 +87,12 @@ function MixedFocusFixture({
                   role="textbox"
                   aria-label="Editable control"
                 />
+                <fieldset disabled>
+                  <legend>
+                    <input aria-label="Enabled legend input" />
+                  </legend>
+                  <input aria-label="Disabled fieldset input" />
+                </fieldset>
                 <details open>
                   <summary>Disclosure control</summary>
                   <p>Disclosure body</p>
@@ -511,6 +520,75 @@ describe("Menu", () => {
       await user.click(target);
       expect(screen.getByRole("menu")).toBeInTheDocument();
       expect(target).toHaveFocus();
+    },
+  );
+
+  it.each(["[MouseLeft]", "[MouseRight]"])(
+    "preserves enabled first-legend input pointer focus for %s",
+    async (keys) => {
+      const user = userEvent.setup();
+      render(<MixedFocusFixture pointerControls />);
+      await user.click(screen.getByRole("button", { name: "Open mixed" }));
+      await waitFor(() =>
+        expect(screen.getByRole("menuitem", { name: "First" })).toHaveFocus(),
+      );
+      act(() => screen.getByRole("menuitem", { name: "Last" }).focus());
+      const input = screen.getByRole("textbox", {
+        name: "Enabled legend input",
+      });
+      expect(input.matches(":disabled")).toBe(false);
+      expect(
+        screen
+          .getByRole("textbox", { name: "Disabled fieldset input" })
+          .matches(":disabled"),
+      ).toBe(true);
+      await user.pointer({ target: input, keys });
+      expect(screen.getByRole("menu")).toBeInTheDocument();
+      expect(input).toHaveFocus();
+    },
+  );
+
+  it.each(["[MouseLeft]", "[MouseRight]"])(
+    "preserves native-disabled dismissal for %s",
+    async (keys) => {
+      const user = userEvent.setup();
+      render(<MixedFocusFixture pointerControls />);
+      const trigger = screen.getByRole("button", { name: "Open mixed" });
+      await user.click(trigger);
+      await waitFor(() =>
+        expect(screen.getByRole("menuitem", { name: "First" })).toHaveFocus(),
+      );
+      act(() => screen.getByRole("menuitem", { name: "Last" }).focus());
+      await user.pointer({
+        target: screen.getByRole("button", { name: "Native disabled" }),
+        keys,
+      });
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+      await waitFor(() => expect(trigger).toHaveFocus());
+    },
+  );
+
+  it.each(["[MouseLeft]", "[MouseRight]"])(
+    "honors canceled native-disabled pointerdown for %s",
+    async (keys) => {
+      const user = userEvent.setup();
+      render(<MixedFocusFixture pointerControls />);
+      await user.click(screen.getByRole("button", { name: "Open mixed" }));
+      await waitFor(() =>
+        expect(screen.getByRole("menuitem", { name: "First" })).toHaveFocus(),
+      );
+      const last = screen.getByRole("menuitem", { name: "Last" });
+      act(() => last.focus());
+      const target = screen.getByRole("button", { name: "Native disabled" });
+      const cancel = (event: Event) => event.preventDefault();
+      target.addEventListener("pointerdown", cancel);
+      try {
+        await user.pointer({ target, keys });
+        expect(screen.getByRole("menu")).toBeInTheDocument();
+        expect(last).toHaveFocus();
+      } finally {
+        target.removeEventListener("pointerdown", cancel);
+      }
     },
   );
 

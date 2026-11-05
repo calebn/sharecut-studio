@@ -196,6 +196,28 @@ export function Menu({
           if (event.target === event.currentTarget)
             focusFirstMenuItem(event.currentTarget);
         }}
+        onPointerDown={(event) => {
+          if (
+            event.defaultPrevented ||
+            (event.button !== 0 && event.button !== 2)
+          )
+            return;
+          const panel = event.currentTarget;
+          const view = panel.ownerDocument.defaultView;
+          const target = event.target;
+          if (!view || !(target instanceof view.Element)) return;
+          const control = target.closest(POINTER_CONTROL_SELECTOR);
+          if (
+            !control ||
+            !panel.contains(control) ||
+            !control.matches(":disabled")
+          )
+            return;
+          const active = panel.ownerDocument.activeElement;
+          if (active === panel) return;
+          event.preventDefault();
+          if (active instanceof view.HTMLElement) active.blur();
+        }}
         onMouseDown={(event) => {
           const panel = event.currentTarget;
           const view = panel.ownerDocument.defaultView;
