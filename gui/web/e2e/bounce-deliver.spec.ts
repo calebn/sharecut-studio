@@ -1,14 +1,20 @@
 import { expect, test } from "@playwright/test";
 import { bouncedWavs } from "./exportFiles";
 import { withShareableProject } from "./shareableProject";
-import { deliverPage, goToStage, openProject, startBounce } from "./stageNav";
+import {
+  deliverPage,
+  goToStage,
+  openProject,
+  runPaletteCommand,
+  startBounce,
+} from "./stageNav";
 
-test("Bounce on Deliver writes a WAV, says so, and the shortcut brings it into view", async ({
+test("Bounce on Deliver writes a WAV, says so, and the palette brings it into view", async ({
   page,
 }) => {
   await withShareableProject(async (projectPath) => {
     await openProject(page, projectPath);
-    await page.keyboard.press("ControlOrMeta+Shift+b");
+    await runPaletteCommand(page, "Bounce…");
     const deliver = deliverPage(page);
     const bounce = deliver.getByRole("button", { name: "Bounce", exact: true });
     await expect(bounce).toBeFocused();

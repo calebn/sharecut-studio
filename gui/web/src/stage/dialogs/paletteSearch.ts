@@ -23,7 +23,7 @@ export type PaletteCommand = {
   category: CommandCategory;
   /** Catalog `keywords`: synonyms search matches besides the label. */
   keywords?: readonly string[];
-  /** Platform shortcut text, e.g. "⌘⇧E" or "Ctrl+Shift+E"; null without keys. */
+  /** Platform shortcut text, e.g. "⌘E" or "Ctrl+E"; null without keys. */
   shortcut: string | null;
   /** Registry key, the remap field's placeholder; only on keyed commands. */
   defaultKey?: string;

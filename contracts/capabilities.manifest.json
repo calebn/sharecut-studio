@@ -1288,7 +1288,7 @@
       },
       "omit": {
         "guest": true,
-        "keyboard_reason": "Mod+E bounces the selected range; Bounce is also in the palette and on Deliver"
+        "keyboard_reason": "Mod+E opens Deliver with Bounce focused and the selected range filled in; Bounce is also in the palette and on Deliver"
       },
       "tooltip": "Bounce\u2026",
       "presence": {

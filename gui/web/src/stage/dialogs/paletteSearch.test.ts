@@ -30,9 +30,9 @@ const COMMANDS: PaletteCommand[] = [
     shortcut: "Space",
   }),
   cmd("view.fitTracksHeight", "Fit tracks to window height", "view"),
-  cmd("export.bounce", "Bounce…", "ui", { shortcut: "⌘+Shift+B" }),
+  cmd("export.bounce", "Bounce…", "ui"),
   cmd("export.deliverables", "Export deliverables…", "ui", {
-    shortcut: "⌘+Shift+E",
+    shortcut: "⌘+E",
     keywords: ["mp3", "master"],
   }),
   cmd("help.diagnosticsBundle", "Export diagnostics…", "ui", {

@@ -626,6 +626,21 @@ describe("Mod+E export and the retired chords", () => {
     ).toBe("⌘E");
   });
 
+  it("ignores a stored remap on a keyless row, so a retired chord stays dead", () => {
+    setKeymapOverride("export.bounce", ["B"]);
+    expect(
+      matchKeymapCommand(
+        keyEvent({ key: "B", code: "KeyB", ctrlKey: true, shiftKey: true }),
+      ),
+    ).toBeNull();
+    expect(
+      matchKeymapCommands(keyEvent({ key: "B", ctrlKey: true })).map(
+        (cmd) => cmd.id,
+      ),
+    ).not.toContain("export.bounce");
+    _resetKeymapOverridesForTests();
+  });
+
   it("leaves New project, Refresh mix, New track and Bounce to the palette", () => {
     for (const id of [
       "project.new",

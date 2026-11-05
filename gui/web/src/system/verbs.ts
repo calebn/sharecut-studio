@@ -416,7 +416,7 @@ export const VERBS = [
     surfaces: ["deliver", "action-bar"],
     status: "bound",
     commandId: "export.deliverables",
-    note: "Mod+E drives this command. With a range selected it bounces the range.",
+    note: "Mod+E drives this command. With one range selected it opens Deliver with Bounce focused and the range filled in.",
   },
   {
     id: "import",

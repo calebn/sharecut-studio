@@ -22,7 +22,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 |----------|---------|------|-------|
 | `Space` | Play / pause (`transport.togglePlay`) | Timeline or transcript focused | When timeline or transcript is focused; Shift+Space is Hear |
 | `K` | Stop playback (`transport.stop`) | Always (when not typing in a field or on a focused Scrub field) | K alone stops playback; Mod+K splits at the playhead |
-| `Mod+` | Refresh mix (`render.refreshMix`) | Refresh mix allowed | Palette only (K11/K15): rebuild stems/premix when host or Docs Editor |
+| Palette only | Refresh mix (`render.refreshMix`) | Refresh mix allowed | Palette only (K11/K15): rebuild stems/premix when host or Docs Editor |
 
 ## navigation
 
@@ -78,7 +78,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | `.` | More (`edit.more`) | editStage | .: open the Action bar's More menu |
 | `C` | Add comment (`comment.draftAt`) | Host or a link that can comment | C: comment on the selection, else at the playhead; Mod+C is Copy |
 | `Shift+C` | Add chapter at playhead (`edit.addChapter`) | Loaded host project | Shift+C: add a chapter at the playhead |
-| `Mod+Shift+` | New track (`track.add`) | editStageIngest | Palette only (K11/K15) |
+| Palette only | New track (`track.add`) | editStageIngest | Palette only (K11/K15) |
 | `Mod+I` | Import audio… (`media.import`) | Media ingest allowed | Mod+I: Menu or drop on arrange |
 
 ## view
@@ -101,9 +101,9 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 |----------|---------|------|-------|
 | `M` | Record marker (`record.marker`) | recordStageActive | M: live marker on the Record stage; on any other stage, M still mutes — M drops a marker only on the Record stage; otherwise M mutes |
 | `?` | Commands and shortcuts (`ui.toggleCommandPalette`) | Always (when not typing in a field or on a focused Scrub field) | Also Shift+/ |
-| `Mod+Shift+` | Bounce… (`export.bounce`) | Loaded host project | Palette only (K11/K15): Bounce in Deliver (export/bounces/) |
-| `Mod+E` | Export deliverables… (`export.deliverables`) | Loaded host project | Mod+E: mastered export/ via PipelineService; with a range selected, Bounce of that range |
-| `Mod+` | New project… (`project.new`) | Host project management | Palette only (K11/K15) |
+| Palette only | Bounce… (`export.bounce`) | Loaded host project | Palette only (K11/K15): Bounce in Deliver (export/bounces/) |
+| `Mod+E` | Export deliverables… (`export.deliverables`) | Loaded host project | Mod+E: mastered export/ via PipelineService; with one range selected, opens Deliver with Bounce focused and that range filled in |
+| Palette only | New project… (`project.new`) | Host project management | Palette only (K11/K15) |
 | `Mod+O` | All projects (`project.home`) | Host project management | Mod+O: Home. Open project… is in the palette and on Home |
 
 ## presence

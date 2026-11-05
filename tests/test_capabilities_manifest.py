@@ -41,6 +41,13 @@ def test_keymap_chords_reports_alt_track_height_commands() -> None:
     assert chords["view.trackHeightDecrease"] == "Alt+-"
 
 
+def test_keyless_keymap_rows_are_listed_apart_from_chords() -> None:
+    mod = load_script("check_capabilities_manifest")
+    keyless = mod._keyless_keymap_ids()
+    assert {"export.bounce", "project.new", "render.refreshMix", "track.add"} <= keyless
+    assert keyless.isdisjoint(mod._keymap_chords())
+
+
 def test_keymap_chords_keep_shift_on_shifted_bare_keys() -> None:
     mod = load_script("check_capabilities_manifest")
     chords = mod._keymap_chords()

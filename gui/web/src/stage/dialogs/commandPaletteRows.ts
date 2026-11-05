@@ -1,7 +1,7 @@
 /**
  * Builds the command palette's rows from the command catalog (the single
- * source), with each command's shortcut (in the Menu's platform form, ⌘⇧E
- * or Ctrl+Shift+E) and remap from the live keymap registry. It imports the store-bound registry at runtime, so
+ * source), with each command's shortcut (in the Menu's platform form, ⌘E
+ * or Ctrl+E) and remap from the live keymap registry. It imports the store-bound registry at runtime, so
  * CommandPaletteView.tsx and its stories import the store-free model from
  * `paletteSearch.ts` instead.
  */

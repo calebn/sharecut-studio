@@ -670,7 +670,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     requireShift: false,
     when: "hostProjectLoaded",
     notes:
-      "Mod+E: mastered export/ via PipelineService; with a range selected, Bounce of that range",
+      "Mod+E: mastered export/ via PipelineService; with one range selected, opens Deliver with Bounce focused and that range filled in",
   },
   {
     id: "project.new",
@@ -961,6 +961,7 @@ function eventKeyCandidates(
 }
 
 function effectiveKeys(cmd: KeymapCommand): string[] {
+  if (cmd.keys.length === 0) return [];
   const override = getKeymapOverride(cmd.id);
   return override?.length ? override : [...cmd.keys];
 }
