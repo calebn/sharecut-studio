@@ -389,11 +389,10 @@ function RecordStageBody({
         take: live || paused ? ("live" as const) : ("idle" as const),
         start:
           canRecord && !startDisabledReason(room.startBlocked, room.blockers)
-            ? () => void room.runCommand("record.start")
+            ? () => room.runCommand("record.start")
             : undefined,
-        stop: canRecord ? () => void room.runCommand("record.stop") : undefined,
-        pause: () =>
-          void room.runCommand(paused ? "record.resume" : "record.pause"),
+        stop: canRecord ? () => room.runCommand("record.stop") : undefined,
+        pause: () => room.runCommand(paused ? "record.resume" : "record.pause"),
         mute: host ? () => room.setMuted(!host.muted) : undefined,
       }
     : null;
