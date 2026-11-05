@@ -8,71 +8,12 @@
  */
 
 import { mayNudge } from "../edit/mayNudge";
-import { NUDGE_KINDS, nudgeAxis, nudgeKey } from "../edit/nudge";
+import { NUDGE_KINDS, nudgeKey } from "../edit/nudge";
 import { useDaw } from "../state/useDaw";
-import type { ProjectView } from "../types/project";
 import { RippleMark } from "../ui/RippleMark";
-import type { PeekNudgeRow, PeekTarget } from "./peekTarget";
-import { type NudgeBump, useNudgeRun } from "./useNudgeRun";
-
-function stepText(delta: number): string {
-  return `${delta < 0 ? "−" : "+"}${Math.abs(delta)}`;
-}
-
-function NudgeRow({
-  row,
-  project,
-  run,
-}: {
-  row: PeekNudgeRow;
-  project: ProjectView;
-  run: ReturnType<typeof useNudgeRun>;
-}) {
-  const kind = NUDGE_KINDS[row.field.kind];
-  const value = nudgeAxis(project, row.field)?.value;
-  const [small, large] = kind.steps;
-  const deltas = [...new Set([-large, -small, small, large])];
-  const bump: NudgeBump | null =
-    run.bump?.key === nudgeKey(row.field) ? run.bump : null;
-  const label = (delta: number) =>
-    [row.name, Math.abs(delta), kind.unit, kind.ways[delta < 0 ? 0 : 1]]
-      .filter((part) => part !== "")
-      .join(" ");
-  return (
-    <div className="nudge-row" data-bump={bump ? "" : undefined}>
-      {row.label ? (
-        <span className="nudge-row-reading">
-          <span className="nudge-row-label">{row.label}</span>
-          {value != null ? (
-            <output key={bump?.n} className="nudge-row-value">
-              {kind.format(value)}
-            </output>
-          ) : null}
-        </span>
-      ) : null}
-      <div
-        className="nudge-row-buttons"
-        role="group"
-        aria-label={`Nudge ${row.name.toLowerCase()}`}
-      >
-        {deltas.map((delta) => (
-          <button
-            key={delta}
-            type="button"
-            className="ui-control nudge-button"
-            aria-label={label(delta)}
-            disabled={
-              row.field.kind === "envelope-level" && value === 0 && delta < 0
-            }
-            {...run.buttonProps(row.field, delta, row.name)}
-          >
-            {stepText(delta)}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
+import { NudgeRow } from "./NudgeRow";
+import type { PeekTarget } from "./peekTarget";
+import { useNudgeRun } from "./useNudgeRun";
 
 export function InspectorPeek({ peek }: { peek: PeekTarget }) {
   const { project, ...access } = useDaw((s) => ({
