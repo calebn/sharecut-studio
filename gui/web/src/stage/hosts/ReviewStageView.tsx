@@ -15,7 +15,11 @@ export type ReviewStageViewProps = {
   scrollRef?: Ref<HTMLDivElement>;
 };
 
-/** Review: the Queue, for every role. */
+/**
+ * Review: the Queue, for every role. A load failure is not this body's:
+ * the panel puts the failure Cover in the transcript or queue region and the
+ * rest stays usable.
+ */
 export function ReviewStageView({
   shell,
   state,
@@ -25,7 +29,12 @@ export function ReviewStageView({
   scrollRef,
 }: ReviewStageViewProps) {
   return (
-    <HostBody stage="review" shell={shell} state={state} failure={failure}>
+    <HostBody
+      stage="review"
+      shell={shell}
+      state={state === "error" ? "ready" : state}
+      failure={failure}
+    >
       <div
         ref={scrollRef}
         className="stage-host-panel"

@@ -90,6 +90,12 @@ export type ReviewStageProps = {
   thread?: (item: ReviewItem) => ReactNode;
   /** The inline comment field, above the card. */
   composer?: ReactNode;
+  /** Guest Review: the Player card, first in the center column. */
+  centerTop?: ReactNode;
+  /** Guest Review: the transcript, after the composer. */
+  centerBottom?: ReactNode;
+  /** The region that failed to load, in place of the transcript (else the queue). */
+  regionFailure?: ReactNode;
   /** Resolving a comment is not a decision: the host owns it and its Undo. */
   onResolve?: (id: string) => void;
   onReply?: (id: string) => void;
@@ -135,6 +141,9 @@ export function ReviewStage({
   onComment,
   thread,
   composer,
+  centerTop,
+  centerBottom,
+  regionFailure,
   onResolve,
   onReply,
   onFindMore,
@@ -393,54 +402,66 @@ export function ReviewStage({
     ? fullOrder(items).findIndex((i) => i.id === selected.id) + 1
     : 0;
 
-  const queue = (
-    <ReviewQueue
-      items={items}
-      content={content}
-      selectedId={selectedId}
-      filter={filter}
-      speaker={speaker}
-      job={job}
-      bulkRunning={bulkRunning}
-      guest={guest}
-      canDecide={canDecide}
-      attention={attention}
-      state={state}
-      onFilter={onFilter}
-      onSpeaker={
-        onSpeaker &&
-        ((next) => {
-          setPending(null);
-          onSpeaker(next);
-          const open = items.find((i) => i.id === selectedId);
-          if (next !== null && open?.speaker && open.speaker.id !== next)
-            onSelect(stepUndecided(items, null, "forward", filter, next));
-        })
-      }
-      onSelect={(id) => {
-        onSelect(id);
-        setSheetOpen(false);
-      }}
-      onVerb={verb}
-      onKeep={keep}
-      onBulk={(group) => {
-        bulk(group.bulk?.ids);
-        setSheetOpen(false);
-      }}
-      onBulkIds={(ids) => {
-        bulk(ids);
-        setSheetOpen(false);
-      }}
-      onFindMore={onFindMore}
-      findMoreDisabled={bulkRunning ? BUSY_REASON : findMoreDisabled}
-      onRetry={onRetry}
-    />
-  );
+  const guestColumn = centerTop !== undefined || centerBottom !== undefined;
+  const queue =
+    regionFailure && !guestColumn ? (
+      regionFailure
+    ) : (
+      <ReviewQueue
+        items={items}
+        content={content}
+        selectedId={selectedId}
+        filter={filter}
+        speaker={speaker}
+        job={job}
+        bulkRunning={bulkRunning}
+        guest={guest}
+        canDecide={canDecide}
+        attention={attention}
+        state={state}
+        onFilter={onFilter}
+        onSpeaker={
+          onSpeaker &&
+          ((next) => {
+            setPending(null);
+            onSpeaker(next);
+            const open = items.find((i) => i.id === selectedId);
+            if (next !== null && open?.speaker && open.speaker.id !== next)
+              onSelect(stepUndecided(items, null, "forward", filter, next));
+          })
+        }
+        onSelect={(id) => {
+          onSelect(id);
+          setSheetOpen(false);
+        }}
+        onVerb={verb}
+        onKeep={keep}
+        onBulk={(group) => {
+          bulk(group.bulk?.ids);
+          setSheetOpen(false);
+        }}
+        onBulkIds={(ids) => {
+          bulk(ids);
+          setSheetOpen(false);
+        }}
+        onFindMore={onFindMore}
+        findMoreDisabled={bulkRunning ? BUSY_REASON : findMoreDisabled}
+        onRetry={onRetry}
+      />
+    );
 
   return (
-    <div ref={root} className="rv-stage" data-layout={layout} tabIndex={-1}>
+    <div
+      ref={root}
+      className="rv-stage"
+      data-layout={layout}
+      data-guest-column={guestColumn || undefined}
+      tabIndex={-1}
+    >
       <div className="rv-main">
-        {phone ? (
+        {phone && regionFailure && !guestColumn ? (
+          regionFailure
+        ) : phone ? (
           <div className="rv-phone-top">
             <Button aria-haspopup="dialog" onClick={() => setSheetOpen(true)}>
               <SystemIcon name="inbox" size={14} />
@@ -454,95 +475,101 @@ export function ReviewStage({
           queue
         )}
         <div className="rv-card">
+          {centerTop}
           {!dockedComposer && <Fragment key="composer">{composer}</Fragment>}
-          <DecisionCard
-            key={selected?.id ?? "none"}
-            kind={selected?.kind ?? "filler"}
-            state={
-              state !== "ready" ? state : selected && body ? "ready" : "empty"
-            }
-            {...card}
-            verb={selected ? itemVerb(selected) : undefined}
-            verbDisabledReason={
-              guest && selected?.kind === "comment"
-                ? "The host resolves comments."
-                : selected?.blocked
-                  ? guest
-                    ? "The host resolves this one."
-                    : "Open it in Edit to resolve."
-                  : selected?.kind === "comment" && selected.result
-                    ? "Already resolved."
-                    : selected?.kind === "pickup" && !selected.result
-                      ? takeRefusal(selected)
-                      : undefined
-            }
-            thread={selected && thread?.(selected)}
-            why={selected?.blocked ? (card.why ?? BLOCKED_WHY) : card.why}
-            waveform={wave && { ...wave, onAdjust: adjust }}
-            savedSeconds={savedSeconds > 0 ? savedSeconds : undefined}
-            audition={
-              wave || card.change
-                ? { side, onSide: setSide, onHear: hear }
-                : undefined
-            }
-            unsure={unsure}
-            takes={onSelectTake ? takes : undefined}
-            prompt={
-              armed && pendingItem
-                ? {
-                    verb: itemVerb(pendingItem),
-                    checkLabel: `Check ${unsureWords} ${unsureWords === 1 ? "word" : "words"}`,
-                    onConfirm: confirmAnyway,
-                    onCheck: checkWords,
-                  }
-                : held && selected && canDecide
-                  ? {
-                      verb: itemVerb(selected),
-                      message: held.message,
-                      allowNote: false,
-                      onConfirm: () =>
-                        void onDecide({
-                          ids: [selected.id],
-                          result: "applied",
-                          override: true,
-                        }),
-                    }
+          {regionFailure && guestColumn ? regionFailure : centerBottom}
+          {guestColumn && !selected ? null : (
+            <DecisionCard
+              key={selected?.id ?? "none"}
+              kind={selected?.kind ?? "filler"}
+              state={
+                state !== "ready" ? state : selected && body ? "ready" : "empty"
+              }
+              {...card}
+              verb={selected ? itemVerb(selected) : undefined}
+              verbDisabledReason={
+                guest && selected?.kind === "comment"
+                  ? "The host resolves comments."
+                  : selected?.blocked
+                    ? guest
+                      ? "The host resolves this one."
+                      : "Open it in Edit to resolve."
+                    : selected?.kind === "comment" && selected.result
+                      ? "Already resolved."
+                      : selected?.kind === "pickup" && !selected.result
+                        ? takeRefusal(selected)
+                        : undefined
+              }
+              thread={selected && thread?.(selected)}
+              why={selected?.blocked ? (card.why ?? BLOCKED_WHY) : card.why}
+              waveform={wave && { ...wave, onAdjust: adjust }}
+              savedSeconds={savedSeconds > 0 ? savedSeconds : undefined}
+              audition={
+                wave || card.change
+                  ? { side, onSide: setSide, onHear: hear }
                   : undefined
-            }
-            readOnly={!canDecide}
-            canEdit={!guest}
-            layout={phone ? "phone" : "card"}
-            emptyAction={
-              onHandOff
-                ? { label: "Go to Deliver", onClick: onHandOff }
-                : undefined
-            }
-            onRetry={onRetry}
-            onVerb={() => selected && verb(selected.id)}
-            onKeep={
-              selected?.transcript ||
-              selected?.kind === "unsure-word" ||
-              selected?.kind === "comment"
-                ? undefined
-                : () => selected && keep(selected.id)
-            }
-            onLater={() => step("forward")}
-            onOpenInEdit={() => selected && onOpenInEdit?.(selected.id)}
-            onComment={
-              onComment ? () => selected && onComment(selected.id) : undefined
-            }
-          />
+              }
+              unsure={unsure}
+              takes={onSelectTake ? takes : undefined}
+              prompt={
+                armed && pendingItem
+                  ? {
+                      verb: itemVerb(pendingItem),
+                      checkLabel: `Check ${unsureWords} ${unsureWords === 1 ? "word" : "words"}`,
+                      onConfirm: confirmAnyway,
+                      onCheck: checkWords,
+                    }
+                  : held && selected && canDecide
+                    ? {
+                        verb: itemVerb(selected),
+                        message: held.message,
+                        allowNote: false,
+                        onConfirm: () =>
+                          void onDecide({
+                            ids: [selected.id],
+                            result: "applied",
+                            override: true,
+                          }),
+                      }
+                    : undefined
+              }
+              readOnly={!canDecide}
+              canEdit={!guest}
+              layout={phone ? "phone" : "card"}
+              emptyAction={
+                onHandOff
+                  ? { label: "Go to Deliver", onClick: onHandOff }
+                  : undefined
+              }
+              onRetry={onRetry}
+              onVerb={() => selected && verb(selected.id)}
+              onKeep={
+                selected?.transcript ||
+                selected?.kind === "unsure-word" ||
+                selected?.kind === "comment"
+                  ? undefined
+                  : () => selected && keep(selected.id)
+              }
+              onLater={() => step("forward")}
+              onOpenInEdit={() => selected && onOpenInEdit?.(selected.id)}
+              onComment={
+                onComment ? () => selected && onComment(selected.id) : undefined
+              }
+            />
+          )}
           {dockedComposer && <Fragment key="composer">{composer}</Fragment>}
         </div>
       </div>
-      <div className="rv-foot">
-        <ContextStrip
-          items={items}
-          duration={duration}
-          selectedId={selectedId}
-          peaks={peaks}
-        />
-      </div>
+      {centerTop ? null : (
+        <div className="rv-foot">
+          <ContextStrip
+            items={items}
+            duration={duration}
+            selectedId={selectedId}
+            peaks={peaks}
+          />
+        </div>
+      )}
       {phone ? (
         <Sheet
           form="bottom"

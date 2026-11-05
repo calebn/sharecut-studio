@@ -214,11 +214,12 @@ describe("Review host", () => {
     expect(
       screen.queryByRole("tablist", { name: "Review sections" }),
     ).toBeNull();
-    expect(screen.getByRole("region", { name: "Decision" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "Queue" })).toBeVisible();
+    expect(screen.queryByRole("region", { name: "Decision" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Deliver" })).toBeNull();
   });
 
-  it("puts the read-only Script above a guest's comments, and not above the host's", () => {
+  it("puts the read-only Script under a guest's Player card, and shows none to the host", () => {
     useDawStore.getState().hydrate(
       "share:abc",
       minimalProject({
@@ -248,10 +249,9 @@ describe("Review host", () => {
     useDawStore.setState({ stage: "review", guestMode: "comment" });
     const { unmount } = mount(true);
     const script = screen.getByRole("button", { name: "Welcome" });
-    const comments = screen.getByRole("region", { name: "Decision" });
+    const card = document.querySelector(".sys-player--expanded") as Element;
     expect(
-      script.compareDocumentPosition(comments) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
+      card.compareDocumentPosition(script) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     unmount();
     asHost("review");
@@ -299,7 +299,7 @@ describe("Review host", () => {
       useDawStore.getState().hydrate("share:abc", project);
       useDawStore.setState({ stage: "review", guestMode: "view" });
       mount(true);
-      expect(screen.getByRole("region", { name: "Decision" })).toBeVisible();
+      expect(screen.getByRole("region", { name: "Queue" })).toBeVisible();
       expect(document.querySelector(".stage-host-guest-script") !== null).toBe(
         shown,
       );

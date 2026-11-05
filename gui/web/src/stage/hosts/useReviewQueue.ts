@@ -110,15 +110,23 @@ type Reply = {
 };
 
 export function useReviewQueue(guestShare = false) {
-  const { project, projectPath, shell, guestMode, shareCapabilities, picked } =
-    useDaw((s) => ({
-      project: s.project,
-      projectPath: s.projectPath,
-      shell: s.shellBreakpoint,
-      guestMode: s.guestMode,
-      shareCapabilities: s.shareCapabilities,
-      picked: s.selection?.kind === "comment" ? s.selection : null,
-    }));
+  const {
+    project,
+    projectPath,
+    shell,
+    guestMode,
+    shareCapabilities,
+    shareAuthor,
+    picked,
+  } = useDaw((s) => ({
+    project: s.project,
+    projectPath: s.projectPath,
+    shell: s.shellBreakpoint,
+    guestMode: s.guestMode,
+    shareCapabilities: s.shareCapabilities,
+    shareAuthor: s.shareAuthor,
+    picked: s.selection?.kind === "comment" ? s.selection : null,
+  }));
   const guest = isGuestSession(projectPath, guestMode, guestShare);
   const comments = useReviewComments(guest);
   const attention = useReviewAttention(projectPath);
@@ -140,7 +148,16 @@ export function useReviewQueue(guestShare = false) {
   const switching = useRef(new Set<string>());
   const canDecide =
     !guest || canReviewPendingEdit(projectPath, shareCapabilities);
-  const pending = canDecide ? project?.pending_edits : undefined;
+  // A guest who cannot decide sees only the suggestions their own link made.
+  const pending = useMemo(
+    () =>
+      canDecide
+        ? project?.pending_edits
+        : guest && shareAuthor != null
+          ? project?.pending_edits?.filter((e) => e.author === shareAuthor)
+          : undefined,
+    [canDecide, guest, shareAuthor, project?.pending_edits],
+  );
   const sessions = guest ? undefined : project?.session_suggestions;
   const tracks = project?.tracks;
 
@@ -188,7 +205,8 @@ export function useReviewQueue(guestShare = false) {
   );
   const open = useMemo<ReviewEntry[]>(() => {
     const entries = reviewEntriesOf(pending ?? [], tracks ?? []).map(
-      ({ item, content }) => {
+      ({ item: found, content }) => {
+        const item = canDecide ? found : { ...found, mine: true as const };
         if (guest && item.unsure)
           return {
             item: { ...item, blocked: true, hostOnly: true },
@@ -232,6 +250,7 @@ export function useReviewQueue(guestShare = false) {
     ];
   }, [
     guest,
+    canDecide,
     pending,
     held,
     status,

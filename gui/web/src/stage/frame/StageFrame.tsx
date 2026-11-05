@@ -1,11 +1,12 @@
 import { memo, type ReactNode, useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { useShortViewport } from "../../hooks/useShortViewport";
 import { useTimelineFocusRegion } from "../../hooks/useTimelineFocusRegion";
 import { useTwoFingerTap } from "../../hooks/useTwoFingerTap";
 import { PresenceGhostLayer } from "../../presence/PresenceGhostLayer";
 import { rosterEntry } from "../../presence/roster";
 import { usePresenceCursorSource } from "../../presence/usePresenceCursorSource";
-import { canApplyPass12 } from "../../shareMode";
+import { canApplyPass12, isGuestSession } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { AppHeader } from "../../system/AppHeader";
 import { StageBar } from "../../system/StageBar";
@@ -14,6 +15,7 @@ import type { StageSheet } from "../../types/stage";
 import { ToolsButton } from "../edit/ToolsButton";
 import { AvatarStack } from "./AvatarStack";
 import { BannerStack } from "./BannerStack";
+import { guestPlayerCardShown } from "./guestPlayerCardShown";
 import { PlayerBar } from "./PlayerBar";
 import { SheetHost } from "./SheetHost";
 import { STAGE_BODY_ID, StageFrameView } from "./StageFrameView";
@@ -38,9 +40,11 @@ function StageFrameAdapter({
   children,
 }: StageFrameProps) {
   const shell = useShellAttributes();
-  const { stage, followColorIndex, setTimelineFocused } = useDawStore(
+  const shortViewport = useShortViewport();
+  const { stage, guest, followColorIndex, setTimelineFocused } = useDawStore(
     useShallow((s) => ({
       stage: s.stage,
+      guest: isGuestSession(s.projectPath, s.guestMode, guestShare),
       followColorIndex: s.followingClientId
         ? (rosterEntry(s.sessionClients, s.followingClientId)?.meta
             ?.color_index ?? 0)
@@ -101,7 +105,12 @@ function StageFrameAdapter({
         />
       }
       banners={<BannerStack guestShare={guestShare} />}
-      player={stage === "record" ? null : <PlayerBar />}
+      player={
+        stage === "record" ||
+        guestPlayerCardShown(stage, shell, guest, shortViewport) ? null : (
+          <PlayerBar />
+        )
+      }
       tabs={
         shell === "phone" && stageBar ? (
           <StageBar {...stageBar} form="tabs" panelId={STAGE_BODY_ID} />

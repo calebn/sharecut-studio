@@ -247,3 +247,19 @@
   flex: 1;
   min-inline-size: 0;
 }
+
+/* Guest Review: one 760 px center column (Player card, composer, transcript) beside the reduced Queue. */
+.rv-stage[data-guest-column] .rv-card {
+  inline-size: 100%;
+  max-inline-size: 47.5rem;
+  gap: var(--space-4);
+}
+
+.rv-stage[data-guest-column] .rv-card > .stage-host-guest-script {
+  margin-block-end: 0;
+}
+
+.rv-stage[data-guest-column] .rv-card > .sys-player--expanded {
+  border: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-elevated);
+}

@@ -628,7 +628,9 @@ describe("Review queue for a guest", () => {
 
     const after = () => {
       const compose = document.querySelector(".rv-compose") as Element;
-      const card = document.querySelector(".rv-card > :not(.rv-compose)");
+      const card = document.querySelector(
+        ".rv-card > :not(.rv-compose):not(.sys-player)",
+      );
       return !!(
         card &&
         compose.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_PRECEDING
@@ -666,6 +668,98 @@ describe("Review queue for a guest", () => {
       render(<ReviewHost />);
       expect(docked()).toBe(false);
       expect(after()).toBe(false);
+    });
+  });
+
+  describe("the guest column", () => {
+    beforeEach(() => useDawStore.setState({ shellBreakpoint: "desktop" }));
+
+    it("puts the one Player card first, then the composer, then the transcript", () => {
+      join("comment");
+      render(<ReviewHost guestShare />);
+      const card = document.querySelector(".sys-player--expanded");
+      const composer = field();
+      const script = document.querySelector(".stage-host-guest-script");
+      expect(document.querySelectorAll(".sys-player--expanded")).toHaveLength(
+        1,
+      );
+      expect(card?.compareDocumentPosition(composer)).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+      expect(script).not.toBeNull();
+      expect(
+        composer.compareDocumentPosition(script as Element) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(
+        screen.queryByRole("button", { name: "Collapse player" }),
+      ).toBeNull();
+    });
+
+    it("keeps the bar on a phone and mounts no card", () => {
+      stubViewportShell("phone");
+      useDawStore.setState({ shellBreakpoint: "phone" });
+      join("comment");
+      render(<ReviewHost guestShare />);
+      expect(document.querySelector(".sys-player--expanded")).toBeNull();
+    });
+
+    it("keeps the bar and mounts no card on a window too short for the transcript", () => {
+      stubViewportShell("tablet");
+      const base = window.matchMedia;
+      vi.stubGlobal("matchMedia", (query: string) => ({
+        ...base(query),
+        matches: query === SHORT_VIEWPORT_MQ || base(query).matches,
+      }));
+      join("comment");
+      render(<ReviewHost guestShare />);
+      expect(document.querySelector(".sys-player--expanded")).toBeNull();
+      expect(field()).toBeVisible();
+    });
+
+    it("lists the guest's own suggestions in Your suggestions, and no one else's", () => {
+      join(
+        "comment",
+        [sampleComment({ body: "Cut the intro" })],
+        [
+          pendingEditView({ id: "mine", label: "My trim", author: "share:me" }),
+          pendingEditView({
+            id: "theirs",
+            label: "Rosa's trim",
+            author: "share:rosa",
+          }),
+          pendingEditView({ id: "host", label: PENDING_LABEL }),
+        ],
+      );
+      useDawStore.setState({ shareAuthor: "share:me" });
+      render(<ReviewHost guestShare />);
+      expect(
+        [...document.querySelectorAll(".rv-group")].map((g) =>
+          g.getAttribute("aria-label"),
+        ),
+      ).toEqual(["Comments", "Your suggestions"]);
+      expect(screen.getAllByText("My trim").length).toBeGreaterThan(0);
+      expect(screen.queryByText("Rosa's trim")).toBeNull();
+      expect(screen.queryByText(PENDING_LABEL)).toBeNull();
+    });
+
+    it("shows a load failure in the transcript region only and leaves the rest usable", async () => {
+      join("comment", [sampleComment({ body: "Cut the intro" })]);
+      const onRetry = vi.fn();
+      render(
+        <ReviewHost
+          guestShare
+          loadFailure={{ message: "No answer.", onRetry }}
+        />,
+      );
+      const alert = screen.getByRole("alert");
+      expect(alert).toHaveTextContent("The transcript didn't load");
+      expect(document.querySelector(".stage-host-guest-script")).toBeNull();
+      expect(document.querySelector(".sys-player--expanded")).not.toBeNull();
+      expect(field()).toBeEnabled();
+      expect(screen.getAllByText("Cut the intro")[0]).toBeVisible();
+      await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+      expect(onRetry).toHaveBeenCalledOnce();
     });
   });
 

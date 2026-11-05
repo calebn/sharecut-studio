@@ -32,6 +32,28 @@ const item = (over: Partial<ReviewItem>): ReviewItem => ({
   ...over,
 });
 
+describe("a guest's own suggestions", () => {
+  it("collects them after the comments, whatever their kind, and no kind group keeps one", () => {
+    const groups = groupQueue([
+      item({ id: "c", kind: "comment", at: 5 }),
+      item({ id: "m2", kind: "pause", at: 9, mine: true }),
+      item({ id: "m1", kind: "suggestion", at: 2, mine: true }),
+    ]);
+    expect(groups.map((g) => g.label)).toEqual([
+      "Comments",
+      "Your suggestions",
+    ]);
+    expect(groups[1]?.items.map((i) => i.id)).toEqual(["m1", "m2"]);
+    expect(groups[1]?.bulk).toBeNull();
+  });
+
+  it("leaves the group out when none is undecided", () => {
+    expect(
+      groupQueue([item({ id: "m", mine: true, result: "applied" })]),
+    ).toEqual([]);
+  });
+});
+
 describe("queue order", () => {
   it("groups every kind in the same fixed order", () => {
     const kinds = [
