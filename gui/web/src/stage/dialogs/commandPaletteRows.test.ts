@@ -98,15 +98,18 @@ describe("paletteCommands", () => {
     );
   });
 
-  it("puts the five stage commands in Stages, with the stage icons, and help.* in Help", () => {
+  it("puts the five stage commands and the hand-off in Stages, with the stage icons, and help.* in Help", () => {
     const rows = rowsNow();
     const stages = rows.filter((r) => r.group === "stages");
     expect(stages.map((r) => r.id).sort()).toEqual(
-      ["deliver", "edit", "prepare", "record", "review"].map(
+      ["deliver", "edit", "handoff", "prepare", "record", "review"].map(
         (id) => `stage.${id}`,
       ),
     );
-    expect(stages.every((r) => r.icon !== undefined)).toBe(true);
+    // The hand-off leads with the icon of the stage it opens, so its row has none of its own.
+    expect(stages.filter((r) => r.icon === undefined).map((r) => r.id)).toEqual(
+      ["stage.handoff"],
+    );
     expect(stages.find((r) => r.id === "stage.record")?.icon).toBe("record");
     expect(rows.filter((r) => r.group === "help").map((r) => r.id)).toEqual([
       "help.diagnosticsBundle",
