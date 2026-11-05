@@ -774,6 +774,7 @@ export function PendingEditBody({
                             edge: "start",
                           }}
                           name={`Pending ${edit.type} start`}
+                          hidden={timingBusy}
                         />
                       </div>
                     </span>
@@ -800,6 +801,7 @@ export function PendingEditBody({
                             edge: "end",
                           }}
                           name={`Pending ${edit.type} end`}
+                          hidden={timingBusy}
                         />
                       </div>
                     </span>
