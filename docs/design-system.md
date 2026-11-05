@@ -76,7 +76,7 @@ organisms; domain screens are templates, colocated with their domain component
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, ClipLed, Pill, Timecode, EmptyState, SurfaceLadder (token reference), CloseButton |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl, Toast, FocusPull, InlineConfirm |
 | **Organisms** | Complex, generic, reusable components / sections | Dialog, AskDialog, BottomSheet, CoverScreen, LoadingScreen, ErrorScreen |
-| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy; a store-bound one hydrates the shared episode instead (see [Catalog boundary](#catalog-boundary-store-bound-components)) | UploadStatus, Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, AppliedEditOverlay, StaleInvalidationOverlay, PendingEditOverlay, MarkerLaneHost, EditBoundaryMark, ClipBlock, CommentPlaybackBubble, TrackHeader, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, HostMcpDialog, GesturesSheet, AvatarStack, OverlayLegend, CommandPalette |
+| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy; a store-bound one hydrates the shared episode instead (see [Catalog boundary](#catalog-boundary-store-bound-components)) | UploadStatus, Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, AppliedEditOverlay, StaleInvalidationOverlay, PendingEditOverlay, MarkerLaneHost, EditBoundaryMark, ClipBlock, CommentPlaybackBubble, TrackHeader, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, GesturesSheet, AvatarStack, OverlayLegend, CommandPalette |
 
 **Organisms vs Templates:** an organism is generic and reusable anywhere in the
 app; a template is one specific domain screen or panel (record room, review
@@ -302,19 +302,18 @@ people slot and `OverlayLegend` in the Edit eye sheet. Stories cover desktop,
 phone, menu-hosted, guest-share, chapter-adding, and loading/overflow/following
 states.
 
-`Templates/HostMcpDialog` and `Templates/GesturesSheet` preview the shipped
-agent-connection and mobile gesture dialogs. The agent dialog's story supplies
-a fixed loopback URL so its fields and client snippet do not depend on the
-Storybook server port; the live dialog still derives its URL from the host.
-Standalone Canvas stories open their dialogs for visual review. Autodocs
-renders these examples in isolated frames, where Canvas play functions also
-open them. Each dialog remains independently inspectable and closable.
-Their `play` functions open the dialog with
-`openDialogViaLauncher` (`src/storybook/openDialog.ts`), which clicks the
-launcher only when the named dialog is not already open. They cover an
-open episode, the no-episode warning, the gesture sheet's callback handoff
-to Commands and shortcuts, and a 360px phone viewport without app or network
-context.
+`Templates/GesturesSheet` previews the shipped mobile gesture dialog.
+`Stages/Settings/HelpSheet`, `Stages/Settings/ConnectAgent` and
+`Stages/Settings/SettingsSheet` preview the Help, Connect agent and Settings
+sheets from props. The Connect agent story supplies a fixed loopback URL so its
+block does not depend on the Storybook server port; the live sheet still derives
+its URL from the host. Standalone Canvas stories open their overlays for visual
+review. Autodocs renders these examples in isolated frames, where Canvas play
+functions also open them. Each overlay remains independently inspectable and
+closable. Their `play` functions cover the Help menu and every report state
+(empty, preview, sending, sent, queued, failed), each Connect agent client with
+its presence line and the no-episode copy, Settings with and without an open
+episode, and a 390px phone viewport without app or network context.
 
 `Stages/Deliver/Share` renders the props-only `ShareSection`, which carries the
 same actions inside the Deliver stage; `ShareFlowProvider` owns listing,

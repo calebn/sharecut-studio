@@ -42,11 +42,13 @@ export interface ChromeFlags {
   /** A Share request from a command; the Deliver stage focuses its Share section and clears this. */
   shareRequested: boolean;
   transcriptRequested: boolean;
-  /** Local host MCP connect dialog (Streamable HTTP URL). */
-  hostMcpDialogOpen: boolean;
-  /** Host Help → diagnostics bundle dialog. */
-  helpDialogOpen: boolean;
-  /** Models sheet: every model, its state and download. */
+  /** Connect agent sheet (Streamable HTTP URL). */
+  agentSheetOpen: boolean;
+  /** Help sheet: shortcuts, Report a problem, Guides. */
+  helpSheetOpen: boolean;
+  /** Settings sheet: Models and Project settings. */
+  settingsSheetOpen: boolean;
+  /** Models dialog: every model, its state and download. */
   modelsSheetOpen: boolean;
   /** Transcript find/replace panel open. */
   transcriptFindReplaceOpen: boolean;
@@ -512,8 +514,9 @@ export interface DawState {
   setPrepareFocusTrackId: (trackId: string | null) => void;
   setShareRequested: (on: boolean) => void;
   setTranscriptRequested: (on: boolean) => void;
-  setHostMcpDialogOpen: (on: boolean) => void;
-  setHelpDialogOpen: (on: boolean) => void;
+  setAgentSheetOpen: (on: boolean) => void;
+  setHelpSheetOpen: (on: boolean) => void;
+  setSettingsSheetOpen: (on: boolean) => void;
   setModelsSheetOpen: (on: boolean) => void;
   setOpenJoinId: (id: string | null) => void;
   setJoinMutationInFlight: (on: boolean) => void;

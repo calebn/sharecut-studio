@@ -2052,7 +2052,7 @@
       "surfaces": {
         "command": "mcp.connect",
         "gui": [
-          "HostMcpDialog"
+          "ConnectAgentSheet"
         ]
       },
       "omit": {
@@ -2077,8 +2077,7 @@
       "surfaces": {
         "command": "help.diagnosticsBundle",
         "gui": [
-          "home.help",
-          "HelpDialog"
+          "HelpSheet"
         ],
         "cli": "podcast doctor --bundle"
       },

@@ -27,11 +27,8 @@ vi.mock("./stage/hosts/shareFlow", () => ({
 vi.mock("./stage/hosts/exportFlow", () => ({
   ExportFlowProvider: ({ children }: { children: ReactNode }) => children,
 }));
-vi.mock("./stage/dialogs/HostMcpDialog", () => ({
-  HostMcpDialog: () => null,
-}));
 vi.mock("./feedback/FeedbackToast", () => ({ FeedbackToast: () => null }));
-vi.mock("./home/HelpDialog", () => ({ HelpDialog: () => null }));
+vi.mock("./stages/settings/AppSheets", () => ({ AppSheets: () => null }));
 vi.mock("./models", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./models")>()),
   ModelsSheet: () => null,

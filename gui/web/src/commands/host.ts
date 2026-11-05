@@ -205,7 +205,7 @@ export function registerHostCommands(): void {
     if (!canManageProjects(s.projectPath)) {
       return { status: "disabled", reason: "Connect agent is host-only" };
     }
-    s.setHostMcpDialogOpen(true);
+    s.setAgentSheetOpen(true);
     return { status: "ok" };
   });
 
@@ -217,7 +217,7 @@ export function registerHostCommands(): void {
         reason: "Export diagnostics is host-only",
       };
     }
-    s.setHelpDialogOpen(true);
+    s.setHelpSheetOpen(true);
     return { status: "ok" };
   });
 

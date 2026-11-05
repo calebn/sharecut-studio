@@ -206,7 +206,7 @@ For Windows, use `"command": "C:\\path\\to\\sharecut-studio\\.venv\\Scripts\\pod
 ## Mode 2: GUI-attached Streamable HTTP
 
 1. Run `podcast gui` and open an episode.
-2. Choose **Menu → Connect agent…** to copy the URL:
+2. Choose **Menu → Connect agent**, pick your client and press **Copy** (the URL for Claude and Other):
    `http://127.0.0.1:8765/mcp`
 3. Keep ShareCut Studio running while the agent is connected.
 
