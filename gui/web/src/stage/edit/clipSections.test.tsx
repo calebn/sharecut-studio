@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setClipFade, setClipJoin } from "../../api";
 import { executePointerCommand } from "../../commands/pointer";
 import { saveClipEdge, TRIM_MODE } from "../../edit/clipEdgeSave";
+import { getClipPlacement } from "../../edit/clipPlacement";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { minimalProject, sampleTrack } from "../../test/fixtures";
@@ -91,6 +92,14 @@ beforeEach(() => {
   vi.mocked(executePointerCommand).mockClear();
 });
 
+/** Drag the Start field far enough to begin a placement preview. */
+function previewStart() {
+  const field = screen.getByRole("spinbutton", { name: "Start" });
+  fireEvent.pointerDown(field, { clientX: 100, pointerId: 1, button: 0 });
+  fireEvent.pointerMove(field, { clientX: 110, pointerId: 1 });
+  fireEvent.pointerMove(field, { clientX: 150, pointerId: 1 });
+}
+
 describe("clip content", () => {
   it("heads a clip by its speaker and timeline range, not its id", () => {
     open();
@@ -146,18 +155,18 @@ describe("clip content", () => {
 
   it("keeps a pending placement when a trim is refused", async () => {
     open();
-    fireEvent.click(screen.getByRole("button", { name: "Move clip" }));
+    previewStart();
     await type("Source start", "5");
-    expect(screen.getByLabelText("Timeline start (seconds)")).toBeVisible();
+    expect(getClipPlacement().kind).toBe("preview");
   });
 
   it("cancels a pending placement when auto reduction opens", () => {
     open();
-    fireEvent.click(screen.getByRole("button", { name: "Move clip" }));
+    previewStart();
     fireEvent.click(
       screen.getByRole("button", { name: "Inspect automatic audio reduction" }),
     );
-    expect(screen.queryByLabelText("Timeline start (seconds)")).toBeNull();
+    expect(getClipPlacement()).toEqual({ kind: "idle" });
   });
 
   it("shows a refused trim as an alert", async () => {
@@ -317,11 +326,10 @@ describe("clip fades", () => {
 
   it("cancels a pending placement before the write", async () => {
     open();
-    fireEvent.click(screen.getByRole("button", { name: "Move clip" }));
-    expect(screen.getByLabelText("Timeline start (seconds)")).toBeVisible();
+    previewStart();
+    expect(getClipPlacement().kind).toBe("preview");
     await key("Fade in", "ArrowUp");
-    expect(screen.queryByLabelText("Timeline start (seconds)")).toBeNull();
-    expect(screen.getByRole("button", { name: "Move clip" })).toBeVisible();
+    expect(getClipPlacement()).toEqual({ kind: "idle" });
   });
 
   it("announces a refusal and shows the saved value again", async () => {

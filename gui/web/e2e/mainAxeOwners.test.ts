@@ -85,11 +85,11 @@ it("retains comment recovery's exact dark phone profile in main", async () => {
 
 it("retains the same wordbar helper with inherited profiles in main", async () => {
   const main = await runCase(
-    "Wordbar native drag saves once outside the inspector and Undo restores exact timing",
+    "Wordbar handle drag saves once outside the inspector and Undo restores exact timing",
   );
   expect(registrations.wordbar).toHaveBeenLastCalledWith(main.page);
   const compat = await runCase(
-    "Wordbar native boundary release and exact Undo work across browsers",
+    "Wordbar handle release and exact Undo work across browsers",
   );
   expect(registrations.wordbar).toHaveBeenLastCalledWith(compat.page);
   expect(main.viewport).toBeUndefined();

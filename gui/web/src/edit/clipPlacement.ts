@@ -207,7 +207,7 @@ export async function applyClipPlacement(token: number): Promise<void> {
         error:
           result.status === "disabled"
             ? result.reason
-            : "Move unavailable. Cancel and reopen Move clip.",
+            : "Move unavailable. Try the move again.",
       });
     else cancelClipPlacement(token);
   } catch (error) {

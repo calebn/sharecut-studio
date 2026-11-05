@@ -6,12 +6,12 @@ import {
 } from "./liveProject";
 import { switchE2eProject } from "./shareableProject";
 import {
-  armRange,
   goToStage,
   inspectSelection,
   openPanel,
   openProject,
   phone,
+  selectRangeSec,
 } from "./stageNav";
 import { projectJson, touch, watchCommands } from "./touchTimeline";
 import { trackHeaderButton } from "./trackHeader";
@@ -70,16 +70,7 @@ async function selectFirstClip(page: Page): Promise<Locator> {
 }
 
 async function selectRange(page: Page, from: string, to: string) {
-  await armRange(page);
-  const fields = page.getByRole("region", { name: "Range fields" });
-  await fields.getByRole("spinbutton", { name: "In", exact: true }).fill(from);
-  await fields.getByRole("spinbutton", { name: "Out", exact: true }).fill(to);
-  await fields
-    .getByRole("checkbox", { name: "reference", exact: true })
-    .check();
-  await fields
-    .getByRole("button", { name: "Select range", exact: true })
-    .click();
+  await selectRangeSec(page, from, to);
 }
 
 async function expectInside(page: Page, box: Locator): Promise<void> {

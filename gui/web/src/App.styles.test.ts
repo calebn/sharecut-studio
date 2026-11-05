@@ -91,18 +91,6 @@ describe("App styles", () => {
     expect(body).toMatch(/min-block-size:\s*var\(--touch-min\)/);
   });
 
-  it("gives the Range word controls the touch target on a coarse pointer (#1029)", () => {
-    const here = dirname(fileURLToPath(import.meta.url));
-    const words = readFileSync(
-      join(here, "styles/partials/layout.css"),
-      "utf8",
-    ).match(
-      /@media \(pointer: coarse\) \{\s*\.range-word-step,\s*\.range-word-ignore \{([^}]*)\}/,
-    );
-    expect(words).toBeTruthy();
-    expect(words![1]).toMatch(/min-block-size:\s*var\(--touch-min\)/);
-  });
-
   it("gives every ui-control variant and action pill the touch target on a coarse pointer (#1315, #1388)", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const src = readFileSync(join(here, "styles/partials/ui.css"), "utf8");

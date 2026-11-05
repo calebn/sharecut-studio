@@ -2046,7 +2046,7 @@ describe("ClipBlock waveform", () => {
       getByRole("button", { name: "Select Host clip at 00:00.000, 2s" }),
     ).toHaveAttribute(
       "title",
-      "Select Host clip at 00:00.000, 2s · Move clip in the inspector previews time and target track before Apply move; clip-body drag also moves clips",
+      "Select Host clip at 00:00.000, 2s · Scrub Start or tap a track in the clip inspector to move a clip; clip-body drag also moves clips",
     );
   });
 

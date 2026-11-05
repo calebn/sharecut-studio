@@ -47,7 +47,6 @@ const FILE_SURFACES: Record<string, string[]> = {
   "stage/edit/ViewSheet.tsx": ["viewSheet"],
   "tracks/SoloChip.tsx": ["trackHeaders.soloChip"],
   "transcript/TranscriptWordbar.tsx": ["transcript.wordbar"],
-  "transcript/WordRangeControls.tsx": ["rangeActions.words"],
 };
 
 const RENDERED =

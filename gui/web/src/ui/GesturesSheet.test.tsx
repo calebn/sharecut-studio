@@ -17,7 +17,7 @@ describe("GesturesSheet", () => {
     expect(screen.getByText("Pinch")).toBeInTheDocument();
     expect(
       screen.getByText(/To move a clip without dragging/),
-    ).toHaveTextContent("Apply move saves the preview. Cancel discards it.");
+    ).toHaveTextContent("Escape drops it.");
   });
 
   it("lists only shipped gestures", () => {

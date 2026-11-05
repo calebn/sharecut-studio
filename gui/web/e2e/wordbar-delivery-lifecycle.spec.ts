@@ -13,68 +13,53 @@ import { inspectSelectionByKey, saveStatus } from "./stageNav";
 import { openScript } from "./transcriptEdit";
 
 test.use({ viewport: { width: 1440, height: 900 }, reducedMotion: "reduce" });
-for (const terminal of ["escape", "cancel-draft", "synthetic-cancel"] as const)
-  test(`Wordbar native source timing preview ${terminal} restores exact original timing`, async ({
+for (const terminal of ["escape", "synthetic-cancel"] as const)
+  test(`Wordbar handle drag ${terminal} restores exact original timing`, async ({
     page,
   }, info) => {
     await runAudit(page, info, false, async (p, c) => {
       const list = await openScript(page);
       await list.locator(".sys-script-word").first().click();
       await inspectSelectionByKey(page);
-      await page
-        .getByRole("button", { name: "Adjust timing", exact: true })
-        .click();
-      const end = page.getByRole("slider", { name: "Word end" });
+      const end = page.getByRole("spinbutton", { name: "Word end" });
       await expect(end).toBeEnabled();
       const before = snapshot(p),
-        value = await end.inputValue();
-      await end.focus();
-      if (terminal !== "synthetic-cancel") {
-        await page.keyboard.press("ArrowRight");
-        await expect(end).not.toHaveValue(value);
-        expect(snapshot(p)).toEqual(before);
-      }
-      if (terminal === "escape") await page.keyboard.press("Escape");
-      else if (terminal === "cancel-draft")
-        await page
-          .getByRole("button", { name: "Cancel draft", exact: true })
-          .click();
-      else {
-        await end.evaluate((el) =>
-          el.addEventListener(
-            "pointerdown",
-            (event) => {
-              if (event.isTrusted)
-                (
-                  window as unknown as { __wordbarOwner?: number }
-                ).__wordbarOwner = (event as PointerEvent).pointerId;
-            },
-            { once: true },
-          ),
+        value = await end.getAttribute("aria-valuenow");
+      const handle = page.locator('[data-boundary="end"] .wordbar-handle');
+      await handle.evaluate((el) =>
+        el.addEventListener(
+          "pointerdown",
+          (event) => {
+            if (event.isTrusted)
+              (
+                window as unknown as { __wordbarOwner?: number }
+              ).__wordbarOwner = (event as PointerEvent).pointerId;
+          },
+          { once: true },
+        ),
+      );
+      const box = await handle.boundingBox();
+      if (!box) throw new Error("Wordbar preparation has no handle bounds");
+      const x = box.x + box.width / 2,
+        y = box.y + box.height / 2;
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      await page.mouse.move(x + 12, y, { steps: 3 });
+      await expect(end).not.toHaveAttribute("aria-valuenow", value ?? "");
+      expect(snapshot(p)).toEqual(before);
+      if (terminal === "escape") {
+        await page.keyboard.press("Escape");
+        await page.mouse.up();
+      } else {
+        const eventId = await handle.evaluate(
+          () =>
+            (window as unknown as { __wordbarOwner?: number }).__wordbarOwner,
         );
-        const box = await end.boundingBox();
-        if (!box)
-          throw new Error("Wordbar preparation has no native range bounds");
-        const min = Number(await end.getAttribute("min")),
-          max = Number(await end.getAttribute("max")),
-          current = Number(await end.inputValue());
-        const x =
-          box.x + 8 + ((box.width - 16) * (current - min)) / (max - min);
-        await page.mouse.move(x, box.y + box.height / 2);
-        await page.mouse.down();
-        await page.mouse.move(x + 12, box.y + box.height / 2, { steps: 3 });
-        await expect(end).not.toHaveValue(value);
-        expect(snapshot(p)).toEqual(before);
-        const eventId = await end.evaluate(() => {
-          const e = (window as unknown as { __wordbarOwner?: number })
-            .__wordbarOwner;
-          return e;
-        });
         if (eventId === undefined)
           throw new Error(
-            "Synthetic cancellation did not observe native Wordbar pointerdown; preparation failed",
+            "Synthetic cancellation did not observe the Wordbar pointerdown; preparation failed",
           );
-        await end.dispatchEvent("pointercancel", {
+        await handle.dispatchEvent("pointercancel", {
           pointerId: eventId,
           pointerType: "mouse",
           bubbles: true,
@@ -83,7 +68,8 @@ for (const terminal of ["escape", "cancel-draft", "synthetic-cancel"] as const)
       }
       expect(snapshot(p)).toEqual(before);
       expect(c.filter((v) => v.type === "SetTranscriptWordTiming")).toEqual([]);
-      if (await end.count()) await expect(end).toHaveValue(value);
+      if (await end.count())
+        await expect(end).toHaveAttribute("aria-valuenow", value ?? "");
     });
   });
 for (const delivery of ["409", "abort-replay"] as const)

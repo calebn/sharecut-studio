@@ -44,7 +44,7 @@ export const MOBILE_GESTURES: readonly GestureDef[] = [
     touch: "long-press-arm-drag",
     commandIds: ["transcript.extendRange"],
     description:
-      "Hold a word in the Script to start a range, then drag over more words. Lift to select them. The range actions also add or drop a word at either end.",
+      "Hold a word in the Script to start a range, then drag over more words. Lift to select them. Shift+Arrow keys and the selection handles also extend or shrink the range by a word.",
   },
   {
     gesture: "Double-tap word",

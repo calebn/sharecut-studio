@@ -38,18 +38,6 @@ export const TRANSCRIPT_GUEST_SELECT_TOUCH_HINT: Record<
 export const TRANSCRIPT_INLINE_SAVING_STATUS =
   "Saving the word fix… you can fix another word once it is saved.";
 
-/** Under Apply in the word editor. */
-export const TRANSCRIPT_CORRECT_TIMING_NOTE =
-  "Apply changes the text only; the audio and word timing stay as recorded. With End index above the start, the new words share the original span evenly.";
-
-/** Under Apply when a word in the range is not loaded or its loaded copies disagree, so Apply cannot use the #650 stale-text guard. */
-export const TRANSCRIPT_SPAN_UNVERIFIED_NOTE =
-  "Apply can't confirm the current text of every word in this range, so it can't check whether someone else changed these words first.";
-
-/** Correct inspector error after a 409 (#746), shown when its re-captured span differs from the refused text, so Apply again retries. Otherwise (the refresh failed and nothing newer arrived), and for MCP/CLI, the host's re-read wording stays. */
-export const TRANSCRIPT_CORRECT_CONFLICT_NOTE =
-  "These words changed since you started this correction, so it was not applied. Apply again to retry against the current text.";
-
 /** Appended to the Select-mode Ignore/Restore status announcement when the range's text
  * couldn't be confirmed, so the command was sent without the #744 stale-text guard. */
 export const TRANSCRIPT_IGNORE_UNVERIFIED_SUFFIX = " (text not verified)";
@@ -65,17 +53,6 @@ export const TRANSCRIPT_SUPPRESS_TIP =
 /** Title on the word inspector's Unsuppress action (text only). */
 export const TRANSCRIPT_UNSUPPRESS_TIP =
   "Unsuppress: put the word back in the transcript text; its audio is unchanged";
-
-/** Title on a transcript edit-boundary glyph with no clip on one side (nothing to roll). */
-export const TRANSCRIPT_EDIT_BOUNDARY_TIP = "Edit boundary glyph (Annotate)";
-export const TRANSCRIPT_BOUNDARY_READONLY_TIP =
-  "Boundary editing is only available to editors. Ask the host for an edit link.";
-export const TRANSCRIPT_GAP_BOUNDARY_READONLY_TIP =
-  "Boundary editing is only available to editors. Ask the host for an edit link. This gap has no roll seam; editors can drag this mark to trim the left clip's end.";
-export const TRANSCRIPT_GAP_BOUNDARY_TIP =
-  "Gap between clips. No roll seam here. Drag to trim the left clip's end.";
-export const TRANSCRIPT_GAP_BOUNDARY_DIALOG_NOTE =
-  "These clips have a gap, so this adjusts the left clip's end.";
 
 /** Title on a cut-away word chip (Annotate + Show cut-away). */
 export const TRANSCRIPT_CUT_AWAY_WORD_TIP =

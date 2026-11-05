@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { expect, type Page } from "@playwright/test";
+import { isApplePlatform } from "../src/utils/platform";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
 import { inspectSelectionByKey, openProject } from "./stageNav";
@@ -22,28 +23,24 @@ export async function checkWordbarOutsideRelease(page: Page): Promise<void> {
   const list = await openScript(page);
   await list.locator(".sys-script-word").first().click();
   await inspectSelectionByKey(page);
-  await page
-    .getByRole("button", { name: "Adjust timing", exact: true })
-    .click();
-  const end = page.getByRole("slider", { name: "Word end" });
+  const end = page.getByRole("spinbutton", { name: "Word end" });
   await expect(end).toBeEnabled();
   await expectPageAxeClean(page, ".transcript-wordbar");
   const before = transcripts();
   await withDocumentCommandTypes(page, async (commands) => {
-    await end.scrollIntoViewIfNeeded();
-    const box = await end.boundingBox();
-    if (!box) throw new Error("Missing native word boundary");
-    const min = Number(await end.getAttribute("min"));
-    const max = Number(await end.getAttribute("max"));
-    const value = Number(await end.inputValue());
-    const x = box.x + 8 + ((box.width - 16) * (value - min)) / (max - min);
-    await page.mouse.move(x, box.y + box.height / 2);
+    const handle = page.locator('[data-boundary="end"] .wordbar-handle');
+    await handle.scrollIntoViewIfNeeded();
+    const box = await handle.boundingBox();
+    if (!box) throw new Error("Missing word boundary handle");
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    await page.mouse.move(x, y);
     await page.mouse.down();
-    await page.mouse.move(x + 16, box.y + box.height / 2, { steps: 8 });
+    await page.mouse.move(x + 16, y, { steps: 8 });
     expect(
       commands.filter((type) => type === "SetTranscriptWordTiming"),
     ).toHaveLength(0);
-    // Native range tracking must deliver release after leaving both the control and inspector.
+    // Pointer capture must deliver release after leaving both the handle and the inspector.
     await page.mouse.move((page.viewportSize()?.width ?? 1280) - 1, 30);
     await page.mouse.up();
     await expect(
@@ -53,8 +50,9 @@ export async function checkWordbarOutsideRelease(page: Page): Promise<void> {
       commands.filter((type) => type === "SetTranscriptWordTiming"),
     ).toHaveLength(1);
     expect(transcripts()).not.toEqual(before);
-    await page.getByRole("button", { name: "Undo timing" }).click();
-    await expect(end).toHaveCount(0);
+    await page.keyboard.press(
+      (await page.evaluate(isApplePlatform)) ? "Meta+z" : "Control+z",
+    );
     await expect.poll(transcripts).toEqual(before);
   });
 }

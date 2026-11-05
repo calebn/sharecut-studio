@@ -11,11 +11,10 @@ import {
   saveWordTiming,
   type WordTimingContext,
 } from "../api/transcriptTiming";
-import { execute, registerCommand } from "../commands/execute";
+import { execute } from "../commands/execute";
 import { registerTranscriptWordCommands } from "../commands/transcriptWord";
 import {
   currentDocumentSeq,
-  noteDocumentSeq,
   resetDocumentSeqForTests,
 } from "../document/cursor";
 import { useDawStore } from "../state/dawStore";
@@ -64,7 +63,22 @@ function setup() {
   return render(<TranscriptWordbar word={word} trackId="host" wordIndex={1} />);
 }
 async function ready() {
-  await screen.findByRole("slider", { name: "Word start" });
+  await screen.findByRole("spinbutton", { name: "Word start" });
+}
+const handle = (which: "start" | "end") =>
+  screen.getByTestId(`handle-${which}`);
+/** 300 px for the 1 s to 4 s window: 100 px a second. */
+function sizeWaveform() {
+  const frame = document.querySelector<HTMLElement>(".wordbar-waveform")!;
+  frame.getBoundingClientRect = () =>
+    ({
+      left: 0,
+      width: 300,
+      right: 300,
+      top: 0,
+      bottom: 96,
+      height: 96,
+    }) as DOMRect;
 }
 beforeEach(() => {
   vi.clearAllMocks();
@@ -87,12 +101,6 @@ beforeEach(() => {
     }),
   );
   useDawStore.setState({
-    transcriptTimingRequest: {
-      projectPath: "/tmp/timing",
-      trackId: "host",
-      sourceId: "extra",
-      wordIndex: 1,
-    },
     sourcePreview: null,
     playheadSec: 42,
     isPlaying: false,
@@ -106,16 +114,16 @@ beforeEach(() => {
   });
   registerTranscriptWordCommands();
 });
-it("pointer changes stay local until one release, with independent source viewport", async () => {
+it("handle drags stay local until one release, with independent source viewport", async () => {
   setup();
   await ready();
-  const slider = screen.getByRole("slider", { name: "Word start" });
-  fireEvent.pointerDown(slider, { pointerId: 1 });
-  for (const value of [2.01, 2.02, 2.1, 2.2])
-    fireEvent.change(slider, { target: { value } });
+  sizeWaveform();
+  fireEvent.pointerDown(handle("start"), { pointerId: 1 });
+  for (const clientX of [101, 102, 110, 120])
+    fireEvent.pointerMove(handle("start"), { pointerId: 1, clientX });
   expect(saveWordTiming).not.toHaveBeenCalled();
   expect(loadWordTimingContext).toHaveBeenCalledTimes(1);
-  fireEvent.pointerUp(slider, { pointerId: 1 });
+  fireEvent.pointerUp(handle("start"), { pointerId: 1 });
   await waitFor(() => expect(saveWordTiming).toHaveBeenCalledTimes(1));
   expect(saveWordTiming).toHaveBeenCalledWith(
     "/tmp/timing",
@@ -137,52 +145,63 @@ it("names the neighboring words as a group", async () => {
   expect(group).toHaveTextContent("before");
   expect(group).toHaveTextContent("after");
 });
-it("keyboard and numeric changes require explicit Apply and invalid drafts do not save", async () => {
+it("has Start and End Scrub fields and Hear, and no Apply, Cancel, number or range inputs", async () => {
+  const view = setup();
+  await ready();
+  expect(screen.getByRole("spinbutton", { name: "Word end" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Hear" })).toBeVisible();
+  expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual([
+    "Hear",
+  ]);
+  expect(view.container.querySelector('input[type="range"]')).toBeNull();
+  expect(view.container.querySelector('input[type="number"]')).toBeNull();
+  await expectNoA11yViolations(view.container);
+});
+it("a field commit saves on its own, and an invalid span writes nothing", async () => {
   setup();
   await ready();
-  const slider = screen.getByRole("slider", { name: "Word start" });
-  fireEvent.change(slider, { target: { value: 2.1 } });
-  fireEvent.keyUp(slider, { key: "ArrowRight" });
-  expect(saveWordTiming).not.toHaveBeenCalled();
-  fireEvent.change(
-    screen.getByRole("spinbutton", { name: "End source seconds" }),
-    { target: { value: 1.5 } },
-  );
-  expect(screen.getByRole("button", { name: "Apply timing" })).toBeDisabled();
-  fireEvent.change(
-    screen.getByRole("spinbutton", { name: "End source seconds" }),
-    { target: { value: 3.2 } },
-  );
-  fireEvent.click(screen.getByRole("button", { name: "Apply timing" }));
+  const end = screen.getByRole("spinbutton", { name: "Word end" });
+  end.focus();
+  fireEvent.keyDown(end, { key: "Enter" });
+  fireEvent.change(document.activeElement as HTMLInputElement, {
+    target: { value: "3.2" },
+  });
+  fireEvent.keyDown(document.activeElement as HTMLInputElement, {
+    key: "Enter",
+  });
   await waitFor(() => expect(saveWordTiming).toHaveBeenCalledTimes(1));
   expect(saveWordTiming).toHaveBeenCalledWith(
     "/tmp/timing",
     expect.objectContaining({ target }),
-    2.1,
+    2,
     3.2,
   );
 });
-it.each(["pointerCancel", "lostPointerCapture", "escape"])(
-  "%s cancels without writing",
+it.each(["pointerCancel", "escape"])(
+  "%s during a drag cancels without writing",
   async (action) => {
     setup();
     await ready();
-    const slider = screen.getByRole("slider", { name: "Word start" });
-    fireEvent.pointerDown(slider, { pointerId: 1 });
-    fireEvent.change(slider, { target: { value: 2.2 } });
-    if (action === "escape") fireEvent.keyDown(slider, { key: "Escape" });
-    else if (action === "pointerCancel")
-      fireEvent.pointerCancel(slider, { pointerId: 1 });
-    else fireEvent.lostPointerCapture(slider, { pointerId: 1 });
-    fireEvent.pointerUp(slider, { pointerId: 1 });
-    expect(slider).toHaveValue("2");
+    sizeWaveform();
+    fireEvent.pointerDown(handle("start"), { pointerId: 1 });
+    fireEvent.pointerMove(handle("start"), { pointerId: 1, clientX: 120 });
+    expect(
+      screen.getByRole("spinbutton", { name: "Word start" }),
+    ).toHaveAttribute("aria-valuenow", "2.2");
+    if (action === "escape")
+      fireEvent.keyDown(handle("start"), { key: "Escape" });
+    else fireEvent.pointerCancel(handle("start"), { pointerId: 1 });
+    fireEvent.pointerUp(handle("start"), { pointerId: 1 });
+    expect(
+      screen.getByRole("spinbutton", { name: "Word start" }),
+    ).toHaveAttribute("aria-valuenow", "2");
     expect(saveWordTiming).not.toHaveBeenCalled();
   },
 );
-it("preview uses raw source identity without changing the global clock, and unmount releases ownership", async () => {
+it("Hear uses raw source identity without changing the global clock, and unmount releases ownership", async () => {
   const view = setup();
   await ready();
-  fireEvent.click(screen.getByRole("button", { name: "Play draft" }));
+  fireEvent.click(screen.getByRole("button", { name: "Hear" }));
   expect(useDawStore.getState().sourcePreview).toMatchObject({
     media: {
       kind: "raw",
@@ -194,28 +213,9 @@ it("preview uses raw source identity without changing the global clock, and unmo
     endSec: 2.65,
   });
   expect(useDawStore.getState().playheadSec).toBe(42);
+  expect(screen.getByRole("button", { name: "Stop" })).toBeVisible();
   view.unmount();
   expect(useDawStore.getState().sourcePreview).toBeNull();
-});
-it("Undo closes the draft before the restored inspector word is displayed", async () => {
-  const undo = vi.fn(() => {
-    useDawStore.getState().setProject(minimalProject());
-    return { status: "ok" as const };
-  });
-  registerCommand("history.undo", undo);
-  setup();
-  await ready();
-  fireEvent.change(
-    screen.getByRole("spinbutton", { name: "Start source seconds" }),
-    { target: { value: 2.2 } },
-  );
-  fireEvent.click(screen.getByRole("button", { name: "Apply timing" }));
-  await screen.findByRole("button", { name: "Undo timing" });
-  fireEvent.click(screen.getByRole("button", { name: "Undo timing" }));
-  await waitFor(() => expect(undo).toHaveBeenCalledTimes(1));
-  expect(
-    screen.queryByRole("slider", { name: "Word start" }),
-  ).not.toBeInTheDocument();
 });
 it("stale save requires reload and never silently retries", async () => {
   vi.mocked(saveWordTiming).mockRejectedValue(
@@ -223,21 +223,18 @@ it("stale save requires reload and never silently retries", async () => {
   );
   setup();
   await ready();
-  fireEvent.change(
-    screen.getByRole("spinbutton", { name: "Start source seconds" }),
-    { target: { value: 2.2 } },
-  );
-  fireEvent.click(screen.getByRole("button", { name: "Apply timing" }));
+  sizeWaveform();
+  fireEvent.pointerDown(handle("start"), { pointerId: 1 });
+  fireEvent.pointerMove(handle("start"), { pointerId: 1, clientX: 120 });
+  fireEvent.pointerUp(handle("start"), { pointerId: 1 });
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "Recording changed",
   );
   expect(saveWordTiming).toHaveBeenCalledTimes(1);
-  expect(screen.queryByRole("slider")).not.toBeInTheDocument();
+  expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument();
 });
-it("command requires a precise source word and the open controls pass axe", async () => {
-  const view = setup();
-  await ready();
-  await expectNoA11yViolations(view.container);
+it("adjust timing selects the word and opens its Inspector, and needs a precise source word", async () => {
+  useDawStore.setState({ selection: null, inspectorKey: null });
   await act(async () => {
     expect(
       await execute("transcript.adjustTiming", {
@@ -246,6 +243,12 @@ it("command requires a precise source word and the open controls pass axe", asyn
       }),
     ).toEqual({ status: "ok" });
   });
+  expect(useDawStore.getState().selection).toMatchObject({
+    kind: "transcriptRange",
+    trackId: "host",
+    startWordIndex: 1,
+  });
+  expect(useDawStore.getState().inspectorKey).not.toBeNull();
   expect(
     await execute("transcript.adjustTiming", {
       trackId: "missing",
@@ -253,94 +256,25 @@ it("command requires a precise source word and the open controls pass axe", asyn
     }),
   ).toMatchObject({ status: "disabled" });
 });
-
-it("does not offer Undo for a newer command that arrives before the timing response", async () => {
-  vi.mocked(saveWordTiming).mockImplementation(async () => {
-    noteDocumentSeq(2);
-    useDawStore.getState().setProject(minimalProject());
-    return { changed: true, server_seq: 1 };
-  });
-  setup();
-  await ready();
-  fireEvent.change(
-    screen.getByRole("spinbutton", { name: "Start source seconds" }),
-    { target: { value: 2.2 } },
-  );
-  fireEvent.click(screen.getByRole("button", { name: "Apply timing" }));
-  await screen.findByText("Timing saved. One Undo restores both boundaries.");
-  expect(
-    screen.queryByRole("button", { name: "Undo timing" }),
-  ).not.toBeInTheDocument();
-});
-it("guards the document cursor again when the rendered Undo button is clicked", async () => {
-  const undo = vi.fn(() => ({ status: "ok" as const }));
-  registerCommand("history.undo", undo);
-  setup();
-  await ready();
-  fireEvent.change(
-    screen.getByRole("spinbutton", { name: "Start source seconds" }),
-    { target: { value: 2.2 } },
-  );
-  fireEvent.click(screen.getByRole("button", { name: "Apply timing" }));
-  const button = await screen.findByRole("button", { name: "Undo timing" });
-  noteDocumentSeq(2);
-  fireEvent.click(button);
-  expect(undo).not.toHaveBeenCalled();
-});
-it("reports queued timing without showing a saved draft or inviting another Apply", async () => {
+it("reports queued timing without showing a saved draft", async () => {
   vi.mocked(saveWordTiming).mockResolvedValue({ queued: true });
   setup();
   await ready();
-  fireEvent.change(
-    screen.getByRole("spinbutton", { name: "Start source seconds" }),
-    { target: { value: 2.2 } },
-  );
-  fireEvent.click(screen.getByRole("button", { name: "Apply timing" }));
+  sizeWaveform();
+  fireEvent.pointerDown(handle("start"), { pointerId: 1 });
+  fireEvent.pointerMove(handle("start"), { pointerId: 1, clientX: 120 });
+  fireEvent.pointerUp(handle("start"), { pointerId: 1 });
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "Timing is queued",
   );
-  expect(
-    screen.queryByRole("button", { name: "Apply timing" }),
-  ).not.toBeInTheDocument();
 });
-it("a no-op Stop invalidates pending listen feedback before any player starts", async () => {
-  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-  try {
-    setup();
-    await act(async () => {
-      await Promise.resolve();
-    });
-    fireEvent.click(
-      screen.getByRole("checkbox", { name: "Listen while adjusting" }),
-    );
-    fireEvent.change(screen.getByRole("slider", { name: "Word start" }), {
-      target: { value: 2.2 },
-    });
-    act(() => useDawStore.getState().stopPlayback());
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(300);
-    });
-    expect(useDawStore.getState().sourcePreview).toBeNull();
-  } finally {
-    vi.useRealTimers();
-  }
-});
-
 it("remounts when null source identity changes to a recording literally named primary", async () => {
-  useDawStore.setState({
-    transcriptTimingRequest: {
-      projectPath: "/tmp/timing",
-      trackId: "host",
-      sourceId: null,
-      wordIndex: 1,
-    },
-  });
   const primary = { ...word, timing_target: { ...target, source_id: null } };
   const view = render(
     <TranscriptWordbar word={primary} trackId="host" wordIndex={1} />,
   );
   await ready();
-  fireEvent.click(screen.getByRole("button", { name: "Play draft" }));
+  fireEvent.click(screen.getByRole("button", { name: "Hear" }));
   view.rerender(
     <TranscriptWordbar
       word={{ ...word, timing_target: { ...target, source_id: "primary" } }}
@@ -348,16 +282,6 @@ it("remounts when null source identity changes to a recording literally named pr
       wordIndex={1}
     />,
   );
-  act(() => {
-    useDawStore.setState({
-      transcriptTimingRequest: {
-        projectPath: "/tmp/timing",
-        trackId: "host",
-        sourceId: "primary",
-        wordIndex: 1,
-      },
-    });
-  });
   await waitFor(() => expect(loadWordTimingContext).toHaveBeenCalledTimes(2));
   expect(
     vi.mocked(loadWordTimingContext).mock.calls.at(-1)?.[1].source_id,
