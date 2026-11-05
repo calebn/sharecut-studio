@@ -606,7 +606,7 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
 
 - 2026-10-30 Unavailable controls say what is missing (#1686): the clip and pending-edit nudges, Find's Replace and All, the track inspector's Clear clip light and a read-only boundary mark in the Script stay focusable, show their reason in text and describe themselves with it, instead of a native `disabled` with a hover title. Two reasons were rewritten to say how to fix: room tone ("Room tone starts once this device has joined the session and can store audio. Wait a moment, then try again; if it stays like this, reload the page.") and the guest audition lock ("Guest links play the Full mix only. Ask the host to play a track on its own.").
 
-- 2026-10-29 Bounce moved from a dialog into the Deliver stage (#2449): the section holds the Source choice, the region and MP3 toggles and a range fixed in Edit, shows progress with Cancel, and lists the files it wrote. **Bounce…**, `Mod+Shift+B` and Range actions → Bounce go to Deliver and focus it.
+- 2026-10-29 Bounce moved from a dialog into the Deliver stage (#2449): the section holds the Source choice, the region and MP3 toggles and a range fixed in Edit, shows progress with Cancel, and lists the files it wrote. **Bounce…**, `Mod+E` with a range selected, and Range actions → Bounce go to Deliver and focus it.
 
 - 2026-10-28 Added "Why lines on suggestions" (#2293): one plain sentence per suggested edit, with a copy table pinned to the code by a test.
 
@@ -742,7 +742,7 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
 - 2026-10-15 — On phone the save light is read-only in every state (#1539): the Needs attention banner was the control, so a Waiting or Failed light adds no row and moves no content (the banner is gone since #2298; the Review queue group holds the actions).
 - 2026-10-14 — The mix rebuilds itself (#1468): the host no longer sees
   "· Refresh" after the mix status, and the pill reads "Updating mix…" while it
-  rebuilds. Mod+B stays as "update now". Until the project loads the pill reads
+  rebuilds. Refresh mix in the palette stays as "update now". Until the project loads the pill reads
   "Checking mix…" instead of claiming "Mix up to date".
 - 2026-10-14 — Save state distinguishes rejected from uncertain command outcomes (#1478): refusal explains that the editor must correct and resubmit, while an unknown result gives the safe recovery for retryable edits or Undo/Redo History inspection.
 - 2026-10-15 — A coarse-pointer sweep of the shell pins the 44 px floor (#1422): the More tab's overlay toggles (Pending edits, Markers, Comments and the rest) were 19 px tall and now hold the floor as whole rows, and the remaining sub-44 controls are the named dense-target exceptions.

@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { openSuggestedPendingEdit } from "./pendingEdit";
 import { withShareableProject } from "./shareableProject";
+import { runPaletteCommand } from "./stageNav";
 
 test("keeps desktop feedback above the Player with a long note in the side composer", async ({
   page,
@@ -30,7 +31,7 @@ test("keeps desktop feedback above the Player with a long note in the side compo
         body: JSON.stringify({ detail: "Bad request" }),
       }),
     );
-    await page.keyboard.press("Control+b");
+    await runPaletteCommand(page, "Refresh mix");
     const toast = page.locator(".ui-toast-region--app .ui-toast");
     await expect(toast).toBeVisible();
     await expect

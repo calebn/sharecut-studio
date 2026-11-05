@@ -558,9 +558,9 @@ describe("Alt chords", () => {
 
 describe("displayShortcutKeys", () => {
   it("uses platform modifiers instead of Mod", () => {
-    const bounce = keymapCommandById("export.bounce")!;
-    expect(displayShortcutKeys(bounce, true)).toBe("⌘⇧B");
-    expect(displayShortcutKeys(bounce, false)).toBe("Ctrl+Shift+B");
+    const redo = keymapCommandById("history.redo")!;
+    expect(displayShortcutKeys(redo, true)).toBe("⌘⇧Z");
+    expect(displayShortcutKeys(redo, false)).toBe("Ctrl+Shift+Z");
   });
 
   it("keeps bare keys and names Space", () => {
@@ -582,31 +582,30 @@ describe("displayShortcutKeys", () => {
 describe("remapped shortcuts", () => {
   it("replace the key only, so display and matching agree", () => {
     _resetKeymapOverridesForTests();
-    setKeymapOverride("export.bounce", ["X"]);
-    const bounce = keymapCommandById("export.bounce")!;
-    expect(formatShortcutKeys(bounce)).toBe("Mod+Shift+X");
-    expect(displayShortcutKeys(bounce, true)).toBe("⌘⇧X");
+    setKeymapOverride("history.redo", ["X"]);
+    const redo = keymapCommandById("history.redo")!;
+    expect(formatShortcutKeys(redo)).toBe("Mod+Shift+X");
+    expect(displayShortcutKeys(redo, true)).toBe("⌘⇧X");
     expect(
       matchKeymapCommand(
         keyEvent({ key: "X", code: "KeyX", metaKey: true, shiftKey: true }),
       )?.id,
-    ).toBe("export.bounce");
-    // Bare X alone must not look bound in menus nor fire Bounce.
+    ).toBe("history.redo");
     expect(
       matchKeymapCommand(keyEvent({ key: "x", code: "KeyX" }))?.id,
-    ).not.toBe("export.bounce");
+    ).not.toBe("history.redo");
     _resetKeymapOverridesForTests();
   });
 
   it("normalize a typed combo to its key", () => {
     _resetKeymapOverridesForTests();
-    setKeymapOverride("export.bounce", ["Mod+Shift+Y"]);
-    expect(displayShortcutFor("export.bounce", false)).toBe("Ctrl+Shift+Y");
+    setKeymapOverride("history.redo", ["Mod+Shift+Y"]);
+    expect(displayShortcutFor("history.redo", false)).toBe("Ctrl+Shift+Y");
     expect(
       matchKeymapCommand(
         keyEvent({ key: "Y", code: "KeyY", ctrlKey: true, shiftKey: true }),
       )?.id,
-    ).toBe("export.bounce");
+    ).toBe("history.redo");
     _resetKeymapOverridesForTests();
   });
 });
@@ -620,10 +619,11 @@ describe("shortcut helpers by command id", () => {
   });
 
   it("format menu labels and aria-keyshortcuts per platform", () => {
-    expect(displayShortcutFor("export.bounce", true)).toBe("⌘⇧B");
+    expect(displayShortcutFor("export.deliverables", true)).toBe("⌘E");
+    expect(displayShortcutFor("export.bounce", true)).toBeUndefined();
     expect(displayShortcutFor("not.a.command")).toBeUndefined();
-    expect(ariaKeyShortcutsFor("export.bounce", true)).toBe("Meta+Shift+B");
-    expect(ariaKeyShortcutsFor("export.bounce", false)).toBe("Control+Shift+B");
+    expect(ariaKeyShortcutsFor("export.deliverables", true)).toBe("Meta+E");
+    expect(ariaKeyShortcutsFor("export.deliverables", false)).toBe("Control+E");
     expect(ariaKeyShortcutsFor("transport.togglePlay", true)).toBe("Space");
   });
 });
@@ -664,5 +664,53 @@ describe("held keys", () => {
     expect(
       matchKeymapCommands(keyEvent({ key: "F10" })).map((cmd) => cmd.id),
     ).not.toContain("create.menu");
+  });
+});
+
+describe("Mod+E export and the retired chords", () => {
+  it("binds Mod+E to export.deliverables and not Mod+Shift+E", () => {
+    expect(
+      matchKeymapCommand(keyEvent({ key: "e", code: "KeyE", ctrlKey: true }))
+        ?.id,
+    ).toBe("export.deliverables");
+    expect(
+      matchKeymapCommand(
+        keyEvent({ key: "E", code: "KeyE", ctrlKey: true, shiftKey: true }),
+      ),
+    ).toBeNull();
+    expect(
+      displayShortcutKeys(keymapCommandById("export.deliverables")!, true),
+    ).toBe("⌘E");
+  });
+
+  it("leaves New project, Refresh mix, New track and Bounce to the palette", () => {
+    for (const id of [
+      "project.new",
+      "render.refreshMix",
+      "track.add",
+      "export.bounce",
+    ]) {
+      expect(keymapCommandById(id)?.keys, id).toEqual([]);
+      expect(keymapCommandById(id)?.notes, id).toContain("Palette only");
+    }
+    const chords: [string, boolean][] = [
+      ["n", false],
+      ["b", false],
+      ["t", true],
+      ["b", true],
+    ];
+    for (const [key, shiftKey] of chords) {
+      expect(
+        matchKeymapCommand(
+          keyEvent({
+            key,
+            code: `Key${key.toUpperCase()}`,
+            ctrlKey: true,
+            shiftKey,
+          }),
+        ),
+        `${key} ${shiftKey}`,
+      ).toBeNull();
+    }
   });
 });

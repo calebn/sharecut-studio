@@ -56,7 +56,7 @@ describe("Script commands", () => {
     });
   });
 
-  it("binds T and Shift+T, and leaves Mod+Shift+T to New track", () => {
+  it("binds T and Shift+T, and leaves Mod+Shift+T unbound", () => {
     const key = (shift: boolean, mod = false) => ({
       key: shift ? "T" : "t",
       code: "KeyT",
@@ -71,8 +71,6 @@ describe("Script commands", () => {
     expect(matchKeymapCommands(key(true)).map((c) => c.id)).toEqual([
       "view.scriptFocus",
     ]);
-    expect(matchKeymapCommands(key(true, true)).map((c) => c.id)).toEqual([
-      "track.add",
-    ]);
+    expect(matchKeymapCommands(key(true, true))).toEqual([]);
   });
 });

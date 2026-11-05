@@ -26,6 +26,7 @@ import {
   deliverPage,
   goToStage,
   openPanel,
+  runPaletteCommand,
   waitForLanding,
 } from "../e2e/stageNav";
 import { ownsStudioAxe } from "../e2e/studioAxeOwnership";
@@ -190,7 +191,7 @@ test.describe("core flow", () => {
           });
 
           await test.step("share: a viewer plays the per-track MP3 proxies", async () => {
-            await host.keyboard.press("ControlOrMeta+b");
+            await runPaletteCommand(host, "Refresh mix");
             // The mix state is a row of the Deliver stage's readiness list.
             await goToStage(host, "deliver");
             await expect(

@@ -415,9 +415,9 @@ export const VERBS = [
     keys: [mod("E")],
     touch: "tap",
     surfaces: ["deliver", "action-bar"],
-    status: "new",
+    status: "bound",
     commandId: "export.deliverables",
-    note: "Mod+Shift+E drives this command today; Mod+E is free. With a range selected it exports the range.",
+    note: "Mod+E drives this command. With a range selected it bounces the range.",
   },
   {
     id: "import",
