@@ -54,6 +54,7 @@ const baseProps = {
   trackIndex: 0,
   clips: [clip],
   width: 1000,
+  laneHeight: 104,
   zoomPxPerSec: 100,
   projectPath: "/tmp/p.json",
   selection: null,
@@ -130,25 +131,20 @@ describe("TrackLane mute dim", () => {
       "your solo on another track",
       { soloTracks: { guest: true } },
       false,
-      "lane-row mute-implied",
+      "implied",
     ],
-    ["your own solo", { soloTracks: { host: true } }, false, "lane-row"],
-    [
-      "a listen-only mute",
-      { viewerMute: { host: true } },
-      false,
-      "lane-row muted mute-listen",
-    ],
-    ["a saved mute", {}, true, "lane-row muted"],
+    ["your own solo", { soloTracks: { host: true } }, false, "off"],
+    ["a listen-only mute", { viewerMute: { host: true } }, false, "listen"],
+    ["a saved mute", {}, true, "saved"],
     [
       "a saved mute under another solo",
       { soloTracks: { guest: true } },
       true,
-      "lane-row muted",
+      "saved",
     ],
-  ])("classes the lane for %s", (_case, listen, muted, className) => {
+  ])("marks the lane for %s", (_case, listen, muted, mute) => {
     useDawStore.setState(listen);
-    const { container } = render(
+    render(
       <TrackLane
         {...baseProps}
         track={{ ...track, muted }}
@@ -156,22 +152,26 @@ describe("TrackLane mute dim", () => {
         onSelectClip={vi.fn()}
       />,
     );
-    expect(container.querySelector(".lane-row")?.className).toBe(className);
+    expect(
+      screen
+        .getByRole("group", { name: "Track Host" })
+        .getAttribute("data-mute"),
+    ).toBe(mute);
   });
 
   it("greys the lane, clips and waveform of every track this listener doesn't hear", () => {
     const css = partial("timeline.css");
-    expect(rule(css, ".lane-row:is(.muted, .mute-implied)")).toMatch(
+    const system = partial("system.css");
+    const muted = '.sys-lane[data-mute]:not([data-mute="off"])';
+    expect(rule(system, '.sys-lane[data-mute]:not([data-mute="off"])')).toMatch(
       /background:\s*var\(--color-track-muted\)/,
     );
-    const clip = rule(css, ".lane-row:is(.muted, .mute-implied) .clip-block");
+    const clip = rule(css, `${muted} .clip-block`);
     expect(clip).toMatch(
       /background-image:\s*linear-gradient\(\s*var\(--color-clip-muted\),\s*var\(--color-clip-muted\)\s*\);/,
     );
     expect(clip).not.toMatch(/background(-color)?:/);
-    expect(
-      rule(css, ".lane-row:is(.muted, .mute-implied) .clip-waveform"),
-    ).toMatch(
+    expect(rule(css, `${muted} .clip-waveform`)).toMatch(
       /filter:\s*grayscale\(1\);\s*opacity:\s*var\(--mute-waveform-opacity\);/,
     );
     expect(css).not.toMatch(/\.clip-label[^{]*\{[^}]*opacity/);
@@ -203,6 +203,10 @@ describe("TrackLane waveform status hint", () => {
     expect(
       container.querySelector("[data-waveform-status='generating']"),
     ).toBeTruthy();
+    expect(screen.getByRole("group", { name: "Track Host" })).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
   });
 
   it("shows an unavailable hint when no ref has a pyramid", () => {

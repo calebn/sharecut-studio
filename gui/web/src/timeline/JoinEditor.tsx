@@ -23,6 +23,7 @@ import { useHitRouter } from "./hitRouterContext";
 import { hitTargetProps } from "./hitTargets";
 import { JoinBlend, type JoinWaveSides } from "./JoinBlend";
 import { JoinPopover } from "./JoinPopover";
+import { useHoldTimelineMetrics } from "./timelineMetrics";
 import { useJoinEdit } from "./useJoinEdit";
 import { useTouchPress } from "./useTouchPress";
 
@@ -185,8 +186,13 @@ function JoinEditorLive(props: JoinEditorProps) {
     right.source_end - right.source_start,
     trackFadeMaxMs,
   ).outMs;
+  const railShown =
+    open && edit.editable && joinKind(right) === "join-crossfade" && !!host;
+  // The rail takes height from the stage; Fit lanes would shrink under the
+  // badge that was just pressed, so they hold their height while it is open.
+  useHoldTimelineMetrics(railShown);
   const rail =
-    open && edit.editable && joinKind(right) === "join-crossfade" && host
+    railShown && host
       ? createPortal(
           <div
             ref={railRootRef}

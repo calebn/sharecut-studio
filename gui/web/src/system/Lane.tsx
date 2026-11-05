@@ -21,7 +21,7 @@ export type LaneProps = {
   name: string;
   /** Index into the eight presence colours; the track's. Tints the lane and draws its 3 px edge. */
   colorIndex: number;
-  /** In px, held to 72 through 240. The host passes 104 on touch. */
+  /** In px, held to 72 through 240. The host passes at least 104 on touch. */
   height?: number;
   /** Seconds at the lane's left edge. The ruler and the marker lane take the same `start`, `pxPerSecond` and `width`. */
   start: number;

@@ -19,7 +19,7 @@ import {
 import { ingestFiles } from "../ingest/ingestFiles";
 import { canIngestMedia } from "../shareMode";
 import { useDaw } from "../state/useDaw";
-import { MUTE_STATE_ROW_CLASS } from "../tracks/muteRowClass";
+import { Lane } from "../system/Lane";
 import { useTrackMuteState } from "../tracks/useTrackMuteState";
 import type {
   AppliedEditRecord,
@@ -54,6 +54,7 @@ import { HIT_SURFACE_PROPS } from "./hitTargets";
 import { JoinEditor } from "./JoinEditor";
 import { LaneEnvelope } from "./LaneEnvelope";
 import { laneColor, laneColorIndex } from "./laneColors";
+import { laneProps } from "./laneProps";
 import { PendingEditOverlay } from "./PendingEditOverlay";
 import { ProsodyOverlay } from "./ProsodyOverlay";
 import { RippleArrow } from "./RippleArrow";
@@ -80,6 +81,7 @@ interface TrackLaneProps {
    */
   clips: readonly ClipRow[];
   width: number;
+  laneHeight: number;
   zoomPxPerSec: number;
   projectPath: string;
   selection: Selection;
@@ -125,6 +127,7 @@ export function TrackLaneView({
   trackIndex,
   clips,
   width,
+  laneHeight,
   zoomPxPerSec,
   projectPath,
   selection,
@@ -279,7 +282,7 @@ export function TrackLaneView({
 
   return (
     <div
-      className={`lane-row${MUTE_STATE_ROW_CLASS[muteState]}${staleWholeTrack ? " stale-whole-track" : ""}${dropOver ? " lane-drop-target" : ""}`}
+      className={`lane-row${staleWholeTrack ? " stale-whole-track" : ""}${dropOver ? " lane-drop-target" : ""}`}
       style={{ width }}
       data-testid={timelineTestIds.lane}
       data-track-id={track.id}
@@ -327,243 +330,256 @@ export function TrackLaneView({
           })}
         </div>
       ) : null}
-      {waveformStatus === "generating" || waveformStatus === "unavailable" ? (
-        <div className="lane-waveform-status" role="status">
-          {waveformStatus === "generating"
-            ? "Generating waveform…"
-            : "Waveform unavailable"}
-        </div>
-      ) : null}
-      {/*
-        Position-based seek underlay; keyboard scrub uses TimelineRuler (role=slider).
-        A div (not button) so Lighthouse target-size ignores this full-lane hit area.
-      */}
-      <div
-        className="lane-seek"
-        role="presentation"
-        {...HIT_SURFACE_PROPS}
-        onClick={(e) => {
-          if (router?.claimsClick(e.nativeEvent)) return;
-          onSeek(e.clientX, e.currentTarget);
-        }}
-      />
-      <div
-        className={`lane-inner${settling ? " is-settling" : ""}`}
-        style={{ width }}
-      >
-        {selection?.kind === "range" &&
-        selection.target.track_ids.includes(track.id)
-          ? selection.target.intervals.map((r) => (
-              <div
-                key={r.start}
-                className="audition-overlay range-overlay"
-                data-range-start={r.start}
-                data-range-end={r.end}
-                style={{
-                  left: r.start * zoomPxPerSec,
-                  width: (r.end - r.start) * zoomPxPerSec,
-                }}
-                aria-hidden
-              />
-            ))
-          : null}
-        {clips.map((clip, i) => {
-          const prev = clips[i - 1];
-          const next = clips[i + 1];
-          const trimBounds = trimNeighborBounds(clips, i, TRIM_MODE);
-          const originId = originTrackId(clip);
-          const identityTrack = clipIdentityTrack({ clip, tracks }) ?? track;
-          return (
-            <ClipBlock
-              key={clip.id}
-              clip={clip}
-              trackId={originId}
-              role={track.role}
-              trackLabel={identityTrack.label}
-              trackSpeaker={clipSpeakerLabel({
-                trackSpeaker: identityTrack.speaker,
-                trackLabel: identityTrack.label,
-                role: identityTrack.role,
-              })}
-              zoomPxPerSec={zoomPxPerSec}
-              fadeMaxMs={track.fade_max_ms ?? null}
-              color={laneColor(track.role, trackIndex)}
-              selected={
-                selectedClipIds.includes(clip.id) ||
-                (selection?.kind === "clip" && selection.id === clip.id)
-              }
-              mediaRef={mediaRefs[i]!}
-              prevClip={prev && clipsAbut(prev, clip) ? prev : null}
-              nextClip={next ?? null}
-              neighborSourceLo={trimBounds.neighborLo}
-              neighborSourceHi={trimBounds.neighborHi}
-              rollPreview={
-                rollPreview &&
-                (rollPreview.leftClipId === clip.id ||
-                  rollPreview.rightClipId === clip.id)
-                  ? rollPreview
-                  : null
-              }
-              onRollPreview={setRollPreview}
-              onSelect={selectClip}
-              onSelectClip={selectClip}
-              canMove={canMoveClips}
-              gainDb={trackOutputGainDb(track)}
-              previewTimelineStart={previewStartById[clip.id] ?? null}
-              previewHidden={hideClipIds?.has(clip.id) ?? false}
-              moving={isMoving(clip.id)}
-              onRangeGesture={onRangeGesture}
-              onMovePreview={onClipMovePreview}
-              onMoveCommit={onClipMoveCommit}
-              onMoveCancel={onClipMoveCancel}
-              onBodyStart={onClipBodyStart}
-              onBodyEnd={onClipBodyEnd}
-            />
-          );
+      <Lane
+        {...laneProps({
+          track,
+          trackIndex,
+          muteState,
+          height: laneHeight,
+          width,
+          zoomPxPerSec,
+          loading: waveformStatus === "generating",
         })}
-        {bleedInspection?.read.state === "ready" &&
-        bleedInspection.occurrence.trackId === track.id &&
-        !rollPreview &&
-        !ripple &&
-        onSelectBleed &&
-        clips.some(
-          (clip) =>
-            clip.id === bleedInspection.occurrence.clipId && !isMoving(clip.id),
-        ) ? (
-          <BleedAttenuationOverlay
-            regions={bleedInspection.read.inspection.regions
-              .filter(
-                (region) =>
-                  region.trackId === track.id &&
-                  region.occurrenceId === bleedInspection.occurrence.clipId,
-              )
-              .map((region) => ({
-                region,
-                leftPx: region.timelineSpan.start * zoomPxPerSec,
-                widthPx:
-                  (region.timelineSpan.end - region.timelineSpan.start) *
-                  zoomPxPerSec,
-              }))}
-            selectedKey={bleedInspection.selectedKey}
-            onSelect={(key) =>
-              onSelectBleed(track.id, bleedInspection.occurrence.clipId, key)
-            }
-          />
+      >
+        {waveformStatus === "generating" || waveformStatus === "unavailable" ? (
+          <div className="lane-waveform-status" role="status">
+            {waveformStatus === "generating"
+              ? "Generating waveform…"
+              : "Waveform unavailable"}
+          </div>
         ) : null}
-        {/* Over the clips, the dragged one included: the span this lane
-            loses and where its later clips go (#1135). */}
-        {ripple?.cut ? (
-          <span
-            className="clip-trimmed-span"
-            style={{
-              left: ripple.cut.start * zoomPxPerSec,
-              width: (ripple.cut.end - ripple.cut.start) * zoomPxPerSec,
-            }}
-            aria-hidden="true"
-          />
-        ) : null}
-        {rippleMovesHere.map((move) => (
-          <RippleArrow
-            key={`ripple-${move.key}`}
-            from={move.fromSec * zoomPxPerSec}
-            to={move.toSec * zoomPxPerSec}
-          />
-        ))}
-        {/* A live roll reshapes both sides, so the seam reads the rolled rows
-            ClipBlock draws. */}
-        {plan.symbols.map(({ mark: { id, left, right } }) => (
-          <JoinEditor
-            key={id}
-            left={left}
-            right={right}
-            seamSec={right.timeline_start}
-            zoomPxPerSec={zoomPxPerSec}
-            trackFadeMaxMs={track.fade_max_ms ?? null}
-            rolling={rollPreview != null}
-            leftRef={clipMediaRef(left, track, "raw")}
-            rightRef={clipMediaRef(right, track, "raw")}
-            role={track.role}
-            gainDb={trackOutputGainDb(track)}
-          />
-        ))}
-        <EditMarkerLayer
-          plan={plan}
-          onZoomChip={onZoomChip}
-          onSelectJoin={onSelectJoin}
+        {/*
+          Position-based seek underlay; keyboard scrub uses TimelineRuler (role=slider).
+          A div (not button) so Lighthouse target-size ignores this full-lane hit area.
+        */}
+        <div
+          className="lane-seek"
+          role="presentation"
+          {...HIT_SURFACE_PROPS}
+          onClick={(e) => {
+            if (router?.claimsClick(e.nativeEvent)) return;
+            onSeek(e.clientX, e.currentTarget);
+          }}
         />
-        {/* Move ghosts draw raw media on purpose. A stem is per lane and on
-            the timeline clock, so the destination lane's stem read at the
-            ghost's new timeline_start would show unrelated audio. After the
-            drop both lanes' stems are stale and clipMediaRef falls back to
-            raw, so raw previews the post-drop waveform (docs/waveform.md). */}
-        {moveGhosts.map((ghost) => (
-          <ClipBlock
-            key={`ghost-${ghost.clip.id}`}
-            clip={ghost.clip}
-            trackId={ghost.originTrackId}
-            role={track.role}
-            zoomPxPerSec={zoomPxPerSec}
-            color={laneColor(track.role, ghost.trackIndex)}
-            gainDb={trackOutputGainDb(track)}
-            selected={selectedClipIds.includes(ghost.clip.id)}
-            mediaRef={clipMediaRef(ghost.clip, track, "raw")}
-            prevClip={null}
-            nextClip={null}
-            neighborSourceLo={0}
-            neighborSourceHi={Number.POSITIVE_INFINITY}
-            rollPreview={null}
-            onRollPreview={NOOP}
-            onSelect={NOOP}
-            interactive={false}
-            moving
+        <div
+          className={`lane-inner${settling ? " is-settling" : ""}`}
+          style={{ width }}
+        >
+          {selection?.kind === "range" &&
+          selection.target.track_ids.includes(track.id)
+            ? selection.target.intervals.map((r) => (
+                <div
+                  key={r.start}
+                  className="audition-overlay range-overlay"
+                  data-range-start={r.start}
+                  data-range-end={r.end}
+                  style={{
+                    left: r.start * zoomPxPerSec,
+                    width: (r.end - r.start) * zoomPxPerSec,
+                  }}
+                  aria-hidden
+                />
+              ))
+            : null}
+          {clips.map((clip, i) => {
+            const prev = clips[i - 1];
+            const next = clips[i + 1];
+            const trimBounds = trimNeighborBounds(clips, i, TRIM_MODE);
+            const originId = originTrackId(clip);
+            const identityTrack = clipIdentityTrack({ clip, tracks }) ?? track;
+            return (
+              <ClipBlock
+                key={clip.id}
+                clip={clip}
+                trackId={originId}
+                role={track.role}
+                trackLabel={identityTrack.label}
+                trackSpeaker={clipSpeakerLabel({
+                  trackSpeaker: identityTrack.speaker,
+                  trackLabel: identityTrack.label,
+                  role: identityTrack.role,
+                })}
+                zoomPxPerSec={zoomPxPerSec}
+                fadeMaxMs={track.fade_max_ms ?? null}
+                color={laneColor(track.role, trackIndex)}
+                selected={
+                  selectedClipIds.includes(clip.id) ||
+                  (selection?.kind === "clip" && selection.id === clip.id)
+                }
+                mediaRef={mediaRefs[i]!}
+                prevClip={prev && clipsAbut(prev, clip) ? prev : null}
+                nextClip={next ?? null}
+                neighborSourceLo={trimBounds.neighborLo}
+                neighborSourceHi={trimBounds.neighborHi}
+                rollPreview={
+                  rollPreview &&
+                  (rollPreview.leftClipId === clip.id ||
+                    rollPreview.rightClipId === clip.id)
+                    ? rollPreview
+                    : null
+                }
+                onRollPreview={setRollPreview}
+                onSelect={selectClip}
+                onSelectClip={selectClip}
+                canMove={canMoveClips}
+                gainDb={trackOutputGainDb(track)}
+                previewTimelineStart={previewStartById[clip.id] ?? null}
+                previewHidden={hideClipIds?.has(clip.id) ?? false}
+                moving={isMoving(clip.id)}
+                onRangeGesture={onRangeGesture}
+                onMovePreview={onClipMovePreview}
+                onMoveCommit={onClipMoveCommit}
+                onMoveCancel={onClipMoveCancel}
+                onBodyStart={onClipBodyStart}
+                onBodyEnd={onClipBodyEnd}
+              />
+            );
+          })}
+          {bleedInspection?.read.state === "ready" &&
+          bleedInspection.occurrence.trackId === track.id &&
+          !rollPreview &&
+          !ripple &&
+          onSelectBleed &&
+          clips.some(
+            (clip) =>
+              clip.id === bleedInspection.occurrence.clipId &&
+              !isMoving(clip.id),
+          ) ? (
+            <BleedAttenuationOverlay
+              regions={bleedInspection.read.inspection.regions
+                .filter(
+                  (region) =>
+                    region.trackId === track.id &&
+                    region.occurrenceId === bleedInspection.occurrence.clipId,
+                )
+                .map((region) => ({
+                  region,
+                  leftPx: region.timelineSpan.start * zoomPxPerSec,
+                  widthPx:
+                    (region.timelineSpan.end - region.timelineSpan.start) *
+                    zoomPxPerSec,
+                }))}
+              selectedKey={bleedInspection.selectedKey}
+              onSelect={(key) =>
+                onSelectBleed(track.id, bleedInspection.occurrence.clipId, key)
+              }
+            />
+          ) : null}
+          {/* Over the clips, the dragged one included: the span this lane
+              loses and where its later clips go (#1135). */}
+          {ripple?.cut ? (
+            <span
+              className="clip-trimmed-span"
+              style={{
+                left: ripple.cut.start * zoomPxPerSec,
+                width: (ripple.cut.end - ripple.cut.start) * zoomPxPerSec,
+              }}
+              aria-hidden="true"
+            />
+          ) : null}
+          {rippleMovesHere.map((move) => (
+            <RippleArrow
+              key={`ripple-${move.key}`}
+              from={move.fromSec * zoomPxPerSec}
+              to={move.toSec * zoomPxPerSec}
+            />
+          ))}
+          {/* A live roll reshapes both sides, so the seam reads the rolled rows
+              ClipBlock draws. */}
+          {plan.symbols.map(({ mark: { id, left, right } }) => (
+            <JoinEditor
+              key={id}
+              left={left}
+              right={right}
+              seamSec={right.timeline_start}
+              zoomPxPerSec={zoomPxPerSec}
+              trackFadeMaxMs={track.fade_max_ms ?? null}
+              rolling={rollPreview != null}
+              leftRef={clipMediaRef(left, track, "raw")}
+              rightRef={clipMediaRef(right, track, "raw")}
+              role={track.role}
+              gainDb={trackOutputGainDb(track)}
+            />
+          ))}
+          <EditMarkerLayer
+            plan={plan}
+            onZoomChip={onZoomChip}
+            onSelectJoin={onSelectJoin}
           />
-        ))}
-        {showLevels && (
-          <LaneEnvelope
-            trackId={track.id}
-            trackName={track.label || track.id}
-            colorIndex={laneColorIndex(track.role, trackIndex)}
-            envelopes={envelopes}
-            clips={clips}
-            zoomPxPerSec={zoomPxPerSec}
-            width={width}
-          />
-        )}
-        {showEdits && (
-          <>
-            <AppliedEditOverlay
-              records={appliedRecords}
+          {/* Move ghosts draw raw media on purpose. A stem is per lane and on
+              the timeline clock, so the destination lane's stem read at the
+              ghost's new timeline_start would show unrelated audio. After the
+              drop both lanes' stems are stale and clipMediaRef falls back to
+              raw, so raw previews the post-drop waveform (docs/waveform.md). */}
+          {moveGhosts.map((ghost) => (
+            <ClipBlock
+              key={`ghost-${ghost.clip.id}`}
+              clip={ghost.clip}
+              trackId={ghost.originTrackId}
+              role={track.role}
+              zoomPxPerSec={zoomPxPerSec}
+              color={laneColor(track.role, ghost.trackIndex)}
+              gainDb={trackOutputGainDb(track)}
+              selected={selectedClipIds.includes(ghost.clip.id)}
+              mediaRef={clipMediaRef(ghost.clip, track, "raw")}
+              prevClip={null}
+              nextClip={null}
+              neighborSourceLo={0}
+              neighborSourceHi={Number.POSITIVE_INFINITY}
+              rollPreview={null}
+              onRollPreview={NOOP}
+              onSelect={NOOP}
+              interactive={false}
+              moving
+            />
+          ))}
+          {showLevels && (
+            <LaneEnvelope
+              trackId={track.id}
+              trackName={track.label || track.id}
+              colorIndex={laneColorIndex(track.role, trackIndex)}
+              envelopes={envelopes}
               clips={clips}
+              zoomPxPerSec={zoomPxPerSec}
+              width={width}
+            />
+          )}
+          {showEdits && (
+            <>
+              <AppliedEditOverlay
+                records={appliedRecords}
+                clips={clips}
+                trackId={track.id}
+                zoomPxPerSec={zoomPxPerSec}
+                selectedId={selection?.kind === "applied" ? selection.id : null}
+              />
+              <PendingEditOverlay
+                edits={pendingEdits}
+                trackId={track.id}
+                zoomPxPerSec={zoomPxPerSec}
+                selectedId={selection?.kind === "pending" ? selection.id : null}
+                timelineWidthPx={width}
+                onSelect={selectPending}
+              />
+            </>
+          )}
+          {showStaleInvalidations ? (
+            <StaleInvalidationOverlay
+              invalidations={staleInvalidations}
               trackId={track.id}
               zoomPxPerSec={zoomPxPerSec}
-              selectedId={selection?.kind === "applied" ? selection.id : null}
+              width={width}
             />
-            <PendingEditOverlay
-              edits={pendingEdits}
-              trackId={track.id}
+          ) : null}
+          {prosody ? (
+            <ProsodyOverlay
+              track={prosody}
               zoomPxPerSec={zoomPxPerSec}
-              selectedId={selection?.kind === "pending" ? selection.id : null}
-              timelineWidthPx={width}
-              onSelect={selectPending}
+              width={width}
             />
-          </>
-        )}
-        {showStaleInvalidations ? (
-          <StaleInvalidationOverlay
-            invalidations={staleInvalidations}
-            trackId={track.id}
-            zoomPxPerSec={zoomPxPerSec}
-            width={width}
-          />
-        ) : null}
-        {prosody ? (
-          <ProsodyOverlay
-            track={prosody}
-            zoomPxPerSec={zoomPxPerSec}
-            width={width}
-          />
-        ) : null}
-      </div>
+          ) : null}
+        </div>
+      </Lane>
     </div>
   );
 }

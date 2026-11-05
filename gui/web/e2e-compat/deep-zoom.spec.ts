@@ -112,7 +112,9 @@ test.describe("deep zoom at the content ceiling", () => {
         // From fit (~0.3 px/s), x1.25 per "=" reaches the ceiling in ~43 presses.
         // Press until the ruler reaches it: a slow layout only costs extra
         // presses, and the clamp absorbs them.
-        await scroll.click();
+        // Focus the page from the ruler's header corner: a click at the scroller's centre
+        // lands on a lane, and with the envelope layer on it adds an envelope point.
+        await scroll.click({ position: { x: 4, y: 4 } });
         await expect(async () => {
           await page.keyboard.press("=");
           expect(await rulerWidthPx(page)).toBeGreaterThanOrEqual(

@@ -1072,6 +1072,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                             trackIndex={idx}
                             clips={laneClips}
                             width={width}
+                            laneHeight={laneHeight}
                             zoomPxPerSec={zoomPxPerSec}
                             projectPath={projectPath}
                             selection={selection}

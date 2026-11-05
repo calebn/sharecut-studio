@@ -109,9 +109,10 @@ export function useGestureStable<T>(live: T): {
 }
 
 /**
- * Lane height that fills the stage when every track fits (between the
- * default lane and {@link MAX_FIT_LANE_HEIGHT}); the default when they don't,
- * so the lanes scroll. Used only in fit mode — see {@link resolveLaneHeight}.
+ * Lane height that fills the stage when every track fits (between
+ * {@link LANE_HEIGHT} and {@link MAX_FIT_LANE_HEIGHT}); {@link LANE_HEIGHT}
+ * when they don't, so the lanes scroll. Fit is the default mode; a stored
+ * fixed height overrides it — see {@link resolveLaneHeight}.
  */
 export function fitLaneHeight(available: number, trackCount: number): number {
   if (trackCount <= 0 || !Number.isFinite(available) || available <= 0) {

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SoftBoundary } from "../edit/nudgeBoundaries";
 import { DRAG_DETENT_PX } from "../hooks/gestureConstants";
+import { TARGET_ID_ATTR } from "../stages/edit/chooserKinds";
 import { button, press, surface } from "../test/hitDom";
 import {
   ARMED_ATTR,
@@ -639,6 +640,61 @@ describe("create menu", () => {
     expect(overWhileWithinSlop).toBeNull();
     expect(picked).toEqual([]);
     expect(afterLift).toMatchObject({ fingerDown: false, over: null });
+  });
+
+  it("swallows the lift's own click on an item the Sheet put under the finger, and lets the next tap through", () => {
+    const el = lane();
+    const item = document.createElement("button");
+    item.setAttribute(CREATE_ITEM_ATTR, "2");
+    document.body.append(item);
+    const picked: string[] = [];
+    item.addEventListener("click", () => picked.push("item"));
+    document.elementFromPoint = () => item;
+
+    press(el, "pointerdown", 400, 150);
+    router.longPress();
+    press(el, "pointerup", 400, 150);
+    item.dispatchEvent(
+      new MouseEvent("click", { bubbles: true, cancelable: true }),
+    );
+    const afterGhost = [...picked];
+    press(item, "pointerdown", 400, 150);
+    press(item, "pointerup", 400, 150);
+    item.dispatchEvent(
+      new MouseEvent("click", { bubbles: true, cancelable: true }),
+    );
+    vi.runAllTimers();
+    item.remove();
+
+    expect(afterGhost).toEqual([]);
+    expect(picked).toEqual(["item"]);
+  });
+
+  it("forgets the lift's ghost allowance once a chip took the click and a later window opens", () => {
+    const el = lane();
+    const chip = document.createElement("button");
+    chip.setAttribute(TARGET_ID_ATTR, "chip");
+    const item = document.createElement("button");
+    item.setAttribute(CREATE_ITEM_ATTR, "2");
+    document.body.append(chip, item);
+    const picked: string[] = [];
+    item.addEventListener("click", () => picked.push("item"));
+    document.elementFromPoint = () => item;
+
+    press(el, "pointerdown", 400, 150);
+    router.longPress();
+    press(el, "pointerup", 400, 150);
+    chip.dispatchEvent(
+      new MouseEvent("click", { bubbles: true, cancelable: true }),
+    );
+    router.close();
+    item.dispatchEvent(
+      new MouseEvent("click", { bubbles: true, cancelable: true }),
+    );
+    chip.remove();
+    item.remove();
+
+    expect(picked).toEqual(["item"]);
   });
 
   it("picks the item once the finger has moved past the slop onto it", () => {

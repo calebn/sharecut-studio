@@ -702,8 +702,19 @@ async function measureCreateMenu(
     return bottom - top < 8 ? null : bottom - 8;
   }, guest.trackId);
   if (y === null) return null;
-  await expectBelowEnvelopeLine(page, guest.trackId, y);
-  const at = { x, y };
+  // A tall lane puts its foot under the floating Edit corner.
+  const clear = await page.evaluate(
+    ({ x, from }) => {
+      for (let at = from; at > from - 160; at -= 4) {
+        const top = document.elementFromPoint(x, at);
+        if (top?.closest("[data-hit-surface]")) return at;
+      }
+      return from;
+    },
+    { x, from: y },
+  );
+  await expectBelowEnvelopeLine(page, guest.trackId, clear);
+  const at = { x, y: clear };
   await expectEmptyAt(page, at);
   await hold(page, finger, at);
   const measured = await page.evaluate(({ x, y: fy }) => {

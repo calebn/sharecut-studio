@@ -233,7 +233,7 @@ describe("TimelineView follow auto-fit", () => {
     });
   });
 
-  it("defaults to the fixed lane height with no compact density", () => {
+  it("keeps a stored fixed lane height with no compact density", () => {
     const { container } = render(
       <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
         <TimelineView />
