@@ -11,6 +11,7 @@ import { disabledAttrs } from "../ui/disabledReason";
 import { type AnchorExclusion, useAnchoredPanel } from "../ui/useAnchoredPanel";
 import { type BarItem, foldDock, slotsOf } from "./actionBarSlots";
 import { type BarId, barDisplay } from "./editActionSets";
+import type { SystemIconName } from "./icons";
 import { SystemIcon } from "./SystemIcon";
 
 export type { BarItem };
@@ -400,6 +401,22 @@ function Floating({
         <PrimaryButton look="floating" item={primary} onVerb={onVerb} />
       ) : null}
     </div>
+  );
+}
+
+/** The dock's leading slot: the selected object's icon and short name (max 96 px). */
+export function SelectionObject({
+  icon,
+  name,
+}: {
+  icon: SystemIconName;
+  name: string;
+}) {
+  return (
+    <span className="sys-actions-object" title={name}>
+      <SystemIcon name={icon} size={16} />
+      <span className="sys-actions-object-name">{name}</span>
+    </span>
   );
 }
 

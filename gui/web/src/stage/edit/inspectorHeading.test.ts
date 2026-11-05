@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { minimalProject, sampleTrack } from "../../test/fixtures";
-import { inspectorHeading } from "./inspectorHeading";
+import { inspectorHeading, inspectorShortName } from "./inspectorHeading";
 
 const project = minimalProject({
   tracks: [sampleTrack({ id: "host", label: "Mira" })],
@@ -89,5 +89,25 @@ describe("inspectorHeading for a clip", () => {
       inspectorHeading({ kind: "clip", id: "c1", trackId: "stale" }, withClip)
         .name,
     ).toBe("Mira · 00:04.000 to 00:06.000");
+  });
+});
+
+describe("inspectorShortName for the phone dock", () => {
+  it("keeps a heading's name, and names a clip by its speaker alone", () => {
+    expect(
+      inspectorShortName(
+        { kind: "envelopePoint", trackId: "host", pointId: "late" },
+        project,
+      ),
+    ).toBe("Mira point 2");
+    expect(
+      inspectorShortName({ kind: "chapter", id: "A", time: 1 }, project),
+    ).toBe("Chapter");
+    expect(
+      inspectorShortName(
+        { kind: "clip", id: "gone", trackId: "host" },
+        project,
+      ),
+    ).toBe("Mira clip");
   });
 });
