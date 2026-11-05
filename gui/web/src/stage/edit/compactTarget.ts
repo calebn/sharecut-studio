@@ -1,6 +1,6 @@
 /**
- * What the compact inspector (the phone drawer on a timeline selection) is
- * about: the target's name for the drawer header, and the timeline element it
+ * What the compact inspector (the phone sheet on a timeline selection) is
+ * about: the target's name for the sheet header, and the timeline element it
  * must leave in view above the sheet. A kind without one (a track, a comment)
  * opens the regular Inspector sheet instead.
  */
