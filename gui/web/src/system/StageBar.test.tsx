@@ -63,6 +63,16 @@ describe("clicking the active stage", () => {
   });
 });
 
+it("returns stage-list padding focus to the active stage", async () => {
+  const onSelect = vi.fn();
+  render(<StageBar active="edit" onSelect={onSelect} />);
+  await userEvent.click(screen.getByRole("tablist", { name: "Stages" }));
+  expect(screen.getByRole("tab", { name: "Edit" })).toHaveFocus();
+  expect(onSelect).not.toHaveBeenCalled();
+  await userEvent.keyboard("{ArrowRight}");
+  expect(onSelect).toHaveBeenCalledWith("review");
+});
+
 describe("the Record badge", () => {
   afterEach(() => {
     vi.useRealTimers();

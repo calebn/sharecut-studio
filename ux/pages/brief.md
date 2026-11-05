@@ -125,6 +125,9 @@ Known limits: a music bed that two microphones share, or own sound that follows 
 6. **Progressive complexity** — guests only see what their review role allows (Viewer, Commenter, Editor).
 7. **Primary chrome stays reachable** — on narrow widths, Comment/Fit icons stay visible; secondary controls go under Menu.
 8. **Contextual discovery** — the Action bar's More shows the commands that go with the selection; on touch, the palette lists the gestures. Users shouldn't hunt through menus to find what goes with their current task.
+9. **Keyboard continuity** — clicking the space around panel tabs returns focus
+   to the selected tab so arrow keys still work. Tab moves onward without an
+   extra stop, and focusing the group does not change the selected panel.
 
 ---
 
