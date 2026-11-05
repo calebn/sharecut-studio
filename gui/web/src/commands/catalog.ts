@@ -55,7 +55,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     when: "always",
     paletteRunnable: false,
     notes:
-      "J jumps back 3 s, 6 s, then 12 s; L plays, then 2×, then 4×. Args: { dir: back | forward }",
+      "J jumps back 3 s, 6 s, then 12 s; L plays, then 2×, then 4×. A remap replaces both keys: the new key is forward only. Args: { dir: back | forward }",
     breaksFollow: true,
     announcesRefusal: true,
   },
