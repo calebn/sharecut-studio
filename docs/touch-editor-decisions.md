@@ -446,7 +446,7 @@ or named test owns that behavior; it does not certify unrun combinations.
 | Mix: `MixSheet`, native controls, `useCommitRange` | Native volume range and M/S controls; More → Mix | Volume follows the existing preview/commit lifecycle and permission reason; M/S and local/shared listening distinctions remain. Accepted host/editor volume writes use the existing document command. Sheet layout supports row scrolling and text wrapping. | **Keep.** Do not add swipe-to-mix. Existing `phone-mix.spec.ts` covers its current path; failure/cancel combinations not asserted there remain unverified. |
 | Transcript words: transcript views and correction flow | Tap seeks; double tap or long press opens correction; visible Correct/Select modes | First tap seeks immediately. Correction opens only for a host with hydrated words; current sheet lifecycle restores mode on close. Submission uses `submitWordCorrection`; failure/permission behavior stays there. Phone uses the sheet for keyboard room; desktop has its current inline path. | **Keep.** `transcript-wordbar.spec.ts` and `edit-boundary-touch.spec.ts` are retained evidence. No delayed tap-to-seek recognizer. |
 | Comment rows: Review queue | Visible Resolve/Reopen and Undo toast | The Comments panel's own swipe-to-resolve is gone, but a phone queue row swipes right for its verb, which resolves a comment; swipe left does nothing on a comment. Resolve is also the action-bar verb, host only; latest-only Undo toast remains. | **Panel swipe removed; queue-row swipe kept.** |
-| BottomSheet: `ui/BottomSheet.tsx` | **Only the phone Inspector sheet drags and flicks** (its grip; the drawer header was removed in #2294 W3c2b); every other sheet has no drag gesture. Expand/Collapse and Close are visible single-pointer actions on all of them | Controlled `expanded` updates half/full view state only (half/full for the #1051 compact inspector, which also stows during a timeline drag). There is no command/failure/History path for resize. Close and Escape dismiss; the interactive inspector scrim never takes a touch, and it dims the timeline at half and full (it is clear at a generic peek); confirmation scrim dismisses. Shell CSS keeps phone nav and tablet chrome clear. | **Remove inert grip; retain and enlarge the resize button.** `BottomSheet.test.tsx` and new touch E2E exercise the existing callback and layout. No global button changes. |
+| BottomSheet: `ui/BottomSheet.tsx` | **Only the phone Inspector sheet drags and flicks** (its grip; the drawer header was removed in #2294 W3c2b); every other sheet has no drag gesture. Expand/Collapse and Close are visible single-pointer actions on all of them | Controlled `expanded` updates half/full view state only (dock/half/full for the phone Inspector sheet; the grip toggles dock and half; it no longer stows during a timeline drag). There is no command/failure/History path for resize. Close and Escape dismiss; the interactive inspector scrim never takes a touch, and it no longer dims the timeline (retired with the drawer, #2294 W3c2b); confirmation scrim dismisses. Shell CSS keeps phone nav and tablet chrome clear. | **Remove inert grip; retain and enlarge the resize button.** `BottomSheet.test.tsx` and new touch E2E exercise the existing callback and layout. No global button changes. |
 | Transport, Gestures help and History: phone More hub (removed in #2292), command catalog | Two-finger tap is an optional ShareCut Undo shortcut; visible command routes remain | Existing recognizer dispatches `history.undo` and reports failure through the shared status path. It runs only when enabled by current project/command availability. It does not make a platform convention or modal-body guarantee. History is an Edit sheet and Gestures is in the Project menu. | **Modify attribution only.** `useTwoFingerTap.test.tsx` stays unchanged; `GesturesSheet.test.tsx` asserts the rendered optional ShareCut copy. |
 
 ## Explicit disposition
@@ -1015,9 +1015,9 @@ the selection.
 At the dock detent the sheet's header and sections are inert and one grip tap
 away; the sheet opens at half (full when the box is too short for the dock),
 not at the dock.
-A timeline target on the phone still opens the compact drawer (half and full
-heights) until the legacy bodies are replaced; the peek strip it once had is
-gone (#2294 W3c2b).
+A timeline target on the phone opens the Inspector sheet at its Action bar dock
+(dock, half and full detents); the compact drawer and its peek strip are gone
+(#2294 W3c2b).
 
 ### Pinch never edits (#1051 round 4)
 
@@ -1183,27 +1183,13 @@ chooser lab until the owner made it the default (2026-10-07).
   the finger pushes `DRAG_DETENT_PX` (16 px) past it, with a line and an
   "At the playhead" caption. The boundaries come from `softBoundaries`, the
   query held nudges use; a boundary the drag starts on does not catch it.
-- **Drawer.** The compact inspector swipes between half
-  and full (and, until #2294 W3c2b, a peek strip). Its covered editing rail stays inert while the drawer is visible;
-  closing or stowing restores the rail without changing its layout height.
-  The stowed sheet is inert until it returns, so native keys reach only the
-  visible controls.
-  Expand and Collapse step between detents, and the visually hidden
-  "Inspector height" range does it for keys and screen readers. The owner's
-  round-5 phone test found the swipe followed the finger but lagged: each
-  move set a React state height, so the inspector re-rendered and laid out
-  again every frame. Now the sheet fills its slot when the finger lands and
-  a `translateY`, written once per animation frame, shows the part the finger
-  holds up (`ui/useDrawerSwipe.ts`); nothing re-renders until the release.
-  The release coasts on the finger's momentum as Apple's "Designing Fluid
-  Interfaces" (WWDC 2018) describes: at a deceleration of 0.998 per ms the
-  sheet would travel speed × 499 ms further, and it settles at the detent
-  nearest that point (`ui/drawerMotion.ts`). Speed is read over the last
-  100 ms of moves, and a finger that rested 40 ms before lifting has none,
-  so a quick flick opens or closes the drawer fully and a slow drag lands
-  where it was left. The settle slides over `--motion-state`; under reduced
-  motion the sheet lands at once, while the drag itself still tracks the
-  finger, since it is the user's own motion.
+- **Drawer (retired).** The #1051 compact drawer (half/full swipe, stow during
+  a timeline drag, timeline dim, Expand/Collapse, "Inspector height" range) was
+  replaced by the phone Inspector sheet with an Action bar dock as its first
+  detent (#2294 W3c2b); the sheet has no stow or dim. Its swipe motion
+  (`ui/drawerMotion.ts`) still coasts on release as Apple's "Designing Fluid
+  Interfaces" (WWDC 2018) describes: a deceleration of 0.998 per ms, settling
+  at the nearest detent, with speed read over the last 100 ms of moves.
 - **Second finger.** It cancels and rolls back arming, a detent drag, a clip
   move and the create menu, as it does any one-finger action. A first finger
   on a chooser chip (which sits outside the timeline's scroller) or on the
