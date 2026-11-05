@@ -24,6 +24,9 @@ type RecordHostState = {
   /** The host mic is open: set by `useHostKeeperCapture` from the same `micLive` it opens the stream with. */
   micLive: boolean;
   setMicLive: (live: boolean) => void;
+  /** Each remote guest's level, 0 to 1, from the host monitor. */
+  peerLevels: Record<string, number>;
+  setPeerLevels: (levels: Record<string, number>) => void;
   takeClipping: TakeClipping | null;
   setTakeClipping: (clipping: TakeClipping | null) => void;
   setCaptureHealth: (health: CaptureHealth) => void;
@@ -49,6 +52,8 @@ export const useRecordHostStore = create<RecordHostState>((set) => ({
   captureHealth: null,
   micLive: false,
   setMicLive: (micLive) => set({ micLive }),
+  peerLevels: {},
+  setPeerLevels: (peerLevels) => set({ peerLevels }),
   takeClipping: null,
   setTakeClipping: (takeClipping) => set({ takeClipping }),
   setCaptureHealth: (captureHealth) => set({ captureHealth }),
