@@ -52,6 +52,7 @@ Each thing is declared once. A second map from the same key is a bug.
 | Touch hit kind and gesture | `gui/web/src/timeline/inputContract.ts` (`HIT_KINDS`, `TOUCH_GESTURES`), routing in `timeline/hitRouting*.ts`, thresholds in `hooks/gestureConstants.ts` | `timeline/gestureGovernance.test.ts`, `inputContract.conformance.test.ts`, `inputContract.manifest.test.ts` |
 | Edit marker kind (join, pending and applied: type, label, and the join glyph paths, mode options and the join label with its length; the chip plan and the tier, label and label-room of each glyph in `timeline/editMarkers/plan.ts`). A new type adds its `EDIT_MARKERS` row (the `satisfies Record<EditMarkerKind, ...>` makes a missing row a type error) and a `--color-mark-<type>` token in each theme block, plus the CSS rule of each surface that draws it (`.edit-mark--<type>`; `.pending-overlay.<variant>`; `.applied-tick--<variant>`): colors and shapes are CSS, not registry data. These are hand-wired and the compiler checks only the `Record<JoinMode, ...>` keys of `EDIT_GLYPH_PATH`, so a missed one is caught by review: a new `EditType` member; for a pending type, its `PENDING_KIND_OF_TYPE` entry (without it the type draws as a cut); for a join type, `joinKind`, `JOIN_KINDS` and its `EDIT_GLYPH_PATH` entry (keyed by the server's `JoinMode`); for an applied tick, `appliedKind` | `gui/web/src/utils/editMarkerRegistry.ts` (`EDIT_MARKERS`) | `utils/editMarkerRegistry.test.ts`, `timeline/editMarkers/plan.test.ts`, `edit/joinRender.test.ts` |
 | Selection kind and its surface | `gui/web/src/inspector/selectionSurface.tsx` (`SelectionKind`, `SELECTION_SURFACES` with `body`, `screens`, `peek`, `related` and `more`) | `selectionSurface` tests, `stage/edit/useInspectorOpen.test.tsx` |
+| Selection anchor and floating Action bar visibility | `gui/web/src/stage/edit/useSelectionAnchor.ts` | `stage/edit/useSelectionAnchor.test.tsx`, `stage/edit/EditActionBar.test.tsx` |
 | Capability (GUI, command, keys, touch, MCP, CLI, skill) | `contracts/capabilities.manifest.json` | `make generated-check`, `commands/manifestSurfaces.test.ts` |
 | Term | `docs/communication-philosophy.md` § Terminology | review (advisory docs-sync row `user-facing-copy-and-controls`) |
 | Token (color, space, type, z role) | `gui/web/src/styles/theme/`, `deploy/brand/brand-tokens.css` | Stylelint, `tests/test_css_policy.py` |
@@ -78,6 +79,11 @@ Each thing is declared once. A second map from the same key is a bug.
    even if document adoption follows later. It also clears when the target is
    already absent. Queued work and a zero-effect reply with the target still
    present keep selection. A newer selection or document lifetime is untouched.
+7. **Floating actions use their current anchor.** When an observed anchor is
+   replaced, the floating Action bar waits for the replacement's visibility
+   report. A retired observer cannot show or hide the current bar. The resolved
+   anchor can be the selected item, a track lane, or the timeline area. Browsers
+   without intersection observation retain the connected-anchor fallback.
 
 Shipped: `state/selectionSlice.ts` is the only writer of `selection`, and
 `state/selection.ts` derives the clip and track sets from it. `selectionSurface.tsx`
@@ -318,6 +324,8 @@ not apply is answered "n/a" with the reason in the PR.
       none. A gesture has a visible equivalent in the bottom zone.
 - [ ] If it selects, the kind is in `SelectionKind` and `SELECTION_SURFACES`,
       and peek and Related derive from that row.
+- [ ] Floating selection actions use their current anchor and ignore visibility
+      reports from retired anchors.
 - [ ] If it needs a target, it resolves target → selection → focus and is
       disabled with a reason otherwise.
 - [ ] If it opens an overlay, it uses `Menu`, `Dialog` or `InlineConfirm`;
@@ -391,11 +399,12 @@ The setter scan reads `.tsx` controls only; hooks such as `useFixedPlayheadScrol
 
 ## Shipped gaps
 
-The 2026-10-19 audit measured these against the rules above. The UI
-consistency epic tracks them.
+This inventory records shipped differences from the rules above. The
+2026-10-19 audit supplied its first entries.
 
 | Rule | Shipped today |
 | --- | --- |
+| Feedback: one channel | `system/ScriptPane.tsx` renders a local polite live region for selection and Find messages. Its `findStatus` and `findStatusKey` props supply Find text and repeated-result events. `stage/edit/script/ScriptHost.find.test.tsx` and `system/ScriptPane.select.test.tsx` cover these announcements. The messages do not use the shell's `ui/StatusLiveRegion.tsx`. |
 | Menus: one primitive, context menus from one descriptor | `stages/edit/CreateMenu.tsx` (hosted by `timeline/TimelineCreateMenu.tsx`) and `stages/edit/TargetChooser.tsx` (hosted by `timeline/TimelineChooser.tsx`) hand-roll `role="menu"` (in the top layer). The create menu now opens on right click and on the Menu key or Shift+F10 over a focused target (`hitRouting.ts` `openCreate`, #1793); marker buttons are focusable, while a keyboard user without a focused target reaches the create actions through the palette and keys. |
 | Confirms: one primitive | The model download is a row (`stages/prepare/ReadyList.tsx`) or the model gate, not an `askConfirm`; hand fixes are asked on the Re-transcribe row. |
 | Confirms: model not downloaded | `ModelGate` (`models/gate/ModelGate.tsx`, `useModelGate`) asks before an action that needs a model, then continues after **Download**. It shows as `ModelGateDialog`, as `ModelGatePanel` in a Deliver section (Episode file, Bounce) or the body and footer inside a host dialog (Split swaps its own body, never a dialog over a dialog), as `ModelGateHint` after **Not now**, and as `JobModelDownload` beside a job that failed for a model. Focus moves to **Cancel download** while it downloads and back to the primary button when it stops. |

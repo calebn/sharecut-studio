@@ -125,6 +125,9 @@ Known limits: a music bed that two microphones share, or own sound that follows 
 6. **Progressive complexity** — guests only see what their review role allows (Viewer, Commenter, Editor).
 7. **Primary chrome stays reachable** — on narrow widths, Comment/Fit icons stay visible; secondary controls go under Menu.
 8. **Contextual discovery** — selection sheets show related commands ("You might also want…"); gestures have a cheatsheet. Users shouldn't hunt through menus to find what goes with their current task.
+   The floating Action bar follows its current anchor. A visibility result for a
+   previous anchor cannot show or hide it. The [selection contract](https://github.com/calebn/sharecut-studio/blob/main/docs/interaction-system.md#selection)
+   includes lane and timeline fallbacks.
 
 ---
 
