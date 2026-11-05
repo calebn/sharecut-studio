@@ -59,6 +59,15 @@ function renderPalette(path = "/tmp/p.json") {
   );
 }
 
+const STAGE_ROW_LABELS = [
+  "Go to Deliver",
+  "Go to Edit",
+  "Go to Prepare",
+  "Go to Record",
+  "Go to Review",
+  "Take the hand-off",
+];
+
 describe("CommandPalette", () => {
   beforeEach(() => {
     ctxOverride.value = null;
@@ -304,10 +313,11 @@ describe("CommandPalette", () => {
   it("lists Stages and Help as groups, and a stage row switches stage through the registry", async () => {
     renderPalette();
     expect(
-      within(screen.getByRole("group", { name: "Stages" })).getAllByRole(
-        "option",
-      ),
-    ).toHaveLength(5);
+      within(screen.getByRole("group", { name: "Stages" }))
+        .getAllByRole("option")
+        .map((o) => o.textContent?.match(/^(Go to \w+|Take the hand-off)/)?.[0])
+        .sort(),
+    ).toEqual(STAGE_ROW_LABELS);
     expect(
       within(screen.getByRole("group", { name: "Help" })).getByRole("option", {
         name: /^Export diagnostics…/,
@@ -372,10 +382,11 @@ describe("CommandPalette", () => {
       within(recent).getAllByRole("option", { name: /^Go to Edit/ }),
     ).toHaveLength(1);
     expect(
-      within(screen.getByRole("group", { name: "Stages" })).getAllByRole(
-        "option",
-      ),
-    ).toHaveLength(5);
+      within(screen.getByRole("group", { name: "Stages" }))
+        .getAllByRole("option")
+        .map((o) => o.textContent?.match(/^(Go to \w+|Take the hand-off)/)?.[0])
+        .sort(),
+    ).toEqual(STAGE_ROW_LABELS);
     const ids = screen.getAllByRole("option").map((o) => o.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
