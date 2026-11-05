@@ -252,6 +252,7 @@ describe("Storybook title tiers", () => {
     "Stages/Review/Queue",
     "Stages/Deliver/Export",
     "Stages/Guest/Lobby",
+    "Stages/Settings/HelpSheet",
   ])("accepts the %s title", (title) => {
     expect(
       storyTitleViolation(`export default { title: "${title}" };`),

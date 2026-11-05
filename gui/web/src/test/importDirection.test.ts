@@ -85,7 +85,6 @@ const LAYER_TABLE: readonly {
       "comments",
       "extensions",
       "feedback",
-      "home",
       "inspector",
       "models",
       "panels",
