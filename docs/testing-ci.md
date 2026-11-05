@@ -18,16 +18,19 @@ current main tip. Before merging,
 verify the exact PR head and its integration with current `main` as usual.
 
 If a coalesced main run fails, inspect or bisect the commits since the previous
-successful run. Pushes to `main` run only lint, types, compat checks and Vitest/build. The full nightly test run (07:23 UTC)
-retains the coverage floor and both browser engines and opens a `nightly-failure` issue when it fails. Scheduled and manual dispatch runs have
-unique groups, so pushes cannot cancel them or replace their pending runs.
-This policy changes scheduling, not which checks a run plans.
+successful run. Pushes to `main` run only lint, types, compat checks and
+Vitest/build; the nightly and dispatch runs keep the coverage floor and both
+browser engines, and a failed nightly opens a `nightly-failure` issue.
+Scheduled and manual dispatch runs have unique groups, so pushes cannot cancel
+them or replace their pending runs. Grouping changes scheduling, not which
+checks an event plans.
 
 ## CI
 
 GitHub Actions workflow `.github/workflows/test.yml` runs Python, frontend and
 a six-job browser matrix (plus the advisory `pytest-python-floor`) in parallel on
-nightly and on `workflow_dispatch`; a push to `main` runs only `pytest-quality` and `frontend-suite` (the planner's `quick` scope). On pull requests the
+nightly and on `workflow_dispatch`; a push to `main` runs only `pytest-quality`
+and `frontend-suite` (the planner's `quick` scope). On pull requests the
 `changes` job skips what the diff cannot reach (see
 [§ Which jobs a run needs](testing.md#which-jobs-a-run-needs)). **All required checks must pass** (including Playwright axe) for a green build:
 
@@ -325,8 +328,9 @@ the unchanged four-worker cap so runner execution can qualify local measurements
 
 Per-engine results for every check in the
 [§ Browser compatibility matrix](#browser-compatibility-matrix) run. Each Pass
-cell is backed by the required `frontend-e2e` job on the nightly schedule and dispatch, which
-is what the guard below enforces. Pull requests run only the WebKit column. The matrix was first assembled from #703 (Chromium,
+cell is backed by the required `frontend-e2e` job on the nightly schedule and
+dispatch, which is what the guard below enforces. Pull requests run only the
+WebKit column. The matrix was first assembled from #703 (Chromium,
 PR #739) and #704 (WebKit, PR #747); those numbers are provenance only.
 The Chromium column is Playwright's bundled Chromium,
 standing in for Chrome (branded Chrome runs only locally, with
@@ -712,7 +716,8 @@ workflow. A `pinned-media-windows` job runs `tests/test_pinned_media.py` on `win
 
 Native PR selection uses the seven families documented in
 [Native workload selection](testing.md#native-workload-selection). Desktop and
-registry workflows run fully on nightly and manual events; `desktop.yml` no longer triggers on push to `main`. Cargo checks
+registry workflows run fully on nightly and manual events; `desktop.yml` no
+longer triggers on push to `main`. Cargo checks
 use the checked-in desktop splash and run independently of the web artifact.
 The Windows cargo check stages its sidecar stub without downloading web output.
 Linux and Windows CI must qualify that dependency removal on the changed head.
@@ -774,7 +779,7 @@ consumers remain admitted. Any additional admitted path starts the desktop
 planner and contributes its native consumers. This changes workflow admission,
 while these known empty contracts already selected no native workloads.
 Other docs PRs start cheap planners but no expensive native jobs. Registry PR
-events remain broad. Every nightly and manual dispatch run runs all
+events remain broad. Every nightly run and manual dispatch runs all
 native workloads. Proven release-only PRs skip all native families.
 
 Six Python contracts plus the FFmpeg artifact catalog are native inputs.
@@ -818,8 +823,9 @@ run; neither the lockfile nor its consistency check is bypassed.
 A proven refresh skips the advisory Python-floor job and the expensive desktop,
 extras-import, and registry Windows workloads. Each advisory workflow has a cheap
 PR selector. Missing or failed advisory planning requests ordinary work; workflow
-cancellation stops it. Main, scheduled, manual, and reusable wheel validation keep
-their existing full work. The reusable wheel workflow stays outside this shortcut.
+cancellation stops it. Scheduled, manual, and reusable wheel validation keep
+their existing full work, and pushes to main keep only the quick checks. The
+reusable wheel workflow stays outside this shortcut.
 The four required checks still report. Frontend aggregates accept only their
 existing successful-plan and planned-workload combinations, and the full-history
 secret scan runs on every PR.

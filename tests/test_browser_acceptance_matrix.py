@@ -21,6 +21,10 @@ WORKFLOW = REPO_ROOT / ".github" / "workflows" / "test.yml"
 CI_SUITES_JOB = "frontend-e2e-suites"
 CI_GATE_JOB = "frontend-e2e"
 CI_E2E_GATE = "needs.changes.outputs.e2e == 'true'"
+GATE_PLAN_OUTPUT = {
+    CI_SUITES_JOB: "${{ needs.changes.outputs.e2e }}",
+    "frontend-suite": "${{ needs.changes.outputs.gui }}",
+}
 CI_MATRIX = "${{ fromJSON(needs.changes.outputs.e2e-matrix) }}"
 MAIN_COMMAND = "npm run test:e2e"
 MAIN_SHARD_RE = re.compile(r"^npm run test:e2e -- --shard=(\d+)/(\d+)$")
@@ -310,7 +314,7 @@ def test_compat_run_has_no_skips_retries_or_filters() -> None:
     )
 
 
-def test_ci_runs_both_browser_suites_on_main_and_nightly_on_every_passing_engine() -> None:
+def test_ci_runs_both_browser_suites_on_nightly_and_dispatch_on_every_passing_engine() -> None:
     workflow = load_github_yaml(WORKFLOW)
     triggers = workflow["on"]
     for event in ("push", "pull_request"):
@@ -652,9 +656,7 @@ def test_ci_gate_requires_the_plan_and_every_planned_suite(
     assert step["shell"] == "bash"
     assert step["env"] == {
         "PLAN": "${{ needs.changes.result }}",
-        "GUI": "${{ needs.changes.outputs."
-        + ("e2e" if suite_name == CI_SUITES_JOB else "gui")
-        + " }}",
+        "GUI": GATE_PLAN_OUTPUT[suite_name],
         "SUITES": "${{ needs." + suite_name + ".result }}",
     }
     result = subprocess.run(

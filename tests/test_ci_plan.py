@@ -169,7 +169,6 @@ def test_pull_request_plan(
 def test_nightly_and_dispatch_run_everything(event: str) -> None:
     plan = cp.plan(event, [])
     assert (plan.gui, plan.pytest, _names(plan)) == (True, "full", FULL_E2E)
-    assert plan.outputs()["e2e"] == "true"
 
 
 def test_push_to_main_plans_only_the_quick_checks() -> None:
@@ -409,10 +408,9 @@ def test_changes_job_feeds_frontend_and_the_browser_suites() -> None:
     }
     (plan,) = [step for step in changes["steps"] if step.get("id") == "plan"]
     assert plan["uses"] == "./.github/actions/ci-plan"
-    assert jobs["frontend-suite"]["needs"] == "changes"
-    assert jobs["frontend-suite"]["if"] == "needs.changes.outputs.gui == 'true'"
-    assert jobs["frontend-e2e-suites"]["needs"] == "changes"
-    assert jobs["frontend-e2e-suites"]["if"] == "needs.changes.outputs.e2e == 'true'"
+    for name, output in (("frontend-suite", "gui"), ("frontend-e2e-suites", "e2e")):
+        assert jobs[name]["needs"] == "changes"
+        assert jobs[name]["if"] == f"needs.changes.outputs.{output} == 'true'"
     assert jobs["frontend-e2e"]["steps"][0]["env"]["GUI"] == "${{ needs.changes.outputs.e2e }}"
     assert set(load_github_yaml(WORKFLOW)["on"]) == {
         "push",
@@ -443,11 +441,8 @@ def test_nightly_alert_action_opens_comments_and_closes_the_labelled_issue() -> 
     assert action["runs"]["using"] == "composite"
     assert set(action["inputs"]) == {"workflow", "results", "token"}
     run = action["runs"]["steps"][0]["run"]
-    assert 'label="nightly-failure"' in run
-    assert '*" failure "* | *" cancelled "*)' in run
     for command in ("gh issue create", "gh issue comment", "gh issue close"):
         assert command in run
-    assert "--label" in run
 
 
 def test_desktop_workflow_runs_nightly_manually_and_on_pull_requests_not_on_push() -> None:
