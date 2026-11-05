@@ -324,7 +324,7 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
   - Phone: the Decision card fills the screen above the mini player. Top: a 48 px row "3 of 14" (tap opens the Queue as a large sheet) and filter icon. Bottom thumb zone: one 64 px dock row with Keep (left, outlined), the A/B segmented control (center) and the verb (right, primary). Gestures: swipe the card right = primary verb, left = Keep, up = Later; 80 px threshold with the verb icon growing under the card while dragging; release below threshold springs back. Haptic on commit where available.
   - States: empty "Nothing to decide" with the inbox-check icon 48 px and the hand-off "Deliver"; processing (Prepare still finding suggestions) shows decided items and a top Job row "Finding suggestions · 60%"; bulk running shows a Job row in the group header with a count "Cutting 11 · 4 done", the group's buttons disabled, Undo available as soon as it finishes (one step for the whole group); offline guest edits pending (see guest).
 - **Shared elements used:** Review queue (NEW), Decision card (NEW), Suggestion, A/B audition, Check row, Job row, Toast with Undo, Stage hand-off button, Transport (context strip + mini player).
-- **Story to build:** `Stages/Review/Review` stories `Mixed`, `Suggestion`, `Comment`, `Check`, `Empty`, `BulkRunning`, `Processing`, `Phone`, `PhoneSwipe`, `PhoneQueueSheet`.
+- **Story to build:** `Stages/Review/Review` stories `Mixed`, `Suggestion`, `Comment`, `Check`, `Empty`, `BulkRunning`, `Processing`, `Phone`, `PhoneSwipe`; `PhoneQueueSheet` lives in the `Stages/Review/Queue` stories.
 
 ### Decision card (the focus surface; replaces INS-PENDING in Review)
 
