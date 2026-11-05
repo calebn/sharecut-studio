@@ -90,7 +90,7 @@ const EMPTY: RecordUploadProgress = {
   segments: [],
 };
 
-export function useRecordUpload(args: {
+type UploadArgs = {
   enabled: boolean;
   roomState?: string;
   captureSettled?: boolean;
@@ -101,23 +101,55 @@ export function useRecordUpload(args: {
   sink: ByteSink | null;
   captureExpected?: boolean;
   retryNonce?: number;
-}): RecordUploadProgress {
-  const [progress, setProgress] = useState<RecordUploadProgress>(EMPTY);
-  const argsRef = useRef(args);
-  const reclaim = useRef(createKeeperReclaimTracker());
-  useInsertionEffect(() => {
-    argsRef.current = args;
-  }, [args]);
+};
 
-  useEffect(() => {
+type RestartInputs = Pick<
+  UploadArgs,
+  | "enabled"
+  | "roomState"
+  | "captureSettled"
+  | "sessionId"
+  | "takeIndex"
+  | "participantId"
+  | "transport"
+  | "sink"
+  | "retryNonce"
+>;
+
+type UploadObservation =
+  | { kind: "inactive" }
+  | { kind: "active" }
+  | {
+      kind: "chunk-progress";
+      ackedBefore: number;
+      totalBefore: number;
+      chunks: { acked: number; total: number };
+      live: SegmentSave;
+      passSegments: readonly SegmentSave[];
+    }
+  | { kind: "pass-complete"; progress: RecordUploadProgress }
+  | { kind: "pass-failed"; cause: unknown };
+
+class UploadPoller {
+  private readonly observe: (event: UploadObservation) => void;
+
+  constructor(observe: (event: UploadObservation) => void) {
+    this.observe = observe;
+  }
+
+  acquire(
+    inputs: RestartInputs,
+    readCommitted: () => UploadArgs,
+    reclaim: ReturnType<typeof createKeeperReclaimTracker>,
+  ): (() => void) | undefined {
     if (
-      !args.enabled ||
-      !args.sessionId ||
-      !args.participantId ||
-      !args.transport ||
-      !args.sink
+      !inputs.enabled ||
+      !inputs.sessionId ||
+      !inputs.participantId ||
+      !inputs.transport ||
+      !inputs.sink
     ) {
-      setProgress(EMPTY);
+      this.observe({ kind: "inactive" });
       return;
     }
     let cancelled = false;
@@ -129,13 +161,13 @@ export function useRecordUpload(args: {
     let nextCleanupAt = 0;
     let refreshAfterCleanup = false;
     const abort = new AbortController();
-    setProgress((prev) => ({ ...prev, pending: true, error: null }));
+    this.observe({ kind: "active" });
     const tick = async () => {
       if (inFlight || cancelled) {
         return;
       }
       inFlight = true;
-      const current = argsRef.current;
+      const current = readCommitted();
       const { sessionId, participantId, transport, sink, takeIndex } = current;
       const stopped = current.roomState === "stopped";
       const settled = stopped && Boolean(current.captureSettled);
@@ -147,13 +179,12 @@ export function useRecordUpload(args: {
         if (settled && !cleanupInFlight && Date.now() >= nextCleanupAt) {
           cleanupInFlight = true;
           nextCleanupAt = Date.now() + 30_000;
-          // Maintenance runs outside the host-status/upload critical path.
           void pruneExpiredKeeperWavs(
             sink,
             () =>
               !cancelled &&
-              argsRef.current.roomState === "stopped" &&
-              Boolean(argsRef.current.captureSettled),
+              readCommitted().roomState === "stopped" &&
+              Boolean(readCommitted().captureSettled),
           )
             .then((cleanup) => {
               nextCleanupAt = cleanup.nextRunAt;
@@ -199,8 +230,6 @@ export function useRecordUpload(args: {
               row.segment_index === segmentIndex &&
               row.participant_id === participantId,
           );
-          // Local completion is required even when the host reports an ACK.
-          // A pending WAV must still surface recovery instead of looking landed.
           const recovery = await inspectKeeperRecovery(sink, wavPath, {
             inspectPending: settled,
           });
@@ -226,30 +255,20 @@ export function useRecordUpload(args: {
             if (
               canReclaimKeeperSegment({ remoteSeg, take, takeIndex, settled })
             ) {
-              // A fresh status response is the authority for cleanup. The
-              // completion metadata stays as the segment identity marker.
               if (
-                (await reclaimKeeperWav(
-                  sink,
-                  wavPath,
-                  reclaim.current,
-                  remoteSeg,
-                )) === "mismatch"
+                (await reclaimKeeperWav(sink, wavPath, reclaim, remoteSeg)) ===
+                "mismatch"
               ) {
                 reclaimMismatch = true;
               }
             }
             continue;
           }
-          // Pending segments are never uploaded, and their WAV is only probed
-          // once capture has settled: during REC it may still be open.
           if (recovery.kind !== "complete") {
             allLanded = false;
             allAcked = false;
             if (!stopped) continue;
             if (!settled) {
-              // Stop is still finalizing this segment; hold Leave until the
-              // complete metadata lands (or capture latches a failure).
               finalizing = true;
               continue;
             }
@@ -262,14 +281,8 @@ export function useRecordUpload(args: {
           }
           const wav = await sink.read(wavPath);
           if (!wav) {
-            // Complete metadata without its WAV is a landed, reclaimed segment
-            // (see missingKeeperWavState); the host row may since have gone
-            // (e.g. Discard take). Nothing left to upload or wait on.
             continue;
           }
-          // A pre-fix disk can hold a finalized segment with no audio; it was
-          // reported, so the server shows it stalled, but it must not block
-          // the segments after it.
           if (wav.byteLength <= RECORD_UPLOAD_WAV_HEADER) continue;
           allLanded = false;
           const ackedBefore = acked;
@@ -287,8 +300,6 @@ export function useRecordUpload(args: {
             signal: abort.signal,
             onProgress: (chunks) => {
               if (cancelled) return;
-              // Publish mid-pass: the pass runs as long as every segment's
-              // upload, and a person watching sees only what this publishes.
               const live: SegmentSave = {
                 take,
                 segment: segmentIndex,
@@ -296,16 +307,14 @@ export function useRecordUpload(args: {
                 chunks,
                 landFailed: false,
               };
-              setProgress((prev) => ({
-                ...prev,
-                acked: ackedBefore + chunks.acked,
-                total: totalBefore + chunks.total,
-                fileAck: false,
-                landed: false,
-                uploading: true,
-                pending: false,
-                segments: mergeSegmentSaves(prev.segments, [...segments, live]),
-              }));
+              this.observe({
+                kind: "chunk-progress",
+                ackedBefore,
+                totalBefore,
+                chunks,
+                live,
+                passSegments: segments,
+              });
             },
           });
           acked += result.acked;
@@ -347,25 +356,28 @@ export function useRecordUpload(args: {
           const recoveryError = [abandonedError, expiredError]
             .filter(Boolean)
             .join(" ");
-          setProgress({
-            acked,
-            total,
-            fileAck: saw && allAcked,
-            landed: saw && allAcked && allLanded && !landFailed,
-            landFailed,
-            reclaimFailed: keeperReclaimStuck(reclaim.current),
-            reclaimMismatch,
-            uploading: (awaitingAck && !stalled) || finalizing,
-            pending: false,
-            recoverable,
-            segments,
-            error:
-              (recoveryError || null) ??
-              (!saw && stopped && current.captureExpected !== false
-                ? "No full-quality recording was captured. Check this device's copy before leaving."
-                : stalled
-                  ? UPLOAD_STALLED_COPY
-                  : null),
+          this.observe({
+            kind: "pass-complete",
+            progress: {
+              acked,
+              total,
+              fileAck: saw && allAcked,
+              landed: saw && allAcked && allLanded && !landFailed,
+              landFailed,
+              reclaimFailed: keeperReclaimStuck(reclaim),
+              reclaimMismatch,
+              uploading: (awaitingAck && !stalled) || finalizing,
+              pending: false,
+              recoverable,
+              segments,
+              error:
+                (recoveryError || null) ??
+                (!saw && stopped && current.captureExpected !== false
+                  ? "No full-quality recording was captured. Check this device's copy before leaving."
+                  : stalled
+                    ? UPLOAD_STALLED_COPY
+                    : null),
+            },
           });
         }
       } catch (err) {
@@ -373,12 +385,7 @@ export function useRecordUpload(args: {
           return;
         }
         if (!cancelled) {
-          setProgress((prev) => ({
-            ...prev,
-            uploading: false,
-            pending: false,
-            error: errorMessage(err),
-          }));
+          this.observe({ kind: "pass-failed", cause: err });
         }
       } finally {
         inFlight = false;
@@ -395,17 +402,86 @@ export function useRecordUpload(args: {
       abort.abort();
       window.clearInterval(timer);
     };
-  }, [
-    args.enabled,
-    args.roomState,
-    args.captureSettled,
-    args.sessionId,
-    args.takeIndex,
-    args.participantId,
-    args.transport,
-    args.sink,
-    args.retryNonce,
-  ]);
+  }
+}
+
+export function useRecordUpload(args: UploadArgs): RecordUploadProgress {
+  const [progress, setProgress] = useState<RecordUploadProgress>(EMPTY);
+  const argsRef = useRef(args);
+  const reclaim = useRef(createKeeperReclaimTracker());
+  const [poller] = useState(
+    () =>
+      new UploadPoller((event) => {
+        switch (event.kind) {
+          case "inactive":
+            setProgress(EMPTY);
+            break;
+          case "active":
+            setProgress((prev) => ({ ...prev, pending: true, error: null }));
+            break;
+          case "chunk-progress":
+            setProgress((prev) => ({
+              ...prev,
+              acked: event.ackedBefore + event.chunks.acked,
+              total: event.totalBefore + event.chunks.total,
+              fileAck: false,
+              landed: false,
+              uploading: true,
+              pending: false,
+              segments: mergeSegmentSaves(prev.segments, [
+                ...event.passSegments,
+                event.live,
+              ]),
+            }));
+            break;
+          case "pass-complete":
+            setProgress(event.progress);
+            break;
+          case "pass-failed":
+            setProgress((prev) => ({
+              ...prev,
+              uploading: false,
+              pending: false,
+              error: errorMessage(event.cause),
+            }));
+            break;
+        }
+      }),
+  );
+  useInsertionEffect(() => {
+    argsRef.current = args;
+  }, [args]);
+
+  useEffect(
+    () =>
+      poller.acquire(
+        {
+          enabled: args.enabled,
+          roomState: args.roomState,
+          captureSettled: args.captureSettled,
+          sessionId: args.sessionId,
+          takeIndex: args.takeIndex,
+          participantId: args.participantId,
+          transport: args.transport,
+          sink: args.sink,
+          retryNonce: args.retryNonce,
+        },
+        () => argsRef.current,
+        reclaim.current,
+      ),
+    [
+      poller,
+      args.enabled,
+      args.roomState,
+      args.captureSettled,
+      args.sessionId,
+      args.takeIndex,
+      args.participantId,
+      args.transport,
+      args.sink,
+      args.retryNonce,
+    ],
+  );
 
   return progress;
 }
