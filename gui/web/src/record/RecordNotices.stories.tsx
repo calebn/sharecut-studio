@@ -1,31 +1,20 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { type ReactNode, useLayoutEffect, useState } from "react";
 import { expect, waitFor, within } from "storybook/test";
 import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { StorageHeadroomWarning } from "./StorageHeadroomWarning";
 
-function StorageEstimate({
-  estimate,
-  children,
-}: {
-  estimate: { quota: number; usage: number } | null;
-  children: ReactNode;
-}) {
-  const [ready, setReady] = useState(false);
-  useLayoutEffect(() => {
-    const original = Object.getOwnPropertyDescriptor(navigator, "storage");
-    Object.defineProperty(navigator, "storage", {
-      configurable: true,
-      value: estimate ? { estimate: () => Promise.resolve(estimate) } : {},
-    });
-    setReady(true);
-    return () => {
-      setReady(false);
-      if (original) Object.defineProperty(navigator, "storage", original);
-      else Reflect.deleteProperty(navigator, "storage");
-    };
-  }, [estimate]);
-  return ready ? children : null;
+function installStorageEstimate(
+  estimate: { quota: number; usage: number } | null,
+) {
+  const original = Object.getOwnPropertyDescriptor(navigator, "storage");
+  Object.defineProperty(navigator, "storage", {
+    configurable: true,
+    value: estimate ? { estimate: () => Promise.resolve(estimate) } : {},
+  });
+  return () => {
+    if (original) Object.defineProperty(navigator, "storage", original);
+    else Reflect.deleteProperty(navigator, "storage");
+  };
 }
 
 const meta: Meta = {
@@ -37,11 +26,9 @@ export default meta;
 type Story = StoryObj;
 
 export const StorageLow: Story = {
-  render: () => (
-    <StorageEstimate estimate={{ quota: 400_000_000, usage: 100_000_000 }}>
-      <StorageHeadroomWarning />
-    </StorageEstimate>
-  ),
+  beforeEach: () =>
+    installStorageEstimate({ quota: 400_000_000, usage: 100_000_000 }),
+  render: () => <StorageHeadroomWarning />,
   play: async ({ canvasElement }) => {
     const status = await within(canvasElement).findByRole("status");
     await waitFor(() => expect(status).not.toBeEmptyDOMElement());
@@ -49,11 +36,8 @@ export const StorageLow: Story = {
 };
 
 export const StorageUnknown: Story = {
-  render: () => (
-    <StorageEstimate estimate={null}>
-      <StorageHeadroomWarning />
-    </StorageEstimate>
-  ),
+  beforeEach: () => installStorageEstimate(null),
+  render: () => <StorageHeadroomWarning />,
   play: async ({ canvasElement }) => {
     const status = await within(canvasElement).findByRole("status");
     await waitFor(() => expect(status).not.toBeEmptyDOMElement());
