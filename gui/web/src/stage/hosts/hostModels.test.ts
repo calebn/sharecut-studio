@@ -1,9 +1,28 @@
 import { describe, expect, it } from "vitest";
-import { hostStateOf } from "./hostModels";
+import { hostStateOf, stageAvailable } from "./hostModels";
 
-const failure = { message: "No answer.", onRetry: () => {} };
+describe("stageAvailable", () => {
+  it.each([
+    ["host", ["record", "prepare", "edit", "review", "deliver"]],
+    ["editor", ["edit", "review", "deliver"]],
+    ["commenter", ["review"]],
+    ["viewer", ["review"]],
+  ] as const)("%s opens only its stages", (role, open) => {
+    for (const stage of [
+      "record",
+      "prepare",
+      "edit",
+      "review",
+      "deliver",
+    ] as const) {
+      expect(stageAvailable(stage, role)).toBe(open.includes(stage as never));
+    }
+  });
+});
 
 describe("hostStateOf", () => {
+  const failure = { message: "No answer.", onRetry: () => {} };
+
   it("is loading with no project and no failure", () => {
     expect(hostStateOf(null, null)).toBe("loading");
   });
