@@ -511,7 +511,7 @@ describe("palette coverage of the removed menus", () => {
   beforeEach(() => {
     stubViewportShell("desktop");
     registerDawCommands();
-    useRecordHostStore.setState({ snapshot: null });
+    useRecordHostStore.getState().setSnapshot(null);
     vi.mocked(listRecentProjects).mockReset();
     vi.mocked(listRecentProjects).mockResolvedValue([]);
     useDawStore.setState(presenceProjectInitial());

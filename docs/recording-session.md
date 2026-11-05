@@ -612,6 +612,32 @@ Two clocks per take: **wall offset** (`now − session_start`) and **recording
 clock** (`recording_ms = wall_ms − Σ(resume − pause)`). `join_offset_ms` is
 always recording-clock.
 
+Browser keeper snapshots carry a local wall-clock origin in the same accepted
+value. The host stamps it inside the existing accepted `setSnapshot` action;
+the guest stamps it in the decoded non-null snapshot branch before scheduling
+React state. A delayed first render therefore cannot discard elapsed recording
+time. These are local receipts, with no network-delay or server-skew correction.
+The existing host stale/equal rejection and guest frame-admission rules remain
+distinct.
+
+The keeper origin belongs to the **current snapshot identity**. Reaccepting that
+same object retains its wall origin; leaving it and later accepting it again
+starts a new origin. The host's monotonic `receivedAtMs` still refreshes on each
+accepted publication, including a same-object publication. Null clears the host
+cohort; guest missing/null frames retain the previous value. Neither the host
+preview clock nor the guest's passive UI receipt clock supplies keeper time.
+
+Keeper operation inputs publish only on commit. A normal gate samples the
+current wall time before entering its storage queue; Retry samples inside its
+queued retry. Already captured loss/reconnect gates retain their numerical
+times, and receipt-only updates do not restart capture or enqueue another gate.
+The actual host/guest caller controls in `keeperIngress.integration.test.tsx`
+check coherent consent/participant inputs, nonempty synthetic PCM, and finalized
+metadata against the server recording-clock oracle. They preserve same-object
+and S→T→S identity behavior separately. These local doubles do not establish
+device, acoustic or transport-latency equivalence; existing listening and device
+requirements still apply.
+
 Each participant gets a `participant_id` **minted by the host** at lobby
 entry, bound to that token, and leased to one tab. The client may cache it in
 `record:{token}:participant` (same token-scoped pattern as guest

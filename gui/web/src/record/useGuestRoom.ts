@@ -101,12 +101,20 @@ export function useGuestRoom(
   }, [bootstrap, episodeName, heading]);
 
   const syncName = name.trim() || (producer ? "Producer" : "Guest");
-  const { snapshot, me, send, error, clearError, connected, lease } =
-    useRecordSync(
-      token,
-      syncName,
-      !!bootstrap && (!producer || producerJoined),
-    );
+  const {
+    snapshot,
+    acceptedSnapshot,
+    me,
+    send,
+    error,
+    clearError,
+    connected,
+    lease,
+  } = useRecordSync(
+    token,
+    syncName,
+    !!bootstrap && (!producer || producerJoined),
+  );
   const accessEnded = isRecordAccessEnded(error);
   const inviteClosed = error === RECORD_INVITE_CLOSED;
   const liveComments = useRecordLiveComments({
@@ -194,7 +202,7 @@ export function useGuestRoom(
   const keeper = useKeeperCapture({
     enabled: captureEnabled && sink !== null,
     role: "guest",
-    snapshot,
+    acceptedSnapshot,
     participantId: me?.participant_id ?? null,
     muted: me?.muted ?? false,
     consented: me?.consented ?? null,

@@ -81,7 +81,7 @@ beforeEach(() => {
   stubViewportShell("desktop");
   clearRegisteredCommands();
   registerDawCommands();
-  useRecordHostStore.setState({ snapshot: null });
+  useRecordHostStore.getState().setSnapshot(null);
   useDawStore.setState({ pipelineJob: null });
 });
 
@@ -536,15 +536,13 @@ describe("Record host", () => {
 
   it("mounts the Room view inside the shell for an open room", () => {
     asHost("record");
-    useRecordHostStore.setState({
-      snapshot: {
-        session_id: "s",
-        state: "recording",
-        take_index: 0,
-        recording_ms: 5000,
-        participants: [],
-        caps: { recorded: 0, producers: 0 },
-      },
+    useRecordHostStore.getState().setSnapshot({
+      session_id: "s",
+      state: "recording",
+      take_index: 0,
+      recording_ms: 5000,
+      participants: [],
+      caps: { recorded: 0, producers: 0 },
     });
     mount();
     expect(screen.queryByRole("heading", { level: 1 })).toBeNull();

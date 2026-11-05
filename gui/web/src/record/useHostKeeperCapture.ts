@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { isShareProjectKey } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import { readLocal, writeLocal } from "../utils/storage";
@@ -9,12 +10,24 @@ import { sendRecordHostCommand } from "./hostWire";
 import type { TakeClipping } from "./keeper/clipRegions";
 import { useKeeperCapture } from "./keeper/useKeeperCapture";
 import { type MicPermissionStatus, statusFromGumError } from "./micPermission";
-import { hostKeeperResetKey, type RecordSnapshot } from "./types";
+import {
+  type AcceptedRecordSnapshot,
+  EMPTY_ACCEPTED_RECORD_SNAPSHOT,
+  hostKeeperResetKey,
+  type RecordSnapshot,
+} from "./types";
 import { keeperCaptureSettled } from "./upload/useRecordUpload";
 import { useMicStream } from "./useMicStream";
 import { useTakeClipping } from "./useTakeClipping";
 
 const HOST_MIC_KEY = "record:host:mic";
+
+function selectKeeperSnapshot(
+  state: ReturnType<typeof useRecordHostStore.getState>,
+): AcceptedRecordSnapshot {
+  if (state.snapshot === null) return EMPTY_ACCEPTED_RECORD_SNAPSHOT;
+  return { snapshot: state.snapshot, acceptedAtWallMs: state.acceptedAtWallMs };
+}
 
 export function useHostKeeperCapture(enabled = true): {
   error: string | null;
@@ -40,7 +53,8 @@ export function useHostKeeperCapture(enabled = true): {
   clipping: TakeClipping | null;
 } {
   const { projectPath } = useDaw((s) => ({ projectPath: s.projectPath }));
-  const snapshot = useRecordHostStore((s) => s.snapshot);
+  const acceptedSnapshot = useRecordHostStore(useShallow(selectKeeperSnapshot));
+  const snapshot = acceptedSnapshot.snapshot;
   const setSnapshot = useRecordHostStore((s) => s.setSnapshot);
   const connected = useRecordHostStore((s) => s.connected);
   const sink = useRecordHostStore((s) => s.keeperSink);
@@ -101,7 +115,7 @@ export function useHostKeeperCapture(enabled = true): {
   const keeper = useKeeperCapture({
     enabled: hostOn && keeperLive && sink !== null,
     role: "host",
-    snapshot,
+    acceptedSnapshot,
     participantId: hostOn && keeperLive ? "p_host" : null,
     muted: host?.muted ?? false,
     consented: true,

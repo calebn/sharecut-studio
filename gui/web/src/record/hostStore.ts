@@ -8,9 +8,15 @@ import {
   shouldApplyRecordSnapshot,
 } from "./types";
 
-type RecordHostState = {
-  snapshot: RecordSnapshot | null;
-  receivedAtMs: number | null;
+type HostSnapshotFields =
+  | { snapshot: null; acceptedAtWallMs: null; receivedAtMs: null }
+  | {
+      snapshot: RecordSnapshot;
+      acceptedAtWallMs: number;
+      receivedAtMs: number;
+    };
+
+type RecordHostState = HostSnapshotFields & {
   connected: boolean;
   /** The record socket was open and has since closed (a drop, not the first connect). */
   dropped: boolean;
@@ -38,6 +44,7 @@ type RecordHostState = {
 
 export const useRecordHostStore = create<RecordHostState>((set) => ({
   snapshot: null,
+  acceptedAtWallMs: null,
   receivedAtMs: null,
   connected: false,
   dropped: false,
@@ -75,7 +82,14 @@ export const useRecordHostStore = create<RecordHostState>((set) => ({
         timelineViewportRegistry.setVisualPan(null);
         timelineViewportRegistry.setLayoutProjection(null);
       }
-      return { snapshot, receivedAtMs: snapshot ? performance.now() : null };
+      if (snapshot === null) {
+        return { snapshot: null, acceptedAtWallMs: null, receivedAtMs: null };
+      }
+      const acceptedAtWallMs =
+        state.snapshot !== null && state.snapshot === snapshot
+          ? state.acceptedAtWallMs
+          : Date.now();
+      return { snapshot, acceptedAtWallMs, receivedAtMs: performance.now() };
     }),
   setConnected: (connected) =>
     set((state) => ({

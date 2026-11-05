@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FakeWebSocket } from "../test/fakeWebSocket";
+import { recordParticipant, recordSnapshot } from "../test/fixtures";
 import { subscribeRecordSignal } from "./monitor/signalBus";
 import {
   isRecordAccessEnded,
@@ -476,5 +477,94 @@ describe("useRecordSync", () => {
       ws.emit({ type: "Error", plane: "record", code: "join_first" });
     });
     expect(result.current.error).toBe("room_full");
+  });
+});
+
+describe("accepted guest snapshot clock cohort", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(1000);
+    FakeWebSocket.reset();
+    sessionStorage.clear();
+    loadRecordParticipant.mockReset();
+    loadRecordParticipant.mockResolvedValue(undefined);
+    saveRecordParticipant.mockReset();
+    saveRecordParticipant.mockResolvedValue(undefined);
+    clearRecordParticipant.mockReset();
+    clearRecordParticipant.mockResolvedValue(undefined);
+    vi.stubGlobal("WebSocket", FakeWebSocket as unknown as typeof WebSocket);
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it("pairs event time with the decoded value and retains the cohort through non-snapshot updates", async () => {
+    const { result, rerender } = renderHook(
+      ({ token, enabled }) => useRecordSync(token, "Guest", enabled),
+      { initialProps: { token: "clock-token", enabled: true } },
+    );
+    await act(async () => {});
+    const socket = FakeWebSocket.instances[0];
+    expect(socket).toBeDefined();
+    const snapshot = recordSnapshot({
+      participants: [
+        recordParticipant({ participant_id: "p_g", consented: true }),
+      ],
+      server_time_ns: 10,
+    });
+    await act(async () => {
+      socket.emit({
+        type: "Echo",
+        plane: "record",
+        participant_id: "p_g",
+        lease: "clock-lease",
+      });
+      socket.emit({ type: "Snapshot", plane: "record", snapshot });
+      vi.setSystemTime(2000);
+    });
+    const accepted = result.current.acceptedSnapshot;
+    expect(accepted.acceptedAtWallMs).toBe(1000);
+    expect(accepted.snapshot).toBe(result.current.snapshot);
+    expect(result.current.me?.participant_id).toBe("p_g");
+    await act(async () => {
+      socket.emit({ type: "Snapshot", plane: "record" });
+      socket.emit({ type: "Snapshot", plane: "record", snapshot: null });
+      socket.emit({ type: "Error", plane: "record", code: "invalid_state" });
+    });
+    expect(result.current.acceptedSnapshot).toBe(accepted);
+    expect(result.current.error).toBe("invalid_state");
+    rerender({ token: "replacement-token", enabled: false });
+    expect(result.current.acceptedSnapshot).toBe(accepted);
+    expect(result.current.snapshot).toBe(accepted.snapshot);
+  });
+
+  it("continues admitting distinct equal and older decoded frames without host filtering", async () => {
+    const { result } = renderHook(() => useRecordSync("clock-token", "Guest"));
+    await act(async () => {});
+    const socket = FakeWebSocket.instances[0];
+    const snapshot = recordSnapshot({ server_time_ns: 10 });
+    await act(async () =>
+      socket.emit({ type: "Snapshot", plane: "record", snapshot }),
+    );
+    const first = result.current.acceptedSnapshot;
+    vi.setSystemTime(3000);
+    await act(async () =>
+      socket.emit({ type: "Snapshot", plane: "record", snapshot }),
+    );
+    expect(result.current.acceptedSnapshot).not.toBe(first);
+    expect(result.current.snapshot).not.toBe(first.snapshot);
+    expect(result.current.acceptedSnapshot.acceptedAtWallMs).toBe(3000);
+    vi.setSystemTime(4000);
+    await act(async () =>
+      socket.emit({
+        type: "Snapshot",
+        plane: "record",
+        snapshot: { ...snapshot, server_time_ns: 1 },
+      }),
+    );
+    expect(result.current.snapshot?.server_time_ns).toBe(1);
+    expect(result.current.acceptedSnapshot.acceptedAtWallMs).toBe(4000);
   });
 });

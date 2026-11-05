@@ -10,6 +10,7 @@ import { useMountedRef } from "../../hooks/useMountedRef";
 import { errorMessage } from "../../utils/apiError";
 import { recordingClockMs } from "../clock";
 import {
+  type AcceptedRecordSnapshot,
   MAX_REPORTED_SEGMENTS,
   type RecordRole,
   type RecordSnapshot,
@@ -23,7 +24,7 @@ import { type ByteSink, createOpfsSink } from "./store";
 type Args = {
   enabled: boolean;
   role: RecordRole;
-  snapshot: RecordSnapshot | null;
+  acceptedSnapshot: AcceptedRecordSnapshot;
   participantId: string | null;
   muted: boolean;
   consented: boolean | null;
@@ -45,10 +46,31 @@ type CapturedGate = {
   recordingMs: number;
 };
 
+type CommittedGateInput = AcceptedRecordSnapshot &
+  Omit<CapturedGate, "snapshot" | "recordingMs">;
+
+function capturedGateAt(
+  input: CommittedGateInput,
+  nowWallMs: number,
+): CapturedGate {
+  return {
+    role: input.role,
+    snapshot: input.snapshot,
+    participantId: input.participantId,
+    muted: input.muted,
+    consented: input.consented,
+    streamAvailable: input.streamAvailable,
+    recordingMs:
+      input.snapshot === null
+        ? 0
+        : recordingClockMs(input.snapshot, nowWallMs - input.acceptedAtWallMs),
+  };
+}
+
 export function useKeeperCapture({
   enabled,
   role,
-  snapshot,
+  acceptedSnapshot,
   participantId,
   muted,
   consented,
@@ -68,6 +90,7 @@ export function useKeeperCapture({
   /** Live clip regions of the current take, from the encoder. */
   clipping: TakeClipping | null;
 } {
+  const snapshot = acceptedSnapshot.snapshot;
   const [error, setError] = useState<string | null>(null);
   const [clipping, setClipping] = useState<TakeClipping | null>(null);
   const clipSegments = useRef<{
@@ -159,7 +182,10 @@ export function useKeeperCapture({
     [],
   );
   const reportStopped = useCallback(
-    (session: KeeperSession, gate: CapturedGate) => {
+    (
+      session: KeeperSession,
+      gate: Pick<CapturedGate, "snapshot" | "participantId">,
+    ) => {
       if (gate.snapshot?.state === "stopped" && gate.participantId) {
         const takeIndex = gate.snapshot.take_index;
         sendReport(
@@ -171,40 +197,22 @@ export function useKeeperCapture({
     },
     [sendReport],
   );
-  const clockRef = useRef({ snapshot, receivedAt: Date.now() });
-  if (clockRef.current.snapshot !== snapshot) {
-    clockRef.current = { snapshot, receivedAt: Date.now() };
-  }
-  const gateRef = useRef<CapturedGate>({
+  const committedGate: CommittedGateInput = {
+    ...acceptedSnapshot,
     role,
-    snapshot,
     participantId,
     muted,
     consented,
     streamAvailable: stream !== null,
-    recordingMs: 0,
-  });
-  gateRef.current = {
-    role,
-    snapshot,
-    participantId,
-    muted,
-    consented,
-    streamAvailable: stream !== null,
-    recordingMs: 0,
   };
-  const captureGate = useCallback((): CapturedGate => {
-    const gate = gateRef.current;
-    return {
-      ...gate,
-      recordingMs: gate.snapshot
-        ? recordingClockMs(
-            gate.snapshot,
-            Date.now() - clockRef.current.receivedAt,
-          )
-        : 0,
-    };
-  }, []);
+  const gateRef = useRef(committedGate);
+  useInsertionEffect(() => {
+    gateRef.current = committedGate;
+  }, [committedGate]);
+  const captureGate = useCallback(
+    (): CapturedGate => capturedGateAt(gateRef.current, Date.now()),
+    [],
+  );
   const markUnfinalizedCapture = useCallback((value: boolean) => {
     unfinalizedCaptureRef.current = value;
     setUnfinalizedCapture(value);

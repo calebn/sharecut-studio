@@ -62,8 +62,8 @@ describe("useHostRoom", () => {
     send.mockClear();
     vi.mocked(executePointerCommand).mockReset();
     vi.mocked(executePointerCommand).mockResolvedValue({ status: "ok" });
+    useRecordHostStore.getState().setSnapshot(null);
     useRecordHostStore.setState({
-      snapshot: null,
       connected: false,
       dropped: false,
       transportError: null,
@@ -151,7 +151,7 @@ describe("useHostRoom", () => {
     );
     await waitFor(() => expect(result.current.roomLookup).toBe("failed"));
     const live = recordSnapshot({ server_time_ns: 20, participants: [host] });
-    act(() => useRecordHostStore.setState({ snapshot: live }));
+    act(() => useRecordHostStore.getState().setSnapshot(live));
     rerender({ on: false });
     expect(result.current.roomLookup).toBe("failed");
     expect(result.current.hydrateError).toBe("lookup failed");
@@ -199,9 +199,11 @@ describe("useHostRoom", () => {
     act(() => result.current.recheck());
     expect(result.current.roomLookup).toBe("found");
     act(() =>
-      useRecordHostStore.setState({
-        snapshot: recordSnapshot({ server_time_ns: 30, participants: [host] }),
-      }),
+      useRecordHostStore
+        .getState()
+        .setSnapshot(
+          recordSnapshot({ server_time_ns: 30, participants: [host] }),
+        ),
     );
     await act(async () => second.resolve(null));
     expect(result.current.roomLookup).toBe("none");
@@ -288,9 +290,11 @@ describe("useHostRoom", () => {
   });
 
   it("derives mic-loss attention only while on air", async () => {
-    useRecordHostStore.setState({
-      snapshot: recordSnapshot({ state: "recording", participants: [host] }),
-    });
+    useRecordHostStore
+      .getState()
+      .setSnapshot(
+        recordSnapshot({ state: "recording", participants: [host] }),
+      );
     const { result, rerender } = renderHook(
       ({ lost }) => useHostRoom({ micLost: lost }),
       { initialProps: { lost: true } },
@@ -313,24 +317,24 @@ describe("useHostRoom", () => {
     });
     const expected = () =>
       vi.mocked(useRecordUpload).mock.lastCall?.[0].captureExpected;
-    useRecordHostStore.setState({
-      snapshot: recordSnapshot({
+    useRecordHostStore.getState().setSnapshot(
+      recordSnapshot({
         state: "stopped",
         take_index: 1,
         participants: [host],
         takes: [take(["p_g"])],
       }),
-    });
+    );
     const { rerender } = renderHook(() => useHostRoom());
     expect(expected()).toBe(false);
-    useRecordHostStore.setState({
-      snapshot: recordSnapshot({
+    useRecordHostStore.getState().setSnapshot(
+      recordSnapshot({
         state: "stopped",
         take_index: 1,
         participants: [host],
         takes: [take(["p_host", "p_g"])],
       }),
-    });
+    );
     rerender();
     expect(expected()).toBe(true);
     await act(async () => undefined);

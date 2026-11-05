@@ -11,7 +11,11 @@ import { openPlaneSocket, type PlaneSocketContext } from "../sync/planeSocket";
 import { useStableCallback } from "../utils/useStableCallback";
 import { isTerminalWsClose } from "../utils/wsClose";
 import { emitRecordSignal, isRecordSignal } from "./monitor/signalBus";
-import type { RecordSnapshot } from "./types";
+import {
+  type AcceptedRecordSnapshot,
+  EMPTY_ACCEPTED_RECORD_SNAPSHOT,
+  type RecordSnapshot,
+} from "./types";
 
 function recordWsUrl(token: string, clientId: string, name: string): string {
   const proto = window.location.protocol === "https:" ? "wss" : "ws";
@@ -109,7 +113,9 @@ export function useRecordSync(
   displayName: string,
   enabled = true,
 ) {
-  const [snapshot, setSnapshot] = useState<RecordSnapshot | null>(null);
+  const [acceptedSnapshot, setAcceptedSnapshot] =
+    useState<AcceptedRecordSnapshot>(EMPTY_ACCEPTED_RECORD_SNAPSHOT);
+  const snapshot = acceptedSnapshot.snapshot;
   const [error, setError] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
   const [meId, setMeId] = useState<string | null>(null);
@@ -261,7 +267,13 @@ export function useRecordSync(
             });
           }
           if (msg.snapshot) {
-            setSnapshot(msg.snapshot);
+            const snapshot = msg.snapshot;
+            const acceptedAtWallMs = Date.now();
+            setAcceptedSnapshot((previous) =>
+              previous.snapshot === snapshot
+                ? previous
+                : { snapshot, acceptedAtWallMs },
+            );
           }
         },
       },
@@ -289,5 +301,14 @@ export function useRecordSync(
 
   const me =
     snapshot?.participants.find((p) => p.participant_id === meId) ?? null;
-  return { snapshot, me, send, error, clearError, connected, lease };
+  return {
+    snapshot,
+    acceptedSnapshot,
+    me,
+    send,
+    error,
+    clearError,
+    connected,
+    lease,
+  };
 }

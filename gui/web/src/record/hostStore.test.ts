@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { timelineViewportRegistry } from "../state/timelineViewportRegistry";
 import { recordSnapshot } from "../test/fixtures";
 import { useRecordHostStore } from "./hostStore";
@@ -104,5 +104,103 @@ describe("record host preview lifetime", () => {
     expect(useRecordHostStore.getState().dropped).toBe(true);
     expect(timelineViewportRegistry.getVisualPan()).toBe(pan);
     expect(timelineViewportRegistry.getLayoutProjection()).toBe(projection);
+  });
+});
+
+describe("accepted host snapshot clock cohort", () => {
+  beforeEach(() => {
+    useRecordHostStore.getState().setSnapshot(null);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(1000);
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+    useRecordHostStore.getState().setSnapshot(null);
+  });
+
+  it("publishes a coherent cohort atomically and samples nothing for rejected or null snapshots", () => {
+    const wall = vi.spyOn(Date, "now");
+    const monotonic = vi.spyOn(performance, "now").mockReturnValue(100);
+    const snapshot = recordSnapshot({ server_time_ns: 10 });
+    const seen: {
+      snapshot: RecordSnapshot | null;
+      acceptedAtWallMs: number | null;
+      receivedAtMs: number | null;
+    }[] = [];
+    const unsubscribe = useRecordHostStore.subscribe((state) => {
+      seen.push({
+        snapshot: state.snapshot,
+        acceptedAtWallMs: state.acceptedAtWallMs,
+        receivedAtMs: state.receivedAtMs,
+      });
+    });
+    try {
+      useRecordHostStore.getState().setSnapshot(snapshot);
+      expect(seen).toEqual([
+        { snapshot, acceptedAtWallMs: 1000, receivedAtMs: 100 },
+      ]);
+      const accepted = useRecordHostStore.getState();
+      const wallReads = wall.mock.calls.length;
+      const monotonicReads = monotonic.mock.calls.length;
+      vi.setSystemTime(2000);
+      for (const stale of [
+        recordSnapshot({ server_time_ns: 9 }),
+        recordSnapshot({ server_time_ns: 10 }),
+        recordSnapshot(),
+      ]) {
+        useRecordHostStore.getState().setSnapshot(stale);
+        expect(useRecordHostStore.getState()).toBe(accepted);
+      }
+      expect(seen).toHaveLength(1);
+      expect(wall).toHaveBeenCalledTimes(wallReads);
+      expect(monotonic).toHaveBeenCalledTimes(monotonicReads);
+      useRecordHostStore.getState().setSnapshot(null);
+      expect(seen.at(-1)).toEqual({
+        snapshot: null,
+        acceptedAtWallMs: null,
+        receivedAtMs: null,
+      });
+      expect(wall).toHaveBeenCalledTimes(wallReads);
+      expect(monotonic).toHaveBeenCalledTimes(monotonicReads);
+      monotonic.mockReturnValue(250);
+      const replacement = recordSnapshot({
+        session_id: "replacement",
+        server_time_ns: 1,
+      });
+      useRecordHostStore.getState().setSnapshot(replacement);
+      expect(seen.at(-1)).toEqual({
+        snapshot: replacement,
+        acceptedAtWallMs: 2000,
+        receivedAtMs: 250,
+      });
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it("retains wall origin for the current identity while monotonic preview receipts keep advancing", () => {
+    const monotonic = vi.spyOn(performance, "now").mockReturnValue(100);
+    const first = recordSnapshot();
+    useRecordHostStore.getState().setSnapshot(first);
+    vi.setSystemTime(2000);
+    monotonic.mockReturnValue(200);
+    useRecordHostStore.getState().setSnapshot(first);
+    expect(useRecordHostStore.getState()).toMatchObject({
+      snapshot: first,
+      acceptedAtWallMs: 1000,
+      receivedAtMs: 200,
+    });
+    const second = { ...first };
+    vi.setSystemTime(3000);
+    useRecordHostStore.getState().setSnapshot(second);
+    expect(useRecordHostStore.getState().acceptedAtWallMs).toBe(3000);
+    vi.setSystemTime(4000);
+    useRecordHostStore.getState().setSnapshot(first);
+    expect(useRecordHostStore.getState().acceptedAtWallMs).toBe(4000);
+    useRecordHostStore.getState().setSnapshot(null);
+    vi.setSystemTime(5000);
+    useRecordHostStore.getState().setSnapshot(first);
+    expect(useRecordHostStore.getState().acceptedAtWallMs).toBe(5000);
   });
 });

@@ -147,6 +147,13 @@ Narrative handoff selection belongs to `AnalysisService.suggest_handoff_cut`. Om
 
 ### Timebase: source vs timeline clock
 
+Recording keepers place samples using the take's recording clock. Browser
+snapshot owners publish the current snapshot together with its local wall-clock
+origin; render or commit delay must not shorten `join_offset_ms`. The host's
+monotonic preview receipt and the guest's passive UI clock remain separate.
+See [Recording session: clocks per take](recording-session.md) for accepted
+identity, gate-capture and verification rules.
+
 `util.media_identity.same_recording` compares canonical paths and existing physical
 files, including hardlinks. Inside a `batch_scope`, each distinct resolved path uses
 the first `Path.stat`. Distinct missing files prove no equivalence. Identical

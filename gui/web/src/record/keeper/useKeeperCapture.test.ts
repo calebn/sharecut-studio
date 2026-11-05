@@ -1,7 +1,11 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { recordSnapshot } from "../../test/fixtures";
-import type { RecordSnapshot } from "../types";
+import {
+  type AcceptedRecordSnapshot,
+  EMPTY_ACCEPTED_RECORD_SNAPSHOT,
+  type RecordSnapshot,
+} from "../types";
 import { KeeperSession } from "./session";
 import {
   type ByteStream,
@@ -52,13 +56,49 @@ const snap = recordSnapshot({
   recording_ms: 0,
 });
 
-const args = {
+const args: Pick<
+  Parameters<typeof useKeeperCapture>[0],
+  "role" | "acceptedSnapshot" | "participantId" | "muted" | "consented"
+> = {
   role: "guest" as const,
-  snapshot: snap,
+  acceptedSnapshot: EMPTY_ACCEPTED_RECORD_SNAPSHOT,
   participantId: "p_g",
   muted: false,
   consented: true,
 };
+
+function acceptedSnapshotAt(
+  snapshot: RecordSnapshot,
+  acceptedAtWallMs: number,
+): AcceptedRecordSnapshot {
+  return { snapshot, acceptedAtWallMs };
+}
+
+beforeEach(() => {
+  args.acceptedSnapshot = acceptedSnapshotAt(snap, Date.now());
+});
+
+function renderSnapshotHook<P extends { snapshot: RecordSnapshot }, R>(
+  useFixture: (
+    props: Omit<P, "snapshot"> & { acceptedSnapshot: AcceptedRecordSnapshot },
+  ) => R,
+  options: { initialProps: P },
+) {
+  let acceptedSnapshot = acceptedSnapshotAt(
+    options.initialProps.snapshot,
+    Date.now(),
+  );
+  const receive = ({ snapshot, ...props }: P) => {
+    if (acceptedSnapshot.snapshot !== snapshot) {
+      acceptedSnapshot = acceptedSnapshotAt(snapshot, Date.now());
+    }
+    return { ...props, acceptedSnapshot };
+  };
+  const hook = renderHook(useFixture, {
+    initialProps: receive(options.initialProps),
+  });
+  return { ...hook, rerender: (props: P) => hook.rerender(receive(props)) };
+}
 
 async function recordAudio(sink: MemorySink, path: string): Promise<void> {
   await waitFor(() => {
@@ -73,11 +113,11 @@ describe("useKeeperCapture", () => {
   it("reports activity only after the keeper is actively writing", async () => {
     const onActivity = vi.fn();
     const stream = { getTracks: () => [] } as unknown as MediaStream;
-    const { result, rerender } = renderHook(
-      ({ snapshot }: { snapshot: RecordSnapshot }) =>
+    const { result, rerender } = renderSnapshotHook(
+      ({ acceptedSnapshot }: { acceptedSnapshot: AcceptedRecordSnapshot }) =>
         useKeeperCapture({
           ...args,
-          snapshot,
+          acceptedSnapshot,
           enabled: true,
           stream,
           onActivity,
@@ -144,9 +184,14 @@ describe("useKeeperCapture", () => {
 
   it("guards navigation only while the local keeper is writing", async () => {
     const stream = { getTracks: () => [] } as unknown as MediaStream;
-    const { rerender, result, unmount } = renderHook(
-      ({ enabled, snapshot }: { enabled: boolean; snapshot: RecordSnapshot }) =>
-        useKeeperCapture({ ...args, enabled, snapshot, stream }),
+    const { rerender, result, unmount } = renderSnapshotHook(
+      ({
+        enabled,
+        acceptedSnapshot,
+      }: {
+        enabled: boolean;
+        acceptedSnapshot: AcceptedRecordSnapshot;
+      }) => useKeeperCapture({ ...args, enabled, acceptedSnapshot, stream }),
       { initialProps: { enabled: true, snapshot: snap } },
     );
 
@@ -205,9 +250,14 @@ describe("useKeeperCapture", () => {
       },
     });
     const stream = { getTracks: () => [] } as unknown as MediaStream;
-    const { rerender, result } = renderHook(
-      ({ enabled, snapshot }: { enabled: boolean; snapshot: RecordSnapshot }) =>
-        useKeeperCapture({ ...args, enabled, snapshot, stream }),
+    const { rerender, result } = renderSnapshotHook(
+      ({
+        enabled,
+        acceptedSnapshot,
+      }: {
+        enabled: boolean;
+        acceptedSnapshot: AcceptedRecordSnapshot;
+      }) => useKeeperCapture({ ...args, enabled, acceptedSnapshot, stream }),
       { initialProps: { enabled: true, snapshot: snap } },
     );
     await waitFor(() => {
@@ -261,14 +311,20 @@ describe("useKeeperCapture", () => {
       },
     });
     const stream = { getTracks: () => [] } as unknown as MediaStream;
-    const { rerender, result } = renderHook(
+    const { rerender, result } = renderSnapshotHook(
       ({
-        snapshot,
+        acceptedSnapshot,
         mic,
       }: {
-        snapshot: RecordSnapshot;
+        acceptedSnapshot: AcceptedRecordSnapshot;
         mic: MediaStream | null;
-      }) => useKeeperCapture({ ...args, enabled: true, snapshot, stream: mic }),
+      }) =>
+        useKeeperCapture({
+          ...args,
+          enabled: true,
+          acceptedSnapshot,
+          stream: mic,
+        }),
       { initialProps: { snapshot: snap, mic: stream as MediaStream | null } },
     );
     await waitFor(() => expect(result.current.recordingLocally).toBe(true));
@@ -501,20 +557,20 @@ describe("useKeeperCapture", () => {
       });
     });
     const stream = { getTracks: () => [] } as unknown as MediaStream;
-    const { rerender, result } = renderHook(
+    const { rerender, result } = renderSnapshotHook(
       ({
         resetKey,
-        snapshot,
+        acceptedSnapshot,
       }: {
         resetKey: number;
-        snapshot: RecordSnapshot;
+        acceptedSnapshot: AcceptedRecordSnapshot;
       }) =>
         useKeeperCapture({
           ...args,
           enabled: true,
           stream,
           resetKey,
-          snapshot,
+          acceptedSnapshot,
         }),
       { initialProps: { resetKey: 0, snapshot: snap } },
     );
@@ -548,6 +604,7 @@ describe("useKeeperCapture", () => {
     let blockNext = false;
     let now = 10_000;
     const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
+    args.acceptedSnapshot = acceptedSnapshotAt(snap, now);
     const apply = vi
       .spyOn(KeeperSession.prototype, "apply")
       .mockImplementation(function (this: KeeperSession, gate) {
@@ -638,12 +695,16 @@ describe("useKeeperCapture", () => {
       };
       vi.mocked(createOpfsSink).mockResolvedValueOnce(sink);
       const stream = { getTracks: () => [] } as unknown as MediaStream;
+      const acceptedSnapshot = acceptedSnapshotAt(
+        { ...snap, recording_ms: 1_000 },
+        Date.now(),
+      );
       const { result, rerender } = renderHook(
         ({ enabled }: { enabled: boolean }) =>
           useKeeperCapture({
             ...args,
             enabled,
-            snapshot: { ...snap, recording_ms: 1_000 },
+            acceptedSnapshot,
             stream,
           }),
         { initialProps: { enabled: true } },
@@ -745,19 +806,19 @@ describe("useKeeperCapture", () => {
       .mockResolvedValueOnce(new MemorySink())
       .mockResolvedValueOnce(newSink);
     const stream = { getTracks: () => [] } as unknown as MediaStream;
-    const { result, rerender } = renderHook(
+    const { result, rerender } = renderSnapshotHook(
       ({
         resetKey,
-        snapshot,
+        acceptedSnapshot,
       }: {
         resetKey: number;
-        snapshot: RecordSnapshot;
+        acceptedSnapshot: AcceptedRecordSnapshot;
       }) =>
         useKeeperCapture({
           ...args,
           enabled: true,
           resetKey,
-          snapshot,
+          acceptedSnapshot,
           stream,
         }),
       { initialProps: { resetKey: 0, snapshot: snap } },
@@ -778,9 +839,9 @@ describe("useKeeperCapture", () => {
 
   it("retains close risk if Stop fails while applying the final keeper gate", async () => {
     const stream = { getTracks: () => [] } as unknown as MediaStream;
-    const { result, rerender } = renderHook(
-      ({ snapshot }: { snapshot: RecordSnapshot }) =>
-        useKeeperCapture({ ...args, enabled: true, snapshot, stream }),
+    const { result, rerender } = renderSnapshotHook(
+      ({ acceptedSnapshot }: { acceptedSnapshot: AcceptedRecordSnapshot }) =>
+        useKeeperCapture({ ...args, enabled: true, acceptedSnapshot, stream }),
       { initialProps: { snapshot: snap } },
     );
     await waitFor(() => expect(result.current.recordingLocally).toBe(true));
@@ -807,9 +868,9 @@ describe("useKeeperCapture", () => {
     };
     vi.mocked(createOpfsSink).mockResolvedValueOnce(sink);
     const stream = { getTracks: () => [] } as unknown as MediaStream;
-    const { result, rerender } = renderHook(
-      ({ snapshot }: { snapshot: RecordSnapshot }) =>
-        useKeeperCapture({ ...args, enabled: true, snapshot, stream }),
+    const { result, rerender } = renderSnapshotHook(
+      ({ acceptedSnapshot }: { acceptedSnapshot: AcceptedRecordSnapshot }) =>
+        useKeeperCapture({ ...args, enabled: true, acceptedSnapshot, stream }),
       { initialProps: { snapshot: snap } },
     );
     await waitFor(() => expect(result.current.recordingLocally).toBe(true));
@@ -839,9 +900,9 @@ describe("useKeeperCapture", () => {
     };
     vi.mocked(createOpfsSink).mockResolvedValueOnce(sink);
     const stream = { getTracks: () => [] } as unknown as MediaStream;
-    const { result, rerender } = renderHook(
-      ({ snapshot }: { snapshot: RecordSnapshot }) =>
-        useKeeperCapture({ ...args, enabled: true, snapshot, stream }),
+    const { result, rerender } = renderSnapshotHook(
+      ({ acceptedSnapshot }: { acceptedSnapshot: AcceptedRecordSnapshot }) =>
+        useKeeperCapture({ ...args, enabled: true, acceptedSnapshot, stream }),
       { initialProps: { snapshot: snap } },
     );
     await waitFor(() => expect(result.current.recordingLocally).toBe(true));
@@ -886,6 +947,7 @@ describe("useKeeperCapture silent PCM watchdog", () => {
         "performance",
       ],
     });
+    args.acceptedSnapshot = acceptedSnapshotAt(snap, Date.now());
     track.readyState = "live";
     track.muted = false;
     tapResume.mockReset();
@@ -908,8 +970,8 @@ describe("useKeeperCapture silent PCM watchdog", () => {
   }
 
   async function setup() {
-    const hook = renderHook(
-      (props: { snapshot: RecordSnapshot; muted: boolean }) =>
+    const hook = renderSnapshotHook(
+      (props: { acceptedSnapshot: AcceptedRecordSnapshot; muted: boolean }) =>
         useKeeperCapture({
           ...args,
           ...props,
@@ -1121,11 +1183,17 @@ describe("useKeeperCapture segment reports", () => {
     consented?: boolean | null;
   };
   const mount = (reportSegments: Report, props: Props) =>
-    renderHook(
-      ({ snapshot, enabled = true, consented = true }: Props) =>
+    renderSnapshotHook(
+      ({
+        acceptedSnapshot,
+        enabled = true,
+        consented = true,
+      }: Omit<Props, "snapshot"> & {
+        acceptedSnapshot: AcceptedRecordSnapshot;
+      }) =>
         useKeeperCapture({
           ...args,
-          snapshot,
+          acceptedSnapshot,
           enabled,
           consented,
           stream,

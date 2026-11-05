@@ -107,6 +107,16 @@ export type RecordSnapshot = {
   host_offline_gap_ms?: number | null;
 };
 
+/** Snapshot paired with the local wall origin of its current accepted identity. */
+export type AcceptedRecordSnapshot =
+  | Readonly<{ snapshot: null; acceptedAtWallMs: null }>
+  | Readonly<{ snapshot: RecordSnapshot; acceptedAtWallMs: number }>;
+
+export const EMPTY_ACCEPTED_RECORD_SNAPSHOT: AcceptedRecordSnapshot = {
+  snapshot: null,
+  acceptedAtWallMs: null,
+};
+
 /** One row of the host's record-session read model (`GET /api/record/sessions`), open or ended. */
 export type RecordSessionSummary = {
   session_id: string;
