@@ -119,7 +119,7 @@ podcast track add --project /path/to/my_episode/episode.sharecut \
 When changing this repository’s Python code, follow [AGENTS.md](../../../AGENTS.md),
 [rules/engineering-standards.md](../../rules/engineering-standards.md), and
 [Poteto Git policy](../sharecut-poteto/references/git-workflow.md) (SOLID/DRY, tests with every
-change, feature branch → PR → `main`, keep README/docs/skills in sync,
+change, feature branch → PR → the base branch (`config/branches.json`), keep README/docs/skills in sync,
 `make test` ≥95% coverage).
 
 ## Agent skills (natural language)

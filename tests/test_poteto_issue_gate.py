@@ -9,7 +9,9 @@ import pytest
 
 from script_loader import load_script
 
+branches = load_script("branches", register=True)
 gate = load_script("poteto_issue_gate")
+BASE = branches.base()
 
 SHA = "a" * 40
 NEXT_SHA = "b" * 40
@@ -21,7 +23,7 @@ def _pr(sha: str = SHA) -> dict[str, Any]:
     return {
         "headRefOid": sha,
         "state": "OPEN",
-        "baseRefName": "main",
+        "baseRefName": BASE,
         "body": "Fixes #251",
         "mergeStateStatus": "CLEAN",
         "labels": [{"name": "pipeline:merging"}],
@@ -145,13 +147,13 @@ def test_gate_rejects_hold_labels_threads_wont_do_and_unmergeable_state() -> Non
 def test_gate_rejects_wrong_base_issue_and_issue_hold() -> None:
     before = _pr()
     after = _pr()
-    before["baseRefName"] = after["baseRefName"] = "release"
+    before["baseRefName"] = after["baseRefName"] = "release-x"
     after["body"] = "Fixes #252"
     issue = _issue()
     issue["labels"].append({"name": "needs-user-input"})
     verdict = gate.evaluate_gate(before, after, _checks(), [], 0, issue, [_claim()], TOKEN, NOW, 6)
     assert not verdict["mergeable"]
-    assert "PR does not target main" in verdict["blockers"]
+    assert f"PR does not target {BASE}" in verdict["blockers"]
     assert "PR body does not link the claimed issue" in verdict["blockers"]
     assert "PR body changed during gate collection" in verdict["blockers"]
     assert "hold label: needs-user-input" in verdict["blockers"]

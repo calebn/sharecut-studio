@@ -488,7 +488,7 @@ After `./install.sh`, use `source .venv/bin/activate` (or `uv run`) so `podcast`
 |------|---------|
 | [mcp.json](../.agents/mcp.json) | MCP server entry for your client |
 | [rules/engineering-standards.md](../.agents/rules/engineering-standards.md) | SOLID/DRY, tests, docs |
-| [Poteto Git policy](../.agents/skills/sharecut-poteto/references/git-workflow.md) | Feature branch → PR → `main` |
+| [Poteto Git policy](../.agents/skills/sharecut-poteto/references/git-workflow.md) | Feature branch → PR → the base branch (`config/branches.json`) |
 | [rules/gui-styling.md](../.agents/rules/gui-styling.md) | Theme tokens, rem, `@container`, consent-gated CSS exceptions |
 | [skills/](../.agents/skills/) | Episode workflows |
 

@@ -6,7 +6,7 @@ Canonical agent configuration for **any** MCP-capable client (Cursor, Claude Cod
 |------|---------|
 | [INSTRUCTIONS.md](INSTRUCTIONS.md) | How to change **this repo’s** Python code |
 | [rules/engineering-standards.md](rules/engineering-standards.md) | SOLID/DRY, tests-as-you-go, docs-in-sync |
-| [Git policy](skills/sharecut-poteto/references/git-workflow.md) | Feature branch → PR → `main` (no direct pushes to `main`) |
+| [Git policy](skills/sharecut-poteto/references/git-workflow.md) | Feature branch → PR → the base branch in `config/branches.json` (no direct pushes to `main`) |
 | [rules/gui-styling.md](rules/gui-styling.md) | Theme tokens, rem, `@container`, consent-gated CSS exceptions |
 | [rules/pstack-models.mdc](rules/pstack-models.mdc) | pstack per-role models (identical to `.cursor/rules/pstack-models.mdc`; Autopilot/cloud bake-in) |
 | [Issue claims](skills/sharecut-poteto/references/issue-claims.md) | Claiming GitHub issues (`in-progress`, `pipeline:*` stage labels, claim comment + 6-hour heartbeat) so agents don't collide |

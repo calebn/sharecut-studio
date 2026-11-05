@@ -2,7 +2,7 @@
 """Check a change against the docs-sync map in contracts/docs-sync.json.
 
 Usage:
-  python3 scripts/docs_sync.py check --range origin/main...HEAD   # the gate: exit 1 on a violation
+  python3 scripts/docs_sync.py check --range origin/<base>...HEAD   # the gate: exit 1 on a violation
   python3 scripts/docs_sync.py check --staged                     # pre-commit: warn, always exit 0
   python3 scripts/docs_sync.py table [--check]                    # AGENTS.md § Docs in sync
   python3 scripts/docs_sync.py replay --units units.jsonl         # triage merged PRs + gate health (make docs-sync-replay)
@@ -25,13 +25,14 @@ from typing import Literal
 if str(Path(__file__).resolve().parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import branches
 from path_vocab import Glob, GlobError
 
 CONTRACT_PATH = "contracts/docs-sync.json"
 AGENTS_PATH = "AGENTS.md"
 BEGIN = "<!-- docs-sync:generated -->"
 END = "<!-- /docs-sync:generated -->"
-DEFAULT_BASE = "origin/main"
+DEFAULT_BASE = f"origin/{branches.base()}"
 
 _TABLE_RE = re.compile(re.escape(BEGIN) + r"\n(.*?)\n" + re.escape(END), re.S)
 _ID_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
@@ -274,7 +275,7 @@ class Waiver:
 class Change:
     """What one PR (or branch-so-far, or replay unit) changed, and the waivers it carries."""
 
-    label: str  # "origin/main...HEAD", "index", "#744"
+    label: str  # "origin/<base>...HEAD", "index", "#744"
     files: tuple[str, ...]  # --no-renames: a rename contributes both paths
     waivers: tuple[Waiver, ...] = ()
     # Changed lines (added + deleted) per path, from `git diff --numstat`. Only replay's
@@ -419,9 +420,9 @@ def load_contract(rev: str | None) -> Contract:
 
 
 def _resolve_base(preferred: str = DEFAULT_BASE) -> str:
-    """merge-base(preferred, HEAD), falling back to ``main`` (no ``origin`` remote) and then
+    """merge-base(preferred, HEAD), falling back to the local base branch (no ``origin`` remote) and then
     to HEAD itself (a shallow or single-commit clone), so the hook never hard-fails offline."""
-    for ref in (preferred, "main"):
+    for ref in (preferred, branches.base()):
         try:
             return git("merge-base", ref, "HEAD").strip()
         except subprocess.CalledProcessError:
@@ -532,7 +533,7 @@ _OUTCOME_ORDER: tuple[Outcome, ...] = ("violated", "satisfied", "waived", "advis
 def format_report(report: Report) -> str:
     """Text for humans and CI logs. Literal shape:
 
-    docs-sync origin/main...HEAD: 2 fired (1 violated, 1 satisfied)
+    docs-sync origin/develop...HEAD: 2 fired (1 violated, 1 satisfied)
       VIOLATED  ux-pack  UX onboarding pack (shareable site)
                 triggered by: docs/ui-philosophy.md
                 update one of: ux/, ux/pages/, ...
@@ -690,7 +691,7 @@ def _cmd_check(args: argparse.Namespace) -> int:
         return 1 if report.blocking else 0
 
     # --staged: warn only, never fails the commit. CI's `check --range` is the gate, so any
-    # failure here (a malformed contract, no origin/main or main to diff against, a git
+    # failure here (a malformed contract, no base branch to diff against, a git
     # failure) is a warning on stderr, not a blocked commit.
     try:
         change = change_for_index()

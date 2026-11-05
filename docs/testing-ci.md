@@ -2,36 +2,71 @@
 
 What each CI job runs, which jobs a run needs, and the browser acceptance matrix. [testing.md](testing.md) keeps the test commands, quality tooling and coverage policy.
 
-## Superseded PRs and main bursts
+## Superseded PRs and develop bursts
 
 The test, desktop, Storybook, extras-import, secret-scan,
 registry-backup-windows, and relay-ci workflows cancel a superseded first-attempt
 PR run in the same workflow and PR group. A rerun gets its own group so rerunning
 an older head cannot cancel the latest head's checks.
 
-First-attempt pushes to `main` share one group per workflow and do not cancel the running run.
+First-attempt pushes to `main` share one group per workflow and pushes to `develop` another (`<workflow>-main`, `<workflow>-develop`); neither cancels the running run.
+Storybook is the exception: it coalesces pushes to `main`, the only branch it deploys from.
 GitHub keeps at most one running and one pending run in each group, replacing an
 older pending run when another arrives. A burst can therefore discard intermediate runs. The last run to enter the
 pending slot is retained, which can be an older commit because GitHub does not
 guarantee dispatch ordering. Coalescing does not guarantee validation of the
-current main tip. Before merging,
-verify the exact PR head and its integration with current `main` as usual.
+current `develop` tip. Before merging,
+verify the exact PR head and its integration with current `develop` as usual.
 
-If a coalesced main run fails, inspect or bisect the commits since the previous
-successful run. Pushes to `main` run only lint, types, compat checks and
-Vitest/build; the nightly and dispatch runs keep the coverage floor and both
-browser engines, and a failed nightly opens a `nightly-failure` issue. GitHub disables
+If a coalesced `develop` run fails, inspect or bisect the commits since the previous
+successful run. Pushes to `develop` run only lint, types, compat checks and
+Vitest/build; the promotion dispatch keeps the coverage floor and both
+browser engines. A failed promotion opens a `nightly-failure` issue. GitHub disables
 scheduled workflows after 60 days without repository activity, which would
-silence the nightly and its alert.
-Scheduled and manual dispatch runs have unique groups, so pushes cannot cancel
+silence the promotion and its alert.
+Dispatched runs, including the ones promotion starts on its `promote/*` branches, have unique groups, so pushes cannot cancel
 them or replace their pending runs. Grouping changes scheduling, not which
 checks an event plans.
+
+## Promotion
+
+`.github/workflows/promote.yml` is the only nightly schedule (`23 7 * * *`) that gates a branch. Until the cutover it is the nightly on `main`: it runs the full CI on the `main` tip and pushes nothing. `test.yml`, `desktop.yml` and `registry-backup-windows.yml` have no `schedule` and no alert job of their own. `secret-scan.yml` and `extras-import.yml` keep their weekly drift runs.
+
+Lane PRs merge into `develop` after the fast, path-filtered checks. Each night `scripts/promote.py run` freezes the `develop` tip S and the `main` tip M, then:
+
+1. Stops with "merge main into develop" when M is not an ancestor of S, and only redispatches Storybook when S equals M.
+2. Pushes the temporary branch `promote/<S12>-<epoch>-<run_id>-<attempt>` at S, where `<epoch>` is the creation time in seconds.
+3. Dispatches `test.yml` (with `compatibility-base=M` and `compatibility-base-ref=refs/heads/<target>`), `secret-scan.yml`, `desktop.yml` and `registry-backup-windows.yml` on that branch, then polls each run by branch, `head_sha=S` and `workflow_dispatch`.
+4. Counts a missing, cancelled, timed-out or skipped run as red, and requires each of `pytest`, `frontend`, `frontend-e2e` and `gitleaks-history` (`config/branches.json` `required_jobs`) to have succeeded. A timeout cancels the runs still going.
+5. Re-checks that `main` is still M, then runs a plain `git push origin S:refs/heads/main`. It never forces, so the push fails unless it is a fast-forward.
+6. Dispatches `storybook.yml` on `main`, because a `GITHUB_TOKEN` push triggers no workflow. A failure there alerts and never rolls `main` back.
+
+The `always()` cleanup step deletes this run's branch and every `promote/*` branch whose name carries an epoch more than a day old (the branch's creation time, not its commit date, so a quiet `develop` never loses a live branch). A rerun picks S again and redispatches everything. The alert job opens or updates the `nightly-failure` issue on a red run and closes it on a green one. Dry runs never alert, and dry runs and non-`main` targets use a separate concurrency group so they cannot cancel the pending nightly. The job runs only from `main`.
+
+**Dry run.** Dispatch `promote` with `dry-run` set, or run `python scripts/promote.py run --no-push`. Everything through polling runs for real. The script then prints the push and the Storybook dispatch it would make and exits on the verdict. `--target` must be the release branch or start with `promote-canary`; anything else is refused. Dispatching with `target=promote-canary` rehearses the ruleset bypass against a throwaway branch.
+
+**Cutover.** `config/branches.json` `base` is `main` until the cutover PR flips it to `develop`. While base equals release, `promote.py run` is the pre-cutover nightly: it pushes the `main` tip to a temporary branch, dispatches and waits for the same runs and required jobs as a promotion, pushes nothing, dispatches no Storybook and exits non-zero when anything is red, so the alert fires. [Contributing § Cutover checklist](contributing.md#cutover-checklist) orders the steps; the canary diff must include a workflow-file change (see below).
+
+**PRs to other branches.** Workflows that filter `pull_request` to `develop` and `main` (`test.yml`, `registry-backup-windows.yml`) run no CI for a PR whose base is any other branch.
+
+**Known limits.**
+
+- Promotion runs S's own workflow files, so whoever can land a workflow change on `develop` can weaken the gate. Accepted: it is the same trust as merging to `develop`, and the gate is a CI check, not an access control.
+- `promote.yml`'s promote job runs only from `main`, so dispatching it needs write access and a run on `main`; a branch copy of the workflow is the accepted "any workflow can use the Actions bypass" residual.
+- `deploy-config`, `release-wheel`, `extras-import` and `relay-ci` neither gate promotion nor run on the promoted `main`.
+- A `GITHUB_TOKEN` push cannot create or update `.github/workflows/*`, and a ruleset bypass does not lift that. Unless the canary proves otherwise, promotion across a workflow change fails at the final push, after a full CI run, and every night until fixed. That is why the canary runs first, against a pre-created `promote-canary` branch under the same ruleset as `main`, over a range that contains a workflow-file change.
+- `GITHUB_TOKEN` pushes trigger no `push: main` workflows. Never add a `push: main` trigger expecting it to fire after a promotion; `promote.py` dispatches Storybook explicitly.
+- Main-ahead cases that cannot be avoided (the release-please PR merges to `main`; Dependabot security updates ignore `target-branch`) stop promotion at "merge main into develop". The back-merge needs a merge commit, the one exception to linear history on `develop`, made by an admin with ruleset bypass. Open decision for Caleb; no policy is set here.
+
+**Red `develop`** (after the cutover). A red promotion never skips a night. Rerun once, bisect, and revert the culprit PR on `develop` before fixing forward. The owning lane re-lands it afterwards.
+
+**Hotfix** (after the cutover). A hotfix PR targets `develop` and runs the same checks. After it merges, dispatch `promote` by hand to promote it.
 
 ## CI
 
 GitHub Actions workflow `.github/workflows/test.yml` runs Python, frontend and
 a six-job browser matrix (plus the advisory `pytest-python-floor`) in parallel on
-nightly and on `workflow_dispatch`; a push to `main` runs only `pytest-quality`
+promotion dispatch and on `workflow_dispatch`; a push to `develop` runs only `pytest-quality`
 and `frontend-suite` (the planner's `quick` scope). On pull requests the
 `changes` job skips what the diff cannot reach (see
 [§ Which jobs a run needs](testing.md#which-jobs-a-run-needs)). **All required checks must pass** (including Playwright axe) for a green build:
@@ -46,13 +81,13 @@ and `frontend-suite` (the planner's `quick` scope). On pull requests the
 | `pytest` | The required check. Needs `changes`, `pytest-quality` and `pytest-shard`, and fails unless the plan, quality and every planned shard succeeded (a `quick` push plan accepts skipped shards). On full runs it combines the shard coverage and enforces the 95% floor. |
 | `pytest-python-floor` | Advisory (not a required repository merge check): Python 3.11, the `requires-python` floor, runs `tests/test_wav_util.py` and `tests/test_bleed_gate_channels.py`, which pin the EXTENSIBLE-WAV reads that 3.11's stdlib `wave` rejects (#1183). The `pytest-shard` jobs use 3.14; a local 3.11 venv reproduces the gap. |
 | `frontend-suite` → `frontend` | The workload runs in `gui/web`: `npm ci`, `npm audit --omit=dev --audit-level=high` (advisory, `continue-on-error`, failures noted in the job summary; see [§ Dependency updates and audit](testing.md#dependency-updates-and-audit)), `npm run lint` (oxlint + Stylelint tokens/rem/`@container`; `!important`/`@layer` consent-gated), `npm run format:check` (Biome), `npm run typecheck` (strict `tsc`), `npm test` (Vitest + `axe-core` via `expectNoA11yViolations`; all `.stories.ts` and `.stories.tsx` modules are discovered, rendered with Storybook preview annotations, played, and axe-checked including body portals by `gui/web/src/test/allStories.test.tsx`; keeper PCM/WAV/segment bars in `gui/web/src/record/keeper/`; mix-minus MM1–MM9 in `gui/web/src/audio/mixMinus.test.ts`; stories/Storybook/test helpers never imported by app code or root build configs in `gui/web/src/test/storyGovernance.test.ts`), `npm run build` (Vite module-ID guard rejects story/Storybook inputs in every app build) |
-| `frontend-e2e-suites` → `frontend-e2e` | On the nightly schedule and dispatch (the planner's `e2e` output; skipped on push to `main`), six matrix jobs build ShareCut Studio and install only their declared browser engine with Playwright `--with-deps`: the four main-suite shards (`main-1of4` through `main-4of4`) use Chromium, `compat-chromium` uses Chromium, and `compat-webkit` uses WebKit. They run Playwright against a **temp copy** of `aligned_dialogue` (no committed waveform data: pyramids build on demand from fixture WAVs; the copy skips `artifacts/`, `history/`, `export/`, `_build/`, `.git`, and sync sqlite; see [§ Fixture hygiene](testing.md#fixture-hygiene)). Ordinary loopback Playwright launches leave `podcast gui` unpinned and provide each temporary `?project=` path. The main jobs run `npm run test:e2e -- --shard=i/4`; each deletes its live copy after Playwright terminates the web server. Host→guest follow seeds a temp premix and needs `ffmpeg` on PATH. `e2e/host-tab-selection.spec.ts` opens two host tabs on one project: a click in one leaves the other's selection alone, and an agent-set selection reaches both. Presence follow also covers tab follow, chrome ghosts, lane-bottom no-jump, guest Pipeline/FX degrade, and the 360px phone guest Following pill (`e2e/presence-follow.spec.ts`). Full-page axe runs through `expectPageAxeClean` in `gui/web/e2e/axe.ts`. Each compatibility job runs the complete matrix for its named engine with one worker and one CI retry (see [§ Browser compatibility matrix](#browser-compatibility-matrix)). A pull request with a GUI-facing change runs the four main shards and `compat-webkit-1of3` through `compat-webkit-3of3` instead of the two compat engines. Failed-spec traces upload as `playwright-test-results-<name>` (`main-1of4` through `main-4of4`, `compat-chromium`, or `compat-webkit`; `compat-webkit-1of3` through `compat-webkit-3of3` on a PR). Every job uploads timing JSON as `playwright-reports-<name>` with the same suffixes. Touch-peek screenshots upload as `playwright-touch-peek-<name>` with the same suffixes. All three artifact types are kept for 7 days. The required `frontend-e2e` aggregate rejects any failed or cancelled matrix result, a skip the plan did not order, and a `changes` job that did not succeed. Firefox pending-inspector layout remains [Follow-up](../ROADMAP.md#after-the-beta) (original #155 report was Firefox @ 1280). `e2e/root-pin.spec.ts` checks that `/` with a pinned project redirects to it and never POSTs `/api/project/close`; specs that need Home call `openHome` from `e2e/home.ts` (it loads `/?home=1` and, unless a spec is about the Setup card, dismisses that card first). |
+| `frontend-e2e-suites` → `frontend-e2e` | On dispatch, which promotion uses (the planner's `e2e` output; skipped on push to `develop`), six matrix jobs build ShareCut Studio and install only their declared browser engine with Playwright `--with-deps`: the four main-suite shards (`main-1of4` through `main-4of4`) use Chromium, `compat-chromium` uses Chromium, and `compat-webkit` uses WebKit. They run Playwright against a **temp copy** of `aligned_dialogue` (no committed waveform data: pyramids build on demand from fixture WAVs; the copy skips `artifacts/`, `history/`, `export/`, `_build/`, `.git`, and sync sqlite; see [§ Fixture hygiene](testing.md#fixture-hygiene)). Ordinary loopback Playwright launches leave `podcast gui` unpinned and provide each temporary `?project=` path. The main jobs run `npm run test:e2e -- --shard=i/4`; each deletes its live copy after Playwright terminates the web server. Host→guest follow seeds a temp premix and needs `ffmpeg` on PATH. `e2e/host-tab-selection.spec.ts` opens two host tabs on one project: a click in one leaves the other's selection alone, and an agent-set selection reaches both. Presence follow also covers tab follow, chrome ghosts, lane-bottom no-jump, guest Pipeline/FX degrade, and the 360px phone guest Following pill (`e2e/presence-follow.spec.ts`). Full-page axe runs through `expectPageAxeClean` in `gui/web/e2e/axe.ts`. Each compatibility job runs the complete matrix for its named engine with one worker and one CI retry (see [§ Browser compatibility matrix](#browser-compatibility-matrix)). A pull request with a GUI-facing change runs the four main shards and `compat-webkit-1of3` through `compat-webkit-3of3` instead of the two compat engines. Failed-spec traces upload as `playwright-test-results-<name>` (`main-1of4` through `main-4of4`, `compat-chromium`, or `compat-webkit`; `compat-webkit-1of3` through `compat-webkit-3of3` on a PR). Every job uploads timing JSON as `playwright-reports-<name>` with the same suffixes. Touch-peek screenshots upload as `playwright-touch-peek-<name>` with the same suffixes. All three artifact types are kept for 7 days. The required `frontend-e2e` aggregate rejects any failed or cancelled matrix result, a skip the plan did not order, and a `changes` job that did not succeed. Firefox pending-inspector layout remains [Follow-up](../ROADMAP.md#after-the-beta) (original #155 report was Firefox @ 1280). `e2e/root-pin.spec.ts` checks that `/` with a pinned project redirects to it and never POSTs `/api/project/close`; specs that need Home call `openHome` from `e2e/home.ts` (it loads `/?home=1` and, unless a spec is about the Setup card, dismisses that card first). |
 
 The [release refresh and final validation policy](#release-refreshes-and-final-validation) describes the advisory selector jobs and the mandatory full release receipt.
 
 First-attempt PR runs of `test.yml` share a concurrency group by workflow and
 PR number. A new head cancels older first-attempt work for that PR. Runs for
-other PRs and pushes to `main` have separate groups. Manual reruns use their
+other PRs and pushes to `develop` have separate groups. Manual reruns use their
 unique run ID instead of the PR group, because a rerun retains its original
 head. This prevents an old-head rerun from cancelling running latest-head work
 or replacing pending latest-head work. Deliberate reruns execute independently
@@ -330,8 +365,8 @@ the unchanged four-worker cap so runner execution can qualify local measurements
 
 Per-engine results for every check in the
 [§ Browser compatibility matrix](#browser-compatibility-matrix) run. Each Pass
-cell is backed by the required `frontend-e2e` job on the nightly schedule and
-dispatch, which is what the guard below enforces. Pull requests run only the
+cell is backed by the required `frontend-e2e` job on dispatch, which promotion
+runs every night, and the guard below enforces that. Pull requests run only the
 WebKit column. The matrix was first assembled from #703 (Chromium,
 PR #739) and #704 (WebKit, PR #747); those numbers are provenance only.
 The Chromium column is Playwright's bundled Chromium,
@@ -343,7 +378,7 @@ For newly added checks, Pass declares required engine coverage; it does not
 attest a result before that source head has run in CI.
 
 "Pass" means the required `frontend-e2e` gate on `main` includes the check on
-that engine with at most one retry and no skip, so a green `main` is a measured
+that engine with at most one retry and no skip, so a promoted `main` is a measured
 pass. "Not run" means the CI compat project for that column does not run it. Core-flow rows are the `test.step`s of its one
 test; other rows are whole tests. The seven direct compat axe owners and the
 shared touch-affordance and Mix helpers assign compat scans to WebKit.
@@ -548,7 +583,7 @@ viewport, color scheme, or reduced-motion drift in either Chromium profile.
 Behavioral Vitest checks preserve main/reading scan execution and fail on
 injected violations. Live WebKit checks still qualify the actual scan states. The guard also fails if a compat spec uses
 `test.skip`, `fixme`, `fail` or `only`, or if the compat config's `retries` is
-not `process.env.CI ? 1 : 0`. It also fails if the nightly / dispatch plan stops
+not `process.env.CI ? 1 : 0`. It also fails if the dispatch plan stops
 running the complete main shard set or either complete compat engine, or stops
 installing an engine with a Pass cell. It fails if the PR plan's WebKit shards
 stop covering the whole WebKit project, if the `frontend-e2e` aggregate can pass
@@ -718,8 +753,8 @@ workflow. A `pinned-media-windows` job runs `tests/test_pinned_media.py` on `win
 
 Native PR selection uses the seven families documented in
 [Native workload selection](testing.md#native-workload-selection). Desktop and
-registry workflows run fully on nightly and manual events; `desktop.yml` no
-longer triggers on push to `main`. Cargo checks
+registry workflows run fully on dispatch, which promotion uses each night; `desktop.yml`
+does not trigger on push. Cargo checks
 use the checked-in desktop splash and run independently of the web artifact.
 The Windows cargo check stages its sidecar stub without downloading web output.
 Linux and Windows CI must qualify that dependency removal on the changed head.
@@ -781,7 +816,7 @@ consumers remain admitted. Any additional admitted path starts the desktop
 planner and contributes its native consumers. This changes workflow admission,
 while these known empty contracts already selected no native workloads.
 Other docs PRs start cheap planners but no expensive native jobs. Registry PR
-events remain broad. Every nightly run and manual dispatch runs all
+events remain broad. Every dispatch, including promotion's, runs all
 native workloads. Proven release-only PRs skip all native families.
 
 Six Python contracts plus the FFmpeg artifact catalog are native inputs.

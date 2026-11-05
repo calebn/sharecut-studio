@@ -47,7 +47,8 @@ def test_secret_scan_covers_changes_and_scheduled_history() -> None:
     data = load_github_yaml(WORKFLOW)
     triggers = data["on"]
     assert "pull_request" in triggers
-    assert triggers["push"]["branches"] == ["main"]
+    assert triggers["push"]["branches"] == ["develop", "main"]
+    assert "branches" not in triggers["pull_request"]
     assert "workflow_dispatch" in triggers
     assert "schedule" in triggers
     assert data["permissions"] == {"contents": "read", "pull-requests": "read"}

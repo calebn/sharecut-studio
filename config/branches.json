@@ -1,0 +1,5 @@
+{
+  "base": "main",
+  "release": "main",
+  "required_jobs": ["pytest", "frontend", "frontend-e2e", "gitleaks-history"]
+}

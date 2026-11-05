@@ -20,12 +20,10 @@ on:
       - "!contracts/progress-richness.json"
       - "!contracts/roll-join-limits.json"
       - "!contracts/test-wait-allowlist.json"
-  schedule:
-    - cron: "23 7 * * *"
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.event_name == 'pull_request' && github.run_attempt == 1 && format('desktop-pr-{0}', github.event.pull_request.number) || github.event_name == 'push' && github.run_attempt == 1 && github.ref == 'refs/heads/main' && 'desktop-main' || format('desktop-run-{0}', github.run_id) }}
+  group: ${{ github.event_name == 'pull_request' && github.run_attempt == 1 && format('desktop-pr-{0}', github.event.pull_request.number) || github.event_name == 'push' && github.run_attempt == 1 && github.ref == 'refs/heads/main' && 'desktop-main' || github.event_name == 'push' && github.run_attempt == 1 && github.ref == 'refs/heads/develop' && 'desktop-develop' || format('desktop-run-{0}', github.run_id) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.run_attempt == 1 }}
 
 jobs:
@@ -251,30 +249,3 @@ jobs:
         run: |
           chmod +x "$PAYLOAD/bin/ffmpeg" "$PAYLOAD/bin/ffprobe"
           python scripts/ffmpeg_payload.py --output "$PAYLOAD" --verify-only
-
-  nightly-alert:
-    needs:
-      - changes
-      - web-dist
-      - desktop-scaffold
-      - desktop-windows-check
-      - pinned-media-windows
-      - ffmpeg-resolver-windows
-      - project-commit-lock-windows
-      - ffmpeg-native-payload
-      - ffmpeg-linux-newer-host
-    if: ${{ always() && github.event_name == 'schedule' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: read
-      issues: write
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/nightly-alert
-        with:
-          workflow: desktop
-          results: ${{ join(needs.*.result, ' ') }}
-          token: ${{ secrets.GITHUB_TOKEN }}

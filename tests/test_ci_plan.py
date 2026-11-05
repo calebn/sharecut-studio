@@ -415,7 +415,6 @@ def test_changes_job_feeds_frontend_and_the_browser_suites() -> None:
     assert set(load_github_yaml(WORKFLOW)["on"]) == {
         "push",
         "pull_request",
-        "schedule",
         "workflow_dispatch",
     }
 
@@ -423,31 +422,25 @@ def test_changes_job_feeds_frontend_and_the_browser_suites() -> None:
 ALERT_ACTION = ROOT / ".github" / "actions" / "nightly-alert" / "action.yml"
 
 
-@pytest.mark.parametrize("workflow", ["test.yml", "desktop.yml"])
-def test_nightly_alert_job_runs_only_on_schedule_and_sees_every_job(workflow: str) -> None:
-    jobs = load_github_yaml(ROOT / ".github" / "workflows" / workflow)["jobs"]
-    alert = jobs["nightly-alert"]
-    assert alert["if"] == "${{ always() && github.event_name == 'schedule' }}"
-    assert set(alert["needs"]) == set(jobs) - {"nightly-alert"}
-    assert alert["permissions"] == {"contents": "read", "issues": "write"}
-    step = next(s for s in alert["steps"] if s.get("uses") == "./.github/actions/nightly-alert")
-    assert step["with"]["results"] == "${{ join(needs.*.result, ' ') }}"
-    assert step["with"]["token"] == "${{ secrets.GITHUB_TOKEN }}"
-    assert step["with"]["workflow"] == workflow.removesuffix(".yml")
+@pytest.mark.parametrize("workflow", ["test.yml", "desktop.yml", "registry-backup-windows.yml"])
+def test_only_promote_owns_the_nightly_alert_and_schedule(workflow: str) -> None:
+    data = load_github_yaml(ROOT / ".github" / "workflows" / workflow)
+    assert "nightly-alert" not in data["jobs"]
+    assert "schedule" not in data["on"]
 
 
 def test_nightly_alert_action_opens_comments_and_closes_the_labelled_issue() -> None:
     action = load_github_yaml(ALERT_ACTION)
     assert action["runs"]["using"] == "composite"
-    assert set(action["inputs"]) == {"workflow", "results", "token"}
+    assert set(action["inputs"]) == {"workflow", "results", "token", "legacy-titles"}
     run = action["runs"]["steps"][0]["run"]
     for command in ("gh issue create", "gh issue comment", "gh issue close"):
         assert command in run
 
 
-def test_desktop_workflow_runs_nightly_manually_and_on_pull_requests_not_on_push() -> None:
+def test_desktop_workflow_runs_manually_and_on_pull_requests_not_on_push() -> None:
     triggers = set(load_github_yaml(ROOT / ".github" / "workflows" / "desktop.yml")["on"])
-    assert triggers == {"pull_request", "schedule", "workflow_dispatch"}
+    assert triggers == {"pull_request", "workflow_dispatch"}
 
 
 def test_playwright_summary_reads_the_report_configured_for_its_matrix_job() -> None:

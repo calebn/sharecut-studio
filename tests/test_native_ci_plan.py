@@ -151,11 +151,9 @@ def test_workflow_inventory_forwarding_roots_and_predicates_match_policy() -> No
     for name in {workload.workflow for workload in native.NATIVE_WORKLOADS}:
         workflow = load_github_yaml(ROOT / ".github/workflows" / name)
         workloads = [workload for workload in native.NATIVE_WORKLOADS if workload.workflow == name]
-        alert = {"nightly-alert"} if name == "desktop.yml" else set()
         assert set(workflow["jobs"]) == {
             "changes",
             *(workload.job for workload in workloads),
-            *alert,
         }
         changes = workflow["jobs"]["changes"]
         assert (
@@ -217,15 +215,15 @@ def test_full_event_coverage_and_exact_desktop_exclusions() -> None:
     for name in ("desktop.yml", "registry-backup-windows.yml", "test.yml"):
         events = load_github_yaml(ROOT / ".github/workflows" / name)["on"]
         if name != "desktop.yml":  # desktop.yml's push trigger is covered by test_ci_plan.py
-            assert events["push"] == {"branches": ["main"]}
-        assert events["schedule"] and "workflow_dispatch" in events
+            assert events["push"] == {"branches": ["develop", "main"]}
+        assert "schedule" not in events and "workflow_dispatch" in events
         if name == "desktop.yml":
             assert events["pull_request"] == {
                 "types": PR_TYPES,
                 "paths": list(native.DESKTOP_PR_PATHS),
             }
         else:
-            assert events["pull_request"] == {"types": PR_TYPES, "branches": ["main"]}
+            assert events["pull_request"] == {"types": PR_TYPES, "branches": ["develop", "main"]}
 
 
 @pytest.mark.parametrize(

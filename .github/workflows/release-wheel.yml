@@ -23,7 +23,7 @@ on:
       - "gui/web/vite.config.ts"
       - ".github/workflows/release-wheel.yml"
   push:
-    branches: [main]
+    branches: [develop, main]
     paths: *wheel-paths
 
 permissions:

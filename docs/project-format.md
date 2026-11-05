@@ -68,8 +68,8 @@ Use the PR target branch as the trusted base. Before the first delivery, refresh
 the lock after a format edit:
 
 ```bash
-uv run python scripts/project_compat.py lock --base origin/main
-uv run python scripts/project_compat.py check --base origin/main
+uv run python scripts/project_compat.py lock --base "origin/$(python3 scripts/branches.py base)"
+uv run python scripts/project_compat.py check --base "origin/$(python3 scripts/branches.py base)"
 uv run pytest -q --no-cov tests/test_project_compat.py
 ```
 

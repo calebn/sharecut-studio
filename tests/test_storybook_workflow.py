@@ -5,6 +5,10 @@ from pathlib import Path
 from github_yaml import load_github_yaml
 
 WORKFLOW = Path(__file__).resolve().parents[1] / ".github/workflows/storybook.yml"
+DEPLOYS_ONLY_FROM_MAIN = (
+    "github.ref == 'refs/heads/main' && "
+    """contains(fromJSON('["push","workflow_dispatch"]'), github.event_name)"""
+)
 
 
 def test_storybook_build_covers_component_edits_before_and_after_merge() -> None:
@@ -24,10 +28,10 @@ def test_storybook_pr_build_cannot_deploy_pages() -> None:
         for step in workflow["jobs"]["build"]["steps"]
         if step.get("name") == "Upload Pages artifact"
     )
-    assert upload["if"] == "github.event_name == 'push'"
+    assert upload["if"] == DEPLOYS_ONLY_FROM_MAIN
 
     deploy = workflow["jobs"]["deploy"]
-    assert deploy["if"] == ("github.event_name == 'push' && github.ref == 'refs/heads/main'")
+    assert deploy["if"] == DEPLOYS_ONLY_FROM_MAIN
     assert deploy["permissions"] == {
         "contents": "read",
         "pages": "write",

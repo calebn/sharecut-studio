@@ -22,6 +22,7 @@ from podcast_mcp.project.store import (
 )
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document_sync.external_apply import apply_external_document_edit
+from script_loader import load_script
 
 
 @pytest.fixture
@@ -188,21 +189,24 @@ def test_unscoped_ok_module_list_names_only_existing_modules() -> None:
     assert missing == []
 
 
-def test_unscoped_ok_module_list_never_grows_past_origin_main() -> None:
+def test_unscoped_ok_module_list_never_grows_past_origin_base() -> None:
     import subprocess
+
+    branches = load_script("branches", register=True)
 
     from conftest import unscoped_ok_modules
 
     repo = Path(__file__).parent.parent
+    base = f"origin/{branches.base()}"
     shown = subprocess.run(
-        ["git", "show", "origin/main:tests/unscoped_ok_modules.txt"],
+        ["git", "show", f"{base}:tests/unscoped_ok_modules.txt"],
         cwd=repo,
         capture_output=True,
         text=True,
         check=False,
     )
     if shown.returncode != 0:
-        pytest.skip("origin/main has no unscoped_ok_modules.txt yet")
+        pytest.skip(f"{base} has no unscoped_ok_modules.txt yet")
     base = {
         line.strip()
         for line in shown.stdout.splitlines()

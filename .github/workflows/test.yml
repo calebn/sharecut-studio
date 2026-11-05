@@ -2,23 +2,24 @@ name: test
 
 on:
   push:
-    branches: [main]
+    branches: [develop, main]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    branches: [main]
-  # Nightly full run: every browser suite on both engines and the coverage floor,
-  # whatever the day's PRs skipped.
-  schedule:
-    - cron: "23 7 * * *"
+    branches: [develop, main]
   workflow_dispatch:
     inputs:
       compatibility-base:
         description: Current main SHA for final release validation; it must be an ancestor of this head
         required: false
         type: string
+      compatibility-base-ref:
+        description: Branch ref whose tip must equal compatibility-base
+        required: false
+        default: refs/heads/main
+        type: string
 
 concurrency:
-  group: ${{ github.event_name == 'pull_request' && github.run_attempt == 1 && format('test-pr-{0}', github.event.pull_request.number) || github.event_name == 'push' && github.run_attempt == 1 && github.ref == 'refs/heads/main' && 'test-main' || format('test-run-{0}', github.run_id) }}
+  group: ${{ github.event_name == 'pull_request' && github.run_attempt == 1 && format('test-pr-{0}', github.event.pull_request.number) || github.event_name == 'push' && github.run_attempt == 1 && github.ref == 'refs/heads/main' && 'test-main' || github.event_name == 'push' && github.run_attempt == 1 && github.ref == 'refs/heads/develop' && 'test-develop' || format('test-run-{0}', github.run_id) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.run_attempt == 1 }}
 
 jobs:
@@ -85,11 +86,13 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && inputs.compatibility-base != ''
         env:
           EXPECTED_BASE: ${{ inputs.compatibility-base }}
+          EXPECTED_BASE_REF: ${{ inputs.compatibility-base-ref }}
           EXPECTED_HEAD: ${{ github.sha }}
         run: |
           [[ "$EXPECTED_BASE" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EXPECTED_BASE_REF" == refs/heads/* ]]
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$EXPECTED_BASE"
+          test "$(git ls-remote origin "$EXPECTED_BASE_REF" | cut -f1)" = "$EXPECTED_BASE"
           git merge-base --is-ancestor "$EXPECTED_BASE" HEAD
 
       - name: Project and history compatibility
@@ -101,7 +104,7 @@ jobs:
 
       - name: Docs-sync gate (PR diff)
         # Stdlib-only script; runs without the pip install above. Only pull_request has a
-        # base/head to diff — a push to main has nothing to gate against.
+        # base/head to diff — a push to develop has nothing to gate against.
         if: ${{ !cancelled() && github.event_name == 'pull_request' }}
         run: >-
           python3 scripts/docs_sync.py check --range
@@ -222,7 +225,7 @@ jobs:
           COVERAGE_FILE=cov/shard-$PYTEST_SHARD_INDEX pytest -n auto -m "not e2e_slow and not e2e_real" --cov-fail-under=0 --durations=100 --durations-min=0.1 --junitxml=test-results/pytest.xml | tee test-results/pytest.log
 
       - name: Run the tests that read gui/web
-        # A web-only PR cannot move Python coverage; main and nightly keep the floor.
+        # A web-only PR cannot move Python coverage; develop pushes and promotion keep the floor.
         if: env.PYTEST_SCOPE == 'web'
         run: |
           set -o pipefail
@@ -230,7 +233,7 @@ jobs:
           pytest -n auto --no-cov -m "not e2e_slow and not e2e_real" --durations=100 --durations-min=0.1 --junitxml=test-results/pytest.xml $web_tests | tee test-results/pytest.log
 
       - name: Run the tests that read docs
-        # A docs-only PR touches no Python; main and nightly keep the full suite.
+        # A docs-only PR touches no Python; develop pushes and promotion keep the full suite.
         if: env.PYTEST_SCOPE == 'docs'
         run: |
           set -o pipefail
@@ -469,7 +472,7 @@ jobs:
       # One red suite cancels the rest; a rerun repeats the whole set anyway.
       fail-fast: true
       # scripts/ci_plan.py: four main shards everywhere, then complete Chromium
-      # and WebKit compat on main, nightly and dispatch, or every WebKit compat
+      # and WebKit compat on develop pushes and dispatch, or every WebKit compat
       # spec in shards on a PR.
       matrix: ${{ fromJSON(needs.changes.outputs.e2e-matrix) }}
     env:
@@ -589,30 +592,3 @@ jobs:
           GUI: ${{ needs.changes.outputs.e2e }}
           SUITES: ${{ needs.frontend-e2e-suites.result }}
         run: *require-planned-suite
-
-  nightly-alert:
-    needs:
-      - changes
-      - pytest-quality
-      - pytest-shard
-      - pytest
-      - pytest-python-floor
-      - frontend-suite
-      - frontend
-      - frontend-e2e-suites
-      - frontend-e2e
-    if: ${{ always() && github.event_name == 'schedule' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: read
-      issues: write
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/nightly-alert
-        with:
-          workflow: test
-          results: ${{ join(needs.*.result, ' ') }}
-          token: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,77 @@
+name: promote
+
+on:
+  schedule:
+    - cron: "23 7 * * *"
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Run every check for real but print the push instead of doing it
+        required: false
+        default: false
+        type: boolean
+      target:
+        description: Branch to fast-forward; promote-canary rehearses the ruleset bypass
+        required: false
+        default: main
+        type: string
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: ${{ (inputs.dry-run == true || (inputs.target != '' && inputs.target != 'main')) && 'promote-rehearsal' || 'promote' }}
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: Fast-forward the release branch to the validated develop commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRY_RUN: ${{ inputs.dry-run }}
+          TARGET: ${{ inputs.target || 'main' }}
+        run: |
+          args=(--target "$TARGET")
+          if [ "$DRY_RUN" = "true" ]; then args+=(--no-push); fi
+          python scripts/promote.py run "${args[@]}"
+
+      - name: Delete this run's promote branch and sweep stale ones
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/promote.py cleanup
+
+  nightly-alert:
+    needs: promote
+    if: ${{ always() && github.ref == 'refs/heads/main' && inputs.dry-run != true && (inputs.target == '' || inputs.target == 'main') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/nightly-alert
+        with:
+          workflow: promote
+          legacy-titles: |
+            Nightly test run failed
+            Nightly desktop run failed
+          results: ${{ join(needs.*.result, ' ') }}
+          token: ${{ secrets.GITHUB_TOKEN }}
