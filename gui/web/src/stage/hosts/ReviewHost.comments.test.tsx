@@ -838,6 +838,56 @@ describe("Review host comments", () => {
       });
     });
 
+    it.each([false, true])(
+      "keeps draft text and resets only scope/actions after an external clear: %s",
+      async (clearFirst) => {
+        server.tracks = [
+          sampleTrack({ id: "t1", label: "Host" }),
+          sampleTrack({ id: "t2", label: "Guest" }),
+        ];
+        mount();
+        act(() => {
+          press("c");
+        });
+        const scope = await screen.findByRole("group", {
+          name: "Comment on tracks",
+        });
+        await userEvent.click(
+          within(scope).getByRole("button", { name: "Guest" }),
+        );
+        await userEvent.type(field(), "Keep this draft");
+        await userEvent.click(
+          screen.getByRole("button", { name: "Add action item" }),
+        );
+        const action = screen.getByRole("textbox", { name: "Action item 1" });
+        await userEvent.type(action, "Keep this action");
+        if (clearFirst) {
+          act(() => useDawStore.getState().setCommentDraft(null));
+          expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
+        }
+        act(() => openCommentDraft({ startSec: 77, endSec: null }));
+        await waitFor(() => expect(field()).toHaveFocus());
+        expect(field()).toHaveValue("Keep this draft");
+        const nextScope = screen.getByRole("group", {
+          name: "Comment on tracks",
+        });
+        expect(
+          within(nextScope).getByRole("button", { name: "All tracks" }),
+        ).toHaveAttribute("aria-pressed", clearFirst ? "true" : "false");
+        if (clearFirst) {
+          expect(
+            screen.queryByRole("textbox", { name: "Action item 1" }),
+          ).toBeNull();
+        } else {
+          expect(screen.getByRole("textbox", { name: "Action item 1" })).toBe(
+            action,
+          );
+          expect(action).toHaveValue("Keep this action");
+        }
+        expect(sent("AddComment")).toHaveLength(0);
+      },
+    );
+
     it("posts the action items typed under the comment, skipping empty lines, up to five", async () => {
       mount();
       act(() => {
