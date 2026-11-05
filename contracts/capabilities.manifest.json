@@ -74,7 +74,7 @@
     },
     {
       "id": "daw.transport.stop",
-      "label": "Stop playback",
+      "label": "Pause and return",
       "effect": "session",
       "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
@@ -92,11 +92,37 @@
         ]
       },
       "omit": {},
-      "tooltip": "Stop and return to where playback started",
+      "tooltip": "Pause and return to where playback started",
       "presence": {
         "cursor": "anchor",
         "follow": "look",
         "anchor": "transport:stop"
+      }
+    },
+    {
+      "id": "daw.transport.shuttle",
+      "label": "Shuttle back (jumps back) / forward",
+      "effect": "session",
+      "service": "ShareCut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "always"
+      ],
+      "surfaces": {
+        "command": "transport.shuttle",
+        "keyboard": "J",
+        "mcp": [
+          "seek_session_tool",
+          "set_session_playing_tool"
+        ],
+        "cli": "podcast session seek"
+      },
+      "omit": {},
+      "tooltip": "J jumps back 3, 6, then 12 s; L plays, then 2\u00d7, then 4\u00d7",
+      "presence": {
+        "cursor": "anchor",
+        "follow": "look",
+        "anchor": "transport:shuttle"
       }
     },
     {
@@ -819,6 +845,26 @@
       },
       "omit": {},
       "tooltip": "Zoom out",
+      "presence": {
+        "cursor": "none",
+        "follow": "look"
+      }
+    },
+    {
+      "id": "daw.view.zoomToSelection",
+      "label": "Zoom to selection",
+      "effect": "view",
+      "service": "ShareCut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "editStage"
+      ],
+      "surfaces": {
+        "command": "view.zoomToSelection",
+        "keyboard": "Z"
+      },
+      "omit": {},
+      "tooltip": "Zoom the timeline to the selection",
       "presence": {
         "cursor": "none",
         "follow": "look"

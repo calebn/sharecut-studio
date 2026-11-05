@@ -2890,3 +2890,11 @@ def test_client_role_literal_sets_are_shared() -> None:
     assert DocumentRole is ClientRole
     assert frozenset(get_args(ClientRole)) == _KNOWN_ROLES
     assert set(get_args(TransportRole)) == set(get_args(ClientRole)) - {"guest"}
+
+
+def test_presence_transport_rate_allows_4x_and_rejects_beyond() -> None:
+    from podcast_mcp.services.session_sync.commands import normalize_presence_meta
+
+    for rate, expected in ((0.5, True), (2, True), (4.0, True), (4.5, False), (0.25, False)):
+        transport = {"playing": True, "playhead_sec": 3, "rate": rate}
+        assert (normalize_presence_meta({"transport": transport}) is not None) == expected, rate
