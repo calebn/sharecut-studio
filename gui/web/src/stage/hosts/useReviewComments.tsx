@@ -50,6 +50,12 @@ import { ComposeAnchor } from "./ComposeAnchor";
 import { commentCardOf } from "./commentCardData";
 import { TrackScope } from "./TrackScope";
 
+type ComposerOptions = {
+  draftPresent: boolean;
+  scope: string[];
+  actionLines: string[];
+};
+
 export type CommentNav = {
   items: readonly ReviewItem[];
   filter: ReviewFilter;
@@ -116,8 +122,20 @@ export function useReviewComments(guest: boolean) {
     Readonly<Record<string, string | null>>
   >({});
   const [asked, setAsked] = useState<string | null>(null);
-  const [scope, setScope] = useState<string[]>([]);
-  const [actionLines, setActionLines] = useState<string[]>([]);
+  const [options, setOptions] = useState<ComposerOptions>(() => ({
+    draftPresent: commentDraft !== null,
+    scope: [],
+    actionLines: [],
+  }));
+  const draftPresent = commentDraft !== null;
+  if (options.draftPresent !== draftPresent) {
+    setOptions({
+      draftPresent,
+      scope: draftPresent ? options.scope : [],
+      actionLines: draftPresent ? options.actionLines : [],
+    });
+  }
+  const { scope, actionLines } = options;
   const tracks = project?.tracks;
   const draftNamesTracks = (commentDraft?.trackIds?.length ?? 0) > 0;
   const scopeTracks =
@@ -141,14 +159,6 @@ export function useReviewComments(guest: boolean) {
       return kept.length === prev.size ? prev : new Map(kept);
     });
   }, [comments]);
-
-  // The next comment starts on all tracks again.
-  useEffect(() => {
-    if (!commentDraft) {
-      setScope([]);
-      setActionLines([]);
-    }
-  }, [commentDraft]);
 
   // A new draft, from C or the Edit verb, opens the field with focus.
   useEffect(() => {
@@ -279,8 +289,7 @@ export function useReviewComments(guest: boolean) {
     const stage = stageOf();
     droppedDraft.current = null;
     setBody("");
-    setScope([]);
-    setActionLines([]);
+    setOptions((current) => ({ ...current, scope: [], actionLines: [] }));
     postComment.cancel();
     useDawStore.getState().setCommentDraft(null);
     stage?.focus({ preventScroll: true });
@@ -326,8 +335,7 @@ export function useReviewComments(guest: boolean) {
       }
       droppedDraft.current = null;
       setBody("");
-      setScope([]);
-      setActionLines([]);
+      setOptions((current) => ({ ...current, scope: [], actionLines: [] }));
       useDawStore
         .getState()
         .announceStatus(commentPostedStatus(result.comment));
@@ -391,14 +399,18 @@ export function useReviewComments(guest: boolean) {
         <TrackScope
           tracks={scopeTracks}
           value={scope}
-          onChange={setScope}
+          onChange={(next) =>
+            setOptions((current) => ({ ...current, scope: next }))
+          }
           disabled={postComment.busy}
         />
       ) : null}
       {mayAct ? (
         <ActionItemsField
           lines={actionLines}
-          onChange={setActionLines}
+          onChange={(next) =>
+            setOptions((current) => ({ ...current, actionLines: next }))
+          }
           disabled={postComment.busy}
         />
       ) : null}
