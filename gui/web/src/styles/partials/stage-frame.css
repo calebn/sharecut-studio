@@ -196,6 +196,11 @@ html[data-frame-short][data-shell="phone"] {
   container-type: normal;
 }
 
+/* Inert: the tabs only show where the project opens. */
+.stage-loading-stages {
+  display: contents;
+}
+
 .stage-loading-name {
   flex: 0 1 14rem;
   min-inline-size: 0;
