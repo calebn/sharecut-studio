@@ -223,7 +223,6 @@ for (const {
           if (rootPx === 16) expect(halfRulerPermitted).toBe(true);
         }
       }
-      // Back to the first detent: a drawer that is full only has no other.
       if (halfDetent)
         await page
           .getByRole("button", { name: "Collapse to half height", exact: true })
@@ -320,7 +319,6 @@ for (const {
           expect(geometry.hitsControl, JSON.stringify(geometry)).toBe(true);
         }
       }
-      // Back to the first detent: a drawer that is full only has no other.
       if (halfDetent)
         await page
           .getByRole("button", { name: "Collapse to half height", exact: true })
@@ -373,7 +371,6 @@ for (const {
         }
       }
       if (halfDetent) expect(withFeedback.half).toBeLessThan(withFeedback.full);
-      // Back to the first detent: a drawer that is full only has no other.
       if (halfDetent)
         await page
           .getByRole("button", { name: "Collapse to half height", exact: true })

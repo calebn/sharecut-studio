@@ -218,7 +218,6 @@ test("phone pending controls stay clear of handles and dense labels follow layou
     })
     .toEqual({ start: payload.start, end: payload.end });
   expect(updateCommands).toHaveLength(1);
-  // Inspect opens the compact drawer at half height, with the pending inspector.
   await inspectSelection(page);
   await expect(
     page.getByRole("heading", { name: "Pending edit" }),

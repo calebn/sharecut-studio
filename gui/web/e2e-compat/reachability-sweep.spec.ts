@@ -497,8 +497,6 @@ test("pending-edit and transcript-word Inspector bodies keep every control reach
         }
         const body = page.locator(surface);
         await expect(body).toBeVisible();
-        // A phone selection opens the drawer at half height; the rest of its
-        // body shows at full height.
         const expand = page.getByRole("button", { name: /^Expand to/ });
         while (
           !((await body.textContent()) ?? "").includes(label) &&

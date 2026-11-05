@@ -307,7 +307,7 @@ export interface DawState {
   shellBreakpoint: ShellBreakpoint;
   pointerKind: PointerKind;
   sheetExpanded: boolean;
-  /** Compact (phone) inspector: open as the peek strip or expanded; persisted. */
+  /** Compact (phone) inspector: open at half or full height; persisted. */
   compactInspectorView: CompactInspectorView;
   /** The timeline target the last press went to (touch input grammar). */
   selectionHit: RoutedTarget | null;
