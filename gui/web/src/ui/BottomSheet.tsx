@@ -30,9 +30,9 @@ export type BottomSheetBackgroundPolicy = "interactive" | "dismiss";
  */
 export type SheetPlacement = "sheet" | "column";
 
-/** How each detent reads to a screen reader and on the buttons' names. */
 const DETENT_RANK: Record<DrawerDetent, number> = { peek: 0, half: 1, full: 2 };
 
+/** How each detent reads to a screen reader and on the buttons' names. */
 const DETENT_TEXT: Record<DrawerDetent, string> = {
   peek: "Strip",
   half: "Half height",
