@@ -65,7 +65,7 @@ Making precise changes to the episode: cutting words and ranges, trimming, fadin
 | Cut | scissors | Backspace / Delete | removes them | removes time | removes clip | n/a | accepts the cut (Enter also) | n/a | n/a |
 | Keep | arrow-uturn (restore) | X | restores cut words | n/a | n/a | restores the cut at this seam | rejects the suggestion | n/a | n/a |
 | Split | blade | S | splits at both selected-word edges in one undo step | splits at both edges | splits at playhead | n/a | n/a | n/a | splits at playhead |
-| Comment | speech bubble | C | comment on words | comment on range | comment on clip span | comment at seam | comment on it | reply (comment) | comment at playhead |
+| Comment | speech bubble | C | comment on words | comment on range | comment on clip span | comment at seam | comment on it | n/a (reply is R in Review) | comment at playhead |
 | Fix text | text-cursor | Enter, F2 or double-click | inline correction | n/a | n/a | n/a | n/a | rename (chapter, social) | n/a |
 | Remove | trash | Backspace | n/a | n/a | n/a | n/a | n/a | deletes the marker | n/a |
 | More | ellipsis | . (period) opens | Mute or Restore ignored words, Move to speaker, Copy | Mute, Fill room tone, Move to speaker, Export selection | Mute, Gain, Fade, Move to track | Join type, Precision | Adjust bounds | n/a | Add chapter, Add volume point, Paste |
