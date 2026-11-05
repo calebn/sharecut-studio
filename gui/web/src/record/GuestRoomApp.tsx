@@ -1,12 +1,6 @@
-import {
-  useEffect,
-  useInsertionEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useInsertionEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { useElapsedSince } from "../hooks/useElapsedSince";
+import { useElapsedFromReceipt } from "../hooks/useElapsedSince";
 import {
   matchesMedia,
   mediaQuerySubscription,
@@ -148,14 +142,8 @@ function GuestRoomSession({
   const recorded = !producer && consented === true;
   const host = guestHostName(snapshot);
 
-  const [receivedAt, setReceivedAt] = useState<number | null>(null);
-  useEffect(() => {
-    if (snapshot) {
-      setReceivedAt(performance.now());
-    }
-  }, [snapshot]);
-  const elapsed = useElapsedSince(
-    receivedAt,
+  const elapsed = useElapsedFromReceipt(
+    snapshot,
     state === "recording" || state === "lobby",
   );
   const meter = useInputPeakDb(producer ? null : mic.stream);

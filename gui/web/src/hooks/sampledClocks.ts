@@ -78,3 +78,33 @@ export function createElapsedSample() {
     },
   };
 }
+
+export function createReceiptElapsedSample() {
+  const clock = cachedSample<Readonly<{ origin: number | null; now: number }>>({
+    origin: null,
+    now: performance.now(),
+  });
+  let sampledOrigin: number | null = null;
+  const publish = (origin: number | null, now: number) => {
+    const previous = clock.getSnapshot();
+    if (Object.is(previous.origin, origin) && Object.is(previous.now, now))
+      return;
+    clock.publish({ origin, now });
+  };
+  const sample = () => publish(clock.getSnapshot().origin, performance.now());
+  return {
+    getSnapshot: clock.getSnapshot,
+    subscribe: clock.subscribe,
+    receive: () => publish(performance.now(), clock.getSnapshot().now),
+    sampleOrigin: (origin: number | null) => {
+      sampledOrigin = origin;
+      if (sampledOrigin !== null) sample();
+    },
+    connect: (active: boolean) => {
+      if (!active) return () => {};
+      return startInterval(1000, () => {
+        if (sampledOrigin !== null) sample();
+      });
+    },
+  };
+}
