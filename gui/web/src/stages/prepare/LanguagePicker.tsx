@@ -99,7 +99,6 @@ export function LanguagePicker({
         disabled={disabled}
         value={open ? query : label}
         placeholder={open ? label : undefined}
-        onFocus={openList}
         onClick={openList}
         onChange={(event) => {
           setQuery(event.target.value);

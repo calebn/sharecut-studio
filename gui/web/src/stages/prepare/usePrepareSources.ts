@@ -11,6 +11,7 @@ import {
   runPointerCommand,
 } from "../../commands/pointer";
 import { refreshDocumentProject } from "../../document/applyDocumentUpdate";
+import { audioFilesFromDrop } from "../../ingest/dropLabels";
 import { ingestFiles } from "../../ingest/ingestFiles";
 import { useModels } from "../../models";
 import { useDawStore } from "../../state/dawStore";
@@ -49,8 +50,10 @@ export function usePrepareSources(input: {
   /** The job the Activity chip follows, for the split's progress. */
   activityJob: PipelineJobSnapshot | null;
   isPlaying: boolean;
+  /** False for a guest or a share link: a card then takes no drop. */
+  canIngest: boolean;
 }) {
-  const { projectPath, tracks, activityJob, isPlaying } = input;
+  const { projectPath, tracks, activityJob, isPlaying, canIngest } = input;
   const { download } = useModels();
   const [names, setNames] = useState<Keyed<string>>({});
   const [chosenVoices, setChosenVoices] = useState<Keyed<number>>({});
@@ -273,7 +276,21 @@ export function usePrepareSources(input: {
       if (cause) useDawStore.getState().announceStatus(cause);
     },
     onReplace: (id) => runPointerCommand("media.import", { trackId: id }),
-    onDropAudio: (id, files) => void ingestFiles(files, { kind: "track", id }),
+    onDropAudio: canIngest
+      ? (id, dropped) => {
+          const { announceStatus } = useDawStore.getState();
+          const files = audioFilesFromDrop(dropped);
+          if (files.length === 0) {
+            announceStatus("Only audio files can replace a track.");
+          } else if (files.length > 1) {
+            announceStatus(
+              "Drop one file on a card to replace its audio. Drop several anywhere else to add them as new tracks.",
+            );
+          } else {
+            void ingestFiles(files, { kind: "track", id });
+          }
+        }
+      : undefined,
     onMove: (id, direction) => {
       const mine = sourceTracks(latest.current.tracks);
       const at = mine.findIndex((track) => track.id === id);

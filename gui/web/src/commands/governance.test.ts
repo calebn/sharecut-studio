@@ -60,6 +60,8 @@ const KEYDOWN_LISTENER_ALLOWLIST = new Set([
   "system/ScriptPane.select.test.tsx",
   // A drag in progress on a ruler handle, the ruler body or a marker takes Escape from the document, wherever focus is, so the cancel does not depend on the grabbed element holding focus.
   "system/useGrab.ts",
+  // A Source card reorder drag in progress takes Escape from the document, wherever focus is, and puts the card back, so the cancel does not depend on the grip holding focus.
+  "system/useSourceReorder.ts",
   // A selection-handle drag in progress takes Escape from the window, wherever focus is, and puts back the selection the grip took, so the cancel does not depend on the grip holding focus.
   "system/ScriptPane.tsx",
   // The same window-level listener, to prove the keys the ruler and the marker lane handle never reach the keymap.
@@ -90,6 +92,8 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "stage/hosts/useReviewComments.tsx",
   // The time field: arrows step, Enter commits and Escape reverts, like a spin box.
   "system/TimeField.tsx",
+  // The ARIA combobox pattern: arrows move the active language, Enter picks it and Escape closes the list.
+  "stages/prepare/LanguagePicker.tsx",
   // A focused clip trim handle moves with the arrow keys, 10 ms, 100 ms with Shift.
   "stages/deliver/ClipTrimWave.tsx",
   // Escape cancels only this region's active pointer gesture.

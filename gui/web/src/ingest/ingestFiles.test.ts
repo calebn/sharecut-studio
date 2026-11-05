@@ -155,6 +155,17 @@ describe("ingestFiles", () => {
       );
     });
 
+    it("changes nothing when the project switched during the upload", async () => {
+      vi.mocked(api.setTrackMediaCommand).mockClear();
+      uploadMock.mockImplementation(async () => {
+        useDawStore.setState({ projectPath: "/tmp/other/episode.sharecut" });
+        return { complete: true, rel_path: "media/take2.wav" };
+      });
+      await ingestFiles([file], { kind: "track", id: "guest" });
+      expect(api.setTrackMediaCommand).not.toHaveBeenCalled();
+      expect(refreshMock).not.toHaveBeenCalled();
+    });
+
     it("offers Undo for the swap when several files are dropped", async () => {
       uploadMock.mockResolvedValue({
         complete: true,
