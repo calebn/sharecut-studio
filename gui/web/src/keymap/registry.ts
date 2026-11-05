@@ -702,6 +702,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     requireMod: true,
     requireShift: false,
     when: "hostProjectLoaded",
+    noRepeat: true,
     notes:
       "Mod+E: mastered export/ via PipelineService; with one range selected, opens Deliver with Bounce focused and that range filled in",
   },
