@@ -72,6 +72,54 @@ describe("ModelNeedRowView, need placement", () => {
     expect(onCancel).toHaveBeenCalledOnce();
   });
 
+  it("keeps a progressbar and a spoken failure in the sheet row", () => {
+    const { rerender } = render(
+      <ModelNeedRowView
+        placement="list"
+        model={WHISPER}
+        state={{
+          kind: "downloading",
+          bytes: 420_000_000,
+          total: 1_600_000_000,
+        }}
+        onGet={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    const bar = screen.getByRole("progressbar", {
+      name: "Getting Transcription",
+    });
+    expect(bar).toHaveAttribute("aria-valuenow", "26");
+    expect(bar).toHaveAttribute("aria-valuetext", "420 MB of 1.6 GB");
+    rerender(
+      <ModelNeedRowView
+        placement="list"
+        model={WHISPER}
+        state={{ kind: "downloading", bytes: 420_000_000, total: null }}
+        onGet={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByRole("progressbar", { name: "Getting Transcription" }),
+    ).not.toHaveAttribute("aria-valuenow");
+    rerender(
+      <ModelNeedRowView
+        placement="list"
+        model={WHISPER}
+        state={{
+          kind: "failed",
+          failure: { kind: "network", plain: "Couldn't reach the server." },
+        }}
+        onGet={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Couldn't get Transcription. Couldn't reach the server.",
+    );
+  });
+
   it("shows a plain failure with Try again and no raw text", async () => {
     const { onGet } = view({
       state: {

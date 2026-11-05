@@ -9,7 +9,6 @@ export {
   type NeedTarget,
   plainSize,
   rowInstalled,
-  targetOfRow,
   WHISPER,
   WHISPER_SIZES,
   WORD_ALIGNER,
@@ -32,5 +31,5 @@ export type {
   WhisperChoice,
 } from "./types";
 export { useModelResume } from "./useModelResume";
-export { useModel, useModels } from "./useModels";
+export { useModels } from "./useModels";
 export { WhisperSize } from "./WhisperSize";

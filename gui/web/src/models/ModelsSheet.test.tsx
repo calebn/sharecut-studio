@@ -9,6 +9,7 @@ import {
   modelsWrapper,
   registryRows,
 } from "../test/renderWithModels";
+import { stubViewportShell } from "../test/viewportShell";
 import { ModelsSheet } from "./ModelsSheet";
 
 function mount(
@@ -16,14 +17,14 @@ function mount(
   over: Parameters<typeof modelsApi>[0] extends infer F
     ? Partial<F>
     : never = {},
-  viewerWidth: "desktop" | "phone" = "desktop",
+  shell: "desktop" | "phone" = "desktop",
 ) {
+  stubViewportShell(shell);
   const api = modelsApi({ status: modelStatus(rows), ...over });
   const onClose = vi.fn();
-  const view = render(
-    <ModelsSheet open onClose={onClose} viewerWidth={viewerWidth} />,
-    { wrapper: modelsWrapper(api) },
-  );
+  const view = render(<ModelsSheet open onClose={onClose} />, {
+    wrapper: modelsWrapper(api),
+  });
   return { api, onClose, ...view };
 }
 
@@ -121,7 +122,7 @@ describe("ModelsSheet", () => {
     expect(api.download).toHaveBeenCalledWith(["speaker-ecapa"], undefined);
   });
 
-  it("blocks the other Get buttons with the reason while one download runs", () => {
+  it("blocks the other Get buttons with the reason while one download runs", async () => {
     mount(registryRows(), {
       job: {
         id: "j1",
@@ -137,6 +138,10 @@ describe("ModelsSheet", () => {
       } as never,
     });
     expect(screen.getByText("420 MB of 1.6 GB")).toBeTruthy();
+    expect(
+      screen.getByRole("progressbar", { name: "Getting Transcription" }),
+    ).toHaveAttribute("aria-valuenow", "26");
+    await expectNoA11yViolations(document.body);
     const get = screen.getByRole("button", { name: "Get Noise reduction" });
     expect(get).toBeDisabled();
     expect(get).toHaveAccessibleDescription("Another download is running");
@@ -156,7 +161,7 @@ describe("ModelsSheet", () => {
       ffmpeg: { state: "missing", source: "unavailable", hint: null },
     };
     const api = modelsApi({ status });
-    render(<ModelsSheet open onClose={vi.fn()} viewerWidth="desktop" />, {
+    render(<ModelsSheet open onClose={vi.fn()} />, {
       wrapper: modelsWrapper(api),
     });
     expect(screen.getByText("Audio tools are unavailable")).toBeTruthy();
@@ -166,6 +171,18 @@ describe("ModelsSheet", () => {
     mount(registryRows(), {}, "phone");
     expect(document.querySelector(".bottom-sheet")).not.toBeNull();
     expect(names()).toHaveLength(4);
+  });
+
+  it("is a modal side sheet docked to the end edge on a desktop, not a centered card", () => {
+    mount();
+    const root = document.querySelector(".ui-dialog-root");
+    expect(root).toHaveClass("ui-dialog-root--end");
+    expect(screen.getByRole("dialog", { name: "Models" })).toBeVisible();
+    expect(
+      document.querySelector(".sys-sheet-end.models-sheet"),
+    ).not.toBeNull();
+    expect(document.querySelector(".sys-sheet-centered")).toBeNull();
+    expect(document.querySelector(".bottom-sheet")).toBeNull();
   });
 
   it("closes from its Close button", async () => {

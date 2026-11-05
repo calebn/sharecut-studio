@@ -184,7 +184,7 @@ async function pressRun(page: Page): Promise<void> {
 
 /** The model row's Get action in the Getting ready list. */
 function getAction(page: Page) {
-  return page.getByRole("button", { name: /^Get \(.*\), Transcribe$/ });
+  return page.getByRole("button", { name: "Get the transcription model" });
 }
 
 /** Track inspector > Split speakers… opens Prepare at that source's split prompt. */
@@ -292,10 +292,12 @@ for (const viewport of VIEWPORTS) {
         await pressRun(page);
         await getAction(page).click();
 
+        await expect(page.getByText(failure.plain)).toBeVisible();
         await expect(
-          page.getByText(`${failure.plain} Try again.`),
-        ).toBeVisible();
-        await expect(getAction(page)).toBeInViewport();
+          page.getByRole("button", {
+            name: "Try getting the transcription model again",
+          }),
+        ).toBeInViewport();
         expect(run.posts()).toBe(1);
         await expectNoHorizontalScroll(page);
         await expectSurfaceAxeClean(page, ".sys-prepare");
@@ -406,18 +408,16 @@ for (const viewport of VIEWPORTS) {
           .first()
           .click();
 
-        await expect(
-          page.getByText(
-            /Speaker model is not downloaded\. Try again to download it\./,
-          ),
-        ).toBeVisible();
+        await expect(page.getByText("Needs the speaker model")).toBeVisible();
         await expect(page.getByRole("dialog")).toHaveCount(0);
         expect(split.posts()).toBe(1);
         await expectNoHorizontalScroll(page);
         await expectSurfaceAxeClean(page, ".sys-prepare");
         await shot(page, viewport.name, theme, "split-idle");
 
-        await page.getByRole("button", { name: /^Try again/ }).click();
+        await page
+          .getByRole("button", { name: "Get the speaker model" })
+          .click();
         await expect.poll(() => mock.runs.length).toBe(1);
         await shot(page, viewport.name, theme, "split-downloading");
         progress.finish();
