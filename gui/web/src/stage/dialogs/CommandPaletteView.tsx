@@ -1,24 +1,33 @@
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
+import { SystemIcon } from "../../system/SystemIcon";
 import { Button, Dialog } from "../../ui";
 import {
   groupPaletteCommands,
   groupPaletteEntries,
   PALETTE_CATEGORY_LABELS,
+  PALETTE_COMMAND_GROUP_LABELS,
   PALETTE_ENTRY_GROUP_LABELS,
+  PALETTE_GESTURES_LABEL,
   PALETTE_RECENT_LIMIT,
   type PaletteCommand,
+  type PaletteCommandGroup,
   type PaletteEntry,
+  paletteGesturesMatch,
   searchPaletteCommands,
   searchPaletteEntries,
 } from "./paletteSearch";
 
-/** One option in render order: a command or an entry, in Recent or its own group. */
+/** One option in render order: a command, an entry or the Gestures row, in Recent or its own group. */
 type Row = {
   /** Unique in the list (Recent repeats an id the groups below also show). */
   key: string;
   command?: PaletteCommand;
   entry?: PaletteEntry;
+  /** The Gestures row: opens the Gestures sheet. */
+  gestures?: true;
 };
+
+const GESTURES_ROW: Row = { key: "gestures:open", gestures: true };
 
 type Section = { key: string; label: string | null; rows: Row[] };
 
@@ -46,8 +55,11 @@ export interface CommandPaletteViewProps {
  * the arrow keys move the active command (`aria-activedescendant`), unavailable
  * ones included so their reasons are read, and Enter runs it. Typing makes the
  * first runnable match active. The status line names the command Enter runs.
- * With Search empty, Recent comes first; Projects, People and Chapters follow
- * the commands as labelled groups and are left out while empty.
+ * With Search empty, Recent comes first, then the commands by category, then
+ * the Stages group (the Go to <stage> commands), Projects, People, Chapters,
+ * Gestures (opens the Gestures sheet) and Help (`help.*` commands), as labelled
+ * groups left out while empty. Searching lists commands flat, ranked, with the
+ * entry groups and Gestures after them. Command rows show their verb icon.
  */
 export function CommandPaletteView({
   open,
@@ -81,6 +93,19 @@ export function CommandPaletteView({
   const searching = query.trim() !== "";
   const shown = searchPaletteCommands(commands, query);
   const entriesShown = searchPaletteEntries(entries, query);
+  const gesturesShown = paletteGesturesMatch(query);
+  const grouped = (group: PaletteCommandGroup): Section[] => {
+    const rows = shown.filter((c) => c.group === group);
+    return rows.length === 0
+      ? []
+      : [
+          {
+            key: group,
+            label: PALETTE_COMMAND_GROUP_LABELS[group],
+            rows: rows.map((command) => ({ key: command.id, command })),
+          },
+        ];
+  };
 
   const sections: Section[] = [];
   if (!searching) {
@@ -100,7 +125,9 @@ export function CommandPaletteView({
     if (recentRows.length > 0) {
       sections.push({ key: "recent", label: "Recent", rows: recentRows });
     }
-    for (const { category, rows } of groupPaletteCommands(shown)) {
+    for (const { category, rows } of groupPaletteCommands(
+      shown.filter((c) => c.group == null),
+    )) {
       sections.push({
         key: category,
         label: PALETTE_CATEGORY_LABELS[category],
@@ -114,6 +141,9 @@ export function CommandPaletteView({
       rows: shown.map((command) => ({ key: command.id, command })),
     });
   }
+  if (!searching) {
+    sections.push(...grouped("stages"));
+  }
   for (const { group, rows } of groupPaletteEntries(entriesShown)) {
     sections.push({
       key: group,
@@ -121,9 +151,20 @@ export function CommandPaletteView({
       rows: rows.map((entry) => ({ key: entry.id, entry })),
     });
   }
+  if (gesturesShown) {
+    sections.push({
+      key: "gestures",
+      label: PALETTE_GESTURES_LABEL,
+      rows: [GESTURES_ROW],
+    });
+  }
+  if (!searching) {
+    sections.push(...grouped("help"));
+  }
   const rows = sections.flatMap((section) => section.rows);
   const rowIndex = new Map(rows.map((row, i) => [row.key, i]));
-  const total = shown.length + entriesShown.length;
+  const extra = entriesShown.length + (gesturesShown ? 1 : 0);
+  const total = shown.length + extra;
 
   const listed = !showRemap && rows.length > 0;
   const rowDisabled = (row: Row) => row.command?.disabledReason != null;
@@ -149,6 +190,8 @@ export function CommandPaletteView({
       }
     } else if (row.entry) {
       onRunEntry?.(row.entry);
+    } else if (row.gestures) {
+      onOpenGestures();
     }
   }
 
@@ -172,14 +215,16 @@ export function CommandPaletteView({
 
   const activeStatus = !active
     ? ""
-    : active.entry
-      ? `Enter: ${active.entry.verb} ${active.entry.label}`
-      : active.command?.disabledReason == null
-        ? `Enter runs ${active.command?.label}`
-        : `${active.command.label} is unavailable: ${active.command.disabledReason}`;
+    : active.gestures
+      ? "Enter opens Gestures"
+      : active.entry
+        ? `Enter: ${active.entry.verb} ${active.entry.label}`
+        : active.command?.disabledReason == null
+          ? `Enter runs ${active.command?.label}`
+          : `${active.command.label} is unavailable: ${active.command.disabledReason}`;
   const status = [
     searching
-      ? `${total} ${entriesShown.length > 0 ? (total === 1 ? "result" : "results") : total === 1 ? "command" : "commands"}`
+      ? `${total} ${extra > 0 ? (total === 1 ? "result" : "results") : total === 1 ? "command" : "commands"}`
       : "",
     activeStatus,
   ]
@@ -192,6 +237,7 @@ export function CommandPaletteView({
       id={optionId(row.key)}
       command={row.command}
       entry={row.entry}
+      gestures={row.gestures}
       active={row.key === active?.key}
       showCategory={showCategory}
       onRun={() => runRow(row)}
@@ -302,6 +348,7 @@ function PaletteOption({
   id,
   command,
   entry,
+  gestures,
   active,
   showCategory,
   onRun,
@@ -309,6 +356,7 @@ function PaletteOption({
   id: string;
   command?: PaletteCommand;
   entry?: PaletteEntry;
+  gestures?: true;
   active: boolean;
   showCategory: boolean;
   onRun: () => void;
@@ -316,8 +364,11 @@ function PaletteOption({
   const disabled = command?.disabledReason != null;
   const note = command
     ? (command.disabledReason ?? command.note)
-    : entry?.context;
-  const label = command?.label ?? entry?.label ?? "";
+    : gestures
+      ? "Touch gestures"
+      : entry?.context;
+  const label =
+    command?.label ?? entry?.label ?? (gestures ? PALETTE_GESTURES_LABEL : "");
   const shortcut = command?.shortcut ?? null;
   const keysId = `${id}-keys`;
   const noteId = `${id}-note`;
@@ -356,12 +407,21 @@ function PaletteOption({
     >
       <span className="command-palette-option-main">
         <span id={`${id}-label`} className="command-palette-label">
+          {command?.icon ? (
+            <SystemIcon
+              name={command.icon}
+              size={16}
+              className="command-palette-icon"
+            />
+          ) : null}
           {label}
           {showCategory && command ? (
             <>
               {" "}
               <span className="command-palette-category">
-                {PALETTE_CATEGORY_LABELS[command.category]}
+                {command.group
+                  ? PALETTE_COMMAND_GROUP_LABELS[command.group]
+                  : PALETTE_CATEGORY_LABELS[command.category]}
               </span>
             </>
           ) : null}

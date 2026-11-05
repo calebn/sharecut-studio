@@ -125,14 +125,15 @@ describe("CommandPaletteView", () => {
       "Projects",
       "People",
       "Chapters",
+      "Gestures",
     ]);
     const search = screen.getByRole("combobox");
     await user.type(search, "alp");
     expect(screen.getAllByRole("option")).toHaveLength(1);
     expect(screen.queryAllByRole("group")).toHaveLength(0);
     await user.clear(search);
-    expect(labels()).toHaveLength(7);
-    expect(screen.getAllByRole("option")).toHaveLength(7);
+    expect(labels()).toHaveLength(8);
+    expect(screen.getAllByRole("option")).toHaveLength(8);
     const ids = screen.getAllByRole("option").map((o) => o.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
@@ -153,7 +154,7 @@ describe("CommandPaletteView", () => {
         .getAllByRole("group")
         .map((g) => g.getAttribute("aria-labelledby"))
         .map((id) => document.getElementById(id ?? "")?.textContent),
-    ).toEqual(["Transport", "Edit", "App"]);
+    ).toEqual(["Transport", "Edit", "App", "Gestures"]);
     expect(
       within(listbox).getByRole("option", { name: "Play / pause Space" }),
     ).not.toHaveAttribute("aria-disabled");
@@ -449,8 +450,139 @@ describe("CommandPaletteView", () => {
     expect(box.getAttribute("aria-activedescendant")).toBe(
       screen.getAllByRole("option")[0]?.id,
     );
-    expect(last?.textContent).toContain("Intro");
+    expect(last?.textContent).toContain("Gestures");
     for (let i = 0; i < 20; i++) await user.keyboard("{ArrowDown}");
     expect(box.getAttribute("aria-activedescendant")).toBe(last?.id);
+  });
+
+  describe("Stages, Gestures and Help groups, verb icons", () => {
+    const stage = (
+      id: string,
+      label: string,
+      overrides: Partial<PaletteCommand> = {},
+    ): PaletteCommand => ({
+      id: `stage.${id}`,
+      label,
+      category: "navigation",
+      shortcut: null,
+      group: "stages",
+      disabledReason: null,
+      ...overrides,
+    });
+    const GROUPED: PaletteCommand[] = [
+      COMMANDS[0],
+      {
+        id: "stage.edit",
+        label: "Go to Edit",
+        category: "navigation",
+        shortcut: "Ctrl+3",
+        group: "stages",
+        icon: "stage-edit",
+        disabledReason: null,
+      },
+      stage("deliver", "Go to Deliver", {
+        disabledReason: "Not available on this link",
+      }),
+      {
+        id: "help.diagnosticsBundle",
+        label: "Export diagnostics…",
+        category: "ui",
+        shortcut: null,
+        group: "help",
+        disabledReason: null,
+      },
+    ];
+    const groupNames = () =>
+      screen
+        .getAllByRole("group")
+        .map(
+          (g) =>
+            document.getElementById(g.getAttribute("aria-labelledby") ?? "")
+              ?.textContent,
+        );
+
+    it("lists Stages after the categories and Help last, off the category sections", () => {
+      renderPalette({ commands: GROUPED, entries: ENTRIES });
+      expect(groupNames()).toEqual([
+        "Transport",
+        "Stages",
+        "Projects",
+        "People",
+        "Chapters",
+        "Gestures",
+        "Help",
+      ]);
+      const stages = within(screen.getByRole("group", { name: "Stages" }));
+      expect(stages.getAllByRole("option")).toHaveLength(2);
+      expect(
+        stages.getByRole("option", { name: /Go to Deliver/ }),
+      ).toHaveAttribute("aria-disabled", "true");
+      expect(
+        within(screen.getByRole("group", { name: "Help" })).getByRole(
+          "option",
+          { name: "Export diagnostics…" },
+        ),
+      ).toBeTruthy();
+      const ids = screen.getAllByRole("option").map((o) => o.id);
+      expect(new Set(ids).size).toBe(ids.length);
+      expect(ids.every((id, i) => id.endsWith(`-opt-${i}`))).toBe(true);
+    });
+
+    it("runs a stage command through onRun and refuses a gated one", async () => {
+      const user = userEvent.setup();
+      const { props } = renderPalette({ commands: GROUPED });
+      await user.click(screen.getByRole("option", { name: /Go to Deliver/ }));
+      expect(props.onRun).not.toHaveBeenCalled();
+      await user.click(screen.getByRole("option", { name: /Go to Edit/ }));
+      expect(props.onRun).toHaveBeenCalledWith("stage.edit");
+    });
+
+    it("hides the Stages group when no stage command is listed", () => {
+      renderPalette({ commands: [COMMANDS[0]] });
+      expect(groupNames()).toEqual(["Transport", "Gestures"]);
+    });
+
+    it("opens the Gestures sheet from its row, by click and by Enter", async () => {
+      const user = userEvent.setup();
+      const { props } = renderPalette();
+      await user.click(screen.getByRole("option", { name: /^Gestures/ }));
+      expect(props.onOpenGestures).toHaveBeenCalledTimes(1);
+      await user.type(screen.getByRole("combobox"), "pinch");
+      expect(screen.getByRole("status").textContent).toContain(
+        "1 result. Enter opens Gestures",
+      );
+      await user.keyboard("{Enter}");
+      expect(props.onOpenGestures).toHaveBeenCalledTimes(2);
+    });
+
+    it("keeps Stages and Help commands in the flat search results, labelled by group", async () => {
+      const user = userEvent.setup();
+      renderPalette({ commands: GROUPED });
+      await user.type(screen.getByRole("combobox"), "diagnostics");
+      expect(screen.queryAllByRole("group")).toHaveLength(0);
+      expect(
+        screen.getByRole("option", { name: "Export diagnostics… Help" }),
+      ).toBeTruthy();
+      await user.clear(screen.getByRole("combobox"));
+      await user.type(screen.getByRole("combobox"), "go to ed");
+      expect(
+        screen.getByRole("option", { name: /Go to Edit Stages/ }),
+      ).toBeTruthy();
+    });
+
+    it("draws the verb icon as a decorative SVG and keeps the option name unchanged", () => {
+      renderPalette({ commands: GROUPED });
+      const edit = screen.getByRole("option", { name: /Go to Edit/ });
+      expect(edit.querySelector("svg.command-palette-icon")).toHaveAttribute(
+        "aria-hidden",
+        "true",
+      );
+      expect(edit).toHaveAccessibleName("Go to Edit Ctrl+3");
+      expect(
+        screen
+          .getByRole("option", { name: /Go to Deliver/ })
+          .querySelector("svg"),
+      ).toBeNull();
+    });
   });
 });

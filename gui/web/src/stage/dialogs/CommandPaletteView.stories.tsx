@@ -67,10 +67,31 @@ const COMMANDS: PaletteCommand[] = [
     disabledReason: null,
   },
   {
+    id: "stage.edit",
+    label: "Go to Edit",
+    category: "navigation",
+    shortcut: "Ctrl+3",
+    defaultKey: "3",
+    group: "stages",
+    icon: "stage-edit",
+    disabledReason: null,
+  },
+  {
+    id: "stage.deliver",
+    label: "Go to Deliver",
+    category: "navigation",
+    shortcut: "Ctrl+5",
+    defaultKey: "5",
+    group: "stages",
+    icon: "send",
+    disabledReason: "Not available on this link",
+  },
+  {
     id: "help.diagnosticsBundle",
     label: "Export diagnostics…",
     category: "ui",
     shortcut: null,
+    group: "help",
     disabledReason: "Project create/open is host-only",
   },
 ];
@@ -181,11 +202,27 @@ export const Groups: Story = {
   play: async ({ args, canvasElement, viewMode }) => {
     if (viewMode === "docs") return;
     const dialog = await openDialogViaLauncher(canvasElement, LAUNCHER, TITLE);
-    for (const name of ["Projects", "People", "Chapters"]) {
+    for (const name of [
+      "Stages",
+      "Projects",
+      "People",
+      "Chapters",
+      "Gestures",
+      "Help",
+    ]) {
       await waitFor(() =>
         expect(within(dialog).getByRole("group", { name })).toBeVisible(),
       );
     }
+    await expect(
+      within(dialog).getByRole("option", {
+        name: "Go to Deliver Ctrl+5 Not available on this link",
+      }),
+    ).toHaveAttribute("aria-disabled", "true");
+    await userEvent.click(
+      within(dialog).getByRole("option", { name: "Go to Edit Ctrl+3" }),
+    );
+    await expect(args.onRun).toHaveBeenCalledWith("stage.edit");
     await userEvent.click(
       within(dialog).getByRole("option", { name: "Cold open 1:02" }),
     );

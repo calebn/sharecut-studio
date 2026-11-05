@@ -74,6 +74,38 @@ describe("paletteCommands", () => {
     );
   });
 
+  it("puts the five stage commands in Stages, with the stage icons, and help.* in Help", () => {
+    const rows = rowsNow();
+    const stages = rows.filter((r) => r.group === "stages");
+    expect(stages.map((r) => r.id).sort()).toEqual(
+      ["deliver", "edit", "prepare", "record", "review"].map(
+        (id) => `stage.${id}`,
+      ),
+    );
+    expect(stages.every((r) => r.icon !== undefined)).toBe(true);
+    expect(stages.find((r) => r.id === "stage.record")?.icon).toBe("record");
+    expect(rows.filter((r) => r.group === "help").map((r) => r.id)).toEqual([
+      "help.diagnosticsBundle",
+    ]);
+    expect(rows.find((r) => r.id === "edit.bladeCut")?.group).toBeUndefined();
+  });
+
+  it("gives verb-table commands their verb icon and leaves others without", () => {
+    const rows = new Map(rowsNow().map((r) => [r.id, r]));
+    expect(rows.get("transport.togglePlay")?.icon).toBe("play");
+    expect(rows.get("view.showCutAway")?.icon).toBeUndefined();
+  });
+
+  it("keeps the stage gates: a guest link gets the reason on stages it cannot enter", () => {
+    useDawStore
+      .getState()
+      .hydrate(shareProjectKey("tok"), minimalProject(), "view", ["play"]);
+    const rows = new Map(rowsNow().map((r) => [r.id, r]));
+    expect(rows.get("stage.deliver")?.disabledReason).toBe(
+      "Not available on this link",
+    );
+  });
+
   it("keeps the story fixture in step with the catalog and keymap", () => {
     const live = new Map(rowsNow().map((r) => [r.id, r]));
     for (const row of paletteStoryMeta.args?.commands ?? []) {
