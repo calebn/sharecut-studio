@@ -87,7 +87,10 @@ export function searchPaletteCommands(
     const haystack = [
       label,
       ...(command.keywords ?? []),
-      PALETTE_CATEGORY_LABELS[command.category].toLowerCase(),
+      (command.group
+        ? PALETTE_COMMAND_GROUP_LABELS[command.group]
+        : PALETTE_CATEGORY_LABELS[command.category]
+      ).toLowerCase(),
       command.shortcut?.toLowerCase() ?? "",
     ].join(" ");
     if (!words.every((word) => haystack.includes(word))) {

@@ -161,3 +161,22 @@ describe("palette entries", () => {
     expect(searchPaletteEntries(entries, "zzz")).toEqual([]);
   });
 });
+
+describe("group names in search", () => {
+  const stage = {
+    ...cmd("stage.edit", "Go to Edit", "navigation"),
+    group: "stages",
+  } as PaletteCommand;
+  const help = {
+    ...cmd("help.x", "Export diagnostics…", "ui"),
+    group: "help",
+  } as PaletteCommand;
+  it("matches a grouped command by its group name", () => {
+    expect(ids(searchPaletteCommands([stage, help], "stages"))).toEqual([
+      "stage.edit",
+    ]);
+    expect(ids(searchPaletteCommands([stage, help], "help"))).toEqual([
+      "help.x",
+    ]);
+  });
+});
