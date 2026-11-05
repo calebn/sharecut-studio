@@ -1674,7 +1674,7 @@ describe("Record stage End session", () => {
     const dialog = await openMore();
     const end = within(dialog).getByRole("button", { name: "End session" });
     expect(end).toHaveAccessibleDescription(
-      "Land every take on the timeline before ending the session.",
+      "Wait for every take to reach the timeline before ending the session.",
     );
     await userEvent.click(end);
     expect(screen.queryByText(END_SESSION_PENDING_COPY)).toBeNull();

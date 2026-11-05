@@ -223,7 +223,7 @@ flowchart TD
   recovery --> saving
   saving --> staged[Saved to project; this device keeps its copy]
   staged --> opfs[This device's copy clears automatically after confirmed landing]
-  staged --> failed[Landing failed; ask host to Retry land]
+  staged --> failed[Landing failed; ask host to retry]
   failed --> staged
   opfs --> done[Tracks on host timeline]
 ```
@@ -380,7 +380,7 @@ flowchart TD
    small completion marker remains to preserve segment numbering; recovery
    downloads skip cleared segments rather than reporting them missing. If
    landing fails, the guest sees "Saved to project, but not on the timeline
-   yet." and keeps this device's copy while the host uses **Retry land**. The Join sheet and the host Record stage warn when browser storage
+   yet." and keeps this device's copy while the host uses **Retry** on the take row. The Join sheet and the host Record stage warn when browser storage
    headroom is low or cannot be estimated; this advisory never blocks recording.
    If a rejoin finds a readable pending PCM segment, the room also offers
    **Finish saving** before saving and announces what it recovered;
@@ -461,7 +461,7 @@ landing copies the saved recordings into `raw/` as one clip per segment and
 reports landed or land-failed state. Only the landed state lets this device
 clear its copy; a segment whose staged host copy went missing before reaching
 raw/ reports land-failed (never landed), so the guest keeps the copy; `land_failed_ns`
-remains in the existing upload manifest across reconnects, and Retry land does not
+remains in the existing upload manifest across reconnects, and Retry does not
 discard staged parts. Landing also compares
 sample-count vs recording-clock duration (`drift_ms`; unknown is `null`).
 `|drift| > 50 ms` or a missing `session_start` sets `align_fallback` as a

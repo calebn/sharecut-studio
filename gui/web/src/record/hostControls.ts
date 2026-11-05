@@ -6,15 +6,15 @@ import {
 } from "./types";
 import type { RecordUploadStatus } from "./upload/transport";
 
-/** The one take control each room state offers; Stop only exists while a take is open. */
+/** The one take control each room state offers. */
 export const TAKE_CONTROL = {
-  lobby: { commandId: "record.start", label: "Start", stop: false },
-  stopped: { commandId: "record.start", label: "Start", stop: false },
-  recording: { commandId: "record.pause", label: "Pause", stop: true },
-  paused: { commandId: "record.resume", label: "Resume", stop: true },
+  lobby: { commandId: "record.start", label: "Start" },
+  stopped: { commandId: "record.start", label: "Start" },
+  recording: { commandId: "record.pause", label: "Pause" },
+  paused: { commandId: "record.resume", label: "Resume" },
 } as const satisfies Record<
   RecordRoomState,
-  { commandId: string; label: string; stop: boolean }
+  { commandId: string; label: string }
 >;
 
 /** A host Start blocker with its words. */
@@ -113,13 +113,15 @@ export function endGate(
   ) {
     return {
       enabled: false,
-      reason: "Land every take on the timeline before ending the session.",
+      reason:
+        "Wait for every take to reach the timeline before ending the session.",
     };
   }
   if ((snapshot.comments?.length ?? 0) > 0) {
     return {
       enabled: false,
-      reason: "Land the live notes before ending the session.",
+      reason:
+        "Wait for the live notes to reach the timeline before ending the session.",
     };
   }
   return { enabled: true };
