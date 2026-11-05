@@ -681,3 +681,20 @@ html[data-shell="phone"] select.track-sheet-field {
   grid-template-columns: minmax(min-content, 1fr) minmax(0, 11rem);
   align-items: start;
 }
+
+/* A phone held sideways has no height to spare: the four nudges lay out as one
+   row beside the field, so a Time or Level row stays one button tall and the
+   sheet fits the point's rows without scrolling. */
+/* stylelint-disable-next-line media-feature-name-disallowed-list -- user-approved: tablet short viewport for portaled sheets */
+@media (max-height: 40rem) {
+  @container sheet-slot (min-width: 30rem) {
+    .scrub-nudge .nudge-row-buttons {
+      grid-template-columns: repeat(4, auto);
+    }
+
+    .sys-inspector-row:has(.scrub-nudge .nudge-row) {
+      grid-template-columns: minmax(min-content, 1fr) minmax(0, 22rem);
+      align-items: center;
+    }
+  }
+}
