@@ -717,8 +717,7 @@ included (#1433, #1445), and, on the tablet and desktop shells, the Review queue
 a copy of the fixture whose first track has a volume envelope and an effect chain, so
 the track surface shows the Bypass toggles and its first point opens in the Inspector with its
 Time and Level fields. A control inside a closed `<details>` is not measured until it opens.
-The sheet's hidden detent range is the keyboard route to the drawer height; a finger
-swipes the header or taps the resize buttons. Page zoom is not that 32 px root:
+The sheet's hidden detent range is the keyboard route to the sheet height; a finger drags or taps the grip. Page zoom is not that 32 px root:
 Safari Aa 200% shrinks the layout or visual viewport while rem stays 16 px, which
 the sweep never opens. The compact transport and Listen timer case (`phone-transport-zoom.spec.ts`, 197×329 and 430×932 at a 32 px root) was deleted with the transport bar and Listen hero (#2292); the stage frame's phone chrome is measured through `gui/web/e2e/compactChromeFixture.ts`. A WebKit case checks browser layout at that width; it does not reproduce native
 Safari's select painting or stand for a physical iPhone. `gui/web/e2e/reachability.ts` is the measuring helper. It
@@ -1130,14 +1129,7 @@ compact-history-persistence.spec.ts compact-feedback-detents.spec.ts compact-pai
 building the production app. These browser receipts do not establish physical
 device behavior or Linux CI results.
 
-`compact-feedback-focus.spec.ts` preserves each native Undo and Dismiss button
-through the phone-to-tablet shell switch, which remounts the sheet and
-Inspector. This focused
-compatibility regression needs Chromium and WebKit because their native focus
-fixup and portal movement differ. It uses one viewport transition per action,
-without duplicating the existing theme, text-size, or detent matrices. Component
-tests cover the smaller focus-request and current valid return-target contracts,
-including modal priority, refused or disabled actions, and host teardown.
+Component tests cover the smaller focus-request and current valid return-target contracts, including modal priority, refused or disabled actions, and host teardown.
 A second page in the same browser context stands in for the peer; its selection
 and mute are what a real second host tab sends, which the REST command route
 does not reproduce because it publishes no selection.
@@ -1153,7 +1145,7 @@ hidden detent range. The floating lifetime case removes a genuinely long named
 track through the production Undo toast, then closes a compact selection while
 that same guarded card remains clipped. Browser RED receipts precede repairs.
 
-Compact discovery retains its primary header proof at the selected detent. If canonical geometry shows that the target cannot fit that body's clip, the existing reveal helper admits the actual compact Expand control before requiring full card and action containment. Receipts distinguish the selected detent from the recovered presentation. Ruler proof uses canonical positive visible area and a real unforced `x300,y12` click because the ruler intentionally spans horizontal scroll content; its whole border box need not fit the viewport. Native horizontal wheel readiness waits for the intended local `x300,y12` coordinate to enter the canonical visible bounds before evaluating ruler permission. The original Pending ruler click assertions remain unchanged.
+Compact discovery retains its primary header proof at the selected detent. If canonical geometry shows that the target cannot fit that body's clip, the existing reveal helper raises the sheet with its grip before requiring full card and action containment. Receipts distinguish the selected detent from the recovered presentation. Ruler proof uses canonical positive visible area and a real unforced `x300,y12` click because the ruler intentionally spans horizontal scroll content; its whole border box need not fit the viewport. Native horizontal wheel readiness waits for the intended local `x300,y12` coordinate to enter the canonical visible bounds before evaluating ruler permission. The original Pending ruler click assertions remain unchanged.
 
 The phone navigation focus matrix traverses every Primary navigation button
 with native Tab at 16px and 32px root sizes, one theme per size. It runs
