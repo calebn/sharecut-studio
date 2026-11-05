@@ -45,7 +45,24 @@ export function TrackPlaybackMeter({
   );
   const state = useRef<MeterState>(SILENT_METER);
   const [levels, setLevels] = useState(SILENT_METER);
-  const [available, setAvailable] = useState(false);
+  const [run, setRun] = useState({ playing, source, trackId, projectEpoch });
+  if (
+    run.playing !== playing ||
+    run.source !== source ||
+    run.trackId !== trackId ||
+    run.projectEpoch !== projectEpoch
+  ) {
+    setRun({ playing, source, trackId, projectEpoch });
+  }
+  const [availability, setAvailability] = useState<{
+    run: typeof run;
+    value: boolean;
+  } | null>(null);
+  const available =
+    playing &&
+    source !== null &&
+    availability?.run === run &&
+    availability.value;
 
   useEffect(() => {
     state.current = {
@@ -53,17 +70,14 @@ export function TrackPlaybackMeter({
       clipped: playbackTrackClipped(trackId, projectEpoch),
     };
     setLevels(state.current);
-    setAvailable(false);
   }, [projectEpoch, trackId]);
 
   useEffect(() => {
     if (!playing || !source) {
-      setAvailable(false);
       state.current = { ...SILENT_METER, clipped: state.current.clipped };
       setLevels(state.current);
       return;
     }
-    setAvailable(false);
     const motion = window.matchMedia?.("(prefers-reduced-motion: reduce)");
     let last: number | null = null;
     let published = Number.NEGATIVE_INFINITY;
@@ -73,7 +87,7 @@ export function TrackPlaybackMeter({
       const nextAvailable = samples !== null;
       if (nextAvailable !== wasAvailable) {
         wasAvailable = nextAvailable;
-        setAvailable(nextAvailable);
+        setAvailability({ run, value: nextAvailable });
       }
       const prev = {
         ...state.current,
@@ -98,7 +112,7 @@ export function TrackPlaybackMeter({
         setLevels(next);
       }
     });
-  }, [playing, source, trackId, projectEpoch]);
+  }, [playing, source, trackId, projectEpoch, run]);
 
   const inspectorReason =
     inspector && !clipped ? NO_CLIPPING_REASON : undefined;

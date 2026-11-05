@@ -1,5 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Suspense, startTransition, useLayoutEffect, useState } from "react";
+import { flushSync } from "react-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   setPlaybackTrackClipped,
@@ -185,6 +187,135 @@ describe("track playback peak meter", () => {
     expect(clear).not.toHaveAttribute("aria-disabled");
     expect(clear).not.toHaveAttribute("aria-describedby");
     expect(screen.queryByText("No clipping to clear.")).toBeNull();
+  });
+
+  it("retires availability before the first frame of each committed source entry", () => {
+    const a = { read: vi.fn(() => [0.1]) };
+    const b = { read: vi.fn(() => [0.2]) };
+    unbind = bindPlaybackMeterSource(a);
+    const { container } = render(
+      <TrackPlaybackMeter trackId="host" label="Mira" />,
+    );
+    const root = container.querySelector(".track-playback-meter");
+    const meter = screen.getByRole("meter");
+    expect(root).toHaveAttribute("data-available", "false");
+    frame(0);
+    expect(root).toHaveAttribute("data-available", "true");
+    expect(meter).toHaveAttribute("aria-valuenow", "-20");
+    act(() => {
+      unbind = bindPlaybackMeterSource(b);
+    });
+    expect(root).toHaveAttribute("data-available", "false");
+    expect(meter).toHaveAttribute("aria-valuenow", "-20");
+    act(() => {
+      unbind = bindPlaybackMeterSource(a);
+    });
+    expect(root).toHaveAttribute("data-available", "false");
+    expect(a.read).toHaveBeenCalledTimes(1);
+    expect(b.read).not.toHaveBeenCalled();
+    frame(40);
+    expect(root).toHaveAttribute("data-available", "true");
+    expect(a.read).toHaveBeenCalledTimes(2);
+  });
+
+  it("resets availability on resume and epoch replacement while retaining clip ownership", () => {
+    unbind = bindPlaybackMeterSource({ read: () => [1] });
+    const { container } = render(
+      <TrackPlaybackMeter trackId="host" label="Mira" />,
+    );
+    const root = container.querySelector(".track-playback-meter");
+    frame(0);
+    act(() => useDawStore.setState({ isPlaying: false }));
+    expect(root).toHaveAttribute("data-available", "false");
+    expect(screen.getByRole("button")).toBeEnabled();
+    act(() => useDawStore.setState({ isPlaying: true }));
+    expect(root).toHaveAttribute("data-available", "false");
+    frame(40);
+    expect(root).toHaveAttribute("data-available", "true");
+    act(() => useDawStore.setState({ projectEpoch: 2 }));
+    expect(root).toHaveAttribute("data-available", "false");
+    expect(screen.getByRole("button")).toBeDisabled();
+  });
+
+  it("clears clip using the latest analysed frame even before level publication is due", async () => {
+    let samples = [0.1];
+    unbind = bindPlaybackMeterSource({ read: () => samples });
+    render(<TrackPlaybackMeter trackId="host" label="Mira" />);
+    frame(0);
+    act(() => setPlaybackTrackClipped("host", true));
+    samples = [0.2];
+    frame(10);
+    expect(screen.getByRole("meter")).toHaveAttribute("aria-valuenow", "-20");
+    await userEvent.click(screen.getByRole("button"));
+    expect(screen.getByRole("meter")).toHaveAttribute("aria-valuenow", "-14");
+    expect(screen.getByRole("button")).toBeDisabled();
+  });
+
+  it("keeps the committed source subscription through an abandoned track render", () => {
+    const read = vi.fn((_trackId: string) => [0.1]);
+    unbind = bindPlaybackMeterSource({ read });
+    const never = new Promise<void>(() => {});
+    let tentativeRenders = 0;
+    function PendingRender({ suspend }: { suspend: boolean }): null {
+      if (suspend) {
+        tentativeRenders += 1;
+        throw never;
+      }
+      return null;
+    }
+    const view = (trackId: string, suspend: boolean) => (
+      <Suspense fallback={<p>Pending meter track</p>}>
+        <TrackPlaybackMeter trackId={trackId} label="Mira" />
+        <PendingRender suspend={suspend} />
+      </Suspense>
+    );
+    const { rerender, container } = render(view("host", false));
+    frame(0);
+    act(() => {
+      startTransition(() => rerender(view("tentative", true)));
+    });
+    expect(tentativeRenders).toBeGreaterThan(0);
+    expect(screen.queryByText("Pending meter track")).toBeNull();
+    rerender(view("host", false));
+    expect(container.querySelector(".track-playback-meter")).toHaveAttribute(
+      "data-available",
+      "true",
+    );
+    frame(40);
+    expect(read.mock.calls).toEqual([["host"], ["host"]]);
+  });
+
+  it("does not revive default-priority frame availability after committed track round trips", () => {
+    unbind = bindPlaybackMeterSource({ read: () => [0.1] });
+    let changeTrack!: (trackId: string) => void;
+    function Harness() {
+      const [trackId, setTrackId] = useState("host");
+      useLayoutEffect(() => {
+        changeTrack = setTrackId;
+      }, []);
+      return <TrackPlaybackMeter trackId={trackId} label={trackId} />;
+    }
+    const { container } = render(<Harness />);
+    act(() => {
+      tick?.(0);
+      flushSync(() => changeTrack("other"));
+      expect(
+        screen.getByRole("meter", { name: "other playback level" }),
+      ).toBeInTheDocument();
+      flushSync(() => changeTrack("host"));
+      expect(
+        screen.getByRole("meter", { name: "host playback level" }),
+      ).toBeInTheDocument();
+    });
+    expect(container.querySelector(".track-playback-meter")).toHaveAttribute(
+      "data-available",
+      "false",
+    );
+    frame(40);
+    expect(container.querySelector(".track-playback-meter")).toHaveAttribute(
+      "data-available",
+      "true",
+    );
   });
 
   it("never samples idle transport", () => {
