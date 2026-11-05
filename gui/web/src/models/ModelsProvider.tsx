@@ -5,12 +5,14 @@ import {
   useMemo,
   useReducer,
   useRef,
+  useState,
 } from "react";
 import {
   type BootstrapJobSnapshot,
   cancelBootstrap,
   fetchBootstrapJob,
   fetchBootstrapStatus,
+  removeBootstrapModel,
   runBootstrap,
   waitForBootstrapJob,
 } from "../api";
@@ -26,7 +28,12 @@ import {
   reduce,
   toolsOf,
 } from "./controller";
-import type { DownloadOptions, DownloadOutcome, ModelFailure } from "./types";
+import type {
+  DownloadOptions,
+  DownloadOutcome,
+  ModelFailure,
+  RemoveOutcome,
+} from "./types";
 import { type ModelsApi, ModelsContext } from "./useModels";
 
 const BUSY_CODE = "bootstrap_job_running";
@@ -38,6 +45,8 @@ const BUSY_CODE = "bootstrap_job_running";
  */
 export function ModelsProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reduce, initialState);
+  /** True from Get until the server answers, so no other Get or size change slips into that window. */
+  const [starting, setStarting] = useState(false);
   const stateRef = useRef(state);
   useEffect(() => {
     stateRef.current = state;
@@ -157,6 +166,7 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
         }
       }
       dispatch({ type: "downloadStarted", ids });
+      setStarting(true);
       const rows = stateRef.current.status?.models ?? [];
       const force = ids.some(
         (id) => rows.find((m) => m.id === id)?.state === "update_needed",
@@ -170,8 +180,11 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
           ...(whisperModel ? { whisper_model: whisperModel } : {}),
           force,
         });
-        return await track(started.job, ids);
+        const outcome = track(started.job, ids);
+        setStarting(false);
+        return await outcome;
       } catch (e: unknown) {
+        setStarting(false);
         running.current = null;
         if (e instanceof ApiError && e.code === BUSY_CODE) {
           await adoptRunning();
@@ -201,6 +214,25 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
     }
   }, [reload]);
 
+  const remove = useCallback(
+    async (id: string, variant?: string | null): Promise<RemoveOutcome> => {
+      try {
+        await removeBootstrapModel(id, id === "whisper" ? variant : null);
+      } catch (e: unknown) {
+        if (
+          e instanceof ApiError &&
+          (e.code === BUSY_CODE || e.code === "pipeline_busy")
+        ) {
+          return { kind: "busy" };
+        }
+        return { kind: "failed", plain: plainError(errorMessage(e)) };
+      }
+      await reload();
+      return { kind: "ok" };
+    },
+    [reload],
+  );
+
   const refresh = useCallback(async () => {
     await reload();
   }, [reload]);
@@ -221,7 +253,7 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
         : null,
       tools: toolsOf(state.status),
       ready: state.status?.ready ?? false,
-      busy: state.job !== null,
+      busy: state.job !== null || starting,
       loadError: state.loadError,
       whisper: {
         variant: state.variant,
@@ -230,9 +262,10 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
       },
       download,
       cancel,
+      remove,
       refresh,
     }),
-    [state, choose, download, cancel, refresh],
+    [state, starting, choose, download, cancel, remove, refresh],
   );
 
   return (

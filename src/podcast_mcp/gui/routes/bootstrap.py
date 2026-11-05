@@ -9,13 +9,19 @@ from fastapi.responses import StreamingResponse
 
 from podcast_mcp.gui.routes.deps import (
     bad_request_error,
+    coded_exception_error,
     coded_http_error,
     require_host,
 )
 from podcast_mcp.gui.routes.sse_common import job_events_response
 from podcast_mcp.gui.schemas import BootstrapCancelRequest, BootstrapRunRequest
-from podcast_mcp.services.jobs import BootstrapSlotBusyError, JobManager
-from podcast_mcp.services.pipeline import component_status, resolve_whisper_model
+from podcast_mcp.services.jobs import LIVE_JOB_STATUSES, BootstrapSlotBusyError, JobManager
+from podcast_mcp.services.pipeline import (
+    component_status,
+    resolve_whisper_model,
+    uninstall_model,
+)
+from podcast_mcp.util.coded_error import CodedValueError
 
 router = APIRouter()
 
@@ -63,6 +69,39 @@ def bootstrap_run(
     except ValueError as exc:
         raise bad_request_error(exc) from exc
     return {"job": job.snapshot(), "adopted": adopted}
+
+
+@router.delete("/api/bootstrap/models/{model_id}")
+def bootstrap_remove_model(
+    model_id: str,
+    request: Request,
+    whisper_model: str | None = Query(None),
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> dict[str, Any]:
+    """Delete one downloaded model (one Whisper size). Refused while a download or job runs."""
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    mgr = _jobs(request)
+    live = mgr.get_bootstrap_job()
+    if live is not None and live.status in LIVE_JOB_STATUSES:
+        raise coded_http_error(
+            409,
+            {
+                "detail": "A download is running; remove the model when it finishes",
+                "running": list(live.components),
+                "cancelling": live.cancel_requested,
+            },
+            code=BootstrapSlotBusyError.code,
+        )
+    if mgr.status()["running"]:
+        raise coded_http_error(
+            409, "A job is running; remove the model when it finishes", code="pipeline_busy"
+        )
+    try:
+        return uninstall_model(model_id, whisper_model)
+    except CodedValueError as exc:
+        refused = exc.code == "model_not_removable"
+        raise coded_exception_error(409 if refused else 400, exc, code="invalid_request") from exc
 
 
 @router.post("/api/bootstrap/cancel")

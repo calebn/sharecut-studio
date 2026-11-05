@@ -124,6 +124,22 @@ export async function cancelBootstrap(
   return ((await res.json()) as { job: BootstrapJobSnapshot }).job;
 }
 
+/** Deletes one downloaded model; for Whisper, the one size `whisperModel` names. */
+export async function removeBootstrapModel(
+  id: string,
+  whisperModel?: string | null,
+): Promise<{ freed_bytes: number; model: ModelStatus }> {
+  const query = whisperModel
+    ? `?whisper_model=${encodeURIComponent(whisperModel)}`
+    : "";
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: `/api/bootstrap/models/${encodeURIComponent(id)}${query}` },
+    { method: "DELETE" },
+  );
+  return (await res.json()) as { freed_bytes: number; model: ModelStatus };
+}
+
 export function bootstrapEventsUrl(jobId?: string | null): string {
   if (jobId) {
     return `/api/bootstrap/events?job_id=${encodeURIComponent(jobId)}`;

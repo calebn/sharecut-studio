@@ -9,6 +9,7 @@ if TYPE_CHECKING:
         install_model,
         model_status,
         run_bootstrap,
+        uninstall_model,
     )
     from podcast_mcp.services.pipeline.config import (
         STEP_NAMES,
@@ -94,6 +95,7 @@ __all__ = [
     "suggest_pipeline_tuning",
     "transcribe_run_config",
     "unexpected_text",
+    "uninstall_model",
     "validate_whisper_model",
 ]
 
@@ -122,6 +124,7 @@ _MODULE_BY_NAME = {
     "rerender_preview": "preview",
     "component_status": "bootstrap",
     "run_bootstrap": "bootstrap",
+    "uninstall_model": "bootstrap",
     "analyze_working_set": "config",
     "asr_options_for": "config",
     "build_config_payload": "config",

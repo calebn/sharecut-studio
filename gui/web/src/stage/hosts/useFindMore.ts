@@ -1,17 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { startPipelineRun } from "../../api";
 import { askConfirm } from "../../feedback/ask";
 import { usePipelineWorkingSet } from "../../hooks/usePipelineWorkingSet";
-import { useModelResume } from "../../models";
 import type { QueueJob } from "../../review/ReviewQueue";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
 import { BUSY_REASON } from "../../ui/disabledReason";
-import {
-  errorMessage,
-  isModelNeeded,
-  type ModelNeeded,
-} from "../../utils/apiError";
+import { errorMessage, isModelNeeded } from "../../utils/apiError";
 import {
   isPipelineKindJob,
   isPipelineRunning,
@@ -26,10 +21,7 @@ import {
   tightenProposeRunOptions,
 } from "../../utils/tightenIntensity";
 
-const NO_TIER = "Set How tight in Prepare Cleanup first.";
-
-/** The run this hook started, scoped to the project it ran on. */
-type Run = { path: string; jobId: string | null; error: string | null };
+import { NO_TIER, useFindMoreFlow } from "./findMoreFlow";
 
 /** Find more: reruns suggestion finding with the saved How tight, and reports the job. */
 export function useFindMore(enabled: boolean) {
@@ -41,25 +33,15 @@ export function useFindMore(enabled: boolean) {
       activityJob: s.activityJob,
       setPipelineJob: s.setPipelineJob,
     }));
-  const again = useRef<(need: ModelNeeded) => void>(() => undefined);
-  const retried = useRef<string | null>(null);
-  const {
-    stop: needs,
-    stopFor,
-    clear,
-  } = useModelResume((need) => again.current(need));
-  useEffect(() => {
-    clear();
-  }, [projectPath, clear]);
+  const { run, setRun, needs, stopFor, fresh } = useFindMoreFlow();
   const { cfg, loadError, fetchFresh } = usePipelineWorkingSet(
     projectPath,
     enabled,
   );
   const [starting, setStarting] = useState(false);
-  const [run, setRun] = useState<Run | null>(null);
   const flying = useRef(false);
 
-  const onFindMore = async (resumed = false) => {
+  const onFindMore = async () => {
     if (flying.current) return;
     flying.current = true;
     setStarting(true);
@@ -73,7 +55,7 @@ export function useFindMore(enabled: boolean) {
       const hits = (project?.pending_edits ?? []).filter(
         (e) => !e.applied && isTightenClass(e.kind),
       ).length;
-      const question = resumed ? null : findHitsConfirm(hits);
+      const question = findHitsConfirm(hits);
       if (
         question &&
         !(await askConfirm({
@@ -101,8 +83,7 @@ export function useFindMore(enabled: boolean) {
       setRun({ path, jobId: started.id, error: null });
       useDawStore.getState().announceStatus("Finding more suggestions…");
     } catch (e) {
-      if (isModelNeeded(e) && current() && retried.current !== e.model.id) {
-        stopFor(e.model);
+      if (isModelNeeded(e) && current() && stopFor(e.model)) {
         return;
       }
       setRun({ path, jobId: null, error: errorMessage(e) });
@@ -155,16 +136,11 @@ export function useFindMore(enabled: boolean) {
           ? undefined // a press fetches the settings again
           : "Wait for the settings to load.";
 
-  again.current = (need) => {
-    retried.current = need.id;
-    void onFindMore(true);
-  };
-
   return {
     job,
     onFindMore: enabled
       ? () => {
-          retried.current = null;
+          fresh();
           void onFindMore();
         }
       : undefined,

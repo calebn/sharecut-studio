@@ -22,6 +22,7 @@ from podcast_mcp.engines.models.registry import (
     model_record,
     model_spec,
     models_for,
+    remove_model,
 )
 from podcast_mcp.engines.models.whisper import (
     catalog_payload,
@@ -71,6 +72,21 @@ def model_status(
     except Exception as exc:  # huggingface_hub / filesystem surprises: report, never raise
         return {**base, "state": "missing", "hint": str(exc), "bootstrap": spec.fix_command}
     return {**base, "path": path, **{k: v for k, v in record.items() if k not in base}}
+
+
+def uninstall_model(model_id: str, variant: str | None = None) -> dict[str, Any]:
+    """Delete one model Studio downloaded and report the record after it, plus the bytes freed.
+
+    Raises ``CodedValueError`` for an unknown id and ``ModelNotRemovable`` for a file the
+    person supplied. The caller keeps it away from a running download or job.
+    """
+    try:
+        model_spec(model_id)
+    except KeyError as exc:
+        raise CodedValueError(f"Unknown model {model_id!r}", code="invalid_request") from exc
+    freed = remove_model(model_id, variant)
+    record = model_status(model_id, variant, memoize=False)
+    return {"ok": True, "freed_bytes": freed, "model": record}
 
 
 def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:

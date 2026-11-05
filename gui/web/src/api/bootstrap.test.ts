@@ -3,6 +3,7 @@ import {
   type BootstrapJobSnapshot,
   cancelBootstrap,
   fetchBootstrapJob,
+  removeBootstrapModel,
   waitForBootstrapJob,
 } from "./bootstrap";
 import { JOB_STREAM_RECHECK_MS } from "./jobStream";
@@ -334,6 +335,34 @@ describe("bootstrap requests", () => {
     expect(url).toContain("/api/bootstrap/cancel");
     expect(init?.method).toBe("POST");
     expect(JSON.parse(init?.body as string)).toEqual({ job_id: "job-c" });
+  });
+
+  it("deletes one model, naming the Whisper size", async () => {
+    const fetchMock = vi.fn(
+      async (_url: string, _init?: RequestInit) =>
+        new Response(
+          JSON.stringify({ freed_bytes: 5, model: { id: "whisper" } }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(
+      removeBootstrapModel("whisper", "small.en"),
+    ).resolves.toMatchObject({
+      freed_bytes: 5,
+    });
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toContain(
+      "/api/bootstrap/models/whisper?whisper_model=small.en",
+    );
+    expect(init?.method).toBe("DELETE");
+    await removeBootstrapModel("rnnoise");
+    expect(fetchMock.mock.calls[1]![0]).toMatch(
+      /\/api\/bootstrap\/models\/rnnoise$/,
+    );
   });
 
   it("asks status-job for the current job when no id is given", async () => {

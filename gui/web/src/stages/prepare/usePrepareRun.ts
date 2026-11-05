@@ -33,6 +33,8 @@ import { OVERWRITE_REFUSED, oneRunSkipSteps } from "./prepareMappers";
 import type { ReadyRowId } from "./ReadyList";
 
 const TRANSCRIBE_STEP = "transcribe_tracks";
+const modelKey = (model: Pick<NeedTarget, "id" | "variant">) =>
+  `${model.id}:${model.variant ?? ""}`;
 const BUSY_CODE = "pipeline_busy";
 
 /** `update` redoes the transcripts whose audio changed, and only those. */
@@ -179,7 +181,10 @@ export function usePrepareRun(input: PrepareRunInput) {
         try {
           job = await startPipelineRun(latest.current.projectPath, options);
         } catch (error) {
-          if (isModelNeeded(error) && retried.current !== error.model.id) {
+          if (
+            isModelNeeded(error) &&
+            retried.current !== modelKey(error.model)
+          ) {
             refusedRef.current = { mode, overwriteEdited, fromStep, skipped };
             stopFor(error.model);
             return;
@@ -271,7 +276,7 @@ export function usePrepareRun(input: PrepareRunInput) {
   replay.current = (model) => {
     const refused = refusedRef.current;
     refusedRef.current = null;
-    retried.current = model.id;
+    retried.current = modelKey(model);
     void start(
       refused?.mode ?? "run",
       refused?.overwriteEdited ?? false,
