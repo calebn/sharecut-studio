@@ -547,7 +547,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Refresh mix",
     keywords: ["render", "rerender", "premix", "update"],
     when: "canRefreshMix",
-    notes: "Rebuild stems/premix (render_preview). Mod+B",
+    notes: "Rebuild stems/premix (render_preview). Palette only",
   },
   "export.bounce": {
     id: "export.bounce",
@@ -555,7 +555,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Bounce…",
     keywords: ["render", "mixdown", "stems"],
     when: "hostProjectLoaded",
-    notes: "Go to Deliver and focus Bounce → export/bounces/. Mod+Shift+B",
+    notes: "Go to Deliver and focus Bounce → export/bounces/. Palette only",
   },
   "export.transcript": {
     id: "export.transcript",
@@ -695,7 +695,8 @@ export const COMMANDS: Record<string, CommandDef> = {
       "final",
     ],
     when: "hostProjectLoaded",
-    notes: "Master encode to export/ (same as MCP export_audio). Mod+Shift+E",
+    notes:
+      "Master encode to export/ (same as MCP export_audio). Mod+E; with a range selected, Bounce of that range",
   },
   "project.new": {
     id: "project.new",
@@ -703,7 +704,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "New project…",
     keywords: ["create", "episode"],
     when: "canManageProjects",
-    notes: "Mod+N: host only",
+    notes: "Host only. Palette only",
   },
   "project.open": {
     id: "project.open",
@@ -721,7 +722,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "New track",
     keywords: ["create", "lane"],
     when: "editStageIngest",
-    notes: "Mod+Shift+T (Shift avoids browser New Tab; Reaper uses Mod+T)",
+    notes: "Palette only",
   },
   "track.remove": {
     id: "track.remove",

@@ -576,7 +576,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: true,
     requireShift: false,
     when: "hasProject",
-    notes: "Edit stage; Mod+Shift+T is New track",
+    notes: "Edit stage",
   },
   {
     id: "view.scriptFocus",
@@ -641,23 +641,24 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     id: "render.refreshMix",
     category: "transport",
     label: "Refresh mix",
-    keys: ["B"],
+    keys: [],
     bareKey: false,
     requireMod: true,
     requireShift: false,
     when: "canRefreshMix",
-    notes: "Mod+B: rebuild stems/premix when host or Docs Editor",
+    notes:
+      "Palette only (K11/K15): rebuild stems/premix when host or Docs Editor",
   },
   {
     id: "export.bounce",
     category: "ui",
     label: "Bounce…",
-    keys: ["B"],
+    keys: [],
     bareKey: false,
     requireMod: true,
     requireShift: true,
     when: "hostProjectLoaded",
-    notes: "Mod+Shift+B: Bounce in Deliver (export/bounces/)",
+    notes: "Palette only (K11/K15): Bounce in Deliver (export/bounces/)",
   },
   {
     id: "export.deliverables",
@@ -666,20 +667,21 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     keys: ["E"],
     bareKey: false,
     requireMod: true,
-    requireShift: true,
+    requireShift: false,
     when: "hostProjectLoaded",
-    notes: "Mod+Shift+E: mastered export/ via PipelineService",
+    notes:
+      "Mod+E: mastered export/ via PipelineService; with a range selected, Bounce of that range",
   },
   {
     id: "project.new",
     category: "ui",
     label: "New project…",
-    keys: ["N"],
+    keys: [],
     bareKey: false,
     requireMod: true,
     requireShift: false,
     when: "canManageProjects",
-    notes: "Mod+N",
+    notes: "Palette only (K11/K15)",
   },
   {
     id: "project.home",
@@ -696,12 +698,12 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     id: "track.add",
     category: "edit",
     label: "New track",
-    keys: ["T"],
+    keys: [],
     bareKey: false,
     requireMod: true,
     requireShift: true,
     when: "editStageIngest",
-    notes: "Mod+Shift+T (Shift avoids browser New Tab; Reaper uses Mod+T)",
+    notes: "Palette only (K11/K15)",
   },
   {
     id: "media.import",
@@ -786,6 +788,9 @@ function shiftRequired(cmd: KeymapCommand): boolean | undefined {
 function shortcutParts(cmd: KeymapCommand): string[] {
   // A remap replaces the key only; Mod/Shift still apply (see effectiveKeys).
   const primary = getKeymapOverride(cmd.id)?.[0] ?? cmd.keys[0] ?? "";
+  if (!primary) {
+    return [];
+  }
   if (primary === " " || primary === "Space") {
     return shiftRequired(cmd) ? ["Shift", "Space"] : ["Space"];
   }
@@ -846,7 +851,7 @@ export function displayShortcutFor(
   apple: boolean = isApplePlatform(),
 ): string | undefined {
   const cmd = keymapCommandById(commandId);
-  return cmd ? displayShortcutKeys(cmd, apple) : undefined;
+  return cmd ? displayShortcutKeys(cmd, apple) || undefined : undefined;
 }
 
 /** `Label (⌘1)` tooltip; the bare label when the command has no shortcut. */
@@ -872,7 +877,11 @@ export function ariaKeyShortcutsFor(
     return undefined;
   }
   const modifiers = apple ? ARIA_MODIFIERS_APPLE : ARIA_MODIFIERS_OTHER;
-  return shortcutParts(cmd)
+  const parts = shortcutParts(cmd);
+  if (!parts.length) {
+    return undefined;
+  }
+  return parts
     .map(
       (part) =>
         modifiers[part] ?? (part.length === 1 ? part.toUpperCase() : part),

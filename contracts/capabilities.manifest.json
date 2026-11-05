@@ -1242,7 +1242,7 @@
       "label": "Refresh mix",
       "effect": "project",
       "service": "ShareCut Studio command bus \u2192 services/document",
-      "industry_standard_key": true,
+      "industry_standard_key": false,
       "gates": [
         "canRefreshMix"
       ],
@@ -1251,14 +1251,15 @@
         "gui": [
           "deliverShare"
         ],
-        "keyboard": "Mod+B",
         "mcp": [
           "render_preview"
         ],
         "cli": "podcast render-preview",
         "skill": "podcast-play-audition"
       },
-      "omit": {},
+      "omit": {
+        "keyboard_reason": "Mod+B belongs to the browser (bookmarks, bold); Refresh mix is in the palette and the mix ring"
+      },
       "tooltip": "Refresh mix",
       "presence": {
         "cursor": "none",
@@ -1270,7 +1271,7 @@
       "label": "Bounce\u2026",
       "effect": "project",
       "service": "ShareCut Studio command bus \u2192 services/document",
-      "industry_standard_key": true,
+      "industry_standard_key": false,
       "gates": [
         "hostProjectLoaded"
       ],
@@ -1279,7 +1280,6 @@
         "gui": [
           "deliverBounce"
         ],
-        "keyboard": "Mod+Shift+B",
         "mcp": [
           "bounce_audio_tool"
         ],
@@ -1287,7 +1287,8 @@
         "skill": "podcast-bounce-export"
       },
       "omit": {
-        "guest": true
+        "guest": true,
+        "keyboard_reason": "Mod+E bounces the selected range; Bounce is also in the palette and on Deliver"
       },
       "tooltip": "Bounce\u2026",
       "presence": {
@@ -1967,9 +1968,10 @@
         "gui": [
           "deliverStage"
         ],
-        "keyboard": "Mod+Shift+E",
+        "keyboard": "Mod+E",
         "mcp": [
-          "export_audio_tool"
+          "export_audio_tool",
+          "bounce_audio_tool"
         ],
         "cli": "podcast pipeline export-audio",
         "skill": "podcast-master-export"
@@ -2038,20 +2040,20 @@
       "label": "New project\u2026",
       "effect": "project",
       "service": "ShareCut Studio command bus \u2192 services/document",
-      "industry_standard_key": true,
+      "industry_standard_key": false,
       "gates": [
         "canManageProjects"
       ],
       "surfaces": {
         "command": "project.new",
-        "keyboard": "Mod+N",
         "mcp": [
           "episode_create"
         ],
         "cli": "podcast episode init"
       },
       "omit": {
-        "guest": true
+        "guest": true,
+        "keyboard_reason": "Mod+N opens a browser window; New project is in the palette and on Home"
       },
       "tooltip": "New project\u2026",
       "presence": {
@@ -2111,7 +2113,7 @@
       "label": "New track",
       "effect": "project",
       "service": "ShareCut Studio command bus \u2192 services/document",
-      "industry_standard_key": true,
+      "industry_standard_key": false,
       "gates": [
         "editStageIngest"
       ],
@@ -2121,14 +2123,15 @@
           "trackLane",
           "editPlusMenu"
         ],
-        "keyboard": "Mod+Shift+T (Shift avoids browser New Tab; Reaper uses Mod+T)",
         "mcp": [
           "track_add_empty_tool",
           "track_add"
         ],
         "cli": "podcast doc submit"
       },
-      "omit": {},
+      "omit": {
+        "keyboard_reason": "Mod+Shift+T reopens a closed browser tab; New track is in the palette and the + menu"
+      },
       "tooltip": "New track",
       "presence": {
         "cursor": "none",

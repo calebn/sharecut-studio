@@ -7,6 +7,7 @@ import {
   waitForPipelineJob,
 } from "../api";
 import { refreshDocumentProject } from "../document/applyDocumentUpdate";
+import { resolveSelectionRange } from "../edit/rangeSelection";
 import {
   FEATURE_SHARE_UI_MENU,
   hasFeature,
@@ -32,6 +33,7 @@ import { seedStudioJob } from "../state/seedStudioJob";
 import { errorMessage } from "../utils/apiError";
 import { type CommandContext, evaluateWhen } from "./context";
 import { registerCommand } from "./execute";
+import { runRangeAction } from "./rangeActions";
 import type { ExecuteResult } from "./types";
 
 /** Same rule and reason as the `hostProjectLoaded` when-clause (handlers run with skipWhen). */
@@ -350,6 +352,12 @@ export function registerHostCommands(): void {
       return blocked;
     }
     const s = useDawStore.getState();
+    if (s.project) {
+      const { targets } = resolveSelectionRange(s.project, s.selection);
+      if (targets.length === 1) {
+        return runRangeAction("bounce");
+      }
+    }
     s.openStage("deliver");
     s.setExportRequested(true);
     return { status: "ok" };
