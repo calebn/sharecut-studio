@@ -22,6 +22,7 @@ import {
 } from "../../commands/pendingDecision";
 import { useCommentActions } from "../../comments";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
+import { SheetNudge } from "../../inspector/SheetNudge";
 import {
   REFINE_GATE_GUI_MESSAGE,
   TranscriptRefineRecovery,
@@ -753,32 +754,54 @@ export function PendingEditBody({
                 <>
                   <DefItem label="Start">
                     <span id={pendingEditTimingFieldId(edit.id, "start")}>
-                      <ScrubField
-                        label="Source start"
-                        value={shownEdge("start")}
-                        unit="s"
-                        step={0.01}
-                        decimals={6}
-                        min={0}
-                        skipUnchanged
-                        readOnly={timingBusy}
-                        onCommit={(value) => void commitEdge("start", value)}
-                      />
+                      <div className="scrub-nudge">
+                        <ScrubField
+                          label="Source start"
+                          value={shownEdge("start")}
+                          unit="s"
+                          step={0.01}
+                          decimals={6}
+                          min={0}
+                          skipUnchanged
+                          readOnly={timingBusy}
+                          onCommit={(value) => void commitEdge("start", value)}
+                        />
+                        <SheetNudge
+                          field={{
+                            kind: "pending",
+                            trackId: edit.track_id,
+                            editId: edit.id,
+                            edge: "start",
+                          }}
+                          name={`Pending ${edit.type} start`}
+                        />
+                      </div>
                     </span>
                   </DefItem>
                   <DefItem label="End">
                     <span id={pendingEditTimingFieldId(edit.id, "end")}>
-                      <ScrubField
-                        label="Source end"
-                        value={shownEdge("end")}
-                        unit="s"
-                        step={0.01}
-                        decimals={6}
-                        min={0}
-                        skipUnchanged
-                        readOnly={timingBusy}
-                        onCommit={(value) => void commitEdge("end", value)}
-                      />
+                      <div className="scrub-nudge">
+                        <ScrubField
+                          label="Source end"
+                          value={shownEdge("end")}
+                          unit="s"
+                          step={0.01}
+                          decimals={6}
+                          min={0}
+                          skipUnchanged
+                          readOnly={timingBusy}
+                          onCommit={(value) => void commitEdge("end", value)}
+                        />
+                        <SheetNudge
+                          field={{
+                            kind: "pending",
+                            trackId: edit.track_id,
+                            editId: edit.id,
+                            edge: "end",
+                          }}
+                          name={`Pending ${edit.type} end`}
+                        />
+                      </div>
                     </span>
                   </DefItem>
                   <DefItem label="Snap">
