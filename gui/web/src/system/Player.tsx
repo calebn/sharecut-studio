@@ -201,7 +201,7 @@ function StatePills({
 }: PlayerProps) {
   return (
     <>
-      <span className="sr-only" role="status">
+      <span className="sr-only" aria-live="polite" data-follow-detail>
         {following?.detail}
       </span>
       {following ? (

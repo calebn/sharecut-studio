@@ -314,7 +314,7 @@ describe("StageFrame while following", () => {
     expect(
       screen.getByText(
         "Listening in Mix · in Pipeline (host-only) · auditioning FX",
-        { selector: '[role="status"]' },
+        { selector: "[aria-live]" },
       ),
     ).toBeInTheDocument();
     expect(pill).toHaveTextContent("· Listening in Mix");

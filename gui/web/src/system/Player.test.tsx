@@ -158,7 +158,7 @@ describe("Player", () => {
       "title",
       "Following Rosa · in Pipeline (host-only) · auditioning FX",
     );
-    expect(screen.getByRole("status")).toHaveTextContent(
+    expect(document.querySelector("[data-follow-detail]")).toHaveTextContent(
       "in Pipeline (host-only) · auditioning FX",
     );
     expect(pill).toHaveTextContent(
@@ -170,7 +170,8 @@ describe("Player", () => {
     const { rerender } = render(
       <Player {...base} following={{ name: "Rosa", colorIndex: 1 }} />,
     );
-    const region = screen.getByRole("status");
+    const region = document.querySelector("[data-follow-detail]");
+    expect(region).toHaveAttribute("aria-live", "polite");
     expect(region).toHaveTextContent("");
     rerender(
       <Player
@@ -178,8 +179,13 @@ describe("Player", () => {
         following={{ name: "Rosa", colorIndex: 1, detail: "auditioning FX" }}
       />,
     );
-    expect(screen.getByRole("status")).toBe(region);
+    expect(document.querySelector("[data-follow-detail]")).toBe(region);
     expect(region).toHaveTextContent("auditioning FX");
+  });
+
+  it("adds no status role to a Player that is not following", () => {
+    render(<Player {...base} />);
+    expect(screen.queryByRole("status")).toBeNull();
   });
 
   it("has no tooltip when the follow is complete", () => {
