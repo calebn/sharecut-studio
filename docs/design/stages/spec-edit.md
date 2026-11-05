@@ -239,7 +239,7 @@ For the host, the words More menu shows **Restore ignored words** only when ever
 - **Fate:** restyle into header avatars + NEW: Invite popover.
 - **Spec:**
   - Header right: up to 3 avatars, 24 px, each with a 2 px ring in that person's presence color; an avatar for someone in a different stage shows that stage's 10 px icon at its corner. "+N" overflow chip.
-  - Click an avatar: popover 260 px with name, role, where they are ("Review · 23:14"), buttons Follow (eye icon) and Go to (arrow icon, jumps your playhead and stage to theirs once, no follow). Following shows the BAN-FOLLOW bar (spec owned elsewhere) and a ring of their color around the play button.
+  - Click an avatar: popover 260 px with name, role, where they are ("Review · 23:14"), buttons Follow (eye icon) and Go to (arrow icon, jumps your playhead and stage to theirs once, no follow). Following shows the Player's "Following {name}" pill and a ring of their color around the play button (see the presence spec in spec-review-deliver.md).
   - Invite button (person-plus): popover 320 px: role segmented (Can listen / Can comment / Can edit, icons ear, bubble, pencil), "Copy link" primary button, list of people with this link. Same component as Deliver's share card.
   - Phone: one avatar max in the header plus the count; tap opens the same content as a sheet.
 - **Shared elements used:** Person tile (24 px avatar form), NEW: Invite popover (shared with Deliver).

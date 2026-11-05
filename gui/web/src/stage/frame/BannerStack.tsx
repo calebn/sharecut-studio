@@ -1,5 +1,4 @@
 import { useDaw } from "../../state/useDaw";
-import { FollowBanner } from "./FollowBanner";
 import { GuestAttentionBanner } from "./GuestAttentionBanner";
 import { GuestVersionNotice } from "./GuestVersionNotice";
 import { HomeScreenHint } from "./HomeScreenHint";
@@ -27,7 +26,6 @@ export function BannerStack({
       <GuestAttentionBanner host={attentionHost} />
       <JobModelBanner guestShare={guestShare} />
       <HomeScreenHint />
-      <FollowBanner />
     </>
   );
 }

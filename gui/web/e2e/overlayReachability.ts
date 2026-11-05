@@ -99,7 +99,7 @@ async function expectActionableWhenApplicable(target: Locator): Promise<void> {
 
 /**
  * The Project menu's max-height is the remaining space under the trigger
- * (`--menu-available-height`), which shrinks when guest/follow banners stack
+ * (`--menu-available-height`), which shrinks when the guest banner sits
  * above the stage. Assert the panel fits, scrolls, stays above the phone tab
  * bar when one is rendered, and keeps its last row reachable.
  */

@@ -160,6 +160,47 @@ export const Following: Story = {
   },
 };
 
+export const FollowingPartial: Story = {
+  args: {
+    following: {
+      name: "Rosa",
+      colorIndex: 1,
+      detail: "in Pipeline (host-only) · auditioning FX",
+    },
+    onUnfollow: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText("Following Rosa").closest(".pill"),
+    ).toHaveAttribute(
+      "title",
+      "Following Rosa · in Pipeline (host-only) · auditioning FX",
+    );
+  },
+};
+
+export const FollowingGuestListeningInMix: Story = {
+  args: {
+    guest: true,
+    following: {
+      name: "Rosa",
+      colorIndex: 1,
+      detail: "Listening in Mix · auditioning FX",
+    },
+    onUnfollow: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText("Following Rosa").closest(".pill"),
+    ).toHaveAttribute(
+      "title",
+      "Following Rosa · Listening in Mix · auditioning FX",
+    );
+  },
+};
+
 function Toggling({
   initialExpanded = false,
   ...args

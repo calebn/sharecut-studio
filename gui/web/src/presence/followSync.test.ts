@@ -3,7 +3,7 @@ import { MAX_CONTENT_PX } from "../utils/timelineZoom.generated";
 import { planFollowUi } from "./followPlan";
 import {
   expectedPlayheadSec,
-  followBannerDetail,
+  followDetail,
   isLocalPresenceClient,
   isObservingClient,
   isProgrammaticScroll,
@@ -363,13 +363,15 @@ describe("followSync", () => {
     expect(viewer.degraded.tab).toBe("transcript");
   });
 
-  it("formats follow banner degrade strings", () => {
+  it("formats follow degrade strings", () => {
+    const label = (t: string) => (t === "pipeline" ? "Pipeline" : t);
     expect(
-      followBannerDetail({ tab: "pipeline", audition: "fx" }, (t) =>
-        t === "pipeline" ? "Pipeline" : t,
-      ),
-    ).toBe(" · in Pipeline (host-only) · auditioning FX");
-    expect(followBannerDetail({}, () => "x")).toBe("");
+      followDetail({ tab: "pipeline", audition: "fx" }, label, false),
+    ).toBe("in Pipeline (host-only) · auditioning FX");
+    expect(followDetail({ audition: "raw" }, label, true)).toBe(
+      "Listening in Mix · auditioning RAW",
+    );
+    expect(followDetail({}, label, true)).toBeUndefined();
   });
 
   it("holds programmatic scroll across animation frames", async () => {

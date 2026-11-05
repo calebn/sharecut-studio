@@ -334,6 +334,8 @@
   --selection-outline-width: 0.125rem;
   --selection-row-edge-width: 0.125rem;
   --selection-remote-width: 0.0625rem;
+  --follow-ring-width: 0.1875rem;
+  --follow-frame-width: 0.125rem;
 }
 
 @media (pointer: coarse) {

@@ -570,7 +570,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "transport.stop": "daw.transport.stop",
   "transport.audition": "daw.transport.audition",
   "presence.avatarStack": "daw.presence.follow",
-  "presence.followBanner": "daw.presence.unfollow",
+  "presence.followPill": "daw.presence.unfollow",
   timeline: "daw.edit.bladeCut",
   "timeline.createMenu": "daw.comment.draftAt",
   clipInspector: "daw.edit.moveClips",
