@@ -7,6 +7,7 @@ const quiet: SaveStateInput = {
   busy: false,
   pending: 0,
   conflicts: [],
+  unreachable: false,
   unreadable: false,
   loaded: true,
   settling: false,
@@ -31,6 +32,29 @@ describe("saveStateOf", () => {
     expect(saveStateOf({ ...quiet, settling: true })).toEqual({
       kind: "saving",
     });
+  });
+
+  it("is unreachable, never saved, while a guest reads the saved copy", () => {
+    expect(saveStateOf({ ...quiet, unreachable: true })).toEqual({
+      kind: "unreachable",
+      count: 0,
+    });
+    expect(saveStateOf({ ...quiet, unreachable: true, pending: 2 })).toEqual({
+      kind: "unreachable",
+      count: 2,
+    });
+    expect(saveStateOf({ ...quiet, unreachable: true, loaded: false })).toEqual(
+      { kind: "unreachable", count: 0 },
+    );
+  });
+
+  it("still reports a send in flight or an unreadable queue before unreachable", () => {
+    expect(saveStateOf({ ...quiet, unreachable: true, busy: true })).toEqual({
+      kind: "saving",
+    });
+    expect(
+      saveStateOf({ ...quiet, unreachable: true, unreadable: true }),
+    ).toEqual({ kind: "failed", cause: "unreadable" });
   });
 
   it("counts the edits waiting to send", () => {

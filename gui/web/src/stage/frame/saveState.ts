@@ -5,6 +5,7 @@ export type SaveState =
   | { kind: "saving" }
   | { kind: "saved" }
   | { kind: "waiting"; count: number }
+  | { kind: "unreachable"; count: number }
   | {
       kind: "unknown";
       reason: string;
@@ -20,6 +21,8 @@ type SaveStateInput = {
   pending: number;
   /** Outcomes the Needs attention banner lists, newest last. */
   conflicts: readonly OfflineConflict[];
+  /** A share guest is reading the saved copy because the host cannot be reached. */
+  unreachable: boolean;
   /** The saved edits on this device could not be read. */
   unreadable: boolean;
   /** A read of the queue has succeeded at least once. */
@@ -45,13 +48,15 @@ export function latestSaveOutcome(
  * dismissed or a later command saves.
  *
  * Busy or settling wins because an edit on its way, or one whose outcome is not
- * yet read back, is the freshest fact. Then an unreadable queue, an unknown
+ * yet read back, is the freshest fact. Then an unreadable queue, an unreachable
+ * host (a saved copy is never "saved"), an unknown
  * outcome, and edits waiting; the rest is saved. Null until the queue has been
  * read once, so a project never claims "Saved" before it knows.
  */
 export function saveStateOf(input: SaveStateInput): SaveState | null {
   if (input.busy || input.settling) return { kind: "saving" };
   if (input.unreadable) return { kind: "failed", cause: "unreadable" };
+  if (input.unreachable) return { kind: "unreachable", count: input.pending };
   if (!input.loaded) return null;
   const blocked = input.conflicts.findLast(
     (c) => c.kind === "refused" && c.blocksSave === true && !c.dismissed,

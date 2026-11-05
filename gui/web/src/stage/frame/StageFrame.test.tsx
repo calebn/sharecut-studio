@@ -8,6 +8,13 @@ import { minimalProject } from "../../test/fixtures";
 import { stubMatchMedia } from "../../test/matchMedia";
 import { StageFrame } from "./StageFrame";
 
+vi.mock("../../services/offlineQueue/offlineStore", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("../../services/offlineQueue/offlineStore")
+  >()),
+  loadGuestAttention: vi.fn(async () => ({ pending: 0, conflicts: [] })),
+}));
+
 const PROJECT_PATH = "/tmp/stage-frame/episode.sharecut";
 
 function mount() {
@@ -109,10 +116,21 @@ describe("StageFrame header", () => {
     expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled();
   });
 
-  it("shows no save light for a guest, who has no host save state", () => {
-    useDawStore.setState({ guestMode: "edit" });
+  it.each([
+    ["a live link", ["comment"], /^Saved$/],
+    ["a saved copy", null, /Saved copy.*read-only/],
+  ])("shows the Save dot for a guest on %s", async (_name, caps, text) => {
+    useDawStore.getState().hydrate("share:tok-s5", minimalProject(), null);
+    useDawStore.setState({
+      guestMode: "comment",
+      stage: "review",
+      shareCapabilities: caps,
+    });
     mount();
-    expect(screen.queryByRole("status", { name: /Save/ })).toBeNull();
+    const header = screen.getAllByRole("banner")[0];
+    await waitFor(() =>
+      expect(within(header).getByRole("status")).toHaveTextContent(text),
+    );
   });
 });
 

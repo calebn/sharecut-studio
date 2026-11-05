@@ -20,9 +20,10 @@ function focusAttention() {
 }
 
 /**
- * The host's project save state from the sends this tab has in flight and the
- * offline queue and conflicts the Needs attention banner lists. Share guests
- * have none: their edits go through the review link.
+ * The project's save state from the sends this tab has in flight and the
+ * offline queue and conflicts the Needs attention banner lists. A share guest's
+ * queue is the edits waiting to reach the host; a guest reading the saved copy
+ * is unreachable.
  */
 export function useSaveState(): {
   state: SaveState | null;
@@ -30,23 +31,21 @@ export function useSaveState(): {
 } {
   const projectPath = useDaw((s) => s.projectPath);
   const guest = isShareProjectKey(projectPath);
+  const unreachable = useDaw((s) => guest && s.shareCapabilities === null);
   const busy = useDocumentBusy(projectPath);
-  const attention = useOfflineAttention(
-    guest || !projectPath ? null : projectPath,
-  );
-  const state =
-    guest || !projectPath
-      ? null
-      : saveStateOf({
-          busy,
-          pending: attention.pending,
-          conflicts: attention.conflicts,
-          unreadable:
-            attention.status === "unreadable" ||
-            attention.status === "retrying",
-          loaded: attention.loaded,
-          settling: attention.settling,
-        });
+  const attention = useOfflineAttention(projectPath || null);
+  const state = !projectPath
+    ? null
+    : saveStateOf({
+        busy,
+        pending: attention.pending,
+        conflicts: attention.conflicts,
+        unreachable,
+        unreadable:
+          attention.status === "unreadable" || attention.status === "retrying",
+        loaded: attention.loaded,
+        settling: attention.settling,
+      });
   const latest = latestSaveOutcome(attention.conflicts);
   const showsDismissedOutcome = latest?.dismissed && latest.kind === "unknown";
 
