@@ -23,7 +23,7 @@ InspectorSeekFooter, InspectorSeekFooterView, LevelMeter, LoadingScreen, Menu
 ToggleButton, and UndoToast. Supporting hooks, exports, tokens, reading overrides,
 overlay styles, and inspector styles were included where they determine behavior.
 
-The domain composition inventory covered 42 story families. This is a snapshot from before #2292: BottomTabsSplitter, ListenHero, PipelineStatusChip, StatusBar, TransportFrame, TransportPlayControls and FollowBanner were deleted, and EditingToolRail became `Stages/Edit/ToolStrip`. The Timeline row no longer lists its legacy ruler, which `System/Ruler` replaced in #2294. The Comments row no longer lists `Templates/CommentCard`: `system/CommentCard` replaced it in the pending edit Ask thread (#2294 W3b2b) and has its own `System/CommentCard` story.
+The domain composition inventory covered 42 story families. This is a snapshot from before #2292: BottomTabsSplitter, ListenHero, PipelineStatusChip, StatusBar, TransportFrame, TransportPlayControls and FollowBanner were deleted, EditingToolRail became `Stages/Edit/ToolStrip`, and ToolModeToggle was removed with the tool modes (#2294). The Timeline row no longer lists its legacy ruler, which `System/Ruler` replaced in #2294. The Comments row no longer lists `Templates/CommentCard`: `system/CommentCard` replaced it in the pending edit Ask thread (#2294 W3b2b) and has its own `System/CommentCard` story.
 
 
 | Area | Story families |
