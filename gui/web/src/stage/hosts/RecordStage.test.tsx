@@ -940,6 +940,17 @@ describe("Record stage", () => {
     });
   });
 
+  it("starts a take on R only when the Record button is enabled", async () => {
+    setRoom({ participants: [], start_blockers: [{ code: "no_recorder" }] });
+    mount();
+    await waitFor(() => expect(record()).toBeDisabled());
+    await userEvent.keyboard("r");
+    expect(
+      exec.mock.calls.filter((call: unknown[]) => call[0] === "room.take"),
+    ).toHaveLength(1);
+    expect(send).not.toHaveBeenCalledWith("Start", expect.anything());
+  });
+
   it("drops a marker on C during a take, but not while the More sheet is open", async () => {
     setRoom({
       participants: [hostPerson(), avaGuest()],

@@ -387,9 +387,10 @@ function RecordStageBody({
   const keyProps = snapshot
     ? {
         take: live || paused ? ("live" as const) : ("idle" as const),
-        start: canRecord
-          ? () => void room.runCommand("record.start")
-          : undefined,
+        start:
+          canRecord && !startDisabledReason(room.startBlocked, room.blockers)
+            ? () => void room.runCommand("record.start")
+            : undefined,
         stop: canRecord ? () => void room.runCommand("record.stop") : undefined,
         pause: () =>
           void room.runCommand(paused ? "record.resume" : "record.pause"),
