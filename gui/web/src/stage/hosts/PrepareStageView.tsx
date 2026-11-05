@@ -9,9 +9,8 @@ import {
 } from "../../stages/prepare/PrepareView";
 import type { ShellBreakpoint } from "../../state/types";
 import { Sheet } from "../../system/Sheet";
-import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { HostBody } from "./HostBody";
-import type { HostState } from "./hostModels";
+import type { HostState, LoadFailure } from "./hostModels";
 
 export type PrepareStageViewProps = {
   shell: ShellBreakpoint;

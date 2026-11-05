@@ -42,7 +42,7 @@ describe("Cover", () => {
     expect(primary).toHaveBeenCalledOnce();
   });
 
-  it("holds a busy primary in place, disabled and aria-busy", async () => {
+  it("holds a busy primary in place, aria-disabled and aria-busy, and keeps its focus", async () => {
     const onClick = vi.fn();
     render(
       <Cover
@@ -55,8 +55,10 @@ describe("Cover", () => {
       </Cover>,
     );
     const save = screen.getByRole("button", { name: "Save" });
-    expect(save).toBeDisabled();
+    expect(save).toHaveAttribute("aria-disabled", "true");
     expect(save).toHaveAttribute("aria-busy", "true");
+    save.focus();
+    expect(save).toHaveFocus();
     await userEvent.click(save);
     expect(onClick).not.toHaveBeenCalled();
   });
@@ -75,6 +77,7 @@ describe("Cover", () => {
     const save = screen.getByRole("button", { name: "Save" });
     expect(save).toBeEnabled();
     expect(save).not.toHaveAttribute("aria-busy");
+    expect(save).not.toHaveAttribute("aria-disabled");
   });
 
   it("renders no action row without actions", () => {

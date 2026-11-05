@@ -40,8 +40,7 @@ import { DeviceSheet } from "../../system/DeviceSheet";
 import type { RoomViewProps } from "../../system/RoomView";
 import { TakesTray } from "../../system/TakesTray";
 import { dbToFraction } from "../../ui/metering";
-import type { LoadFailure } from "../frame/LoadFailureBanner";
-import { hostStateOf } from "./hostModels";
+import { hostStateOf, type LoadFailure } from "./hostModels";
 import { RecordMoreSheet } from "./RecordMoreSheet";
 import {
   type RecordLookup,

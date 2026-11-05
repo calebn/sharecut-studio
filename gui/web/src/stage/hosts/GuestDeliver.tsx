@@ -6,11 +6,10 @@ import { FeedPanel } from "../../stages/deliver/FeedPanel";
 import { feedAccessOf } from "../../stages/deliver/feedLogic";
 import { useDawStore } from "../../state/dawStore";
 import { stageRoleOf } from "../../state/stageRoutes";
-import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { useStageScroll } from "../useStageScroll";
 import { openFeedSource } from "./feedSource";
 import { HostBody } from "./HostBody";
-import { hostStateOf } from "./hostModels";
+import { hostStateOf, type LoadFailure } from "./hostModels";
 import { useDeliverFiles } from "./useDeliverFiles";
 
 type Props = { loadFailure?: LoadFailure | null };

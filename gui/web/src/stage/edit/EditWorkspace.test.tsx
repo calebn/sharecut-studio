@@ -131,13 +131,51 @@ describe("EditWorkspace states", () => {
     ).not.toBeNull();
   });
 
-  it("says the Script could not load and retries from the pane", async () => {
+  it("says the project could not load in the stage body, even with the Script collapsed", async () => {
+    useDawStore.setState({ project: null, scriptCollapsed: true });
     const onRetry = vi.fn();
     render(<EditWorkspace loadFailure={{ message: "No answer.", onRetry }} />);
-    const pane = screen.getByRole("region", { name: "Script" });
-    expect(within(pane).getByText("Script could not load")).toBeInTheDocument();
-    await userEvent.click(within(pane).getByRole("button", { name: "Retry" }));
+    const alert = screen.getByRole("alert");
+    expect(
+      within(alert).getByRole("heading", {
+        name: "Could not load the project",
+      }),
+    ).toBeInTheDocument();
+    await userEvent.click(
+      within(alert).getByRole("button", { name: "Try again" }),
+    );
     expect(onRetry).toHaveBeenCalledOnce();
+  });
+
+  it("covers a loaded project whose transcript and history failed, with the Script collapsed", () => {
+    useDawStore.setState({ scriptCollapsed: true });
+    render(
+      <EditWorkspace
+        loadFailure={{ message: "No answer.", onRetry: vi.fn() }}
+      />,
+    );
+    expect(
+      within(screen.getByRole("alert")).getByRole("button", {
+        name: "Try again",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Tracks" })).toBeNull();
+  });
+
+  it("keeps the same Try again button, focused, while the retry runs", () => {
+    useDawStore.setState({ project: null });
+    const failure = { message: "No answer.", onRetry: vi.fn() };
+    const { rerender } = render(<EditWorkspace loadFailure={failure} />);
+    const retry = screen.getByRole("button", { name: "Try again" });
+    retry.focus();
+    rerender(
+      <EditWorkspace
+        loadFailure={{ ...failure, message: "Trying again…", recovering: true }}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Try again" })).toBe(retry);
+    expect(retry).toHaveFocus();
+    expect(retry).toHaveAttribute("aria-busy", "true");
   });
 
   it("hides the plus menu from a link that cannot add audio", () => {

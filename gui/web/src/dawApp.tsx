@@ -92,7 +92,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
 
   const {
     error: bootstrapError,
-    recovering: bootstrapRecovering,
+    retrying: bootstrapRetrying,
     retry: retryBootstrap,
   } = useProjectBootstrap(projectPath);
 
@@ -199,16 +199,15 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     };
   }, [projectName]);
 
-  const loadFailure =
-    bootstrapRecovering && hasProject
+  const loadFailure = bootstrapError
+    ? { message: bootstrapError, onRetry: retryBootstrap }
+    : bootstrapRetrying
       ? {
-          message: "The server is still working. Retrying…",
+          message: "Trying again…",
           onRetry: retryBootstrap,
           recovering: true,
         }
-      : bootstrapError
-        ? { message: bootstrapError, onRetry: retryBootstrap }
-        : null;
+      : null;
 
   const engines = (
     <>
@@ -224,11 +223,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
           <ShareFlowProvider>
             {engines}
             <div data-daw-app-chrome>
-              <StageFrame
-                guestShare={guestShare}
-                loadFailure={loadFailure}
-                sheets={EDIT_SHEETS}
-              >
+              <StageFrame guestShare={guestShare} sheets={EDIT_SHEETS}>
                 <StageHost
                   guestShare={guestShare}
                   loadFailure={loadFailure}

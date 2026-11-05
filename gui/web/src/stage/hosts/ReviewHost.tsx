@@ -6,11 +6,10 @@ import { ModelGateDialog } from "../../models";
 import { ReviewStage } from "../../review/ReviewStage";
 import { isGuestSession, isShareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
-import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { useStageScroll } from "../useStageScroll";
 
 import { GuestScriptHost } from "./GuestScriptHost";
-import { hostStateOf } from "./hostModels";
+import { hostStateOf, type LoadFailure } from "./hostModels";
 import { ReviewStageView } from "./ReviewStageView";
 import { useFindMore } from "./useFindMore";
 import { useReviewQueue } from "./useReviewQueue";

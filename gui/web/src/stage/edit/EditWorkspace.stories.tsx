@@ -294,16 +294,21 @@ export const Loading: Story = {
   },
 };
 
-export const ScriptError: Story = {
+export const LoadError: Story = {
   args: {
     loadFailure: { message: "The server did not answer.", onRetry: fn() },
   },
-  parameters: { episode: { state: { editSurface: "text" } } },
+  // On a phone with the Script collapsed the cover is still the stage body.
+  parameters: {
+    episode: {
+      state: { project: null, editSurface: "lanes", scriptCollapsed: true },
+    },
+  },
   play: async ({ args, canvasElement }) => {
-    const pane = await within(canvasElement).findByRole("region", {
-      name: "Script",
-    });
-    await userEvent.click(within(pane).getByRole("button", { name: "Retry" }));
+    const cover = await within(canvasElement).findByRole("alert");
+    await userEvent.click(
+      within(cover).getByRole("button", { name: "Try again" }),
+    );
     await expect(args.loadFailure?.onRetry).toHaveBeenCalledOnce();
   },
 };

@@ -3,13 +3,12 @@ import type { RecordSessionSummary } from "../../record";
 import type { ShellBreakpoint } from "../../state/types";
 import { RoomView, type RoomViewProps } from "../../system/RoomView";
 import { Button } from "../../ui";
-import type { LoadFailure } from "../frame/LoadFailureBanner";
 import {
   EndedSessionCard,
   type EndedSessionCardProps,
 } from "./EndedSessionCard";
 import { HostBody } from "./HostBody";
-import type { HostState } from "./hostModels";
+import type { HostState, LoadFailure } from "./hostModels";
 
 export type RecordNotice = {
   text: string;
