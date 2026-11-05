@@ -5,8 +5,8 @@
  * a microtask.
  */
 export type ListenerSet<A extends unknown[]> = {
-  subscribe(listener: (...args: A) => void): () => void;
-  emit(...args: A): void;
+  subscribe(this: void, listener: (...args: A) => void): () => void;
+  emit(this: void, ...args: A): void;
 };
 
 export function listenerSet<A extends unknown[] = []>(): ListenerSet<A> {
