@@ -2123,6 +2123,30 @@
       }
     },
     {
+      "id": "daw.help.settings",
+      "label": "Settings",
+      "effect": "view",
+      "service": "ShareCut Studio command bus",
+      "industry_standard_key": false,
+      "gates": [
+        "always"
+      ],
+      "surfaces": {
+        "command": "help.settings",
+        "gui": [
+          "SettingsSheet"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "dialog from Menu / palette; browsers reserve Mod+,"
+      },
+      "tooltip": "Open Settings",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
       "id": "daw.export.deliverables",
       "label": "Export deliverables\u2026",
       "effect": "project",

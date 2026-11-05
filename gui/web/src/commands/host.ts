@@ -221,6 +221,11 @@ export function registerHostCommands(): void {
     return { status: "ok" };
   });
 
+  registerCommand("help.settings", () => {
+    useDawStore.getState().setSettingsSheetOpen(true);
+    return { status: "ok" };
+  });
+
   registerCommand("models.open", () => {
     const s = useDawStore.getState();
     if (!canManageProjects(s.projectPath)) {

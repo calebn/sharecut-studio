@@ -110,7 +110,9 @@ describe("paletteCommands", () => {
     expect(stages.find((r) => r.id === "stage.record")?.icon).toBe("record");
     expect(rows.filter((r) => r.group === "help").map((r) => r.id)).toEqual([
       "help.diagnosticsBundle",
+      "help.settings",
     ]);
+    expect(rows.find((r) => r.id === "help.settings")?.icon).toBe("settings");
     expect(rows.find((r) => r.id === "edit.bladeCut")?.group).toBeUndefined();
   });
 
