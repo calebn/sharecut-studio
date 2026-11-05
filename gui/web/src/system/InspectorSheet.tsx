@@ -2,6 +2,7 @@ import {
   type CSSProperties,
   type KeyboardEvent,
   type ReactNode,
+  useEffect,
   useId,
   useRef,
   useState,
@@ -282,6 +283,12 @@ function Phone({
   const samples = useRef<Sample[]>([]);
   const drag = useRef<Drag | null>(null);
   const [dragging, setDragging] = useState<number | null>(null);
+  // A sheet that drops to the dock reopens at the top of its fields.
+  useEffect(() => {
+    if (detent !== "dock") return;
+    const content = sheet.current?.querySelector(".sys-inspector-content");
+    if (content) content.scrollTop = 0;
+  }, [detent]);
   const grab = useGrab<"grip">({
     axis: "y",
     slop: (_grip, event) =>
