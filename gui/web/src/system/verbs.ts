@@ -525,6 +525,7 @@ export const VERBS = [
       "stage.prepare",
       "stage.review",
       "stage.deliver",
+      "stage.handoff",
     ],
     note: "Mod+1 to Mod+5 are stages, Mod+Enter hands off, E opens the object in Edit.",
   },

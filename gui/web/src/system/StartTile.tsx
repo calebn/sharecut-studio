@@ -4,8 +4,8 @@ import { verbOf } from "./verbDisplay";
 
 type StartTileProps = {
   kind: "import" | "record";
-  /** Tile height in px; `phone-bar` is the 72 px half of the thumb-zone bar. */
-  size: 240 | 220 | 160 | 80 | "phone-bar";
+  /** Tile height in px; `160x96` is the 160 px wide, 96 px tall tile of an empty Edit; `phone-bar` is the 72 px half of the thumb-zone bar. */
+  size: 240 | 220 | 160 | 80 | "160x96" | "phone-bar";
   state?: "rest" | "drag-hover" | "disabled";
   /** Shown in place of the line when `state` is `disabled`. */
   disabledReason?: string;
@@ -13,8 +13,6 @@ type StartTileProps = {
   variant?: "default" | "primary";
   /** Files being dragged over the tile; worded in the drag-hover line. */
   dragCount?: number;
-  /** Show the shortcut key caps. Off where the keys are not bound (Home). */
-  showKeys?: boolean;
   onActivate: () => void;
 };
 
@@ -31,7 +29,6 @@ export function StartTile({
   disabledReason,
   variant = "default",
   dragCount,
-  showKeys = true,
   onActivate,
 }: StartTileProps) {
   const disabled = state === "disabled";
@@ -43,9 +40,9 @@ export function StartTile({
       : `Drop to add ${dragCount} ${dragCount === 1 ? "file" : "files"}`;
   const reason = disabled && disabledReason ? disabledReason : null;
   const note = reason ?? (dragging ? dropLine : line);
-  // The 80 px tile drops its line, but still says why it is disabled and
-  // what a drop does.
-  const compact = size === 80;
+  // The 80 px and 160 x 96 tiles drop their line, but still say why they are
+  // disabled and what a drop does.
+  const compact = size === 80 || size === "160x96";
   const showNote = !compact || reason !== null || dragging;
   return (
     <button
@@ -65,7 +62,7 @@ export function StartTile({
         <span className="sys-start-title">{title}</span>
         {showNote ? <span className="sys-start-line">{note}</span> : null}
       </span>
-      {size === "phone-bar" || compact || !showKeys ? null : (
+      {size === "phone-bar" || compact ? null : (
         <KeyCaps chords={verbOf(kind).keys.slice(0, 1)} />
       )}
     </button>

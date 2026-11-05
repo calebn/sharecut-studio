@@ -175,6 +175,10 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Go to Deliver",
     tooltip: "Go to Deliver",
   },
+  "daw.stage.handoff": {
+    label: "Take the hand-off",
+    tooltip: "Take the hand-off",
+  },
   "daw.edit.history": {
     label: "Open history",
     tooltip: "Open history",
@@ -614,6 +618,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "transport.fit": "daw.view.fit",
   stageBar: "daw.stage.deliver",
   editPlusMenu: "daw.edit.addChapter",
+  stageHandoff: "daw.stage.handoff",
   historyPanel: "daw.history.redo",
   "timeline.waveform": "daw.view.waveformZoomOut",
   "transport.fitTracksHeight": "daw.view.fitTracksHeight",

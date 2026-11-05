@@ -6,7 +6,7 @@
 | **Primary actions** | Scrub · Fit · layer chips · select clip/edit → sheet · drag clip · tap lane gutter → track sheet |
 | **Always visible** | Player bar (comment at the playhead) · corner (Range, Fit) · eye sheet ·  sticky lane gutter (44pt lane-colored initials chip per lane, lane-colored edge, compact playback meter and clearable clip light) + waveforms whose clip labels lead with speaker or track identity and a readable duration · mode nav |
 | **Data shown** | `timeline.tracks` · `timeline.clips` rectangles · overlay layers (edits/levels/markers/comments) |
-| **Empty** | Loading episode: skeleton lanes in the same header/gutter grid. No tracks after load → ghost drop lane + dismissible coach (“one file per speaker”, and “One recording of everyone? Import it, then choose Split speakers.”); tracks with no clips → empty lane until Import/Replace |
+| **Empty** | Loading episode: skeleton lanes in the same header/gutter grid. No tracks after load → the Import audio and Record Start tiles (160 × 96) on the timeline well, which also take dropped audio; tracks with no clips → empty lane until Import/Replace |
 | **Out of scope** | Desktop moving-playhead metaphor; dense mixer strip on narrow panes; disconnected chip strip above lanes; full-page upload card |
 
 ```

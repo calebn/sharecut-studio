@@ -207,6 +207,35 @@ export async function forgetRecentProject(path: string): Promise<void> {
   );
 }
 
+/** Shows the episode's folder in this computer's file manager. */
+export async function revealRecentProject(path: string): Promise<void> {
+  await apiFetch(
+    HOST_KEY,
+    { host: "/api/projects/recent/reveal" },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path }),
+    },
+  );
+}
+
+/** Copies the episode into a new "<name> copy" folder; the copy joins the recent list. */
+export async function duplicateRecentProject(
+  path: string,
+): Promise<{ project_path: string; name: string }> {
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: "/api/projects/recent/duplicate" },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path }),
+    },
+  );
+  return res.json() as Promise<{ project_path: string; name: string }>;
+}
+
 export async function closeEpisodeProject(signal?: AbortSignal): Promise<void> {
   await apiFetch(
     HOST_KEY,

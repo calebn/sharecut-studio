@@ -1,4 +1,3 @@
-import { HomeScreenHint } from "./HomeScreenHint";
 import { JobModelBanner } from "./JobModelBanner";
 import { OfflineAttentionAnnouncer } from "./OfflineAttentionAnnouncer";
 
@@ -8,7 +7,6 @@ export function BannerStack({ guestShare = false }: { guestShare?: boolean }) {
     <>
       <OfflineAttentionAnnouncer />
       <JobModelBanner guestShare={guestShare} />
-      <HomeScreenHint />
     </>
   );
 }

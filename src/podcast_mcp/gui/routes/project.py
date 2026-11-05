@@ -20,6 +20,7 @@ from podcast_mcp.gui.audio import (
     resolve_viewer_transport,
 )
 from podcast_mcp.gui.host_file_dialog import pick_episode_project_path
+from podcast_mcp.gui.host_reveal import reveal_in_file_manager
 from podcast_mcp.gui.poll_meta import project_meta
 from podcast_mcp.gui.routes.deps import (
     bad_request_error,
@@ -39,6 +40,7 @@ from podcast_mcp.project.merge import ProjectMergeConflict
 from podcast_mcp.services.app import (
     ProjectWorkspace,
     default_workspace_dir,
+    duplicate_project,
     forget_recent,
     recent_project_cards,
     record_recent,
@@ -257,6 +259,42 @@ def forget_recent_project(
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     _require_recent_access(request)
     return {"removed": forget_recent(path)}
+
+
+@router.post("/api/projects/recent/reveal")
+def reveal_recent_project(
+    body: OpenProjectBody,
+    request: Request,
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> dict[str, bool]:
+    """Show one episode's folder in this computer's file manager (Home's card menu)."""
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    _require_recent_access(request)
+    path = _require_episode_path(body.path)
+    if not reveal_in_file_manager(path):
+        raise coded_http_error(
+            409, "This computer couldn't open its file manager.", code="reveal_unavailable"
+        )
+    return {"revealed": True}
+
+
+@router.post("/api/projects/recent/duplicate")
+def duplicate_recent_project(
+    body: OpenProjectBody,
+    request: Request,
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> dict[str, str]:
+    """Copy one episode into a new folder and list it; the original is untouched."""
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    _require_recent_access(request)
+    source = _require_episode_path(body.path)
+    try:
+        copied, name = duplicate_project(source)
+    except Exception as exc:
+        raise coded_exception_error(400, exc, code="project_duplicate_failed") from exc
+    return {"project_path": str(copied), "name": name}
 
 
 @router.get("/api/health")
