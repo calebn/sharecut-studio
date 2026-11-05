@@ -10,6 +10,7 @@ import {
 } from "../../api";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
+import { answerQuestion, useAskStore } from "../../feedback/ask";
 import { useDawKeymapListener } from "../../keymap/listener";
 import { HostRoomProvider } from "../../record/hostRoomContext";
 import { useRecordHostStore } from "../../record/hostStore";
@@ -243,6 +244,41 @@ describe("Record stage", () => {
       screen.getByRole("group", { name: "Recording controls" }),
     ).toBeVisible();
     await expectNoA11yViolations(baseElement);
+  });
+
+  it("removes a guest from the tile menu after a confirm, and keeps them on Keep", async () => {
+    setRoom({ participants: [hostPerson(), avaGuest()] });
+    mount();
+    await waitFor(() => expect(record()).toBeEnabled());
+    expect(
+      screen.queryByRole("button", { name: /Options for Host/ }),
+    ).toBeNull();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Options for Ava" }),
+    );
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Remove from room" }),
+    );
+    const asked = useAskStore.getState().pending;
+    expect(asked?.question.title).toBe("Remove Ava from the room?");
+    answerQuestion(asked?.id ?? 0, false);
+    await Promise.resolve();
+    expect(send).not.toHaveBeenCalledWith(
+      "RemoveParticipant",
+      expect.anything(),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Options for Ava" }),
+    );
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Remove from room" }),
+    );
+    answerQuestion(useAskStore.getState().pending?.id ?? 0, true);
+    await waitFor(() =>
+      expect(send).toHaveBeenCalledWith("RemoveParticipant", {
+        participant_id: avaGuest().participant_id,
+      }),
+    );
   });
 
   it("does not make a host alone in the room wait for a guest", async () => {
