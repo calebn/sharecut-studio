@@ -77,6 +77,25 @@ describe("envelope point content", () => {
     );
   });
 
+  it("draws nudges beside Time and Level, and none for a view-only link", () => {
+    const { unmount } = open();
+    expect(
+      screen.getByRole("group", { name: "Nudge envelope point" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("group", { name: "Nudge envelope point level" }),
+    ).toBeVisible();
+    unmount();
+    open();
+    act(() =>
+      useDawStore.setState({
+        projectPath: "share:tok",
+        shareCapabilities: ["comment"],
+      }),
+    );
+    expect(screen.queryByRole("group", { name: /^Nudge/ })).toBeNull();
+  });
+
   it("alerts when the time is taken and selects the point that holds it", async () => {
     open();
     await press("Time", "ArrowDown");

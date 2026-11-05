@@ -290,6 +290,16 @@ describe("PendingEditBody", () => {
     expect(useDawStore.getState().sourcePreview).toBeNull();
   });
 
+  it("draws nudge buttons beside Source start and Source end", () => {
+    render(<PendingEditBody edit={sessionCut} />);
+    expect(
+      screen.getByRole("group", { name: /^Nudge pending .* start$/ }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("group", { name: /^Nudge pending .* end$/ }),
+    ).toBeVisible();
+  });
+
   it("adds timing steps and disables both while a source draft is dirty", async () => {
     render(<PendingEditBody edit={sessionCut} />);
     expect(screen.queryByRole("group", { name: /Nudge source/ })).toBeNull();
