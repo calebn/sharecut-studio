@@ -1,3 +1,7 @@
+.sys-need-slot {
+  display: contents;
+}
+
 .sys-need {
   display: flex;
   flex-direction: column;

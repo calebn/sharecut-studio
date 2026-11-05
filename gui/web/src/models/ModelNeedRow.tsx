@@ -37,6 +37,8 @@ export type ModelNeedRowViewProps = {
   onManage?: () => void;
   /** Sheet rows only: Remove in the more menu of an installed or out-of-date model. */
   onRemove?: () => void;
+  /** Replaces "Needs {what}" while the model is plainly missing, as a Check says what it risks. */
+  idleTitle?: string;
   /** A control that belongs under the row, such as the Whisper size. */
   children?: ReactNode;
 };
@@ -55,14 +57,45 @@ function failureOf(state: ModelState): ModelFailure | null {
   return state.kind === "failed" ? state.failure : null;
 }
 
+/**
+ * Pressing Get, Cancel or Try again swaps the row's button for another, so the focused one unmounts.
+ * While focus is on the row, the swap hands it to the control that takes its place.
+ */
+function useControlHandoff(control: string, change: string) {
+  const rowRef = useRef<HTMLDivElement>(null);
+  const holdsFocus = useRef(false);
+  useEffect(() => {
+    const row = rowRef.current;
+    if (!holdsFocus.current || !row) {
+      return;
+    }
+    const active = document.activeElement;
+    holdsFocus.current = false;
+    if (active && active !== document.body && !row.contains(active)) {
+      return;
+    }
+    row.querySelector<HTMLElement>(control)?.focus();
+  }, [change, control]);
+  const act = (run: () => void) => () => {
+    holdsFocus.current = true;
+    run();
+  };
+  return { rowRef, act };
+}
+
 function NeedRow({
   model,
   state,
   blockedReason,
+  idleTitle,
   onGet,
   onCancel,
   onManage,
 }: Omit<ModelNeedRowViewProps, "placement" | "children">) {
+  const { rowRef, act } = useControlHandoff(
+    ".sys-status-actions > :last-child",
+    state.kind,
+  );
   const { what } = capabilityOf(model.id, model.label);
   const size = plainSize(model.size);
   const working = state.kind === "downloading" || state.kind === "queued";
@@ -70,57 +103,55 @@ function NeedRow({
   const manage = onManage
     ? { label: "Manage", name: "Manage models", onAction: onManage }
     : undefined;
-  if (working) {
-    return (
-      <StatusRow
-        state="running"
-        title={`Getting ${what}`}
-        detail={bytesDetail(state, size)}
-        progress={progressOf(state)}
-        barLabel={`Getting ${what}`}
-        action={{
-          label: "Cancel",
-          name: `Cancel ${what} download`,
-          onAction: onCancel,
-        }}
-      />
-    );
-  }
-  if (failure) {
-    return (
-      <StatusRow
-        state="failed"
-        title={`Couldn't get ${what}`}
-        detail={failure.plain}
-        action={{
-          label: "Try again",
-          name: `Try getting ${what} again`,
-          icon: "cloud-download",
-          onAction: onGet,
-          disabledReason: blockedReason,
-        }}
-        secondaryAction={manage}
-      />
-    );
-  }
-  return (
+  const update = state.kind === "update_needed";
+  const row = working ? (
     <StatusRow
-      state="needs-you"
-      title={
-        state.kind === "update_needed"
-          ? `Needs an update for ${what}`
-          : `Needs ${what}`
-      }
-      detail={size}
+      state="running"
+      title={`Getting ${what}`}
+      detail={bytesDetail(state, size)}
+      progress={progressOf(state)}
+      barLabel={`Getting ${what}`}
       action={{
-        label: state.kind === "update_needed" ? "Update" : "Get",
-        name: `${state.kind === "update_needed" ? "Update" : "Get"} ${what}`,
+        label: "Cancel",
+        name: `Cancel ${what} download`,
+        onAction: act(onCancel),
+      }}
+    />
+  ) : failure ? (
+    <StatusRow
+      state="failed"
+      title={`Couldn't get ${what}`}
+      detail={failure.plain}
+      action={{
+        label: "Try again",
+        name: `Try getting ${what} again`,
         icon: "cloud-download",
-        onAction: onGet,
+        onAction: act(onGet),
         disabledReason: blockedReason,
       }}
       secondaryAction={manage}
     />
+  ) : (
+    <StatusRow
+      state="needs-you"
+      title={
+        update ? `Needs an update for ${what}` : (idleTitle ?? `Needs ${what}`)
+      }
+      detail={size}
+      action={{
+        label: update ? "Update" : "Get",
+        name: `${update ? "Update" : "Get"} ${what}`,
+        icon: "cloud-download",
+        onAction: act(onGet),
+        disabledReason: blockedReason,
+      }}
+      secondaryAction={manage}
+    />
+  );
+  return (
+    <div ref={rowRef} className="sys-need-slot">
+      {row}
+    </div>
   );
 }
 
@@ -156,8 +187,10 @@ function ListRow({
   const { name, icon } = capabilityOf(model.id, model.label);
   const size = plainSize(model.size);
   const reason = useDisabledReasonNote(blockedReason, "sys-need-meta");
-  const rowRef = useRef<HTMLDivElement>(null);
-  const holdsFocus = useRef(false);
+  const { rowRef, act } = useControlHandoff(
+    ".sys-need-control button",
+    state.kind,
+  );
   const working = state.kind === "downloading" || state.kind === "queued";
   const known = progressOf(state);
   const get = state.kind === "update_needed" ? "Update" : "Get";
@@ -165,25 +198,6 @@ function ListRow({
     state.kind === "missing" ||
     state.kind === "update_needed" ||
     state.kind === "failed";
-
-  useEffect(() => {
-    const row = rowRef.current;
-    if (!holdsFocus.current || !row) {
-      return;
-    }
-    const active = document.activeElement;
-    if (active && active !== document.body && !row.contains(active)) {
-      holdsFocus.current = false;
-      return;
-    }
-    holdsFocus.current = false;
-    row.querySelector<HTMLElement>(".sys-need-control button")?.focus();
-  }, [state.kind]);
-
-  const act = (run: () => void) => () => {
-    holdsFocus.current = true;
-    run();
-  };
 
   return (
     <div
@@ -277,11 +291,11 @@ function ListRow({
 
 /** One model's need, shown in place: the answer to "this step needs a model". Presentational. */
 export function ModelNeedRowView(props: ModelNeedRowViewProps) {
-  const { placement, children, ...row } = props;
+  const { placement, children, idleTitle, ...row } = props;
   return placement === "list" ? (
     <ListRow {...row}>{children}</ListRow>
   ) : (
-    <NeedRow {...row} />
+    <NeedRow idleTitle={idleTitle} {...row} />
   );
 }
 
@@ -322,6 +336,7 @@ export type ModelNeedRowProps = {
   /** Called when the person presses Get, Update or Try again, as the download starts. */
   onGet?: () => void;
   onManage?: () => void;
+  idleTitle?: string;
   children?: ReactNode;
 };
 
@@ -330,6 +345,7 @@ export function ModelNeedRow({
   placement = "need",
   onGet,
   onManage,
+  idleTitle,
   children,
 }: ModelNeedRowProps) {
   const { models, busy, download, cancel, remove } = useModels();
@@ -352,6 +368,7 @@ export function ModelNeedRow({
       placement={placement}
       model={model}
       state={state}
+      idleTitle={idleTitle}
       blockedReason={activity.blockedReason}
       onGet={() => {
         onGet?.();

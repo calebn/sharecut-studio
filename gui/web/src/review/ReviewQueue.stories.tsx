@@ -9,6 +9,7 @@ import {
 } from "../storybook/storyLayout";
 import { Sheet } from "../system/Sheet";
 import { offlineConflict } from "../test/fixtures";
+import { withModels } from "../test/modelsStory";
 import { openDialogByLauncher } from "../test/storyDialog";
 import { episodeBeforeEach } from "../test/withEpisode";
 import { DocumentCommand } from "../types/documentCommands.generated";
@@ -320,6 +321,23 @@ export const HostRefineWaiver: Story = {
       await view.findByText(
         "Waiver recorded. Retry approval to apply pending edits.",
       ),
+    ).toBeVisible();
+  },
+};
+
+export const AlignerMissingCheck: Story = {
+  name: "AlignerMissingCheck",
+  beforeEach: episodeBeforeEach,
+  decorators: [withModels],
+  play: async ({ canvasElement }) => {
+    const view = within(canvasElement);
+    await expect(
+      await view.findByText(
+        "Cuts may clip word edges until word timing is installed",
+      ),
+    ).toBeVisible();
+    await expect(
+      view.getByRole("button", { name: "Get word timing" }),
     ).toBeVisible();
   },
 };
