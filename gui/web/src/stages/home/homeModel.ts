@@ -136,7 +136,11 @@ function needsDownload(model: ModelView): boolean {
 
 /** Get ready's bundle: every model that is not installed (the aligner and speaker model included). */
 export function bundleToGet(models: readonly ModelView[] | null): string[] {
-  return (models ?? []).filter(needsDownload).map((m) => m.id);
+  return modelsToGet(models).map((m) => m.id);
+}
+
+function modelsToGet(models: readonly ModelView[] | null): ModelView[] {
+  return (models ?? []).filter(needsDownload);
 }
 
 function sizeLabelOf(models: readonly ModelView[]): string {
@@ -232,7 +236,7 @@ export function setupOf(
   }
   if (toolsMissing(api)) return { state: "tools-missing", sizeLabel: "" };
   if (ready) return null;
-  const toGet = models.filter(needsDownload);
+  const toGet = modelsToGet(models);
   if (toGet.length === 0) return null;
   const failed = toGet.some((m) => m.state.kind === "failed");
   return {

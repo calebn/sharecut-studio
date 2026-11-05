@@ -6,7 +6,7 @@ import { expect, type Page } from "@playwright/test";
  */
 
 /** The tab flag that keeps the first-run Setup card away ("Not now" lasts for the tab). */
-export const SETUP_DISMISSED_KEY = "sharecut.bootstrap.skip";
+export const SETUP_DISMISSED_KEY = "sharecut.setup.notNow";
 
 /** Dismiss the Setup card before the page loads, so Home shows only episodes and tiles. */
 export async function dismissSetupCard(page: Page): Promise<void> {

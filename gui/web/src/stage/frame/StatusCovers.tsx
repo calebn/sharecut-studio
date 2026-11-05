@@ -1,20 +1,14 @@
 import { Cover } from "../../system/Cover";
 import type { NotServed } from "../../utils/notServed";
 
-export const BAD_LINK_TITLE = "This link doesn't open anything";
-export const BAD_LINK_HINT = "Ask the person who sent it for a new link.";
+const BAD_LINK_TITLE = "This link doesn't open anything";
+const BAD_LINK_HINT = "Ask the person who sent it for a new link.";
 
 /** A bad or revoked review link: no button for a guest, who can only ask. */
-export function BadLinkCover({
-  title = BAD_LINK_TITLE,
-  hint = BAD_LINK_HINT,
-}: {
-  title?: string;
-  hint?: string;
-}) {
+export function BadLinkCover() {
   return (
-    <Cover size="page" glyph="unlink" title={title}>
-      {hint}
+    <Cover size="page" glyph="unlink" title={BAD_LINK_TITLE}>
+      {BAD_LINK_HINT}
     </Cover>
   );
 }
