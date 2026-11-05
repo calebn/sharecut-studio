@@ -1,4 +1,4 @@
-import { type CSSProperties, type ReactNode, useId } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { MuteState } from "../utils/audio";
 import { MUTE_STATE_ROW_CLASS } from "./muteRowClass";
 import { TrackFaderView } from "./TrackFaderView";
@@ -33,7 +33,6 @@ export type TrackMixViewProps =
     };
 
 export function TrackMixView(props: TrackMixViewProps) {
-  const descriptionId = useId();
   if (props.state === "loading") {
     return (
       <div className="track-mix" aria-busy="true" aria-label="Loading tracks">
@@ -46,7 +45,7 @@ export function TrackMixView(props: TrackMixViewProps) {
   return (
     <div className="track-mix" tabIndex={-1}>
       {soloStatus}
-      <p id={descriptionId} className="track-mix-note">
+      <p className="track-mix-note">
         {access.kind === "edit"
           ? "Volume and M are saved in the mix. S is for your listening and never exports."
           : "Only the host and editors can change volume. M and S are for your listening and never exports. A saved mute cannot be overridden."}
@@ -68,7 +67,6 @@ export function TrackMixView(props: TrackMixViewProps) {
               key={row.id}
               row={row}
               access={access}
-              descriptionId={descriptionId}
               renderPlaysAt={renderPlaysAt}
               onMute={onMute}
               onSolo={onSolo}
@@ -83,14 +81,12 @@ export function TrackMixView(props: TrackMixViewProps) {
 function MixRow({
   row,
   access,
-  descriptionId,
   renderPlaysAt,
   onMute,
   onSolo,
 }: {
   row: MixTrack;
   access: MixAccess;
-  descriptionId: string;
   renderPlaysAt?: (trackId: string, baseDb: number) => ReactNode;
   onMute: (trackId: string) => void;
   onSolo: (trackId: string) => void;
@@ -120,7 +116,6 @@ function MixRow({
         savedDb={row.faderDb}
         presentation={{
           kind: "compact",
-          descriptionId,
           stagingDb: row.stagingDb,
           playsAt: renderPlaysAt
             ? (baseDb) => renderPlaysAt(row.id, baseDb)

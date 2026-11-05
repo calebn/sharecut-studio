@@ -70,9 +70,10 @@ describe("TrackMix volume envelope", () => {
   it("follows a dragged fader and holds the last envelope point", () => {
     setupWithEnvelope();
     const rows = screen.getAllByRole("listitem");
-    fireEvent.input(screen.getByRole("slider", { name: "Volume Mira voice" }), {
-      target: { value: "-6" },
-    });
+    const field = screen.getByRole("spinbutton", { name: "Volume Mira voice" });
+    fireEvent.pointerDown(field, { clientX: 100, pointerId: 1, button: 0 });
+    fireEvent.pointerMove(field, { clientX: 110, pointerId: 1 });
+    fireEvent.pointerMove(field, { clientX: 104, pointerId: 1 });
     expect(rows[0]).toHaveTextContent("Plays at −8.0 dB");
     act(() => useDawStore.setState({ playheadSec: 100 }));
     expect(rows[0]).toHaveTextContent("Plays at −14.0 dB");
@@ -99,8 +100,8 @@ describe("TrackMix", () => {
       "--track-identity-color": "var(--color-clip-music)",
     });
     expect(
-      screen.getByRole("slider", { name: "Volume Mira voice" }),
-    ).toHaveValue("-3");
+      screen.getByRole("spinbutton", { name: "Volume Mira voice" }),
+    ).toHaveAttribute("aria-valuenow", "-3");
     expect(screen.getByRole("button", { name: "Mute music" })).toHaveAttribute(
       "data-mute-state",
       "saved",
@@ -113,17 +114,12 @@ describe("TrackMix", () => {
     await userEvent.click(
       screen.getByRole("button", { name: "Solo Mira voice" }),
     );
-    fireEvent.input(screen.getByRole("slider", { name: "Volume Mira voice" }), {
-      target: { value: "-6" },
-    });
-    expect(
-      screen.getByRole("slider", { name: "Volume Mira voice" }),
-    ).toHaveAttribute("aria-valuetext", "−6.0 dB");
+    const field = screen.getByRole("spinbutton", { name: "Volume Mira voice" });
+    fireEvent.pointerDown(field, { clientX: 100, pointerId: 1, button: 0 });
+    fireEvent.pointerMove(field, { clientX: 110, pointerId: 1 });
+    fireEvent.pointerMove(field, { clientX: 104, pointerId: 1 });
     expect(execute).toHaveBeenCalledTimes(2);
-    fireEvent.change(
-      screen.getByRole("slider", { name: "Volume Mira voice" }),
-      { target: { value: "-6" } },
-    );
+    fireEvent.pointerUp(field, { pointerId: 1 });
     expect(vi.mocked(execute).mock.calls).toEqual([
       ["track.muteToggle", { trackId: "music" }, { skipWhen: true }],
       ["track.soloToggle", { trackId: "mira" }, { skipWhen: true }],
@@ -135,24 +131,27 @@ describe("TrackMix", () => {
     "uses actual capabilities for %s volume access",
     async (guestMode) => {
       const view = setup(guestMode, ["view"]);
-      const slider = screen.getByRole("slider", { name: "Volume Mira voice" });
-      expect(slider).toBeDisabled();
-      expect(slider).toHaveAccessibleDescription(
-        /Only the host and editors can change volume/,
-      );
+      const slider = screen.getByRole("spinbutton", {
+        name: "Volume Mira voice",
+      });
+      expect(slider).toHaveAttribute("aria-readonly", "true");
+      expect(
+        screen.getByText(/Only the host and editors can change volume/),
+      ).toBeVisible();
       expect(
         screen.getByRole("button", { name: "Mute music" }),
       ).toHaveAttribute("aria-disabled", "true");
       expect(screen.getByText(/Shared playback uses Full mix/)).toBeVisible();
       act(() => useDawStore.setState({ shareCapabilities: ["view", "edit"] }));
-      expect(slider).toBeEnabled();
+      expect(slider).not.toHaveAttribute("aria-readonly");
       expect(
         screen.getByRole("button", { name: "Mute music" }),
       ).not.toHaveAttribute("aria-disabled");
-      fireEvent.change(slider, { target: { value: "-4" } });
+      slider.focus();
+      fireEvent.keyDown(slider, { key: "ArrowUp" });
       expect(execute).toHaveBeenCalledWith(
         "track.setVolume",
-        { trackId: "mira", db: -4 },
+        { trackId: "mira", db: -2.5 },
         { skipWhen: true },
       );
       await expectNoA11yViolations(view.container);

@@ -131,11 +131,11 @@ test("editor Mix commits saved volume through guest capabilities", async ({
     await page.locator(".sys-coach-anchor").click();
     await expect(page.getByRole("note")).toHaveCount(0);
     const mix = await openPhoneMix(page);
-    const slider = mix.getByRole("slider", {
+    const slider = mix.getByRole("spinbutton", {
       name: `Volume ${before[0].label}`,
       exact: true,
     });
-    await expect(slider).toBeEnabled();
+    await expect(slider).not.toHaveAttribute("aria-readonly", "true");
     await slider.focus();
     await slider.press("ArrowRight");
     await expect

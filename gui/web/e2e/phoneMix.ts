@@ -91,14 +91,17 @@ export async function checkNativeMixEdits(page: Page, projectPath: string) {
   const mix = await openPhoneMix(page);
   const before = await savedMix(page, projectPath);
   const first = before[0];
-  const slider = mix.getByRole("slider", {
+  const slider = mix.getByRole("spinbutton", {
     name: `Volume ${first.label}`,
     exact: true,
   });
   const expectedKeyboardDb = Math.min(12, first.db + 0.5);
   await slider.focus();
   await slider.press("ArrowRight");
-  await expect(slider).toHaveValue(String(expectedKeyboardDb));
+  await expect(slider).toHaveAttribute(
+    "aria-valuenow",
+    String(expectedKeyboardDb),
+  );
   await expect
     .poll(async () => (await savedMix(page, projectPath))[0].db)
     .toBe(expectedKeyboardDb);
@@ -110,7 +113,7 @@ export async function checkNativeMixEdits(page: Page, projectPath: string) {
     box!.y + box!.height * 0.65,
     { steps: 4 },
   );
-  const draft = Number(await slider.inputValue());
+  const draft = Number(await slider.getAttribute("aria-valuenow"));
   expect(draft).not.toBe(expectedKeyboardDb);
   expect((await savedMix(page, projectPath))[0].db).toBe(expectedKeyboardDb);
   await page.mouse.up();
@@ -138,11 +141,11 @@ export async function checkNativeMixEdits(page: Page, projectPath: string) {
   ).toHaveCount(0);
   const reloaded = await openPhoneMix(page);
   await expect(
-    reloaded.getByRole("slider", {
+    reloaded.getByRole("spinbutton", {
       name: `Volume ${first.label}`,
       exact: true,
     }),
-  ).toHaveValue(String(draft));
+  ).toHaveAttribute("aria-valuenow", String(draft));
   await expect(
     reloaded.getByRole("button", { name: `Mute ${first.label}`, exact: true }),
   ).toHaveAttribute("data-mute-state", "saved");
