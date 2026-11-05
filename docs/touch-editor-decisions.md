@@ -51,8 +51,7 @@ rewriting the saved preference. Props-only stories use explicit policy bounds
 and their rendered panel height, or the prop height when layout is unavailable.
 A clamped no-op creates no preference; Reset clears it.
 A button press during a drag cancels that drag without also stepping. Sizing
-creates no project write or document History. Phone retains Expand and Collapse
-and has no Script divider. Coarse-pointer controls have a 2.75rem target floor.
+creates no project write or document History. Phone uses the Inspector sheet's grip and has no Script divider. Coarse-pointer controls have a 2.75rem target floor.
 
 Focused Vitest coverage lives in `edit/clipPlacement.test.ts`,
 `inspector/views/ClipPlacementControls.test.tsx`, and the Script divider tests.
@@ -447,7 +446,7 @@ or named test owns that behavior; it does not certify unrun combinations.
 | Mix: `MixSheet`, native controls, `useCommitRange` | Native volume range and M/S controls; More → Mix | Volume follows the existing preview/commit lifecycle and permission reason; M/S and local/shared listening distinctions remain. Accepted host/editor volume writes use the existing document command. Sheet layout supports row scrolling and text wrapping. | **Keep.** Do not add swipe-to-mix. Existing `phone-mix.spec.ts` covers its current path; failure/cancel combinations not asserted there remain unverified. |
 | Transcript words: transcript views and correction flow | Tap seeks; double tap or long press opens correction; visible Correct/Select modes | First tap seeks immediately. Correction opens only for a host with hydrated words; current sheet lifecycle restores mode on close. Submission uses `submitWordCorrection`; failure/permission behavior stays there. Phone uses the sheet for keyboard room; desktop has its current inline path. | **Keep.** `transcript-wordbar.spec.ts` and `edit-boundary-touch.spec.ts` are retained evidence. No delayed tap-to-seek recognizer. |
 | Comment rows: Review queue | Visible Resolve/Reopen and Undo toast | The Comments panel's own swipe-to-resolve is gone, but a phone queue row swipes right for its verb, which resolves a comment; swipe left does nothing on a comment. Resolve is also the action-bar verb, host only; latest-only Undo toast remains. | **Panel swipe removed; queue-row swipe kept.** |
-| BottomSheet: `ui/BottomSheet.tsx` | **Only the compact inspector's drawer drags and flicks** (its header, round 4b); every other sheet has no drag gesture. Expand/Collapse and Close are visible single-pointer actions on all of them | Controlled `expanded` updates half/full view state only (half/full for the #1051 compact inspector, which also stows during a timeline drag). There is no command/failure/History path for resize. Close and Escape dismiss; the interactive inspector scrim never takes a touch, and it dims the timeline at half and full (it is clear at a generic peek); confirmation scrim dismisses. Shell CSS keeps phone nav and tablet chrome clear. | **Remove inert grip; retain and enlarge the resize button.** `BottomSheet.test.tsx` and new touch E2E exercise the existing callback and layout. No global button changes. |
+| BottomSheet: `ui/BottomSheet.tsx` | **Only the phone Inspector sheet drags and flicks** (its grip; the drawer header was removed in #2294 W3c2b); every other sheet has no drag gesture. Expand/Collapse and Close are visible single-pointer actions on all of them | Controlled `expanded` updates half/full view state only (half/full for the #1051 compact inspector, which also stows during a timeline drag). There is no command/failure/History path for resize. Close and Escape dismiss; the interactive inspector scrim never takes a touch, and it dims the timeline at half and full (it is clear at a generic peek); confirmation scrim dismisses. Shell CSS keeps phone nav and tablet chrome clear. | **Remove inert grip; retain and enlarge the resize button.** `BottomSheet.test.tsx` and new touch E2E exercise the existing callback and layout. No global button changes. |
 | Transport, Gestures help and History: phone More hub (removed in #2292), command catalog | Two-finger tap is an optional ShareCut Undo shortcut; visible command routes remain | Existing recognizer dispatches `history.undo` and reports failure through the shared status path. It runs only when enabled by current project/command availability. It does not make a platform convention or modal-body guarantee. History is an Edit sheet and Gestures is in the Project menu. | **Modify attribution only.** `useTwoFingerTap.test.tsx` stays unchanged; `GesturesSheet.test.tsx` asserts the rendered optional ShareCut copy. |
 
 ## Explicit disposition
@@ -532,7 +531,7 @@ at doubled root font size. The sheet-only height override gives the expanded
 region a 45 CSS-pixel viewport for 898 CSS pixels of content. The regression
 proves its wheel scroll offset advances. This is a narrow viewport, so the
 result establishes access through scrolling, not physical-device usability.
-The half sheet remains a compact preview; Expand exposes the field scroller.
+The half sheet remains a compact preview; the grip raises it to full to expose the field scroller.
 Before/after screenshots, geometry and original failures are retained in the
 run's local audit. The browser helper attaches the same observations to its
 Playwright report for CI review.

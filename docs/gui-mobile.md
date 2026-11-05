@@ -133,8 +133,9 @@ held sideways) compact the editor:
   `InspectorHost` (`stage/edit/InspectorHost.tsx`): the Inspector sheet with the
   Action bar as its dock on the phone shell (up to 767 px wide, `PHONE_MAX_PX`)
   held either way, and a card beside the selection on the tablet and desktop
-  shells; a wider phone held sideways is the tablet shell and gets the card. A timeline target on the phone still opens the compact
-  drawer at half height (the peek strip it once had is gone, #2294 W3c2b). `BottomSheet`'s generic `placement="column"` and its frame rule remain
+  shells; a wider phone held sideways is the tablet shell and gets the card. A timeline target on the phone opens the Inspector sheet at
+  half height with the Action bar as its dock (the peek strip and the compact
+  drawer are gone, #2294 W3c2b). `BottomSheet`'s generic `placement="column"` and its frame rule remain
   until the legacy bodies go (W3c).
 - **A volume-envelope point leaves its lane in view (#1694, #1714).** An
   `envelopePoint` selection opens its **Time** and **Level** in the Inspector:
