@@ -76,6 +76,15 @@
   padding-inline-start: calc(1.25rem + var(--space-4));
 }
 
+.sys-need-extra .ui-segmented {
+  flex-wrap: wrap;
+  block-size: auto;
+}
+
+.sys-need-extra .ui-segmented > .ui-control {
+  min-block-size: var(--touch-min);
+}
+
 /* Models sheet: 420 px docked to the end of the screen on desktop, the full-height bottom sheet on a phone. */
 .models-sheet-body {
   display: flex;
