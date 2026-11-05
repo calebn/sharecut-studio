@@ -198,7 +198,7 @@ function ProjectMenu({
             className="sys-header-project"
             {...props}
             ref={(node) => {
-              ref.current = node;
+              ref(node);
               projectButton.current = node;
             }}
           >

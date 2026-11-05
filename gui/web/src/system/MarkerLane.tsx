@@ -392,7 +392,7 @@ const StackChip = memo(function StackChip({
         trigger={({ onClick, ref, ...aria }) => (
           <button
             ref={(element) => {
-              ref.current = element;
+              ref(element);
               button.current = element;
             }}
             type="button"
