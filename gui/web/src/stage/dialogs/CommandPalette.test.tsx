@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { COMMANDS } from "../../commands/catalog";
@@ -22,6 +22,7 @@ function renderPalette() {
 
 describe("CommandPalette", () => {
   beforeEach(() => {
+    localStorage.clear();
     registerDawCommands();
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
     useDawStore.getState().setCommandPaletteOpen(true);
@@ -212,5 +213,52 @@ describe("CommandPalette", () => {
     });
     expect(useDawStore.getState().statusAnnouncementSeq).toBe(before + 1);
     expect(useDawStore.getState().feedbackToast).toBe(standing);
+  });
+
+  it("lists chapters and a click seeks there through the registry", async () => {
+    const seen: unknown[] = [];
+    registerCommand("transport.seek", (args) => {
+      seen.push(args);
+      return { status: "ok" };
+    });
+    renderPalette();
+    act(() =>
+      useDawStore.setState({
+        project: {
+          ...minimalProject(),
+          chapters: [{ time: 12, title: "Cold open" }],
+        },
+      }),
+    );
+    expect(screen.getByRole("group", { name: "Chapters" })).toBeTruthy();
+    await userEvent
+      .setup()
+      .click(screen.getByRole("option", { name: /^Cold open/ }));
+    expect(seen).toEqual([{ sec: 12 }]);
+    expect(useDawStore.getState().chrome.commandPaletteOpen).toBe(false);
+  });
+
+  it("hides Projects, People and Chapters when there is no data", () => {
+    renderPalette();
+    for (const name of ["Projects", "People", "Chapters", "Recent"]) {
+      expect(screen.queryByRole("group", { name })).toBeNull();
+    }
+  });
+
+  it("remembers what ran and shows it as Recent on the next open", async () => {
+    registerCommand("view.fit", () => ({ status: "ok" }));
+    const user = userEvent.setup();
+    renderPalette();
+    await user.click(
+      screen.getByRole("option", { name: "Fit session width \\" }),
+    );
+    expect(
+      JSON.parse(localStorage.getItem("sharecut.palette.recent.v1") ?? "[]"),
+    ).toEqual(["view.fit"]);
+    useDawStore.getState().setCommandPaletteOpen(true);
+    const recent = await screen.findByRole("group", { name: "Recent" });
+    expect(
+      within(recent).getByRole("option", { name: "Fit session width \\" }),
+    ).toBeTruthy();
   });
 });

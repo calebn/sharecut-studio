@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { waitForDialogFocus } from "../../test/dialogFocus";
 import { CommandPaletteView } from "./CommandPaletteView";
-import type { PaletteCommand } from "./paletteSearch";
+import type { PaletteCommand, PaletteEntry } from "./paletteSearch";
 
 const COMMANDS: PaletteCommand[] = [
   {
@@ -38,6 +38,36 @@ const COMMANDS: PaletteCommand[] = [
     category: "ui",
     shortcut: null,
     disabledReason: "Project create/open is host-only",
+  },
+];
+
+const ENTRIES: PaletteEntry[] = [
+  {
+    id: "project:/p/Show",
+    group: "projects",
+    label: "Season Finale",
+    context: "Ready",
+    verb: "Open",
+    commandId: "project.open",
+    args: { path: "/p/Show" },
+  },
+  {
+    id: "person:c1",
+    group: "people",
+    label: "Ana",
+    context: "editor",
+    verb: "Follow",
+    commandId: "presence.follow",
+    args: { clientId: "c1" },
+  },
+  {
+    id: "chapter:62:Intro",
+    group: "chapters",
+    label: "Intro",
+    context: "1:02",
+    verb: "Go to",
+    commandId: "transport.seek",
+    args: { sec: 62 },
   },
 ];
 
@@ -277,5 +307,80 @@ describe("CommandPaletteView", () => {
       screen.getByRole("combobox", { name: "Search commands" }),
     ).toHaveValue("");
     expect(screen.getByLabelText("Show remaps")).not.toBeChecked();
+  });
+
+  it("shows Recent first when Search is empty, skipping unavailable and unknown ids", () => {
+    renderPalette({
+      entries: ENTRIES,
+      recent: [
+        "help.diagnosticsBundle",
+        "gone",
+        "chapter:62:Intro",
+        "edit.bladeCut",
+      ],
+    });
+    const recent = screen.getByRole("group", { name: "Recent" });
+    expect(within(recent).getAllByRole("option")).toHaveLength(2);
+    expect(within(recent).getByRole("option", { name: /^Intro/ })).toBeTruthy();
+    expect(
+      within(recent).getByRole("option", { name: /^Blade cut/ }),
+    ).toBeTruthy();
+    expect(within(recent).queryByText("Export diagnostics…")).toBeNull();
+  });
+
+  it("shows no Recent group without recents or while searching", async () => {
+    const { rerender, props } = renderPalette({ entries: ENTRIES });
+    expect(screen.queryByRole("group", { name: "Recent" })).toBeNull();
+    rerender(<CommandPaletteView {...props} recent={["edit.bladeCut"]} />);
+    expect(screen.getByRole("group", { name: "Recent" })).toBeTruthy();
+    await userEvent.setup().type(screen.getByRole("combobox"), "blade");
+    expect(screen.queryByRole("group", { name: "Recent" })).toBeNull();
+  });
+
+  it("lists Projects, People and Chapters groups, hiding empty ones", () => {
+    const { rerender, props } = renderPalette({ entries: ENTRIES });
+    for (const name of ["Projects", "People", "Chapters"]) {
+      expect(screen.getByRole("group", { name })).toBeTruthy();
+    }
+    rerender(
+      <CommandPaletteView
+        {...props}
+        entries={ENTRIES.filter((e) => e.group === "chapters")}
+      />,
+    );
+    expect(screen.queryByRole("group", { name: "Projects" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "People" })).toBeNull();
+    expect(screen.getByRole("group", { name: "Chapters" })).toBeTruthy();
+  });
+
+  it("runs an entry by click and by arrow keys and Enter", async () => {
+    const onRunEntry = vi.fn();
+    const user = userEvent.setup();
+    renderPalette({ entries: ENTRIES, onRunEntry });
+    await user.click(screen.getByRole("option", { name: /^Intro/ }));
+    expect(onRunEntry).toHaveBeenCalledWith(ENTRIES[2]);
+    await user.type(screen.getByRole("combobox"), "ana");
+    expect(screen.getByRole("status").textContent).toContain(
+      "1 result. Enter: Follow Ana",
+    );
+    await user.keyboard("{Enter}");
+    expect(onRunEntry).toHaveBeenLastCalledWith(ENTRIES[1]);
+  });
+
+  it("finds entries by their context and keeps arrow keys across groups", async () => {
+    const user = userEvent.setup();
+    renderPalette({ entries: ENTRIES });
+    const box = screen.getByRole("combobox");
+    await user.type(box, "1:02");
+    expect(screen.getAllByRole("option")).toHaveLength(1);
+    await user.clear(box);
+    await user.keyboard("{ArrowUp}");
+    const last = screen.getAllByRole("option").at(-1);
+    expect(box.getAttribute("aria-activedescendant")).toBe(
+      screen.getAllByRole("option")[0]?.id,
+    );
+    expect(last?.textContent).toContain("Intro");
+    for (let i = 0; i < 20; i++) await user.keyboard("{ArrowDown}");
+    expect(box.getAttribute("aria-activedescendant")).toBe(last?.id);
   });
 });

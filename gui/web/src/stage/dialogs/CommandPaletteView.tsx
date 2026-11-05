@@ -2,10 +2,25 @@ import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
 import { Button, Dialog } from "../../ui";
 import {
   groupPaletteCommands,
+  groupPaletteEntries,
   PALETTE_CATEGORY_LABELS,
+  PALETTE_ENTRY_GROUP_LABELS,
+  PALETTE_RECENT_LIMIT,
   type PaletteCommand,
+  type PaletteEntry,
   searchPaletteCommands,
+  searchPaletteEntries,
 } from "./paletteSearch";
+
+/** One option in render order: a command or an entry, in Recent or its own group. */
+type Row = {
+  /** Unique in the list (Recent repeats an id the groups below also show). */
+  key: string;
+  command?: PaletteCommand;
+  entry?: PaletteEntry;
+};
+
+type Section = { key: string; label: string | null; rows: Row[] };
 
 export interface CommandPaletteViewProps {
   open: boolean;
@@ -15,6 +30,11 @@ export interface CommandPaletteViewProps {
   onOpenGestures: () => void;
   onRun: (id: string) => void;
   onRemap: (id: string, trimmedKey: string) => void;
+  /** Projects, People and Chapters rows (see `paletteEntries`); none by default. */
+  entries?: readonly PaletteEntry[];
+  /** Ids (command ids or entry ids) last run, newest first; shown as Recent when Search is empty. */
+  recent?: readonly string[];
+  onRunEntry?: (entry: PaletteEntry) => void;
 }
 
 /**
@@ -26,6 +46,8 @@ export interface CommandPaletteViewProps {
  * the arrow keys move the active command (`aria-activedescendant`), unavailable
  * ones included so their reasons are read, and Enter runs it. Typing makes the
  * first runnable match active. The status line names the command Enter runs.
+ * With Search empty, Recent comes first; Projects, People and Chapters follow
+ * the commands as labelled groups and are left out while empty.
  */
 export function CommandPaletteView({
   open,
@@ -34,6 +56,9 @@ export function CommandPaletteView({
   onOpenGestures,
   onRun,
   onRemap,
+  entries = [],
+  recent = [],
+  onRunEntry,
 }: CommandPaletteViewProps) {
   const [query, setQuery] = useState("");
   const [showRemap, setShowRemap] = useState(false);
@@ -42,7 +67,7 @@ export function CommandPaletteView({
   const searchRef = useRef<HTMLInputElement>(null);
   const baseId = useId();
   const listboxId = `${baseId}-commands`;
-  const optionId = (id: string) => `${baseId}-${id}`;
+  const optionId = (key: string) => `${baseId}-opt-${rowIndex.get(key)}`;
 
   if (open !== wasOpen) {
     setWasOpen(open);
@@ -55,13 +80,59 @@ export function CommandPaletteView({
 
   const searching = query.trim() !== "";
   const shown = searchPaletteCommands(commands, query);
-  const listed = !showRemap && shown.length > 0;
+  const entriesShown = searchPaletteEntries(entries, query);
+
+  const sections: Section[] = [];
+  if (!searching) {
+    const recentRows: Row[] = [];
+    for (const id of recent) {
+      const command = commands.find((c) => c.id === id);
+      const entry = entries.find((e) => e.id === id);
+      if (command && command.disabledReason == null) {
+        recentRows.push({ key: `recent:${id}`, command });
+      } else if (entry) {
+        recentRows.push({ key: `recent:${id}`, entry });
+      }
+      if (recentRows.length === PALETTE_RECENT_LIMIT) {
+        break;
+      }
+    }
+    if (recentRows.length > 0) {
+      sections.push({ key: "recent", label: "Recent", rows: recentRows });
+    }
+    for (const { category, rows } of groupPaletteCommands(shown)) {
+      sections.push({
+        key: category,
+        label: PALETTE_CATEGORY_LABELS[category],
+        rows: rows.map((command) => ({ key: command.id, command })),
+      });
+    }
+  } else if (shown.length > 0) {
+    sections.push({
+      key: "commands",
+      label: null,
+      rows: shown.map((command) => ({ key: command.id, command })),
+    });
+  }
+  for (const { group, rows } of groupPaletteEntries(entriesShown)) {
+    sections.push({
+      key: group,
+      label: PALETTE_ENTRY_GROUP_LABELS[group],
+      rows: rows.map((entry) => ({ key: entry.id, entry })),
+    });
+  }
+  const rows = sections.flatMap((section) => section.rows);
+  const rowIndex = new Map(rows.map((row, i) => [row.key, i]));
+  const total = shown.length + entriesShown.length;
+
+  const listed = !showRemap && rows.length > 0;
+  const rowDisabled = (row: Row) => row.command?.disabledReason != null;
   const active = listed
-    ? (shown.find((c) => c.id === picked) ??
-      (searching ? shown.find((c) => c.disabledReason == null) : undefined) ??
+    ? (rows.find((r) => r.key === picked) ??
+      (searching ? rows.find((r) => !rowDisabled(r)) : undefined) ??
       null)
     : null;
-  const activeDomId = active ? optionId(active.id) : undefined;
+  const activeDomId = active ? optionId(active.key) : undefined;
 
   useEffect(() => {
     if (activeDomId) {
@@ -71,47 +142,59 @@ export function CommandPaletteView({
     }
   }, [activeDomId]);
 
+  function runRow(row: Row) {
+    if (row.command) {
+      if (row.command.disabledReason == null) {
+        onRun(row.command.id);
+      }
+    } else if (row.entry) {
+      onRunEntry?.(row.entry);
+    }
+  }
+
   function onSearchKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     if (!listed) {
       return;
     }
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
-      const at = active ? shown.indexOf(active) : -1;
+      const at = active ? rows.indexOf(active) : -1;
       const next =
         e.key === "ArrowDown"
-          ? Math.min(at + 1, shown.length - 1)
+          ? Math.min(at + 1, rows.length - 1)
           : Math.max(at - 1, 0);
-      setPicked(shown[next]?.id ?? null);
+      setPicked(rows[next]?.key ?? null);
     } else if (e.key === "Enter" && active) {
       e.preventDefault();
-      if (active.disabledReason == null) {
-        onRun(active.id);
-      }
+      runRow(active);
     }
   }
 
+  const activeStatus = !active
+    ? ""
+    : active.entry
+      ? `Enter: ${active.entry.verb} ${active.entry.label}`
+      : active.command?.disabledReason == null
+        ? `Enter runs ${active.command?.label}`
+        : `${active.command.label} is unavailable: ${active.command.disabledReason}`;
   const status = [
     searching
-      ? `${shown.length} ${shown.length === 1 ? "command" : "commands"}`
+      ? `${total} ${entriesShown.length > 0 ? (total === 1 ? "result" : "results") : total === 1 ? "command" : "commands"}`
       : "",
-    active
-      ? active.disabledReason == null
-        ? `Enter runs ${active.label}`
-        : `${active.label} is unavailable: ${active.disabledReason}`
-      : "",
+    activeStatus,
   ]
     .filter(Boolean)
     .join(". ");
 
-  const option = (row: PaletteCommand, showCategory: boolean) => (
+  const option = (row: Row, showCategory: boolean) => (
     <PaletteOption
-      key={row.id}
-      id={optionId(row.id)}
-      row={row}
-      active={row.id === active?.id}
+      key={row.key}
+      id={optionId(row.key)}
+      command={row.command}
+      entry={row.entry}
+      active={row.key === active?.key}
       showCategory={showCategory}
-      onRun={onRun}
+      onRun={() => runRow(row)}
     />
   );
 
@@ -165,9 +248,12 @@ export function CommandPaletteView({
         </label>
       </div>
 
-      {searching && shown.length === 0 ? (
+      {searching && total === 0 ? (
         <div className="command-palette-empty">
-          <p>No commands match “{query.trim()}”.</p>
+          <p>
+            {entries.length > 0 ? "Nothing matches" : "No commands match"} “
+            {query.trim()}”.
+          </p>
           <Button
             onClick={() => {
               setQuery("");
@@ -186,24 +272,25 @@ export function CommandPaletteView({
           aria-label="Commands"
           className="command-palette-listbox"
         >
-          {searching
-            ? shown.map((row) => option(row, true))
-            : groupPaletteCommands(shown).map(({ category, rows }) => {
-                const labelId = `${baseId}-group-${category}`;
-                return (
-                  <div
-                    key={category}
-                    role="group"
-                    aria-labelledby={labelId}
-                    className="command-palette-group"
-                  >
-                    <div id={labelId} className="command-palette-group-label">
-                      {PALETTE_CATEGORY_LABELS[category]}
-                    </div>
-                    {rows.map((row) => option(row, false))}
-                  </div>
-                );
-              })}
+          {sections.map((section) => {
+            if (section.label == null) {
+              return section.rows.map((row) => option(row, true));
+            }
+            const labelId = `${baseId}-group-${section.key}`;
+            return (
+              <div
+                key={section.key}
+                role="group"
+                aria-labelledby={labelId}
+                className="command-palette-group"
+              >
+                <div id={labelId} className="command-palette-group-label">
+                  {section.label}
+                </div>
+                {section.rows.map((row) => option(row, false))}
+              </div>
+            );
+          })}
         </div>
       ) : null}
     </Dialog>
@@ -212,31 +299,37 @@ export function CommandPaletteView({
 
 function PaletteOption({
   id,
-  row,
+  command,
+  entry,
   active,
   showCategory,
   onRun,
 }: {
   id: string;
-  row: PaletteCommand;
+  command?: PaletteCommand;
+  entry?: PaletteEntry;
   active: boolean;
   showCategory: boolean;
-  onRun: (id: string) => void;
+  onRun: () => void;
 }) {
-  const disabled = row.disabledReason != null;
-  const note = row.disabledReason ?? row.note;
+  const disabled = command?.disabledReason != null;
+  const note = command
+    ? (command.disabledReason ?? command.note)
+    : entry?.context;
+  const label = command?.label ?? entry?.label ?? "";
+  const shortcut = command?.shortcut ?? null;
   const keysId = `${id}-keys`;
   const noteId = `${id}-note`;
   const labelledBy = [
     `${id}-label`,
-    row.shortcut ? keysId : null,
+    shortcut ? keysId : null,
     note ? noteId : null,
   ]
     .filter(Boolean)
     .join(" ");
   const run = () => {
     if (!disabled) {
-      onRun(row.id);
+      onRun();
     }
   };
   return (
@@ -262,20 +355,20 @@ function PaletteOption({
     >
       <span className="command-palette-option-main">
         <span id={`${id}-label`} className="command-palette-label">
-          {row.label}
-          {showCategory ? (
+          {label}
+          {showCategory && command ? (
             <>
               {" "}
               <span className="command-palette-category">
-                {PALETTE_CATEGORY_LABELS[row.category]}
+                {PALETTE_CATEGORY_LABELS[command.category]}
               </span>
             </>
           ) : null}
         </span>
-        {row.shortcut ? (
+        {shortcut ? (
           <>
             {" "}
-            <kbd id={keysId}>{row.shortcut}</kbd>
+            <kbd id={keysId}>{shortcut}</kbd>
           </>
         ) : null}
       </span>

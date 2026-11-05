@@ -170,7 +170,9 @@ export function registerProjectMediaCommands(): void {
     closeProjectAndGoHome("Closing the project failed"),
   );
 
-  registerCommand("project.open", () => {
+  registerCommand("project.open", (args) => {
+    // `path` (the palette's Projects group) skips the picker and opens that episode.
+    const given = typeof args.path === "string" ? args.path.trim() : "";
     if (desktopCloseGuardArmed()) {
       useDawStore
         .getState()
@@ -183,16 +185,17 @@ export function registerProjectMediaCommands(): void {
     projectOpenInFlight = true;
     void (async () => {
       try {
-        let path: string | null = null;
+        let path: string | null = given || null;
         try {
-          const picked = await pickEpisodeProject();
-          if ("cancelled" in picked && picked.cancelled) {
+          const picked = given ? null : await pickEpisodeProject();
+          if (picked == null) {
+            // A given path needs no picker.
+          } else if ("cancelled" in picked && picked.cancelled) {
             if (picked.detail) {
               useDawStore.getState().announceStatus(picked.detail);
             }
             return;
-          }
-          if ("unavailable" in picked && picked.unavailable) {
+          } else if ("unavailable" in picked && picked.unavailable) {
             // No OS folder picker here: Home's Open other asks for the folder in a path field.
             window.location.assign(
               homeUrl(window.location.href, { openOther: true }),

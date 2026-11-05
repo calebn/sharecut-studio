@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   groupPaletteCommands,
+  groupPaletteEntries,
   type PaletteCommand,
+  type PaletteEntry,
   searchPaletteCommands,
+  searchPaletteEntries,
 } from "./paletteSearch";
 
 function cmd(
@@ -102,5 +105,59 @@ describe("groupPaletteCommands", () => {
       ],
       ["view", ["view.transcriptAnnotate"]],
     ]);
+  });
+});
+
+describe("palette entries", () => {
+  const entries: PaletteEntry[] = [
+    {
+      id: "chapter:0:Intro",
+      group: "chapters",
+      label: "Intro",
+      context: "0:00",
+      verb: "Go to",
+      commandId: "transport.seek",
+      args: { sec: 0 },
+    },
+    {
+      id: "person:a",
+      group: "people",
+      label: "Ana",
+      context: "editor",
+      verb: "Follow",
+      commandId: "presence.follow",
+      args: { clientId: "a" },
+    },
+    {
+      id: "project:/x",
+      group: "projects",
+      label: "Intro show",
+      verb: "Open",
+      commandId: "project.open",
+      args: { path: "/x" },
+    },
+  ];
+
+  it("groups in Projects, People, Chapters order and drops empty groups", () => {
+    expect(groupPaletteEntries(entries).map((g) => g.group)).toEqual([
+      "projects",
+      "people",
+      "chapters",
+    ]);
+    expect(groupPaletteEntries([])).toEqual([]);
+  });
+
+  it("matches every word in label, context or group name, label prefixes first", () => {
+    expect(searchPaletteEntries(entries, "").length).toBe(3);
+    expect(
+      searchPaletteEntries(entries, "editor ana").map((e) => e.id),
+    ).toEqual(["person:a"]);
+    expect(searchPaletteEntries(entries, "chapters").map((e) => e.id)).toEqual([
+      "chapter:0:Intro",
+    ]);
+    expect(
+      searchPaletteEntries(entries, "show intro").map((e) => e.id),
+    ).toEqual(["project:/x"]);
+    expect(searchPaletteEntries(entries, "zzz")).toEqual([]);
   });
 });
