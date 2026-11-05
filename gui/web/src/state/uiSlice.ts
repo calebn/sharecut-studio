@@ -1,10 +1,6 @@
 import type { StateCreator } from "zustand";
 import { cssViewportWidth } from "../hooks/useViewportClass";
 import {
-  readCompactInspectorView,
-  writeCompactInspectorView,
-} from "../utils/compactInspectorPref";
-import {
   readLaneHeightPref,
   stepLaneHeightPx,
   writeLaneHeightPref,
@@ -183,8 +179,6 @@ type UiSlice = Pick<
   | "timelineFocused"
   | "shellBreakpoint"
   | "pointerKind"
-  | "sheetExpanded"
-  | "compactInspectorView"
   | "selectionHit"
   | "inspectorSelection"
   | "timelineDragging"
@@ -213,8 +207,6 @@ type UiSlice = Pick<
   | "setWordDraft"
   | "setShellBreakpoint"
   | "setPointerKind"
-  | "setSheetExpanded"
-  | "setCompactInspectorView"
   | "setSelectionHit"
   | "setTimelineDragging"
   | "setLaneHeightMode"
@@ -462,8 +454,6 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     laneHeightMode: lanePref.mode,
     laneHeightPx: lanePref.px,
     drawnLaneHeightPx: null as number | null,
-    sheetExpanded: false,
-    compactInspectorView: readCompactInspectorView(),
     selectionHit: null,
     inspectorSelection: null,
     timelineDragging: false,
@@ -624,11 +614,6 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     },
     setPointerKind: (pointerKind) =>
       set((s) => (s.pointerKind === pointerKind ? s : { pointerKind })),
-    setSheetExpanded: (sheetExpanded) => set({ sheetExpanded }),
-    setCompactInspectorView: (compactInspectorView) => {
-      set({ compactInspectorView });
-      writeCompactInspectorView(compactInspectorView);
-    },
     setSelectionHit: (selectionHit) => set({ selectionHit }),
     setTimelineDragging: (timelineDragging) => {
       if (get().timelineDragging !== timelineDragging)

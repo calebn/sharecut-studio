@@ -132,7 +132,7 @@ html[data-shell] body {
      on into the page (see the html[data-shell] rule at the top). */
   overscroll-behavior: contain;
   /* Room under the last lane as deep as the compact inspector covers the
-     scroller, so any selection can scroll clear of it (useCompactInspector). */
+     scroller, so any selection can scroll clear of it (`keepTargetClear`). */
   padding-block-end: var(--sheet-clearance, 0);
 }
 
@@ -416,13 +416,6 @@ html[data-shell] body {
 [data-split-armed] .pending-overlay,
 [data-split-armed] .applied-tick {
   pointer-events: none;
-}
-
-.compact-history-button {
-  justify-content: center;
-  min-inline-size: var(--touch-min);
-  min-block-size: var(--touch-min);
-  padding: 0;
 }
 
 .overlay-legend {

@@ -48,36 +48,7 @@ describe("BottomSheet", () => {
     expect(root).not.toHaveAttribute("inert");
   });
 
-  it("puts supplied flow content and fields in one body below chrome", async () => {
-    render(
-      <BottomSheet
-        open
-        onClose={vi.fn()}
-        backgroundPolicy="interactive"
-        title="Inspector"
-        className="bottom-sheet--compact"
-        bodyHeader={<button type="button">Feedback</button>}
-      >
-        <label>
-          Time
-          <input />
-        </label>
-      </BottomSheet>,
-    );
-    const feedback = screen.getByRole("button", { name: "Feedback" });
-    const body = feedback.closest(".bottom-sheet-body");
-    expect(body).toContainElement(screen.getByLabelText("Time"));
-    expect(body).not.toContainElement(
-      screen.getByRole("button", { name: "Close" }),
-    );
-    expect(
-      feedback.compareDocumentPosition(screen.getByLabelText("Time")) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).not.toBe(0);
-    await expectNoA11yViolations(document.body);
-  });
-
-  it("renders compact header actions beside its resize and close controls", async () => {
+  it("renders its resize and close controls in the header", async () => {
     render(
       <BottomSheet
         open
@@ -88,18 +59,12 @@ describe("BottomSheet", () => {
           detents: ["peek", "half"],
           detent: "peek",
           onDetentChange: vi.fn(),
-          label: "Inspector height",
+          label: "Sheet height",
         }}
-        compactHeaderActions={<button type="button">Undo</button>}
       >
-        <p>Inspector body</p>
+        <p>Body</p>
       </BottomSheet>,
     );
-
-    expect(screen.getByRole("button", { name: "Undo" })).toBeVisible();
-    expect(
-      screen.getByRole("button", { name: "Expand to half height" }),
-    ).toBeVisible();
     expect(
       screen.getByRole("button", { name: "Expand to half height" }),
     ).toHaveAttribute("title", "Expand to half height");
@@ -807,7 +772,6 @@ describe("BottomSheet", () => {
           onClose={onClose}
           backgroundPolicy="interactive"
           title="Inspector"
-          bodyHeader={<p>Header</p>}
         >
           <Draft />
         </BottomSheet>
@@ -824,7 +788,6 @@ describe("BottomSheet", () => {
         const grid = shell();
         const { rerender } = render(sheet("sheet"));
         const input = screen.getByLabelText("Gain");
-        const header = screen.getByText("Header");
         const dialog = screen.getByRole("dialog");
         await waitFor(() =>
           expect(screen.getByRole("button", { name: "Close" })).toHaveFocus(),
@@ -834,7 +797,6 @@ describe("BottomSheet", () => {
 
         rerender(sheet("column"));
         expect(screen.getByLabelText("Gain")).toBe(input);
-        expect(screen.getByText("Header")).toBe(header);
         expect(screen.getByRole("dialog")).toBe(dialog);
         expect(input).toHaveValue("-6");
         expect(input).toHaveFocus();

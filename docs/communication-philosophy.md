@@ -216,7 +216,7 @@ evidence:
 - #1326 owner decision https://github.com/calebn/sharecut-studio/issues/1326#issuecomment-6151053529, add visible Undo, Redo, Zoom out, and Zoom in to the desktop transport
 enforced-by:
 - gui/web/src/stage/edit/EditCorner.test.tsx::zooms through view.zoomIn and view.zoomOut
-- gui/web/src/stage/frame/HistoryControls.test.tsx::uses authorized guest history availability and the same command path
+- gui/web/src/stage/frame/StageFrame.test.tsx::disables Undo and Redo when the history has nothing to move
 -->
 
 Desktop keeps **Undo**, **Redo**, **Zoom out**, and **Zoom in** visible in the

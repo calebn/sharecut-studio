@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useKeyboardInset } from "../hooks/useKeyboardInset";
 import { Button } from "./Button";
 import { CloseButton } from "./CloseButton";
-import { focusAndReveal, revealBelowChrome } from "./focusAndReveal";
+import { revealBelowChrome } from "./focusAndReveal";
 import { Icon } from "./Icon";
 import { SheetHostPlacement } from "./sheetHost";
 import { useDialogModal } from "./useDialogModal";
@@ -62,15 +62,11 @@ type Props = {
   /** Size while expanded. */
   expandedSize?: BottomSheetSize;
   children: ReactNode;
-  /** First content in the scrolling body, below the pinned chrome. */
-  bodyHeader?: ReactNode;
   /** When true, show `expandedSize` (user or parent). */
   expanded?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
   /** Accessible names of the Expand and Collapse actions. */
   resizeLabels?: { expand: string; collapse: string };
-  /** Additional actions for a compact inspector header. */
-  compactHeaderActions?: ReactNode;
   /** Detents the header swipes between; replaces the expand toggle. */
   drawer?: SheetDrawer;
   /**
@@ -78,7 +74,7 @@ type Props = {
    * what it describes; it slides back when they let go.
    */
   stowed?: boolean;
-  /** Extra class on the panel (the compact inspector's drawer). */
+  /** Extra class on the panel. */
   className?: string;
   placement?: SheetPlacement;
 };
@@ -97,11 +93,9 @@ export function BottomSheet({
   size = "half",
   expandedSize = "full",
   children,
-  bodyHeader,
   expanded,
   onExpandedChange,
   resizeLabels,
-  compactHeaderActions,
   drawer: requestedDrawer,
   stowed = false,
   className,
@@ -127,9 +121,7 @@ export function BottomSheet({
     const reveal = (event: FocusEvent) => {
       const chrome = chromeRef.current;
       if (chrome && event.target instanceof HTMLElement) {
-        if (panel.matches(".bottom-sheet--compact")) {
-          if (!chrome.contains(event.target)) focusAndReveal(event.target);
-        } else revealBelowChrome(panel, chrome, event.target);
+        revealBelowChrome(panel, chrome, event.target);
       }
     };
     panel.addEventListener("focusin", reveal);
@@ -261,14 +253,12 @@ export function BottomSheet({
             <span className="bottom-sheet-title-spacer" />
           )}
           <div className="bottom-sheet-header-actions">
-            {compactHeaderActions}
             {resizeButtons}
             <CloseButton ref={closeRef} onClick={dismiss} />
           </div>
         </div>
       </div>
       <div className="bottom-sheet-body" ref={keepFocusInView}>
-        {bodyHeader}
         {children}
       </div>
     </div>

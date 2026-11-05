@@ -298,7 +298,7 @@ describe("PendingEditOverlay handles", () => {
     field.remove();
   });
 
-  it("drops Edit timing while a compact sheet holds the timing, and brings it back after", async () => {
+  it("drops Edit timing while the Inspector sheet holds the timing, and brings it back after", async () => {
     const view = (
       <PendingEditOverlayView
         edits={[edit]}
@@ -318,8 +318,7 @@ describe("PendingEditOverlay handles", () => {
     const sheetRoot = document.createElement("div");
     sheetRoot.className = "bottom-sheet-root";
     const panel = document.createElement("div");
-    panel.className =
-      "bottom-sheet bottom-sheet--inspector bottom-sheet--compact";
+    panel.className = "sys-inspector--phone";
     sheetRoot.append(panel);
     // jsdom lays nothing out: the sheet rests 100 px tall on an 800 px slot.
     sheetRoot.getBoundingClientRect = () => ({ bottom: 800 }) as DOMRect;
@@ -757,14 +756,13 @@ describe("PendingEditOverlayView", () => {
     await expectNoA11yViolations(container);
   });
 
-  it("moves the single review actionbar into pinned compact chrome and restores focus when it closes", async () => {
+  it("moves the single review actionbar into the Inspector sheet's body and restores focus when it closes", async () => {
     const root = document.createElement("div");
     root.className = "bottom-sheet-root";
     const panel = document.createElement("div");
-    panel.className =
-      "bottom-sheet bottom-sheet--inspector bottom-sheet--compact bottom-sheet--peek";
+    panel.className = "sys-inspector--phone";
     const chrome = document.createElement("div");
-    chrome.className = "bottom-sheet-chrome";
+    chrome.className = "sys-inspector-scroll";
     panel.append(chrome);
     root.append(panel);
     document.body.append(root);
@@ -797,7 +795,7 @@ describe("PendingEditOverlayView", () => {
     const approve = screen.getByRole("button", { name: "Approve" });
     expect(chrome.contains(approve)).toBe(true);
     approve.focus();
-    panel.classList.remove("bottom-sheet--inspector", "bottom-sheet--compact");
+    panel.classList.remove("sys-inspector--phone");
     await act(() => window.dispatchEvent(new Event("resize")));
     await waitFor(() =>
       expect(chrome.querySelector(".pending-actionbar")).toBeNull(),
@@ -819,7 +817,7 @@ describe("PendingEditOverlayView", () => {
   });
 
   it.each([
-    ["the tablet's regular inspector sheet", "bottom-sheet--inspector", true],
+    ["the phone's Inspector sheet", "sys-inspector--phone", true],
     [
       "a confirmation sheet that is not the inspector",
       "bottom-sheet--fit",
@@ -833,7 +831,7 @@ describe("PendingEditOverlayView", () => {
       const panel = document.createElement("div");
       panel.className = `bottom-sheet bottom-sheet--half ${sheetClass}`;
       const chrome = document.createElement("div");
-      chrome.className = "bottom-sheet-chrome";
+      chrome.className = "sys-inspector-scroll";
       panel.append(chrome);
       root.append(panel);
       document.body.append(root);
@@ -1288,13 +1286,11 @@ function mount() {
   const root = document.createElement("div");
   root.className = "bottom-sheet-root";
   const panel = document.createElement("div");
-  panel.className =
-    "bottom-sheet bottom-sheet--inspector bottom-sheet--compact bottom-sheet--peek";
+  panel.className = "sys-inspector--phone";
   const chrome = document.createElement("div");
-  chrome.className = "bottom-sheet-chrome";
-  const body = document.createElement("div");
-  body.className = "bottom-sheet-body";
-  panel.append(chrome, body);
+  chrome.className = "sys-inspector-scroll";
+  const body = chrome;
+  panel.append(chrome);
   root.append(panel);
   document.body.append(root);
   useDawStore
@@ -1326,20 +1322,20 @@ function mount() {
   return { root, panel, chrome, body, view, onReviewAction };
 }
 async function undock(panel: HTMLElement) {
-  panel.classList.remove("bottom-sheet--inspector", "bottom-sheet--compact");
+  panel.classList.remove("sys-inspector--phone");
   await act(() => window.dispatchEvent(new Event("resize")));
   await waitFor(() =>
     expect(document.querySelector(".pending-actionbar--docked")).toBeNull(),
   );
 }
-it("keeps the same review draft and focus in body flow for compact half and full, then returns it to peek chrome", async () => {
-  const { root, panel, chrome, body, view, onReviewAction } = mount();
+it("keeps the same review draft and focus at the dock, half and full detents", async () => {
+  const { root, panel, body, view, onReviewAction } = mount();
   const fields = document.createElement("button");
   fields.textContent = "Inspector field";
   body.append(fields);
   try {
     await waitFor(() =>
-      expect(chrome.querySelector(".pending-actionbar")).not.toBeNull(),
+      expect(body.querySelector(".pending-actionbar")).not.toBeNull(),
     );
     await userEvent.click(screen.getByRole("button", { name: "Approve" }));
     const reason = await screen.findByRole("textbox", {
@@ -1347,17 +1343,11 @@ it("keeps the same review draft and focus in body flow for compact half and full
     });
     await userEvent.type(reason, "Reviewed the selected source audio");
     const host = reason.closest(".pending-actionbar-host");
-    for (const detent of ["half", "full"] as const) {
-      panel.classList.remove(
-        "bottom-sheet--peek",
-        "bottom-sheet--half",
-        "bottom-sheet--full",
-      );
-      panel.classList.add(`bottom-sheet--${detent}`);
+    for (const detent of ["dock", "half", "full"] as const) {
+      panel.setAttribute("data-detent", detent);
       await act(() => window.dispatchEvent(new Event("resize")));
       await waitFor(() => expect(body).toContainElement(reason));
       expect(body.firstElementChild).toBe(host);
-      expect(chrome).not.toContainElement(reason);
       expect(reason).toHaveFocus();
       expect(reason).toHaveValue("Reviewed the selected source audio");
       expect(document.querySelectorAll(".pending-actionbar-host")).toHaveLength(
@@ -1366,16 +1356,11 @@ it("keeps the same review draft and focus in body flow for compact half and full
     }
     body.remove();
     const replacement = document.createElement("div");
-    replacement.className = "bottom-sheet-body";
+    replacement.className = "sys-inspector-scroll";
     panel.append(replacement);
     await act(() => window.dispatchEvent(new Event("resize")));
     await waitFor(() => expect(replacement).toContainElement(reason));
     expect(replacement.firstElementChild).toBe(host);
-    expect(reason).toHaveFocus();
-    expect(reason).toHaveValue("Reviewed the selected source audio");
-    panel.classList.replace("bottom-sheet--full", "bottom-sheet--peek");
-    await act(() => window.dispatchEvent(new Event("resize")));
-    await waitFor(() => expect(chrome).toContainElement(reason));
     expect(reason).toHaveFocus();
     expect(reason).toHaveValue("Reviewed the selected source audio");
     expect(onReviewAction).toHaveBeenCalledTimes(1);
@@ -1405,7 +1390,7 @@ it("retains a waiver draft and textarea focus when the portal destination change
     expect(moved).toHaveValue("Reviewed every flagged transcript word");
     expect(moved).toHaveFocus();
     expect(moved).toBe(reason);
-    panel.classList.add("bottom-sheet--inspector", "bottom-sheet--compact");
+    panel.classList.add("sys-inspector--phone");
     await act(() => window.dispatchEvent(new Event("resize")));
     await waitFor(() => expect(chrome.contains(reason)).toBe(true));
     expect(reason).toHaveValue("Reviewed every flagged transcript word");
@@ -1452,7 +1437,7 @@ it("retains focus in an external control during portal destination change", asyn
   }
 });
 
-it("recovers the same review subtree after compact chrome is detached and replaced", async () => {
+it("recovers the same review subtree after the sheet body is detached and replaced", async () => {
   const { root, panel, chrome, view, onReviewAction } = mount();
   try {
     await waitFor(() =>
@@ -1469,7 +1454,7 @@ it("recovers the same review subtree after compact chrome is detached and replac
     expect(reason).toHaveValue("Reviewed audio before resize");
     expect(document.body).toHaveFocus();
     const replacement = document.createElement("div");
-    replacement.className = "bottom-sheet-chrome";
+    replacement.className = "sys-inspector-scroll";
     panel.append(replacement);
     await act(() => window.dispatchEvent(new Event("resize")));
     await waitFor(() => expect(replacement.contains(reason)).toBe(true));
