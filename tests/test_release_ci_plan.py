@@ -82,7 +82,12 @@ def assert_full(root: Path, **metadata) -> None:
     assert isinstance(result, cp.FullRelease)
     assert result.reason
     plan = cp.plan("pull_request", cp.changed_files("main", "HEAD", root), release=result)
-    assert (plan.gui, plan.pytest, plan.release_only, len(plan.e2e)) == (True, "full", False, 6)
+    assert (plan.gui, plan.pytest, plan.release_only, len(plan.e2e)) == (
+        True,
+        "full",
+        False,
+        4 + cp.PR_WEBKIT_SHARDS,
+    )
 
 
 def test_all_ten_committed_files_prove_release(release_repo: Path) -> None:
