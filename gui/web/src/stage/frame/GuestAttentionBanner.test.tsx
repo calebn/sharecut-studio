@@ -661,6 +661,12 @@ describe("GuestAttentionBanner", () => {
         "true",
       );
       await act(() => vi.advanceTimersByTimeAsync(2000));
+      expect(
+        screen.getByRole("region", { name: /Needs attention/ }),
+      ).toHaveTextContent(
+        "Dismissal failed. Your saved outcomes have been kept.",
+      );
+      await act(async () => fireEvent.click(getActionButton("Retry")));
       const dismiss = deferred<Dismissal>();
       clear().mockReturnValueOnce(dismiss.promise);
       await act(async () => fireEvent.click(getActionButton("Dismiss all")));

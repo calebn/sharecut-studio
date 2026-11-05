@@ -269,15 +269,10 @@ export function selectRecoveryOutcome(
   return true;
 }
 
-/** Clear the project's conflict list. A no-op unless the last read succeeded or only the last dismissal failed. */
+/** Clear the project's conflict list. A no-op unless the last read succeeded. */
 export function dismissAllConflicts(projectPath: string): void {
   const source = sources.get(projectPath);
-  if (
-    !source ||
-    (source.snapshot.status !== "ready" &&
-      source.snapshot.status !== "dismiss-failed")
-  )
-    return;
+  if (!source || source.snapshot.status !== "ready") return;
   const clearing = ++source.generation;
   const captured = source.snapshot.conflicts.filter(
     (conflict) => !conflict.dismissed,
