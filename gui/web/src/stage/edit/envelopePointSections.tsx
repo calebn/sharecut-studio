@@ -4,6 +4,7 @@ import {
   setEnvelopePoint,
 } from "../../commands/envelopes";
 import { useMountedRef } from "../../hooks/useMountedRef";
+import { SheetNudge } from "../../inspector/SheetNudge";
 import { canEditEnvelopes } from "../../shareMode";
 import { useDaw } from "../../state/useDaw";
 import type { InspectorSection } from "../../system/InspectorSheet";
@@ -87,39 +88,53 @@ export function useEnvelopePointSections(
           id: "time",
           label: "Time",
           control: (
-            <ScrubField
-              label="Time"
-              value={point.time}
-              unit="s"
-              step={0.01}
-              decimals={3}
-              min={0}
-              max={project?.timeline_duration_sec}
-              readOnly={locked}
-              onCommit={(time) =>
-                void run(setEnvelopePoint(trackId, pointId, { time }))
-              }
-            />
+            <div className="scrub-nudge">
+              <ScrubField
+                label="Time"
+                value={point.time}
+                unit="s"
+                step={0.01}
+                decimals={3}
+                min={0}
+                max={project?.timeline_duration_sec}
+                readOnly={locked}
+                onCommit={(time) =>
+                  void run(setEnvelopePoint(trackId, pointId, { time }))
+                }
+              />
+              <SheetNudge
+                field={{ kind: "envelope-time", trackId, pointId }}
+                name="Envelope point"
+                hidden={locked}
+              />
+            </div>
           ),
         },
         {
           id: "level",
           label: "Level",
           control: (
-            <ScrubField
-              label="Level"
-              variant="level"
-              value={point.value}
-              unit="×"
-              step={0.01}
-              min={0}
-              max={ENVELOPE_VALUE_MAX}
-              defaultValue={1}
-              readOnly={locked}
-              onCommit={(value) =>
-                void run(setEnvelopePoint(trackId, pointId, { value }))
-              }
-            />
+            <div className="scrub-nudge">
+              <ScrubField
+                label="Level"
+                variant="level"
+                value={point.value}
+                unit="×"
+                step={0.01}
+                min={0}
+                max={ENVELOPE_VALUE_MAX}
+                defaultValue={1}
+                readOnly={locked}
+                onCommit={(value) =>
+                  void run(setEnvelopePoint(trackId, pointId, { value }))
+                }
+              />
+              <SheetNudge
+                field={{ kind: "envelope-level", trackId, pointId }}
+                name="Envelope point level"
+                hidden={locked}
+              />
+            </div>
           ),
         },
         {

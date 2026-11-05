@@ -19,6 +19,7 @@ import {
 import { muteRegionsOverlapping } from "../../edit/muteRegions";
 import { trimEdgeLimits } from "../../edit/trimLimits";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
+import { SheetNudge } from "../../inspector/SheetNudge";
 import { ClipPlacementControls } from "../../inspector/views/ClipPlacementControls";
 import { canApplyPass12, canSuggestStructural } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
@@ -166,40 +167,64 @@ export function useClipSections(
     const limits =
       index < 0 ? null : trimEdgeLimits(lane, index, which, TRIM_MODE);
     return (
-      <ScrubField
-        label={`Source ${which === "in" ? "start" : "end"}`}
-        value={which === "in" ? clip.source_start : clip.source_end}
-        unit="s"
-        step={CLIP_HANDLE_STEPS.trim.small}
-        decimals={3}
-        skipUnchanged
-        min={limits?.lo}
-        max={limits?.hi}
-        readOnly={locked}
-        onCommit={(value) => void trim(which, value)}
-      />
+      <div className="scrub-nudge">
+        <ScrubField
+          label={`Source ${which === "in" ? "start" : "end"}`}
+          value={which === "in" ? clip.source_start : clip.source_end}
+          unit="s"
+          step={CLIP_HANDLE_STEPS.trim.small}
+          decimals={3}
+          skipUnchanged
+          min={limits?.lo}
+          max={limits?.hi}
+          readOnly={locked}
+          onCommit={(value) => void trim(which, value)}
+        />
+        <SheetNudge
+          field={{
+            kind: "trim",
+            edge: which,
+            trackId: clip.track_id,
+            clipId: clip.id,
+          }}
+          name={which === "in" ? "Trim start" : "Trim end"}
+          hidden={locked}
+        />
+      </div>
     );
   };
 
   const fadeField = (which: "in" | "out") => {
     const atCut = which === "in" ? cutIn : cutOut;
     return (
-      <ScrubField
-        label={which === "in" ? "Fade in" : "Fade out"}
-        value={which === "in" ? clip.fade_in_ms : clip.fade_out_ms}
-        unit="ms"
-        step={CLIP_HANDLE_STEPS.fade.small}
-        decimals={0}
-        integerOnly
-        min={0}
-        max={edgeFadeMaxMs(
-          clipSec,
-          capMs,
-          which === "in" ? clip.fade_out_ms : clip.fade_in_ms,
-        )}
-        readOnly={locked || !capKnown || atCut}
-        onCommit={(value) => void fade(which, value)}
-      />
+      <div className="scrub-nudge">
+        <ScrubField
+          label={which === "in" ? "Fade in" : "Fade out"}
+          value={which === "in" ? clip.fade_in_ms : clip.fade_out_ms}
+          unit="ms"
+          step={CLIP_HANDLE_STEPS.fade.small}
+          decimals={0}
+          integerOnly
+          min={0}
+          max={edgeFadeMaxMs(
+            clipSec,
+            capMs,
+            which === "in" ? clip.fade_out_ms : clip.fade_in_ms,
+          )}
+          readOnly={locked || !capKnown || atCut}
+          onCommit={(value) => void fade(which, value)}
+        />
+        <SheetNudge
+          field={{
+            kind: "fade",
+            edge: which,
+            trackId: clip.track_id,
+            clipId: clip.id,
+          }}
+          name={which === "in" ? "Fade in" : "Fade out"}
+          hidden={locked || !capKnown || atCut}
+        />
+      </div>
     );
   };
 
