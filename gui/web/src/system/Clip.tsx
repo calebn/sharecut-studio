@@ -152,6 +152,7 @@ type Grab = {
   fromX: number;
   fromY: number;
   moved: boolean;
+  stopWatching: () => void;
 };
 
 const HANDLE_NAMES: Record<ClipHandle, string> = {
@@ -228,14 +229,10 @@ export const Clip = memo(function Clip({
   const editable = !readOnly && !ghost;
   const bars = useMemo(() => Math.max(1, Math.round(width)), [width]);
 
-  const stopWatching = useStableCallback(() => {
-    document.removeEventListener("keydown", escapeDrag, true);
-    window.removeEventListener("blur", abort);
-  });
   const abort = useStableCallback(() => {
     const held = grab.current;
-    stopWatching();
     if (!held) return;
+    held.stopWatching();
     grab.current = null;
     if (!held.moved) return;
     dragged.current = held.grip === "move";
@@ -281,12 +278,17 @@ export const Clip = memo(function Clip({
     }
     if (grab.current && grab.current.pointerId !== event.pointerId) return;
     dragged.current = false;
+    grab.current?.stopWatching();
     grab.current = {
       grip,
       pointerId: event.pointerId,
       fromX: event.clientX,
       fromY: event.clientY,
       moved: false,
+      stopWatching() {
+        document.removeEventListener("keydown", escapeDrag, true);
+        window.removeEventListener("blur", abort);
+      },
     };
     document.addEventListener("keydown", escapeDrag, true);
     window.addEventListener("blur", abort);
@@ -306,7 +308,7 @@ export const Clip = memo(function Clip({
       held.moved = true;
       if (onDragStart?.(id, held.grip, pointerOf(event)) === false) {
         grab.current = null;
-        stopWatching();
+        held.stopWatching();
         dragged.current = false;
         return;
       }
@@ -317,7 +319,7 @@ export const Clip = memo(function Clip({
     const held = grab.current;
     if (!held || held.pointerId !== event.pointerId) return;
     grab.current = null;
-    stopWatching();
+    held.stopWatching();
     if (!held.moved) return;
     dragged.current = held.grip === "move";
     onDragEnd?.(id, held.grip, committed);

@@ -273,6 +273,11 @@ export function ReviewStage({
     onSelect(target?.id ?? selectedId);
   };
 
+  const body = selected ? content(selected) : null;
+  const base = body?.card.waveform;
+  const wave = base && { ...base, ...(selected && ranges[selected.id]) };
+  const card = body?.card ?? EMPTY_CARD;
+
   const hear = (next: AuditionSide) => {
     setSide(next);
     if (selected?.kind === "unsure-word") onHear?.(selected.id, "A");
@@ -338,9 +343,6 @@ export function ReviewStage({
     return () => el?.removeEventListener("keydown", handleKey);
   }, []);
 
-  const body = selected ? content(selected) : null;
-  const base = body?.card.waveform;
-  const wave = base && { ...base, ...(selected && ranges[selected.id]) };
   const adjust = (next: TimeRange) => {
     if (selected) setRanges((current) => ({ ...current, [selected.id]: next }));
   };
@@ -353,7 +355,6 @@ export function ReviewStage({
             (base.end - base.start),
         )
       : 0;
-  const card = body?.card ?? EMPTY_CARD;
   const held = selected && !selected.result ? body?.confirm : undefined;
   const unsure =
     body?.card.unsure && selected && !guest
