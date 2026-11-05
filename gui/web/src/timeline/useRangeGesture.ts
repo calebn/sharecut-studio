@@ -134,7 +134,7 @@ export function useRangeGesture(
   return {
     gesture,
     hasActiveGesture: () => draft.current !== null,
-    captureDown(event: PointerEvent<HTMLDivElement>) {
+    captureDown(this: void, event: PointerEvent<HTMLDivElement>) {
       if (canStart && !canStart()) return;
       if (isSplitModifier(event)) return;
       const state = useDawStore.getState();
@@ -165,23 +165,23 @@ export function useRangeGesture(
       if (active) active.pointerId = event.pointerId;
       event.currentTarget.setPointerCapture?.(event.pointerId);
     },
-    captureMove(event: PointerEvent<HTMLDivElement>) {
+    captureMove(this: void, event: PointerEvent<HTMLDivElement>) {
       if (draft.current?.pointerId === event.pointerId) gesture("move", event);
     },
-    captureUp(event: PointerEvent<HTMLDivElement>) {
+    captureUp(this: void, event: PointerEvent<HTMLDivElement>) {
       if (draft.current?.pointerId === event.pointerId) {
         gesture("end", event);
         event.currentTarget.releasePointerCapture?.(event.pointerId);
       }
     },
-    captureCancel(event: PointerEvent<HTMLDivElement>) {
+    captureCancel(this: void, event: PointerEvent<HTMLDivElement>) {
       if (
         draft.current?.owner === undefined &&
         draft.current?.pointerId === event.pointerId
       )
         cancel();
     },
-    captureLostCapture(event: PointerEvent<HTMLDivElement>) {
+    captureLostCapture(this: void, event: PointerEvent<HTMLDivElement>) {
       if (
         event.target === event.currentTarget &&
         draft.current?.owner === undefined &&
@@ -189,10 +189,13 @@ export function useRangeGesture(
       )
         cancel();
     },
-    captureClick(event: {
-      preventDefault: () => void;
-      stopPropagation: () => void;
-    }) {
+    captureClick(
+      this: void,
+      event: {
+        preventDefault: () => void;
+        stopPropagation: () => void;
+      },
+    ) {
       if (suppressClick.current) {
         suppressClick.current = false;
         event.preventDefault();
