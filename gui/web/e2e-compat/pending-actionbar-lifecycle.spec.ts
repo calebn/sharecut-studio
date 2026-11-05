@@ -26,10 +26,6 @@ test.afterEach(async () => {
 async function open(page: Page) {
   await page.setViewportSize({ width: 844, height: 390 });
   await openProject(page, projectPath);
-  await page.evaluate(() =>
-    localStorage.setItem("sharecut.compactInspector", "half"),
-  );
-  await openProject(page, projectPath);
   await expect(page.locator(".stage-frame")).toBeVisible();
   await setZoom(page, 3);
 }

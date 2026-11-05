@@ -261,13 +261,13 @@ test("phone pending controls stay clear of handles and dense labels follow layou
   expect(actionBox).toBeTruthy();
   // The card sits in the drawer's body, so the selected cut must stay above the
   // drawer, and so clear of the card.
-  const drawerBox = await page.locator(".bottom-sheet--compact").boundingBox();
+  const drawerBox = await page.locator(".sys-inspector--phone").boundingBox();
   expect(drawerBox).toBeTruthy();
   expect(selectedBox!.y + selectedBox!.height).toBeLessThanOrEqual(
     drawerBox!.y + 1,
   );
   await expect(
-    page.locator(".bottom-sheet--compact .pending-actionbar"),
+    page.locator(".sys-inspector--phone .pending-actionbar"),
   ).toHaveCount(1);
   for (const name of ["Approve", "Reject"]) {
     const box = await actionbar.getByRole("button", { name }).boundingBox();

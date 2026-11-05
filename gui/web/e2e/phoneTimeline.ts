@@ -12,14 +12,28 @@ export async function openPhoneTimeline(page: Page): Promise<void> {
 }
 
 /**
- * Opens the phone timeline's compact inspector at `detent` for every
- * selection on this page, as a user who left the drawer there would.
+ * Raises each phone Inspector sheet this page opens to `detent`, as a person
+ * would with the grip's End key: the sheet opens at half, so `half` changes
+ * nothing, and `full` presses End once on every new sheet.
  */
 export async function rememberInspectorDetent(
   page: Page,
   detent: "half" | "full",
 ): Promise<void> {
-  await page.addInitScript((view) => {
-    localStorage.setItem("sharecut.compactInspector", view);
-  }, detent);
+  if (detent === "half") return;
+  await page.addInitScript(() => {
+    const raise = (grip: Element) => {
+      if (grip.hasAttribute("data-e2e-raised")) return;
+      grip.setAttribute("data-e2e-raised", "");
+      grip.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "End", bubbles: true }),
+      );
+    };
+    new MutationObserver(() => {
+      for (const grip of document.querySelectorAll(
+        '.sys-inspector--phone [role="slider"]',
+      ))
+        raise(grip);
+    }).observe(document, { childList: true, subtree: true });
+  });
 }

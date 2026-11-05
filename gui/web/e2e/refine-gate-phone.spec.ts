@@ -30,7 +30,7 @@ for (const [width, height] of [
     await openSuggestedPendingEdit(page, e2eProjectPath);
     await page.setViewportSize({ width, height });
     await phone.showTimeline(page);
-    const sheet = page.locator(".bottom-sheet--compact");
+    const sheet = page.locator(".sys-inspector--phone");
     await expect(sheet).toBeVisible();
     await sheet
       .getByRole("button", { name: "Approve", exact: true })
@@ -59,7 +59,7 @@ for (const [width, height] of [
       const rect = button?.getBoundingClientRect();
       const recovery = document.querySelector(".transcript-refine-recovery");
       return {
-        sheetTop: box(".bottom-sheet--compact")?.top ?? null,
+        sheetTop: box(".sys-inspector--phone")?.top ?? null,
         laneTop: box(".timeline-scroll")?.top ?? null,
         waiveHit:
           rect === undefined
@@ -79,6 +79,8 @@ for (const [width, height] of [
     expect(layout.recoveryScrolls, "the form has no inner scroller").toBe(
       false,
     );
-    expect(layout.sheetTop).toBeGreaterThanOrEqual(176);
+    // A short phone (320x568) has no room for half: the sheet is full-only
+    // there and stops below the header.
+    expect(layout.sheetTop).toBeGreaterThanOrEqual(height >= 700 ? 176 : 56);
   });
 }
