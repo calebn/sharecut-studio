@@ -154,7 +154,6 @@ html[data-shell="phone"] .bottom-sheet-root {
   }
 }
 
-/* A strip as tall as its content. */
 .bottom-sheet--peek {
   height: auto;
 }

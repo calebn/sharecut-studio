@@ -22,7 +22,7 @@ const attr = (name: string, value: string) =>
 const hitSelector = (kind: HitKind, id: string) =>
   `${attr("data-hit-kind", kind)}${attr("data-hit-id", id)}`;
 
-/** A clip edge handle the last press went to, by the contract's nudge rows. */
+/** Edge handles are the hit kinds whose contract nudge row is a fade or a trim. */
 function isEdgeHandle(kind: HitKind): boolean {
   const [nudge] = HIT_KINDS[kind].nudges;
   return nudge === "fade" || nudge === "trim";
@@ -50,7 +50,6 @@ function clipTarget(
   };
 }
 
-/** `selection`'s compact target, or null for a kind that opens the regular sheet. */
 export function compactTarget(
   project: ProjectView,
   selection: Selection,

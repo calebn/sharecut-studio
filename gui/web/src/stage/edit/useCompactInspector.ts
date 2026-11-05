@@ -238,7 +238,7 @@ export function compactSheetProps(
     drawer: {
       detents: compact.detents,
       detent: compact.view,
-      // The drawer offers half and full only, so a detent is one of the two.
+      // BottomSheet's detent type still includes "peek", which the drawer never offers.
       onDetentChange: (detent) =>
         compact.setView(detent === "full" ? "full" : "half"),
       label: "Inspector height",
