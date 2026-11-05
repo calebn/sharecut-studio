@@ -151,7 +151,7 @@ export function useReviewQueue(guestShare = false) {
       onDismissAll: () => dismissAllConflicts(projectPath),
       onRetry: () => refreshOfflineAttention(projectPath),
     };
-  }, [projectPath, saved]);
+  }, [projectPath, saved, guest]);
   const [status, setStatus] = useState<TranscriptCheckStatus | null>(null);
   const [bulkRunning, setBulkRunning] = useState<BulkProgress | null>(null);
   const [held, setHeld] = useState<ReadonlyMap<string, Held>>(new Map());

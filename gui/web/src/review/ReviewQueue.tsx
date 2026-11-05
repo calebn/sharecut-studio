@@ -229,6 +229,22 @@ function AttentionGroup({
 }) {
   const { rows } = attention;
   const reasonId = useId();
+  const groupRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const group = groupRef.current;
+    if (!group) return;
+    const enter = () => onFocusChange(true);
+    const leave = (event: FocusEvent) => {
+      if (!group.contains(event.relatedTarget as Node | null))
+        onFocusChange(false);
+    };
+    group.addEventListener("focusin", enter);
+    group.addEventListener("focusout", leave);
+    return () => {
+      group.removeEventListener("focusin", enter);
+      group.removeEventListener("focusout", leave);
+    };
+  }, [onFocusChange]);
   const held = dismissHeld(attention);
   const failure = attention.unreadable
     ? UNREADABLE_NOTE
@@ -237,14 +253,10 @@ function AttentionGroup({
       : null;
   return (
     <div
+      ref={groupRef}
       role="group"
       className="rv-group"
       aria-label={attentionLabelOf(attention)}
-      onFocus={() => onFocusChange(true)}
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget))
-          onFocusChange(false);
-      }}
     >
       <div className="rv-group-head">
         <SystemIcon name="triangle-alert" size={16} />
