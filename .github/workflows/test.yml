@@ -591,7 +591,16 @@ jobs:
         run: *require-planned-suite
 
   nightly-alert:
-    needs: [changes, pytest-quality, pytest-shard, pytest, pytest-python-floor, frontend-suite, frontend, frontend-e2e-suites, frontend-e2e]
+    needs:
+      - changes
+      - pytest-quality
+      - pytest-shard
+      - pytest
+      - pytest-python-floor
+      - frontend-suite
+      - frontend
+      - frontend-e2e-suites
+      - frontend-e2e
     if: ${{ always() && github.event_name == 'schedule' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5

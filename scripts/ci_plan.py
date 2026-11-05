@@ -594,7 +594,11 @@ def plan(
     release: ReleaseProof | FullRelease | None = None,
     head_ref: str | None = None,
 ) -> CiPlan:
-    """Pull requests run what their diff can reach, pushes to main run the fast checks, and the nightly and manual runs run everything."""
+    """Plan the jobs an event needs.
+
+    Pull requests run what their diff can reach. Pushes to main run the fast
+    checks. Every other event (nightly, manual dispatch) runs everything.
+    """
     if event == PUSH:
         return CiPlan(gui=True, pytest="quick", e2e=())
     if event != PULL_REQUEST:

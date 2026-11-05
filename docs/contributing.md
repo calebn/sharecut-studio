@@ -248,8 +248,9 @@ and decides:
   those paths, plus the docs-sync gate.
 - Browser compat runs on WebKit only.
 
-The nightly schedule (07:23 UTC) and `workflow_dispatch` run everything, with the
-95% coverage floor and both compat engines. The required checks still report
+The nightly schedule and `workflow_dispatch` run everything, with the
+95% coverage floor and both compat engines. A push to `main` runs only
+`pytest-quality` and `frontend-suite`. The required checks still report
 on every PR. The required `frontend` and `frontend-e2e` aggregates succeed only
 when the planner succeeded and each workload either succeeded for `gui=true` or
 was skipped for `gui=false`. The merge helper requires all four literal required
@@ -278,8 +279,8 @@ See [testing.md § Which jobs a run needs](testing.md#which-jobs-a-run-needs).
   `edits/` change that alters what a timeline spec sees. Run
   `gh workflow run test.yml --ref <branch>` to get the full run before merge,
   or run the affected spec locally.
-- **A red nightly run** (it opens a `nightly-failure` issue) is a regression that a PR skipped. Fix it
-  before landing more work in that area.
+- **A red nightly run** (it opens a `nightly-failure` issue) is a regression
+  that a PR skipped. Fix it before landing more work in that area.
 
 ### Review evidence
 

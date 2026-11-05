@@ -154,7 +154,7 @@ def test_desktop_workflow_runs_pinned_media_tests_on_windows_python_floor() -> N
 def test_desktop_workflow_runs_project_commit_lock_tests_on_windows() -> None:
     data = load_github_yaml(DESKTOP_CHECK)
     assert data["on"]["pull_request"]["paths"] == list(native.DESKTOP_PR_PATHS)
-    assert data["on"]["push"] == {"branches": ["main"]}
+    assert "push" not in data["on"]
 
     job = data["jobs"]["project-commit-lock-windows"]
     assert job["runs-on"] == "windows-latest"

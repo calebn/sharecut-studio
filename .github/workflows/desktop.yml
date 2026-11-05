@@ -253,7 +253,16 @@ jobs:
           python scripts/ffmpeg_payload.py --output "$PAYLOAD" --verify-only
 
   nightly-alert:
-    needs: [changes, web-dist, desktop-scaffold, desktop-windows-check, pinned-media-windows, ffmpeg-resolver-windows, project-commit-lock-windows, ffmpeg-native-payload, ffmpeg-linux-newer-host]
+    needs:
+      - changes
+      - web-dist
+      - desktop-scaffold
+      - desktop-windows-check
+      - pinned-media-windows
+      - ffmpeg-resolver-windows
+      - project-commit-lock-windows
+      - ffmpeg-native-payload
+      - ffmpeg-linux-newer-host
     if: ${{ always() && github.event_name == 'schedule' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
