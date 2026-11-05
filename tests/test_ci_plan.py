@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import typing
 from pathlib import Path
 
 import pytest
@@ -245,9 +246,12 @@ def test_web_docs_subset_is_the_union_of_both_subsets() -> None:
     )
 
 
-def test_web_docs_scope_reaches_the_pytest_aggregator() -> None:
-    steps = load_github_yaml(WORKFLOW)["jobs"]["pytest"]["steps"]
-    assert "success:web-docs:success:success" in steps[0]["run"]
+def test_every_planned_pytest_scope_reaches_the_pytest_aggregator() -> None:
+    scopes = typing.get_args(typing.get_type_hints(cp.CiPlan)["pytest"])
+    run = load_github_yaml(WORKFLOW)["jobs"]["pytest"]["steps"][0]["run"]
+    assert set(scopes) == {"full", "web", "docs", "web-docs", "release"}
+    for scope in scopes:
+        assert f"success:{scope}:success:success" in run
 
 
 def test_web_subset_includes_the_repo_gui_web_readers() -> None:
