@@ -1849,14 +1849,14 @@ describe("timers that depend on the host's settings", () => {
       vi.advanceTimersByTime(ms);
     });
 
-  it("keeps the Undo toast for six seconds when the host does not say", () => {
+  it("keeps the Undo toast for ten seconds when the host does not say", () => {
     vi.useFakeTimers();
     try {
       setup({ toastMs: undefined });
       fireEvent.click(
         screen.getByRole("button", { name: "Remove The old mill" }),
       );
-      wait(5900);
+      wait(9900);
       expect(screen.getByText("Removed The old mill")).toBeInTheDocument();
       wait(200);
       expect(screen.queryByText("Removed The old mill")).toBeNull();

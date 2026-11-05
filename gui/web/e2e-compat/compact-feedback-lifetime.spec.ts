@@ -118,9 +118,9 @@ test("clipped saved feedback pauses its remaining visible lifetime", async ({
     }),
     contentType: "image/png",
   });
-  // The nudge's toast offers Undo, so it lives TOAST_UNDO_MS (60 s), not 8 s;
+  // The nudge's toast offers Undo, so it lives TOAST_UNDO_MS (10 s), not 6 s;
   // 3 s of that passed before the card was clipped.
-  await expect(card).toHaveCount(0, { timeout: 60_000 - 3000 + 1500 });
+  await expect(card).toHaveCount(0, { timeout: 10_000 - 3000 + 1500 });
   await checkHeader("timer-expired-header");
   await expect.poll(() => savedEnvelope(page)).toEqual(edited);
 });

@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { BUSY_REASON } from "./disabledReason";
-import { TOAST_CLIPPED_MAX_MS, TOAST_MS, Toast } from "./Toast";
+import { TOAST_CLIPPED_MAX_MS, TOAST_MS, TOAST_UNDO_MS, Toast } from "./Toast";
 
 const region = () => document.querySelector(".ui-toast-region")!;
 
@@ -112,6 +112,105 @@ describe("Toast", () => {
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
+  it("lasts six seconds plain and ten with Undo", () => {
+    vi.useFakeTimers();
+    const plain = vi.fn();
+    const withUndo = vi.fn();
+    const { rerender } = render(
+      <Toast
+        toast={{ id: 1, message: "Guest link copied" }}
+        onDismiss={plain}
+      />,
+    );
+    act(() => {
+      vi.advanceTimersByTime(5999);
+    });
+    expect(plain).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(plain).toHaveBeenCalledOnce();
+    rerender(
+      <Toast
+        toast={{ id: 2, message: "Removed guest" }}
+        onUndo={vi.fn()}
+        onDismiss={withUndo}
+      />,
+    );
+    act(() => {
+      vi.advanceTimersByTime(9999);
+    });
+    expect(withUndo).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(withUndo).toHaveBeenCalledOnce();
+  });
+
+  it("holds on hover and resumes with the time that was left", () => {
+    vi.useFakeTimers();
+    const onDismiss = vi.fn();
+    render(
+      <Toast
+        toast={{ id: 1, message: "Removed guest" }}
+        onUndo={vi.fn()}
+        onDismiss={onDismiss}
+      />,
+    );
+    const card = region().querySelector(".ui-toast")!;
+    act(() => {
+      vi.advanceTimersByTime(4000);
+    });
+    fireEvent.pointerEnter(card, { pointerType: "mouse" });
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+    expect(onDismiss).not.toHaveBeenCalled();
+    fireEvent.pointerLeave(card);
+    act(() => {
+      vi.advanceTimersByTime(5999);
+    });
+    expect(onDismiss).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(onDismiss).toHaveBeenCalledOnce();
+  });
+
+  it("holds on focus and resumes with the time that was left", () => {
+    vi.useFakeTimers();
+    const onDismiss = vi.fn();
+    render(
+      <Toast
+        toast={{ id: 1, message: "Removed guest" }}
+        onUndo={vi.fn()}
+        onDismiss={onDismiss}
+      />,
+    );
+    const undo = screen.getByRole("button", { name: "Undo" });
+    act(() => {
+      vi.advanceTimersByTime(7000);
+    });
+    act(() => {
+      undo.focus();
+    });
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+    expect(onDismiss).not.toHaveBeenCalled();
+    act(() => {
+      undo.blur();
+    });
+    act(() => {
+      vi.advanceTimersByTime(2999);
+    });
+    expect(onDismiss).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(onDismiss).toHaveBeenCalledOnce();
+  });
+
   it("auto-dismisses after the timeout", () => {
     vi.useFakeTimers();
     const onDismiss = vi.fn();
@@ -123,7 +222,7 @@ describe("Toast", () => {
       />,
     );
     act(() => {
-      vi.advanceTimersByTime(TOAST_MS - 1);
+      vi.advanceTimersByTime(TOAST_UNDO_MS - 1);
     });
     expect(onDismiss).not.toHaveBeenCalled();
     act(() => {
@@ -147,14 +246,14 @@ describe("Toast", () => {
       undoButton.focus();
     });
     act(() => {
-      vi.advanceTimersByTime(TOAST_MS + 1000);
+      vi.advanceTimersByTime(TOAST_UNDO_MS + 1000);
     });
     expect(onDismiss).not.toHaveBeenCalled();
     act(() => {
       undoButton.blur();
     });
     act(() => {
-      vi.advanceTimersByTime(TOAST_MS);
+      vi.advanceTimersByTime(TOAST_UNDO_MS);
     });
     expect(onDismiss).toHaveBeenCalledOnce();
   });
@@ -173,12 +272,12 @@ describe("Toast", () => {
     expect(card).not.toBeNull();
     fireEvent.pointerEnter(card!, { pointerType: "mouse" });
     act(() => {
-      vi.advanceTimersByTime(TOAST_MS + 1000);
+      vi.advanceTimersByTime(TOAST_UNDO_MS + 1000);
     });
     expect(onDismiss).not.toHaveBeenCalled();
     fireEvent.pointerLeave(card!);
     act(() => {
-      vi.advanceTimersByTime(TOAST_MS);
+      vi.advanceTimersByTime(TOAST_UNDO_MS);
     });
     expect(onDismiss).toHaveBeenCalledOnce();
   });
@@ -197,7 +296,7 @@ describe("Toast", () => {
       pointerType: "touch",
     });
     act(() => {
-      vi.advanceTimersByTime(TOAST_MS);
+      vi.advanceTimersByTime(TOAST_UNDO_MS);
     });
     expect(onDismiss).toHaveBeenCalledOnce();
   });
@@ -213,7 +312,7 @@ describe("Toast", () => {
       />,
     );
     act(() => {
-      vi.advanceTimersByTime(TOAST_MS - 100);
+      vi.advanceTimersByTime(TOAST_UNDO_MS - 100);
     });
     rerender(
       <Toast
@@ -227,7 +326,7 @@ describe("Toast", () => {
     });
     expect(onDismiss).not.toHaveBeenCalled();
     act(() => {
-      vi.advanceTimersByTime(TOAST_MS - 200);
+      vi.advanceTimersByTime(TOAST_UNDO_MS - 200);
     });
     expect(onDismiss).toHaveBeenCalledOnce();
   });
@@ -253,12 +352,12 @@ describe("Toast", () => {
       />,
     );
     act(() => {
-      vi.advanceTimersByTime(TOAST_MS + 1000);
+      vi.advanceTimersByTime(TOAST_UNDO_MS + 1000);
     });
     expect(onDismiss).not.toHaveBeenCalled();
     fireEvent.pointerLeave(region().querySelector(".ui-toast")!);
     act(() => {
-      vi.advanceTimersByTime(TOAST_MS);
+      vi.advanceTimersByTime(TOAST_UNDO_MS);
     });
     expect(onDismiss).toHaveBeenCalledOnce();
   });
@@ -285,7 +384,7 @@ describe("Toast", () => {
       />,
     );
     act(() => {
-      vi.advanceTimersByTime(TOAST_MS);
+      vi.advanceTimersByTime(TOAST_UNDO_MS);
     });
     expect(onDismiss).toHaveBeenCalledOnce();
   });
@@ -322,7 +421,7 @@ describe("Toast", () => {
     );
     expect(screen.getByText("Undo ready after save")).toBeVisible();
     act(() => {
-      vi.advanceTimersByTime(TOAST_MS + 1000);
+      vi.advanceTimersByTime(TOAST_UNDO_MS + 1000);
     });
     expect(onDismiss).not.toHaveBeenCalled();
     vi.useRealTimers();
@@ -341,7 +440,7 @@ describe("Toast", () => {
       />,
     );
     act(() => {
-      vi.advanceTimersByTime(TOAST_MS + 1000);
+      vi.advanceTimersByTime(TOAST_UNDO_MS + 1000);
     });
     expect(onDismiss).not.toHaveBeenCalled();
     rerender(
@@ -352,7 +451,7 @@ describe("Toast", () => {
       />,
     );
     act(() => {
-      vi.advanceTimersByTime(TOAST_MS - 1);
+      vi.advanceTimersByTime(TOAST_UNDO_MS - 1);
     });
     expect(onDismiss).not.toHaveBeenCalled();
     act(() => {
@@ -410,7 +509,7 @@ describe("Toast", () => {
     );
     expect(screen.getByText("Time changed").closest(".ui-toast")).toBe(card);
     act(() => {
-      vi.advanceTimersByTime(4999);
+      vi.advanceTimersByTime(2999);
     });
     expect(onDismiss).not.toHaveBeenCalled();
     act(() => {

@@ -443,12 +443,12 @@ describe("FeedbackToast", () => {
       .getByText("Removed long workshop recording")
       .closest(".ui-toast");
     act(() => {
-      vi.advanceTimersByTime(12000);
+      vi.advanceTimersByTime(3000);
     });
     host.remove();
     rerender(<FeedbackToast />);
     act(() => {
-      vi.advanceTimersByTime(12000);
+      vi.advanceTimersByTime(3000);
     });
     expect(
       screen.getByText("Removed long workshop recording").closest(".ui-toast"),
@@ -468,7 +468,7 @@ describe("FeedbackToast", () => {
     });
     rerender(<FeedbackToast host={host} />);
     act(() => {
-      vi.advanceTimersByTime(4999);
+      vi.advanceTimersByTime(2999);
     });
     expect(screen.getByText("Saved")).toBeVisible();
     act(() => {
