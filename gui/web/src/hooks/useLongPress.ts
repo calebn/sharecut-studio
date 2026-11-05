@@ -4,6 +4,7 @@ import {
   useEffect,
   useRef,
 } from "react";
+import { useStableCallback } from "../utils/useStableCallback";
 import {
   GHOST_CLICK_MS,
   LONG_PRESS_MS,
@@ -40,8 +41,7 @@ export function useLongPress(
     target: EventTarget | null;
   } | null>(null);
   const readyRef = useRef(false);
-  const callbackRef = useRef(onLongPress);
-  callbackRef.current = onLongPress;
+  const fireLongPress = useStableCallback(onLongPress);
   const pendingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingTargetRef = useRef<EventTarget | null>(null);
   const removePendingListenerRef = useRef<() => void>(() => undefined);
@@ -71,7 +71,7 @@ export function useLongPress(
     const target = pendingTargetRef.current;
     clearPending();
     firedAtRef.current = Date.now();
-    callbackRef.current(target);
+    fireLongPress(target);
   };
 
   const move = (event: PointerEvent | ReactPointerEvent<HTMLElement>) => {
