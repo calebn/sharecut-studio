@@ -13,6 +13,18 @@ import {
   isServerTimeoutError,
 } from "../utils/apiError";
 
+interface BootstrapOwner {
+  projectPath: string;
+  enabled: boolean;
+  attempt: number;
+}
+
+interface BootstrapRead {
+  owner: BootstrapOwner;
+  error: string | null;
+  retrying: boolean;
+}
+
 const WARM_SHELL_RETRY_DELAY_MS = 3_000;
 const WARM_SHELL_MAX_ATTEMPTS = 10;
 
@@ -41,13 +53,25 @@ export function useProjectBootstrap(
   retrying: boolean;
   retry: () => void;
 } {
-  const [error, setError] = useState<string | null>(null);
-  const [retrying, setRetrying] = useState(false);
-  const [retryToken, setRetryToken] = useState(0);
+  const [read, setRead] = useState<BootstrapRead>(() => ({
+    owner: { projectPath, enabled, attempt: 0 },
+    error: null,
+    retrying: false,
+  }));
+  const { owner } = read;
+  if (owner.projectPath !== projectPath || owner.enabled !== enabled) {
+    setRead({
+      owner: { projectPath, enabled, attempt: 0 },
+      error: null,
+      retrying: false,
+    });
+  }
   const retry = useCallback(() => {
-    setError(null);
-    setRetrying(true);
-    setRetryToken((n) => n + 1);
+    setRead((current) => ({
+      owner: { ...current.owner, attempt: current.owner.attempt + 1 },
+      error: null,
+      retrying: true,
+    }));
   }, []);
 
   useEffect(() => {
@@ -59,6 +83,7 @@ export function useProjectBootstrap(
   }, [enabled, projectPath]);
 
   useEffect(() => {
+    const { enabled, projectPath } = owner;
     if (!enabled || !projectPath) {
       return;
     }
@@ -66,7 +91,6 @@ export function useProjectBootstrap(
     let cancelled = false;
     const scope = activateDocumentScope(projectPath);
     const hadProjectAtStart = useDawStore.getState().project != null;
-    setError(null);
     void (async () => {
       let warmAttempts = 0;
       while (!cancelled && isCurrentDocumentScope(scope)) {
@@ -78,7 +102,11 @@ export function useProjectBootstrap(
           );
           if (cancelled || !isCurrentDocumentScope(scope)) return;
           applyDocumentSnapshot(shell, { scope });
-          setRetrying(false);
+          setRead((current) =>
+            current.owner === owner
+              ? { ...current, retrying: false }
+              : current,
+          );
           return;
         } catch (e: unknown) {
           if (cancelled || isAbortError(e)) return;
@@ -97,8 +125,11 @@ export function useProjectBootstrap(
             }
             continue;
           }
-          setRetrying(false);
-          setError(errorMessage(e));
+          setRead((current) =>
+            current.owner === owner
+              ? { ...current, retrying: false, error: errorMessage(e) }
+              : current,
+          );
           return;
         }
       }
@@ -107,7 +138,7 @@ export function useProjectBootstrap(
       cancelled = true;
       ac.abort();
     };
-  }, [enabled, projectPath, retryToken]);
+  }, [owner]);
 
-  return { error, retrying, retry };
+  return { error: read.error, retrying: read.retrying, retry };
 }

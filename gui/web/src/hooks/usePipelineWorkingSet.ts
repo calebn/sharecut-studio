@@ -22,6 +22,20 @@ export interface PipelineWorkingSet {
   fetchFresh: () => Promise<PipelineConfigResponse | null>;
 }
 
+interface WorkingSetOwner {
+  projectPath: string;
+  enabled: boolean;
+}
+
+interface WorkingSetRead {
+  owner: WorkingSetOwner;
+  requestToken: number;
+  cfg: PipelineConfigResponse | null;
+  loadError: string | null;
+  saveError: string | null;
+  saving: boolean;
+}
+
 function applyPatch(
   current: PipelineConfigResponse,
   patch: PipelineWorkingSetPatch,
@@ -38,10 +52,26 @@ export function usePipelineWorkingSet(
   const confirmedToken = useRef(0);
   const writeEpoch = useRef(0);
   const writeTail = useRef<Promise<void>>(Promise.resolve());
-  const [cfg, setCfg] = useState<PipelineConfigResponse | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [read, setRead] = useState<WorkingSetRead>(() => ({
+    owner: { projectPath, enabled },
+    requestToken: 0,
+    cfg: null,
+    loadError: null,
+    saveError: null,
+    saving: false,
+  }));
+  const { owner } = read;
+  const activeOwner = useRef<WorkingSetOwner | null>(null);
+  if (owner.projectPath !== projectPath || owner.enabled !== enabled) {
+    setRead({
+      owner: { projectPath, enabled },
+      requestToken: 0,
+      cfg: null,
+      loadError: null,
+      saveError: null,
+      saving: false,
+    });
+  }
   const recordConfirmedIfNoNewerRead = useCallback(
     (token: number, value: PipelineConfigResponse) => {
       if (confirmedToken.current > token) return;
@@ -52,64 +82,158 @@ export function usePipelineWorkingSet(
   );
 
   const reload = useCallback(() => {
+    if (activeOwner.current !== owner) return;
     writeEpoch.current += 1;
     const token = request.begin();
     confirmedToken.current = token;
     confirmed.current = null;
-    setCfg(null);
-    setLoadError(null);
-    setSaveError(null);
-    setSaving(false);
-    if (!enabled) return;
-    void loadPipelineConfig(projectPath)
-      .then((next) => {
-        if (!request.isCurrent(token)) return;
-        confirmed.current = next;
-        confirmedToken.current = token;
-        setCfg(next);
-      })
-      .catch((error: unknown) => {
-        if (request.isCurrent(token)) setLoadError(errorMessage(error));
-      });
-  }, [enabled, projectPath, request]);
+    setRead((current) =>
+      current.owner === owner
+        ? {
+            ...current,
+            requestToken: token,
+            cfg: null,
+            loadError: null,
+            saveError: null,
+            saving: false,
+          }
+        : current,
+    );
+    if (owner.enabled) {
+      void loadPipelineConfig(owner.projectPath)
+        .then((next) => {
+          if (!request.isCurrent(token)) return;
+          confirmed.current = next;
+          confirmedToken.current = token;
+          setRead((current) =>
+            current.owner === owner && current.requestToken <= token
+              ? { ...current, requestToken: token, cfg: next }
+              : current,
+          );
+        })
+        .catch((error: unknown) => {
+          if (!request.isCurrent(token)) return;
+          setRead((current) =>
+            current.owner === owner && current.requestToken <= token
+              ? {
+                  ...current,
+                  requestToken: token,
+                  loadError: errorMessage(error),
+                }
+              : current,
+          );
+        });
+    }
+  }, [owner, request]);
 
   useEffect(() => {
-    reload();
-  }, [reload]);
+    activeOwner.current = owner;
+    writeEpoch.current += 1;
+    const token = request.begin();
+    confirmedToken.current = token;
+    confirmed.current = null;
+    if (owner.enabled) {
+      void loadPipelineConfig(owner.projectPath)
+        .then((next) => {
+          if (!request.isCurrent(token)) return;
+          confirmed.current = next;
+          confirmedToken.current = token;
+          setRead((current) =>
+            current.owner === owner && current.requestToken <= token
+              ? { ...current, requestToken: token, cfg: next }
+              : current,
+          );
+        })
+        .catch((error: unknown) => {
+          if (!request.isCurrent(token)) return;
+          setRead((current) =>
+            current.owner === owner && current.requestToken <= token
+              ? {
+                  ...current,
+                  requestToken: token,
+                  loadError: errorMessage(error),
+                }
+              : current,
+          );
+        });
+    }
+    return () => {
+      request.invalidate();
+      activeOwner.current = null;
+      writeEpoch.current += 1;
+    };
+  }, [owner, request]);
 
   const update = useCallback(
     async (recipe: PipelineWorkingSetRecipe): Promise<boolean> => {
-      if (!enabled) return false;
+      if (!owner.enabled || activeOwner.current !== owner) return false;
       const epoch = writeEpoch.current;
-      setSaving(true);
-      setSaveError(null);
+      setRead((current) =>
+        current.owner === owner
+          ? { ...current, saving: true, saveError: null }
+          : current,
+      );
       const pending = writeTail.current.then(async () => {
         if (epoch !== writeEpoch.current) return false;
         const token = request.begin();
         const base = confirmed.current;
         if (!base) {
-          if (request.isCurrent(token)) setSaving(false);
+          if (request.isCurrent(token)) {
+            setRead((current) =>
+              current.owner === owner ? { ...current, saving: false } : current,
+            );
+          }
           return false;
         }
         try {
-          setCfg(applyPatch(base, recipe(base)));
-          const fresh = await loadPipelineConfig(projectPath);
+          const optimistic = applyPatch(base, recipe(base));
+          setRead((current) =>
+            current.owner === owner && current.requestToken <= token
+              ? { ...current, requestToken: token, cfg: optimistic }
+              : current,
+          );
+          const fresh = await loadPipelineConfig(owner.projectPath);
           if (!request.isCurrent(token)) return false;
           confirmed.current = fresh;
           confirmedToken.current = token;
-          setCfg(applyPatch(fresh, recipe(fresh)));
-          const saved = await putPipelineConfig(projectPath, recipe(fresh));
+          const refreshed = applyPatch(fresh, recipe(fresh));
+          setRead((current) =>
+            current.owner === owner && current.requestToken <= token
+              ? { ...current, requestToken: token, cfg: refreshed }
+              : current,
+          );
+          const saved = await putPipelineConfig(
+            owner.projectPath,
+            recipe(fresh),
+          );
           recordConfirmedIfNoNewerRead(token, saved);
           if (!request.isCurrent(token)) return false;
-          setCfg(saved);
+          setRead((current) =>
+            current.owner === owner && current.requestToken <= token
+              ? { ...current, requestToken: token, cfg: saved }
+              : current,
+          );
           return true;
         } catch (error) {
           if (!request.isCurrent(token)) return false;
-          setCfg(confirmed.current);
-          setSaveError(errorMessage(error));
+          const cfg = confirmed.current;
+          setRead((current) =>
+            current.owner === owner
+              ? {
+                  ...current,
+                  requestToken: token,
+                  cfg,
+                  saveError: errorMessage(error),
+                }
+              : current,
+          );
           throw error;
         } finally {
-          if (request.isCurrent(token)) setSaving(false);
+          if (request.isCurrent(token)) {
+            setRead((current) =>
+              current.owner === owner ? { ...current, saving: false } : current,
+            );
+          }
         }
       });
       writeTail.current = pending.then(
@@ -118,28 +242,35 @@ export function usePipelineWorkingSet(
       );
       return pending;
     },
-    [enabled, projectPath, request, recordConfirmedIfNoNewerRead],
+    [owner, request, recordConfirmedIfNoNewerRead],
   );
 
   const fetchFresh = useCallback(async () => {
-    if (!enabled) return null;
+    if (!owner.enabled || activeOwner.current !== owner) return null;
     writeEpoch.current += 1;
     const token = request.begin();
-    setSaving(false);
-    setSaveError(null);
-    const fresh = await loadPipelineConfig(projectPath);
+    setRead((current) =>
+      current.owner === owner
+        ? { ...current, requestToken: token, saving: false, saveError: null }
+        : current,
+    );
+    const fresh = await loadPipelineConfig(owner.projectPath);
     if (!request.isCurrent(token)) return null;
     confirmed.current = fresh;
     confirmedToken.current = token;
-    setCfg(fresh);
+    setRead((current) =>
+      current.owner === owner && current.requestToken <= token
+        ? { ...current, requestToken: token, cfg: fresh }
+        : current,
+    );
     return fresh;
-  }, [enabled, projectPath, request]);
+  }, [owner, request]);
 
   return {
-    cfg,
-    loadError,
-    saveError,
-    saving,
+    cfg: read.cfg,
+    loadError: read.loadError,
+    saveError: read.saveError,
+    saving: read.saving,
     reload,
     update,
     fetchFresh,

@@ -189,4 +189,66 @@ describe("sequenced project bootstrap", () => {
     );
     expect(useDawStore.getState().project?.meta.name).toBe("Peer after retry");
   });
+  it("clears a retired failure when disabled and starts a fresh same-path attempt", async () => {
+    vi.mocked(loadDocumentState).mockRejectedValueOnce(
+      new Error("old failure"),
+    );
+    const hook = renderHook(
+      ({ enabled }) => useProjectBootstrap("/tmp/p.json", enabled),
+      {
+        initialProps: { enabled: true },
+      },
+    );
+    await waitFor(() => expect(hook.result.current.error).toBe("old failure"));
+    hook.rerender({ enabled: false });
+    expect(hook.result.current.error).toBeNull();
+    expect(hook.result.current.recovering).toBe(false);
+    vi.mocked(loadDocumentState).mockResolvedValue({
+      server_seq: 0,
+      state_token: token,
+      project: minimalProject(),
+    });
+    hook.rerender({ enabled: true });
+    await waitFor(() => expect(useDawStore.getState().project).not.toBeNull());
+    expect(hook.result.current.error).toBeNull();
+  });
+
+  it("rejects a late shell from the first visit after returning to the same path", async () => {
+    let finishOld!: (value: DocumentSnapshot) => void;
+    let finishFresh!: (value: DocumentSnapshot) => void;
+    vi.mocked(loadDocumentState)
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishOld = resolve;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishFresh = resolve;
+          }),
+      );
+    const hook = renderHook(
+      ({ enabled }) => useProjectBootstrap("/tmp/p.json", enabled),
+      {
+        initialProps: { enabled: true },
+      },
+    );
+    hook.rerender({ enabled: false });
+    hook.rerender({ enabled: true });
+    await act(async () => {
+      finishOld({ server_seq: 0, state_token: token, project: shell() });
+    });
+    expect(useDawStore.getState().project).toBeNull();
+    await act(async () => {
+      finishFresh({
+        server_seq: 1,
+        state_token: token,
+        project: minimalProject(),
+      });
+    });
+    expect(useDawStore.getState().project).not.toBeNull();
+    expect(loadDocumentState).toHaveBeenCalledTimes(2);
+  });
 });
