@@ -32,7 +32,6 @@ export function homeKeyAction(
  * a focused button's own activation and any open menu or dialog.
  */
 export function useHomeKeys(actions: HomeKeyActions): void {
-  // The listener is added once; it reads the latest callbacks through the ref.
   const latest = useRef(actions);
   useEffect(() => {
     latest.current = actions;
