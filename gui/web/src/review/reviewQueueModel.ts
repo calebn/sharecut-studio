@@ -190,8 +190,20 @@ export function decidedItems(items: readonly ReviewItem[]): ReviewItem[] {
   return items.filter(isDecided).sort(byTime);
 }
 
-/** Every id in queue order (kind, riskiest first, then time), decided ones included, so a decided item keeps its place. */
-export function fullOrder(items: readonly ReviewItem[]): ReviewItem[] {
+/** How the queue is ordered: by kind (riskiest first inside each) or by where the edit sits in the episode. */
+export type ReviewSort = "kind" | "time";
+
+/** The undecided items in episode order, for the queue sorted by time. */
+export function timeQueue(items: readonly ReviewItem[]): ReviewItem[] {
+  return items.filter((item) => !isDecided(item)).sort(byTime);
+}
+
+/** Every id in queue order (kind, riskiest first, then time; or time alone), decided ones included, so a decided item keeps its place. */
+export function fullOrder(
+  items: readonly ReviewItem[],
+  sort: ReviewSort = "kind",
+): ReviewItem[] {
+  if (sort === "time") return [...items].sort(byTime);
   return [...items].sort(
     (a, b) =>
       KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) || byRisk(a, b),

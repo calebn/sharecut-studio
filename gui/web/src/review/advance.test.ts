@@ -41,6 +41,26 @@ describe("stepUndecided", () => {
     ).toBeNull();
   });
 
+  it("steps in episode order when the queue is sorted by time", () => {
+    const rows: ReviewItem[] = [
+      { ...make("p1", 10), kind: "pause" },
+      { ...make("f1", 30), kind: "filler" },
+      { ...make("f2", 5), kind: "filler" },
+    ];
+    expect(stepUndecided(rows, null, "forward", "all", null, "kind")).toBe(
+      "f2",
+    );
+    expect(stepUndecided(rows, "f2", "forward", "all", null, "kind")).toBe(
+      "f1",
+    );
+    expect(stepUndecided(rows, "f2", "forward", "all", null, "time")).toBe(
+      "p1",
+    );
+    expect(stepUndecided(rows, "p1", "forward", "all", null, "time")).toBe(
+      "f1",
+    );
+  });
+
   it("stays inside the active filter", () => {
     expect(stepUndecided(QUEUE_ITEMS, "m1", "forward", "comments")).toBe("m1");
     expect(stepUndecided(QUEUE_ITEMS, "m1", "backward", "comments")).toBe("m1");
