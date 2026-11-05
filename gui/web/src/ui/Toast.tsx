@@ -72,8 +72,7 @@ type Props = {
 /**
  * Short-lived message with optional Undo and Dismiss. The region is always
  * mounted and never a live region: the shell's `StatusLiveRegion` speaks every
- * message `announceStatus` sends, and `feedback/FeedbackToast` is the only
- * caller. The auto-dismiss timer pauses while a mouse or pen
+ * message `announceStatus` sends. The auto-dismiss timer pauses while a mouse or pen
  * pointer is over the toast, while focus is inside it, and while Undo is
  * disabled. It also pauses while the card is clipped, for at most
  * `TOAST_CLIPPED_MAX_MS` in all. Touch contact does not pause it (touch has no persistent hover).
