@@ -93,11 +93,35 @@ def _fresh(tree: Audio) -> Evidence:
 
 
 def _fds() -> int:
+    """Open descriptors, with unreachable garbage collected first so it cannot hold any."""
+    gc.collect()
     return len(os.listdir("/dev/fd"))
 
 
 def _spool_files() -> list[Path]:
     return [p for p in decoded_source._spool_directory().rglob("*.f32")]
+
+
+@posix_only
+def test_the_descriptor_count_ignores_garbage_an_earlier_test_left_holding_a_file(
+    tmp_path: Path,
+) -> None:
+    class Cycle:
+        def __init__(self) -> None:
+            self.itself = self
+            self.handle = (tmp_path / "held").open("wb")
+
+    gc.collect()
+    gc.disable()
+    try:
+        Cycle()
+        raw = len(os.listdir("/dev/fd"))
+        counted = _fds()
+        assert counted < raw
+        gc.collect()
+        assert counted == len(os.listdir("/dev/fd"))
+    finally:
+        gc.enable()
 
 
 @posix_only

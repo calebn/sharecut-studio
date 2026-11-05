@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -367,11 +368,11 @@ export function PendingEditBody({
   }, [timingIdentity, edit.source_start, edit.source_end]);
 
   const busyRef = useRef(timingBusy);
-  useEffect(() => {
+  useLayoutEffect(() => {
     busyRef.current = timingBusy;
   });
   const decideRef = useRef(runAction);
-  useEffect(() => {
+  useLayoutEffect(() => {
     decideRef.current = runAction;
   });
   useEffect(
