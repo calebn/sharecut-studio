@@ -327,7 +327,7 @@ describe("InspectorSheet phone", () => {
       />
     );
     const { container, rerender } = render(props("half"));
-    const content = container.querySelector(".sys-inspector-content");
+    const content = container.querySelector(".sys-inspector-scroll");
     if (!content) throw new Error("no content");
     content.scrollTop = 120;
     rerender(props("full"));
