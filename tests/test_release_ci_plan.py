@@ -86,7 +86,7 @@ def assert_full(root: Path, **metadata) -> None:
         True,
         "full",
         False,
-        4 + cp.PR_WEBKIT_SHARDS,
+        cp.MAIN_SHARDS + cp.PR_WEBKIT_SHARDS,
     )
 
 
