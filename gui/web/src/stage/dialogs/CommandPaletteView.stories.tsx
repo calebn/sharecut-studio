@@ -20,7 +20,7 @@ const COMMANDS: PaletteCommand[] = [
   },
   {
     id: "transport.stop",
-    label: "Stop playback",
+    label: "Pause and return",
     category: "transport",
     shortcut: "K",
     defaultKey: "K",
