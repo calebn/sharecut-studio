@@ -21,7 +21,7 @@ import { StageBar, type StageBarProps } from "./StageBar";
 import { StageMenu } from "./StageMenu";
 import { SystemIcon } from "./SystemIcon";
 import { VerbButton } from "./VerbButton";
-import { VersionLine, type VersionLineProps } from "./VersionLine";
+import { type NewVersionUpdate, VersionLine } from "./VersionLine";
 
 export type HeaderPerson = { name: string; colorIndex?: number };
 
@@ -52,7 +52,7 @@ export type AppHeaderProps = {
     /** True: the link plays whatever version is current. False: pinned. Omitted: not known yet. */
     followsLatest?: boolean;
     /** A following link's host published: shows the New version pill. */
-    update?: VersionLineProps["update"];
+    update?: NewVersionUpdate;
     role: LinkRole;
     compact?: boolean;
     hint?: { text: string; shown: boolean; onDismiss: () => void };

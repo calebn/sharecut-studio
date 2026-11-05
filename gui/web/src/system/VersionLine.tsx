@@ -4,13 +4,19 @@ import { SystemIcon } from "./SystemIcon";
 /** How long the New version pill stays open before it folds into the version line. */
 export const NEW_VERSION_PILL_MS = 10_000;
 
+export type NewVersionUpdate = {
+  id: string;
+  label: string | null;
+  onListen: () => void;
+};
+
 export type VersionLineProps = {
   /** The version this link plays. */
   label: string;
   /** True: the link plays whatever version is current (live glyph). False: pinned. Unknown (not read yet): no glyph. */
   followsLatest?: boolean;
   /** The host published while the guest was listening: the label of the new version. */
-  update?: { id: string; label: string | null; onListen: () => void };
+  update?: NewVersionUpdate;
 };
 
 /**
