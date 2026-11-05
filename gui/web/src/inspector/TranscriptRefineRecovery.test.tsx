@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { TRANSCRIPT_REFINE_REQUIRED_CODE } from "../utils/apiError";
 import { waiveTranscriptRefine } from "../api";
+import { TRANSCRIPT_REFINE_REQUIRED_CODE } from "../utils/apiError";
 import {
   TranscriptRefineRecovery,
   WAIVER_REASON_MAX,
