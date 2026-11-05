@@ -96,11 +96,13 @@ export function useScriptFixText(
   };
   // A field opened before the right was lost must not come back with it. A
   // Script that mounts before its words settle keeps the field it was handed.
-  const wasEnabled = useRef(enabled);
-  if (enabled) wasEnabled.current = true;
-  if (!enabled && wasEnabled.current && pinned !== null) setPinned(null);
-  const enabledNow = useRef(enabled);
-  enabledNow.current = enabled;
+  const [wasEnabled, setWasEnabled] = useState(enabled);
+  if (enabled && !wasEnabled) setWasEnabled(true);
+  if (!enabled && wasEnabled && pinned !== null) setPinnedState(null);
+  useLayoutEffect(() => {
+    if (!enabled && wasEnabled) held = null;
+  }, [enabled, wasEnabled]);
+  const canFix = useStableCallback(() => enabled);
   const focusAfter = useRef<{ index: number; tries: number } | null>(null);
 
   const editing = useMemo<ScriptSpan | null>(() => {
@@ -164,7 +166,7 @@ export function useScriptFixText(
         close(where);
         return;
       }
-      if (!enabledNow.current) return FIX_OFF;
+      if (!canFix()) return FIX_OFF;
       // The words are still where the field opened on them.
       if (editing === null) return FIX_MOVED;
       let head: Awaited<ReturnType<typeof submitWordCorrection>>;
@@ -189,7 +191,7 @@ export function useScriptFixText(
         .announceStatus(`Text fixed: ${text}`, { undo: head });
       // The right was lost while the correction was sent: it is written, but the
       // Script no longer moves the reader.
-      if (!enabledNow.current) return;
+      if (!canFix()) return;
       if (via === "tab") {
         const landed = onTab();
         close(landed ?? where);
@@ -205,8 +207,7 @@ export function useScriptFixText(
     if (!request) return;
     const store = useDawStore.getState();
     store.setTranscriptInlineEditRequest(null);
-    if (!enabledNow.current || request.projectPath !== store.projectPath)
-      return;
+    if (!canFix() || request.projectPath !== store.projectPath) return;
     const lane = {
       trackId: request.trackId,
       sourceId: request.sourceId ?? null,
@@ -221,7 +222,7 @@ export function useScriptFixText(
     );
     if (start === undefined || end === undefined || end < start) return;
     onFixText({ start, end });
-  }, [request, model, onFixText]);
+  }, [request, model, onFixText, canFix]);
 
   const renderEditor = (span: ScriptSpan) => {
     const count = span.end - span.start + 1;

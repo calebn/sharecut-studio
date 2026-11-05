@@ -338,6 +338,7 @@ describe("stable callback source governance", () => {
       "stage/dialogs/HostMcpDialog.tsx:acceptsSession",
       "stage/edit/script/useScriptFind.ts:closeBar",
       "stage/edit/script/useScriptFind.ts:openBar",
+      "stage/edit/script/useScriptFixText.tsx:canFix",
       "stage/edit/script/useScriptFixText.tsx:commit",
       "stage/edit/script/useScriptFixText.tsx:onFixText",
       "stage/edit/script/useScriptPlayback.ts:onFollowChange",

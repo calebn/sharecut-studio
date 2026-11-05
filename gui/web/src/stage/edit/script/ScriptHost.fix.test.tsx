@@ -65,6 +65,44 @@ describe("ScriptHost Fix text", () => {
     );
   });
 
+  it("retires the held draft when settled-word permission is lost", async () => {
+    const first = render(<ScriptHost />);
+    await userEvent.click(word("friends"));
+    await userEvent.keyboard("{Enter}");
+    await userEvent.clear(field());
+    await userEvent.type(field(), "Unsubmitted");
+    first.rerender(<ScriptHost status={{ kind: "loading" }} />);
+    expect(screen.queryByRole("textbox")).toBeNull();
+    first.rerender(<ScriptHost status={{ kind: "ready" }} />);
+    expect(screen.queryByRole("textbox")).toBeNull();
+    first.unmount();
+    render(<ScriptHost />);
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(submitWordCorrection).not.toHaveBeenCalled();
+  });
+
+  it("keeps a completed correction but does not jump after permission is lost", async () => {
+    const pending: ((head: string) => void)[] = [];
+    submitWordCorrection.mockImplementationOnce(
+      () => new Promise<string>((resolve) => pending.push(resolve)),
+    );
+    const { rerender } = render(<ScriptHost />);
+    await userEvent.click(word("friends"));
+    await userEvent.keyboard("{Enter}");
+    await userEvent.type(field(), "x{Tab}");
+    expect(pending).toHaveLength(1);
+    const selection = useDawStore.getState().selection;
+    rerender(<ScriptHost status={{ kind: "loading" }} />);
+    await act(async () => pending[0]!("late-history"));
+    expect(useDawStore.getState().selection).toEqual(selection);
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      message: "Text fixed: friendsx",
+      undo: "late-history",
+    });
+    rerender(<ScriptHost status={{ kind: "ready" }} />);
+    expect(screen.queryByRole("textbox")).toBeNull();
+  });
+
   it.each([
     ["Enter", "{Enter}"],
     ["F2", "{F2}"],

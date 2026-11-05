@@ -349,6 +349,15 @@ const fragmentsOf = (
 /** Every place's lines, in the body's scrolling space. */
 type Measured = (StopRects | null)[];
 
+type ScriptAnnouncement = {
+  summary: string;
+  dragging: boolean;
+  selecting: boolean;
+  findStatus: string | undefined;
+  findStatusKey: number | undefined;
+  hadSelection: boolean;
+};
+
 /** A handled key stops here: the window keymap must not also act on it. */
 const handled = (event: KeyboardEvent<HTMLElement>) => {
   event.preventDefault();
@@ -463,8 +472,8 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
     const [dragging, setDragging] = useState(false);
     /** The words a handle drag started from, put back by Esc. Null when the grip was taken with no words selected, or once Esc cancelled the drag; either way the rest of the drag is ignored. */
     const grabbed = useRef<WordsSelection | null>(null);
-    const [spoken, setSpoken] = useState("");
-    const hadSelection = useRef(false);
+    const liveRegion = useRef<HTMLDivElement>(null);
+    const lastAnnouncement = useRef<ScriptAnnouncement | null>(null);
     const lastTap = useRef<{ index: number; at: number } | null>(null);
     /** The selection a pointer gesture is making; it stands in for the prop until the gesture ends. */
     const [draft, setDraft] = useState<WordsSelection | null>(null);
@@ -1045,21 +1054,42 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
 
     const selecting = draft !== null;
     useEffect(() => {
-      if (dragging || selecting) return;
-      if (summary !== "") {
-        hadSelection.current = true;
-        setSpoken(summary);
-      } else if (hadSelection.current) {
-        hadSelection.current = false;
-        setSpoken("Selection cleared");
+      const region = liveRegion.current;
+      if (!region) return;
+      const previous = lastAnnouncement.current;
+      const selectionChanged =
+        previous === null ||
+        previous.summary !== summary ||
+        previous.dragging !== dragging ||
+        previous.selecting !== selecting;
+      const findChanged =
+        previous === null ||
+        previous.findStatus !== findStatus ||
+        previous.findStatusKey !== findStatusKey;
+      let text = region.textContent ?? "";
+      let hadSelection = previous?.hadSelection ?? false;
+      if (selectionChanged && !dragging && !selecting) {
+        if (summary !== "") {
+          hadSelection = true;
+          text = summary;
+        } else if (hadSelection) {
+          hadSelection = false;
+          text = "Selection cleared";
+        }
       }
-    }, [summary, dragging, selecting]);
-    useEffect(() => {
-      if (!findStatus) return;
-      setSpoken((previous) =>
-        previous === findStatus ? `${findStatus}\u00a0` : findStatus,
-      );
-    }, [findStatus, findStatusKey]);
+      if (findChanged && findStatus) {
+        text = text === findStatus ? `${findStatus}\u00a0` : findStatus;
+      }
+      lastAnnouncement.current = {
+        summary,
+        dragging,
+        selecting,
+        findStatus,
+        findStatusKey,
+        hadSelection,
+      };
+      if (region.textContent !== text) region.textContent = text;
+    }, [summary, dragging, selecting, findStatus, findStatusKey]);
 
     const handlesShown =
       handles &&
@@ -1067,10 +1097,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       span !== null &&
       bodyShown &&
       !selecting;
-    // The grips can go while one is held (the selection is lost), and then no release comes.
-    useEffect(() => {
-      if (!handlesShown) setDragging(false);
-    }, [handlesShown]);
+    if (!handlesShown && dragging) setDragging(false);
     const startStop = span ? stopContaining(stops, span.start) : undefined;
     const endStop = span ? stopContaining(stops, span.end) : undefined;
     const startAt = startStop?.start;
@@ -1337,9 +1364,12 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
             ) : null}
           </div>
         )}
-        <div className="sr-only" role="status" aria-live="polite">
-          {spoken}
-        </div>
+        <div
+          ref={liveRegion}
+          className="sr-only"
+          role="status"
+          aria-live="polite"
+        />
         {!following &&
         (playingList.length > 0 || playheadWord !== undefined) &&
         onBackToPlayhead ? (

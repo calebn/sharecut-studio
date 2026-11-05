@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { StrictMode, useLayoutEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ScriptPane,
@@ -466,6 +467,102 @@ describe("ScriptPane live region", () => {
     expect(screen.getByRole("status")).toHaveTextContent("3 words selected");
     rerender(<ScriptPane {...props({ selection: null })} />);
     expect(screen.getByRole("status")).toHaveTextContent("Selection cleared");
+  });
+
+  it("mounts the live region empty before publishing its initial announcement", () => {
+    const atLayout: (string | null)[] = [];
+    function Fixture() {
+      useLayoutEffect(() => {
+        atLayout.push(screen.getByRole("status").textContent);
+      }, []);
+      return <ScriptPane {...props({ findStatus: "1 of 1" })} />;
+    }
+    render(<Fixture />);
+    expect(atLayout[0]).toBe("");
+    expect(screen.getByRole("status")).toHaveTextContent("1 of 1");
+  });
+
+  it("publishes one mutation per Find event through StrictMode and unrelated rerenders", async () => {
+    const writes: MutationRecord[] = [];
+    function Fixture({ step }: { step: number }) {
+      useLayoutEffect(() => {
+        const observer = new MutationObserver((records) =>
+          writes.push(...records),
+        );
+        observer.observe(screen.getByRole("status"), {
+          childList: true,
+          characterData: true,
+          subtree: true,
+        });
+        return () => {
+          writes.push(...observer.takeRecords());
+          observer.disconnect();
+        };
+      }, []);
+      return (
+        <ScriptPane {...props({ findStatus: "1 of 1", findStatusKey: step })} />
+      );
+    }
+    const { rerender } = render(
+      <StrictMode>
+        <Fixture step={0} />
+      </StrictMode>,
+    );
+    await act(async () => {});
+    const first = screen.getByRole("status").textContent;
+    expect(writes).toHaveLength(1);
+    writes.length = 0;
+    rerender(
+      <StrictMode>
+        <Fixture step={0} />
+      </StrictMode>,
+    );
+    await act(async () => {});
+    expect(writes).toHaveLength(0);
+    rerender(
+      <StrictMode>
+        <Fixture step={1} />
+      </StrictMode>,
+    );
+    await act(async () => {});
+    expect(writes).toHaveLength(1);
+    expect(screen.getByRole("status").textContent).not.toBe(first);
+    expect(screen.getByRole("status").textContent?.trim()).toBe("1 of 1");
+  });
+
+  it("gives a new Find result priority over a simultaneous selection announcement", () => {
+    const { rerender } = render(
+      <ScriptPane
+        {...props({
+          selection: words(12, 14),
+          findStatus: "1 of 1",
+          findStatusKey: 0,
+        })}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("1 of 1");
+    rerender(
+      <ScriptPane
+        {...props({
+          selection: words(3, 4),
+          findStatus: "2 of 2",
+          findStatusKey: 1,
+        })}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("2 of 2");
+    rerender(
+      <ScriptPane
+        {...props({ selection: null, findStatus: "2 of 2", findStatusKey: 1 })}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Selection cleared");
+    rerender(
+      <ScriptPane
+        {...props({ selection: null, findStatus: "2 of 2", findStatusKey: 2 })}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("2 of 2");
   });
 
   it("speaks the Find bar's status in the same region and has no other", () => {
