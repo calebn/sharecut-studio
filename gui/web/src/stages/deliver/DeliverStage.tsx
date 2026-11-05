@@ -32,10 +32,8 @@ import {
   retimeChapter,
   retitleChapter,
   retitleClip,
-  type TimeSpan,
   trimClip,
   unapproveClip,
-  validSelection,
 } from "./deliverLogic";
 import { EpisodeFile } from "./EpisodeFile";
 import { ExportButton } from "./ExportButton";
@@ -62,8 +60,6 @@ export type DeliverStageProps = {
   clock?: { time: string; total: string };
   /** Playhead in seconds, where Add at playhead puts a chapter. */
   getPlayheadSec: () => number;
-  /** A range selected in Edit; Mod+E exports it instead of the Deliver In and Out. */
-  selection?: TimeSpan | null;
   /** Episode words in seconds, sorted by start; clip trim handles snap to them. Without them the handles move freely. */
   words?: readonly ClipWord[];
   /** Peaks spread evenly over the episode, 0 to 1, for the clip trim strip. */
@@ -138,7 +134,6 @@ export function DeliverStage({
   files,
   clock = NO_CLOCK,
   getPlayheadSec,
-  selection = null,
   words,
   peaks,
   link = NO_LINK,
@@ -206,7 +201,6 @@ export function DeliverStage({
   const blocker = loading
     ? "Still loading."
     : exportBlocker(settings, exportState, exportOptions);
-  const pick = validSelection(selection, total);
   const edits = exportOptions?.edits;
   const target = exportOptions?.target;
   const request = exportRequest(
@@ -217,15 +211,7 @@ export function DeliverStage({
     edits,
     target,
   );
-  const keyRequest = exportRequest(
-    settings,
-    clips,
-    chapters,
-    pick,
-    edits,
-    target,
-  );
-  const shownState = currentExportState(exportState, request, keyRequest);
+  const shownState = currentExportState(exportState, request);
   const exporting = shownState.phase === "running";
 
   const release = useRef<number | null>(null);

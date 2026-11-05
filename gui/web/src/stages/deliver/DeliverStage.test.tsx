@@ -250,13 +250,6 @@ describe("stale after an export", () => {
     expect(stale()).toBe(true);
   });
 
-  it("covers the range a Mod+E export wrote", () => {
-    const selection = { start: 40, end: 90 };
-    const exported = exportedState({ ...REQUEST, range: selection });
-    setup({ exportState: exported, selection });
-    expect(screen.queryByText("Edited since export")).toBeNull();
-  });
-
   it("stays done when loudness or Part is changed and changed back", async () => {
     setup({ exportState: DONE });
     const stale = () => screen.queryByText("Edited since export") !== null;
@@ -371,15 +364,6 @@ describe("the Add at playhead position", () => {
       .getAllByRole("textbox", { name: /^Time of/ })
       .map((t) => (t as HTMLInputElement).value);
     expect(times.at(-1)).toBe("52:00.0");
-  });
-});
-
-describe("a selection that appears after a plain export", () => {
-  it("does not make the export stale", () => {
-    const all = props({ exportState: DONE });
-    const { rerender } = render(<DeliverStage {...all} />);
-    rerender(<DeliverStage {...all} selection={{ start: 40, end: 90 }} />);
-    expect(screen.queryByText("Edited since export")).toBeNull();
   });
 });
 
@@ -692,14 +676,6 @@ describe("the double-export timer", () => {
     } finally {
       vi.useRealTimers();
     }
-  });
-});
-
-describe("Export button range", () => {
-  it("writes the Deliver range, not the Edit selection", async () => {
-    const { all } = setup({ selection: { start: 40, end: 90 } });
-    await userEvent.click(screen.getByRole("button", { name: /^Export/ }));
-    expect(vi.mocked(all.onExport).mock.calls[0]?.[0].range).toBeNull();
   });
 });
 
@@ -1851,19 +1827,6 @@ describe("what the last audit found unguarded", () => {
     expect(onRetry).not.toHaveBeenCalled();
   });
 
-  it.each(["desktop", "phone"] as const)(
-    "exports the Deliver In and Out, not the Edit selection, from the %s button",
-    async (layout) => {
-      const { all } = setup({ layout, selection: { start: 40, end: 90 } });
-      await userEvent.click(screen.getByRole("button", { name: "Part…" }));
-      await userEvent.click(screen.getByRole("button", { name: /^Export/ }));
-      expect(vi.mocked(all.onExport).mock.calls[0]?.[0].range).toEqual({
-        start: 0,
-        end: 60,
-      });
-    },
-  );
-
   it("leaves focus where the user moved it when the remembered control goes away", () => {
     const { container } = setup();
     const outside = document.createElement("button");
@@ -2478,7 +2441,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
     ["without a link", { link: { url: null } }],
     ["blocked clipboard", { link: { ...LINKED, copyState: "blocked" } }],
     ["a Part range", { initialSettings: PART }],
-    ["an Edit selection", { selection: { start: 40, end: 90 } }],
     ["the model missing", { exportState: NEEDS_MODEL }],
   ];
 
@@ -2571,65 +2533,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
           ],
           "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP3960 KBWAV11 MBFLAC6 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…InOutSaves to Field Notes/exportChangeExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to Rough cutCopy0:00 / 52:001515AB",
-        },
-        "desktop: an Edit selection": {
-          "buttons": [
-            "MP350 MB",
-            "WAV550 MB",
-            "FLAC303 MB",
-            "Podcast−16",
-            "Broadcast−23",
-            "Streaming−14",
-            "Whole episode",
-            "Part…",
-            "Change",
-            "Export",
-            "Play from Cold open",
-            "Remove Cold open",
-            "Play from The old mill",
-            "Remove The old mill",
-            "Play from What the river wanted",
-            "Remove What the river wanted",
-            "Play from Listener mail",
-            "Remove Listener mail",
-            "Add at playhead",
-            "Find clips",
-            "Play Nobody asked the river",
-            "Approve Nobody asked the river",
-            "More for Nobody asked the river",
-            "Play The boat was still there",
-            "Approve The boat was still there",
-            "More for The boat was still there",
-            "Play Cold open",
-            "Unapprove Cold open",
-            "More for Cold open",
-            "Copy",
-            "0:00 / 52:00. Expand player",
-            "Back 15 seconds",
-            "Play",
-            "Forward 15 seconds",
-            "A",
-            "B",
-          ],
-          "regions": [
-            "Deliver",
-            "Ready to export",
-            "Episode file",
-            "Chapters",
-            "Clips",
-            "Listen link",
-          ],
-          "rows": [
-            "done",
-            "done",
-            "done",
-            "done",
-            "done",
-            "done",
-            "done",
-            "done",
-          ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to Rough cutCopy0:00 / 52:001515AB",
         },
         "desktop: blocked clipboard": {
           "buttons": [
@@ -3383,65 +3286,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
           ],
           "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP3960 KBWAV11 MBFLAC6 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…InOutSaves to Field Notes/exportChangeListen linkMade when you copy itPinned to Rough cutShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
-        },
-        "phone: an Edit selection": {
-          "buttons": [
-            "MP350 MB",
-            "WAV550 MB",
-            "FLAC303 MB",
-            "Podcast−16",
-            "Broadcast−23",
-            "Streaming−14",
-            "Whole episode",
-            "Part…",
-            "Change",
-            "Share",
-            "Play from Cold open",
-            "Remove Cold open",
-            "Play from The old mill",
-            "Remove The old mill",
-            "Play from What the river wanted",
-            "Remove What the river wanted",
-            "Play from Listener mail",
-            "Remove Listener mail",
-            "Add at playhead",
-            "Find clips",
-            "Play Nobody asked the river",
-            "Approve Nobody asked the river",
-            "More for Nobody asked the river",
-            "Play The boat was still there",
-            "Approve The boat was still there",
-            "More for The boat was still there",
-            "Play Cold open",
-            "Unapprove Cold open",
-            "More for Cold open",
-            "Export",
-            "0:00 / 52:00. Expand player",
-            "Back 15 seconds",
-            "Play",
-            "Forward 15 seconds",
-            "A",
-            "B",
-          ],
-          "regions": [
-            "Deliver",
-            "Ready to export",
-            "Episode file",
-            "Listen link",
-            "Chapters",
-            "Clips",
-          ],
-          "rows": [
-            "done",
-            "done",
-            "done",
-            "done",
-            "done",
-            "done",
-            "done",
-            "done",
-          ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkMade when you copy itPinned to Rough cutShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
         "phone: blocked clipboard": {
           "buttons": [
