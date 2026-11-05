@@ -66,8 +66,6 @@ export function useInputPeakDb(
   const clearMeterClip = levels.clearClip;
 
   useEffect(() => {
-    setReader(null);
-    setSuspended(false);
     epochRef.current = 0;
     pendingPeakRef.current = 0;
     latestPeakRef.current = 0;
@@ -156,12 +154,15 @@ export function useInputPeakDb(
       active = false;
       portRef.current = null;
       ctxRef.current = null;
-      if (!ctx) return;
-      ctx.removeEventListener("statechange", onStateChange);
-      source?.disconnect();
-      retireNode(node);
-      silent?.disconnect();
-      release?.();
+      if (ctx) {
+        ctx.removeEventListener("statechange", onStateChange);
+        source?.disconnect();
+        retireNode(node);
+        silent?.disconnect();
+        release?.();
+      }
+      setReader(null);
+      setSuspended(false);
     };
   }, [stream, clipDb, latchClip]);
 
