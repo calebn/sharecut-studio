@@ -13,8 +13,11 @@ import { createPortal } from "react-dom";
 import { placeAnchored, tokenPx, visualViewportBox } from "./anchoredPlacement";
 import { type DisabledReasonProps, unavailableReason } from "./disabledReason";
 import { popoverSupported, showInTopLayer } from "./topLayerFloor";
-import { useMenuKeyboard } from "./useMenuKeyboard";
+import { focusFirstMenuItem, useMenuKeyboard } from "./useMenuKeyboard";
 import { useOutsidePointerDown } from "./useOutsidePointerDown";
+
+const POINTER_CONTROL_SELECTOR =
+  'button, input:not([type="hidden" i]), select, textarea, a[href], area[href], details > summary:first-of-type, iframe, object, embed, audio[controls], video[controls], [tabindex], [contenteditable=""], [contenteditable="true" i], [contenteditable="plaintext-only" i]';
 
 function layoutOpenMenuPanel(trigger: HTMLElement, panel: HTMLElement): void {
   if (panel.dataset.menuMode === "fallback") {
@@ -188,16 +191,46 @@ export function Menu({
         popover={mode === "native" ? "manual" : undefined}
         role="menu"
         aria-label={label}
+        tabIndex={-1}
+        onFocus={(event) => {
+          if (event.target === event.currentTarget)
+            focusFirstMenuItem(event.currentTarget);
+        }}
         onMouseDown={(event) => {
-          if (event.button !== 0 || !(event.target instanceof Element)) return;
-          const item =
-            event.target.closest<HTMLElement>('[role^="menuitem"]') ??
-            event.target
-              .closest("label")
-              ?.querySelector<HTMLElement>('[role^="menuitem"]');
-          if (!item || !event.currentTarget.contains(item)) return;
+          const panel = event.currentTarget;
+          const view = panel.ownerDocument.defaultView;
+          const target = event.target;
+          if (!view || !(target instanceof view.Element)) return;
+          if (event.button === 0) {
+            const item =
+              target.closest<HTMLElement>('[role^="menuitem"]') ??
+              target
+                .closest("label")
+                ?.querySelector<HTMLElement>('[role^="menuitem"]');
+            if (item && panel.contains(item)) {
+              event.preventDefault();
+              item.focus({ preventScroll: true });
+              return;
+            }
+          }
+          if (
+            event.defaultPrevented ||
+            (event.button !== 0 && event.button !== 2)
+          )
+            return;
+          const control = target.closest(POINTER_CONTROL_SELECTOR);
+          if (
+            control &&
+            control !== panel &&
+            panel.contains(control) &&
+            !control.matches(":disabled") &&
+            !control.closest("[inert]")
+          )
+            return;
+          const active = panel.ownerDocument.activeElement;
+          if (active === panel) return;
           event.preventDefault();
-          item.focus({ preventScroll: true });
+          if (active instanceof view.HTMLElement) active.blur();
         }}
         onBlur={(event) => {
           if (!event.currentTarget.contains(event.relatedTarget)) {
