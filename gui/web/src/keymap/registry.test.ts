@@ -109,7 +109,10 @@ describe("keymap registry", () => {
   it("binds the Action bar's keys: C, Shift+C, X, I, ., A, B, S, Shift+S, Shift+Space and M", () => {
     const first = (event: Parameters<typeof keyEvent>[0]) =>
       matchKeymapCommands(keyEvent(event)).map((c) => c.id);
-    expect(first({ key: "c", code: "KeyC" })).toEqual(["comment.draftAt"]);
+    expect(first({ key: "c", code: "KeyC" })).toEqual([
+      "record.marker",
+      "comment.draftAt",
+    ]);
     expect(first({ key: "C", code: "KeyC", shiftKey: true })).toEqual([
       "edit.addChapter",
     ]);
@@ -235,13 +238,28 @@ describe("keymap registry", () => {
       ),
     ).toEqual(["edit.clearSelection", "presence.unfollow"]);
     expect(matchKeymapCommand(keyEvent({ key: "m", code: "KeyM" }))?.id).toBe(
-      "record.marker",
+      "room.mute",
     );
     expect(
       matchKeymapCommands(keyEvent({ key: "m", code: "KeyM" })).map(
         (c) => c.id,
       ),
-    ).toEqual(["record.marker", "edit.mute"]);
+    ).toEqual(["room.mute", "edit.mute"]);
+    expect(
+      matchKeymapCommands(keyEvent({ key: "c", code: "KeyC" })).map(
+        (c) => c.id,
+      ),
+    ).toEqual(["record.marker", "comment.draftAt"]);
+    expect(
+      matchKeymapCommands(keyEvent({ key: "r", code: "KeyR" })).map(
+        (c) => c.id,
+      ),
+    ).toEqual(["room.take", "room.stop"]);
+    expect(
+      matchKeymapCommands(keyEvent({ key: "p", code: "KeyP" })).map(
+        (c) => c.id,
+      ),
+    ).toEqual(["room.pause"]);
     expect(matchKeymapCommand(keyEvent({ key: "s", code: "KeyS" }))?.id).toBe(
       "edit.split",
     );

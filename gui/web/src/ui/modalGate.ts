@@ -9,7 +9,7 @@
  * app shortcut. So does an open modal dialog, as the browser's own `confirm()`
  * did: the Daw keymap runs nothing behind it (no Mod+Z undoing an edit behind
  * "Remove the guest track?"), except the shortcuts the innermost modal hands
- * on, such as M for a marker in the Record room.
+ * on, such as C for a marker in the Record room.
  */
 type Layer = {
   readonly modal: boolean;

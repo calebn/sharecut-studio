@@ -46,6 +46,9 @@ export type ContextPredicateId =
   | "hasInspectorSelection"
   | "following"
   | "recordStageActive"
+  | "roomTakeIdle"
+  | "roomTakeLive"
+  | "roomKeysActive"
   | "canUndo"
   | "canRedo"
   | `stageAllowed:${StageId}`;

@@ -67,7 +67,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | `Mod+K` | Split at playhead (`edit.bladeCut`) | editStageStructural | Mod+K: split at the playhead — Mod+K splits; K alone stops playback |
 | `Mod+A` | Select all tracks (`track.selectAll`) | Timeline focused | Mod+A: Logic-style track targeting |
 | `Mod+Shift+A` | Deselect all tracks (`track.deselectAll`) | Timeline focused | Mod+Shift+A: Logic-style; empty targeting |
-| `M` | Mute (`edit.mute`) | Project loaded | M mutes what is selected (words, a range, a clip), else the targeted track; on the Record stage, M drops a marker instead |
+| `M` | Mute (`edit.mute`) | Project loaded | M mutes what is selected (words, a range, a clip), else the targeted track; with a room open, M mutes your mic instead |
 | `Shift+S` | Toggle track solo (`track.soloToggle`) | Project loaded | Shift+S: S is Split |
 | `S` | Split (`edit.split`) | editStageStructural | S: split at the playhead, or at both edges of the selected words or range, as one undo step — S splits; Shift+S solos the targeted track; Mod+K splits at the playhead |
 | `Shift+Space` | Hear (`edit.hear`) | editStage | Shift+Space: hear the selection |
@@ -99,7 +99,11 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 
 | Shortcut | Command | When | Notes |
 |----------|---------|------|-------|
-| `M` | Record marker (`record.marker`) | recordStageActive | M: live marker on the Record stage; on any other stage, M still mutes — M drops a marker only on the Record stage; otherwise M mutes |
+| `C` | Record marker (`record.marker`) | recordStageActive | C on the Record stage: live marker; elsewhere C comments — C drops a marker only on the Record stage; otherwise C comments |
+| `M` | Mute your mic in the room (`room.mute`) | roomKeysActive | M mutes your mic while a room is open; otherwise M mutes |
+| `R` | Record (`room.take`) | roomTakeIdle | R starts a take; hold R to stop it |
+| `R` | Stop take (`room.stop`) | roomTakeLive | Hold R for 600 ms to stop the take |
+| `P` | Pause or resume take (`room.pause`) | roomTakeLive |  |
 | `?` | Commands and shortcuts (`ui.toggleCommandPalette`) | Always (when not typing in a field or on a focused Scrub field) | Also Shift+/ |
 | `Mod+Shift+B` | Bounce… (`export.bounce`) | Loaded host project | Mod+Shift+B: Bounce in Deliver (export/bounces/) |
 | `Mod+Shift+E` | Export deliverables… (`export.deliverables`) | Loaded host project | Mod+Shift+E: mastered export/ via PipelineService |

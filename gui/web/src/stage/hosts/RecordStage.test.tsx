@@ -940,7 +940,18 @@ describe("Record stage", () => {
     });
   });
 
-  it("drops a marker on M during a take, but not while the More sheet is open", async () => {
+  it("starts a take on R only when the Record button is enabled", async () => {
+    setRoom({ participants: [], start_blockers: [{ code: "no_recorder" }] });
+    mount();
+    await waitFor(() => expect(record()).toBeDisabled());
+    await userEvent.keyboard("r");
+    expect(
+      exec.mock.calls.filter((call: unknown[]) => call[0] === "room.take"),
+    ).toHaveLength(1);
+    expect(send).not.toHaveBeenCalledWith("Start", expect.anything());
+  });
+
+  it("drops a marker on C during a take, but not while the More sheet is open", async () => {
     setRoom({
       participants: [hostPerson(), avaGuest()],
       state: "recording",
@@ -951,10 +962,10 @@ describe("Record stage", () => {
     await screen.findByRole("button", { name: "More" });
     const markerRuns = () =>
       exec.mock.calls.filter((call: unknown[]) => call[0] === "record.marker");
-    await userEvent.keyboard("m");
+    await userEvent.keyboard("c");
     await waitFor(() => expect(markerRuns()).toHaveLength(1));
     await openMore();
-    await userEvent.keyboard("m");
+    await userEvent.keyboard("c");
     expect(markerRuns()).toHaveLength(1);
   });
 
