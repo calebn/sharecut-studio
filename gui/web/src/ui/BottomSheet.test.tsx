@@ -9,7 +9,7 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Profiler, useLayoutEffect, useState } from "react";
+import { Profiler, StrictMode, useLayoutEffect, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { stubRaf } from "../test/raf";
@@ -785,6 +785,39 @@ describe("BottomSheet", () => {
             innerHTML: "<main></main>",
           }),
         );
+
+      it("keeps one portal host through StrictMode replay and removes it after a placement flip", async () => {
+        const grid = shell();
+        const { rerender, unmount } = render(
+          <StrictMode>{sheet("sheet")}</StrictMode>,
+        );
+        try {
+          const input = screen.getByLabelText("Gain");
+          const host = document.querySelector(".bottom-sheet-root");
+          expect(document.querySelectorAll(".bottom-sheet-root")).toHaveLength(
+            1,
+          );
+          await waitFor(() =>
+            expect(screen.getByRole("button", { name: "Close" })).toHaveFocus(),
+          );
+          await userEvent.type(input, "-6");
+          rerender(<StrictMode>{sheet("column")}</StrictMode>);
+          expect(screen.getByLabelText("Gain")).toBe(input);
+          expect(input).toHaveValue("-6");
+          expect(document.querySelector(".bottom-sheet-column-host")).toBe(
+            host,
+          );
+          unmount();
+          expect(
+            document.querySelector(
+              ".bottom-sheet-root, .bottom-sheet-column-host",
+            ),
+          ).toBeNull();
+        } finally {
+          unmount();
+          grid.remove();
+        }
+      });
 
       it("keeps the draft, the elements and the focus when the phone rotates and back", async () => {
         const grid = shell();
