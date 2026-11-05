@@ -74,6 +74,7 @@ class Subset:
 
 
 SubsetName = Literal["web", "docs"]
+UNION_SCOPE = "web-docs"
 SUBSETS: dict[SubsetName, Subset] = {
     "web": Subset((Glob.parse("gui/web/**"),), WEB_READER_RE),
     "docs": Subset(
@@ -92,6 +93,12 @@ SUBSETS: dict[SubsetName, Subset] = {
         DOCS_READER_RE,
     ),
 }
+
+
+def union_covers(changed: Sequence[str]) -> bool:
+    """A change split between gui/web and docs, which no single subset owns."""
+    owns = [glob for subset in SUBSETS.values() for glob in subset.owns]
+    return Subset(tuple(owns), WEB_READER_RE).covers(changed)
 
 
 class Scope(Enum):
@@ -559,7 +566,7 @@ def classify_release(
 @dataclass(frozen=True)
 class CiPlan:
     gui: bool
-    pytest: Literal["full", "web", "docs", "release"]
+    pytest: Literal["full", "web", "docs", "web-docs", "release"]
     e2e: tuple[E2eJob, ...]
     release_only: bool = False
     native: NativeSelection = field(default_factory=NativeSelection)
@@ -596,8 +603,9 @@ def plan(
     if isinstance(release, FullRelease) or (head_ref or "").startswith("release-please"):
         return CiPlan(gui=True, pytest="full", e2e=(*main_shards(), *pr_compat()))
     gui = not changed or any(scope_of(path) is Scope.GUI for path in changed)
-    scope: Literal["full", "web", "docs"] = next(
-        (name for name, subset in SUBSETS.items() if subset.covers(changed)), "full"
+    scope: Literal["full", "web", "docs", "web-docs"] = next(
+        (name for name, subset in SUBSETS.items() if subset.covers(changed)),
+        "web-docs" if union_covers(changed) else "full",
     )
     return CiPlan(
         gui=gui,
@@ -627,10 +635,14 @@ def _referenced_scripts(source: str, scripts: Iterable[str]) -> set[str]:
     return named & set(scripts)
 
 
-def subset_tests(scope: Literal["web", "docs", "release"], root: Path = ROOT) -> list[str]:
+def subset_tests(
+    scope: Literal["web", "docs", "web-docs", "release"], root: Path = ROOT
+) -> list[str]:
     """Repo-relative pytest files that read *scope*, directly or through a script, sorted."""
     if scope == "release":
         return list(RELEASE_TESTS)
+    if scope == UNION_SCOPE:
+        return sorted({path for name in SUBSETS for path in subset_tests(name, root)})
     reader = SUBSETS[scope].reader
     script_readers = _script_readers(root, reader)
     selected = []
@@ -671,7 +683,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     plan_cmd.add_argument("--base-repository")
     plan_cmd.add_argument("--base-ref")
     subset_cmd = sub.add_parser("subset-tests")
-    subset_cmd.add_argument("scope", choices=[*sorted(SUBSETS), "release"])
+    subset_cmd.add_argument("scope", choices=[*sorted(SUBSETS), UNION_SCOPE, "release"])
     required_cmd = sub.add_parser("required-checks")
     required_cmd.add_argument("--check", action="store_true", help="fail instead of writing")
     args = parser.parse_args(argv)

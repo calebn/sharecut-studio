@@ -289,6 +289,7 @@ GitHub Actions runs the required checks on every pull request and the full suite
 | PR with a GUI-facing change | full suite, 95% floor | runs | `main-1of4` … `main-4of4`, then every WebKit compat spec as `compat-webkit-1of2` and `compat-webkit-2of2` |
 | PR where every changed file is under `gui/web/` | only the test files that name `gui/web`, or run a `scripts/` file that does (`python3 scripts/ci_plan.py subset-tests web`), `--no-cov` | runs | as above |
 | PR where every changed file is docs (`docs/`, `docs-site/`, `ux/`, `.agents/skills/`, `README.md`, `ROADMAP.md`, `AGENTS.md`) | only the test files that name those paths, or run a `scripts/` file that does (`python3 scripts/ci_plan.py subset-tests docs`), `--no-cov`, then the docs-sync gate | skipped, unless the diff also touches a GUI-facing doc such as `docs/daw-shortcuts.md` | skipped, same exception |
+| PR whose changed files are all under `gui/web/` or the docs paths above (a UI change that updates its docs) | the union of the two subsets above (`python3 scripts/ci_plan.py subset-tests web-docs`), `--no-cov` | runs | as above |
 | Proven version-only release-please PR | planner and version-policy tests, without coverage; existing compatibility, lint, types, locked install, docs and commit gates still run | skipped | skipped |
 | Push to `main`, nightly schedule, `workflow_dispatch` | full suite, 95% floor | runs | the four main shards, then complete `compat-chromium` and `compat-webkit` |
 
