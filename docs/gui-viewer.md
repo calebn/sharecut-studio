@@ -89,7 +89,7 @@ The host-only `POST /api/transcript/refine/waive` endpoint accepts `{path,
 reason}` and records the waiver through `TranscriptRefineService` with source
 `user`. The GUI exposes it only when an approval receives the transcript-refine
 gate error. A replayed (queued) approval refused by the gate shows the same
-Waiver reason field and **Waive with reason** button in its **Needs attention**
+Waiver reason field (it counts characters against the server's 2000 cap and stops there) and **Waive with reason** button in its **Needs attention**
 row in the Review queue. Share guests cannot use this recovery path; waiving never approves
 the pending edit automatically.
 The document-command gate responds with HTTP 409 and

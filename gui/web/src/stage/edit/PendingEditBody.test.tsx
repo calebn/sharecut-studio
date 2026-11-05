@@ -955,7 +955,7 @@ describe("PendingEditBody", () => {
     );
     expect(reason).toHaveAttribute("aria-invalid", "true");
     expect(reason).toHaveAccessibleDescription(
-      "This reason is saved with the transcript-refine status. A reason is required to waive transcript refinement.",
+      "This reason is saved with the transcript-refine status. 0 of 2000 characters. A reason is required to waive transcript refinement.",
     );
     expect(validation).toHaveAttribute("role", "alert");
     expect(waiveTranscriptRefine).not.toHaveBeenCalled();
