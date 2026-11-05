@@ -44,6 +44,7 @@ import {
   savedGuestName,
   sessionDisplayName,
 } from "../../utils/commentAuthor";
+import { useStableCallback } from "../../utils/useStableCallback";
 import { ActionItemsField } from "./ActionItemsField";
 import { filledActions } from "./actionItems";
 import { ComposeAnchor } from "./ComposeAnchor";
@@ -177,10 +178,7 @@ export function useReviewComments(guest: boolean) {
       else next.set(id, to);
       return next;
     });
-  // The optimistic value a failed send goes back to, not just "none": the
-  // earlier Resolve's snapshot may not have landed yet.
-  const flippedNow = useRef(flipped);
-  flippedNow.current = flipped;
+  const readFlipped = useStableCallback(() => flipped);
 
   const resolve = async (
     commentId: string,
@@ -199,7 +197,7 @@ export function useReviewComments(guest: boolean) {
     } else if ((flipped.get(c.id) ?? c.resolved) === resolved) return;
     const itemId = commentItemId(c.id);
     sent.current.delete(c.id);
-    const before = flippedNow.current.get(c.id) ?? null;
+    const before = readFlipped().get(c.id) ?? null;
     flip(c.id, resolved);
     const next =
       nav && resolved
@@ -248,7 +246,7 @@ export function useReviewComments(guest: boolean) {
                 if (useDawStore.getState().projectPath !== projectPath)
                   return false;
                 sent.current.delete(c.id);
-                const back = flippedNow.current.get(c.id) ?? null;
+                const back = readFlipped().get(c.id) ?? null;
                 flip(c.id, false);
                 try {
                   await setCommentResolved(c.id, false, by);
