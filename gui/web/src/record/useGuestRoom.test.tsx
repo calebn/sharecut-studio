@@ -305,6 +305,75 @@ describe("useGuestRoom", () => {
     });
   });
 
+  it.each(["resolve", "reject"])(
+    "retires an old bootstrap through committed token ABA on late %s while retaining local input",
+    async (settlement) => {
+      const requests: {
+        signal: AbortSignal | null | undefined;
+        resolve: (response: Response) => void;
+        reject: (reason: unknown) => void;
+      }[] = [];
+      localStorage.setItem("record:a:name", "Retained name");
+      localStorage.setItem("record:a:mic", "retained-mic");
+      vi.stubGlobal(
+        "fetch",
+        vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+          if (!urlOf(input).includes("/bootstrap"))
+            return Promise.resolve(new Response("not found", { status: 404 }));
+          return new Promise<Response>((resolve, reject) =>
+            requests.push({ signal: init?.signal, resolve, reject }),
+          );
+        }),
+      );
+      const { result, rerender, unmount } = renderHook(
+        ({ token }) => useGuestRoom(token),
+        { initialProps: { token: "a" } },
+      );
+      expect(requests).toHaveLength(1);
+      rerender({ token: "b" });
+      expect(requests).toHaveLength(2);
+      expect(requests[0]?.signal?.aborted).toBe(true);
+      const reply = (token: string, name: string) =>
+        new Response(
+          JSON.stringify({
+            ...guestBootstrap,
+            token,
+            episode: { name },
+            build: { capture: false, monitor: false, upload: false },
+          }),
+          { status: 200 },
+        );
+      await act(async () => {
+        requests[1]?.resolve(reply("b", "Room B"));
+      });
+      await waitFor(() => expect(result.current.episodeName).toBe("Room B"));
+      expect(result.current.name).toBe("Retained name");
+      expect(result.current.deviceId).toBe("retained-mic");
+      rerender({ token: "a" });
+      expect(requests).toHaveLength(3);
+      expect(requests[1]?.signal?.aborted).toBe(true);
+      expect(result.current.bootstrap).toBeNull();
+      await act(async () => {
+        requests[2]?.resolve(reply("a", "Fresh room A"));
+      });
+      await waitFor(() =>
+        expect(result.current.episodeName).toBe("Fresh room A"),
+      );
+      await act(async () => {
+        if (settlement === "resolve")
+          requests[0]?.resolve(reply("a", "Retired room A"));
+        else requests[0]?.reject(new Error("Retired failure"));
+      });
+      expect(result.current.episodeName).toBe("Fresh room A");
+      expect(result.current.bootError).toBeNull();
+      expect(result.current.name).toBe("Retained name");
+      expect(result.current.deviceId).toBe("retained-mic");
+      expect(getUserMedia).not.toHaveBeenCalled();
+      unmount();
+      expect(requests[2]?.signal?.aborted).toBe(true);
+    },
+  );
+
   it("reports a bootstrap failure", async () => {
     vi.stubGlobal(
       "fetch",
