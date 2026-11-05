@@ -14,13 +14,14 @@ import {
 import { refreshDocumentProject } from "../../document/applyDocumentUpdate";
 import { ModelsContext } from "../../models/useModels";
 import { useDawStore } from "../../state/dawStore";
+import { deferred } from "../../test/deferred";
 import { pipelineJobSnapshot, sampleTrack } from "../../test/fixtures";
 import {
   modelStatus,
   modelsApi,
   registryRows,
 } from "../../test/renderWithModels";
-import { parseHistoryEntryId } from "../../types/project";
+import { parseHistoryEntryId, type TrackView } from "../../types/project";
 import { ApiError } from "../../utils/apiError";
 import { usePrepareSources } from "./usePrepareSources";
 
@@ -52,26 +53,31 @@ const tracks = [
   sampleTrack({ id: "joss" }),
 ];
 
+type SourceProps = {
+  activityJob: ReturnType<typeof pipelineJobSnapshot> | null;
+  isPlaying?: boolean;
+  projectPath?: string;
+  tracks?: readonly TrackView[];
+};
+
 function setup(
   over: { activityJob?: ReturnType<typeof pipelineJobSnapshot> | null } = {},
 ) {
+  const initialProps: SourceProps = {
+    activityJob: over.activityJob ?? null,
+    isPlaying: false,
+  };
   return renderHook(
-    (props: {
-      activityJob: ReturnType<typeof pipelineJobSnapshot> | null;
-      isPlaying?: boolean;
-    }) =>
+    (props: SourceProps) =>
       usePrepareSources({
-        projectPath: PATH,
-        tracks,
+        projectPath: props.projectPath ?? PATH,
+        tracks: props.tracks ?? tracks,
         isPlaying: props.isPlaying ?? false,
         activityJob: props.activityJob,
       }),
     {
       wrapper,
-      initialProps: {
-        activityJob: over.activityJob ?? null,
-        isPlaying: false,
-      },
+      initialProps,
     },
   );
 }
@@ -405,5 +411,205 @@ describe("split", () => {
     await act(async () => result.current.actions.onRetry("maya"));
     expect(models.download).toHaveBeenCalledWith(["speaker-ecapa"]);
     await waitFor(() => expect(startSplitSpeakersJob).toHaveBeenCalledTimes(2));
+  });
+});
+
+describe("Source request ownership", () => {
+  it("flushes a queued name to its original project rather than a replacement path", async () => {
+    vi.useFakeTimers();
+    try {
+      const hook = setup();
+      act(() => hook.result.current.actions.onName("maya", "Maya queued"));
+      act(() =>
+        useDawStore.setState({
+          projectPath: "/tmp/next/episode.sharecut",
+          projectEpoch: useDawStore.getState().projectEpoch + 1,
+        }),
+      );
+      hook.rerender({
+        activityJob: null,
+        projectPath: "/tmp/next/episode.sharecut",
+      });
+      await act(async () => vi.advanceTimersByTimeAsync(600));
+      expect(setTrackMetaCommand).toHaveBeenCalledOnce();
+      expect(setTrackMetaCommand).toHaveBeenCalledWith(PATH, "maya", {
+        label: "Maya queued",
+        speaker: "Maya queued",
+      });
+      expect(hook.result.current.names).toEqual({});
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the newer name draft when an older saved label arrives", async () => {
+    vi.useFakeTimers();
+    try {
+      const hook = setup();
+      act(() => hook.result.current.actions.onName("maya", "First name"));
+      await act(async () => vi.advanceTimersByTimeAsync(600));
+      act(() => hook.result.current.actions.onName("maya", "Latest name"));
+      hook.rerender({
+        activityJob: null,
+        tracks: tracks.map((track) =>
+          track.id === "maya" ? { ...track, speaker: "First name" } : track,
+        ),
+      });
+      expect(hook.result.current.names.maya).toBe("Latest name");
+      await act(async () => vi.advanceTimersByTimeAsync(600));
+      expect(setTrackMetaCommand).toHaveBeenLastCalledWith(PATH, "maya", {
+        label: "Latest name",
+        speaker: "Latest name",
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("accepts one split when two commands arrive before the start reply", async () => {
+    const started = deferred<ReturnType<typeof pipelineJobSnapshot>>();
+    vi.mocked(startSplitSpeakersJob).mockReturnValue(started.promise);
+    const hook = setup();
+    act(() => {
+      hook.result.current.actions.onSplit("maya");
+      hook.result.current.actions.onSplit("maya");
+    });
+    try {
+      expect(startSplitSpeakersJob).toHaveBeenCalledOnce();
+    } finally {
+      await act(async () =>
+        started.resolve(
+          pipelineJobSnapshot({ id: "held", kind: "split_speakers" }),
+        ),
+      );
+    }
+  });
+
+  it("does not seed a retired path's late start reply into the current Activity", async () => {
+    const started = deferred<ReturnType<typeof pipelineJobSnapshot>>();
+    vi.mocked(startSplitSpeakersJob).mockReturnValueOnce(started.promise);
+    const hook = setup();
+    act(() => hook.result.current.actions.onSplit("maya"));
+    act(() =>
+      useDawStore.setState({
+        projectPath: "/tmp/next/episode.sharecut",
+        projectEpoch: useDawStore.getState().projectEpoch + 1,
+        activityJob: null,
+        pipelineJob: null,
+      }),
+    );
+    hook.rerender({
+      activityJob: null,
+      projectPath: "/tmp/next/episode.sharecut",
+    });
+    await act(async () =>
+      started.resolve(
+        pipelineJobSnapshot({ id: "retired-start", kind: "split_speakers" }),
+      ),
+    );
+    expect(useDawStore.getState().activityJob).toBeNull();
+    expect(followJobToOk).not.toHaveBeenCalled();
+  });
+
+  it("does not refresh or announce a path-retired split result even if its follow ignores abort", async () => {
+    const followed = deferred<ReturnType<typeof pipelineJobSnapshot>>();
+    vi.mocked(followJobToOk).mockReturnValueOnce(followed.promise);
+    const notice = vi.fn();
+    useDawStore.setState({ announceStatus: notice });
+    const hook = setup();
+    act(() => hook.result.current.actions.onSplit("maya"));
+    await waitFor(() => expect(followJobToOk).toHaveBeenCalledOnce());
+    act(() =>
+      useDawStore.setState({
+        projectPath: "/tmp/next/episode.sharecut",
+        projectEpoch: useDawStore.getState().projectEpoch + 1,
+      }),
+    );
+    hook.rerender({
+      activityJob: null,
+      projectPath: "/tmp/next/episode.sharecut",
+    });
+    await act(async () =>
+      followed.resolve(
+        pipelineJobSnapshot({
+          id: "split-1",
+          kind: "split_speakers",
+          status: "ok",
+          result: RESULT,
+        }),
+      ),
+    );
+    expect(refreshDocumentProject).not.toHaveBeenCalled();
+    expect(notice).not.toHaveBeenCalled();
+    expect(hook.result.current.splitting).toEqual({});
+  });
+
+  it("keeps accepted same-path split work alive after leaving Prepare", async () => {
+    const followed = deferred<ReturnType<typeof pipelineJobSnapshot>>();
+    vi.mocked(followJobToOk).mockReturnValueOnce(followed.promise);
+    const hook = setup();
+    act(() => hook.result.current.actions.onSplit("maya"));
+    await waitFor(() => expect(followJobToOk).toHaveBeenCalledOnce());
+    hook.unmount();
+    await act(async () =>
+      followed.resolve(
+        pipelineJobSnapshot({
+          id: "split-1",
+          kind: "split_speakers",
+          status: "ok",
+          result: RESULT,
+        }),
+      ),
+    );
+    expect(refreshDocumentProject).toHaveBeenCalledWith(PATH);
+  });
+
+  it("does not let an old split finally remove the new owner's same-id card or cancel handle", async () => {
+    const oldFollow = deferred<ReturnType<typeof pipelineJobSnapshot>>();
+    const newFollow = deferred<ReturnType<typeof pipelineJobSnapshot>>();
+    vi.mocked(startSplitSpeakersJob)
+      .mockResolvedValueOnce(
+        pipelineJobSnapshot({ id: "old-split", kind: "split_speakers" }),
+      )
+      .mockResolvedValueOnce(
+        pipelineJobSnapshot({ id: "new-split", kind: "split_speakers" }),
+      );
+    vi.mocked(followJobToOk)
+      .mockReturnValueOnce(oldFollow.promise)
+      .mockReturnValueOnce(newFollow.promise);
+    vi.mocked(cancelPipelineRun).mockResolvedValue(
+      pipelineJobSnapshot({ id: "new-split", status: "cancelled" }),
+    );
+    const hook = setup();
+    act(() => hook.result.current.actions.onSplit("maya"));
+    await waitFor(() => expect(followJobToOk).toHaveBeenCalledTimes(1));
+    act(() =>
+      useDawStore.setState({
+        projectPath: "/tmp/next/episode.sharecut",
+        projectEpoch: useDawStore.getState().projectEpoch + 1,
+      }),
+    );
+    hook.rerender({
+      activityJob: null,
+      projectPath: "/tmp/next/episode.sharecut",
+    });
+    act(() => hook.result.current.actions.onSplit("maya"));
+    await waitFor(() => expect(followJobToOk).toHaveBeenCalledTimes(2));
+    await act(async () =>
+      oldFollow.reject(new DOMException("old path left", "AbortError")),
+    );
+    expect(hook.result.current.splitting.maya).toBeDefined();
+    act(() => hook.result.current.actions.onCancelSplit("maya"));
+    expect(cancelPipelineRun).toHaveBeenCalledWith("new-split");
+    await act(async () =>
+      newFollow.resolve(
+        pipelineJobSnapshot({
+          id: "new-split",
+          kind: "split_speakers",
+          status: "ok",
+          result: RESULT,
+        }),
+      ),
+    );
   });
 });
