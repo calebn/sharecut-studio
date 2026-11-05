@@ -45,17 +45,29 @@ const LANE: CreateFacts = {
 };
 const bounds = { left: 0, top: 0, right: 600, bottom: 400 };
 
-function props(over: Partial<CreateMenuProps> = {}): CreateMenuProps {
+function contentProps(): Pick<
+  CreateMenuProps,
+  "rows" | "time" | "track" | "onPick" | "onClose"
+> {
   return {
     rows: createMenuRows(LANE),
     time: "12:04.3",
     track: "Maya",
-    anchor: { x: 300, y: 300 },
-    bounds,
     onPick: () => undefined,
     onClose: () => undefined,
-    ...over,
   };
+}
+
+function props(
+  over: Partial<Extract<CreateMenuProps, { phone?: false }>> = {},
+): Extract<CreateMenuProps, { phone?: false }> {
+  return { ...contentProps(), anchor: { x: 300, y: 300 }, bounds, ...over };
+}
+
+function phoneProps(
+  over: Partial<Omit<Extract<CreateMenuProps, { phone: true }>, "phone">> = {},
+): Extract<CreateMenuProps, { phone: true }> {
+  return { ...contentProps(), phone: true, ...over };
 }
 
 const menu = () =>
@@ -209,7 +221,7 @@ describe("CreateMenu row note", () => {
   });
 
   it("does the same in the phone Sheet", async () => {
-    render(<CreateMenu {...props({ phone: true, rows: noted() })} />);
+    render(<CreateMenu {...phoneProps({ rows: noted() })} />);
     const split = await screen.findByRole("button", { name: "Split here" });
     expect(split).toHaveAccessibleDescription(NOTE);
     expect(split).toHaveAttribute("title", NOTE);
@@ -481,8 +493,7 @@ describe("CreateMenu phone form", () => {
     const onPick = vi.fn();
     render(
       <CreateMenu
-        {...props({
-          phone: true,
+        {...phoneProps({
           onPick,
           rows: createMenuRows({ ...LANE, clipboardHasAudio: true }),
         })}
@@ -520,8 +531,7 @@ describe("CreateMenu phone form", () => {
   it("leaves out the rows that do not apply, as the popover does", async () => {
     render(
       <CreateMenu
-        {...props({
-          phone: true,
+        {...phoneProps({
           rows: createMenuRows({ ...LANE, lane: false }),
           track: null,
         })}

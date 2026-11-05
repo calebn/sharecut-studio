@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -14,6 +15,7 @@ import { useDawKeymapListener } from "../keymap/listener";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject, sampleTrack } from "../test/fixtures";
+import { stubRaf } from "../test/raf";
 import type { CreateView, HitRouter } from "./hitRouting";
 import { TimelineCreateMenu } from "./TimelineCreateMenu";
 import type { CreateMenuPlace } from "./touchGrammar";
@@ -41,19 +43,21 @@ function Keymap() {
 }
 
 function tree(phone: boolean, over: Partial<CreateView> = {}, open = true) {
+  const content = { view: { ...view, ...over }, place, router };
+  const menu = phone ? (
+    <TimelineCreateMenu {...content} phone />
+  ) : (
+    <TimelineCreateMenu
+      {...content}
+      bounds={bounds}
+      avoidX={215}
+      phone={false}
+    />
+  );
   return (
     <>
       <Keymap />
-      {open ? (
-        <TimelineCreateMenu
-          view={{ ...view, ...over }}
-          place={place}
-          router={router}
-          bounds={bounds}
-          avoidX={215}
-          phone={phone}
-        />
-      ) : null}
+      {open ? menu : null}
     </>
   );
 }
@@ -102,6 +106,122 @@ afterEach(() => {
 });
 
 describe("TimelineCreateMenu popover form", () => {
+  it("keeps same-title content and focus while using the current held place and numeric bounds", async () => {
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(220);
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(200);
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(198);
+    const reads = vi
+      .spyOn(HTMLElement.prototype, "scrollHeight", "get")
+      .mockReturnValue(198);
+    try {
+      const at = (atTime: number, right: number) => (
+        <TimelineCreateMenu
+          view={{ ...view, origin: { x: 300, y: 500 } }}
+          place={{ ...place, atTime }}
+          router={router}
+          bounds={{ left: 0, top: 0, right, bottom: 700 }}
+          avoidX={null}
+          phone={false}
+        />
+      );
+      const { rerender } = render(at(12.5001, 600));
+      const menu = screen.getByRole("menu");
+      const first = screen.getAllByRole("menuitem")[0];
+      await waitFor(() => expect(first).toHaveFocus());
+      expect(menu.style.left).toBe("190px");
+      rerender(at(12.5002, 300));
+      expect(screen.getByRole("menu")).toBe(menu);
+      expect(first).toHaveFocus();
+      expect(menu.style.left).toBe("64px");
+      expect(
+        reads.mock.contexts.filter(
+          (node) =>
+            node instanceof HTMLElement &&
+            node.classList.contains("edit-create-menu"),
+        ),
+      ).toHaveLength(1);
+      fireEvent.click(
+        screen.getByRole("menuitem", { name: "Add chapter here" }),
+      );
+      expect(executePointerCommand).toHaveBeenCalledExactlyOnceWith(
+        "edit.addChapter",
+        { atTime: 12.5002 },
+      );
+      expect(router.close).toHaveBeenCalledOnce();
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("remeasures changed-title content without a frame before focusing the new menu", () => {
+    const raf = stubRaf();
+    vi.stubGlobal("innerHeight", 300);
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(220);
+    const outer = vi
+      .spyOn(HTMLElement.prototype, "offsetHeight", "get")
+      .mockReturnValue(500);
+    const client = vi
+      .spyOn(HTMLElement.prototype, "clientHeight", "get")
+      .mockReturnValue(498);
+    const reads = vi
+      .spyOn(HTMLElement.prototype, "scrollHeight", "get")
+      .mockReturnValue(498);
+    try {
+      const { rerender } = render(
+        <TimelineCreateMenu
+          view={{ ...view, origin: { x: 300, y: 100 } }}
+          place={place}
+          router={router}
+          bounds={{ left: 0, top: 0, right: 430, bottom: 300 }}
+          avoidX={null}
+          phone={false}
+        />,
+      );
+      const old = screen.getByRole("menu");
+      expect(old.style.maxBlockSize).toBe("268px");
+      vi.stubGlobal("innerHeight", 800);
+      outer.mockReturnValue(200);
+      client.mockReturnValue(198);
+      reads.mockReturnValue(198);
+      rerender(
+        <TimelineCreateMenu
+          view={{ ...view, origin: { x: 300, y: 500 } }}
+          place={{ ...place, atTime: 15.5 }}
+          router={router}
+          bounds={{ left: 0, top: 0, right: 600, bottom: 700 }}
+          avoidX={null}
+          phone={false}
+        />,
+      );
+      const current = screen.getByRole("menu");
+      expect(current).not.toBe(old);
+      expect(current.style.maxBlockSize).toBe("");
+      expect(current.style.top).toBe("276px");
+      expect(
+        reads.mock.contexts.filter(
+          (node) =>
+            node instanceof HTMLElement &&
+            node.classList.contains("edit-create-menu"),
+        ),
+      ).toHaveLength(2);
+      expect(raf.pendingCount()).toBe(1);
+      act(() => {
+        raf.fire(20);
+      });
+      expect(screen.getAllByRole("menuitem")[0]).toHaveFocus();
+      fireEvent.click(
+        screen.getByRole("menuitem", { name: "Add chapter here" }),
+      );
+      expect(executePointerCommand).toHaveBeenCalledExactlyOnceWith(
+        "edit.addChapter",
+        { atTime: 15.5 },
+      );
+    } finally {
+      vi.restoreAllMocks();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("names the held time and lane, lists the rows, and announces without a toast", () => {
     mount();
     const menu = screen.getByRole("menu", { name: /^Create at .* · Avery$/ });
@@ -389,27 +509,20 @@ describe("TimelineCreateMenu focus after close", () => {
 });
 
 describe("TimelineCreateMenu phone form", () => {
-  it("ignores desktop avoidX changes without replacing the phone Sheet or its command target", async () => {
-    const renderPhone = (avoidX: number | null) => (
-      <TimelineCreateMenu
-        view={view}
-        place={place}
-        router={router}
-        bounds={bounds}
-        avoidX={avoidX}
-        phone
-      />
+  it("keeps the phone Sheet and command target across unrelated parent commits without desktop geometry", async () => {
+    const renderPhone = () => (
+      <TimelineCreateMenu view={view} place={place} router={router} phone />
     );
-    const { rerender } = render(renderPhone(215));
+    const { rerender } = render(renderPhone());
     const dialog = await screen.findByRole("dialog");
     const close = screen.getByRole("button", { name: "Close" });
     await waitFor(() => expect(close).toHaveFocus());
     const chapter = screen.getByRole("button", { name: "Add chapter here" });
-    rerender(renderPhone(-999));
+    rerender(renderPhone());
     expect(screen.getByRole("dialog")).toBe(dialog);
     expect(screen.getByRole("button", { name: "Close" })).toBe(close);
     expect(close).toHaveFocus();
-    rerender(renderPhone(null));
+    rerender(renderPhone());
     expect(screen.getByRole("dialog")).toBe(dialog);
     expect(screen.getByRole("button", { name: "Add chapter here" })).toBe(
       chapter,

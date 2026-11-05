@@ -18,17 +18,20 @@ import {
 import type { CreateView, HitRouter } from "./hitRouting";
 import type { CreateMenuPlace } from "./touchGrammar";
 
-export interface TimelineCreateMenuProps {
+export type TimelineCreateMenuProps = {
   view: CreateView;
   place: CreateMenuPlace;
   router: HitRouter;
-  /** The timeline's visible box; the menu stays inside it. */
-  bounds: Bounds;
-  /** The fixed playhead's x, which the popover sits beside; the phone Sheet ignores it. */
-  avoidX: number | null;
-  /** The phone shell: the rows show in a bottom Sheet instead of at the finger. */
-  phone: boolean;
-}
+} & (
+  | { phone: true }
+  | {
+      phone: false;
+      /** The timeline's visible box; the menu stays inside it. */
+      bounds: Bounds;
+      /** An x coordinate the positioned menu keeps clear of. */
+      avoidX: number | null;
+    }
+);
 
 /**
  * A press outside the menu closes it with no change, and the click it would
@@ -98,14 +101,8 @@ function focusAfterClose(surface: Element, trackId: string | null): void {
  * maps a picked row to its command at the held place. `hitRouting` owns the
  * gesture and reports the row under a sliding finger as `view.over`.
  */
-export function TimelineCreateMenu({
-  view,
-  place,
-  router,
-  bounds,
-  avoidX,
-  phone,
-}: TimelineCreateMenuProps) {
+export function TimelineCreateMenu(props: TimelineCreateMenuProps) {
+  const { view, place, router } = props;
   // One set per held point: a second open elsewhere is a new place, and its
   // rows follow it, while a repaint of the same open keeps the rows it had.
   const rows = useMemo(() => createMenuRowsFor(place), [place]);
@@ -157,12 +154,10 @@ export function TimelineCreateMenu({
   const menu = {
     rows,
     track: place.trackLabel,
-    anchor: view.origin,
-    bounds,
     onPick,
     onClose,
   };
-  if (phone) {
+  if (props.phone) {
     return (
       <PhoneMenu
         menu={{ ...menu, time: `Create at ${time}` }}
@@ -177,13 +172,15 @@ export function TimelineCreateMenu({
         <CreateMenu
           {...menu}
           time={time}
+          anchor={view.origin}
+          bounds={props.bounds}
           viewport={{
             left: 0,
             top: 0,
             right: window.innerWidth,
             bottom: window.innerHeight,
           }}
-          avoidX={avoidX}
+          avoidX={props.avoidX}
           over={view.over}
           mark={place.lane}
         />
@@ -202,7 +199,7 @@ function PhoneMenu({
   menu,
   router,
 }: {
-  menu: Omit<CreateMenuProps, "phone">;
+  menu: Omit<Extract<CreateMenuProps, { phone: true }>, "phone">;
   router: HitRouter;
 }) {
   useSheetKeyboard(menu.onClose);
