@@ -8,7 +8,6 @@ export {
   useSheetMic,
 } from "./deviceSheet";
 export {
-  type LandGate,
   landGate,
   type StartBlockerItem,
 } from "./hostControls";

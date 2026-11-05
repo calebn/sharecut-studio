@@ -554,16 +554,12 @@ export async function openHostRecordRoom(host: Page): Promise<Locator> {
 }
 
 /**
- * Wait for every recorded segment of the take to land on the timeline. The
- * server lands each segment on its file ACK, so there is nothing to click.
+ * Wait for every segment of take 0 to land on the timeline. The server lands
+ * each segment on its file ACK, so this only polls and fails fast on a failed land.
  */
 export async function waitForTakeLanded(
   host: Page,
   projectPath: string,
-  {
-    takeIndex = 0,
-    timeout = 60_000,
-  }: { takeIndex?: number; timeout?: number } = {},
 ): Promise<void> {
   await expect
     .poll(
@@ -573,16 +569,23 @@ export async function waitForTakeLanded(
         });
         if (!res.ok()) return `upload status ${res.status()}`;
         const body = (await res.json()) as {
-          segments?: Array<{ take_index?: number; landed?: boolean }>;
+          segments?: Array<{
+            take_index?: number;
+            landed?: boolean;
+            land_failed?: boolean;
+          }>;
         };
         const rows = (body.segments ?? []).filter(
-          (seg) => seg.take_index === takeIndex,
+          (seg) => seg.take_index === 0,
         );
+        if (rows.some((seg) => seg.land_failed)) {
+          throw new Error(`a segment failed to land: ${JSON.stringify(rows)}`);
+        }
         return rows.length > 0 && rows.every((seg) => seg.landed)
           ? "landed"
           : `waiting on ${rows.filter((seg) => !seg.landed).length} of ${rows.length} segments`;
       },
-      { timeout },
+      { timeout: 60_000 },
     )
     .toBe("landed");
 }

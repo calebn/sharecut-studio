@@ -186,8 +186,7 @@ every segment reads landed), polls the saved project JSON until the three live c
 (each within ±0.25 s of the host recording clock around its press), checks that
 both Ava's and the host keeper's landed clips point at files under `raw/`, and
 checks server-side that the producer has no upload rows and that the host
-upload list has no producer row. It closes the More sheet with its Close
-button.
+upload list has no producer row.
 
 The US-2 host-disconnect scenario (`gui/web/e2e/record-host-reconnect.spec.ts`)
 models a host drop with `installNetworkOutage` (`gui/web/e2e/networkOutage.ts`).
