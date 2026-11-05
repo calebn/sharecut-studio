@@ -28,8 +28,8 @@ import {
 } from "../record";
 import { canManageProjects, canRefreshMix } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { type RoomKeyHandlers, roomKeys } from "../state/roomKeys";
 import { seedStudioJob } from "../state/seedStudioJob";
-import { type RoomKeyHandlers, roomKeys } from "../system/roomKeys";
 import { errorMessage } from "../utils/apiError";
 import { type CommandContext, evaluateWhen } from "./context";
 import { registerCommand } from "./execute";

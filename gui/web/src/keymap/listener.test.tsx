@@ -16,7 +16,7 @@ import { AskDialog } from "../feedback/AskDialog";
 import { askConfirm } from "../feedback/ask";
 import { useDawStore } from "../state/dawStore";
 import { trackEditSave } from "../state/documentSendOrder";
-import { setRoomKeys } from "../system/roomKeys";
+import { setRoomKeys } from "../state/roomKeys";
 import { setChrome } from "../test/chrome";
 import { minimalProject } from "../test/fixtures";
 import { BottomSheet } from "../ui/BottomSheet";

@@ -13,8 +13,8 @@ import {
 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { documentActivityBusy } from "../state/documentSendOrder";
+import { type RoomKeyHandlers, roomKeys } from "../state/roomKeys";
 import { stageRoleOf, stagesForRole } from "../state/stageRoutes";
-import { type RoomKeyHandlers, roomKeys } from "../system/roomKeys";
 import type { StageId } from "../types/stage";
 import { splitSpeakersBlocker } from "../utils/speakerSplit";
 import { focusedClipHandleKind } from "./focusedClipHandle";

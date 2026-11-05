@@ -36,9 +36,9 @@ import {
 } from "../../record";
 import { sessionItemId } from "../../review/reviewItems";
 import { useDawStore } from "../../state/dawStore";
+import { setRoomKeys } from "../../state/roomKeys";
 import { DeviceSheet } from "../../system/DeviceSheet";
 import type { RoomViewProps } from "../../system/RoomView";
-import { setRoomKeys } from "../../system/roomKeys";
 import { TakesTray } from "../../system/TakesTray";
 import { dbToFraction } from "../../ui/metering";
 import { hostStateOf, type LoadFailure } from "./hostModels";
