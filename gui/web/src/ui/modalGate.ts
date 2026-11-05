@@ -8,7 +8,7 @@
  * The keymap asks one question, `keymapHandoff`. An open menu holds every
  * app shortcut. So does an open modal dialog, as the browser's own `confirm()`
  * did: the Daw keymap runs nothing behind it (no Mod+Z undoing an edit behind
- * "Remove the guest track?"), except the shortcuts the innermost modal hands
+ * "Find more again?"), except the shortcuts the innermost modal hands
  * on, such as M for a marker in the Record room.
  */
 type Layer = {

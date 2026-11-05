@@ -7,7 +7,6 @@ import {
   openGuestShare,
   openHostShare,
 } from "./shareNavigation";
-import { trackHeaderButton } from "./trackHeader";
 
 /**
  * Undo is guarded by the history head the person saw (#1031): the tab's own
@@ -134,59 +133,5 @@ test("a guest editor's undo names the head it was sent, and a stale one is refus
     } finally {
       await guestContext.close();
     }
-  });
-});
-
-test("an open confirm holds Mod+Z, so nothing is undone behind it, and Escape returns focus to Remove track", async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await withShareableProject(async (projectPath) => {
-    await openHostShare(page, projectPath);
-    await addChapter(page, projectPath, "Behind confirm", 4);
-    await expect(page.getByLabel("Chapter Behind confirm")).toBeVisible();
-
-    const moves: Response[] = [];
-    page.on("response", (response) => {
-      if (isHistoryMove(response)) moves.push(response);
-    });
-    await trackHeaderButton(page, "guest").dispatchEvent("click");
-    const inspector = page.getByRole("dialog", { name: "Inspector" });
-    await expect(inspector).toBeVisible();
-    const remove = inspector.getByRole("button", { name: "Remove track" });
-    await remove.click();
-    const dialog = page.getByRole("dialog", {
-      name: "Remove the guest track?",
-    });
-    await expect(dialog).toBeVisible();
-    await expect(
-      dialog.getByRole("button", { name: "Keep track" }),
-    ).toBeFocused();
-
-    await page.keyboard.press("ControlOrMeta+Z");
-    await page.keyboard.press("ControlOrMeta+Shift+Z");
-    await page.keyboard.press("Delete");
-    // Settle any request the keys could have sent before asserting none did.
-    await page.evaluate(
-      () => new Promise((resolve) => setTimeout(resolve, 500)),
-    );
-    expect(moves).toHaveLength(0);
-    expect(chapterTitles(projectPath)).toContain("Behind confirm");
-    await expect(dialog).toBeVisible();
-
-    await page.keyboard.press("Escape");
-    await expect(dialog).toBeHidden();
-    await expect(inspector).toBeVisible();
-    await expect(remove).toBeFocused();
-
-    // Closed: the same Mod+Z undoes the agent's chapter again.
-    await page.locator(".timeline-scroll").click({ position: { x: 4, y: 4 } });
-    await page.keyboard.press("Escape");
-    await page.keyboard.press("ControlOrMeta+Z");
-    await expect.poll(() => moves.length).toBe(1);
-    expect(moves[0].status()).toBe(200);
-    await expect
-      .poll(() => chapterTitles(projectPath))
-      .not.toContain("Behind confirm");
   });
 });

@@ -214,7 +214,6 @@ export function useEnvelopePointSections(
                         )
                       : null}
                     <Button
-                      variant="danger"
                       disabledReason={
                         showLevels
                           ? undefined

@@ -351,7 +351,7 @@ export const PENDING_SECTIONS: readonly InspectorSection[] = [
             </DefinitionList>
             <div className="modifier-primary-actions">
               <Button variant="primary">Approve</Button>
-              <Button variant="danger">Reject</Button>
+              <Button>Reject</Button>
             </div>
           </div>
         ),
