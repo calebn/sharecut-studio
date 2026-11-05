@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**141** capabilities · **107** ShareCut Studio commands · **62** keyed · **212** MCP tools · **17** skills on rows (+ **19** hub skills).
+**145** capabilities · **111** ShareCut Studio commands · **66** keyed · **212** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -93,7 +93,11 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Resume recording | project | `record.resume` | — (chords in a later PR) | — | `RecordStage` | `record_resume_tool` | `podcast record resume` | `podcast-record-session` | yes | none · none |
 | Stop recording | project | `record.stop` | — (chords in a later PR) | — | `RecordStage` | `record_stop_tool` | `podcast record stop` | `podcast-record-session` | yes | none · none |
 | Land recording on timeline | project | `record.land` | — (chords in a later PR) | — | `RecordStage` | `record_land_tool` | `podcast record land` | `podcast-record-session` | yes | none · none |
-| Record marker | project | `record.marker` | `M` | — | `RecordStage` | `record_marker_tool` | `podcast record marker` | `podcast-record-session` | yes | none · none |
+| Record marker | project | `record.marker` | `C` | — | `RecordStage` | `record_marker_tool` | `podcast record marker` | `podcast-record-session` | yes | none · none |
+| Mute your mic in the room | view | `room.mute` | `M` | — | `RecordStage` | — | — | — | yes | none · none |
+| Record | view | `room.take` | `R` | — | `RecordStage` | — | — | — | yes | none · none |
+| Stop take | view | `room.stop` | `R` | — | `RecordStage` | — | — | — | yes | none · none |
+| Pause or resume take | view | `room.pause` | `P` | — | `RecordStage` | — | — | — | yes | none · none |
 | Connect agent… | view | `mcp.connect` | — (dialog from Menu) | — | `HostMcpDialog` | — | — | — | yes | none · none |
 | Export diagnostics… | view | `help.diagnosticsBundle` | — (dialog from Home / Menu) | — | `home.help`, `HelpDialog` | — | `podcast doctor --bundle` | — | yes | none · none |
 | Manage models… | view | `models.open` | — (dialog from Home / palette) | — | `home.models`, `ModelsDialog` | `model_download`, `model_download_status` | `podcast setup` | — | yes | none · none |

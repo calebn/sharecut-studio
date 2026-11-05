@@ -315,6 +315,22 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Record marker",
     tooltip: "Record marker",
   },
+  "daw.room.mute": {
+    label: "Mute your mic in the room",
+    tooltip: "Mute or unmute your mic in the room",
+  },
+  "daw.room.take": {
+    label: "Record",
+    tooltip: "Start a take from the keyboard",
+  },
+  "daw.room.stop": {
+    label: "Stop take",
+    tooltip: "Hold to stop the take",
+  },
+  "daw.room.pause": {
+    label: "Pause or resume take",
+    tooltip: "Pause or resume the take",
+  },
   "daw.mcp.connect": {
     label: "Connect agent…",
     tooltip: "Connect agent…",
@@ -607,7 +623,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   GesturesSheet: "daw.ui.toggleCommandPalette",
   deliverShare: "daw.share.manage",
   deliverBounce: "daw.export.bounce",
-  RecordStage: "daw.record.marker",
+  RecordStage: "daw.room.pause",
   HostMcpDialog: "daw.mcp.connect",
   "home.help": "daw.help.diagnosticsBundle",
   HelpDialog: "daw.help.diagnosticsBundle",
