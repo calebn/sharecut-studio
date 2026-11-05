@@ -1,5 +1,4 @@
 import { type DragEvent, useRef, useState } from "react";
-import { audioFilesFromDrop } from "../ingest/dropLabels";
 import { Button, Field, Menu, MenuItem } from "../ui";
 import { OverviewStrip } from "./OverviewStrip";
 import { percentOf } from "./progress";
@@ -21,6 +20,8 @@ type SourceCardState =
 
 const MIN_VOICES = 2;
 const MAX_VOICES = 8;
+/** A voice count changes every 24 px of drag, not every pixel. */
+const VOICES_PIXELS = 24;
 const VOICES_UNIT = "voices";
 const MAX_NAME = 80;
 
@@ -177,8 +178,7 @@ export function SourceCard({
         event.preventDefault();
         dragDepth.current = 0;
         setOver(false);
-        const files = audioFilesFromDrop(event.dataTransfer.files);
-        if (files.length > 0) onDropAudio?.(files);
+        onDropAudio?.(Array.from(event.dataTransfer.files));
       }}
     >
       <Field
@@ -307,6 +307,7 @@ export function SourceCard({
                     min={MIN_VOICES}
                     max={MAX_VOICES}
                     step={1}
+                    pixelsPerStep={VOICES_PIXELS}
                     integerOnly
                     defaultValue={MIN_VOICES}
                     onCommit={(next) => onVoices?.(next)}
