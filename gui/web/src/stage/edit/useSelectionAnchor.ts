@@ -81,6 +81,11 @@ function findSelectionAnchor(
   }
 }
 
+type AnchorObservation =
+  | { kind: "hidden"; node: HTMLElement | null }
+  | { kind: "fallback"; node: HTMLElement }
+  | { kind: "observed"; node: HTMLElement };
+
 type SelectionAnchor = {
   readonly ref: RefObject<HTMLElement | null>;
   readonly exclusion: AnchorExclusion;
@@ -96,8 +101,15 @@ export function useSelectionAnchor(
   const ref = useRef<HTMLElement | null>(null);
   const excludeRef = useRef<HTMLElement | null>(null);
   const withinRef = useRef<HTMLElement | null>(null);
-  const [visible, setVisible] = useState(false);
-  const [node, setNode] = useState<HTMLElement | null>(null);
+  const [anchor, setAnchor] = useState<AnchorObservation>({
+    kind: "hidden",
+    node: null,
+  });
+  const [intersection, setIntersection] = useState<{
+    owner: AnchorObservation;
+    visible: boolean;
+  } | null>(null);
+  const node = anchor.node;
   const [excluded, setExcluded] = useState<HTMLElement | null>(null);
   const { project, zoomPxPerSec } = useDawStore(
     useShallow((s) => ({ project: s.project, zoomPxPerSec: s.zoomPxPerSec })),
@@ -118,7 +130,17 @@ export function useSelectionAnchor(
       excludeRef.current = header;
       withinRef.current = header ? root : null;
       setExcluded(header);
-      setNode(found);
+      const next: AnchorObservation =
+        found === null || !found.isConnected
+          ? { kind: "hidden", node: found }
+          : typeof IntersectionObserver === "undefined"
+            ? { kind: "fallback", node: found }
+            : { kind: "observed", node: found };
+      setAnchor((previous) =>
+        previous.node === next.node && previous.kind === next.kind
+          ? previous
+          : next,
+      );
     };
     resolve();
     if (!enabled || !root || typeof MutationObserver === "undefined") return;
@@ -138,24 +160,23 @@ export function useSelectionAnchor(
   }, [root, selection, enabled, project, zoomPxPerSec]);
 
   useLayoutEffect(() => {
-    if (!node || !node.isConnected) {
-      setVisible(false);
-      return;
-    }
-    if (typeof IntersectionObserver === "undefined") {
-      setVisible(true);
-      return;
-    }
+    if (anchor.kind !== "observed") return;
+    let active = true;
     const observer = new IntersectionObserver(
       (entries) => {
+        if (!active) return;
         const last = entries.at(-1);
-        if (last) setVisible(last.isIntersecting);
+        if (last)
+          setIntersection({ owner: anchor, visible: last.isIntersecting });
       },
       { threshold: 0 },
     );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [node]);
+    observer.observe(anchor.node);
+    return () => {
+      active = false;
+      observer.disconnect();
+    };
+  }, [anchor]);
 
   const moves = useMemo(
     () => [zoomPxPerSec, node, selection, excluded, root],
@@ -166,6 +187,12 @@ export function useSelectionAnchor(
     ref,
     exclusion: { ref: excludeRef, withinRef },
     moves,
-    visible: enabled && node !== null && visible,
+    visible:
+      enabled &&
+      (anchor.kind === "fallback" ||
+        (anchor.kind === "observed" &&
+          intersection !== null &&
+          intersection.owner === anchor &&
+          intersection.visible)),
   };
 }

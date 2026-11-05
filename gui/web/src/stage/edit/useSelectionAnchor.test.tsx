@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { useSelectionAnchor } from "./useSelectionAnchor";
 
 describe("comment selection anchor", () => {
@@ -80,5 +80,135 @@ describe("words selection header exclusion", () => {
     );
     expect(result.current.ref.current).toBe(word);
     expect(result.current.moves).toContain(next);
+  });
+});
+
+afterEach(() => vi.unstubAllGlobals());
+
+function queuedObservers() {
+  const observers: QueuedObserver[] = [];
+  class QueuedObserver implements IntersectionObserver {
+    readonly root = null;
+    readonly rootMargin = "0px";
+    readonly scrollMargin = "0px";
+    readonly thresholds = [0];
+    readonly delay = 0;
+    readonly trackVisibility = false;
+    disconnected = false;
+    target: Element | null = null;
+    private readonly callback: IntersectionObserverCallback;
+
+    constructor(callback: IntersectionObserverCallback) {
+      this.callback = callback;
+      observers.push(this);
+    }
+    observe(target: Element) {
+      this.target = target;
+    }
+    unobserve() {}
+    disconnect() {
+      this.disconnected = true;
+    }
+    takeRecords(): IntersectionObserverEntry[] {
+      return [];
+    }
+    deliverQueuedEntry(visible: boolean) {
+      if (!this.target) throw new Error("No observed target");
+      this.callback(
+        [
+          {
+            target: this.target,
+            time: 0,
+            isIntersecting: visible,
+            boundingClientRect: new DOMRect(),
+            intersectionRect: new DOMRect(),
+            rootBounds: null,
+            intersectionRatio: visible ? 1 : 0,
+          },
+        ],
+        this,
+      );
+    }
+  }
+  vi.stubGlobal("IntersectionObserver", QueuedObserver);
+  return observers;
+}
+
+function connectedPins() {
+  const root = document.createElement("div");
+  root.innerHTML = `<span data-hit-kind="comment" data-hit-id="a"></span><span data-hit-kind="comment" data-hit-id="b"></span>`;
+  document.body.append(root);
+  return root;
+}
+
+describe("selection anchor observation ownership", () => {
+  it("waits for a replacement node's own observation", () => {
+    const observers = queuedObservers();
+    const root = connectedPins();
+    const view = renderHook(
+      ({ id }) => useSelectionAnchor(root, { kind: "comment", id }, true),
+      {
+        initialProps: { id: "a" },
+      },
+    );
+    try {
+      expect(observers).toHaveLength(1);
+      act(() => observers[0]!.deliverQueuedEntry(true));
+      expect(view.result.current.visible).toBe(true);
+      view.rerender({ id: "b" });
+      expect(observers).toHaveLength(2);
+      expect(view.result.current.visible).toBe(false);
+      act(() => observers[1]!.deliverQueuedEntry(true));
+      expect(view.result.current.visible).toBe(true);
+    } finally {
+      view.unmount();
+      root.remove();
+    }
+  });
+
+  it("ignores a retired node's queued observation", () => {
+    const observers = queuedObservers();
+    const root = connectedPins();
+    const view = renderHook(
+      ({ id }) => useSelectionAnchor(root, { kind: "comment", id }, true),
+      {
+        initialProps: { id: "a" },
+      },
+    );
+    try {
+      act(() => observers[0]!.deliverQueuedEntry(true));
+      view.rerender({ id: "b" });
+      expect(observers[0]!.disconnected).toBe(true);
+      act(() => observers[1]!.deliverQueuedEntry(true));
+      expect(view.result.current.visible).toBe(true);
+      act(() => observers[0]!.deliverQueuedEntry(false));
+      expect(view.result.current.visible).toBe(true);
+    } finally {
+      view.unmount();
+      root.remove();
+    }
+  });
+
+  it("keeps the connected no-observer fallback and rejects disabled or disconnected anchors", () => {
+    vi.stubGlobal("IntersectionObserver", undefined);
+    const root = connectedPins();
+    const view = renderHook(
+      ({ enabled }) =>
+        useSelectionAnchor(root, { kind: "comment", id: "a" }, enabled),
+      {
+        initialProps: { enabled: true },
+      },
+    );
+    try {
+      expect(view.result.current.visible).toBe(true);
+      view.rerender({ enabled: false });
+      expect(view.result.current.visible).toBe(false);
+      root.remove();
+      view.rerender({ enabled: true });
+      expect(view.result.current.visible).toBe(false);
+    } finally {
+      view.unmount();
+      root.remove();
+    }
   });
 });
