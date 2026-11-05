@@ -2,6 +2,16 @@ import { describe, expect, it, vi } from "vitest";
 import { listenerSet } from "./listenerSet";
 
 describe("listenerSet", () => {
+  it("supports extracted subscribe and emit without a receiver", () => {
+    const { subscribe, emit } = listenerSet<[number]>();
+    const listener = vi.fn();
+    const unsubscribe = subscribe(listener);
+    emit(7);
+    expect(listener).toHaveBeenCalledExactlyOnceWith(7);
+    unsubscribe();
+    emit(8);
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
   it("passes emit args to every listener, and unsubscribes", () => {
     const l = listenerSet<[string, number]>();
     const a = vi.fn();

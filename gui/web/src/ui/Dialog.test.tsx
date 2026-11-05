@@ -70,6 +70,32 @@ it("pins a footer below the scrolling body", async () => {
 
 afterEach(() => vi.restoreAllMocks());
 
+it("uses the latest close callback and disabled state while remaining open", () => {
+  const first = vi.fn();
+  const next = vi.fn();
+  const view = render(
+    <Dialog open onClose={first} title="Track">
+      <p>Body</p>
+    </Dialog>,
+  );
+  view.rerender(
+    <Dialog open onClose={next} closeDisabled title="Track">
+      <p>Body</p>
+    </Dialog>,
+  );
+  fireEvent.keyDown(window, { key: "Escape" });
+  expect(first).not.toHaveBeenCalled();
+  expect(next).not.toHaveBeenCalled();
+  view.rerender(
+    <Dialog open onClose={next} title="Track">
+      <p>Body</p>
+    </Dialog>,
+  );
+  fireEvent.keyDown(window, { key: "Escape" });
+  expect(next).toHaveBeenCalledOnce();
+  expect(first).not.toHaveBeenCalled();
+});
+
 it("focuses only the innermost of two dialogs opened together", () => {
   const frames: FrameRequestCallback[] = [];
   vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {

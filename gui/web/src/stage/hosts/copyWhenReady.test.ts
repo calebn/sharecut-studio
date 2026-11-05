@@ -39,7 +39,8 @@ describe("copyWhenReady", () => {
     const write = vi.fn(() => {
       throw new Error("NotAllowedError");
     });
-    setClipboard({ write, writeText: vi.fn() });
+    const writeText = vi.fn();
+    setClipboard({ write, writeText });
     let copying!: Promise<void>;
     expect(() => {
       copying = copyWhenReady(Promise.resolve("https://x.test/r/a"));
@@ -56,7 +57,8 @@ describe("copyWhenReady", () => {
     }
     vi.stubGlobal("ClipboardItem", FakeItem);
     const write = vi.fn().mockResolvedValue(undefined);
-    setClipboard({ write, writeText: vi.fn() });
+    const writeText = vi.fn();
+    setClipboard({ write, writeText });
     let arrive!: (value: string) => void;
     const copying = copyWhenReady(
       new Promise<string>((resolve) => {
@@ -70,15 +72,16 @@ describe("copyWhenReady", () => {
     expect(await (await item.items["text/plain"]).text()).toBe(
       "https://x.test/r/a",
     );
-    expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
+    expect(writeText).not.toHaveBeenCalled();
   });
 
   it("rejects when the text never comes", async () => {
-    setClipboard({ writeText: vi.fn() });
+    const writeText = vi.fn();
+    setClipboard({ writeText });
     await expect(
       copyWhenReady(Promise.reject(new Error("mint failed"))),
     ).rejects.toThrow("mint failed");
-    expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
+    expect(writeText).not.toHaveBeenCalled();
   });
 
   it("rejects when the browser refuses the write", async () => {

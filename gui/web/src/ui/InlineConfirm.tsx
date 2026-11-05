@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef } from "react";
+import { useStableCallback } from "../utils/useStableCallback";
 import { Button } from "./Button";
 import { registerInlineConfirm } from "./inlineConfirmGate";
 
@@ -33,8 +34,7 @@ export function InlineConfirm({
   const promptId = useId();
   const keepRef = useRef<HTMLButtonElement>(null);
 
-  const onKeepRef = useRef(onKeep);
-  onKeepRef.current = onKeep;
+  const keep = useStableCallback(onKeep);
 
   useEffect(() => {
     keepRef.current?.focus();
@@ -44,8 +44,8 @@ export function InlineConfirm({
     if (disabled) {
       return;
     }
-    return registerInlineConfirm(() => onKeepRef.current());
-  }, [disabled]);
+    return registerInlineConfirm(keep);
+  }, [disabled, keep]);
 
   return (
     <div role="group" aria-labelledby={promptId} className="ui-inline-confirm">

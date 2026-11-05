@@ -56,7 +56,7 @@ describe("record room commands", () => {
     }
     writeText.mockReset();
     writeText.mockResolvedValue(undefined);
-    vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
     setChrome({ shareRequested: false });
     useDawStore.setState({ stage: "record" });

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { SANITY_POLL_MS } from "../state/syncCadence";
+import { useStableCallback } from "../utils/useStableCallback";
 
 export { SANITY_POLL_MS } from "../state/syncCadence";
 
@@ -30,10 +31,8 @@ export function useFileMetaPoll(
   const sizeRef = useRef<number | null | undefined>(null);
   const seqRef = useRef<number | undefined>(undefined);
   const busyRef = useRef(false);
-  const onChangeRef = useRef(onChange);
-  const fetchMetaRef = useRef(fetchMeta);
-  onChangeRef.current = onChange;
-  fetchMetaRef.current = fetchMeta;
+  const notifyChange = useStableCallback(onChange);
+  const fetchCurrentMeta = useStableCallback(fetchMeta);
 
   useEffect(() => {
     if (!enabled) {
@@ -52,7 +51,7 @@ export function useFileMetaPoll(
       }
       busyRef.current = true;
       try {
-        const meta = await fetchMetaRef.current();
+        const meta = await fetchCurrentMeta();
         if (cancelled || meta.exists === false) {
           return;
         }
@@ -72,7 +71,7 @@ export function useFileMetaPoll(
           seqRef.current = meta.server_seq;
         }
         if (changed) {
-          await onChangeRef.current(meta);
+          await notifyChange(meta);
         }
       } catch {
         // Transient
@@ -104,5 +103,5 @@ export function useFileMetaPoll(
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onFocus);
     };
-  }, [enabled, intervalMs, ownershipKey]);
+  }, [enabled, intervalMs, ownershipKey, fetchCurrentMeta, notifyChange]);
 }
