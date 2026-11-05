@@ -53,7 +53,7 @@ test("unsure words: Looks right, Undo, Fix text, and the last word closes the ch
       const stage = page.locator(".rv-stage");
       await expect(words(page)).toHaveCount(2);
       await expect(
-        page.getByText("Check the transcript", { exact: true }),
+        page.getByText("Check the transcript before cutting", { exact: true }),
       ).toBeVisible();
 
       await words(page).filter({ hasText: "hamlet" }).click();
@@ -81,7 +81,7 @@ test("unsure words: Looks right, Undo, Fix text, and the last word closes the ch
       await words(page).filter({ hasText: "hamlet" }).click();
       await stage.getByRole("button", { name: "Looks right" }).click();
       await expect(
-        page.getByText("Check the transcript", { exact: true }),
+        page.getByText("Check the transcript before cutting", { exact: true }),
       ).toHaveCount(0);
     },
     undefined,

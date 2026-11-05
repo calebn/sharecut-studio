@@ -456,23 +456,23 @@ describe("attention rows", () => {
     ).toEqual([
       {
         id: "a",
-        title: "TrimClip: Envelope changed since this edit was queued",
+        title: "Your change: Envelope changed since this edit was queued",
         detail: "Edit the change and submit it again.",
       },
       {
         id: "b",
-        title: "SetEnvelope: Unclear",
+        title: "Your change: Unclear",
         detail:
           "Ask the project owner to inspect History before trying this action again.",
       },
       {
         id: "c",
-        title: "SetEnvelope: Missing",
+        title: "Your change: Missing",
         detail: "Ask the project owner to check the project.",
       },
       {
         id: "d",
-        title: "SetEnvelope: Dropped",
+        title: "Your change: Dropped",
         detail: "The app will retry this same command automatically.",
       },
     ]);
@@ -503,25 +503,25 @@ describe("attention rows", () => {
     ).toEqual([
       {
         id: "a",
-        title: "UndoHistory: Unclear",
+        title: "Your change: Unclear",
         detail: "Inspect History before trying this action again.",
         inspectHistory: true,
       },
       {
         id: "b",
-        title: `Approve: ${TRANSCRIPT_REFINE_REFUSAL}`,
+        title: `Your approval: ${TRANSCRIPT_REFINE_REFUSAL}`,
         detail: "",
         refineReason: TRANSCRIPT_REFINE_REFUSAL,
       },
       {
         id: "c",
-        title: `TrimClip: ${TRANSCRIPT_REFINE_REFUSAL}`,
+        title: `Your change: ${TRANSCRIPT_REFINE_REFUSAL}`,
         detail: "",
         refineReason: TRANSCRIPT_REFINE_REFUSAL,
       },
       {
         id: "d",
-        title: "SetEnvelope: Envelope changed since this edit was queued",
+        title: "Your change: Envelope changed since this edit was queued",
         detail: "Fix the project file first; this change was not saved.",
       },
     ]);

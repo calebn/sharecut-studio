@@ -33,7 +33,7 @@ sync timing.
 
 `gui/web/e2e-compat/phone-chrome.spec.ts` holds the real transcript-status
 response until the phone queue shows three suggestions, then releases it unchanged.
-The Keep/Undo case waits for **Check the transcript** and **Suggestions, 3** in
+The Keep/Undo case waits for **Check the transcript before cutting** and **Suggestions, 3** in
 the queue sheet before selecting the `0:04` suggestion. It checks one successful
 Keep command and one toast Undo. Positions must read `2 of 4`, then `3 of 4`,
 then `2 of 4`, with the restored card time and focus. Saved pending-edit records

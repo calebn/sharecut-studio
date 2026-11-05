@@ -603,3 +603,19 @@ button.sys-queue-row--decided {
   flex: none;
   color: var(--color-text-secondary);
 }
+
+.sys-decision-keys {
+  margin: 0;
+  padding: var(--space-2) var(--space-5);
+  border-block-start: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+  line-height: 1.25;
+  opacity: 0;
+}
+
+.sys-decision-keys[data-intro="true"],
+.sys-decision:hover .sys-decision-keys,
+.sys-decision:focus-within .sys-decision-keys {
+  opacity: 1;
+}

@@ -221,7 +221,7 @@ export const GuestConflicts: Story = {
       view.getByRole("group", { name: "Needs attention. 2 conflicts" }),
     ).toBeInTheDocument();
     await expect(
-      view.getByText("TrimClip: Clip was already trimmed"),
+      view.getByText("Your change: Clip was already trimmed"),
     ).toBeInTheDocument();
     await userEvent.click(view.getByRole("button", { name: "Dismiss all" }));
     await expect(args.attention?.onDismissAll).toHaveBeenCalled();
@@ -314,7 +314,7 @@ export const HostRefineWaiver: Story = {
   },
   play: async ({ canvasElement }) => {
     const view = within(canvasElement);
-    await expect(view.getByText(/^Approve:/)).toBeVisible();
+    await expect(view.getByText(/^Your approval:/)).toBeVisible();
     await userEvent.click(
       view.getByRole("button", { name: "Waive with reason" }),
     );

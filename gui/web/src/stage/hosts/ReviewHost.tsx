@@ -4,6 +4,7 @@ import { runPointerCommand } from "../../commands/pointer";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import { ModelGateDialog } from "../../models";
 import { ReviewStage } from "../../review/ReviewStage";
+import { undecidedOf } from "../../review/reviewQueueModel";
 import { isGuestSession, isShareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { useStageScroll } from "../useStageScroll";
@@ -65,6 +66,7 @@ function ReviewHostAdapter({
           guest && project?.meta.hydration?.transcript_words !== false,
         )}
         onDeliver={guest ? undefined : () => runPointerCommand("stage.deliver")}
+        undecided={undecidedOf(queue.stageProps.items)}
         scrollRef={scrollRef}
       />
       <ModelGateDialog gate={find.gate} />

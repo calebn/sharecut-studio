@@ -265,7 +265,7 @@ test("Keep decides one queue item at a thumb-sized target, then one Undo brings 
       await expect(
         queue
           .locator(".rv-check")
-          .getByText("Check the transcript", { exact: true }),
+          .getByText("Check the transcript before cutting", { exact: true }),
       ).toBeVisible();
       await expect(
         queue.getByRole("button", { name: "Suggestions, 3", exact: true }),
