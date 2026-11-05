@@ -143,7 +143,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 
 **5. Overview strip**
 - A whole-episode miniature with the playhead, viewport rectangle, selection band and ticks (suggestions, comments, find matches, chapters, session bands).
-- Heights: 16 (phone Edit, Script focus), 32 (Review context, above the Player bar), 48 (Project card, static), 64 (expanded Player).
+- Heights: 16 (phone Edit, Script focus), 32 (Review context, under the action dock and above the Player bar), 48 (Project card, static), 64 (expanded Player).
 - Used: SCR-LAYOUT-TEXT, SCR-PHONE-TIMELINE, the SCR-REVIEW context strip, SCR-HOME cards, the expanded Player.
 - Replaces: Overview strip (edit), Review context strip, Project card waveform strip, Player card scrubber (rdp).
 - Story: `System/OverviewStrip`: Edit16, Review32, CardStatic48, Player64.
@@ -807,7 +807,7 @@ Every place the specs disagreed or collided with each other or with themselves. 
 | L2 | Click on the title: rename (D) versus menu (E) | Menu, whose first row is a rename field. Double-click the title renames directly | One button, both jobs, and nothing lost |
 | L3 | Phone player: 56 px Player bar (E) versus a 64 px mini player with Comment (D) | 56 px, and Comment moves into the Player on every device | One Player. Comment at the moment is the listener's most likely act |
 | L4 | Guest Player card (D) versus phone Player sheet (E) | One Player, expanded form | The same object |
-| L5 | Review context strip at 56 (D) versus Overview strip (E) | Overview strip, 32 px, above the Player | One miniature |
+| L5 | Review context strip at 56 (D) versus Overview strip (E) | Overview strip, 32 px, in the Review stage under the action dock and above the Player | One miniature |
 | L6 | Status cover (D) versus Room cover (R) versus Empty state (E); glyph 48 versus 64; phone text in the lower half versus at 30 % | One Cover. 48 px glyph. Text from 30 %, primary pinned in the thumb zone | Reads well and reaches well |
 | L7 | Loading: 4 s (E, R) versus 8 s (D) | 300 ms blank, then skeleton, then 4 s "Still loading…" with Retry | Two of the three specs agreed. Sooner honesty |
 | L8 | Toast 5 s (E) versus 6 s (D) versus 10 s (R, End session) | 8 s, and 60 s when the toast offers Undo. End session keeps the server's 10 s window in the Record notices row | Enough to reach Undo. The long form only where the server's window applies |
