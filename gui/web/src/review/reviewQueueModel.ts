@@ -8,7 +8,6 @@ import { KIND_META } from "../system/decisionKinds";
 import { formatSeconds } from "../system/seconds";
 import { verbOf } from "../system/verbDisplay";
 import type { VerbId } from "../system/verbs";
-import { DocumentCommand } from "../types/documentCommands.generated";
 import { TRANSCRIPT_REFINE_REFUSAL } from "../utils/apiError";
 import { plural } from "../utils/format";
 
@@ -347,13 +346,13 @@ export type ReviewAttention = {
 };
 
 const COMMAND_NOUNS: Readonly<Record<string, string>> = {
-  [DocumentCommand.ApproveEdits]: "Your approval",
-  [DocumentCommand.RejectEdits]: "Your rejection",
-  [DocumentCommand.AddComment]: "Your comment",
-  [DocumentCommand.AddReply]: "Your reply",
-  [DocumentCommand.DeleteComment]: "Your comment removal",
-  [DocumentCommand.CutRange]: "Your cut",
-  [DocumentCommand.MoveClips]: "Your move",
+  ApproveEdits: "Your approval",
+  RejectEdits: "Your rejection",
+  AddComment: "Your comment",
+  AddReply: "Your reply",
+  DeleteComment: "Your comment removal",
+  CutRange: "Your cut",
+  MoveClips: "Your move",
 };
 
 /** The queued command in plain words; the wire name never reaches the screen. */

@@ -552,7 +552,7 @@ for (const viewport of Object.keys(VIEWPORTS) as ViewportName[]) {
     await openTimeline(page, viewport);
     await stageTab(page, "review").click();
     if (viewport === "phone")
-      await page.locator(".rv-phone-top button").click();
+      await page.locator(".rv-phone-top button").first().click();
     const row = page
       .locator('.sys-queue-row[data-kind="comment"]')
       .filter({ hasText: "Dee at 20" });
