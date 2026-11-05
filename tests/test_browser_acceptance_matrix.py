@@ -20,7 +20,7 @@ COMPAT_CONFIG = REPO_ROOT / "gui" / "web" / "playwright.compat.config.ts"
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "test.yml"
 CI_SUITES_JOB = "frontend-e2e-suites"
 CI_GATE_JOB = "frontend-e2e"
-CI_PLAN_GATE = "needs.changes.outputs.gui == 'true'"
+CI_E2E_GATE = "needs.changes.outputs.e2e == 'true'"
 CI_MATRIX = "${{ fromJSON(needs.changes.outputs.e2e-matrix) }}"
 MAIN_COMMAND = "npm run test:e2e"
 MAIN_SHARD_RE = re.compile(r"^npm run test:e2e -- --shard=(\d+)/(\d+)$")
@@ -229,7 +229,7 @@ def _spec_path(cell: str) -> str:
 def _frontend_e2e_steps() -> list[dict]:
     job = load_github_yaml(WORKFLOW)["jobs"][CI_SUITES_JOB]
     assert not job.get("continue-on-error"), f"{CI_SUITES_JOB} must fail the build"
-    assert job["if"] == CI_PLAN_GATE, f"{CI_SUITES_JOB} may only skip by the plan"
+    assert job["if"] == CI_E2E_GATE, f"{CI_SUITES_JOB} may only skip by the plan"
     return job["steps"]
 
 
@@ -321,8 +321,9 @@ def test_ci_runs_both_browser_suites_on_main_and_nightly_on_every_passing_engine
     job = workflow["jobs"][CI_SUITES_JOB]
     assert job["strategy"]["fail-fast"] is True
     assert job["strategy"]["matrix"] == CI_MATRIX
-    include = planned_include("push")
-    assert planned_include("schedule") == include
+    include = planned_include("schedule")
+    assert planned_include("workflow_dispatch") == include
+    assert planned_include("push") == [], "a push to main must not start browser suites"
     engines = compat_ci_engines(include)
     shards = [
         MAIN_SHARD_RE.match(entry["command"])
@@ -481,7 +482,9 @@ def test_pull_requests_run_every_webkit_compat_spec_in_complete_shards() -> None
     include = planned_include("pull_request", ("gui/web/src/App.tsx",))
     compat = [entry for entry in include if entry["name"].startswith("compat")]
     assert [entry["name"] for entry in include if entry not in compat] == [
-        entry["name"] for entry in planned_include("push") if not entry["name"].startswith("compat")
+        entry["name"]
+        for entry in planned_include("schedule")
+        if not entry["name"].startswith("compat")
     ]
     shard_re = re.compile(rf"^{COMPAT_COMMAND} -- --project=webkit --shard=(\d+)/(\d+)$")
     shards = [shard_re.match(entry["command"]) for entry in compat]
@@ -498,7 +501,7 @@ def test_pull_requests_run_every_webkit_compat_spec_in_complete_shards() -> None
 
 
 def test_ci_compat_inventory_has_no_missing_or_duplicate_cases() -> None:
-    engines = compat_ci_engines(planned_include("push"))
+    engines = compat_ci_engines(planned_include("schedule"))
     projects = compat_projects(COMPAT_CONFIG.read_text(encoding="utf-8"))
     checks = [
         (spec, check) for spec, source in compat_specs().items() for check in spec_checks(source)
@@ -649,7 +652,9 @@ def test_ci_gate_requires_the_plan_and_every_planned_suite(
     assert step["shell"] == "bash"
     assert step["env"] == {
         "PLAN": "${{ needs.changes.result }}",
-        "GUI": "${{ needs.changes.outputs.gui }}",
+        "GUI": "${{ needs.changes.outputs."
+        + ("e2e" if suite_name == CI_SUITES_JOB else "gui")
+        + " }}",
         "SUITES": "${{ needs." + suite_name + ".result }}",
     }
     result = subprocess.run(

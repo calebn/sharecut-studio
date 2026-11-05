@@ -321,7 +321,7 @@ for placement rules and the CI `playwright-reports-<name>` timing artifacts
 (`main-1of4` ... `main-4of4`, `compat-chromium`, `compat-webkit`; PRs run
 `compat-webkit-1of2` and `compat-webkit-2of2` instead of the two compat
 engines). Each suite's live project is shared, so Playwright requires one
-worker. CI shards the main suite and, on `main` and nightly, runs the full
+worker. CI shards the main suite and, on the nightly schedule, runs the full
 compatibility suite once per engine on separate runners. Both suites retry a
 failed test once in CI. The required `frontend-e2e` check requires every
 planned suite to succeed, and PRs that change nothing GUI-facing skip the

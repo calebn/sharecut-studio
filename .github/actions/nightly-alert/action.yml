@@ -1,0 +1,43 @@
+name: Nightly alert
+description: Open or update the nightly-failure issue when a scheduled run failed, and close it once the run is green again
+inputs:
+  workflow:
+    description: Workflow name shown in the issue
+    required: true
+  results:
+    description: Space-separated results of every job the run waited on
+    required: true
+  token:
+    description: Token that may write issues
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        WORKFLOW: ${{ inputs.workflow }}
+        RESULTS: ${{ inputs.results }}
+        REPO: ${{ github.repository }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        SHA: ${{ github.sha }}
+      run: |
+        label="nightly-failure"
+        title="Nightly ${WORKFLOW} run failed"
+        gh label create "$label" --repo "$REPO" --color B60205 --description "A scheduled full CI run failed" 2>/dev/null || true
+        open="$(gh issue list --repo "$REPO" --label "$label" --state open --search "\"$title\" in:title" --json number --jq '.[0].number // empty')"
+        case " $RESULTS " in
+          *" failure "* | *" cancelled "*)
+            body="The nightly ${WORKFLOW} run failed at ${SHA}: ${RUN_URL} (job results: ${RESULTS})"
+            if [ -n "$open" ]; then
+              gh issue comment "$open" --repo "$REPO" --body "$body"
+            else
+              gh issue create --repo "$REPO" --label "$label" --title "$title" --body "$body"
+            fi
+            ;;
+          *)
+            if [ -n "$open" ]; then
+              gh issue close "$open" --repo "$REPO" --comment "The nightly ${WORKFLOW} run passed again at ${SHA}: ${RUN_URL}"
+            fi
+            ;;
+        esac

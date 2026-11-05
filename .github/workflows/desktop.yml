@@ -20,8 +20,6 @@ on:
       - "!contracts/progress-richness.json"
       - "!contracts/roll-join-limits.json"
       - "!contracts/test-wait-allowlist.json"
-  push:
-    branches: [main]
   schedule:
     - cron: "23 7 * * *"
   workflow_dispatch:
@@ -253,3 +251,21 @@ jobs:
         run: |
           chmod +x "$PAYLOAD/bin/ffmpeg" "$PAYLOAD/bin/ffprobe"
           python scripts/ffmpeg_payload.py --output "$PAYLOAD" --verify-only
+
+  nightly-alert:
+    needs: [changes, web-dist, desktop-scaffold, desktop-windows-check, pinned-media-windows, ffmpeg-resolver-windows, project-commit-lock-windows, ffmpeg-native-payload, ffmpeg-linux-newer-host]
+    if: ${{ always() && github.event_name == 'schedule' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/nightly-alert
+        with:
+          workflow: desktop
+          results: ${{ join(needs.*.result, ' ') }}
+          token: ${{ secrets.GITHUB_TOKEN }}

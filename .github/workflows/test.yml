@@ -28,6 +28,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       gui: ${{ steps.plan.outputs.gui }}
+      e2e: ${{ steps.plan.outputs.e2e }}
       e2e-matrix: ${{ steps.plan.outputs.e2e-matrix }}
       release-only: ${{ steps.plan.outputs.release-only }}
       pytest: ${{ steps.plan.outputs.pytest }}
@@ -117,7 +118,7 @@ jobs:
   pytest-shard:
     name: pytest-shard (${{ matrix.shard }})
     needs: changes
-    if: needs.changes.result == 'success'
+    if: needs.changes.result == 'success' && needs.changes.outputs.pytest != 'quick'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
@@ -284,7 +285,7 @@ jobs:
           SHARDS: ${{ needs.pytest-shard.result }}
         run: |
           case "$PLAN:$SCOPE:$QUALITY:$SHARDS" in
-            success:full:success:success | success:web:success:success | success:docs:success:success | success:web-docs:success:success | success:release:success:success) exit 0 ;;
+            success:quick:success:skipped | success:full:success:success | success:web:success:success | success:docs:success:success | success:web-docs:success:success | success:release:success:success) exit 0 ;;
             *)
               printf 'Invalid plan or pytest result: %s/%s/%s/%s\n' "$PLAN" "$SCOPE" "$QUALITY" "$SHARDS" >&2
               exit 1
@@ -295,14 +296,14 @@ jobs:
         if: always()
 
       - name: Download pytest reports
-        if: always()
+        if: always() && needs.changes.outputs.pytest != 'quick'
         uses: actions/download-artifact@v8
         with:
           pattern: pytest-reports-*
           path: test-results/
 
       - name: Summarize Python tests
-        if: always()
+        if: always() && needs.changes.outputs.pytest != 'quick'
         continue-on-error: true
         run: |
           for report in test-results/pytest-reports-*/pytest.xml; do
@@ -349,7 +350,7 @@ jobs:
   # required repository merge checks.
   pytest-python-floor:
     needs: changes
-    if: ${{ !cancelled() && github.event.pull_request.draft != true && (needs.changes.result != 'success' || needs.changes.outputs.release-only != '1') }}
+    if: ${{ !cancelled() && github.event.pull_request.draft != true && (needs.changes.result != 'success' || (needs.changes.outputs.release-only != '1' && needs.changes.outputs.pytest != 'quick')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -461,7 +462,7 @@ jobs:
   frontend-e2e-suites:
     name: frontend-e2e-${{ matrix.name }}
     needs: changes
-    if: needs.changes.outputs.gui == 'true'
+    if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
@@ -585,6 +586,24 @@ jobs:
         shell: bash
         env:
           PLAN: ${{ needs.changes.result }}
-          GUI: ${{ needs.changes.outputs.gui }}
+          GUI: ${{ needs.changes.outputs.e2e }}
           SUITES: ${{ needs.frontend-e2e-suites.result }}
         run: *require-planned-suite
+
+  nightly-alert:
+    needs: [changes, pytest-quality, pytest-shard, pytest, pytest-python-floor, frontend-suite, frontend, frontend-e2e-suites, frontend-e2e]
+    if: ${{ always() && github.event_name == 'schedule' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/nightly-alert
+        with:
+          workflow: test
+          results: ${{ join(needs.*.result, ' ') }}
+          token: ${{ secrets.GITHUB_TOKEN }}

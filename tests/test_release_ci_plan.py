@@ -96,6 +96,7 @@ def test_all_ten_committed_files_prove_release(release_repo: Path) -> None:
     result = cp.plan("pull_request", list(FILES), release=proof)
     assert result.outputs() == {
         "gui": "false",
+        "e2e": "false",
         "pytest": "release",
         "release-only": "1",
         "e2e-matrix": '{"include":[]}',
@@ -260,8 +261,20 @@ def test_unverified_release_branch_gets_full_even_for_docs_only() -> None:
     assert (result.gui, result.pytest, result.release_only) == (True, "full", False)
 
 
-@pytest.mark.parametrize("event", ["push", "schedule", "workflow_dispatch"])
-def test_non_pr_is_full_even_with_release_proof(release_repo: Path, event: str) -> None:
+def test_push_is_quick_even_with_release_proof(release_repo: Path) -> None:
+    result = cp.plan("push", list(FILES), release=classify(release_repo))
+    assert (result.gui, result.pytest, result.release_only, len(result.e2e)) == (
+        True,
+        "quick",
+        False,
+        0,
+    )
+
+
+@pytest.mark.parametrize("event", ["schedule", "workflow_dispatch"])
+def test_nightly_and_dispatch_are_full_even_with_release_proof(
+    release_repo: Path, event: str
+) -> None:
     result = cp.plan(event, list(FILES), release=classify(release_repo))
     assert (result.gui, result.pytest, result.release_only, len(result.e2e)) == (
         True,
@@ -559,7 +572,7 @@ def test_advisory_release_guards_run_on_uncertainty_and_stop_on_cancellation() -
         assert checkout["with"]["fetch-depth"] == 0
         assert plan["id"] == "plan" and plan["uses"] == "./.github/actions/ci-plan"
         for job_name, job in workflow["jobs"].items():
-            if job_name != "changes":
+            if job_name not in ("changes", "nightly-alert"):
                 settings[f"{name}/{job_name}"] = job
     test = load_github_yaml(ROOT / ".github/workflows/test.yml")
     settings["test/pytest-python-floor"] = test["jobs"]["pytest-python-floor"]

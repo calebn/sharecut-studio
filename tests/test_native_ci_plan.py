@@ -151,7 +151,12 @@ def test_workflow_inventory_forwarding_roots_and_predicates_match_policy() -> No
     for name in {workload.workflow for workload in native.NATIVE_WORKLOADS}:
         workflow = load_github_yaml(ROOT / ".github/workflows" / name)
         workloads = [workload for workload in native.NATIVE_WORKLOADS if workload.workflow == name]
-        assert set(workflow["jobs"]) == {"changes", *(workload.job for workload in workloads)}
+        alert = {"nightly-alert"} if name == "desktop.yml" else set()
+        assert set(workflow["jobs"]) == {
+            "changes",
+            *(workload.job for workload in workloads),
+            *alert,
+        }
         changes = workflow["jobs"]["changes"]
         assert (
             changes["if"]
@@ -211,7 +216,10 @@ def test_full_event_coverage_and_exact_desktop_exclusions() -> None:
         assert not native.select_native([path]).required
     for name in ("desktop.yml", "registry-backup-windows.yml", "test.yml"):
         events = load_github_yaml(ROOT / ".github/workflows" / name)["on"]
-        assert events["push"] == {"branches": ["main"]}
+        if name == "desktop.yml":
+            assert "push" not in events
+        else:
+            assert events["push"] == {"branches": ["main"]}
         assert events["schedule"] and "workflow_dispatch" in events
         if name == "desktop.yml":
             assert events["pull_request"] == {
