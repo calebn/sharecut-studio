@@ -28,6 +28,10 @@ description: Use for Sharecut repository contributor work, issue implementation,
    that name another repository. Do not create a local copy of that repository layout.
    Native Poteto owns the procedure, delegation, review, feedback, and Shipping.
    Apply this repository's draft-PR and rebase-merge overrides.
+5a. Never edit `docs/design/stages/*` to match the code. Those files are the
+   design. A code/spec gap goes on the spec-deviation list, and a swarm audit lane
+   files a stale-spec finding instead of fixing the spec. Only an owner-approved
+   change may touch them (`Stage-Spec-Approved:` trailer).
 6. Keep the applicable podcast, Impeccable, and product skills active.
    Select the least expensive capable verified runtime model and reasoning effort
    for each role. Follow the operator's model restrictions and assess a specific

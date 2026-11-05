@@ -418,10 +418,8 @@
     {
       "id": "deliver-share-section",
       "when": "Share section on Deliver (review links, record rooms, online sharing status)",
-      "update": "`docs/design/stages/spec-review-deliver.md` (Share), `docs/design/stages/inventory.md`, `docs/host-online-relay.md` when the tunnel states or their copy change",
+      "update": "`docs/host-online-relay.md` when the tunnel states or their copy change (the stage specs are the design and stay as written)",
       "docs": [
-        "docs/design/stages/spec-review-deliver.md",
-        "docs/design/stages/inventory.md",
         "docs/host-online-relay.md"
       ],
       "advisory": {
