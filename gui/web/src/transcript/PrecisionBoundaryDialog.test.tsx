@@ -662,7 +662,9 @@ describe("PrecisionBoundaryDialog", () => {
     await screen.findByRole("spinbutton");
     fireEvent.click(screen.getByRole("button", { name: "Listen proposed" }));
     act(() =>
-      useDawStore.getState().hydrate(props.projectPath, minimalProject()),
+      useDawStore.setState({
+        projectEpoch: useDawStore.getState().projectEpoch + 1,
+      }),
     );
     const input = await screen.findByRole("spinbutton");
     fireEvent.change(input, { target: { value: "0.25" } });
