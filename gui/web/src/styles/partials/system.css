@@ -1487,11 +1487,12 @@ html[data-frame-short] .sys-header-project .sys-header-title {
 /* The end form (Models): a modal side sheet, 420 px, full height on the end edge. A phone gets the
    bottom sheet instead, so this meets desktop and tablet, where the dialog root would otherwise
    raise it from the bottom. */
-html[data-shell] .ui-dialog-root--end:not(.ui-dialog-root--anchored) {
+html:not([data-shell="phone"])
+  .ui-dialog-root--end:not(.ui-dialog-root--anchored) {
   place-items: stretch end;
 }
 
-html[data-shell]
+html:not([data-shell="phone"])
   .ui-dialog-root--end:not(.ui-dialog-root--anchored)
   > .command-palette-panel.sys-sheet-end {
   inline-size: min(26.25rem, 100vw);
@@ -1503,7 +1504,7 @@ html[data-shell]
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  html[data-shell]
+  html:not([data-shell="phone"])
     .ui-dialog-root--end:not(.ui-dialog-root--anchored)
     > .command-palette-panel.sys-sheet-end {
     animation: fade-in var(--motion-panel) var(--motion-ease-out) both;
