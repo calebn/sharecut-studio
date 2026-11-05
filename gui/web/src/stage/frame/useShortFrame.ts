@@ -95,15 +95,17 @@ function measureFit(frame: HTMLElement): FrameFitSizes {
  * attribute for their bottom offset. Returns whether the frame is folded, for
  * the header controls that exist only then.
  */
-export function useShortFrame(frame: RefObject<HTMLElement | null>): boolean {
+export function useShortFrame(
+  frameRef: RefObject<HTMLElement | null>,
+): boolean {
   const [short, setShort] = useState(false);
-  const header = () => frame.current?.querySelector(".stage-frame-header");
-  const player = () => frame.current?.querySelector(".stage-frame-player");
+  const header = () => frameRef.current?.querySelector(".stage-frame-header");
+  const player = () => frameRef.current?.querySelector(".stage-frame-player");
   // What a stage shows changes the fit (the Edit rows exist only on Edit) with
   // no resize of the frame, the header or the Player to report it.
   const shown = useDawStore((s) => `${s.stage}:${s.editSurface}`);
   const update = () => {
-    const el = frame.current;
+    const el = frameRef.current;
     if (!el) return;
     const folds = frameFolds(measureFit(el));
     const root = document.documentElement;
@@ -111,9 +113,9 @@ export function useShortFrame(frame: RefObject<HTMLElement | null>): boolean {
     if (folds) root.dataset[FOLD_ATTRIBUTE] = "";
     else delete root.dataset[FOLD_ATTRIBUTE];
   };
-  useResizeObserver([frame, header, player], update);
+  useResizeObserver([frameRef, header, player], update);
   // biome-ignore lint/correctness/useExhaustiveDependencies: `shown` is the trigger.
-  useLayoutEffect(update, [frame, shown]);
+  useLayoutEffect(update, [frameRef, shown]);
   useEffect(
     () => () => {
       delete document.documentElement.dataset[FOLD_ATTRIBUTE];
