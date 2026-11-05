@@ -34,7 +34,7 @@ describe("StageLoading", () => {
     expect(
       screen.queryAllByText(/Loading/).filter((el) => !el.matches(".sr-only")),
     ).toHaveLength(0);
-    expect(screen.queryByText("Still loading.")).toBeNull();
+    expect(screen.queryByText("Still loading…")).toBeNull();
   });
 
   it("keeps the Stage bar inert and announces the wait only after the blank", () => {
@@ -96,18 +96,18 @@ describe("StageLoading", () => {
     ).toBeNull();
   });
 
-  it("offers Try again after 8 s", () => {
+  it("offers Retry after 4 s", () => {
     const onRetry = vi.fn();
     render(<StageLoading stage="prepare" shell="desktop" onRetry={onRetry} />);
     act(() => {
-      vi.advanceTimersByTime(7999);
+      vi.advanceTimersByTime(3999);
     });
-    expect(screen.queryByText("Still loading.")).toBeNull();
+    expect(screen.queryByText("Still loading…")).toBeNull();
     act(() => {
       vi.advanceTimersByTime(1);
     });
-    expect(screen.getByText("Still loading.")).toBeInTheDocument();
-    screen.getByRole("button", { name: "Try again" }).click();
+    expect(screen.getByText("Still loading…")).toBeInTheDocument();
+    screen.getByRole("button", { name: "Retry" }).click();
     expect(onRetry).toHaveBeenCalledOnce();
   });
 

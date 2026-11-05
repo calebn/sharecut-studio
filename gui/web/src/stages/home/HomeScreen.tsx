@@ -44,7 +44,7 @@ import {
 import { NOT_AN_EPISODE, type OpenOtherProps } from "./OpenOther";
 import { useSecondsLeft } from "./useSecondsLeft";
 
-export const SETUP_DISMISSED_KEY = "sharecut.bootstrap.skip";
+export const SETUP_DISMISSED_KEY = "sharecut.setup.notNow";
 
 const SWITCH_BLOCKED =
   "Return to the recording project and stop the room before switching projects.";

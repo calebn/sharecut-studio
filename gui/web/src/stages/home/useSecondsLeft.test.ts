@@ -1,4 +1,4 @@
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { estimateSecondsLeft, useSecondsLeft } from "./useSecondsLeft";
 
@@ -44,6 +44,20 @@ describe("useSecondsLeft", () => {
     rerender({ bytes: 100, total: 1000 });
     expect(result.current).toBe(90);
     rerender({ bytes: null, total: null });
+    expect(result.current).toBeNull();
+  });
+
+  it("drops the estimate when the bytes stop moving", () => {
+    const { result, rerender } = renderHook(
+      ({ bytes }) => useSecondsLeft(bytes, 1000),
+      { initialProps: { bytes: 0 } },
+    );
+    vi.setSystemTime(10_000);
+    rerender({ bytes: 100 });
+    expect(result.current).toBe(90);
+    act(() => {
+      vi.advanceTimersByTime(10_000);
+    });
     expect(result.current).toBeNull();
   });
 });

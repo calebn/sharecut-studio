@@ -1,4 +1,4 @@
-"""Forced-aligner model catalog, cache detection and download (download is opt-in).
+"""Forced-aligner model catalog, cache detection and download (Get ready and a bare bootstrap download it).
 
 Sibling of ``whisper.py``: a small catalog of pinned Hugging Face
 snapshots for the CTC forced-alignment pass (``engines/word_align.py``,
@@ -43,6 +43,8 @@ class WordAlignerModel:
     id: str
     label: str
     size: str
+    # the byte count behind `size`, approximate: no pin records file sizes
+    size_bytes: int
     description: str
     hf_repo: str
     revision: str
@@ -71,6 +73,7 @@ WORD_ALIGNER_CATALOG: tuple[WordAlignerModel, ...] = (
         id="onnx-base",
         label="wav2vec2 base (ONNX, English)",
         size="~360 MB",
+        size_bytes=360_000_000,
         description="CTC forced aligner picked by the #641 word-boundary benchmark.",
         hf_repo="onnx-community/wav2vec2-base-960h-ONNX",
         revision="729c1a6730fb549c20a1c73a3d3f96f11020225e",
