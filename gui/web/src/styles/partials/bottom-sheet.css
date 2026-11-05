@@ -33,14 +33,6 @@ html[data-shell="phone"] .bottom-sheet-root {
   top: calc(var(--app-header-height-phone) + env(safe-area-inset-top));
 }
 
-/* The compact strip stacks above the shell's rows, so the status or nav row
-   beside it never draws over it, and its slot clips it, so its own slide
-   (entering, stowing) never draws over them (#1051 round 4). */
-.bottom-sheet-root:has(.bottom-sheet--compact) {
-  z-index: var(--z-sheet-docked);
-  overflow: clip;
-}
-
 .bottom-sheet-scrim {
   position: absolute;
   inset: 0;
@@ -162,29 +154,6 @@ html[data-shell="phone"] .bottom-sheet-root {
   padding-block: var(--space-1);
 }
 
-/* Compact inspector expanded on a phone-sized screen: half the slot at most,
-   never the taller modifier share, and short enough to leave the transport,
-   ruler, marker lane and one coarse-pointer lane (104 px) above it, so the
-   selection stays in view (the inspector scrolls inside). */
-.bottom-sheet--compact.bottom-sheet--half,
-.bottom-sheet--compact.bottom-sheet--half:has(.modifier-inspector) {
-  height: max(
-    min(50%, 26.25rem, 100% - var(--sheet-lane-clearance)),
-    min(100%, 9rem)
-  );
-}
-
-/* The compact inspector keeps its name, Collapse and Close in reach. A new
-   selection reveals its fields by scrolling the sheet, which used to carry
-   Collapse out of view (#1051 round 4); focusAndReveal reveals fields below
-   this pinned chrome. */
-.bottom-sheet--compact .bottom-sheet-chrome {
-  position: sticky;
-  top: 0;
-  z-index: var(--z-local-chrome);
-  background: var(--color-bg-overlay);
-}
-
 /* The swipeable drawer (#1051 round 4b): the header drags the sheet between
    its detents, under the finger, and the grabber pill says so. The page
    never scrolls under that drag; the body keeps its own scroll. */
@@ -233,12 +202,6 @@ html[data-shell="phone"] .bottom-sheet-root {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .bottom-sheet-root .bottom-sheet--compact {
-    transition:
-      translate var(--motion-panel) var(--motion-ease-out),
-      opacity var(--motion-panel) var(--motion-ease-out);
-  }
-
   /* A released drawer decelerates into its detent; reduced motion lands it
      at once. The transform's time comes first: useDrawerSwipe reads it. */
   .bottom-sheet-root .bottom-sheet[data-drawer-motion="settle"] {
@@ -376,11 +339,6 @@ html[data-shell="phone"] .bottom-sheet-root {
   margin-inline-start: auto;
 }
 
-.bottom-sheet--compact .bottom-sheet-header {
-  position: relative;
-  padding-block: var(--space-1);
-}
-
 /* A slot this short (a small phone, or one the keyboard shrank) pads every
    sheet's header as the strip does, so the form under it keeps its rows. */
 @container sheet-slot (max-height: 28rem) {
@@ -407,59 +365,6 @@ html[data-shell="phone"] .bottom-sheet-root {
   .bottom-sheet .bottom-sheet-header {
     padding-block: 0;
   }
-}
-
-/* A phone held sideways (636x390) at large text leaves the sheet a slot under
-   20rem tall, with no room for a title line of its own beside its header actions;
-   let the title shrink so they share a row (#1762). This holds at the half
-   and full sizes in any slot under 20rem: a small portrait phone at large
-   text, or a slot the keyboard has shrunk. A taller slot keeps the 8rem title
-   line. */
-@container sheet-slot (max-height: 20rem) {
-  .bottom-sheet--compact .bottom-sheet-title {
-    flex-basis: 4rem;
-  }
-}
-
-.bottom-sheet--compact .bottom-sheet-header-actions {
-  flex: 0 1 auto;
-  max-inline-size: 100%;
-  flex-wrap: wrap;
-}
-
-html[data-frame-short] .bottom-sheet--compact .bottom-sheet-title {
-  flex: 1 1 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.compact-history-controls {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.compact-history-controls .compact-history-button {
-  position: relative;
-}
-
-.history-controls-icon--hidden {
-  visibility: hidden;
-}
-
-.compact-history-caption {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-primary);
-  font-size: var(--font-size-small);
-  line-height: 1.1;
-  pointer-events: none;
 }
 
 .bottom-sheet-body {
@@ -505,8 +410,7 @@ html[data-frame-short] .bottom-sheet--compact .bottom-sheet-title {
 /* Select range armed on a tablet: the sheet holds only In, Out, the tracks and
    its two buttons, so it is as tall as they are and the lanes the range is
    dragged across stay in view (#1793). */
-html[data-shell="tablet"]
-  .bottom-sheet--half:not(.bottom-sheet--compact):has(.range-numeric) {
+html[data-shell="tablet"] .bottom-sheet--half:has(.range-numeric) {
   height: auto;
   max-block-size: min(70%, 22rem);
 }
@@ -522,46 +426,6 @@ html[data-shell="tablet"]
 .bottom-sheet:has(.range-actions--sheet) .bottom-sheet-body > :not(.inspector) {
   flex: 0 0 auto;
   min-height: auto;
-  overflow: visible;
-}
-
-.compact-feedback-slot:has(.ui-toast) {
-  flex: 0 0 auto;
-  padding: var(--space-3) var(--space-4);
-}
-
-.bottom-sheet--compact,
-.bottom-sheet--compact:has(.modifier-inspector) {
-  overflow: hidden;
-}
-
-.bottom-sheet--compact .bottom-sheet-body,
-.bottom-sheet--compact:has(.modifier-inspector) .bottom-sheet-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
-}
-
-.bottom-sheet--compact .bottom-sheet-body > *,
-.bottom-sheet--compact .bottom-sheet-body .inspector,
-.bottom-sheet--compact .bottom-sheet-body .modifier-body {
-  flex: 0 0 auto;
-  min-height: auto;
-  height: auto;
-  overflow: visible;
-}
-
-.bottom-sheet--compact.bottom-sheet--chrome-scrolls {
-  overflow-x: hidden;
-  overflow-y: auto;
-}
-
-.bottom-sheet--compact.bottom-sheet--chrome-scrolls .bottom-sheet-chrome {
-  position: static;
-}
-
-.bottom-sheet--compact.bottom-sheet--chrome-scrolls .bottom-sheet-body {
-  flex: 0 0 auto;
   overflow: visible;
 }
 

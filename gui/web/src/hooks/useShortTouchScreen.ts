@@ -1,4 +1,4 @@
-import { SHORT_SCREEN_MQ } from "../stage/edit/useCompactInspector";
+import { SHORT_SCREEN_MQ } from "../stage/edit/keepTargetClear";
 import {
   mediaQuerySubscription,
   useMediaQueryStore,

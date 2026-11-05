@@ -1009,7 +1009,7 @@ enforced-by:
 - gui/web/src/stage/edit/InspectorHost.test.tsx::steps through its detents from the grip and closes from Close
 - gui/web/src/system/InspectorSheet.test.tsx::dismisses when let go more than 24 px below the dock
 - gui/web/src/stage/edit/useInspectorOpen.test.tsx::clears the selection when the phone sheet is dismissed
-- gui/web/src/stage/edit/useInspectorOpen.test.tsx::uses the drawer only on the phone's lanes
+- gui/web/src/stage/edit/useInspectorOpen.test.tsx::opens the same sheet for a timeline target on every shell
 - gui/web/e2e/inspector-sheet-drag.spec.ts::a 667x375 phone shell gets the Inspector sheet and no column
 supersedes: D-inspector-column
 -->
@@ -1296,7 +1296,7 @@ evidence:
 - #1205 consolidated owner directive selects corrected Architect seat 2
 - 667 by 360 with root 32 has a 256px sheet slot; full labels and long feedback cannot coexist
 enforced-by:
-- gui/web/src/ui/BottomSheet.test.tsx::puts supplied flow content and fields in one body below chrome
+- gui/web/src/ui/BottomSheet.test.tsx::keeps the draft, the elements and the focus when the phone rotates and back
 - gui/web/src/ui/Toast.test.tsx::preserves remaining time while clipped and through presentation changes
 - make test-web-e2e
 -->
