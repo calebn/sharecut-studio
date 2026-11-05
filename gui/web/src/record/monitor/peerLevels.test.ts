@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RecordSnapshot } from "../types";
 import {
   createPeerLevelTap,
+  PEER_LEVEL_INTERVAL_MS,
   type PeerLevelTap,
   readPeerLevels,
   sameLevels,
@@ -229,6 +230,107 @@ describe("useRecordMonitor levels", () => {
       vi.advanceTimersByTime(300);
     });
     expect(Object.keys(result.current.levels)).toEqual(["p_anneke"]);
+  });
+
+  it("clears the last peer after its departure grace and waits a full poll before a returning level", async () => {
+    const { useRecordMonitor } = await import("./useRecordMonitor");
+    const { result } = renderHook(() =>
+      useRecordMonitor({
+        enabled: true,
+        localId: "p_me",
+        role: "guest",
+        snapshot: {
+          session_id: "s1",
+          participants: [],
+        } as unknown as RecordSnapshot,
+        localStream: null,
+        muted: false,
+        send: vi.fn(),
+      }),
+    );
+    peaks.set("host", 0.5);
+    const mesh = meshes[0];
+    act(() => {
+      mesh.onRemoteTrack("p_host", { id: "host" });
+    });
+    act(() => {
+      vi.advanceTimersByTime(150);
+    });
+    expect(result.current.levels.p_host).toBeGreaterThan(0);
+    act(() => {
+      mesh.onRemoteGone("p_host");
+    });
+    act(() => {
+      vi.advanceTimersByTime(4);
+    });
+    expect(result.current.remoteCount).toBe(1);
+    expect(result.current.levels.p_host).toBeGreaterThan(0);
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(result.current.remoteCount).toBe(0);
+    expect(result.current.levels).toEqual({});
+    expect(vi.getTimerCount()).toBe(0);
+    act(() => {
+      mesh.onRemoteTrack("p_host", { id: "host" });
+    });
+    expect(result.current.levels).toEqual({});
+    act(() => {
+      vi.advanceTimersByTime(PEER_LEVEL_INTERVAL_MS - 1);
+    });
+    expect(result.current.levels).toEqual({});
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(result.current.levels.p_host).toBeGreaterThan(0);
+    expect(meshes).toHaveLength(1);
+  });
+
+  it("retains the published level when a peer reconnects before departure completes", async () => {
+    const { useRecordMonitor } = await import("./useRecordMonitor");
+    const { result } = renderHook(() =>
+      useRecordMonitor({
+        enabled: true,
+        localId: "p_me",
+        role: "guest",
+        snapshot: {
+          session_id: "s1",
+          participants: [],
+        } as unknown as RecordSnapshot,
+        localStream: null,
+        muted: false,
+        send: vi.fn(),
+      }),
+    );
+    const mesh = meshes[0];
+    peaks.set("old", 0.5);
+    peaks.set("new", 0.1);
+    act(() => {
+      mesh.onRemoteTrack("p_host", { id: "old" });
+    });
+    act(() => {
+      vi.advanceTimersByTime(150);
+    });
+    const published = result.current.levels;
+    act(() => {
+      mesh.onRemoteGone("p_host");
+    });
+    act(() => {
+      vi.advanceTimersByTime(4);
+    });
+    act(() => {
+      mesh.onRemoteTrack("p_host", { id: "new" });
+    });
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(result.current.remoteCount).toBe(1);
+    expect(result.current.levels).toBe(published);
+    act(() => {
+      vi.advanceTimersByTime(145);
+    });
+    expect(result.current.levels.p_host).toBeLessThan(published.p_host);
+    expect(meshes).toHaveLength(1);
   });
 
   it("clears the levels when the monitor is switched off", async () => {
