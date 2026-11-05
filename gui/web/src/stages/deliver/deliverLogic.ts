@@ -1,7 +1,7 @@
-import type { ModelGate } from "../../models";
 import type { StatusRowState } from "../../system/StatusRow";
 import { formatSeconds } from "../../system/seconds";
 import type { StageId } from "../../types/stage";
+import type { ModelNeeded } from "../../utils/apiError";
 import { type ClipWord, normaliseWords } from "./clipTrim";
 
 export type FormatId = string;
@@ -246,7 +246,7 @@ export type TimeSpan = { start: number; end: number };
 
 export type ExportState =
   | { phase: "never" }
-  | { phase: "needs-model"; model: string; size: string }
+  | { phase: "needs-model"; model: ModelNeeded }
   | {
       phase: "running";
       progress: number | null;
@@ -585,6 +585,5 @@ export type ExportOptions = {
   edits?: string;
   target?: string;
   onFormats?: (keys: readonly FormatId[]) => void;
-  gate?: ModelGate;
   onExportAgain?: () => void;
 };

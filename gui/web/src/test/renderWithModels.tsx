@@ -1,5 +1,5 @@
-import { type RenderResult, render } from "@testing-library/react";
-import type { ReactElement, ReactNode } from "react";
+import { act, type RenderResult, render } from "@testing-library/react";
+import { type ReactElement, type ReactNode, useMemo, useState } from "react";
 import { vi } from "vitest";
 import type { BootstrapJobSnapshot, BootstrapStatus } from "../api";
 import { overlay, toolsOf } from "../models/controller";
@@ -52,6 +52,43 @@ export function renderWithModels(
   const api = modelsApi(fixture);
   const result = render(ui, { wrapper: modelsWrapper(api) });
   return Object.assign(result, { api });
+}
+
+/**
+ * Like `renderWithModels`, but `land(id)` marks a model installed afterwards, as a finished
+ * download does, so a test can watch a step resume by itself. `refresh` and `download` stay the
+ * same spies throughout.
+ */
+export function renderWithLanding(
+  ui: ReactElement,
+  fixture: ModelsFixture,
+): RenderResult & { api: ModelsApi; land: (id: string) => void } {
+  const base = modelsApi(fixture);
+  let mark: (id: string) => void = () => undefined;
+  function Landing({ children }: { children: ReactNode }) {
+    const [landed, setLanded] = useState<string[]>([]);
+    mark = (id) => setLanded((ids) => [...ids, id]);
+    const api = useMemo<ModelsApi>(
+      () => ({
+        ...base,
+        models:
+          base.models?.map((m) =>
+            landed.includes(m.id)
+              ? { ...m, state: { kind: "installed" } as const }
+              : m,
+          ) ?? null,
+      }),
+      [landed],
+    );
+    return (
+      <ModelsContext.Provider value={api}>{children}</ModelsContext.Provider>
+    );
+  }
+  const result = render(ui, { wrapper: Landing });
+  return Object.assign(result, {
+    api: base,
+    land: (id: string) => act(() => mark(id)),
+  });
 }
 
 export const WHISPER_CATALOG = [

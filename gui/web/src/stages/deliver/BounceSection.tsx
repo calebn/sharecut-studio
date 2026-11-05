@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { ModelGateHint, ModelGatePanel } from "../../models";
+import { ModelNeedRow } from "../../models";
 import { Skeleton } from "../../system/Skeleton";
 import { StatusRow } from "../../system/StatusRow";
 import { Button, InlineError, SegmentedControl, ToggleButton } from "../../ui";
@@ -8,7 +8,6 @@ import {
   BOUNCE_RUNNING_REASON,
   type BounceOptions,
   type BounceSource,
-  type BounceState,
   bounceBlocker,
 } from "./bounceLogic";
 import { DeliverSection } from "./DeliverSection";
@@ -17,8 +16,6 @@ type Props = {
   options: BounceOptions;
   state?: "ready" | "loading";
 };
-
-const IDLE: BounceState = { phase: "idle" };
 
 const SOURCES: readonly { id: BounceSource; label: string }[] = [
   { id: "entire", label: "Entire mix" },
@@ -38,7 +35,6 @@ export function BounceSection({ options, state: pageState = "ready" }: Props) {
     fixedRange,
     rangeIsRunning = false,
     onClearRange,
-    gate,
     blockedReason,
     onBounce,
     onCancel,
@@ -47,10 +43,10 @@ export function BounceSection({ options, state: pageState = "ready" }: Props) {
     onFocused,
   } = options;
   const button = useRef<HTMLButtonElement>(null);
-  const gatePanel = useRef<HTMLDivElement>(null);
+  const needPanel = useRef<HTMLDivElement>(null);
   const clearRange = useRef<HTMLButtonElement>(null);
-  const asking = gate?.prompt != null;
-  const state = asking ? IDLE : run;
+  const state = run;
+  const asking = state.phase === "needs-model";
   const running = state.phase === "running";
   const blocker = bounceBlocker(
     choices,
@@ -62,7 +58,9 @@ export function BounceSection({ options, state: pageState = "ready" }: Props) {
 
   useEffect(() => {
     if (!asking) return;
-    const first = gatePanel.current?.querySelector("button");
+    const first = needPanel.current?.querySelector<HTMLButtonElement>(
+      'button:not([aria-label="Manage models"])',
+    );
     first?.scrollIntoView?.({ block: "center" });
     first?.focus();
   }, [asking]);
@@ -100,9 +98,9 @@ export function BounceSection({ options, state: pageState = "ready" }: Props) {
         A quick mix of the project, written to export/bounces/ without
         mastering.
       </p>
-      {gate?.prompt ? (
-        <div ref={gatePanel}>
-          <ModelGatePanel gate={gate} />
+      {state.phase === "needs-model" ? (
+        <div ref={needPanel}>
+          <ModelNeedRow model={state.model} />
         </div>
       ) : null}
       {asking ? null : (
@@ -189,17 +187,14 @@ export function BounceSection({ options, state: pageState = "ready" }: Props) {
         </>
       ) : null}
       {state.phase === "failed" ? (
-        <>
-          <StatusRow
-            state="failed"
-            title="Bounce failed"
-            detail={state.cause}
-            action={
-              onAgain ? { label: "Try again", onAction: onAgain } : undefined
-            }
-          />
-          {gate ? <ModelGateHint gate={gate} actionLabel="Bounce" /> : null}
-        </>
+        <StatusRow
+          state="failed"
+          title="Bounce failed"
+          detail={state.cause}
+          action={
+            onAgain ? { label: "Try again", onAction: onAgain } : undefined
+          }
+        />
       ) : null}
       {state.phase === "cancelled" ? (
         <StatusRow

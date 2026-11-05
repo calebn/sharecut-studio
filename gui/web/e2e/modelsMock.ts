@@ -325,10 +325,9 @@ export async function expectNoHorizontalScroll(page: Page): Promise<void> {
   expect(overflow).toBeLessThanOrEqual(0);
 }
 
-export function row(scope: Page | Locator, label: string): Locator {
-  return scope.locator("li.model-row").filter({
-    hasText: label,
-  });
+/** A Model need row of the Models sheet, found by the capability it names ("Transcription"). */
+export function row(scope: Page | Locator, capability: string): Locator {
+  return scope.locator(".sys-need").filter({ hasText: capability });
 }
 
 export async function expectTouchTargets(scope: Locator): Promise<void> {

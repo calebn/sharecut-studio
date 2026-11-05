@@ -1,8 +1,13 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ModelGate } from "../../models";
-import { registryModels } from "../../test/modelsStory";
+import {
+  defaultModelsWrapper,
+  modelStatus,
+  modelsApi,
+  modelsWrapper,
+  registryRows,
+} from "../../test/renderWithModels";
 import { BOUNCE_DEFAULTS, type BounceOptions } from "./bounceLogic";
 import { DeliverStage, type DeliverStageProps } from "./DeliverStage";
 import {
@@ -52,7 +57,6 @@ function handlers() {
     onPlayClip: vi.fn(),
     onFindClips: vi.fn(),
     onOpenClipInEdit: vi.fn(),
-    onGetModel: vi.fn(),
   };
 }
 
@@ -81,7 +85,7 @@ function props(extra: Partial<Harness> = {}): Harness {
   };
 }
 
-function setup(extra: Partial<Harness> = {}) {
+function setup(extra: Partial<Harness> = {}, wrapper = defaultModelsWrapper) {
   const all = props(extra);
   const { link, onCopyLink, onRefreshMix, ...rest } = all;
   const view = render(
@@ -97,6 +101,7 @@ function setup(extra: Partial<Harness> = {}) {
         })
       }
     />,
+    { wrapper },
   );
   const stage = () => view.container.querySelector(".dv-stage") as HTMLElement;
   return { ...view, all, stage };
@@ -578,10 +583,15 @@ describe("states", () => {
     expect(onRetry).toHaveBeenCalledOnce();
   });
 
-  it("asks for the model before exporting", async () => {
-    const { all } = setup({ exportState: NEEDS_MODEL });
-    await userEvent.click(screen.getByRole("button", { name: "Get" }));
-    expect(all.onGetModel).toHaveBeenCalledOnce();
+  it("asks for the model before exporting, in the export section, and downloads the size it needs", async () => {
+    const api = modelsApi({ status: modelStatus(registryRows()) });
+    setup({ exportState: NEEDS_MODEL }, modelsWrapper(api));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Get the transcription model" }),
+    );
+    expect(api.download).toHaveBeenCalledWith(["whisper"], {
+      whisperModel: "large-v3-turbo",
+    });
   });
 });
 
@@ -1178,8 +1188,6 @@ describe("the model row", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("1.6 GB")).toBeInTheDocument();
     missing.unmount();
-    setup({ exportState: NEEDS_MODEL, onGetModel: undefined });
-    expect(screen.queryByRole("button", { name: "Get" })).toBeNull();
   });
 });
 
@@ -1553,8 +1561,6 @@ describe.each(["desktop", "phone"] as const)(
         exportState: NEEDS_MODEL,
         link: { url: null, noMix: true },
       });
-      await userEvent.click(screen.getByRole("button", { name: "Get" }));
-      expect(app.all.onGetModel).toHaveBeenCalledOnce();
       await userEvent.click(screen.getByRole("button", { name: "Change" }));
       expect(app.all.onChangeFolder).toHaveBeenCalledOnce();
       await userEvent.click(
@@ -3118,7 +3124,8 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Whole episode",
             "Part…",
             "Change",
-            "Get",
+            "Manage models",
+            "Get the transcription model",
             "Export (disabled)",
             "Play from Cold open",
             "Remove Cold open",
@@ -3167,7 +3174,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "needs-you",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Needs the transcription model1.6 GBGetExportNeeds the transcription model.Chapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to the version current when you copy itCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Needs the transcription model1.6 GBManageGetExportNeeds the transcription model.Chapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to the version current when you copy itCopy0:00 / 52:001515AB",
         },
         "desktop: with a link": {
           "buttons": [
@@ -3832,7 +3839,8 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Whole episode",
             "Part…",
             "Change",
-            "Get",
+            "Manage models",
+            "Get the transcription model",
             "Pin to this version (disabled)",
             "Copy listen link",
             "Play from Cold open",
@@ -3881,7 +3889,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "needs-you",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Needs the transcription model1.6 GBGetListen linkMade when you copy itPinned to the version current when you copy itCopyChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExportNeeds the transcription model.0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Needs the transcription model1.6 GBManageGetListen linkMade when you copy itPinned to the version current when you copy itCopyChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExportNeeds the transcription model.0:00 / 52:001515AB",
         },
         "phone: with a link": {
           "buttons": [
@@ -4945,72 +4953,11 @@ describe("host export options", () => {
     expect(all.onExport).not.toHaveBeenCalled();
   });
 
-  const missingModelGate = () => {
-    const view = registryModels({ "speaker-ecapa": { kind: "missing" } })[3];
-    const accept = vi.fn();
-    const gate: ModelGate = {
-      run: () => Promise.reject(new Error("unused")),
-      prompt: {
-        need: { id: view.id },
-        label: view.label,
-        purpose: view.purpose,
-        size: view.size,
-        phase: "ask",
-        view,
-        blockedReason: undefined,
-      },
-      declined: null,
-      accept,
-      decline: vi.fn(),
-      cancelDownload: vi.fn(),
-      openModels: vi.fn(),
-      reset: vi.fn(),
-    };
-    return { view, accept, gate };
-  };
-
-  it("shows the model prompt in place of the model row, and its decline hint after a failure", async () => {
-    const { view, accept, gate } = missingModelGate();
-    const { unmount } = setup({
-      exportState: {
-        phase: "needs-model",
-        model: "Speaker model",
-        size: "25 MB",
-      },
-      exportOptions: { gate },
-    });
-    expect(screen.queryByText("Needs the Speaker model")).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "Download" }));
-    expect(accept).toHaveBeenCalledOnce();
-    unmount();
-
-    setup({
-      exportState: {
-        phase: "failed",
-        cause: "Speaker model is not downloaded.",
-      },
-      exportOptions: {
-        gate: {
-          ...gate,
-          prompt: null,
-          declined: { id: view.id, label: view.label },
-        },
-      },
-    });
-    expect(screen.getByText(/Export will ask again/)).toBeInTheDocument();
-  });
-
-  it("moves focus to the model prompt's Download when it appears", () => {
-    const { gate } = missingModelGate();
-    setup({
-      exportState: {
-        phase: "needs-model",
-        model: "Speaker model",
-        size: "25 MB",
-      },
-      exportOptions: { gate },
-    });
-    expect(screen.getByRole("button", { name: "Download" })).toHaveFocus();
+  it("moves focus to the Model need row's Get when it appears", () => {
+    setup({ exportState: NEEDS_MODEL });
+    expect(
+      screen.getByRole("button", { name: "Get the transcription model" }),
+    ).toHaveFocus();
   });
 
   it("scrolls the running export into view on the phone when it starts, not when it is already running", () => {

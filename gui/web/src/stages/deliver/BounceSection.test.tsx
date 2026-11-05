@@ -1,9 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { ModelGate } from "../../models";
 import { expectNoA11yViolations } from "../../test/a11y";
-import { registryModels } from "../../test/modelsStory";
 import { BounceSection } from "./BounceSection";
 import { BOUNCE_DEFAULTS, type BounceOptions } from "./bounceLogic";
 
@@ -23,19 +21,15 @@ function options(over: Partial<BounceOptions> = {}): BounceOptions {
 
 const button = (name: string | RegExp) => screen.getByRole("button", { name });
 
-function gate(over: Partial<ModelGate> = {}): ModelGate {
-  return {
-    run: vi.fn(),
-    prompt: null,
-    declined: null,
-    accept: vi.fn(),
-    decline: vi.fn(),
-    cancelDownload: vi.fn(),
-    openModels: vi.fn(),
-    reset: vi.fn(),
-    ...over,
-  };
-}
+const SPEAKER = {
+  id: "speaker-ecapa",
+  variant: null,
+  label: "Speaker model",
+  purpose: "speaker recognition and split",
+  size: "~25 MB",
+  sizeBytes: null,
+  state: "missing",
+};
 
 describe("BounceSection", () => {
   it("offers the three sources with their counts and reports each choice", async () => {
@@ -293,32 +287,20 @@ describe("BounceSection", () => {
     );
   });
 
-  it("replaces the form and the run state with the model prompt while it asks", () => {
-    const view = registryModels({ "speaker-ecapa": { kind: "missing" } })[3];
+  it("replaces the form with the Model need row while the bounce waits on a model", () => {
     render(
       <BounceSection
         options={options({
-          state: { phase: "running", progress: null, detail: "Starting…" },
-          gate: gate({
-            prompt: {
-              need: { id: view.id },
-              label: view.label,
-              purpose: view.purpose,
-              size: view.size,
-              phase: "ask",
-              view,
-              blockedReason: undefined,
-            },
-          }),
+          state: { phase: "needs-model", model: SPEAKER },
         })}
       />,
     );
     expect(screen.queryByRole("button", { name: "Bounce" })).toBeNull();
-    expect(screen.queryByText("Bouncing")).toBeNull();
     expect(screen.queryByRole("group", { name: "Source" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Download" })).toBeTruthy();
+    expect(screen.getByText("Needs the speaker model")).toBeTruthy();
+    expect(screen.getByText("25 MB")).toBeTruthy();
     expect(document.activeElement).toBe(
-      screen.getByRole("button", { name: "Download" }),
+      screen.getByRole("button", { name: "Get the speaker model" }),
     );
   });
 
@@ -368,28 +350,16 @@ describe("BounceSection", () => {
     expect(onFocused).toHaveBeenCalledTimes(1);
   });
 
-  it("focuses the model prompt once, not on each phase change", () => {
-    const view = registryModels({ "speaker-ecapa": { kind: "missing" } })[3];
-    const asking = (phase: "ask" | "failed") =>
-      options({
-        gate: gate({
-          prompt: {
-            need: { id: view.id },
-            label: view.label,
-            purpose: view.purpose,
-            size: view.size,
-            phase,
-            view,
-            blockedReason: undefined,
-          } as never,
-        }),
-      });
-    const { rerender } = render(<BounceSection options={asking("ask")} />);
-    expect(document.activeElement).toBe(screen.getAllByRole("button")[0]);
+  it("focuses the Model need row once, not again when the page re-renders", () => {
+    const asking = options({ state: { phase: "needs-model", model: SPEAKER } });
+    const { rerender } = render(<BounceSection options={asking} />);
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Get the speaker model" }),
+    );
     const elsewhere = document.createElement("button");
     document.body.append(elsewhere);
     elsewhere.focus();
-    rerender(<BounceSection options={asking("failed")} />);
+    rerender(<BounceSection options={{ ...asking }} />);
     expect(document.activeElement).toBe(elsewhere);
     elsewhere.remove();
   });

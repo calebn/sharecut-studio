@@ -2132,7 +2132,7 @@
         "command": "models.open",
         "gui": [
           "home.models",
-          "ModelsDialog"
+          "ModelsSheet"
         ],
         "cli": "podcast setup",
         "mcp": [

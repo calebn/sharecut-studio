@@ -14,7 +14,7 @@ import { desktopCloseGuardArmed } from "../../desktop/useDesktopCloseGuard";
 import { HelpDialog } from "../../home/HelpDialog";
 import { useWindowFileDrop } from "../../hooks/useWindowFileDrop";
 import { ingestIntoNewProject, pickAudioFiles } from "../../ingest/ingestFiles";
-import { ModelsDialog, useModels } from "../../models";
+import { ModelsSheet, useModels } from "../../models";
 import { CheatsheetDialogs } from "../../stage/dialogs/CheatsheetDialogs";
 import { HostMcpDialog } from "../../stage/dialogs/HostMcpDialog";
 import { useDawStore } from "../../state/dawStore";
@@ -162,9 +162,9 @@ export function HomeScreen() {
   const { mcpOpen, helpOpen, modelsOpen } = useDaw((s) => ({
     mcpOpen: s.chrome.hostMcpDialogOpen,
     helpOpen: s.chrome.helpDialogOpen,
-    modelsOpen: s.chrome.modelsDialogOpen,
+    modelsOpen: s.chrome.modelsSheetOpen,
   }));
-  const { setHostMcpDialogOpen, setHelpDialogOpen, setModelsDialogOpen } =
+  const { setHostMcpDialogOpen, setHelpDialogOpen, setModelsSheetOpen } =
     useDawStore.getState();
   const openPalette = useDawStore.getState().setCommandPaletteOpen;
   const busy = useRef(false);
@@ -474,7 +474,7 @@ export function HomeScreen() {
         onRecord={onRecord}
         onOpenOther={() => void pick()}
         onGetReady={getReady}
-        onChooseModels={() => setModelsDialogOpen(true)}
+        onChooseModels={() => setModelsSheetOpen(true)}
         onCancelSetup={() => void models.cancel()}
         onRetrySetup={() =>
           setup?.state === "check-error" ||
@@ -489,7 +489,7 @@ export function HomeScreen() {
           setHintShown(false);
         }}
         onHelp={() => openPalette(true)}
-        onModels={() => setModelsDialogOpen(true)}
+        onModels={() => setModelsSheetOpen(true)}
         onConnectAgent={() => setHostMcpDialogOpen(true)}
       />
       <CheatsheetDialogs scope="home" />
@@ -498,9 +498,9 @@ export function HomeScreen() {
         onClose={() => setHostMcpDialogOpen(false)}
         hasProject={false}
       />
-      <ModelsDialog
+      <ModelsSheet
         open={modelsOpen}
-        onClose={() => setModelsDialogOpen(false)}
+        onClose={() => setModelsSheetOpen(false)}
       />
       <HelpDialog open={helpOpen} onClose={() => setHelpDialogOpen(false)} />
     </>
