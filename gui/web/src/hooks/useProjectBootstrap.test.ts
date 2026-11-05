@@ -202,7 +202,7 @@ describe("sequenced project bootstrap", () => {
     await waitFor(() => expect(hook.result.current.error).toBe("old failure"));
     hook.rerender({ enabled: false });
     expect(hook.result.current.error).toBeNull();
-    expect(hook.result.current.recovering).toBe(false);
+    expect(hook.result.current.retrying).toBe(false);
     vi.mocked(loadDocumentState).mockResolvedValue({
       server_seq: 0,
       state_token: token,

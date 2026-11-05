@@ -103,9 +103,7 @@ export function useProjectBootstrap(
           if (cancelled || !isCurrentDocumentScope(scope)) return;
           applyDocumentSnapshot(shell, { scope });
           setRead((current) =>
-            current.owner === owner
-              ? { ...current, retrying: false }
-              : current,
+            current.owner === owner ? { ...current, retrying: false } : current,
           );
           return;
         } catch (e: unknown) {

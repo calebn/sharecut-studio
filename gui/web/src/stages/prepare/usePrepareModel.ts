@@ -6,6 +6,7 @@ import { ingestFiles, pickAudioFiles } from "../../ingest/ingestFiles";
 import { canIngestMedia, canManageProjects } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { mediaKeyOf } from "../../state/jobMedia";
+import type { TrackView } from "../../types/project";
 import { errorMessage } from "../../utils/apiError";
 import { getByPath } from "../../utils/configPath";
 import { isPipelineKindJob, isPipelineRunning } from "../../utils/pipeline";
@@ -81,6 +82,7 @@ function usePrepareFocus(trackId: string | null, ready: boolean): void {
 }
 
 const NO_ROWS: ReadonlySet<ReadyRowId> = new Set();
+const NO_TRACKS: readonly TrackView[] = [];
 
 export function usePrepareModel(): PrepareModel {
   const {
@@ -142,7 +144,7 @@ export function usePrepareModel(): PrepareModel {
   });
   const sourceState = usePrepareSources({
     projectPath,
-    tracks: allTracks ?? [],
+    tracks: allTracks ?? NO_TRACKS,
     activityJob,
     isPlaying,
   });
