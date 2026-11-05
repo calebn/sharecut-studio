@@ -11,6 +11,10 @@ import {
   pendingEditView,
   sampleTrack,
 } from "../../test/fixtures";
+import {
+  FakeResizeObserver,
+  stubResizeObserver,
+} from "../../test/resizeObserver";
 import { stubViewportShell } from "../../test/viewportShell";
 import { EditWorkspace } from "./EditWorkspace";
 import { InspectorHost } from "./InspectorHost";
@@ -315,6 +319,141 @@ describe("the I key", () => {
 });
 
 describe("the Inspector sheet on the phone", () => {
+  it.each([
+    { room: 300, detent: "Full height" },
+    { room: 0, detent: "Half height" },
+    { room: 600, detent: "Half height" },
+  ])(
+    "fits the initial $room lane before any animation frame or observer report",
+    async ({ room, detent }) => {
+      stubViewportShell("phone");
+      stubResizeObserver();
+      const raf = vi.fn(() => 1);
+      vi.stubGlobal("requestAnimationFrame", raf);
+      const lane = document.createElement("div");
+      Object.defineProperty(lane, "clientHeight", { get: () => room });
+      document.body.append(lane);
+      const offset = vi
+        .spyOn(HTMLElement.prototype, "offsetParent", "get")
+        .mockImplementation(function (this: HTMLElement) {
+          return this.classList.contains("sys-inspector") ? lane : null;
+        });
+      try {
+        render(<EditWorkspace />);
+        await inspect();
+        expect(
+          screen.getByRole("slider", { name: "Sheet height" }),
+        ).toHaveAttribute("aria-valuetext", detent);
+        expect(FakeResizeObserver.of(lane).targets).toContain(lane);
+        if (room > 0 && room < 420 / 0.92) {
+          expect(
+            within(
+              screen.getByRole("dialog", { name: "Inspector" }),
+            ).queryByRole("group", { name: "Edit actions" }),
+          ).toBeNull();
+        } else {
+          expect(
+            within(screen.getByRole("dialog", { name: "Inspector" })).getByRole(
+              "group",
+              { name: "Edit actions" },
+            ),
+          ).toBeInTheDocument();
+        }
+      } finally {
+        offset.mockRestore();
+        lane.remove();
+      }
+    },
+  );
+
+  it("keeps a user-picked detent through short-lane resize fitting", async () => {
+    stubViewportShell("phone");
+    stubResizeObserver();
+    let room = 600;
+    const lane = document.createElement("div");
+    Object.defineProperty(lane, "clientHeight", { get: () => room });
+    document.body.append(lane);
+    const offset = vi
+      .spyOn(HTMLElement.prototype, "offsetParent", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        return this.classList.contains("sys-inspector") ? lane : null;
+      });
+    try {
+      render(<EditWorkspace />);
+      await inspect();
+      const grip = screen.getByRole("slider", { name: "Sheet height" });
+      fireEvent.keyDown(grip, { key: "Home" });
+      expect(grip).toHaveAttribute("aria-valuetext", "Dock");
+      room = 300;
+      act(() => FakeResizeObserver.of(lane).fire(lane));
+      expect(grip).toHaveAttribute("aria-valuetext", "Dock");
+    } finally {
+      offset.mockRestore();
+      lane.remove();
+    }
+  });
+
+  it("reacquires the phone lane on StrictMode replay and restores focus through close and reopen", async () => {
+    stubViewportShell("phone");
+    stubResizeObserver();
+    const lane = document.createElement("div");
+    Object.defineProperty(lane, "clientHeight", { get: () => 300 });
+    document.body.append(lane);
+    const offset = vi
+      .spyOn(HTMLElement.prototype, "offsetParent", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        return this.classList.contains("sys-inspector") ? lane : null;
+      });
+    const view = render(
+      <StrictMode>
+        <EditWorkspace />
+      </StrictMode>,
+    );
+    const from = opener();
+    try {
+      await inspect();
+      expect(
+        screen.getByRole("dialog", { name: "Inspector" }),
+      ).toContainElement(document.activeElement as HTMLElement);
+      expect(
+        screen.getByRole("slider", { name: "Sheet height" }),
+      ).toHaveAttribute("aria-valuetext", "Full height");
+      expect(
+        FakeResizeObserver.all.filter((observer) =>
+          observer.targets.includes(lane),
+        ),
+      ).toHaveLength(1);
+      fireEvent.click(screen.getByRole("button", { name: "Close" }));
+      expect(from).toHaveFocus();
+      expect(
+        FakeResizeObserver.all.every(
+          (observer) => !observer.targets.includes(lane),
+        ),
+      ).toBe(true);
+      await inspect();
+      expect(
+        screen.getByRole("dialog", { name: "Inspector" }),
+      ).toContainElement(document.activeElement as HTMLElement);
+      expect(
+        FakeResizeObserver.all.filter((observer) =>
+          observer.targets.includes(lane),
+        ),
+      ).toHaveLength(1);
+      view.unmount();
+      expect(from).toHaveFocus();
+      expect(
+        FakeResizeObserver.all.every(
+          (observer) => !observer.targets.includes(lane),
+        ),
+      ).toBe(true);
+    } finally {
+      view.unmount();
+      offset.mockRestore();
+      from.remove();
+      lane.remove();
+    }
+  });
+
   it("returns focus to the opener when a new selection replaces the one it opened for", async () => {
     stubViewportShell("phone");
     render(<EditWorkspace />);

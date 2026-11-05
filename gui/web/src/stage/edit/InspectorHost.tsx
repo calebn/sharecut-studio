@@ -217,24 +217,35 @@ function Phone({
   const chosen = useRef(false);
   const box = useRef<HTMLDivElement>(null);
   const [lanes, setLanes] = useState<HTMLElement | null>(null);
-  useLayoutEffect(() => {
-    const parent =
-      box.current?.querySelector<HTMLElement>(".sys-inspector")?.offsetParent;
-    setLanes(parent instanceof HTMLElement ? parent : null);
-  }, []);
-  const fit = useCallback(() => {
-    const room = lanes?.clientHeight ?? 0;
+  const fit = useCallback((lane: HTMLElement | null) => {
+    const room = lane?.clientHeight ?? 0;
     const short = room * SHEET_FULL < DOCK_ROOM_PX;
     setTight(short);
     if (short && room > 0 && !chosen.current) setDetent("full");
-  }, [lanes]);
-  useLayoutEffect(fit, [fit]);
-  useResizeObserver(lanes, fit);
+  }, []);
+  const attachBox = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (!node) return;
+      box.current = node;
+      const parent =
+        node.querySelector<HTMLElement>(".sys-inspector")?.offsetParent;
+      const lane = parent instanceof HTMLElement ? parent : null;
+      fit(lane);
+      setLanes(lane);
+      return () => {
+        if (box.current !== node) return;
+        box.current = null;
+        setLanes((current) => (current === lane ? null : current));
+      };
+    },
+    [fit],
+  );
+  useResizeObserver(lanes, () => fit(lanes));
   const dockShown = !(detent === "full" && tight);
   const sections = useBodySections(sheet.rangeActionsInSheet, dockShown);
   useInspectorFocus(box, true);
   return (
-    <div ref={box} className="edit-inspector-slot">
+    <div ref={attachBox} className="edit-inspector-slot">
       <InspectorSheet
         form="phone"
         {...heading}
