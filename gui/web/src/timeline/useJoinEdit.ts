@@ -8,8 +8,7 @@ import {
   useState,
 } from "react";
 import { setClipJoin } from "../api";
-import { joinLengthMaxMs } from "../edit/fadeLimits";
-import { joinLengthMs } from "../edit/joinRender";
+import { appliedJoinLength } from "../edit/joinRender";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
@@ -85,17 +84,8 @@ export function useJoinEdit({
   );
   const editable =
     canApplyPass12(projectPath, guestMode, shareCapabilities) && !rolling;
-  const max = joinLengthMaxMs(
-    {
-      durationSec: left.source_end - left.source_start,
-      fadeInMs: left.fade_in_ms,
-    },
-    { durationSec: right.source_end - right.source_start },
-    trackFadeMaxMs,
-  );
-  const mode = joinModeOf(right),
-    min = mode === "crossfade" ? 1 : 0;
-  const saved = Math.min(max, Math.max(min, joinLengthMs(left, right)));
+  const mode = joinModeOf(right);
+  const { min, max, saved } = appliedJoinLength(left, right, trackFadeMaxMs);
   const [state, setState] = useState<JoinEditState>({ kind: "idle" });
   const stateRef = useRef(state);
   const update = useCallback((next: JoinEditState) => {

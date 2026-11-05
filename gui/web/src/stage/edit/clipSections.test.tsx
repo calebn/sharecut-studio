@@ -388,11 +388,59 @@ describe("clip join", () => {
     );
   });
 
-  it("does not commit a length from the empty field with the arrow keys", async () => {
+  it("shows the applied length with its value and text", () => {
+    open(
+      [
+        { ...clip, fade_out_ms: 80 },
+        { ...second, fade_in_ms: 120 },
+      ],
+      {},
+      {
+        ...second,
+        fade_in_ms: 120,
+      },
+    );
+    const field = screen.getByRole("spinbutton", { name: "Transition length" });
+    expect(field).toHaveAttribute("aria-valuenow", "120");
+    expect(field).toHaveAttribute("aria-valuetext", "120 ms");
+    expect(screen.queryByText("Not set")).toBeNull();
+  });
+
+  it("shows the new length after it is applied", async () => {
+    open([clip, second], {}, second);
+    await type("Transition length", "120");
+    act(() => {
+      useDawStore.getState().hydrate(
+        "/tmp/ep.json",
+        minimalProject({
+          tracks: [sampleTrack({ id: "host", speaker: "Mira" })],
+          clips: {
+            tracks: {
+              host: [
+                { ...clip, fade_out_ms: 120 },
+                { ...second, fade_in_ms: 120 },
+              ],
+            },
+            clip_count: 2,
+          },
+        }),
+      );
+    });
+    expect(
+      screen.getByRole("spinbutton", { name: "Transition length" }),
+    ).toHaveAttribute("aria-valuenow", "120");
+  });
+
+  it("steps the applied length from its current value", async () => {
     open([clip, second], {}, second);
     await key("Transition length", "ArrowUp");
-    await key("Transition length", "Home");
-    expect(setClipJoin).not.toHaveBeenCalled();
+    expect(setClipJoin).toHaveBeenCalledWith(
+      "/tmp/ep.json",
+      "c1",
+      "c2",
+      "fade",
+      expect.any(Number),
+    );
   });
 
   it("refuses a fractional length without calling the server", async () => {
