@@ -76,3 +76,25 @@ export const Timed: Story = {
     await expect(await canvas.findByText("Still loading…")).toBeVisible();
   },
 };
+
+/** The guest's first load: header, Player card, Queue column and center column. */
+export const GuestFrame: Story = {
+  args: { elapsedMs: 1000, layout: "guest" },
+  play: async ({ canvasElement }) => {
+    for (const part of ["header", "player", "queue", "center"])
+      await expect(
+        canvasElement.querySelector(`.sys-skeleton-block--${part}`),
+      ).not.toBeNull();
+    await expect(within(canvasElement).queryByRole("status")).toBeNull();
+  },
+};
+
+export const GuestFrameStillLoading: Story = {
+  args: { elapsedMs: 5000, layout: "guest" },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("Still loading…")).toBeVisible();
+    await userEvent.click(canvas.getByRole("button", { name: "Retry" }));
+    await expect(args.onRetry).toHaveBeenCalledOnce();
+  },
+};

@@ -11,10 +11,23 @@ export type SkeletonProps = {
   /** Fixes the elapsed time (stories, tests). Without it the timers run. */
   elapsedMs?: number;
   /** Real layout of the destination. */
-  layout?: "list" | "cards";
+  layout?: "list" | "cards" | "guest";
   rows?: number;
   onRetry?: () => void;
 };
+
+/** The guest frame: header, Player card, the Queue column and the center column. */
+const GUEST_BLOCKS = [
+  "header",
+  "player",
+  "queue",
+  "queue",
+  "queue",
+  "queue",
+  "center",
+  "center",
+  "center",
+] as const;
 
 const phaseOf = (elapsed: number, blankMs: number, retryMs: number): Phase =>
   elapsed >= retryMs ? "slow" : elapsed >= blankMs ? "blocks" : "blank";
@@ -44,16 +57,28 @@ export function Skeleton({
   }, [controlled, blankMs, retryMs]);
   const phase = controlled ? phaseOf(elapsedMs, blankMs, retryMs) : timed;
   return (
-    <div className="sys-skeleton" aria-busy="true" data-phase={phase}>
+    <div
+      className={`sys-skeleton${layout === "guest" ? " sys-skeleton--guest" : ""}`}
+      aria-busy="true"
+      data-phase={phase}
+    >
       {phase === "blank" ? null : (
         <div
           className={`sys-skeleton-blocks sys-skeleton-blocks--${layout}`}
           aria-hidden="true"
         >
-          {Array.from({ length: rows }, (_, row) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
-            <span key={row} className="sys-skeleton-block" />
-          ))}
+          {layout === "guest"
+            ? GUEST_BLOCKS.map((part, at) => (
+                <span
+                  // biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
+                  key={at}
+                  className={`sys-skeleton-block sys-skeleton-block--${part}`}
+                />
+              ))
+            : Array.from({ length: rows }, (_, row) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
+                <span key={row} className="sys-skeleton-block" />
+              ))}
         </div>
       )}
       {phase === "slow" ? (

@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { seekTransport } from "../../commands/seek";
 import { useShortViewport } from "../../hooks/useShortViewport";
@@ -10,6 +10,7 @@ import { useDawStore } from "../../state/dawStore";
 import { stageRoleOf } from "../../state/stageRoutes";
 import { scriptGuestOf } from "../edit/script/scriptGuest";
 import { useScriptSelection } from "../edit/script/useScriptSelection";
+import { GuestSelectionBar } from "./GuestSelectionBar";
 import {
   guestScriptModelOf,
   guestScriptOf,
@@ -28,6 +29,7 @@ function GuestScriptHostAdapter() {
     })),
   );
   const shell = useViewportClass();
+  const [root, setRoot] = useState<HTMLDivElement | null>(null);
   const short = useShortViewport();
   const role = stageRoleOf(guestMode);
   const script = useMemo(() => guestScriptOf(utterances), [utterances]);
@@ -62,7 +64,7 @@ function GuestScriptHostAdapter() {
   }, [hidden]);
   if (role === "host" || short) return null;
   return (
-    <div className="stage-host-guest-script">
+    <div ref={setRoot} className="stage-host-guest-script">
       <GuestScript
         guest={scriptGuestOf(projectPath, guestMode, rangeMode)}
         layout={shell === "phone" ? "phone" : "desktop"}
@@ -76,6 +78,7 @@ function GuestScriptHostAdapter() {
         onSelect={range.onSelect}
         onClearSelection={mayRange ? range.onClearSelection : undefined}
       />
+      {mayRange ? <GuestSelectionBar root={root} /> : null}
     </div>
   );
 }

@@ -35,7 +35,11 @@ export type ReviewItem = {
   /** The refine check: the only one that Cut anyway and the last unsure word resolve. */
   transcript?: boolean;
   result?: ReviewResult;
+  /** A guest's own suggestion: it sits in the "Your suggestions" group, whatever its kind. */
+  mine?: true;
 };
+
+export const YOUR_SUGGESTIONS = "Your suggestions";
 
 export type ReviewFilter = "all" | "suggestions" | "comments" | "checks";
 
@@ -136,9 +140,10 @@ const sumSaved = (items: readonly ReviewItem[]) =>
 
 /** Groups of undecided items in queue order: kind order, then time. */
 export function groupQueue(items: readonly ReviewItem[]): ReviewGroup[] {
-  return KIND_ORDER.flatMap((kind) => {
+  const yours = items.filter((item) => item.mine && !isDecided(item));
+  const groups = KIND_ORDER.flatMap((kind) => {
     const inKind = items
-      .filter((item) => item.kind === kind && !isDecided(item))
+      .filter((item) => item.kind === kind && !item.mine && !isDecided(item))
       .sort(byRisk);
     if (inKind.length === 0) return [];
     const eligible = inKind.filter(bulkEligible);
@@ -167,6 +172,18 @@ export function groupQueue(items: readonly ReviewItem[]): ReviewGroup[] {
       },
     ];
   });
+  return yours.length === 0
+    ? groups
+    : [
+        ...groups,
+        {
+          kind: "suggestion",
+          label: YOUR_SUGGESTIONS,
+          items: yours.sort(byTime),
+          held: 0,
+          bulk: null,
+        },
+      ];
 }
 
 /**
