@@ -394,11 +394,11 @@ describe("PrepareView hand-off", () => {
     expect(screen.getByText("Still getting ready.")).toBeVisible();
   });
 
-  it("shows no key hint, as no key takes it", () => {
+  it("shows the Mod+Enter key hint, as that key takes it", () => {
     render(<PrepareView {...props()} />);
     expect(
       screen.getByRole("button", { name: /Review/ }).querySelector(".sys-keys"),
-    ).toBeNull();
+    ).toHaveTextContent(/↵$/);
   });
 
   it("becomes the one primary when done and takes a click", async () => {

@@ -111,12 +111,14 @@ describe("EditWorkspace regions", () => {
 });
 
 describe("EditWorkspace states", () => {
-  it("shows the empty-session drop target when there are no tracks", () => {
+  it("shows the Import and Record Start tiles when there are no tracks", () => {
     useDawStore.getState().hydrate(PROJECT_PATH, minimalProject());
     render(<EditWorkspace />);
     expect(
-      screen.getByRole("button", { name: /Drop audio files here/ }),
+      screen.getByRole("button", { name: /^Import audio/ }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Record/ })).toBeInTheDocument();
+    expect(screen.queryByText(/Got it/)).toBeNull();
   });
 
   it("keeps the headers and a skeleton while the project loads", () => {

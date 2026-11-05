@@ -681,3 +681,49 @@ def test_recent_warning_names_the_cause(caplog: pytest.LogCaptureFixture) -> Non
         recent.record_recent("/x/a\x00b")
         recent.forget_recent("/x/a\x00b")
     assert [r.getMessage().count("embedded null character") for r in caplog.records] == [1, 1]
+
+
+def test_duplicate_copies_the_episode_under_a_copy_name_and_lists_it(local, tmp_path):
+    project = _make(tmp_path, "Interview")
+    (project.parent / "raw").mkdir(exist_ok=True)
+    (project.parent / "raw" / "a.wav").write_bytes(b"audio")
+    res = local.post("/api/projects/recent/duplicate", json={"path": str(project)})
+    assert res.status_code == 200
+    body = res.json()
+    copied = Path(body["project_path"])
+    assert body["name"] == "Interview copy"
+    assert copied.parent.name == "Interview copy"
+    assert (copied.parent / "raw" / "a.wav").read_bytes() == b"audio"
+    data = json.loads(copied.read_text(encoding="utf-8"))
+    assert data["meta"]["name"] == "Interview copy"
+    assert data["meta"]["workspace_dir"] == str(copied.parent.resolve())
+    assert json.loads(project.read_text(encoding="utf-8"))["meta"]["name"] == "Interview"
+    assert recent.read_recent()[0].path == str(copied.resolve())
+    again = local.post("/api/projects/recent/duplicate", json={"path": str(project)})
+    assert Path(again.json()["project_path"]).parent.name == "Interview copy 2"
+
+
+def test_duplicate_refuses_a_path_that_is_not_an_episode(local, tmp_path):
+    res = local.post("/api/projects/recent/duplicate", json={"path": str(tmp_path / "x.json")})
+    assert res.status_code == 400
+    assert res.headers[CODE] == "project_path_invalid"
+
+
+def test_reveal_shows_the_project_file_in_the_file_manager(local, tmp_path, monkeypatch):
+    project = _make(tmp_path, "reveal")
+    shown: list[Path] = []
+    monkeypatch.setattr(
+        "podcast_mcp.gui.routes.project.reveal_in_file_manager",
+        lambda path: shown.append(path) or True,
+    )
+    res = local.post("/api/projects/recent/reveal", json={"path": str(project)})
+    assert res.json() == {"revealed": True}
+    assert shown == [project.resolve()]
+
+
+def test_reveal_says_when_this_computer_has_no_file_manager(local, tmp_path, monkeypatch):
+    project = _make(tmp_path, "noreveal")
+    monkeypatch.setattr("podcast_mcp.gui.routes.project.reveal_in_file_manager", lambda path: False)
+    res = local.post("/api/projects/recent/reveal", json={"path": str(project)})
+    assert res.status_code == 409
+    assert res.headers[CODE] == "reveal_unavailable"

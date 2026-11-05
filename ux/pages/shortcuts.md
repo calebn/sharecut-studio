@@ -35,6 +35,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | `Mod+3` | Go to Edit (`stage.edit`) | Project loaded, host or editor link | Mod+3; a browser tab may keep Mod+1–5 for tab switching, so use the Stage bar there (desktop app unaffected) |
 | `Mod+4` | Go to Review (`stage.review`) | Project loaded | Mod+4; a browser tab may keep Mod+1–5 for tab switching, so use the Stage bar there (desktop app unaffected) |
 | `Mod+5` | Go to Deliver (`stage.deliver`) | Project loaded, host or editor link | Mod+5; a browser tab may keep Mod+1–5 for tab switching, so use the Stage bar there (desktop app unaffected) |
+| `Mod+Enter` | Take the hand-off (`stage.handoff`) | Project loaded | Mod+Enter: the open stage's hand-off button, Prepare today |
 | `ArrowLeft` | Nudge playhead back (`navigation.nudgePlayheadBack`) | Always (when not typing in a field or on a focused Scrub field) | Shift for 5 seconds |
 | `ArrowRight` | Nudge playhead forward (`navigation.nudgePlayheadForward`) | Always (when not typing in a field or on a focused Scrub field) | Shift for 5 seconds |
 | `Mod+ArrowLeft` | Go to start (`navigation.goToStart`) | Always (when not typing in a field or on a focused Scrub field) | Mod+ArrowLeft: Home alias for laptops |

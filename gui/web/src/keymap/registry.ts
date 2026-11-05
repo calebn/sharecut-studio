@@ -205,6 +205,17 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     notes: `Mod+5; ${BROWSER_TAB_CHORD_NOTE}, so use the Stage bar there (desktop app unaffected)`,
   },
   {
+    id: "stage.handoff",
+    category: "navigation",
+    label: "Take the hand-off",
+    keys: ["Enter"],
+    bareKey: false,
+    requireMod: true,
+    requireShift: false,
+    when: "hasProject",
+    notes: "Mod+Enter: the open stage's hand-off button, Prepare today",
+  },
+  {
     id: "edit.setClipFade",
     category: "edit",
     label: "Set clip fade",

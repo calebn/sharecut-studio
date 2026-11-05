@@ -20,6 +20,11 @@ import {
   registryRows,
 } from "../../test/renderWithModels";
 import { ApiError } from "../../utils/apiError";
+import {
+  _resetHomeVisitCountForTests,
+  HOME_SCREEN_HINT_DISMISSED_KEY,
+  HOME_VISITS_KEY,
+} from "../../utils/homeScreenHint";
 import { takeAutoRun, takeOpenStage } from "../../utils/openIntent";
 import { HomeScreen, SETUP_DISMISSED_KEY } from "./HomeScreen";
 
@@ -27,6 +32,8 @@ vi.mock("../../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../api")>()),
   listRecentProjects: vi.fn(),
   forgetRecentProject: vi.fn(),
+  revealRecentProject: vi.fn(),
+  duplicateRecentProject: vi.fn(),
   createEpisodeProject: vi.fn(),
   addTrackCommand: vi.fn(),
   uploadMediaFile: vi.fn(),
@@ -48,6 +55,8 @@ vi.mock("../../ingest/ingestFiles", async (importOriginal) => ({
 
 const list = vi.mocked(api.listRecentProjects);
 const forget = vi.mocked(api.forgetRecentProject);
+const reveal = vi.mocked(api.revealRecentProject);
+const duplicate = vi.mocked(api.duplicateRecentProject);
 const create = vi.mocked(api.createEpisodeProject);
 const open = vi.mocked(api.openEpisodeProject);
 const pick = vi.mocked(api.pickEpisodeProject);
@@ -777,6 +786,187 @@ describe("HomeScreen", () => {
       render(<HomeScreen />, true);
       await screen.findByRole("list", { name: "Recent episodes" });
       expect(screen.queryByText("Get ShareCut ready")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("the card menu", () => {
+    async function openMenu(user: ReturnType<typeof userEvent.setup>) {
+      const card = await screen.findByRole("button", { name: /Rosa/ });
+      await user.pointer({ keys: "[MouseRight]", target: card });
+      return screen.findByRole("menu", { name: /actions/ });
+    }
+
+    it("opens on right-click with Open, Reveal in folder, Duplicate and Remove from list", async () => {
+      const user = userEvent.setup();
+      render(<HomeScreen />);
+      const menu = await openMenu(user);
+      expect(
+        within(menu)
+          .getAllByRole("menuitem")
+          .map((item) => item.textContent),
+      ).toEqual(["Open", "Reveal in folder", "Duplicate", "Remove from list"]);
+    });
+
+    it("opens the episode from the menu", async () => {
+      const user = userEvent.setup();
+      open.mockResolvedValue({ project_path: EP, name: "rosa" });
+      render(<HomeScreen />);
+      await user.click(
+        within(await openMenu(user)).getByRole("menuitem", { name: "Open" }),
+      );
+      await waitFor(() => expect(open).toHaveBeenCalledWith(EP));
+    });
+
+    it("reveals the folder and says so when this computer cannot", async () => {
+      const user = userEvent.setup();
+      reveal.mockResolvedValueOnce(undefined);
+      render(<HomeScreen />);
+      await user.click(
+        within(await openMenu(user)).getByRole("menuitem", {
+          name: "Reveal in folder",
+        }),
+      );
+      expect(reveal).toHaveBeenCalledWith(EP);
+      reveal.mockRejectedValueOnce(new Error("409"));
+      await user.click(
+        within(await openMenu(user)).getByRole("menuitem", {
+          name: "Reveal in folder",
+        }),
+      );
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "This computer couldn't open its file manager.",
+      );
+    });
+
+    it("duplicates the episode and reads the list again", async () => {
+      const user = userEvent.setup();
+      duplicate.mockResolvedValue({
+        project_path: "/ws/rosa-copy/episode.sharecut",
+        name: "Rosa and Maya copy",
+      });
+      render(<HomeScreen />);
+      await user.click(
+        within(await openMenu(user)).getByRole("menuitem", {
+          name: "Duplicate",
+        }),
+      );
+      await waitFor(() => expect(duplicate).toHaveBeenCalledWith(EP));
+      await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
+      expect(assign).not.toHaveBeenCalled();
+    });
+
+    it("removes the card from the list without touching the episode", async () => {
+      const user = userEvent.setup();
+      render(<HomeScreen />);
+      await user.click(
+        within(await openMenu(user)).getByRole("menuitem", {
+          name: "Remove from list",
+        }),
+      );
+      expect(forget).toHaveBeenCalledWith(EP);
+      expect(
+        await screen.findByText("Your episodes will appear here."),
+      ).toBeInTheDocument();
+      expect(open).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("the Home keys", () => {
+    it("runs Import on Mod+I and Record on R", async () => {
+      const user = userEvent.setup();
+      pickFiles.mockResolvedValue([]);
+      create.mockResolvedValue({ project_path: EP, name: "Untitled" });
+      render(<HomeScreen />);
+      await screen.findByRole("list", { name: "Recent episodes" });
+      await user.keyboard("{Control>}i{/Control}");
+      await waitFor(() => expect(pickFiles).toHaveBeenCalledOnce());
+      await user.keyboard("r");
+      await waitFor(() => expect(create).toHaveBeenCalledOnce());
+    });
+
+    it("opens Open other on Mod+O and Help on ?", async () => {
+      const user = userEvent.setup();
+      pick.mockResolvedValue({ cancelled: true });
+      render(<HomeScreen />);
+      await screen.findByRole("list", { name: "Recent episodes" });
+      await user.keyboard("{Control>}o{/Control}");
+      await waitFor(() => expect(pick).toHaveBeenCalledOnce());
+      await user.keyboard("?");
+      expect(
+        await screen.findByRole("dialog", { name: /Help/ }),
+      ).toBeInTheDocument();
+    });
+
+    it("leaves the keys to a field", async () => {
+      const user = userEvent.setup();
+      vi.stubGlobal("location", {
+        href: "http://127.0.0.1:8765/?home=1&openOther=1",
+        search: "?home=1&openOther=1",
+        assign,
+      });
+      render(<HomeScreen />);
+      const field = await screen.findByRole("textbox", {
+        name: "Folder of the episode",
+      });
+      await user.click(field);
+      await user.keyboard("r?");
+      expect(field).toHaveValue("r?");
+      expect(create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("the Add to Home Screen card", () => {
+    beforeEach(() => {
+      for (const [key, value] of Object.entries({
+        standalone: false,
+        maxTouchPoints: 5,
+      }))
+        Object.defineProperty(navigator, key, {
+          value,
+          configurable: true,
+        });
+      vi.stubGlobal(
+        "matchMedia",
+        (query: string) =>
+          ({
+            media: query,
+            matches: query === "(display-mode: browser)",
+            addEventListener: () => {},
+            removeEventListener: () => {},
+          }) as unknown as MediaQueryList,
+      );
+      _resetHomeVisitCountForTests();
+    });
+
+    it("stays away on the first visit and shows on the second", async () => {
+      const first = render(<HomeScreen />);
+      await screen.findByRole("list", { name: "Recent episodes" });
+      expect(
+        screen.queryByText("Add to Home Screen for full screen."),
+      ).toBeNull();
+      first.unmount();
+      _resetHomeVisitCountForTests();
+      render(<HomeScreen />);
+      expect(
+        await screen.findByText("Add to Home Screen for full screen."),
+      ).toBeInTheDocument();
+    });
+
+    it("is dismissed for this device with its close button", async () => {
+      const user = userEvent.setup();
+      window.localStorage.setItem(HOME_VISITS_KEY, "3");
+      render(<HomeScreen />);
+      await user.click(
+        await screen.findByRole("button", {
+          name: "Dismiss: Add to Home Screen hint",
+        }),
+      );
+      expect(
+        screen.queryByText("Add to Home Screen for full screen."),
+      ).toBeNull();
+      expect(window.localStorage.getItem(HOME_SCREEN_HINT_DISMISSED_KEY)).toBe(
+        "1",
+      );
     });
   });
 

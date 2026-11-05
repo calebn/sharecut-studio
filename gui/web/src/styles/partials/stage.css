@@ -51,13 +51,6 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .empty-session-drop {
-    transition:
-      transform var(--motion-toggle) var(--motion-ease-out),
-      box-shadow var(--motion-state) var(--motion-ease-out),
-      background-color var(--motion-hover) var(--motion-ease-out);
-  }
-
   .timeline-ruler .playhead::before {
     transition: opacity var(--motion-state) var(--motion-ease-out);
   }

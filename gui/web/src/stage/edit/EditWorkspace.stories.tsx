@@ -277,11 +277,11 @@ export const Empty: Story = {
     },
   },
   play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
     await expect(
-      await within(canvasElement).findByRole("button", {
-        name: /Drop audio files here/,
-      }),
+      await canvas.findByRole("button", { name: /^Import audio/ }),
     ).toBeVisible();
+    await expect(canvas.getByRole("button", { name: /^Record/ })).toBeVisible();
   },
 };
 

@@ -499,7 +499,6 @@ export function PrepareView({
                 : "secondary"
             }
             size={40}
-            keyHint={false}
             disabledReason={handoff.disabledReason}
             onActivate={onHandoff}
           />

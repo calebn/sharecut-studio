@@ -1035,6 +1035,29 @@
       }
     },
     {
+      "id": "daw.stage.handoff",
+      "label": "Take the hand-off",
+      "effect": "view",
+      "service": "ShareCut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "stage.handoff",
+        "gui": [
+          "stageHandoff"
+        ],
+        "keyboard": "Mod+Enter"
+      },
+      "omit": {},
+      "tooltip": "Take the hand-off",
+      "presence": {
+        "cursor": "none",
+        "follow": "look"
+      }
+    },
+    {
       "id": "daw.edit.history",
       "label": "Open history",
       "effect": "view",

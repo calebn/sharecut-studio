@@ -127,6 +127,15 @@ export const COMMANDS: Record<string, CommandDef> = {
     breaksFollow: true,
     notes: "Mod+4: the Review stage",
   },
+  "stage.handoff": {
+    id: "stage.handoff",
+    category: "navigation",
+    label: "Take the hand-off",
+    keywords: ["next stage", "continue"],
+    when: "hasProject",
+    announcesRefusal: true,
+    notes: "Mod+Enter: the open stage's hand-off button, Prepare today",
+  },
   "stage.deliver": {
     id: "stage.deliver",
     category: "navigation",

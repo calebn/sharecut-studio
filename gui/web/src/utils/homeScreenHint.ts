@@ -4,9 +4,9 @@
  * only, and it collapses them only while the document itself scrolls, which
  * the fixed app shell never does. Opened from the Home Screen, ShareCut runs
  * as a web app with no browser chrome (`manifest.webmanifest`,
- * `display: standalone`), so that is the phone's full-screen path. A Safari
- * tab shows the hint as a banner until it is dismissed in that browser; More
- * keeps it as a quiet line.
+ * `display: standalone`), so that is the phone's full-screen path. Home offers
+ * it as one card from the second visit on, until it is dismissed on this
+ * device; it never shows inside a project.
  */
 import { readLocal, writeLocal } from "./storage";
 
@@ -16,9 +16,6 @@ export interface HomeScreenEnv {
   maxTouchPoints: number;
   displayModeBrowser: boolean;
 }
-
-export const HOME_SCREEN_HINT =
-  "In Safari's Share menu, choose Add to Home Screen to open ShareCut full screen.";
 
 /** Per browser, like the other `sharecut.*` conveniences: not project state. */
 export const HOME_SCREEN_HINT_DISMISSED_KEY =
@@ -44,7 +41,40 @@ export function readHomeScreenEnv(): HomeScreenEnv {
   };
 }
 
-/** True once the banner was dismissed in this browser. */
+/** Per device: how many times Home has opened, so the card waits for a second visit. */
+export const HOME_VISITS_KEY = "sharecut.homeVisits";
+
+let visitsBefore: number | null = null;
+
+/**
+ * Counts this Home visit once per page load and returns the visits before it.
+ * Blocked storage counts nothing, so the card stays away rather than showing
+ * on every visit.
+ */
+export function countHomeVisit(): number {
+  if (visitsBefore !== null) return visitsBefore;
+  const parsed = Number.parseInt(readLocal(HOME_VISITS_KEY) ?? "", 10);
+  visitsBefore = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  writeLocal(HOME_VISITS_KEY, String(visitsBefore + 1));
+  return visitsBefore;
+}
+
+/** Forgets the count held for this page load (tests). */
+export function _resetHomeVisitCountForTests(): void {
+  visitsBefore = null;
+}
+
+/** True when the card is due: a Safari tab, a visit after the first, and not dismissed. */
+export function homeScreenHintDue(
+  env: HomeScreenEnv,
+  priorVisits: number,
+): boolean {
+  return (
+    offersHomeScreenHint(env) && priorVisits >= 1 && !homeScreenHintDismissed()
+  );
+}
+
+/** True once the card was dismissed on this device. */
 export function homeScreenHintDismissed(): boolean {
   return readLocal(HOME_SCREEN_HINT_DISMISSED_KEY) === "1";
 }
