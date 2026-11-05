@@ -6,6 +6,7 @@ import { JOIN_GAP_TOLERANCE_SEC } from "../types/limits.generated";
 import type { ClipRow } from "../types/project";
 import { JOIN_MODE_OPTIONS } from "../utils/editMarkerRegistry";
 import {
+  appliedJoinLength,
   clipIdsBeforeCut,
   clipsAbut,
   cutFadeHint,
@@ -569,5 +570,36 @@ describe("joinTier", () => {
   it("draws no overlap for a join that is not a blend", () => {
     expect(drawnOverlapPx({ kind: "ordinary" })).toBe(0);
     expect(drawnOverlapPx({ kind: "blocked", reason: "no_headroom" })).toBe(0);
+  });
+});
+
+describe("appliedJoinLength", () => {
+  const left = clipRow({ source_start: 0, source_end: 5, fade_out_ms: 80 });
+
+  it("reports the length the join holds within its range", () => {
+    const right = clipRow({ source_start: 5, source_end: 10, fade_in_ms: 120 });
+    const { min, max, saved } = appliedJoinLength(left, right, 2000);
+    expect(min).toBe(0);
+    expect(saved).toBe(120);
+    expect(max).toBeGreaterThanOrEqual(saved);
+  });
+
+  it("keeps a crossfade at one millisecond or more", () => {
+    const right = clipRow({
+      source_start: 5,
+      source_end: 10,
+      join_in_mode: "crossfade",
+      join_crossfade_ms: 0,
+    });
+    const { min, saved } = appliedJoinLength(left, right, 2000);
+    expect(min).toBe(1);
+    expect(saved).toBeGreaterThanOrEqual(1);
+  });
+
+  it("clamps a stored length to the track cap", () => {
+    const right = clipRow({ source_start: 5, source_end: 10, fade_in_ms: 900 });
+    const { max, saved } = appliedJoinLength(left, right, 300);
+    expect(max).toBeLessThanOrEqual(300);
+    expect(saved).toBe(max);
   });
 });

@@ -432,15 +432,37 @@ describe("clip join", () => {
   });
 
   it("steps the applied length from its current value", async () => {
-    open([clip, second], {}, second);
+    const applied = { ...second, fade_in_ms: 120 };
+    open([clip, applied], {}, applied);
     await key("Transition length", "ArrowUp");
     expect(setClipJoin).toHaveBeenCalledWith(
       "/tmp/ep.json",
       "c1",
       "c2",
       "fade",
-      expect.any(Number),
+      121,
     );
+  });
+
+  it("jumps to the bounds with Home and End", async () => {
+    open([clip, second], {}, second);
+    await key("Transition length", "Home");
+    expect(setClipJoin).toHaveBeenLastCalledWith(
+      "/tmp/ep.json",
+      "c1",
+      "c2",
+      "fade",
+      0,
+    );
+  });
+
+  it("finds the left clip by its id, not by lane position", () => {
+    const between = { ...clip, id: "c0", join_left_clip_id: null };
+    const applied = { ...second, fade_in_ms: 120 };
+    open([clip, between, applied], {}, applied);
+    expect(
+      screen.getByRole("spinbutton", { name: "Transition length" }),
+    ).toHaveAttribute("aria-valuenow", "120");
   });
 
   it("refuses a fractional length without calling the server", async () => {

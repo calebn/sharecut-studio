@@ -217,6 +217,9 @@ export function PendingEditBody({
       node.focus();
     }
   }, []);
+  useEffect(() => {
+    focusReplyOnMount.current = false;
+  }, [edit.id]);
   const timeHintId = useId();
   const {
     busy: threadBusy,
@@ -581,7 +584,7 @@ export function PendingEditBody({
       });
       setAskBody("");
       if (replyField.current) replyField.current.focus();
-      else focusReplyOnMount.current = true;
+      else if (mayReply) focusReplyOnMount.current = true;
     });
   };
 
