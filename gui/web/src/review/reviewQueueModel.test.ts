@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { QUEUE_ITEMS } from "../storybook/reviewFixtures";
 import { offlineConflict } from "../test/fixtures";
+import { TRANSCRIPT_REFINE_REFUSAL } from "../utils/apiError";
 import {
   attentionLabelOf,
   attentionRowsOf,
@@ -15,6 +16,7 @@ import {
   itemVerb,
   landPlan,
   lowRiskBulk,
+  pendingLabelOf,
   progressLine,
   type ReviewAttention,
   type ReviewItem,
@@ -413,8 +415,9 @@ describe("speaker filter", () => {
   });
 });
 
-describe("guest attention rows", () => {
+describe("attention rows", () => {
   const attention = (over: Partial<ReviewAttention> = {}): ReviewAttention => ({
+    pending: 0,
     rows: attentionRowsOf([offlineConflict()], true),
     unreadable: false,
     dismissFailed: false,
@@ -475,6 +478,63 @@ describe("guest attention rows", () => {
     ]);
   });
 
+  it("words a host conflict with the host advice, the History action and the refine waiver", () => {
+    expect(
+      attentionRowsOf(
+        [
+          offlineConflict({
+            command: { command_id: "a", type: "UndoHistory" },
+            kind: "unknown",
+            reason: "Unclear",
+            recovery: "inspect-history",
+          }),
+          offlineConflict({
+            command: { command_id: "b", type: "ApproveEdits" },
+            reason: TRANSCRIPT_REFINE_REFUSAL,
+          }),
+          offlineConflict({
+            command: { command_id: "c", type: "TrimClip" },
+            reason: TRANSCRIPT_REFINE_REFUSAL,
+          }),
+          offlineConflict({ command: { command_id: "d" }, blocksSave: true }),
+        ],
+        false,
+      ),
+    ).toEqual([
+      {
+        id: "a",
+        title: "UndoHistory: Unclear",
+        detail: "Inspect History before trying this action again.",
+        inspectHistory: true,
+      },
+      {
+        id: "b",
+        title: `Approve: ${TRANSCRIPT_REFINE_REFUSAL}`,
+        detail: "",
+        refineReason: TRANSCRIPT_REFINE_REFUSAL,
+      },
+      {
+        id: "c",
+        title: `TrimClip: ${TRANSCRIPT_REFINE_REFUSAL}`,
+        detail: "",
+        refineReason: TRANSCRIPT_REFINE_REFUSAL,
+      },
+      {
+        id: "d",
+        title: "SetEnvelope: Envelope changed since this edit was queued",
+        detail: "Fix the project file first; this change was not saved.",
+      },
+    ]);
+  });
+
+  it("counts waiting edits in the label and shows for them alone", () => {
+    expect(pendingLabelOf(1)).toBe("1 edit waiting to send");
+    expect(pendingLabelOf(3)).toBe("3 edits waiting to send");
+    const waiting = attention({ pending: 2, rows: [] });
+    expect(attentionVisible(waiting, "all")).toBe(true);
+    expect(attentionLabelOf(waiting)).toBe("Needs attention. 2 pending");
+  });
+
   it("shows only under All and Checks, and only with something to say", () => {
     expect(attentionVisible(attention(), "all")).toBe(true);
     expect(attentionVisible(attention(), "checks")).toBe(true);
@@ -486,6 +546,9 @@ describe("guest attention rows", () => {
     expect(
       attentionVisible(attention({ rows: [], dismissFailed: true }), "all"),
     ).toBe(true);
+    expect(attentionVisible(attention({ rows: [], pending: 1 }), "all")).toBe(
+      true,
+    );
     expect(attentionVisible(undefined, "all")).toBe(false);
   });
 

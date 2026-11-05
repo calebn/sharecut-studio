@@ -3,7 +3,7 @@ import { e2eProjectPath } from "./env";
 import { goToStage, openProject, saveStatus } from "./stageNav";
 
 const failedSaveInit = () => {
-  // An unreadable offline queue is the Failed save state, with the Needs attention banner up.
+  // An unreadable offline queue is the Failed save state, with the Retry on the dot.
   indexedDB.open = () => {
     throw new Error("queue unreadable");
   };
@@ -87,11 +87,11 @@ test.describe("phone save attention in a short window at twice the text size", (
     hasTouch: true,
   });
 
-  test("Review keeps a stage body, the banner and the Stage menu on screen", async ({
+  test("Review keeps a stage body and the Stage menu on screen", async ({
     page,
   }) => {
     // At twice the text size this window folds the tab bar into the header's
-    // Stage menu, so the header, banner and mini Player leave the stage a body.
+    // Stage menu, so the header and mini Player leave the stage a body.
     await openPhone(page, { failed: true, rootPx: 32, stage: "review" });
     const geometry = await page.evaluate(() => {
       const rect = (selector: string) => {
@@ -118,15 +118,20 @@ test.describe("phone save attention in a short window at twice the text size", (
     expect(geometry.frameScroll, "the frame does not scroll").toBe(0);
   });
 
-  test("the banner's details open with Retry reachable", async ({ page }) => {
+  test("the Review queue's Needs attention group keeps Retry reachable", async ({
+    page,
+  }) => {
     await openPhone(page, { failed: true, rootPx: 32, stage: "review" });
-    const attention = page.getByRole("region", {
+    await page.getByRole("button", { name: /Needs attention$/ }).click();
+    const attention = page.getByRole("group", {
       name: /Saved edits could not be read/,
     });
     await expect(attention).toBeVisible();
-    await attention.locator("summary").click();
     const retry = attention.getByRole("button", { name: "Retry", exact: true });
-    await expect(retry).toBeVisible();
+    await expect(retry).toBeAttached();
+    // The queue sheet scrolls, so at twice the text size Retry may sit below the fold.
+    await retry.scrollIntoViewIfNeeded();
+    await expect(retry).toBeInViewport();
     const box = (await retry.boundingBox())!;
     expect(box.y + box.height).toBeLessThanOrEqual(360);
     const reaches = await retry.evaluate((element) => {

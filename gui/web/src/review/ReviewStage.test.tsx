@@ -13,7 +13,11 @@ import {
   type ReviewStageHarnessProps,
 } from "../storybook/reviewHarness";
 import { ReviewStage } from "./ReviewStage";
-import type { ReviewItem } from "./reviewQueueModel";
+import {
+  OPEN_REVIEW_ATTENTION_EVENT,
+  type ReviewAttention,
+  type ReviewItem,
+} from "./reviewQueueModel";
 
 function setup(props: Partial<ReviewStageHarnessProps> = {}) {
   const view = render(
@@ -489,6 +493,53 @@ describe("ReviewStage", () => {
     await userEvent.click(screen.getByRole("button", { name: /^Cut all/ }));
     expect(screen.queryAllByLabelText("Review queue")).toHaveLength(0);
     expect(screen.getByText(/^Cut \d · saves/)).toBeInTheDocument();
+  });
+
+  describe("phone Needs attention", () => {
+    const attention: ReviewAttention = {
+      pending: 2,
+      rows: [],
+      unreadable: false,
+      dismissFailed: false,
+      checking: false,
+      canDismiss: false,
+      onDismissAll: vi.fn(),
+      onRetry: vi.fn(),
+      onSendNow: vi.fn(),
+    };
+
+    it("says on the queue button that something needs attention, and opens the sheet when asked", async () => {
+      setup({ layout: "phone", attention });
+      expect(
+        screen.getByRole("button", { name: /^\d+ of \d+ · Needs attention$/ }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("group", { name: /Needs attention/ }),
+      ).toBeNull();
+      act(() => {
+        window.dispatchEvent(new Event(OPEN_REVIEW_ATTENTION_EVENT));
+      });
+      expect(
+        await screen.findByRole("group", {
+          name: "Needs attention. 2 pending",
+        }),
+      ).toBeInTheDocument();
+    });
+
+    it("adds nothing to the queue button without attention", () => {
+      setup({ layout: "phone" });
+      expect(
+        screen.getByRole("button", { name: /^\d+ of \d+$/ }),
+      ).toBeInTheDocument();
+    });
+
+    it("ignores the request on a desktop stage", () => {
+      setup({ attention });
+      act(() => {
+        window.dispatchEvent(new Event(OPEN_REVIEW_ATTENTION_EVENT));
+      });
+      expect(screen.getAllByLabelText("Review queue")).toHaveLength(1);
+    });
   });
 
   it("stops taking focus back once a pointer lands outside the stage", () => {

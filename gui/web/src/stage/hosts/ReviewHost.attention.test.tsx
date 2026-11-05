@@ -93,10 +93,20 @@ describe("Review queue attention rows", () => {
     expect(attention.refresh).toHaveBeenCalledWith("share:tok");
   });
 
-  it("gives a host project no attention rows and reads nothing", () => {
+  it("gives a host project its waiting edits and conflicts, with host wording", async () => {
+    attention.snapshot = snapshot({ pending: 2 });
     open("/tmp/host.sharecut", null);
     render(<ReviewHost />);
-    expect(attention.use).toHaveBeenCalledWith(null);
-    expect(screen.queryByRole("group", { name: /Needs attention/ })).toBeNull();
+    expect(attention.use).toHaveBeenCalledWith("/tmp/host.sharecut");
+    const group = screen.getByRole("group", {
+      name: "Needs attention. 2 pending, 1 conflict",
+    });
+    expect(group).toHaveTextContent("2 edits waiting to send");
+    expect(group).toHaveTextContent("Edit the change and submit it again.");
+    expect(
+      screen.getByRole("button", { name: "Send now" }),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss all" }));
+    expect(attention.dismissAll).toHaveBeenCalledWith("/tmp/host.sharecut");
   });
 });

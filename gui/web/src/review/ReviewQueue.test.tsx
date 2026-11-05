@@ -4,12 +4,20 @@ import { describe, expect, it, vi } from "vitest";
 import { reviewContent } from "../storybook/reviewContent";
 import { QUEUE_WITHOUT_CHECKS } from "../storybook/reviewFixtures";
 import { offlineConflict } from "../test/fixtures";
+import { DocumentCommand } from "../types/documentCommands.generated";
+import { TRANSCRIPT_REFINE_REFUSAL } from "../utils/apiError";
 import { ReviewQueue, type ReviewQueueProps } from "./ReviewQueue";
 import {
   attentionRowsOf,
   type ReviewAttention,
   type ReviewFilter,
 } from "./reviewQueueModel";
+
+const waive = vi.hoisted(() => vi.fn());
+vi.mock("../api", async (original) => ({
+  ...(await original<typeof import("../api")>()),
+  waiveTranscriptRefine: waive,
+}));
 
 describe("ReviewQueue", () => {
   it("gives a blocked row no swipe verb", () => {
@@ -345,6 +353,7 @@ describe("ReviewQueue", () => {
     const attention = (
       over: Partial<ReviewAttention> = {},
     ): ReviewAttention => ({
+      pending: 0,
       rows: attentionRowsOf(
         [
           offlineConflict({ command: { command_id: "c1", type: "TrimClip" } }),
@@ -517,6 +526,241 @@ describe("ReviewQueue", () => {
       ).toBeNull();
       renderQueue(attention(), { items: [] });
       expect(screen.queryByText("No comments yet")).toBeNull();
+    });
+  });
+
+  describe("host attention", () => {
+    const gated = (id: string, type: string = DocumentCommand.ApproveEdits) =>
+      offlineConflict({
+        reason: TRANSCRIPT_REFINE_REFUSAL,
+        command: { command_id: id, type },
+      });
+    const hostAttention = (
+      conflicts = [offlineConflict()],
+      over: Partial<ReviewAttention> = {},
+    ): ReviewAttention => ({
+      pending: 0,
+      rows: attentionRowsOf(conflicts, false),
+      unreadable: false,
+      dismissFailed: false,
+      checking: false,
+      canDismiss: true,
+      refineWaiverProject: "/p",
+      onDismissAll: vi.fn(),
+      onRetry: vi.fn(),
+      onSendNow: vi.fn(),
+      onInspectHistory: vi.fn(),
+      ...over,
+    });
+    const renderHost = (attn: ReviewAttention, filter: ReviewFilter = "all") =>
+      render(
+        <ReviewQueue
+          items={[]}
+          content={reviewContent}
+          selectedId={null}
+          filter={filter}
+          attention={attn}
+          onFilter={vi.fn()}
+          onSelect={vi.fn()}
+        />,
+      );
+
+    it("lists waiting edits with Send now, counted in the group", async () => {
+      const onSendNow = vi.fn();
+      renderHost(hostAttention([], { pending: 2, onSendNow }));
+      expect(
+        screen.getByRole("group", { name: "Needs attention. 2 pending" }),
+      ).toHaveTextContent("2 edits waiting to send");
+      await userEvent.click(screen.getByRole("button", { name: "Send now" }));
+      expect(onSendNow).toHaveBeenCalledOnce();
+      expect(screen.queryByText("No comments yet")).toBeNull();
+    });
+
+    it("counts one waiting edit in the singular and offers no Dismiss all for it", () => {
+      renderHost(hostAttention([], { pending: 1, canDismiss: false }));
+      expect(screen.getByText("1 edit waiting to send")).toBeVisible();
+      expect(screen.queryByRole("button", { name: "Dismiss all" })).toBeNull();
+    });
+
+    it("offers Inspect History on an outcome that may have applied", async () => {
+      const onInspectHistory = vi.fn();
+      renderHost(
+        hostAttention(
+          [
+            offlineConflict({
+              kind: "unknown",
+              recovery: "inspect-history",
+              command: { command_id: "u", type: "UndoHistory" },
+            }),
+          ],
+          { onInspectHistory },
+        ),
+      );
+      expect(
+        screen.getByText("Inspect History before trying this action again."),
+      ).toBeVisible();
+      await userEvent.click(
+        screen.getByRole("button", { name: "Inspect History" }),
+      );
+      expect(onInspectHistory).toHaveBeenCalledOnce();
+    });
+
+    it("offers no Inspect History on an ordinary refusal", () => {
+      renderHost(hostAttention());
+      expect(
+        screen.queryByRole("button", { name: "Inspect History" }),
+      ).toBeNull();
+      expect(
+        screen.getByText("Edit the change and submit it again."),
+      ).toBeVisible();
+    });
+
+    it("says to fix the project file for a refusal that blocks saving", () => {
+      renderHost(
+        hostAttention([
+          { ...offlineConflict(), blocksSave: true } as ReturnType<
+            typeof offlineConflict
+          >,
+        ]),
+      );
+      expect(
+        screen.getByText(
+          "Fix the project file first; this change was not saved.",
+        ),
+      ).toBeVisible();
+    });
+
+    it("lets the host waive a refine-gate refusal, says to approve again and takes focus", async () => {
+      waive.mockResolvedValue({});
+      renderHost(hostAttention([gated("a")]));
+      expect(screen.getByText(/^Approve:/)).toBeVisible();
+      expect(
+        screen.queryByText("Edit the change and submit it again."),
+      ).toBeNull();
+      await userEvent.type(
+        screen.getByLabelText("Waiver reason"),
+        "episode is a rerun",
+      );
+      await userEvent.click(
+        screen.getByRole("button", { name: "Waive with reason" }),
+      );
+      expect(waive).toHaveBeenCalledWith("/p", "episode is a rerun");
+      const status = await screen.findByRole("status");
+      expect(status).toHaveTextContent(
+        "Waiver recorded. Retry approval to apply pending edits.",
+      );
+      expect(status).toHaveFocus();
+      expect(
+        screen.queryByRole("button", { name: "Waive with reason" }),
+      ).toBeNull();
+    });
+
+    it("names the command unless it is an approve", () => {
+      renderHost(hostAttention([gated("t", DocumentCommand.RemoveTrack)]));
+      expect(
+        screen.getByText(
+          `${DocumentCommand.RemoveTrack}: ${TRANSCRIPT_REFINE_REFUSAL}`,
+        ),
+      ).toBeVisible();
+    });
+
+    it("clears every gated entry with one waiver", async () => {
+      waive.mockResolvedValue({});
+      renderHost(hostAttention([gated("a-1"), gated("a-2")]));
+      await userEvent.type(
+        screen.getAllByLabelText("Waiver reason")[0]!,
+        "rerun",
+      );
+      await userEvent.click(
+        screen.getAllByRole("button", { name: "Waive with reason" })[0]!,
+      );
+      expect(await screen.findAllByRole("status")).toHaveLength(2);
+      expect(
+        screen.queryByRole("button", { name: "Waive with reason" }),
+      ).toBeNull();
+    });
+
+    it("offers the form for a refusal that arrives after a waiver, and forgets one that left", async () => {
+      waive.mockResolvedValue({});
+      const view = (ids: string[]) => (
+        <ReviewQueue
+          items={[]}
+          content={reviewContent}
+          selectedId={null}
+          filter="all"
+          attention={hostAttention(ids.map((id) => gated(id)))}
+          onFilter={vi.fn()}
+          onSelect={vi.fn()}
+        />
+      );
+      const { rerender } = render(view(["first"]));
+      await userEvent.type(screen.getByLabelText("Waiver reason"), "rerun");
+      await userEvent.click(
+        screen.getByRole("button", { name: "Waive with reason" }),
+      );
+      await screen.findByRole("status");
+      rerender(view(["first", "second"]));
+      expect(
+        screen.getAllByRole("button", { name: "Waive with reason" }),
+      ).toHaveLength(1);
+      expect(screen.getAllByRole("status")).toHaveLength(1);
+      rerender(view([]));
+      rerender(view(["first"]));
+      expect(
+        screen.getByRole("button", { name: "Waive with reason" }),
+      ).toBeVisible();
+    });
+
+    it("keeps a waived status while the filter hides the group", async () => {
+      waive.mockResolvedValue({});
+      const attn = hostAttention([gated("a")]);
+      const view = (filter: ReviewFilter) => (
+        <ReviewQueue
+          items={[]}
+          content={reviewContent}
+          selectedId={null}
+          filter={filter}
+          attention={attn}
+          onFilter={vi.fn()}
+          onSelect={vi.fn()}
+        />
+      );
+      const { rerender } = render(view("all"));
+      await userEvent.type(screen.getByLabelText("Waiver reason"), "rerun");
+      await userEvent.click(
+        screen.getByRole("button", { name: "Waive with reason" }),
+      );
+      await screen.findByRole("status");
+      rerender(view("comments"));
+      rerender(view("all"));
+      expect(screen.getByRole("status")).toHaveTextContent("Waiver recorded");
+    });
+
+    it("offers no waiver without a host project, nor on a refusal that was not refused", () => {
+      renderHost(
+        hostAttention(
+          [
+            gated("a"),
+            offlineConflict({
+              kind: "unknown",
+              recovery: "inspect-history",
+              reason: TRANSCRIPT_REFINE_REFUSAL,
+              command: { command_id: "b" },
+            }),
+          ],
+          { refineWaiverProject: undefined },
+        ),
+      );
+      expect(
+        screen.queryByRole("button", { name: "Waive with reason" }),
+      ).toBeNull();
+    });
+
+    it("shows Retry for unreadable saved edits", async () => {
+      const onRetry = vi.fn();
+      renderHost(hostAttention([], { unreadable: true, onRetry }));
+      await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+      expect(onRetry).toHaveBeenCalledOnce();
     });
   });
 });

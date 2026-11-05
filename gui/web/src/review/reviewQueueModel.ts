@@ -8,6 +8,9 @@ import { KIND_META } from "../system/decisionKinds";
 import { formatSeconds } from "../system/seconds";
 import { verbOf } from "../system/verbDisplay";
 import type { VerbId } from "../system/verbs";
+import { DocumentCommand } from "../types/documentCommands.generated";
+import { TRANSCRIPT_REFINE_REFUSAL } from "../utils/apiError";
+import { plural } from "../utils/format";
 
 export type ReviewResult = "applied" | "kept";
 
@@ -304,29 +307,67 @@ export function decisionMessage(
   return `${verbOf(groupVerbOf(picked)).label} ${picked.length} · saves ${formatSeconds(sumSaved(picked))}`;
 }
 
-export type AttentionRow = { id: string; title: string; detail: string };
+/** The Needs attention group's id, so the Save dot's "See why" can focus it. */
+export const REVIEW_ATTENTION_ID = "review-needs-attention";
 
-/** A share guest's offline edits that did not apply, shown as Check rows above the groups. */
+/** Asks a phone Review stage to open its queue sheet, where the Needs attention group lives. */
+export const OPEN_REVIEW_ATTENTION_EVENT = "sharecut:open-review-attention";
+
+export type AttentionRow = {
+  id: string;
+  title: string;
+  /** The advice line; empty when a waiver form takes its place. */
+  detail: string;
+  /** The reason of a host refusal by the transcript-refine gate, settled by a waiver. */
+  refineReason?: string;
+  /** An outcome that may have applied, so History says what happened. */
+  inspectHistory?: boolean;
+};
+
+/** Offline edits that did not apply or have not been sent, shown as Check rows above the groups. */
 export type ReviewAttention = {
+  /** Host edits queued but not yet applied. */
+  pending: number;
   rows: readonly AttentionRow[];
   unreadable: boolean;
   dismissFailed: boolean;
   /** Reading or clearing the saved edits is under way. */
   checking: boolean;
   canDismiss: boolean;
+  /** The host's project, set so a refine-gate refusal can be waived from its row. */
+  refineWaiverProject?: string;
   onDismissAll: () => void;
   onRetry: () => void;
+  onSendNow?: () => void;
+  onInspectHistory?: () => void;
 };
 
 export const attentionRowsOf = (
   conflicts: readonly OfflineConflict[],
   guest: boolean,
 ): AttentionRow[] =>
-  conflicts.map((conflict) => ({
-    id: conflict.command.command_id,
-    title: `${conflict.command.type}: ${conflict.reason}`,
-    detail: conflictAdvice(conflict, guest),
-  }));
+  conflicts.map((conflict) => {
+    const refineGate =
+      !guest &&
+      conflict.kind === "refused" &&
+      conflict.reason === TRANSCRIPT_REFINE_REFUSAL;
+    const approve =
+      refineGate && conflict.command.type === DocumentCommand.ApproveEdits;
+    return {
+      id: conflict.command.command_id,
+      title: `${approve ? "Approve" : conflict.command.type}: ${conflict.reason}`,
+      detail: refineGate ? "" : conflictAdvice(conflict, guest),
+      refineReason: refineGate ? conflict.reason : undefined,
+      inspectHistory:
+        (!guest &&
+          conflict.kind === "unknown" &&
+          conflict.recovery === "inspect-history") ||
+        undefined,
+    };
+  });
+
+export const pendingLabelOf = (pending: number): string =>
+  `${pending} ${plural(pending, "edit")} waiting to send`;
 
 export const attentionVisible = (
   attention: ReviewAttention | undefined,
@@ -334,14 +375,14 @@ export const attentionVisible = (
 ): attention is ReviewAttention =>
   !!attention &&
   (filter === "all" || filter === "checks") &&
-  (attention.rows.length > 0 ||
+  (attention.pending > 0 ||
+    attention.rows.length > 0 ||
     attention.unreadable ||
     attention.dismissFailed);
 
 export const attentionLabelOf = (attention: ReviewAttention): string =>
   attentionRegionLabel({
-    // queued host edits are never counted for a guest
-    pending: 0,
+    pending: attention.pending,
     conflictCount: attention.rows.length,
     unreadable: attention.unreadable,
     dismissFailed: attention.dismissFailed,

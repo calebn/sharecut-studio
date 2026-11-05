@@ -58,9 +58,6 @@ function muteAcknowledgment(
 async function expectMixSettled(page: Page, projectPath: string) {
   await expect.poll(() => hostOfflineQueueCount(page, projectPath)).toBe(0);
   await expect(saveStatus(page)).toHaveText("Saved");
-  await expect(
-    page.getByRole("region", { name: /Needs attention/ }),
-  ).toBeHidden();
 }
 
 async function expectTouchable(page: Page, control: Locator) {
@@ -306,9 +303,8 @@ for (const { theme, reducedMotion } of withAppearance([0], 3)) {
         await button.tap();
         await heldResponse;
         await expect(button).toHaveAttribute("aria-pressed", "true");
-        await expect(
-          page.getByRole("region", { name: /Needs attention/ }),
-        ).toBeVisible();
+        // The held acknowledgment keeps the send in flight, so the dot never claims Saved.
+        await expect(saveStatus(page)).toHaveText(/Saving|waiting/);
         await expect
           .poll(() => hostOfflineQueueCount(page, fixture.projectPath))
           .toBe(1);
@@ -346,9 +342,8 @@ for (const { theme, reducedMotion } of withAppearance([0], 3)) {
         await page.touchscreen.tap(center.x, center.y);
         expect(await scroller.evaluate((element) => element.scrollTop)).toBe(0);
         await expect(button).toHaveAttribute("aria-pressed", "false");
-        await expect(
-          page.getByRole("region", { name: /Needs attention/ }),
-        ).toBeVisible();
+        // The held acknowledgment keeps the send in flight, so the dot never claims Saved.
+        await expect(saveStatus(page)).toHaveText(/Saving|waiting/);
         releaseResponse();
         expect((await onAcknowledgment).ok()).toBe(true);
         expect((await offAcknowledgment).ok()).toBe(true);

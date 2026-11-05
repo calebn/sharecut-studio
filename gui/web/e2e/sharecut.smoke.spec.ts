@@ -40,7 +40,7 @@ test.describe("ShareCut Studio smoke", () => {
       .poll(() => hostOfflineQueueCount(page, e2eProjectPath))
       .toBe(1);
     await expect(
-      page.getByRole("region", {
+      page.getByRole("group", {
         name: /^Needs attention\. 1 pending(?:,|$)/,
       }),
     ).toBeVisible();
@@ -63,7 +63,7 @@ test.describe("ShareCut Studio smoke", () => {
       type: "AddComment",
     });
     await expect(
-      page.getByRole("region", { name: /^Needs attention/ }),
+      page.getByRole("group", { name: /^Needs attention/ }),
     ).toHaveCount(0);
   });
 });

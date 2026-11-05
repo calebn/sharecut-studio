@@ -1,4 +1,9 @@
 import { useEffect } from "react";
+import { executePointerCommand } from "../../commands/pointer";
+import {
+  OPEN_REVIEW_ATTENTION_EVENT,
+  REVIEW_ATTENTION_ID,
+} from "../../review/reviewQueueModel";
 import {
   refreshOfflineAttention,
   selectRecoveryOutcome,
@@ -14,7 +19,26 @@ export type SaveAttention =
   | { kind: "passive" }
   | { kind: "button"; activate: () => void };
 
-function focusAttention() {
+const FOCUS_FRAMES = 30;
+
+function focusWhenMounted(id: string, frames = FOCUS_FRAMES) {
+  const target = document.getElementById(id);
+  if (target) target.focus();
+  else if (frames > 0) {
+    // On a phone the group sits in the queue sheet, which the stage opens on this request.
+    window.dispatchEvent(new Event(OPEN_REVIEW_ATTENTION_EVENT));
+    requestAnimationFrame(() => focusWhenMounted(id, frames - 1));
+  }
+}
+
+/** A guest's banner opens in place; the host's Check rows live in the Review queue. */
+function focusAttention(guest: boolean) {
+  if (!guest) {
+    void executePointerCommand("stage.review").then(() =>
+      focusWhenMounted(REVIEW_ATTENTION_ID),
+    );
+    return;
+  }
   const banner = document.getElementById(ATTENTION_BANNER_ID);
   banner?.querySelector("details")?.setAttribute("open", "");
   banner?.focus();
@@ -22,7 +46,7 @@ function focusAttention() {
 
 /**
  * The project's save state from the sends this tab has in flight and the
- * offline queue and conflicts the Needs attention banner lists. A share guest's
+ * offline queue and conflicts the Needs attention rows list. A share guest's
  * queue is the edits waiting to reach the host; a guest reading the saved copy
  * is unreachable.
  */
@@ -52,9 +76,9 @@ export function useSaveState(): {
 
   useEffect(() => {
     if (attention.recoverySelection) {
-      focusAttention();
+      focusAttention(guest);
     }
-  }, [attention.recoverySelection]);
+  }, [attention.recoverySelection, guest]);
 
   return {
     state,
@@ -72,7 +96,7 @@ export function useSaveState(): {
               if (projectPath && latest && showsDismissedOutcome) {
                 selectRecoveryOutcome(projectPath, latest);
               }
-              focusAttention();
+              focusAttention(guest);
             },
           },
   };

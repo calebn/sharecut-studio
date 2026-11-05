@@ -282,7 +282,7 @@ test.describe("Pending inspector layout", () => {
     ).toBeAttached();
 
     await expect(
-      page.getByRole("region", { name: /^Needs attention/ }),
+      page.getByRole("group", { name: /^Needs attention/ }),
     ).toHaveCount(0);
     await page.setViewportSize({ width: 1280, height: 480 });
     await expect

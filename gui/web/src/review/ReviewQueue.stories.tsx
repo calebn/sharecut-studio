@@ -10,7 +10,10 @@ import {
 import { Sheet } from "../system/Sheet";
 import { offlineConflict } from "../test/fixtures";
 import { openDialogByLauncher } from "../test/storyDialog";
+import { episodeBeforeEach } from "../test/withEpisode";
+import { DocumentCommand } from "../types/documentCommands.generated";
 import { Button } from "../ui";
+import { TRANSCRIPT_REFINE_REFUSAL } from "../utils/apiError";
 import { ReviewQueue, type ReviewQueueProps } from "./ReviewQueue";
 import {
   attentionRowsOf,
@@ -35,7 +38,6 @@ function StatefulQueue(props: ReviewQueueProps) {
 const meta: Meta<typeof ReviewQueue> = {
   title: "Stages/Review/Queue",
   component: ReviewQueue,
-  tags: ["autodocs"],
   args: {
     items: QUEUE_ITEMS,
     content: reviewContent,
@@ -180,6 +182,7 @@ export const GuestFiltered: Story = {
 const guestAttention = (
   over: Partial<ReviewAttention> = {},
 ): ReviewAttention => ({
+  pending: 0,
   rows: attentionRowsOf(
     [
       offlineConflict({
@@ -236,5 +239,101 @@ export const GuestSavedEditsUnreadable: Story = {
     const view = within(canvasElement);
     await userEvent.click(view.getByRole("button", { name: "Retry" }));
     await expect(args.attention?.onRetry).toHaveBeenCalled();
+  },
+};
+
+const hostAttention = (
+  over: Partial<ReviewAttention> = {},
+): ReviewAttention => ({
+  ...guestAttention({
+    rows: attentionRowsOf(
+      [
+        offlineConflict({
+          command: { command_id: "undo-1", type: "UndoHistory" },
+          kind: "unknown",
+          reason: "The host did not confirm this edit",
+          recovery: "inspect-history",
+        }),
+      ],
+      false,
+    ),
+  }),
+  pending: 2,
+  onSendNow: fn(),
+  onInspectHistory: fn(),
+  ...over,
+});
+
+export const HostWaitingEdits: Story = {
+  args: {
+    items: QUEUE_ITEMS.filter((i) => i.kind === "comment"),
+    attention: hostAttention(),
+    selectedId: null,
+  },
+  play: async ({ canvasElement, args }) => {
+    const view = within(canvasElement);
+    await expect(
+      view.getByRole("group", {
+        name: "Needs attention. 2 pending, 1 conflict",
+      }),
+    ).toBeInTheDocument();
+    await expect(view.getByText("2 edits waiting to send")).toBeVisible();
+    await userEvent.click(view.getByRole("button", { name: "Send now" }));
+    await expect(args.attention?.onSendNow).toHaveBeenCalledTimes(1);
+    await userEvent.click(
+      view.getByRole("button", { name: "Inspect History" }),
+    );
+    await expect(args.attention?.onInspectHistory).toHaveBeenCalledTimes(1);
+  },
+};
+
+export const HostRefineWaiver: Story = {
+  beforeEach: episodeBeforeEach,
+  parameters: {
+    episode: { responses: { "POST /api/transcript/refine/waive": {} } },
+  },
+  args: {
+    items: [],
+    selectedId: null,
+    attention: hostAttention({
+      pending: 0,
+      refineWaiverProject: "/episodes/mira/episode.sharecut",
+      rows: attentionRowsOf(
+        [
+          offlineConflict({
+            reason: TRANSCRIPT_REFINE_REFUSAL,
+            command: {
+              command_id: "approve-1",
+              type: DocumentCommand.ApproveEdits,
+            },
+          }),
+        ],
+        false,
+      ),
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const view = within(canvasElement);
+    await expect(view.getByText(/^Approve:/)).toBeVisible();
+    await userEvent.click(
+      view.getByRole("button", { name: "Waive with reason" }),
+    );
+    await expect(
+      await view.findByText(
+        "A reason is required to waive transcript refinement.",
+      ),
+    ).toBeVisible();
+    await userEvent.type(
+      view.getByLabelText("Waiver reason"),
+      "Host approved the raw transcript",
+    );
+    await userEvent.click(
+      view.getByRole("button", { name: "Waive with reason" }),
+    );
+    await expect(
+      await view.findByText(
+        "Waiver recorded. Retry approval to apply pending edits.",
+      ),
+    ).toBeVisible();
   },
 };

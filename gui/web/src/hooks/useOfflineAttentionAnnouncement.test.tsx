@@ -1,11 +1,9 @@
-import { act, render, screen, within } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GuestAttentionBanner } from "../stage/frame/GuestAttentionBanner";
-import { ATTENTION_BANNER_ID } from "../stage/frame/GuestAttentionBannerView";
 import { StatusLive } from "../stage/frame/StatusLive";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
-import { expectOutsideLiveRegions } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
 
 const offlineStore = vi.hoisted(() => {
@@ -48,7 +46,7 @@ describe("useOfflineAttentionAnnouncement", () => {
 
   it("speaks attention changes once, through the one shell region, without a toast", async () => {
     offlineStore.loadHostCommandCount.mockResolvedValue(2);
-    const { container } = render(
+    render(
       <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
         <GuestAttentionBanner />
         <StatusLive />
@@ -57,15 +55,6 @@ describe("useOfflineAttentionAnnouncement", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    const region = screen.getByRole("region", {
-      name: "Needs attention. 2 pending",
-    });
-    expectOutsideLiveRegions(container, /^Needs attention$/);
-    expect(
-      within(
-        document.getElementById(ATTENTION_BANNER_ID) as HTMLElement,
-      ).queryByRole("status"),
-    ).not.toBeInTheDocument();
     expect(screen.getAllByRole("status")).toHaveLength(1);
     expect(screen.getByRole("status").textContent).toBe(
       "Needs attention. 2 pending",
@@ -75,7 +64,6 @@ describe("useOfflineAttentionAnnouncement", () => {
     );
     expect(useDawStore.getState().feedbackToast).toBeNull();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(region).toBeInTheDocument();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10_000);

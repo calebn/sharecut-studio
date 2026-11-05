@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
 import { openSuggestedPendingEdit } from "./pendingEdit";
-import { phone as stagePhone } from "./stageNav";
+import { goToStage, phone as stagePhone } from "./stageNav";
 
 const SERVER_TEXT =
   "Transcript refine is required before focus/tighten/NL edits. Run podcast-transcript-refine, then `podcast transcript refine-done`, or `podcast transcript refine-waive --reason ...`.";
@@ -12,7 +12,7 @@ const PHONES = [
 ] as const;
 
 for (const phone of PHONES) {
-  test(`a replayed Approve the refine gate refuses can be waived from the Needs attention banner at ${phone.width}x${phone.height}`, async ({
+  test(`a replayed Approve the refine gate refuses can be waived from the Review queue's Needs attention rows at ${phone.width}x${phone.height}`, async ({
     page,
   }) => {
     let online = false;
@@ -46,28 +46,31 @@ for (const phone of PHONES) {
       .first()
       .click();
 
-    const banner = page.getByRole("region", { name: /^Needs attention/ });
+    await goToStage(page, "review");
+    // On a phone the queue is a sheet, and its button says something needs attention.
+    await page.getByRole("button", { name: /Needs attention$/ }).click();
+    const banner = page.getByRole("group", { name: /^Needs attention/ });
     await expect(banner).toBeVisible();
     online = true;
     await page.evaluate(() => window.dispatchEvent(new Event("online")));
-    await banner.getByLabel("Needs attention 1 Details").click();
     const waive = banner.getByRole("button", { name: "Waive with reason" });
+    await waive.scrollIntoViewIfNeeded();
     await expect(waive).toBeVisible();
     await expect(waive).toBeInViewport();
-    const nav = page.locator(".stage-frame-player");
     const field = banner.getByLabel("Waiver reason");
     await expect(field).toBeInViewport();
     await expect
-      .poll(async () => {
-        const navBox = await nav.boundingBox();
-        const fieldBox = await field.boundingBox();
-        const buttonBox = await waive.boundingBox();
-        if (!navBox || !fieldBox || !buttonBox) return false;
-        return (
-          fieldBox.y + fieldBox.height <= navBox.y &&
-          buttonBox.y + buttonBox.height <= navBox.y
-        );
-      })
+      .poll(() =>
+        waive.evaluate((button) => {
+          const rect = button.getBoundingClientRect();
+          return (
+            document.elementFromPoint(
+              rect.left + rect.width / 2,
+              rect.top + rect.height / 2,
+            ) === button
+          );
+        }),
+      )
       .toBe(true);
     await expect(banner).not.toContainText(
       /podcast transcript|ApproveEdits|refine-waive|transcript_refine/,

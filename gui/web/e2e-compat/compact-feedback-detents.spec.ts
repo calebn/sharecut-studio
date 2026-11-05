@@ -292,13 +292,6 @@ for (const {
         "Can't undo: the project changed since. Nothing was undone.",
       );
       await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
-      const attention = page.getByRole("region", {
-        name: "Needs attention. 1 conflict",
-      });
-      await expect(attention).toBeVisible();
-      const details = attention.locator("details");
-      const summary = details.locator("summary");
-      await expect(summary).toHaveAccessibleName("Needs attention 1 Details");
       if (halfDetent)
         await page
           .getByRole("button", { name: "Expand to full height", exact: true })
@@ -307,38 +300,6 @@ for (const {
         .locator(".bottom-sheet-header-actions button")
         .all()) {
         const geometry = await controlGeometry(button);
-        expect(geometry.fullyVisible, JSON.stringify(geometry)).toBe(true);
-        expect(geometry.hitsControl, JSON.stringify(geometry)).toBe(true);
-      }
-      await summary.scrollIntoViewIfNeeded();
-      await summary.focus();
-      await page.keyboard.press("Enter");
-      await expect(details).toHaveAttribute("open", "");
-      const reason = details.locator(".guest-attention-list > li").first();
-      await expect(reason).toContainText("Project changed");
-      await expect(reason).toContainText(
-        "Edit the change and submit it again.",
-      );
-      const dismiss = attention.getByRole("button", {
-        name: "Dismiss all",
-        exact: true,
-      });
-      const body = panel.locator(".bottom-sheet-body");
-      for (const [name, target] of [
-        ["summary", summary],
-        ["reason", reason],
-        ["dismiss", dismiss],
-      ] as const) {
-        await target.scrollIntoViewIfNeeded();
-        const geometry = await controlGeometry(target);
-        json(info, `attention-${name}-body-scroll`, {
-          geometry,
-          scroll: await body.evaluate((element) => ({
-            top: element.scrollTop,
-            clientHeight: element.clientHeight,
-            scrollHeight: element.scrollHeight,
-          })),
-        });
         expect(geometry.fullyVisible, JSON.stringify(geometry)).toBe(true);
         expect(geometry.hitsControl, JSON.stringify(geometry)).toBe(true);
         if (safeAreaProbe) {
@@ -361,21 +322,6 @@ for (const {
           expect(geometry.hitsControl, JSON.stringify(geometry)).toBe(true);
         }
       }
-      await expect(attention).toHaveClass(/guest-attention--inspector-flow/);
-      await summary.scrollIntoViewIfNeeded();
-      await summary.focus();
-      await summary.press("Enter");
-      await expect(details).not.toHaveAttribute("open", "");
-      await expect(
-        details.locator(".guest-attention-details-content"),
-      ).not.toBeVisible();
-      await summary.press("Space");
-      await expect(details).toHaveAttribute("open", "");
-      await expect(
-        details.locator(".guest-attention-details-content"),
-      ).toBeVisible();
-      await summary.click();
-      await expect(details).not.toHaveAttribute("open", "");
       await page
         .getByRole("button", { name: "Collapse to strip", exact: true })
         .click();

@@ -2,6 +2,7 @@ import {
   Fragment,
   type ReactNode,
   type Ref,
+  useEffect,
   useEffectEvent,
   useImperativeHandle,
   useLayoutEffect,
@@ -26,11 +27,13 @@ import {
 } from "./ReviewQueue";
 import { stageActionFor } from "./reviewKeys";
 import {
+  attentionVisible,
   filterItems,
   fullOrder,
   groupQueue,
   holdsGateKind,
   itemVerb,
+  OPEN_REVIEW_ATTENTION_EVENT,
   type ReviewAttention,
   type ReviewFilter,
   type ReviewItem,
@@ -144,6 +147,13 @@ export function ReviewStage({
   const [pending, setPending] = useState<Pending | null>(null);
   const [waived, setWaived] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const phone = layout === "phone";
+  useEffect(() => {
+    if (!phone) return;
+    const open = () => setSheetOpen(true);
+    window.addEventListener(OPEN_REVIEW_ATTENTION_EVENT, open);
+    return () => window.removeEventListener(OPEN_REVIEW_ATTENTION_EVENT, open);
+  }, [phone]);
   const [seen, setSeen] = useState(selectedId);
   const hasCheck = openOf(items, "check").some((i) => i.transcript);
   const [hadCheck, setHadCheck] = useState(hasCheck);
@@ -163,7 +173,6 @@ export function ReviewStage({
     else setPending(null);
   }
 
-  const phone = layout === "phone";
   const short = useShortLayoutViewport();
   const dockedComposer = phone && guest && !short;
   const selected = items.find((item) => item.id === selectedId) ?? null;
@@ -438,6 +447,7 @@ export function ReviewStage({
               {!canDecide && items.length === 0
                 ? "No comments"
                 : `${position} of ${items.length}`}
+              {attentionVisible(attention, "all") ? " · Needs attention" : ""}
             </Button>
           </div>
         ) : (
