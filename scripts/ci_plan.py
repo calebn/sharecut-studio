@@ -4,11 +4,11 @@
 Usage:
   python3 scripts/ci_plan.py plan --event pull_request --base <sha> --head <sha>
   python3 scripts/ci_plan.py plan --event push          # main, nightly, dispatch: everything
-  python3 scripts/ci_plan.py subset-tests web|docs      # pytest files that read that scope
+  python3 scripts/ci_plan.py subset-tests web|docs|web-docs  # pytest files that read that scope
   python3 scripts/ci_plan.py required-checks [--check]   # the required-checks table in the docs
 
 `plan` prints `key=value` lines for `$GITHUB_OUTPUT`: `gui` (run Vitest and the
-browser suites), `pytest` (`full`, `web`, `docs` or `release`), `release-only`
+browser suites), `pytest` (`full`, `web`, `docs`, `web-docs` or `release`), `release-only`
 (digit `1` proves a release update), `e2e-matrix` (the browser jobs), and seven
 `skip-native-*` proofs from `ci_native` (digit `1` skips a native family; `0` runs it).
 `REQUIRED_CHECKS` is the one list of required status contexts: `required-checks` renders
@@ -79,7 +79,6 @@ class Subset:
 
 
 SubsetName = Literal["web", "docs"]
-UNION_SCOPE = "web-docs"
 SUBSETS: dict[SubsetName, Subset] = {
     "web": Subset((Glob.parse("gui/web/**"),), WEB_READER_RE),
     "docs": Subset(
@@ -644,7 +643,7 @@ def subset_tests(
     """Repo-relative pytest files that read *scope*, directly or through a script, sorted."""
     if scope == "release":
         return list(RELEASE_TESTS)
-    if scope == UNION_SCOPE:
+    if scope == "web-docs":
         return sorted({path for name in SUBSETS for path in subset_tests(name, root)})
     reader = SUBSETS[scope].reader
     script_readers = _script_readers(root, reader)
@@ -686,7 +685,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     plan_cmd.add_argument("--base-repository")
     plan_cmd.add_argument("--base-ref")
     subset_cmd = sub.add_parser("subset-tests")
-    subset_cmd.add_argument("scope", choices=[*sorted(SUBSETS), UNION_SCOPE, "release"])
+    subset_cmd.add_argument("scope", choices=[*sorted(SUBSETS), "web-docs", "release"])
     required_cmd = sub.add_parser("required-checks")
     required_cmd.add_argument("--check", action="store_true", help="fail instead of writing")
     args = parser.parse_args(argv)
