@@ -134,6 +134,8 @@ const spy: SourceActions = {
   onReplace: fn(),
   onMerge: fn(),
   onMove: fn(),
+  onReorder: fn(),
+  onDropAudio: fn(),
 };
 
 const meta: Meta<typeof SplitSpeakers> = {
@@ -245,10 +247,12 @@ export const Prompt: Story = {
     await expect(
       canvas.getAllByText("One recording of several people?"),
     ).toHaveLength(1);
-    await userEvent.click(canvas.getByRole("button", { name: /^More voices/ }));
-    await expect(
-      canvas.getByRole("group", { name: "Number of voices" }),
-    ).toHaveTextContent("4");
+    const voices = canvas.getByRole("spinbutton", {
+      name: /^Number of voices/,
+    });
+    voices.focus();
+    await userEvent.keyboard("{ArrowUp}");
+    await expect(voices).toHaveAttribute("aria-valuetext", "4 voices");
     await expect(
       canvas.getByRole("button", { name: "Split Track 1" }),
     ).toBeVisible();

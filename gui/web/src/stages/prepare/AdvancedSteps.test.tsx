@@ -1,7 +1,8 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
+import { expectNoA11yViolations } from "../../test/a11y";
 import { AdvancedSteps, type AdvancedStepsProps } from "./AdvancedSteps";
 import { GROUPS, RUNNING } from "./advancedFixture";
 import { useAdvancedDemo } from "./useAdvancedDemo";
@@ -241,60 +242,108 @@ describe("AdvancedSteps", () => {
       return <AdvancedSteps {...demo} />;
     }
     render(<Noise />);
-    expect(screen.getByRole("slider")).toHaveAttribute(
+    expect(screen.getByRole("spinbutton")).toHaveAttribute(
       "aria-valuetext",
       "0.3 seconds",
     );
   });
 
-  it("is a native slider read in plain units, so the arrow keys work in the browser", () => {
-    const onParam = vi.fn();
-    render(<Host selected="align" spy={{ onParam }} />);
-    const slider = screen.getByRole("slider", { name: "Largest move" });
-    expect(slider.tagName).toBe("INPUT");
-    expect(slider).toHaveAttribute("type", "range");
-    expect(slider).toHaveAttribute("step", "1");
-    expect(slider).toHaveAttribute("aria-valuetext", "5 seconds");
-    // jsdom has no key handling for a range, so the change a key makes is sent
-    // directly; the story play function presses the real keys.
-    fireEvent.change(slider, { target: { value: "6" } });
-    expect(onParam).toHaveBeenLastCalledWith("align", "max-move", 6);
-    expect(slider).toHaveAttribute("aria-valuetext", "6 seconds");
-    fireEvent.change(slider, { target: { value: "1" } });
-    expect(slider).toHaveAttribute("aria-valuetext", "1 second");
-  });
-
-  it("shows the reset button only when changed, named for the setting", async () => {
+  it("is a scrub field read in plain units, with no native range slider", async () => {
     const user = userEvent.setup();
-    const onReset = vi.fn();
-    render(<Host selected="fill-gaps" spy={{ onReset }} />);
-    // The fixture starts this one off its default (2 seconds, default 1).
-    const reset = screen.getByRole("button", {
-      name: "Reset to default: Longest gap to fill",
-    });
-    expect(reset.tagName).toBe("BUTTON");
-    await user.click(reset);
-    expect(onReset).toHaveBeenCalledWith("fill-gaps", "longest-gap");
+    const onParam = vi.fn();
+    const { container } = render(<Host selected="align" spy={{ onParam }} />);
+    expect(container.querySelector('input[type="range"]')).toBeNull();
+    const field = screen.getByRole("spinbutton", { name: "Largest move" });
+    expect(field).toHaveAttribute("aria-valuemin", "1");
+    expect(field).toHaveAttribute("aria-valuemax", "30");
+    expect(field).toHaveAttribute("aria-valuetext", "5 seconds");
+    field.focus();
+    await user.keyboard("{ArrowUp}");
+    expect(onParam).toHaveBeenLastCalledWith("align", "max-move", 6);
     expect(
-      screen.queryByRole("button", { name: /^Reset to default/ }),
-    ).toBeNull();
+      screen.getByRole("spinbutton", { name: "Largest move" }),
+    ).toHaveAttribute("aria-valuetext", "6 seconds");
+    await user.keyboard(
+      "{ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}",
+    );
     expect(
-      screen.getByRole("slider", { name: "Longest gap to fill" }),
+      screen.getByRole("spinbutton", { name: "Largest move" }),
     ).toHaveAttribute("aria-valuetext", "1 second");
   });
 
-  it("describes each field by its help and offers language as a select", async () => {
+  it("commits a typed value", async () => {
     const user = userEvent.setup();
-    render(<Host selected="transcribe" />);
+    const onParam = vi.fn();
+    render(<Host selected="align" spy={{ onParam }} />);
+    screen.getByRole("spinbutton", { name: "Largest move" }).focus();
+    await user.keyboard("{Enter}");
+    await user.keyboard("12{Enter}");
+    expect(onParam).toHaveBeenLastCalledWith("align", "max-move", 12);
+  });
+
+  it("shows the scrub reset dot only when changed, and the dot resets", async () => {
+    const user = userEvent.setup();
+    const onReset = vi.fn();
+    render(<Host selected="fill-gaps" spy={{ onReset }} />);
+    const reset = screen.getByRole("button", {
+      name: /^Reset Longest gap to fill to 1/,
+    });
+    await user.click(reset);
+    expect(onReset).toHaveBeenCalledWith("fill-gaps", "longest-gap");
+    expect(
+      screen.queryByRole("button", { name: /^Reset Longest gap/ }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("spinbutton", { name: "Longest gap to fill" }),
+    ).toHaveAttribute("aria-valuetext", "1 second");
+  });
+
+  it("offers language as a searchable picker with Detect automatically first", async () => {
+    const user = userEvent.setup();
+    const onParam = vi.fn();
+    render(<Host selected="transcribe" spy={{ onParam }} />);
     const language = screen.getByRole("combobox", { name: "Language" });
     expect(language).toHaveAccessibleDescription(/Detect automatically works/);
-    expect(within(language).getAllByRole("option")[0]).toHaveTextContent(
-      "Detect automatically",
-    );
-    await user.selectOptions(language, "es");
+    expect(language).toHaveValue("Detect automatically");
+    await user.click(language);
+    const options = screen.getAllByRole("option");
+    expect(options[0]).toHaveTextContent("Detect automatically");
+    expect(options).toHaveLength(100);
+    await user.keyboard("ukr");
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual([
+      "Ukrainian",
+    ]);
+    await user.keyboard("{Enter}");
+    expect(onParam).toHaveBeenCalledWith("transcribe", "language", "uk");
     expect(
       screen.getByRole("button", { name: "Reset to default: Language" }),
     ).toBeInTheDocument();
+    expect(language).toHaveValue("Ukrainian");
+  });
+
+  it("has no axe violations with the scrub field and the open language picker", async () => {
+    const user = userEvent.setup();
+    const align = render(<Host selected="align" />);
+    await expectNoA11yViolations(align.container);
+    align.unmount();
+    const language = render(<Host selected="transcribe" />);
+    await user.click(screen.getByRole("combobox", { name: "Language" }));
+    await expectNoA11yViolations(language.container);
+  });
+
+  it("finds a language by its code and says when nothing matches", async () => {
+    const user = userEvent.setup();
+    render(<Host selected="transcribe" />);
+    const language = screen.getByRole("combobox", { name: "Language" });
+    await user.click(language);
+    await user.keyboard("pt");
+    expect(screen.getByRole("option", { name: "Portuguese" })).toBeVisible();
+    await user.clear(language);
+    await user.keyboard("zzz");
+    expect(screen.queryAllByRole("option")).toHaveLength(0);
+    expect(screen.getByText("No language matches")).toBeVisible();
+    await user.keyboard("{Escape}");
+    expect(language).toHaveValue("Detect automatically");
   });
 
   it("runs a step again from its own menu", async () => {
@@ -314,39 +363,28 @@ describe("AdvancedSteps", () => {
     const user = userEvent.setup();
     render(<Host selected="fill-gaps" />);
     screen
-      .getByRole("button", { name: "Reset to default: Longest gap to fill" })
+      .getByRole("button", { name: /^Reset Longest gap to fill to 1/ })
       .focus();
     await user.keyboard("{Enter}");
     expect(
-      screen.queryByRole("button", { name: /^Reset to default/ }),
+      screen.queryByRole("button", { name: /^Reset Longest gap/ }),
     ).toBeNull();
     expect(
-      screen.getByRole("slider", { name: "Longest gap to fill" }),
+      screen.getByRole("spinbutton", { name: "Longest gap to fill" }),
     ).toHaveFocus();
   });
 
-  it("points the disabled setting controls at the busy reason too", () => {
-    render(<Host selected="fill-gaps" running={RUNNING} />);
-    const reason = "Steps cannot change while one is running.";
-    expect(
-      screen.getByRole("slider", { name: "Longest gap to fill" }),
-    ).toHaveAccessibleDescription(new RegExp(reason));
-    expect(
-      screen.getByRole("button", {
-        name: "Reset to default: Longest gap to fill",
-      }),
-    ).toHaveAccessibleDescription(reason);
-  });
-
-  it("keeps focus on the setting that has it when a step starts running", async () => {
+  it("points a held setting at the busy reason and refuses changes", async () => {
     const user = userEvent.setup();
     const onParam = vi.fn();
     const onReset = vi.fn();
     const { rerender } = render(
       <Host selected="fill-gaps" spy={{ onParam, onReset }} />,
     );
-    const slider = screen.getByRole("slider", { name: "Longest gap to fill" });
-    slider.focus();
+    const field = screen.getByRole("spinbutton", {
+      name: "Longest gap to fill",
+    });
+    field.focus();
     rerender(
       <Host
         selected="fill-gaps"
@@ -354,16 +392,25 @@ describe("AdvancedSteps", () => {
         spy={{ onParam, onReset }}
       />,
     );
-    expect(slider).toHaveFocus();
-    expect(slider).toHaveAttribute("aria-disabled", "true");
-    fireEvent.change(slider, { target: { value: "3" } });
+    expect(field).toHaveFocus();
+    expect(field).toHaveAttribute("aria-readonly", "true");
+    expect(field).toHaveAccessibleDescription(
+      /Steps cannot change while one is running\./,
+    );
+    await user.keyboard("{ArrowUp}");
     expect(onParam).not.toHaveBeenCalled();
-    const reset = screen.getByRole("button", {
-      name: "Reset to default: Longest gap to fill",
-    });
-    await user.click(reset);
     expect(onReset).not.toHaveBeenCalled();
-    expect(reset).toHaveFocus();
+  });
+
+  it("holds the language picker while a step runs", async () => {
+    const user = userEvent.setup();
+    const onParam = vi.fn();
+    render(<Host selected="transcribe" running={RUNNING} spy={{ onParam }} />);
+    const language = screen.getByRole("combobox", { name: "Language" });
+    expect(language).toHaveAttribute("aria-disabled", "true");
+    await user.click(language);
+    await user.click(screen.getByRole("option", { name: "Spanish" }));
+    expect(onParam).not.toHaveBeenCalled();
   });
 
   it("keeps focus on a list switch when a step starts running", () => {
@@ -422,22 +469,22 @@ describe("AdvancedSteps", () => {
 
     it("reads a range value past the end as the end", () => {
       render(view(scrub(99)));
-      const slider = screen.getByRole("slider", { name: "Largest move" });
-      expect(slider).toHaveAttribute("aria-valuetext", "30 seconds");
-      expect(screen.getByText("30 seconds")).toBeInTheDocument();
+      const field = screen.getByRole("spinbutton", { name: "Largest move" });
+      expect(field).toHaveAttribute("aria-valuetext", "30 seconds");
+      expect(field).toHaveTextContent("30");
     });
 
     it("falls back to the default for a value that is not a number", () => {
       render(view(scrub(Number.NaN)));
       expect(
-        screen.getByRole("slider", { name: "Largest move" }),
+        screen.getByRole("spinbutton", { name: "Largest move" }),
       ).toHaveAttribute("aria-valuetext", "5 seconds");
       expect(
         screen.queryByRole("button", { name: /^Reset to default/ }),
       ).toBeNull();
     });
 
-    it("shows a value the list does not know as Custom, not as the first option", () => {
+    it("shows a saved code the list does not know as that code", () => {
       render(
         view({
           kind: "language",
@@ -449,11 +496,9 @@ describe("AdvancedSteps", () => {
           options: [{ value: "auto", label: "Detect automatically" }],
         }),
       );
-      const select = screen.getByRole("combobox", { name: "Language" });
-      expect(select).toHaveDisplayValue("Custom (xx)");
-      expect(
-        within(select).getByRole("option", { name: "Custom (xx)" }),
-      ).toBeDisabled();
+      expect(screen.getByRole("combobox", { name: "Language" })).toHaveValue(
+        "xx",
+      );
     });
   });
 });

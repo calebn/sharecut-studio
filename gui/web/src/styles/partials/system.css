@@ -2863,6 +2863,52 @@ button.sys-picker-option:focus-visible {
   color: var(--color-text-primary);
 }
 
+.sys-source {
+  transform: translateY(var(--sys-source-shift, 0));
+}
+
+.sys-source[data-reordering] {
+  position: relative;
+  z-index: var(--z-timeline-popover);
+  box-shadow: var(--shadow-floating);
+  cursor: grabbing;
+}
+
+.sys-source[data-making-room] {
+  transition: transform var(--motion-hover);
+}
+
+.sys-source-grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-inline-end: auto;
+  inline-size: var(--touch-min);
+  block-size: var(--touch-min);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: grab;
+  touch-action: none;
+}
+
+.sys-source-grip:hover {
+  background: var(--color-bg-sunken);
+}
+
+.sys-source-grip-dots {
+  inline-size: 0.75rem;
+  block-size: 1rem;
+  border-inline: 0.25rem dotted currentcolor;
+}
+
+.sys-source[data-drop-over] {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 var(--focus-ring-width) var(--color-accent);
+}
+
 .sys-source .ui-field-hint {
   min-inline-size: 0;
   overflow-wrap: anywhere;
@@ -2907,36 +2953,6 @@ button.sys-picker-option:focus-visible {
   text-align: start;
   white-space: normal;
   overflow-wrap: anywhere;
-}
-
-.sys-stepper {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.sys-stepper-button {
-  inline-size: var(--touch-min);
-  min-block-size: var(--touch-min);
-  justify-content: center;
-  padding-inline: 0;
-}
-
-.sys-stepper-button[aria-disabled="true"] {
-  color: var(--color-text-secondary);
-  cursor: not-allowed;
-}
-
-.sys-stepper-value {
-  min-inline-size: 1.5rem;
-  text-align: center;
-  font-family: var(--font-family-mono);
-  font-size: var(--font-size-emphasis);
-}
-
-.sys-stepper-reason {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-ui);
 }
 
 @container sys-source (max-width: 40rem) {
@@ -3584,12 +3600,6 @@ button.sys-picker-option:focus-visible {
   overflow-wrap: anywhere;
 }
 
-.sys-adv-value {
-  color: var(--color-text-secondary);
-  font-family: var(--font-family-mono);
-  font-size: var(--font-size-ui);
-}
-
 .sys-adv-reset {
   display: inline-flex;
   align-items: center;
@@ -3616,12 +3626,6 @@ button.sys-picker-option:focus-visible {
   background: var(--color-accent);
 }
 
-.sys-adv-range {
-  inline-size: 100%;
-  min-block-size: var(--control-height);
-  accent-color: var(--color-accent-solid);
-}
-
 .sys-adv-select {
   inline-size: 100%;
   min-block-size: var(--control-height);
@@ -3634,16 +3638,54 @@ button.sys-picker-option:focus-visible {
   font-size: var(--font-size-field);
 }
 
-.sys-adv-range[aria-disabled="true"],
 .sys-adv-select[aria-disabled="true"] {
   opacity: 0.55;
   cursor: not-allowed;
 }
 
-.sys-adv-range:focus-visible,
 .sys-adv-select:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-accent);
   outline-offset: var(--focus-ring-offset);
+}
+
+.sys-adv-picker {
+  position: relative;
+}
+
+.sys-adv-options {
+  position: absolute;
+  inset-inline: 0;
+  z-index: var(--z-timeline-popover);
+  max-block-size: 14rem;
+  margin-block-start: var(--space-1);
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-elevated);
+  box-shadow: var(--shadow-floating);
+}
+
+.sys-adv-option,
+.sys-adv-none {
+  display: flex;
+  align-items: center;
+  min-block-size: var(--control-height);
+  margin: 0;
+  padding-inline: var(--space-3);
+  cursor: pointer;
+}
+
+.sys-adv-none {
+  color: var(--color-text-secondary);
+  cursor: default;
+}
+
+.sys-adv-option[data-active] {
+  background: var(--color-bg-sunken);
+}
+
+.sys-adv-option[aria-selected="true"] {
+  font-weight: 600;
 }
 
 /* One line of help: always read with the field, shown while it has focus. */

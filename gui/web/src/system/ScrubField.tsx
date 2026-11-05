@@ -40,6 +40,8 @@ export type ScrubFieldProps = ScrubRange & {
   readOnly?: boolean;
   /** A message from outside, such as a rejected value. Typing a bad number sets its own. */
   error?: string;
+  /** Ids of lines that explain the field, read after its value (a hint, why it is held). */
+  describedBy?: string;
   /** Fires while a drag moves, for the live preview on the canvas. */
   onPreview?: (value: number) => void;
   /** Fires once per gesture, so one drag, key press or typed value is one undo step. */
@@ -76,6 +78,7 @@ export function ScrubField({
   defaultValue,
   readOnly = false,
   error,
+  describedBy,
   onPreview,
   onCommit,
   onCancel,
@@ -316,7 +319,11 @@ export function ScrubField({
             aria-valuetext={value === null ? EMPTY_TEXT : `${shown}${unitText}`}
             aria-readonly={readOnly || undefined}
             aria-invalid={error ? true : undefined}
-            aria-describedby={error ? errorId : undefined}
+            aria-describedby={
+              [describedBy, error ? errorId : undefined]
+                .filter(Boolean)
+                .join(" ") || undefined
+            }
             data-empty={value === null || undefined}
             data-readonly={readOnly || undefined}
             style={{ "--sys-scrub-ratio": ratio } as CSSProperties}

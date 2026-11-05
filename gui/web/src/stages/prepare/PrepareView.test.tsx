@@ -1,4 +1,4 @@
-import { act, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PrepareView, type PrepareViewProps } from "./PrepareView";
@@ -26,6 +26,8 @@ const actions: SourceActions = {
   onReplace: vi.fn(),
   onMerge: vi.fn(),
   onMove: vi.fn(),
+  onReorder: vi.fn(),
+  onDropAudio: vi.fn(),
 };
 
 function props(over: Partial<PrepareViewProps> = {}): PrepareViewProps {
@@ -520,6 +522,27 @@ describe("PrepareView live region", () => {
       />,
     );
     expect(live(container)).toBe("Drop to add audio.");
+  });
+
+  it("labels the drop frame with the card whose audio a drop would replace", () => {
+    const { container } = render(
+      <PrepareView {...props({ dropActive: true, dropCount: 1 })} />,
+    );
+    expect(container.querySelector(".sys-drop-label")).toHaveTextContent(
+      "Drop to add 1 file",
+    );
+    const card = within(container).getByRole("region", {
+      name: "Voice 1, Maya",
+    });
+    const files = { types: ["Files"], files: [], dropEffect: "none" };
+    fireEvent.dragEnter(card, { dataTransfer: files });
+    expect(container.querySelector(".sys-drop-label")).toHaveTextContent(
+      "Replace Maya's audio",
+    );
+    fireEvent.dragLeave(card, { dataTransfer: files });
+    expect(container.querySelector(".sys-drop-label")).toHaveTextContent(
+      "Drop to add 1 file",
+    );
   });
 
   it("keeps the words of a phase while its counts change", () => {
