@@ -6,7 +6,6 @@ import {
   useId,
   useLayoutEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
 import { createPortal } from "react-dom";
@@ -94,11 +93,13 @@ export function Menu({
 }: MenuProps) {
   const autoId = useId();
   const menuId = menuIdProp ?? autoId;
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const panelRef = useRef<HTMLDivElement | null>(null);
+  const [triggerNode, setTriggerNode] = useState<HTMLButtonElement | null>(
+    null,
+  );
+  const [panelNode, setPanelNode] = useState<HTMLDivElement | null>(null);
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   const attachTrigger = useCallback((node: HTMLButtonElement | null) => {
-    triggerRef.current = node;
+    setTriggerNode(node);
     setPortalTarget(node?.ownerDocument.body ?? null);
   }, []);
   const mode = useMemo<"native" | "fallback" | null>(() => {
@@ -108,11 +109,11 @@ export function Menu({
   const attachPanel = useCallback(
     (panel: HTMLDivElement) => {
       if (!mode) return;
-      panelRef.current = panel;
+      setPanelNode(panel);
       const leave = mode === "native" ? showInTopLayer(panel) : null;
       return () => {
         leave?.();
-        if (panelRef.current === panel) panelRef.current = null;
+        setPanelNode((current) => (current === panel ? null : current));
       };
     },
     [mode],
@@ -127,8 +128,8 @@ export function Menu({
       return;
     }
     const layout = () => {
-      const trigger = triggerRef.current;
-      const panel = panelRef.current;
+      const trigger = triggerNode;
+      const panel = panelNode;
       if (!trigger || !panel) {
         return;
       }
@@ -146,16 +147,20 @@ export function Menu({
     return () => {
       cancelAnimationFrame(raf);
     };
-  }, [open, mode, portalTarget]);
+  }, [open, mode, portalTarget, triggerNode, panelNode]);
 
   useMenuKeyboard({
     open,
-    panelRef,
+    panel: panelNode,
     close,
-    fallbackTriggerRef: mode === "fallback" ? triggerRef : undefined,
+    fallbackTrigger: mode === "fallback" ? triggerNode : undefined,
   });
 
-  useOutsidePointerDown([panelRef, triggerRef], close, open);
+  useOutsidePointerDown({
+    nodes: [panelNode, triggerNode],
+    onOutside: close,
+    enabled: open,
+  });
 
   const panel =
     open && mode ? (
@@ -195,7 +200,7 @@ export function Menu({
         if (
           open &&
           event.target instanceof Node &&
-          triggerRef.current?.contains(event.target)
+          triggerNode?.contains(event.target)
         ) {
           event.preventDefault();
         }

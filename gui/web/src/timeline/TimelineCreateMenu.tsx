@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { CreateMenu, type CreateMenuProps } from "../stages/edit/CreateMenu";
 import type { Bounds } from "../stages/edit/createMenuLayout";
@@ -67,8 +67,7 @@ export function Scrim({
  * where the press began once the Sheet is gone.
  */
 function useSheetKeyboard(close: () => void) {
-  const panelRef = useRef<HTMLElement | null>(null);
-  useMenuKeyboard({ open: true, panelRef, close });
+  useMenuKeyboard({ open: true, panel: null, close });
 }
 
 /**

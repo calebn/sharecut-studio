@@ -79,15 +79,15 @@ export function Dialog({
     shortcuts,
   });
   useAnchoredPanel(panelRef, anchor, open);
-  useOutsidePointerDown(
-    [
+  useOutsidePointerDown({
+    liveRefs: [
       panelRef,
       ...(anchor ? [anchor.ref] : []),
       ...(anchor?.avoidRef ? [anchor.avoidRef] : []),
     ],
-    dismiss,
-    open && anchored,
-  );
+    onOutside: dismiss,
+    enabled: open && anchored,
+  });
 
   if (!open) {
     return null;
