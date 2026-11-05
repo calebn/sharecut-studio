@@ -43,7 +43,7 @@ import { TOUCH_HIT_RADIUS_PX } from "../src/timeline/hitCandidates";
  * #1051 round 4b, the touch grammar on a 430x932 iPhone viewport: a
  * long-press arms a target and only it drags, along its own axes (a clip
  * body moves in time); a long-press on empty space opens the create menu; an
- * armed drag detents at a soft boundary; the strip swipes between drawer
+ * armed drag detents at a soft boundary; the drawer swipes between its
  * detents; a second finger cancels it all. #1135: a long-press at a join offers the ripple
  * trim, whose drag keeps the edge under the finger and shows how far later
  * clips will move on every dialogue lane. Chromium drives CDP touch, WebKit touch-typed pointer
@@ -293,7 +293,7 @@ test("one finger moving never edits; a long-press arms, and the armed point drag
   expect(point?.time).toBe(moved?.time);
 });
 
-test("at 390x844 by default, one finger dragging a selected clip's trim end saves nothing and opens the strip, not the half sheet", async ({
+test("at 390x844 by default, one finger dragging a selected clip's trim end saves nothing and opens the drawer at half height", async ({
   page,
   context,
   browserName,
@@ -333,14 +333,16 @@ test("at 390x844 by default, one finger dragging a selected clip's trim end save
   const row = {
     commands: commands.map((c) => c.type),
     sourceEnd: (await clipAt50())?.source_end,
-    strip: await page.locator(".bottom-sheet--compact").count(),
+    drawer: await page
+      .locator(".bottom-sheet--compact.bottom-sheet--half")
+      .count(),
     sheets: await page.locator(".bottom-sheet").count(),
   };
   json(info, `grammar-default-trim-drag-${browserName}`, row);
   expect(row).toEqual({
     commands: [],
     sourceEnd: before.source_end,
-    strip: 1,
+    drawer: 1,
     sheets: 1,
   });
 });
@@ -490,7 +492,9 @@ test("a long-press on empty space opens the create menu; Add volume point adds o
   // selection bar's grip is.
   await page.getByRole("button", { name: "Dismiss" }).click();
   await inspectSelection(page);
-  await expect(page.locator(".nudge-row", { hasText: "Level" })).toBeVisible();
+  await expect(
+    page.getByRole("group", { name: "Nudge envelope point level" }),
+  ).toBeVisible();
   await frame(page, info, `grammar-create-added-${browserName}`);
   json(info, `grammar-create-${browserName}`, {
     items,
@@ -851,7 +855,7 @@ test("a create menu taller than 90% of the screen, with room beside the finger, 
   }
 });
 
-test("the strip follows the finger; a flick opens or closes it fully, a slow drag lands at the nearest detent", async ({
+test("the drawer follows the finger; a flick opens or closes it fully, a slow drag lands at the nearest detent", async ({
   page,
   context,
   browserName,
@@ -861,8 +865,8 @@ test("the strip follows the finger; a flick opens or closes it fully, a slow dra
   await tap(page, finger, await centerOf(page, envC));
   await inspectSelection(page);
   const sheet = page.locator(".bottom-sheet--compact");
-  await expect(sheet).toHaveClass(/bottom-sheet--peek/);
-  await frame(page, info, `grammar-drawer-peek-${browserName}`);
+  await expect(sheet).toHaveClass(/bottom-sheet--half/);
+  await frame(page, info, `grammar-drawer-half-${browserName}`);
   const top = async () => {
     const box = await sheet.boundingBox();
     if (!box) throw new Error("no sheet");
@@ -941,34 +945,41 @@ test("the strip follows the finger; a flick opens or closes it fully, a slow dra
   await expect(sheet).toHaveClass(/bottom-sheet--full/);
   await frame(page, info, `grammar-drawer-flick-full-${browserName}`);
   await flick(60);
-  await expect(sheet).toHaveClass(/bottom-sheet--peek/);
-  // The same 60px drawn out over 800 ms is a drag: the strip stays.
-  await flick(-60, 200);
-  await expect(sheet).toHaveClass(/bottom-sheet--peek/);
-
-  // Up to the half detent's height and held there: it follows 1:1 and stays.
-  const strip = slot.bottom - (await top());
-  const toHalf = await drag(-(slot.half - strip));
   await expect(sheet).toHaveClass(/bottom-sheet--half/);
-  await frame(page, info, `grammar-drawer-slow-half-${browserName}`);
-  // Slowly up past the middle of half and full: full.
+  // The same 60px drawn out over 800 ms is a drag: the drawer stays.
+  await flick(-60, 200);
+  await expect(sheet).toHaveClass(/bottom-sheet--half/);
+
+  // Slowly up past the middle of half and full: it follows 1:1 and lands full.
   const toFull = await drag(-0.7 * (slot.full - slot.half));
   await expect(sheet).toHaveClass(/bottom-sheet--full/);
+  await frame(page, info, `grammar-drawer-slow-full-${browserName}`);
   // Down a little and held: still full, not a detent lower.
   await drag(40);
   await expect(sheet).toHaveClass(/bottom-sheet--full/);
-  json(info, `grammar-drawer-${browserName}`, { slot, strip, toHalf, toFull });
-  expect(toHalf.before - toHalf.held).toBeCloseTo(slot.half - strip, -1);
+  // Slowly down past the middle of full and half: half.
+  const toHalf = await drag(0.7 * (slot.full - slot.half));
+  await expect(sheet).toHaveClass(/bottom-sheet--half/);
+  json(info, `grammar-drawer-${browserName}`, { slot, toFull, toHalf });
   expect(toFull.before - toFull.held).toBeCloseTo(
     0.7 * (slot.full - slot.half),
     -1,
   );
+  expect(toHalf.held - toHalf.before).toBeCloseTo(
+    0.7 * (slot.full - slot.half),
+    -1,
+  );
 
-  await page.getByRole("button", { name: "Collapse to strip" }).click();
-  await expect(sheet).toHaveClass(/bottom-sheet--peek/);
+  await flick(-60);
+  await expect(sheet).toHaveClass(/bottom-sheet--full/);
+  await page.getByRole("button", { name: "Collapse to half height" }).click();
+  await expect(sheet).toHaveClass(/bottom-sheet--half/);
   const range = page.getByRole("slider", { name: "Inspector height" });
   await range.focus();
   await page.keyboard.press("ArrowRight");
+  await expect(sheet).toHaveClass(/bottom-sheet--full/);
+  await expect(range).toHaveAttribute("aria-valuetext", "Full height");
+  await page.keyboard.press("ArrowLeft");
   await expect(sheet).toHaveClass(/bottom-sheet--half/);
   await expect(range).toHaveAttribute("aria-valuetext", "Half height");
 });

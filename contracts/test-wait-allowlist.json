@@ -13,7 +13,7 @@
     "gui/web/e2e-compat/precision-drag.spec.ts": 13,
     "gui/web/e2e-compat/touch-grammar.spec.ts": 24,
     "gui/web/e2e-compat/touch-nudge.spec.ts": 4,
-    "gui/web/e2e-compat/touch-peek.spec.ts": 38,
+    "gui/web/e2e-compat/touch-drawer.spec.ts": 38,
     "gui/web/e2e-compat/touch-pinch.spec.ts": 7,
     "gui/web/e2e-compat/touch-strip-stacking.spec.ts": 2,
     "gui/web/e2e-compat/transcript-touch-range.spec.ts": 2,

@@ -38,7 +38,7 @@ test("focused feedback Dismiss stays in the card or its toast when a phone turns
 });
 
 async function focusCompactToastAction(page: Page, name: "Undo" | "Dismiss") {
-  await rememberInspectorDetent(page, "peek");
+  await rememberInspectorDetent(page, "half");
   await openAt(page, SIZES.portrait);
   await trackHeaderButton(page, "reference").click();
   await expect(page.getByRole("dialog", { name: "Inspector" })).toBeVisible();
@@ -58,9 +58,6 @@ async function focusCompactToastAction(page: Page, name: "Undo" | "Dismiss") {
   const panel = page.locator(".bottom-sheet--compact");
   await expect(panel).toBeVisible();
   await expect.poll(() => savedEnvelope(page)).toEqual(original);
-  await panel
-    .getByRole("button", { name: "Expand to half height", exact: true })
-    .click();
   await panel
     .getByRole("button", { name: "Expand to full height", exact: true })
     .click();
@@ -97,7 +94,7 @@ async function checkRemount(
 }
 
 /**
- * A phone that turns to 844x390 swaps its compact strip for the Inspector
+ * A phone that turns to 844x390 swaps its compact drawer for the Inspector
  * card, which has no feedback host: the toast floats, and the focused action
  * it held hands focus to the card's Close, never to the page.
  */

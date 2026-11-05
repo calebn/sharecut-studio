@@ -37,10 +37,11 @@ import {
 } from "../e2e/touchTimeline";
 
 /*
- * #1051 round 4: strip nudges repeat while held and save the run as one
- * edit; a held run stops at a soft boundary (a clip edge, the next pending
- * edit) with a cue, and a fresh press goes past it. Pending edits and
- * envelope points get the same nudge rows as a clip's fade and trim. Real
+ * #1051 round 4: the inspector sheet's nudge buttons repeat while held and
+ * save the run as one edit; a held run stops at a soft boundary (a clip edge,
+ * the next pending edit) with a cue, and a fresh press goes past it. Pending
+ * edits and envelope points get the same nudge buttons as a clip's fade and
+ * trim. Real
  * timeline, Chromium (CDP touch) and WebKit (touch-typed pointer events).
  * Frames for the GIFs go to the test output and TOUCH_CHOOSER_EVIDENCE_DIR.
  */
@@ -131,6 +132,8 @@ async function open(page: Page, size: SizeName, theme: "dark" | "light") {
 }
 
 async function centerOfBox(locator: Locator): Promise<Point> {
+  // The sheet's body scrolls: a nudge below the fold is scrolled to, as a user would.
+  await locator.scrollIntoViewIfNeeded({ timeout: 5000 });
   const box = await locator.boundingBox({ timeout: 5000 });
   if (!box) throw new Error("no box");
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
@@ -169,11 +172,11 @@ async function hold(
   await page.waitForTimeout(800);
 }
 
-const rowValue = (page: Page, label: string) =>
+/** The value of the sheet's Scrub field `label`, which the nudges beside it move. */
+const fieldValue = (page: Page, label: string) =>
   page
-    .locator(".nudge-row", { hasText: label })
-    .locator(".nudge-row-value")
-    .textContent();
+    .getByRole("spinbutton", { name: label, exact: true })
+    .getAttribute("aria-valuenow");
 
 test("a held nudge repeats, saves once, and one Undo restores it", async ({
   page,
@@ -198,7 +201,7 @@ test("a held nudge repeats, saves once, and one Undo restores it", async ({
     page.getByRole("button", { name: "Envelope point 0.01 s later" }),
     10_000,
     async (n) => {
-      values.push((await rowValue(page, "Time")) ?? "");
+      values.push((await fieldValue(page, "Time")) ?? "");
       save(
         info,
         `hold-repeat-${browserName}-${String(n).padStart(2, "0")}.png`,
@@ -296,7 +299,7 @@ test("a held nudge stops at a soft boundary with a cue; a fresh press goes past"
   expect(rows[2].note).toBe("Pending edit timing saved at the pending remove");
 });
 
-async function pendingAndEnvelopeStrips(
+async function pendingAndEnvelopeSheets(
   size: SizeName,
   { page, context, browserName }: CaseFixtures,
   info: TestInfo,
@@ -319,7 +322,7 @@ async function pendingAndEnvelopeStrips(
       await expect(page.locator(".nudge-row").first()).toBeVisible();
       save(
         info,
-        `strip-${name}-${size}-${theme}-${browserName}.png`,
+        `sheet-${name}-${size}-${theme}-${browserName}.png`,
         await page.screenshot(),
       );
       const axe = ownsStudioAxe({ suite: "compat", engine: browserName })
@@ -333,9 +336,11 @@ async function pendingAndEnvelopeStrips(
         theme,
         rows: await page.locator(".nudge-row").evaluateAll((els) =>
           els.map((row) => ({
-            label: row.querySelector(".nudge-row-label")?.textContent,
-            value: row.querySelector(".nudge-row-value")?.textContent,
+            label: row
+              .querySelector('[role="group"]')
+              ?.getAttribute("aria-label"),
             buttons: [...row.querySelectorAll("button")].map((b) => {
+              b.scrollIntoView({ block: "nearest" });
               const r = b.getBoundingClientRect();
               return {
                 label: b.getAttribute("aria-label"),
@@ -350,7 +355,7 @@ async function pendingAndEnvelopeStrips(
       });
     }
   }
-  json(info, `strip-rows-${size}-${browserName}`, rows);
+  json(info, `sheet-nudges-${size}-${browserName}`, rows);
   for (const row of rows as {
     name: string;
     rows: {
@@ -363,7 +368,9 @@ async function pendingAndEnvelopeStrips(
       expect(row.axe).toEqual([]);
     }
     expect(row.rows.map((r) => r.label)).toEqual(
-      row.name === "envelope" ? ["Time", "Level"] : ["Start", "End"],
+      row.name === "envelope"
+        ? ["Nudge envelope point", "Nudge envelope point level"]
+        : ["Nudge pending remove start", "Nudge pending remove end"],
     );
     for (const button of row.rows.flatMap((r) => r.buttons)) {
       expect(Math.min(button.w, button.h)).toBeGreaterThanOrEqual(44);
@@ -372,23 +379,23 @@ async function pendingAndEnvelopeStrips(
   }
 }
 
-test("pending and envelope strips: nudge rows and targets (portrait-360)", ({
+test("pending and envelope sheets: nudge buttons and targets (portrait-360)", ({
   page,
   context,
   browserName,
 }, info) =>
-  pendingAndEnvelopeStrips(
+  pendingAndEnvelopeSheets(
     "portrait-360",
     { page, context, browserName },
     info,
   ));
 
-test("pending and envelope strips: nudge rows and targets (landscape-636)", ({
+test("pending and envelope sheets: nudge buttons and targets (landscape-636)", ({
   page,
   context,
   browserName,
 }, info) =>
-  pendingAndEnvelopeStrips(
+  pendingAndEnvelopeSheets(
     "landscape-636",
     { page, context, browserName },
     info,

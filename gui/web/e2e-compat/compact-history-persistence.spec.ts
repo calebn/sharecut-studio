@@ -31,7 +31,7 @@ async function undoStaysReachable(
   { page, context, browserName }: Fixtures,
   info: TestInfo,
 ): Promise<void> {
-  const detents = (order: readonly ("peek" | "half" | "full")[]) =>
+  const detents = (order: readonly ("half" | "full")[]) =>
     order.filter(
       (detent) => detent !== "half" || !(name === "landscape" && rootPx === 32),
     );
@@ -141,7 +141,7 @@ async function undoStaysReachable(
         const lane = document
           .querySelector(".timeline-scroll")
           ?.getBoundingClientRect();
-        const strip = document
+        const drawer = document
           .querySelector(".bottom-sheet")
           ?.getBoundingClientRect();
         const chrome = document
@@ -149,11 +149,11 @@ async function undoStaysReachable(
           ?.getBoundingClientRect();
         return {
           visible:
-            lane && strip
-              ? Math.max(0, Math.min(lane.bottom, strip.top) - lane.top)
+            lane && drawer
+              ? Math.max(0, Math.min(lane.bottom, drawer.top) - lane.top)
               : 0,
           lane: lane?.toJSON(),
-          strip: strip?.toJSON(),
+          drawer: drawer?.toJSON(),
           chrome: chrome?.toJSON(),
           bottomChrome: document
             .querySelector(".stage-frame-player")
@@ -191,7 +191,7 @@ async function undoStaysReachable(
       expect(beforeReveal.feedback.overlaps).toEqual([]);
     if (
       beforeReveal.feedback &&
-      (step === "strip-open-after-edit" ||
+      (step === "open-after-edit" ||
         step.startsWith("feedback-") ||
         step === "level-saved")
     ) {
@@ -244,7 +244,7 @@ async function undoStaysReachable(
   }, rootPx);
   await page.waitForTimeout(600);
   const headerHistory = compactHistory(page);
-  await check("peek", headerHistory);
+  await check("open", headerHistory);
   const census = await page
     .locator(".bottom-sheet--compact")
     .evaluate((panel) => {
@@ -254,7 +254,6 @@ async function undoStaysReachable(
         ".bottom-sheet-title",
         ".bottom-sheet-header-actions",
         ".bottom-sheet-body",
-        ".peek-strip",
       ];
       return {
         viewport: {
@@ -302,9 +301,9 @@ async function undoStaysReachable(
       };
     });
   await receipt(info, `census-${name}-${rootPx}-${theme}`, census);
-  const screenshot = info.outputPath(`peek-${name}-${rootPx}-${theme}.png`);
+  const screenshot = info.outputPath(`open-${name}-${rootPx}-${theme}.png`);
   const image = await page.screenshot({ path: screenshot });
-  await info.attach("peek", { body: image, contentType: "image/png" });
+  await info.attach("open", { body: image, contentType: "image/png" });
 
   const geometry = () =>
     page.locator(".bottom-sheet--compact").evaluate((panel) => ({
@@ -321,16 +320,12 @@ async function undoStaysReachable(
         (button) => button.getBoundingClientRect().toJSON(),
       ),
     }));
-  for (const detent of detents(["peek", "half", "full"])) {
-    if (detent !== "peek") {
-      await page
-        .getByRole("button", {
-          name:
-            detent === "half"
-              ? "Expand to half height"
-              : "Expand to full height",
-        })
-        .click();
+  for (const detent of detents(["half", "full"])) {
+    if (
+      detent === "full" &&
+      !(await page.locator(".bottom-sheet--full").count())
+    ) {
+      await page.getByRole("button", { name: "Expand to full height" }).click();
       await page.waitForTimeout(350);
       await check(detent, headerHistory);
     }
@@ -364,7 +359,8 @@ async function undoStaysReachable(
     );
   }
   // Leave the open body scrolled as far as it goes: collapsing must show the
-  // strip's top again, not the end of the scroll the taller size had (#1762).
+  // half drawer's top again, not the end of the scroll the taller size had
+  // (#1762).
   // At the default root size the full-size sheet fits the envelope point's
   // Time and Level rows, so those cells have nothing to scroll and the check
   // below pins that.
@@ -374,10 +370,13 @@ async function undoStaysReachable(
     return body.scrollTop;
   });
   expect(scrolled > 0).toBe(rootPx !== 16);
-  await page.getByRole("button", { name: "Collapse to strip" }).click();
-  await page.waitForTimeout(350);
-  expect(await sheetBody.evaluate((body) => body.scrollTop)).toBe(0);
-  await check("peek", headerHistory);
+  // Where half does not fit (large text held sideways) the drawer stays full.
+  if (detents(["half"]).length > 0) {
+    await page.getByRole("button", { name: "Collapse to half height" }).click();
+    await page.waitForTimeout(350);
+    expect(await sheetBody.evaluate((body) => body.scrollTop)).toBe(0);
+    await check("collapsed", headerHistory);
+  }
   await expect(headerHistory.locator(".compact-history-caption")).toHaveCount(
     0,
   );
@@ -387,10 +386,9 @@ async function undoStaysReachable(
     name: "Envelope point 0.01 s later",
     exact: true,
   });
-  // At 200% text on a phone held sideways the strip fills the screen: the
-  // nudges are one scroll of its body away, and the body ends at the mode bar.
-  await nudge.scrollIntoViewIfNeeded();
-  const nudgeGeometry = await controlGeometry(nudge);
+  // At 200% text on a phone held sideways the drawer fills the screen: the
+  // nudges are one scroll of its body away (or one Expand, where half cannot hold them), and the body ends at the mode bar.
+  const nudgeGeometry = await exposeControl(page, nudge, []);
   expect(nudgeGeometry).toMatchObject({
     fullyVisible: true,
     hitsControl: true,
@@ -412,17 +410,15 @@ async function undoStaysReachable(
   await expect(
     page.getByRole("group", { name: /^Needs attention/ }),
   ).toHaveCount(0);
-  await check("strip-open-after-edit", headerHistory);
-  for (const detent of detents(["half", "full", "peek"])) {
+  await check("open-after-edit", headerHistory);
+  for (const detent of detents(["full", "half"])) {
     if (!(await page.locator(`.bottom-sheet--${detent}`).count())) {
       await page
         .getByRole("button", {
           name:
-            detent === "half"
-              ? "Expand to half height"
-              : detent === "full"
-                ? "Expand to full height"
-                : "Collapse to strip",
+            detent === "full"
+              ? "Expand to full height"
+              : "Collapse to half height",
         })
         .click();
     }
@@ -466,8 +462,8 @@ async function undoStaysReachable(
     }
     expect(row.overlaps).toBe(false);
     if (
-      step === "strip-open-after-edit" ||
-      ["feedback-peek", "feedback-half", "feedback-full"].includes(step)
+      step === "open-after-edit" ||
+      ["feedback-half", "feedback-full"].includes(step)
     ) {
       expect(
         row.feedback,
@@ -485,16 +481,16 @@ async function undoStaysReachable(
       });
     }
     if (step !== "rail") {
-      expect(row.visibleLaneHeight.strip?.bottom).toBeCloseTo(
+      expect(row.visibleLaneHeight.drawer?.bottom).toBeCloseTo(
         row.visibleLaneHeight.bottomChrome?.top ?? -1,
         0,
       );
     }
-    // No pixel budget for the lanes above the strip: the frame's header, tool
+    // No pixel budget for the lanes above the drawer: the frame's header, tool
     // row, Player and tab bar take their own share. The height stays in the receipts.
   }
 
-  await expect(page.locator(".bottom-sheet--peek")).toBeVisible();
+  await expect(page.locator(".bottom-sheet--compact")).toBeVisible();
   const undo = headerHistory.getByRole("button", { name: "Undo" });
   await expect(undo).not.toHaveAttribute("aria-disabled", "true");
   const box = await undo.boundingBox();
@@ -535,11 +531,8 @@ async function undoStaysReachable(
   await undo.click();
   await expect.poll(() => savedEnvelope(page)).toEqual(original);
   await expect(
-    page
-      .locator(".nudge-row")
-      .filter({ has: page.locator(".nudge-row-label", { hasText: /^Time$/ }) })
-      .locator("output"),
-  ).toHaveText("0:16.000");
+    page.getByRole("spinbutton", { name: "Time", exact: true }),
+  ).toHaveAttribute("aria-valuenow", "16");
   const levelEdited = [
     { id: "env-a", time: 5, value: 1 },
     { id: "env-edge", time: 10, value: 0.8 },

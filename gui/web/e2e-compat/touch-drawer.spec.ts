@@ -43,12 +43,12 @@ import { LONG_PRESS_MS } from "../src/hooks/gestureConstants";
  * #1051 round 3 on the real timeline, in Chromium (CDP touch) and WebKit
  * (touch-typed pointer events, see e2e/finger.ts): drag straight from a
  * chooser chip, no grab while the finger passes over chips or moves off the
- * target's axis, and the compact inspector (peek strip) that keeps the
- * selection in view, stows during a drag and remembers Expand. Evidence goes
- * to the test output and to TOUCH_CHOOSER_EVIDENCE_DIR.
+ * target's axis, and the compact inspector (the half and full drawer) that
+ * keeps the selection in view, stows during a drag and remembers Expand.
+ * Evidence goes to the test output and to TOUCH_CHOOSER_EVIDENCE_DIR.
  */
 
-const CLIENT_ID = "e2e-touch-peek";
+const CLIENT_ID = "e2e-touch-drawer";
 const HOLD_MS = LONG_PRESS_MS + 150;
 /** Past `CHIP_SETTLE_MS`, with a frame to spare. */
 const SETTLE_MS = 160;
@@ -68,7 +68,7 @@ let projectPath: string;
 let workspaceDir: string;
 
 test.beforeEach(async () => {
-  const fixture = createRelocatedE2eProject("sharecut-e2e-touch-peek-");
+  const fixture = createRelocatedE2eProject("sharecut-e2e-touch-drawer-");
   projectPath = fixture.projectPath;
   workspaceDir = fixture.workspaceDir;
   await switchE2eProject(projectPath);
@@ -82,7 +82,7 @@ test.afterEach(async () => {
 async function open(
   page: Page,
   size: SizeName,
-  { theme = "dark" as Theme, inspector = "peek" } = {},
+  { theme = "dark" as Theme, inspector = "half" } = {},
 ): Promise<void> {
   await page.setViewportSize(SIZES[size]);
   await openProject(page, projectPath);
@@ -242,7 +242,7 @@ async function trimStartSec(page: Page): Promise<number> {
   return clip?.source_start ?? Number.NaN;
 }
 
-/** What the strip or sheet shows, and whether it is stowed. */
+/** What the drawer or sheet shows, and whether it is stowed. */
 async function sheetState(page: Page) {
   return page.evaluate(() => {
     const panel = document.querySelector(".bottom-sheet, .sys-inspector");
@@ -253,7 +253,7 @@ async function sheetState(page: Page) {
       size:
         panel?.getAttribute("data-detent") ??
         [...(panel?.classList ?? [])]
-          .find((c) => /^bottom-sheet--(peek|half|full)$/.test(c))
+          .find((c) => /^bottom-sheet--(half|full)$/.test(c))
           ?.replace("bottom-sheet--", "") ??
         null,
       compact: panel?.classList.contains("bottom-sheet--compact") ?? false,
@@ -263,13 +263,17 @@ async function sheetState(page: Page) {
       title:
         panel?.querySelector(".bottom-sheet-title, .sys-sheet-title")
           ?.textContent ?? null,
-      value: panel?.querySelector(".inspector-peek-value")?.textContent ?? null,
+      // The Scrub field the trim nudges move; the sheet shows it, not a readout.
+      sourceStart:
+        panel
+          ?.querySelector('[role="spinbutton"][aria-label="Source start"]')
+          ?.getAttribute("aria-valuenow") ?? null,
     };
   });
 }
 
 /**
- * Selected target against the strip or sheet over it: its bottom, the sheet's
+ * Selected target against the drawer or sheet over it: its bottom, the sheet's
  * top, and how many px of timeline lanes stay visible above the sheet.
  */
 async function coverage(page: Page, locate: string) {
@@ -411,7 +415,7 @@ async function chipCase(
     await expect.poll(() => trimStartSec(page)).toBeGreaterThan(row.before);
     expect(row.sheet).toMatchObject({
       compact: true,
-      size: "peek",
+      size: "half",
       stowed: false,
       title: "Trim start",
     });
@@ -419,7 +423,7 @@ async function chipCase(
     expect(row).toMatchObject({
       after: before,
       commands: [],
-      sheet: { title: "Trim start", size: "peek" },
+      sheet: { title: "Trim start", size: "half" },
     });
   }
 }
@@ -546,7 +550,7 @@ test("no grab while passing over chips or moving off the axis", async ({
   }
 });
 
-test("the strip and the expanded inspector leave the selection in view", async ({
+test("the half drawer leaves the selection in view and the full one is recorded", async ({
   page,
   context,
   browserName,
@@ -594,28 +598,29 @@ test("the strip and the expanded inspector leave the selection in view", async (
       };
       await open(page, size);
       await tapTarget(page, finger, locate);
-      await record("strip");
+      await record("half");
       await page
-        .getByRole("button", { name: "Expand to half height" })
+        .getByRole("button", { name: "Expand to full height" })
         .click({ timeout: 5000 });
       await page.waitForTimeout(700);
-      await record("expanded");
+      await record("full");
     }
   }
   json(info, `coverage-${browserName}`, { input: finger.input, rows });
-  for (const row of rows) {
+  // The full drawer covers the lanes by design; only the half keeps the target clear.
+  for (const row of rows.filter((r) => r.state === "half")) {
     expect(row, JSON.stringify(row)).toMatchObject({ targetVisible: true });
   }
 });
 
-async function dragStowsStrip(
+async function dragStowsDrawer(
   size: "portrait-360" | "landscape-636",
   { page, context, browserName }: CaseFixtures,
   info: TestInfo,
 ): Promise<void> {
   const finger = await setUp(page, context, browserName);
   await open(page, size);
-  // Select the trim start through the chooser: the strip opens on it.
+  // Select the trim start through the chooser: the drawer opens on it.
   await holdOpen(page, finger);
   await finger.slide(await centerOfBox(trimChip(page)), 8, 16);
   await page.waitForTimeout(SETTLE_MS);
@@ -623,9 +628,9 @@ async function dragStowsStrip(
   await page.waitForTimeout(700);
   await ensureInspected(page);
   const opened = await sheetState(page);
-  await frame(page, info, `stow-${size}-1-strip-${browserName}`);
+  await frame(page, info, `stow-${size}-1-open-${browserName}`);
 
-  // Drag it again from a chip: the strip stows mid-drag. The chip is round,
+  // Drag it again from a chip: the drawer stows mid-drag. The chip is round,
   // so rest on its middle: a corner of its box is the clip beneath, and WebKit
   // then never arms the grab.
   await holdOpen(page, finger);
@@ -701,14 +706,14 @@ async function dragStowsStrip(
 
   // The selected trim's own handle under one moving finger: the grammar
   // scrolls, so nothing stows and nothing is edited (#1051 round 4b).
-  // High on the strip: its middle sits under the edge's envelope point.
-  const strip = await page
+  // High on the handle: its middle sits under the edge's envelope point.
+  const handleBox = await page
     .locator(`${lane} [data-hit-kind="trim-in"][data-hit-selected="true"]`)
     .boundingBox({ timeout: 5000 });
-  if (!strip) throw new Error("no selected trim strip");
+  if (!handleBox) throw new Error("no selected trim handle");
   const handle = {
-    x: strip.x + strip.width / 2,
-    y: strip.y + strip.height * 0.25,
+    x: handleBox.x + handleBox.width / 2,
+    y: handleBox.y + handleBox.height * 0.25,
   };
   await finger.down(handle);
   await finger.slide({ x: handle.x + 24, y: handle.y }, 8, 20);
@@ -733,27 +738,27 @@ async function dragStowsStrip(
   expect(row.midChipDrag.stowed).toBe(true);
   expect(row.released).toMatchObject({ stowed: false, title: "Trim start" });
   if (windowBlurred) {
-    expect(row.released.value).toBe(row.opened.value);
+    expect(row.released.sourceStart).toBe(row.opened.sourceStart);
   } else {
-    expect(row.released.value).not.toBe(row.opened.value);
+    expect(row.released.sourceStart).not.toBe(row.opened.sourceStart);
   }
   expect(row.midHandleDrag.stowed).toBe(false);
-  expect(row.afterHandleDrag.value).toBe(row.released.value);
+  expect(row.afterHandleDrag.sourceStart).toBe(row.released.sourceStart);
 }
 
-test("a drag stows the strip, which returns with the new value: portrait-360", ({
+test("a drag stows the drawer, which returns with the new value: portrait-360", ({
   page,
   context,
   browserName,
 }, info) =>
-  dragStowsStrip("portrait-360", { page, context, browserName }, info));
+  dragStowsDrawer("portrait-360", { page, context, browserName }, info));
 
-test("a drag stows the strip, which returns with the new value: landscape-636", ({
+test("a drag stows the drawer, which returns with the new value: landscape-636", ({
   page,
   context,
   browserName,
 }, info) =>
-  dragStowsStrip("landscape-636", { page, context, browserName }, info));
+  dragStowsDrawer("landscape-636", { page, context, browserName }, info));
 
 async function expandRemembered(
   size: "portrait-360" | "landscape-636",
@@ -810,22 +815,22 @@ async function expandRemembered(
     );
   };
   await tapPoint("env-c");
-  await step("select: strip");
-  await step("one tap on Expand", await tapButton("Expand to half height"));
+  await step("select: half");
+  await step("one tap on Expand", await tapButton("Expand to full height"));
   await tapPoint("env-a");
   await step("next selection opens expanded");
-  await step("collapse", await tapButton("Collapse to strip"));
+  await step("collapse", await tapButton("Collapse to half height"));
   await tapPoint("env-c");
-  await step("next selection opens the strip");
+  await step("next selection opens at half");
   json(info, `remember-${size}-${browserName}`, steps);
   expect(
     steps.map((s) => [s.size, s.pref, s.buttonUnderFinger ?? null]),
   ).toEqual([
-    ["peek", "peek", null],
-    ["half", "half", "Expand to half height"],
     ["half", "half", null],
-    ["peek", "peek", "Collapse to strip"],
-    ["peek", "peek", null],
+    ["full", "full", "Expand to full height"],
+    ["full", "full", null],
+    ["half", "half", "Collapse to half height"],
+    ["half", "half", null],
   ]);
 }
 
@@ -843,7 +848,7 @@ test("Expand is remembered for the next selection, and so is Collapse: landscape
 }, info) =>
   expandRemembered("landscape-636", { page, context, browserName }, info));
 
-test("a pending edit's Approve and Reject stay reachable in pinned chrome at enlarged text sizes", async ({
+test("a pending edit's Approve and Reject stay reachable in the drawer at enlarged text sizes", async ({
   page,
   context,
   browserName,
@@ -878,16 +883,16 @@ test("a pending edit's Approve and Reject stay reachable in pinned chrome at enl
       const card = page.locator(".pending-actionbar");
       await expect(card.getByRole("button", { name: "Approve" })).toBeVisible();
       const compact = page.locator(".bottom-sheet--compact");
-      const expandTo =
-        size === "landscape-636" && rootFont === 32 ? "full" : "half";
+      // Half does not fit a phone held sideways at 32 px text: it is full.
+      const fullOnly = size === "landscape-636" && rootFont === 32;
       await expect(
-        compact.getByRole("button", { name: `Expand to ${expandTo} height` }),
-      ).toBeVisible();
+        compact.getByRole("button", { name: "Expand to full height" }),
+      ).toHaveCount(fullOnly ? 0 : 1);
       await expect(
         compact.getByRole("button", { name: "Close" }),
       ).toBeVisible();
       await expect(
-        compact.locator(".nudge-row").filter({ hasText: "Start" }),
+        compact.getByRole("group", { name: "Nudge pending remove start" }),
       ).toBeVisible();
       await page.waitForTimeout(700);
       await frame(
@@ -905,6 +910,8 @@ test("a pending edit's Approve and Reject stay reachable in pinned chrome at enl
               (b) => b.textContent?.trim() === name,
             );
             if (!button) return null;
+            // The card scrolls with the sheet body: bring the button into view first.
+            button.scrollIntoView({ block: "center", behavior: "instant" });
             const r = button.getBoundingClientRect();
             const hit = document.elementFromPoint(
               r.left + r.width / 2,
@@ -919,7 +926,7 @@ test("a pending edit's Approve and Reject stay reachable in pinned chrome at enl
               onTop: hit?.closest(".pending-actionbar") === bar,
               minTarget: r.width >= 44 && r.height >= 44,
               docked: Boolean(
-                bar?.closest(".bottom-sheet-chrome") &&
+                bar?.closest(".bottom-sheet-body") &&
                   bar.closest(".bottom-sheet--compact"),
               ),
             };
@@ -950,15 +957,10 @@ test("a pending edit's Approve and Reject stay reachable in pinned chrome at enl
     });
   }
   const compact = page.locator(".bottom-sheet--compact");
-  await compact.getByRole("button", { name: "Expand to full height" }).click();
-  await expect(
-    compact.getByRole("button", { name: "Collapse to strip" }),
-  ).toBeVisible();
   await expect(compact.getByRole("button", { name: "Close" })).toBeVisible();
   await expect(
     compact.getByLabel("Source start", { exact: true }),
   ).toBeVisible();
-  await compact.getByRole("button", { name: "Collapse to strip" }).click();
   const previousIds = (await projectJson(page, projectPath)).pending_edits.map(
     (edit) => edit.id,
   );
@@ -977,7 +979,7 @@ test("a pending edit's Approve and Reject stay reachable in pinned chrome at enl
   });
 });
 
-test("both themes and reduced motion with the strip open", async ({
+test("both themes and reduced motion with the drawer open", async ({
   page,
   context,
   browserName,
@@ -996,29 +998,32 @@ test("both themes and reduced motion with the strip open", async ({
     await finger.up();
     await page.waitForTimeout(700);
     await ensureInspected(page);
-    const axeStrip = ownsStudioAxe({ suite: "compat", engine: browserName })
+    const axeHalf = ownsStudioAxe({ suite: "compat", engine: browserName })
       ? await new AxeBuilder({ page })
           .disableRules([...STUDIO_AXE_DISABLED_RULES])
           .include(".bottom-sheet")
           .analyze()
       : undefined;
-    await frame(page, info, `strip-${theme}-${motion}-${browserName}`);
+    await frame(page, info, `drawer-${theme}-${motion}-${browserName}`);
     const transition = await sheet(page).evaluate(
       (el) => getComputedStyle(el).transitionDuration,
     );
-    const nudges = await page.locator(".nudge-button").evaluateAll((els) =>
-      els.map((e) => {
-        const r = e.getBoundingClientRect();
-        return {
-          label: e.getAttribute("aria-label"),
-          w: Math.round(r.width),
-          h: Math.round(r.height),
-        };
-      }),
-    );
-    await page.getByRole("button", { name: "Expand to half height" }).click();
+    const nudges = await page
+      .getByRole("group", { name: "Nudge trim start" })
+      .locator(".nudge-button")
+      .evaluateAll((els) =>
+        els.map((e) => {
+          const r = e.getBoundingClientRect();
+          return {
+            label: e.getAttribute("aria-label"),
+            w: Math.round(r.width),
+            h: Math.round(r.height),
+          };
+        }),
+      );
+    await page.getByRole("button", { name: "Expand to full height" }).click();
     await page.waitForTimeout(600);
-    const axeExpanded = ownsStudioAxe({ suite: "compat", engine: browserName })
+    const axeFull = ownsStudioAxe({ suite: "compat", engine: browserName })
       ? await new AxeBuilder({ page })
           .disableRules([...STUDIO_AXE_DISABLED_RULES])
           .include(".bottom-sheet")
@@ -1029,10 +1034,8 @@ test("both themes and reduced motion with the strip open", async ({
       theme,
       transition,
       nudges,
-      ...(axeStrip ? { axeStrip: axeStrip.violations.map((v) => v.id) } : {}),
-      ...(axeExpanded
-        ? { axeExpanded: axeExpanded.violations.map((v) => v.id) }
-        : {}),
+      ...(axeHalf ? { axeHalf: axeHalf.violations.map((v) => v.id) } : {}),
+      ...(axeFull ? { axeFull: axeFull.violations.map((v) => v.id) } : {}),
     });
   }
   json(info, `axe-theme-motion-${browserName}`, rows);
@@ -1040,12 +1043,12 @@ test("both themes and reduced motion with the strip open", async ({
     motion: string;
     transition: string;
     nudges: { label: string; w: number; h: number }[];
-    axeStrip?: string[];
-    axeExpanded?: string[];
+    axeHalf?: string[];
+    axeFull?: string[];
   }[]) {
     if (ownsStudioAxe({ suite: "compat", engine: browserName })) {
-      expect(row.axeStrip).toEqual([]);
-      expect(row.axeExpanded).toEqual([]);
+      expect(row.axeHalf).toEqual([]);
+      expect(row.axeFull).toEqual([]);
     }
     expect(row.nudges.map((n) => n.label)).toEqual([
       "Trim start 0.1 s earlier",
@@ -1114,7 +1117,8 @@ async function drawerChrome(page: Page) {
       sheetPx: panel ? Math.round(panel.getBoundingClientRect().height) : 0,
       chromePx: chrome ? Math.round(chrome.getBoundingClientRect().height) : 0,
       header: reach(panel?.querySelector(".bottom-sheet-title")),
-      collapse: reach(named("Collapse")),
+      // The drawer's one resize button: Collapse at full, Expand at half.
+      resize: reach(named("Collapse") ?? named("Expand")),
       close: reach(named("Close")),
     };
   });
@@ -1132,21 +1136,23 @@ async function expandAtRootFont(
   const finger = await newFinger(context, page, browserName);
   await open(page, "landscape-636");
   await tapTarget(page, finger, envC);
-  await expect(sheet(page)).toHaveClass(/bottom-sheet--peek/);
   await page.evaluate((px) => {
     document.documentElement.style.fontSize = `${px}px`;
   }, rootPx);
   await page.waitForTimeout(300);
   const rows: Record<string, unknown>[] = [];
+  // Half does not fit at 32 px text: the drawer is full already, with no resize button.
   const fullOnly = rootPx === 32;
   for (const detent of fullOnly
     ? (["full"] as const)
     : (["half", "full"] as const)) {
-    await tapBox(
-      page,
-      finger,
-      page.getByRole("button", { name: `Expand to ${detent} height` }),
-    );
+    if (detent === "full" && !fullOnly) {
+      await tapBox(
+        page,
+        finger,
+        page.getByRole("button", { name: "Expand to full height" }),
+      );
+    }
     await expect(sheet(page)).toHaveClass(
       new RegExp(`bottom-sheet--${detent}`),
     );
@@ -1155,10 +1161,10 @@ async function expandAtRootFont(
     await frame(page, info, `expand-${rootPx}px-${detent}-${browserName}`);
     expect(row, JSON.stringify(row)).toMatchObject({
       header: SHEET_REACHABLE,
-      collapse: SHEET_REACHABLE,
+      ...(fullOnly ? {} : { resize: SHEET_REACHABLE }),
       close: SHEET_REACHABLE,
     });
-    for (const control of [row.collapse, row.close]) {
+    for (const control of fullOnly ? [row.close] : [row.resize, row.close]) {
       expect(Math.min(control?.w ?? 0, control?.h ?? 0)).toBeGreaterThanOrEqual(
         44,
       );
@@ -1166,8 +1172,10 @@ async function expandAtRootFont(
     expect(row.sheetPx - row.chromePx).toBeGreaterThanOrEqual(3 * rootPx);
   }
   json(info, `expand-${rootPx}px-${browserName}`, rows);
-  await tapBox(page, finger, page.getByRole("button", { name: /^Collapse/ }));
-  await expect(sheet(page)).toHaveClass(/bottom-sheet--peek/);
+  if (!fullOnly) {
+    await tapBox(page, finger, page.getByRole("button", { name: /^Collapse/ }));
+    await expect(sheet(page)).toHaveClass(/bottom-sheet--half/);
+  }
 }
 
 test("Expand keeps the header, Collapse and Close usable at 636x390 with a 16 px root font", ({
@@ -1183,7 +1191,7 @@ test("Expand keeps the header, Collapse and Close usable at 636x390 with a 32 px
 }, info) => expandAtRootFont(32, { page, context, browserName }, info));
 
 /**
- * The half drawer on a 390 px phone: with Collapse, Expand and Close at large
+ * The half drawer on a 390 px phone: with Expand and Close at large
  * text the actions cannot sit beside the title, so they wrap beneath it and
  * the title keeps a readable line of its own.
  */
@@ -1197,16 +1205,10 @@ async function halfTitleAtRootFont(
   const finger = await newFinger(context, page, browserName);
   await open(page, "portrait-390");
   await tapTarget(page, finger, envC);
-  await expect(sheet(page)).toHaveClass(/bottom-sheet--peek/);
   await page.evaluate((px) => {
     document.documentElement.style.fontSize = `${px}px`;
   }, rootPx);
   await page.waitForTimeout(300);
-  await tapBox(
-    page,
-    finger,
-    page.getByRole("button", { name: "Expand to half height" }),
-  );
   await expect(sheet(page)).toHaveClass(/bottom-sheet--half/);
   const row = await drawerChrome(page);
   await frame(page, info, `half-title-${rootPx}px-${browserName}`);
@@ -1217,7 +1219,7 @@ async function halfTitleAtRootFont(
   expect(row.titleLines).toBe(1);
   expect(row).toMatchObject({
     header: SHEET_REACHABLE,
-    collapse: SHEET_REACHABLE,
+    resize: SHEET_REACHABLE,
     close: SHEET_REACHABLE,
   });
 }
@@ -1240,7 +1242,7 @@ async function openTrackSheet(page: Page, finger: Finger): Promise<void> {
   expect((await sheetState(page)).compact).toBe(false);
 }
 
-test("a timeline tap while a track's sheet is open selects, and Inspect opens the strip: portrait-390", async ({
+test("a timeline tap while a track's sheet is open selects, and Inspect opens the drawer: portrait-390", async ({
   page,
   context,
   browserName,
@@ -1253,22 +1255,21 @@ test("a timeline tap while a track's sheet is open selects, and Inspect opens th
   const track = await sheetState(page);
   await frame(page, info, `tap-while-track-sheet-1-track-${browserName}`);
   await tapClipBody(page, finger);
-  // Selecting shuts the track's sheet; Inspect opens the clip's strip.
+  // Selecting shuts the track's sheet; Inspect opens the clip's drawer.
   await settleSheetShut(page);
   await ensureInspected(page);
   await expect(page.locator(".bottom-sheet--compact")).toBeVisible();
   const clip = await sheetState(page);
   await frame(page, info, `tap-while-track-sheet-2-clip-${browserName}`);
   json(info, `tap-while-track-sheet-${browserName}`, { track, clip });
-  expect(clip).toMatchObject({ compact: true, size: "peek", stowed: false });
-  expect(await page.locator(".bottom-sheet .inspector").count()).toBe(0);
+  expect(clip).toMatchObject({ compact: true, size: "half", stowed: false });
   await tapTarget(page, finger, envC);
   await settleSheetShut(page);
   await ensureInspected(page);
   await expect(page.locator(".bottom-sheet--compact")).toBeVisible();
   expect(await sheetState(page)).toMatchObject({
     compact: true,
-    size: "peek",
+    size: "half",
     title: "Envelope point",
   });
 });
@@ -1400,7 +1401,7 @@ test("Tab focus never lands a field under the drawer header at 32 px text: a pen
   }
 });
 
-test("the strip leaves the timeline undimmed and the half sheet dims it: portrait-390", async ({
+test("the half and the full drawer dim the timeline: portrait-390", async ({
   page,
   context,
   browserName,
@@ -1426,21 +1427,20 @@ test("the strip leaves the timeline undimmed and the half sheet dims it: portrai
         hit: hit?.className?.toString() ?? null,
       };
     });
-  const strip = await scrim();
-  await frame(page, info, `scrim-1-strip-${browserName}`);
+  await expect(sheet(page)).toHaveClass(/bottom-sheet--half/);
+  const half = await scrim();
+  await frame(page, info, `scrim-1-half-${browserName}`);
   await tapBox(
     page,
     finger,
-    page.getByRole("button", { name: "Expand to half height" }),
+    page.getByRole("button", { name: "Expand to full height" }),
   );
-  await expect(sheet(page)).toHaveClass(/bottom-sheet--half/);
-  const half = await scrim();
-  await frame(page, info, `scrim-2-half-${browserName}`);
-  json(info, `scrim-${browserName}`, { strip, half });
-  expect(strip).toMatchObject({
-    background: "rgba(0, 0, 0, 0)",
-    timelineHitsScrim: false,
-  });
-  expect(half.background).not.toBe("rgba(0, 0, 0, 0)");
-  expect(half.timelineHitsScrim).toBe(false);
+  await expect(sheet(page)).toHaveClass(/bottom-sheet--full/);
+  const full = await scrim();
+  await frame(page, info, `scrim-2-full-${browserName}`);
+  json(info, `scrim-${browserName}`, { half, full });
+  for (const dimmed of [half, full]) {
+    expect(dimmed.background).not.toBe("rgba(0, 0, 0, 0)");
+    expect(dimmed.timelineHitsScrim).toBe(false);
+  }
 });

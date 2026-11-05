@@ -51,7 +51,6 @@ for (const {
   const detents = halfDetent
     ? (["half", "full"] as const)
     : (["full"] as const);
-  const firstExpand = `Expand to ${detents[0]} height`;
   test.describe(`feedback detents ${inspector} ${viewport.width}x${viewport.height} root${rootPx} ${theme}`, () => {
     test("feedback preserves selected half and full geometry and permitted ruler and lane room", async ({
       page,
@@ -224,12 +223,11 @@ for (const {
           if (rootPx === 16) expect(halfRulerPermitted).toBe(true);
         }
       }
-      await page
-        .getByRole("button", { name: "Collapse to strip", exact: true })
-        .click();
-      await page
-        .getByRole("button", { name: firstExpand, exact: true })
-        .click();
+      // Back to the first detent: a drawer that is full only has no other.
+      if (halfDetent)
+        await page
+          .getByRole("button", { name: "Collapse to half height", exact: true })
+          .click();
       if (halfRulerPermitted) {
         const slider = page.getByRole("slider", {
           name: "Timeline position",
@@ -322,12 +320,11 @@ for (const {
           expect(geometry.hitsControl, JSON.stringify(geometry)).toBe(true);
         }
       }
-      await page
-        .getByRole("button", { name: "Collapse to strip", exact: true })
-        .click();
-      await page
-        .getByRole("button", { name: firstExpand, exact: true })
-        .click();
+      // Back to the first detent: a drawer that is full only has no other.
+      if (halfDetent)
+        await page
+          .getByRole("button", { name: "Collapse to half height", exact: true })
+          .click();
       const withFeedback: Record<string, number> = {};
       for (const detent of detents) {
         if (detent === "full" && halfDetent)
@@ -376,12 +373,11 @@ for (const {
         }
       }
       if (halfDetent) expect(withFeedback.half).toBeLessThan(withFeedback.full);
-      await page
-        .getByRole("button", { name: "Collapse to strip", exact: true })
-        .click();
-      await page
-        .getByRole("button", { name: firstExpand, exact: true })
-        .click();
+      // Back to the first detent: a drawer that is full only has no other.
+      if (halfDetent)
+        await page
+          .getByRole("button", { name: "Collapse to half height", exact: true })
+          .click();
       expect((await panel.boundingBox())!.height).toBeCloseTo(
         withFeedback[detents[0]],
         0,

@@ -130,7 +130,7 @@ const DENSE = [
   ".bottom-sheet-detent",
 ];
 
-/** The peek strip is a BottomSheet; every other selection surface is the Inspector sheet. */
+/** The compact drawer is a BottomSheet; every other selection surface is the Inspector sheet. */
 const SHEET = ".bottom-sheet, .sys-inspector";
 const SHEET_BODY = ".bottom-sheet-body, .sys-inspector-scroll";
 
@@ -189,7 +189,7 @@ async function clipSurface(page: Page, sheet: boolean): Promise<Reach[]> {
     name: "Source start",
     exact: true,
   });
-  // A phone selection opens the drawer at its strip; the body shows from half height.
+  // A phone selection opens the drawer at half height; the rest of its body shows at full.
   const expand = page.getByRole("button", { name: /^Expand to/ });
   while (await expand.isVisible()) {
     await expand.click();
@@ -497,8 +497,8 @@ test("pending-edit and transcript-word Inspector bodies keep every control reach
         }
         const body = page.locator(surface);
         await expect(body).toBeVisible();
-        // A phone selection opens the drawer at its strip; the body shows from
-        // half height, and the rest of it from full height.
+        // A phone selection opens the drawer at half height; the rest of its
+        // body shows at full height.
         const expand = page.getByRole("button", { name: /^Expand to/ });
         while (
           !((await body.textContent()) ?? "").includes(label) &&
