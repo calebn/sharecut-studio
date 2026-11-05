@@ -250,17 +250,6 @@ describe("ScrubField keys against the window keymap", () => {
 });
 
 describe("ScrubField window keys", () => {
-  it("does not step from an empty value when stepsFromEmpty is false", () => {
-    const { calls, field } = setup({
-      value: null,
-      min: 0,
-      stepsFromEmpty: false,
-    });
-    for (const key of ["ArrowUp", "ArrowDown", "Home"])
-      fireEvent.keyDown(field(), { key });
-    expect(calls.onCommit).not.toHaveBeenCalled();
-  });
-
   it("takes a held arrow key as one step, not one per repeat", () => {
     const { calls, field } = setup();
     fireEvent.keyDown(field(), { key: "ArrowUp" });

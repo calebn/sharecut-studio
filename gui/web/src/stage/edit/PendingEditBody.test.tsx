@@ -648,6 +648,90 @@ describe("PendingEditBody", () => {
     );
   });
 
+  describe("focus after the first Ask posts", () => {
+    const posted = () =>
+      sampleComment({ edit_decision_id: "ed1", author: "Host", body: "Why?" });
+    const answerWithThread = (path: string, ...grant: unknown[]) =>
+      createComment.mockImplementation(async () => {
+        useDawStore.getState().hydrate(
+          path,
+          minimalProject({
+            pending_edits: [sessionCut],
+            comments: [posted()],
+          }),
+          ...(grant as []),
+        );
+        return posted();
+      });
+
+    it("moves to the empty reply field after Ask is clicked", async () => {
+      const user = userEvent.setup();
+      answerWithThread("/tmp/p.json");
+      render(<PendingEditBody edit={sessionCut} />);
+      await user.type(
+        screen.getByRole("textbox", { name: "Your question" }),
+        "Why?",
+      );
+      await user.click(screen.getByRole("button", { name: "Ask" }));
+      const reply = await screen.findByRole("textbox", {
+        name: "Reply to Host",
+      });
+      expect(reply).toHaveFocus();
+      expect(reply).toHaveValue("");
+    });
+
+    it("moves to the empty reply field after Enter posts", async () => {
+      const user = userEvent.setup();
+      answerWithThread("/tmp/p.json");
+      render(<PendingEditBody edit={sessionCut} />);
+      await user.type(
+        screen.getByRole("textbox", { name: "Your question" }),
+        "Why?{Enter}",
+      );
+      expect(
+        await screen.findByRole("textbox", { name: "Reply to Host" }),
+      ).toHaveFocus();
+    });
+
+    it("does the same for a Commenter link", async () => {
+      const user = userEvent.setup();
+      answerWithThread(
+        shareProjectKey("tok"),
+        "comment",
+        COMMENTER_CAPABILITIES,
+      );
+      useDawStore
+        .getState()
+        .hydrate(
+          shareProjectKey("tok"),
+          minimalProject({ pending_edits: [sessionCut] }),
+          "comment",
+          COMMENTER_CAPABILITIES,
+        );
+      render(<PendingEditBody edit={sessionCut} />);
+      await user.type(
+        screen.getByRole("textbox", { name: "Your question" }),
+        "Why?",
+      );
+      await user.click(screen.getByRole("button", { name: "Ask" }));
+      expect(
+        await screen.findByRole("textbox", { name: "Reply to Host" }),
+      ).toHaveFocus();
+    });
+
+    it("leaves focus alone when the Ask is refused", async () => {
+      const user = userEvent.setup();
+      createComment.mockRejectedValueOnce(new Error("Ask failed"));
+      render(<PendingEditBody edit={sessionCut} />);
+      const field = screen.getByRole("textbox", { name: "Your question" });
+      await user.type(field, "Why?");
+      await user.click(screen.getByRole("button", { name: "Ask" }));
+      await screen.findByRole("alert");
+      expect(field).toHaveFocus();
+      expect(field).toHaveValue("Why?");
+    });
+  });
+
   it("replies to an existing Ask thread instead of creating a second one", async () => {
     const user = userEvent.setup();
     useDawStore.getState().hydrate(

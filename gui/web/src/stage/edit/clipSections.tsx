@@ -8,6 +8,7 @@ import { CLIP_HANDLE_STEPS } from "../../edit/clipHandleSteps";
 import { cancelClipPlacement } from "../../edit/clipPlacement";
 import { edgeFadeMaxMs, maxFadeMs } from "../../edit/fadeLimits";
 import {
+  appliedJoinLength,
   clipIdsBeforeCut,
   cutFadeHint,
   isCutJoin,
@@ -202,6 +203,9 @@ export function useClipSections(
     );
   };
 
+  const leftClip = index > 0 ? lane[index - 1] : undefined;
+  const joinLength =
+    leftClip === undefined ? null : appliedJoinLength(leftClip, clip, capMs);
   const fadeHint = cutFadeHint(cutIn, cutOut);
   const joinNote = joinRenderNote(clip);
   const joinSec = clip.timeline_start;
@@ -261,12 +265,12 @@ export function useClipSections(
                       control: (
                         <ScrubField
                           label="Transition length"
-                          value={null}
+                          value={joinLength?.saved ?? null}
                           unit="ms"
                           decimals={0}
-                          stepsFromEmpty={false}
                           integerOnly
-                          min={clip.join_in_mode === "crossfade" ? 1 : 0}
+                          min={joinLength?.min}
+                          max={joinLength?.max}
                           readOnly={locked}
                           onCommit={(value) =>
                             void join(clip.join_in_mode, value)

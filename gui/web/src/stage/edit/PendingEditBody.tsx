@@ -1,4 +1,11 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   approveEdits,
   createComment,
@@ -201,6 +208,15 @@ export function PendingEditBody({
   const role = commentRole(projectPath, guestMode);
   const [author, setAuthor] = useState(() => sessionDisplayName(role));
   const [askBody, setAskBody] = useState("");
+  const replyField = useRef<HTMLTextAreaElement | null>(null);
+  const focusReplyOnMount = useRef(false);
+  const setReplyField = useCallback((node: HTMLTextAreaElement | null) => {
+    replyField.current = node;
+    if (node && focusReplyOnMount.current) {
+      focusReplyOnMount.current = false;
+      node.focus();
+    }
+  }, []);
   const timeHintId = useId();
   const {
     busy: threadBusy,
@@ -564,6 +580,8 @@ export function PendingEditBody({
         editDecisionId: edit.id,
       });
       setAskBody("");
+      if (replyField.current) replyField.current.focus();
+      else focusReplyOnMount.current = true;
     });
   };
 
@@ -894,7 +912,11 @@ export function PendingEditBody({
                         void toggleAction(thread, actionId, done)
                     : undefined
                 }
-                reply={mayReply ? askComposer : undefined}
+                reply={
+                  mayReply
+                    ? { ...askComposer, inputRef: setReplyField }
+                    : undefined
+                }
               />
             </div>
           ) : (

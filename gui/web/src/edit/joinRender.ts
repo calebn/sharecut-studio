@@ -4,9 +4,11 @@ import {
   JOIN_MODE_OPTIONS,
   type JoinMarkerKind,
   joinKind,
+  joinModeOf,
   markerLabel,
 } from "../utils/editMarkerRegistry";
 import { formatRulerTime } from "../utils/time";
+import { joinLengthMaxMs } from "./fadeLimits";
 
 export function joinModeLabel(mode: string): string {
   return JOIN_MODE_OPTIONS.find((o) => o.value === mode)?.label ?? mode;
@@ -90,6 +92,28 @@ export function joinLengthMs(
     return Math.max(shorter, Math.floor(longer / 2));
   }
   return Math.max(left.fade_out_ms, right.fade_in_ms);
+}
+
+/** The length the join holds now and the range the server accepts for it, so the popover slider and the inspector field show the same applied value. */
+export function appliedJoinLength(
+  left: ClipRow,
+  right: ClipRow,
+  trackFadeMaxMs: number | null | undefined,
+): { min: number; max: number; saved: number } {
+  const max = joinLengthMaxMs(
+    {
+      durationSec: left.source_end - left.source_start,
+      fadeInMs: left.fade_in_ms,
+    },
+    { durationSec: right.source_end - right.source_start },
+    trackFadeMaxMs,
+  );
+  const min = joinModeOf(right) === "crossfade" ? 1 : 0;
+  return {
+    min,
+    max,
+    saved: Math.min(max, Math.max(min, joinLengthMs(left, right))),
+  };
 }
 
 /** Ids of clips whose outgoing join is a cut (render drops their fade-out). */

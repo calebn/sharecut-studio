@@ -7,13 +7,26 @@ import {
   InspectorSheet,
 } from "../../system/InspectorSheet";
 import { AnchorMark, Framed } from "../../system/inspectorSheetFixtures";
-import { episode, selections } from "../../test/episodeFixture";
+import {
+  EPISODE_DURATION_SEC,
+  episode,
+  MIRA,
+  selections,
+} from "../../test/episodeFixture";
+import { clipRow } from "../../test/fixtures";
 import { episodeBeforeEach, withEpisode } from "../../test/withEpisode";
+import type { Selection } from "../../types/project";
 import { useClipSections } from "./clipSections";
 
-function ClipCard({ phone = false }: { phone?: boolean }) {
+function ClipCard({
+  phone = false,
+  selection = selections.clip,
+}: {
+  phone?: boolean;
+  selection?: Selection;
+}) {
   const sections: readonly InspectorSection[] =
-    useClipSections(selections.clip) ?? [];
+    useClipSections(selection) ?? [];
   const [detent, setDetent] = useState<"half" | "full" | "dock">("half");
   return (
     <Framed>
@@ -99,5 +112,63 @@ export const ClipReadOnly: Story = {
     await expect(
       canvas.queryByRole("button", { name: "Ripple delete" }),
     ).toBeNull();
+  },
+};
+
+const HALF_SEC = EPISODE_DURATION_SEC / 2;
+const joinedClips = [
+  clipRow({
+    id: "clip-mira-a",
+    track_id: MIRA,
+    source_end: HALF_SEC,
+    timeline_end: HALF_SEC,
+    source_duration_sec: EPISODE_DURATION_SEC,
+    fade_out_ms: 80,
+    recording_key: "mira-voice-take-1",
+  }),
+  clipRow({
+    id: "clip-mira-b",
+    track_id: MIRA,
+    source_start: HALF_SEC,
+    source_end: EPISODE_DURATION_SEC,
+    timeline_start: HALF_SEC,
+    timeline_end: EPISODE_DURATION_SEC,
+    source_duration_sec: EPISODE_DURATION_SEC,
+    fade_in_ms: 120,
+    join_left_clip_id: "clip-mira-a",
+    recording_key: "mira-voice-take-1",
+  }),
+];
+const joined = episode();
+joined.clips = {
+  tracks: { ...joined.clips.tracks, [MIRA]: joinedClips },
+  clip_count: joinedClips.length + 1,
+};
+const joinedSelection: Selection = {
+  kind: "clip",
+  id: "clip-mira-b",
+  trackId: MIRA,
+};
+
+export const ClipTransition: Story = {
+  render: () => <ClipCard selection={joinedSelection} />,
+  parameters: {
+    episode: { project: joined, role: "editor", selection: joinedSelection },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const length = await canvas.findByRole("spinbutton", {
+      name: "Transition length",
+    });
+    await expect(length).toHaveAttribute("aria-valuenow", "120");
+    await expect(length).toHaveAttribute("aria-valuetext", "120 ms");
+  },
+};
+
+export const ClipTransitionPhone: Story = {
+  render: () => <ClipCard phone selection={joinedSelection} />,
+  globals: { viewport: { value: "mobile360", isRotated: false } },
+  parameters: {
+    episode: { project: joined, role: "editor", selection: joinedSelection },
   },
 };

@@ -45,8 +45,6 @@ export type ScrubFieldProps = ScrubRange & {
   /** Fires once per gesture, so one drag, key press or typed value is one undo step. */
   onCommit: (value: number) => void;
   skipUnchanged?: boolean;
-  /** False keeps the arrow, Home and End keys from committing while the field is empty, so only a typed or dragged value sets it. */
-  stepsFromEmpty?: boolean;
   /** Refuses a typed number with a fraction instead of rounding it. */
   integerOnly?: boolean;
   /** A drag ended where it began, or Escape: drop the preview. */
@@ -78,7 +76,6 @@ export function ScrubField({
   onCommit,
   onCancel,
   skipUnchanged = false,
-  stepsFromEmpty = true,
   integerOnly = false,
   variant = "plain",
   min,
@@ -188,7 +185,6 @@ export function ScrubField({
   };
 
   const commitStep = (next: number) => {
-    if (value === null && !stepsFromEmpty) return;
     if (next !== value) onCommit(next);
   };
 
