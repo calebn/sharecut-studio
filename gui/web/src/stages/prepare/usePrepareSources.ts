@@ -232,7 +232,6 @@ export function usePrepareSources(input: {
   );
   startSplitRef.current = startSplit;
 
-  // Leaving the project drops the splits that waited for a model.
   useEffect(() => {
     setSplitNeeds({});
     resumed.current.clear();
