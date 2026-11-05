@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  argsFromKeyEvent,
   ariaKeyShortcutsFor,
   bareKeyConflict,
   displayShortcutFor,
@@ -39,12 +38,13 @@ function keyEvent(
 describe("keymap registry", () => {
   it("binds J and L to shuttle, K to Pause and return, and bare Z to zoom to selection", () => {
     expect(matchKeymapCommand(keyEvent({ key: "j", code: "KeyJ" }))?.id).toBe(
-      "transport.shuttle",
+      "transport.shuttleBack",
     );
     expect(matchKeymapCommand(keyEvent({ key: "l", code: "KeyL" }))?.id).toBe(
-      "transport.shuttle",
+      "transport.shuttleForward",
     );
-    expect(keymapCommandById("transport.shuttle")?.noRepeat).toBe(true);
+    expect(keymapCommandById("transport.shuttleBack")?.noRepeat).toBe(true);
+    expect(keymapCommandById("transport.shuttleForward")?.noRepeat).toBe(true);
     expect(keymapCommandById("transport.stop")?.label).toBe("Pause and return");
     expect(matchKeymapCommand(keyEvent({ key: "z", code: "KeyZ" }))?.id).toBe(
       "view.zoomToSelection",
@@ -55,19 +55,15 @@ describe("keymap registry", () => {
     ).toBe("history.undo");
   });
 
-  it("maps J to back and L to forward", () => {
-    expect(
-      argsFromKeyEvent(
-        { key: "j", shiftKey: false, repeat: false },
-        "transport.shuttle",
-      ),
-    ).toEqual({ dir: "back" });
-    expect(
-      argsFromKeyEvent(
-        { key: "L", shiftKey: false, repeat: false },
-        "transport.shuttle",
-      ),
-    ).toEqual({ dir: "forward" });
+  it("labels J and L honestly and lets each be remapped on its own", () => {
+    expect(keymapCommandById("transport.shuttleBack")).toMatchObject({
+      label: "Jump back",
+      keys: ["J"],
+    });
+    expect(keymapCommandById("transport.shuttleForward")).toMatchObject({
+      label: "Speed up (1×/2×/4×)",
+      keys: ["L"],
+    });
   });
 
   it("F2 edits a focused word while Enter has no global transcript binding", () => {
@@ -379,13 +375,13 @@ describe("bare transport keys", () => {
   it("flags a remap onto a key another bare-key command holds", () => {
     _resetKeymapOverridesForTests();
     expect(bareKeyConflict("track.soloToggle", "L")?.id).toBe(
-      "transport.shuttle",
+      "transport.shuttleForward",
     );
     expect(bareKeyConflict("track.soloToggle", "z")?.id).toBe(
       "view.zoomToSelection",
     );
     expect(bareKeyConflict("track.soloToggle", "Q")).toBeUndefined();
-    expect(bareKeyConflict("transport.shuttle", "J")).toBeUndefined();
+    expect(bareKeyConflict("transport.shuttleBack", "J")).toBeUndefined();
   });
 });
 

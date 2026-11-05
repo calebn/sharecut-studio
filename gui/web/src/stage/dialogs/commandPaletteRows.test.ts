@@ -32,6 +32,30 @@ describe("paletteCommands", () => {
     ).toEqual([...expected].sort());
   });
 
+  it("lists J and L with honest labels, found by search and keyed apart", () => {
+    const rows = rowsNow();
+    expect(rows.find((r) => r.id === "transport.shuttleBack")).toMatchObject({
+      label: "Jump back",
+      shortcut: expect.stringMatching(/J$/),
+      defaultKey: "J",
+      disabledReason: null,
+    });
+    expect(rows.find((r) => r.id === "transport.shuttleForward")).toMatchObject(
+      {
+        label: "Speed up (1×/2×/4×)",
+        shortcut: expect.stringMatching(/L$/),
+        defaultKey: "L",
+        disabledReason: null,
+      },
+    );
+    expect(searchPaletteCommands(rows, "shuttle").map((r) => r.id)).toEqual(
+      expect.arrayContaining([
+        "transport.shuttleBack",
+        "transport.shuttleForward",
+      ]),
+    );
+  });
+
   it("carries the keymap shortcut, default key and collision note", () => {
     const blade = rowsNow().find((r) => r.id === "edit.bladeCut");
     expect(blade).toMatchObject({
