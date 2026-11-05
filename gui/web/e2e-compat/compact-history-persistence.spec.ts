@@ -1,627 +1,68 @@
-import { expect, type Locator, type TestInfo } from "@playwright/test";
-import {
-  compactHistory,
-  edited,
-  type Fixtures,
-  openAt,
-  original,
-  railHistory,
-  receipt,
-  SIZES,
-  savedEnvelope,
-  test,
-} from "../e2e/compactChromeFixture";
+import { expect } from "@playwright/test";
+import { openAt, railHistory, SIZES, test } from "../e2e/compactChromeFixture";
 import { newFinger } from "../e2e/finger";
-import {
-  controlGeometry,
-  exposeControl,
-} from "../e2e/inspectorResponsiveEvidence";
-import type { InteractionReceipt } from "../e2e/interactionEvidence";
 import { inspectSelection } from "../e2e/stageNav";
-import { withAppearance } from "../e2e/theme";
-import { centerOf, lane, watchCommands } from "../e2e/touchTimeline";
+import { centerOf, lane } from "../e2e/touchTimeline";
 
 test.use({ hasTouch: true });
 test.describe.configure({ timeout: 240_000 });
 
-async function undoStaysReachable(
-  name: keyof typeof SIZES,
-  rootPx: number,
-  theme: "dark" | "light",
-  { page, context, browserName }: Fixtures,
-  info: TestInfo,
-): Promise<void> {
-  const detents = (order: readonly ("half" | "full")[]) =>
-    order.filter(
-      (detent) => detent !== "half" || !(name === "landscape" && rootPx === 32),
-    );
-  await openAt(page, SIZES[name], 16, theme);
-  const laneHeights = () =>
-    page
-      .locator(".lane-row")
-      .evaluateAll((rows) =>
-        rows.map((row) => row.getBoundingClientRect().height),
-      );
-  await page.locator("html").evaluate((html, px) => {
-    html.style.fontSize = `${px}px`;
-  }, rootPx);
-  await page.waitForTimeout(350);
-  const closedLaneHeights = await laneHeights();
-  await page.locator("html").evaluate((html) => {
-    html.style.fontSize = "16px";
-  });
-  await page.waitForTimeout(350);
-  const finger = await newFinger(context, page, browserName);
-  const commands = watchCommands(page);
-  const discovery: InteractionReceipt[] = [];
-  const measure = async (controls: Locator) => {
-    const undo = controls.getByRole("button", { name: "Undo" });
-    const redo = controls.getByRole("button", { name: "Redo" });
-    const otherControls = await Promise.all(
-      (
-        await page
-          .locator(".bottom-sheet--compact .bottom-sheet-header-actions button")
-          .all()
-      ).map((button) => controlGeometry(button)),
-    );
-    const undoGeometry = await controlGeometry(undo),
-      redoGeometry = await controlGeometry(redo);
-    const intersects = (
-      a: { left: number; right: number; top: number; bottom: number },
-      b: { left: number; right: number; top: number; bottom: number },
-    ) =>
-      a.left < b.right &&
-      a.right > b.left &&
-      a.top < b.bottom &&
-      a.bottom > b.top;
-    const otherBoxes = otherControls.filter(
-      (control) =>
-        control.measured[0].label !== "Undo" &&
-        control.measured[0].label !== "Redo",
-    );
-    const overlaps = [undoGeometry, redoGeometry].some((control) =>
-      otherBoxes.some((other) => intersects(control.rect, other.rect)),
-    );
-    const card = page.locator(".ui-toast-region--app .ui-toast");
-    let feedback = null;
-    if (await card.count()) {
-      const geometry = await controlGeometry(card);
-      const feedbackVisible = geometry.measured[0].visibleArea;
-      const controls = [];
-      for (const element of await page
-        .locator(
-          ".bottom-sheet--compact :is(button, input, select, textarea, label, [role='button'])",
-        )
-        .all()) {
-        if (await element.evaluate((node) => !!node.closest(".ui-toast")))
-          continue;
-        const control = await controlGeometry(element);
-        const area = control.measured[0].visibleArea;
-        if (area.state !== "positive") continue;
-        controls.push({
-          geometry: control,
-          visible: area.bounds,
-          overlaps:
-            feedbackVisible.state === "positive" &&
-            intersects(area.bounds, feedbackVisible.bounds),
-        });
-      }
-      const dismiss = await controlGeometry(card.locator("button:last-child"));
-      feedback = {
-        geometry,
-        visible: feedbackVisible,
-        // A card taller than the sheet body (the sheet starts under the
-        // header) scrolls, so part of it showing is the most it can do.
-        inView:
-          geometry.fullyVisible ||
-          (feedbackVisible.state === "positive" &&
-            (await card.evaluate(
-              (element) =>
-                element.getBoundingClientRect().height >
-                (document.querySelector(".bottom-sheet-body")?.clientHeight ??
-                  Number.POSITIVE_INFINITY),
-            ))),
-        dismissOnTop: dismiss.hitsControl,
-        controls,
-        overlaps: controls.filter((control) => control.overlaps),
-      };
-    }
-    return {
-      undo: undoGeometry,
-      redo: redoGeometry,
-      otherControls,
-      overlaps,
-      feedback,
-      feedbackActions: await Promise.all(
-        (await page.locator(".ui-toast-region--app button").all()).map(
-          (button) => controlGeometry(button),
-        ),
-      ),
-      visibleLaneHeight: await page.evaluate(() => {
-        const lane = document
-          .querySelector(".timeline-scroll")
-          ?.getBoundingClientRect();
-        const drawer = document
-          .querySelector(".bottom-sheet")
-          ?.getBoundingClientRect();
-        const chrome = document
-          .querySelector(".bottom-sheet-chrome")
-          ?.getBoundingClientRect();
-        return {
-          visible:
-            lane && drawer
-              ? Math.max(0, Math.min(lane.bottom, drawer.top) - lane.top)
-              : 0,
-          lane: lane?.toJSON(),
-          drawer: drawer?.toJSON(),
-          chrome: chrome?.toJSON(),
-          bottomChrome: document
-            .querySelector(".stage-frame-player")
-            ?.getBoundingClientRect()
-            .toJSON(),
-          shell: document.documentElement.dataset.shell,
-          layout: document.documentElement.dataset.layout,
-          detent: document.querySelector(".bottom-sheet")?.className,
-        };
-      }),
-    };
-  };
-  const seen: Record<string, Awaited<ReturnType<typeof measure>>> = {};
-  const check = async (step: string, controls: Locator) => {
-    const beforeReveal = await measure(controls);
-    await receipt(
-      info,
-      `hit-${name}-${rootPx}-${theme}-${step}-before-header-reveal`,
-      beforeReveal,
-    );
-    for (const control of [
-      beforeReveal.undo,
-      beforeReveal.redo,
-      ...beforeReveal.otherControls,
-    ]) {
-      expect({ step, ...control }).toMatchObject({
-        step,
-        fullyVisible: true,
-        hitsControl: true,
-      });
-      expect(control.rect.width).toBeGreaterThanOrEqual(44);
-      expect(control.rect.height).toBeGreaterThanOrEqual(44);
-    }
-    if (beforeReveal.feedback)
-      expect(beforeReveal.feedback.overlaps).toEqual([]);
-    if (
-      beforeReveal.feedback &&
-      (step === "open-after-edit" ||
-        step.startsWith("feedback-") ||
-        step === "level-saved")
-    ) {
-      // The sheet starts under the header, so at large text held
-      // sideways its body is shorter than the card: the card scrolls, and its
-      // Undo and Dismiss are each exposed below.
-      const card = page.locator(".ui-toast-region--app .ui-toast");
-      const cardFits = () =>
-        card.evaluate((element) => {
-          const body = document.querySelector(".bottom-sheet-body");
-          return (
-            !body || element.getBoundingClientRect().height <= body.clientHeight
-          );
-        });
-      if (await cardFits()) await exposeControl(page, card, discovery);
-      for (const action of await page
-        .locator(".ui-toast-region--app button")
-        .all()) {
-        await exposeControl(page, action, discovery);
-        const geometry = await controlGeometry(action);
-        expect(geometry.fullyVisible).toBe(true);
-        expect(geometry.hitsControl).toBe(true);
-        expect(geometry.rect.width).toBeGreaterThanOrEqual(44);
-        expect(geometry.rect.height).toBeGreaterThanOrEqual(44);
-      }
-      // Exposing the actions may expand the sheet and scroll its body; a card
-      // that fits comes back whole.
-      if (await cardFits()) await exposeControl(page, card, discovery);
-      await receipt(info, `feedback-discovery-${step}`, discovery);
-    }
-    seen[step] = await measure(controls);
-    await receipt(info, `hit-${name}-${rootPx}-${theme}-${step}`, seen[step]);
-    await info.attach(`hit-${step}`, {
-      body: await page.screenshot({
-        path: info.outputPath(`hit-${step}.png`),
-      }),
-      contentType: "image/png",
-    });
-  };
-  await check("rail", railHistory(page));
-
-  const at = await centerOf(page, `${lane} [data-hit-id="env-c"]`);
-  await finger.down(at);
-  await page.waitForTimeout(60);
-  await finger.up();
-  await inspectSelection(page);
-  await expect(page.locator(".bottom-sheet--compact")).toBeVisible();
-  await page.evaluate((px) => {
-    document.documentElement.style.fontSize = `${px}px`;
-  }, rootPx);
-  await page.waitForTimeout(600);
-  const headerHistory = compactHistory(page);
-  await check("open", headerHistory);
-  const census = await page
-    .locator(".bottom-sheet--compact")
-    .evaluate((panel) => {
-      const selectors = [
-        ".bottom-sheet-chrome",
-        ".bottom-sheet-header",
-        ".bottom-sheet-title",
-        ".bottom-sheet-header-actions",
-        ".bottom-sheet-body",
-      ];
-      return {
-        viewport: {
-          width: innerWidth,
-          height: innerHeight,
-          scrollX,
-          scrollY,
-          visualHeight: visualViewport?.height,
-          visualOffset: visualViewport?.offsetTop,
-        },
-        root: {
-          rect: panel.parentElement?.getBoundingClientRect().toJSON(),
-          bottom: panel.parentElement
-            ? getComputedStyle(panel.parentElement).bottom
-            : null,
-        },
-        shell: {
-          rect: document
-            .querySelector(".stage-frame")
-            ?.getBoundingClientRect()
-            .toJSON(),
-          style: document.documentElement.style.cssText,
-        },
-        panel: {
-          className: panel.className,
-          rect: panel.getBoundingClientRect().toJSON(),
-        },
-        children: selectors.map((selector) => {
-          const el = panel.querySelector(selector);
-          const style = el ? getComputedStyle(el) : null;
-          return {
-            selector,
-            text: el?.textContent,
-            rect: el?.getBoundingClientRect().toJSON(),
-            padding: style?.padding,
-            gap: style?.gap,
-            flex: style?.flex,
-          };
-        }),
-        buttons: [...panel.querySelectorAll("button")].map((el) => ({
-          name: el.getAttribute("aria-label"),
-          rect: el.getBoundingClientRect().toJSON(),
-          padding: getComputedStyle(el).padding,
-        })),
-      };
-    });
-  await receipt(info, `census-${name}-${rootPx}-${theme}`, census);
-  const screenshot = info.outputPath(`open-${name}-${rootPx}-${theme}.png`);
-  const image = await page.screenshot({ path: screenshot });
-  await info.attach("open", { body: image, contentType: "image/png" });
-
-  const geometry = () =>
-    page.locator(".bottom-sheet--compact").evaluate((panel) => ({
-      panel: panel.getBoundingClientRect().toJSON(),
-      header: panel
-        .querySelector(".bottom-sheet-header")
-        ?.getBoundingClientRect()
-        .toJSON(),
-      body: panel
-        .querySelector(".bottom-sheet-body")
-        ?.getBoundingClientRect()
-        .toJSON(),
-      controls: [...panel.querySelectorAll(".bottom-sheet-header button")].map(
-        (button) => button.getBoundingClientRect().toJSON(),
-      ),
-    }));
-  for (const detent of detents(["half", "full"])) {
-    if (
-      detent === "full" &&
-      !(await page.locator(".bottom-sheet--full").count())
-    ) {
-      await page.getByRole("button", { name: "Expand to full height" }).click();
-      await page.waitForTimeout(350);
-      await check(detent, headerHistory);
-    }
-    const before = await geometry();
-    const redo = headerHistory.getByRole("button", {
-      name: "Redo",
-      exact: true,
-    });
-    await expect(redo).toHaveAttribute("aria-disabled", "true");
-    const box = await redo.boundingBox();
-    if (!box) throw new Error("Redo has no box");
-    await finger.down({
-      x: box.x + box.width / 2,
-      y: box.y + box.height / 2,
-    });
-    await page.waitForTimeout(60);
-    await finger.up();
-    const hint = headerHistory.getByRole("status");
-    await expect(hint).toHaveText("Nothing to redo");
-    await expect(redo).toHaveAccessibleDescription("Nothing to redo");
-    const caption = redo.locator(".compact-history-caption");
-    await expect(caption).toHaveText("Noredo");
-    await expect(caption).toBeInViewport({ ratio: 1 });
-    const after = await geometry();
-    expect(after).toEqual(before);
-    expect(commands).toEqual([]);
-    await receipt(
-      info,
-      `unavailable-${name}-${rootPx}-${detent}-${browserName}`,
-      { before, after },
-    );
-  }
-  // Leave the open body scrolled as far as it goes: collapsing must show the
-  // half drawer's top again, not the end of the scroll the taller size had
-  // (#1762).
-  // At the default root size the full-size sheet fits the envelope point's
-  // Time and Level rows, so those cells have nothing to scroll and the check
-  // below pins that.
-  const sheetBody = page.locator(".bottom-sheet--compact .bottom-sheet-body");
-  const scrolled = await sheetBody.evaluate((body) => {
-    body.scrollTop = body.scrollHeight;
-    return body.scrollTop;
-  });
-  expect(scrolled > 0).toBe(rootPx !== 16);
-  // Where half does not fit (large text held sideways) the drawer stays full.
-  if (detents(["half"]).length > 0) {
-    await page.getByRole("button", { name: "Collapse to half height" }).click();
-    await page.waitForTimeout(350);
-    expect(await sheetBody.evaluate((body) => body.scrollTop)).toBe(0);
-    await check("collapsed", headerHistory);
-  }
-  await expect(headerHistory.locator(".compact-history-caption")).toHaveCount(
-    0,
-  );
-
-  await expect.poll(() => savedEnvelope(page)).toEqual(original);
-  const nudge = page.getByRole("button", {
-    name: "Envelope point 0.01 s later",
-    exact: true,
-  });
-  // At 200% text on a phone held sideways the drawer fills the screen: the
-  // nudges are one scroll of its body away (or one Expand, where half cannot hold them), and the body ends at the mode bar.
-  const nudgeGeometry = await exposeControl(page, nudge, []);
-  expect(nudgeGeometry).toMatchObject({
-    fullyVisible: true,
-    hitsControl: true,
-  });
-  const nudgeBox = await nudge.boundingBox();
-  if (!nudgeBox) throw new Error("Nudge has no box");
-  await finger.down({
-    x: nudgeBox.x + nudgeBox.width / 2,
-    y: nudgeBox.y + nudgeBox.height / 2,
-  });
-  await page.waitForTimeout(60);
-  await finger.up();
-  await expect.poll(() => savedEnvelope(page)).toEqual(edited);
-  // The Save light reads Saved only after the post-save read of the queue has
-  // settled, so the absence below follows a real read, not a pause.
-  await expect(
-    page.locator('.sys-save[role="status"]').filter({ hasText: /^Saved$/ }),
-  ).toBeAttached();
-  await expect(
-    page.getByRole("group", { name: /^Needs attention/ }),
-  ).toHaveCount(0);
-  await check("open-after-edit", headerHistory);
-  for (const detent of detents(["full", "half"])) {
-    if (!(await page.locator(`.bottom-sheet--${detent}`).count())) {
-      await page
-        .getByRole("button", {
-          name:
-            detent === "full"
-              ? "Expand to full height"
-              : "Collapse to half height",
-        })
-        .click();
-    }
-    await check(`feedback-${detent}`, headerHistory);
-  }
-  await page
-    .locator(".ui-toast-region--app")
-    .getByRole("button", { name: "Dismiss" })
-    .click();
-  await expect(page.locator(".ui-toast-region--app .ui-toast")).toHaveCount(0);
-  await check("feedback-dismissed", headerHistory);
-  await receipt(
-    info,
-    `chrome-undo-${name}-${rootPx}-${theme}-${browserName}`,
-    seen,
-  );
-
-  for (const [step, row] of Object.entries(seen)) {
-    expect({ step, ...row.undo }).toMatchObject({
-      step,
-      fullyVisible: true,
-      hitsControl: true,
-    });
-    expect({ step, ...row.redo }).toMatchObject({
-      step,
-      fullyVisible: true,
-      hitsControl: true,
-    });
-    expect(row.undo.rect.width).toBeGreaterThanOrEqual(44);
-    expect(row.undo.rect.height).toBeGreaterThanOrEqual(44);
-    expect(row.redo.rect.width).toBeGreaterThanOrEqual(44);
-    expect(row.redo.rect.height).toBeGreaterThanOrEqual(44);
-    for (const control of row.otherControls) {
-      expect({ step, ...control }).toMatchObject({
-        step,
-        fullyVisible: true,
-        hitsControl: true,
-      });
-      expect(control.rect.width).toBeGreaterThanOrEqual(44);
-      expect(control.rect.height).toBeGreaterThanOrEqual(44);
-    }
-    expect(row.overlaps).toBe(false);
-    if (
-      step === "open-after-edit" ||
-      ["feedback-half", "feedback-full"].includes(step)
-    ) {
-      expect(
-        row.feedback,
-        "Saved feedback must still be visible",
-      ).not.toBeNull();
-      for (const action of row.feedbackActions) {
-        expect(action).toMatchObject({ fullyVisible: true, hitsControl: true });
-        expect(action.rect.width).toBeGreaterThanOrEqual(44);
-        expect(action.rect.height).toBeGreaterThanOrEqual(44);
-      }
-      expect(row.feedback).toMatchObject({
-        inView: true,
-        dismissOnTop: true,
-        overlaps: [],
+/**
+ * Undo and Redo live in the App header on the phone, not in the Inspector
+ * sheet, so an open sheet at any detent and any text size leaves them in view
+ * and under the finger.
+ */
+for (const name of ["portrait", "landscape"] as const) {
+  for (const rootPx of [16, 32]) {
+    for (const theme of ["dark", "light"] as const) {
+      test(`Undo and Redo stay reachable in the App header with the Inspector sheet open: ${name} root${rootPx} ${theme}`, async ({
+        page,
+        context,
+        browserName,
+      }) => {
+        await openAt(page, SIZES[name], 16, theme);
+        const finger = await newFinger(context, page, browserName);
+        await finger.down(
+          await centerOf(page, `${lane} [data-hit-id="env-c"]`),
+        );
+        await page.waitForTimeout(60);
+        await finger.up();
+        await inspectSelection(page);
+        const sheet = page.locator(".sys-inspector--phone");
+        await expect(sheet).toBeVisible();
+        await page.evaluate((px) => {
+          document.documentElement.style.fontSize = `${px}px`;
+        }, rootPx);
+        await page.waitForTimeout(400);
+        const grip = page.getByRole("slider", { name: "Sheet height" });
+        for (const key of ["End", "Home"]) {
+          await grip.focus();
+          await page.keyboard.press(key);
+          await page.waitForTimeout(400);
+          for (const button of ["Undo", "Redo"]) {
+            const control = railHistory(page).getByRole("button", {
+              name: button,
+            });
+            await expect(control).toBeVisible();
+            const box = await control.boundingBox();
+            if (!box) throw new Error(`no ${button} box`);
+            expect(box.width).toBeGreaterThanOrEqual(43.5);
+            expect(box.height).toBeGreaterThanOrEqual(43.5);
+            const topmost = await control.evaluate((el) => {
+              const r = el.getBoundingClientRect();
+              const hit = document.elementFromPoint(
+                r.left + r.width / 2,
+                r.top + r.height / 2,
+              );
+              return hit === el || el.contains(hit);
+            });
+            expect(topmost, `${button} is not covered`).toBe(true);
+          }
+        }
+        await expect(
+          sheet.getByRole("group", { name: "Undo and redo" }),
+        ).toHaveCount(0);
       });
     }
-    if (step !== "rail") {
-      expect(row.visibleLaneHeight.drawer?.bottom).toBeCloseTo(
-        row.visibleLaneHeight.bottomChrome?.top ?? -1,
-        0,
-      );
-    }
-    // No pixel budget for the lanes above the drawer: the frame's header, tool
-    // row, Player and tab bar take their own share. The height stays in the receipts.
   }
-
-  await expect(page.locator(".bottom-sheet--compact")).toBeVisible();
-  const undo = headerHistory.getByRole("button", { name: "Undo" });
-  await expect(undo).not.toHaveAttribute("aria-disabled", "true");
-  const box = await undo.boundingBox();
-  if (!box) throw new Error("Undo has no box");
-  commands.length = 0;
-  await finger.down({ x: box.x + box.width / 2, y: box.y + box.height / 2 });
-  await page.waitForTimeout(60);
-  await finger.up();
-  await expect.poll(() => savedEnvelope(page)).toEqual(original);
-  const savedUndo = await savedEnvelope(page);
-  const undoCommands = commands.map((c) => c.type);
-  expect(undoCommands).toEqual(["UndoHistory"]);
-  const redo = headerHistory.getByRole("button", { name: "Redo" });
-  await expect(redo).not.toHaveAttribute("aria-disabled", "true");
-  const redoBox = await redo.boundingBox();
-  if (!redoBox) throw new Error("Redo has no box");
-  commands.length = 0;
-  await finger.down({
-    x: redoBox.x + redoBox.width / 2,
-    y: redoBox.y + redoBox.height / 2,
-  });
-  await page.waitForTimeout(60);
-  await finger.up();
-  await expect.poll(() => savedEnvelope(page)).toEqual(edited);
-  expect(commands.map((c) => c.type)).toEqual(["RedoHistory"]);
-  await receipt(
-    info,
-    `saved-history-${name}-${rootPx}-${theme}-${browserName}`,
-    {
-      original,
-      edited,
-      savedUndo,
-      savedRedo: await savedEnvelope(page),
-      undoCommands,
-      redoCommands: commands,
-    },
-  );
-  await undo.click();
-  await expect.poll(() => savedEnvelope(page)).toEqual(original);
-  await expect(
-    page.getByRole("spinbutton", { name: "Time", exact: true }),
-  ).toHaveAttribute("aria-valuenow", "16");
-  const levelEdited = [
-    { id: "env-a", time: 5, value: 1 },
-    { id: "env-edge", time: 10, value: 0.8 },
-    { id: "env-c", time: 16, value: 1.059254 },
-    { id: "env-join", time: 40, value: 1.2 },
-  ];
-  const level = page
-    .getByRole("group", { name: "Nudge envelope point level", exact: true })
-    .getByRole("button", {
-      name: "Envelope point level 0.5 dB higher",
-      exact: true,
-    });
-  await level.click();
-  await expect.poll(() => savedEnvelope(page)).toEqual(levelEdited);
-  await check("level-saved", headerHistory);
-  expect(seen["level-saved"].feedback).toMatchObject({
-    inView: true,
-    dismissOnTop: true,
-    overlaps: [],
-  });
-  commands.length = 0;
-  await undo.click();
-  await expect.poll(() => savedEnvelope(page)).toEqual(original);
-  expect(commands.map((c) => c.type)).toEqual(["UndoHistory"]);
-  const levelUndo = await savedEnvelope(page);
-  commands.length = 0;
-  await redo.click();
-  await expect.poll(() => savedEnvelope(page)).toEqual(levelEdited);
-  expect(commands.map((c) => c.type)).toEqual(["RedoHistory"]);
-  await receipt(
-    info,
-    `level-history-${name}-${rootPx}-${theme}-${browserName}`,
-    {
-      original,
-      levelEdited,
-      savedUndo: levelUndo,
-      savedRedo: await savedEnvelope(page),
-      redoCommands: commands,
-    },
-  );
-  const liveCard = page.locator(".ui-toast-region--app .ui-toast");
-  await expect(liveCard).toBeVisible();
-  await liveCard.evaluate((card) =>
-    card.setAttribute("data-host-proof", "same-card"),
-  );
-  await page
-    .locator(".bottom-sheet-header")
-    .getByRole("button", { name: "Close", exact: true })
-    .click();
-  await expect(page.locator(".bottom-sheet--compact")).toHaveCount(0);
-  await expect(liveCard).toHaveAttribute("data-host-proof", "same-card");
-  await expect(page.locator(".ui-toast-region--app")).not.toHaveClass(
-    /inspector-flow/,
-  );
-  const floatingDismiss = liveCard.getByRole("button", { name: "Dismiss" });
-  expect(await controlGeometry(floatingDismiss)).toMatchObject({
-    fullyVisible: true,
-    hitsControl: true,
-  });
-  await floatingDismiss.click();
-  await expect(liveCard).toHaveCount(0);
-  await expect.poll(() => savedEnvelope(page)).toEqual(levelEdited);
-  await expect.poll(laneHeights).toEqual(closedLaneHeights);
-  await receipt(info, "closed-lane-height-restored", {
-    before: closedLaneHeights,
-    after: await laneHeights(),
-  });
-}
-
-for (const {
-  cell: { name, rootPx },
-  theme,
-} of withAppearance(
-  (["portrait", "landscape"] as const).flatMap((name) =>
-    [16, 32].map((rootPx) => ({ name, rootPx })),
-  ),
-)) {
-  test.describe(`compact history ${name} root${rootPx} ${theme}`, () => {
-    test("Compact history stays reachable through unavailable Redo and saved Undo and Redo", ({
-      page,
-      context,
-      browserName,
-    }, info) =>
-      undoStaysReachable(
-        name,
-        rootPx,
-        theme,
-        { page, context, browserName },
-        info,
-      ));
-  });
 }

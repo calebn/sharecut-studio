@@ -366,11 +366,7 @@ export async function exerciseTouchSheetAffordances(
     ),
     contentType: "application/json",
   });
-  // Resizing the drawer remembers its detent, which is not a stray preference.
-  const detentPreference = /,\["sharecut\.compactInspector","[^"]*"\]/;
-  expect((await browserStorageState(page)).replace(detentPreference, "")).toBe(
-    localPreferences,
-  );
+  expect(await browserStorageState(page)).toBe(localPreferences);
   expect(documentCommands).toEqual([]);
   expect(fs.readFileSync(e2eProjectPath, "utf8")).toBe(savedProject);
   if (viewport.width <= 767) {

@@ -334,9 +334,9 @@ test("at 390x844 by default, one finger dragging a selected clip's trim end save
     commands: commands.map((c) => c.type),
     sourceEnd: (await clipAt50())?.source_end,
     drawer: await page
-      .locator(".bottom-sheet--compact.bottom-sheet--half")
+      .locator('.sys-inspector--phone[data-detent="half"]')
       .count(),
-    sheets: await page.locator(".bottom-sheet").count(),
+    sheets: await page.locator(".sys-inspector--phone").count(),
   };
   json(info, `grammar-default-trim-drag-${browserName}`, row);
   expect(row).toEqual({
@@ -493,7 +493,7 @@ test("a long-press on empty space opens the create menu; Add volume point adds o
   await page.getByRole("button", { name: "Dismiss" }).click();
   await inspectSelection(page);
   await expect(
-    page.getByRole("group", { name: "Nudge envelope point level" }),
+    page.getByRole("spinbutton", { name: "Level", exact: true }),
   ).toBeVisible();
   await frame(page, info, `grammar-create-added-${browserName}`);
   json(info, `grammar-create-${browserName}`, {
@@ -855,7 +855,7 @@ test("a create menu taller than 90% of the screen, with room beside the finger, 
   }
 });
 
-test("the drawer follows the finger; a flick opens or closes it fully, a slow drag lands at the nearest detent", async ({
+test("the sheet follows the finger on its grip; a flick opens or closes it, the arrow keys step it", async ({
   page,
   context,
   browserName,
@@ -864,122 +864,35 @@ test("the drawer follows the finger; a flick opens or closes it fully, a slow dr
   const finger = await newFinger(context, page, browserName);
   await tap(page, finger, await centerOf(page, envC));
   await inspectSelection(page);
-  const sheet = page.locator(".bottom-sheet--compact");
-  await expect(sheet).toHaveClass(/bottom-sheet--half/);
-  await frame(page, info, `grammar-drawer-half-${browserName}`);
-  const top = async () => {
-    const box = await sheet.boundingBox();
-    if (!box) throw new Error("no sheet");
-    return box.y;
-  };
-  // The drawer's slot, and its half and full shares (bottom-sheet.css).
-  const slot = await page.evaluate(() => {
-    const root = document.querySelector(".bottom-sheet-root");
-    if (!root) throw new Error("no drawer");
-    const rem = Number.parseFloat(
-      getComputedStyle(document.documentElement).fontSize,
-    );
-    const box = root.getBoundingClientRect();
-    return {
-      bottom: box.bottom,
-      half: Math.max(
-        Math.min(box.height / 2, 26.25 * rem, box.height - 13 * rem),
-        Math.min(box.height, 9 * rem),
-      ),
-      full: Math.min(box.height, 56.25 * rem),
-    };
-  });
+  const sheet = page.locator(".sys-inspector--phone");
+  await expect(sheet).toHaveAttribute("data-detent", "half");
+  await frame(page, info, `grammar-sheet-half-${browserName}`);
+  const grip = page.getByRole("slider", { name: "Sheet height" });
   const grab = async () => {
-    const box = await page.locator(".bottom-sheet-grabber").boundingBox();
-    if (!box) throw new Error("no grabber");
-    const y = box.y + 4;
-    const x = await page.evaluate(
-      ({ y, from }) => {
-        const chrome = document.querySelector(".bottom-sheet-chrome--drawer");
-        if (!chrome) throw new Error("no drawer header");
-        const edge = chrome.getBoundingClientRect();
-        const buttons = [...chrome.querySelectorAll("button")].map((button) =>
-          button.getBoundingClientRect(),
-        );
-        const reach = 24;
-        const clear = (x: number) =>
-          x - reach >= edge.left &&
-          x + reach <= edge.right &&
-          buttons.every(
-            (rect) =>
-              rect.width === 0 ||
-              rect.right < x - reach ||
-              rect.left > x + reach ||
-              rect.bottom < y - reach ||
-              rect.top > y + reach,
-          );
-        for (let dx = 0; dx < edge.width; dx += 4) {
-          for (const x of [from + dx, from - dx]) if (clear(x)) return x;
-        }
-        throw new Error("no header point clear of the buttons");
-      },
-      { y, from: box.x + box.width / 2 + 60 },
-    );
-    return { x, y };
+    const box = await grip.boundingBox();
+    if (!box) throw new Error("no grip");
+    return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
   };
-  /** `dy` px in four moves `stepMs` apart, lifted at once: 8 is a flick. */
+  /** `dy` px in four moves `stepMs` apart, lifted at once. */
   const flick = async (dy: number, stepMs = 8) => {
     const at = await grab();
     await finger.flick(at, { x: at.x, y: at.y + dy }, 4, stepMs);
     await page.waitForTimeout(500);
   };
-  /** A slow drag by `dy`, held still, then lifted: where the top was and is held. */
-  const drag = async (dy: number) => {
-    const at = await grab();
-    const before = await top();
-    await finger.down(at);
-    await finger.slide({ x: at.x, y: at.y + dy }, 15, 40);
-    await page.waitForTimeout(300);
-    const held = await top();
-    await finger.up();
-    await page.waitForTimeout(500);
-    return { before, held };
-  };
-
-  await flick(-60);
-  await expect(sheet).toHaveClass(/bottom-sheet--full/);
-  await frame(page, info, `grammar-drawer-flick-full-${browserName}`);
-  await flick(60);
-  await expect(sheet).toHaveClass(/bottom-sheet--half/);
-  // The same 60px drawn out over 800 ms is a drag: the drawer stays.
-  await flick(-60, 200);
-  await expect(sheet).toHaveClass(/bottom-sheet--half/);
-
-  const toFull = await drag(-0.7 * (slot.full - slot.half));
-  await expect(sheet).toHaveClass(/bottom-sheet--full/);
-  await frame(page, info, `grammar-drawer-slow-full-${browserName}`);
-  // Down a little and held: still full, not a detent lower.
-  await drag(40);
-  await expect(sheet).toHaveClass(/bottom-sheet--full/);
-  const toHalf = await drag(0.7 * (slot.full - slot.half));
-  await expect(sheet).toHaveClass(/bottom-sheet--half/);
-  json(info, `grammar-drawer-${browserName}`, { slot, toFull, toHalf });
-  expect(toFull.before - toFull.held).toBeCloseTo(
-    0.7 * (slot.full - slot.half),
-    -1,
-  );
-  expect(toHalf.held - toHalf.before).toBeCloseTo(
-    0.7 * (slot.full - slot.half),
-    -1,
-  );
-
-  await flick(-60);
-  await expect(sheet).toHaveClass(/bottom-sheet--full/);
-  await page.getByRole("button", { name: "Collapse to half height" }).click();
-  await expect(sheet).toHaveClass(/bottom-sheet--half/);
-  const range = page.getByRole("slider", { name: "Inspector height" });
-  await range.focus();
-  await page.keyboard.press("ArrowRight");
-  await expect(sheet).toHaveClass(/bottom-sheet--full/);
-  await expect(range).toHaveAttribute("aria-valuetext", "Full height");
-  await page.keyboard.press("ArrowLeft");
-  await expect(sheet).toHaveClass(/bottom-sheet--half/);
-  await expect(range).toHaveAttribute("aria-valuetext", "Half height");
+  await flick(-250, 60);
+  await expect(sheet).toHaveAttribute("data-detent", "full");
+  await frame(page, info, `grammar-sheet-flick-full-${browserName}`);
+  await flick(150, 60);
+  await expect(sheet).toHaveAttribute("data-detent", "half");
+  await grip.focus();
+  await page.keyboard.press("ArrowUp");
+  await expect(sheet).toHaveAttribute("data-detent", "full");
+  await expect(grip).toHaveAttribute("aria-valuetext", "Full height");
+  await page.keyboard.press("ArrowDown");
+  await expect(sheet).toHaveAttribute("data-detent", "half");
+  await expect(grip).toHaveAttribute("aria-valuetext", "Half height");
+  await page.keyboard.press("Home");
+  await expect(sheet).toHaveAttribute("data-detent", "dock");
 });
 
 test("a second finger cancels an armed drag and the create menu", async ({

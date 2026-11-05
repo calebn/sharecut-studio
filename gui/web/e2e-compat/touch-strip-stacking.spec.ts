@@ -23,9 +23,10 @@ import {
  * #1051 round 4: the shell row beside the compact strip (the phone's mode
  * nav, or the status row with the Pipeline chip on a phone held sideways)
  * floated over the strip when iOS rubber-banded the page. Here the bounce is
- * reproduced by moving the shell as the bounce does while the fixed strip
- * stays, and the strip's own stow slide is frozen halfway. Neither may draw
- * a shell row over the strip, or the strip over the row. STACKING_RUN names
+ * reproduced by moving the shell as the bounce does. The Inspector sheet
+ * now lives inside the shell and moves with it, so only the resting state
+ * is asserted: no shell row draws over the sheet, nor the sheet over the
+ * row. STACKING_RUN names
  * the build the screenshots come from (before/after evidence).
  */
 
@@ -60,13 +61,13 @@ test.afterEach(async () => {
 async function stacking(page: Page) {
   return page.evaluate(() => {
     const row = document.querySelector(".stage-frame-player");
-    const strip = document.querySelector(".bottom-sheet");
+    const strip = document.querySelector(".sys-inspector--phone");
     if (!row || !strip) throw new Error("no Player or strip");
     const r = row.getBoundingClientRect();
     const s = strip.getBoundingClientRect();
     const owner = (x: number, y: number) => {
       const el = document.elementFromPoint(x, y);
-      return el?.closest(".bottom-sheet")
+      return el?.closest(".sys-inspector--phone")
         ? "strip"
         : el?.closest(".stage-frame-player")
           ? "row"
@@ -115,7 +116,7 @@ async function noRowOverStrip(
   await page.waitForTimeout(60);
   await finger.up();
   await inspectSelection(page);
-  await expect(page.locator(".bottom-sheet--compact")).toBeVisible();
+  await expect(page.locator(".sys-inspector--phone")).toBeVisible();
   await page.waitForTimeout(600);
   await shot("1-strip");
   const resting = await stacking(page);
@@ -135,21 +136,6 @@ async function noRowOverStrip(
     shell?.style.removeProperty("top");
   });
 
-  // The stow slide (any timeline drag), frozen halfway.
-  await page.evaluate(() => {
-    document.querySelector(".bottom-sheet-root")?.classList.add("is-stowed");
-  });
-  await page.evaluate(() => {
-    for (const animation of document.getAnimations()) {
-      const timing = animation.effect?.getComputedTiming();
-      if (!timing || typeof timing.duration !== "number") continue;
-      animation.pause();
-      animation.currentTime = timing.duration / 2;
-    }
-  });
-  await shot("3-stow-halfway");
-  const stowing = await stacking(page);
-
   const overscroll = await page.evaluate(() => ({
     html: getComputedStyle(document.documentElement).overscrollBehaviorY,
     body: getComputedStyle(document.body).overscrollBehaviorY,
@@ -160,15 +146,10 @@ async function noRowOverStrip(
   json(info, `stacking-${RUN}-${size}-${browserName}`, {
     resting,
     bounce,
-    stowing,
     overscroll,
   });
 
   expect(resting).toMatchObject({ stripEdge: "strip", rowMiddle: "row" });
-  // The bounced row reaches up into the strip: the strip stays on top.
-  expect(bounce.stripEdge).toBe("strip");
-  // Halfway off, the strip is clipped to its slot: the row stays clear.
-  expect(stowing.rowMiddle).toBe("row");
   expect(overscroll).toEqual({
     html: "none",
     body: "none",
