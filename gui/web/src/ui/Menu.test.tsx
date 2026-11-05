@@ -12,7 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { stubRaf } from "../test/raf";
 import { BottomSheet } from "./BottomSheet";
-import { Menu, MenuItem, MenuSeparator } from "./Menu";
+import { Menu, MenuItem, MenuSection, MenuSeparator } from "./Menu";
 import { menuOpen } from "./modalGate";
 import { usePressedControl } from "./pressedControl";
 
@@ -37,6 +37,63 @@ function Fixture() {
       <MenuItem onSelect={() => setOpen(false)}>One</MenuItem>
       <MenuSeparator />
       <MenuItem onSelect={() => setOpen(false)}>Two</MenuItem>
+    </Menu>
+  );
+}
+
+function MixedFocusFixture({
+  empty = false,
+  fallbackOnly = false,
+  pointerControls = false,
+}: {
+  empty?: boolean;
+  fallbackOnly?: boolean;
+  pointerControls?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Menu
+      open={open}
+      onOpenChange={setOpen}
+      label="Mixed focus menu"
+      trigger={(trigger) => (
+        <button type="button" ref={trigger.ref} onClick={trigger.onClick}>
+          Open mixed
+        </button>
+      )}
+    >
+      {empty ? null : (
+        <>
+          {!fallbackOnly && <MenuItem>First</MenuItem>}
+          <MenuSeparator />
+          <MenuSection label="More controls">
+            <label>
+              Filter label
+              <input aria-label="Menu filter" />
+            </label>
+            <button type="button">Fallback control</button>
+            <p>Supporting note</p>
+            {pointerControls && (
+              <>
+                <div tabIndex={-1} data-testid="negative-control">
+                  Negative control
+                </div>
+                <div
+                  contentEditable
+                  tabIndex={-1}
+                  role="textbox"
+                  aria-label="Editable control"
+                />
+                <details open>
+                  <summary>Disclosure control</summary>
+                  <p>Disclosure body</p>
+                </details>
+              </>
+            )}
+            {!fallbackOnly && <MenuItem>Last</MenuItem>}
+          </MenuSection>
+        </>
+      )}
     </Menu>
   );
 }
@@ -240,6 +297,276 @@ describe("Menu", () => {
     } finally {
       proto.showPopover = showPopover;
       proto.hidePopover = hidePopover;
+    }
+  });
+
+  it("forwards direct container focus from the second item without selection", async () => {
+    const user = userEvent.setup();
+    render(<Fixture />);
+    await user.click(screen.getByRole("button", { name: "Open" }));
+    await waitFor(() =>
+      expect(screen.getByRole("menuitem", { name: "One" })).toHaveFocus(),
+    );
+    await user.keyboard("{ArrowDown}");
+    expect(screen.getByRole("menuitem", { name: "Two" })).toHaveFocus();
+    act(() => screen.getByRole("menu").focus());
+    expect(screen.getByRole("menuitem", { name: "One" })).toHaveFocus();
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+  });
+
+  it.each(["panel", "separator", "section label", "supporting note"])(
+    "keeps the simulated blank-left close policy for %s",
+    async (kind) => {
+      const user = userEvent.setup();
+      render(<MixedFocusFixture />);
+      await user.click(screen.getByRole("button", { name: "Open mixed" }));
+      await waitFor(() =>
+        expect(screen.getByRole("menuitem", { name: "First" })).toHaveFocus(),
+      );
+      act(() => screen.getByRole("menuitem", { name: "Last" }).focus());
+      const target =
+        kind === "panel"
+          ? screen.getByRole("menu")
+          : kind === "separator"
+            ? screen.getByRole("separator")
+            : screen.getByText(
+                kind === "section label" ? "More controls" : "Supporting note",
+              );
+      await user.click(target);
+      expect(screen.queryByRole("menu")).toBeNull();
+    },
+  );
+
+  it("retains the ordinary non-item label's simulated blank-left dismissal", async () => {
+    const user = userEvent.setup();
+    render(<MixedFocusFixture />);
+    await user.click(screen.getByRole("button", { name: "Open mixed" }));
+    await waitFor(() =>
+      expect(screen.getByRole("menuitem", { name: "First" })).toHaveFocus(),
+    );
+    act(() => screen.getByRole("menuitem", { name: "Last" }).focus());
+    await user.click(screen.getByText("Filter label"));
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("keeps a direct fallback control focused inside the menu", async () => {
+    const user = userEvent.setup();
+    render(<MixedFocusFixture />);
+    await user.click(screen.getByRole("button", { name: "Open mixed" }));
+    await waitFor(() =>
+      expect(screen.getByRole("menuitem", { name: "First" })).toHaveFocus(),
+    );
+    await user.click(screen.getByRole("button", { name: "Fallback control" }));
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Fallback control" }),
+    ).toHaveFocus();
+  });
+
+  it("keeps a directly clicked fallback input and its typed draft", async () => {
+    const user = userEvent.setup();
+    render(<MixedFocusFixture />);
+    await user.click(screen.getByRole("button", { name: "Open mixed" }));
+    await waitFor(() =>
+      expect(screen.getByRole("menuitem", { name: "First" })).toHaveFocus(),
+    );
+    const input = screen.getByRole("textbox", { name: "Menu filter" });
+    await user.click(input);
+    await user.type(input, "draft");
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue("draft");
+  });
+
+  it("synthesizes the native blank-right blur before the new container default", async () => {
+    const user = userEvent.setup();
+    render(<MixedFocusFixture />);
+    await user.click(screen.getByRole("button", { name: "Open mixed" }));
+    await waitFor(() =>
+      expect(screen.getByRole("menuitem", { name: "First" })).toHaveFocus(),
+    );
+    act(() => screen.getByRole("menuitem", { name: "Last" }).focus());
+    const down = new MouseEvent("mousedown", {
+      bubbles: true,
+      cancelable: true,
+      button: 2,
+    });
+    fireEvent(screen.getByRole("menu"), down);
+    expect(down.defaultPrevented).toBe(true);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it.each(["item", "input"])(
+    "does not cancel a right mousedown on an actual %s",
+    async (kind) => {
+      const user = userEvent.setup();
+      render(<MixedFocusFixture />);
+      await user.click(screen.getByRole("button", { name: "Open mixed" }));
+      await waitFor(() =>
+        expect(screen.getByRole("menuitem", { name: "First" })).toHaveFocus(),
+      );
+      act(() => screen.getByRole("menuitem", { name: "Last" }).focus());
+      const down = new MouseEvent("mousedown", {
+        bubbles: true,
+        cancelable: true,
+        button: 2,
+      });
+      fireEvent(
+        kind === "item"
+          ? screen.getByRole("menuitem", { name: "Last" })
+          : screen.getByRole("textbox", { name: "Menu filter" }),
+        down,
+      );
+      expect(down.defaultPrevented).toBe(false);
+      expect(screen.getByRole("menu")).toBeInTheDocument();
+    },
+  );
+
+  it("keeps child blur ahead of controlled blank dismissal", async () => {
+    const user = userEvent.setup();
+    const events: string[] = [];
+    function BlurFixture() {
+      const [open, setOpen] = useState(false);
+      return (
+        <Menu
+          open={open}
+          onOpenChange={(next) => {
+            if (!next) events.push("close");
+            setOpen(next);
+          }}
+          label="Blur menu"
+          trigger={(trigger) => (
+            <button type="button" ref={trigger.ref} onClick={trigger.onClick}>
+              Open blur menu
+            </button>
+          )}
+        >
+          <MenuItem onBlur={() => events.push("blur")}>Blur item</MenuItem>
+        </Menu>
+      );
+    }
+    render(<BlurFixture />);
+    await user.click(screen.getByRole("button", { name: "Open blur menu" }));
+    await waitFor(() =>
+      expect(screen.getByRole("menuitem", { name: "Blur item" })).toHaveFocus(),
+    );
+    await user.click(screen.getByRole("menu"));
+    expect(events).toEqual(["blur", "close"]);
+  });
+
+  it("admits direct empty-root focus without adding a sequential stop", async () => {
+    const user = userEvent.setup();
+    render(<MixedFocusFixture empty />);
+    const trigger = screen.getByRole("button", { name: "Open mixed" });
+    await user.click(trigger);
+    expect(trigger).toHaveFocus();
+    const menu = screen.getByRole("menu");
+    act(() => menu.focus());
+    expect(menu).toHaveFocus();
+    expect(menu.tabIndex).toBe(-1);
+    expect(menu).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(trigger).toHaveFocus();
+  });
+
+  it("forwards direct root focus to the first ordinary fallback control", async () => {
+    const user = userEvent.setup();
+    render(<MixedFocusFixture fallbackOnly />);
+    await user.click(screen.getByRole("button", { name: "Open mixed" }));
+    const input = screen.getByRole("textbox", { name: "Menu filter" });
+    await waitFor(() => expect(input).toHaveFocus());
+    act(() => screen.getByRole("button", { name: "Fallback control" }).focus());
+    act(() => screen.getByRole("menu").focus());
+    expect(input).toHaveFocus();
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+  });
+
+  it("does not manufacture a blank-left close in an empty menu", async () => {
+    const user = userEvent.setup();
+    render(<MixedFocusFixture empty />);
+    await user.click(screen.getByRole("button", { name: "Open mixed" }));
+    await user.click(screen.getByRole("menu"));
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    expect(document.body).toHaveFocus();
+  });
+
+  it.each(["negative", "editable", "summary"])(
+    "preserves real pointer focus in a %s descendant",
+    async (kind) => {
+      const user = userEvent.setup();
+      render(<MixedFocusFixture pointerControls />);
+      await user.click(screen.getByRole("button", { name: "Open mixed" }));
+      await waitFor(() =>
+        expect(screen.getByRole("menuitem", { name: "First" })).toHaveFocus(),
+      );
+      act(() => screen.getByRole("menuitem", { name: "Last" }).focus());
+      expect(screen.getByRole("menuitem", { name: "Last" })).toHaveFocus();
+      const target =
+        kind === "negative"
+          ? screen.getByTestId("negative-control")
+          : kind === "editable"
+            ? screen.getByRole("textbox", { name: "Editable control" })
+            : screen.getByText("Disclosure control");
+      await user.click(target);
+      expect(screen.getByRole("menu")).toBeInTheDocument();
+      expect(target).toHaveFocus();
+    },
+  );
+
+  it("honors an actual child consumer's canceled blank mousedown", async () => {
+    const user = userEvent.setup();
+    render(<MixedFocusFixture />);
+    await user.click(screen.getByRole("button", { name: "Open mixed" }));
+    await waitFor(() =>
+      expect(screen.getByRole("menuitem", { name: "First" })).toHaveFocus(),
+    );
+    const last = screen.getByRole("menuitem", { name: "Last" });
+    act(() => last.focus());
+    const target = screen.getByText("Supporting note");
+    const cancel = (event: MouseEvent) => event.preventDefault();
+    target.addEventListener("mousedown", cancel);
+    try {
+      await user.click(target);
+      expect(screen.getByRole("menu")).toBeInTheDocument();
+      expect(last).toHaveFocus();
+    } finally {
+      target.removeEventListener("mousedown", cancel);
+    }
+  });
+
+  it("preserves a foreign-document menu's blank pointer dismissal", async () => {
+    const proto = HTMLElement.prototype;
+    const show = Object.getOwnPropertyDescriptor(proto, "showPopover");
+    const hide = Object.getOwnPropertyDescriptor(proto, "hidePopover");
+    Reflect.deleteProperty(proto, "showPopover");
+    Reflect.deleteProperty(proto, "hidePopover");
+    const frame = document.createElement("iframe");
+    document.body.append(frame);
+    const doc = frame.contentDocument!;
+    const user = userEvent.setup({ document: doc });
+    let unmount: (() => void) | undefined;
+    try {
+      ({ unmount } = render(<MixedFocusFixture />, {
+        container: doc.body,
+        baseElement: doc.body,
+      }));
+      const menu = within(doc.body);
+      await user.click(menu.getByRole("button", { name: "Open mixed" }));
+      await waitFor(() =>
+        expect(menu.getByRole("menuitem", { name: "First" })).toHaveFocus(),
+      );
+      act(() => menu.getByRole("menuitem", { name: "Last" }).focus());
+      expect(menu.getByRole("menuitem", { name: "Last" })).toHaveFocus();
+      await user.click(menu.getByRole("menu"));
+      expect(menu.queryByRole("menu")).toBeNull();
+    } finally {
+      unmount?.();
+      frame.remove();
+      if (show) Object.defineProperty(proto, "showPopover", show);
+      else Reflect.deleteProperty(proto, "showPopover");
+      if (hide) Object.defineProperty(proto, "hidePopover", hide);
+      else Reflect.deleteProperty(proto, "hidePopover");
     }
   });
 

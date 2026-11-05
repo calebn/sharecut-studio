@@ -17,6 +17,11 @@ function focusMenuItem(el: HTMLElement): void {
   el.scrollIntoView?.({ block: "nearest", inline: "nearest" });
 }
 
+export function focusFirstMenuItem(panel: HTMLElement): void {
+  const first = menuItems(panel)[0] ?? listFocusable(panel)[0];
+  if (first) focusMenuItem(first);
+}
+
 /**
  * Keyboard and focus contract shared by every popup menu: while `open`, it
  * suppresses Daw shortcuts, focuses the first item, closes on Escape, moves
@@ -39,8 +44,7 @@ export function useMenuKeyboard({
 }): void {
   const focusFirst = useEffectEvent(() => {
     if (!panel) return;
-    const first = menuItems(panel)[0] ?? listFocusable(panel)[0];
-    if (first) focusMenuItem(first);
+    focusFirstMenuItem(panel);
   });
   const onKey = useEffectEvent(
     (
