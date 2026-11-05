@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
+import type { NeedTarget } from "../../models";
 import { pipelineJobSnapshot, sampleTrack } from "../../test/fixtures";
 import {
   applyCleanup,
   cleanupFromConfig,
   handoffProps,
   isWorking,
-  type ModelAsk,
   oneRunSkipSteps,
   PROCESS_NEW_AUDIO,
   planNote,
@@ -24,6 +24,19 @@ import {
   vocabularyChips,
   vocabularyFromChips,
 } from "./prepareMappers";
+
+const WHISPER_NEED: NeedTarget = {
+  id: "whisper",
+  variant: "large-v3-turbo",
+  label: "Whisper",
+  size: "1.6 GB",
+};
+const ALIGNER_NEED: NeedTarget = {
+  id: "word-aligner",
+  variant: null,
+  label: "Word timing",
+  size: "360 MB",
+};
 
 function step(name: string, status: string, extra = {}) {
   return { name, status, elapsed_sec: 1, error: null, ...extra };
@@ -468,15 +481,10 @@ describe("readyRows", () => {
     expect(rows[2].detail).toBe("One track, nothing to line up");
   });
 
-  it("asks for the model with its size and keeps the other rows going", () => {
-    const model: ModelAsk = {
-      phase: "ask",
-      size: "1.6 GB",
-      what: "the transcription model",
-    };
+  it("holds the Model need row on Transcribe and keeps the other rows going", () => {
     const rows = readyRows({
       ...base,
-      model,
+      model: WHISPER_NEED,
       job: pipelineJobSnapshot({
         status: "running",
         steps: [step("ingest_tracks", "ok"), step("clean_audio", "running")],
@@ -484,48 +492,11 @@ describe("readyRows", () => {
     });
     expect(rows[1]).toMatchObject({
       state: "needs-you",
-      action: {
-        label: "Get (1.6 GB)",
-        icon: "cloud-download",
-        run: "download-model",
-      },
+      detail: "Waiting for the transcription model",
+      model: WHISPER_NEED,
     });
+    expect(rows[1].action).toBeUndefined();
     expect(rows[3].state).toBe("running");
-  });
-
-  it("follows the model download, and a failed one asks again", () => {
-    expect(
-      readyRows({
-        ...base,
-        model: {
-          phase: "downloading",
-          size: "1.6 GB",
-          what: "the transcription model",
-          progress: 0.4,
-        },
-      })[1],
-    ).toMatchObject({ state: "running", progress: 0.4 });
-    expect(
-      readyRows({
-        ...base,
-        model: {
-          phase: "downloading",
-          size: "1.6 GB",
-          what: "the transcription model",
-        },
-      })[1].action,
-    ).toBeUndefined();
-    const failed = readyRows({
-      ...base,
-      model: {
-        phase: "failed",
-        size: "1.6 GB",
-        what: "the transcription model",
-        failure: "No connection.",
-      },
-    })[1];
-    expect(failed.detail).toBe("No connection. Try again.");
-    expect(failed.action?.run).toBe("download-model");
   });
 
   it("asks to keep hand fixes before transcribing again", () => {
@@ -541,23 +512,17 @@ describe("readyRows", () => {
     });
   });
 
-  it("flags approximate word timing with the download", () => {
+  it("flags approximate word timing with the Model need row", () => {
     const row = readyRows({
       ...base,
       transcribed: true,
-      approximateTiming: { size: "360 MB", downloading: false },
+      approximateTiming: ALIGNER_NEED,
     })[1];
-    expect(row.action).toMatchObject({
-      label: "Download word timing (360 MB)",
-      run: "download-aligner",
+    expect(row).toMatchObject({
+      state: "needs-you",
+      model: ALIGNER_NEED,
     });
-    expect(
-      readyRows({
-        ...base,
-        transcribed: true,
-        approximateTiming: { size: "360 MB", downloading: true },
-      })[1].action,
-    ).toBeUndefined();
+    expect(row.action).toBeUndefined();
   });
 
   it("fails a row with a plain detail and the raw cause behind Details", () => {
@@ -688,37 +653,26 @@ describe("preparePhase", () => {
     expect(isWorking(phase)).toBe(false);
   });
 
-  it("is needs-model, with the hand-off open, while the model is asked for, downloading or failed", () => {
-    for (const phase of ["ask", "downloading", "failed"] as const) {
-      const model: ModelAsk = {
-        phase,
-        size: "1.6 GB",
-        what: "the transcription model",
-      };
-      const result = preparePhase({
-        sources: 2,
-        ingestBusy: false,
-        checking: false,
-        model,
-        rows: rows({ model }),
-      });
-      expect(result.phase).toBe(
-        phase === "failed" ? "model-failed" : "needs-model",
-      );
-      expect(handoffProps(result.phase, { label: "Edit" }).disabledReason).toBe(
-        undefined,
-      );
-    }
-    expect(
-      readyRows({
-        ...base,
-        model: {
-          phase: "ask",
-          size: "1.6 GB",
-          what: "the transcription model",
-        },
-      })[1].detail,
-    ).toBe("Needs the transcription model before it can start.");
+  it("is needs-model, with the hand-off open, while the run waits for the model", () => {
+    const model = WHISPER_NEED;
+    const result = preparePhase({
+      sources: 2,
+      ingestBusy: false,
+      checking: false,
+      model,
+      rows: rows({ model }),
+    });
+    expect(result.phase).toBe("needs-model");
+    expect(handoffProps(result.phase, { label: "Edit" }).disabledReason).toBe(
+      undefined,
+    );
+    const row = readyRows({ ...base, model })[1];
+    expect(row).toMatchObject({
+      state: "needs-you",
+      detail: "Waiting for the transcription model",
+      model,
+    });
+    expect(row.action).toBeUndefined();
   });
 
   it("is done when every row is", () => {
@@ -740,7 +694,7 @@ describe("preparePhase", () => {
         checking: false,
         rows: rows({
           transcribed: true,
-          approximateTiming: { size: "360 MB", downloading: false },
+          approximateTiming: ALIGNER_NEED,
         }),
       }).phase,
     ).toBe("done");
@@ -1287,7 +1241,7 @@ describe("successful selected work", () => {
     readyRows({
       ...base,
       jobCoversMedia: true,
-      approximateTiming: { size: "360 MB", downloading: false },
+      approximateTiming: ALIGNER_NEED,
       job,
       ...overrides,
     });
@@ -1486,7 +1440,7 @@ describe("successful selected work", () => {
       state: "needs-you",
       detail:
         "Existing transcripts kept. Word timing is approximate, so cuts may clip word edges.",
-      action: { run: "download-aligner" },
+      model: ALIGNER_NEED,
     });
   });
 
@@ -1540,11 +1494,7 @@ describe("successful selected work", () => {
   it.each([
     [
       {
-        model: {
-          phase: "ask",
-          size: "1.6 GB",
-          what: "the transcription model",
-        },
+        model: WHISPER_NEED,
       },
       "needs-model",
     ],

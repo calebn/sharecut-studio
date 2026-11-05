@@ -11,16 +11,15 @@ import {
   notDownloadedLine,
 } from "../../utils/apiError";
 
-/** Export and Bounce keep their own Model need row on Deliver, which resumes them. */
-const OWNED_BY_DELIVER = new Set(["export", "bounce"]);
-
-const TRY_AGAIN: Record<string, string> = {
-  split_speakers: "Split again.",
-};
+/**
+ * The kinds the banner runs again by itself. Export and Bounce keep their own Model need row on
+ * Deliver and a split keeps its on the Source card; each resumes there, so none shows a second Get.
+ */
+const RESUMABLE = new Set(["pipeline", "render_preview"]);
 
 type Stopped = { job: PipelineJobSnapshot; epoch: number };
 
-async function resumeJob({ job, epoch }: Stopped, label: string) {
+async function resumeJob({ job, epoch }: Stopped) {
   const store = useDawStore.getState();
   if (store.projectEpoch !== epoch) {
     return;
@@ -29,25 +28,19 @@ async function resumeJob({ job, epoch }: Stopped, label: string) {
     runPointerCommand("render.refreshMix");
     return;
   }
-  if (job.kind === "pipeline") {
-    try {
-      const started = await startPipelineRun(job.project_path, {
-        fromStep: job.from_step ?? undefined,
-        onlyStep: job.only_step ?? undefined,
-        skipSteps: job.skip_steps,
-        unattended: job.unattended,
-      });
-      if (useDawStore.getState().projectEpoch === epoch) {
-        useDawStore.getState().setPipelineJob(started);
-      }
-    } catch (error) {
-      store.announceStatus(errorMessage(error), { tone: "error" });
+  try {
+    const started = await startPipelineRun(job.project_path, {
+      fromStep: job.from_step ?? undefined,
+      onlyStep: job.only_step ?? undefined,
+      skipSteps: job.skip_steps,
+      unattended: job.unattended,
+    });
+    if (useDawStore.getState().projectEpoch === epoch) {
+      useDawStore.getState().setPipelineJob(started);
     }
-    return;
+  } catch (error) {
+    store.announceStatus(errorMessage(error), { tone: "error" });
   }
-  store.announceStatus(
-    `${label} downloaded. ${TRY_AGAIN[job.kind ?? ""] ?? "Try again."}`,
-  );
 }
 
 /**
@@ -57,7 +50,7 @@ async function resumeJob({ job, epoch }: Stopped, label: string) {
 export function JobModelBanner({ guestShare }: { guestShare: boolean }) {
   const job = useDaw((s) => s.activityJob);
   const need =
-    guestShare || !job || OWNED_BY_DELIVER.has(job.kind ?? "")
+    guestShare || !job || !RESUMABLE.has(job.kind ?? "")
       ? null
       : modelNeededOfJob(job);
   const needRef = useRef(need);
@@ -66,7 +59,7 @@ export function JobModelBanner({ guestShare }: { guestShare: boolean }) {
   const retried = useRef<string | null>(null);
   const { stop, stopFor, clear } = useModelResume((model) => {
     retried.current = model.id;
-    if (failed.current) void resumeJob(failed.current, model.label);
+    if (failed.current) void resumeJob(failed.current);
   });
   const needKey = need && job ? `${job.id}:${need.id}:${need.variant}` : null;
   useEffect(() => {

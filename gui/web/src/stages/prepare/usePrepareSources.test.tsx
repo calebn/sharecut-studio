@@ -17,6 +17,7 @@ import { ModelsContext } from "../../models/useModels";
 import { useDawStore } from "../../state/dawStore";
 import { pipelineJobSnapshot, sampleTrack } from "../../test/fixtures";
 import {
+  modelRow,
   modelStatus,
   modelsApi,
   registryRows,
@@ -43,9 +44,21 @@ vi.mock("../../document/applyDocumentUpdate", async (original) => ({
 }));
 
 const PATH = "/tmp/p/episode.sharecut";
-const models = modelsApi({ status: modelStatus(registryRows()) });
+const MISSING = modelsApi({ status: modelStatus(registryRows()) });
+const SPEAKER_IN = modelsApi({
+  status: modelStatus(
+    registryRows().map((row) =>
+      row.id === "speaker-ecapa"
+        ? modelRow({ ...row, state: "installed" })
+        : row,
+    ),
+  ),
+});
+const api = { current: MISSING };
 const wrapper = ({ children }: { children: ReactNode }) => (
-  <ModelsContext.Provider value={models}>{children}</ModelsContext.Provider>
+  <ModelsContext.Provider value={api.current}>
+    {children}
+  </ModelsContext.Provider>
 );
 
 const tracks = [
@@ -95,6 +108,7 @@ const RESULT = {
 };
 
 beforeEach(() => {
+  api.current = MISSING;
   vi.clearAllMocks();
   useDawStore.setState({ projectPath: PATH, project: null, soloTracks: {} });
   vi.mocked(setTrackMetaCommand).mockResolvedValue({});
@@ -443,25 +457,47 @@ describe("split", () => {
     expect(shown).not.toContain("bad_header");
   });
 
-  it("asks for the speaker model, and Try again downloads it then splits", async () => {
-    vi.mocked(startSplitSpeakersJob).mockRejectedValueOnce(
-      new ApiError("model needed", "model_needed", 409, {
-        id: "speaker-ecapa",
-        variant: null,
-        label: "Speaker model",
-        purpose: "speaker recognition and split",
-        size: "~25 MB",
-        sizeBytes: null,
-        state: "missing",
-      }),
-    );
-    const { result } = setup();
+  const SPEAKER_NEEDED = new ApiError("model needed", "model_needed", 409, {
+    id: "speaker-ecapa",
+    variant: null,
+    label: "Speaker model",
+    purpose: "speaker recognition and split",
+    size: "~25 MB",
+    sizeBytes: null,
+    state: "missing",
+  });
+
+  it("asks for the speaker model on the card, and splits by itself when it lands", async () => {
+    vi.mocked(startSplitSpeakersJob).mockRejectedValueOnce(SPEAKER_NEEDED);
+    const { result, rerender } = setup();
     await act(async () => result.current.actions.onSplit("maya"));
-    expect(result.current.splitFailed.maya).toMatch(
-      /Speaker model is not downloaded\. Try again to download it\./,
-    );
-    await act(async () => result.current.actions.onRetry("maya"));
-    expect(models.download).toHaveBeenCalledWith(["speaker-ecapa"]);
+    expect(result.current.splitNeeds.maya).toMatchObject({
+      id: "speaker-ecapa",
+    });
+    expect(result.current.splitFailed).toEqual({});
+    expect(startSplitSpeakersJob).toHaveBeenCalledOnce();
+    api.current = SPEAKER_IN;
+    rerender({ activityJob: null, isPlaying: false });
     await waitFor(() => expect(startSplitSpeakersJob).toHaveBeenCalledTimes(2));
+    expect(result.current.splitNeeds).toEqual({});
+  });
+
+  it("says the model is missing instead of looping when it is refused again after it landed", async () => {
+    vi.mocked(startSplitSpeakersJob)
+      .mockRejectedValueOnce(SPEAKER_NEEDED)
+      .mockRejectedValueOnce(SPEAKER_NEEDED);
+    const { result, rerender } = setup();
+    await act(async () => result.current.actions.onSplit("maya"));
+    api.current = SPEAKER_IN;
+    rerender({ activityJob: null, isPlaying: false });
+    await waitFor(() => expect(startSplitSpeakersJob).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(result.current.splitFailed.maya).toBe(
+        "Speaker model is not downloaded.",
+      ),
+    );
+    expect(result.current.splitNeeds).toEqual({});
+    await act(async () => undefined);
+    expect(startSplitSpeakersJob).toHaveBeenCalledTimes(2);
   });
 });

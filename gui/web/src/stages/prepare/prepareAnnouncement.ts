@@ -13,7 +13,6 @@ export type PreparePhase =
   | "waiting"
   | "not-started"
   | "new-audio"
-  | "model-failed"
   | "keep-fixes"
   | "done"
   | "failed";
@@ -61,8 +60,6 @@ export function prepareAnnouncement({
       return "Processing started.";
     case "needs-model":
       return "Transcribing needs a download first.";
-    case "model-failed":
-      return "The download did not finish. Try again.";
     case "keep-fixes":
       return "You fixed words by hand. Keep my fixes or replace them.";
     case "waiting":
