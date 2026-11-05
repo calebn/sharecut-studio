@@ -49,6 +49,15 @@ const names = () =>
     .map((b) => b.getAttribute("aria-label"));
 
 describe("RoomView", () => {
+  it("keeps room-panel keyboard navigation after a padding click", async () => {
+    renderRoom({ takes: <p>Saved take list</p>, defaultNotesOpen: true });
+    await userEvent.click(screen.getByRole("tablist", { name: "Room panels" }));
+    expect(screen.getByRole("tab", { name: "Notes" })).toHaveFocus();
+    await userEvent.keyboard("{ArrowRight}");
+    expect(screen.getByRole("tab", { name: "Takes" })).toHaveFocus();
+    expect(screen.getByRole("tabpanel")).toHaveTextContent("Saved take list");
+  });
+
   it("shows the target slot in the header, full and embedded", () => {
     const { rerender } = renderRoom({
       target: <span>Starts the episode</span>,

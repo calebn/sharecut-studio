@@ -128,6 +128,9 @@ Known limits: a music bed that two microphones share, or own sound that follows 
    The floating Action bar follows its current anchor. A visibility result for a
    previous anchor cannot show or hide it. The [selection contract](https://github.com/calebn/sharecut-studio/blob/main/docs/interaction-system.md#selection)
    includes lane and timeline fallbacks.
+9. **Keyboard continuity** — clicking the space around panel tabs returns focus
+   to the selected tab so arrow keys still work. Tab moves onward without an
+   extra stop, and focusing the group does not change the selected panel.
 
 ---
 

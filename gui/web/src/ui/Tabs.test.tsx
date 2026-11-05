@@ -1,7 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { Tab, TabList } from "./Tabs";
 
@@ -32,6 +32,74 @@ function Harness() {
 }
 
 describe("TabList", () => {
+  it("forwards programmatic container focus to the selected tab without selecting another", async () => {
+    render(
+      <>
+        <Harness />
+        <button type="button">After panels</button>
+      </>,
+    );
+    await userEvent.click(screen.getByRole("tab", { name: "two" }));
+    act(() => screen.getByRole("button", { name: "After panels" }).focus());
+    act(() => screen.getByRole("tablist").focus());
+    expect(screen.getByRole("tab", { name: "two" })).toHaveFocus();
+    await userEvent.keyboard("{ArrowRight}");
+    expect(screen.getByRole("tab", { name: "three" })).toHaveFocus();
+    await userEvent.tab();
+    expect(screen.getByRole("button", { name: "After panels" })).toHaveFocus();
+  });
+
+  it("forwards padding clicks to the selected tab without adding a tab stop", async () => {
+    render(<Harness />);
+    await userEvent.click(screen.getByRole("tablist"));
+    expect(screen.getByRole("tab", { name: "one" })).toHaveFocus();
+    expect(screen.getByRole("tablist")).toHaveAttribute("tabindex", "-1");
+    act(() => screen.getByRole("tab", { name: "three" }).focus());
+    expect(screen.getByRole("tab", { name: "three" })).toHaveFocus();
+    expect(screen.getByRole("tab", { name: "one" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
+
+  it("skips disabled tabs while moving from a focused enabled tab", async () => {
+    const select = vi.fn();
+    render(
+      <TabList label="Available panels">
+        <Tab selected panelId="panel">
+          First
+        </Tab>
+        <Tab selected={false} disabled panelId="panel">
+          Unavailable
+        </Tab>
+        <Tab selected={false} panelId="panel" onClick={select}>
+          Next
+        </Tab>
+      </TabList>,
+    );
+    await userEvent.tab();
+    await userEvent.keyboard("{ArrowRight}");
+    expect(screen.getByRole("tab", { name: "Next" })).toHaveFocus();
+    expect(select).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to the first enabled tab without issuing a selection command", () => {
+    const select = vi.fn();
+    render(
+      <TabList label="Unavailable selection">
+        <Tab selected disabled panelId="panel" onClick={select}>
+          Unavailable
+        </Tab>
+        <Tab selected={false} panelId="panel" onClick={select}>
+          Available
+        </Tab>
+      </TabList>,
+    );
+    act(() => screen.getByRole("tablist").focus());
+    expect(screen.getByRole("tab", { name: "Available" })).toHaveFocus();
+    expect(select).not.toHaveBeenCalled();
+  });
+
   it("is axe-clean and exposes one tab stop", async () => {
     const { container } = render(<Harness />);
     expect(screen.getByRole("tablist", { name: "Panels" })).toBeTruthy();

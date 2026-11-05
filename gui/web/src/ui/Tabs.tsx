@@ -11,7 +11,7 @@ type TabListProps = {
   children: ReactNode;
 };
 
-const TAB_SELECTOR = '[role="tab"]:not([aria-disabled="true"])';
+const TAB_SELECTOR = '[role="tab"]:not([aria-disabled="true"]):not(:disabled)';
 
 /**
  * Container for `Tab`s: `role="tablist"` with Left, Right, Home and End
@@ -45,6 +45,17 @@ export function TabList({ label, className, children }: TabListProps) {
       role="tablist"
       aria-label={label}
       className={className}
+      tabIndex={-1}
+      onFocus={(event) => {
+        if (event.target !== event.currentTarget) return;
+        const tabs = [
+          ...event.currentTarget.querySelectorAll<HTMLElement>(TAB_SELECTOR),
+        ];
+        const selected = tabs.find(
+          (tab) => tab.getAttribute("aria-selected") === "true",
+        );
+        (selected ?? tabs[0])?.focus();
+      }}
       onKeyDown={onKeyDown}
     >
       {children}

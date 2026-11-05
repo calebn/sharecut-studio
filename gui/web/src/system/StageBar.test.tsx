@@ -1,4 +1,5 @@
 import { act, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { StageBar, type StageBarProps } from "./StageBar";
 
@@ -30,6 +31,16 @@ it.each(["bar", "tabs"] as const)(
     }
   },
 );
+
+it("returns stage-list padding focus to the active stage", async () => {
+  const onSelect = vi.fn();
+  render(<StageBar active="edit" onSelect={onSelect} />);
+  await userEvent.click(screen.getByRole("tablist", { name: "Stages" }));
+  expect(screen.getByRole("tab", { name: "Edit" })).toHaveFocus();
+  expect(onSelect).not.toHaveBeenCalled();
+  await userEvent.keyboard("{ArrowRight}");
+  expect(onSelect).toHaveBeenCalledWith("review");
+});
 
 describe("the Record badge", () => {
   afterEach(() => {

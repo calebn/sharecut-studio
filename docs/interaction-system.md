@@ -279,7 +279,10 @@ There are three overlay primitives.
    #1878) went with the tool rail. The long-press on Hear original opens the
    hear menu instead.
 5. **Panel tabs are a tablist.** `role="tablist"`, `role="tab"`,
-   `aria-selected`, arrow-key movement.
+   `aria-selected`, arrow-key movement. The list has `tabindex=-1`, so direct focus adds no sequential Tab stop.
+   Focusing or clicking its padding forwards focus to the selected enabled tab,
+   or the first enabled tab if no selected enabled tab exists. Focus alone does not select or
+   run a command; arrows still select, and Tab continues to the next control.
 
 ## Where primitives and tokens live
 
