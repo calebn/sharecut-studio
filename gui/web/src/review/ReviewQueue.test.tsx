@@ -260,7 +260,7 @@ describe("ReviewQueue", () => {
         onBulkIds={onBulkIds}
       />,
     );
-    fireEvent.click(getByRole("button", { name: "Approve 2 low-risk edits" }));
+    fireEvent.click(getByRole("button", { name: "Cut 2 clean edits" }));
     expect(onBulkIds).toHaveBeenCalledWith(["a", "b"]);
     expect(getByRole("button", { name: /all 2$/ })).toBeInTheDocument();
   });

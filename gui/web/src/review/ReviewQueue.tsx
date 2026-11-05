@@ -380,7 +380,7 @@ export function ReviewQueue({
   const groups = groupQueue(shown);
   const lowRisk = canDecide && !bulkRunning ? lowRiskBulk(shown) : null;
   const lowRiskLabel = lowRisk
-    ? `Approve ${lowRisk.ids.length} low-risk ${lowRisk.ids.length === 1 ? "edit" : "edits"}`
+    ? `Cut ${lowRisk.ids.length} clean ${lowRisk.ids.length === 1 ? "edit" : "edits"}`
     : "";
   const decided = decidedItems(shown);
   // The group has left the queue; the row follows the filter that showed it.
