@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { copyText } from "../../record";
 import { Button, Dialog, Field, InlineError } from "../../ui";
 import { errorMessage } from "../../utils/apiError";
+import { useStableCallback } from "../../utils/useStableCallback";
 import { localHostMcpUrl, mcpClientSnippet } from "./hostMcp";
 
 const COPIED_MS = 2000;
@@ -17,11 +18,23 @@ type Props = {
 };
 
 export function HostMcpDialog({ open, onClose, hasProject, mcpUrl }: Props) {
+  const [session, setSession] = useState({ open, epoch: 0 });
   const [copied, setCopied] = useState<CopiedKey | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const generation = useRef(0);
+  if (session.open !== open) {
+    setSession({ open, epoch: session.epoch + 1 });
+    if (!open) {
+      setCopied(null);
+      setError(null);
+      setStatus(null);
+    }
+  }
+  const acceptsSession = useStableCallback(
+    (epoch: number) => open && session.epoch === epoch,
+  );
 
   const url = mcpUrl ?? localHostMcpUrl();
   const snippet = mcpClientSnippet(url);
@@ -41,18 +54,17 @@ export function HostMcpDialog({ open, onClose, hasProject, mcpUrl }: Props) {
     }
     generation.current += 1;
     clearCopiedTimer();
-    setCopied(null);
-    setError(null);
-    setStatus(null);
   }, [open, clearCopiedTimer]);
 
   const markCopied = useCallback(
     (key: CopiedKey) => {
       clearCopiedTimer();
       setCopied(key);
-      copiedTimer.current = setTimeout(() => setCopied(null), COPIED_MS);
+      copiedTimer.current = setTimeout(() => {
+        if (acceptsSession(session.epoch)) setCopied(null);
+      }, COPIED_MS);
     },
-    [clearCopiedTimer],
+    [clearCopiedTimer, session.epoch, acceptsSession],
   );
 
   const copy = useCallback(
@@ -62,19 +74,19 @@ export function HostMcpDialog({ open, onClose, hasProject, mcpUrl }: Props) {
       setStatus(null);
       try {
         await copyText(text);
-        if (gen !== generation.current) {
+        if (!acceptsSession(session.epoch) || gen !== generation.current) {
           return;
         }
         markCopied(key);
         setStatus(key === "url" ? "Copied MCP URL" : "Copied client snippet");
       } catch (err) {
-        if (gen !== generation.current) {
+        if (!acceptsSession(session.epoch) || gen !== generation.current) {
           return;
         }
         setError(errorMessage(err));
       }
     },
-    [markCopied],
+    [markCopied, session.epoch, acceptsSession],
   );
 
   return (

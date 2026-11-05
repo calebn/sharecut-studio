@@ -7,6 +7,7 @@ import {
   submitDiagnosticsReport,
 } from "../api";
 import { errorMessage } from "../utils/apiError";
+import { useStableCallback } from "../utils/useStableCallback";
 import { HelpDialogView } from "./HelpDialogView";
 
 type Props = {
@@ -15,6 +16,7 @@ type Props = {
 };
 
 export function HelpDialog({ open, onClose }: Props) {
+  const [session, setSession] = useState({ open, epoch: 0 });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [bundle, setBundle] = useState<DiagnosticsBundleResult | null>(null);
@@ -28,26 +30,34 @@ export function HelpDialog({ open, onClose }: Props) {
   const [reportAvailable, setReportAvailable] = useState(false);
   const [issueUrl, setIssueUrl] = useState<string | null>(null);
   const [supportUrl, setSupportUrl] = useState<string | null>(null);
-
-  useEffect(() => {
+  if (session.open !== open) {
+    setSession({ open, epoch: session.epoch + 1 });
     if (!open) {
-      requestGeneration.current += 1;
       setBusy(false);
       setError(null);
       setBundle(null);
       setDescription("");
       setConsent(false);
       setSubmitted(null);
-      submitting.current = false;
-      activeReportUrl.current = null;
       setReportStatus(null);
       setIssueUrl(null);
+    }
+  }
+  const acceptsSession = useStableCallback(
+    (epoch: number) => open && session.epoch === epoch,
+  );
+
+  useEffect(() => {
+    if (!open) {
+      requestGeneration.current += 1;
+      submitting.current = false;
+      activeReportUrl.current = null;
       return;
     }
     let cancelled = false;
     void fetchDiagnosticsMeta()
       .then((meta) => {
-        if (!cancelled) {
+        if (!cancelled && acceptsSession(session.epoch)) {
           setSupportUrl(meta.support_url);
           setReportAvailable(meta.report_available);
         }
@@ -58,7 +68,7 @@ export function HelpDialog({ open, onClose }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, session.epoch, acceptsSession]);
 
   useEffect(() => {
     if (!open || !submitted || issueUrl || reportStatus === "failed") return;
@@ -66,7 +76,11 @@ export function HelpDialog({ open, onClose }: Props) {
     const check = () => {
       void fetchDiagnosticsReportStatus(submitted)
         .then((result) => {
-          if (!cancelled && activeReportUrl.current === submitted) {
+          if (
+            !cancelled &&
+            acceptsSession(session.epoch) &&
+            activeReportUrl.current === submitted
+          ) {
             setReportStatus(result.status);
             if (result.status === "published") setIssueUrl(result.issue_url);
           }
@@ -81,7 +95,7 @@ export function HelpDialog({ open, onClose }: Props) {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [open, submitted, issueUrl, reportStatus]);
+  }, [open, submitted, issueUrl, reportStatus, session.epoch, acceptsSession]);
 
   const onCreate = useCallback(async () => {
     requestGeneration.current += 1;
@@ -96,22 +110,31 @@ export function HelpDialog({ open, onClose }: Props) {
     setError(null);
     try {
       const result = await createDiagnosticsBundle();
-      if (!open || generation !== requestGeneration.current) {
+      if (
+        !acceptsSession(session.epoch) ||
+        generation !== requestGeneration.current
+      ) {
         return;
       }
       setBundle(result);
       setSupportUrl(result.support_url);
     } catch (err) {
-      if (!open || generation !== requestGeneration.current) {
+      if (
+        !acceptsSession(session.epoch) ||
+        generation !== requestGeneration.current
+      ) {
         return;
       }
       setError(errorMessage(err));
     } finally {
-      if (open && generation === requestGeneration.current) {
+      if (
+        acceptsSession(session.epoch) &&
+        generation === requestGeneration.current
+      ) {
         setBusy(false);
       }
     }
-  }, [open]);
+  }, [session.epoch, acceptsSession]);
 
   const onSubmit = useCallback(async () => {
     if (!bundle || !consent || submitted || submitting.current) return;
@@ -127,20 +150,30 @@ export function HelpDialog({ open, onClose }: Props) {
         description,
         consent,
       });
-      if (!open || generation !== requestGeneration.current) return;
+      if (
+        !acceptsSession(session.epoch) ||
+        generation !== requestGeneration.current
+      )
+        return;
       activeReportUrl.current = result.status_url;
       setSubmitted(result.status_url);
       setReportStatus("queued");
     } catch (err) {
-      if (open && generation === requestGeneration.current)
+      if (
+        acceptsSession(session.epoch) &&
+        generation === requestGeneration.current
+      )
         setError(errorMessage(err));
     } finally {
-      if (open && generation === requestGeneration.current) {
+      if (
+        acceptsSession(session.epoch) &&
+        generation === requestGeneration.current
+      ) {
         submitting.current = false;
         setBusy(false);
       }
     }
-  }, [bundle, consent, description, open, submitted]);
+  }, [bundle, consent, description, submitted, session.epoch, acceptsSession]);
 
   const issueHref = bundle?.support_url ?? supportUrl;
   const fallbackHref =
