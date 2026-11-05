@@ -286,7 +286,7 @@ function Phone({
   // A sheet that drops to the dock reopens at the top of its fields.
   useEffect(() => {
     if (detent !== "dock") return;
-    const content = sheet.current?.querySelector(".sys-inspector-content");
+    const content = sheet.current?.querySelector(".sys-inspector-scroll");
     if (content) content.scrollTop = 0;
   }, [detent]);
   const grab = useGrab<"grip">({
