@@ -76,3 +76,8 @@ export function takeAutoRoom(projectPath: string): boolean {
   write(projectPath, { stage: intent.stage, autoRun: intent.autoRun });
   return true;
 }
+
+/** The stage Home named, left in place: the Loading cover draws that stage's layout. */
+export function peekOpenStage(projectPath: string): StageId | null {
+  return read(projectPath).stage ?? null;
+}

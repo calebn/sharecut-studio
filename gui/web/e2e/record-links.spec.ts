@@ -79,10 +79,10 @@ test.describe("record links", () => {
 
           await pageA.goto(`/r/${guest}`);
           await expect(pageA.locator("body")).toContainText(
-            "This link is invalid or has ended.",
+            "This link doesn't open anything",
           );
           await expect(pageA.locator("body")).toContainText(
-            "Ask the host for a new link.",
+            "Ask the person who sent it for a new link.",
           );
 
           const ended = await host.request.post(

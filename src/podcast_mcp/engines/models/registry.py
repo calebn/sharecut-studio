@@ -2,8 +2,8 @@
 
 Each row says how ready the model is (``problem``, never a download) and how to install it
 (``install``, the only network path). ``setup`` is the tier: ``required`` gates first-run
-readiness, ``recommended`` is installed by a bare ``podcast bootstrap``, ``offered`` only when
-named or with ``--component all``.
+readiness and ``recommended`` is installed by a bare ``podcast bootstrap``. Studio's Get ready card
+downloads every model that is not installed, so a ``recommended`` row is in that bundle.
 """
 
 from __future__ import annotations
@@ -47,7 +47,7 @@ from podcast_mcp.util.model_assets import (
 )
 from podcast_mcp.util.model_missing import ModelMissing
 
-SetupTier = Literal["required", "recommended", "offered"]
+SetupTier = Literal["required", "recommended"]
 
 
 @dataclass(frozen=True)
@@ -193,6 +193,12 @@ def _rnnoise_sizes(variant: str | None) -> tuple[str | None, int | None]:
 
 _WORD_ALIGNER = word_aligner_model(DEFAULT_WORD_ALIGNER)
 
+
+def _approximate_size(size_bytes: int) -> Callable[[str | None], tuple[str | None, int | None]]:
+    """The byte count behind a row's size text, so Studio can total a download it has no pin for."""
+    return lambda variant: (None, size_bytes)
+
+
 MODELS: tuple[ModelSpec, ...] = (
     ModelSpec(
         id="whisper",
@@ -222,21 +228,23 @@ MODELS: tuple[ModelSpec, ...] = (
         label=_WORD_ALIGNER.label,
         purpose="precise word boundaries",
         size=_WORD_ALIGNER.size,
-        setup="offered",
+        setup="recommended",
         problem=_word_aligner_problem,
         install=_word_aligner_install,
         location=word_aligner_cache_dir,
         default_variant=DEFAULT_WORD_ALIGNER,
+        variant_sizes=_approximate_size(360_000_000),
     ),
     ModelSpec(
         id="speaker-ecapa",
         label=SPEAKER_ECAPA_LABEL,
         purpose="speaker recognition and split",
         size=SPEAKER_ECAPA_SIZE,
-        setup="offered",
+        setup="recommended",
         problem=_speaker_ecapa_problem,
         install=_speaker_ecapa_install,
         location=speaker_ecapa_path,
+        variant_sizes=_approximate_size(80_000_000),
     ),
 )
 

@@ -49,17 +49,17 @@ export function registryModels(
     row("word-aligner", {
       label: "Word aligner",
       purpose: "precise word boundaries",
-      tier: "offered",
+      tier: "recommended",
       size: "~360 MB",
-      sizeBytes: null,
+      sizeBytes: 360_000_000,
       variant: "wav2vec2",
     }),
     row("speaker-ecapa", {
       label: "Speaker model",
       purpose: "speaker recognition and split",
-      tier: "offered",
-      size: "~25 MB",
-      sizeBytes: null,
+      tier: "recommended",
+      size: "~80 MB",
+      sizeBytes: 80_000_000,
       variant: null,
     }),
   ];

@@ -208,13 +208,13 @@ def _stub_installers(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     return installed
 
 
-def test_bootstrap_bare_default_installs_the_recommended_set(
+def test_bootstrap_bare_default_installs_every_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     installed = _stub_installers(monkeypatch)
     result = runner.invoke(app, ["bootstrap"])
     assert result.exit_code == 0
-    assert installed == ["whisper", "rnnoise"]
+    assert installed == ["whisper", "rnnoise", "word-aligner", "speaker-ecapa"]
     assert "Bootstrap complete." in result.stdout
 
 
