@@ -8,6 +8,7 @@
 import { mayNudge } from "../edit/mayNudge";
 import { type NudgeField, nudgeAxis } from "../edit/nudge";
 import { useDaw } from "../state/useDaw";
+import type { ProjectView } from "../types/project";
 import { NudgeRow } from "./NudgeRow";
 import { useNudgeRun } from "./useNudgeRun";
 
@@ -30,7 +31,6 @@ export function SheetNudge({
     shareAuthor: s.shareAuthor,
     joinMutationInFlight: s.joinMutationInFlight,
   }));
-  const run = useNudgeRun();
   if (
     hidden ||
     !project ||
@@ -38,6 +38,20 @@ export function SheetNudge({
     !mayNudge(access, project, field)
   )
     return null;
+  return <SheetNudgeRow field={field} name={name} project={project} />;
+}
+
+/** Owns the run, so a row that stops drawing ends a held nudge with it. */
+function SheetNudgeRow({
+  field,
+  name,
+  project,
+}: {
+  field: NudgeField;
+  name: string;
+  project: ProjectView;
+}) {
+  const run = useNudgeRun();
   return (
     <NudgeRow row={{ field, label: null, name }} project={project} run={run} />
   );
