@@ -14,6 +14,7 @@ import {
   KEYMAP_CATEGORY_ORDER,
   keymapCommandById,
 } from "../../keymap/registry";
+import type { SystemIconName } from "../../system/icons";
 import { STAGES, VERBS, type VerbDef } from "../../system/verbs";
 import type { ChapterMarker } from "../../types/project";
 import { formatTimeShort } from "../../utils/time";
@@ -24,13 +25,16 @@ import type {
 } from "./paletteSearch";
 
 /** Verb icon by command id: the first verb in the table that names the command. */
-const VERB_ICONS = new Map(
-  (VERBS as readonly VerbDef[]).flatMap((verb) =>
-    verb.commandId != null && verb.icon !== null
-      ? [[verb.commandId, verb.icon] as const]
-      : [],
-  ),
-);
+const VERB_ICONS = new Map<string, SystemIconName>();
+for (const verb of VERBS as readonly VerbDef[]) {
+  if (
+    verb.commandId != null &&
+    verb.icon !== null &&
+    !VERB_ICONS.has(verb.commandId)
+  ) {
+    VERB_ICONS.set(verb.commandId, verb.icon);
+  }
+}
 const STAGE_ICONS = new Map(STAGES.map((s) => [`stage.${s.id}`, s.icon]));
 
 function groupOf(id: string): PaletteCommandGroup | undefined {
