@@ -7,6 +7,8 @@ type StartTileProps = {
   /** Tile height in px; `phone-bar` is the 72 px half of the thumb-zone bar. */
   size: 240 | 220 | 160 | 80 | "phone-bar";
   state?: "rest" | "drag-hover" | "disabled";
+  /** Names the tile where it adds to an episode that exists: "Add audio". */
+  title?: string;
   /** Shown in place of the line when `state` is `disabled`. */
   disabledReason?: string;
   /** `primary` is the filled accent tile: the one action on an empty Home. */
@@ -27,6 +29,7 @@ const COPY = {
 export function StartTile({
   kind,
   size,
+  title: titleOverride,
   state = "rest",
   disabledReason,
   variant = "default",
@@ -35,7 +38,8 @@ export function StartTile({
   onActivate,
 }: StartTileProps) {
   const disabled = state === "disabled";
-  const { title, line } = COPY[kind];
+  const { line } = COPY[kind];
+  const title = titleOverride ?? COPY[kind].title;
   const dragging = state === "drag-hover";
   const dropLine =
     dragCount === undefined

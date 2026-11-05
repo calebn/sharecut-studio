@@ -37,13 +37,14 @@ const ROW_STEPS: Readonly<Record<ReadyRowId, readonly string[]>> = {
     "assemble_timeline",
   ],
   suggest: ["analyze_fillers_pauses", "apply_sound_actions"],
-  scan: [],
 };
 
 type PlanOperation = {
   step: string;
   label: string;
   enabledPath?: string;
+  /** Off by default and chosen per project, so its absence is not a partial row. */
+  optIn?: true;
 };
 
 const PLAN_OPERATIONS: Readonly<Record<ReadyRowId, readonly PlanOperation[]>> =
@@ -60,18 +61,17 @@ const PLAN_OPERATIONS: Readonly<Record<ReadyRowId, readonly PlanOperation[]>> =
       { step: "compress_tracks", label: "Compress" },
       { step: "balance_tracks", label: "Balance" },
     ],
-    scan: [
-      {
-        step: "apply_sound_actions",
-        label: "Apply sound actions",
-        enabledPath: "tighten.apply_non_speech",
-      },
-    ],
     suggest: [
       {
         step: "analyze_fillers_pauses",
         label: "Find suggestions",
         enabledPath: "tighten.enabled",
+      },
+      {
+        step: "apply_sound_actions",
+        label: "Apply sound actions",
+        enabledPath: "tighten.apply_non_speech",
+        optIn: true,
       },
     ],
   };
@@ -125,7 +125,6 @@ const ROW_TITLE: Record<ReadyRowId, string> = {
   transcribe: "Transcribe",
   align: "Line up tracks",
   clean: "Clean and level",
-  scan: "Apply sound actions",
   suggest: "Find suggestions",
 };
 
@@ -134,9 +133,17 @@ const ROW_ACTIVITY: Record<ReadyRowId, string> = {
   transcribe: "Transcribing",
   align: "Lining up tracks",
   clean: "Cleaning",
-  scan: "Applying sound actions",
   suggest: "Finding suggestions",
 };
+
+function leavesOut(
+  row: ReadyRowId,
+  present: (operation: PlanOperation) => boolean,
+): boolean {
+  return PLAN_OPERATIONS[row].some(
+    (operation) => !operation.optIn && !present(operation),
+  );
+}
 
 function plural(count: number, one: string, many: string): string {
   return `${count} ${count === 1 ? one : many}`;
@@ -332,6 +339,12 @@ export type ReadyInput = {
   model: NeedTarget | null;
   /** Word timing is missing: the Transcribe row shows its Model need row. */
   approximateTiming: NeedTarget | null;
+  /** Sources with a transcript, for "2 of 3 speakers" while Transcribe runs. */
+  transcribedCount?: number;
+  /** Steps the saved settings turn on; a row's bar counts only these. */
+  enabledSteps?: readonly string[];
+  /** Word timing arrived after a transcript without it: offer to redo the timing. */
+  retimeWords?: boolean;
   /** A re-transcribe waits on whether to keep hand fixes. */
   keepFixes: { names: readonly string[] } | null;
   /**
@@ -396,8 +409,9 @@ function planRows(plan: RerunPlan): ReadyRowData[] {
     transcribe: `Skipped this time. ${who} will have no transcript or suggestions.`,
     align: `Skipped this time. ${who} ${are} not lined up with the others.`,
     clean: `Skipped this time. ${who} ${are} not cleaned or levelled.`,
-    scan: "Skipped this time. Sound actions are not applied automatically.",
-    suggest: "Skipped this time. Filler and pause analysis is skipped.",
+    suggest: plan.scan
+      ? "Skipped this time. Filler, pause and sound analysis is skipped."
+      : "Skipped this time. Filler and pause analysis is skipped.",
   };
   const row = (id: ReadyRowId, detail: string): ReadyRowData => {
     const settings = plan.settings;
@@ -411,7 +425,9 @@ function planRows(plan: RerunPlan): ReadyRowData[] {
         detail: "Off in Advanced",
       };
     }
-    const partial = operations.length < PLAN_OPERATIONS[id].length;
+    const partial = leavesOut(id, (operation) =>
+      operations.includes(operation),
+    );
     const selected = operations
       .map((operation, index) =>
         index === 0 ? operation.label : operation.label.toLowerCase(),
@@ -446,8 +462,12 @@ function planRows(plan: RerunPlan): ReadyRowData[] {
     row("transcribe", scope),
     row("align", joins),
     row("clean", everyone),
-    ...(plan.scan ? [row("scan", `Whole episode · ${plan.scan.time}`)] : []),
-    row("suggest", "Whole episode"),
+    row(
+      "suggest",
+      plan.scan
+        ? `Whole episode · sound scan ${plan.scan.time}`
+        : "Whole episode",
+    ),
   ];
 }
 
@@ -482,18 +502,12 @@ type TerminalRowResult =
     }
   | { kind: "omitted"; detail: "Skipped this run" | "Not run this time" };
 
-function ownOperations(row: ReadyRowId): readonly PlanOperation[] {
-  return row === "suggest"
-    ? [...PLAN_OPERATIONS.suggest, ...PLAN_OPERATIONS.scan]
-    : PLAN_OPERATIONS[row];
-}
-
 function terminalRowResult(
   job: PipelineJobSnapshot | null,
   row: ReadyRowId,
 ): TerminalRowResult | null {
   if (job?.status !== "ok" || row === "add") return null;
-  const operations = ownOperations(row);
+  const operations = PLAN_OPERATIONS[row];
   const work = operations.flatMap((operation): RowWork[] => {
     const timing = job.steps.find(
       (step) => step.name === operation.step && step.status === "ok",
@@ -505,7 +519,9 @@ function terminalRowResult(
     return {
       kind: "performed",
       work: [first, ...rest],
-      partial: work.length < operations.length,
+      partial: leavesOut(row, (operation) =>
+        work.some((done) => done.operation === operation),
+      ),
     };
   return {
     kind: "omitted",
@@ -572,6 +588,53 @@ export function reuseNote(job: PipelineJobSnapshot | null): string | undefined {
   return `Done in ${spokenDuration(job.elapsed_sec)}. ${reused} of ${total} results were reused, so this run did less.`;
 }
 
+/** "about 1 min left" from how long the finished share of the work took. */
+export function timeLeft(elapsedSec: number, progress: number): string | null {
+  if (progress <= 0 || progress >= 1 || elapsedSec < 8) return null;
+  const left = (elapsedSec * (1 - progress)) / progress;
+  if (left < 45) return "under a minute left";
+  const minutes = Math.round(left / 60);
+  return minutes < 90
+    ? `about ${minutes} min left`
+    : `about ${Math.round(minutes / 60)} h left`;
+}
+
+type RowProgress = { progress: number; left: string | null };
+
+/**
+ * How far a running row is, from the steps it owns: finished steps over the
+ * steps this run will do for it. A row with one step stays at 0 until the step
+ * ends, because the job reports no finer progress than that.
+ */
+function rowProgress(
+  job: PipelineJobSnapshot | null,
+  row: ReadyRowId,
+  enabledSteps: readonly string[] | undefined,
+  finished?: { done: number; total: number },
+): RowProgress | null {
+  if (!job) return null;
+  const mine = job.steps.filter((step) => ROW_STEPS[row].includes(step.name));
+  const elapsed = mine.reduce((sum, step) => sum + step.elapsed_sec, 0);
+  if (finished) {
+    if (finished.total <= 0) return null;
+    const progress = finished.done / finished.total;
+    return { progress, left: timeLeft(elapsed, progress) };
+  }
+  const planned = ROW_STEPS[row].filter(
+    (name) =>
+      (!enabledSteps || enabledSteps.includes(name)) &&
+      !job.skip_steps?.includes(name),
+  ).length;
+  if (planned === 0) return null;
+  const done = mine.filter((step) => step.status === "ok").length;
+  const progress = Math.min(done / planned, 0.99);
+  return { progress, left: timeLeft(elapsed, progress) };
+}
+
+function withLeft(detail: string, left: string | null | undefined): string {
+  return left ? `${detail} · ${left}` : detail;
+}
+
 type Outcome = {
   state: "queued" | "running" | "done" | "failed";
   error?: string;
@@ -601,7 +664,7 @@ export function rowOutcome(
   const terminal = terminalRowResult(job, row);
   if (terminal)
     return { state: terminal.kind === "performed" ? "done" : "queued" };
-  const operations = ownOperations(row);
+  const operations = PLAN_OPERATIONS[row];
   const reportedOwnWork = job.steps.some(
     (step) =>
       operations.some((operation) => operation.step === step.name) &&
@@ -680,11 +743,13 @@ export function readyRows(input: ReadyInput): ReadyRowData[] {
   const files = plural(input.sourceCount, "file", "files");
   const addOutcome = rowOutcome(job, "add");
   if (input.ingestBusy || addOutcome?.state === "running") {
+    const adding = rowProgress(job, "add", input.enabledSteps);
     rows.push({
       id: "add",
       state: "running",
       title: ROW_TITLE.add,
-      detail: "Adding files",
+      detail: withLeft("Adding files", adding?.left),
+      ...(adding ? { progress: adding.progress } : {}),
     });
   } else if (addOutcome?.state === "failed") {
     rows.push(failedRow("add", addOutcome.error ?? ""));
@@ -742,11 +807,25 @@ export function readyRows(input: ReadyInput): ReadyRowData[] {
         : failedRow("transcribe", transcribe.error ?? ""),
     );
   } else if (transcribe?.state === "running") {
+    const heard = input.transcribedCount ?? 0;
+    const counted = heard < input.sourceCount;
+    const timing = rowProgress(
+      job,
+      "transcribe",
+      input.enabledSteps,
+      counted ? { done: heard, total: input.sourceCount } : undefined,
+    );
     rows.push({
       id: "transcribe",
       state: "running",
       title: ROW_TITLE.transcribe,
-      detail: `Listening to ${plural(input.sourceCount, "track", "tracks")}`,
+      detail: withLeft(
+        counted
+          ? `${heard} of ${speakers}`
+          : `Listening to ${plural(input.sourceCount, "track", "tracks")}`,
+        timing?.left,
+      ),
+      ...(timing ? { progress: timing.progress } : {}),
     });
   } else if (
     transcribe?.state === "done" ||
@@ -762,24 +841,33 @@ export function readyRows(input: ReadyInput): ReadyRowData[] {
             state: "needs-you",
             title: ROW_TITLE.transcribe,
             detail: kept
-              ? "Existing transcripts kept. Word timing is approximate, so cuts may clip word edges."
-              : "Transcribed. Word timing is approximate, so cuts may clip word edges.",
+              ? "Existing transcripts kept. Word timing is approximate"
+              : "Transcribed. Word timing is approximate",
             ...(terminalTranscribe?.kind === "omitted"
               ? { runDisposition: "omitted" as const }
               : {}),
             model: input.approximateTiming,
           }
-        : {
-            id: "transcribe",
-            state: "done",
-            title: ROW_TITLE.transcribe,
-            detail: kept
-              ? "Existing transcripts kept"
-              : (reuseDetail(job, "transcribe") ?? speakers),
-            ...(terminalTranscribe?.kind === "omitted"
-              ? { runDisposition: "omitted" as const }
-              : {}),
-          },
+        : input.retimeWords
+          ? {
+              id: "transcribe",
+              state: "needs-you",
+              title: ROW_TITLE.transcribe,
+              detail:
+                "Word timing is installed. Words keep their rough timing until you re-time them",
+              action: { label: "Re-time words", run: "retime" },
+            }
+          : {
+              id: "transcribe",
+              state: "done",
+              title: ROW_TITLE.transcribe,
+              detail: kept
+                ? "Existing transcripts kept"
+                : (reuseDetail(job, "transcribe") ?? speakers),
+              ...(terminalTranscribe?.kind === "omitted"
+                ? { runDisposition: "omitted" as const }
+                : {}),
+            },
     );
   } else if (transcribe?.skipped) {
     rows.push({
@@ -803,7 +891,7 @@ export function readyRows(input: ReadyInput): ReadyRowData[] {
       title: ROW_TITLE.transcribe,
       detail:
         input.starting || live
-          ? "Starts in a moment"
+          ? "Starting"
           : input.job
             ? "Not transcribed yet"
             : "Not started",
@@ -836,11 +924,13 @@ export function readyRows(input: ReadyInput): ReadyRowData[] {
     if (outcome?.state === "failed") {
       rows.push(failedRow(id, outcome.error ?? ""));
     } else if (outcome?.state === "running") {
+      const timing = rowProgress(job, id, input.enabledSteps);
       rows.push({
         id,
         state: "running",
         title: ROW_TITLE[id],
-        detail: ROW_ACTIVITY[id],
+        detail: withLeft(ROW_ACTIVITY[id], timing?.left),
+        ...(timing ? { progress: timing.progress } : {}),
       });
     } else if (outcome?.skipped) {
       rows.push({

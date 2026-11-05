@@ -33,4 +33,5 @@ export type {
 } from "./types";
 export { useModelResume } from "./useModelResume";
 export { useModels } from "./useModels";
+export { clearRetimeOffer, useWordTiming, type WordTiming } from "./useWordTiming";
 export { WhisperSize } from "./WhisperSize";

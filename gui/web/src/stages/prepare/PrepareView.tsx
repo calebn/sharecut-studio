@@ -14,16 +14,9 @@ import { StatusGlyph } from "../../system/StatusGlyph";
 import type { StatusRowState } from "../../system/StatusRow";
 import { SystemIcon } from "../../system/SystemIcon";
 import { useFocusRescue } from "../../system/useFocusRescue";
-import {
-  Button,
-  Menu,
-  MenuItem,
-  SegmentedControl,
-  ToggleButton,
-} from "../../ui";
+import { Button, SegmentedControl, ToggleButton } from "../../ui";
 import { useResizeObserver } from "../../ui/useResizeObserver";
 import { type PreparePhase, useAnnouncement } from "./prepareAnnouncement";
-import { isWorking, STILL_GETTING_READY } from "./prepareMappers";
 import type { PrepareSession, SourceActions } from "./prepareTypes";
 import {
   type ReadyAction,
@@ -73,8 +66,6 @@ export type PrepareViewProps = {
   onCleanup: (next: CleanupSettings) => void;
   /** One line under the title: what the plan keeps, or what the last run reused. */
   readyNote?: string;
-  /** "Run everything again", behind the ⋯ next to Advanced. Left out where it is not offered. */
-  onRunAll?: () => void;
   /** The one hand-off. `disabledReason` while the work is not done. */
   handoff: { label: string; disabledReason?: string };
   /** Files being added, for the live region. */
@@ -164,7 +155,6 @@ export function PrepareView({
   rows,
   readySummary,
   readyNote,
-  onRunAll,
   terms,
   onTermsChange,
   needsRetranscribe,
@@ -192,7 +182,6 @@ export function PrepareView({
   const attention = rows
     .filter((row) => row.state === "failed" || row.state === "needs-you")
     .map((row) => row.id);
-  const [moreOpen, setMoreOpen] = useState(false);
   const [rowNote, setRowNote] = useState("");
   const onRow = (row: ReadyRowId, action: ReadyAction) => {
     const title = rows.find((one) => one.id === row)?.title;
@@ -328,29 +317,24 @@ export function PrepareView({
         <SystemIcon name="settings" size={14} />
         Advanced
       </Button>
-      {onRunAll ? (
-        <Menu
-          open={moreOpen}
-          onOpenChange={setMoreOpen}
-          label="More ways to run"
-          className="ui-menu-root sys-menu"
-          trigger={(props) => (
-            <Button {...props} aria-label="More ways to run">
-              <SystemIcon name="ellipsis" size={16} />
-            </Button>
-          )}
-        >
-          <MenuItem
-            disabledReason={isWorking(phase) ? STILL_GETTING_READY : undefined}
-            onSelect={() => {
-              setMoreOpen(false);
-              onRunAll();
-            }}
-          >
-            Run everything again
-          </MenuItem>
-        </Menu>
-      ) : null}
+    </div>
+  );
+  const tiles = (
+    <div className="sys-start-pair">
+      <StartTile
+        kind="import"
+        size={80}
+        title="Add audio"
+        state={tileState}
+        dragCount={dropCount}
+        onActivate={onImport}
+      />
+      <StartTile
+        kind="record"
+        size={80}
+        title="Record another session"
+        onActivate={onRecord}
+      />
     </div>
   );
   const note = readyNote ? (
@@ -403,16 +387,7 @@ export function PrepareView({
           <h2 id={ids.sources} className="sys-prepare-title">
             Sources
           </h2>
-          <div className="sys-start-pair">
-            <StartTile
-              kind="import"
-              size={80}
-              state={tileState}
-              dragCount={dropCount}
-              onActivate={onImport}
-            />
-            <StartTile kind="record" size={80} onActivate={onRecord} />
-          </div>
+          {compact ? tiles : null}
           {sessions.map((session, at) => {
             return (
               <SessionSources
@@ -427,6 +402,7 @@ export function PrepareView({
               />
             );
           })}
+          {compact ? null : tiles}
         </section>
         {compact ? null : ready}
         <section className="sys-prepare-aside" aria-labelledby={ids.help}>

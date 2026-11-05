@@ -272,6 +272,38 @@ describe("PrepareView structure", () => {
     expect(screen.queryByRole("button", { name: /Review/ })).toBeNull();
   });
 
+  it("puts Add audio and Record another session below the Source cards on desktop", () => {
+    render(<PrepareView {...props({ rows: ROWS.queued })} />);
+    const add = screen.getByRole("button", { name: /^Add audio/ });
+    const record = screen.getByRole("button", {
+      name: /^Record another session/,
+    });
+    const card = document.querySelector(".sys-source") as HTMLElement;
+    expect(
+      card.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      add.compareDocumentPosition(record) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("puts the two tiles at the top of Sources on a phone", () => {
+    atWidth(PHONE_WIDTH);
+    render(<PrepareView {...props({ rows: ROWS.queued })} />);
+    const add = screen.getByRole("button", { name: /^Add audio/ });
+    const card = document.querySelector(".sys-source") as HTMLElement;
+    expect(
+      add.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("has no menu of ways to run everything again", () => {
+    render(<PrepareView {...props({ rows: ROWS.queued })} />);
+    expect(
+      screen.queryByRole("button", { name: "More ways to run" }),
+    ).toBeNull();
+  });
+
   it("numbers voices across sessions so cards are told apart", () => {
     render(
       <PrepareView
@@ -682,7 +714,7 @@ describe("PrepareView focus", () => {
       <PrepareView {...props({ sessions: [session({ sources: [] })] })} />,
     );
     expect(document.activeElement).toBe(
-      screen.getByRole("button", { name: /Import audio/ }),
+      screen.getByRole("button", { name: /Add audio/ }),
     );
   });
 
@@ -911,48 +943,6 @@ describe("PrepareView: audio added after a run", () => {
     expect(container.querySelector("[data-row-note]")).toHaveTextContent(
       "Line up tracks included in this run",
     );
-  });
-
-  it("offers Run everything again behind the more button next to Advanced", async () => {
-    const onRunAll = vi.fn();
-    render(<PrepareView {...props({ ...NEW, onRunAll })} />);
-    await userEvent.click(
-      screen.getByRole("button", { name: "More ways to run" }),
-    );
-    await userEvent.click(
-      screen.getByRole("menuitem", { name: "Run everything again" }),
-    );
-    expect(onRunAll).toHaveBeenCalledOnce();
-  });
-
-  it("opens a menu that holds Run everything again", async () => {
-    render(<PrepareView {...props({ ...NEW, onRunAll: vi.fn() })} />);
-    await userEvent.click(
-      screen.getByRole("button", { name: "More ways to run" }),
-    );
-    const menu = screen.getByRole("menu");
-    expect(
-      within(menu).getByRole("menuitem", { name: "Run everything again" }),
-    ).toBeVisible();
-  });
-
-  it("leaves the more button out where Run everything again is not offered", () => {
-    render(<PrepareView {...props(NEW)} />);
-    expect(
-      screen.queryByRole("button", { name: "More ways to run" }),
-    ).toBeNull();
-  });
-
-  it("holds Run everything again while the work runs", async () => {
-    const onRunAll = vi.fn();
-    render(<PrepareView {...props({ onRunAll })} />);
-    await userEvent.click(
-      screen.getByRole("button", { name: "More ways to run" }),
-    );
-    const item = screen.getByRole("menuitem", { name: /Run everything again/ });
-    expect(item).toHaveAttribute("aria-disabled", "true");
-    await userEvent.click(item);
-    expect(onRunAll).not.toHaveBeenCalled();
   });
 
   it("says what the last run reused, in one line, and returns to Review", () => {
