@@ -1,13 +1,20 @@
 import { act, render, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { loadHostRecordState } from "../api";
+import { executePointerCommand } from "../commands/pointer";
 import { RecordStage } from "../stage/hosts/RecordStage";
+import { deferred } from "../test/deferred";
 import { recordParticipant, recordSnapshot } from "../test/fixtures";
 import { HostRoomProvider } from "./hostRoomContext";
 import { useRecordHostStore } from "./hostStore";
 import { useHostRoom } from "./useHostRoom";
 
 const send = vi.fn();
+
+vi.mock("../commands/pointer", async (importActual) => ({
+  ...(await importActual<typeof import("../commands/pointer")>()),
+  executePointerCommand: vi.fn(async () => ({ status: "ok" as const })),
+}));
 
 vi.mock("./hostWire", () => ({
   sendRecordHostCommand: (...args: unknown[]) => send(...args),
@@ -53,6 +60,8 @@ describe("useHostRoom", () => {
     vi.mocked(loadHostRecordState).mockClear();
     vi.mocked(loadHostRecordState).mockResolvedValue(null);
     send.mockClear();
+    vi.mocked(executePointerCommand).mockReset();
+    vi.mocked(executePointerCommand).mockResolvedValue({ status: "ok" });
     useRecordHostStore.setState({
       snapshot: null,
       connected: false,
@@ -130,6 +139,152 @@ describe("useHostRoom", () => {
     const { result } = renderHook(() => useHostRoom());
     await waitFor(() => expect(result.current.roomLookup).toBe("failed"));
     expect(result.current.hydrateError).toBe("boom");
+  });
+
+  it("retains failed lookup/error while disabled and resets only project presentation", async () => {
+    vi.mocked(loadHostRecordState).mockRejectedValueOnce(
+      new Error("lookup failed"),
+    );
+    const { result, rerender } = renderHook(
+      ({ on }) => useHostRoom({}, { hydrate: on }),
+      { initialProps: { on: true } },
+    );
+    await waitFor(() => expect(result.current.roomLookup).toBe("failed"));
+    const live = recordSnapshot({ server_time_ns: 20, participants: [host] });
+    act(() => useRecordHostStore.setState({ snapshot: live }));
+    rerender({ on: false });
+    expect(result.current.roomLookup).toBe("failed");
+    expect(result.current.hydrateError).toBe("lookup failed");
+    act(() => result.current.recheck());
+    expect(loadHostRecordState).toHaveBeenCalledTimes(1);
+    expect(result.current.hydrateError).toBe("lookup failed");
+    act(() => useDawStore.setState({ projectPath: "/q" }));
+    expect(result.current.roomLookup).toBe("checking");
+    expect(result.current.hydrateError).toBe("lookup failed");
+    expect(useRecordHostStore.getState().snapshot).toBe(live);
+    const next = deferred<ReturnType<typeof recordSnapshot> | null>();
+    vi.mocked(loadHostRecordState).mockReturnValueOnce(next.promise);
+    rerender({ on: true });
+    expect(loadHostRecordState).toHaveBeenCalledTimes(2);
+    expect(result.current.hydrateError).toBeNull();
+    expect(result.current.roomLookup).toBe("checking");
+    await act(async () =>
+      next.resolve(
+        recordSnapshot({ server_time_ns: 10, participants: [host] }),
+      ),
+    );
+    expect(result.current.roomLookup).toBe("found");
+    expect(useRecordHostStore.getState().snapshot).toBe(live);
+  });
+
+  it("retains lookup while rechecking but lets a current null result clear a live snapshot", async () => {
+    vi.mocked(loadHostRecordState).mockRejectedValueOnce(
+      new Error("first failure"),
+    );
+    const { result } = renderHook(() => useHostRoom());
+    await waitFor(() => expect(result.current.roomLookup).toBe("failed"));
+    const first = deferred<ReturnType<typeof recordSnapshot> | null>();
+    vi.mocked(loadHostRecordState).mockReturnValueOnce(first.promise);
+    act(() => result.current.recheck());
+    expect(result.current.roomLookup).toBe("failed");
+    expect(result.current.hydrateError).toBeNull();
+    await act(async () =>
+      first.resolve(
+        recordSnapshot({ server_time_ns: 10, participants: [host] }),
+      ),
+    );
+    expect(result.current.roomLookup).toBe("found");
+    const second = deferred<ReturnType<typeof recordSnapshot> | null>();
+    vi.mocked(loadHostRecordState).mockReturnValueOnce(second.promise);
+    act(() => result.current.recheck());
+    expect(result.current.roomLookup).toBe("found");
+    act(() =>
+      useRecordHostStore.setState({
+        snapshot: recordSnapshot({ server_time_ns: 30, participants: [host] }),
+      }),
+    );
+    await act(async () => second.resolve(null));
+    expect(result.current.roomLookup).toBe("none");
+    expect(useRecordHostStore.getState().snapshot).toBeNull();
+  });
+
+  it.each(["resolve", "reject"])(
+    "rejects a retired project's late hydration %s",
+    async (settlement) => {
+      const old = deferred<ReturnType<typeof recordSnapshot> | null>();
+      const fresh = deferred<ReturnType<typeof recordSnapshot> | null>();
+      vi.mocked(loadHostRecordState)
+        .mockReturnValueOnce(old.promise)
+        .mockReturnValueOnce(fresh.promise);
+      const { result } = renderHook(() => useHostRoom());
+      act(() => useDawStore.setState({ projectPath: "/q" }));
+      const accepted = recordSnapshot({
+        session_id: "new-room",
+        server_time_ns: 20,
+        participants: [host],
+      });
+      await act(async () => fresh.resolve(accepted));
+      expect(result.current.roomLookup).toBe("found");
+      await act(async () => {
+        if (settlement === "resolve")
+          old.resolve(
+            recordSnapshot({
+              session_id: "old-room",
+              server_time_ns: 30,
+              participants: [host],
+            }),
+          );
+        else old.reject(new Error("old failure"));
+      });
+      expect(useRecordHostStore.getState().snapshot).toBe(accepted);
+      expect(result.current.hydrateError).toBeNull();
+      expect(result.current.roomLookup).toBe("found");
+      expect(loadHostRecordState).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it("rejects a retired same-project recheck when responses settle out of order", async () => {
+    vi.mocked(loadHostRecordState).mockResolvedValueOnce(
+      recordSnapshot({ server_time_ns: 1, participants: [host] }),
+    );
+    const { result } = renderHook(() => useHostRoom());
+    await waitFor(() => expect(result.current.roomLookup).toBe("found"));
+    const old = deferred<ReturnType<typeof recordSnapshot> | null>();
+    const fresh = deferred<ReturnType<typeof recordSnapshot> | null>();
+    vi.mocked(loadHostRecordState)
+      .mockReturnValueOnce(old.promise)
+      .mockReturnValueOnce(fresh.promise);
+    act(() => result.current.recheck());
+    act(() => result.current.recheck());
+    const accepted = recordSnapshot({
+      server_time_ns: 20,
+      participants: [host],
+    });
+    await act(async () => fresh.resolve(accepted));
+    await act(async () =>
+      old.resolve(recordSnapshot({ server_time_ns: 30, participants: [host] })),
+    );
+    expect(useRecordHostStore.getState().snapshot).toBe(accepted);
+    expect(loadHostRecordState).toHaveBeenCalledTimes(3);
+  });
+
+  it("retains a completed command notice across hydration changes and clears it on project change", async () => {
+    const { result, rerender } = renderHook(
+      ({ on }) => useHostRoom({}, { hydrate: on }),
+      { initialProps: { on: false } },
+    );
+    act(() => useDawStore.setState({ statusAnnouncement: "Link copied" }));
+    await act(async () => result.current.runCommand("record.copyGuestLink"));
+    expect(result.current.doneNotice).toBe("Link copied");
+    const pending = deferred<ReturnType<typeof recordSnapshot> | null>();
+    vi.mocked(loadHostRecordState).mockReturnValueOnce(pending.promise);
+    rerender({ on: true });
+    expect(result.current.doneNotice).toBe("Link copied");
+    rerender({ on: false });
+    expect(result.current.doneNotice).toBe("Link copied");
+    act(() => useDawStore.setState({ projectPath: "/q" }));
+    expect(result.current.doneNotice).toBeNull();
+    await act(async () => pending.resolve(null));
   });
 
   it("derives mic-loss attention only while on air", async () => {
