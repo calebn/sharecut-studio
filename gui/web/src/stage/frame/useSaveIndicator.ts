@@ -19,6 +19,8 @@ export function saveIndicatorOf(
       return { state: "saved", justSaved };
     case "waiting":
       return { state: "offline", waiting: state.count };
+    case "unreachable":
+      return { state: "unreachable", waiting: state.count };
     case "failed":
     case "unknown":
       return {
@@ -28,7 +30,7 @@ export function saveIndicatorOf(
   }
 }
 
-/** Null when there is nothing to say: a guest, or a queue not read yet. */
+/** Null when there is nothing to say: a queue not read yet. */
 export function useSaveIndicator(): SaveIndicatorProps | null {
   const { state, attention } = useSaveState();
   const [justSaved, setJustSaved] = useState(false);
