@@ -669,3 +669,18 @@ html[data-shell="phone"] select.track-sheet-field {
 .scrub-nudge > .nudge-row {
   flex: 0 1 auto;
 }
+
+/* Two and two, so a narrow sheet never strands one button on a line. */
+.scrub-nudge .nudge-row-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+}
+
+.scrub-nudge .nudge-button:nth-child(3) {
+  margin-inline-start: 0;
+}
+
+/* A taller control keeps the row label at the top, clear of the buttons. */
+.sys-inspector-row:has(.scrub-nudge) {
+  align-items: start;
+}
