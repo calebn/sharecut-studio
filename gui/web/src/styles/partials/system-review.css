@@ -166,7 +166,7 @@
   place-items: center;
   inline-size: 1.25rem;
   block-size: 1.25rem;
-  border: 1px solid currentcolor;
+  border: 1px solid var(--color-text-secondary);
   border-radius: var(--radius-sm);
   font-weight: 600;
   line-height: 1;
