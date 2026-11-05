@@ -62,6 +62,11 @@ MAIN_SHARDS = 4
 PR_WEBKIT_SHARDS = 2
 
 
+def owned_by(owns: Iterable[Glob], changed: Sequence[str]) -> bool:
+    globs = tuple(owns)
+    return bool(changed) and all(any(g.matches(path) for g in globs) for path in changed)
+
+
 @dataclass(frozen=True)
 class Subset:
     """A pull request whose every path matches *owns* needs only the pytest files reading them."""
@@ -70,7 +75,7 @@ class Subset:
     reader: re.Pattern[str]
 
     def covers(self, changed: Sequence[str]) -> bool:
-        return bool(changed) and all(any(g.matches(path) for g in self.owns) for path in changed)
+        return owned_by(self.owns, changed)
 
 
 SubsetName = Literal["web", "docs"]
@@ -97,8 +102,7 @@ SUBSETS: dict[SubsetName, Subset] = {
 
 def union_covers(changed: Sequence[str]) -> bool:
     """A change split between gui/web and docs, which no single subset owns."""
-    owns = [glob for subset in SUBSETS.values() for glob in subset.owns]
-    return Subset(tuple(owns), WEB_READER_RE).covers(changed)
+    return owned_by((glob for subset in SUBSETS.values() for glob in subset.owns), changed)
 
 
 class Scope(Enum):
