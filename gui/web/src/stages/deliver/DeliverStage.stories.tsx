@@ -134,7 +134,7 @@ const meta: Meta<typeof DeliverStage> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "Deliver: Readiness first, then the episode file, the listen link, chapters and clips. Export is the only filled button; after it each file is a row with its own quiet Reveal (app) or Download (browser) action, and Copy link is the follow-up. Nothing in Readiness blocks Export. Mod+E exports. Presentational: the export job, the link and the data come in as props, and the buttons call back.\n\n**Motion.** Animations come later: the export progress uses `--motion-panel`, the copied label holds for 2 s.",
+          "Deliver: Readiness first, then the episode file, the listen link, chapters and clips. Export is the only filled button; after it each file is a row with its own quiet Reveal (app) or Download (browser) action, and Copy link is the follow-up. Nothing in Readiness blocks Export. Mod+E (from anywhere in the app) exports. Presentational: the export job, the link and the data come in as props, and the buttons call back.\n\n**Motion.** Animations come later: the export progress uses `--motion-panel`, the copied label holds for 2 s.",
       },
     },
   },
