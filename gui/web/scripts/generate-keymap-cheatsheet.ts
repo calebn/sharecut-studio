@@ -276,7 +276,9 @@ if (check && okDocs && okUx) {
     process.exit(1);
   }
   const bound = new Set(KEYMAP_COMMANDS.map((c) => c.id));
-  const dangling = gen.split("\n").filter((line) => /`[^`]*\+`/.test(line));
+  const dangling = gen
+    .split("\n")
+    .filter((line) => /`[^`]*[^`+]\+`/.test(line));
   if (dangling.length) {
     console.error(
       `dangling modifier in shortcut cell:\n${dangling.join("\n")}`,

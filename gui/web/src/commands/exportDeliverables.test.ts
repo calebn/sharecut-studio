@@ -91,6 +91,22 @@ describe("export.deliverables", () => {
       expect(s.chrome.exportRequested).toBe(false);
     });
 
+    it("exports when Deliver is already the stage, even with a stale range", async () => {
+      useDawStore.setState({
+        project: rangedProject,
+        stage: "deliver",
+        selection: { kind: "range", target },
+        bounceRangeTarget: null,
+      });
+      expect(
+        await execute("export.deliverables", {}, { skipWhen: true }),
+      ).toEqual({ status: "ok" });
+      const s = useDawStore.getState();
+      expect(s.bounceRangeTarget).toBeNull();
+      expect(s.chrome.bounceRequested).toBe(false);
+      expect(s.chrome.exportRequested).toBe(true);
+    });
+
     it("refuses with the resolver's reason when a transcript range has no target", async () => {
       useDawStore.setState({
         project: rangedProject,

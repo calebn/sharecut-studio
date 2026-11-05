@@ -680,8 +680,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     requireMod: true,
     requireShift: false,
     when: "canRefreshMix",
-    notes:
-      "Palette only (K11/K15): rebuild stems/premix when host or Docs Editor",
+    notes: "Palette only: rebuild stems/premix when host or Docs Editor",
   },
   {
     id: "export.bounce",
@@ -692,7 +691,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     requireMod: true,
     requireShift: true,
     when: "hostProjectLoaded",
-    notes: "Palette only (K11/K15): Bounce in Deliver (export/bounces/)",
+    notes: "Palette only: Bounce in Deliver (export/bounces/)",
   },
   {
     id: "export.deliverables",
@@ -715,7 +714,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     requireMod: true,
     requireShift: false,
     when: "canManageProjects",
-    notes: "Palette only (K11/K15)",
+    notes: "Palette only",
   },
   {
     id: "project.home",
@@ -737,7 +736,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     requireMod: true,
     requireShift: true,
     when: "editStageIngest",
-    notes: "Palette only (K11/K15)",
+    notes: "Palette only",
   },
   {
     id: "media.import",
@@ -821,7 +820,10 @@ function shiftRequired(cmd: KeymapCommand): boolean | undefined {
 
 function shortcutParts(cmd: KeymapCommand): string[] {
   // A remap replaces the key only; Mod/Shift still apply (see effectiveKeys).
-  const primary = getKeymapOverride(cmd.id)?.[0] ?? cmd.keys[0] ?? "";
+  if (cmd.keys.length === 0) {
+    return [];
+  }
+  const primary = getKeymapOverride(cmd.id)?.[0] ?? cmd.keys[0];
   if (!primary) {
     return [];
   }
