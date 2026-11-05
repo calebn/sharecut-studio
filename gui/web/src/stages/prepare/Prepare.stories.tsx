@@ -181,9 +181,9 @@ export const DropOnCard: Story = {
     const card = canvas.getByRole("region", { name: "Voice 1, Maya" });
     const label = () => canvasElement.querySelector(".sys-drop-label");
     await expect(label()).toHaveTextContent("Drop to add 1 file");
-    fireEvent.dragEnter(card, { dataTransfer: { types: ["Files"] } });
+    await fireEvent.dragEnter(card, { dataTransfer: { types: ["Files"] } });
     await expect(label()).toHaveTextContent("Replace Maya's audio");
-    fireEvent.dragLeave(card, { dataTransfer: { types: ["Files"] } });
+    await fireEvent.dragLeave(card, { dataTransfer: { types: ["Files"] } });
     await expect(label()).toHaveTextContent("Drop to add 1 file");
   },
 };

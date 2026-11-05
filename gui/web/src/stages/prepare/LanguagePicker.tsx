@@ -144,8 +144,10 @@ export function LanguagePicker({
                 data-active={at === current || undefined}
                 className="sys-adv-option"
                 tabIndex={-1}
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => choose(option)}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  choose(option);
+                }}
               >
                 {option.label}
               </div>
