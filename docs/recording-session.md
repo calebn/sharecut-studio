@@ -1157,7 +1157,9 @@ participant's live consent flag. Every take requires an explicit
 `consented_participant_ids` list. Snapshot parsing rejects missing or null
 rosters. An empty roster authorizes no keeper uploads.
 
-A host **RemoveParticipant**, sent from the options menu on another person's tile on the host Record stage (**Remove from room**, after a confirmation, `RoomTileMenu`), drops the target from the current take's roster,
+A host **RemoveParticipant** (the host Record stage sends it from **Remove from
+room** on another person's tile menu, after a confirmation) drops the target from
+the current take's roster,
 expires that participant's record lease, and refuses the removed participant's
 lease even if the expiration write was interrupted. Upload status and keeper
 parts return `403 invalid lease`; removal also refuses every take and room tone

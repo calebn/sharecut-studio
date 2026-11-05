@@ -261,8 +261,9 @@ describe("Record stage", () => {
     );
     const asked = useAskStore.getState().pending;
     expect(asked?.question.title).toBe("Remove Ava from the room?");
-    answerQuestion(asked?.id ?? 0, false);
-    await Promise.resolve();
+    expect(asked?.question.message).toContain("not finished uploading");
+    answerQuestion(asked?.id as number, false);
+    await waitFor(() => expect(useAskStore.getState().pending).toBeNull());
     expect(send).not.toHaveBeenCalledWith(
       "RemoveParticipant",
       expect.anything(),
@@ -273,7 +274,9 @@ describe("Record stage", () => {
     await userEvent.click(
       await screen.findByRole("menuitem", { name: "Remove from room" }),
     );
-    answerQuestion(useAskStore.getState().pending?.id ?? 0, true);
+    const confirm = useAskStore.getState().pending;
+    expect(confirm).not.toBeNull();
+    answerQuestion(confirm?.id as number, true);
     await waitFor(() =>
       expect(send).toHaveBeenCalledWith("RemoveParticipant", {
         participant_id: avaGuest().participant_id,

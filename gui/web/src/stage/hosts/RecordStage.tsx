@@ -423,7 +423,7 @@ function RecordStageBody({
               void askConfirm({
                 title: `Remove ${name} from the room?`,
                 message:
-                  "They leave the room and their link stops working. What they already recorded is kept.",
+                  "They leave the room and their link stops working. Anything they have not finished uploading will not reach the project.",
                 keepLabel: "Keep in room",
                 actionLabel: "Remove",
                 danger: true,
