@@ -165,7 +165,7 @@
       "surfaces": {
         "command": "presence.unfollow",
         "gui": [
-          "presence.followBanner"
+          "presence.followPill"
         ],
         "keyboard": "Escape"
       },

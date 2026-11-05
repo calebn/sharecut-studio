@@ -7,7 +7,7 @@ import { openProject, openProjectMenu, openProjectMenuItem } from "./stageNav";
  *
  * Overlays (transport Menu, Dialog consumers) must fit short viewports, scroll
  * their body region, and keep their lowest action/content target reachable —
- * with or without banner chrome (guest / follow) above the transport.
+ * with or without banner chrome (guest) above the transport.
  */
 export const SHORT_VIEWPORTS = [
   { width: 1280, height: 715 },
@@ -99,7 +99,7 @@ async function expectActionableWhenApplicable(target: Locator): Promise<void> {
 
 /**
  * The Project menu's max-height is the remaining space under the trigger
- * (`--menu-available-height`), which shrinks when guest/follow banners stack
+ * (`--menu-available-height`), which shrinks when the guest banner sits
  * above the stage. Assert the panel fits, scrolls, stays above the phone tab
  * bar when one is rendered, and keeps its last row reachable.
  */

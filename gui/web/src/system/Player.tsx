@@ -49,7 +49,12 @@ export type PlayerProps = {
   playUnavailable?: boolean;
   hearOriginal?: boolean;
   solo?: string;
-  following?: { name: string; colorIndex: number };
+  following?: {
+    name: string;
+    colorIndex: number;
+    /** Why the follow is partial (host-only tab, audition mode); tooltip and screen-reader text. */
+    detail?: string;
+  };
   /** Drops A/B and the mix pills (Guest Review). */
   guest?: boolean;
   title?: string;
@@ -196,12 +201,27 @@ function StatePills({
 }: PlayerProps) {
   return (
     <>
+      <span className="sr-only" aria-live="polite" data-follow-detail>
+        {following?.detail}
+      </span>
       {following ? (
-        <Pill className="sys-player-pill">
+        <Pill
+          className="sys-player-pill"
+          title={
+            following.detail
+              ? `Following ${following.name} · ${following.detail}`
+              : undefined
+          }
+        >
           <SystemIcon name="locate-fixed" size={12} />
           <span className="sys-player-pill-text">
             Following {following.name}
           </span>
+          {following.detail ? (
+            <span className="sys-player-pill-detail" aria-hidden>
+              · {following.detail}
+            </span>
+          ) : null}
           {onUnfollow ? (
             <button
               type="button"

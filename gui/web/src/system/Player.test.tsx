@@ -142,6 +142,58 @@ describe("Player", () => {
     expect(screen.getByText("Following Rosa")).toBeInTheDocument();
   });
 
+  it("explains a partial follow in the pill tooltip and a status for screen readers", () => {
+    render(
+      <Player
+        {...base}
+        following={{
+          name: "Rosa",
+          colorIndex: 1,
+          detail: "in Pipeline (host-only) · auditioning FX",
+        }}
+      />,
+    );
+    const pill = screen.getByText("Following Rosa").closest(".sys-player-pill");
+    expect(pill).toHaveAttribute(
+      "title",
+      "Following Rosa · in Pipeline (host-only) · auditioning FX",
+    );
+    expect(document.querySelector("[data-follow-detail]")).toHaveTextContent(
+      "in Pipeline (host-only) · auditioning FX",
+    );
+    expect(pill).toHaveTextContent(
+      "· in Pipeline (host-only) · auditioning FX",
+    );
+  });
+
+  it("keeps one status region mounted so a detail that appears is announced", () => {
+    const { rerender } = render(
+      <Player {...base} following={{ name: "Rosa", colorIndex: 1 }} />,
+    );
+    const region = document.querySelector("[data-follow-detail]");
+    expect(region).toHaveAttribute("aria-live", "polite");
+    expect(region).toHaveTextContent("");
+    rerender(
+      <Player
+        {...base}
+        following={{ name: "Rosa", colorIndex: 1, detail: "auditioning FX" }}
+      />,
+    );
+    expect(document.querySelector("[data-follow-detail]")).toBe(region);
+    expect(region).toHaveTextContent("auditioning FX");
+  });
+
+  it("adds no status role to a Player that is not following", () => {
+    render(<Player {...base} />);
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("has no tooltip when the follow is complete", () => {
+    render(<Player {...base} following={{ name: "Rosa", colorIndex: 1 }} />);
+    const pill = screen.getByText("Following Rosa").closest(".sys-player-pill");
+    expect(pill).not.toHaveAttribute("title");
+  });
+
   describe("hear original", () => {
     afterEach(() => vi.restoreAllMocks());
 

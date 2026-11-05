@@ -9,14 +9,19 @@ import { e2eProjectPath } from "./env";
 import { openHostShare } from "./shareNavigation";
 import { withTwoBrowserPages } from "./twoBrowserPages";
 
-const FOLLOW_BANNER_TRANSITION_TIMEOUT_MS = 1_000;
+const FOLLOW_PILL_TRANSITION_TIMEOUT_MS = 1_000;
 
-/** Wait for React to render the banner after a synchronous follow command. */
-export async function waitForFollowBanner(follower: Page): Promise<boolean> {
+/** The Player's "Following {name}" pill, with its Stop following button. */
+export function followPill(page: Page): Locator {
+  return page.locator(".sys-player-pill").filter({ hasText: /^Following / });
+}
+
+/** Wait for React to render the pill after a synchronous follow command. */
+export async function waitForFollowPill(follower: Page): Promise<boolean> {
   try {
-    await follower.locator(".follow-banner").waitFor({
+    await followPill(follower).waitFor({
       state: "visible",
-      timeout: FOLLOW_BANNER_TRANSITION_TIMEOUT_MS,
+      timeout: FOLLOW_PILL_TRANSITION_TIMEOUT_MS,
     });
     return true;
   } catch (error) {
@@ -61,8 +66,8 @@ export async function openPeopleMenu(page: Page): Promise<Locator> {
   return menu;
 }
 
-/** Follow each peer in turn until one shows the Following banner. */
-export async function followUntilBannerVisible(follower: Page): Promise<void> {
+/** Follow each peer in turn until one shows the Following pill. */
+export async function followUntilPillVisible(follower: Page): Promise<void> {
   const rows = () =>
     follower
       .getByRole("menu", { name: "People" })
@@ -75,9 +80,9 @@ export async function followUntilBannerVisible(follower: Page): Promise<void> {
       await openPeopleMenu(follower);
     }
     await clickHTMLElement(rows().nth(i));
-    if (await waitForFollowBanner(follower)) {
+    if (await waitForFollowPill(follower)) {
       return;
     }
   }
-  throw new Error("no Follow peer showed a banner");
+  throw new Error("no Follow peer showed a pill");
 }

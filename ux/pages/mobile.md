@@ -179,7 +179,7 @@ app follows their mode, selection, and playback where those are available.
 
 Your phone does not show their mouse cursor.
 
-To stop following, scrub the timeline or tap **Stop following** in the banner.
+To stop following, scrub the timeline or tap the × on the Following pill in the Player.
 
 ## What's different from desktop?
 
