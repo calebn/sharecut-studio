@@ -117,10 +117,10 @@ describe("EditActionBar on the phone dock", () => {
     expect(names().filter((n) => /record/i.test(n ?? ""))).toEqual([]);
   });
 
-  it("counts several selected clips in the leading slot", () => {
+  it("names several selected clips in the leading slot", () => {
     host(EDIT_SELECTIONS.clips);
     render(<EditActionBar form="dock" root={null} />);
-    expect(screen.getByText("3 selected")).toBeInTheDocument();
+    expect(screen.getByText("3 clips")).toBeInTheDocument();
   });
 
   it("gives a read-only share Hear (the full mix) and Comment only", () => {

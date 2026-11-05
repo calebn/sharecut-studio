@@ -2,7 +2,9 @@ import {
   applySuggestedActions,
   approveEdits,
   deleteChapter,
+  deleteSocialClip,
   rejectEdits,
+  updateSocialClipDetails,
 } from "../api";
 import { playPendingPreview } from "../audio/pendingPreview";
 import { getClipboard } from "../edit/clipboard";
@@ -157,9 +159,28 @@ async function hearVerb(facts: EditFacts): Promise<ExecuteResult> {
         : disabled("Nothing to hear here");
     case "suggestion":
       return hearSide(facts, null);
+    case "envelopePoint": {
+      const s = useDawStore.getState();
+      const at = envelopePointTime(s.project, s.selection);
+      return at === null
+        ? disabled("Nothing to hear here")
+        : playSpan(Math.max(0, at - HEAR_PAD_SEC), at + HEAR_PAD_SEC, 0);
+    }
     default:
       return disabled("Nothing to hear here");
   }
+}
+
+function envelopePointTime(
+  project: ProjectView | null,
+  selection: Selection,
+): number | null {
+  if (selection?.kind !== "envelopePoint") return null;
+  const { trackId, pointId } = selection;
+  const point = project?.envelopes
+    .find((e) => e.track_id === trackId)
+    ?.points.find((p) => p.id === pointId);
+  return point ? point.time : null;
 }
 
 /**
@@ -309,6 +330,37 @@ function selectWordUnderPlayhead(): ExecuteResult {
   s.setSelection(wordSelection(word));
   s.announceStatus(`Selected "${word.text}". Cut it to remove`);
   return OK;
+}
+
+/** Host only, like the social clip's own Inspector. */
+async function approveSocial(): Promise<ExecuteResult> {
+  const s = useDawStore.getState();
+  if (s.selection?.kind !== "social") return disabled("Select a social clip");
+  if (!canManageProjects(s.projectPath))
+    return disabled("Only the host can approve a social clip");
+  try {
+    await updateSocialClipDetails(s.projectPath, s.selection.id, {
+      approved: true,
+    });
+    useDawStore.getState().announceStatus("Social clip approved");
+    return OK;
+  } catch (error) {
+    return disabled(errorMessage(error));
+  }
+}
+
+async function removeSocial(id: string): Promise<ExecuteResult> {
+  const s = useDawStore.getState();
+  if (!canManageProjects(s.projectPath))
+    return disabled("Only the host can remove a social clip");
+  try {
+    await deleteSocialClip(s.projectPath, id);
+    useDawStore.getState().setSelection(null);
+    useDawStore.getState().announceStatus("Social clip removed");
+    return OK;
+  } catch (error) {
+    return disabled(errorMessage(error));
+  }
 }
 
 async function removeMarker(
@@ -522,6 +574,9 @@ async function dispatch(
     case "comment":
       return comment(facts);
     case "fixText": {
+      // A chapter's text is its Title field, the Inspector's first control.
+      if (facts.kind === "chapter")
+        return executePointerCommand("edit.inspect", { open: true });
       const word = oneWordOf(useDawStore.getState().selection);
       return word
         ? requestInlineEdit(word.trackId, word.sourceId ?? null, word.wordIndex)
@@ -535,6 +590,7 @@ async function dispatch(
       return executePointerCommand("range.bounce");
     case "remove": {
       const selection = useDawStore.getState().selection;
+      if (selection?.kind === "social") return removeSocial(selection.id);
       return selection?.kind === "chapter" ||
         selection?.kind === "envelopePoint"
         ? removeMarker(selection)
@@ -557,6 +613,7 @@ async function dispatch(
     case "moveToTrack":
       return executePointerCommand("edit.inspect");
     case "approve":
+      return approveSocial();
     case "resolve":
     default:
       // A mute is a More row of its own id.
@@ -583,12 +640,12 @@ export const WIRED_VERBS: Readonly<Record<EditKind, readonly BarId[]>> = {
   seam: ["hear", "keep", "comment", "inspect"],
   appliedEdge: ["hear", "comment", "inspect"],
   suggestion: ["hearBefore", "hearAfter", "keep", "comment", "more", "inspect"],
-  chapter: ["hear", "remove", "inspect"],
-  social: ["inspect"],
+  chapter: ["hear", "fixText", "remove", "inspect"],
+  social: ["hear", "comment", "remove", "inspect"],
   comment: ["inspect"],
   track: ["inspect"],
   envelope: ["inspect"],
-  envelopePoint: ["remove", "inspect"],
+  envelopePoint: ["hear", "remove", "inspect"],
   bleed: ["inspect"],
 };
 
@@ -603,7 +660,12 @@ const WIRED_MORE: ReadonlySet<string> = new Set([
   "moveToTrack",
 ]);
 
-const WIRED_PRIMARY: ReadonlySet<string> = new Set(["cut", "shorten", "lower"]);
+const WIRED_PRIMARY: ReadonlySet<string> = new Set([
+  "cut",
+  "shorten",
+  "lower",
+  "approve",
+]);
 
 export function registerEditVerbCommands(): void {
   registerCommand("edit.delete", (args) => runCutSelection(args));
@@ -706,7 +768,12 @@ export function barModelOf(facts: EditFacts, s: DawState): BarModel {
 
   const items: BarItem[] = resolved.bar
     .filter((id) => readOnly || wired.includes(id))
-    .filter((id) => id !== "fixText" || oneWordOf(s.selection) !== null)
+    .filter(
+      (id) =>
+        id !== "fixText" ||
+        facts.kind === "chapter" ||
+        oneWordOf(s.selection) !== null,
+    )
     .filter(
       (id) =>
         id !== "record" || !rangeLike || replaceableSpan(facts.span, project),
