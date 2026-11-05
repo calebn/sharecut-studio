@@ -13,7 +13,7 @@ Per-surface **display schemas**: what regions exist, what data they show, empty/
 | | |
 |--|--|
 | **Purpose** | Start a new episode (Import audio or Record) or reopen a recent one on the host |
-| **Primary actions** | **Import audio** · **Record** · recent episode cards (**Find…** when a folder moved) · **Open other…** (OS folder picker via the local engine, or a path field) · **Connect agent…** · **Models** · **Help** (create and preview a sanitized diagnostics zip; optionally submit a public report after consent, or open a prefilled GitHub issue and attach the local zip; local **Creating…** busy, not StatusBar) |
+| **Primary actions** | **Import audio** · **Record** · recent episode cards (**Find…** when a folder moved) · **Open other…** (OS folder picker via the local engine, or a path field) · the app menu (**Settings**, **Connect agent**, **Help**; Help previews and sends a sanitized diagnostics zip, or opens a prefilled GitHub issue to attach the local zip; local **Preparing the report…** busy, not StatusBar) |
 | **Data shown** | Recent episodes (name, length, last edited, the stage they open to); a path to the episode folder (Open other, browsers without a folder picker) |
 | **Pinned project** | Opening `/` while a project is pinned goes straight to that project; `/?home=1` (recovery page “Choose a different project…”, Studio **New project**) shows home. Only New project unpins (a reload of `/` returns to the open project, keeping the desktop close-guard marker); if the unpin fails or takes over 10 s, Studio stays open, says so in the status line, and best-effort re-pins the open project (the server may still finish the stalled unpin late). New and Open are refused while this browser tab is recording, in a plain browser as well as the desktop app. |
 | **Empty / error** | Missing OS dialog tool → keep paste field + alert; wrong filename → server error |
@@ -23,17 +23,22 @@ Per-surface **display schemas**: what regions exist, what data they show, empty/
 
 ## Help report flow (Home and Studio host)
 
-Help creates a local diagnostics ZIP, then shows its path, size, file list, and
-app version before any upload. The user writes a description and, when a report
-relay is configured, explicitly accepts that the description and ZIP become
-public. The ZIP link lasts 30 days. Submit shows queued status, then the
-published issue link and completed message when available. A submitted bundle cannot be submitted
-again; creating another bundle clears the prior publication link. An uncertain
-publication asks the user to check status later, and a failed publication
-directs them to the local ZIP and support. Late responses from a closed or
-replaced Help dialog do not restore the prior report. Open support pre-fills the GitHub bug form
-with the description and version for the self-hosted/manual path; the user
-attaches the local ZIP there. Guests never see these controls.
+Help is a sheet with three rows: Shortcuts and gestures (opens the Palette; not
+on Home, which has none), Report a problem and Guides (opens the guides in a new
+tab). Report a problem is a step inside the same sheet: a description field, the
+line "Includes logs and settings. No audio, transcripts or project files.", a
+**Preview what's included** disclosure and the primary **Send report**. The
+preview makes the local diagnostics ZIP and lists its files and size before any
+upload. Sending needs a description of at least 10 characters and says that the
+description and report become public; the ZIP link lasts 30 days. After a send
+the sheet shows "Sent." with a reference and **Copy**. Offline, the ZIP stays
+on this computer ("Saved on this computer. It sends when you're online.") and
+goes out when the connection returns, even if the sheet is closed. A failed send
+keeps the description and offers **Try again**. With no report relay configured
+the sheet saves the ZIP and offers **Open support**, which pre-fills the GitHub
+bug form with the description and version; the user attaches the local ZIP
+there. Late responses from a closed or replaced sheet do not restore the prior
+report. Guests never see these controls.
 
 ## Information architecture
 
@@ -165,15 +170,15 @@ whole link selected.
 
 ---
 
-## Host: Connect agent dialog
+## Host: Connect agent sheet
 
 | | |
 |--|--|
-| **Purpose** | Copy the local Streamable HTTP MCP URL so Cursor/Claude talk to the running DAW |
-| **Open** | Project menu → **Connect agent…** (`mcp.connect`); home **Connect agent…** |
-| **Primary actions** | **Copy URL** (`http://127.0.0.1:8765/mcp`) · **Copy snippet** (Cursor `mcpServers` JSON) |
-| **Data shown** | Loopback MCP URL; client snippet; reminder to keep ShareCut Studio running |
-| **Empty / error** | No episode open: URL still copies, tools error until a project is open |
+| **Purpose** | Copy what Cursor/Claude need to talk to the running DAW |
+| **Open** | Project menu or Home app menu → **Connect agent** (`mcp.connect`) |
+| **Primary actions** | Pick Claude, Cursor or Other; one read-only block (the URL `http://127.0.0.1:8765/mcp` for Claude and Other, the `mcpServers` JSON for Cursor); one primary **Copy** |
+| **Data shown** | The block for the chosen client; a status line, "Not connected yet" until an agent joins, then "Connected: Claude" |
+| **Empty / error** | No episode open: "Open an episode first. The agent works on the open episode." with a Recent link; a failed copy says to select the text and copy it |
 | **Out of scope** | Writing `~/.cursor/mcp.json`; PATH-installing `podcast-mcp`; guest share-token MCP (that stays on Share…) |
 
 Not the Share section. Guest share agents use `{base}/mcp/{token}/mcp`.

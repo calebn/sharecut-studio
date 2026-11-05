@@ -1,0 +1,141 @@
+/* Settings sheets: Help, Connect agent, Settings (stages/settings). */
+
+.set-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-block-size: 3.5rem;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--font-size-body);
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.set-row:hover {
+  background: var(--color-accent-subtle);
+}
+
+.set-row:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.set-row-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.set-row-label {
+  font-weight: 500;
+}
+
+.set-row-detail {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+}
+
+.set-line {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+  line-height: 1.4;
+}
+
+.set-description,
+.set-block {
+  inline-size: 100%;
+  box-sizing: border-box;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-field);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--font-size-field-current);
+  resize: vertical;
+}
+
+.set-block {
+  background: var(--color-bg-sunken);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-caption);
+  line-height: 1.4;
+}
+
+.set-description:focus-visible,
+.set-block:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.set-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.set-preview-body {
+  align-self: stretch;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-sunken);
+  font-size: var(--font-size-ui);
+}
+
+.set-preview-body p {
+  margin: 0 0 var(--space-2);
+}
+
+.set-preview-files {
+  margin: 0;
+  padding-inline-start: var(--space-5);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-caption);
+  overflow-wrap: anywhere;
+}
+
+.set-fact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.set-fact-value {
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-ui);
+  overflow-wrap: anywhere;
+}
+
+.set-send {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.set-send > .ui-control {
+  inline-size: 100%;
+}
+
+.set-send > .ui-control {
+  min-block-size: var(--target-primary-desktop);
+}
+
+@media (pointer: coarse) {
+  .set-send > .ui-control {
+    min-block-size: var(--target-primary-phone);
+  }
+}
+
+.sys-sheet-bottom .set-send > .ui-control {
+  min-block-size: var(--target-primary-phone);
+}

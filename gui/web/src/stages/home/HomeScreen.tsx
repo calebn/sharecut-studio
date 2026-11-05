@@ -8,11 +8,10 @@ import {
   type RecentProject,
 } from "../../api";
 import { desktopCloseGuardArmed } from "../../desktop/useDesktopCloseGuard";
-import { HelpDialog } from "../../home/HelpDialog";
 import { useWindowFileDrop } from "../../hooks/useWindowFileDrop";
 import { ingestIntoNewProject, pickAudioFiles } from "../../ingest/ingestFiles";
 import { ModelsSheet, useModels } from "../../models";
-import { HostMcpDialog } from "../../stage/dialogs/HostMcpDialog";
+import type { AppMenuCommand } from "../../system/AppHeader";
 import type { ProjectCardData } from "../../system/ProjectCard";
 import { ApiError, errorMessage } from "../../utils/apiError";
 import {
@@ -29,6 +28,7 @@ import {
 import { OPEN_OTHER_QUERY_PARAM, projectUrl } from "../../utils/projectUrl";
 import { readLocal, writeLocal } from "../../utils/storage";
 import { applySoundScanStart } from "../prepare/applySoundScanStart";
+import { AppSheets } from "../settings/AppSheets";
 import { HomeView } from "./HomeView";
 import {
   bundleToGet,
@@ -125,8 +125,7 @@ export function HomeScreen() {
     () =>
       offersHomeScreenHint(readHomeScreenEnv()) && !homeScreenHintDismissed(),
   );
-  const [mcpOpen, setMcpOpen] = useState(false);
-  const [helpOpen, setHelpOpen] = useState(false);
+  const [sheet, setSheet] = useState<AppMenuCommand | null>(null);
   const [modelsOpen, setModelsOpen] = useState(false);
   const busy = useRef(false);
 
@@ -391,17 +390,27 @@ export function HomeScreen() {
           dismissHomeScreenHint();
           setHintShown(false);
         }}
-        onHelp={() => setHelpOpen(true)}
-        onModels={() => setModelsOpen(true)}
-        onConnectAgent={() => setMcpOpen(true)}
+        onMenuCommand={setSheet}
       />
-      <HostMcpDialog
-        open={mcpOpen}
-        onClose={() => setMcpOpen(false)}
+      <AppSheets
+        helpOpen={sheet === "help"}
+        agentOpen={sheet === "agent"}
+        settingsOpen={sheet === "settings"}
+        onCloseHelp={() => setSheet(null)}
+        onCloseAgent={() => setSheet(null)}
+        onCloseSettings={() => setSheet(null)}
+        onModels={() => {
+          setSheet(null);
+          setModelsOpen(true);
+        }}
+        onOpenRecent={() => {
+          setSheet(null);
+          document.getElementById("home-recent")?.scrollIntoView();
+        }}
         hasProject={false}
+        agentName={null}
       />
       <ModelsSheet open={modelsOpen} onClose={() => setModelsOpen(false)} />
-      <HelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
     </>
   );
 }

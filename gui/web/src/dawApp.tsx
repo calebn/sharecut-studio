@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { registerDawWebMcpTools } from "./agentic/webmcp";
+import { runPointerCommand } from "./commands/pointer";
 import { registerDawCommands } from "./commands/register";
 import { useDesktopCloseGuard } from "./desktop/useDesktopCloseGuard";
 import { FeedbackToast } from "./feedback/FeedbackToast";
-import { HelpDialog } from "./home/HelpDialog";
 import { useAutoRefreshMix } from "./hooks/useAutoRefreshMix";
 import { useGuestSyncAndProjectPoll } from "./hooks/useGuestSyncAndProjectPoll";
 import { useHostSync } from "./hooks/useHostSync";
@@ -22,7 +22,6 @@ import { useHostRoom } from "./record/useHostRoom";
 import { useOutputDevice } from "./record/useOutputDevice";
 import { isShareProjectKey } from "./shareMode";
 import { CheatsheetDialogs } from "./stage/dialogs/CheatsheetDialogs";
-import { HostMcpDialog } from "./stage/dialogs/HostMcpDialog";
 import { EDIT_SHEETS } from "./stage/edit/editSheets";
 import { StageFrame } from "./stage/frame/StageFrame";
 import { useLandingStage } from "./stage/frame/useLandingStage";
@@ -31,6 +30,9 @@ import { ExportFlowProvider } from "./stage/hosts/exportFlow";
 import { FindMoreFlowProvider } from "./stage/hosts/findMoreFlow";
 import { StageHost } from "./stage/hosts/StageHost";
 import { ShareFlowProvider } from "./stage/hosts/shareFlow";
+import { AppSheets } from "./stages/settings/AppSheets";
+import { projectFolderOf } from "./stages/settings/projectFolder";
+import { useAgentName } from "./stages/settings/useAgentName";
 import { useDawStore } from "./state/dawStore";
 import { selectPublishKey } from "./state/publishKey";
 import type { DawState } from "./state/types";
@@ -53,8 +55,10 @@ const selectDawAppFields = pickDaw(
   "activityJob",
   "setActivityJob",
   "setActivityRunningCount",
-  "setHostMcpDialogOpen",
-  "setHelpDialogOpen",
+  "setAgentSheetOpen",
+  "setHelpSheetOpen",
+  "setSettingsSheetOpen",
+  "setCommandPaletteOpen",
   "setModelsSheetOpen",
 );
 
@@ -78,15 +82,20 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     activityJob,
     setActivityJob,
     setActivityRunningCount,
-    setHostMcpDialogOpen,
-    setHelpDialogOpen,
+    setAgentSheetOpen,
+    setHelpSheetOpen,
+    setSettingsSheetOpen,
+    setCommandPaletteOpen,
     setModelsSheetOpen,
   } = useDaw(selectDawAppFields);
-  const hostMcpDialogOpen = useDaw((s) => s.chrome.hostMcpDialogOpen);
-  const helpDialogOpen = useDaw((s) => s.chrome.helpDialogOpen);
+  const agentSheetOpen = useDaw((s) => s.chrome.agentSheetOpen);
+  const helpSheetOpen = useDaw((s) => s.chrome.helpSheetOpen);
+  const settingsSheetOpen = useDaw((s) => s.chrome.settingsSheetOpen);
+  const agentName = useAgentName();
   const modelsSheetOpen = useDaw((s) => s.chrome.modelsSheetOpen);
   const { hasProject, projectName, suppressPublish } =
     useDaw(selectDawAppDerived);
+  const projectFolder = hasProject ? projectFolderOf(projectPath) : undefined;
   const [feedbackHost, setFeedbackHost] = useState<HTMLDivElement | null>(null);
   const publishKey = useDawStore(selectPublishKey);
 
@@ -233,14 +242,28 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
                 </StageFrame>
               </div>
               <CheatsheetDialogs />
-              <HostMcpDialog
-                open={hostMcpDialogOpen}
-                onClose={() => setHostMcpDialogOpen(false)}
+              <AppSheets
+                helpOpen={helpSheetOpen}
+                agentOpen={agentSheetOpen}
+                settingsOpen={settingsSheetOpen}
+                onCloseHelp={() => setHelpSheetOpen(false)}
+                onCloseAgent={() => setAgentSheetOpen(false)}
+                onCloseSettings={() => setSettingsSheetOpen(false)}
+                onShortcuts={() => {
+                  setHelpSheetOpen(false);
+                  setCommandPaletteOpen(true);
+                }}
+                onModels={() => {
+                  setSettingsSheetOpen(false);
+                  setModelsSheetOpen(true);
+                }}
+                onOpenRecent={() => {
+                  setAgentSheetOpen(false);
+                  runPointerCommand("project.home");
+                }}
                 hasProject={hasProject}
-              />
-              <HelpDialog
-                open={helpDialogOpen}
-                onClose={() => setHelpDialogOpen(false)}
+                projectFolder={projectFolder}
+                agentName={agentName}
               />
               {syncEnabled ? (
                 <ModelsSheet

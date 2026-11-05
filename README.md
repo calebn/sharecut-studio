@@ -23,7 +23,7 @@ Choose a downloaded Whisper model for one standalone transcription with `podcast
 No supported system pair? Use the [prebuilt importer](docs/setup.md#acquire-the-pinned-ffmpeg-pair). Offline validation uses an explicit pinned archive through the same importer. Pair selection and the tested release policy, including process-local reuse of successful unchanged admission, are documented in [docs/setup.md](docs/setup.md#ffmpeg-version-and-pair-policy).
 Explicit health checks still run fresh bounded version probes.
 
-Agent config is tool-agnostic under [.agents/](.agents/) (skills, rules, MCP template). Register MCP per [docs/setup.md](docs/setup.md). With `podcast gui` running on loopback, **Connect agent…** (home or Menu) copies `http://127.0.0.1:8765/mcp` for URL-only clients. Use the `podcast-setup` skill when onboarding.
+Agent config is tool-agnostic under [.agents/](.agents/) (skills, rules, MCP template). Register MCP per [docs/setup.md](docs/setup.md). With `podcast gui` running on loopback, **Connect agent** (home's app menu or the Project menu) copies `http://127.0.0.1:8765/mcp` for URL-only clients. Use the `podcast-setup` skill when onboarding.
 
 Codex UI edits have project-local [Impeccable design hooks](docs/setup.md#impeccable-design-hooks). Review and trust them in Codex Settings → Hooks after cloning or updating their definitions.
 
@@ -147,7 +147,7 @@ rules are in [Contributing](docs/contributing.md#service-context-imports).
 
 ## Support
 
-Bugs: [GitHub Issues](https://github.com/calebn/sharecut-studio/issues/new?template=bug_report.yml). Attach a sanitized diagnostics zip from **Home → Help → Create diagnostics bundle** or `podcast doctor --bundle` (writes `~/Downloads/sharecut-diagnostics-<UTC>-<nonce>.zip`). Nothing is uploaded automatically — there is no telemetry. Do not attach episode audio or project JSON. Minted shares may transit the relay; GitHub issue attachments are public. Detail: [docs/setup.md § Troubleshooting](docs/setup.md#troubleshooting).
+Bugs: [GitHub Issues](https://github.com/calebn/sharecut-studio/issues/new?template=bug_report.yml). Attach a sanitized diagnostics zip from **Menu → Help → Report a problem** (preview what it holds, then send it or open support) or `podcast doctor --bundle` (writes `~/Downloads/sharecut-diagnostics-<UTC>-<nonce>.zip`). Nothing is uploaded automatically — there is no telemetry. Do not attach episode audio or project JSON. Minted shares may transit the relay; GitHub issue attachments are public. Detail: [docs/setup.md § Troubleshooting](docs/setup.md#troubleshooting).
 
 ## Privacy
 

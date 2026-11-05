@@ -497,7 +497,7 @@ Clients that load project agents from `.agents/` (including Cursor) pick up rule
 **Connecting an external agent?** Copy-paste configurations for Claude Code,
 Claude Desktop, Cursor, Windsurf, and Cline: [mcp-setup.md](mcp-setup.md).
 
-**Local GUI URL (recommended when the DAW is open):** run `podcast gui`, open an episode (or **Connect agent…** on home to copy the URL first), **Menu → Connect agent…**, and paste `http://127.0.0.1:8765/mcp` as a stateless Streamable HTTP MCP URL (same shape as Figma desktop). Keep the GUI running. Host MCP is loopback-only, accepts POST (GET/HEAD return 405), and does not use a sticky `Mcp-Session-Id` header; stdio and guest/share-token MCP are unchanged. Details: [gui-integration.md](gui-integration.md) § Local host MCP.
+**Local GUI URL (recommended when the DAW is open):** run `podcast gui`, open an episode (or **Connect agent** in the app menu on home to copy the URL first), **Menu → Connect agent**, pick Claude, Cursor or Other, and paste `http://127.0.0.1:8765/mcp` as a stateless Streamable HTTP MCP URL (same shape as Figma desktop). Keep the GUI running. Host MCP is loopback-only, accepts POST (GET/HEAD return 405), and does not use a sticky `Mcp-Session-Id` header; stdio and guest/share-token MCP are unchanged. Details: [gui-integration.md](gui-integration.md) § Local host MCP.
 
 ### Transcription vocabulary
 
@@ -987,7 +987,7 @@ services. Their implementation is under `src/podcast_mcp/services/support/`.
 Pipeline execution, configuration, and component bootstrap use the public
 `podcast_mcp.services.pipeline` facade.
 
-If ShareCut Studio or `podcast` misbehaves, create a **sanitized diagnostics zip** on your machine. Nothing is uploaded when the zip is created, and there is **no telemetry**. Home and Studio Help can preview the files and submit the zip with a description after explicit consent when `PODCAST_REPORT_RELAY_URL` points to a configured relay. The description and ZIP link become public; the relay keeps the ZIP for 30 days. Self-hosted installations can keep using Open support and attach the local zip manually.
+If ShareCut Studio or `podcast` misbehaves, create a **sanitized diagnostics zip** on your machine. Nothing is uploaded when the zip is created, and there is **no telemetry**. Help can preview the files and send the report with a description when `PODCAST_REPORT_RELAY_URL` points to a configured relay. The description and ZIP link become public; the relay keeps the ZIP for 30 days. Self-hosted installations can keep using Open support and attach the local zip manually.
 
 ```bash
 podcast doctor --bundle            # writes ~/Downloads/sharecut-diagnostics-<UTC>-<nonce>.zip
@@ -995,11 +995,11 @@ podcast doctor --bundle --out DIR  # optional output directory
 # prints the zip path and configured support URL; `--open` opens it in a browser
 ```
 
-In the app: **Home → Help → Create diagnostics bundle**. The dialog shows the zip path, size, file list, and version. Add a description and approve the public upload to **Submit report**, or reveal the zip in your file manager and use **Open support**.
+In the app: **Menu → Help → Report a problem** (on Home, the app menu). Say what went wrong, open **Preview what's included** to see the zip's file list and size, then **Send report**. The sheet says the description and the report become public. After a send it shows a reference with **Copy**. Offline, the zip stays on this computer and sends when the connection is back. With no relay configured the sheet saves the zip here and offers **Open support** so you can attach it by hand.
 
 The zip includes doctor results, versions, a sidecar log tail, and counts (tracks/clips/decisions/comments) — not audio, transcripts, project JSON, share tokens, or `shares.json` / `sync.db`. Guests / review links cannot create a bundle (host-only).
 
-Creating the zip runs doctor checks and (when a project is open) per-track timebase QC, then packs a log tail. On a large episode that can take tens of seconds; wait for the Help button to leave **Creating…** or for the CLI to print the path. The host API runs the work in a worker thread. Help uses a local busy label — it is not a StatusBar/SSE job.
+Creating the zip runs doctor checks and (when a project is open) per-track timebase QC, then packs a log tail. On a large episode that can take tens of seconds; wait for the Help sheet to leave **Preparing the report…** or for the CLI to print the path. The host API runs the work in a worker thread. Help uses a local busy line — it is not a StatusBar/SSE job.
 
 The zip filename is `sharecut-diagnostics-<UTC>-<nonce>.zip` so two bundles in the same second do not overwrite. Host Help shows the local filesystem path so you can attach the file; that path is not uploaded. `GET /api/diagnostics/bundle/{name}` only serves zips registered by a POST in this Studio process.
 

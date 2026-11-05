@@ -40,15 +40,6 @@ export async function submitDiagnosticsReport(input: {
   return res.json() as Promise<{ status: string; status_url: string }>;
 }
 
-export async function fetchDiagnosticsReportStatus(
-  url: string,
-): Promise<{ status: string; issue_url: string | null }> {
-  const res = await apiFetch("", {
-    host: `/api/diagnostics/report-status?url=${encodeURIComponent(url)}`,
-  });
-  return res.json() as Promise<{ status: string; issue_url: string | null }>;
-}
-
 export async function createDiagnosticsBundle(opts?: {
   outDir?: string;
   path?: string;

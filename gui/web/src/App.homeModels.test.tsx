@@ -54,8 +54,7 @@ describe("App on Home: Models sheet", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(await screen.findByRole("button", { name: "More" }));
-    await user.click(await screen.findByRole("menuitem", { name: /Models/ }));
+    await user.click(await screen.findByRole("button", { name: /^Choose/ }));
     const sheet = await screen.findByRole("dialog", { name: /Models/ });
     await user.click(
       await within(sheet).findByRole("button", {

@@ -38,7 +38,7 @@ The loopback GUI is a **privileged local RPC** (not “safe because localhost”
 
 ## Local host MCP
 
-While `podcast gui` is running, the DAW is a spec-compliant MCP server (Streamable HTTP, official Python SDK). Open an episode, then **Menu → Connect agent…** and paste:
+While `podcast gui` is running, the DAW is a spec-compliant MCP server (Streamable HTTP, official Python SDK). Open an episode, then **Menu → Connect agent**, pick the client (Claude, Cursor or Other) and paste what the sheet shows. The Cursor choice shows:
 
 ```json
 {

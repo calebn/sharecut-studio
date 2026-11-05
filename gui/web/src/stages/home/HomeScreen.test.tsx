@@ -780,7 +780,7 @@ describe("HomeScreen", () => {
     });
   });
 
-  it("makes home content inert while Help is open and restores it on close", async () => {
+  it("opens Help from the app menu, with the Home content inert, and returns focus on close", async () => {
     const user = userEvent.setup();
     const { container } = render(<HomeScreen />);
     await screen.findByRole("list", { name: "Recent episodes" });
@@ -788,8 +788,11 @@ describe("HomeScreen", () => {
       "[data-daw-app-chrome]",
     );
     expect(content).toBeTruthy();
-    const trigger = screen.getByRole("button", { name: /^Help$/ });
+    expect(screen.queryByRole("button", { name: /^Help/ })).toBeNull();
+    const trigger = screen.getByRole("button", { name: "App menu" });
     await user.click(trigger);
+    await user.click(screen.getByRole("menuitem", { name: "Help" }));
+    expect(screen.getByRole("dialog", { name: "Help" })).toBeInTheDocument();
     expect(content?.inert).toBe(true);
     await user.keyboard("{Escape}");
     expect(content?.inert).toBe(false);

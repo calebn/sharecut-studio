@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { type AppMenuCommand, AppMenuRows } from "../../system/AppHeader";
 import { Card } from "../../system/Card";
 import { DropOverlay } from "../../system/DropOverlay";
 import {
@@ -21,7 +22,6 @@ import {
   Button,
   InlineError,
   Menu,
-  MenuItem,
   useResizeObserver,
 } from "../../ui";
 import { OpenOther, type OpenOtherProps } from "./OpenOther";
@@ -60,11 +60,8 @@ export type HomeViewProps = {
   onRetrySetup: () => void;
   onDismissSetup: () => void;
   onDismissHint: () => void;
-  onHelp: () => void;
-  onModels: () => void;
-  onConnectAgent: () => void;
-  /** Left out while there is no settings surface: the menu then has no Settings row. */
-  onSettings?: () => void;
+  /** The app menu: the same Settings, Connect agent and Help rows the Project menu holds. */
+  onMenuCommand: (command: AppMenuCommand) => void;
   /** The path form of Open other, for a browser with no OS folder picker. Default: the picker. */
   openOther?: Omit<OpenOtherProps, "onChooseFolder">;
   /** A refusal in plain words with its fix, under the Recent heading. */
@@ -122,66 +119,37 @@ function ShareGlyph() {
   );
 }
 
-function HomeHeader({
-  onHelp,
-  onModels,
-  onConnectAgent,
-  onSettings,
-}: Pick<
-  HomeViewProps,
-  "onHelp" | "onModels" | "onConnectAgent" | "onSettings"
->) {
+function HomeHeader({ onMenuCommand }: Pick<HomeViewProps, "onMenuCommand">) {
   const [open, setOpen] = useState(false);
-  const pick = (run: () => void) => () => {
-    setOpen(false);
-    run();
-  };
   return (
     <header className="sys-home-header">
       <h1 className="sys-home-wordmark">
         <BrandLockup name="ShareCut" className="sys-home-lockup" />
       </h1>
       <div className="sys-home-header-actions">
-        <button
-          type="button"
-          className="sys-icon-btn"
-          aria-label="Help"
-          title="Help (?)"
-          onClick={onHelp}
-        >
-          <SystemIcon name="circle-help" size={16} />
-        </button>
         <Menu
           open={open}
           onOpenChange={setOpen}
-          label="More"
+          label="App menu"
           className="ui-menu-root sys-menu sys-header-menu"
           trigger={(props) => (
             <button
               type="button"
               className="sys-icon-btn"
-              aria-label="More"
-              title="More"
+              aria-label="App menu"
+              title="App menu"
               {...props}
             >
               <SystemIcon name="ellipsis" size={16} />
             </button>
           )}
         >
-          <MenuItem onSelect={pick(onModels)}>
-            <SystemIcon name="download" size={16} />
-            Models
-          </MenuItem>
-          <MenuItem onSelect={pick(onConnectAgent)}>
-            <SystemIcon name="plug" size={16} />
-            Connect agent
-          </MenuItem>
-          {onSettings ? (
-            <MenuItem onSelect={pick(onSettings)}>
-              <SystemIcon name="settings" size={16} />
-              Settings
-            </MenuItem>
-          ) : null}
+          <AppMenuRows
+            onSelect={(command) => {
+              setOpen(false);
+              onMenuCommand(command);
+            }}
+          />
         </Menu>
       </div>
     </header>
@@ -214,10 +182,7 @@ export function HomeView({
   onRetrySetup,
   onDismissSetup,
   onDismissHint,
-  onHelp,
-  onModels,
-  onConnectAgent,
-  onSettings,
+  onMenuCommand,
   openOther = NO_OPEN_OTHER,
   notice,
   working,
@@ -299,12 +264,7 @@ export function HomeView({
       data-phase={phase}
     >
       <div className="sys-home-column">
-        <HomeHeader
-          onHelp={onHelp}
-          onModels={onModels}
-          onConnectAgent={onConnectAgent}
-          onSettings={onSettings}
-        />
+        <HomeHeader onMenuCommand={onMenuCommand} />
         <main className="sys-home-main">
           {narrow ? null : <div className="sys-home-tiles">{tiles}</div>}
           {setup ? (

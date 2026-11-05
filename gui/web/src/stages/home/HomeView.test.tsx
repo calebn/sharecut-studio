@@ -19,10 +19,7 @@ function setup(props: Partial<HomeViewProps> = {}) {
     onRetrySetup: vi.fn(),
     onDismissSetup: vi.fn(),
     onDismissHint: vi.fn(),
-    onHelp: vi.fn(),
-    onModels: vi.fn(),
-    onConnectAgent: vi.fn(),
-    onSettings: vi.fn(),
+    onMenuCommand: vi.fn(),
   };
   render(
     <HomeView
@@ -102,6 +99,23 @@ describe("HomeView", () => {
     await user.click(screen.getByRole("button", { name: /^Record/ }));
     expect(onImport).toHaveBeenCalledOnce();
     expect(onRecord).toHaveBeenCalledOnce();
+  });
+
+  it("holds Settings, Connect agent and Help in one app menu and no Help button", async () => {
+    const { user, onMenuCommand } = setup();
+    expect(screen.queryByRole("button", { name: /^Help/ })).toBeNull();
+    for (const [name, command] of [
+      ["Settings", "settings"],
+      ["Connect agent", "agent"],
+      ["Help", "help"],
+    ] as const) {
+      await user.click(screen.getByRole("button", { name: "App menu" }));
+      expect(
+        screen.getAllByRole("menuitem").map((item) => item.textContent),
+      ).toEqual(["Settings", "Connect agent", "Help"]);
+      await user.click(screen.getByRole("menuitem", { name }));
+      expect(onMenuCommand).toHaveBeenLastCalledWith(command);
+    }
   });
 
   it("dismisses the Setup card from its more menu", async () => {

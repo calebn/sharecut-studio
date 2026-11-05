@@ -386,14 +386,14 @@ it("ignores the dialog open flags in the store: only a mounted overlay holds the
   vi.mocked(execute).mockImplementation(async () => ({ status: "ok" }));
   setChrome({
     commandPaletteOpen: true,
-    helpDialogOpen: true,
+    helpSheetOpen: true,
   });
   render(<KeymapHost />);
   fireEvent.keyDown(screen.getByTestId("canvas"), { key: " ", code: "Space" });
   await waitFor(() => expect(vi.mocked(execute)).toHaveBeenCalled());
   setChrome({
     commandPaletteOpen: false,
-    helpDialogOpen: false,
+    helpSheetOpen: false,
   });
 });
 

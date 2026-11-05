@@ -145,11 +145,12 @@ fixtures as the app.
 inline in a transcript row, with a roll join, a live roll drag, a
 single-clip trim edge and a 360px row. The live adapter commits
 `RollClipJoin` / `TrimClipEdge`.
-`Templates/HostMcpDialog` and `Templates/GesturesSheet` show the shipped
-agent-connection and mobile gesture dialogs. The MCP story passes a fixed
-loopback URL so its preview is independent of Storybook's port; the live
-dialog derives its local URL as before.
-Standalone Canvas stories and isolated autodocs frames open their dialogs
+`Stages/Settings/HelpSheet`, `Stages/Settings/ConnectAgent` and
+`Stages/Settings/SettingsSheet` show the Help, Connect agent and Settings
+sheets, and `Templates/GesturesSheet` the mobile gesture dialog. The agent
+story passes a fixed loopback URL so its preview is independent of
+Storybook's port; the live sheet derives its local URL as before.
+Standalone Canvas stories and isolated autodocs frames open their overlays
 through Canvas play functions, so each can be inspected independently.
 Play functions share
 `openDialogViaLauncher` from `src/storybook/openDialog.ts`. The gesture callback closes its sheet and

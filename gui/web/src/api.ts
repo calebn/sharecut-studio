@@ -22,7 +22,6 @@ export type {
 export {
   createDiagnosticsBundle,
   fetchDiagnosticsMeta,
-  fetchDiagnosticsReportStatus,
   submitDiagnosticsReport,
 } from "./api/bootstrapDiagnostics";
 export type {

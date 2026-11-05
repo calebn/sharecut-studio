@@ -10,8 +10,9 @@ const FLAGS = [
   "exportRequested",
   "shareRequested",
   "transcriptRequested",
-  "hostMcpDialogOpen",
-  "helpDialogOpen",
+  "agentSheetOpen",
+  "helpSheetOpen",
+  "settingsSheetOpen",
   "modelsSheetOpen",
   "transcriptFindReplaceOpen",
 ] as const;
@@ -24,8 +25,9 @@ const SETTERS: Record<Flag, string> = {
   exportRequested: "setExportRequested",
   shareRequested: "setShareRequested",
   transcriptRequested: "setTranscriptRequested",
-  hostMcpDialogOpen: "setHostMcpDialogOpen",
-  helpDialogOpen: "setHelpDialogOpen",
+  agentSheetOpen: "setAgentSheetOpen",
+  helpSheetOpen: "setHelpSheetOpen",
+  settingsSheetOpen: "setSettingsSheetOpen",
   modelsSheetOpen: "setModelsSheetOpen",
   transcriptFindReplaceOpen: "setTranscriptFindReplaceOpen",
 };
@@ -113,12 +115,26 @@ describe("dawStore chrome flags", () => {
     expect(read("gesturesSheetOpen")).toBe(true);
   });
 
+  it("keeps Help, Connect agent and Settings from stacking", () => {
+    const s = () => useDawStore.getState();
+    s().setHelpSheetOpen(true);
+    s().setAgentSheetOpen(true);
+    expect(read("helpSheetOpen")).toBe(false);
+    expect(read("agentSheetOpen")).toBe(true);
+    s().setSettingsSheetOpen(true);
+    expect(read("agentSheetOpen")).toBe(false);
+    expect(read("settingsSheetOpen")).toBe(true);
+    s().setSettingsSheetOpen(false);
+    expect(read("settingsSheetOpen")).toBe(false);
+  });
+
   describe("hydrate", () => {
     const OTHER = [
       "commandPaletteOpen",
       "gesturesSheetOpen",
-      "hostMcpDialogOpen",
-      "helpDialogOpen",
+      "agentSheetOpen",
+      "helpSheetOpen",
+      "settingsSheetOpen",
     ] as const;
 
     function openEverything() {

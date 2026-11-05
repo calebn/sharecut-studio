@@ -25,10 +25,7 @@ const meta: Meta<typeof HomeView> = {
     onRetrySetup: fn(),
     onDismissSetup: fn(),
     onDismissHint: fn(),
-    onHelp: fn(),
-    onModels: fn(),
-    onConnectAgent: fn(),
-    onSettings: fn(),
+    onMenuCommand: fn(),
     onRetryLoad: fn(),
   },
   parameters: {

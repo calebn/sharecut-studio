@@ -232,8 +232,9 @@ type UiSlice = Pick<
   | "setPrepareFocusTrackId"
   | "setShareRequested"
   | "setTranscriptRequested"
-  | "setHostMcpDialogOpen"
-  | "setHelpDialogOpen"
+  | "setAgentSheetOpen"
+  | "setHelpSheetOpen"
+  | "setSettingsSheetOpen"
   | "setModelsSheetOpen"
   | "openJoinId"
   | "setOpenJoinId"
@@ -281,6 +282,13 @@ export function uiProjectInitial() {
   };
 }
 
+/** Help, Connect agent and Settings never stack: opening one closes the others. */
+const NO_APP_SHEETS = {
+  agentSheetOpen: false,
+  helpSheetOpen: false,
+  settingsSheetOpen: false,
+} as const;
+
 export function chromeInitial(): ChromeFlags {
   return {
     commandPaletteOpen: false,
@@ -289,8 +297,9 @@ export function chromeInitial(): ChromeFlags {
     exportRequested: false,
     shareRequested: false,
     transcriptRequested: false,
-    hostMcpDialogOpen: false,
-    helpDialogOpen: false,
+    agentSheetOpen: false,
+    helpSheetOpen: false,
+    settingsSheetOpen: false,
     modelsSheetOpen: false,
     transcriptFindReplaceOpen: false,
   };
@@ -695,10 +704,30 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       set((s) => ({ chrome: { ...s.chrome, shareRequested: on } })),
     setTranscriptRequested: (on) =>
       set((s) => ({ chrome: { ...s.chrome, transcriptRequested: on } })),
-    setHostMcpDialogOpen: (on) =>
-      set((s) => ({ chrome: { ...s.chrome, hostMcpDialogOpen: on } })),
-    setHelpDialogOpen: (on) =>
-      set((s) => ({ chrome: { ...s.chrome, helpDialogOpen: on } })),
+    setAgentSheetOpen: (on) =>
+      set((s) => ({
+        chrome: {
+          ...s.chrome,
+          ...(on ? NO_APP_SHEETS : {}),
+          agentSheetOpen: on,
+        },
+      })),
+    setHelpSheetOpen: (on) =>
+      set((s) => ({
+        chrome: {
+          ...s.chrome,
+          ...(on ? NO_APP_SHEETS : {}),
+          helpSheetOpen: on,
+        },
+      })),
+    setSettingsSheetOpen: (on) =>
+      set((s) => ({
+        chrome: {
+          ...s.chrome,
+          ...(on ? NO_APP_SHEETS : {}),
+          settingsSheetOpen: on,
+        },
+      })),
     setModelsSheetOpen: (on) =>
       set((s) => ({ chrome: { ...s.chrome, modelsSheetOpen: on } })),
     setOpenJoinId: (openJoinId) => set({ openJoinId }),

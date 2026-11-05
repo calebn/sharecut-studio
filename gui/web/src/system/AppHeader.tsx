@@ -163,6 +163,29 @@ function GuestAppearanceMenu(
   );
 }
 
+export type AppMenuCommand = "settings" | "agent" | "help";
+
+/** The app-level rows of the Project menu, which Home's own menu holds too. */
+export function AppMenuRows({
+  onSelect,
+}: {
+  onSelect: (command: AppMenuCommand) => void;
+}) {
+  return (
+    <>
+      <MenuItem onSelect={() => onSelect("settings")}>
+        <Row icon="settings">Settings</Row>
+      </MenuItem>
+      <MenuItem onSelect={() => onSelect("agent")}>
+        <Row icon="plug">Connect agent</Row>
+      </MenuItem>
+      <MenuItem onSelect={() => onSelect("help")}>
+        <Row icon="circle-help">Help</Row>
+      </MenuItem>
+    </>
+  );
+}
+
 function ProjectMenu({
   title,
   appearance,
@@ -242,15 +265,7 @@ function ProjectMenu({
           </MenuItem>
         ) : null}
         {people}
-        <MenuItem onSelect={run("settings")}>
-          <Row icon="settings">Settings</Row>
-        </MenuItem>
-        <MenuItem onSelect={run("agent")}>
-          <Row icon="plug">Connect agent</Row>
-        </MenuItem>
-        <MenuItem onSelect={run("help")}>
-          <Row icon="circle-help">Help</Row>
-        </MenuItem>
+        <AppMenuRows onSelect={(command) => run(command)()} />
         {appearance ? <AppearanceSection {...appearance} /> : null}
       </Menu>
       {onRename ? (
