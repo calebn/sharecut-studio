@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useEffectEvent,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -56,6 +57,7 @@ import { openPlaneSocket, type PlaneSocketContext } from "../sync/planeSocket";
 import type { SessionState, ViewerSessionSnapshot } from "../types/session";
 import { HOST_SESSION_LABEL } from "../utils/commentAuthor";
 import { documentClientId } from "../utils/documentClient";
+import { useStableCallback } from "../utils/useStableCallback";
 import { useFileMetaPoll } from "./useFileMetaPoll";
 
 const PLAYHEAD_HEARTBEAT_MS = 200;
@@ -136,23 +138,25 @@ export function useHostSync(
     epoch: projectEpoch,
     value: { serverSeq: lastAppliedRevision, commandId: lastAppliedCommandId },
   });
-  if (cursorRef.current.epoch !== projectEpoch) {
-    cursorRef.current = {
-      epoch: projectEpoch,
-      value: { serverSeq: 0, commandId: null },
-    };
-  }
-  const applyAgentSessionRef = useRef(applyAgentSession);
-  applyAgentSessionRef.current = applyAgentSession;
+  const applySession = useStableCallback(applyAgentSession);
   const remoteSessionRef = useRef<SessionState | null>(null);
 
-  cursorRef.current.value = {
-    serverSeq: Math.max(cursorRef.current.value.serverSeq, lastAppliedRevision),
-    commandId: lastAppliedCommandId,
-  };
+  useLayoutEffect(() => {
+    if (cursorRef.current.epoch !== projectEpoch) {
+      cursorRef.current = {
+        epoch: projectEpoch,
+        value: { serverSeq: 0, commandId: null },
+      };
+    }
+    cursorRef.current.value = {
+      serverSeq: Math.max(
+        cursorRef.current.value.serverSeq,
+        lastAppliedRevision,
+      ),
+      commandId: lastAppliedCommandId,
+    };
+  });
 
-  const isPlayingRef = useRef(isPlaying);
-  isPlayingRef.current = isPlaying;
   const viewerStateWaitRef = useRef<ViewerStateWait>({ timers: [] });
 
   useEffect(() => {
@@ -162,7 +166,7 @@ export function useHostSync(
     useDawStore.getState().setLocalClientId(clientIdRef.current);
   }, [enabled, projectEpoch]);
 
-  const applyRemote = useCallback(
+  const applyRemote = useStableCallback(
     (
       state: SessionState,
       commandType?: string | null,
@@ -173,7 +177,7 @@ export function useHostSync(
         cursorRef.current.value,
         {
           commandType,
-          localPlaying: isPlayingRef.current,
+          localPlaying: isPlaying,
           localClientId: clientIdRef.current,
           commandClientId,
         },
@@ -189,9 +193,17 @@ export function useHostSync(
         return;
       }
       cursorRef.current.value = next;
-      applyAgentSessionRef.current(state);
+      applySession(state);
     },
-    [],
+  );
+
+  const shouldHandleSession = useStableCallback(
+    (msg: SessionWireMsg, snapshot: SessionState) =>
+      shouldHandleWsMessage(
+        { type: msg.type, command: msg.command, snapshot },
+        cursorRef.current.value,
+        { localPlaying: isPlaying, localClientId: clientIdRef.current },
+      ),
   );
 
   const viewerSnapshot = (): ViewerSessionSnapshot => ({
@@ -341,7 +353,7 @@ export function useHostSync(
               snap,
               cursorRef.current.value,
             );
-            if (apply) applyAgentSessionRef.current(snap);
+            if (apply) applySession(snap);
             cursorRef.current.value = next;
           }
           return;
@@ -378,16 +390,7 @@ export function useHostSync(
           }
           snap = remoteSessionRef.current ?? full;
         }
-        if (
-          shouldHandleWsMessage(
-            { type: msg.type, command: msg.command, snapshot: snap },
-            cursorRef.current.value,
-            {
-              localPlaying: isPlayingRef.current,
-              localClientId: clientIdRef.current,
-            },
-          )
-        ) {
+        if (shouldHandleSession(msg, snap)) {
           applyRemote(
             snap,
             msg.command?.type,
@@ -511,7 +514,14 @@ export function useHostSync(
       setWsReady(false);
       useRecordHostStore.getState().resetConnection();
     };
-  }, [projectPath, enabled, projectEpoch, applyRemote]);
+  }, [
+    projectPath,
+    enabled,
+    projectEpoch,
+    applyRemote,
+    applySession,
+    shouldHandleSession,
+  ]);
 
   const sendPresence = useCallback((frame: Record<string, unknown>) => {
     sendRef.current?.(frame);
