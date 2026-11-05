@@ -147,10 +147,10 @@ export const Ready: Story = {
   play: playInCanvas(async ({ canvasElement, args }) => {
     const view = within(canvasElement);
     await expect(view.getByText("Ready to export")).toBeInTheDocument();
-    await userEvent.keyboard(MOD_E);
-    await expect(args.onExport).not.toHaveBeenCalled();
     canvasElement.querySelector<HTMLElement>(".dv-stage")?.focus();
     await userEvent.keyboard(MOD_E);
+    await expect(args.onExport).not.toHaveBeenCalled();
+    await userEvent.click(view.getByRole("button", { name: /^Export/ }));
     await expect(args.onExport).toHaveBeenCalledOnce();
     await expect(
       await view.findByRole("button", { name: /^Reveal field-notes\.mp3/ }),
