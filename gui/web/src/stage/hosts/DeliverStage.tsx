@@ -277,6 +277,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
   );
   const transcriptFlow = useTranscriptFlow({
     projectPath,
+    projectEpoch,
     enabled: state === "ready",
     hasTranscript: project?.transcript != null,
     revision: project?.history.head_id,

@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../../api";
+import { deferred } from "../../test/deferred";
 import { useTranscriptFlow } from "./useTranscriptFlow";
 
 vi.mock("../../api", async (importOriginal) => ({
@@ -28,15 +29,32 @@ const written = {
   text: null,
 };
 
-function mount(props: { projectPath: string; revision: number }) {
+type HookProps = {
+  projectPath: string;
+  revision: number;
+  projectEpoch?: number;
+};
+type TranscriptResponse = Awaited<ReturnType<typeof api.exportTranscript>>;
+
+function mount(props: HookProps) {
   return renderHook(
-    (p: { projectPath: string; revision: number }) =>
-      useTranscriptFlow({ ...p, enabled: true, hasTranscript: true }),
+    (p: HookProps) =>
+      useTranscriptFlow({
+        ...p,
+        projectEpoch: p.projectEpoch ?? 0,
+        enabled: true,
+        hasTranscript: true,
+      }),
     { initialProps: props },
   );
 }
 
 describe("useTranscriptFlow", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
     vi.mocked(api.exportTranscript).mockReset();
     vi.mocked(api.exportTranscript).mockResolvedValue(written);
@@ -116,6 +134,7 @@ describe("useTranscriptFlow", () => {
     const { result } = renderHook(() =>
       useTranscriptFlow({
         projectPath: "/a",
+        projectEpoch: 0,
         enabled: true,
         hasTranscript: false,
         revision: 1,
@@ -196,5 +215,142 @@ describe("useTranscriptFlow", () => {
     );
     act(() => result.current.reload());
     await waitFor(() => expect(result.current.preview.kind).toBe("ready"));
+  });
+  it("accepts just one write from two commands before React rerenders", async () => {
+    const hook = mount({ projectPath: "/a", revision: 1 });
+    await waitFor(() => expect(hook.result.current.preview.kind).toBe("ready"));
+    const write = deferred<TranscriptResponse>();
+    vi.mocked(api.exportTranscript).mockReturnValueOnce(write.promise);
+    act(() => {
+      hook.result.current.exportNow();
+      hook.result.current.exportNow();
+    });
+    expect(
+      vi
+        .mocked(api.exportTranscript)
+        .mock.calls.filter(([, request]) => !request.dry_run),
+    ).toHaveLength(1);
+    await act(async () => write.resolve(written));
+  });
+
+  it.each(["success", "failure"] as const)(
+    "rejects an old write %s after returning to the same project path",
+    async (outcome) => {
+      const hook = mount({ projectPath: "/a", revision: 1 });
+      await waitFor(() =>
+        expect(hook.result.current.preview.kind).toBe("ready"),
+      );
+      const write = deferred<TranscriptResponse>();
+      vi.mocked(api.exportTranscript).mockReturnValueOnce(write.promise);
+      act(() => hook.result.current.exportNow());
+      hook.rerender({ projectPath: "/b", revision: 1 });
+      hook.rerender({ projectPath: "/a", revision: 1 });
+      await waitFor(() =>
+        expect(hook.result.current.preview.kind).toBe("ready"),
+      );
+      await act(async () => {
+        if (outcome === "success") write.resolve(written);
+        else write.reject(new Error("retired write"));
+      });
+      expect(hook.result.current.run.phase).toBe("idle");
+      expect(hook.result.current.written).toBe(0);
+    },
+  );
+
+  it("does not replace a newer copy failure with an older successful copy", async () => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+    });
+    const hook = mount({ projectPath: "/a", revision: 1 });
+    await waitFor(() => expect(hook.result.current.preview.kind).toBe("ready"));
+    const oldText = deferred<TranscriptResponse>();
+    vi.mocked(api.exportTranscript)
+      .mockReturnValueOnce(oldText.promise)
+      .mockRejectedValueOnce(new Error("latest text unavailable"));
+    act(() => hook.result.current.copyText());
+    act(() => hook.result.current.copyText());
+    await waitFor(() => expect(hook.result.current.copyState).toBe("failed"));
+    await act(async () =>
+      oldText.resolve({ ...written, text: "Earlier copy." }),
+    );
+    expect(hook.result.current.copyState).toBe("failed");
+  });
+
+  it("starts the native clipboard write synchronously before transcript text arrives", async () => {
+    class Item {
+      readonly data: Record<string, Promise<Blob>>;
+      constructor(data: Record<string, Promise<Blob>>) {
+        this.data = data;
+      }
+    }
+    vi.stubGlobal("ClipboardItem", Item);
+    const copied = deferred();
+    const write = vi.fn().mockReturnValue(copied.promise);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { write },
+    });
+    const hook = mount({ projectPath: "/a", revision: 1 });
+    await waitFor(() => expect(hook.result.current.preview.kind).toBe("ready"));
+    const text = deferred<TranscriptResponse>();
+    vi.mocked(api.exportTranscript).mockReturnValueOnce(text.promise);
+    act(() => {
+      hook.result.current.copyText();
+      expect(write).toHaveBeenCalledTimes(1);
+    });
+    await act(async () => {
+      text.resolve({ ...written, text: "Maya: Hi." });
+      copied.resolve();
+    });
+    expect(hook.result.current.copyState).toBe("copied");
+  });
+
+  it("retains the preview while waiting the unchanged refresh debounce", async () => {
+    const hook = mount({ projectPath: "/a", revision: 1 });
+    await waitFor(() => expect(hook.result.current.preview.kind).toBe("ready"));
+    vi.useFakeTimers();
+    const preview = hook.result.current.preview;
+    hook.rerender({ projectPath: "/a", revision: 2 });
+    expect(hook.result.current.preview).toBe(preview);
+    await act(async () => vi.advanceTimersByTimeAsync(299));
+    expect(api.exportTranscript).toHaveBeenCalledTimes(1);
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(api.exportTranscript).toHaveBeenCalledTimes(2);
+  });
+  it("does not carry a running write into the next document epoch at the same path", async () => {
+    const hook = mount({ projectPath: "/a", revision: 1, projectEpoch: 0 });
+    await waitFor(() => expect(hook.result.current.preview.kind).toBe("ready"));
+    const write = deferred<TranscriptResponse>();
+    vi.mocked(api.exportTranscript).mockReturnValueOnce(write.promise);
+    act(() => hook.result.current.exportNow());
+    hook.rerender({ projectPath: "/a", revision: 1, projectEpoch: 1 });
+    expect(hook.result.current.run.phase).toBe("idle");
+    await act(async () => write.resolve(written));
+    expect(hook.result.current.run.phase).toBe("idle");
+    expect(hook.result.current.written).toBe(0);
+  });
+
+  it("does not let an older copied acknowledgement timer erase a newer failure", async () => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+    });
+    const hook = mount({ projectPath: "/a", revision: 1 });
+    await waitFor(() => expect(hook.result.current.preview.kind).toBe("ready"));
+    vi.useFakeTimers();
+    vi.mocked(api.exportTranscript).mockResolvedValueOnce({
+      ...written,
+      text: "Maya: Hi.",
+    });
+    await act(async () => hook.result.current.copyText());
+    expect(hook.result.current.copyState).toBe("copied");
+    vi.mocked(api.exportTranscript).mockRejectedValueOnce(
+      new Error("new text unavailable"),
+    );
+    await act(async () => hook.result.current.copyText());
+    expect(hook.result.current.copyState).toBe("failed");
+    await act(async () => vi.advanceTimersByTimeAsync(2000));
+    expect(hook.result.current.copyState).toBe("failed");
   });
 });
