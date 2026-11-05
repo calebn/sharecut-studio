@@ -270,7 +270,7 @@ Guest-specific interactions: INT-COMMENT-MODE, INT-COMMENT-RESOLVE (host only), 
 | CMP-RAIL-PEEK | Retired in #2292 (the stage shell replaced it): Rail label peek tooltip on first use | Tool rail hover/focus | `layout/RailLabelPeek.tsx` | NONE | Props | Name a tool |
 | CMP-DESKTOP-GUARD | Desktop wrapper close guard (not a React surface) | Closing the Electron window during recording | `desktop/useDesktopCloseGuard.ts` | NONE | n/a | Prevent data loss |
 
-Design primitives with stories: Avatar, BrandMark, Button, ClipLed, CloseButton, DefinitionList, Dialog, EmptyState, Field, FieldRow, FocusPull, Icon, InlineConfirm, InlineError, LevelMeter, Menu, ParticipantMeter, Pill, SegmentedControl, SurfaceLadder, Timecode, ToggleButton. Without stories: `ui/Tabs.tsx`, `ui/CommandButton.tsx`, `ui/CommandMenuItem.tsx` (adapters; docs say they need none), `ui/GapMark.tsx`, `ui/RippleMark.tsx`, `ui/StatusLiveRegion.tsx`, `ui/sheetHost.tsx`.
+Design primitives with stories: Avatar, BrandMark, Button, ClipLed, CloseButton, DefinitionList, Dialog, EmptyState, Field, FieldRow, FocusPull, Icon, InlineConfirm, InlineError, LevelMeter, Menu, ParticipantMeter, Pill, SegmentedControl, SurfaceLadder, Timecode, ToggleButton. Without stories: `ui/Tabs.tsx`, `ui/CommandButton.tsx`, `ui/CommandMenuItem.tsx` (adapters; docs say they need none), `ui/RippleMark.tsx`, `ui/StatusLiveRegion.tsx`, `ui/sheetHost.tsx`.
 
 ---
 
