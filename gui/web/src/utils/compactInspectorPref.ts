@@ -1,8 +1,7 @@
 /**
  * How the compact phone inspector opens on a timeline selection (#1051 rounds
- * 3 and 4b): at the drawer detent the user last left it
- * at, half or full height. A "peek" stored by the strip that the drawer once
- * had reads as half. Persisted like
+ * 3 and 4b): at the drawer detent the user last left it at, half or full
+ * height; any other stored value reads as half. Persisted like
  * `sharecut.laneHeight`, a convenience for this browser, not project state
  * (see `docs/persistence.md`).
  */

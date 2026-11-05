@@ -175,6 +175,29 @@ describe("SheetNudge", () => {
     ).toBeVisible();
   });
 
+  it("disables the lower button at level 0 and keeps the higher one", () => {
+    const silent = minimalProject({
+      ...project,
+      envelopes: [
+        {
+          track_id: "host",
+          parameter: "volume",
+          points: [{ id: "e1", time: 9.75, value: 0 }],
+        },
+      ],
+    });
+    open(
+      <SheetNudge
+        field={{ kind: "envelope-level", trackId: "host", pointId: "e1" }}
+        name="Envelope point level"
+      />,
+      {},
+    );
+    act(() => useDawStore.getState().hydrate("/tmp/p.json", silent, null));
+    expect(button("Envelope point level 0.5 dB lower")).toBeDisabled();
+    expect(button("Envelope point level 0.5 dB higher")).toBeEnabled();
+  });
+
   it("draws nothing for a field that is read-only", () => {
     open(<SheetNudge field={FADE} name="Fade in" hidden />);
     expect(screen.queryByRole("group")).toBeNull();

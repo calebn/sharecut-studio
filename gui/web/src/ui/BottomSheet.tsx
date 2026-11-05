@@ -31,6 +31,8 @@ export type BottomSheetBackgroundPolicy = "interactive" | "dismiss";
 export type SheetPlacement = "sheet" | "column";
 
 /** How each detent reads to a screen reader and on the buttons' names. */
+const DETENT_RANK: Record<DrawerDetent, number> = { peek: 0, half: 1, full: 2 };
+
 const DETENT_TEXT: Record<DrawerDetent, string> = {
   peek: "Strip",
   half: "Half height",
@@ -76,7 +78,7 @@ type Props = {
    * what it describes; it slides back when they let go.
    */
   stowed?: boolean;
-  /** Extra class on the panel (the compact inspector's strip and sheet). */
+  /** Extra class on the panel (the compact inspector's drawer). */
   className?: string;
   placement?: SheetPlacement;
 };
@@ -133,15 +135,25 @@ export function BottomSheet({
     panel.addEventListener("focusin", reveal);
     return () => panel.removeEventListener("focusin", reveal);
   }, [open, hasDrawer, className]);
-  // Collapsing to the strip shows its top again. The body keeps the scroll it
-  // had open, which the strip would otherwise clamp to its end, leaving the
-  // first nudge out of view when the strip fills a short, large-text screen
-  // (#1762).
-  const atLowest = drawer != null && drawer.detent === drawer.detents[0];
+  // Dropping to the lowest detent, or opening there, shows the body's top. The
+  // body keeps the scroll it had at a taller detent, which a short, large-text
+  // screen would clamp to its end, leaving the first nudge out of view (#1762).
+  // The detents shrinking under a sheet already at full (rotation, keyboard,
+  // text zoom) is not a drop, so it keeps its scroll.
+  const detent = drawer?.detent;
+  const lowestRef = useRef(drawer?.detents[0]);
+  lowestRef.current = drawer?.detents[0];
+  const prevDetent = useRef<DrawerDetent | undefined>(undefined);
   useEffect(() => {
+    const before = prevDetent.current;
+    prevDetent.current = open ? detent : undefined;
     const body = panelRef.current?.querySelector(".bottom-sheet-body");
-    if (open && atLowest && body) body.scrollTop = 0;
-  }, [open, atLowest]);
+    const dropped =
+      before === undefined ||
+      (detent !== undefined && DETENT_RANK[detent] < DETENT_RANK[before]);
+    if (open && body && dropped && detent === lowestRef.current)
+      body.scrollTop = 0;
+  }, [open, detent]);
   const isExpanded = expanded ?? size === expandedSize;
   const current = drawer ? drawer.detent : isExpanded ? expandedSize : size;
 
