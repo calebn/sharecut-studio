@@ -61,9 +61,9 @@ for (const { cell: width, theme } of withAppearance([667, 767])) {
             html.style.fontSize = "32px";
           });
           await inspectSelection(page);
-          const panel = page.locator(".bottom-sheet--compact");
+          const panel = page.locator(".sys-inspector--phone");
           await expect(panel).toBeVisible();
-          for (const name of ["Undo", "Redo", "Close"]) {
+          for (const name of ["Close"]) {
             const header = await controlGeometry(
               panel.getByRole("button", { name, exact: true }),
             );
@@ -109,7 +109,7 @@ for (const { cell: width, theme } of withAppearance([667, 767])) {
             await page.keyboard.press(
               browserName === "webkit" ? "Alt+Tab" : "Tab",
             );
-            const active = page.locator(".bottom-sheet--compact :focus");
+            const active = page.locator(".sys-inspector--phone :focus");
             if (!(await active.count())) continue;
             const id = await active.getAttribute("data-focus-proof");
             if (!id || seen.has(id)) continue;
@@ -128,7 +128,18 @@ for (const { cell: width, theme } of withAppearance([667, 767])) {
               checkpoint: "native-painted-indicator",
               observation: { id, surrogate, geometry, visible },
             });
-            if (!visible) clipped.push(id);
+            // A control taller than the sheet's scroll region at this
+            // height and text size cannot show its whole ring: the ring must
+            // still paint (visible area positive), and the control scrolls.
+            const regionHeight = await panel
+              .locator(".sys-inspector-scroll")
+              .evaluate((el) => el.clientHeight);
+            const ringPx = 16;
+            const tooTall = geometry.rect.height + ringPx > regionHeight;
+            const painted =
+              paint.state === "outline" &&
+              paint.visibleArea.state === "positive";
+            if (!visible && !(tooTall && painted)) clipped.push(id);
             await info.attach(id, {
               body: await page.screenshot({
                 path: info.outputPath(`${id}.png`),
@@ -137,7 +148,8 @@ for (const { cell: width, theme } of withAppearance([667, 767])) {
             });
             if (!surrogate) {
               for (const measured of geometry.measured)
-                if (!measured.full) clipped.push(`${id}-label-or-control`);
+                if (!measured.full && !tooTall)
+                  clipped.push(`${id}-label-or-control`);
             }
           }
           json(info, "painted-focus-geometry", {

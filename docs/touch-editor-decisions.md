@@ -113,8 +113,7 @@ enforced-by:
 - gui/web/e2e-compat/touch-grammar.spec.ts::a create menu taller than 90% of the screen, with room beside the finger, is not cut to 90%
 - gui/web/src/timeline/hitRouting.grammar.test.ts::arms from its body near an end whose trim and fade targets are click-through, as on an unselected clip
 - gui/web/src/timeline/hitCandidates.test.ts::is still the one candidate when every target in reach is out of reach
-- gui/web/e2e-compat/compact-history-persistence.spec.ts::compact history ${name} root${rootPx} ${theme}
-- gui/web/e2e-compat/compact-form-scroll.spec.ts::scrolled fades and pinned actions retain pointer and keyboard ownership
+- gui/web/e2e-compat/compact-history-persistence.spec.ts::Undo and Redo stay reachable in the App header with the Inspector sheet open: ${name} root${rootPx} ${theme}
 - gui/web/e2e-compat/touch-grammar.spec.ts::in a short viewport the create menu stays in view off the finger, and lifting without moving saves nothing
 - gui/web/src/timeline/ClipBlock.test.tsx::stops a held arrow at a soft boundary with a bump and a note (#1115)
 - gui/web/src/ui/BottomSheet.test.tsx::opens fully on a quick flick and lands a slow drag at the nearest detent
@@ -1058,7 +1057,7 @@ or `RollClipJoin`; now they send no document command, the saved clip is
 unchanged, the selection is what it was, and the zoom grows by about 2.3×
 (portrait and sideways).
 
-### Decision: Undo and Redo stay in the compact inspector header
+### Decision: Undo and Redo stay in the App header on the phone
 
 <!-- decision
 id: D-compact-inspector-history
@@ -1069,16 +1068,18 @@ evidence:
 - #1205: at 844x390 with 32 px text, a tap on the rail Undo hit the envelope nudge and saved an unintended edit
 - #1205 design synthesis: the same history controls move into the compact header while lane space returns
 enforced-by:
-- gui/web/e2e-compat/compact-history-persistence.spec.ts::compact history ${name} root${rootPx} ${theme}
-- gui/web/e2e-compat/compact-form-scroll.spec.ts::scrolled fades and pinned actions retain pointer and keyboard ownership
+- gui/web/e2e-compat/compact-history-persistence.spec.ts::Undo and Redo stay reachable in the App header with the Inspector sheet open: ${name} root${rootPx} ${theme}
 -->
 
-The compact drawer covers the Player bar again. Its header keeps the shared Undo and
-Redo controls visible at half and full height (and, until #2294 W3c2b removed it, at peek). The rail and header use
-one authorization check, one unavailable-action message and the existing
-`history.undo` / `history.redo` command bus path, including its wait for this
-tab's edit saves (it queues behind a save that is still out, says "Undo runs after save", and never refuses for the wait). History controls stay
-at least 44 CSS pixels square and do not overlap the resize or Close controls.
+The phone Inspector sheet has no header and carries no history controls (the
+compact drawer that did is retired, #2294 yf). Undo and Redo stay in the App
+header, which the sheet never covers at the dock, half or full detent, at any
+text size. The header controls use one authorization check, one
+unavailable-action message and the existing `history.undo` / `history.redo`
+command bus path, including its wait for this tab's edit saves (it queues
+behind a save that is still out, says "Undo runs after save", and never
+refuses for the wait). History controls stay at least 44 CSS pixels square and
+are never covered by the sheet.
 
 The blade confirmation sheet this round fitted was removed in #2294: Split cuts at once and the toast carries Undo.
 

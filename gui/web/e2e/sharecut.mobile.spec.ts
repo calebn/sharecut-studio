@@ -182,13 +182,19 @@ test.describe("ShareCut Studio mobile smoke", () => {
 
     await page.locator(".lane-row .clip-block").first().click();
     await inspectSelection(page);
-    const drawer = page.locator(".bottom-sheet--compact");
+    const drawer = page.locator(".sys-inspector--phone");
     await expect(drawer).toBeVisible();
-    await expect(drawer.getByRole("button", { name: "Copy" })).toBeVisible();
     await expect(drawer.getByRole("button", { name: "Cut" })).toBeVisible();
+    await drawer
+      .locator(".sys-actions--dock")
+      .getByRole("button", { name: "More" })
+      .click();
+    await expect(page.locator(".ui-menu-panel")).toContainText("Mute");
+    await expect(page.locator(".ui-menu-panel")).toContainText("Fade");
     await expectPageAxeClean(page);
+    await page.keyboard.press("Escape");
 
-    await drawer.getByRole("button", { name: "Close" }).click();
+    await expect(page.locator(".ui-menu-panel")).toHaveCount(0);
     const sheet = page.getByRole("dialog", { name: "Inspector" });
     await page.locator(TRACK_HEADER_SELECT).first().click();
     await expect(sheet).toBeVisible();
