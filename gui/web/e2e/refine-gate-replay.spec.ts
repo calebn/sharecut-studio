@@ -53,12 +53,11 @@ for (const phone of PHONES) {
     await expect(banner).toBeVisible();
     online = true;
     await page.evaluate(() => window.dispatchEvent(new Event("online")));
-    const waive = banner.getByRole("button", { name: "Waive with reason" });
+    const waive = banner.getByRole("button", { name: "Cut anyway" });
     await waive.scrollIntoViewIfNeeded();
     await expect(waive).toBeVisible();
     await expect(waive).toBeInViewport();
-    const field = banner.getByLabel("Waiver reason");
-    await expect(field).toBeInViewport();
+    await expect(banner.getByLabel("Waiver reason")).toHaveCount(0);
     await expect
       .poll(() =>
         waive.evaluate((button) => {
@@ -75,11 +74,10 @@ for (const phone of PHONES) {
     await expect(banner).not.toContainText(
       /podcast transcript|ApproveEdits|refine-waive|transcript_refine/,
     );
-    await banner.getByLabel("Waiver reason").fill("episode is a rerun");
     await waive.click();
     await expect(banner.getByRole("status")).toContainText("Waiver recorded");
     expect(waivers).toEqual([
-      { path: e2eProjectPath, reason: "episode is a rerun" },
+      { path: e2eProjectPath, reason: "Cut anyway, chosen by the host" },
     ]);
   });
 }

@@ -89,8 +89,8 @@ The host-only `POST /api/transcript/refine/waive` endpoint accepts `{path,
 reason}` and records the waiver through `TranscriptRefineService` with source
 `user`. The GUI exposes it only when an approval receives the transcript-refine
 gate error. A replayed (queued) approval refused by the gate shows the same
-Waiver reason field (it counts characters against the server's 2000 cap and stops there) and **Waive with reason** button in its **Needs attention**
-row in the Review queue. Share guests cannot use this recovery path; waiving never approves
+**Cut anyway** button in its **Needs attention**
+row in the Review queue. There is no text box: Cut anyway saves the canned reason "Cut anyway, chosen by the host". Share guests cannot use this recovery path; waiving never approves
 the pending edit automatically.
 The document-command gate responds with HTTP 409 and
 `X-Sharecut-Error-Code: transcript_refine_required`; the GUI uses that stable
@@ -268,7 +268,7 @@ or remounted behind an open modal or a later non-modal (JoinPopover) stays
 below it in `ui/modalGate`: the inner overlay keeps Escape and entry focus,
 and when it closes without a usable return target the sheet's Close takes
 focus. Restore skips a disabled, inert, or hidden return target. A remounted
-inspector does not steal focus from a docked waiver field. A new sheet still
+inspector does not steal focus from a docked Cut anyway button. A new sheet still
 takes Close after deferred envelope first-entry. The keymap
 does not run Escape commands while any overlay is open (`overlayOpen()`
 skips `edit.clearSelection`). A clip fade Scrub field's Escape stops
@@ -863,7 +863,7 @@ modal above every non-modal, and ranks remount-stable peek sheets below later
 non-modals (JoinPopover), so a sheet opened or remounted behind a modal or
 popover takes neither Escape nor entry focus; it takes entry focus when the
 inner overlay closes without a usable return target. A remounted inspector
-does not steal focus from a docked waiver field. A new sheet still takes
+does not steal focus from a docked Cut anyway button. A new sheet still takes
 Close after deferred envelope first-entry. The keymap skips Escape
 commands while any overlay is open (`overlayOpen()` skips
 `edit.clearSelection`). A clip fade Scrub field's Escape stops propagation only

@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { CUT_ANYWAY_REASON } from "../inspector/TranscriptRefineRecovery";
 import { reviewContent } from "../storybook/reviewContent";
 import { QUEUE_WITHOUT_CHECKS } from "../storybook/reviewFixtures";
 import { offlineConflict } from "../test/fixtures";
@@ -662,22 +663,14 @@ describe("ReviewQueue", () => {
       expect(
         screen.queryByText("Edit the change and submit it again."),
       ).toBeNull();
-      await userEvent.type(
-        screen.getByLabelText("Waiver reason"),
-        "episode is a rerun",
-      );
-      await userEvent.click(
-        screen.getByRole("button", { name: "Waive with reason" }),
-      );
-      expect(waive).toHaveBeenCalledWith("/p", "episode is a rerun");
+      await userEvent.click(screen.getByRole("button", { name: "Cut anyway" }));
+      expect(waive).toHaveBeenCalledWith("/p", CUT_ANYWAY_REASON);
       const status = await screen.findByRole("status");
       expect(status).toHaveTextContent(
         "Waiver recorded. Retry approval to apply pending edits.",
       );
       expect(status).toHaveFocus();
-      expect(
-        screen.queryByRole("button", { name: "Waive with reason" }),
-      ).toBeNull();
+      expect(screen.queryByRole("button", { name: "Cut anyway" })).toBeNull();
     });
 
     it("names the command in plain words, never by its wire name", () => {
@@ -690,17 +683,11 @@ describe("ReviewQueue", () => {
     it("clears every gated entry with one waiver", async () => {
       waive.mockResolvedValue({});
       renderHost(hostAttention([gated("a-1"), gated("a-2")]));
-      await userEvent.type(
-        screen.getAllByLabelText("Waiver reason")[0]!,
-        "rerun",
-      );
       await userEvent.click(
-        screen.getAllByRole("button", { name: "Waive with reason" })[0]!,
+        screen.getAllByRole("button", { name: "Cut anyway" })[0]!,
       );
       expect(await screen.findAllByRole("status")).toHaveLength(2);
-      expect(
-        screen.queryByRole("button", { name: "Waive with reason" }),
-      ).toBeNull();
+      expect(screen.queryByRole("button", { name: "Cut anyway" })).toBeNull();
     });
 
     it("offers the form for a refusal that arrives after a waiver, and forgets one that left", async () => {
@@ -717,21 +704,16 @@ describe("ReviewQueue", () => {
         />
       );
       const { rerender } = render(view(["first"]));
-      await userEvent.type(screen.getByLabelText("Waiver reason"), "rerun");
-      await userEvent.click(
-        screen.getByRole("button", { name: "Waive with reason" }),
-      );
+      await userEvent.click(screen.getByRole("button", { name: "Cut anyway" }));
       await screen.findByRole("status");
       rerender(view(["first", "second"]));
       expect(
-        screen.getAllByRole("button", { name: "Waive with reason" }),
+        screen.getAllByRole("button", { name: "Cut anyway" }),
       ).toHaveLength(1);
       expect(screen.getAllByRole("status")).toHaveLength(1);
       rerender(view([]));
       rerender(view(["first"]));
-      expect(
-        screen.getByRole("button", { name: "Waive with reason" }),
-      ).toBeVisible();
+      expect(screen.getByRole("button", { name: "Cut anyway" })).toBeVisible();
     });
 
     it("keeps a waived status while the filter hides the group", async () => {
@@ -749,10 +731,7 @@ describe("ReviewQueue", () => {
         />
       );
       const { rerender } = render(view("all"));
-      await userEvent.type(screen.getByLabelText("Waiver reason"), "rerun");
-      await userEvent.click(
-        screen.getByRole("button", { name: "Waive with reason" }),
-      );
+      await userEvent.click(screen.getByRole("button", { name: "Cut anyway" }));
       await screen.findByRole("status");
       rerender(view("comments"));
       rerender(view("all"));
@@ -774,9 +753,7 @@ describe("ReviewQueue", () => {
           { refineWaiverProject: undefined },
         ),
       );
-      expect(
-        screen.queryByRole("button", { name: "Waive with reason" }),
-      ).toBeNull();
+      expect(screen.queryByRole("button", { name: "Cut anyway" })).toBeNull();
     });
 
     it("shows Retry for unreadable saved edits", async () => {

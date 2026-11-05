@@ -278,7 +278,7 @@ test.describe("Pending inspector layout", () => {
     });
     await expect(actionbar.getByRole("alert")).toBeVisible();
     await expect(
-      recovery.getByRole("button", { name: "Waive with reason" }),
+      recovery.getByRole("button", { name: "Cut anyway" }),
     ).toBeAttached();
 
     await expect(
@@ -314,7 +314,7 @@ test.describe("Pending inspector layout", () => {
       panel.scrollTop = panel.scrollHeight;
     });
     await expect(
-      recovery.getByRole("button", { name: "Waive with reason" }),
+      recovery.getByRole("button", { name: "Cut anyway" }),
     ).toBeInViewport();
   });
 });

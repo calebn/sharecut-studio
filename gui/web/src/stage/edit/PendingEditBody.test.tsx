@@ -19,6 +19,10 @@ import {
 } from "../../audio/pendingPreview";
 import { executePointerCommand } from "../../commands/pointer";
 import { registerDawCommands } from "../../commands/register";
+import {
+  CUT_ANYWAY_REASON,
+  REFINE_GATE_GUI_MESSAGE,
+} from "../../inspector/TranscriptRefineRecovery";
 import { shareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
@@ -899,7 +903,7 @@ describe("PendingEditBody", () => {
     const { container } = render(<PendingEditBody edit={sessionCut} />);
     await decide("cut");
     const error = await screen.findByRole("alert");
-    expect(error).toHaveTextContent(/Review the transcript or waive/);
+    expect(error).toHaveTextContent(REFINE_GATE_GUI_MESSAGE);
     expect(error).not.toHaveTextContent(/podcast transcript/);
     expect(
       screen.getByRole("region", { name: "Ask about this edit" }),
@@ -960,41 +964,24 @@ describe("PendingEditBody", () => {
     );
     render(<PendingEditBody edit={sessionCut} />);
     await decide("cut");
-    await user.type(
-      await screen.findByLabelText("Waiver reason"),
-      "Reviewed manually",
-    );
-    await user.click(screen.getByRole("button", { name: "Waive with reason" }));
+    await user.click(await screen.findByRole("button", { name: "Cut anyway" }));
     expect(waiveTranscriptRefine).toHaveBeenCalledWith(
       "/tmp/p.json",
-      "Reviewed manually",
+      CUT_ANYWAY_REASON,
     );
     expect(approveEdits).toHaveBeenCalledTimes(1);
-    expect(
-      screen.queryByRole("button", { name: "Waive with reason" }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Cut anyway" })).toBeNull();
     expect(screen.getByRole("status")).toHaveTextContent(/Retry approval/);
   });
 
-  it("associates an empty waiver reason error with the textarea", async () => {
-    const user = userEvent.setup();
+  it("asks to cut anyway with no waiver text box", async () => {
     approveEdits.mockRejectedValue(
       new ApiError("Refinement blocked", TRANSCRIPT_REFINE_REQUIRED_CODE),
     );
     const { container } = render(<PendingEditBody edit={sessionCut} />);
     await decide("cut");
-    await user.click(
-      await screen.findByRole("button", { name: "Waive with reason" }),
-    );
-    const reason = screen.getByRole("textbox", { name: "Waiver reason" });
-    const validation = screen.getByText(
-      "A reason is required to waive transcript refinement.",
-    );
-    expect(reason).toHaveAttribute("aria-invalid", "true");
-    expect(reason).toHaveAccessibleDescription(
-      "This reason is saved with the transcript-refine status. 0 of 2000 characters. A reason is required to waive transcript refinement.",
-    );
-    expect(validation).toHaveAttribute("role", "alert");
+    await screen.findByRole("button", { name: "Cut anyway" });
+    expect(screen.queryByRole("textbox", { name: "Waiver reason" })).toBeNull();
     expect(waiveTranscriptRefine).not.toHaveBeenCalled();
     await expectNoA11yViolations(container);
   });
