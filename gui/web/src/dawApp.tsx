@@ -227,7 +227,6 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
               <StageFrame
                 guestShare={guestShare}
                 loadFailure={loadFailure}
-                attentionHost={feedbackHost}
                 sheets={EDIT_SHEETS}
               >
                 <StageHost

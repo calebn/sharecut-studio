@@ -27,7 +27,6 @@ import { useStageBarProps } from "./useStageBarProps";
 
 export type StageFrameProps = {
   guestShare?: boolean;
-  attentionHost?: HTMLElement | null;
   loadFailure?: LoadFailure | null;
   /** Content for the View and Mix sheets; History is hosted by the frame. */
   sheets?: Partial<Record<StageSheet, ReactNode>>;
@@ -37,7 +36,6 @@ export type StageFrameProps = {
 
 function StageFrameAdapter({
   guestShare = false,
-  attentionHost,
   loadFailure,
   sheets,
   children,
@@ -106,11 +104,7 @@ function StageFrameAdapter({
         />
       }
       banners={
-        <BannerStack
-          guestShare={guestShare}
-          attentionHost={attentionHost}
-          loadFailure={loadFailure}
-        />
+        <BannerStack guestShare={guestShare} loadFailure={loadFailure} />
       }
       player={stage === "record" ? null : <PlayerBar />}
       tabs={

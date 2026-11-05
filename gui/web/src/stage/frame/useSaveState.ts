@@ -12,7 +12,6 @@ import {
 import { isShareProjectKey } from "../../shareMode";
 import { useDaw } from "../../state/useDaw";
 import { useDocumentBusy } from "../../state/useDocumentBusy";
-import { ATTENTION_BANNER_ID } from "./GuestAttentionBannerView";
 import { latestSaveOutcome, type SaveState, saveStateOf } from "./saveState";
 
 export type SaveAttention =
@@ -31,17 +30,11 @@ function focusWhenMounted(id: string, frames = FOCUS_FRAMES) {
   }
 }
 
-/** A guest's banner opens in place; the host's Check rows live in the Review queue. */
-function focusAttention(guest: boolean) {
-  if (!guest) {
-    void executePointerCommand("stage.review").then(() =>
-      focusWhenMounted(REVIEW_ATTENTION_ID),
-    );
-    return;
-  }
-  const banner = document.getElementById(ATTENTION_BANNER_ID);
-  banner?.querySelector("details")?.setAttribute("open", "");
-  banner?.focus();
+/** Opens Review and focuses the Needs attention group, where every attention row lives. */
+function focusAttention() {
+  void executePointerCommand("stage.review").then(() =>
+    focusWhenMounted(REVIEW_ATTENTION_ID),
+  );
 }
 
 /**
@@ -76,9 +69,9 @@ export function useSaveState(): {
 
   useEffect(() => {
     if (attention.recoverySelection) {
-      focusAttention(guest);
+      focusAttention();
     }
-  }, [attention.recoverySelection, guest]);
+  }, [attention.recoverySelection]);
 
   return {
     state,
@@ -96,7 +89,7 @@ export function useSaveState(): {
               if (projectPath && latest && showsDismissedOutcome) {
                 selectRecoveryOutcome(projectPath, latest);
               }
-              focusAttention(guest);
+              focusAttention();
             },
           },
   };

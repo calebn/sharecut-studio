@@ -232,10 +232,9 @@ for (const waived of [true, false]) {
               .poll(() => openSuggestions(host, projectPath))
               .toBe(before - 1);
           } else {
-            await editor.locator(".guest-attention-head").click();
             await expect(
               editor
-                .getByRole("region", { name: /^Needs attention/ })
+                .getByRole("group", { name: /^Needs attention/ })
                 .getByText(/blocked until transcript refinement/),
             ).toBeVisible();
             expect(await openSuggestions(host, projectPath)).toBe(before);

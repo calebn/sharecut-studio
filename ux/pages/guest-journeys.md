@@ -122,7 +122,7 @@ flowchart TD
   back --> drain[Queue drains]
   drain --> ok{Host accepts?}
   ok -->|yes| synced[Timeline updates]
-  ok -->|conflict| attn[Needs attention banner]
+  ok -->|conflict| attn[Needs attention rows in the Review queue]
   attn --> dismiss[Dismiss or resolve with host]
 ```
 
