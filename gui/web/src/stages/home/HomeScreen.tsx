@@ -145,12 +145,25 @@ function wantsPathField(): boolean {
   );
 }
 
+type RecentsRead = {
+  reload: number;
+  recents: RecentProject[] | null;
+  loadFailed: boolean;
+};
+
 export function HomeScreen() {
   useShellAttributes("home");
   const models = useModels();
-  const [recents, setRecents] = useState<RecentProject[] | null>(null);
-  const [loadFailed, setLoadFailed] = useState(false);
   const [reload, setReload] = useState(0);
+  const [read, setRead] = useState<RecentsRead>({
+    reload,
+    recents: null,
+    loadFailed: false,
+  });
+  if (read.reload !== reload) {
+    setRead({ ...read, reload, loadFailed: false });
+  }
+  const { recents, loadFailed } = read;
   const [now] = useState(() => new Date());
   const [notice, setNotice] = useState<string | undefined>();
   const [working, setWorking] = useState<string | undefined>();
@@ -184,12 +197,22 @@ export function HomeScreen() {
 
   useEffect(() => {
     const controller = new AbortController();
-    void reload;
-    setLoadFailed(false);
     listRecentProjects(controller.signal)
-      .then(setRecents)
+      .then((recents) => {
+        if (!controller.signal.aborted) {
+          setRead((current) =>
+            current.reload === reload ? { ...current, recents } : current,
+          );
+        }
+      })
       .catch(() => {
-        if (!controller.signal.aborted) setLoadFailed(true);
+        if (!controller.signal.aborted) {
+          setRead((current) =>
+            current.reload === reload
+              ? { ...current, loadFailed: true }
+              : current,
+          );
+        }
       });
     return () => controller.abort();
   }, [reload]);

@@ -13,6 +13,17 @@ import { binPeaks, mixPeaks } from "./episodePeaks";
 const NONE: readonly number[] = [];
 const DEFAULT_RETRY_MS = 3000;
 
+type PeaksOwner = {
+  projectPath: string | null;
+  totalSec: number;
+  revision: string;
+};
+
+type PeaksRead = {
+  owner: PeaksOwner;
+  peaks: readonly number[];
+};
+
 async function stemPeaks(
   projectPath: string,
   ref: string,
@@ -57,10 +68,20 @@ export function useEpisodePeaks(
   totalSec: number,
   revision: string,
 ): readonly number[] {
-  const [peaks, setPeaks] = useState<readonly number[]>(NONE);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `revision` is the reload trigger.
+  const [read, setRead] = useState<PeaksRead>(() => ({
+    owner: { projectPath, totalSec, revision },
+    peaks: NONE,
+  }));
+  const { owner } = read;
+  if (
+    owner.projectPath !== projectPath ||
+    !Object.is(owner.totalSec, totalSec) ||
+    owner.revision !== revision
+  ) {
+    setRead({ owner: { projectPath, totalSec, revision }, peaks: NONE });
+  }
   useEffect(() => {
-    setPeaks(NONE);
+    const { projectPath, totalSec } = owner;
     if (!projectPath || isShareProjectKey(projectPath) || !(totalSec > 0))
       return;
     const controller = new AbortController();
@@ -98,10 +119,11 @@ export function useEpisodePeaks(
         const rejected = settled.find((r) => r.status === "rejected");
         if (rejected && settled.every((r) => r.status === "rejected"))
           throw rejected.reason;
-        setPeaks(
-          mixPeaks(
-            settled.flatMap((r) => (r.status === "fulfilled" ? [r.value] : [])),
-          ),
+        const peaks = mixPeaks(
+          settled.flatMap((r) => (r.status === "fulfilled" ? [r.value] : [])),
+        );
+        setRead((current) =>
+          current.owner === owner ? { owner, peaks } : current,
         );
       } catch (err) {
         if (controller.signal.aborted) return;
@@ -117,6 +139,6 @@ export function useEpisodePeaks(
       controller.abort();
       clearTimeout(timer);
     };
-  }, [projectPath, totalSec, revision]);
-  return peaks;
+  }, [owner]);
+  return read.peaks;
 }
