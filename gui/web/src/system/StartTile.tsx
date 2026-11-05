@@ -40,8 +40,6 @@ export function StartTile({
       : `Drop to add ${dragCount} ${dragCount === 1 ? "file" : "files"}`;
   const reason = disabled && disabledReason ? disabledReason : null;
   const note = reason ?? (dragging ? dropLine : line);
-  // The 80 px and 160 x 96 tiles drop their line, but still say why they are
-  // disabled and what a drop does.
   const compact = size === 80 || size === "160x96";
   const showNote = !compact || reason !== null || dragging;
   return (
