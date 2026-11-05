@@ -16,31 +16,6 @@ html[data-shell] body {
   font-size: var(--font-size-small);
 }
 
-/* Add to Home Screen, once per browser (#1077): a quiet line, not a warning. */
-.home-screen-hint {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding-inline: var(--space-4) var(--space-1);
-  background: var(--color-bg-raised);
-  border-bottom: 1px solid var(--color-border);
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-small);
-}
-
-.home-screen-hint-text {
-  flex: 1;
-  min-inline-size: 0;
-  margin: 0;
-  padding-block: var(--space-3);
-}
-
-.home-screen-hint-dismiss {
-  flex: none;
-  min-inline-size: var(--touch-min);
-  min-block-size: var(--touch-min);
-}
-
 .track-headers {
   display: flex;
   flex-direction: column;

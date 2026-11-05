@@ -56,6 +56,8 @@ const KEYDOWN_LISTENER_ALLOWLIST = new Set([
   "review/ReviewStage.tsx",
   // Escape keeps the link while Stop sharing is asking, wherever focus is, so the cancel does not depend on the row holding focus.
   "stages/deliver/ShareSection.tsx",
+  // Home is not a project, so the project keymap is not mounted: Mod+I, Mod+O, R and ? run Import, Open other, Record and Help here.
+  "stages/home/useHomeKeys.ts",
   // A test listens at the window the way the app keymap does, to prove the keys the pane handles never reach it.
   "system/ScriptPane.select.test.tsx",
   // A drag in progress on a ruler handle, the ruler body or a marker takes Escape from the document, wherever focus is, so the cancel does not depend on the grabbed element holding focus.

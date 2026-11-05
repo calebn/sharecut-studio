@@ -1,58 +1,44 @@
 import type { DragEventHandler } from "react";
+import { StartTile } from "../../system/StartTile";
 
 export interface EmptySessionViewProps {
   over: boolean;
-  dropLabel: string;
-  importShortcut: string | null;
-  coachOpen: boolean;
-  onDragOver: DragEventHandler<HTMLButtonElement>;
-  onDragLeave: DragEventHandler<HTMLButtonElement>;
-  onDrop: DragEventHandler<HTMLButtonElement>;
+  fileCount: number;
+  onDragOver: DragEventHandler<HTMLElement>;
+  onDragLeave: DragEventHandler<HTMLElement>;
+  onDrop: DragEventHandler<HTMLElement>;
   onImport: () => void;
-  onDismissCoach: () => void;
+  onRecord: () => void;
 }
 
-/** An episode with no tracks: the drop target and its one-time coach. */
+/** An episode with no tracks: the two Start tiles, which also take dropped audio. */
 export function EmptySessionView({
   over,
-  dropLabel,
-  importShortcut,
-  coachOpen,
+  fileCount,
   onDragOver,
   onDragLeave,
   onDrop,
   onImport,
-  onDismissCoach,
+  onRecord,
 }: EmptySessionViewProps) {
   return (
-    <div className="empty-session-wrap">
-      <button
-        type="button"
-        className={`empty-session-drop${over ? " lane-drop-target" : ""}`}
-        onDragOver={onDragOver}
-        onDragLeave={onDragLeave}
-        onDrop={onDrop}
-        onClick={onImport}
-      >
-        <span className="empty-session-ghost" aria-hidden="true" />
-        <span className="empty-session-drop-label">{dropLabel}</span>
-      </button>
-      {coachOpen ? (
-        <div className="box elevated empty-session-coach" role="status">
-          <p>
-            Drop stems here. Use one file per speaker. One recording of
-            everyone? Import it, then choose Split speakers. Import is also in
-            the + menu{importShortcut ? ` (${importShortcut})` : ""}.
-          </p>
-          <button
-            type="button"
-            className="empty-session-coach-dismiss"
-            onClick={onDismissCoach}
-          >
-            Got it
-          </button>
-        </div>
-      ) : null}
+    <div
+      role="presentation"
+      className="empty-session-wrap"
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
+      <section className="empty-session-tiles" aria-label="Start">
+        <StartTile
+          kind="import"
+          size="160x96"
+          state={over ? "drag-hover" : "rest"}
+          dragCount={fileCount}
+          onActivate={onImport}
+        />
+        <StartTile kind="record" size="160x96" onActivate={onRecord} />
+      </section>
     </div>
   );
 }

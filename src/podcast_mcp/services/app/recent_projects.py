@@ -24,6 +24,7 @@ import logging
 import math
 import os
 import re
+import shutil
 import threading
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -31,11 +32,15 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp import settings
+from podcast_mcp.models.episode import PROJECT_NAME_MAX_CHARS
 from podcast_mcp.project.io import (
     EPISODE_PROJECT_FILENAME,
     RETIRED_PROJECT_FILENAME,
+    copy_relocated_workspace,
     ensure_utf8_path,
+    require_episode_project_file,
 )
+from podcast_mcp.project.store import ProjectStore
 from podcast_mcp.util.atomic_file import atomic_write
 from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.fingerprint import file_stamp
@@ -416,3 +421,24 @@ def default_workspace_dir(name: str) -> Path:
                 n += 1
                 continue
             return candidate
+
+
+def duplicate_project(project_path: Path | str) -> tuple[Path, str]:
+    """Copy an episode into a new "<name> copy" folder under the workspace root and list it.
+
+    The copy keeps the media, transcripts and project file; the history and derived artifacts
+    stay behind, as for any relocated workspace. Returns the new project file and its name.
+    """
+    source = require_episode_project_file(project_path)
+    name = f"{ProjectStore(source).load().name} copy"[:PROJECT_NAME_MAX_CHARS].strip()
+    reserved = default_workspace_dir(name)
+    reserved.rmdir()
+    try:
+        copied = copy_relocated_workspace(source, reserved, name=name)
+    except FileExistsError:
+        raise
+    except Exception:
+        shutil.rmtree(reserved, ignore_errors=True)
+        raise
+    record_recent(copied)
+    return copied, name

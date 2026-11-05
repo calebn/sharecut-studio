@@ -10,6 +10,9 @@ function setup(props: Partial<HomeViewProps> = {}) {
   const handlers = {
     onOpenProject: vi.fn(),
     onFindProject: vi.fn(),
+    onRevealProject: vi.fn(),
+    onDuplicateProject: vi.fn(),
+    onRemoveProject: vi.fn(),
     onImport: vi.fn(),
     onRecord: vi.fn(),
     onOpenOther: vi.fn(),
@@ -203,34 +206,15 @@ describe("HomeView empty, loading and drop", () => {
 });
 
 describe("HomeView start tiles", () => {
-  it("shows no shortcut hints, since Home binds no keys for them", () => {
+  it("shows the key caps of the keys Home binds, on the filled tile too", () => {
     for (const props of [{}, { phase: "empty" as const, projects: [] }]) {
       setup(props);
-      for (const name of [/^Import audio/, /^Record/]) {
-        expect(
-          screen.getByRole("button", { name }).querySelector(".sys-keys"),
-        ).toBeNull();
-      }
+      const caps = (name: RegExp) =>
+        screen.getByRole("button", { name }).querySelector(".sys-keys");
+      expect(caps(/^Import audio/)).toHaveTextContent(/I$/);
+      expect(caps(/^Record/)).toHaveTextContent(/^R$/);
       cleanup();
     }
-  });
-});
-
-describe("StartTile keys", () => {
-  it("keeps the key caps by default and hides them with showKeys off", () => {
-    const { rerender } = render(
-      <StartTile kind="import" size={240} onActivate={vi.fn()} />,
-    );
-    expect(document.querySelector(".sys-keys")).not.toBeNull();
-    rerender(
-      <StartTile
-        kind="import"
-        size={240}
-        showKeys={false}
-        onActivate={vi.fn()}
-      />,
-    );
-    expect(document.querySelector(".sys-keys")).toBeNull();
   });
 });
 

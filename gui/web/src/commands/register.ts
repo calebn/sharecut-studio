@@ -16,6 +16,7 @@ import { registerProjectMediaCommands } from "./projectMedia";
 import { registerRangeCommands } from "./rangeActions";
 import { registerSpeakerMoveLaneSpanCommands } from "./speakerMoveLaneSpan";
 import { registerSpeakerSplitCommands } from "./speakerSplit";
+import { registerStageHandoffCommand } from "./stageHandoff";
 import { registerTrackMixCommands } from "./trackMix";
 import { registerTranscriptIgnoreCommands } from "./transcriptIgnore";
 import { registerTranscriptRangeCommands } from "./transcriptRange";
@@ -35,6 +36,7 @@ export function registerDawCommands(): void {
   registerRangeCommands();
   registerSpeakerMoveLaneSpanCommands();
   registerNavigationCommands();
+  registerStageHandoffCommand();
   registerPrimaryEditingCommands();
   registerEditVerbCommands();
   registerViewCommands();

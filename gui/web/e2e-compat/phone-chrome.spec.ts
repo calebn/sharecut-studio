@@ -10,7 +10,7 @@ import { rulerWidthPx } from "../e2e/deepZoom";
 import { postDocumentCommand } from "../e2e/documentCommand";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { withShareableProject } from "../e2e/shareableProject";
-import { openPanel, openProject, projectMenuButton } from "../e2e/stageNav";
+import { openPanel, openProject } from "../e2e/stageNav";
 import type { PendingEditView } from "../src/types/project";
 
 /*
@@ -334,19 +334,8 @@ test("Keep decides one queue item at a thumb-sized target, then one Undo brings 
   });
 });
 
-test("the phone timeline shows Undo and Redo; a Safari tab offers the Home Screen once", async ({
-  page,
-}) => {
+test("the phone timeline shows Undo and Redo", async ({ page }) => {
   await page.setViewportSize(PORTRAIT);
-  // An iPhone Safari tab: iOS reports `standalone` false until launched from
-  // the Home Screen, and touch points (desktop WebKit reports none).
-  await page.addInitScript(() => {
-    for (const [key, value] of Object.entries({
-      standalone: false,
-      maxTouchPoints: 5,
-    }))
-      Object.defineProperty(navigator, key, { value, configurable: true });
-  });
   await withShareableProject(async (projectPath) => {
     await openProject(page, projectPath);
     await expect(page.locator(".stage-frame--phone")).toBeVisible();
@@ -373,20 +362,6 @@ test("the phone timeline shows Undo and Redo; a Safari tab offers the Home Scree
       shellTop: 0,
       shellBottom: PORTRAIT.height,
     });
-
-    const hint = page.getByRole("complementary", { name: "Full screen" });
-    await expect(
-      hint.getByText(
-        "In Safari's Share menu, choose Add to Home Screen to open ShareCut full screen.",
-        { exact: true },
-      ),
-    ).toBeVisible();
-    await hint.getByRole("button", { name: "Dismiss" }).click();
-    await expect(hint).toBeHidden();
-    await page.reload();
-    await expect(page.locator(".stage-frame--phone")).toBeVisible();
-    await expect(projectMenuButton(page)).toBeVisible();
-    await expect(hint).toBeHidden();
   });
 });
 

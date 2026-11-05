@@ -1839,6 +1839,12 @@ html[data-frame-short] .sys-header-project .sys-header-title {
   min-block-size: 10rem;
 }
 
+.sys-start--160x96 {
+  min-block-size: 6rem;
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+
 .sys-start--80 {
   flex-direction: row;
   align-items: center;
@@ -1971,6 +1977,54 @@ html[data-frame-short] .sys-header-project .sys-header-title {
 .sys-project[data-missing] {
   background: var(--color-bg-sunken);
   color: var(--color-text-secondary);
+}
+
+.sys-project-slide {
+  display: flex;
+  flex: 1;
+  min-inline-size: 0;
+  background: inherit;
+  transform: translateX(var(--project-swipe, 0));
+}
+
+.sys-project .sys-project-menu {
+  display: contents;
+}
+
+.sys-project-remove {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  inline-size: 6rem;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-inline-start: 1px solid var(--color-border);
+  background: var(--color-bg-sunken);
+  color: var(--color-danger);
+  font: inherit;
+  font-size: var(--font-size-ui);
+  font-weight: 600;
+  visibility: hidden;
+  cursor: pointer;
+}
+
+.sys-project[data-revealed] {
+  --project-swipe: -6rem;
+}
+
+.sys-project[data-revealed] .sys-project-remove,
+.sys-project:has([data-dragging]) .sys-project-remove {
+  visibility: visible;
+}
+
+.sys-project--row .sys-project-slide {
+  touch-action: pan-y;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sys-project-slide:not([data-dragging]) {
+    transition: transform var(--motion-hover);
+  }
 }
 
 .sys-project-open {

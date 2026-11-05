@@ -101,7 +101,6 @@ for (const { theme, reducedMotion } of withAppearance([0, 1])) {
         });
         await page.addInitScript((selectedTheme) => {
           localStorage.setItem("daw_theme", selectedTheme);
-          localStorage.setItem("sharecut.homeScreenHintDismissed", "1");
         }, theme);
         await openProject(page, fixture.projectPath);
         await setTheme(page, theme);
@@ -184,9 +183,6 @@ for (const { cell: rootPx, theme, reducedMotion } of withAppearance([16, 32])) {
         await page.emulateMedia({
           reducedMotion: reducedMotion ? "reduce" : "no-preference",
         });
-        await page.addInitScript(() =>
-          localStorage.setItem("sharecut.homeScreenHintDismissed", "1"),
-        );
         await openProject(page, fixture.projectPath);
         await setTheme(page, theme);
         await expect(page.locator(".sys-track")).toHaveCount(2);
@@ -260,7 +256,6 @@ for (const { theme, reducedMotion } of withAppearance([0], 3)) {
         });
         await page.addInitScript((selectedTheme) => {
           localStorage.setItem("daw_theme", selectedTheme);
-          localStorage.setItem("sharecut.homeScreenHintDismissed", "1");
         }, theme);
         await page.route("**/api/document/command?*", async (route) => {
           if (

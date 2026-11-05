@@ -51,6 +51,10 @@ export type HomeViewProps = {
   onRetryLoad?: () => void;
   onOpenProject: (id: string, stage: ProjectCardData["stage"]) => void;
   onFindProject: (id: string) => void;
+  /** The card menu: Reveal in folder, Duplicate, Remove from list (also the phone swipe). */
+  onRevealProject: (id: string) => void;
+  onDuplicateProject: (id: string) => void;
+  onRemoveProject: (id: string) => void;
   onImport: () => void;
   onRecord: () => void;
   onOpenOther: () => void;
@@ -205,6 +209,9 @@ export function HomeView({
   onRetryLoad,
   onOpenProject,
   onFindProject,
+  onRevealProject,
+  onDuplicateProject,
+  onRemoveProject,
   onImport,
   onRecord,
   onOpenOther,
@@ -246,15 +253,9 @@ export function HomeView({
         state={dropActive ? "drag-hover" : "rest"}
         variant={empty ? "primary" : "default"}
         dragCount={dropCount}
-        showKeys={false}
         onActivate={onImport}
       />
-      <StartTile
-        kind="record"
-        size={tileSize}
-        showKeys={false}
-        onActivate={onRecord}
-      />
+      <StartTile kind="record" size={tileSize} onActivate={onRecord} />
     </>
   );
 
@@ -286,6 +287,11 @@ export function HomeView({
         busyId={busyId}
         onOpen={onOpenProject}
         onFind={onFindProject}
+        actions={{
+          onReveal: onRevealProject,
+          onDuplicate: onDuplicateProject,
+          onRemove: onRemoveProject,
+        }}
       />
     );
   }

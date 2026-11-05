@@ -1,5 +1,4 @@
 import { plural } from "../utils/format";
-import { readLocal, writeLocal } from "../utils/storage";
 
 export const AUDIO_INGEST_EXTENSIONS = [
   ".wav",
@@ -64,14 +63,4 @@ export function newTracksDropLabel(fileCount: number): string {
     return "Create new track";
   }
   return `Create ${fileCount} new tracks`;
-}
-
-export const INGEST_COACH_STORAGE_KEY = "sharecut.ingestCoachDismissed";
-
-export function isIngestCoachDismissed(): boolean {
-  return readLocal(INGEST_COACH_STORAGE_KEY) === "1";
-}
-
-export function dismissIngestCoach(): void {
-  writeLocal(INGEST_COACH_STORAGE_KEY, "1");
 }

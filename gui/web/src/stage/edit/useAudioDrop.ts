@@ -6,9 +6,9 @@ import {
 import { ingestFiles } from "../../ingest/ingestFiles";
 
 export interface AudioDropHandlers {
-  onDragOver: (e: DragEvent<HTMLButtonElement>) => void;
+  onDragOver: (e: DragEvent<HTMLElement>) => void;
   onDragLeave: () => void;
-  onDrop: (e: DragEvent<HTMLButtonElement>) => void;
+  onDrop: (e: DragEvent<HTMLElement>) => void;
 }
 
 export interface AudioDrop {
@@ -23,14 +23,14 @@ export interface AudioDrop {
 export function useAudioDrop(): AudioDrop {
   const [over, setOver] = useState(false);
   const [fileCount, setFileCount] = useState(1);
-  const onDragOver = useCallback((e: DragEvent<HTMLButtonElement>) => {
+  const onDragOver = useCallback((e: DragEvent<HTMLElement>) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
     setOver(true);
     setFileCount(Math.max(1, fileCountFromDataTransfer(e.dataTransfer)));
   }, []);
   const onDragLeave = useCallback(() => setOver(false), []);
-  const onDrop = useCallback((e: DragEvent<HTMLButtonElement>) => {
+  const onDrop = useCallback((e: DragEvent<HTMLElement>) => {
     e.preventDefault();
     setOver(false);
     const files = audioFilesFromDrop(e.dataTransfer.files);

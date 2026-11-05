@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { runPointerCommand } from "../../commands/pointer";
+import { offerStageHandoff } from "../../commands/stageHandoff";
 import { usePipelineWorkingSet } from "../../hooks/usePipelineWorkingSet";
 import { ingestFiles, pickAudioFiles } from "../../ingest/ingestFiles";
 import { canIngestMedia, canManageProjects } from "../../shareMode";
@@ -422,6 +423,15 @@ export function usePrepareModel(): PrepareModel {
         ? processNewAudio()
         : openStage(target.target),
   };
+  const { handoff, onHandoff } = view;
+  useEffect(
+    () =>
+      offerStageHandoff({
+        disabledReason: handoff.disabledReason,
+        run: onHandoff,
+      }),
+    [handoff.disabledReason, onHandoff],
+  );
   return {
     view,
     advanced: {
