@@ -1,6 +1,10 @@
 import type { SystemIconName } from "../../system/icons";
 import type { ProjectView, Selection } from "../../types/project";
-import { clipIdentityTrack, clipLabels } from "../../utils/clipLabels";
+import {
+  clipIdentityTrack,
+  clipLabels,
+  clipSpeakerLabel,
+} from "../../utils/clipLabels";
 import { sortedVolumePoints } from "../../utils/envelopes";
 
 export interface InspectorHeading {
@@ -33,6 +37,32 @@ function clipName(
     role: identity?.role ?? "audio",
   });
   return `${labels.speaker} · ${labels.start} to ${labels.end}`;
+}
+
+/**
+ * The name the phone dock shows beside the object's icon (max 96 px): a clip is
+ * its speaker, the rest keep the heading's name.
+ */
+export function inspectorShortName(
+  selection: Selection,
+  project: ProjectView | null,
+): string {
+  if (selection?.kind === "clip" && (selection.ids?.length ?? 1) === 1) {
+    const clip = Object.values(project?.clips.tracks ?? {})
+      .flat()
+      .find((c) => c.id === selection.id);
+    const identity =
+      clip && project
+        ? clipIdentityTrack({ clip, tracks: project.tracks })
+        : undefined;
+    if (clip && project)
+      return clipSpeakerLabel({
+        trackSpeaker: identity?.speaker,
+        trackLabel: identity?.label,
+        role: identity?.role ?? "audio",
+      });
+  }
+  return inspectorHeading(selection, project).name;
 }
 
 export function inspectorHeading(

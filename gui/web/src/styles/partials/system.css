@@ -3933,6 +3933,30 @@ button.sys-scope:hover {
   align-items: center;
 }
 
+.sys-actions-object {
+  display: inline-flex;
+  flex: 0 1 6rem;
+  align-items: center;
+  gap: var(--space-1);
+  max-inline-size: 6rem;
+  min-inline-size: 0;
+  padding-inline: var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+  font-weight: 600;
+}
+
+.sys-actions-object > svg {
+  flex: none;
+}
+
+.sys-actions-object-name {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .sys-actions-count {
   display: inline-flex;
   flex: none;

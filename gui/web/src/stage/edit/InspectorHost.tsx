@@ -10,6 +10,7 @@ import {
 } from "react";
 import { SelectionSheetBody } from "../../inspector/SelectionSheetBody";
 import { useDaw } from "../../state/useDaw";
+import type { BarId } from "../../system/editActionSets";
 import {
   type InspectorSection,
   InspectorSheet,
@@ -198,6 +199,12 @@ function Card({
   );
 }
 
+const FIELD_VERBS: ReadonlySet<BarId> = new Set([
+  "fixText",
+  "adjustBounds",
+  "fade",
+  "moveToTrack",
+]);
 const DOCK_ROOM_PX = 420;
 const SHEET_FULL = 0.92;
 
@@ -227,6 +234,20 @@ function Phone({
   useLayoutEffect(fit, [fit]);
   useResizeObserver(lanes, fit);
   const dockShown = !(detent === "full" && tight);
+  // A verb that opens the Inspector's fields (Fix text on a chapter, Adjust
+  // bounds) raises a sheet resting on its dock, and the field takes focus.
+  const [focusFields, setFocusFields] = useState(false);
+  const raiseForFields = useCallback((id: BarId) => {
+    if (!FIELD_VERBS.has(id)) return;
+    chosen.current = true;
+    setDetent((now) => (now === "dock" ? "half" : now));
+    setFocusFields(true);
+  }, []);
+  useEffect(() => {
+    if (!focusFields) return;
+    setFocusFields(false);
+    if (box.current) focusFirstControl(box.current);
+  }, [focusFields]);
   const sections = useBodySections(sheet.rangeActionsInSheet, dockShown);
   useInspectorFocus(box, true);
   return (
@@ -238,7 +259,12 @@ function Phone({
         sections={sections}
         dock={
           dockShown ? (
-            <EditActionBar form="dock" root={null} inInspector />
+            <EditActionBar
+              form="dock"
+              root={null}
+              inInspector
+              onRan={raiseForFields}
+            />
           ) : null
         }
         detent={detent}
