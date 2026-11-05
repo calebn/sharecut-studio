@@ -3,14 +3,14 @@
 > - Stage icons: Prepare is `wand-sparkles` (not sliders), Edit is waveform with cursor (not scissors), Deliver is `send` (not the export arrow). Import is `file-plus`.
 > - Mini player and Player card became **Player** (56 px bar, expanded form). Review context strip became **Overview strip** (32 px).
 > - Job row, Check row, Model need row and the Readiness list became **Status row** and Status list. Status cover became **Cover**. History sheet, Models, Help and Connect agent sheets became **Sheet** instances. Source tile became **Start tile**. Comment row became **Queue row**. Following, version and stage chips became **Status pill**.
-> - Keys: J/K/L are transport everywhere. Review moves with ↓/↑ or Tab, and Later is Tab or ↓ (not L). Reply is C (not R). ⌘⇧C is dropped. ⌘N and ⌘R on Home became Mod+I and R. ⌘O and ⌘⇧O became Mod+O. ? opens the Palette. ⌘E stays as Mod+E.
+> - Keys: J/K/L are transport everywhere. Review moves with ↓/↑ or Tab, and Later is Tab or ↓ (not L). Reply to a comment is R, and C starts a comment. ⌘⇧C is dropped. ⌘N and ⌘R on Home became Mod+I and R. ⌘O and ⌘⇧O became Mod+O. ? opens the Palette. ⌘E stays as Mod+E.
 > - Icons: the listen role is `ear` (not eye). Editor role and "Open in Edit" use the Edit stage icon (not pencil). Producer is `ear` (not headphones). "Find more" is `wand-sparkles`. Keep stays `shield-check`.
 > - Swipe left on a comment row no longer resolves: swipe right is the primary (Resolve), and swipe left does nothing on a comment (it is Keep or Remove on other cards). The phone Review buttons are one 64 px dock row (Keep, A/B, verb).
 > - Clip ideas use Approve (`check`), not Keep. Dismissing one is Remove.
 > - Stop sharing is an undo toast (10 s), not an inline confirm.
 > - Loudness lives in Deliver only. Vocabulary lives in Prepare only. Home's Help and "more" buttons fold into the app menu.
 > - Invites: one Invite sheet from the header on every stage, with Deliver embedding the Listen row (answers Q4). Guest header is the 48 px App header. Guest Editor gets Edit, Review and Deliver (the Podcast listing only).
-> - Toast lasts 6 s, or 10 s for session-level undo. Loading shows "Still loading…" at 4 s (not 8).
+> - A Toast lasts 8 s, or 60 s when it offers Undo. Loading shows "Still loading…" at 4 s (not 8).
 > - Storybook titles: `System/*` and `Stages/<Stage>/*`.
 
 # Spec: Home, Prepare, Review and Deliver
@@ -409,7 +409,7 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 
 - **Today:** `DLG-ASK-CONFIRM--*` ("Remove the reference track? Keep track / Remove track"), `DLG-ASK-CONFIRM-BULK--*` ("Approve 2 pending edits? … One Undo takes them back. Keep reviewing / Approve 2"). The bulk dialog itself says the action is undoable, yet blocks with a modal.
 - **Fate:** remove for anything undoable (bulk verbs, remove track, touch blade, replace audio); keep a confirm only where undo is impossible.
-- **Spec:** undoable actions run at once and show a Toast with Undo (6 s, and the History sheet after). The remaining confirms (Stop sharing a link, which breaks a URL people hold; End record room, Record worker) use an inline confirm inside the row that triggered it: the button turns into "Stop sharing?" with "Keep" focused and "Stop" in danger style, 44 px each. No modal.
+- **Spec:** undoable actions run at once and show a Toast with Undo (60 s, and the History sheet after). The remaining confirms (Stop sharing a link, which breaks a URL people hold; End record room, Record worker) use an inline confirm inside the row that triggered it: the button turns into "Stop sharing?" with "Keep" focused and "Stop" in danger style, 44 px each. No modal.
 - **Shared elements used:** Toast with Undo, inline confirm (CMP-INLINE-CONFIRM).
 - **Story to build:** `Stages/Frame/InlineConfirm` stories `StopSharing`, `Phone`.
 
