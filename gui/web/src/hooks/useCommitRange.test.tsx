@@ -55,6 +55,20 @@ describe("useCommitRange", () => {
     expect(onCommit).not.toHaveBeenCalled();
   });
 
+  it("restores the newest committed saved value when a pending blur expires", () => {
+    const onCommit = vi.fn();
+    const { rerender } = render(<Harness saved={10} onCommit={onCommit} />);
+    const input = screen.getByRole("slider", { name: "Len" });
+    fireEvent.input(input, { target: { value: "40" } });
+    fireEvent.blur(input);
+    rerender(<Harness saved={25} onCommit={onCommit} />);
+    act(() => {
+      vi.runAllTimers();
+    });
+    expect(screen.getByTestId("value")).toHaveTextContent("25");
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
   it("commits once on native change", () => {
     const onCommit = vi.fn();
     render(<Harness saved={10} onCommit={onCommit} />);

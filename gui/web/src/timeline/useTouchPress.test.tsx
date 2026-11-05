@@ -98,6 +98,28 @@ describe("useTouchPress", () => {
     expect(router.longPress).toHaveBeenCalledOnce();
   });
 
+  it("delivers an already-started long press to the newly committed router", () => {
+    const previous = router;
+    const { getByTestId, rerender, unmount } = render(<Lanes />);
+    fireEvent.pointerDown(getByTestId("target"), touch);
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS - 1);
+    });
+    router = { ...previous, longPress: vi.fn() };
+    rerender(<Lanes />);
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(previous.longPress).not.toHaveBeenCalled();
+    expect(router.longPress).toHaveBeenCalledOnce();
+    unmount();
+    expect(document.documentElement.style.userSelect).toBe("");
+    act(() => {
+      vi.runAllTimers();
+    });
+    expect(router.longPress).toHaveBeenCalledOnce();
+  });
+
   it("leaves a press the router did not defer to its target", () => {
     router.defers = () => false;
     const { getByTestId } = render(<Lanes />);
