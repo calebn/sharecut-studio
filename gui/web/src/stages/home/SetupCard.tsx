@@ -43,10 +43,15 @@ function CheckingSkeleton() {
   return (
     <div className="sys-setup-checking" aria-busy="true">
       {shown ? (
-        <div className="sys-card" aria-hidden="true">
-          <span className="sys-skeleton-block sys-setup-skeleton-title" />
-          <span className="sys-skeleton-block sys-setup-skeleton-line" />
-        </div>
+        <>
+          <p className="sr-only" role="status">
+            Reading the setup status
+          </p>
+          <div className="sys-card" aria-hidden="true">
+            <span className="sys-skeleton-block sys-setup-skeleton-title" />
+            <span className="sys-skeleton-block sys-setup-skeleton-line" />
+          </div>
+        </>
       ) : null}
     </div>
   );
