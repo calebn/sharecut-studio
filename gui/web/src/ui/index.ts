@@ -63,6 +63,7 @@ export {
   type UseDialogModalOptions,
   useDialogModal,
 } from "./useDialogModal";
+export { useMeasuredFlag } from "./useMeasuredFlag";
 export { useOutsidePointerDown } from "./useOutsidePointerDown";
 export {
   type ResizeObserverTarget,

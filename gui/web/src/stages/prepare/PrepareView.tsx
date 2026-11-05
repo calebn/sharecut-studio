@@ -1,12 +1,4 @@
-import {
-  type ReactNode,
-  type RefObject,
-  useCallback,
-  useId,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { type ReactNode, useId, useState } from "react";
 import { DropOverlay } from "../../system/DropOverlay";
 import { StageHandoff } from "../../system/StageHandoff";
 import { StartTile } from "../../system/StartTile";
@@ -20,8 +12,8 @@ import {
   MenuItem,
   SegmentedControl,
   ToggleButton,
+  useMeasuredFlag,
 } from "../../ui";
-import { useResizeObserver } from "../../ui/useResizeObserver";
 import { type PreparePhase, useAnnouncement } from "./prepareAnnouncement";
 import { isWorking, STILL_GETTING_READY } from "./prepareMappers";
 import type { PrepareSession, SourceActions } from "./prepareTypes";
@@ -95,25 +87,13 @@ export type PrepareViewProps = {
 /** The Getting ready card sits in the middle column from this container width. */
 const WIDE_FROM_REM = 60;
 
-/**
- * True while the stage is narrower than the three-column layout. The summary
- * line and the card's place in the DOM follow it, so reading order, Tab order
- * and what is drawn are one order at every width. Where no width can be read
- * (a hidden or unmeasured container) the wide layout stands.
- */
-function useCompact(root: RefObject<HTMLElement | null>): boolean {
-  const [compact, setCompact] = useState(false);
-  const measure = useCallback(() => {
-    const width = root.current?.getBoundingClientRect().width ?? 0;
-    if (width <= 0) return;
-    const rem =
-      Number.parseFloat(getComputedStyle(document.documentElement).fontSize) ||
-      16;
-    setCompact(width < WIDE_FROM_REM * rem);
-  }, [root]);
-  useLayoutEffect(measure, [measure]);
-  useResizeObserver(root, measure);
-  return compact;
+function isCompact(root: HTMLElement): boolean | null {
+  const width = root.getBoundingClientRect().width;
+  if (width <= 0) return null;
+  const rem =
+    Number.parseFloat(getComputedStyle(document.documentElement).fontSize) ||
+    16;
+  return width < WIDE_FROM_REM * rem;
 }
 
 /** The worst state among the rows, for the phone's one-line summary. */
@@ -208,8 +188,7 @@ export function PrepareView({
     setSeen(attention);
     if (attention.some((id) => !seen.includes(id))) setReadyOpen(true);
   }
-  const root = useRef<HTMLDivElement>(null);
-  const compact = useCompact(root);
+  const { attach, element: root, value: compact } = useMeasuredFlag(isCompact);
   useFocusRescue(root, (target) => {
     const near = (items: HTMLElement[], at: number) =>
       items.slice(at + 1).find((item) => item.isConnected) ??
@@ -274,7 +253,7 @@ export function PrepareView({
 
   if (phase === "empty") {
     return (
-      <div ref={root} className="sys-prepare" data-phase="empty">
+      <div ref={attach} className="sys-prepare" data-phase="empty">
         <div className="sys-prepare-layout">
           <section className="sys-prepare-empty" aria-labelledby={ids.sources}>
             <h2 id={ids.sources} className="sr-only">
@@ -396,7 +375,7 @@ export function PrepareView({
     </section>
   );
   return (
-    <div ref={root} className="sys-prepare" data-phase={phase}>
+    <div ref={attach} className="sys-prepare" data-phase={phase}>
       <div className="sys-prepare-layout">
         {compact ? ready : null}
         <section className="sys-prepare-sources" aria-labelledby={ids.sources}>

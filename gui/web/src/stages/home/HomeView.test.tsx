@@ -39,6 +39,29 @@ function setup(props: Partial<HomeViewProps> = {}) {
 }
 
 describe("HomeView", () => {
+  it.each([
+    { width: 360, size: "phone-bar" },
+    { width: 640, size: "160" },
+    { width: 0, size: "160" },
+  ])(
+    "measures the initial $width px host without observer delivery",
+    ({ width, size }) => {
+      const bounds = vi
+        .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+        .mockReturnValue(new DOMRect(0, 0, width, 800));
+      vi.stubGlobal("ResizeObserver", undefined);
+      try {
+        setup();
+        expect(document.querySelector(".sys-start--import")).toHaveClass(
+          `sys-start--${size}`,
+        );
+      } finally {
+        bounds.mockRestore();
+        vi.unstubAllGlobals();
+      }
+    },
+  );
+
   it("opens the focused primary card at its stage with Enter", async () => {
     const { user, onOpenProject } = setup();
     await user.tab();

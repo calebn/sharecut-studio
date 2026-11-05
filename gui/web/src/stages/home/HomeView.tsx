@@ -1,12 +1,4 @@
-import {
-  type ReactNode,
-  type RefObject,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { Card } from "../../system/Card";
 import { DropOverlay } from "../../system/DropOverlay";
 import {
@@ -22,7 +14,7 @@ import {
   InlineError,
   Menu,
   MenuItem,
-  useResizeObserver,
+  useMeasuredFlag,
 } from "../../ui";
 import { OpenOther, type OpenOtherProps } from "./OpenOther";
 import { SetupCard, type SetupCardProps } from "./SetupCard";
@@ -86,18 +78,9 @@ const NO_OPEN_OTHER: Omit<OpenOtherProps, "onChooseFolder"> = {
 /** Below this container width Home is the phone layout (40rem at 16 px). */
 const PHONE_MAX_PX = 640;
 
-/** True while the host is narrower than the phone breakpoint. */
-function useNarrow(host: RefObject<HTMLElement | null>): boolean {
-  const [narrow, setNarrow] = useState(false);
-  const measure = useCallback(() => {
-    const el = host.current;
-    if (!el) return;
-    const width = el.getBoundingClientRect().width;
-    setNarrow(width > 0 && width < PHONE_MAX_PX);
-  }, [host]);
-  useLayoutEffect(measure, [measure]);
-  useResizeObserver(host, measure);
-  return narrow;
+function isNarrow(host: HTMLElement): boolean {
+  const width = host.getBoundingClientRect().width;
+  return width > 0 && width < PHONE_MAX_PX;
 }
 
 function ShareGlyph() {
@@ -223,8 +206,7 @@ export function HomeView({
   working,
   busyId,
 }: HomeViewProps) {
-  const host = useRef<HTMLDivElement>(null);
-  const narrow = useNarrow(host);
+  const { attach, element: host, value: narrow } = useMeasuredFlag(isNarrow);
   const empty = phase === "empty";
   useEffect(() => {
     if (!autoFocusPrimary || phase !== "ready") return;
@@ -236,7 +218,7 @@ export function HomeView({
         '[data-project-open]:not([aria-disabled="true"])',
       )
       ?.focus();
-  }, [autoFocusPrimary, phase]);
+  }, [autoFocusPrimary, phase, host]);
   const tileSize = narrow ? "phone-bar" : empty ? 220 : 160;
   const tiles = (
     <>
@@ -292,7 +274,7 @@ export function HomeView({
 
   return (
     <div
-      ref={host}
+      ref={attach}
       className="sys-home"
       data-daw-app-chrome
       data-narrow={narrow || undefined}

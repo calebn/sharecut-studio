@@ -50,7 +50,6 @@ function props(over: Partial<PrepareViewProps> = {}): PrepareViewProps {
   };
 }
 
-/** The stage is this wide, in CSS px (jsdom has no layout, so it reads 0 and the wide layout stands). */
 function atWidth(width: number) {
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
     width,
@@ -103,6 +102,26 @@ describe("PrepareView selected-run summary state", () => {
       runDisposition: "omitted",
     },
   ] as const;
+
+  it.each([
+    { width: 360, compact: true },
+    { width: 960, compact: false },
+    { width: 0, compact: false },
+  ])(
+    "measures the initial $width px stage without observer delivery",
+    ({ width, compact }) => {
+      atWidth(width);
+      vi.stubGlobal("ResizeObserver", undefined);
+      try {
+        render(<PrepareView {...props()} />);
+        expect(screen.queryByRole("button", { name: SUMMARY }) !== null).toBe(
+          compact,
+        );
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    },
+  );
 
   it("announces selected completion globally while omitted rows remain neutral", () => {
     atWidth(PHONE_WIDTH);
