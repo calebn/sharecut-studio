@@ -68,6 +68,27 @@ it("pins a footer below the scrolling body", async () => {
   await expectNoA11yViolations(baseElement);
 });
 
+it("keeps text-only dialog content reachable by keyboard between header and footer", async () => {
+  render(
+    <Dialog
+      open
+      onClose={() => undefined}
+      title="Long text"
+      footer={<button type="button">Done reading</button>}
+    >
+      <p>Scrollable text</p>
+    </Dialog>,
+  );
+  const close = screen.getByRole("button", { name: "Close" });
+  await waitFor(() => expect(close).toHaveFocus());
+  await userEvent.tab();
+  expect(
+    screen.getByRole("region", { name: "Long text content" }),
+  ).toHaveFocus();
+  await userEvent.tab();
+  expect(screen.getByRole("button", { name: "Done reading" })).toHaveFocus();
+});
+
 afterEach(() => vi.restoreAllMocks());
 
 it("uses the latest close callback and disabled state while remaining open", () => {

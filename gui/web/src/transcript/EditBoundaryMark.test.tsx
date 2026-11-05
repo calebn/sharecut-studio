@@ -1338,6 +1338,10 @@ describe("boundary gesture lifecycle", () => {
       getByRole("region", { name: "Boundary edit feedback" }),
     ).toContainElement(alert);
     await expectNoA11yViolations(document.body);
+    const dismiss = getByRole("button", { name: "Dismiss boundary error" });
+    dismiss.focus();
+    await userEvent.tab();
+    expect(alert).toHaveFocus();
     const preview = alert.closest<HTMLElement>(".edit-boundary-preview");
     expect(preview?.style.maxHeight).toBeTruthy();
     expect(preview).toHaveClass("edit-boundary-preview-error");

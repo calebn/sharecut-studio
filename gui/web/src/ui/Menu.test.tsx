@@ -10,7 +10,7 @@ import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { BottomSheet } from "./BottomSheet";
-import { Menu, MenuItem } from "./Menu";
+import { Menu, MenuItem, MenuSeparator } from "./Menu";
 import { menuOpen } from "./modalGate";
 
 function Fixture() {
@@ -27,6 +27,7 @@ function Fixture() {
       )}
     >
       <MenuItem onSelect={() => setOpen(false)}>One</MenuItem>
+      <MenuSeparator />
       <MenuItem onSelect={() => setOpen(false)}>Two</MenuItem>
     </Menu>
   );
@@ -79,6 +80,9 @@ describe("Menu", () => {
     await waitFor(() => {
       expect(screen.getByRole("menuitem", { name: "One" })).toHaveFocus();
     });
+    const separator = screen.getByRole("separator");
+    expect(separator.tabIndex).toBe(-1);
+    expect(separator).not.toHaveAccessibleName();
     await user.keyboard("{ArrowDown}");
     expect(screen.getByRole("menuitem", { name: "Two" })).toHaveFocus();
     await user.keyboard("{Escape}");
