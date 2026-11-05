@@ -1,4 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
+import { StrictMode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { stubRaf } from "../test/raf";
 import { useInputPeakDb } from "./useInputPeakDb";
@@ -295,6 +296,113 @@ describe("useInputPeakDb", () => {
     expect(result.current.clipped).toBe(false);
     act(() => node.emit({ type: "clearAck", epoch: 2, clipped: true }));
     expect(result.current.clipped).toBe(true);
+  });
+
+  it("retires visible state and ignores retained callbacks after detaching a stream", async () => {
+    const raf = stubRaf();
+    vi.spyOn(performance, "now").mockReturnValue(1000);
+    const graph = stubAudioGraph({ state: "suspended" });
+    const { result, rerender } = renderHook(
+      ({ stream }: { stream: MediaStream | null }) => useInputPeakDb(stream),
+      { initialProps: { stream: micA as MediaStream | null } },
+    );
+    const old = await ready(graph.nodes);
+    const onMessage = old.port.onmessage;
+    const onState = graph.ctx.addEventListener.mock.calls[0][1];
+    act(() => {
+      old.emit({ peak: 0.95, clipped: true, epoch: 0 });
+      raf.fire(1000);
+    });
+    expect(result.current.levelDb).toBeGreaterThan(-1);
+    expect(result.current.clipped).toBe(true);
+    expect(result.current.suspended).toBe(true);
+    rerender({ stream: null });
+    expect(result.current.levelDb).toBe(Number.NEGATIVE_INFINITY);
+    expect(result.current.peakHoldDb).toBe(Number.NEGATIVE_INFINITY);
+    expect(result.current.clipped).toBe(false);
+    expect(result.current.suspended).toBe(false);
+    expect(raf.pendingCount()).toBe(0);
+    act(() => {
+      onMessage?.({
+        data: { peak: 1, clipped: true, epoch: 0 },
+      } as MessageEvent<Message>);
+      onState();
+    });
+    expect(result.current.clipped).toBe(false);
+    expect(result.current.suspended).toBe(false);
+    expect(graph.ctx.close).toHaveBeenCalledOnce();
+    expect(old.port.postMessage).toHaveBeenCalledExactlyOnceWith({
+      type: "stop",
+    });
+    rerender({ stream: micB });
+    await waitFor(() => expect(graph.nodes).toHaveLength(2));
+    expect(result.current.suspended).toBe(true);
+    act(() => {
+      graph.nodes[1].emit({ peak: 0.25, clipped: false, epoch: 0 });
+      raf.fire(1200);
+    });
+    expect(result.current.levelDb).toBeCloseTo(-12.04, 2);
+    expect(result.current.clipped).toBe(false);
+  });
+
+  it("retires the previous reader when the clip threshold changes on the same stream", async () => {
+    const raf = stubRaf();
+    const graph = stubAudioGraph();
+    const { result, rerender } = renderHook(
+      ({ clipDb }) => useInputPeakDb(micA, { clipDb }),
+      { initialProps: { clipDb: -1 } },
+    );
+    const old = await ready(graph.nodes);
+    const onMessage = old.port.onmessage;
+    act(() => {
+      old.emit({ peak: 0.95, clipped: true, epoch: 0 });
+      raf.fire(1000);
+    });
+    expect(result.current.clipped).toBe(true);
+    rerender({ clipDb: -6 });
+    expect(result.current.clipped).toBe(false);
+    expect(result.current.levelDb).toBe(Number.NEGATIVE_INFINITY);
+    await waitFor(() => expect(graph.nodes).toHaveLength(2));
+    expect(graph.Node).toHaveBeenLastCalledWith(
+      graph.ctx,
+      "sharecut-input-meter",
+      {
+        processorOptions: { clipThreshold: 10 ** (-6 / 20) },
+      },
+    );
+    act(() => {
+      onMessage?.({
+        data: { peak: 1, clipped: true, epoch: 0 },
+      } as MessageEvent<Message>);
+    });
+    expect(result.current.clipped).toBe(false);
+    act(() => {
+      graph.nodes[1].emit({ peak: 0.7, clipped: true, epoch: 0 });
+    });
+    expect(result.current.clipped).toBe(true);
+    expect(raf.pendingCount()).toBe(1);
+    expect(graph.ctx.close).toHaveBeenCalledOnce();
+  });
+
+  it("balances graph retirement and attachment during StrictMode replay", async () => {
+    const raf = stubRaf();
+    const graph = stubAudioGraph({ state: "suspended" });
+    const meter = renderHook(() => useInputPeakDb(micA), {
+      wrapper: StrictMode,
+    });
+    const node = await ready(graph.nodes);
+    expect(graph.Ctor).toHaveBeenCalledTimes(2);
+    expect(graph.ctx.close).toHaveBeenCalledOnce();
+    expect(meter.result.current.suspended).toBe(true);
+    expect(raf.pendingCount()).toBe(1);
+    act(() => {
+      node.emit({ peak: 0.95, clipped: true, epoch: 0 });
+    });
+    expect(meter.result.current.clipped).toBe(true);
+    meter.unmount();
+    expect(node.port.close).toHaveBeenCalledOnce();
+    expect(graph.ctx.close).toHaveBeenCalledTimes(2);
+    expect(raf.pendingCount()).toBe(0);
   });
 
   it("resets on stream switch and disconnects the previous graph", async () => {
