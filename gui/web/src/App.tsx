@@ -19,6 +19,7 @@ import {
 } from "./services/offlineQueue/offlineStore";
 import { isShareProjectKey, shareProjectKey } from "./shareMode";
 import { parseShareRoute } from "./shareRoute";
+import { GuestLoadingScreen } from "./stage/frame/GuestLoadingScreen";
 import { HomeScreen } from "./stages/home/HomeScreen";
 import { DawProvider } from "./state/store";
 import { Cover } from "./system/Cover";
@@ -204,7 +205,15 @@ function AppInner() {
     attempt,
   ]);
 
-  if (!featuresReady || (Boolean(reviewToken) && shareBootstrapping)) {
+  if (Boolean(reviewToken) && (!featuresReady || shareBootstrapping)) {
+    return (
+      <GuestLoadingScreen
+        label="Loading project…"
+        onRetry={() => setAttempt((n) => n + 1)}
+      />
+    );
+  }
+  if (!featuresReady) {
     return <LoadingScreen label="Loading project…" />;
   }
   if (error?.cover === "bad-link") {
