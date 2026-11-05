@@ -529,16 +529,6 @@ function PendingEditRegion({
   );
 
   useEffect(() => {
-    if (
-      gesture.kind !== "idle" &&
-      (gesture.projectPath !== projectPath ||
-        gesture.projectEpoch !== projectEpoch)
-    ) {
-      cancelGesture();
-    }
-  }, [gesture, projectEpoch, projectPath]);
-
-  useEffect(() => {
     if (wasSelected.current && !selected && gesture.kind !== "idle") {
       cancelGesture();
     }

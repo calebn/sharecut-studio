@@ -681,6 +681,116 @@ describe("PendingEditOverlay handles", () => {
     expect(updatePendingEdit).not.toHaveBeenCalled();
   });
 
+  it.each(["path", "props-first", "epoch", "spans"] as const)(
+    "retires the public parent's old gesture on %s replacement without touching its new gesture",
+    async (change) => {
+      const first = deferred<number[]>();
+      const second = deferred<number[]>();
+      const resolveTicks = vi
+        .fn((_focusSec: number, _signal: AbortSignal) => first.promise)
+        .mockImplementationOnce(() => first.promise)
+        .mockImplementationOnce(() => second.promise);
+      vi.mocked(useWaveformSnapTicks).mockReturnValue({
+        ticks: [],
+        resolveTicks,
+      });
+      const onCommitSpan = vi.fn();
+      const props = {
+        edits: [edit],
+        trackId: "host",
+        zoomPxPerSec: 10,
+        timelineWidthPx: 1000,
+        selectedId: edit.id,
+        projectPath: "/tmp/p.json",
+        clipsByTrack: {},
+        canAdjust: true,
+        canApply: true,
+        onSelect: vi.fn(),
+        onCommitSpan,
+        onReviewAction: vi.fn(async () => ({ queued: false })),
+      } as const;
+      const view = render(<PendingEditOverlayView {...props} />);
+      const oldRegion = view.container.querySelector(".pending-overlay");
+      const oldEdge = view.container.querySelector(".pending-handle.end");
+      expect(oldEdge).toBeInstanceOf(HTMLElement);
+      fireEvent.pointerDown(oldEdge!, { clientX: 100, pointerId: 41 });
+      fireEvent.pointerMove(oldEdge!, { clientX: 130, pointerId: 41 });
+      fireEvent.pointerUp(oldEdge!, { clientX: 130, pointerId: 41 });
+      const oldSignal = resolveTicks.mock.calls[0]?.[1];
+      expect(oldSignal).toBeInstanceOf(AbortSignal);
+      expect(oldSignal?.aborted).toBe(false);
+      const previousEpoch = useDawStore.getState().projectEpoch;
+      let path: string = props.projectPath;
+      if (change === "path" || change === "props-first") {
+        path = "/tmp/copied.json";
+        if (change === "props-first") {
+          view.rerender(
+            <PendingEditOverlayView {...props} projectPath={path} />,
+          );
+          expect(oldSignal?.aborted).toBe(true);
+        }
+        act(() =>
+          useDawStore
+            .getState()
+            .hydrate(path, minimalProject({ pending_edits: [edit] })),
+        );
+        expect(useDawStore.getState().projectPath).toBe(path);
+      } else if (change === "epoch") {
+        act(() => useDawStore.setState({ projectEpoch: previousEpoch + 1 }));
+        expect(useDawStore.getState().projectEpoch).toBe(previousEpoch + 1);
+      } else {
+        expect(useDawStore.getState().projectEpoch).toBe(previousEpoch);
+        view.rerender(
+          <PendingEditOverlayView
+            {...props}
+            edits={[
+              {
+                ...edit,
+                mappable: false,
+                timeline_start: null,
+                timeline_end: null,
+                timeline_spans: [],
+              },
+            ]}
+          />,
+        );
+        expect(view.container.querySelector(".pending-overlay")).toBeNull();
+      }
+      view.rerender(<PendingEditOverlayView {...props} projectPath={path} />);
+      const newRegion =
+        view.container.querySelector<HTMLElement>(".pending-overlay");
+      const newEdge = view.container.querySelector(".pending-handle.end");
+      expect(newRegion).not.toBe(oldRegion);
+      expect(newEdge).toBeInstanceOf(HTMLElement);
+      expect(oldSignal?.aborted).toBe(true);
+      fireEvent.pointerDown(newEdge!, { clientX: 100, pointerId: 42 });
+      fireEvent.pointerMove(newEdge!, { clientX: 130, pointerId: 42 });
+      fireEvent.pointerUp(newEdge!, { clientX: 130, pointerId: 42 });
+      const newSignal = resolveTicks.mock.calls[1]?.[1];
+      expect(newSignal).toBeInstanceOf(AbortSignal);
+      expect(newSignal).not.toBe(oldSignal);
+      expect(newSignal?.aborted).toBe(false);
+      await act(async () => first.resolve([4.3]));
+      expect(onCommitSpan).not.toHaveBeenCalled();
+      expect(newSignal?.aborted).toBe(false);
+      expect(newRegion?.style.width).toBe("50px");
+      expect(screen.getByRole("status", { hidden: true })).toHaveTextContent(
+        "Checking nearby snap points",
+      );
+      await act(async () => second.resolve([4.3]));
+      await waitFor(() => expect(onCommitSpan).toHaveBeenCalledOnce());
+      expect(onCommitSpan).toHaveBeenCalledWith(
+        path,
+        useDawStore.getState().projectEpoch,
+        edit.id,
+        0,
+        2,
+        0,
+        4.3,
+      );
+    },
+  );
+
   it("cancels on pointercancel and ignores another pointer id", () => {
     const { container } = setup(10);
     const end = container.querySelector(".pending-handle.end") as HTMLElement;
