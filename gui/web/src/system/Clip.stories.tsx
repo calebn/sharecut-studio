@@ -2,7 +2,8 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { type CSSProperties, type ReactNode, useRef, useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { viewportStoryParameters } from "../storybook/storyLayout";
-import { Clip, type ClipGrip, type ClipProps } from "./Clip";
+import { useStableCallback } from "../utils/useStableCallback";
+import { Clip, type ClipGrip, type ClipPointer, type ClipProps } from "./Clip";
 import { VOICE_PEAKS } from "./prepareFixtures";
 import { ReadoutChip } from "./ReadoutChip";
 
@@ -121,8 +122,13 @@ function LiveClip(args: ClipProps) {
     null,
   );
   const origin = useRef(shape);
-  const shapeRef = useRef(shape);
-  shapeRef.current = shape;
+  const beginDrag = useStableCallback(
+    (id: string, grip: ClipGrip, pointer: ClipPointer) => {
+      origin.current = shape;
+      setSelected(true);
+      return args.onDragStart?.(id, grip, pointer);
+    },
+  );
   const show = (grip: ClipGrip, next: Shape) => {
     const ms = Math.round(
       grip === "fade-in"
@@ -144,11 +150,7 @@ function LiveClip(args: ClipProps) {
           setSelected(true);
           args.onSelect(id, modifiers);
         }}
-        onDragStart={(id, grip, pointer) => {
-          origin.current = shapeRef.current;
-          setSelected(true);
-          return args.onDragStart?.(id, grip, pointer);
-        }}
+        onDragStart={beginDrag}
         onDrag={(id, grip, drag) => {
           const next = applyGrip(
             origin.current,

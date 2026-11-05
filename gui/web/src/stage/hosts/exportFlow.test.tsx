@@ -1,4 +1,5 @@
 import { act, render, waitFor } from "@testing-library/react";
+import { useLayoutEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   coversRequest,
@@ -39,7 +40,10 @@ const MP3 = { ext: "mp3", codec: "libmp3lame", bitrate_kbps: 128 };
 
 let flow: ExportFlow;
 function Probe() {
-  flow = useExportFlow();
+  const current = useExportFlow();
+  useLayoutEffect(() => {
+    flow = current;
+  });
   return null;
 }
 

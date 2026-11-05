@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMountedRef } from "../hooks/useMountedRef";
+import { useStableCallback } from "../utils/useStableCallback";
 import { KEEPER_BYTES_PER_SECOND } from "./keeper/pcm";
 import { STORAGE_UNKNOWN_COPY, storageLowCopy } from "./types";
 
@@ -84,7 +85,7 @@ export function useStorageHeadroom(): StorageHeadroomCheck {
   // estimate taken before keeper reclaim must not overwrite a newer one.
   const latest = useRef(0);
   const mounted = useMountedRef();
-  const refresh = useCallback(async () => {
+  const refresh = useStableCallback(async () => {
     latest.current += 1;
     const request = latest.current;
     const commit = (next: StorageHeadroom) => {
@@ -102,7 +103,7 @@ export function useStorageHeadroom(): StorageHeadroomCheck {
     } catch {
       commit(assessStorageHeadroom());
     }
-  }, [mounted]);
+  });
   useEffect(() => void refresh(), [refresh]);
   return { ...headroom, refresh };
 }
