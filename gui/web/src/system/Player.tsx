@@ -177,7 +177,11 @@ function CutsPill({ cuts }: Pick<PlayerProps, "cuts">) {
 function RatePill({ rate }: Pick<PlayerProps, "rate">) {
   return rate !== undefined ? (
     <Pill title="Playback speed">
-      <span className="sys-mono">{`${rate}×`}</span>
+      <span
+        className="sys-mono"
+        role="status"
+        aria-label={`Playback speed ${rate}×`}
+      >{`${rate}×`}</span>
     </Pill>
   ) : null;
 }

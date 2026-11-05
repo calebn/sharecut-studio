@@ -3,6 +3,7 @@ import { listRecentProjects, type RecentProject } from "../../api";
 import { buildCommandContext } from "../../commands/context";
 import { execute } from "../../commands/execute";
 import { executePointerCommand } from "../../commands/pointer";
+import { bareKeyConflict } from "../../keymap/registry";
 import { clearKeymapOverride, setKeymapOverride } from "../../keymap/remaps";
 import { disambiguatedNames } from "../../presence/colors";
 import { sessionClientList } from "../../presence/roster";
@@ -138,6 +139,13 @@ export function CommandPalette() {
       onRemap={(id, trimmedKey) => {
         if (!trimmedKey) {
           clearKeymapOverride(id);
+          return;
+        }
+        const conflict = bareKeyConflict(id, trimmedKey);
+        if (conflict) {
+          useDawStore
+            .getState()
+            .announceStatus(`${trimmedKey} is already ${conflict.label}`);
           return;
         }
         setKeymapOverride(id, [trimmedKey]);

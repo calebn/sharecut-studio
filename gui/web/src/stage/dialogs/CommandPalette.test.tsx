@@ -150,9 +150,9 @@ describe("CommandPalette", () => {
     await waitForDialogFocus();
     await user.click(screen.getByLabelText("Show remaps"));
     const input = screen.getByLabelText("Remap Fit session width");
-    await user.type(input, "X");
+    await user.type(input, "Q");
     await user.tab();
-    expect(getKeymapOverride("view.fit")).toEqual(["X"]);
+    expect(getKeymapOverride("view.fit")).toEqual(["Q"]);
     await user.clear(input);
     await user.tab();
     expect(getKeymapOverride("view.fit")).toBeUndefined();
