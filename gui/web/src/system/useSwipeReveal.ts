@@ -33,8 +33,8 @@ export type SwipeReveal = {
 
 /**
  * A touch swipe to the left slides a row over to show the action behind it
- * (`.sys-project-remove`, inside the element `cardRef` names); a swipe to the right, a tap elsewhere or a tap on the
- * row hides it again. The row's own click is swallowed after a swipe so a drag
+ * (`.sys-project-remove`, inside the element `cardRef` names); a swipe to the
+ * right, a tap elsewhere or a tap on the row hides it again. The row's own click is swallowed after a swipe so a drag
  * never opens the card.
  */
 export function useSwipeReveal(
