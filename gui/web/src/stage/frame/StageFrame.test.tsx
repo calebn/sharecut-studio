@@ -290,7 +290,11 @@ describe("StageFrame while following", () => {
     });
 
   afterEach(() => {
-    useDawStore.setState({ followingClientId: null, followDegraded: {} });
+    useDawStore.setState({
+      followingClientId: null,
+      followDegraded: {},
+      sessionClients: sessionRoster([]),
+    });
   });
 
   it("outlines the stage in the followed person's color and drops it on unfollow", () => {

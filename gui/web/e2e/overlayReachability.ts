@@ -7,7 +7,7 @@ import { openProject, openProjectMenu, openProjectMenuItem } from "./stageNav";
  *
  * Overlays (transport Menu, Dialog consumers) must fit short viewports, scroll
  * their body region, and keep their lowest action/content target reachable —
- * with or without banner chrome (guest / follow) above the transport.
+ * with or without banner chrome (guest) above the transport.
  */
 export const SHORT_VIEWPORTS = [
   { width: 1280, height: 715 },
