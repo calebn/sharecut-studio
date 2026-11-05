@@ -73,7 +73,11 @@ export function SessionSources({
                 onDetails={() => actions.onDetails(source.id)}
                 onReplace={() => actions.onReplace(source.id)}
                 grip={sources.length > 1 ? gripFor(source.id) : undefined}
-                onDropAudio={(files) => actions.onDropAudio(source.id, files)}
+                onDropAudio={
+                  actions.onDropAudio
+                    ? (files) => actions.onDropAudio?.(source.id, files)
+                    : undefined
+                }
                 onDropHover={
                   actions.onDropHover
                     ? (over) => actions.onDropHover?.(source.id, over)

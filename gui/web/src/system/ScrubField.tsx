@@ -33,6 +33,8 @@ export type ScrubFieldProps = ScrubRange & {
   unit?: string;
   /** Value change per pixel of drag and per arrow press. */
   step?: number;
+  /** Pixels of drag per step, for a coarse whole-number field (default 1). */
+  pixelsPerStep?: number;
   /** Alt gives a tenth of the step, so a whole-number field that wants Alt needs one more place. */
   decimals?: number;
   /** Shows the reset dot while the value differs from it. */
@@ -74,6 +76,7 @@ export function ScrubField({
   value,
   unit,
   step = 1,
+  pixelsPerStep = 1,
   decimals = placesOf(step),
   defaultValue,
   readOnly = false,
@@ -194,7 +197,8 @@ export function ScrubField({
     }
     gesture.raw = clamp(
       gesture.raw +
-        (event.clientX - gesture.lastX) * step * modifierScale(event),
+        ((event.clientX - gesture.lastX) * step * modifierScale(event)) /
+          pixelsPerStep,
       bounds,
     );
     gesture.lastX = event.clientX;

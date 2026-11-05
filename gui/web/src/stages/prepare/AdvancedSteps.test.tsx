@@ -305,6 +305,8 @@ describe("AdvancedSteps", () => {
     const language = screen.getByRole("combobox", { name: "Language" });
     expect(language).toHaveAccessibleDescription(/Detect automatically works/);
     expect(language).toHaveValue("Detect automatically");
+    language.focus();
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
     await user.click(language);
     const options = screen.getAllByRole("option");
     expect(options[0]).toHaveTextContent("Detect automatically");

@@ -604,7 +604,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   clipInspector: "daw.edit.moveClips",
   actionBar: "daw.edit.mute",
   trackInspector: "daw.track.setVolume",
-  SourceCard: "daw.track.splitSpeakers",
+  SourceCard: "daw.media.import",
   trackHeader: "daw.track.soloToggle",
   trackHeadersWell: "daw.track.deselectAll",
   "trackHeaders.soloChip": "daw.track.clearSolo",

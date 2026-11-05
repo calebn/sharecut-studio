@@ -497,7 +497,7 @@ describe("SourceCard focus", () => {
       expect(card).not.toHaveAttribute("data-drop-over");
     });
 
-    it("ignores anything that is not audio, and cards still checking their file", () => {
+    it("hands every dropped file over, and ignores cards still checking their file", () => {
       const onDropAudio = vi.fn();
       const { rerender } = render(
         <Card name="Maya" onDropAudio={onDropAudio} />,
@@ -506,7 +506,8 @@ describe("SourceCard focus", () => {
       fireEvent.drop(screen.getByRole("region", { name: "Voice 2, Maya" }), {
         dataTransfer: dataTransfer([text]),
       });
-      expect(onDropAudio).not.toHaveBeenCalled();
+      expect(onDropAudio).toHaveBeenCalledWith([text]);
+      onDropAudio.mockClear();
       rerender(<Card name="Maya" state="probing" onDropAudio={onDropAudio} />);
       const drop = createEvent.drop(
         screen.getByRole("region", { name: "Voice 2, Maya" }),
