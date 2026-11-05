@@ -6,6 +6,7 @@
     "daw.range.mute"
   ],
   "manifest_rows_without_mcp": [
-    "daw.share.manage"
+    "daw.share.manage",
+    "daw.share.copyListenLink"
   ]
 }

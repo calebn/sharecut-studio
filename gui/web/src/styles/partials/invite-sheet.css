@@ -1,0 +1,89 @@
+/* The Invite sheet: Link rows grouped Review links, Record links, Listen link. */
+
+.inv-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-inline-size: 0;
+}
+
+.inv-group {
+  display: grid;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.inv-heading {
+  margin: 0;
+  font-size: var(--font-size-body);
+  font-weight: 600;
+}
+
+.inv-note {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+}
+
+.inv-feedback {
+  display: grid;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+.inv-feedback:empty {
+  display: none;
+}
+
+.inv-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.inv-item {
+  min-inline-size: 0;
+}
+
+.inv-room {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.inv-room-main,
+.inv-room-link {
+  display: grid;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.inv-room-link {
+  gap: var(--space-3);
+}
+
+.inv-room-title {
+  font-weight: 600;
+}
+
+/* The slug is the link's address, kept so a host can match a URL they sent. */
+.inv-address {
+  overflow-wrap: anywhere;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+}
+
+.inv-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.inv-actions > .inv-danger {
+  margin-inline-start: auto;
+}

@@ -1307,7 +1307,7 @@
       "surfaces": {
         "command": "share.manage",
         "gui": [
-          "deliverShare"
+          "inviteSheet"
         ],
         "cli": "podcast review share"
       },
@@ -1316,6 +1316,32 @@
         "guest": true
       },
       "tooltip": "Share\u2026",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.share.copyListenLink",
+      "label": "Copy listen link",
+      "effect": "project",
+      "service": "ShareService",
+      "industry_standard_key": false,
+      "gates": [
+        "hostProjectLoaded"
+      ],
+      "surfaces": {
+        "command": "share.copyListenLink",
+        "gui": [
+          "inviteSheet"
+        ],
+        "cli": "podcast review share"
+      },
+      "omit": {
+        "keyboard_reason": "Palette command; the Listen link row on Deliver and in the Invite sheet has a Copy button",
+        "guest": true
+      },
+      "tooltip": "Copy listen link",
       "presence": {
         "cursor": "none",
         "follow": "none"

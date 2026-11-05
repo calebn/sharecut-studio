@@ -43,7 +43,12 @@ type Scope = {
   generation: number;
 };
 
-type CreateRequest = { scope: Scope; choices: ShareChoices };
+type CreateRequest = {
+  scope: Scope;
+  choices: ShareChoices;
+  /** The listen link, made from the Deliver row or the sheet's Listen group. */
+  listen: boolean;
+};
 type Owner = { scope: Scope };
 
 const NO_ADDRESS = new Error("The link has no address to copy yet.");
@@ -51,17 +56,27 @@ const ABANDONED = new Error(
   "The project or stage changed before the link arrived.",
 );
 
+/** Where the links are on show: the Deliver stage's listen link, or the Invite sheet over any stage. */
+function sharesShown(s: { stage: string; openSheet: string | null }): boolean {
+  return s.stage === "deliver" || s.openSheet === "invite";
+}
+
+/** What a link is called in the status line. */
+function linkNameOf(request: CreateRequest): string {
+  return request.listen ? "Listen link" : "Review link";
+}
+
 /**
  * The host's review links and record rooms, outside any stage so a result
  * that arrives after a click is still tied to the project and visit that made
- * it. Opening another project or leaving Deliver starts over: the choices, a pending Refresh mix retry and any result still on
+ * it. Opening another project or leaving Deliver and the Invite sheet starts over: the choices, a pending Refresh mix retry and any result still on
  * its way are dropped. The listed links stay across a visit and are listed
  * again as Deliver shows.
  */
 export function ShareFlowProvider({ children }: { children: ReactNode }) {
   const projectPath = useDawStore((s) => s.projectPath);
   const projectEpoch = useDawStore((s) => s.projectEpoch);
-  const onDeliver = useDawStore((s) => s.stage === "deliver");
+  const onDeliver = useDawStore(sharesShown);
   const announceStatus = useDawStore((s) => s.announceStatus);
   const [rows, setRows] = useState<readonly HostShareRow[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -75,6 +90,10 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
   const [recovery, setRecovery] = useState<ShareCreateRecovery>({
     kind: "idle",
   });
+  const [refreshFor, setRefreshFor] = useState<{
+    choices: ShareChoices;
+    listen: boolean;
+  } | null>(null);
   const mounted = useRef(true);
   const listFailure = useRef<string | null>(null);
   const generation = useRef(0);
@@ -131,7 +150,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
       scope.projectPath === s.projectPath &&
       scope.projectEpoch === s.projectEpoch &&
       s.project !== null &&
-      s.stage === "deliver"
+      sharesShown(s)
     );
   }, []);
 
@@ -189,7 +208,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
         scope.projectPath === s.projectPath &&
         scope.projectEpoch === s.projectEpoch &&
         s.project !== null &&
-        s.stage === "deliver"
+        sharesShown(s)
       ) {
         void load(scopeNow());
       }
@@ -223,6 +242,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
     setCopiedKey(null);
     setBlockedKey(null);
     setRecovery({ kind: "idle" });
+    setRefreshFor(null);
     setChoices(SHARE_DEFAULTS);
     if (!sameProject) {
       setRows([]);
@@ -267,6 +287,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
         staleRequest.current = null;
         if (recoverable.kind === "refresh") {
           staleRequest.current = request;
+          setRefreshFor({ choices: request.choices, listen: request.listen });
           setRecovery({
             kind: "needs_refresh",
             message: recoverable.message,
@@ -292,16 +313,16 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
           await copying;
           if (!isCurrent(request.scope)) return;
           markCopied(shareCopyKey("link", share.token));
-          announce("Review link created and copied");
+          announce(`${linkNameOf(request)} created and copied`);
         } catch {
           if (!isCurrent(request.scope)) return;
           setBlockedKey(shareCopyKey("link", share.token));
           announce(
-            "Review link created. Your browser would not copy it, so it is selected: copy it with the keyboard.",
+            `${linkNameOf(request)} created. Your browser would not copy it, so it is selected: copy it with the keyboard.`,
           );
         }
       } else {
-        announce("Review link created");
+        announce(`${linkNameOf(request)} created`);
       }
       await load(request.scope);
       const cors = corsWarning(share);
@@ -323,22 +344,26 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
     [finishCreate],
   );
 
-  const create = useCallback(() => {
-    const request: CreateRequest = {
-      scope: scopeNow(),
-      choices: choicesRef.current,
-    };
-    const owner = begin(request.scope);
-    if (!owner) return;
-    staleRequest.current = null;
-    setRecovery({ kind: "idle" });
-    // The mint starts here, in the click, so the copy keeps its gesture.
-    void startCreate(request)
-      .catch((err) => {
-        if (isCurrent(request.scope)) setError(errorMessage(err));
-      })
-      .finally(() => finish(owner));
-  }, [begin, finish, isCurrent, scopeNow, startCreate]);
+  const create = useCallback(
+    (override?: ShareChoices) => {
+      const request: CreateRequest = {
+        scope: scopeNow(),
+        choices: override ?? choicesRef.current,
+        listen: override !== undefined,
+      };
+      const owner = begin(request.scope);
+      if (!owner) return;
+      staleRequest.current = null;
+      setRecovery({ kind: "idle" });
+      // The mint starts here, in the click, so the copy keeps its gesture.
+      void startCreate(request)
+        .catch((err) => {
+          if (isCurrent(request.scope)) setError(errorMessage(err));
+        })
+        .finally(() => finish(owner));
+    },
+    [begin, finish, isCurrent, scopeNow, startCreate],
+  );
 
   const refreshMix = useCallback(() => {
     const current = recoveryRef.current;
@@ -348,7 +373,9 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
     if (!stale || !isCurrent(stale.scope)) return;
     const retry: CreateRequest = {
       scope: stale.scope,
-      choices: choicesRef.current,
+      // The listen link retries as itself; a review link, as the choices now shown.
+      choices: stale.listen ? stale.choices : choicesRef.current,
+      listen: stale.listen,
     };
     const owner = begin(retry.scope);
     if (!owner) return;
@@ -584,6 +611,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
       setChoices,
       busy,
       recovery,
+      refreshFor,
       error,
       status,
       copiedKey,
@@ -604,6 +632,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
       choices,
       busy,
       recovery,
+      refreshFor,
       error,
       status,
       copiedKey,

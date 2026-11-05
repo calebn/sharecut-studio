@@ -40,6 +40,7 @@ import { expectNoA11yViolations } from "../../test/a11y";
 import { fakeExportServer } from "../../test/fakeExportServer";
 import { hostShareRow, minimalProject, sampleTrack } from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
+import { SheetHost } from "../frame/SheetHost";
 import { BounceFlowProvider } from "./bounceFlow";
 import { DeliverStage } from "./DeliverStage";
 import { ExportFlowProvider } from "./exportFlow";
@@ -59,7 +60,12 @@ function Stages() {
 function Host({
   features = [FEATURE_SHARE_UI_MENU],
   ready = true,
-  children = <Stages />,
+  children = (
+    <>
+      <Stages />
+      <SheetHost />
+    </>
+  ),
 }: {
   features?: string[];
   ready?: boolean;
@@ -78,9 +84,17 @@ function Host({
   );
 }
 
-const section = () => within(screen.getByRole("region", { name: "Share" }));
-const button = (name: string | RegExp) =>
-  section().getByRole("button", { name });
+const sheet = () => within(screen.getByRole("dialog", { name: "Invite" }));
+const openInvite = (at?: "record") =>
+  act(() => {
+    useDawStore.getState().openInvite(at);
+  });
+const group = (name: string) =>
+  within(
+    screen.getByRole("heading", { name }).closest("section") as HTMLElement,
+  );
+const listen = () =>
+  within(screen.getByRole("region", { name: "Listen link" }));
 
 function asHost(path = PATH) {
   useDawStore
@@ -113,39 +127,124 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("Share on the Deliver stage", () => {
-  it("lists the project's links when Deliver shows and has no Listen link beside it", async () => {
-    server.shares = [
-      hostShareRow({ created_at: "2026-09-01T10:00:00Z" }),
-      hostShareRow({ token: "gone", usable: false, revoked: true }),
-    ];
+describe("Listen link on the Deliver stage", () => {
+  it("shows a ready row with no Share section, no Create button and nothing else about sharing", async () => {
     const { container } = render(<Host />);
-    expect(screen.getByRole("heading", { name: "Share" })).toBeVisible();
-    expect(screen.queryByRole("heading", { name: "Listen link" })).toBeNull();
-    expect(await screen.findByText("sample-review-link")).toBeVisible();
-    expect(screen.queryByText("gone")).toBeNull();
-    expect(server.shareListRequests).toBe(1);
+    expect(screen.getByRole("heading", { name: "Listen link" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Share" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Create review link" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Share a listen link" }),
+    ).toBeNull();
+    expect(screen.getByText("Made when you copy it")).toBeVisible();
+    await waitFor(() => expect(server.shareListRequests).toBe(1));
     await expectNoA11yViolations(container);
   });
 
-  it("lists again each time Deliver is shown, and for a reopened project", async () => {
+  it("makes a Viewer link frozen on the exported version on first Copy, and copies it", async () => {
+    const writeText = installClipboard();
     render(<Host />);
-    await screen.findByText("No review links yet.");
-    expect(server.shareListRequests).toBe(1);
-    act(() => useDawStore.setState({ stage: "edit" }));
-    server.shares = [hostShareRow({ token: "added-meanwhile" })];
-    act(() => useDawStore.setState({ stage: "deliver" }));
-    expect(await screen.findByText("added-meanwhile")).toBeVisible();
-    expect(server.shareListRequests).toBe(2);
-    server.shares = [hostShareRow({ token: "other-project-link" })];
-    act(() => asHost(OTHER));
-    expect(await screen.findByText("other-project-link")).toBeVisible();
-    expect(screen.queryByText("added-meanwhile")).toBeNull();
+    const copy = listen().getByRole("button", { name: "Copy listen link" });
+    await waitFor(() => expect(copy).toBeEnabled());
+    await userEvent.click(copy);
+    await waitFor(() => expect(server.shareRequests).toHaveLength(1));
+    expect(server.shareRequests[0]).toEqual({
+      path: PATH,
+      role: "viewer",
+      with_mcp: false,
+      freeze: true,
+    });
+    expect(writeText).toHaveBeenCalledWith(
+      "http://127.0.0.1:8765/r/made-link-1",
+    );
+    expect(
+      await listen().findByRole("button", { name: "Copied listen link" }),
+    ).toBeVisible();
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Listen link created and copied",
+    );
+  });
+
+  it("copies the link that exists instead of making another", async () => {
+    server.shares = [
+      hostShareRow({
+        token: "listen-1",
+        url: "http://127.0.0.1:8765/r/listen-1",
+        docs_role: "viewer",
+        follow_latest: false,
+        review_version_label: "Rough cut",
+      }),
+    ];
+    const writeText = installClipboard();
+    render(<Host />);
+    await listen().findByTitle("http://127.0.0.1:8765/r/listen-1");
+    await userEvent.click(
+      listen().getByRole("button", { name: "Copy listen link" }),
+    );
+    expect(writeText).toHaveBeenCalledWith("http://127.0.0.1:8765/r/listen-1");
+    expect(server.shareRequests).toEqual([]);
+    expect(
+      listen().getByRole("button", { name: "Pin to this version" }),
+    ).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("waits for the list before it can make a link, so it never makes a second", async () => {
+    render(<Host />);
+    const copy = listen().getByRole("button", { name: "Copy listen link" });
+    expect(copy).toBeDisabled();
+    await waitFor(() => expect(copy).toBeEnabled());
+  });
+
+  it("stops sharing only after the in-place confirm", async () => {
+    server.shares = [
+      hostShareRow({
+        token: "listen-1",
+        docs_role: "viewer",
+        follow_latest: false,
+      }),
+    ];
+    render(<Host />);
+    await userEvent.click(
+      await listen().findByRole("button", { name: "More for listen link" }),
+    );
+    await userEvent.click(
+      screen.getByRole("menuitem", { name: "Stop sharing" }),
+    );
+    expect(server.revokeRequests).toEqual([]);
+    const confirm = listen().getByRole("group", {
+      name: "Stop sharing this Viewer link? Anyone using it loses access.",
+    });
+    await userEvent.click(
+      within(confirm).getByRole("button", { name: "Stop sharing" }),
+    );
+    await waitFor(() => expect(server.revokeRequests).toEqual(["listen-1"]));
+    expect(await screen.findByText("Made when you copy it")).toBeVisible();
+  });
+
+  it("offers Refresh mix as the row itself when the mix is stale, then makes the link once it is back", async () => {
+    server.shareAnswer = { status: 409, code: "stale_mix", body: "stale" };
+    render(<Host />);
+    const copy = listen().getByRole("button", { name: "Copy listen link" });
+    await waitFor(() => expect(copy).toBeEnabled());
+    await userEvent.click(copy);
+    expect(await listen().findByText("Make a mix to share")).toBeVisible();
+    server.shareAnswer = null;
+    await userEvent.click(
+      listen().getByRole("button", { name: "Refresh mix" }),
+    );
+    expect(refreshMix).toHaveBeenCalledWith("render.refreshMix");
+    await waitFor(() => expect(server.shareRequests).toHaveLength(2));
+    expect(server.shareRequests[1]).toMatchObject({
+      role: "viewer",
+      freeze: true,
+    });
   });
 
   it("is absent when the share feature is off, and lists nothing", async () => {
     render(<Host features={[]} />);
-    expect(screen.queryByRole("heading", { name: "Share" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Listen link" })).toBeNull();
     await act(async () => {});
     expect(server.shareListRequests).toBe(0);
   });
@@ -158,18 +257,128 @@ describe("Share on the Deliver stage", () => {
         <StageHost guestShare />
       </Host>,
     );
-    expect(screen.queryByRole("heading", { name: "Share" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Listen link" })).toBeNull();
     expect(server.shareListRequests).toBe(0);
   });
 
-  it("makes the link the choices say from the Create click, then copies it", async () => {
+  it("lists again each time Deliver is shown, and for a reopened project", async () => {
+    render(<Host />);
+    await waitFor(() => expect(server.shareListRequests).toBe(1));
+    act(() => useDawStore.setState({ stage: "edit" }));
+    server.shares = [
+      hostShareRow({
+        token: "added-meanwhile",
+        url: "http://127.0.0.1:8765/r/added-meanwhile",
+        docs_role: "viewer",
+        follow_latest: false,
+      }),
+    ];
+    act(() => useDawStore.setState({ stage: "deliver" }));
+    expect(
+      await screen.findByTitle("http://127.0.0.1:8765/r/added-meanwhile"),
+    ).toBeVisible();
+    expect(server.shareListRequests).toBe(2);
+    server.shares = [
+      hostShareRow({
+        token: "other-project-link",
+        url: "http://127.0.0.1:8765/r/other-project-link",
+        docs_role: "viewer",
+        follow_latest: false,
+      }),
+    ];
+    act(() => asHost(OTHER));
+    expect(
+      await screen.findByTitle("http://127.0.0.1:8765/r/other-project-link"),
+    ).toBeVisible();
+    expect(
+      screen.queryByTitle("http://127.0.0.1:8765/r/added-meanwhile"),
+    ).toBeNull();
+  });
+});
+
+describe("the Invite sheet over any stage", () => {
+  beforeEach(() => {
+    useDawStore.setState({ stage: "edit" });
+  });
+
+  it("opens from the store with the three groups in order, listing what exists", async () => {
+    server.shares = [
+      hostShareRow({ created_at: "2026-09-01T10:00:00Z" }),
+      hostShareRow({ token: "gone", usable: false, revoked: true }),
+      hostShareRow({
+        token: "g1",
+        kind: "record",
+        docs_role: null,
+        record_role: "guest",
+        session_id: "room-1",
+      }),
+    ];
+    render(<Host />);
+    openInvite();
+    expect(await screen.findByRole("dialog", { name: "Invite" })).toBeVisible();
+    expect(
+      screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent),
+    ).toEqual(["Review links", "Record links", "Listen link"]);
+    expect(
+      await sheet().findByTitle("http://127.0.0.1:8765/r/sample-review-link"),
+    ).toBeVisible();
+    expect(screen.queryByTitle(/\/r\/gone$/)).toBeNull();
+    expect(screen.getByText("Record room")).toBeVisible();
+    expect(server.shareListRequests).toBe(1);
+    await expectNoA11yViolations(
+      screen.getByRole("dialog", { name: "Invite" }),
+    );
+  });
+
+  it("makes the Commenter link, following the latest, from a ready row on its first Copy", async () => {
     const writeText = installClipboard();
     render(<Host />);
-    await screen.findByText("No review links yet.");
-    await userEvent.click(button("Editor"));
-    await userEvent.click(button("Allow AI assistants (MCP)"));
-    await userEvent.click(button("Freeze on the current version"));
-    await userEvent.click(button("Create review link"));
+    openInvite();
+    const copy = await screen.findByRole("button", {
+      name: "Copy new Commenter link",
+    });
+    await waitFor(() => expect(copy).toBeEnabled());
+    expect(
+      screen.queryByRole("button", { name: /Create review link/ }),
+    ).toBeNull();
+    await userEvent.click(copy);
+    await waitFor(() => expect(server.shareRequests).toHaveLength(1));
+    expect(server.shareRequests[0]).toEqual({
+      path: PATH,
+      role: "commenter",
+      with_mcp: false,
+    });
+    expect(writeText).toHaveBeenCalledWith(
+      "http://127.0.0.1:8765/r/made-link-1",
+    );
+    expect(
+      await screen.findByRole("button", { name: "Copied Commenter link" }),
+    ).toBeVisible();
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Review link created and copied",
+    );
+  });
+
+  it("makes the link the role, pin and AI choices say", async () => {
+    render(<Host />);
+    openInvite();
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Editor: can edit" }),
+    );
+    await userEvent.click(
+      group("Review links").getByRole("button", {
+        name: "Pin to this version",
+      }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "More for new Editor link" }),
+    );
+    await userEvent.click(
+      screen.getByRole("menuitemradio", { name: "Allow AI assistants" }),
+    );
+    const copy = screen.getByRole("button", { name: "Copy new Editor link" });
+    await waitFor(() => expect(copy).toBeEnabled());
+    await userEvent.click(copy);
     await waitFor(() => expect(server.shareRequests).toHaveLength(1));
     expect(server.shareRequests[0]).toEqual({
       path: PATH,
@@ -177,77 +386,69 @@ describe("Share on the Deliver stage", () => {
       with_mcp: true,
       freeze: true,
     });
-    expect(await screen.findByText("made-link-1")).toBeVisible();
-    expect(writeText).toHaveBeenCalledWith(
-      "http://127.0.0.1:8765/r/made-link-1",
-    );
     expect(
-      await screen.findByRole("button", { name: "Copied Editor link" }),
+      await screen.findByText(/Frozen on Share mix · AI assistants allowed/),
     ).toBeVisible();
-    expect(
-      screen.getByText(/Frozen on Share mix · AI assistants allowed/),
-    ).toBeVisible();
-    expect(screen.getByRole("button", { name: "Copy MCP URL" })).toBeVisible();
-    expect(useDawStore.getState().statusAnnouncement).toBe(
-      "Review link created and copied",
-    );
   });
 
-  it("starts as a Commenter that follows the latest, and copies a listed link on its own Copy click", async () => {
-    server.shares = [hostShareRow()];
-    const writeText = installClipboard();
-    render(<Host />);
-    expect(button("Commenter").getAttribute("aria-pressed")).toBe("true");
-    await userEvent.click(
-      await screen.findByRole("button", { name: "Copy Commenter link" }),
-    );
-    expect(writeText).toHaveBeenCalledWith(
-      "http://127.0.0.1:8765/r/sample-review-link",
-    );
-    expect(
-      await screen.findByRole("button", { name: "Copied Commenter link" }),
-    ).toBeVisible();
-    expect(screen.getByText(/Follows latest: Share mix/)).toBeVisible();
-    await userEvent.click(button("Create review link"));
-    await waitFor(() => expect(server.shareRequests).toHaveLength(1));
-    expect(server.shareRequests[0]).toEqual({
-      path: PATH,
-      role: "commenter",
-      with_mcp: false,
-    });
-  });
-
-  it("stops sharing only after the in-place confirm", async () => {
+  it("stops sharing a review link only after the in-place confirm", async () => {
     server.shares = [hostShareRow()];
     render(<Host />);
+    openInvite();
     await userEvent.click(
-      await screen.findByRole("button", { name: "Stop sharing" }),
+      await screen.findByRole("button", { name: "More for Commenter link" }),
+    );
+    await userEvent.click(
+      screen.getByRole("menuitem", { name: "Stop sharing" }),
     );
     expect(server.revokeRequests).toEqual([]);
-    const group = screen.getByRole("group", {
+    const confirm = screen.getByRole("group", {
       name: "Stop sharing this Commenter link? Anyone using it loses access.",
     });
     await userEvent.click(
-      within(group).getByRole("button", { name: "Stop sharing" }),
+      within(confirm).getByRole("button", { name: "Stop sharing" }),
     );
     await waitFor(() =>
       expect(server.revokeRequests).toEqual(["sample-review-link"]),
     );
-    expect(await screen.findByText("No review links yet.")).toBeVisible();
     expect(useDawStore.getState().statusAnnouncement).toBe(
       "Stopped sharing the Commenter link",
     );
   });
 
-  it("offers Refresh mix after a stale mix, then makes the link once the mix is back", async () => {
+  it("keeps the link on Keep link and returns focus to More", async () => {
+    server.shares = [hostShareRow()];
+    render(<Host />);
+    openInvite();
+    const more = await screen.findByRole("button", {
+      name: "More for Commenter link",
+    });
+    await userEvent.click(more);
+    await userEvent.click(
+      screen.getByRole("menuitem", { name: "Stop sharing" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Keep link" }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "More for Commenter link" }),
+      ).toHaveFocus(),
+    );
+    expect(server.revokeRequests).toEqual([]);
+  });
+
+  it("offers Refresh mix on the row after a stale mix, then makes the link once the mix is back", async () => {
     server.shareAnswer = {
       status: 409,
       code: "stale_mix",
       body: "premix.wav is stale",
     };
     render(<Host />);
-    await screen.findByText("No review links yet.");
-    await userEvent.click(button("Create review link"));
+    openInvite();
+    const copy = await screen.findByRole("button", {
+      name: "Copy new Commenter link",
+    });
+    await waitFor(() => expect(copy).toBeEnabled());
+    await userEvent.click(copy);
     expect(
       await screen.findByText(
         "The mix preview is out of date. Refresh it before creating a review link.",
@@ -255,63 +456,78 @@ describe("Share on the Deliver stage", () => {
     ).toBeVisible();
     expect(screen.queryByText(/premix\.wav/)).toBeNull();
     server.shareAnswer = null;
-    await userEvent.click(button("Refresh mix"));
+    await userEvent.click(sheet().getByRole("button", { name: "Refresh mix" }));
     expect(refreshMix).toHaveBeenCalledWith("render.refreshMix");
-    expect(await screen.findByText("made-link-2")).toBeVisible();
+    expect(await screen.findByText(/made-link-2/)).toBeVisible();
     expect(server.shareRequests).toHaveLength(2);
-    expect(section().queryByRole("button", { name: "Refresh mix" })).toBeNull();
   });
 
-  it("offers Refresh mix for a project with no mix, and keeps it when the refresh fails", async () => {
+  it("keeps Refresh mix when the refresh fails, and says why", async () => {
     server.shareAnswer = { status: 409, code: "no_mix", body: "no mix yet" };
     refreshMix.mockResolvedValue({
       status: "disabled",
       reason: "Render failed",
     });
     render(<Host />);
-    await screen.findByText("No review links yet.");
-    await userEvent.click(button("Create review link"));
-    expect(
-      await screen.findByText(
-        "This project has no mix yet. Refresh the mix to create the link.",
-      ),
-    ).toBeVisible();
-    await userEvent.click(button("Refresh mix"));
+    openInvite();
+    const copy = await screen.findByRole("button", {
+      name: "Copy new Commenter link",
+    });
+    await waitFor(() => expect(copy).toBeEnabled());
+    await userEvent.click(copy);
+    await userEvent.click(
+      await sheet().findByRole("button", { name: "Refresh mix" }),
+    );
     expect(
       await screen.findByText("Refresh failed: Render failed"),
     ).toBeVisible();
-    expect(button("Refresh mix")).toBeEnabled();
+    expect(sheet().getByRole("button", { name: "Refresh mix" })).toBeEnabled();
     expect(server.shareRequests).toHaveLength(1);
   });
 
   it("says a stale master needs an export, without Refresh mix", async () => {
     server.shareAnswer = { status: 409, code: "stale_master", body: "stale" };
     render(<Host />);
-    await screen.findByText("No review links yet.");
-    await userEvent.click(button("Create review link"));
+    openInvite();
+    const copy = await screen.findByRole("button", {
+      name: "Copy new Commenter link",
+    });
+    await waitFor(() => expect(copy).toBeEnabled());
+    await userEvent.click(copy);
     expect(
       await screen.findByText(
         "The mastered mix is out of date. Export a new master before creating a review link.",
       ),
     ).toBeVisible();
-    expect(section().queryByRole("button", { name: "Refresh mix" })).toBeNull();
+    expect(sheet().queryByRole("button", { name: "Refresh mix" })).toBeNull();
   });
 
-  it("forgets the choices and a pending refresh when Deliver is left", async () => {
-    server.shareAnswer = { status: 409, code: "stale_mix", body: "stale" };
+  it("forgets the choices when the sheet and Deliver are both left", async () => {
     render(<Host />);
-    await screen.findByText("No review links yet.");
-    await userEvent.click(button("Editor"));
-    await userEvent.click(button("Create review link"));
-    await section().findByRole("button", { name: "Refresh mix" });
-    act(() => useDawStore.setState({ stage: "edit" }));
-    act(() => useDawStore.setState({ stage: "deliver" }));
-    await screen.findByText("No review links yet.");
-    expect(section().queryByRole("button", { name: "Refresh mix" })).toBeNull();
-    expect(button("Commenter").getAttribute("aria-pressed")).toBe("true");
+    openInvite();
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Editor: can edit" }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Editor: can edit" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    act(() => useDawStore.getState().setOpenSheet(null));
+    openInvite();
+    expect(
+      await screen.findByRole("button", { name: "Commenter: can comment" }),
+    ).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("lists a record room and opens the Record stage from it", async () => {
+  it("opens at the Record links and focuses them, from the empty Person tile", async () => {
+    render(<Host />);
+    openInvite("record");
+    const heading = await screen.findByRole("heading", {
+      name: "Record links",
+    });
+    await waitFor(() => expect(heading).toHaveFocus());
+  });
+
+  it("makes record links from the Record group, and ends a room after the confirm", async () => {
     server.shares = [
       hostShareRow({
         token: "g1",
@@ -322,61 +538,60 @@ describe("Share on the Deliver stage", () => {
       }),
     ];
     render(<Host />);
+    openInvite("record");
     expect(await screen.findByText("Record room")).toBeVisible();
-    expect(button("Open Record stage")).toBeEnabled();
-    await userEvent.click(button("Open Record stage"));
-    expect(useDawStore.getState().stage).toBe("record");
-  });
-});
-
-describe("Share entry button", () => {
-  it("brings Share into focus", async () => {
-    render(<Host />);
-    await screen.findByText("No review links yet.");
+    expect(
+      within(
+        screen
+          .getByRole("heading", { name: "Record links" })
+          .closest("section") as HTMLElement,
+      ).getByRole("button", { name: "Create record links" }),
+    ).toBeEnabled();
+    await userEvent.click(screen.getByRole("button", { name: "End room" }));
+    const confirm = screen.getByRole("group", {
+      name: "End this record room? Both guest and producer links will stop working.",
+    });
     await userEvent.click(
-      screen.getByRole("button", { name: "Share a listen link" }),
+      within(confirm).getByRole("button", { name: "End room" }),
     );
-    await waitFor(() => expect(button("Create review link")).toHaveFocus());
-    expect(useDawStore.getState().chrome.shareRequested).toBe(false);
-  });
-
-  it("focuses Share when a share request is waiting, then clears it", async () => {
-    useDawStore.getState().setShareRequested(true);
-    render(<Host />);
-    await waitFor(() => expect(button("Create review link")).toHaveFocus());
-    expect(useDawStore.getState().chrome.shareRequested).toBe(false);
-  });
-
-  it("keeps a share request until the features have loaded", async () => {
-    useDawStore.getState().setShareRequested(true);
-    const view = render(<Host features={[]} ready={false} />);
-    await screen.findByText("Episode file");
-    expect(useDawStore.getState().chrome.shareRequested).toBe(true);
-    view.rerender(<Host ready />);
-    await waitFor(() => expect(button("Create review link")).toHaveFocus());
-    expect(useDawStore.getState().chrome.shareRequested).toBe(false);
-  });
-
-  it("drops a share request when the feature is off", async () => {
-    useDawStore.getState().setShareRequested(true);
-    render(<Host features={[]} />);
     await waitFor(() =>
-      expect(useDawStore.getState().chrome.shareRequested).toBe(false),
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "Record room ended",
+      ),
     );
+  });
+
+  it("does not offer Open Record stage: the sheet is already over every stage", async () => {
+    server.shares = [
+      hostShareRow({
+        token: "g1",
+        kind: "record",
+        docs_role: null,
+        record_role: "guest",
+        session_id: "room-1",
+      }),
+    ];
+    render(<Host />);
+    openInvite();
+    await screen.findByText("Record room");
     expect(
-      screen.queryByRole("button", { name: "Create review link" }),
+      screen.queryByRole("button", { name: "Open Record stage" }),
     ).toBeNull();
   });
 
-  it("stays out of the way when the share feature is off", () => {
-    render(<Host features={[]} />);
-    expect(
-      screen.queryByRole("button", { name: "Share a listen link" }),
-    ).toBeNull();
+  it("lists nothing and shows no sheet for a guest link", () => {
+    useDawStore.getState().hydrate("share:abc", minimalProject());
+    useDawStore.setState({ stage: "review", guestMode: "view" });
+    render(
+      <Host>
+        <StageHost guestShare />
+      </Host>,
+    );
+    expect(server.shareListRequests).toBe(0);
   });
 });
 
-describe("online sharing on Deliver", () => {
+describe("online sharing", () => {
   const status = (state: string) => ({
     state,
     reason: null,
@@ -386,14 +601,18 @@ describe("online sharing on Deliver", () => {
     share_count: 1,
     retry_at: null,
   });
+  const both = [FEATURE_SHARE_UI_MENU, FEATURE_TUNNEL_STATUS];
 
-  it("shows the state only when the tunnel.status feature is present", async () => {
+  it("shows the state in the Invite sheet only when the tunnel.status feature is present", async () => {
     loadTunnelStatus.mockResolvedValue(status("online"));
+    useDawStore.setState({ stage: "edit" });
     const { unmount } = render(<Host />);
-    await screen.findByText("No review links yet.");
+    openInvite();
+    await screen.findByRole("dialog", { name: "Invite" });
     expect(loadTunnelStatus).not.toHaveBeenCalled();
     unmount();
-    render(<Host features={[FEATURE_SHARE_UI_MENU, FEATURE_TUNNEL_STATUS]} />);
+    render(<Host features={both} />);
+    openInvite();
     expect(await screen.findByText("Guests can open your links")).toBeVisible();
   });
 
@@ -403,40 +622,55 @@ describe("online sharing on Deliver", () => {
     ["off", "Online sharing is off"],
   ] as const)("shows %s", async (state, headline) => {
     loadTunnelStatus.mockResolvedValue(status(state));
-    render(<Host features={[FEATURE_SHARE_UI_MENU, FEATURE_TUNNEL_STATUS]} />);
+    useDawStore.setState({ stage: "edit" });
+    render(<Host features={both} />);
+    openInvite();
     expect(await screen.findByText(headline)).toBeVisible();
   });
 
-  it("tells a link that only this network reaches, and not when online sharing is on", async () => {
-    server.shares = [hostShareRow()];
+  it("marks a link only this network reaches with a slashed globe and a popover, and a public one with a filled globe", async () => {
+    server.shares = [
+      hostShareRow({
+        token: "listen-1",
+        docs_role: "viewer",
+        follow_latest: false,
+      }),
+    ];
     loadTunnelStatus.mockResolvedValue(status("off"));
-    const { unmount } = render(
-      <Host features={[FEATURE_SHARE_UI_MENU, FEATURE_TUNNEL_STATUS]} />,
-    );
+    const { unmount } = render(<Host features={both} />);
+    const glyph = await listen().findByRole("button", {
+      name: "Only on this network",
+    });
+    expect(glyph).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(glyph);
+    expect(glyph).toHaveAttribute("aria-expanded", "true");
     expect(
-      await screen.findByText(/Only people on this network can listen/),
+      screen.getByText(/Only people on this network can open it/),
     ).toBeVisible();
+    await userEvent.keyboard("{Escape}");
+    expect(glyph).toHaveAttribute("aria-expanded", "false");
     unmount();
     loadTunnelStatus.mockResolvedValue(status("online"));
-    render(<Host features={[FEATURE_SHARE_UI_MENU, FEATURE_TUNNEL_STATUS]} />);
-    await screen.findByText("Guests can open your links");
-    expect(screen.queryByText(/Only people on this network/)).toBeNull();
+    render(<Host features={both} />);
+    expect(
+      await listen().findByRole("button", { name: "Reachable from anywhere" }),
+    ).toBeVisible();
   });
 
-  it("stops polling when Deliver is left", async () => {
+  it("stops polling when the sheet and Deliver are left", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
       loadTunnelStatus.mockResolvedValue(status("online"));
-      render(
-        <Host features={[FEATURE_SHARE_UI_MENU, FEATURE_TUNNEL_STATUS]} />,
-      );
+      useDawStore.setState({ stage: "edit" });
+      render(<Host features={both} />);
+      openInvite();
       await screen.findByText("Guests can open your links");
       const polled = loadTunnelStatus.mock.calls.length;
       await act(async () => {
         await vi.advanceTimersByTimeAsync(5100);
       });
       expect(loadTunnelStatus.mock.calls.length).toBeGreaterThan(polled);
-      act(() => useDawStore.setState({ stage: "edit" }));
+      act(() => useDawStore.getState().setOpenSheet(null));
       const left = loadTunnelStatus.mock.calls.length;
       await act(async () => {
         await vi.advanceTimersByTimeAsync(15000);

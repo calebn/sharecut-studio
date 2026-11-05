@@ -164,10 +164,11 @@ them against the registry and catalog so the copy cannot drift; the live
 `EditCorner` and `CommandPalette` adapters keep reading
 DAW state and dispatching through `execute`.
 
-`Stages/Deliver/Share` renders the props-only `ShareSection` of the Deliver
-stage. `ShareFlowProvider` in `DawApp` (`stage/hosts/shareFlow.tsx`) lists,
+`Stages/Frame/InviteSheet` renders the Invite sheet (`stage/frame/InviteSheet.tsx`,
+rows in `stage/frame/invite/`); the Deliver stage embeds only its Listen link row.
+`ShareFlowProvider` in `DawApp` (`stage/hosts/shareFlow.tsx`) lists,
 makes, copies and stops the links and runs record rooms; `deliverShare.ts` maps
-its state to the section. The link is made and its copy started from the same
+its state to the sheet and the row. The link is made and its copy started from the same
 click, so the clipboard keeps its user gesture.
 `Stages/Deliver/Bounce` renders the props-only `BounceSection` of the Deliver
 stage. The Deliver host (`stage/hosts/DeliverStage.tsx`) hands it the project's

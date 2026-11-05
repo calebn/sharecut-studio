@@ -55,7 +55,7 @@ const KEYDOWN_LISTENER_ALLOWLIST = new Set([
   // Mod+E exports from anywhere on the Deliver page, including a focused chip or field.
   "stages/deliver/DeliverStage.tsx",
   // Escape keeps the link while Stop sharing is asking, wherever focus is, so the cancel does not depend on the row holding focus.
-  "stages/deliver/ShareSection.tsx",
+  "stage/frame/invite/useShareEnd.ts",
   // A test listens at the window the way the app keymap does, to prove the keys the pane handles never reach it.
   "system/ScriptPane.select.test.tsx",
   // A drag in progress on a ruler handle, the ruler body or a marker takes Escape from the document, wherever focus is, so the cancel does not depend on the grabbed element holding focus.
@@ -77,6 +77,8 @@ const KEYDOWN_LISTENER_ALLOWLIST = new Set([
 ]);
 
 const ON_KEY_DOWN_ALLOWLIST = new Set([
+  // Escape closes the online-sharing popover on a Link row, and nothing under it.
+  "system/ReachGlyph.tsx",
   "transcript/EditBoundaryMarkView.tsx",
   // The ARIA tablist pattern: arrows, Home and End move among the tabs.
   "ui/Tabs.tsx",
