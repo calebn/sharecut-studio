@@ -142,11 +142,6 @@ each detector entry point decides the same at 0, -12 and -24 dB and with one tra
 down. Add a new detector there, not a per-detector gain test ([audio-engineering.md § Detection
 levels](audio-engineering.md#detection-levels)).
 
-`tests/test_service_result_types.py` caps bare dictionary returns per service file.
-The scanner counts `Optional` and `Union` members, including qualified and quoted
-annotations and `|` unions. Dictionaries inside other containers do not count.
-Run `uv run pytest -q --no-cov tests/test_service_result_types.py` to check the caps.
-
 ### Tests never wait on time
 
 A test waits on an event or a state, never on a clock: no `time.sleep`, `asyncio.sleep` or
