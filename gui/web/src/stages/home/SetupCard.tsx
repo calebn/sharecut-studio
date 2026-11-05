@@ -206,7 +206,6 @@ function SetupBody({
 /** A card that changes later for another reason is not the Cancel the person pressed. */
 const CANCEL_FOCUS_MS = 5000;
 
-/** Moves focus off the Cancel button that is about to leave the page. */
 function focusAfterCancel(root: HTMLElement) {
   const next =
     root.querySelector<HTMLElement>(".sys-setup-actions button") ??
@@ -221,7 +220,6 @@ export function SetupCard(props: SetupCardProps) {
   const root = useRef<HTMLDivElement>(null);
   const cancelledAt = useRef<number | null>(null);
   const { state, onCancel } = props;
-  // biome-ignore lint/correctness/useExhaustiveDependencies: runs once per state change
   useEffect(() => {
     const at = cancelledAt.current;
     if (at === null || state === "downloading") return;
