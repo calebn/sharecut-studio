@@ -1,13 +1,12 @@
-import { useEffect, useState } from "react";
-import { useIntervalTick } from "./useIntervalTick";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { createElapsedSample } from "./sampledClocks";
 
 export function useElapsedSince(startMs: number | null, active: boolean) {
-  const tick = useIntervalTick(1000, active);
-  const [nowMs, setNowMs] = useState(() => performance.now());
+  const [clock] = useState(createElapsedSample);
+  const nowMs = useSyncExternalStore(clock.subscribe, clock.getSnapshot);
   useEffect(() => {
-    if (startMs !== null && tick >= 0) {
-      setNowMs(performance.now());
-    }
-  }, [startMs, tick]);
+    clock.setStart(startMs);
+  }, [clock, startMs]);
+  useEffect(() => clock.connect(active), [clock, active]);
   return startMs === null ? 0 : Math.max(0, nowMs - startMs);
 }

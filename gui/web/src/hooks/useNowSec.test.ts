@@ -57,4 +57,27 @@ describe("useNowSec", () => {
     expect(setIntervalSpy).not.toHaveBeenCalled();
     setIntervalSpy.mockRestore();
   });
+  it("preserves a backwards wall-clock adjustment on the next real tick", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-18T12:00:00Z"));
+    const { result } = renderHook(() => useNowSec(true));
+    const initial = result.current;
+    vi.setSystemTime(new Date("2026-09-18T11:59:50Z"));
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(result.current).toBe(initial - 9);
+  });
+
+  it("samples actual wall time instead of estimating it from elapsed tick count", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-18T12:00:00Z"));
+    const { result } = renderHook(() => useNowSec(true));
+    const initial = result.current;
+    vi.setSystemTime(new Date("2026-09-18T12:05:00Z"));
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(result.current).toBe(initial + 301);
+  });
 });

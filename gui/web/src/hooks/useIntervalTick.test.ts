@@ -32,4 +32,40 @@ describe("useIntervalTick", () => {
     expect(setIntervalSpy).not.toHaveBeenCalled();
     setIntervalSpy.mockRestore();
   });
+  it("retains its counter and starts a full deadline after period or active changes", () => {
+    vi.useFakeTimers();
+    const { result, rerender, unmount } = renderHook(
+      ({ period, active }) => useIntervalTick(period, active),
+      { initialProps: { period: 1000, active: true } },
+    );
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(result.current).toBe(1);
+    rerender({ period: 2000, active: true });
+    act(() => {
+      vi.advanceTimersByTime(1999);
+    });
+    expect(result.current).toBe(1);
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(result.current).toBe(2);
+    rerender({ period: 2000, active: false });
+    expect(vi.getTimerCount()).toBe(0);
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    rerender({ period: 2000, active: true });
+    act(() => {
+      vi.advanceTimersByTime(1999);
+    });
+    expect(result.current).toBe(2);
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(result.current).toBe(3);
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
+  });
 });
