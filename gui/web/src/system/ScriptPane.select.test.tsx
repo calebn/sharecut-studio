@@ -530,6 +530,55 @@ describe("ScriptPane live region", () => {
     expect(screen.getByRole("status").textContent?.trim()).toBe("1 of 1");
   });
 
+  it("repopulates an unchanged Find announcement when the status outlet returns", () => {
+    const ready = props({ findStatus: "1 of 1", findStatusKey: 0 });
+    const { rerender } = render(<ScriptPane {...ready} />);
+    const oldOutlet = screen.getByRole("status");
+    expect(oldOutlet).toHaveTextContent("1 of 1");
+    rerender(<ScriptPane {...ready} turns={[]} status={{ kind: "empty" }} />);
+    expect(oldOutlet.isConnected).toBe(false);
+    rerender(<ScriptPane {...ready} />);
+    expect(screen.getByRole("status")).not.toBe(oldOutlet);
+    expect(screen.getByRole("status")).toHaveTextContent("1 of 1");
+  });
+
+  it("keeps the later selection-cleared message while the status outlet is absent", () => {
+    const ready = props({
+      selection: words(12, 14),
+      findStatus: "1 of 1",
+      findStatusKey: 0,
+    });
+    const { rerender } = render(<ScriptPane {...ready} />);
+    expect(screen.getByRole("status")).toHaveTextContent("1 of 1");
+    rerender(
+      <ScriptPane
+        {...ready}
+        selection={null}
+        turns={[]}
+        status={{ kind: "empty" }}
+      />,
+    );
+    rerender(<ScriptPane {...ready} selection={null} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Selection cleared");
+  });
+
+  it("processes Find changes while the status outlet is absent", () => {
+    const ready = props({ findStatus: "1 of 1", findStatusKey: 0 });
+    const { rerender } = render(<ScriptPane {...ready} />);
+    expect(screen.getByRole("status")).toHaveTextContent("1 of 1");
+    rerender(
+      <ScriptPane
+        {...ready}
+        turns={[]}
+        status={{ kind: "empty" }}
+        findStatus="No matches"
+        findStatusKey={1}
+      />,
+    );
+    rerender(<ScriptPane {...ready} />);
+    expect(screen.getByRole("status")).toHaveTextContent("1 of 1");
+  });
+
   it("gives a new Find result priority over a simultaneous selection announcement", () => {
     const { rerender } = render(
       <ScriptPane

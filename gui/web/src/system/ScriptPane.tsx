@@ -356,6 +356,7 @@ type ScriptAnnouncement = {
   findStatus: string | undefined;
   findStatusKey: number | undefined;
   hadSelection: boolean;
+  text: string;
 };
 
 /** A handled key stops here: the window keymap must not also act on it. */
@@ -1055,7 +1056,6 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
     const selecting = draft !== null;
     useEffect(() => {
       const region = liveRegion.current;
-      if (!region) return;
       const previous = lastAnnouncement.current;
       const selectionChanged =
         previous === null ||
@@ -1066,7 +1066,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
         previous === null ||
         previous.findStatus !== findStatus ||
         previous.findStatusKey !== findStatusKey;
-      let text = region.textContent ?? "";
+      let text = previous?.text ?? "";
       let hadSelection = previous?.hadSelection ?? false;
       if (selectionChanged && !dragging && !selecting) {
         if (summary !== "") {
@@ -1087,9 +1087,10 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
         findStatus,
         findStatusKey,
         hadSelection,
+        text,
       };
-      if (region.textContent !== text) region.textContent = text;
-    }, [summary, dragging, selecting, findStatus, findStatusKey]);
+      if (region && region.textContent !== text) region.textContent = text;
+    });
 
     const handlesShown =
       handles &&
