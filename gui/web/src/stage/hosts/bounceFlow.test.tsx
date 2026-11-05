@@ -1,4 +1,5 @@
 import { act, render, waitFor } from "@testing-library/react";
+import { useLayoutEffect } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   cancelPipelineRun,
@@ -63,7 +64,10 @@ const RANGE = {
 
 let flow: BounceFlow;
 function Probe() {
-  flow = useBounceFlow();
+  const current = useBounceFlow();
+  useLayoutEffect(() => {
+    flow = current;
+  });
   return null;
 }
 
