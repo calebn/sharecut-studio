@@ -31,6 +31,7 @@ import {
 import { useDawStore } from "../../state/dawStore";
 import { type HostShareRow, REVIEW_ROLES } from "../../types/shares";
 import { errorMessage } from "../../utils/apiError";
+import { useStableCallback } from "../../utils/useStableCallback";
 import { copyWhenReady } from "./copyWhenReady";
 import { Flow, type ShareFlow } from "./shareFlowContext";
 
@@ -82,12 +83,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
   const busyOwner = useRef<Owner | null>(null);
   const staleRequest = useRef<CreateRequest | null>(null);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const choicesRef = useRef(choices);
-  choicesRef.current = choices;
-  const recoveryRef = useRef(recovery);
-  recoveryRef.current = recovery;
-  const rowsRef = useRef(rows);
-  rowsRef.current = rows;
+  const currentRows = useStableCallback(() => rows);
   const seen = useRef({ projectPath, projectEpoch, onDeliver });
 
   const clearCopiedTimer = useCallback(() => {
@@ -323,10 +319,10 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
     [finishCreate],
   );
 
-  const create = useCallback(() => {
+  const create = useStableCallback(() => {
     const request: CreateRequest = {
       scope: scopeNow(),
-      choices: choicesRef.current,
+      choices,
     };
     const owner = begin(request.scope);
     if (!owner) return;
@@ -338,17 +334,17 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
         if (isCurrent(request.scope)) setError(errorMessage(err));
       })
       .finally(() => finish(owner));
-  }, [begin, finish, isCurrent, scopeNow, startCreate]);
+  });
 
-  const refreshMix = useCallback(() => {
-    const current = recoveryRef.current;
+  const refreshMix = useStableCallback(() => {
+    const current = recovery;
     if (current.kind !== "needs_refresh") return;
     const { message } = current;
     const stale = staleRequest.current;
     if (!stale || !isCurrent(stale.scope)) return;
     const retry: CreateRequest = {
       scope: stale.scope,
-      choices: choicesRef.current,
+      choices,
     };
     const owner = begin(retry.scope);
     if (!owner) return;
@@ -388,7 +384,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
         finish(owner);
       }
     })();
-  }, [begin, finish, isCurrent, startCreate]);
+  });
 
   const act = useCallback(
     (run: (scope: Scope) => Promise<void>) => {
@@ -529,7 +525,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
         } catch {
           if (!isCurrent(scope)) return;
           const key = shareCopyKey(kind, token);
-          const onRow = rowsRef.current.some(
+          const onRow = currentRows().some(
             (row) => row.token === token && row.kind !== "record",
           );
           if (kind === "link" && onRow) {
@@ -543,7 +539,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
         }
       })();
     },
-    [announce, isCurrent, markCopied, scopeNow],
+    [announce, isCurrent, markCopied, scopeNow, currentRows],
   );
 
   const stop = useCallback(
@@ -552,7 +548,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
         REVIEW_ROLES.find(
           (r) =>
             r.id ===
-            rowsRef.current.find((row) => row.token === token)?.docs_role,
+            currentRows().find((row) => row.token === token)?.docs_role,
         )?.label ?? "review";
       act(async (scope) => {
         await revokeHostShare(scope.projectPath, token);
@@ -561,7 +557,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
         await load(scope);
       });
     },
-    [act, announce, isCurrent, load],
+    [act, announce, isCurrent, load, currentRows],
   );
 
   const endRoom = useCallback(
