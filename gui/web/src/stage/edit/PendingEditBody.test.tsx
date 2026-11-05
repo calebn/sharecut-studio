@@ -7,7 +7,7 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type PendingCutProposal,
   pendingEditBaseline,
@@ -23,6 +23,7 @@ import {
   CUT_ANYWAY_REASON,
   REFINE_GATE_GUI_MESSAGE,
 } from "../../inspector/TranscriptRefineRecovery";
+import { QUEUED_NOTICE_POLL_MS } from "../../inspector/useQueuedReviewNotice";
 import { shareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
@@ -141,6 +142,10 @@ async function commitField(
 }
 
 describe("PendingEditBody", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
     localStorage.clear();
     registerDawCommands();
@@ -1404,9 +1409,12 @@ describe("PendingEditBody", () => {
     it.each(["Start commit", "Snap to silence", "Use suggestion"])(
       "blocks repeats while %s is queued, then reads fresh bounds",
       async (action) => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
         updatePendingEdit.mockResolvedValueOnce({ queued: true });
         loadPendingCutSuggestion.mockResolvedValue(proposal());
-        const user = userEvent.setup();
+        const user = userEvent.setup({
+          advanceTimers: (ms) => vi.advanceTimersByTime(ms),
+        });
         render(<PendingEditBody edit={sessionCut} />);
         await screen.findByText("0:09.97525 to 0:12.03525");
         const snap = screen.getByRole("checkbox", { name: "Snap to silence" });
@@ -1433,9 +1441,8 @@ describe("PendingEditBody", () => {
         expect(loadPendingCutSuggestion).toHaveBeenCalledTimes(1);
         expect(approveEdits).not.toHaveBeenCalled();
         loadHostCommandCount.mockResolvedValue(0);
-        await waitFor(() => expect(screen.queryByRole("status")).toBeNull(), {
-          timeout: 3000,
-        });
+        await act(() => vi.advanceTimersByTimeAsync(QUEUED_NOTICE_POLL_MS));
+        await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
         expect(
           await screen.findByText("0:09.97525 to 0:12.03525"),
         ).toBeVisible();
