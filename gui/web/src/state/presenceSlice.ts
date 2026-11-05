@@ -9,7 +9,7 @@ import { selectionToWire, wireSelectionPatch } from "../session/wire";
 import { guestHearsMixOnly } from "../shareMode";
 import type { SessionState, ViewerSessionSnapshot } from "../types/session";
 import { selectionPatch } from "./selectionSlice";
-import { playStartPatch } from "./transportSlice";
+import { playStartPatch, unshuttledRate } from "./transportSlice";
 import type { DawState, DawStore } from "./types";
 
 type PresenceSlice = Pick<
@@ -179,6 +179,7 @@ export const createPresenceSlice: StateCreator<
         playUntilSec:
           state.region && state.is_playing ? state.region.end_sec : null,
         isPlaying: Boolean(state.is_playing),
+        ...(state.is_playing ? {} : unshuttledRate(get())),
         ...playStartPatch(get(), Boolean(state.is_playing), state.playhead_sec),
         sourcePreview: null,
         sourcePreviewGeneration: get().sourcePreviewGeneration + 1,

@@ -113,7 +113,8 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     requireShift: false,
     noRepeat: true,
     when: "always",
-    notes: "J jumps back 3, 6, 12 s; L plays at 1×, 2×, 4×",
+    notes:
+      "J jumps back 3, 6, 12 s; L plays at 1×, 2×, 4×. A remap replaces both keys: the new key plays forward only and Back is unbound",
   },
   {
     id: "edit.clearSelection",
