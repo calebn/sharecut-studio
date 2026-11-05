@@ -149,4 +149,56 @@ describe("useEpisodePeaks", () => {
     await settle();
     expect(calls).toEqual([]);
   });
+
+  it("reloads a returning revision and keeps the newer peaks after an old reply", async () => {
+    let statusReads = 0;
+    const pending: ((response: Response) => void)[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input instanceof Request ? input.url : input);
+        if (url.includes("/api/waveform/status")) {
+          statusReads += 1;
+          if (statusReads === 1)
+            return Response.json({
+              format_version: 1,
+              media: { "stem:t1": READY },
+            });
+          return new Promise<Response>((resolve) => {
+            pending.push(resolve);
+          });
+        }
+        return new Response(
+          Int16Array.from(
+            url.includes("freshkey")
+              ? [-8000, 16000, 1, -16000, 8000, 1]
+              : [-8000, 16000, 1],
+          ).buffer,
+        );
+      }),
+    );
+    const { result, rerender } = renderHook(
+      ({ revision }) => useEpisodePeaks("/p.json", 8, revision),
+      { initialProps: { revision: "h1" } },
+    );
+    await settle();
+    expect(result.current[512]).toBe(0);
+    rerender({ revision: "h2" });
+    rerender({ revision: "h1" });
+    expect(result.current).toEqual([]);
+    expect(statusReads).toBe(3);
+    pending[1]!(
+      Response.json({
+        format_version: 1,
+        media: { "stem:t1": { ...READY, key: "freshkey" } },
+      }),
+    );
+    await settle();
+    expect(result.current[512]).toBe(1);
+    pending[0]!(
+      Response.json({ format_version: 1, media: { "stem:t1": READY } }),
+    );
+    await settle();
+    expect(result.current[512]).toBe(1);
+  });
 });
