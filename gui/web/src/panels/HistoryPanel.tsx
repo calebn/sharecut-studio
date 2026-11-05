@@ -2,6 +2,7 @@ import {
   Fragment,
   type ReactNode,
   useCallback,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -32,7 +33,6 @@ type DiffView = {
   diff: HistoryDiff | null;
   showRaw: boolean;
   loading: boolean;
-  error: string | null;
 };
 
 export function HistoryPanel() {
@@ -40,19 +40,30 @@ export function HistoryPanel() {
     project: s.project,
     projectPath: s.projectPath,
   }));
-  const { busy, error: mutationError, run, setError } = useProjectMutation();
+  const { busy, error, run, setError } = useProjectMutation();
   const [view, setView] = useState<DiffView>({
     selected: null,
     diff: null,
     showRaw: false,
     loading: false,
-    error: null,
   });
   const { diff, showRaw, loading } = view;
   const selectedKey = view.selected?.key ?? null;
-  const error = view.error ?? mutationError;
   /** Only the latest diff request may apply its result. */
   const diffRequest = useLatestRequest();
+  const committedDiffOwner = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const previous = committedDiffOwner.current;
+    const current = view.selected?.request ?? null;
+    committedDiffOwner.current = current;
+    if (
+      previous !== null &&
+      previous !== current &&
+      diffRequest.isCurrent(previous)
+    ) {
+      diffRequest.invalidate();
+    }
+  }, [view.selected, diffRequest]);
 
   const listRef = useRef<HTMLDivElement>(null);
   const [focusedKey, setFocusedKey] = useState<string | null>(null);
@@ -93,7 +104,6 @@ export function HistoryPanel() {
   const historyHydrated = project.meta.hydration?.history_groups !== false;
 
   const runHistoryAction = async (action: "undo" | "redo") => {
-    setView((current) => ({ ...current, error: null }));
     await run(async () => {
       await executePointerCommand(
         action === "undo" ? "history.undo" : "history.redo",
@@ -118,7 +128,6 @@ export function HistoryPanel() {
       ...current,
       selected: { key, request },
       loading: true,
-      error: null,
     }));
     setError(null);
     try {
@@ -131,12 +140,12 @@ export function HistoryPanel() {
       );
     } catch (e) {
       if (!diffRequest.isCurrent(request)) return;
-      const message = errorMessage(e, "Could not load the history diff");
       setView((current) =>
         current.selected?.request === request
-          ? { ...current, diff: null, error: message, loading: false }
+          ? { ...current, diff: null, loading: false }
           : current,
       );
+      setError(errorMessage(e, "Could not load the history diff"));
     }
   };
 
