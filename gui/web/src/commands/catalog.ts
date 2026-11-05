@@ -42,9 +42,20 @@ export const COMMANDS: Record<string, CommandDef> = {
   "transport.stop": {
     id: "transport.stop",
     category: "transport",
-    label: "Stop playback",
-    keywords: ["halt"],
+    label: "Pause and return",
+    keywords: ["halt", "stop"],
     when: "always",
+    breaksFollow: true,
+  },
+  "transport.shuttle": {
+    id: "transport.shuttle",
+    category: "transport",
+    label: "Shuttle back (jumps back) / forward",
+    keywords: ["rewind", "fast forward", "2x", "4x"],
+    when: "always",
+    paletteRunnable: false,
+    notes:
+      "J jumps back 3 s, 6 s, then 12 s; L plays, then 2×, then 4×. Args: { dir: back | forward }",
     breaksFollow: true,
   },
   "presence.follow": {
@@ -467,6 +478,15 @@ export const COMMANDS: Record<string, CommandDef> = {
     keywords: ["wider"],
     when: "timelineFocused",
     notes: "-: timeline focused",
+    breaksFollow: true,
+  },
+  "view.zoomToSelection": {
+    id: "view.zoomToSelection",
+    category: "view",
+    label: "Zoom to selection",
+    keywords: ["focus", "magnify selection"],
+    when: "editStage",
+    notes: "Z: Edit stage",
     breaksFollow: true,
   },
   "view.fit": {

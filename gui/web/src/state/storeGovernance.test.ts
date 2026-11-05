@@ -405,6 +405,11 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
       "Split and Record read the playhead when the verb runs, not in render",
   },
   {
+    file: "commands/shuttle.ts",
+    reason:
+      "J steps back from the live playhead when the key runs, not in render",
+  },
+  {
     file: "commands/editing.ts",
     reason:
       "falls back to the current playhead when a blade atTime arg is omitted",

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  argsFromKeyEvent,
   ariaKeyShortcutsFor,
   displayShortcutFor,
   displayShortcutKeys,
@@ -35,6 +36,39 @@ function keyEvent(
 }
 
 describe("keymap registry", () => {
+  it("binds J and L to shuttle, K to Pause and return, and bare Z to zoom to selection", () => {
+    expect(matchKeymapCommand(keyEvent({ key: "j", code: "KeyJ" }))?.id).toBe(
+      "transport.shuttle",
+    );
+    expect(matchKeymapCommand(keyEvent({ key: "l", code: "KeyL" }))?.id).toBe(
+      "transport.shuttle",
+    );
+    expect(keymapCommandById("transport.shuttle")?.noRepeat).toBe(true);
+    expect(keymapCommandById("transport.stop")?.label).toBe("Pause and return");
+    expect(matchKeymapCommand(keyEvent({ key: "z", code: "KeyZ" }))?.id).toBe(
+      "view.zoomToSelection",
+    );
+    expect(
+      matchKeymapCommand(keyEvent({ key: "z", code: "KeyZ", ctrlKey: true }))
+        ?.id,
+    ).toBe("history.undo");
+  });
+
+  it("maps J to back and L to forward", () => {
+    expect(
+      argsFromKeyEvent(
+        { key: "j", shiftKey: false, repeat: false },
+        "transport.shuttle",
+      ),
+    ).toEqual({ dir: "back" });
+    expect(
+      argsFromKeyEvent(
+        { key: "L", shiftKey: false, repeat: false },
+        "transport.shuttle",
+      ),
+    ).toEqual({ dir: "forward" });
+  });
+
   it("F2 edits a focused word while Enter has no global transcript binding", () => {
     expect(matchKeymapCommand(keyEvent({ key: "F2" }))?.id).toBe(
       "transcript.editWordInline",
@@ -313,12 +347,12 @@ describe("keymap registry", () => {
 
   it("keeps a remapped Solo key working without Shift", () => {
     _resetKeymapOverridesForTests();
-    setKeymapOverride("track.soloToggle", ["L"]);
-    expect(matchKeymapCommand(keyEvent({ key: "l", code: "KeyL" }))?.id).toBe(
+    setKeymapOverride("track.soloToggle", ["Q"]);
+    expect(matchKeymapCommand(keyEvent({ key: "q", code: "KeyQ" }))?.id).toBe(
       "track.soloToggle",
     );
     expect(formatShortcutKeys(keymapCommandById("track.soloToggle")!)).toBe(
-      "L",
+      "Q",
     );
     _resetKeymapOverridesForTests();
     expect(

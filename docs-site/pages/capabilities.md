@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**138** capabilities · **104** ShareCut Studio commands · **59** keyed · **212** MCP tools · **17** skills on rows (+ **19** hub skills).
+**140** capabilities · **106** ShareCut Studio commands · **61** keyed · **212** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -31,7 +31,8 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | ----- | ------ | ------- | -------- | ----- | --- | --- | --- | ----- | --------- | -------- |
 | Play / pause | session | `transport.togglePlay` | `Space` | — | `transport.play` | `set_session_playing_tool`, `play_audio_tool` | — | `podcast-play-audition` | — | anchor · look |
 | Seek playhead | session | `transport.seek` | — (not industry-standard; menu/toolbar or unkeyed) | — | — | `seek_session_tool` | — | — | — | — |
-| Stop playback | session | `transport.stop` | `K` | — | `transport.stop` | `stop_session_tool` | — | — | — | anchor · look |
+| Pause and return | session | `transport.stop` | `K` | — | `transport.stop` | `stop_session_tool` | — | — | — | anchor · look |
+| Shuttle back (jumps back) / forward | session | `transport.shuttle` | `J` | — | — | `seek_session_tool`, `set_session_playing_tool` | `podcast session seek` | — | — | anchor · look |
 | Audition Full mix / Edited stems / Original | session | `transport.audition` | — (not industry-standard; Full mix/Edited stems/Original toggle) | — | `transport.audition` | — | — | `podcast-play-audition` | — | anchor · hear |
 | Follow | session | `presence.follow` | — (not industry-standard; avatar click) | — | `presence.avatarStack` | `get_session_presence_tool` | — | — | — | none · none |
 | Stop following | session | `presence.unfollow` | `Escape` | — | `presence.followPill` | — | — | — | — | none · none |
@@ -61,6 +62,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Set track volume | project | `track.setVolume` | — (slider: arrow keys step the focused fader) | — | `trackInspector` | `track_set_volume_tool` | `podcast episode set-track-volume` | — | — | none · none |
 | Zoom in | view | `view.zoomIn` | `=` | `pinch` | `editCorner`, `viewSheet` | — | — | — | — | none · look |
 | Zoom out | view | `view.zoomOut` | `-` | `pinch` | `editCorner`, `viewSheet` | — | — | — | — | none · look |
+| Zoom to selection | view | `view.zoomToSelection` | `Z` | — | — | — | — | — | — | none · look |
 | Fit session width | view | `view.fit` | `\` | — | `transport.fit`, `editCorner`, `viewSheet` | — | — | — | — | none · look |
 | Go to Record | view | `stage.record` | `Mod+1` | — | `stageBar`, `editPlusMenu` | — | — | — | — | none · look |
 | Go to Prepare | view | `stage.prepare` | `Mod+2` | — | `stageBar` | — | — | — | — | none · look |
