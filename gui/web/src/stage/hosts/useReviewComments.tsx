@@ -34,6 +34,7 @@ import { errorMessage } from "../../utils/apiError";
 import {
   capCommentName,
   commitCommentActor,
+  GUEST_SESSION_LABEL,
   limitCommentName,
   saveCommentAuthor,
   savedGuestName,
@@ -274,6 +275,12 @@ export function useReviewComments(guest: boolean) {
   };
 
   const postBusy = useRef(false);
+  // A guest who blanks a saved name posts under it, so show it. The generic
+  // "Guest" label stays out of the field: a first post never needs a name.
+  const showGuestActor = (who: string) => {
+    if (who !== GUEST_SESSION_LABEL) setName(who);
+  };
+
   const post = async () => {
     if (postBusy.current) return;
     postBusy.current = true;
@@ -287,7 +294,7 @@ export function useReviewComments(guest: boolean) {
         author: commitCommentActor(
           name,
           role,
-          guest && !capCommentName(name) ? undefined : setName,
+          guest ? showGuestActor : setName,
         ),
       });
       // Escape closed the field while this was in flight: its outcome is moot.
