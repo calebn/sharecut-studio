@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 
-/** Seconds of watching before the rate is steady enough to name a time. */
 const MIN_WATCH_SECONDS = 3;
 
 /** Seconds without a new byte before the estimate is dropped: a stalled download names no time. */

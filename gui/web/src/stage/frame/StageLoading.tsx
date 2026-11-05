@@ -7,7 +7,6 @@ import type { StageId } from "../../types/stage";
 import { Button } from "../../ui";
 import { STAGE_BODY_ID, StageFrameView } from "./StageFrameView";
 
-/** Nothing is drawn before this. */
 export const LOADING_BLANK_MS = 300;
 /** "Still loading…" and Retry appear under the body at this time. */
 export const LOADING_SLOW_MS = 4000;
@@ -23,7 +22,6 @@ const phaseOf = (elapsed: number): Phase =>
       ? "bar"
       : "blank";
 
-/** The blocks of each stage's body, in that stage's real layout. */
 const BODY: Record<StageId, readonly string[]> = {
   record: ["wide", "strip", "strip"],
   prepare: ["row", "row", "row", "side"],
@@ -33,9 +31,7 @@ const BODY: Record<StageId, readonly string[]> = {
 };
 
 export type StageLoadingProps = {
-  /** The stage the project opens on. */
   stage: StageId;
-  /** The project's name, when the URL or the Home card gave it. */
   name?: string;
   /** Fixes the shell (stories); otherwise the viewport decides. */
   shell?: ShellBreakpoint;
