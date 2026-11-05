@@ -26,7 +26,7 @@ function typingTarget(active: Element | null): boolean {
 /**
  * After a stage switch a person made by running a stage command (a key such as
  * Mod+1..5, the palette, the phone's Stage menu, or a button that opens
- * another stage such as a banner's Review link), say which stage opened and
+ * another stage such as a link to Review), say which stage opened and
  * put focus on its body, so focus is not left on a control that is gone. The
  * landing on open, a leader's Follow and a screen's own openStage are left
  * alone. A Stage tab announces itself and keeps focus for

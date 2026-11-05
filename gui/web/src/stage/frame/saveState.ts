@@ -19,7 +19,7 @@ type SaveStateInput = {
   busy: boolean;
   /** Edits in the offline queue, not yet applied. */
   pending: number;
-  /** Outcomes the Needs attention banner lists, newest last. */
+  /** Outcomes the Needs attention group lists, newest last. */
   conflicts: readonly OfflineConflict[];
   /** A share guest is reading the saved copy because the host cannot be reached. */
   unreachable: boolean;

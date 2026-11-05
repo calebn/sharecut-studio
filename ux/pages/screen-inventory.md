@@ -96,7 +96,7 @@ The transport bar, status bar, Menu, View menu and bottom dock tabs of earlier r
 | **Empty / error** | Known `?project=` but shell not yet: the frame with skeleton content, **Loading episode…**, Play/Stop focusable and showing “Loading project…”. Zero tracks after load: ingest “Drop audio files” (not the loading well), and Play/Stop show “Import audio to play.” |
 | **Out of scope** | Full mixer; a free-form pipeline editor (Prepare keeps only a short Advanced step list) |
 
-Menu panels (the Project menu, the hear menu) open below their trigger, flip above it when that side has more room, stay inside the visible screen on every shell, cap to the space on that side (`min(90dvh, var(--menu-available-height))`) and scroll so **Appearance** stays reachable on short laptop heights, including when the guest banner sits above the transport. That dialog searches every runnable command by name, category or shortcut (Enter runs the top match), disables a command that cannot run with its reason beside it, and explains that character keys apply when the timeline or transcript has focus.
+Menu panels (the Project menu, the hear menu) open below their trigger, flip above it when that side has more room, stay inside the visible screen on every shell, cap to the space on that side (`min(90dvh, var(--menu-available-height))`) and scroll so **Appearance** stays reachable on short laptop heights, including when guest chrome sits above the transport. That dialog searches every runnable command by name, category or shortcut (Enter runs the top match), disables a command that cannot run with its reason beside it, and explains that character keys apply when the timeline or transcript has focus.
 
 ```
 ┌─ Project ▾  ●  ↶ ↷ │ Record Prepare Edit Review Deliver │ ◉◉ + 🔍 ┐

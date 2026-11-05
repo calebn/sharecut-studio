@@ -404,6 +404,28 @@ describe("useSaveState", () => {
       expect(screen.getByRole("status")).toHaveTextContent("Saved");
     });
 
+    it("opens Review and focuses the Needs attention group when a guest's blocked save is pressed", async () => {
+      hydrateGuest(["comment"]);
+      const blocking = {
+        ...offlineConflict({ reason: "The project file is missing." }),
+        blocksSave: true,
+      } as OfflineConflict;
+      offlineStore.loadConflicts.mockResolvedValue([blocking]);
+      const target = mountAttentionTarget();
+      render(<SaveDot />);
+      await settle();
+      expect(screen.getByTestId("attention")).toHaveAttribute(
+        "data-kind",
+        "button",
+      );
+      fireEvent.click(screen.getByRole("button", { name: /Retry/ }));
+      await settle();
+      expect(useDawStore.getState().stage).toBe("review");
+      expect(target).toHaveFocus();
+      expect(drain.requestHostDrain).not.toHaveBeenCalled();
+      target.remove();
+    });
+
     it("says it is a saved copy, with the waiting count, when the host cannot be reached", async () => {
       hydrateGuest(null);
       offlineStore.loadCommandQueue.mockResolvedValue(queued(1));

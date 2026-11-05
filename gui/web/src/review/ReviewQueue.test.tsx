@@ -400,6 +400,31 @@ describe("ReviewQueue", () => {
       expect(group).toHaveTextContent("Edit the change and submit it again.");
     });
 
+    it("lists every conflict row with no more-than cap", () => {
+      const conflicts = Array.from({ length: 7 }, (_, i) =>
+        offlineConflict({
+          command: { command_id: `many-${i}`, type: "TrimClip" },
+          reason: `Conflict number ${i}`,
+        }),
+      );
+      renderQueue(attention({ rows: attentionRowsOf(conflicts, true) }));
+      const group = screen.getByRole("group", {
+        name: "Needs attention. 7 conflicts",
+      });
+      for (let i = 0; i < 7; i++)
+        expect(group).toHaveTextContent(`TrimClip: Conflict number ${i}`);
+      expect(screen.queryByText(/\+\s*\d+ more/)).toBeNull();
+    });
+
+    it("explains the held Dismiss all while saved edits cannot be read", () => {
+      renderQueue(attention({ unreadable: true }));
+      const held = screen.getByRole("button", { name: "Dismiss all" });
+      expect(held).toHaveAttribute("aria-disabled", "true");
+      expect(held).toHaveAccessibleDescription(
+        "Saved edits could not be read. Dismissal is unavailable.",
+      );
+    });
+
     it("dismisses all conflicts and is held while reading", async () => {
       const onDismissAll = vi.fn();
       const { rerender } = renderQueue(attention({ onDismissAll }));

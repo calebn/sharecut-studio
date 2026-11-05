@@ -428,7 +428,7 @@ describe("attention rows", () => {
     ...over,
   });
 
-  it("words each conflict as the banner does, with the guest advice", () => {
+  it("words each conflict for the queue, with the guest advice", () => {
     expect(
       attentionRowsOf(
         [
@@ -552,7 +552,7 @@ describe("attention rows", () => {
     expect(attentionVisible(undefined, "all")).toBe(false);
   });
 
-  it("labels the group with the banner's region label", () => {
+  it("labels the group with its region label", () => {
     expect(attentionLabelOf(attention())).toBe("Needs attention. 1 conflict");
     expect(attentionLabelOf(attention({ unreadable: true }))).toBe(
       "Needs attention. 1 conflict. Saved edits could not be read",
