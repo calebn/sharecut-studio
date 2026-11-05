@@ -25,6 +25,12 @@ function mount() {
   );
 }
 
+function saveDot(header: HTMLElement) {
+  return within(header)
+    .getAllByRole("status")
+    .find((el) => el.classList.contains("sys-save")) as HTMLElement;
+}
+
 function bar() {
   return screen.getAllByRole("tablist", { name: "Stages" })[0];
 }
@@ -134,9 +140,7 @@ describe("StageFrame header", () => {
       });
       mount();
       const header = screen.getAllByRole("banner")[0];
-      await waitFor(() =>
-        expect(within(header).getByRole("status")).toHaveTextContent(text),
-      );
+      await waitFor(() => expect(saveDot(header)).toHaveTextContent(text));
     },
   );
 
@@ -151,9 +155,7 @@ describe("StageFrame header", () => {
     mount();
     expect(document.querySelector(".stage-frame--phone")).not.toBeNull();
     const header = screen.getAllByRole("banner")[0];
-    await waitFor(() =>
-      expect(within(header).getByRole("status")).toHaveTextContent(/^Saved$/),
-    );
+    await waitFor(() => expect(saveDot(header)).toHaveTextContent(/^Saved$/));
   });
 });
 

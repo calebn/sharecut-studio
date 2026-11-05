@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { runPointerCommand } from "../../commands/pointer";
 import { useRenameProject } from "../../hooks/useRenameProject";
+import { useReviewVersion } from "../../hooks/useReviewVersion";
 import { type ThemePreference, useTheme } from "../../hooks/useTheme";
 import { useDawStore } from "../../state/dawStore";
 import { stageRoleOf } from "../../state/stageRoutes";
@@ -14,6 +15,8 @@ import {
 import { useHistoryControls } from "./useHistoryControls";
 import { useSaveIndicator } from "./useSaveIndicator";
 import { useStageBarProps } from "./useStageBarProps";
+
+const reloadPage = () => window.location.reload();
 
 /** The Project menu rows the header reports, and the command each one runs. */
 const MENU_COMMANDS: Record<string, string> = {
@@ -38,6 +41,7 @@ export function useHeaderProps(): Omit<
   }));
   const onRename = useRenameProject();
   const save = useSaveIndicator();
+  const version = useReviewVersion();
   const history = useHistoryControls();
   const stages = useStageBarProps();
   const { preference, setPreference } = useTheme();
@@ -47,7 +51,15 @@ export function useHeaderProps(): Omit<
     role === "host"
       ? undefined
       : {
-          version: "Shared link",
+          version: version?.label ?? "Shared link",
+          followsLatest: version?.followsLatest,
+          update: version?.changed
+            ? {
+                id: version.versionId,
+                label: version.label,
+                onListen: reloadPage,
+              }
+            : undefined,
           role,
           hint: {
             text: ROLE_HINT_TEXT[role],

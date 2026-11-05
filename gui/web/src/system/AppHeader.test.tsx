@@ -81,6 +81,22 @@ describe("AppHeader as a guest", () => {
     expect(onChange).toHaveBeenCalledWith("light");
   });
 
+  it("lists the version with its glyph and offers Listen on a new one", async () => {
+    const onListen = vi.fn();
+    setup({
+      guest: {
+        version: "Rough cut",
+        followsLatest: true,
+        role: "commenter",
+        update: { id: "v2", label: "Intro fix", onListen },
+      },
+    });
+    await userEvent.click(
+      screen.getByRole("button", { name: /New version: Intro fix/ }),
+    );
+    expect(onListen).toHaveBeenCalledOnce();
+  });
+
   it("is the host, with the edit controls, when it is not a guest", () => {
     setup();
     for (const name of EDIT_CONTROLS) {

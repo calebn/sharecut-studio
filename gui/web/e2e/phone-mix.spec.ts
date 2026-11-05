@@ -123,6 +123,8 @@ test("editor Mix commits saved volume through guest capabilities", async ({
     const token = await createReviewShare(page, projectPath, "editor");
     const before = await savedMix(page, projectPath);
     await page.goto(`/r/${token}`);
+    await page.locator(".sys-coach-anchor").click();
+    await expect(page.getByRole("note")).toHaveCount(0);
     const mix = await openPhoneMix(page);
     const slider = mix.getByRole("slider", {
       name: `Volume ${before[0].label}`,
