@@ -178,6 +178,9 @@ test("editor guest cuts a range and one host Undo restores every occurrence", as
       try {
         const guest = await guestContext.newPage();
         await openGuestShare(guest, token);
+        // The first-visit role hint floats under the header and covers the Range fields; clicking the chip dismisses it.
+        await guest.locator(".sys-coach-anchor").click();
+        await expect(guest.getByRole("note")).toHaveCount(0);
         await selectRange(guest);
         await expect(
           actionBar(guest).getByRole("button", {
