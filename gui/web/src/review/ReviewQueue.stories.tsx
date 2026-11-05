@@ -8,10 +8,15 @@ import {
   viewportStoryParameters,
 } from "../storybook/storyLayout";
 import { Sheet } from "../system/Sheet";
+import { offlineConflict } from "../test/fixtures";
 import { openDialogByLauncher } from "../test/storyDialog";
 import { Button } from "../ui";
 import { ReviewQueue, type ReviewQueueProps } from "./ReviewQueue";
-import type { ReviewFilter } from "./reviewQueueModel";
+import {
+  attentionRowsOf,
+  type ReviewAttention,
+  type ReviewFilter,
+} from "./reviewQueueModel";
 
 function StatefulQueue(props: ReviewQueueProps) {
   const [filter, setFilter] = useState<ReviewFilter>(props.filter);
@@ -169,5 +174,67 @@ export const GuestFiltered: Story = {
     const view = within(canvasElement);
     await expect(view.queryByRole("button", { name: /Cut all/ })).toBeNull();
     await expect(view.queryByRole("button", { name: /Find more/ })).toBeNull();
+  },
+};
+
+const guestAttention = (
+  over: Partial<ReviewAttention> = {},
+): ReviewAttention => ({
+  rows: attentionRowsOf(
+    [
+      offlineConflict({
+        command: { command_id: "conflict-1", type: "TrimClip" },
+        reason: "Clip was already trimmed",
+      }),
+      offlineConflict({
+        command: { command_id: "conflict-2" },
+        kind: "unknown",
+        reason: "The host may have applied it",
+        recovery: "inspect-history",
+      }),
+    ],
+    true,
+  ),
+  unreadable: false,
+  dismissFailed: false,
+  checking: false,
+  canDismiss: true,
+  onDismissAll: fn(),
+  onRetry: fn(),
+  ...over,
+});
+
+/** The rows sit outside the filter counts: "All N" and the chip counts do not include them. */
+export const GuestConflicts: Story = {
+  args: {
+    guest: true,
+    items: QUEUE_ITEMS.filter((i) => i.kind === "comment"),
+    attention: guestAttention(),
+    selectedId: null,
+  },
+  play: async ({ canvasElement, args }) => {
+    const view = within(canvasElement);
+    await expect(
+      view.getByRole("group", { name: "Needs attention. 2 conflicts" }),
+    ).toBeInTheDocument();
+    await expect(
+      view.getByText("TrimClip: Clip was already trimmed"),
+    ).toBeInTheDocument();
+    await userEvent.click(view.getByRole("button", { name: "Dismiss all" }));
+    await expect(args.attention?.onDismissAll).toHaveBeenCalled();
+  },
+};
+
+export const GuestSavedEditsUnreadable: Story = {
+  args: {
+    guest: true,
+    items: [],
+    attention: guestAttention({ rows: [], unreadable: true }),
+    selectedId: null,
+  },
+  play: async ({ canvasElement, args }) => {
+    const view = within(canvasElement);
+    await userEvent.click(view.getByRole("button", { name: "Retry" }));
+    await expect(args.attention?.onRetry).toHaveBeenCalled();
   },
 };

@@ -134,6 +134,10 @@ flowchart TD
    verified values and says "Could not read saved edits on this device. Your
    saved edits have been kept." Dismiss all is unavailable until the saved
    queue and conflicts can be read.
+5. If dismissing fails, **Needs attention** keeps saying "Dismissal failed. Your
+   saved outcomes have been kept." through the background reads until the guest
+   presses Retry, which reads the list again. Share guests see the same conflicts
+   as Check rows at the top of the Review queue.
 
 A guest whose live connection cannot keep up reconnects through the existing
 sync flow. The relay closes that connection instead of silently dropping its
