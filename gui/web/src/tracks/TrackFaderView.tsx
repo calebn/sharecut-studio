@@ -1,10 +1,9 @@
-import { type ReactNode, useId } from "react";
-import { useCommitRange } from "../hooks/useCommitRange";
+import { type ReactNode, useState } from "react";
+import { ScrubField } from "../system/ScrubField";
 import {
   FADER_MAX_DB,
   FADER_MIN_DB,
   FADER_STEP_DB,
-  formatGainDb,
   trackOutputGainDb,
 } from "../utils/audio";
 
@@ -14,7 +13,6 @@ export type FaderAccess =
 
 export type FaderPresentation = {
   kind: "compact";
-  descriptionId: string;
   stagingDb?: number;
   playsAt?: (baseDb: number) => ReactNode;
 };
@@ -26,60 +24,41 @@ export type TrackFaderViewProps = {
   presentation: FaderPresentation;
 };
 
+/** A track's saved volume as a level Scrub field: drag previews, release saves one undo step. */
 export function TrackFaderView({
   trackLabel,
   savedDb,
   access,
   presentation,
 }: TrackFaderViewProps) {
-  const editable = access.kind === "edit";
-  const range = useCommitRange({
-    saved: savedDb,
-    onCommit: (db) => {
-      if (access.kind === "edit") {
-        access.onCommit(db);
-      }
-    },
-  });
-  const { value } = range;
-  const reset = () => range.commitValue(0);
-  const id = useId();
-  const input = (
-    <input
-      id={id}
-      className="track-fader-input"
-      type="range"
-      min={FADER_MIN_DB}
-      max={FADER_MAX_DB}
-      step={FADER_STEP_DB}
-      disabled={!editable}
-      aria-label={`Volume ${trackLabel}`}
-      title={
-        editable ? "Saved volume. Double-click to reset to 0 dB" : undefined
-      }
-      aria-describedby={presentation.descriptionId}
-      aria-valuetext={formatGainDb(value)}
-      onDoubleClick={() => {
-        if (editable) {
-          reset();
-        }
-      }}
-      {...range.inputProps}
-    />
-  );
+  const [draftDb, setDraftDb] = useState<number | null>(null);
   const { playsAt, stagingDb } = presentation;
   return (
     <div className="track-fader track-fader--compact">
-      {input}
+      <ScrubField
+        variant="level"
+        label={`Volume ${trackLabel}`}
+        unit="dB"
+        min={FADER_MIN_DB}
+        max={FADER_MAX_DB}
+        step={FADER_STEP_DB}
+        defaultValue={0}
+        value={savedDb}
+        skipUnchanged
+        readOnly={access.kind !== "edit"}
+        onPreview={setDraftDb}
+        onCancel={() => setDraftDb(null)}
+        onCommit={(db) => {
+          setDraftDb(null);
+          if (access.kind === "edit") access.onCommit(db);
+        }}
+      />
       {playsAt?.(
         trackOutputGainDb({
           gain_db: stagingDb ?? 0,
-          fader_db: value,
+          fader_db: draftDb ?? savedDb,
         }),
       )}
-      <output htmlFor={id} className="track-fader-value">
-        {formatGainDb(value)}
-      </output>
     </div>
   );
 }

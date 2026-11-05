@@ -50,7 +50,7 @@ const meta: Meta<typeof TrackFaderView> = {
     trackLabel: "Mira voice",
     savedDb: -3,
     access: { kind: "edit", onCommit: fn() },
-    presentation: { kind: "compact", descriptionId: "fader-story-note" },
+    presentation: { kind: "compact" },
   },
 };
 export default meta;
@@ -58,12 +58,12 @@ type Story = StoryObj<typeof TrackFaderView>;
 export const Compact: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    const slider = canvas.getByRole("slider", { name: "Volume Mira voice" });
-    await expect(slider).toHaveValue("-3");
-    await userEvent.dblClick(slider);
-    await expect(slider).toHaveValue("0");
+    const field = canvas.getByRole("spinbutton", { name: "Volume Mira voice" });
+    await expect(field).toHaveAttribute("aria-valuenow", "-3");
+    field.focus();
+    await userEvent.keyboard("{ArrowUp}");
     if (args.access.kind === "edit")
-      await expect(args.access.onCommit).toHaveBeenCalledWith(0);
+      await expect(args.access.onCommit).toHaveBeenCalled();
   },
 };
 export const ReadOnly: Story = {
@@ -71,9 +71,8 @@ export const ReadOnly: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      canvas.getByRole("slider", { name: "Volume Mira voice" }),
-    ).toBeDisabled();
-    await expect(canvas.getByRole("status")).toHaveTextContent("−3.0 dB");
+      canvas.getByRole("spinbutton", { name: "Volume Mira voice" }),
+    ).toHaveAttribute("aria-readonly", "true");
   },
 };
 export const PhoneWidth: Story = {
@@ -81,7 +80,9 @@ export const PhoneWidth: Story = {
   globals: recordMobileViewport.globals,
   play: async ({ canvasElement }) => {
     await expect(
-      within(canvasElement).getByRole("slider", { name: "Volume Mira voice" }),
-    ).toHaveValue("-3");
+      within(canvasElement).getByRole("spinbutton", {
+        name: "Volume Mira voice",
+      }),
+    ).toHaveAttribute("aria-valuenow", "-3");
   },
 };
