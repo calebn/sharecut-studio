@@ -13,7 +13,7 @@ const openSheet = (canvasElement: HTMLElement) =>
   });
 
 const meta: Meta<typeof ModelsSheet> = {
-  title: "Stages/Prepare/ModelsSheet",
+  title: "Stages/Settings/ModelsSheet",
   component: ModelsSheet,
   tags: ["autodocs"],
   decorators: [withModels],
@@ -33,13 +33,7 @@ const meta: Meta<typeof ModelsSheet> = {
       label="Open models"
       initiallyOpen={context.viewMode === "story"}
     >
-      {(open, close) => (
-        <ModelsSheet
-          open={open}
-          onClose={close}
-          viewerWidth={context.name === "Phone" ? "phone" : "desktop"}
-        />
-      )}
+      {(open, close) => <ModelsSheet open={open} onClose={close} />}
     </DialogLauncher>
   ),
 };
@@ -139,6 +133,7 @@ export const Failed: Story = {
 };
 
 export const Phone: Story = {
+  globals: { viewport: { value: "mobile360", isRotated: false } },
   parameters: {
     models: {
       models: registryModels({ whisper: { kind: "installed" } }),

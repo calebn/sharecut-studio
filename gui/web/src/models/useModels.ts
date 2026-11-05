@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo } from "react";
+import { createContext, useContext } from "react";
 import type { ModelInstallState } from "../types/pipeline";
 import type {
   DownloadOptions,
@@ -44,17 +44,4 @@ export const INERT_MODELS: ModelsApi = {
 
 export function useModels(): ModelsApi {
   return useContext(ModelsContext) ?? INERT_MODELS;
-}
-
-export function useModel(id: string): {
-  row: ModelView | null;
-  busy: boolean;
-  download: (options?: DownloadOptions) => Promise<DownloadOutcome>;
-} {
-  const { models, busy, download } = useModels();
-  const row = models?.find((m) => m.id === id) ?? null;
-  return useMemo(
-    () => ({ row, busy, download: (options) => download([id], options) }),
-    [row, busy, download, id],
-  );
 }

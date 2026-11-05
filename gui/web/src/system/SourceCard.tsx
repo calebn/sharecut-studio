@@ -1,4 +1,4 @@
-import { type DragEvent, useId, useRef, useState } from "react";
+import { type DragEvent, type ReactNode, useId, useRef, useState } from "react";
 import { Button, Field, Menu, MenuItem } from "../ui";
 import { OverviewStrip } from "./OverviewStrip";
 import { percentOf } from "./progress";
@@ -61,6 +61,7 @@ export type SourceCardProps = {
   grip?: SourceGrip;
   /** Plain cause when the file failed. */
   cause?: string;
+  modelAsk?: ReactNode;
   onRetry?: () => void;
   onDetails?: () => void;
   /** Another card in this session carries this name too: said aloud and shown. */
@@ -119,6 +120,7 @@ export function SourceCard({
   onMoveDown,
   grip,
   cause,
+  modelAsk,
   onRetry,
   onDetails,
   sameNameAs,
@@ -277,7 +279,8 @@ export function SourceCard({
             }
           />
         ) : null}
-        {state === "failed" ? (
+        {state === "failed" && modelAsk ? modelAsk : null}
+        {state === "failed" && !modelAsk ? (
           <StatusRow
             density="inline"
             state="failed"

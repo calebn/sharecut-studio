@@ -1,3 +1,4 @@
+import { capabilityOf, type NeedTarget } from "../../models/capability";
 import type { SourceCardProps } from "../../system/SourceCard";
 import type {
   PipelineConfigResponse,
@@ -184,6 +185,8 @@ type SessionsInput = {
   chosenVoices: Readonly<Record<string, number>>;
   splitting: Readonly<Record<string, SplitProgress>>;
   splitFailed: Readonly<Record<string, string>>;
+  /** Tracks whose split stopped for a missing model, which the card asks for in place. */
+  splitNeeds?: Readonly<Record<string, NeedTarget>>;
   job: PipelineJobSnapshot | null;
   /** A track the person asked to split ("Split speakers…"); its prompt shows. */
   focusTrackId?: string | null;
@@ -218,7 +221,9 @@ function sourceState(
   track: TrackView,
   input: SessionsInput,
   splittable: boolean,
-): { state: SourceCardProps["state"]; cause?: string } {
+): { state: SourceCardProps["state"]; cause?: string; model?: NeedTarget } {
+  const model = input.splitNeeds?.[track.id];
+  if (model) return { state: "failed", model };
   const failure = input.splitFailed[track.id];
   if (failure) return { state: "failed", cause: failure };
   if (input.splitting[track.id]) return { state: "splitting" };
@@ -241,7 +246,7 @@ function prepareSource(
   sources: number,
 ): PrepareSource {
   const splittable = offersSplit(track, { ...input, sources });
-  const { state, cause } = sourceState(track, input, splittable);
+  const { state, cause, model } = sourceState(track, input, splittable);
   const split = input.splitting[track.id];
   return {
     id: track.id,
@@ -255,6 +260,7 @@ function prepareSource(
     splitDetail: split?.detail,
     progress: split?.progress,
     cause,
+    model,
   };
 }
 
@@ -308,17 +314,6 @@ export function prepareSessions(input: SessionsInput): PrepareSession[] {
   ];
 }
 
-export type ModelAsk = {
-  /** "ask" until the person taps Get; then it follows the download. */
-  phase: "ask" | "downloading" | "failed";
-  /** "1.6 GB". */
-  size: string;
-  /** What is missing, in words: "the transcription model". */
-  what: string;
-  progress?: number;
-  failure?: string;
-};
-
 export type ReadyInput = {
   sourceCount: number;
   ingestBusy: boolean;
@@ -333,8 +328,10 @@ export type ReadyInput = {
   startError?: string | null;
   job: PipelineJobSnapshot | null;
   pendingSuggestions: number;
-  model: ModelAsk | null;
-  approximateTiming: { size: string; downloading: boolean } | null;
+  /** The model a run stopped for: the Transcribe row shows its Model need row. */
+  model: NeedTarget | null;
+  /** Word timing is missing: the Transcribe row shows its Model need row. */
+  approximateTiming: NeedTarget | null;
   /** A re-transcribe waits on whether to keep hand fixes. */
   keepFixes: { names: readonly string[] } | null;
   /**
@@ -704,31 +701,13 @@ export function readyRows(input: ReadyInput): ReadyRowData[] {
   const terminalTranscribe = terminalRowResult(job, "transcribe");
   const speakers = plural(input.sourceCount, "speaker", "speakers");
   if (input.model) {
-    const { model } = input;
-    rows.push(
-      model.phase === "downloading"
-        ? {
-            id: "transcribe",
-            state: "running",
-            title: ROW_TITLE.transcribe,
-            detail: `Downloading ${model.what}`,
-            progress: model.progress,
-          }
-        : {
-            id: "transcribe",
-            state: "needs-you",
-            title: ROW_TITLE.transcribe,
-            detail:
-              model.phase === "failed"
-                ? `${model.failure ?? "The download did not finish."} Try again.`
-                : `Needs ${model.what} before it can start.`,
-            action: {
-              label: `Get (${model.size})`,
-              icon: "cloud-download",
-              run: "download-model",
-            },
-          },
-    );
+    rows.push({
+      id: "transcribe",
+      state: "needs-you",
+      title: ROW_TITLE.transcribe,
+      detail: `Waiting for ${capabilityOf(input.model.id, input.model.label).what}`,
+      model: input.model,
+    });
   } else if (input.keepFixes) {
     const who = input.keepFixes.names.join(", ");
     rows.push({
@@ -788,13 +767,7 @@ export function readyRows(input: ReadyInput): ReadyRowData[] {
             ...(terminalTranscribe?.kind === "omitted"
               ? { runDisposition: "omitted" as const }
               : {}),
-            action: input.approximateTiming.downloading
-              ? undefined
-              : {
-                  label: `Download word timing (${input.approximateTiming.size})`,
-                  icon: "cloud-download",
-                  run: "download-aligner",
-                },
+            model: input.approximateTiming,
           }
         : {
             id: "transcribe",
@@ -949,8 +922,8 @@ type PhaseInput = {
   sources: number;
   ingestBusy: boolean;
   checking: boolean;
-  /** The run is stopped on a missing model (asked, downloading or failed). */
-  model?: ModelAsk | null;
+  /** The run is stopped on a missing model. */
+  model?: NeedTarget | null;
   waiting?: boolean;
   /** The rows are the plan for audio added after a run. */
   plan?: boolean;
@@ -980,9 +953,7 @@ export function preparePhase(input: PhaseInput): PhaseResult {
   }
   // The run was refused, so no work runs while the model asks or downloads.
   if (input.model) {
-    return {
-      phase: input.model.phase === "failed" ? "model-failed" : "needs-model",
-    };
+    return { phase: "needs-model" };
   }
   // Hand fixes would be replaced: the row asks, so the question is spoken.
   if (input.rows.some((row) => row.body?.kind === "keep-fixes")) {

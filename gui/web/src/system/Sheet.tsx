@@ -13,9 +13,10 @@ type SheetStep = {
 export type SheetProps = {
   /**
    * `anchored` 320 and `side` 400 are static frames in the page; `centered`
-   * wraps Dialog and `bottom` wraps BottomSheet (phone detents).
+   * wraps Dialog and `bottom` wraps BottomSheet (phone detents). `end` is a
+   * modal Dialog docked full height to the end edge, 420 px wide.
    */
-  form: "anchored" | "side" | "centered" | "bottom";
+  form: "anchored" | "side" | "centered" | "end" | "bottom";
   title: string;
   /** The object icon in the header. Static frames only. */
   icon?: SystemIconName;
@@ -29,7 +30,7 @@ export type SheetProps = {
    */
   step?: SheetStep | null;
   onClose: () => void;
-  /** Dialog and BottomSheet forms only. */
+  /** Dialog (centered, end) and BottomSheet forms only. */
   open?: boolean;
   /**
    * Bottom form: a drawer detent, or `fit`, as tall as its rows (capped at the
@@ -39,7 +40,7 @@ export type SheetProps = {
   onDetentChange?: (detent: DrawerDetent) => void;
   /** Extra class on the Dialog or BottomSheet panel, for a sheet with its own width. */
   panelClassName?: string;
-  /** Centered form only: the control that takes focus on open, instead of Close. */
+  /** Centered and end forms only: the control that takes focus on open, instead of Close. */
   initialFocusRef?: RefObject<HTMLElement | null>;
 };
 
@@ -102,7 +103,7 @@ export function Sheet({
   const headingRef = useRef<HTMLHeadingElement>(null);
   const rowsRef = useRef<HTMLDivElement>(null);
   const hadStep = useRef(false);
-  const backInBody = form === "centered" || form === "bottom";
+  const backInBody = form === "centered" || form === "end" || form === "bottom";
   const pushed = Boolean(step);
   // A push or a back replaces the body, so the focused control unmounts. Move
   // focus to the new step's heading (static frames) or its first control.
@@ -137,18 +138,16 @@ export function Sheet({
       {children}
     </Body>
   );
-  if (form === "centered") {
+  if (form === "centered" || form === "end") {
+    const frame = form === "end" ? "sys-sheet-end" : "sys-sheet-centered";
     return (
       <Dialog
         open={open}
         onClose={onClose}
         title={heading}
         initialFocusRef={initialFocusRef}
-        panelClassName={
-          panelClassName
-            ? `sys-sheet-centered ${panelClassName}`
-            : "sys-sheet-centered"
-        }
+        edge={form === "end" ? "end" : undefined}
+        panelClassName={panelClassName ? `${frame} ${panelClassName}` : frame}
         footer={footer}
       >
         {body}

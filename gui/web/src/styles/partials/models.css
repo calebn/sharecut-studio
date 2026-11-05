@@ -105,12 +105,3 @@
   margin: 0;
   color: var(--color-text-secondary);
 }
-
-html:not([data-shell="phone"]) .command-palette-panel.models-sheet {
-  inline-size: min(26.25rem, 100vw);
-  block-size: 100dvh;
-  max-block-size: none;
-  align-self: stretch;
-  justify-self: end;
-  border-radius: 0;
-}

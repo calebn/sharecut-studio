@@ -13,7 +13,7 @@ import {
 import { refreshDocumentProject } from "../../document/applyDocumentUpdate";
 import { audioFilesFromDrop } from "../../ingest/dropLabels";
 import { ingestFiles } from "../../ingest/ingestFiles";
-import { useModels } from "../../models";
+import { useModelResume } from "../../models";
 import { useDawStore } from "../../state/dawStore";
 import { projectScopedSignal } from "../../state/projectScopedSignal";
 import { seedStudioJob } from "../../state/seedStudioJob";
@@ -54,7 +54,6 @@ export function usePrepareSources(input: {
   canIngest: boolean;
 }) {
   const { projectPath, tracks, activityJob, isPlaying, canIngest } = input;
-  const { download } = useModels();
   const [names, setNames] = useState<Keyed<string>>({});
   const [chosenVoices, setChosenVoices] = useState<Keyed<number>>({});
   const [splitting, setSplitting] = useState<Keyed<SplitProgress>>({});
@@ -62,7 +61,28 @@ export function usePrepareSources(input: {
   const [playingId, setPlayingId] = useState<string | null>(null);
   const splitJobs = useRef(new Map<string, string>());
   const splitUndos = useRef(new Map<string, HistoryEntryId>());
-  const splitNeeds = useRef(new Map<string, ModelNeeded>());
+  const [splitNeeds, setSplitNeeds] = useState<Keyed<ModelNeeded>>({});
+  const needsRef = useRef(splitNeeds);
+  needsRef.current = splitNeeds;
+  /** Tracks whose split already ran again after a model landed, so a second refusal says so. */
+  const resumed = useRef(new Set<string>());
+  const startSplitRef = useRef<(trackId: string) => Promise<void>>(
+    async () => undefined,
+  );
+  const { stopFor, clear } = useModelResume((model) => {
+    const waiting = Object.keys(needsRef.current).filter(
+      (id) => needsRef.current[id]?.id === model.id,
+    );
+    setSplitNeeds((current) =>
+      Object.fromEntries(
+        Object.entries(current).filter(([id]) => !waiting.includes(id)),
+      ),
+    );
+    for (const id of waiting) {
+      resumed.current.add(id);
+      void startSplitRef.current(id);
+    }
+  });
   const timers = useRef(new Map<string, { timer: number; name: string }>());
   const latest = useRef({ projectPath, tracks, chosenVoices });
   latest.current = { projectPath, tracks, chosenVoices };
@@ -141,70 +161,87 @@ export function usePrepareSources(input: {
     setPlayingId(id);
   }, []);
 
-  const startSplit = useCallback(async (trackId: string) => {
-    const {
-      projectPath: path,
-      tracks: all,
-      chosenVoices: chosen,
-    } = latest.current;
-    const track = all.find((candidate) => candidate.id === trackId);
-    const label = track?.speaker?.trim() || track?.label || trackId;
-    setSplitFailed((current) => without(current, trackId));
-    setSplitting((current) => ({
-      ...current,
-      [trackId]: { detail: "Starting" },
-    }));
-    const scope = projectScopedSignal(path);
-    let jobId: string | null = null;
-    try {
-      const job = await startSplitSpeakersJob(path, {
-        trackId,
-        speakerCount: chosen[trackId] ?? MIN_VOICES,
-        names: null,
-        enrollment: null,
-      });
-      jobId = job.id;
-      splitJobs.current.set(trackId, job.id);
-      const store = useDawStore.getState();
-      store.expectJobResult(job.id);
-      seedStudioJob(job);
-      const done = await followJobToOk(job.id, "Split failed", {
-        signal: scope.signal,
-      });
-      const result = parseSplitSpeakersResult(done.result);
-      if (result == null) {
-        throw new Error("The split finished without saying what it made");
+  const startSplit = useCallback(
+    async (trackId: string) => {
+      const {
+        projectPath: path,
+        tracks: all,
+        chosenVoices: chosen,
+      } = latest.current;
+      const track = all.find((candidate) => candidate.id === trackId);
+      const label = track?.speaker?.trim() || track?.label || trackId;
+      setSplitFailed((current) => without(current, trackId));
+      setSplitNeeds((current) => without(current, trackId));
+      setSplitting((current) => ({
+        ...current,
+        [trackId]: { detail: "Starting" },
+      }));
+      const scope = projectScopedSignal(path);
+      let jobId: string | null = null;
+      try {
+        const job = await startSplitSpeakersJob(path, {
+          trackId,
+          speakerCount: chosen[trackId] ?? MIN_VOICES,
+          names: null,
+          enrollment: null,
+        });
+        jobId = job.id;
+        splitJobs.current.set(trackId, job.id);
+        const store = useDawStore.getState();
+        store.expectJobResult(job.id);
+        seedStudioJob(job);
+        const done = await followJobToOk(job.id, "Split failed", {
+          signal: scope.signal,
+        });
+        const result = parseSplitSpeakersResult(done.result);
+        if (result == null) {
+          throw new Error("The split finished without saying what it made");
+        }
+        await refreshDocumentProject(path);
+        const after = useDawStore.getState();
+        after.announceStatus(splitSpeakersDoneCopy(result, label), {
+          undo: result.history_head_id,
+        });
+        if (result.history_head_id) {
+          splitUndos.current.set(trackId, result.history_head_id);
+        }
+        after.markJobResultsSpoken([job.id]);
+        resumed.current.delete(trackId);
+      } catch (error) {
+        if (jobId !== null) useDawStore.getState().settleJobResult(jobId);
+        if (isAbortError(error) || error instanceof JobCancelledError) return;
+        if (isModelNeeded(error) && !resumed.current.has(trackId)) {
+          setSplitNeeds((current) => ({ ...current, [trackId]: error.model }));
+          stopFor(error.model);
+        } else if (isModelNeeded(error)) {
+          resumed.current.delete(trackId);
+          setSplitFailed((current) => ({
+            ...current,
+            [trackId]: notDownloadedLine(error.model),
+          }));
+        } else {
+          resumed.current.delete(trackId);
+          setSplitFailed((current) => ({
+            ...current,
+            [trackId]: plainError(errorMessage(error)),
+          }));
+        }
+      } finally {
+        scope.dispose();
+        splitJobs.current.delete(trackId);
+        setSplitting((current) => without(current, trackId));
       }
-      await refreshDocumentProject(path);
-      const after = useDawStore.getState();
-      after.announceStatus(splitSpeakersDoneCopy(result, label), {
-        undo: result.history_head_id,
-      });
-      if (result.history_head_id) {
-        splitUndos.current.set(trackId, result.history_head_id);
-      }
-      after.markJobResultsSpoken([job.id]);
-    } catch (error) {
-      if (jobId !== null) useDawStore.getState().settleJobResult(jobId);
-      if (isAbortError(error) || error instanceof JobCancelledError) return;
-      if (isModelNeeded(error)) {
-        splitNeeds.current.set(trackId, error.model);
-        setSplitFailed((current) => ({
-          ...current,
-          [trackId]: `${notDownloadedLine(error.model)} Try again to download it.`,
-        }));
-      } else {
-        setSplitFailed((current) => ({
-          ...current,
-          [trackId]: plainError(errorMessage(error)),
-        }));
-      }
-    } finally {
-      scope.dispose();
-      splitJobs.current.delete(trackId);
-      setSplitting((current) => without(current, trackId));
-    }
-  }, []);
+    },
+    [stopFor],
+  );
+  startSplitRef.current = startSplit;
+
+  // Leaving the project drops the splits that waited for a model.
+  useEffect(() => {
+    setSplitNeeds({});
+    resumed.current.clear();
+    clear();
+  }, [projectPath, clear]);
 
   // The split's own progress, from the job the Activity chip follows.
   const shownSplitting = Object.fromEntries(
@@ -260,14 +297,6 @@ export function usePrepareSources(input: {
       if (jobId) void cancelPipelineRun(jobId).catch(() => undefined);
     },
     onRetry: (id) => {
-      const need = splitNeeds.current.get(id);
-      if (need) {
-        splitNeeds.current.delete(id);
-        void download([need.id]).then((outcome) => {
-          if (outcome.kind === "ok") void startSplit(id);
-        });
-        return;
-      }
       if (splitFailed[id]) void startSplit(id);
       else runPointerCommand("media.import", { trackId: id });
     },
@@ -307,6 +336,7 @@ export function usePrepareSources(input: {
     chosenVoices,
     splitting: shownSplitting,
     splitFailed,
+    splitNeeds,
     playingId,
   };
 }

@@ -1468,6 +1468,32 @@ html[data-frame-short] .sys-header-project .sys-header-title {
   inline-size: min(var(--centered-card-width), 100%);
 }
 
+/* The end form (Models): a modal side sheet, 420 px, full height on the end edge. A phone gets the
+   bottom sheet instead, so this meets desktop and tablet, where the dialog root would otherwise
+   raise it from the bottom. */
+html[data-shell] .ui-dialog-root--end:not(.ui-dialog-root--anchored) {
+  place-items: stretch end;
+}
+
+html[data-shell]
+  .ui-dialog-root--end:not(.ui-dialog-root--anchored)
+  > .command-palette-panel.sys-sheet-end {
+  inline-size: min(26.25rem, 100vw);
+  block-size: 100dvh;
+  max-block-size: none;
+  padding-bottom: var(--space-5);
+  border-width: 0 0 0 1px;
+  border-radius: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html[data-shell]
+    .ui-dialog-root--end:not(.ui-dialog-root--anchored)
+    > .command-palette-panel.sys-sheet-end {
+    animation: fade-in var(--motion-panel) var(--motion-ease-out) both;
+  }
+}
+
 @media (pointer: coarse) {
   .sys-sheet-footer > * {
     min-block-size: var(--target-primary-phone);

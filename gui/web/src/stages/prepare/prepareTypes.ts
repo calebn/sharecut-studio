@@ -1,3 +1,4 @@
+import type { NeedTarget } from "../../models";
 import type { PrepareTarget } from "../../system/SessionTargetChip";
 import type { SourceCardProps } from "../../system/SourceCard";
 
@@ -16,7 +17,11 @@ export type PrepareSource = Pick<
   | "splitDetail"
   | "cause"
   | "sameNameAs"
-> & { id: string };
+> & {
+  id: string;
+  /** The model a failed split waits on: the card shows its Model need row. */
+  model?: NeedTarget;
+};
 
 export type PrepareSession = {
   id: string;
