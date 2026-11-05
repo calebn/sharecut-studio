@@ -15,53 +15,55 @@ test.describe.configure({ timeout: 240_000 });
 for (const name of ["portrait", "landscape"] as const) {
   for (const rootPx of [16, 32]) {
     for (const theme of ["dark", "light"] as const) {
-      test(`Undo and Redo stay reachable in the App header with the Inspector sheet open: ${name} root${rootPx} ${theme}`, async ({
-        page,
-        context,
-        browserName,
-      }) => {
-        await openAt(page, SIZES[name], 16, theme);
-        const finger = await newFinger(context, page, browserName);
-        await finger.down(
-          await centerOf(page, `${lane} [data-hit-id="env-c"]`),
-        );
-        await page.waitForTimeout(60);
-        await finger.up();
-        await inspectSelection(page);
-        const sheet = page.locator(".sys-inspector--phone");
-        await expect(sheet).toBeVisible();
-        await page.evaluate((px) => {
-          document.documentElement.style.fontSize = `${px}px`;
-        }, rootPx);
-        await page.waitForTimeout(400);
-        const grip = page.getByRole("slider", { name: "Sheet height" });
-        for (const key of ["End", "Home"]) {
-          await grip.focus();
-          await page.keyboard.press(key);
+      test.describe(`history ${name} root${rootPx} ${theme}`, () => {
+        test("Undo and Redo stay reachable in the App header with the Inspector sheet open", async ({
+          page,
+          context,
+          browserName,
+        }) => {
+          await openAt(page, SIZES[name], 16, theme);
+          const finger = await newFinger(context, page, browserName);
+          await finger.down(
+            await centerOf(page, `${lane} [data-hit-id="env-c"]`),
+          );
+          await page.waitForTimeout(60);
+          await finger.up();
+          await inspectSelection(page);
+          const sheet = page.locator(".sys-inspector--phone");
+          await expect(sheet).toBeVisible();
+          await page.evaluate((px) => {
+            document.documentElement.style.fontSize = `${px}px`;
+          }, rootPx);
           await page.waitForTimeout(400);
-          for (const button of ["Undo", "Redo"]) {
-            const control = railHistory(page).getByRole("button", {
-              name: button,
-            });
-            await expect(control).toBeVisible();
-            const box = await control.boundingBox();
-            if (!box) throw new Error(`no ${button} box`);
-            expect(box.width).toBeGreaterThanOrEqual(43.5);
-            expect(box.height).toBeGreaterThanOrEqual(43.5);
-            const topmost = await control.evaluate((el) => {
-              const r = el.getBoundingClientRect();
-              const hit = document.elementFromPoint(
-                r.left + r.width / 2,
-                r.top + r.height / 2,
-              );
-              return hit === el || el.contains(hit);
-            });
-            expect(topmost, `${button} is not covered`).toBe(true);
+          const grip = page.getByRole("slider", { name: "Sheet height" });
+          for (const key of ["End", "Home"]) {
+            await grip.focus();
+            await page.keyboard.press(key);
+            await page.waitForTimeout(400);
+            for (const button of ["Undo", "Redo"]) {
+              const control = railHistory(page).getByRole("button", {
+                name: button,
+              });
+              await expect(control).toBeVisible();
+              const box = await control.boundingBox();
+              if (!box) throw new Error(`no ${button} box`);
+              expect(box.width).toBeGreaterThanOrEqual(43.5);
+              expect(box.height).toBeGreaterThanOrEqual(43.5);
+              const topmost = await control.evaluate((el) => {
+                const r = el.getBoundingClientRect();
+                const hit = document.elementFromPoint(
+                  r.left + r.width / 2,
+                  r.top + r.height / 2,
+                );
+                return hit === el || el.contains(hit);
+              });
+              expect(topmost, `${button} is not covered`).toBe(true);
+            }
           }
-        }
-        await expect(
-          sheet.getByRole("group", { name: "Undo and redo" }),
-        ).toHaveCount(0);
+          await expect(
+            sheet.getByRole("group", { name: "Undo and redo" }),
+          ).toHaveCount(0);
+        });
       });
     }
   }
