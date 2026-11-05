@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import type { RoomAlertInput } from "../system/roomAlertModel";
 import {
   lateRoomToneDue,
@@ -23,6 +23,76 @@ type RoomToneControls = {
   skip: () => void;
 };
 
+type ToneResolution = Readonly<{ key: string; done: boolean }> | null;
+
+type ToneResolutionBasis = {
+  key: string | null;
+  participantId: string | null;
+  consented: boolean;
+  producer: boolean;
+  transport: RecordUploadTransport | null;
+};
+
+function createRoomToneResolution() {
+  let value: ToneResolution = null;
+  const listeners = new Set<() => void>();
+  const publish = (next: NonNullable<ToneResolution>) => {
+    value = next;
+    for (const listener of listeners) listener();
+  };
+  return {
+    getSnapshot: () => value,
+    subscribe: (listener: () => void) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    connect: ({
+      key,
+      participantId,
+      consented,
+      producer,
+      transport,
+    }: ToneResolutionBasis) => {
+      if (!key || !consented || producer) {
+        return;
+      }
+      const mark = readRoomToneMark(key);
+      if (mark === "skipped" || (mark === "recorded" && !transport)) {
+        publish({ key, done: true });
+        return;
+      }
+      if (!transport) {
+        return;
+      }
+      let live = true;
+      transport
+        .status()
+        .then((remote) => {
+          const rows = (remote.room_tone_status ?? []).filter(
+            (row) => row.participant_id === participantId,
+          );
+          const done =
+            mark === "recorded"
+              ? !rows.some((row) => row.file_ack && row.land_failed)
+              : rows.some((row) => row.file_ack && !row.land_failed);
+          if (live) {
+            publish({ key, done });
+          }
+        })
+        .catch(() => {
+          if (live) {
+            publish({ key, done: mark === "recorded" });
+          }
+        });
+      return () => {
+        live = false;
+      };
+    },
+  };
+}
+
 /**
  * A guest who joined after the room-tone countdown is asked once, before the
  * next take, to record the same one-minute bed through the same `useRoomToneCapture`
@@ -46,51 +116,26 @@ export function useLateRoomTone({
   const participantId = me?.participant_id ?? null;
   const key = roomToneMarkKey(snapshot?.session_id, participantId);
   const consented = me?.consented === true;
-  const [resolved, setResolved] = useState<{
-    key: string;
-    done: boolean;
-  } | null>(null);
+  const [resolution] = useState(createRoomToneResolution);
+  const resolved = useSyncExternalStore(
+    resolution.subscribe,
+    resolution.getSnapshot,
+  );
   const left = snapshot?.countdown_left_ms ?? 0;
   const [settled, setSettled] = useState<RecordSnapshot | null>(null);
   const { status } = roomTone;
 
-  useEffect(() => {
-    if (!key || !consented || producer) {
-      return;
-    }
-    const mark = readRoomToneMark(key);
-    if (mark === "skipped" || (mark === "recorded" && !transport)) {
-      setResolved({ key, done: true });
-      return;
-    }
-    if (!transport) {
-      return;
-    }
-    let live = true;
-    transport
-      .status()
-      .then((remote) => {
-        const rows = (remote.room_tone_status ?? []).filter(
-          (row) => row.participant_id === participantId,
-        );
-        // A bed this device recorded counts unless the host says it could not save it.
-        const done =
-          mark === "recorded"
-            ? !rows.some((row) => row.file_ack && row.land_failed)
-            : rows.some((row) => row.file_ack && !row.land_failed);
-        if (live) {
-          setResolved({ key, done });
-        }
-      })
-      .catch(() => {
-        if (live) {
-          setResolved({ key, done: mark === "recorded" });
-        }
-      });
-    return () => {
-      live = false;
-    };
-  }, [consented, key, participantId, producer, transport]);
+  useEffect(
+    () =>
+      resolution.connect({
+        consented,
+        key,
+        participantId,
+        producer,
+        transport,
+      }),
+    [resolution, consented, key, participantId, producer, transport],
+  );
 
   useEffect(() => {
     if (!key) {
