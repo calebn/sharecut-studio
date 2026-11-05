@@ -3,7 +3,19 @@
  * shortcut when it has one, and why it cannot run here. `commandPaletteRows.ts`
  * builds the rows from the live catalog and keymap; the view searches them.
  */
+import { MOBILE_GESTURES } from "../../commands/gestures";
 import type { CommandCategory } from "../../commands/types";
+import type { SystemIconName } from "../../system/icons";
+
+/**
+ * Commands the palette lists under their own group instead of their category:
+ * the Go to <stage> commands under Stages, and `help.*` under Help.
+ */
+export type PaletteCommandGroup = "stages" | "help";
+
+export const PALETTE_COMMAND_GROUP_LABELS: Readonly<
+  Record<PaletteCommandGroup, string>
+> = { stages: "Stages", help: "Help" };
 
 export type PaletteCommand = {
   id: string;
@@ -19,6 +31,10 @@ export type PaletteCommand = {
   note?: string;
   /** Why the command cannot run right now; null when it can. */
   disabledReason: string | null;
+  /** Own group (Stages, Help) instead of the category section when browsing. */
+  group?: PaletteCommandGroup;
+  /** Verb icon (`system/verbs.ts`) drawn before the label; decorative. */
+  icon?: SystemIconName;
 };
 
 export const PALETTE_CATEGORY_LABELS: Readonly<
@@ -163,6 +179,23 @@ export function groupPaletteEntries(
     group,
     rows: entries.filter((e) => e.group === group),
   })).filter((g) => g.rows.length > 0);
+}
+
+/** The Gestures group's one row: it opens the Gestures sheet (touch cheatsheet). */
+export const PALETTE_GESTURES_LABEL = "Gestures";
+
+const GESTURES_HAYSTACK = [
+  PALETTE_GESTURES_LABEL,
+  "touch",
+  ...MOBILE_GESTURES.map((g) => g.gesture),
+]
+  .join(" ")
+  .toLowerCase();
+
+/** Whether the Gestures row matches: every query word is in "Gestures", "touch" or a gesture name. */
+export function paletteGesturesMatch(query: string): boolean {
+  const q = query.trim().toLowerCase();
+  return !q || q.split(/\s+/).every((word) => GESTURES_HAYSTACK.includes(word));
 }
 
 /** How many Recent rows an empty query shows. */

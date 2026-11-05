@@ -14,9 +14,32 @@ import {
   KEYMAP_CATEGORY_ORDER,
   keymapCommandById,
 } from "../../keymap/registry";
+import { STAGES, VERBS, type VerbDef } from "../../system/verbs";
 import type { ChapterMarker } from "../../types/project";
 import { formatTimeShort } from "../../utils/time";
-import type { PaletteCommand, PaletteEntry } from "./paletteSearch";
+import type {
+  PaletteCommand,
+  PaletteCommandGroup,
+  PaletteEntry,
+} from "./paletteSearch";
+
+/** Verb icon by command id: the first verb in the table that names the command. */
+const VERB_ICONS = new Map(
+  (VERBS as readonly VerbDef[]).flatMap((verb) =>
+    verb.commandId != null && verb.icon !== null
+      ? [[verb.commandId, verb.icon] as const]
+      : [],
+  ),
+);
+const STAGE_ICONS = new Map(STAGES.map((s) => [`stage.${s.id}`, s.icon]));
+
+function groupOf(id: string): PaletteCommandGroup | undefined {
+  return id.startsWith("stage.")
+    ? "stages"
+    : id.startsWith("help.")
+      ? "help"
+      : undefined;
+}
 
 /**
  * Runnable catalog commands in category order. A palette click runs a command
@@ -41,6 +64,8 @@ export function paletteCommands(ctx: CommandContext): PaletteCommand[] {
     .map((def): PaletteCommand => {
       const keyed = keymapCommandById(def.id);
       const gate = evaluateWhen(def.when, pointerCtx);
+      const group = groupOf(def.id);
+      const icon = STAGE_ICONS.get(def.id) ?? VERB_ICONS.get(def.id);
       return {
         id: def.id,
         label: def.label,
@@ -50,6 +75,8 @@ export function paletteCommands(ctx: CommandContext): PaletteCommand[] {
         ...(keyed ? { defaultKey: keyed.keys[0] } : {}),
         ...(keyed?.collision ? { note: keyed.collision } : {}),
         disabledReason: gate.ok ? null : gate.reason,
+        ...(group ? { group } : {}),
+        ...(icon ? { icon } : {}),
       };
     });
   return KEYMAP_CATEGORY_ORDER.flatMap((category) =>

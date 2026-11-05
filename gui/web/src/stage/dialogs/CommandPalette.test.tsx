@@ -68,8 +68,9 @@ describe("CommandPalette", () => {
     registerDawCommands();
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
     useDawStore.getState().setCommandPaletteOpen(true);
-    setChrome({ exportRequested: false });
+    setChrome({ exportRequested: false, gesturesSheetOpen: false });
     useDawStore.setState({
+      stage: "edit",
       statusAnnouncement: "",
       ...presenceProjectInitial(),
     });
@@ -285,6 +286,40 @@ describe("CommandPalette", () => {
       .click(screen.getByRole("option", { name: /^Cold open/ }));
     expect(seen).toEqual([{ sec: 12 }]);
     expect(useDawStore.getState().chrome.commandPaletteOpen).toBe(false);
+  });
+
+  it("lists Stages and Help as groups, and a stage row switches stage through the registry", async () => {
+    renderPalette();
+    expect(
+      within(screen.getByRole("group", { name: "Stages" })).getAllByRole(
+        "option",
+      ),
+    ).toHaveLength(5);
+    expect(
+      within(screen.getByRole("group", { name: "Help" })).getByRole("option", {
+        name: /^Export diagnostics…/,
+      }),
+    ).toBeTruthy();
+    expect(
+      within(screen.getByRole("group", { name: "Navigation" })).queryByRole(
+        "option",
+        { name: /Go to Deliver/ },
+      ),
+    ).toBeNull();
+    await userEvent
+      .setup()
+      .click(screen.getByRole("option", { name: /^Go to Deliver/ }));
+    expect(useDawStore.getState().chrome.commandPaletteOpen).toBe(false);
+    await waitFor(() => expect(useDawStore.getState().stage).toBe("deliver"));
+  });
+
+  it("opens the Gestures sheet from the Gestures row", async () => {
+    renderPalette();
+    await userEvent
+      .setup()
+      .click(screen.getByRole("option", { name: /^Gestures/ }));
+    expect(useDawStore.getState().chrome.commandPaletteOpen).toBe(false);
+    expect(useDawStore.getState().chrome.gesturesSheetOpen).toBe(true);
   });
 
   it("hides Projects, People and Chapters when there is no data", () => {

@@ -254,6 +254,12 @@ html[data-shell="phone"]
   min-inline-size: 0;
 }
 
+.command-palette-icon {
+  flex: none;
+  align-self: center;
+  color: var(--color-text-secondary);
+}
+
 .command-palette-category {
   font-size: var(--font-size-small);
   font-weight: 400;

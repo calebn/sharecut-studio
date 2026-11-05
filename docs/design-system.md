@@ -453,7 +453,13 @@ store-free `stage/dialogs/paletteSearch.ts`, so `CommandPaletteView.tsx` imports
 nothing store-bound. Its `entries` prop (`PaletteEntry[]`: Projects, People and
 Chapters rows, each naming a registry command and its args, built by
 `paletteEntries` in the same helper) and `recent` prop (ids from
-`paletteRecent.ts`) arrive the same way.
+`paletteRecent.ts`) arrive the same way. `paletteCommands` also tags the five
+`stage.*` commands `group: "stages"` and `help.*` commands `group: "help"`
+(the view lists them as the Stages and Help groups when Search is empty, after
+the category sections, and flat with the group name when searching) and gives a
+row its verb icon (`icon`, from `system/verbs.ts`; the stage icons for Go to
+<stage>) drawn as a decorative `SystemIcon`. The Gestures group is one view row
+that calls `onOpenGestures`.
 The live `EditCorner` and `CommandPalette` adapters read
 DAW state and dispatch through `execute`.
 
