@@ -410,7 +410,7 @@ describe("Toast", () => {
     );
     expect(screen.getByText("Time changed").closest(".ui-toast")).toBe(card);
     act(() => {
-      vi.advanceTimersByTime(4999);
+      vi.advanceTimersByTime(TOAST_MS - 3001);
     });
     expect(onDismiss).not.toHaveBeenCalled();
     act(() => {

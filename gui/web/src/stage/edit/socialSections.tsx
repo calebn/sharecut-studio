@@ -123,7 +123,6 @@ export function useSocialSections(
                 id: "remove",
                 control: (
                   <Button
-                    variant="danger"
                     className="track-sheet-action"
                     disabledReason={busy ? BUSY_REASON : undefined}
                     onClick={() => void remove()}

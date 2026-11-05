@@ -16,9 +16,9 @@ import { Button } from "./Button";
 import { isValidFocusTarget } from "./focusTarget";
 
 /** How long a toast stays up while not hovered or focused. */
-export const TOAST_MS = 8000;
+export const TOAST_MS = 6000;
 
-export const TOAST_UNDO_MS = 60_000;
+export const TOAST_UNDO_MS = 10_000;
 
 /**
  * Most a toast waits, in total, while it reports as clipped. It protects

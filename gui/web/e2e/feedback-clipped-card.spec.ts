@@ -3,7 +3,7 @@ import { expectFeedback } from "./feedback";
 import { withShareableProject } from "./shareableProject";
 import { openProject } from "./stageNav";
 
-const TOAST_MS = 8000;
+const TOAST_MS = 6000;
 const CLIPPED_MAX_MS = 8000;
 
 test.use({

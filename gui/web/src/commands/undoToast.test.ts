@@ -173,7 +173,7 @@ const COVERED: Record<string, Proof> = {
   },
   "track.remove": {
     file: "commands/trackRemoveNav.test.ts",
-    test: "asks by the track's name, then offers Undo for the entry its reply names",
+    test: "offers Undo for the entry its reply names",
   },
   "track.splitSpeakers": {
     file: "stages/prepare/usePrepareSources.test.tsx",

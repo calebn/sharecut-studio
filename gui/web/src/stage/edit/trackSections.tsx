@@ -421,7 +421,6 @@ export function useTrackSections(
                   <CommandButton
                     commandId="track.remove"
                     args={{ trackId: track.id }}
-                    variant="danger"
                     className="track-sheet-action"
                     disabledReason={busyReason}
                   />
