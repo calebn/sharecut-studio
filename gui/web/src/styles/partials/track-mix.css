@@ -85,22 +85,6 @@
   min-inline-size: 0;
 }
 
-.track-fader--compact .track-fader-input {
-  display: block;
-  margin: 0;
-  padding: var(--space-3) 0 0;
-  min-block-size: var(--touch-min);
-}
-
-.track-fader--compact .track-fader-value {
-  position: absolute;
-  inset-block-start: 0;
-  inset-inline-end: 0;
-  pointer-events: none;
-  min-inline-size: 0;
-  font-size: var(--font-size-micro);
-}
-
 .track-fader--compact .track-fader-plays-at {
   display: block;
   min-inline-size: 0;
