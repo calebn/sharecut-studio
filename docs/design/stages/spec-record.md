@@ -7,7 +7,7 @@
 > - Re-record became the **Record** verb with a Replace target. Record here is the Record verb with an Insert target.
 > - Keys: Marker M became C, notes N became C, mute Mod+D became M, and hold R stops a take.
 > - Host tile uses a Record-glyph badge, not an accent outline. The speaking ring is in the person's colour, not accent. The producer and listener glyph is `ear` (headphones is Solo).
-> - End session stays an undo toast (10 s). Q8 (track matching) and Q9 (room tone pre-roll) are decided in design-system.md.
+> - End session stays undoable for 10 s (the server window, shown in the Record notices row, not a Toast). Q8 (track matching) and Q9 (room tone pre-roll) are decided in design-system.md.
 > - Storybook titles: `System/*` and `Stages/Record/*` replace `Record/*`, `StageBar` and `Timeline/RecordingOverlay`.
 
 # Record stage: design spec
