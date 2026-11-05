@@ -887,7 +887,9 @@ describe("Deliver host export while an edit is not saved", () => {
       ],
     };
     const fetched = vi.fn((input: RequestInfo | URL, init?: RequestInit) =>
-      String(input).includes("/api/feed")
+      (input instanceof Request ? input.url : String(input)).includes(
+        "/api/feed",
+      )
         ? Promise.resolve(
             new Response(
               JSON.stringify({ view: unexported, itemXml: "<item/>" }),
