@@ -1,4 +1,4 @@
-import { memo, type RefCallback, useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { runPointerCommand } from "../../commands/pointer";
 import {
@@ -37,15 +37,12 @@ const readSide = () => matchesMedia(SIDE_BY_SIDE_MQ, true);
 
 export type EditWorkspaceProps = {
   guestShare?: boolean;
-  /** Where the compact Inspector's toast lands. */
-  feedbackHostRef?: RefCallback<HTMLDivElement>;
   /** The project failed to load: the stage body says so, with Try again. */
   loadFailure?: LoadFailure | null;
 };
 
 function EditWorkspaceAdapter({
   guestShare = false,
-  feedbackHostRef,
   loadFailure,
 }: EditWorkspaceProps) {
   const {
@@ -247,7 +244,6 @@ function EditWorkspaceAdapter({
           sheet={inspector}
           root={root}
           regionRef={inspectorRegion}
-          feedbackHostRef={feedbackHostRef}
         />
       }
       bindings={{

@@ -1,6 +1,6 @@
 import { renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { bandLocator, useKeepBandClear } from "./useKeepBandClear";
+import { bandLocator, useKeepTargetClear } from "./useKeepTargetClear";
 
 function place(el: Element, top: number, bottom: number) {
   el.getBoundingClientRect = () =>
@@ -12,14 +12,14 @@ function mountPage() {
   document.body.innerHTML = `
     <div class="timeline-scroll"><div class="marker-lane" style="position: sticky"></div>
       <div data-hit-kind="bleed-attenuation" data-hit-id="late_gate:0"></div></div>
-    <div class="bottom-sheet-root"><div class="bottom-sheet bottom-sheet--inspector"></div></div>`;
+    <div class="bottom-sheet-root"><div class="sys-inspector--phone"></div></div>`;
   const scroller = document.querySelector<HTMLElement>(".timeline-scroll")!;
   place(scroller, 52, 700);
   place(document.querySelector(".marker-lane")!, 52, 96);
   place(document.querySelector("[data-hit-kind]")!, 500, 530);
   place(document.querySelector(".bottom-sheet-root")!, 0, 748);
   Object.defineProperty(
-    document.querySelector(".bottom-sheet"),
+    document.querySelector(".sys-inspector--phone"),
     "offsetHeight",
     { value: 360 },
   );
@@ -53,7 +53,7 @@ describe("bandLocator", () => {
   });
 });
 
-describe("useKeepBandClear", () => {
+describe("useKeepTargetClear", () => {
   it("scrolls a band above the phone Inspector sheet, which has no slot around it", () => {
     document.body.innerHTML = `
       <div class="timeline-scroll"><div class="marker-lane" style="position: sticky"></div>
@@ -65,7 +65,7 @@ describe("useKeepBandClear", () => {
     place(document.querySelector("[data-hit-kind]")!, 500, 530);
     place(document.querySelector(".sys-inspector")!, 388, 748);
     renderHook(() =>
-      useKeepBandClear(
+      useKeepTargetClear(
         '[data-hit-kind="bleed-attenuation"][data-hit-id="late_gate:0"]',
       ),
     );
@@ -76,7 +76,7 @@ describe("useKeepBandClear", () => {
   it("scrolls a band the sheet covers above it and pads the scroller as deep as the sheet", () => {
     const scroller = mountPage();
     renderHook(() =>
-      useKeepBandClear(
+      useKeepTargetClear(
         '[data-hit-kind="bleed-attenuation"][data-hit-id="late_gate:0"]',
       ),
     );
@@ -87,11 +87,11 @@ describe("useKeepBandClear", () => {
 
   it("leaves the page alone with no band selected, and drops the padding when it ends", () => {
     const scroller = mountPage();
-    const idle = renderHook(() => useKeepBandClear(null));
+    const idle = renderHook(() => useKeepTargetClear(null));
     expect(scroller.scrollTop).toBe(0);
     idle.unmount();
     const active = renderHook(() =>
-      useKeepBandClear(
+      useKeepTargetClear(
         '[data-hit-kind="bleed-attenuation"][data-hit-id="late_gate:0"]',
       ),
     );

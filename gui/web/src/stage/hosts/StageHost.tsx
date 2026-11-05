@@ -1,4 +1,4 @@
-import { memo, type RefCallback } from "react";
+import { memo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { runPointerCommand } from "../../commands/pointer";
 import { useViewportClass } from "../../hooks/useViewportClass";
@@ -17,15 +17,10 @@ import { ReviewHost } from "./ReviewHost";
 
 export type StageHostProps = {
   guestShare?: boolean;
-  feedbackHostRef?: RefCallback<HTMLDivElement>;
   loadFailure?: LoadFailure | null;
 };
 
-function StageHostAdapter({
-  guestShare = false,
-  feedbackHostRef,
-  loadFailure,
-}: StageHostProps) {
+function StageHostAdapter({ guestShare = false, loadFailure }: StageHostProps) {
   const { stage, guestMode, loaded, projectPath, projectEpoch } = useDawStore(
     useShallow((s) => ({
       stage: s.stage,
@@ -74,11 +69,7 @@ function StageHostAdapter({
       return <PrepareStage loadFailure={loadFailure} />;
     case "edit":
       return (
-        <EditWorkspace
-          guestShare={guestShare}
-          feedbackHostRef={feedbackHostRef}
-          loadFailure={loadFailure}
-        />
+        <EditWorkspace guestShare={guestShare} loadFailure={loadFailure} />
       );
     case "review":
       return (

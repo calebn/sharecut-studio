@@ -270,7 +270,6 @@ function mount(shell: ShellBreakpoint) {
   });
   useDawStore.getState().setSelection(null);
   useDawStore.getState().setRangeArmed(false);
-  useDawStore.getState().setCompactInspectorView("half");
   return render(
     <DawProvider projectPath="/tmp/p.json" initialProject={project()}>
       <StageFrame sheets={EDIT_SHEETS}>
@@ -293,11 +292,7 @@ function inspect() {
 const sheet = () =>
   screen
     .queryAllByRole("dialog")
-    .find(
-      (dialog) =>
-        dialog.classList.contains("sys-inspector") ||
-        dialog.classList.contains("bottom-sheet--inspector"),
-    ) ?? null;
+    .find((dialog) => dialog.classList.contains("sys-inspector")) ?? null;
 const rangeRegions = () =>
   screen.queryAllByRole("region", { name: "Range fields" });
 

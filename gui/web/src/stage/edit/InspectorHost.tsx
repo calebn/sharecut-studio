@@ -20,9 +20,8 @@ import type {
   InspectorRect,
 } from "../../system/inspectorSheetMath";
 import { type AnchorRect, unionRect } from "../../ui/anchoredPlacement";
-import { BottomSheet } from "../../ui/BottomSheet";
-import { INSPECTOR_SHEET_CLASS } from "../../ui/compactSheet";
 import { useResizeObserver } from "../../ui/useResizeObserver";
+import { compactTarget } from "./compactTarget";
 import { EditActionBar } from "./EditActionBar";
 import { useEnvelopePointSections } from "./envelopePointSections";
 import { focusFirstControl } from "./inspectorFocus";
@@ -30,7 +29,7 @@ import { type InspectorHeading, inspectorHeading } from "./inspectorHeading";
 import { rangeSection } from "./rangeSection";
 import { useSelectionSections } from "./selectionSections";
 import type { InspectorOpen, InspectorShell } from "./useInspectorOpen";
-import { bandLocator, useKeepBandClear } from "./useKeepBandClear";
+import { bandLocator, useKeepTargetClear } from "./useKeepTargetClear";
 import { useSelectionAnchor } from "./useSelectionAnchor";
 
 /**
@@ -254,46 +253,10 @@ function Phone({
   );
 }
 
-function CompactDrawer({
-  sheet,
-  feedbackHostRef,
-}: {
-  sheet: InspectorOpen;
-  feedbackHostRef?: RefCallback<HTMLDivElement>;
-}) {
-  const { sheetExpanded, setSheetExpanded } = useDaw((s) => ({
-    sheetExpanded: s.sheetExpanded,
-    setSheetExpanded: s.setSheetExpanded,
-  }));
-  const drawer = sheet.drawer;
-  if (!drawer) return null;
-  return (
-    <BottomSheet
-      backgroundPolicy="interactive"
-      open={sheet.open}
-      onClose={sheet.close}
-      title="Inspector"
-      placement="sheet"
-      className={INSPECTOR_SHEET_CLASS}
-      expanded={sheetExpanded}
-      onExpandedChange={setSheetExpanded}
-      {...drawer}
-      bodyHeader={
-        drawer.stowed ? null : (
-          <div ref={feedbackHostRef} className="compact-feedback-slot" />
-        )
-      }
-    >
-      <SelectionSheetBody rangeActionsInSheet={sheet.rangeActionsInSheet} />
-    </BottomSheet>
-  );
-}
-
 /**
  * Mounts the Inspector sheet (design system 9a) for the Edit stage: a card
  * beside the selection on the desktop and the tablet, a bottom sheet with the
- * Action bar as its dock on the phone, where a timeline target opens the
- * compact drawer. Each kind's body is the legacy one, as one section of the frame,
+ * Action bar as its dock on the phone (dock, half and full detents). Each kind's body is the legacy one, as one section of the frame,
  * until it is rebuilt from Scrub fields.
  */
 export function InspectorHost({
@@ -301,27 +264,29 @@ export function InspectorHost({
   sheet,
   root,
   regionRef,
-  feedbackHostRef,
 }: {
   shell: InspectorShell;
   sheet: InspectorOpen;
   root: HTMLElement | null;
   regionRef: RefCallback<HTMLDivElement>;
-  feedbackHostRef?: RefCallback<HTMLDivElement>;
 }) {
-  const { selection, project } = useDaw((s) => ({
+  const { selection, project, hit, rangeArmed, dragging } = useDaw((s) => ({
     selection: s.selection,
     project: s.project,
+    hit: s.selectionHit,
+    rangeArmed: s.rangeArmed,
+    dragging: s.timelineDragging,
   }));
   const heading = inspectorHeading(selection, project);
-  useKeepBandClear(
-    shell === "phone" && sheet.open && !sheet.drawer
-      ? bandLocator(selection)
+  // The sheet covers the lower part of the lanes: the selected target stays above it.
+  const target =
+    !rangeArmed && project ? compactTarget(project, selection, hit) : null;
+  useKeepTargetClear(
+    shell === "phone" && sheet.open
+      ? (target?.locate ?? bandLocator(selection))
       : null,
+    dragging,
   );
-  if (sheet.drawer) {
-    return <CompactDrawer sheet={sheet} feedbackHostRef={feedbackHostRef} />;
-  }
   if (!sheet.open) return null;
   return (
     <div ref={regionRef} className="edit-inspector-region">
