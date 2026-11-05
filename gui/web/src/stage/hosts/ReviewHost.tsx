@@ -2,7 +2,6 @@ import { memo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { runPointerCommand } from "../../commands/pointer";
 import { useViewportClass } from "../../hooks/useViewportClass";
-import { ModelGateDialog } from "../../models";
 import { ReviewStage } from "../../review/ReviewStage";
 import { undecidedOf } from "../../review/reviewQueueModel";
 import { isGuestSession, isShareProjectKey } from "../../shareMode";
@@ -55,22 +54,19 @@ function ReviewHostAdapter({
   const shell = useViewportClass();
   const scrollRef = useStageScroll("review", "section:queue");
   return (
-    <>
-      <ReviewStageView
-        shell={shell}
-        state={hostStateOf(project, loadFailure)}
-        failure={loadFailure}
-        panel={panelFor(
-          queue,
-          find,
-          guest && project?.meta.hydration?.transcript_words !== false,
-        )}
-        onDeliver={guest ? undefined : () => runPointerCommand("stage.deliver")}
-        undecided={undecidedOf(queue.stageProps.items)}
-        scrollRef={scrollRef}
-      />
-      <ModelGateDialog gate={find.gate} />
-    </>
+    <ReviewStageView
+      shell={shell}
+      state={hostStateOf(project, loadFailure)}
+      failure={loadFailure}
+      panel={panelFor(
+        queue,
+        find,
+        guest && project?.meta.hydration?.transcript_words !== false,
+      )}
+      onDeliver={guest ? undefined : () => runPointerCommand("stage.deliver")}
+      undecided={undecidedOf(queue.stageProps.items)}
+      scrollRef={scrollRef}
+    />
   );
 }
 

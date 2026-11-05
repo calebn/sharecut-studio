@@ -1,9 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
-import type { ModelGate } from "../../models";
 import { viewportStoryParameters } from "../../storybook/storyLayout";
-import { registryModels } from "../../test/modelsStory";
+import { registryModels, withModels } from "../../test/modelsStory";
 import {
   DONE,
   exportedFilesOf,
@@ -117,12 +116,44 @@ export const ExportingWithFiles: Story = {
 };
 
 export const NeedsModel: Story = {
-  args: { exportState: NEEDS_MODEL, onGetModel: fn() },
-  play: async ({ canvasElement, args }) => {
+  args: { exportState: NEEDS_MODEL },
+  decorators: [withModels],
+  play: async ({ canvasElement }) => {
     const view = within(canvasElement);
+    await expect(
+      view.getByText("Needs the transcription model"),
+    ).toBeInTheDocument();
     await expect(view.getByText("1.6 GB")).toBeInTheDocument();
-    await userEvent.click(view.getByRole("button", { name: "Get" }));
-    await expect(args.onGetModel).toHaveBeenCalledOnce();
+    await expect(
+      view.getByRole("button", { name: "Get the transcription model" }),
+    ).toBeEnabled();
+    await expect(view.getByRole("button", { name: /^Export/ })).toBeDisabled();
+  },
+};
+
+export const ModelDownloading: Story = {
+  args: { exportState: NEEDS_MODEL },
+  decorators: [withModels],
+  parameters: {
+    models: {
+      models: registryModels({
+        whisper: {
+          kind: "downloading",
+          bytes: 420_000_000,
+          total: 1_600_000_000,
+        },
+      }),
+      busy: true,
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const view = within(canvasElement);
+    await expect(view.getByText("420 MB of 1.6 GB")).toBeInTheDocument();
+    await userEvent.click(
+      view.getByRole("button", {
+        name: "Cancel the transcription model download",
+      }),
+    );
   },
 };
 
@@ -219,61 +250,5 @@ export const SettingsLoading: Story = {
       "Loading export settings…",
     );
     await expect(view.getByRole("button", { name: /^Export/ })).toBeDisabled();
-  },
-};
-
-function askGate(): ModelGate {
-  const view = registryModels({ "speaker-ecapa": { kind: "missing" } })[3];
-  return {
-    run: () => Promise.reject(new Error("The story does not run actions.")),
-    prompt: {
-      need: { id: view.id },
-      label: view.label,
-      purpose: view.purpose,
-      size: view.size,
-      phase: "ask",
-      view,
-      blockedReason: undefined,
-    },
-    declined: null,
-    accept: fn(),
-    decline: fn(),
-    cancelDownload: fn(),
-    openModels: fn(),
-    reset: fn(),
-  };
-}
-
-export const ModelGatePrompt: Story = {
-  args: {
-    exportState: {
-      phase: "needs-model",
-      model: "Speaker model",
-      size: "25 MB",
-    },
-    options: { gate: askGate() },
-  },
-  play: async ({ canvasElement, args }) => {
-    const view = within(canvasElement);
-    await expect(view.queryByText("Needs the Speaker model")).toBeNull();
-    await userEvent.click(view.getByRole("button", { name: "Download" }));
-    await expect(args.options?.gate?.accept).toHaveBeenCalledOnce();
-  },
-};
-
-export const FailedAfterDecline: Story = {
-  args: {
-    exportState: {
-      phase: "failed",
-      cause: "Speaker model is not downloaded.",
-    },
-    options: {
-      gate: {
-        ...askGate(),
-        prompt: null,
-        declined: { id: "speaker-ecapa", label: "Speaker model" },
-      },
-      onExportAgain: fn(),
-    },
   },
 };

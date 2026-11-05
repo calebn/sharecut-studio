@@ -14,7 +14,7 @@ import { minimalProject } from "../../test/fixtures";
 import {
   modelStatus,
   registryRows,
-  renderWithModels,
+  renderWithLanding,
 } from "../../test/renderWithModels";
 import type { HistoryEntryId } from "../../types/project";
 import { ExportFlowProvider } from "./exportFlow";
@@ -479,98 +479,77 @@ describe("the export flow over the server's routes", () => {
     expect(flow.request).toBeNull();
   });
 
-  describe("model gate", () => {
-    const downloadModel = vi.fn();
-    const mountGated = () =>
-      renderWithModels(
+  describe("model need", () => {
+    const mountNeeding = () =>
+      renderWithLanding(
         <ExportFlowProvider>
           <Probe />
         </ExportFlowProvider>,
-        { status: modelStatus(registryRows()), download: downloadModel },
+        { status: modelStatus(registryRows()) },
       );
     const startAndNeedModel = async () => {
-      mountGated();
+      const view = mountNeeding();
       await loaded();
       act(() => flow.start(["mp3"], REQUEST));
       await running();
       await act(async () => server.settle(EXPORT_MODEL_NEEDED));
+      return view;
     };
 
-    beforeEach(() => {
-      downloadModel.mockReset().mockResolvedValue({ kind: "ok" });
-    });
-
-    it("asks on Deliver and exports once more after the download", async () => {
-      await startAndNeedModel();
-      await waitFor(() =>
-        expect(flow.gate.prompt?.label).toBe("Noise reduction (RNNoise)"),
-      );
+    it("holds the export on Deliver and exports again by itself when the model lands", async () => {
+      const { land, api } = await startAndNeedModel();
+      await waitFor(() => expect(flow.needs?.id).toBe("rnnoise"));
+      expect(flow.run).toEqual({ kind: "idle" });
       expect(server.exportRequests).toHaveLength(1);
 
       server.reopen();
-      act(() => flow.gate.accept());
+      land("rnnoise");
       await waitFor(() => expect(server.exportRequests).toHaveLength(2));
-      expect(downloadModel).toHaveBeenCalledWith(["rnnoise"], undefined);
       await act(async () => server.settle(EXPORT_FINISHED));
       await waitFor(() => expect(flow.run.kind).toBe("done"));
+      expect(flow.needs).toBeNull();
+      expect(api.download).not.toHaveBeenCalled();
     });
 
-    it("fails with a hint when the person declines", async () => {
+    it("keeps waiting while the model is still missing", async () => {
       await startAndNeedModel();
-      await waitFor(() => expect(flow.gate.prompt).not.toBeNull());
-      act(() => flow.gate.decline());
-
-      await waitFor(() =>
-        expect(flow.run).toEqual({
-          kind: "failed",
-          reason: "Noise reduction (RNNoise) is not downloaded.",
-        }),
-      );
-      expect(flow.gate.declined).toEqual({
-        id: "rnnoise",
-        label: "Noise reduction (RNNoise)",
-      });
-    });
-
-    it("returns to idle, not a failure, when the project changes during the ask", async () => {
-      await startAndNeedModel();
-      await waitFor(() => expect(flow.gate.prompt).not.toBeNull());
-
-      act(() =>
-        useDawStore.setState({ projectPath: "/tmp/other.project.json" }),
-      );
-      await waitFor(() => expect(flow.gate.prompt).toBeNull());
+      await waitFor(() => expect(flow.needs).not.toBeNull());
+      await act(async () => {});
+      expect(server.exportRequests).toHaveLength(1);
       expect(flow.run).toEqual({ kind: "idle" });
     });
 
-    it("changes nothing when the decline lands after the project changed", async () => {
-      await startAndNeedModel();
-      await waitFor(() => expect(flow.gate.prompt).not.toBeNull());
-      const before = useDawStore.getState().feedbackToast;
+    it("drops the wait, not into a failure, when the project changes", async () => {
+      const { land } = await startAndNeedModel();
+      await waitFor(() => expect(flow.needs).not.toBeNull());
 
       act(() =>
         useDawStore.setState({ projectPath: "/tmp/other.project.json" }),
       );
-      await waitFor(() => expect(flow.gate.prompt).toBeNull());
+      await waitFor(() => expect(flow.needs).toBeNull());
+      land("rnnoise");
       await act(async () => {});
       expect(flow.run).toEqual({ kind: "idle" });
-      expect(flow.gate.declined).toBeNull();
       expect(flow.request).toBeNull();
-      expect(useDawStore.getState().feedbackToast).toBe(before);
+      expect(server.exportRequests).toHaveLength(1);
       expect(useDawStore.getState().pendingJobResults).toEqual({});
     });
 
-    it("does not loop when the same model is still missing after the download", async () => {
-      await startAndNeedModel();
-      await waitFor(() => expect(flow.gate.prompt).not.toBeNull());
-      act(() => flow.gate.accept());
+    it("fails instead of looping when the same model is refused again after it landed", async () => {
+      const { land } = await startAndNeedModel();
+      await waitFor(() => expect(flow.needs).not.toBeNull());
+      server.reopen();
+      land("rnnoise");
+      await waitFor(() => expect(server.exportRequests).toHaveLength(2));
+      await act(async () => server.settle(EXPORT_MODEL_NEEDED));
 
       await waitFor(() => expect(flow.run.kind).toBe("failed"));
+      expect(flow.needs).toBeNull();
       expect(server.exportRequests).toHaveLength(2);
     });
 
-    it("opens no prompt when the person left Deliver before the job failed", async () => {
-      mountGated();
+    it("says it plainly instead of waiting when the person left Deliver before the job failed", async () => {
+      mountNeeding();
       await loaded();
       act(() => flow.start(["mp3"], REQUEST));
       await running();
@@ -578,12 +557,11 @@ describe("the export flow over the server's routes", () => {
       await act(async () => server.settle(EXPORT_MODEL_NEEDED));
 
       await waitFor(() => expect(flow.run.kind).toBe("failed"));
-      expect(flow.gate.prompt).toBeNull();
+      expect(flow.needs).toBeNull();
       expect(flow.run).toEqual({
         kind: "failed",
         reason: expect.stringContaining("Noise reduction (RNNoise)"),
       });
-      expect(downloadModel).not.toHaveBeenCalled();
     });
   });
 });

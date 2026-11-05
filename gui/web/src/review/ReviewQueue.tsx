@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { useNowSec } from "../hooks/useNowSec";
+import { ModelNeedRow } from "../models";
 import {
   DISMISS_FAILED_NOTE,
   dismissReason,
@@ -19,6 +20,7 @@ import { hintOf, iconOf, verbOf } from "../system/verbDisplay";
 import type { VerbId } from "../system/verbs";
 import { Button, EmptyState, SegmentedControl, ToggleButton } from "../ui";
 import { disabledAttrs, useDisabledReasonNote } from "../ui/disabledReason";
+import type { ModelNeeded } from "../utils/apiError";
 import { formatTimeShort } from "../utils/time";
 import { RefineGateWaiver } from "./RefineGateWaiver";
 import {
@@ -84,7 +86,13 @@ export type BulkProgress = {
   startedAtSec?: number;
 };
 
-export type QueueJob = { title: string; progress?: number; error?: string };
+export type QueueJob = {
+  title: string;
+  progress?: number;
+  error?: string;
+  /** The model the run stopped on: its Model need row shows here and the run resumes when it lands. */
+  needs?: ModelNeeded;
+};
 
 export type ReviewQueueProps = {
   items: readonly ReviewItem[];
@@ -567,7 +575,9 @@ export function ReviewQueue({
     <section className="rv-queue" aria-label="Review queue">
       {header}
       {reason.note}
-      {job?.error ? (
+      {job?.needs ? (
+        <ModelNeedRow model={job.needs} />
+      ) : job?.error ? (
         <StatusRow
           state="failed"
           density="alert"
