@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
@@ -108,6 +108,7 @@ class FakeSocket {
   onclose: ((ev: { code: number }) => void) | null = null;
   sent: string[] = [];
   reply: "join" | "full" | "declined" | "invalid" = "join";
+  holdConsent = false;
 
   send(data: string) {
     this.sent.push(data);
@@ -116,6 +117,7 @@ class FakeSocket {
       payload?: { accepted?: boolean };
     };
     if (msg.command_type === "Consent") {
+      if (this.holdConsent) return;
       queueMicrotask(() => {
         this.onmessage?.({
           data: JSON.stringify({
@@ -414,6 +416,38 @@ describe("GuestRoomApp", () => {
     expect(
       types.filter((t) => t.command_type === "HeadphonesAck").length,
     ).toBeLessThan(3);
+  });
+
+  it("waits for a changed join result and preserves a retry under an unchanged error", async () => {
+    stubBootstrap();
+    render(<GuestRoomApp token="guest-tok" />);
+    await readyToJoin(getUserMedia);
+    const socket = sockets[0];
+    socket.holdConsent = true;
+    await userEvent.click(joinButton());
+    expect(screen.getByRole("button", { name: "Joining…" })).toBeDisabled();
+    act(() =>
+      socket.onmessage?.({
+        data: JSON.stringify({
+          plane: "record",
+          type: "Error",
+          code: "invalid_state",
+        }),
+      }),
+    );
+    await waitFor(() => expect(joinButton()).toBeEnabled());
+    await userEvent.click(joinButton());
+    expect(screen.getByRole("button", { name: "Joining…" })).toBeDisabled();
+    act(() => socket.onmessage?.(snapshotMessage({}, true)));
+    await screen.findByRole("button", { name: "Leave room" });
+    expect(
+      screen.queryByRole("heading", { name: "Join the room" }),
+    ).not.toBeInTheDocument();
+    expect(
+      socket.sent.filter(
+        (message) => JSON.parse(message).command_type === "Consent",
+      ),
+    ).toHaveLength(2);
   });
 
   it("closes the sheet and shows the room once consent lands", async () => {
