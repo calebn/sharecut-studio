@@ -218,6 +218,19 @@ export async function closeEpisodeProject(signal?: AbortSignal): Promise<void> {
   );
 }
 
+/** Shows the episode's folder in this computer's file manager; the host refuses a browser on another computer. */
+export async function revealProjectFolder(projectPath: string): Promise<void> {
+  await apiFetch(
+    HOST_KEY,
+    { host: "/api/project/reveal" },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: projectPath }),
+    },
+  );
+}
+
 export type PickEpisodeProjectResult =
   | { project_path: string }
   | { cancelled: true; detail?: string }

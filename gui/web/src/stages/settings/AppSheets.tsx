@@ -22,6 +22,8 @@ export type AppSheetsProps = {
   hasProject: boolean;
   /** Set while an episode is open. */
   projectFolder?: string;
+  /** Shows that folder in the file manager; absent where the app is not on that computer. */
+  onRevealFolder?: () => void;
   /** The agent that joined this episode, by name. */
   agentName: string | null;
 };
@@ -39,6 +41,7 @@ export function AppSheets({
   onOpenRecent,
   hasProject,
   projectFolder,
+  onRevealFolder,
   agentName,
 }: AppSheetsProps) {
   const form = useViewportClass() === "phone" ? "bottom" : "centered";
@@ -81,7 +84,9 @@ export function AppSheets({
         open={settingsOpen}
         onClose={onCloseSettings}
         onModels={onModels}
+        onShortcuts={onShortcuts}
         projectFolder={projectFolder}
+        onRevealFolder={onRevealFolder}
       />
     </>
   );

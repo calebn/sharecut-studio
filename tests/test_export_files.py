@@ -765,3 +765,22 @@ def test_the_head_route_stays_out_of_the_openapi_schema(remote) -> None:
     paths = remote.get("/openapi.json").json()["paths"]
 
     assert set(paths["/api/export/files/{file_id}"]) == {"get"}
+
+
+def test_reveal_project_shows_the_episode_file_and_refuses_a_lan_peer(
+    ws, local, client, monkeypatch
+) -> None:
+    shown: list[Path] = []
+    monkeypatch.setattr(
+        "podcast_mcp.gui.routes.export_files.reveal_in_file_manager",
+        lambda path: shown.append(path) or True,
+    )
+
+    ok = local.post("/api/project/reveal", json={"path": str(ws.path)})
+    lan = client.post("/api/project/reveal", json={"path": str(ws.path)})
+    missing = local.post("/api/project/reveal", json={"path": str(ws.path.parent / "gone")})
+
+    assert (ok.status_code, ok.json()) == (200, {"revealed": True})
+    assert shown == [ws.path.resolve()]
+    assert (lan.status_code, lan.headers[CODE]) == (403, "reveal_not_allowed")
+    assert missing.status_code == 400

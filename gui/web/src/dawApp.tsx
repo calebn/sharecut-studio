@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { registerDawWebMcpTools } from "./agentic/webmcp";
 import { runPointerCommand } from "./commands/pointer";
 import { registerDawCommands } from "./commands/register";
 import { useDesktopCloseGuard } from "./desktop/useDesktopCloseGuard";
+import { useNativeSettings } from "./desktop/useNativeSettings";
 import { FeedbackToast } from "./feedback/FeedbackToast";
 import { useAutoRefreshMix } from "./hooks/useAutoRefreshMix";
 import { useGuestSyncAndProjectPoll } from "./hooks/useGuestSyncAndProjectPoll";
@@ -33,6 +34,7 @@ import { ShareFlowProvider } from "./stage/hosts/shareFlow";
 import { AppSheets } from "./stages/settings/AppSheets";
 import { projectFolderOf } from "./stages/settings/projectFolder";
 import { useAgentName } from "./stages/settings/useAgentName";
+import { useRevealProjectFolder } from "./stages/settings/useRevealProjectFolder";
 import { useDawStore } from "./state/dawStore";
 import { selectPublishKey } from "./state/publishKey";
 import type { DawState } from "./state/types";
@@ -96,6 +98,14 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
   const { hasProject, projectName, suppressPublish } =
     useDaw(selectDawAppDerived);
   const projectFolder = hasProject ? projectFolderOf(projectPath) : undefined;
+  const revealFolder = useRevealProjectFolder(
+    hasProject ? projectPath : undefined,
+  );
+  const openSettings = useCallback(
+    () => setSettingsSheetOpen(true),
+    [setSettingsSheetOpen],
+  );
+  useNativeSettings(openSettings);
   const [feedbackHost, setFeedbackHost] = useState<HTMLDivElement | null>(null);
   const publishKey = useDawStore(selectPublishKey);
 
@@ -263,6 +273,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
                 }}
                 hasProject={hasProject}
                 projectFolder={projectFolder}
+                onRevealFolder={revealFolder}
                 agentName={agentName}
               />
               {syncEnabled ? (

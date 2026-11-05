@@ -181,11 +181,25 @@ fn handle_exit_requested(app: &tauri::AppHandle) -> Option<sharecut::CloseRisk> 
 fn native_menu(app: &tauri::AppHandle<tauri::Wry>) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
     use tauri::menu::{Menu, Submenu};
 
+    let file_menu = Submenu::with_items(app, "File", true, &[&settings_item(app)?])?;
     let Some(check_updates) = updater::menu_item(app)? else {
-        return Menu::new(app);
+        return Menu::with_items(app, &[&file_menu]);
     };
     let help_menu = Submenu::with_items(app, "Help", true, &[&check_updates])?;
-    Menu::with_items(app, &[&help_menu])
+    Menu::with_items(app, &[&file_menu, &help_menu])
+}
+
+/// **Settings…** opens the web app's Settings sheet: Cmd+, on macOS, Ctrl+, elsewhere.
+fn settings_item(
+    app: &tauri::AppHandle<tauri::Wry>,
+) -> tauri::Result<tauri::menu::MenuItem<tauri::Wry>> {
+    tauri::menu::MenuItem::with_id(
+        app,
+        sharecut::SETTINGS_MENU_ID,
+        "Settings…",
+        true,
+        Some(sharecut::SETTINGS_ACCELERATOR),
+    )
 }
 
 #[cfg(any(target_os = "macos", target_os = "linux"))]
@@ -242,6 +256,13 @@ fn native_menu(app: &tauri::AppHandle<tauri::Wry>) -> tauri::Result<tauri::menu:
         app_items.push(&about_item);
         app_items.push(&separator);
     }
+    #[cfg(target_os = "macos")]
+    let settings = settings_item(app)?;
+    #[cfg(target_os = "macos")]
+    {
+        app_items.push(&settings);
+        app_items.push(&separator);
+    }
     if let Some(check_updates) = &check_updates {
         app_items.push(check_updates);
     }
@@ -278,11 +299,23 @@ fn native_menu(app: &tauri::AppHandle<tauri::Wry>) -> tauri::Result<tauri::menu:
             &PredefinedMenuItem::select_all(app, None)?,
         ],
     )?;
+    #[cfg(target_os = "macos")]
     let file_menu = Submenu::with_items(
         app,
         "File",
         true,
         &[&PredefinedMenuItem::close_window(app, None)?],
+    )?;
+    #[cfg(target_os = "linux")]
+    let file_menu = Submenu::with_items(
+        app,
+        "File",
+        true,
+        &[
+            &settings_item(app)?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::close_window(app, None)?,
+        ],
     )?;
     let view_menu = Submenu::with_items(
         app,
@@ -629,6 +662,13 @@ fn show_sidecar_error(app: &tauri::AppHandle, detail: &str) {
     }
 }
 
+/// Asks the page to open its Settings sheet. The page ignores it until the app has mounted.
+fn open_settings(app: &tauri::AppHandle) {
+    if let Some(win) = app.get_webview_window("main") {
+        eval_js(&win, &sharecut::open_settings_script());
+    }
+}
+
 fn open_engine_window(app: &tauri::AppHandle, port: u16) {
     if let Some(win) = app.get_webview_window("main") {
         eval_js(
@@ -834,26 +874,23 @@ fn main() {
     } else {
         builder
     };
-    // Windows has no native menu unless the updater needs one.
-    let builder = if cfg!(windows) && updater_config.is_none() {
-        builder
-    } else {
-        builder.menu(native_menu).on_menu_event(|app, event| {
-            let id = event.id().as_ref();
-            if sharecut::is_guarded_quit_menu_item(id) {
-                app.exit(0);
-            } else if id == updater::MENU_ID {
-                updater::on_menu_click(app);
-            } else {
-                #[cfg(unix)]
-                if id == cli_links::INSTALL_MENU_ID {
-                    cli_action(app, true);
-                } else if id == cli_links::REMOVE_MENU_ID {
-                    cli_action(app, false);
-                }
+    let builder = builder.menu(native_menu).on_menu_event(|app, event| {
+        let id = event.id().as_ref();
+        if sharecut::is_guarded_quit_menu_item(id) {
+            app.exit(0);
+        } else if sharecut::is_settings_menu_item(id) {
+            open_settings(app);
+        } else if id == updater::MENU_ID {
+            updater::on_menu_click(app);
+        } else {
+            #[cfg(unix)]
+            if id == cli_links::INSTALL_MENU_ID {
+                cli_action(app, true);
+            } else if id == cli_links::REMOVE_MENU_ID {
+                cli_action(app, false);
             }
-        })
-    };
+        }
+    });
     builder
         .manage(SidecarState(Mutex::new(None)))
         .manage(EnginePortState(engine_port.clone()))

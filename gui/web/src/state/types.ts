@@ -46,7 +46,7 @@ export interface ChromeFlags {
   agentSheetOpen: boolean;
   /** Help sheet: shortcuts, Report a problem, Guides. */
   helpSheetOpen: boolean;
-  /** Settings sheet: Models and Project settings. */
+  /** Settings sheet: Appearance, Saved in, Models and Keyboard shortcuts. */
   settingsSheetOpen: boolean;
   /** Models dialog: every model, its state and download. */
   modelsSheetOpen: boolean;

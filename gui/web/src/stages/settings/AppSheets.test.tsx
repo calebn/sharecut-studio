@@ -60,14 +60,17 @@ describe("AppSheets", () => {
     expect(screen.getByText("Connected: Claude")).toBeInTheDocument();
   });
 
-  it("shows the project's folder under Settings only while an episode is open", async () => {
+  it("shows the project's folder and the shortcuts reference under Settings only where they exist", async () => {
     const { user, rerender, ...rest } = setup({
       settingsOpen: true,
       projectFolder: "/ws/ep",
     });
-    expect(
-      screen.getByRole("button", { name: /Project settings/ }),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Saved in")).toBeInTheDocument();
+    expect(screen.getByText("/ws/ep")).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: /Keyboard shortcuts/ }),
+    );
+    expect(rest.onShortcuts).toHaveBeenCalledOnce();
     rerender(
       <AppSheets
         helpOpen={false}
@@ -82,8 +85,9 @@ describe("AppSheets", () => {
         onOpenRecent={rest.onOpenRecent}
       />,
     );
+    expect(screen.queryByText("Saved in")).toBeNull();
     expect(
-      screen.queryByRole("button", { name: /Project settings/ }),
+      screen.queryByRole("button", { name: /Keyboard shortcuts/ }),
     ).toBeNull();
     await user.click(screen.getByRole("button", { name: /^Models/ }));
     expect(rest.onModels).toHaveBeenCalledOnce();

@@ -22,6 +22,9 @@ export function isThemePreference(v: unknown): v is ThemePreference {
 
 export const THEME_STORAGE_KEY = "daw_theme";
 
+/** Tells every `useTheme` on the page (the Project menu, the Settings sheet) that the preference changed. */
+const THEME_CHANGED_EVENT = "sharecut:theme-changed";
+
 function readStored(): ThemePreference {
   const v = readLocal(THEME_STORAGE_KEY);
   return isThemePreference(v) ? v : "system";
@@ -75,7 +78,21 @@ export function useTheme(): {
   useEffect(() => {
     applyTheme(preference);
     writeLocal(THEME_STORAGE_KEY, preference);
+    window.dispatchEvent(
+      new CustomEvent<ThemePreference>(THEME_CHANGED_EVENT, {
+        detail: preference,
+      }),
+    );
   }, [preference]);
+
+  useEffect(() => {
+    const follow = (event: Event) => {
+      const next = (event as CustomEvent<unknown>).detail;
+      if (isThemePreference(next)) setPreferenceState(next);
+    };
+    window.addEventListener(THEME_CHANGED_EVENT, follow);
+    return () => window.removeEventListener(THEME_CHANGED_EVENT, follow);
+  }, []);
 
   const setPreference = useCallback((p: ThemePreference) => {
     setPreferenceState(p);

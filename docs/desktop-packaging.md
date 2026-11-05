@@ -149,6 +149,16 @@ Quit item with a `Cmd+Q` menu command that calls `AppHandle::exit(0)`, so
 the app menu and Cmd+Q take the `ExitRequested` confirmation path. Dock Quit
 and OS shutdown can bypass the app menu; they remain best-effort paths.
 
+The native menu has a **Settings…** item that opens the web app's own Settings
+sheet (macOS: app menu, `Cmd+,`; Linux: File menu, `Ctrl+,`; Windows: File
+menu, `Ctrl+,`). Windows now always has a menu bar: File holds Settings…, and
+Help holds **Check for Updates…** only when the build has an updater. The
+loopback page gets no Tauri IPC, so the click handler (`settings_menu.rs`,
+`on_menu_event` in `main.rs`) evaluates a script that dispatches the DOM event
+`sharecut:open-settings` on `window`; `gui/web/src/desktop/useNativeSettings.ts`
+listens for it on Home and in a project and opens the Settings sheet. A browser
+and a phone have the in-app Menu row only.
+
 The loopback page receives no Tauri plugin capability, performs no native IPC,
 and never gets permission to destroy a window. `tauri-plugin-dialog` is used
 only by Rust for the confirmation dialog. Do not widen
