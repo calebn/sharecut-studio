@@ -83,11 +83,8 @@ export function SaveIndicator({
       >
         <SystemIcon name="cloud" size={16} className="sys-tone-warning" />
         <span className="sys-save-text">
-          Saved copy
-          <span className="sr-only">
-            {waiting ? `, ${waiting} waiting. ` : ". "}
-            {SAVED_COPY_TEXT}
-          </span>
+          {waiting ? `Saved copy · ${waiting} waiting` : "Saved copy"}
+          <span className="sr-only">. {SAVED_COPY_TEXT}</span>
         </span>
         {waiting ? (
           <span aria-hidden="true" className="sys-save-count">

@@ -43,9 +43,9 @@ describe("saveStateOf", () => {
       kind: "unreachable",
       count: 2,
     });
-    expect(saveStateOf({ ...quiet, unreachable: true, loaded: false })).toEqual(
-      { kind: "unreachable", count: 0 },
-    );
+    expect(
+      saveStateOf({ ...quiet, unreachable: true, loaded: false }),
+    ).toBeNull();
   });
 
   it("still reports a send in flight or an unreadable queue before unreachable", () => {

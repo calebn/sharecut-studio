@@ -117,19 +117,42 @@ describe("StageFrame header", () => {
   });
 
   it.each([
-    ["a live link", ["comment"], /^Saved$/],
-    ["a saved copy", null, /Saved copy.*read-only/],
-  ])("shows the Save dot for a guest on %s", async (_name, caps, text) => {
+    ["view", "a live link", ["view"], /^Saved$/],
+    ["comment", "a live link", ["comment"], /^Saved$/],
+    ["edit", "a live link", ["edit"], /^Saved$/],
+    ["view", "a saved copy", null, /Saved copy.*read-only/],
+    ["comment", "a saved copy", null, /Saved copy.*read-only/],
+    ["edit", "a saved copy", null, /Saved copy.*read-only/],
+  ] as const)(
+    "shows the Save dot to a %s guest on %s",
+    async (guestMode, _name, caps, text) => {
+      useDawStore.getState().hydrate("share:tok-s5", minimalProject(), null);
+      useDawStore.setState({
+        guestMode,
+        stage: "review",
+        shareCapabilities: caps ? [...caps] : null,
+      });
+      mount();
+      const header = screen.getAllByRole("banner")[0];
+      await waitFor(() =>
+        expect(within(header).getByRole("status")).toHaveTextContent(text),
+      );
+    },
+  );
+
+  it("keeps the Save dot in the phone header for a guest", async () => {
+    stubMatchMedia(true);
     useDawStore.getState().hydrate("share:tok-s5", minimalProject(), null);
     useDawStore.setState({
       guestMode: "comment",
       stage: "review",
-      shareCapabilities: caps,
+      shareCapabilities: ["comment"],
     });
     mount();
+    expect(document.querySelector(".stage-frame--phone")).not.toBeNull();
     const header = screen.getAllByRole("banner")[0];
     await waitFor(() =>
-      expect(within(header).getByRole("status")).toHaveTextContent(text),
+      expect(within(header).getByRole("status")).toHaveTextContent(/^Saved$/),
     );
   });
 });

@@ -48,16 +48,15 @@ export function latestSaveOutcome(
  * dismissed or a later command saves.
  *
  * Busy or settling wins because an edit on its way, or one whose outcome is not
- * yet read back, is the freshest fact. Then an unreadable queue, an unreachable
- * host (a saved copy is never "saved"), an unknown
+ * yet read back, is the freshest fact. Then an unreadable queue, an unknown
  * outcome, and edits waiting; the rest is saved. Null until the queue has been
  * read once, so a project never claims "Saved" before it knows.
  */
 export function saveStateOf(input: SaveStateInput): SaveState | null {
   if (input.busy || input.settling) return { kind: "saving" };
   if (input.unreadable) return { kind: "failed", cause: "unreadable" };
-  if (input.unreachable) return { kind: "unreachable", count: input.pending };
   if (!input.loaded) return null;
+  if (input.unreachable) return { kind: "unreachable", count: input.pending };
   const blocked = input.conflicts.findLast(
     (c) => c.kind === "refused" && c.blocksSave === true && !c.dismissed,
   );

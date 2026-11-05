@@ -364,7 +364,12 @@ describe("useSaveState", () => {
       render(<SaveDot />);
       await settle();
       expect(screen.getByRole("alert")).toHaveTextContent("Save failed");
-      expect(screen.getByRole("button", { name: /^Retry/ })).toBeVisible();
+      offlineStore.loadCommandQueue.mockClear();
+      offlineStore.loadCommandQueue.mockResolvedValue([]);
+      fireEvent.click(screen.getByRole("button", { name: /^Retry/ }));
+      await settle();
+      expect(offlineStore.loadCommandQueue).toHaveBeenCalledWith("tok-1448");
+      expect(screen.getByRole("status")).toHaveTextContent("Saved");
     });
 
     it("says it is a saved copy, with the waiting count, when the host cannot be reached", async () => {
@@ -373,8 +378,7 @@ describe("useSaveState", () => {
       render(<SaveDot />);
       await settle();
       const status = screen.getByRole("status");
-      expect(status).toHaveTextContent("Saved copy");
-      expect(status).toHaveTextContent("1 waiting");
+      expect(status).toHaveTextContent("Saved copy · 1 waiting");
       expect(status).toHaveTextContent(
         "Showing a saved copy because the host can't be reached. It is read-only.",
       );

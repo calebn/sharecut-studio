@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import {
+  refreshOfflineAttention,
   selectRecoveryOutcome,
   useOfflineAttention,
 } from "../../services/offlineQueue/offlineAttention";
@@ -59,7 +60,12 @@ export function useSaveState(): {
     state,
     attention:
       state?.kind === "failed" && state.cause === "unreadable"
-        ? { kind: "passive" }
+        ? guest && projectPath
+          ? {
+              kind: "button",
+              activate: () => refreshOfflineAttention(projectPath),
+            }
+          : { kind: "passive" }
         : {
             kind: "button",
             activate: () => {

@@ -65,13 +65,20 @@ export const Unreachable: Story = {
   args: { state: "unreachable", waiting: 2 },
   play: async ({ canvasElement }) => {
     const status = within(canvasElement).getByRole("status");
-    await expect(status).toHaveTextContent("Saved copy");
-    await expect(status).toHaveTextContent("2 waiting");
+    await expect(status).toHaveTextContent("Saved copy · 2 waiting");
     await expect(status).toHaveTextContent("It is read-only.");
   },
 };
+export const UnreachableNothingWaiting: Story = {
+  args: { state: "unreachable" },
+  play: async ({ canvasElement }) => {
+    const status = within(canvasElement).getByRole("status");
+    await expect(status).toHaveTextContent("Saved copy");
+    await expect(status).not.toHaveTextContent("waiting");
+  },
+};
 export const UnreachableCompact: Story = {
-  args: { state: "unreachable", compact: true },
+  args: { state: "unreachable", compact: true, waiting: 2 },
   play: async ({ canvasElement }) => {
     await expect(within(canvasElement).getByRole("status")).toHaveClass(
       "sys-save--compact",
