@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -59,3 +60,20 @@ def test_owner_trailer_allows_the_edit(repo):
 def test_empty_trailer_does_not_count(repo):
     _commit(repo, "docs/design/stages/spec.md", "docs: x\n\nStage-Spec-Approved:")
     assert guard.violations("main...HEAD") != []
+
+
+def test_this_change_leaves_the_stage_specs_alone():
+    try:
+        subprocess.run(
+            ["git", "-C", str(ROOT), "rev-parse", "--verify", "-q", "origin/main"],
+            check=True,
+            capture_output=True,
+        )
+    except subprocess.CalledProcessError:
+        pytest.skip("no origin/main to compare against")
+    cwd = Path.cwd()
+    try:
+        os.chdir(ROOT)
+        assert guard.violations("origin/main...HEAD") == []
+    finally:
+        os.chdir(cwd)
