@@ -237,6 +237,32 @@ describe("Export on the Deliver stage", () => {
     expect(announce).toHaveBeenCalledTimes(1);
   });
 
+  it("speaks no stall for an export whose run is cancelling", async () => {
+    render(<Host />);
+    await pressExport();
+    await waitFor(() =>
+      expect(useDawStore.getState().activityJob?.id).toBe("x1"),
+    );
+    const announce = vi.fn();
+    const nowS = () => Date.now() / 1000;
+    act(() =>
+      useDawStore.setState({
+        announceStatus: announce,
+        activityJob: { ...EXPORT_STARTED, last_progress_at: nowS() },
+      }),
+    );
+    const cancel = await screen.findByRole("button", { name: "Cancel" });
+    await waitFor(() => expect(cancel).toBeEnabled());
+    await userEvent.click(cancel);
+    await waitFor(() => expect(server.cancelRequests).toHaveLength(1));
+    act(() =>
+      useDawStore.setState({
+        activityJob: { ...EXPORT_STARTED, last_progress_at: nowS() - 30 },
+      }),
+    );
+    expect(announce).not.toHaveBeenCalled();
+  });
+
   it("lists the files the folder holds after an export, as downloads in a browser", async () => {
     server.files = [
       {
