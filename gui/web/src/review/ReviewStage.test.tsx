@@ -55,6 +55,14 @@ describe("ReviewStage", () => {
     expect(decided()).toBe(before);
   });
 
+  it("does not apply a group with Shift+Enter while the queue is sorted by time", async () => {
+    const { decided, press } = setup();
+    const before = decided();
+    await userEvent.click(screen.getByRole("button", { name: "By time" }));
+    press("Enter", { shiftKey: true });
+    expect(decided()).toBe(before);
+  });
+
   it("applies the group with Shift+Enter only for the chosen speaker", async () => {
     const host = { id: "host", label: "Host" };
     const guest = { id: "guest", label: "Guest" };
