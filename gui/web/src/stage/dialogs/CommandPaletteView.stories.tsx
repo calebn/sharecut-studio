@@ -6,7 +6,7 @@ import { openDialogViaLauncher } from "../../storybook/openDialog";
 import { isolatedStoryParameters } from "../../storybook/storyLayout";
 import { Button } from "../../ui";
 import { CommandPaletteView } from "./CommandPaletteView";
-import type { PaletteCommand } from "./paletteSearch";
+import type { PaletteCommand, PaletteEntry } from "./paletteSearch";
 
 /** Fixed, representative rows (the live adapter builds them from the catalog and keymap); commandPaletteRows.test.ts checks ids, labels, categories and default keys against both. */
 const COMMANDS: PaletteCommand[] = [
@@ -75,6 +75,37 @@ const COMMANDS: PaletteCommand[] = [
   },
 ];
 
+/** Representative Projects, People and Chapters rows (the live adapter is `paletteEntries`). */
+const ENTRIES: PaletteEntry[] = [
+  {
+    id: "project:/episodes/finale",
+    group: "projects",
+    label: "Season finale",
+    context: "Ready to deliver",
+    verb: "Open",
+    commandId: "project.open",
+    args: { path: "/episodes/finale" },
+  },
+  {
+    id: "person:c1",
+    group: "people",
+    label: "Ana",
+    context: "editor",
+    verb: "Follow",
+    commandId: "presence.follow",
+    args: { clientId: "c1" },
+  },
+  {
+    id: "chapter:62:Cold open",
+    group: "chapters",
+    label: "Cold open",
+    context: "1:02",
+    verb: "Go to",
+    commandId: "transport.seek",
+    args: { sec: 62 },
+  },
+];
+
 const LAUNCHER = "Open commands and shortcuts";
 const TITLE = "Commands and shortcuts";
 
@@ -116,6 +147,7 @@ const meta: Meta<typeof CommandPaletteView> = {
     onOpenGestures: fn(),
     onRun: fn(),
     onRemap: fn(),
+    onRunEntry: fn(),
   },
   argTypes: { open: { control: false } },
   render: (args, context) => (
@@ -141,6 +173,38 @@ export const Browse: Story = {
       within(dialog).getByRole("option", { name: "Fit session width \\" }),
     );
     await expect(args.onRun).toHaveBeenCalledWith("view.fit");
+  },
+};
+
+export const Groups: Story = {
+  args: { entries: ENTRIES },
+  play: async ({ args, canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await openDialogViaLauncher(canvasElement, LAUNCHER, TITLE);
+    for (const name of ["Projects", "People", "Chapters"]) {
+      await expect(within(dialog).getByRole("group", { name })).toBeVisible();
+    }
+    await userEvent.click(
+      within(dialog).getByRole("option", { name: "Cold open 1:02" }),
+    );
+    await expect(args.onRunEntry).toHaveBeenCalledWith(ENTRIES[2]);
+  },
+};
+
+export const Recent: Story = {
+  args: { entries: ENTRIES, recent: ["chapter:62:Cold open", "view.fit"] },
+  play: async ({ canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await openDialogViaLauncher(canvasElement, LAUNCHER, TITLE);
+    const recent = within(dialog).getByRole("group", { name: "Recent" });
+    await expect(within(recent).getAllByRole("option")).toHaveLength(2);
+    await userEvent.type(
+      within(dialog).getByRole("combobox", { name: "Search commands" }),
+      "fit",
+    );
+    await expect(
+      within(dialog).queryByRole("group", { name: "Recent" }),
+    ).toBeNull();
   },
 };
 

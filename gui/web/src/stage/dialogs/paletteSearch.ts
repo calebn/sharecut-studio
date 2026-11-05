@@ -31,7 +31,7 @@ export const PALETTE_CATEGORY_LABELS: Readonly<
   edit: "Edit",
   view: "View",
   ui: "App",
-  presence: "People",
+  presence: "Following",
 };
 
 /** Consecutive rows of one category, in the order given. */
@@ -92,3 +92,77 @@ export function searchPaletteCommands(
     .sort((a, b) => a.rank - b.rank || a.index - b.index)
     .map((r) => r.command);
 }
+
+export type PaletteEntryGroup = "projects" | "people" | "chapters";
+
+export const PALETTE_ENTRY_GROUP_ORDER: readonly PaletteEntryGroup[] = [
+  "projects",
+  "people",
+  "chapters",
+];
+
+export const PALETTE_ENTRY_GROUP_LABELS: Readonly<
+  Record<PaletteEntryGroup, string>
+> = {
+  projects: "Projects",
+  people: "People",
+  chapters: "Chapters",
+};
+
+/**
+ * A palette row that is data rather than a catalog command: a recent project,
+ * a person in the session, a chapter. Running it runs `commandId` with `args`
+ * through the command registry, so it follows the same gates as the command.
+ */
+export type PaletteEntry = {
+  /** Stable across opens (not a DOM id): recents are stored by it. */
+  id: string;
+  group: PaletteEntryGroup;
+  label: string;
+  /** Secondary text read with the label: a time, a role, a status. */
+  context?: string;
+  /** The action in words, for the status line: "Open", "Follow", "Go to". */
+  verb: string;
+  commandId: string;
+  args: Record<string, unknown>;
+};
+
+/** Entries whose label, context or group name contains every query word, label matches first. */
+export function searchPaletteEntries(
+  entries: readonly PaletteEntry[],
+  query: string,
+): PaletteEntry[] {
+  const q = query.trim().toLowerCase();
+  if (!q) {
+    return [...entries];
+  }
+  const words = q.split(/\s+/);
+  return entries
+    .map((entry, index) => {
+      const label = entry.label.toLowerCase();
+      const haystack =
+        `${label} ${entry.context ?? ""} ${PALETTE_ENTRY_GROUP_LABELS[entry.group]}`.toLowerCase();
+      return { entry, index, hit: words.every((w) => haystack.includes(w)) };
+    })
+    .filter((r) => r.hit)
+    .sort(
+      (a, b) =>
+        Number(!a.entry.label.toLowerCase().startsWith(q)) -
+          Number(!b.entry.label.toLowerCase().startsWith(q)) ||
+        a.index - b.index,
+    )
+    .map((r) => r.entry);
+}
+
+/** Non-empty entry groups in the fixed order Projects, People, Chapters. */
+export function groupPaletteEntries(
+  entries: readonly PaletteEntry[],
+): { group: PaletteEntryGroup; rows: PaletteEntry[] }[] {
+  return PALETTE_ENTRY_GROUP_ORDER.map((group) => ({
+    group,
+    rows: entries.filter((e) => e.group === group),
+  })).filter((g) => g.rows.length > 0);
+}
+
+/** How many Recent rows an empty query shows. */
+export const PALETTE_RECENT_LIMIT = 5;

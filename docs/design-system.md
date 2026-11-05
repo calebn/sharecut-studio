@@ -450,7 +450,10 @@ live adapter builds with `stage/dialogs/commandPaletteRows.ts`, a `.ts` helper t
 reads the command catalog, the keymap registry (and its remap overrides) and
 the `when` gates at runtime. The view searches and groups those rows with the
 store-free `stage/dialogs/paletteSearch.ts`, so `CommandPaletteView.tsx` imports
-nothing store-bound.
+nothing store-bound. Its `entries` prop (`PaletteEntry[]`: Projects, People and
+Chapters rows, each naming a registry command and its args, built by
+`paletteEntries` in the same helper) and `recent` prop (ids from
+`paletteRecent.ts`) arrive the same way.
 The live `EditCorner` and `CommandPalette` adapters read
 DAW state and dispatch through `execute`.
 

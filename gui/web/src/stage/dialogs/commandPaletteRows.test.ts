@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import type { RecentProject } from "../../api";
 import { COMMANDS, listCatalogIds } from "../../commands/catalog";
 import { buildCommandContext } from "../../commands/context";
 import { registerDawCommands } from "../../commands/register";
@@ -7,7 +8,7 @@ import { shareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { minimalProject } from "../../test/fixtures";
 import paletteStoryMeta from "./CommandPaletteView.stories";
-import { paletteCommands } from "./commandPaletteRows";
+import { paletteCommands, paletteEntries } from "./commandPaletteRows";
 import { searchPaletteCommands } from "./paletteSearch";
 
 const rowsNow = () => paletteCommands(buildCommandContext());
@@ -88,5 +89,78 @@ describe("paletteCommands", () => {
         defaultKey: actual?.defaultKey,
       });
     }
+  });
+});
+
+describe("paletteEntries", () => {
+  const recentProject = (path: string, extra: Partial<RecentProject> = {}) =>
+    ({
+      path,
+      name: path.split("/").at(-1) ?? path,
+      opened_at: "",
+      edited_at: null,
+      duration_sec: null,
+      stage: "edit",
+      chip: { text: "Ready", state: "ready" },
+      peaks: [],
+      folder_missing: false,
+      ...extra,
+    }) satisfies RecentProject;
+  const sources = {
+    chapters: [
+      { time: 90, title: "Outro" },
+      { time: 5, title: "Intro" },
+    ],
+    projects: [
+      recentProject("/p/a"),
+      recentProject("/p/b", { folder_missing: true }),
+      recentProject("/tmp/p.json"),
+    ],
+    people: [{ clientId: "c1", name: "Ana", role: "editor", following: true }],
+    projectPath: "/tmp/p.json",
+  };
+
+  beforeEach(() => {
+    registerDawCommands();
+    useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
+  });
+
+  it("builds chapters by time, people and other projects, each on a registry command", () => {
+    const entries = paletteEntries(buildCommandContext(), sources);
+    expect(entries.map((e) => [e.group, e.label, e.commandId, e.args])).toEqual(
+      [
+        ["projects", "a", "project.open", { path: "/p/a" }],
+        ["people", "Ana", "presence.follow", { clientId: "c1" }],
+        ["chapters", "Intro", "transport.seek", { sec: 5 }],
+        ["chapters", "Outro", "transport.seek", { sec: 90 }],
+      ],
+    );
+    expect(entries.find((e) => e.group === "people")?.verb).toBe(
+      "Stop following",
+    );
+    for (const e of entries) {
+      expect(COMMANDS[e.commandId], e.id).toBeDefined();
+    }
+  });
+
+  it("leaves Projects out on a guest link but keeps chapters and people", () => {
+    useDawStore
+      .getState()
+      .hydrate(shareProjectKey("tok"), minimalProject(), "view", ["play"]);
+    const groups = new Set(
+      paletteEntries(buildCommandContext(), sources).map((e) => e.group),
+    );
+    expect([...groups].sort()).toEqual(["chapters", "people"]);
+  });
+
+  it("returns nothing for an empty project with no people", () => {
+    expect(
+      paletteEntries(buildCommandContext(), {
+        ...sources,
+        chapters: [],
+        projects: [],
+        people: [],
+      }),
+    ).toEqual([]);
   });
 });

@@ -712,7 +712,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     keywords: ["load", "switch", "episode"],
     when: "canManageProjects",
     notes:
-      "No key (Mod+O is project.home); OS dialog via local engine; Home's Open other… path field when there is none",
+      "No key (Mod+O is project.home); OS dialog via local engine; Home's Open other… path field when there is none. Args: { path?: string } opens that episode without the picker (the palette's Projects group)",
   },
   "track.add": {
     id: "track.add",
