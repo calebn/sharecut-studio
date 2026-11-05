@@ -40,7 +40,7 @@ const COMMANDS: PaletteCommand[] = [
     category: "edit",
     shortcut: "Mod+K",
     defaultKey: "K",
-    note: "Mod+K cuts; K alone stops playback",
+    note: "Mod+K cuts; K alone pauses and returns",
     disabledReason: null,
   },
   {

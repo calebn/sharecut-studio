@@ -40,7 +40,7 @@ def session_stop(
 ) -> None:
     """Pause DAW transport in place and clear the highlight region.
 
-    GUI Stop / K also returns to the play start; this command does not.
+    GUI Pause and return (K) also returns to the play start; this command does not.
     """
     ws = ProjectWorkspace.open(project)
     state = SessionControlService(ws).stop()

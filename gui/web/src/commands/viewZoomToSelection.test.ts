@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { selectionSpan } from "../edit/editSelection";
 import { useDawStore } from "../state/dawStore";
+import { editFixtureProject, MIRA } from "../test/actionBarFixtures";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import { clearRegisteredCommands, execute } from "./execute";
 import { registerDawCommands } from "./register";
@@ -72,6 +74,36 @@ describe("view.zoomToSelection", () => {
     });
     await execute("view.zoomToSelection");
     expect(zoomToSpan).toHaveBeenCalledWith(20, 30, 90);
+  });
+
+  it("zooms to a transcript word range", async () => {
+    const project = editFixtureProject();
+    useDawStore.setState({
+      project,
+      selection: {
+        kind: "transcriptRange",
+        trackId: MIRA,
+        startWordIndex: 2,
+        endWordIndex: 3,
+      },
+    });
+    const span = selectionSpan(useDawStore.getState().selection, project);
+    expect(span).not.toBeNull();
+    expect((await execute("view.zoomToSelection")).status).toBe("ok");
+    expect(zoomToSpan).toHaveBeenCalledTimes(1);
+    expect(zoomToSpan.mock.calls[0]!.slice(0, 2)).toEqual([
+      span!.start,
+      span!.end,
+    ]);
+  });
+
+  it("does not zoom while the timeline is unmeasured", async () => {
+    useDawStore.setState({
+      selection: { kind: "clip", id: "c1", trackId: "mira-voice" },
+      measureTimelineViewport: () => 0,
+    });
+    expect((await execute("view.zoomToSelection")).status).toBe("disabled");
+    expect(zoomToSpan).not.toHaveBeenCalled();
   });
 
   it("says what to do with nothing selected", async () => {
