@@ -2,6 +2,7 @@ import {
   type RefObject,
   useCallback,
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -77,126 +78,118 @@ export function useScriptWindow(
   );
 
   const [view, setView] = useState<Range | null>(null);
+  const acceptedRequest = useRef<Range | null>(null);
   const liveWord = focus.following
     ? (focus.playing[0] ?? focus.playheadWord)
     : undefined;
-  const anchor = useRef(0);
-  if (liveWord !== undefined) anchor.current = liveWord;
-  const start = anchor.current;
-  const range = useMemo<Range>(() => {
-    if (!windowed) return { lo: 0, hi: Math.max(total - 1, 0) };
-    // A view past the end belongs to a replaced or merged transcript: it slides back to end at the last turn, or is rebuilt around the start if none of it remains.
-    if (!view || view.lo >= total) return around(turnOf(start), total);
-    if (view.hi < total) return view;
-    return {
-      lo: Math.max(total - 1 - (view.hi - view.lo), 0),
-      hi: total - 1,
-    };
-  }, [windowed, total, view, turnOf, start]);
-  const rangeRef = useRef(range);
-  rangeRef.current = range;
+  const [anchor, setAnchor] = useState(0);
+  if (liveWord !== undefined && anchor !== liveWord) setAnchor(liveWord);
+  const start = liveWord ?? anchor;
+  const range = useMemo<Range>(
+    () => resolveRange(view, windowed, total, turnOf, start),
+    [view, windowed, total, turnOf, start],
+  );
   const turns = useMemo(
     () => (windowed ? model.turns.slice(range.lo, range.hi + 1) : model.turns),
     [windowed, model.turns, range],
   );
+  const eye = useRef<{ request: Range; mark: EyeMark } | null>(null);
+  const retry = useRef<{
+    request: Range;
+    index: number;
+    block?: ScrollLogicalPosition;
+  } | null>(null);
 
-  const eye = useRef<EyeMark | null>(null);
-  const bodyOf = useCallback(
-    () => host.current?.querySelector<HTMLElement>(".sys-script-body") ?? null,
-    [host],
-  );
-  const markEye = useCallback(() => {
-    const body = bodyOf();
-    if (!body) return;
+  function eventRange(): Range {
+    const accepted = acceptedRequest.current;
+    return accepted === view
+      ? range
+      : resolveRange(accepted, windowed, total, turnOf, start);
+  }
+
+  function markEye(): EyeMark | null {
+    const body = scriptBody(host.current);
+    if (!body) return null;
     const top = body.getBoundingClientRect().top;
     for (const el of body.querySelectorAll<HTMLElement>("[data-turn-id]")) {
       const box = el.getBoundingClientRect();
       if (box.bottom > top) {
-        eye.current = {
-          turnId: el.dataset.turnId ?? "",
-          offset: box.top - top,
-        };
-        return;
+        return { turnId: el.dataset.turnId ?? "", offset: box.top - top };
       }
     }
-  }, [bodyOf]);
+    return null;
+  }
 
-  /** Draw `next` (kept inside the cap) and report whether the drawn range changed. */
-  const show = useCallback(
-    (next: Range, keepEye: boolean): boolean => {
-      const now = rangeRef.current;
-      if (next.lo === now.lo && next.hi === now.hi) return false;
-      if (keepEye) markEye();
-      rangeRef.current = next;
-      setView(next);
-      return true;
-    },
-    [markEye],
-  );
+  function show(next: Range, keepEye: boolean): boolean {
+    const now = eventRange();
+    if (next.lo === now.lo && next.hi === now.hi) return false;
+    const mark = keepEye ? markEye() : null;
+    eye.current = mark ? { request: next, mark } : null;
+    const pendingJump = retry.current;
+    if (pendingJump) retry.current = { ...pendingJump, request: next };
+    acceptedRequest.current = next;
+    setView(next);
+    return true;
+  }
 
-  const grow = useCallback(
-    (side: "up" | "down", keepEye: boolean) => {
-      if (!windowed) return;
-      const now = rangeRef.current;
-      show(
-        side === "up"
-          ? capFrom({ lo: now.lo - WINDOW_MARGIN, hi: now.hi }, total, "lo")
-          : capFrom({ lo: now.lo, hi: now.hi + WINDOW_MARGIN }, total, "hi"),
-        keepEye,
-      );
-    },
-    [windowed, total, show],
-  );
+  function grow(side: "up" | "down", keepEye: boolean): void {
+    if (!windowed) return;
+    const now = eventRange();
+    show(
+      side === "up"
+        ? capFrom({ lo: now.lo - WINDOW_MARGIN, hi: now.hi }, total, "lo")
+        : capFrom({ lo: now.lo, hi: now.hi + WINDOW_MARGIN }, total, "hi"),
+      keepEye,
+    );
+  }
 
-  const retry = useRef<{ index: number; block?: ScrollLogicalPosition } | null>(
-    null,
-  );
-  const scrollTo = useCallback(
-    (index: number, block?: ScrollLogicalPosition) => {
-      retry.current = null;
-      if (pane.current?.scrollToWord(index, block)) return true;
-      if (!windowed) return false;
-      const at = turnOf(index);
-      const target = around(at, total);
-      const now = rangeRef.current;
-      // Its turn is drawn already, so the pane lacks the word itself: no window helps.
-      if (now.lo <= at && at <= now.hi) return false;
-      const near = target.lo <= now.hi + 1 && target.hi >= now.lo - 1;
-      // A word beside the window joins it; a far one replaces it.
-      const next = near
-        ? capAround(
-            {
-              lo: Math.min(now.lo, target.lo),
-              hi: Math.max(now.hi, target.hi),
-            },
-            at,
-            total,
-          )
-        : target;
-      // Only a change of window gives the retry something to find.
-      if (show(next, false)) retry.current = { index, block };
-      return false;
-    },
-    [pane, windowed, turnOf, total, show],
-  );
-  // Once per request: the new window is drawn, so the word can be found now.
-  // A change of window the reader did not ask for keeps the turn they were on.
-  const drawn = useRef("");
+  function scrollTo(index: number, block?: ScrollLogicalPosition): boolean {
+    retry.current = null;
+    if (pane.current?.scrollToWord(index, block)) return true;
+    if (!windowed) return false;
+    const at = turnOf(index);
+    const target = around(at, total);
+    const now = eventRange();
+    if (now.lo <= at && at <= now.hi) return false;
+    const near = target.lo <= now.hi + 1 && target.hi >= now.lo - 1;
+    const next = near
+      ? capAround(
+          { lo: Math.min(now.lo, target.lo), hi: Math.max(now.hi, target.hi) },
+          at,
+          total,
+        )
+      : target;
+    if (show(next, false)) retry.current = { request: next, index, block };
+    return false;
+  }
+
+  const drawn = useRef<{
+    request: Range | null;
+    lo: number;
+    hi: number;
+  } | null>(null);
   useLayoutEffect(() => {
-    const key = `${range.lo}:${range.hi}`;
-    if (drawn.current === key) return;
-    drawn.current = key;
+    if (acceptedRequest.current !== view) return;
+    const before = drawn.current;
+    if (
+      before?.request === view &&
+      before.lo === range.lo &&
+      before.hi === range.hi
+    )
+      return;
+    drawn.current = { request: view, lo: range.lo, hi: range.hi };
     const again = retry.current;
     retry.current = null;
-    if (again) {
+    if (again?.request === view) {
       eye.current = null;
       pane.current?.scrollToWord(again.index, again.block);
       return;
     }
-    const mark = eye.current;
+    const pendingEye = eye.current;
     eye.current = null;
-    const body = bodyOf();
-    if (!mark || !body) return;
+    const body = scriptBody(host.current);
+    if (!pendingEye || pendingEye.request !== view || !body) return;
+    const mark = pendingEye.mark;
     const el = [...body.querySelectorAll<HTMLElement>("[data-turn-id]")].find(
       (candidate) => candidate.dataset.turnId === mark.turnId,
     );
@@ -206,40 +199,29 @@ export function useScriptWindow(
       body.getBoundingClientRect().top -
       mark.offset;
     if (shift !== 0) body.scrollTop += shift;
-  }, [range.lo, range.hi, pane, bodyOf]);
+  }, [range.lo, range.hi, view, pane, host]);
 
-  const reached = useCallback(
-    (index: number) => {
-      const at = turnOf(index);
-      const now = rangeRef.current;
-      if (at <= now.lo + EDGE) grow("up", true);
-      else if (at >= now.hi - EDGE) grow("down", true);
-    },
-    [turnOf, grow],
-  );
+  function reached(index: number): void {
+    const at = turnOf(index);
+    const now = eventRange();
+    if (at <= now.lo + EDGE) grow("up", true);
+    else if (at >= now.hi - EDGE) grow("down", true);
+  }
 
-  // The body is not drawn while the pane loads, so it can be a new node when the
-  // model is the same: look again after every commit and bind when it changed.
-  const growing = useRef(grow);
-  useLayoutEffect(() => {
-    growing.current = grow;
-  }, [grow]);
+  const growFromScroll = useEffectEvent((body: HTMLElement) => {
+    if (body.scrollTop < SCROLL_REACH) grow("up", true);
+    if (body.scrollHeight - body.scrollTop - body.clientHeight < SCROLL_REACH) {
+      grow("down", true);
+    }
+  });
   const bound = useRef<{ body: HTMLElement; off: () => void } | null>(null);
   useEffect(() => {
-    const body = windowed ? bodyOf() : null;
+    const body = windowed ? scriptBody(host.current) : null;
     if (bound.current?.body === body) return;
     bound.current?.off();
     bound.current = null;
     if (!body) return;
-    const onScroll = () => {
-      if (body.scrollTop < SCROLL_REACH) growing.current("up", true);
-      if (
-        body.scrollHeight - body.scrollTop - body.clientHeight <
-        SCROLL_REACH
-      ) {
-        growing.current("down", true);
-      }
-    };
+    const onScroll = () => growFromScroll(body);
     body.addEventListener("scroll", onScroll, { passive: true });
     bound.current = {
       body,
@@ -254,9 +236,11 @@ export function useScriptWindow(
     [],
   );
 
-  // While the playhead is followed, the pane keeps up with it.
   const { playKey, following, playing } = focus;
   const followed = useRef<string | null>(null);
+  const followWord = useEffectEvent((word: number) =>
+    scrollTo(word, "nearest"),
+  );
   useEffect(() => {
     const word = playing[0];
     if (!following || word === undefined) {
@@ -265,10 +249,27 @@ export function useScriptWindow(
     }
     if (followed.current === playKey) return;
     followed.current = playKey;
-    scrollTo(word, "nearest");
-  }, [playKey, following, playing, scrollTo]);
+    followWord(word);
+  }, [playKey, following, playing]);
 
   return { turns, scrollTo, reached };
+}
+
+function scriptBody(host: HTMLElement | null): HTMLElement | null {
+  return host?.querySelector<HTMLElement>(".sys-script-body") ?? null;
+}
+
+function resolveRange(
+  view: Range | null,
+  windowed: boolean,
+  total: number,
+  turnOf: (index: number) => number,
+  start: number,
+): Range {
+  if (!windowed) return { lo: 0, hi: Math.max(total - 1, 0) };
+  if (!view || view.lo >= total) return around(turnOf(start), total);
+  if (view.hi < total) return view;
+  return { lo: Math.max(total - 1 - (view.hi - view.lo), 0), hi: total - 1 };
 }
 
 function clamp(range: Range, total: number): Range {
