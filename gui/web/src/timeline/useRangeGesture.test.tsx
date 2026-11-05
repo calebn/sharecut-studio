@@ -22,6 +22,14 @@ function Harness({
 } = {}) {
   const ref = useRef<HTMLDivElement>(null);
   const gesture = useRangeGesture(ref, 10, 60);
+  const {
+    captureDown,
+    captureMove,
+    captureUp,
+    captureCancel,
+    captureLostCapture,
+    captureClick,
+  } = gesture;
   useLayoutEffect(() => {
     expose?.(gesture);
   });
@@ -29,12 +37,12 @@ function Harness({
     <div
       ref={ref}
       data-testid="lanes"
-      onPointerDownCapture={(event) => gesture.captureDown(event)}
-      onPointerMoveCapture={(event) => gesture.captureMove(event)}
-      onPointerUpCapture={(event) => gesture.captureUp(event)}
-      onPointerCancelCapture={(event) => gesture.captureCancel(event)}
-      onLostPointerCaptureCapture={(event) => gesture.captureLostCapture(event)}
-      onClickCapture={(event) => gesture.captureClick(event)}
+      onPointerDownCapture={captureDown}
+      onPointerMoveCapture={captureMove}
+      onPointerUpCapture={captureUp}
+      onPointerCancelCapture={captureCancel}
+      onLostPointerCaptureCapture={captureLostCapture}
+      onClickCapture={captureClick}
     >
       <div className="lane-row" data-track-id="destination">
         <div className="lane-seek" data-testid="blank" />
