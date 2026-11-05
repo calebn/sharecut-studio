@@ -1954,3 +1954,48 @@ def test_a_long_run_is_offered_at_its_nearest_start_middle_and_end_windows() -> 
     windows = room_tone_module._window_offsets((0.0, 10.0), 1.0, 1.0)
 
     assert windows == [(0.5, 1.5), (0.0, 1.0), (4.5, 5.5), (9.0, 10.0)]
+
+
+def _pending_cut(source_id: str | None, start: float, end: float) -> EditDecision:
+    return EditDecision(
+        id=f"pending-{source_id}-{start}",
+        track_id="host",
+        type=EditDecisionType.REMOVE,
+        start=start,
+        end=end,
+        source_id=source_id,
+        boundary_mode="exact",
+        review_required=False,
+        applied=False,
+    )
+
+
+def test_pending_cuts_on_a_later_recording_do_not_shrink_the_primary_recordings_pool(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.edits.cut_placement import pending_pad_source_spans
+
+    project = _pooled_project(tmp_path, monkeypatch, POOL)
+    _host_clip(project).source_end = 30.0
+    applying = _pending_cut("later", 100.0, 101.0)
+    project.edit_decisions = [
+        applying,
+        _pending_cut("later", 20.0, 21.8),
+        _pending_cut("later", 0.0, 1.9),
+        _pending_cut(None, 10.0, 11.8),
+    ]
+
+    avoid = pending_pad_source_spans(project, applying)
+    selected = room_tone_span(
+        project,
+        "host",
+        near_sec=2300.0,
+        near_source_id="later",
+        timeline_sec=1000.0,
+        duration_sec=0.5,
+        avoid=avoid.get("host", ()),
+    )
+
+    assert avoid == {"host": [(10.0, 11.8)]}
+    assert isinstance(selected, OwnQuietSample)
+    assert POOL[2].start <= selected.sample.start < POOL[2].end
