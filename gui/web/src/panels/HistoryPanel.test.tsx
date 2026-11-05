@@ -7,6 +7,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { loadHistoryDiff } from "../api";
+import { executePointerCommand } from "../commands/pointer";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
@@ -22,6 +23,11 @@ import { HistoryPanel } from "./HistoryPanel";
 vi.mock("../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api")>()),
   loadHistoryDiff: vi.fn(),
+}));
+
+vi.mock("../commands/pointer", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../commands/pointer")>()),
+  executePointerCommand: vi.fn(),
 }));
 
 function historyProject(count: number) {
@@ -104,6 +110,7 @@ describe("HistoryPanel list", () => {
 
   afterEach(() => {
     vi.mocked(loadHistoryDiff).mockReset();
+    vi.mocked(executePointerCommand).mockReset();
   });
 
   function deferredDiffs() {
@@ -169,6 +176,37 @@ describe("HistoryPanel list", () => {
     expect(await screen.findByText("diff exploded")).toBeTruthy();
     expect(container.querySelector(".history-diff")).toBeNull();
   });
+
+  it.each(["diff", "undo"] as const)(
+    "shows the later failure when %s fails first during concurrent history work",
+    async (first) => {
+      const failures = new Map<"diff" | "undo", (error: Error) => void>();
+      vi.mocked(loadHistoryDiff).mockImplementationOnce(
+        () =>
+          new Promise<HistoryDiff>((_resolve, reject) => {
+            failures.set("diff", reject);
+          }),
+      );
+      vi.mocked(executePointerCommand).mockImplementationOnce(
+        () =>
+          new Promise<never>((_resolve, reject) => {
+            failures.set("undo", reject);
+          }),
+      );
+      const { container } = renderList();
+      fireEvent.click(rowAt(container, 2)!);
+      fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+      await waitFor(() => expect(failures.size).toBe(2));
+      const second = first === "diff" ? "undo" : "diff";
+      await act(async () => failures.get(first)!(new Error(`${first} failed`)));
+      expect(screen.getByText(`${first} failed`)).toBeVisible();
+      await act(async () =>
+        failures.get(second)!(new Error(`${second} failed`)),
+      );
+      expect(screen.getByText(`${second} failed`)).toBeVisible();
+      expect(screen.queryByText(`${first} failed`)).toBeNull();
+    },
+  );
 
   it("drops the diff when the selected step leaves the history", async () => {
     vi.mocked(loadHistoryDiff).mockResolvedValue(diffOf("fade changed"));
