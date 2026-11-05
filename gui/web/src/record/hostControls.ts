@@ -17,9 +17,6 @@ export const TAKE_CONTROL = {
   { commandId: string; label: string; stop: boolean }
 >;
 
-export const STOP_CONFIRM_COPY =
-  "Stop this take? Recording ends for everyone in the room.";
-
 /** A host Start blocker with its words. */
 export type StartBlockerItem = {
   key: string;
