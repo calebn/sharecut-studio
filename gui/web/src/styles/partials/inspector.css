@@ -663,7 +663,6 @@ html[data-shell="phone"] select.track-sheet-field {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2) var(--space-4);
 }
 
 /* Two and two, so a narrow sheet never strands one button on a line. */
