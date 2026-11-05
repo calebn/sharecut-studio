@@ -1,3 +1,4 @@
+import { selectionSpan } from "../edit/editSelection";
 import { canApplyPass12, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { stageRoleOf, stagesForRole } from "../state/stageRoutes";
@@ -9,9 +10,14 @@ import {
   STAGE_SHEETS,
   type StageSheet,
 } from "../types/stage";
-import { discreteZoomFactor, formatWaveformAmp } from "../utils/zoom";
+import {
+  clampZoomPxPerSec,
+  discreteZoomFactor,
+  formatWaveformAmp,
+} from "../utils/zoom";
 import { registerCommand } from "./execute";
 
+const ZOOM_TO_SELECTION_FILL = 0.9;
 const NO_PROJECT = { status: "disabled", reason: "No project" } as const;
 const NOT_EDIT = { status: "disabled", reason: "Open Edit" } as const;
 
@@ -41,6 +47,22 @@ export function registerViewCommands(): void {
     const s = useDawStore.getState();
     if (!s.project) return NO_PROJECT;
     s.fitToWindow(s.measureTimelineViewport());
+    return { status: "ok" };
+  });
+
+  registerCommand("view.zoomToSelection", () => {
+    const s = useDawStore.getState();
+    if (!s.project) return NO_PROJECT;
+    const span = selectionSpan(s.selection, s.project);
+    const len = span ? span.end - span.start : 0;
+    if (!span || !(len > 0)) {
+      return { status: "disabled", reason: "Select something to zoom to" };
+    }
+    const zoom = clampZoomPxPerSec(
+      (s.measureTimelineViewport() * ZOOM_TO_SELECTION_FILL) / len,
+      s.project.timeline_duration_sec,
+    );
+    s.zoomToSpan(span.start, span.end, zoom);
     return { status: "ok" };
   });
 

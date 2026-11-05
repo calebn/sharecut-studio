@@ -87,9 +87,10 @@ export const VERBS = [
     keys: [k("J"), k("K"), k("L")],
     touch: "swipe-timeline",
     surfaces: ["player"],
-    status: "conflict",
-    replaces: ["transport.stop"],
-    note: "K stops playback today; J and L are new. Repeats go 1x, 2x, 4x.",
+    status: "bound",
+    commandId: "transport.shuttle",
+    alsoBound: ["transport.stop"],
+    note: "J jumps back 3, 6, 12 s (no reverse audio); L plays, then 2x, 4x; K pauses and returns.",
   },
   {
     id: "hear",
@@ -574,8 +575,8 @@ export const VERBS = [
     surfaces: ["timeline"],
     status: "bound",
     commandId: "view.zoomIn",
-    alsoBound: ["view.zoomOut", "view.fit"],
-    note: "= in, - out, \\ fit are live; Z to selection is new.",
+    alsoBound: ["view.zoomOut", "view.fit", "view.zoomToSelection"],
+    note: "= in, - out, \\ fit, Z to selection.",
   },
 ] as const satisfies readonly VerbDef[];
 

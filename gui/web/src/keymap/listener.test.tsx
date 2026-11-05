@@ -692,3 +692,39 @@ it("leaves Split, Undo, Backspace and the playhead keys to a focused Scrub field
     expect.anything(),
   );
 });
+
+it("leaves J, L and Z to a text field or contenteditable", async () => {
+  render(
+    <>
+      <KeymapHost />
+      <input aria-label="Note" />
+      <div contentEditable suppressContentEditableWarning data-testid="rich" />
+    </>,
+  );
+  Object.defineProperty(screen.getByTestId("rich"), "isContentEditable", {
+    value: true,
+  });
+  const targets = [
+    screen.getByRole("textbox", { name: "Note" }),
+    screen.getByTestId("rich"),
+  ];
+  for (const target of targets) {
+    for (const [key, code] of [
+      ["j", "KeyJ"],
+      ["l", "KeyL"],
+      ["z", "KeyZ"],
+    ]) {
+      vi.mocked(execute).mockClear();
+      await act(async () => {
+        fireEvent.keyDown(target, {
+          key,
+          code,
+          bubbles: true,
+          cancelable: true,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(execute).not.toHaveBeenCalled();
+    }
+  }
+});

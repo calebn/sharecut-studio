@@ -38,6 +38,8 @@ export type PlayerProps = {
   total: string;
   /** Edited-length delta, e.g. `−4:10`. */
   cuts?: string;
+  /** Shuttle rate above 1x, shown beside the time as "2×". */
+  rate?: number;
   /** Mix is re-rendering: a ring on Play and a Status pill. */
   state?: "ready" | "loading" | "mix-updating" | "error";
   /**
@@ -168,6 +170,14 @@ function CutsPill({ cuts }: Pick<PlayerProps, "cuts">) {
   return cuts ? (
     <Pill title="Length change from your cuts">
       <span className="sys-mono">{cuts}</span>
+    </Pill>
+  ) : null;
+}
+
+function RatePill({ rate }: Pick<PlayerProps, "rate">) {
+  return rate !== undefined && rate > 1 ? (
+    <Pill title="Playback speed">
+      <span className="sys-mono">{`${rate}×`}</span>
     </Pill>
   ) : null;
 }
@@ -451,6 +461,7 @@ export function Player(props: PlayerProps) {
               <span className="sys-player-total">{` / ${total}`}</span>
             </button>
             <CutsPill cuts={props.cuts} />
+            <RatePill rate={props.rate} />
           </div>
           <div className="sys-player-center">
             <PlayCluster {...props} statusId={statusId} />

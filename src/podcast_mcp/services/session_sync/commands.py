@@ -196,7 +196,7 @@ class PresenceTransport(BaseModel):
     model_config = ConfigDict(extra="ignore")
     playing: bool
     playhead_sec: PresenceSec
-    rate: float = Field(default=1.0, ge=0.5, le=2.0, allow_inf_nan=False)
+    rate: float = Field(default=1.0, ge=0.5, le=4.0, allow_inf_nan=False)
     stamped_ns: int | None = None
 
 

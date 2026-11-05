@@ -19,7 +19,8 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | Shortcut | Command | When | Notes |
 |----------|---------|------|-------|
 | `Space` | Play / pause (`transport.togglePlay`) | Timeline or transcript focused | When timeline or transcript is focused; Shift+Space is Hear |
-| `K` | Stop playback (`transport.stop`) | Always (when not typing in a field or on a focused Scrub field) | K alone stops playback; Mod+K splits at the playhead |
+| `K` | Pause and return (`transport.stop`) | Always (when not typing in a field or on a focused Scrub field) | K alone pauses and returns; Mod+K splits at the playhead |
+| `J` | Shuttle back (jumps back) / forward (`transport.shuttle`) | Always (when not typing in a field or on a focused Scrub field) | J jumps back 3, 6, 12 s; L plays at 1×, 2×, 4× |
 | `Mod+B` | Refresh mix (`render.refreshMix`) | Refresh mix allowed | Mod+B: rebuild stems/premix when host or Docs Editor |
 
 ## navigation
@@ -85,6 +86,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 |----------|---------|------|-------|
 | `=` | Zoom in (`view.zoomIn`) | Timeline focused | Timeline focused; also numpad + |
 | `-` | Zoom out (`view.zoomOut`) | Timeline focused | Timeline focused; also numpad - |
+| `Z` | Zoom to selection (`view.zoomToSelection`) | editStage | Edit stage; Mod+Z is Undo |
 | `\` | Fit session width (`view.fit`) | Timeline focused | Timeline focused |
 | `T` | Show or hide Script (`view.toggleScript`) | Project loaded | Edit stage; Mod+Shift+T is New track |
 | `Shift+T` | Script focus (`view.scriptFocus`) | Project loaded | Shift+T: Edit stage |
