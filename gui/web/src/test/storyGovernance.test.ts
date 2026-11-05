@@ -245,6 +245,7 @@ describe("Storybook title tiers", () => {
   it.each([
     "System/AppHeader",
     "System/StatusRow",
+    "Stages/Frame/Loading",
     "Stages/Home/Projects",
     "Stages/Record/JoinSheet",
     "Stages/Prepare/Sources",

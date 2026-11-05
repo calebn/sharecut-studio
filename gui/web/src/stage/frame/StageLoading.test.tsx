@@ -51,6 +51,20 @@ describe("StageLoading", () => {
     expect(stages?.querySelector(".sys-stage-tab")).not.toBeNull();
   });
 
+  it("leaves the status outside any aria-busy region so it is announced", () => {
+    render(
+      <StageLoading
+        stage="review"
+        shell="desktop"
+        elapsedMs={9000}
+        onRetry={vi.fn()}
+      />,
+    );
+    for (const status of screen.getAllByRole("status")) {
+      expect(status.closest('[aria-busy="true"]')).toBeNull();
+    }
+  });
+
   it("lays the blocks out like the destination stage", () => {
     const { container } = render(
       <StageLoading
