@@ -466,13 +466,13 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 - **Shared elements used:** Person tile, pill, Icon language (stage icons).
 - **Story to build:** `Stages/Frame/Presence` stories `Avatars`, `Popover`, `Following`, `FollowingPhone`.
 
-### BAN-LOADFAIL · Load failure banner
+### BAN-LOADFAIL · Load failure cover
 
 - **Was:** no shot; "Could not load transcript and history. Retry" as a page banner. Removed.
 - **Fate:** replaced by an in-place failure in the region that failed.
 - **Spec:** the stage body shows the system Cover at region size: icon, "Could not load the project" (Review: "The transcript didn't load"), "Try again", announced as an alert. The cover is the stage body, not a part of the collapsible Script pane, so it shows on a phone with the Script collapsed. While Try again runs the same button stays, busy (`aria-busy`, `aria-disabled`), so focus is not lost.
 - **Shared elements used:** Status cover (region size).
-- **Story to build:** `Stages/Frame/StatusCover` `RegionFailure`.
+- **Stories:** `LoadError` in `Stages/Review/Host`, `Stages/Prepare/Host` and `Stages/Edit/Workspace`; `LoadRetrying` in `Stages/Review/Host`.
 
 ---
 
