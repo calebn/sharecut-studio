@@ -254,7 +254,7 @@ def test_two_threads_asking_for_one_cold_floor_decode_the_file_once(
     room_tone._track_floor.cache_clear()
     calls = _slow_decode(monkeypatch)
     start = threading.Barrier(2)
-    reads: list[object] = []
+    reads: list[room_tone.FloorRead] = []
 
     def ask() -> None:
         start.wait()
