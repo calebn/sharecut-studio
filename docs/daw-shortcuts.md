@@ -22,7 +22,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | `K` | Pause and return (`transport.stop`) | Always (when not typing in a field or on a focused Scrub field) | K alone pauses and returns; Mod+K splits at the playhead |
 | `J` | Jump back (`transport.shuttleBack`) | Always (when not typing in a field or on a focused Scrub field) | Jumps back 3, 6, 12 s on quick repeats; no reverse audio |
 | `L` | Speed up (1×/2×/4×) (`transport.shuttleForward`) | Always (when not typing in a field or on a focused Scrub field) | Plays at 1×, then 2× and 4× on repeats; J, K or Space returns to 1× |
-| `Mod+B` | Refresh mix (`render.refreshMix`) | Refresh mix allowed | Mod+B: rebuild stems/premix when host or Docs Editor |
+| `Mod+` | Refresh mix (`render.refreshMix`) | Refresh mix allowed | Palette only (K11/K15): rebuild stems/premix when host or Docs Editor |
 
 ## navigation
 
@@ -78,7 +78,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | `.` | More (`edit.more`) | editStage | .: open the Action bar's More menu |
 | `C` | Add comment (`comment.draftAt`) | Host or a link that can comment | C: comment on the selection, else at the playhead; Mod+C is Copy |
 | `Shift+C` | Add chapter at playhead (`edit.addChapter`) | Loaded host project | Shift+C: add a chapter at the playhead |
-| `Mod+Shift+T` | New track (`track.add`) | editStageIngest | Mod+Shift+T (Shift avoids browser New Tab; Reaper uses Mod+T) |
+| `Mod+Shift+` | New track (`track.add`) | editStageIngest | Palette only (K11/K15) |
 | `Mod+I` | Import audio… (`media.import`) | Media ingest allowed | Mod+I: Menu or drop on arrange |
 
 ## view
@@ -89,7 +89,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | `-` | Zoom out (`view.zoomOut`) | Timeline focused | Timeline focused; also numpad - |
 | `Z` | Zoom to selection (`view.zoomToSelection`) | editStage | Edit stage; Mod+Z is Undo |
 | `\` | Fit session width (`view.fit`) | Timeline focused | Timeline focused |
-| `T` | Show or hide Script (`view.toggleScript`) | Project loaded | Edit stage; Mod+Shift+T is New track |
+| `T` | Show or hide Script (`view.toggleScript`) | Project loaded | Edit stage |
 | `Shift+T` | Script focus (`view.scriptFocus`) | Project loaded | Shift+T: Edit stage |
 | `Shift+ArrowUp` | Waveform amplitude zoom in (`view.waveformZoomIn`) | Timeline focused | Shift+ArrowUp: timeline focused |
 | `Shift+ArrowDown` | Waveform amplitude zoom out (`view.waveformZoomOut`) | Timeline focused | Shift+ArrowDown: timeline focused |
@@ -102,9 +102,9 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 |----------|---------|------|-------|
 | `M` | Record marker (`record.marker`) | recordStageActive | M: live marker on the Record stage; on any other stage, M still mutes — M drops a marker only on the Record stage; otherwise M mutes |
 | `?` | Commands and shortcuts (`ui.toggleCommandPalette`) | Always (when not typing in a field or on a focused Scrub field) | Also Shift+/ |
-| `Mod+Shift+B` | Bounce… (`export.bounce`) | Loaded host project | Mod+Shift+B: Bounce in Deliver (export/bounces/) |
-| `Mod+Shift+E` | Export deliverables… (`export.deliverables`) | Loaded host project | Mod+Shift+E: mastered export/ via PipelineService |
-| `Mod+N` | New project… (`project.new`) | Host project management | Mod+N |
+| `Mod+Shift+` | Bounce… (`export.bounce`) | Loaded host project | Palette only (K11/K15): Bounce in Deliver (export/bounces/) |
+| `Mod+E` | Export deliverables… (`export.deliverables`) | Loaded host project | Mod+E: mastered export/ via PipelineService; with a range selected, Bounce of that range |
+| `Mod+` | New project… (`project.new`) | Host project management | Palette only (K11/K15) |
 | `Mod+O` | All projects (`project.home`) | Host project management | Mod+O: Home. Open project… is in the palette and on Home |
 
 ## presence

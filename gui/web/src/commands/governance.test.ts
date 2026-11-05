@@ -28,7 +28,9 @@ type ManifestCapability = {
   id: string;
   label: string;
   gates?: string[];
-  surfaces?: { command?: string; keyboard?: string };
+  industry_standard_key?: boolean;
+  omit?: { keyboard_reason?: string };
+  surfaces?: { command?: string; keyboard?: string; mcp?: string[] };
 };
 
 const MANIFEST_CAPABILITIES: ManifestCapability[] = JSON.parse(
@@ -365,6 +367,25 @@ describe("command governance", () => {
       }
       expect(cap.label, cap.id).toBe(COMMANDS[commandId].label);
     }
+  });
+
+  it("gives each retired chord a manifest reason instead of a keyboard field", () => {
+    for (const id of [
+      "daw.project.new",
+      "daw.render.refreshMix",
+      "daw.track.add",
+      "daw.export.bounce",
+    ]) {
+      const cap = MANIFEST_CAPABILITIES.find((c) => c.id === id)!;
+      expect(cap.surfaces?.keyboard, id).toBeUndefined();
+      expect(cap.industry_standard_key, id).toBe(false);
+      expect(cap.omit?.keyboard_reason, id).toBeTruthy();
+    }
+    const exp = MANIFEST_CAPABILITIES.find(
+      (c) => c.id === "daw.export.deliverables",
+    )!;
+    expect(exp.surfaces?.keyboard).toBe("Mod+E");
+    expect(exp.surfaces?.mcp).toContain("bounce_audio_tool");
   });
 
   it("gates host project commands on a loaded host project", async () => {

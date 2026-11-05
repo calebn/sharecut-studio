@@ -51,6 +51,8 @@ def _keymap_chords() -> dict[str, str]:
         if not id_m:
             continue
         cid = id_m.group(1)
+        if re.search(r"keys:\s*\[\s*\]", chunk):
+            continue
         notes_m = re.search(r'notes:\s*"([^"]*)"', chunk)
         req_mod = "requireMod: true" in chunk
         req_alt = "requireAlt: true" in chunk

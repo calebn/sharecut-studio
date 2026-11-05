@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**141** capabilities · **107** ShareCut Studio commands · **62** keyed · **212** MCP tools · **17** skills on rows (+ **19** hub skills).
+**141** capabilities · **107** ShareCut Studio commands · **58** keyed · **212** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -81,8 +81,8 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Undo | project | `history.undo` | `Mod+Z` | `two-finger-tap` | `historyPanel`, `mobileShell.gesture.twoFingerTap`, `transcript.findReplace`, `transcript.wordbar` | `history_undo` | `podcast undo` | `podcast-history` | — | none · none |
 | Redo | project | `history.redo` | `Mod+Shift+Z` | — | `historyPanel` | `history_redo` | `podcast redo` | `podcast-history` | — | none · none |
 | Commands and shortcuts | view | `ui.toggleCommandPalette` | `?` | — | `GesturesSheet` | — | — | — | — | none · none |
-| Refresh mix | project | `render.refreshMix` | `Mod+B` | — | `deliverShare` | `render_preview` | `podcast render-preview` | `podcast-play-audition` | — | none · none |
-| Bounce… | project | `export.bounce` | `Mod+Shift+B` | — | `deliverBounce` | `bounce_audio_tool` | `podcast pipeline bounce` | `podcast-bounce-export` | yes | none · none |
+| Refresh mix | project | `render.refreshMix` | — (Mod+B belongs to the browser (bookmarks, bold); Refresh mix is in the palette and the mix ring) | — | `deliverShare` | `render_preview` | `podcast render-preview` | `podcast-play-audition` | — | none · none |
+| Bounce… | project | `export.bounce` | — (Mod+E bounces the selected range; Bounce is also in the palette and on Deliver) | — | `deliverBounce` | `bounce_audio_tool` | `podcast pipeline bounce` | `podcast-bounce-export` | yes | none · none |
 | Share… | project | `share.manage` | — (Invite, or Menu) | — | `deliverShare` | — | `podcast review share` | — | yes | none · none |
 | Create record room | project | `record.createRoom` | — (empty-state action on the Record stage) | — | `RecordStage` | `create_record_room_tool` | `podcast review share --kind record` | `podcast-record-session` | yes | none · none |
 | Copy guest link | session | `record.copyGuestLink` | — (Palette command; Share also has a Copy guest link button) | — | — | — | — | — | yes | none · none |
@@ -97,12 +97,12 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Connect agent… | view | `mcp.connect` | — (dialog from Menu) | — | `HostMcpDialog` | — | — | — | yes | none · none |
 | Export diagnostics… | view | `help.diagnosticsBundle` | — (dialog from Home / Menu) | — | `home.help`, `HelpDialog` | — | `podcast doctor --bundle` | — | yes | none · none |
 | Manage models… | view | `models.open` | — (dialog from Home / palette) | — | `home.models`, `ModelsDialog` | `model_download`, `model_download_status` | `podcast setup` | — | yes | none · none |
-| Export deliverables… | project | `export.deliverables` | `Mod+Shift+E` | — | `deliverStage` | `export_audio_tool` | `podcast pipeline export-audio` | `podcast-master-export` | yes | none · none |
+| Export deliverables… | project | `export.deliverables` | `Mod+E` | — | `deliverStage` | `export_audio_tool`, `bounce_audio_tool` | `podcast pipeline export-audio` | `podcast-master-export` | yes | none · none |
 | Export transcript… | project | `export.transcript` | — (Deliver page action, reached from the command palette) | — | `deliverTranscript` | `export_transcript`, `list_exported_transcripts` | `podcast transcript export` | `podcast-transcript-workflow` | yes | none · none |
-| New project… | project | `project.new` | `Mod+N` | — | — | `episode_create` | `podcast episode init` | — | yes | none · none |
+| New project… | project | `project.new` | — (Mod+N opens a browser window; New project is in the palette and on Home) | — | — | `episode_create` | `podcast episode init` | — | yes | none · none |
 | Open project… | session | `project.open` | — (Mod+O is All projects (project.home); open from the palette or Home) | — | — | — | — | — | yes | none · none |
 | All projects | session | `project.home` | `Mod+O` | — | `projectMenu` | — | — | — | yes | none · none |
-| New track | project | `track.add` | `Mod+Shift+T (Shift avoids browser New Tab; Reaper uses Mod+T)` | — | `trackLane`, `editPlusMenu` | `track_add_empty_tool`, `track_add` | `podcast doc submit` | — | — | none · none |
+| New track | project | `track.add` | — (Mod+Shift+T reopens a closed browser tab; New track is in the palette and the + menu) | — | `trackLane`, `editPlusMenu` | `track_add_empty_tool`, `track_add` | `podcast doc submit` | — | — | none · none |
 | Import audio… | project | `media.import` | `Mod+I` | — | `drop`, `editPlusMenu` | `track_set_media_tool` | — | — | — | none · none |
 | Adjust word timing | project | `transcript.adjustTiming` | — (Native range controls and numeric fields in the word inspector) | — | `transcript.wordbar` | `set_word_timing_tool` | `podcast transcript set-word-timing` | — | — | anchor · none |
 | Edit focused transcript word | project | `transcript.editWordInline` | `F2` | `double-tap` | — | `correct_transcript_tool` | `podcast transcript correct` | — | — | anchor · none |

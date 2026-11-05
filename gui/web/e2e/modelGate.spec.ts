@@ -15,7 +15,13 @@ import {
   VIEWPORTS,
 } from "./modelsMock";
 import { openHostProject } from "./overlayReachability";
-import { deliverPage, openPanel, phone, startExport } from "./stageNav";
+import {
+  deliverPage,
+  openPanel,
+  phone,
+  runPaletteCommand,
+  startExport,
+} from "./stageNav";
 import { trackHeaderButtons } from "./trackHeader";
 
 /**
@@ -542,7 +548,7 @@ for (const viewport of VIEWPORTS) {
         });
         await openHostProject(page);
         await page.locator("body").click({ position: { x: 1, y: 1 } });
-        await page.keyboard.press("ControlOrMeta+b");
+        await runPaletteCommand(page, "Refresh mix");
 
         const chipDownload = page.getByRole("button", {
           name: "Download Noise reduction (RNNoise)",
