@@ -8,7 +8,6 @@ import {
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveCommentAnchor } from "../../comments/commentAnchor";
-import { SHORT_VIEWPORT_MQ } from "../../hooks/useShortViewport";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
 import {
@@ -594,12 +593,7 @@ describe("Review queue for a guest", () => {
     });
 
     it("leaves the field in the card on a short phone", () => {
-      stubViewportShell("phone");
-      const base = window.matchMedia;
-      vi.stubGlobal("matchMedia", (query: string) => ({
-        ...base(query),
-        matches: query === SHORT_VIEWPORT_MQ || base(query).matches,
-      }));
+      stubViewportShell("phone", { short: true });
       useDawStore.setState({ shellBreakpoint: "phone" });
       join("comment");
       render(<ReviewHost guestShare />);
