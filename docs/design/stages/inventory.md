@@ -214,9 +214,9 @@ Guest mode comes from `guest_mode` in the review bootstrap: Viewer `view`, Comme
 
 | ID | Surface | Reach | Files | Story | View split | Purpose |
 |---|---|---|---|---|---|---|
-| SCR-GUEST-VIEWER | Guest shell, Viewer: banner "Shared view…", listen/mix only, no comment tool | `/r/<viewer token>` | `stage/frame/StageFrame.tsx` (`guestShare`), `stage/frame/BannerStack.tsx`, `shareMode.ts` | `stage/frame/StageFrame.stories.tsx` (GuestViewer, PhoneGuestViewer); `stage/hosts/ReviewHost.stories.tsx` (GuestViewer, GuestViewerPhone) | View | Read-only review |
-| SCR-GUEST-COMMENTER | Guest shell, Commenter: "You can comment and suggest edits", Blade as suggestion, pending suggestions | `/r/<commenter token>` | same | partial (same stories) | View | Review with comments and suggestions |
-| SCR-GUEST-EDITOR | Guest shell, Editor: "You can add tracks and audio", Import, approve/reject range proposals | `/r/<editor token>` | same | partial | View | Delegated editing |
+| SCR-GUEST-VIEWER | Guest shell, Viewer: Role chip "Viewer: can listen", listen/mix only, no comment tool | `/r/<viewer token>` | `stage/frame/StageFrame.tsx` (`guestShare`), `stage/frame/BannerStack.tsx`, `shareMode.ts` | `stage/frame/StageFrame.stories.tsx` (GuestViewer, PhoneGuestViewer); `stage/hosts/ReviewHost.stories.tsx` (GuestViewer, GuestViewerPhone) | View | Read-only review |
+| SCR-GUEST-COMMENTER | Guest shell, Commenter: Role chip "Commenter: can comment", Blade as suggestion, pending suggestions | `/r/<commenter token>` | same | partial (same stories) | View | Review with comments and suggestions |
+| SCR-GUEST-EDITOR | Guest shell, Editor: Role chip "Editor: can edit", Import, approve/reject range proposals | `/r/<editor token>` | same | partial | View | Delegated editing |
 | SCR-GUEST-MOBILE | Guest commenter on phone: the Review host with its comment composer (`ComposeAnchor`), no host-only controls | `/r/<token>` at 390 px | `stage/hosts/ReviewHost.tsx`, `stage/hosts/useReviewComments.tsx`, `stage/hosts/ComposeAnchor.tsx` | `stage/hosts/ReviewHost.stories.tsx` (GuestCommenterPhone, GuestCommenterPhone390) | Partial | Mobile reviewer |
 | SCR-GUEST-LINK-INVALID | "This link does not open the project." | `/r/<token without view>` | `App.tsx` + `ui/ErrorScreen.tsx` | `ui/ErrorScreen.stories.tsx` WithNextStep | Props | Dead link |
 | SCR-GUEST-OFFLINE | Cached snapshot when the host is unreachable | `/r/<token>` with bootstrap failing and a stored offline snapshot | `App.tsx`, `services/offlineQueue/offlineStore.ts`, `stage/frame/GuestAttentionBannerView.tsx` | `stage/frame/GuestAttentionBannerView.stories.tsx` (PendingHostEdits, Conflicts, PendingAndConflict, PhoneManyConflicts) | View | Keep working offline, show conflicts |
@@ -449,7 +449,7 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 | STAT-LIVE, CMP-RAIL-PEEK | no | |
 | CMP-TUNNEL, CMP-PRESENCE-STATUS | yes | |
 
-Tally of the 153 non-interaction items, counted from the Story columns: 65 yes, 33 partial, 55 no. Interactions: 18 yes (frozen states), 15 partial, 13 none.
+Tally of the 152 non-interaction items, counted from the Story columns: 65 yes, 33 partial, 54 no. Interactions: 18 yes (frozen states), 15 partial, 13 none.
 
 ---
 

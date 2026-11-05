@@ -41,7 +41,7 @@ issue.
 
 **Still open for UX:** First-run orientation copy; comment vs suggest-cut IA; plain-language Needs attention bodies; stopped-link copy.
 
-**Touches:** Guest banner, Listen mode, Comments, transport Menu, relay offline page, Needs attention.
+**Touches:** Role chip, Listen mode, Comments, transport Menu, relay offline page, Needs attention.
 
 ---
 
