@@ -346,6 +346,60 @@ describe("CommandPalette", () => {
     ).toBeTruthy();
   });
 
+  it("remembers a stage command as Recent without repeating it in Stages", async () => {
+    const user = userEvent.setup();
+    renderPalette();
+    await user.click(screen.getByRole("option", { name: /^Go to Edit/ }));
+    expect(
+      JSON.parse(localStorage.getItem("sharecut.palette.recent.v1") ?? "[]"),
+    ).toEqual(["stage.edit"]);
+    act(() => useDawStore.getState().setCommandPaletteOpen(true));
+    const recent = await screen.findByRole("group", { name: "Recent" });
+    expect(
+      within(recent).getAllByRole("option", { name: /^Go to Edit/ }),
+    ).toHaveLength(1);
+    expect(
+      within(screen.getByRole("group", { name: "Stages" })).getAllByRole(
+        "option",
+      ),
+    ).toHaveLength(5);
+    const ids = screen.getAllByRole("option").map((o) => o.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("shows the Help row enabled for the host and disabled with its reason on a review link", () => {
+    const { unmount } = renderPalette();
+    expect(
+      screen.getByRole("option", { name: /^Export diagnostics…/ }),
+    ).not.toHaveAttribute("aria-disabled");
+    unmount();
+    useDawStore
+      .getState()
+      .hydrate("share:tok", minimalProject(), "view", ["play"]);
+    useDawStore.getState().setCommandPaletteOpen(true);
+    renderPalette("share:tok");
+    const row = screen.getByRole("option", { name: /^Export diagnostics…/ });
+    expect(row).toHaveAttribute("aria-disabled", "true");
+    expect(row.textContent).toMatch(/host/i);
+  });
+
+  it("finds the Stage rows by typing stages and the Help row by typing help", async () => {
+    const user = userEvent.setup();
+    renderPalette();
+    await waitForDialogFocus();
+    await user.keyboard("stages");
+    expect(
+      screen
+        .getAllByRole("option")
+        .filter((o) => /^Go to /.test(o.textContent ?? "")),
+    ).toHaveLength(5);
+    await user.clear(screen.getByRole("combobox"));
+    await user.keyboard("help");
+    expect(
+      screen.getByRole("option", { name: /^Export diagnostics…/ }),
+    ).toBeTruthy();
+  });
+
   it("fetches the host's recent projects on a host link and lists them", async () => {
     vi.mocked(listRecentProjects).mockResolvedValue([recentProject]);
     renderPalette();
