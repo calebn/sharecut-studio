@@ -682,5 +682,6 @@ html[data-shell="phone"] select.track-sheet-field {
 
 /* A taller control keeps the row label at the top, clear of the buttons. */
 .sys-inspector-row:has(.scrub-nudge .nudge-row) {
+  grid-template-columns: minmax(min-content, 1fr) minmax(0, 11rem);
   align-items: start;
 }

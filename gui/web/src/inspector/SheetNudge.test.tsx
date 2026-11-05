@@ -120,6 +120,24 @@ describe("SheetNudge", () => {
     expect(api.setClipFade.mock.calls[0]?.[2]).toBe(held);
   });
 
+  it("ends a held run when the row stops drawing", async () => {
+    const view = open(<SheetNudge field={FADE} name="Fade in" />);
+    fireEvent.pointerDown(button("Fade in 1 ms longer"), { button: 0 });
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    view.rerender(<SheetNudge field={FADE} name="Fade in" hidden />);
+    await flush();
+    const at = useDawStore.getState().project?.clips.tracks.host[0]?.fade_in_ms;
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(
+      useDawStore.getState().project?.clips.tracks.host[0]?.fade_in_ms,
+    ).toBe(at);
+    expect(screen.queryByRole("group", { name: /Nudge/ })).toBeNull();
+  });
+
   it("steps a key press by one fine step", async () => {
     open(<SheetNudge field={FADE} name="Fade in" />);
     const minus = button("Fade in 1 ms shorter");
