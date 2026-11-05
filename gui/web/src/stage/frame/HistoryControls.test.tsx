@@ -90,13 +90,13 @@ describe("CompactHistoryControls", () => {
         action === "undo" ? "Nothing to undo" : "Nothing to redo",
       );
       expect(vi.getTimerCount()).toBe(1);
-      await act(() => {
+      await act(async () => {
         vi.advanceTimersByTime(3499);
       });
       expect(
         button.querySelector(".compact-history-caption"),
       ).toBeInTheDocument();
-      await act(() => {
+      await act(async () => {
         vi.advanceTimersByTime(1);
       });
       expect(
@@ -108,14 +108,14 @@ describe("CompactHistoryControls", () => {
 
       rerender(<HistoryControls {...props} />);
       fireEvent.click(button);
-      await act(() => {
+      await act(async () => {
         vi.advanceTimersByTime(3499);
       });
       expect(
         button.querySelector(".compact-history-caption"),
       ).toBeInTheDocument();
       fireEvent.click(button);
-      await act(() => {
+      await act(async () => {
         vi.advanceTimersByTime(3499);
       });
       expect(
@@ -123,7 +123,7 @@ describe("CompactHistoryControls", () => {
           .getByRole("button", { name: action === "undo" ? "Undo" : "Redo" })
           .querySelector(".compact-history-caption"),
       ).toBeInTheDocument();
-      await act(() => {
+      await act(async () => {
         vi.advanceTimersByTime(1);
       });
       rerender(<HistoryControls {...props} />);
@@ -153,7 +153,7 @@ describe("CompactHistoryControls", () => {
       const button = screen.getByRole("button", { name: label });
       fireEvent.click(button);
       expect(screen.getByRole("status")).toHaveTextContent(reason);
-      await act(() => {
+      await act(async () => {
         vi.advanceTimersByTime(1000);
       });
       rerender(
@@ -171,11 +171,11 @@ describe("CompactHistoryControls", () => {
       expect(button).toHaveAccessibleDescription(reason);
       fireEvent.click(button);
       expect(screen.getByRole("status")).toHaveTextContent(reason);
-      await act(() => {
+      await act(async () => {
         vi.advanceTimersByTime(3499);
       });
       expect(screen.getByRole("status")).toHaveTextContent(reason);
-      await act(() => {
+      await act(async () => {
         vi.advanceTimersByTime(1);
       });
       expect(screen.getByRole("status")).toBeEmptyDOMElement();
@@ -200,7 +200,7 @@ describe("CompactHistoryControls", () => {
       const button = screen.getByRole("button", { name: label });
       fireEvent.click(button);
       expect(screen.getByRole("status")).toHaveTextContent(reason);
-      await act(() => {
+      await act(async () => {
         vi.advanceTimersByTime(1000);
       });
       rerender(<HistoryControls {...props} history={null} />);
@@ -217,11 +217,11 @@ describe("CompactHistoryControls", () => {
 
       fireEvent.click(restoredButton);
       expect(screen.getByRole("status")).toHaveTextContent(reason);
-      await act(() => {
+      await act(async () => {
         vi.advanceTimersByTime(3499);
       });
       expect(screen.getByRole("status")).toHaveTextContent(reason);
-      await act(() => {
+      await act(async () => {
         vi.advanceTimersByTime(1);
       });
       expect(screen.getByRole("status")).toBeEmptyDOMElement();
@@ -246,18 +246,18 @@ describe("CompactHistoryControls", () => {
           name: action === "undo" ? "Undo" : "Redo",
         }),
       );
-      await act(() => {
+      await act(async () => {
         vi.advanceTimersByTime(1000);
       });
       rerender(<HistoryControls {...props} history={{ ...props.history }} />);
 
-      await act(() => {
+      await act(async () => {
         vi.advanceTimersByTime(2499);
       });
       expect(screen.getByRole("status")).toHaveTextContent(
         action === "undo" ? "Nothing to undo" : "Nothing to redo",
       );
-      await act(() => {
+      await act(async () => {
         vi.advanceTimersByTime(1);
       });
       expect(screen.getByRole("status")).toBeEmptyDOMElement();

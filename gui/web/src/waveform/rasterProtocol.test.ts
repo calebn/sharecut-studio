@@ -114,16 +114,16 @@ describe("handleRasterMessage", () => {
     expect(out).toMatchObject({ type: "error", id: 5 });
   });
 
-  it("measures GL vs CPU parity, or null without GL", async () => {
+  it("measures GL vs CPU parity, or null without GL", () => {
     expect(
-      await handleRasterMessage({ type: "parity", id: 1 }, engine(null)),
+      handleRasterMessage({ type: "parity", id: 1 }, engine(null)),
     ).toEqual({ type: "parity", id: 1, value: null });
-    const same = await handleRasterMessage(
+    const same = handleRasterMessage(
       { type: "parity", id: 2 },
       engine(mirrorGl()),
     );
     expect(same.type === "parity" && same.value).toBeLessThanOrEqual(1 / 255);
-    const drift = await handleRasterMessage(
+    const drift = handleRasterMessage(
       { type: "parity", id: 3 },
       engine(mirrorGl(4)),
     );

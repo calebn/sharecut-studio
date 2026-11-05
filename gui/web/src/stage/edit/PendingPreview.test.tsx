@@ -152,6 +152,8 @@ async function settle() {
   );
 }
 
+const createObjectURL = vi.fn(() => "blob:pending-preview");
+
 describe("pending preview footer", () => {
   beforeEach(() => {
     vi.mocked(hostFetch)
@@ -161,7 +163,8 @@ describe("pending preview footer", () => {
       "fetch",
       vi.fn(async () => wavResponse(1.25)),
     );
-    URL.createObjectURL = vi.fn(() => "blob:pending-preview");
+    createObjectURL.mockClear();
+    URL.createObjectURL = createObjectURL;
     URL.revokeObjectURL = vi.fn();
   });
 
@@ -318,7 +321,7 @@ describe("pending preview footer", () => {
     await act(async () => finish(wavResponse(1)));
     await settle();
     expect(useDawStore.getState().sourcePreview).toBeNull();
-    expect(URL.createObjectURL).not.toHaveBeenCalled();
+    expect(createObjectURL).not.toHaveBeenCalled();
     expect(onError).toHaveBeenLastCalledWith(
       "This edit changed while its preview rendered. Play it again.",
     );
@@ -461,7 +464,7 @@ describe("pending preview footer", () => {
       await act(async () => finish(wavResponse(1)));
       await settle();
       expect(useDawStore.getState().sourcePreview).toBeNull();
-      expect(URL.createObjectURL).not.toHaveBeenCalled();
+      expect(createObjectURL).not.toHaveBeenCalled();
     },
   );
 });
