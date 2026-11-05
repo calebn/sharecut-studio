@@ -138,6 +138,7 @@ button.sys-role[aria-pressed="true"] {
 }
 
 @media (pointer: coarse) {
+  button.sys-role,
   .sys-time-input,
   .sys-time {
     min-block-size: var(--touch-min);

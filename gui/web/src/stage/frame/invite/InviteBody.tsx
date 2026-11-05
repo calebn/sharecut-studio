@@ -1,5 +1,8 @@
 import { useEffect, useId, useRef } from "react";
-import type { ShareOptions } from "../../../stages/deliver/shareLogic";
+import type {
+  ShareEnd,
+  ShareOptions,
+} from "../../../stages/deliver/shareLogic";
 import { TunnelStatusLine } from "../../../stages/deliver/TunnelStatusLine";
 import type { InviteGroup } from "../../../types/stage";
 import { InlineError } from "../../../ui";
@@ -60,10 +63,26 @@ export function InviteBody({ options, at = null }: Props) {
     if (text && selection) selection.selectAllChildren(text);
   }, [blockedKey, rows]);
 
+  // Focus goes to the group heading once the ended link or room has left the
+  // list: the list reloads after the stop, and a heading focused earlier would
+  // be lost with it.
+  const ended = useRef<ShareEnd | null>(null);
+  useEffect(() => {
+    const gone = ended.current;
+    if (!gone) return;
+    const stillThere =
+      gone.kind === "link"
+        ? rows.some((row) => row.token === gone.token)
+        : rows.some((row) => row.session_id === gone.sessionId);
+    if (stillThere) return;
+    ended.current = null;
+    (gone.kind === "room" ? recordHeading : reviewHeading).current?.focus();
+  }, [rows]);
+
   const confirm = () => {
-    const kind = end.pending?.kind;
+    const pending = end.pending;
     if (!end.confirm()) return;
-    (kind === "room" ? recordHeading : reviewHeading).current?.focus();
+    ended.current = pending;
   };
   const shared = {
     options,
