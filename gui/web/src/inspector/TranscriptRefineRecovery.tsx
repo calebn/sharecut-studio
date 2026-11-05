@@ -7,6 +7,9 @@ import {
   TRANSCRIPT_REFINE_REQUIRED_CODE,
 } from "../utils/apiError";
 
+/** The server's cap on a waiver reason (characters). */
+export const WAIVER_REASON_MAX = 2000;
+
 export const REFINE_GATE_GUI_MESSAGE =
   "Transcript refinement is required before approval. Review the transcript or waive with a reason below.";
 
@@ -72,7 +75,7 @@ export function TranscriptRefineRecovery({
     >
       <Field
         label="Waiver reason"
-        hint="This reason is saved with the transcript-refine status."
+        hint={`This reason is saved with the transcript-refine status. ${reason.length} of ${WAIVER_REASON_MAX} characters.`}
         error={formError}
       >
         {(control) => (
@@ -80,6 +83,7 @@ export function TranscriptRefineRecovery({
             {...control}
             value={reason}
             rows={3}
+            maxLength={WAIVER_REASON_MAX}
             disabled={busy}
             onChange={(event) => setReason(event.target.value)}
           />
