@@ -12,7 +12,10 @@ import { overflowLabel } from "../../utils/format";
 import {
   attentionCountLabel,
   attentionRegionLabel,
+  conflictAdvice,
+  DISMISS_FAILED_NOTE,
   NEEDS_ATTENTION,
+  UNREADABLE_NOTE,
 } from "./attentionLabel";
 
 /** Conflict list items shown before the rest collapse into a "+N more" item. */
@@ -244,15 +247,8 @@ export function GuestAttentionBannerView({
                 </span>
               )}
               <ul className="guest-attention-list">
-                {unreadable && (
-                  <li>
-                    Could not read saved edits on this device. Your saved edits
-                    have been kept.
-                  </li>
-                )}
-                {dismissFailed && (
-                  <li>Dismissal failed. Your saved outcomes have been kept.</li>
-                )}
+                {unreadable && <li>{UNREADABLE_NOTE}</li>}
+                {dismissFailed && <li>{DISMISS_FAILED_NOTE}</li>}
                 {conflicts.slice(0, ATTENTION_LISTED_CONFLICTS).map((c) => {
                   const waivable =
                     c.kind === "refused" &&
@@ -286,24 +282,8 @@ export function GuestAttentionBannerView({
                             )
                           }
                         />
-                      ) : c.kind === "refused" && c.blocksSave ? (
-                        <span>
-                          {guest
-                            ? "Ask the project owner to check the project."
-                            : "Fix the project file first; this change was not saved."}
-                        </span>
-                      ) : c.kind === "refused" ? (
-                        <span>Edit the change and submit it again.</span>
-                      ) : c.recovery === "inspect-history" ? (
-                        <span>
-                          {guest
-                            ? "Ask the project owner to inspect History before trying this action again."
-                            : "Inspect History before trying this action again."}
-                        </span>
                       ) : (
-                        <span>
-                          The app will retry this same command automatically.
-                        </span>
+                        <span>{conflictAdvice(c, guest)}</span>
                       )}
                     </li>
                   );

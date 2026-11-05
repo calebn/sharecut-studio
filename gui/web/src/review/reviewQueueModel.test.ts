@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { QUEUE_ITEMS } from "../storybook/reviewFixtures";
+import { offlineConflict } from "../test/fixtures";
 import {
+  attentionLabelOf,
+  attentionRowsOf,
+  attentionVisible,
   commentLine,
   decidedItems,
   decisionMessage,
+  dismissReasonOf,
   filterCounts,
   filterItems,
   fullOrder,
@@ -12,6 +17,7 @@ import {
   landPlan,
   lowRiskBulk,
   progressLine,
+  type ReviewAttention,
   type ReviewItem,
   resultText,
   speakersOf,
@@ -405,5 +411,97 @@ describe("speaker filter", () => {
       { ...guest, open: 1 },
     ]);
     expect(speakersOf([items[0]!, items[3]!])).toEqual([]);
+  });
+});
+
+describe("guest attention rows", () => {
+  const attention = (over: Partial<ReviewAttention> = {}): ReviewAttention => ({
+    rows: attentionRowsOf([offlineConflict()]),
+    unreadable: false,
+    dismissFailed: false,
+    checking: false,
+    canDismiss: true,
+    onDismissAll: () => undefined,
+    onRetry: () => undefined,
+    ...over,
+  });
+
+  it("words each conflict as the banner does, with the guest advice", () => {
+    expect(
+      attentionRowsOf([
+        offlineConflict({ command: { command_id: "a", type: "TrimClip" } }),
+        offlineConflict({
+          command: { command_id: "b" },
+          kind: "unknown",
+          reason: "Unclear",
+          recovery: "inspect-history",
+        }),
+        offlineConflict({
+          command: { command_id: "c" },
+          reason: "Missing",
+          blocksSave: true,
+        }),
+        offlineConflict({
+          command: { command_id: "d" },
+          kind: "unknown",
+          reason: "Dropped",
+          recovery: "retry-same-command",
+        }),
+      ]),
+    ).toEqual([
+      {
+        id: "a",
+        title: "TrimClip: Envelope changed since this edit was queued",
+        detail: "Edit the change and submit it again.",
+      },
+      {
+        id: "b",
+        title: "SetEnvelope: Unclear",
+        detail:
+          "Ask the project owner to inspect History before trying this action again.",
+      },
+      {
+        id: "c",
+        title: "SetEnvelope: Missing",
+        detail: "Ask the project owner to check the project.",
+      },
+      {
+        id: "d",
+        title: "SetEnvelope: Dropped",
+        detail: "The app will retry this same command automatically.",
+      },
+    ]);
+  });
+
+  it("shows only under All and Checks, and only with something to say", () => {
+    expect(attentionVisible(attention(), "all")).toBe(true);
+    expect(attentionVisible(attention(), "checks")).toBe(true);
+    expect(attentionVisible(attention(), "comments")).toBe(false);
+    expect(attentionVisible(attention({ rows: [] }), "all")).toBe(false);
+    expect(
+      attentionVisible(attention({ rows: [], unreadable: true }), "all"),
+    ).toBe(true);
+    expect(
+      attentionVisible(attention({ rows: [], dismissFailed: true }), "all"),
+    ).toBe(true);
+    expect(attentionVisible(undefined, "all")).toBe(false);
+  });
+
+  it("labels the group with the banner's region label", () => {
+    expect(attentionLabelOf(attention())).toBe("Needs attention. 1 conflict");
+    expect(attentionLabelOf(attention({ unreadable: true }))).toBe(
+      "Needs attention. 1 conflict. Saved edits could not be read",
+    );
+  });
+
+  it("says why dismissing is unavailable", () => {
+    expect(dismissReasonOf(attention())).toBeUndefined();
+    expect(dismissReasonOf(attention({ checking: true }))).toMatch(/Checking/);
+    expect(dismissReasonOf(attention({ dismissFailed: true }))).toMatch(
+      /failed/,
+    );
+    expect(dismissReasonOf(attention({ unreadable: true }))).toMatch(
+      /could not be read/,
+    );
   });
 });

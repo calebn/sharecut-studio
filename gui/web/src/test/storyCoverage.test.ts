@@ -126,6 +126,7 @@ const COVERED: Record<string, string[]> = {
   "SCR-GUEST-LINK-INVALID": ["Organisms/ErrorScreen", "System/Cover"],
   "SCR-GUEST-OFFLINE": ["System/Cover", "Templates/GuestAttentionBanner"],
   "BAN-GUEST-ATTENTION": ["Templates/GuestAttentionBanner"],
+  "CMP-GUEST-CONFLICT": ["Stages/Review/Queue"],
   "BAN-FOLLOW": ["Templates/FollowBanner"],
   "SCR-REC-LOADING": ["Organisms/LoadingScreen"],
   "SCR-REC-INVALID": ["Organisms/ErrorScreen"],

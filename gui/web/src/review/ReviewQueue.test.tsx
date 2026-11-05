@@ -3,7 +3,13 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { reviewContent } from "../storybook/reviewContent";
 import { QUEUE_WITHOUT_CHECKS } from "../storybook/reviewFixtures";
-import { ReviewQueue } from "./ReviewQueue";
+import { offlineConflict } from "../test/fixtures";
+import { ReviewQueue, type ReviewQueueProps } from "./ReviewQueue";
+import {
+  attentionRowsOf,
+  type ReviewAttention,
+  type ReviewFilter,
+} from "./reviewQueueModel";
 
 describe("ReviewQueue", () => {
   it("gives a blocked row no swipe verb", () => {
@@ -333,5 +339,108 @@ describe("ReviewQueue", () => {
     expect(
       screen.getAllByRole("button", { name: /Cut|Resolved/ }),
     ).toHaveLength(1);
+  });
+
+  describe("guest attention", () => {
+    const attention = (
+      over: Partial<ReviewAttention> = {},
+    ): ReviewAttention => ({
+      rows: attentionRowsOf([
+        offlineConflict({ command: { command_id: "c1", type: "TrimClip" } }),
+        offlineConflict({ command: { command_id: "c2" }, reason: "Moved" }),
+      ]),
+      unreadable: false,
+      dismissFailed: false,
+      checking: false,
+      canDismiss: true,
+      onDismissAll: vi.fn(),
+      onRetry: vi.fn(),
+      ...over,
+    });
+    const renderQueue = (
+      attn: ReviewAttention | undefined,
+      props: Partial<ReviewQueueProps> = {},
+      filter: ReviewFilter = "all",
+    ) =>
+      render(
+        <ReviewQueue
+          items={[{ id: "m", kind: "comment", at: 5, savedSeconds: 0 }]}
+          content={reviewContent}
+          selectedId={null}
+          filter={filter}
+          guest
+          attention={attn}
+          onFilter={vi.fn()}
+          onSelect={vi.fn()}
+          {...props}
+        />,
+      );
+
+    it("lists one Check row per conflict with the banner wording", () => {
+      renderQueue(attention());
+      const group = screen.getByRole("region", {
+        name: "Needs attention. 2 conflicts",
+      });
+      expect(group).toHaveTextContent(
+        "TrimClip: Envelope changed since this edit was queued",
+      );
+      expect(group).toHaveTextContent("SetEnvelope: Moved");
+      expect(group).toHaveTextContent("Edit the change and submit it again.");
+    });
+
+    it("dismisses all conflicts and is held while reading", async () => {
+      const onDismissAll = vi.fn();
+      const { rerender } = renderQueue(attention({ onDismissAll }));
+      await userEvent.click(
+        screen.getByRole("button", { name: "Dismiss all" }),
+      );
+      expect(onDismissAll).toHaveBeenCalledOnce();
+      rerender(
+        <ReviewQueue
+          items={[]}
+          content={reviewContent}
+          selectedId={null}
+          filter="all"
+          guest
+          attention={attention({ onDismissAll, checking: true })}
+          onFilter={vi.fn()}
+          onSelect={vi.fn()}
+        />,
+      );
+      const held = screen.getByRole("button", { name: "Dismiss all" });
+      expect(held).toBeDisabled();
+      expect(held).toHaveAttribute(
+        "title",
+        "Checking saved edits. Dismissal is unavailable.",
+      );
+    });
+
+    it("offers no Dismiss all when only a recovered outcome is listed", () => {
+      renderQueue(attention({ canDismiss: false }));
+      expect(screen.queryByRole("button", { name: "Dismiss all" })).toBeNull();
+    });
+
+    it("shows an unreadable state with Retry", async () => {
+      const onRetry = vi.fn();
+      renderQueue(attention({ rows: [], unreadable: true, onRetry }));
+      expect(screen.getByText(/Could not read saved edits/)).toBeVisible();
+      await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+      expect(onRetry).toHaveBeenCalledOnce();
+    });
+
+    it("shows a failed dismissal with Retry", () => {
+      renderQueue(attention({ dismissFailed: true }));
+      expect(screen.getByText(/Dismissal failed/)).toBeVisible();
+      expect(screen.getByRole("button", { name: "Retry" })).toBeVisible();
+    });
+
+    it("hides under Comments and replaces the empty line when shown", () => {
+      renderQueue(attention(), {}, "comments");
+      expect(
+        screen.queryByRole("region", { name: /Needs attention/ }),
+      ).toBeNull();
+      renderQueue(attention(), { items: [] });
+      expect(screen.queryByText("No comments yet")).toBeNull();
+    });
   });
 });
