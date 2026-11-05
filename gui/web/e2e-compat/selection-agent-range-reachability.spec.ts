@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import { openHostProject } from "../e2e/overlayReachability";
 import { rememberInspectorDetent } from "../e2e/phoneTimeline";
 import { inspectSelection } from "../e2e/stageNav";
@@ -76,6 +76,12 @@ test.use({
   viewport: { width: 820, height: 1180 },
 });
 
+/** Set a Scope toggle on or off; the last one on refuses to switch off. */
+async function setScope(toggle: Locator, on: boolean): Promise<void> {
+  const pressed = (await toggle.getAttribute("aria-pressed")) === "true";
+  if (pressed !== on) await toggle.click();
+}
+
 test("agent range controls stay reachable from a tablet clip sheet", async ({
   page,
 }) => {
@@ -88,9 +94,12 @@ test("agent range controls stay reachable from a tablet clip sheet", async ({
   const barActions = page
     .locator(".edit-timeline-col")
     .getByRole("region", { name: "Range fields" });
-  const selectedTrack = barActions.getByRole("checkbox").first();
+  const selectedTrack = barActions
+    .getByRole("group", { name: "Scope" })
+    .getByRole("button")
+    .first();
   await selectedTrack.click();
-  await expect(selectedTrack).toBeChecked();
+  await expect(selectedTrack).toHaveAttribute("aria-pressed", "true");
 
   const clip = page.locator(".lane-row .clip-hit").first();
   await clip.scrollIntoViewIfNeeded();
@@ -113,8 +122,6 @@ test("agent range controls stay reachable from a tablet clip sheet", async ({
   await expect(barActions).toHaveCount(0);
 
   const actions = sheet.getByRole("region", { name: "Range fields" });
-  await expect(actions.getByLabel("In")).toBeVisible();
-  await expect(actions.getByLabel("Out")).toBeVisible();
   await expect(
     actions.getByRole("button", {
       name: "Use agent range on selected tracks",
@@ -124,15 +131,22 @@ test("agent range controls stay reachable from a tablet clip sheet", async ({
     sheet.getByRole("spinbutton", { name: "Source start", exact: true }),
   ).toBeVisible();
 
-  const track = actions.getByRole("checkbox").first();
-  await expect(track).toBeChecked();
+  const track = actions
+    .getByRole("group", { name: "Scope" })
+    .getByRole("button")
+    .first();
+  await expect(track).toHaveAttribute("aria-pressed", "true");
   await actions
     .getByRole("button", { name: "Use agent range on selected tracks" })
     .click();
 
   const adopted = sheet.getByRole("region", { name: "Range fields" });
-  await expect(adopted.getByLabel("In")).toHaveValue("4");
-  await expect(adopted.getByLabel("Out")).toHaveValue("9");
+  await expect(
+    adopted.getByRole("spinbutton", { name: "In", exact: true }),
+  ).toHaveAttribute("aria-valuenow", "4");
+  await expect(
+    adopted.getByRole("spinbutton", { name: "Out", exact: true }),
+  ).toHaveAttribute("aria-valuenow", "9");
 });
 
 test("a zero-start agent range arriving at the short-tablet column stays reachable", async ({
@@ -169,24 +183,30 @@ test("a zero-start agent range arriving at the short-tablet column stays reachab
     1,
   );
   await expect(sheet.locator(".sys-sheet-title")).toHaveText(title);
-  await expect(actions.getByLabel("In")).toHaveValue("0");
-  await expect(actions.getByLabel("Out")).toHaveValue("1");
-  const reference = actions.getByRole("checkbox", { name: "reference" });
-  const guest = actions.getByRole("checkbox", { name: "guest" });
-  await reference.check();
-  await expect(reference).toBeChecked();
-  await expect(guest).not.toBeChecked();
-  await reference.uncheck();
-  await guest.check();
-  await expect(reference).not.toBeChecked();
-  await expect(guest).toBeChecked();
+  const reference = actions.getByRole("button", {
+    name: "reference",
+    exact: true,
+  });
+  const guest = actions.getByRole("button", { name: "guest", exact: true });
+  await setScope(reference, true);
+  await setScope(guest, false);
+  await expect(reference).toHaveAttribute("aria-pressed", "true");
+  await expect(guest).toHaveAttribute("aria-pressed", "false");
+  await setScope(guest, true);
+  await setScope(reference, false);
+  await expect(reference).toHaveAttribute("aria-pressed", "false");
+  await expect(guest).toHaveAttribute("aria-pressed", "true");
 
   await actions
     .getByRole("button", { name: "Use agent range on selected tracks" })
     .click();
   const adopted = sheet.getByRole("region", { name: "Range fields" });
-  await expect(adopted.getByLabel("In")).toHaveValue("0");
-  await expect(adopted.getByLabel("Out")).toHaveValue("2");
+  await expect(
+    adopted.getByRole("spinbutton", { name: "In", exact: true }),
+  ).toHaveAttribute("aria-valuenow", "0");
+  await expect(
+    adopted.getByRole("spinbutton", { name: "Out", exact: true }),
+  ).toHaveAttribute("aria-valuenow", "2");
 });
 
 test("a tablet track sheet owns the agent range controls", async ({ page }) => {
@@ -205,8 +225,6 @@ test("a tablet track sheet owns the agent range controls", async ({ page }) => {
   const sheet = page.locator(".sys-inspector");
   await expect(sheet).toBeVisible();
   const actions = sheet.getByRole("region", { name: "Range fields" });
-  await expect(actions.getByLabel("In")).toBeVisible();
-  await expect(actions.getByLabel("Out")).toBeVisible();
   await expect(
     actions.getByRole("button", {
       name: "Use agent range on selected tracks",
@@ -260,13 +278,17 @@ test("agent range arrival and removal keep the short-tablet column reachable", a
   await expect(sheet.getByRole("button", { name: "Close" })).toBeVisible();
   await expect(sheet.locator(".sys-sheet-title")).toHaveText(title);
 
-  const reference = actions.getByRole("checkbox", { name: "reference" });
-  const guest = actions.getByRole("checkbox", { name: "guest" });
-  await reference.check();
-  await expect(reference).toBeChecked();
-  await expect(guest).not.toBeChecked();
-  await reference.uncheck();
-  await guest.check();
+  const reference = actions.getByRole("button", {
+    name: "reference",
+    exact: true,
+  });
+  const guest = actions.getByRole("button", { name: "guest", exact: true });
+  await setScope(reference, true);
+  await setScope(guest, false);
+  await expect(reference).toHaveAttribute("aria-pressed", "true");
+  await expect(guest).toHaveAttribute("aria-pressed", "false");
+  await setScope(guest, true);
+  await setScope(reference, false);
   await clearAgentRange(page, clientId, 3);
   await expect(actions).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Range fields" })).toHaveCount(
@@ -282,7 +304,9 @@ test("agent range arrival and removal keep the short-tablet column reachable", a
     1,
   );
   await expect(
-    restored.getByRole("checkbox", { name: "reference" }),
-  ).not.toBeChecked();
-  await expect(restored.getByRole("checkbox", { name: "guest" })).toBeChecked();
+    restored.getByRole("button", { name: "reference", exact: true }),
+  ).toHaveAttribute("aria-pressed", "false");
+  await expect(
+    restored.getByRole("button", { name: "guest", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
 });

@@ -90,7 +90,10 @@ export const Clip: Story = {
       await canvas.findByRole("spinbutton", { name: "Fade in" }),
     ).toBeVisible();
     await expect(
-      canvas.getByRole("button", { name: "Move clip" }),
+      canvas.getByRole("spinbutton", { name: "Start" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("group", { name: "Move to track" }),
     ).toBeVisible();
   },
 };

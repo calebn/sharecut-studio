@@ -98,8 +98,7 @@
 @media (pointer: coarse) {
   .inspector
     dd
-    :where(input:not([type="checkbox"], [type="radio"], [type="range"])),
-  .range-numeric input[type="number"] {
+    :where(input:not([type="checkbox"], [type="radio"], [type="range"])) {
     min-block-size: var(--touch-min);
   }
 
@@ -123,8 +122,7 @@
 html[data-shell="phone"]
   .inspector
   dd
-  :where(input:not([type="checkbox"], [type="radio"], [type="range"])),
-html[data-shell="phone"] .range-numeric input[type="number"] {
+  :where(input:not([type="checkbox"], [type="radio"], [type="range"])) {
   min-block-size: var(--touch-min);
 }
 
@@ -187,20 +185,6 @@ html[data-shell="phone"] .modifier-footer-actions .ui-segmented {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1) var(--space-3);
-}
-
-.track-fader-value {
-  font-size: var(--font-size-small);
-  min-inline-size: 4.5rem;
-  text-align: end;
-  font-variant-numeric: tabular-nums;
-}
-
-.track-fader-input {
-  flex: 1 1 6rem;
-  min-inline-size: 0;
-  inline-size: 100%;
-  min-block-size: var(--touch-min);
 }
 
 .edit-ask {
@@ -446,4 +430,18 @@ html[data-shell="phone"] select.track-sheet-field {
 .edit-bleed-regions > .ui-control[aria-pressed="true"] {
   border-color: var(--color-accent);
   background: var(--color-accent-subtle);
+}
+
+.track-toggle-row,
+.range-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.range-field {
+  flex-wrap: nowrap;
+  justify-content: space-between;
+  min-inline-size: 12rem;
 }

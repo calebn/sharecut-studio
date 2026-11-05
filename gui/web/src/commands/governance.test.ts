@@ -79,7 +79,6 @@ const KEYDOWN_LISTENER_ALLOWLIST = new Set([
 const ON_KEY_DOWN_ALLOWLIST = new Set([
   // Escape closes the online-sharing popover on a Link row, and nothing under it.
   "system/ReachGlyph.tsx",
-  "transcript/EditBoundaryMarkView.tsx",
   // The ARIA tablist pattern: arrows, Home and End move among the tabs.
   "ui/Tabs.tsx",
   // Arrows, Home and End move the one tab stop among the cards.
@@ -99,8 +98,6 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   // Focused clip handles route key edits locally; Escape cancels their preview.
   "timeline/ClipBlockView.tsx",
   "transcript/TranscriptWordbar.tsx",
-  // Enter in the Text field applies the word fix.
-  "stage/edit/WordFix.tsx",
   // Enter in the chapter Title field commits the retitle, which Apply used to do.
   "stage/edit/chapterSections.tsx",
   // The separator pattern: arrows resize the Script pane, Enter resets it.

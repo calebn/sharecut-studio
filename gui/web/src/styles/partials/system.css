@@ -4404,6 +4404,45 @@ button.sys-scope:hover {
   color: var(--sys-seam-color);
 }
 
+/* The pill's edges roll the seam; the readout chip shows the roll in ms. */
+.sys-seam-edge {
+  position: absolute;
+  inset-block: 0;
+  inline-size: var(--space-3);
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.sys-seam-edge[data-side="left"] {
+  inset-inline-start: 0;
+}
+
+.sys-seam-edge[data-side="right"] {
+  inset-inline-end: 0;
+}
+
+.sys-seam-readout {
+  position: absolute;
+  inset-block-end: 100%;
+  inset-inline-start: 50%;
+  translate: -50% 0;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-raised);
+  border: 1px solid var(--sys-seam-color);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+@media (pointer: coarse) {
+  .sys-seam-edge {
+    inline-size: var(--space-5);
+  }
+}
+
 /* Marker (element 18) */
 
 .sys-marker {

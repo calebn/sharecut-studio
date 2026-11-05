@@ -94,9 +94,8 @@ to UX partners; for UI copy, this table wins.
 | Restore original audio | Host choice to bypass one selected automatic reduction in this clip occurrence while retaining ordinary mutes and ignored words | A source-wide restore or a promise to remove every mute |
 | Refresh regions | Recheck this occurrence and clear the selected region before another Restore | Silent retargeting of the previous selection |
 | Undo Restore | Undo the acknowledged Restore only while its exact History head and project opening remain current | Success or Undo for a queued, unconfirmed or no-op reply |
-| Move clip | Opens a local time-and-track placement preview in the Clip inspector. Apply move saves it; Cancel discards it | A drag-only instruction |
-| Target track | The destination lane for the anchor clip; selected clips shift by lane order | "source track" for the destination |
-| Timeline start (seconds) | The anchor clip's exact destination on the episode clock | Source start, which trims recorded audio |
+| Start | The Clip inspector's Scrub field for the clip's exact place on the episode clock. A drag previews the move and a release saves it | Source start, which trims recorded audio |
+| Track | The Clip inspector's row of tracks; tapping one moves the clip there at the same time. Selected clips shift by lane order | "source track" for the destination |
 | Shorter / Taller / Reset panel size | Local editor-panel sizing buttons. Steps are 1 rem; Reset clears the browser preference | A project edit or History action |
 | Queue suggestion | One candidate tightening decision in the Review Queue | — |
 | Likely laugh | The label on a Queue suggestion whose sound rises and falls like a laugh. It is a hint, and its suggested action is Lower (when another speaker talks over it, otherwise it is left) | "Laugh detected", "filler:acoustic:likely_laugh" |
@@ -106,8 +105,6 @@ to UX partners; for UI copy, this table wins.
 | Cut all | A Review Queue group's bulk button: the verb and the count, `Cut all 3`; one cuttable item says plain `Cut`. One undo reverts the group. Each row's own Cut and Keep decide one hit | "Apply all", "Accept all", "Apply eligible" |
 | Suggested action | What the app proposes for a sound: cut, shorten, lower or leave, picked from one table per kind of sound. The label under each hit says which | "Auto-fix", "Safe", "Eligible" |
 | Hold a word, then drag | The touch way to make a word range in Select mode: press and hold a word until it arms, then drag across more words. One finger moving before the hold scrolls and selects nothing. The Select hint names it instead of Mod+X | "long-press select", "drag to select" |
-| Add word before / Add word after | The two Range fields buttons that grow the selected word range by one word at the start or the end, so a range needs no gesture. A press steps once; holding repeats. Disabled with its reason when there is no earlier or later word | "Extend left", "Extend right", "Grow" |
-| Drop first word / Drop last word | The two Range fields buttons that trim the selected word range by one word at the start or the end. Disabled on a one-word range, with the reason beside it | "Shrink", "Trim start" for a word range |
 | Pending edit | A proposed edit awaiting approve/reject | — |
 | Suggest cut | Propose a cut from the transcript | — |
 | Split | Cut a clip in two at the playhead, at both edges of a selected range or words, or at a held time from the touch create menu (Split here) | "slice", "Blade cut" |

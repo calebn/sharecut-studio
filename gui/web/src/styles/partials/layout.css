@@ -609,39 +609,11 @@ html[data-shell] body {
   margin: 0;
 }
 
-.range-numeric,
-.range-numeric fieldset {
+.range-numeric {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
-}
-
-.range-numeric label {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.range-numeric input[type="number"] {
-  inline-size: 6rem;
-}
-
-@media (pointer: coarse) {
-  .range-numeric label {
-    min-block-size: var(--touch-min);
-  }
-}
-
-.range-numeric fieldset {
-  border: 0;
-  padding: 0;
-  margin: 0;
-}
-
-.range-numeric legend {
-  font-size: var(--font-size-small);
-  color: var(--color-text-secondary);
 }
 
 .range-overlay {
@@ -658,50 +630,6 @@ html[data-shell] body {
 
 .range-actions--sheet {
   padding: var(--space-4);
-}
-
-.range-words {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  flex: 1 1 16rem;
-  max-inline-size: 28rem;
-  min-inline-size: 0;
-}
-
-.range-words-summary {
-  margin: 0;
-  font-weight: 600;
-}
-
-.range-words-text {
-  font-weight: 400;
-  color: var(--color-text-secondary);
-  overflow-wrap: anywhere;
-}
-
-.range-words-buttons {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3);
-}
-
-.range-words-reason {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-small);
-}
-
-.hold-repeat {
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-touch-callout: none;
-}
-
-@media (pointer: coarse) {
-  .range-word-step,
-  .range-word-ignore {
-    min-block-size: var(--touch-min);
-  }
 }
 
 .range-actions--sheet .ui-control {

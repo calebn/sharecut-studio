@@ -388,7 +388,7 @@ export function registerClipMoveCommands(): void {
       ) {
         return {
           status: "disabled",
-          reason: "The clip placement changed. Reopen Move clip.",
+          reason: "The clip placement changed. Try the move again.",
         };
       }
       if (s.joinMutationInFlight) {

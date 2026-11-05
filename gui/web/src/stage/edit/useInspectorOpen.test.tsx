@@ -106,6 +106,7 @@ describe("useInspectorOpen open state", () => {
       selection: null,
       inspectorKey: null,
       rangeArmed: true,
+      sessionRegion: { start_sec: 1, end_sec: 2 },
     });
     const { result } = renderHook(() => useInspectorOpen("tablet", "timeline"));
     expect(result.current.open).toBe(true);
@@ -184,7 +185,10 @@ describe("the Inspector opens by reading one table on the phone and the tablet",
     }
   });
 
-  it("opens on an armed range alone on the phone and the tablet (#1793), not the desktop", () => {
+  it("keeps an armed range alone closed until an agent range waits (the lanes are dragged on)", () => {
+    expect(isOpen("phone", "timeline", null, true)).toBe(false);
+    expect(isOpen("tablet", "timeline", null, true)).toBe(false);
+    useDawStore.setState({ sessionRegion: { start_sec: 1, end_sec: 2 } });
     expect(isOpen("phone", "timeline", null, true)).toBe(true);
     expect(isOpen("tablet", "timeline", null, true)).toBe(true);
     expect(isOpen("desktop", "timeline", null, true)).toBe(false);

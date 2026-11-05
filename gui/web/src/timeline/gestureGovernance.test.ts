@@ -177,8 +177,6 @@ const SURFACE_GESTURES: Record<string, string> = {
     "one long-press timing for track headers, transcript words and the rail's icon-only labels (gestureConstants)",
   "hooks/useTwoFingerTap.ts":
     "two-finger tap is Undo (the Two-finger tap row in commands/gestures.ts), read from window pointers",
-  "hooks/useHoldRepeat.ts":
-    "a held step button repeats with the nudge timing; a keyboard click steps once",
   "hooks/usePointerType.ts":
     "reads the last pointer kind to pick touch or mouse copy; it starts no gesture",
   "hooks/useUserScrollIntent.ts":
@@ -201,14 +199,12 @@ const SURFACE_GESTURES: Record<string, string> = {
     "divider: a drag resizes the Script pane beside the timeline; the arrow keys, Enter and double-click do the same by key",
   "system/Player.tsx":
     "hold to hear: a press on A hears the original and letting go after a hold goes back; a quick release latches it, and the A and B buttons do the same by key",
-  "tracks/TrackFaderView.tsx":
-    "fader: a native range input previews its gain and saves one track volume on release (useCommitRange)",
   "stage/edit/TrackColumn.tsx":
     "reorder drop: the column takes a track header dragged over a header slot and moves the track on drop; Shift with Up or Down on a header and the Move up and Move down commands do the same by key",
-  "transcript/EditBoundaryMarkView.tsx":
-    "the transcript edit-boundary mark drags a cut's gap with pointer capture, the same roll as edit.rollClipJoin",
   "transcript/TranscriptWordbar.tsx":
-    "the word-boundary sliders preview a word's timing and save one adjustment on release",
+    "the waveform handles preview a word's timing and save one adjustment on release; Escape cancels, and the Start and End Scrub fields do the same by key",
+  "system/Seam.tsx":
+    "the pill's edges roll the seam with pointer capture and save one roll on release; Alt with an arrow key rolls it 1 ms",
   "stages/prepare/AdvancedSteps.tsx":
     "a step's seconds setting is a native range input beside its value; it is a setting, not a timeline target",
   "system/wavePointer.ts":
@@ -284,6 +280,8 @@ const SRC_ARROW_ALLOWLIST: Record<string, string> = {
     "a focused scrub field steps its number with the arrows, ten times as far with Shift and a tenth with Alt, like a spinbutton",
   "system/scriptSelection.ts":
     "the pure helper behind the script pane's arrows: it turns a key and a position into a caret move or a word selection, and moves nothing itself",
+  "system/Seam.tsx":
+    "the Script pill's key path to its edge drag: Alt with Left or Right rolls the seam 1 ms, saved as one roll; the host decides whether the clips can roll",
   "system/TakeSwitcher.tsx":
     "the take switcher steps to the previous or next take with the arrows and stops there, like a radio group; the host selects the take",
   "ui/Tabs.tsx": "the ARIA tablist pattern: arrows move among the tabs",

@@ -20,16 +20,6 @@ export const ONE_WORD_REASON = "The range is one word. Clear it to start over.";
 export const NO_EARLIER_WORD_REASON = "There is no earlier word to add.";
 export const NO_LATER_WORD_REASON = "There is no later word to add.";
 
-export const RANGE_STEP_CONTROLS: readonly {
-  step: RangeStep;
-  label: string;
-}[] = [
-  { step: { edge: "start", by: -1 }, label: "Add word before" },
-  { step: { edge: "end", by: 1 }, label: "Add word after" },
-  { step: { edge: "start", by: 1 }, label: "Drop first word" },
-  { step: { edge: "end", by: -1 }, label: "Drop last word" },
-];
-
 export function isRangeStep(value: unknown): value is RangeStep {
   if (typeof value !== "object" || value === null) return false;
   const { edge, by } = value as Record<string, unknown>;

@@ -13,7 +13,7 @@ import { createRelocatedE2eProject } from "./liveProject";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
 import { openHostShare } from "./shareNavigation";
-import { armRange } from "./stageNav";
+import { selectRangeSec } from "./stageNav";
 import { setTheme } from "./theme";
 
 /** The ruler's scale read from its labelled ticks, in client x: it draws a window, so time 0 is not at its left edge once the timeline scrolls. */
@@ -746,44 +746,21 @@ test("numeric range refuses invalid bounds and maps chosen lanes to one Mute and
         };
       };
       try {
-        await armRange(page);
-        const range = page.getByRole("region", { name: "Range fields" });
-        await range
-          .getByRole("spinbutton", { name: "In", exact: true })
-          .fill("");
-        await range
-          .getByRole("button", { name: "Select range", exact: true })
-          .click();
-        await expect(range).toContainText("Enter an In and Out time");
-        await range
-          .getByRole("spinbutton", { name: "In", exact: true })
-          .fill("12");
-        await range
-          .getByRole("spinbutton", { name: "Out", exact: true })
-          .fill("11");
-        await range
-          .getByRole("button", { name: "Select range", exact: true })
-          .click();
-        await expect(range).toContainText(
-          "Enter an In before Out and choose at least one track",
-        );
+        const range = await selectRangeSec(page, "2", "3");
         expect(snapshot(projectPath)).toEqual(before);
         expect(observer.commands).toEqual([]);
-        await range
-          .getByRole("spinbutton", { name: "In", exact: true })
-          .fill("2");
-        await range
-          .getByRole("spinbutton", { name: "Out", exact: true })
-          .fill("3");
-        await range
-          .getByRole("checkbox", { name: "reference", exact: true })
-          .check();
-        await range
-          .getByRole("checkbox", { name: "guest", exact: true })
-          .uncheck();
-        await range
-          .getByRole("button", { name: "Select range", exact: true })
-          .click();
+        const referenceScope = range.getByRole("button", {
+          name: "reference",
+          exact: true,
+        });
+        if ((await referenceScope.getAttribute("aria-pressed")) !== "true")
+          await referenceScope.click();
+        const guestScope = range.getByRole("button", {
+          name: "guest",
+          exact: true,
+        });
+        if ((await guestScope.getAttribute("aria-pressed")) === "true")
+          await guestScope.click();
         expect(await rangeBounds(page)).toMatchObject({ start: 2, end: 3 });
         await expect(
           page.locator('.lane-row[data-track-id="reference"] .range-overlay'),

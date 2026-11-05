@@ -152,8 +152,8 @@ There is no browser cache or install retry.
 ### Storybook browser geometry
 
 `npm run test:e2e:storybook` in `gui/web` builds the static Storybook catalog,
-serves it on port 6010, and runs Chromium against the production edit-boundary
-stories. Testing the build avoids dev-server compilation and reloads while
+serves it on port 6010, and runs Chromium against the production edit-corner
+and inspector-sheet stories. Testing the build avoids dev-server compilation and reloads while
 Docs iframe previews initialize.
 The restored-word fixtures make ghost preview geometry observable without a
 live episode or backend. Real mouse trajectories check stable text and row
@@ -210,7 +210,7 @@ rather than trusting `.last()`.
 Specs that set up state through the API post it with `e2e/documentCommand.ts`
 (`postDocumentCommand`, `waiveRefineGate`) and undo each command they applied
 in `finally`, so later specs see the fixture unchanged
-(`e2e/applied-edit-seams.spec.ts`, `e2e/edit-boundary-touch.spec.ts`).
+(`e2e/applied-edit-seams.spec.ts`, `e2e/edit-boundary-archive.spec.ts`).
 
 ### Record-room Playwright scenarios
 
@@ -418,7 +418,7 @@ with axe before the collected results are asserted.
 | keeps ruler, tiles, envelope and scroll range exact at 15 M px | `gui/web/e2e-compat/deep-zoom.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | snap ticks, mute regions and a live trim ghost share the ruler geometry | `gui/web/e2e-compat/timeline-geometry.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | short desktop lanes reach the horizontal end with classic scrollbars | `gui/web/e2e-compat/timeline-scroll-end.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| Wordbar native boundary release and exact Undo work across browsers | `gui/web/e2e-compat/transcript-wordbar.spec.ts` | Core flow | Not run | Pass | Not run |
+| Wordbar handle release and exact Undo work across browsers | `gui/web/e2e-compat/transcript-wordbar.spec.ts` | Core flow | Not run | Pass | Not run |
 | keeps Next, its selection and the following Script line reachable | `gui/web/e2e-compat/words-actionbar-header.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | phone Mix native edits and touch geometry across engines | `gui/web/e2e-compat/phone-mix.spec.ts` | Core flow | Pass | Pass | Not run |
 | comment recovery keeps native disabled-button focus and sticky controls | `gui/web/e2e-compat/comment-undo.spec.ts` | Core flow | Not run | Pass | Not run |
@@ -463,7 +463,7 @@ with axe before the collected results are asserted.
 | a tablet track sheet owns the agent range controls | `gui/web/e2e-compat/selection-agent-range-reachability.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | agent range arrival and removal keep the short-tablet column reachable | `gui/web/e2e-compat/selection-agent-range-reachability.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Keep decides one queue item at a thumb-sized target, then one Undo brings it back | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| a long press then a drag selects a word range, and the sheet clears it | `gui/web/e2e-compat/transcript-touch-range.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| a long press then a drag selects a word range, and the sheet clears it with no step buttons | `gui/web/e2e-compat/transcript-touch-range.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a finger that moves before the hold scrolls and selects nothing | `gui/web/e2e-compat/transcript-touch-range.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the phone timeline shows Undo and Redo; a Safari tab offers the Home Screen once | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | native Tab keeps every Stage bar indicator inside its clip | `gui/web/e2e-compat/phone-navigation-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
@@ -510,10 +510,6 @@ with axe before the collected results are asserted.
 | floats between the ruler and the bottom panel | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | leaves Approve and Reject to the inspector | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | pending card: a marker added while it floats leaves the one-row lane where it was and the card clear of it | `gui/web/e2e-compat/pending-actionbar-reflow.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| phone: a boundary load the server never answers says to try again and recovers on Try again | `gui/web/e2e-compat/precision-boundary-timeout.spec.ts` | Core flow | Pass | Pass | Not run |
-| desktop: a boundary load the server never answers says to try again and recovers on Try again | `gui/web/e2e-compat/precision-boundary-timeout.spec.ts` | Core flow | Pass | Pass | Not run |
-| desktop: network boundary load keeps focus through recovery | `gui/web/e2e-compat/precision-boundary-timeout.spec.ts` | Core flow | Pass | Pass | Not run |
-| desktop: stale boundary load keeps focus through recovery | `gui/web/e2e-compat/precision-boundary-timeout.spec.ts` | Core flow | Pass | Pass | Not run |
 | Auto drags directly when a step is 4 px wide at a deep zoom | `gui/web/e2e-compat/precision-drag.spec.ts` | Core flow | Pass | Pass | Not run |
 | jog: a ripple over the guest's speech applies as one manual trim | `gui/web/e2e-compat/precision-drag.spec.ts` | Core flow | Pass | Pass | Not run |
 | jog: a second finger cancels the drag and saves nothing | `gui/web/e2e-compat/precision-drag.spec.ts` | Core flow | Pass | Pass | Not run |
