@@ -106,12 +106,17 @@ describe("social clip content", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Save failed");
   });
 
-  it("deletes the clip and clears the selection", async () => {
+  it("deletes the clip, clears the selection and offers Undo", async () => {
     const user = userEvent.setup();
+    vi.mocked(deleteSocialClip).mockResolvedValueOnce("e-del" as never);
     open();
     await user.click(screen.getByRole("button", { name: "Delete" }));
     expect(deleteSocialClip).toHaveBeenCalledWith("/tmp/p.json", "social-1");
     expect(useDawStore.getState().selection).toBeNull();
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      message: "Deleted the social clip",
+      undo: "e-del",
+    });
   });
 
   it("shows the range read-only and offers no mutation on a share", async () => {
