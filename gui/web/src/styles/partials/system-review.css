@@ -161,6 +161,17 @@
   gap: var(--space-4);
 }
 
+.sys-ab-glyph {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  border: 1px solid currentcolor;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  line-height: 1;
+}
+
 .sys-ab-note {
   color: var(--color-text-secondary);
   font-size: var(--font-size-small);
