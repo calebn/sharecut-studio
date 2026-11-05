@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useInsertionEffect, useRef, useState } from "react";
 import { errorMessage } from "../../utils/apiError";
 import {
   canReclaimKeeperSegment,
@@ -105,7 +105,9 @@ export function useRecordUpload(args: {
   const [progress, setProgress] = useState<RecordUploadProgress>(EMPTY);
   const argsRef = useRef(args);
   const reclaim = useRef(createKeeperReclaimTracker());
-  argsRef.current = args;
+  useInsertionEffect(() => {
+    argsRef.current = args;
+  }, [args]);
 
   useEffect(() => {
     if (
