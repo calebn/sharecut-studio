@@ -1,15 +1,20 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { type ReactNode, StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   cancelPipelineRun,
+  loadPipelineConfig,
   loadTranscriptVocabulary,
   startPipelineRun,
 } from "../../api";
-import type { PipelineWorkingSet } from "../../hooks/usePipelineWorkingSet";
+import {
+  type PipelineWorkingSet,
+  usePipelineWorkingSet,
+} from "../../hooks/usePipelineWorkingSet";
 import { ModelsContext } from "../../models/useModels";
 import { useDawStore } from "../../state/dawStore";
 import { jobMediaKey, mediaKeyOf } from "../../state/jobMedia";
+import { deferred } from "../../test/deferred";
 import {
   minimalProject,
   pipelineJobSnapshot,
@@ -22,14 +27,20 @@ import {
   modelsApi,
   registryRows,
 } from "../../test/renderWithModels";
+import type {
+  PipelineConfigResponse,
+  PipelineJobSnapshot,
+} from "../../types/pipeline";
 import { ApiError } from "../../utils/apiError";
 import { takeOpenStage, writeOpenIntent } from "../../utils/openIntent";
-import { runOptions, usePrepareRun } from "./usePrepareRun";
+import { PrepareExecution, runOptions } from "./prepareExecution";
+import { usePrepareRun } from "./usePrepareRun";
 
 vi.mock("../../api", async (original) => ({
   ...(await original<typeof import("../../api")>()),
   startPipelineRun: vi.fn(),
   loadTranscriptVocabulary: vi.fn(),
+  loadPipelineConfig: vi.fn(),
   cancelPipelineRun: vi.fn(),
 }));
 
@@ -70,6 +81,7 @@ type Props = {
   ingestBusy: boolean;
   mediaKey: string;
   canRun?: boolean;
+  projectPath?: string;
 };
 
 function setup(models = modelsFor("missing")) {
@@ -79,9 +91,14 @@ function setup(models = modelsFor("missing")) {
     <ModelsContext.Provider value={api}>{children}</ModelsContext.Provider>
   );
   const view = renderHook(
-    ({ ingestBusy, mediaKey, canRun = true }: Props) =>
+    ({
+      ingestBusy,
+      mediaKey,
+      canRun = true,
+      projectPath = "/tmp/p/episode.sharecut",
+    }: Props) =>
       usePrepareRun({
-        projectPath: "/tmp/p/episode.sharecut",
+        projectPath,
         workingSet: ws,
         transcribed: 0,
         untranscribed: 1,
@@ -101,6 +118,7 @@ function setup(models = modelsFor("missing")) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(loadPipelineConfig).mockReset();
   sessionStorage.clear();
   useDawStore.setState({
     projectPath: "/tmp/p/episode.sharecut",
@@ -146,7 +164,7 @@ describe("runOptions", () => {
       forceTranscribe: true,
       overwriteEdited: true,
     });
-    expect(runOptions(cfg, "update", true)).toMatchObject({
+    expect(runOptions(cfg, "changed-audio", true)).toMatchObject({
       fromStep: "transcribe_tracks",
       forceTranscribe: false,
       overwriteEdited: true,
@@ -621,7 +639,7 @@ describe("usePrepareRun refused over hand fixes", () => {
     act(() => useDawStore.setState({ pipelineJob: refused }));
     await waitFor(() =>
       expect(result.current.keepFixes).toEqual({
-        mode: "update",
+        mode: "changed-audio",
         names: ["MAYA"],
       }),
     );
@@ -641,7 +659,7 @@ describe("usePrepareRun refused over hand fixes", () => {
     expect(result.current.keepFixes).toBeNull();
     await act(async () => result.current.tryAgain());
     expect(start).not.toHaveBeenCalled();
-    expect(result.current.keepFixes).toMatchObject({ mode: "update" });
+    expect(result.current.keepFixes).toMatchObject({ mode: "changed-audio" });
   });
 });
 
@@ -758,5 +776,292 @@ describe("usePrepareRun with audio added after a run", () => {
     expect(start.mock.calls[0][1]).toMatchObject({
       skipSteps: expect.arrayContaining(["align_tracks"]),
     });
+  });
+});
+
+describe("usePrepareRun request ownership", () => {
+  it("does not start a replacement project with an old pending config read", async () => {
+    const hook = setup();
+    const cfg = deferred<PipelineConfigResponse | null>();
+    hook.ws.cfg = null;
+    vi.mocked(hook.ws.fetchFresh).mockReturnValueOnce(cfg.promise);
+    let pending!: Promise<void>;
+    act(() => {
+      pending = hook.result.current.run("run");
+    });
+    act(() =>
+      useDawStore.setState({
+        projectPath: "/tmp/next/episode.sharecut",
+        projectEpoch: useDawStore.getState().projectEpoch + 1,
+      }),
+    );
+    hook.rerender({
+      ingestBusy: false,
+      mediaKey: "",
+      projectPath: "/tmp/next/episode.sharecut",
+    });
+    await act(async () => {
+      cfg.resolve(pipelineConfig());
+      await pending;
+    });
+    expect(start).not.toHaveBeenCalled();
+    expect(hook.result.current.model).toBeNull();
+    expect(hook.result.current.startError).toBeNull();
+  });
+
+  it("retains knowledge of an already-started global job without retargeting its project", async () => {
+    const hook = setup();
+    const answer = deferred<PipelineJobSnapshot>();
+    start.mockReturnValueOnce(answer.promise);
+    let pending!: Promise<void>;
+    act(() => {
+      pending = hook.result.current.run("run");
+    });
+    expect(start).toHaveBeenCalledOnce();
+    act(() =>
+      useDawStore.setState({
+        projectPath: "/tmp/next/episode.sharecut",
+        projectEpoch: useDawStore.getState().projectEpoch + 1,
+      }),
+    );
+    hook.rerender({
+      ingestBusy: false,
+      mediaKey: "",
+      projectPath: "/tmp/next/episode.sharecut",
+    });
+    await act(async () => {
+      answer.resolve(
+        pipelineJobSnapshot({
+          id: "retired",
+          project_path: "/tmp/p/episode.sharecut",
+        }),
+      );
+      await pending;
+    });
+    expect(useDawStore.getState().pipelineJob).toMatchObject({
+      id: "retired",
+      project_path: "/tmp/p/episode.sharecut",
+    });
+    expect(hook.result.current.model).toBeNull();
+    expect(hook.result.current.startError).toBeNull();
+  });
+
+  it("does not show a retired project's delayed model refusal in the replacement project", async () => {
+    const hook = setup();
+    const answer = deferred<PipelineJobSnapshot>();
+    start.mockReturnValueOnce(answer.promise);
+    let pending!: Promise<void>;
+    act(() => {
+      pending = hook.result.current.run("run");
+    });
+    act(() =>
+      useDawStore.setState({
+        projectPath: "/tmp/next/episode.sharecut",
+        projectEpoch: useDawStore.getState().projectEpoch + 1,
+      }),
+    );
+    hook.rerender({
+      ingestBusy: false,
+      mediaKey: "",
+      projectPath: "/tmp/next/episode.sharecut",
+    });
+    await act(async () => {
+      answer.reject(WHISPER_NEEDED);
+      await pending;
+    });
+    expect(hook.result.current.model).toBeNull();
+    expect(hook.result.current.startError).toBeNull();
+  });
+
+  it("keeps the real same-event start latch", async () => {
+    const hook = setup();
+    let first!: Promise<void>;
+    let second!: Promise<void>;
+    act(() => {
+      first = hook.result.current.run("run");
+      second = hook.result.current.run("run");
+    });
+    await act(async () => {
+      await Promise.all([first, second]);
+    });
+    expect(start).toHaveBeenCalledOnce();
+  });
+
+  it("does not reuse one refusal's missing observation for an already-installed different model", async () => {
+    const models = modelsFor("missing");
+    const api = {
+      ...models,
+      models:
+        models.models?.map((row) =>
+          row.id === "word-aligner"
+            ? { ...row, state: { kind: "installed" as const } }
+            : row,
+        ) ?? null,
+    };
+    const alignerNeeded = new ApiError("aligner refused", "model_needed", 409, {
+      id: "word-aligner",
+      variant: null,
+      label: "Word aligner",
+      purpose: "timing",
+      size: "360 MB",
+      sizeBytes: null,
+      state: "missing",
+    });
+    start
+      .mockRejectedValueOnce(WHISPER_NEEDED)
+      .mockRejectedValueOnce(alignerNeeded);
+    const hook = setup(api);
+    await act(async () => {
+      await hook.result.current.run("run");
+    });
+    expect(hook.result.current.model?.what).toBe("the transcription model");
+    await act(async () => {
+      await hook.result.current.run("run");
+    });
+    expect(start).toHaveBeenCalledTimes(2);
+    expect(hook.result.current.model?.what).toBe("word timing");
+  });
+});
+
+describe("Prepare execution resource integration", () => {
+  it("warms the real working set from its cold read without a duplicate start", async () => {
+    const initial = deferred<PipelineConfigResponse>();
+    const cold = deferred<PipelineConfigResponse>();
+    vi.mocked(loadPipelineConfig)
+      .mockReturnValueOnce(initial.promise)
+      .mockReturnValueOnce(cold.promise);
+    const api = modelsFor("missing");
+    const hook = renderHook(
+      ({ ingestBusy, mediaKey }: Props) => {
+        const workingSet = usePipelineWorkingSet(
+          "/tmp/p/episode.sharecut",
+          true,
+        );
+        const run = usePrepareRun({
+          projectPath: "/tmp/p/episode.sharecut",
+          workingSet,
+          transcribed: 0,
+          untranscribed: 1,
+          mediaKey,
+          ingestBusy,
+          canRun: true,
+          nameOf: (id) => id,
+        });
+        return { workingSet, run };
+      },
+      {
+        wrapper: ({ children }) => (
+          <ModelsContext.Provider value={api}>
+            {children}
+          </ModelsContext.Provider>
+        ),
+        initialProps: { ingestBusy: true, mediaKey: "" } as Props,
+      },
+    );
+    hook.rerender({ ingestBusy: false, mediaKey: "a:/a.wav" });
+    await waitFor(() => expect(loadPipelineConfig).toHaveBeenCalledTimes(2));
+    const cfg = pipelineConfig({ unattended: true });
+    await act(async () => cold.resolve(cfg));
+    await waitFor(() => expect(start).toHaveBeenCalledOnce());
+    expect(hook.result.current.workingSet.cfg).toBe(cfg);
+    expect(start).toHaveBeenCalledWith(
+      "/tmp/p/episode.sharecut",
+      expect.objectContaining({ unattended: true, config: cfg.config }),
+    );
+    await act(async () =>
+      initial.resolve(pipelineConfig({ unattended: false })),
+    );
+    expect(hook.result.current.workingSet.cfg).toBe(cfg);
+    expect(start).toHaveBeenCalledOnce();
+  });
+
+  it("claims a Home intent once through StrictMode attachment replay", async () => {
+    writeOpenIntent("/tmp/p/episode.sharecut", {
+      stage: "prepare",
+      autoRun: true,
+    });
+    const api = modelsFor("missing");
+    const ws = workingSet();
+    const hook = renderHook(
+      () =>
+        usePrepareRun({
+          projectPath: "/tmp/p/episode.sharecut",
+          workingSet: ws,
+          transcribed: 0,
+          untranscribed: 1,
+          mediaKey: "a:/a.wav",
+          ingestBusy: false,
+          canRun: true,
+          nameOf: (id) => id,
+        }),
+      {
+        wrapper: ({ children }) => (
+          <StrictMode>
+            <ModelsContext.Provider value={api}>
+              {children}
+            </ModelsContext.Provider>
+          </StrictMode>
+        ),
+      },
+    );
+    await waitFor(() => expect(start).toHaveBeenCalledOnce());
+    hook.rerender();
+    expect(start).toHaveBeenCalledOnce();
+    expect(takeOpenStage("/tmp/p/episode.sharecut")).toBe("prepare");
+  });
+
+  it("keeps a cached snapshot for equivalent committed observations", () => {
+    const execution = new PrepareExecution();
+    const detach = execution.attach();
+    const input = {
+      projectPath: "/tmp/p/episode.sharecut",
+      workingSet: workingSet(),
+      transcribed: 0,
+      untranscribed: 1,
+      mediaKey: "",
+      ingestBusy: false,
+      canRun: true,
+      nameOf: (id: string) => id,
+    };
+    const frame = {
+      input,
+      epoch: useDawStore.getState().projectEpoch,
+      models: modelsFor("missing"),
+    };
+    try {
+      execution.observe(frame);
+      const snapshot = execution.getSnapshot();
+      execution.observe({
+        ...frame,
+        input: { ...input, nameOf: (id) => id.toUpperCase() },
+        models: modelsFor("missing"),
+      });
+      expect(execution.getSnapshot()).toBe(snapshot);
+      expect(start).not.toHaveBeenCalled();
+    } finally {
+      detach();
+    }
+  });
+
+  it("does not replace a newer known global job with a delayed start response", async () => {
+    const answer = deferred<PipelineJobSnapshot>();
+    start.mockReturnValueOnce(answer.promise);
+    const hook = setup();
+    let pending!: Promise<void>;
+    act(() => {
+      pending = hook.result.current.run("run");
+    });
+    const newer = pipelineJobSnapshot({
+      id: "newer-global",
+      status: "running",
+    });
+    act(() => useDawStore.getState().setPipelineJob(newer));
+    await act(async () => {
+      answer.resolve(
+        pipelineJobSnapshot({ id: "older-response", status: "running" }),
+      );
+      await pending;
+    });
+    expect(useDawStore.getState().pipelineJob).toBe(newer);
   });
 });
