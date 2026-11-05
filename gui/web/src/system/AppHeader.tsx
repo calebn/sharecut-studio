@@ -109,7 +109,10 @@ function RoleHint({ guest }: { guest: NonNullable<AppHeaderProps["guest"]> }) {
     dismissAutomatic();
     triggerRef.current?.focus({ preventScroll: true });
   };
-  useOutsidePointerDown([outsideRef], dismissAutomatic, mode === "automatic", {
+  useOutsidePointerDown({
+    liveRefs: [outsideRef],
+    onOutside: dismissAutomatic,
+    enabled: mode === "automatic",
     capture: true,
   });
 

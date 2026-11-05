@@ -2,9 +2,8 @@ import {
   type FocusEvent,
   Fragment,
   memo,
+  useCallback,
   useId,
-  useLayoutEffect,
-  useRef,
   useState,
 } from "react";
 import { Sheet } from "../../system/Sheet";
@@ -80,13 +79,13 @@ function Popover({
   onPick,
   onClose,
 }: PopoverProps) {
-  const boxRef = useRef<HTMLDivElement>(null);
+  const [box, setBox] = useState<HTMLDivElement | null>(null);
   const [size, setSize] = useState<MenuSize | null>(null);
   const close = useStableCallback(() => onClose());
-  useMenuKeyboard({ open: true, panelRef: boxRef, close });
-  useLayoutEffect(() => {
-    const box = boxRef.current;
-    if (box) setSize(naturalSize(box));
+  useMenuKeyboard({ open: true, panel: box, close });
+  const attachBox = useCallback((node: HTMLDivElement | null) => {
+    setBox(node);
+    if (node) setSize(naturalSize(node));
   }, []);
 
   const leave = (event: FocusEvent<HTMLDivElement>) => {
@@ -111,7 +110,7 @@ function Popover({
         <circle cx={anchor.x} cy={anchor.y} r="6" />
       </svg>
       <div
-        ref={boxRef}
+        ref={attachBox}
         role="menu"
         aria-label={`Create at ${title}`}
         tabIndex={-1}

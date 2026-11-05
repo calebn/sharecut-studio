@@ -94,13 +94,20 @@ export function Menu({
 }: MenuProps) {
   const autoId = useId();
   const menuId = menuIdProp ?? autoId;
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const panelRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const modeRef = useRef<"native" | "fallback" | null>(null);
+  const [triggerNode, setTriggerNode] = useState<HTMLButtonElement | null>(
+    null,
+  );
+  const [panelNode, setPanelNode] = useState<HTMLDivElement | null>(null);
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
-  const fallbackRef = useRef(false);
   const attachTrigger = useCallback((node: HTMLButtonElement | null) => {
     triggerRef.current = node;
-    if (fallbackRef.current) setPortalTarget(node?.ownerDocument.body ?? null);
+    if (!modeRef.current) return;
+    setTriggerNode(node);
+    if (modeRef.current === "fallback") {
+      setPortalTarget(node?.ownerDocument.body ?? null);
+    }
   }, []);
   const mode = useMemo<"native" | "fallback" | null>(() => {
     if (!open) return null;
@@ -109,11 +116,11 @@ export function Menu({
   const attachPanel = useCallback(
     (panel: HTMLDivElement) => {
       if (!mode) return;
-      panelRef.current = panel;
+      setPanelNode(panel);
       const leave = mode === "native" ? showInTopLayer(panel) : null;
       return () => {
         leave?.();
-        if (panelRef.current === panel) panelRef.current = null;
+        setPanelNode((current) => (current === panel ? null : current));
       };
     },
     [mode],
@@ -123,20 +130,22 @@ export function Menu({
     onOpenChange(false);
   }, [onOpenChange]);
 
-  const fallback = mode === "fallback";
   useLayoutEffect(() => {
-    fallbackRef.current = fallback;
-    if (!fallback) return;
-    setPortalTarget(triggerRef.current?.ownerDocument.body ?? document.body);
-  }, [fallback]);
+    modeRef.current = mode;
+    const node = mode ? triggerRef.current : null;
+    setTriggerNode(node);
+    setPortalTarget(
+      mode === "fallback" ? (node?.ownerDocument.body ?? document.body) : null,
+    );
+  }, [mode]);
 
   useLayoutEffect(() => {
     if (!open || (mode === "fallback" && !portalTarget)) {
       return;
     }
     const layout = () => {
-      const trigger = triggerRef.current;
-      const panel = panelRef.current;
+      const trigger = triggerNode;
+      const panel = panelNode;
       if (!trigger || !panel) {
         return;
       }
@@ -154,16 +163,20 @@ export function Menu({
     return () => {
       cancelAnimationFrame(raf);
     };
-  }, [open, mode, portalTarget]);
+  }, [open, mode, portalTarget, triggerNode, panelNode]);
 
   useMenuKeyboard({
     open,
-    panelRef,
+    panel: panelNode,
     close,
-    fallbackTriggerRef: mode === "fallback" ? triggerRef : undefined,
+    fallbackTrigger: mode === "fallback" ? triggerNode : undefined,
   });
 
-  useOutsidePointerDown([panelRef, triggerRef], close, open);
+  useOutsidePointerDown({
+    nodes: [panelNode, triggerNode],
+    onOutside: close,
+    enabled: open,
+  });
 
   const panel =
     open && mode ? (
@@ -203,7 +216,7 @@ export function Menu({
         if (
           open &&
           event.target instanceof Node &&
-          triggerRef.current?.contains(event.target)
+          triggerNode?.contains(event.target)
         ) {
           event.preventDefault();
         }

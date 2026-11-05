@@ -140,7 +140,10 @@ export function ViewPopoverView({
     },
     true,
   );
-  useOutsidePointerDown([panelRef, anchorRef], onClose);
+  useOutsidePointerDown({
+    liveRefs: [panelRef, anchorRef],
+    onOutside: onClose,
+  });
 
   usePopoverKeyboard({
     panelRef,

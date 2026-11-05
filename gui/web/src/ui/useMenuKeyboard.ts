@@ -1,4 +1,4 @@
-import { type RefObject, useEffect } from "react";
+import { type RefObject, useEffect, useEffectEvent } from "react";
 import { noteMenuOpen } from "./modalGate";
 import { openerControl } from "./pressedControl";
 import { listFocusable } from "./useDialogModal";
@@ -26,102 +26,79 @@ function focusMenuItem(el: HTMLElement): void {
  */
 export function useMenuKeyboard({
   open,
-  panelRef,
+  panel,
   close,
-  fallbackTriggerRef,
+  fallbackTrigger,
   orientation = "vertical",
 }: {
   open: boolean;
-  panelRef: RefObject<HTMLElement | null>;
+  panel: HTMLElement | null;
   close: () => void;
-  fallbackTriggerRef?: RefObject<HTMLElement | null>;
+  fallbackTrigger?: HTMLElement | null;
   orientation?: "vertical" | "horizontal";
 }): void {
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    noteMenuOpen(true);
-    return () => {
-      noteMenuOpen(false);
-    };
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    const restore = openerControl();
-    const [prevKey, nextKey] =
-      orientation === "vertical"
-        ? ["ArrowUp", "ArrowDown"]
-        : ["ArrowLeft", "ArrowRight"];
-
-    const raf = requestAnimationFrame(() => {
-      const panel = panelRef.current;
-      if (!panel) {
-        return;
-      }
-      const first = menuItems(panel)[0] ?? listFocusable(panel)[0];
-      if (first) {
-        focusMenuItem(first);
-      }
-    });
-
-    const onKey = (e: KeyboardEvent) => {
+  const focusFirst = useEffectEvent(() => {
+    if (!panel) return;
+    const first = menuItems(panel)[0] ?? listFocusable(panel)[0];
+    if (first) focusMenuItem(first);
+  });
+  const onKey = useEffectEvent(
+    (
+      e: KeyboardEvent,
+      closeForSession: () => void,
+      prevKey: string,
+      nextKey: string,
+    ) => {
       if (e.key === "Escape") {
         e.preventDefault();
         e.stopImmediatePropagation();
-        close();
+        closeForSession();
         return;
       }
-      const panel = panelRef.current;
       if (!panel || !panel.contains(document.activeElement)) {
         return;
       }
-      if (fallbackTriggerRef && e.key === "Tab") {
-        const trigger = fallbackTriggerRef.current;
+      if (fallbackTrigger && e.key === "Tab") {
+        const trigger = fallbackTrigger;
         const doc = panel.ownerDocument;
-        if (trigger) {
-          const candidates = listFocusable(doc.body).filter((el) => {
-            if (panel.contains(el) || el.tabIndex < 0) return false;
-            for (
-              let parent: HTMLElement | null = el;
-              parent;
-              parent = parent.parentElement
+        const candidates = listFocusable(doc.body).filter((el) => {
+          if (panel.contains(el) || el.tabIndex < 0) return false;
+          for (
+            let parent: HTMLElement | null = el;
+            parent;
+            parent = parent.parentElement
+          ) {
+            const style = doc.defaultView?.getComputedStyle(parent);
+            if (
+              parent.hidden ||
+              parent.inert ||
+              style?.display === "none" ||
+              style?.visibility === "hidden"
             ) {
-              const style = doc.defaultView?.getComputedStyle(parent);
-              if (
-                parent.hidden ||
-                parent.inert ||
-                style?.display === "none" ||
-                style?.visibility === "hidden"
-              ) {
-                return false;
-              }
+              return false;
             }
-            return true;
-          });
-          const ordered = candidates
-            .map((el, index) => ({ el, index, tabIndex: el.tabIndex }))
-            .sort((a, b) => {
-              const aPositive = a.tabIndex > 0;
-              const bPositive = b.tabIndex > 0;
-              if (aPositive !== bPositive) return aPositive ? -1 : 1;
-              if (aPositive && a.tabIndex !== b.tabIndex)
-                return a.tabIndex - b.tabIndex;
-              return a.index - b.index;
-            })
-            .map(({ el }) => el);
-          const triggerIndex = ordered.indexOf(trigger);
-          const target = e.shiftKey
-            ? trigger
-            : ordered[triggerIndex >= 0 ? triggerIndex + 1 : 0];
-          e.preventDefault();
-          close();
-          target?.focus();
-          return;
-        }
+          }
+          return true;
+        });
+        const ordered = candidates
+          .map((el, index) => ({ el, index, tabIndex: el.tabIndex }))
+          .sort((a, b) => {
+            const aPositive = a.tabIndex > 0;
+            const bPositive = b.tabIndex > 0;
+            if (aPositive !== bPositive) return aPositive ? -1 : 1;
+            if (aPositive && a.tabIndex !== b.tabIndex)
+              return a.tabIndex - b.tabIndex;
+            return a.index - b.index;
+          })
+          .map(({ el }) => el);
+        const triggerIndex = ordered.indexOf(trigger);
+        const target = e.shiftKey
+          ? trigger
+          : ordered[triggerIndex >= 0 ? triggerIndex + 1 : 0];
+        e.preventDefault();
+        closeForSession();
+        target?.focus();
+        return;
       }
       const items = menuItems(panel);
       if (items.length === 0) {
@@ -142,12 +119,38 @@ export function useMenuKeyboard({
         e.preventDefault();
         focusMenuItem(target);
       }
-    };
+    },
+  );
 
-    window.addEventListener("keydown", onKey);
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    noteMenuOpen(true);
+    return () => {
+      noteMenuOpen(false);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const restore = openerControl();
+    const [prevKey, nextKey] =
+      orientation === "vertical"
+        ? ["ArrowUp", "ArrowDown"]
+        : ["ArrowLeft", "ArrowRight"];
+
+    const raf = requestAnimationFrame(() => focusFirst());
+
+    const listener = (event: KeyboardEvent) =>
+      onKey(event, close, prevKey, nextKey);
+
+    window.addEventListener("keydown", listener);
     return () => {
       cancelAnimationFrame(raf);
-      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keydown", listener);
       // Take focus back only when it left with the panel. When another menu's
       // trigger took it (exclusive menus), stealing it back would make that
       // menu record this trigger as the place Escape returns to.
@@ -158,7 +161,7 @@ export function useMenuKeyboard({
         restore.focus();
       }
     };
-  }, [open, close, orientation, panelRef, fallbackTriggerRef]);
+  }, [open, close, orientation]);
 }
 
 /**

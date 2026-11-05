@@ -1,4 +1,10 @@
-import { type CSSProperties, type FocusEvent, memo, useRef } from "react";
+import {
+  type CSSProperties,
+  type FocusEvent,
+  memo,
+  useRef,
+  useState,
+} from "react";
 import { presenceColorVar } from "../../presence/colors";
 import { SystemIcon } from "../../system/SystemIcon";
 import { useMenuKeyboard } from "../../ui/useMenuKeyboard";
@@ -39,7 +45,7 @@ type FanProps = Omit<TargetChooserProps, "over"> & { over: string | null };
 
 /** The fan in its box; it owns the keyboard hook, so it mounts only for two targets or more. */
 function Fan({ targets, anchor, bounds, over, onPick, onCancel }: FanProps) {
-  const rootRef = useRef<HTMLDivElement>(null);
+  const [panel, setPanel] = useState<HTMLDivElement | null>(null);
   const close = useStableCallback(() => onCancel());
   // One pick per open: a lift that also yields a click, or a double
   // activation, must not commit twice. The fan is per mount, so no reset.
@@ -51,7 +57,7 @@ function Fan({ targets, anchor, bounds, over, onPick, onCancel }: FanProps) {
   };
   useMenuKeyboard({
     open: true,
-    panelRef: rootRef,
+    panel,
     close,
     orientation: "horizontal",
   });
@@ -72,7 +78,7 @@ function Fan({ targets, anchor, bounds, over, onPick, onCancel }: FanProps) {
   const caption = overLabel ? overLabel : null;
   return (
     <div
-      ref={rootRef}
+      ref={setPanel}
       role="menu"
       aria-label={label}
       tabIndex={-1}

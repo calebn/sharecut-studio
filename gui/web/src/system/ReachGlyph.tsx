@@ -25,7 +25,11 @@ export function ReachGlyph({ reach }: { reach: LinkReach }) {
   const id = useId();
   const button = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
-  useOutsidePointerDown([button, panel], () => setOpen(false), open);
+  useOutsidePointerDown({
+    liveRefs: [button, panel],
+    onOutside: () => setOpen(false),
+    enabled: open,
+  });
   const copy = COPY[reach];
   return (
     <span className="sys-link-reach" data-reach={reach}>
