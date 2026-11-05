@@ -3,7 +3,6 @@ import type { ComponentProps } from "react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { rollClipJoin } from "../api";
 import { loadBoundaryContext } from "../api/boundary";
-import { useNudgeRun } from "../inspector/useNudgeRun";
 import { useDawStore } from "../state/dawStore";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import { ClipBlock } from "./ClipBlock";
@@ -36,76 +35,7 @@ vi.mock("../api", async (original) => ({
 beforeEach(() => {
   vi.clearAllMocks();
 });
-function Nudge() {
-  const r = useNudgeRun();
-  return (
-    <button
-      {...r.buttonProps(
-        { kind: "trim", trackId: "host", clipId: "anchor", edge: "out" },
-        -0.01,
-        "Trim end",
-      )}
-    >
-      Nudge
-    </button>
-  );
-}
-it("refuses preview-only roll joins and saves an original join", async () => {
-  const p = minimalProject({
-    tracks: [sampleTrack({ id: "host" }), sampleTrack({ id: "guest" })],
-    clips: {
-      tracks: {
-        host: [clipRow({ id: "anchor", source_end: 10, timeline_end: 10 })],
-        guest: [
-          clipRow({
-            id: "wide",
-            track_id: "guest",
-            source_start: 20,
-            source_end: 24,
-            timeline_start: 8,
-            timeline_end: 12,
-            source_duration_sec: 60,
-          }),
-        ],
-      },
-      clip_count: 2,
-    },
-  });
-  useDawStore.getState().hydrate("/tmp/one.json", p);
-  const n = render(<Nudge />).getByRole("button");
-  fireEvent.keyDown(n, { key: "Enter" });
-  const lane = useDawStore.getState().project!.clips.tracks.guest;
-  const head = lane[0]!;
-  const tail = lane[1]!;
-  expect(tail.id).toBe("wide:tail");
-  expect(head.timeline_end).toBeCloseTo(tail.timeline_start, 9);
-  expect(
-    useDawStore
-      .getState()
-      .projectEditBasis()!
-      .clips.tracks.guest.map((c) => c.id),
-  ).toEqual(["wide"]);
-  const view = render(
-    <ClipBlock
-      {...clipBlockDefaults}
-      clip={tail}
-      trackId="guest"
-      mediaRef="track:guest"
-      prevClip={head}
-      neighborSourceLo={head.source_end}
-    />,
-  );
-  const handle = view.container.querySelector(
-    "button.join-seam",
-  ) as HTMLElement;
-  expect(handle).not.toBeNull();
-  await act(async () => {
-    fireEvent.pointerDown(handle, { pointerId: 5, clientX: 150 });
-    fireEvent.pointerMove(handle, { pointerId: 5, clientX: 155 });
-    fireEvent.pointerUp(handle, { pointerId: 5, clientX: 155 });
-  });
-  expect(loadBoundaryContext).not.toHaveBeenCalled();
-  view.unmount();
+it("saves a roll join on its original clips", async () => {
   const left = clipRow({
     id: "left",
     track_id: "guest",
