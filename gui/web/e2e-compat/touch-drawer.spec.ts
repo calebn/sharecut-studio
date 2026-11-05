@@ -694,8 +694,8 @@ test("a pending edit's review card tops the sheet and its Approve and Reject sta
       }, rootFont);
       const card = page.locator(".pending-actionbar");
       await expect(card.getByRole("button", { name: "Approve" })).toBeVisible();
-      // Half does not fit a phone held sideways: the sheet is full-only there.
-      const fullOnly = size === "landscape-636";
+      // Half does not fit a phone held sideways, nor 32 px text: full-only.
+      const fullOnly = size === "landscape-636" || rootFont === 32;
       await expect(sheet(page)).toHaveAttribute(
         "data-detent",
         fullOnly ? "full" : "half",
