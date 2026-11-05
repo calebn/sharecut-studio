@@ -213,14 +213,11 @@ In short windows with a fine pointer, Transcript uses less vertical spacing arou
 its content and hint.
 
 Round 9 (#1181) moved the peek strip above the tool rail after an Undo tap could
-nudge a pending edit. Issue #1205 moved the shared Undo and Redo controls into
-the compact inspector header, which keeps them at half and full height (the
-peek strip is gone, #2294 W3c2b), then let the strip
-cover the rail again. Those header buttons use the same authorization,
-unavailable-action feedback and `history.undo` / `history.redo` command path as
-the rail. The open drawer no longer reserves the rail's height from the lane
-area. At 32 px root text the header may wrap, but its history, resize and Close
-controls remain visible and separate.
+nudge a pending edit. Issue #1205 then moved the shared Undo and Redo controls
+into the compact inspector header; that drawer is retired (#2294 yf), and Undo
+and Redo now stay in the App header, which the phone Inspector sheet never
+covers. They use the same authorization, unavailable-action feedback and
+`history.undo` / `history.redo` command path as before.
 
 `e2e-compat/phone-chrome.spec.ts` checks three 72px lanes at 932×432, Undo and
 Redo on both shells, a page that never scrolls under the shell, and the Add to
@@ -288,85 +285,48 @@ While `project === null` (progressive load), the frame shows the header and Stag
 **Commenting (#1338).** Commenting is the job of a Commenter or Editor review link, so the Player bar always carries a comment-at-playhead control and Review holds the guest's comments in the Queue (`stage/hosts/useReviewComments.tsx`): the `Composer` above the card and one `CommentCard` per comment, with no Cut, Keep, Find more or Deliver. A guest types, taps the arrow, and the time chip that leads the field shows where the comment lands (the draft that C, the Player bar's comment button or the first keystroke set, else the selected range, else the playhead; see [timeline-comments.md](timeline-comments.md#daw-viewer)). The Composer carries a **Your name** field above the comment field, and the post is announced in a polite live region ("Comment posted at 0:12") and in the toast, which docks above the Player bar. The name (40 code points at most) is remembered in a guest-only `localStorage` key the host's name field never reads or writes; a blank name posts under the saved name (shown in the field once it posts), else as **Guest**. A reply uses the saved name or Guest without asking. The field is 1rem so iOS does not zoom in on focus. On a touch screen (a coarse pointer, where the soft keyboard has no Shift) Return adds a line and the arrow posts; Cmd or Ctrl+Return still posts. A Viewer link shows no composer.
 A share link never opens the Inspector by itself: a stored or remote selection whose target is gone clears silently, and no tab, host or guest, takes on another viewer's selection (see [session-sync.md](session-sync.md)) (#1339).
 
-A timeline or transcript range opens the same sheet with **Range fields** as its body on the phone and the tablet (`Inspector` renders `RangeFields`; the tablet no longer draws them in the bar under the scrim). While **Select range** is armed over a clip, track or other selection, the sheet carries the In and Out fields above that selection's inspector (`SelectionSheetBody`, shared by both shells). On a tablet, an agent range moves the existing In and Out fields, selected-track checkboxes and explicit **Use agent range on selected tracks** action into any open selection sheet. The agent range is not adopted automatically. The sheet keeps those controls in one place, including in the compact drawer, where they appear above the inspector and scroll with the sheet body. The selected target and saved sheet detent do not change. Arming **Select range** with nothing selected opens the sheet on the tablet too (#1793), as it does on the phone, so In, Out, the track checkboxes, Select range and Cancel never sit in a card at the top. On the tablet's half sheet that holds only those fields, the sheet is as tall as they are (`bottom-sheet.css`, `.range-numeric`), so the lanes the range is dragged across stay in view. Only the desktop shell keeps them in the transport bar. Selection opens a non-modal **half → full** [`BottomSheet`](../gui/web/src/ui/BottomSheet.tsx) wrapping the desktop inspector views. It retains `aria-modal="false"`, Escape, focus restoration, and an interactive timeline background. It has no Tab trap. **Expand** and **Collapse** are icon buttons (maximize and restore) with the same accessible names, and change view size only; these actions and **Close** use the sheet-scoped `--touch-min` floor. Only the compact inspector below swipes.
+A timeline or transcript range opens the same sheet with **Range fields** as its body on the phone and the tablet (`Inspector` renders `RangeFields`; the tablet no longer draws them in the bar under the scrim). While **Select range** is armed over a clip, track or other selection, the sheet carries the In and Out fields above that selection's inspector (`SelectionSheetBody`, shared by both shells). On a tablet, an agent range moves the existing In and Out fields, selected-track checkboxes and explicit **Use agent range on selected tracks** action into any open selection sheet. The agent range is not adopted automatically. The sheet keeps those controls in one place, including on the phone, where they appear above the inspector and scroll with the sheet body. The selected target and saved sheet detent do not change. Arming **Select range** with nothing selected opens the sheet on the tablet too (#1793), as it does on the phone, so In, Out, the track checkboxes, Select range and Cancel never sit in a card at the top. On the tablet's half sheet that holds only those fields, the sheet is as tall as they are (`bottom-sheet.css`, `.range-numeric`), so the lanes the range is dragged across stay in view. Only the desktop shell keeps them in the transport bar. Selection opens a non-modal **half → full** [`BottomSheet`](../gui/web/src/ui/BottomSheet.tsx) wrapping the desktop inspector views. It retains `aria-modal="false"`, Escape, focus restoration, and an interactive timeline background. It has no Tab trap. **Expand** and **Collapse** are icon buttons (maximize and restore) with the same accessible names, and change view size only; these actions and **Close** use the sheet-scoped `--touch-min` floor. Only the compact inspector below swipes.
 
 **Split speakers…** is a track-inspector button, so the same sheet carries it on a phone, and the Prepare stage's empty-session hint ("One recording of everyone? Import it, then choose Split speakers.") points there. Its dialog is a bottom sheet with **Split speakers**, **Cancel split** or **Undo split** and **Done** pinned in the footer ([communication-philosophy.md](communication-philosophy.md#terminology) names the terms). After a split, the scrollable result lists saved unsure and overlapping stretches with timeline start, length and speaker tracks; repeated timeline placements have separate **Go to** buttons. A stretch removed from the timeline shows recording time and explains why **Go to** is unavailable. Close the sheet to listen with the lane Solo controls, then choose **Review split…** in that track's inspector to return to the list. The review entry is session-scoped and expires after any saved project edit, including a saved mute change; listen-only Solo keeps it available.
 
-A timeline selection in Timeline mode, or on the tablet shell upright or
-sideways (#1871), opens the **compact inspector** instead: a drawer at half height (full where half
-does not fit) with the target's name in its header and the inspector's own fields
-as its body. Beside a clip's fade and trim fields, a pending edit's Source start and
-end and an envelope point's Time and Level sit rows of 44 px nudge buttons at the
-keyboard's steps (for the host and Editor links; Commenter and Viewer links see
-them view-only). Holding a nudge repeats it,
-faster after a few steps, and the run saves as one edit; a held run stops at a
-soft boundary (the playhead, a chapter, a clip or pending edge) and a fresh
-press goes past it. A trim's nudge wears the **Ripple** mark: later clips on
-every dialogue track move with it, and a held nudge previews them all. A
-ripple trim drag draws the same on every lane it moves: arrows to where the
-later clips go and, on the other lanes, the span a shortening trim takes.
-While a compact inspector is visible, the covered editing rail is inert and
-keeps its layout height. Native keyboard navigation uses the visible inspector
-header controls. Closing or stowing the inspector restores rail interaction.
-The stowed sheet is inert too; when it returns, its controls rejoin native
-keyboard navigation.
+A timeline selection on the phone shell opens the **Inspector sheet** (design
+system 9a; `InspectorSheet form="phone"` in `stage/edit/InspectorHost.tsx`), a
+bottom sheet with three detents: the **dock** (4 rem: the Action bar alone), **half**
+(50%) and **full** (92%). It opens at half, or at full where half does not
+fit the lanes (a phone held sideways, a small portrait phone at large text);
+there the dock is dropped at full so the fields get the room. The dock is the
+Action bar: the selected object's icon and short name on the left (96 px at
+most), up to five 48 px verb buttons (icon over a 10 px label) and **More**. A
+verb that opens fields (Fix text on a chapter, Adjust bounds, Fade, Move to
+track) raises a sheet resting on its dock to half and focuses the first field.
+The body is the target's own fields as Scrub fields: type a value, drag it, or
+step it with the arrow keys; there are no nudge buttons, so the phone has no
+one-tap quick nudge. A pending edit's review card sits at the top of the body.
 
-The compact inspector is a swipeable drawer (#1051 round 4b): drag its header,
-which shows a grabber pill, up or down between **half**
-(the inspector at no more than half the slot) and **full**. The sheet
-follows the finger 1:1 on the compositor and re-renders nothing until the
-release; then it coasts on the finger's speed to the nearest detent, so a
-quick flick opens or closes it fully and a slow drag lands where it was left
-(reduced motion lands it without the slide). A second finger drops the swipe, and a finger resting on the drawer counts as a first finger for the timeline's two-finger rule (a second finger's long press on a target arms nothing). **Expand** steps up
-one detent and **Collapse** returns to half; both stay, named for where
-they go ("Expand to full height"). A visually hidden range, "Inspector
-height", changes the detent from the keyboard or a screen reader. The title
-keeps the target's name at every detent, and the last detent opens the next
-selection. An envelope point chosen from the keyboard or added from the create
-menu while the track's sheet is open shows its **Time** and **Level** in the
-drawer, and Inspect opens them in the sheet; a tap on the timeline, even with
-that sheet open, opens the drawer as usual. In a folded frame the sheet's grabber sits in the
-header row and the title shrinks to an ellipsis before the actions wrap, so the
-chrome is one row wherever its actions fit one (R-short-11). Where half the slot
-cannot hold that one-row chrome and a touch row (`halfDetentFits`, measured from the
-slot and the header in `ui/compactSheet.ts`), the sheet has no half detent: the sheet opens at full, and a stored half shows as full without being
-overwritten. Where even the full sheet cannot hold the chrome and a touch row
-(`chromePins`), the chrome scrolls away with the body, so the content gets the whole
-slot. The header's actions (Collapse, Expand,
-Close) wrap beneath the title when they cannot sit beside it, as at 32 px text
-on a 390 px phone, so the title keeps a line of its own (at least 8rem wide)
-instead of being squeezed to nothing. A slot under 20rem tall, at half
-or full size (a phone held sideways or a small portrait phone at large
-text, or a slot the keyboard has shrunk), lets the compact title shrink to 4rem
-first, so the actions stay beside it. Collapsing to half scrolls the
-body back to its top, so the first field is not left out of view by the scroll
-the taller detent had (#1762). A phone held sideways at 200% text (636×390)
-has the drawer fill the slot above the Stage bar (it is full: half does not fit): the title shares the header
-row with the actions there, and the nudges are one scroll of the body away,
-which ends at the Stage bar. Half and full dim the timeline. The drawer's scroll keeps a focused control clear of its
-pinned header in Chromium and WebKit. The
-timeline scrolls the selection above the sheet, and any timeline drag
-stows it until release. A chooser-routed drag ignores capture loss from the
-previous element while its routed owner remains connected. A release or cancel,
-including a native terminal after the owner disarms, ends the drag. Native
-capture loss from the routed owner also ends it, as does document-retargeted
-capture loss after that owner disconnects. Direct drags still end on native
-capture loss. A touch screen held sideways
-under 40rem wide (568×320)
-gets the same compact inspector in place of the bottom tabs; at 40rem wide and
-up the Inspector is a [column](#browser-chrome-safe-areas-and-home-screen-1077)
-instead, and a mouse window of that size keeps the drawer. Its name,
-**Expand** or **Collapse** and **Close** stay pinned at the top while the
-expanded inspector scrolls, and the drawer docks above the nav or status row
-beside it (`--z-sheet-docked`). The open inspector covers the tool rail, which
-is inert; Undo and Redo stay visible in the pinned header at every detent. The
-editor page never rubber-bands. Decision and
-measurements: [touch-editor-decisions.md § Compact inspector](touch-editor-decisions.md#compact-inspector-1051-round-3)
-and [§ Collapse stays in reach](touch-editor-decisions.md#collapse-stays-in-reach-1051-round-4).
+The grip is a 36×5 pill with a 44 px hit area and the role "Sheet height". Drag
+it up to half or full; drag it down past the dock to clear the selection and
+close the sheet. The sheet follows the finger 1:1 and, on release, coasts on the
+finger's speed to the nearest detent (reduced motion lands it without the
+slide). A tap on the grip toggles half and dock (full steps down to half); the
+arrow keys, Home and End step it from the keyboard or a screen reader. There
+are no Expand or Collapse buttons. The timeline scrolls the selection above the
+sheet (`useKeepTargetClear`, `--sheet-clearance`). Undo and Redo stay in the App
+header, which the sheet never covers; the sheet carries no history controls.
+The saved-edit toast docks above the sheet's grip.
+
+An envelope point chosen from the keyboard or added from the create menu while
+the track's sheet is open shows its **Level** and **Time** fields in the sheet,
+and Inspect opens them; a tap on the timeline, even with that sheet open,
+selects as usual. The tablet shell (upright or sideways) and the desktop use the
+Inspector card beside the selection, and a touch screen held sideways at 40rem
+wide and up keeps the Inspector as a
+[column](#browser-chrome-safe-areas-and-home-screen-1077). Decision records:
+[touch-editor-decisions.md § Compact inspector](touch-editor-decisions.md#compact-inspector-1051-round-3)
+(history; the drawer it describes is retired).
 
 On touch, a direct long press on a fade or trim handle may open Auto precision;
 envelope points, pending edges, and chooser chip grabs keep the grammar drag.
-**Auto precision** (#1184) then opens a jog pad in the drawer's place when the
+**Auto precision** (#1184) then opens a jog pad in the sheet's place when the
 target or its neighbour is narrower than a finger, or drags directly on the
 timeline when a step is already at least 4 px wide (slower finger motion moves
 finer steps). Slide up on the pad to slow the move; **Done** or a tap outside
@@ -430,7 +390,7 @@ dialog. Tablet and desktop keep the parameter form inline. An open modal dialog
 holds every app shortcut (`ui/modalGate.ts`), as the native `confirm()` did:
 Escape closes the dialog and does not also clear the selection, and Mod+Z,
 Space or Delete do nothing behind it, so an in-app confirm over the Inspector
-neither undoes nor removes anything while it asks. An open compact inspector also
+neither undoes nor removes anything while it asks. An open Inspector sheet also
 holds Escape: `overlayOpen()` skips keymap `edit.clearSelection`. Every `Dialog` is a bottom sheet on phone and tablet (a tablet sheet keeps a
 42rem measure) with its primary pinned in the footer; the People list on the
 phone More sheet is a `Menu` behind a "People · n" button.
@@ -477,8 +437,8 @@ A presentation-boundary intersection observer pauses expiry whenever the card
 is clipped by its actual ancestors. Toast retains the remaining visible time
 through every pause and host move. An oversized card stays paused while the
 user scrolls through its message and actions. Host changes do not restart the
-timer or remount Undo. Closing or stowing a compact
-inspector returns feedback to the floating host, outside the inert rail.
+timer or remount Undo. Closing the phone Inspector
+sheet returns feedback to the floating host, which docks above the sheet's grip while it is open.
 An intentionally focused Undo or Dismiss keeps its native identity when the
 phone and tablet inspector hosts remount. Sheet entry focus yields to that action. Dismissing it, or this tab's own
 undo removing or disabling Undo, or another client's edit removing it, returns
@@ -715,7 +675,7 @@ test any more.
 - **Touch targets.** The corner packs its controls into the 48px chrome; buttons are 28px there, below the 44px floor. This is a known limit; the Player bar and tab bar keep `var(--touch-min)`.
 - **The phone sheet never covers the header row** (R-short-8). At every detent its slot starts at the header's bottom edge (`bottom-sheet.css`, `--app-header-height-phone` plus the top safe area), so the Stage menu and Tools button stay reachable while a selection is open, including at 200% text. The clearance tokens then count only the rows under the header (`--sheet-header-clearance` is 0 on the phone).
 - **Split** cuts at once on touch with no confirm; the toast carries Undo. Sheets rest above the tab bar and Player (`--frame-bottom-chrome`).
-- **Undo and Redo** live in the app header on every shell. When the compact inspector is closed they are not repeated in the drawer.
+- **Undo and Redo** live in the app header on every shell. The phone Inspector sheet does not repeat them.
 - The `--mobile-nav-height`, `--tabs-height` and `--status-height` tokens are replaced by `--frame-bottom-chrome` for sheets, jog and toast offsets.
 - The host recording chip is a Record-stage badge on the Stage bar. **Solo on · Clear solo** is the Player bar's Solo chip, 44px.
 ## Desktop / tablet back-apply
@@ -767,7 +727,7 @@ evidence:
 - PR #1520 production Chromium at 390×844/root32 with nonzero safe-area insets showed the fixed attention summary intercepting native full-sheet Collapse
 - Existing compact inspector bodyHeader provides separate flow below pinned header actions without changing the shell slot or outer detent allocation
 enforced-by:
-- gui/web/e2e-compat/compact-feedback-detents.spec.ts::saved feedback stays clear of the sheet's dock and grip at half and full: portrait root${rootPx}
+- gui/web/e2e-compat/compact-feedback-detents.spec.ts::saved feedback stays clear of the sheet's dock and grip at half and full
 -->
 
 Host offline command attention occupies its own shell row on phone, tablet, and desktop; queued host edits stay visible while reconnect/replay is pending, and conflict rows can be dismissed. While a compact inspector is open, the one native Details disclosure moves into its existing feedback body header, below the pinned inspector controls. Its explanation and recovery actions use the inspector body scroller; the header actions keep their own space at every detent. In compact half and full detents, the existing Pending review toolbar also starts the scrolling body, so it does not consume the pinned header budget. Regular inspector placement stays unchanged, and the same toolbar keeps its callbacks, review draft and focus across those moves. Otherwise, Details opens a bounded dropdown below the shell row. The shell slot keeps its compact footprint and inspector detents stay unchanged. A stable local portal container preserves native open state and focused recovery controls when the existing host closes, stows, or returns. Switching projects resets the disclosure. Outside the inspector, the dropdown height subtracts its measured row bottom and the bottom safe-area inset. Removing attention or unmounting removes the portal container and cancels position updates. The Role chip remains guest-only.

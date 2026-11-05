@@ -133,7 +133,7 @@ Focused timeline fade and trim handles accept Left/Right arrows through the shar
 
 The selected clip Inspector exposes Source start and Source end Scrub fields for precise trim targets. Arrow keys and drags stop at the current source, minimum-span and neighboring-clip bounds; a typed value outside them is refused with the range named on Enter and dropped on blur. A committed value (Enter, blur, an arrow key or a drag end) is submitted once through the existing trim command. Arrow keys step 10 ms (Shift 100 ms, Alt 1 ms). Pending-edit source boundaries use the same two nudge sizes, and, in the phone's compact drawer, a selected envelope point exposes 10 ms and 100 ms time nudges plus ±0.5 dB level nudges. These buttons keep the 44 px Inspector target size and use the same existing document mutations as their drag or typed-edit paths, so each accepted action is one Undo entry. Envelope levels remain linear multipliers in the project. A +0.5 dB step from exactly 0× starts at the existing −60 dB floor and yields −59.5 dB; a downward step remains at zero, while positive values below the floor retain their multiplicative step.
 
-A held trim nudge in the inspector has one detachable display layer in the
+A held trim in the inspector has one detachable display layer in the
 project store. Its run token and captured path, epoch, document generation,
 sequence and authoritative project establish ownership. Every accepted step
 computes `trimDraft` from the clean origin and publishes the layer, preview and
@@ -166,7 +166,7 @@ pending drafts. Undo waits through that cleanup.
 Fade gestures capture both saved fades and submit that pair with `SetClipFade`.
 The server refuses a stale pair before history capture, including a draft made
 while an Undo reply was delayed. The current project shows "This clip changed.
-Nothing was saved. Adjust the fade again." Timeline handles and phone nudges
+Nothing was saved. Adjust the fade again." Timeline handles
 and the Clip Inspector fades announce it visibly (the status line says "Fade in not saved: ..."); a refused trim, join or Ripple delete shows in the sheet as an alert. A fresh gesture uses the
 restored pair. On a coded `clip_fade_changed` refusal, the shared command queue
 refreshes the current project through `refreshDocumentProject` before reporting
@@ -204,7 +204,7 @@ the best-ranked one, and a held touch on a crowded spot opens a target
 chooser. Data shape, ranking, routing and the
 chooser contract: [touch-editor-decisions.md](touch-editor-decisions.md#shared-hit-resolver-1051).
 Each target kind's input rules (its drag axes, whether a long press arms it,
-its nudges, soft boundaries, keys, command and the kinds it outranks,
+its soft boundaries, keys, command and the kinds it outranks,
 so a grab at a join rolls it) live in one table, `HIT_KINDS` in
 `gui/web/src/timeline/inputContract.ts`; the router reads it, and generated
 conformance tests check every kind against it. A long press arms a target, a long press on empty space opens the create menu, and armed
@@ -245,7 +245,7 @@ The Edit stage's Inspector (a card on the desktop and the tablet, a bottom sheet
 
 The bottom dock, its collapsed-panel preference and the adaptive layout were removed with the layout presets (#2292); there is no `sharecut.tabsCollapsed` any more. On a short tablet the Edit stage gives the timeline the whole body and the Script pane is toggled with **T** (`view.toggleScript`) or the Script divider. Selection Inspectors open as the card or the phone sheet, and closing the Inspector leaves the Script state unchanged.
 
-`useInspectorOpen` decides whether the Inspector is open (Inspect, never selection alone; an armed range opens it on the phone and the tablet) and `InspectorHost` decides where it sits: the card beside the selection, or, on the phone shell (up to 767 px wide, in either orientation), the bottom sheet, or the compact drawer for a phone timeline target; a wider phone held sideways is the tablet shell and gets the card. There is no side column any more (decision `D-inspector-sheet-no-column`). See [gui-mobile.md](gui-mobile.md#browser-chrome-safe-areas-and-home-screen-1077).
+`useInspectorOpen` decides whether the Inspector is open (Inspect, never selection alone; an armed range opens it on the phone and the tablet) and `InspectorHost` decides where it sits: the card beside the selection, or, on the phone shell (up to 767 px wide, in either orientation), the bottom sheet with the Action bar as its dock; a wider phone held sideways is the tablet shell and gets the card. There is no side column any more (decision `D-inspector-sheet-no-column`). See [gui-mobile.md](gui-mobile.md#browser-chrome-safe-areas-and-home-screen-1077).
 
 Every button inside `.modifier-footer-actions`, including nested menu triggers
 and preview modes, has a minimum height of `--touch-min` on coarse pointers and
