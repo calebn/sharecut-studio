@@ -699,6 +699,14 @@ describe("Mod+E export and the retired chords", () => {
     _resetKeymapOverridesForTests();
   });
 
+  it("shows no shortcut for a keyless row that has a stored remap", () => {
+    setKeymapOverride("export.bounce", ["J"]);
+    expect(displayShortcutFor("export.bounce", false)).toBeUndefined();
+    expect(ariaKeyShortcutsFor("export.bounce", false)).toBeUndefined();
+    expect(titleWithShortcut("Bounce", "export.bounce", false)).toBe("Bounce");
+    _resetKeymapOverridesForTests();
+  });
+
   it("leaves New project, Refresh mix, New track and Bounce to the palette", () => {
     for (const id of [
       "project.new",

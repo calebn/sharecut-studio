@@ -150,7 +150,7 @@ test("editor Mix commits saved volume through guest capabilities", async ({
   });
 });
 
-test("phone Mix restores Escape focus after Tab and yields to the Bounce shortcut, which goes to Deliver", async ({
+test("phone Mix restores Escape focus after Tab and reaches Bounce through the palette once closed", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 360, height: 740 });
@@ -174,8 +174,9 @@ test("phone Mix restores Escape focus after Tab and yields to the Bounce shortcu
       page.getByRole("button", { name: "Mix", exact: true }),
     ).toBeFocused();
     await openPhoneMix(page);
-    await runPaletteCommand(page, "Bounce…");
+    await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).toHaveCount(0);
+    await runPaletteCommand(page, "Bounce…");
     await expect(
       deliverPage(page).getByRole("button", { name: "Bounce", exact: true }),
     ).toBeFocused();

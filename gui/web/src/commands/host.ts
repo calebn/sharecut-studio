@@ -355,7 +355,7 @@ export function registerHostCommands(): void {
       return blocked;
     }
     const s = useDawStore.getState();
-    if (isRangeSelection(s.selection)) {
+    if (s.stage !== "deliver" && isRangeSelection(s.selection)) {
       const resolved = s.project
         ? resolveSelectionRange(s.project, s.selection)
         : null;

@@ -22,7 +22,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | `K` | Pause and return (`transport.stop`) | Always (when not typing in a field or on a focused Scrub field) | K alone pauses and returns; Mod+K splits at the playhead |
 | `J` | Jump back (`transport.shuttleBack`) | Always (when not typing in a field or on a focused Scrub field) | Jumps back 3, 6, 12 s on quick repeats; no reverse audio |
 | `L` | Speed up (1×/2×/4×) (`transport.shuttleForward`) | Always (when not typing in a field or on a focused Scrub field) | Plays at 1×, then 2× and 4× on repeats; J, K or Space returns to 1× |
-| Palette only | Refresh mix (`render.refreshMix`) | Refresh mix allowed | Palette only (K11/K15): rebuild stems/premix when host or Docs Editor |
+| Palette only | Refresh mix (`render.refreshMix`) | Refresh mix allowed | Palette only: rebuild stems/premix when host or Docs Editor |
 
 ## navigation
 
@@ -78,7 +78,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | `.` | More (`edit.more`) | editStage | .: open the Action bar's More menu |
 | `C` | Add comment (`comment.draftAt`) | Host or a link that can comment | C: comment on the selection, else at the playhead; Mod+C is Copy |
 | `Shift+C` | Add chapter at playhead (`edit.addChapter`) | Loaded host project | Shift+C: add a chapter at the playhead |
-| Palette only | New track (`track.add`) | editStageIngest | Palette only (K11/K15) |
+| Palette only | New track (`track.add`) | editStageIngest | Palette only |
 | `Mod+I` | Import audio… (`media.import`) | Media ingest allowed | Mod+I: Menu or drop on arrange |
 
 ## view
@@ -102,9 +102,9 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 |----------|---------|------|-------|
 | `M` | Record marker (`record.marker`) | recordStageActive | M: live marker on the Record stage; on any other stage, M still mutes — M drops a marker only on the Record stage; otherwise M mutes |
 | `?` | Commands and shortcuts (`ui.toggleCommandPalette`) | Always (when not typing in a field or on a focused Scrub field) | Also Shift+/ |
-| Palette only | Bounce… (`export.bounce`) | Loaded host project | Palette only (K11/K15): Bounce in Deliver (export/bounces/) |
+| Palette only | Bounce… (`export.bounce`) | Loaded host project | Palette only: Bounce in Deliver (export/bounces/) |
 | `Mod+E` | Export deliverables… (`export.deliverables`) | Loaded host project | Mod+E: mastered export/ via PipelineService; with one range selected, opens Deliver with Bounce focused and that range filled in |
-| Palette only | New project… (`project.new`) | Host project management | Palette only (K11/K15) |
+| Palette only | New project… (`project.new`) | Host project management | Palette only |
 | `Mod+O` | All projects (`project.home`) | Host project management | Mod+O: Home. Open project… is in the palette and on Home |
 
 ## presence

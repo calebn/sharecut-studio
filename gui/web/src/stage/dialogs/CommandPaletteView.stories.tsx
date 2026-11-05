@@ -62,7 +62,7 @@ const COMMANDS: PaletteCommand[] = [
     id: "export.deliverables",
     label: "Export deliverables…",
     category: "ui",
-    shortcut: "⌘+E",
+    shortcut: "⌘E",
     defaultKey: "E",
     disabledReason: null,
   },
