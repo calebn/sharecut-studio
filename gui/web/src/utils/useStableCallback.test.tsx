@@ -311,6 +311,10 @@ describe("stable callback source governance", () => {
         .map(({ source, callback }) => `${source.rel}:${callback}`)
         .sort(),
     ).toEqual([
+      "hooks/useFileMetaPoll.ts:fetchCurrentMeta",
+      "hooks/useFileMetaPoll.ts:notifyChange",
+      "hooks/useLongPress.ts:fireLongPress",
+      "hooks/useTimelineFocusRegion.ts:set",
       "stage/edit/script/ScriptHost.tsx:onSelect",
       "stage/edit/script/useScriptFind.ts:advance",
       "stage/edit/script/useScriptFind.ts:closeBar",
@@ -370,6 +374,7 @@ describe("stable callback source governance", () => {
       "system/MarkerLane.tsx:up",
       "system/Ruler.tsx:endNudge",
       "system/TrackHeader.tsx:commitLevel",
+      "system/useFocusRescue.ts:resolve",
       "system/useGrab.ts:abort",
       "system/useGrab.ts:canGrab",
       "system/useGrab.ts:escapeDrag",
@@ -390,7 +395,10 @@ describe("stable callback source governance", () => {
       "timeline/TimelineView.tsx:onSelectPending",
       "timeline/TimelineView.tsx:onSelectSeam",
       "timeline/TimelineView.tsx:seekFromRuler",
+      "ui/Dialog.tsx:dismissNow",
+      "ui/InlineConfirm.tsx:keep",
       "ui/useAnchoredPanel.ts:place",
+      "ui/useDialogModal.ts:close",
     ]);
     for (const mutation of mutations) {
       expect(findStableCallbackRenderCalls(mutation.source)).toEqual([

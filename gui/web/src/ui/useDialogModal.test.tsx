@@ -98,6 +98,31 @@ function ReturnFocusHarness({ explicit = true }: { explicit?: boolean }) {
 }
 
 describe("useDialogModal", () => {
+  it("keeps an open layer and focus while replacing its close callback", () => {
+    const first = vi.fn();
+    const next = vi.fn();
+    const frames = vi.spyOn(window, "requestAnimationFrame");
+    function Entry({ close }: { close: () => void }) {
+      const panelRef = useRef<HTMLDivElement>(null);
+      useDialogModal({ open: true, onClose: close, panelRef });
+      return (
+        <div ref={panelRef}>
+          <button type="button">First</button>
+          <button type="button">Last</button>
+        </div>
+      );
+    }
+    const view = render(<Entry close={first} />);
+    const frameCount = frames.mock.calls.length;
+    const last = screen.getByRole("button", { name: "Last" });
+    last.focus();
+    view.rerender(<Entry close={next} />);
+    expect(last).toHaveFocus();
+    expect(frames).toHaveBeenCalledTimes(frameCount);
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(next).toHaveBeenCalledOnce();
+    expect(first).not.toHaveBeenCalled();
+  });
   const layers: ReturnType<typeof openOverlay>[] = [];
   const holds: (() => void)[] = [];
   afterEach(() => {
