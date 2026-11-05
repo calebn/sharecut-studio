@@ -235,9 +235,11 @@ export const NoMatch: Story = {
       within(dialog).getByRole("combobox", { name: "Search commands" }),
       "xylophone",
     );
-    await expect(
-      within(dialog).getByRole("button", { name: "Clear search" }),
-    ).toBeVisible();
+    await waitFor(() =>
+      expect(
+        within(dialog).getByRole("button", { name: "Clear search" }),
+      ).toBeVisible(),
+    );
   },
 };
 
