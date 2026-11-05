@@ -361,5 +361,5 @@ export function MenuSection({ label, children }: MenuSectionProps) {
 
 /** Divides related item groups inside one `MenuSection`. */
 export function MenuSeparator() {
-  return <div className="ui-menu-separator" role="separator" />;
+  return <hr className="ui-menu-separator" />;
 }

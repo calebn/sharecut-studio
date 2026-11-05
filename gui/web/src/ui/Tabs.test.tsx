@@ -114,6 +114,23 @@ describe("TabList", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("moves from the selected tab to the next control without stopping on the tablist", async () => {
+    render(
+      <>
+        <Harness />
+        <button type="button">After panels</button>
+      </>,
+    );
+    await userEvent.tab();
+    expect(screen.getByRole("tab", { name: "one" })).toHaveFocus();
+    await userEvent.keyboard("{ArrowRight}");
+    expect(screen.getByRole("tab", { name: "two" })).toHaveFocus();
+    await userEvent.tab();
+    expect(screen.getByRole("button", { name: "After panels" })).toHaveFocus();
+    await userEvent.tab({ shift: true });
+    expect(screen.getByRole("tab", { name: "two" })).toHaveFocus();
+  });
+
   it("moves selection with arrows, Home and End", async () => {
     render(<Harness />);
     await userEvent.tab();
