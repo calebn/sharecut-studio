@@ -5,6 +5,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   useCallback,
   useEffect,
+  useInsertionEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -788,6 +789,9 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     project?.envelopes ?? EMPTY_ARR,
     envelopeTrackIds,
   );
+  useInsertionEffect(() => {
+    if (project) applyZoomAtRef.current = scroll.applyZoomAt;
+  }, [project, scroll.applyZoomAt]);
   const pendingEditSlices = useByTrack(
     project?.pending_edits ?? EMPTY_ARR,
     pendingEditTrackIds,
@@ -845,8 +849,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
 
   const laneStackHeight =
     markerLaneHeightPx + project.tracks.length * laneHeight;
-
-  applyZoomAtRef.current = scroll.applyZoomAt;
 
   const onTimelinePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     noteZoomPointerClientX(e.clientX);
