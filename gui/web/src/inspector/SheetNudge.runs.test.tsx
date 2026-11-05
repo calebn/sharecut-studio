@@ -16,9 +16,9 @@ import {
   beginDocumentDraft,
   finishDocumentDraft,
 } from "../document/pendingDrafts";
+import type { NudgeField } from "../edit/nudge";
 import { useDawStore } from "../state/dawStore";
 import type { AnnounceOptions } from "../state/types";
-import { useDaw } from "../state/useDaw";
 import { expectNoA11yViolations } from "../test/a11y";
 import { deferred } from "../test/deferred";
 import {
@@ -28,13 +28,8 @@ import {
   sampleTrack,
 } from "../test/fixtures";
 import { replayPointer } from "../timeline/hitRouting";
-import {
-  type ProjectView,
-  parseHistoryEntryId,
-  type Selection,
-} from "../types/project";
-import { InspectorPeek } from "./InspectorPeek";
-import { peekTarget } from "./peekTarget";
+import { type ProjectView, parseHistoryEntryId } from "../types/project";
+import { SheetNudge } from "./SheetNudge";
 
 const api = vi.hoisted(() => ({
   setClipFade: vi.fn(),
@@ -88,43 +83,58 @@ const project = minimalProject({
 const announce = vi.fn<(message: string, options?: AnnounceOptions) => void>();
 const FADE_HEAD = parseHistoryEntryId("h-fade");
 
-/** The strip as the shell renders it: its peek follows the store's project. */
-function Strip({
-  selection,
-  hit,
-}: {
-  selection: Selection;
-  hit: Parameters<typeof peekTarget>[2];
-}) {
-  const current = useDaw((s) => s.project);
-  const peek = current ? peekTarget(current, selection, hit) : null;
-  return peek ? <InspectorPeek peek={peek} /> : null;
+/** One value the sheet draws nudge buttons beside, as its section declares it. */
+interface Nudged {
+  field: NudgeField;
+  name: string;
 }
 
-const FADE = {
-  selection: { kind: "clip", id: "c2", trackId: "host" },
-  hit: { kind: "fade-in", id: "c2" },
-} as const;
-const TRIM_END = {
-  selection: { kind: "clip", id: "c2", trackId: "host" },
-  hit: { kind: "trim-out", id: "c2" },
-} as const;
-const POINT = {
-  selection: { kind: "envelopePoint", trackId: "host", pointId: "e1" },
-  hit: null,
-} as const;
+/** The buttons as the sheet draws them: one SheetNudge per Scrub field. */
+function Sheet({ fields }: { fields: readonly Nudged[] }) {
+  return (
+    <>
+      {fields.map(({ field, name }) => (
+        <SheetNudge key={name} field={field} name={name} />
+      ))}
+    </>
+  );
+}
+
+const FADE: readonly Nudged[] = [
+  {
+    field: { kind: "fade", edge: "in", trackId: "host", clipId: "c2" },
+    name: "Fade in",
+  },
+];
+const TRIM_END: readonly Nudged[] = [
+  {
+    field: { kind: "trim", edge: "out", trackId: "host", clipId: "c2" },
+    name: "Trim end",
+  },
+];
+const POINT: readonly Nudged[] = [
+  {
+    field: { kind: "envelope-time", trackId: "host", pointId: "e1" },
+    name: "Envelope point",
+  },
+  {
+    field: { kind: "envelope-level", trackId: "host", pointId: "e1" },
+    name: "Envelope point level",
+  },
+];
 
 function open(
-  target: { selection: Selection; hit: Parameters<typeof peekTarget>[2] },
+  fields: readonly Nudged[],
   p: ProjectView = project,
   path = "/tmp/p.json",
 ) {
   useDawStore.getState().hydrate(path, p, null);
-  useDawStore
-    .getState()
-    .setLayerVisible("showLevels", target.selection?.kind === "envelopePoint");
+  useDawStore.getState().setLayerVisible(
+    "showLevels",
+    fields.some((f) => f.field.kind.startsWith("envelope")),
+  );
   useDawStore.setState({ announceStatus: announce });
-  return render(<Strip selection={target.selection} hit={target.hit} />);
+  return render(<Sheet fields={fields} />);
 }
 
 const fadeIn = () =>
@@ -150,10 +160,9 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("InspectorPeek nudges", () => {
-  it("shows the value, labels each step, and saves one press as one edit", async () => {
+describe("sheet nudges", () => {
+  it("labels each step, and saves one press as one edit", async () => {
     open(FADE);
-    expect(screen.getByRole("status")).toHaveTextContent("300 ms");
     const group = screen.getByRole("group", { name: "Nudge fade in" });
     expect(
       [...group.querySelectorAll("button")].map((b) => [
@@ -303,7 +312,6 @@ describe("InspectorPeek nudges", () => {
     expect(fadeIn()).toBe(305);
     advance(200);
     expect(fadeIn()).toBe(309);
-    expect(screen.getByRole("status")).toHaveTextContent("309 ms");
     expect(api.setClipFade).not.toHaveBeenCalled();
     fireEvent.pointerUp(plus);
     advance(1000);
@@ -392,7 +400,6 @@ describe("InspectorPeek nudges", () => {
     advance(2000);
     const row = later.closest(".nudge-row");
     expect(row).toHaveAttribute("data-bump");
-    expect(row?.querySelector("output")).toHaveTextContent("0:10.000");
     expect(announce).toHaveBeenLastCalledWith(
       "Envelope point stopped at a clip edge",
       { gesture: true },
@@ -772,7 +779,6 @@ describe("InspectorPeek nudges", () => {
     open(POINT, project, "share:tok");
     act(() => useDawStore.setState({ shareCapabilities: ["comment"] }));
     expect(screen.queryByRole("group")).toBeNull();
-    expect(screen.getByRole("status")).toHaveTextContent("1.00× at 00:09.750");
     act(() => useDawStore.setState({ shareCapabilities: ["edit"] }));
     expect(
       screen.getByRole("group", { name: "Nudge envelope point level" }),

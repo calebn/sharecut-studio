@@ -51,7 +51,7 @@ Each thing is declared once. A second map from the same key is a bug.
 | Shortcut | `gui/web/src/keymap/registry.ts` (`KEYMAP_COMMANDS`, and `SHARED_KEY_ORDER` for a key more than one row binds); the only window `keydown` listener is `keymap/listener.ts` | `commands/governance.test.ts` (second listener fails), `keymap/sharedKeys.test.ts`, `make cheatsheet-check` |
 | Touch hit kind and gesture | `gui/web/src/timeline/inputContract.ts` (`HIT_KINDS`, `TOUCH_GESTURES`), routing in `timeline/hitRouting*.ts`, thresholds in `hooks/gestureConstants.ts` | `timeline/gestureGovernance.test.ts`, `inputContract.conformance.test.ts`, `inputContract.manifest.test.ts` |
 | Edit marker kind (join, pending and applied: type, label, and the join glyph paths, mode options and the join label with its length; the chip plan and the tier, label and label-room of each glyph in `timeline/editMarkers/plan.ts`). A new type adds its `EDIT_MARKERS` row (the `satisfies Record<EditMarkerKind, ...>` makes a missing row a type error) and a `--color-mark-<type>` token in each theme block, plus the CSS rule of each surface that draws it (`.edit-mark--<type>`; `.pending-overlay.<variant>`; `.applied-tick--<variant>`): colors and shapes are CSS, not registry data. These are hand-wired and the compiler checks only the `Record<JoinMode, ...>` keys of `EDIT_GLYPH_PATH`, so a missed one is caught by review: a new `EditType` member; for a pending type, its `PENDING_KIND_OF_TYPE` entry (without it the type draws as a cut); for a join type, `joinKind`, `JOIN_KINDS` and its `EDIT_GLYPH_PATH` entry (keyed by the server's `JoinMode`); for an applied tick, `appliedKind` | `gui/web/src/utils/editMarkerRegistry.ts` (`EDIT_MARKERS`) | `utils/editMarkerRegistry.test.ts`, `timeline/editMarkers/plan.test.ts`, `edit/joinRender.test.ts` |
-| Selection kind and its surface | `gui/web/src/inspector/selectionSurface.tsx` (`SelectionKind`, `SELECTION_SURFACES` with `body`, `screens`, `peek`, `related` and `more`) | `selectionSurface` tests, `stage/edit/useInspectorOpen.test.tsx` |
+| Selection kind and its surface | `gui/web/src/inspector/selectionSurface.tsx` (`SelectionKind`, `SELECTION_SURFACES` with `body`, `screens`, `related` and `more`) | `selectionSurface` tests, `stage/edit/useInspectorOpen.test.tsx` |
 | Capability (GUI, command, keys, touch, MCP, CLI, skill) | `contracts/capabilities.manifest.json` | `make generated-check`, `commands/manifestSurfaces.test.ts` |
 | Term | `docs/communication-philosophy.md` § Terminology | review (advisory docs-sync row `user-facing-copy-and-controls`) |
 | Token (color, space, type, z role) | `gui/web/src/styles/theme/`, `deploy/brand/brand-tokens.css` | Stylelint, `tests/test_css_policy.py` |
@@ -64,8 +64,8 @@ Each thing is declared once. A second map from the same key is a bug.
    changes the kind once. Two kinds for one target means two inspectors, two
    sheets and two sets of Related commands for the same thing.
 3. **One table.** `SELECTION_SURFACES` is the only map from kind to inspector
-   body, sheet screens, peek actions and Related commands. Peek and Related
-   derive from it. Phone and tablet read the same `screens`; a kind that opens
+   body, sheet screens and Related commands. Related
+   derives from it. Phone and tablet read the same `screens`; a kind that opens
    on tablet opens the same way on phone.
 4. **Selection survives mode and shell changes.** Switching Timeline to Text or
    rotating the device keeps the selection. Only an explicit clear or a new
@@ -317,7 +317,7 @@ not apply is answered "n/a" with the reason in the PR.
 - [ ] It has a touch gesture in `inputContract.ts`, or the PR says why it has
       none. A gesture has a visible equivalent in the bottom zone.
 - [ ] If it selects, the kind is in `SelectionKind` and `SELECTION_SURFACES`,
-      and peek and Related derive from that row.
+      and Related derives from that row.
 - [ ] If it needs a target, it resolves target → selection → focus and is
       disabled with a reason otherwise.
 - [ ] If it opens an overlay, it uses `Menu`, `Dialog` or `InlineConfirm`;

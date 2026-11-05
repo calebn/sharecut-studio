@@ -1108,7 +1108,7 @@ These signals prove rendered behavior, not owner listening acceptance.
 
 The compact history reach check asserts Undo, Redo, resize and Close before
 any scripted recovery, then repeats those assertions after body scrolling.
-Its pre-edit peek, half, and full traversal also taps unavailable Redo and checks
+Its pre-edit half and full traversal also taps unavailable Redo and checks
 its reason, accessible description, caption visibility, exact panel, header, body,
 and button rectangles, and absence of document commands. The blocked caption
 must disappear before the first saved edit. All four orientation and root-size

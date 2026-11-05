@@ -1,13 +1,12 @@
 /**
- * The compact inspector (#1051 round 3): on a phone-sized
- * screen a timeline selection opens a peek strip instead of a sheet that
- * covers the timeline. The user's last choice, strip or expanded inspector,
- * opens the next selection (`compactInspectorView`, persisted). Strip or
- * sheet, the selected target stays in view above it, and any timeline drag
- * stows it until release.
+ * The compact inspector (#1051 rounds 3 and 4b): on a phone-sized screen a
+ * timeline selection opens the Inspector as a drawer at half or full height.
+ * The user's last choice opens the next selection (`compactInspectorView`,
+ * persisted, half by default). The selected target stays in view above the
+ * sheet, and any timeline drag stows it until release.
  *
- * Only the phone shell's Timeline mode peeks; the tablet and the desktop
- * open the Inspector card (`InspectorHost`).
+ * Only the phone shell's Timeline mode uses the drawer; the tablet and the
+ * desktop open the Inspector card (`InspectorHost`).
  */
 import {
   type ComponentProps,
@@ -20,7 +19,6 @@ import {
   mediaQuerySubscription,
   useMediaQueryStore,
 } from "../../hooks/useMediaQueryStore";
-import { type PeekTarget, peekTarget } from "../../inspector/peekTarget";
 import { useDaw } from "../../state/useDaw";
 import type { Selection } from "../../types/project";
 import type { BottomSheet } from "../../ui/BottomSheet";
@@ -43,12 +41,13 @@ import {
 } from "../../utils/compactInspectorPref";
 import { CompactHistoryControls } from "../frame/HistoryControls";
 import { isFrameFolded } from "../frame/useShortFrame";
+import { type CompactTarget, compactTarget } from "./compactTarget";
 
-const FULL_ONLY_VIEWS: readonly CompactInspectorView[] = ["peek", "full"];
+const FULL_ONLY_VIEWS: readonly CompactInspectorView[] = ["full"];
 
 /** A phone held sideways: the same short-screen line the sheets use. */
 export const SHORT_SCREEN_MQ = "(max-height: 40rem)";
-/** Gap kept between the selected target and the strip or sheet (px). */
+/** Gap kept between the selected target and the sheet (px). */
 export const KEEP_CLEAR_PX = 8;
 
 const subscribeShort = mediaQuerySubscription([SHORT_SCREEN_MQ]);
@@ -59,7 +58,7 @@ export function useShortScreen(): boolean {
 }
 
 interface CompactInspector {
-  peek: PeekTarget;
+  target: CompactTarget;
   view: CompactInspectorView;
   detents: readonly CompactInspectorView[];
   pinsChrome: boolean;
@@ -141,10 +140,10 @@ export function useCompactInspector(
     inspectorSelection: s.inspectorSelection,
     rangeArmed: s.rangeArmed,
   }));
-  // Armed, the sheet carries the In and Out fields at full size, not a strip.
+  // Armed, the regular sheet carries the In and Out fields at full size.
   const applies = phone && timelineShown && !rangeArmed;
   const candidate =
-    applies && project ? peekTarget(project, selection, hit) : null;
+    applies && project ? compactTarget(project, selection, hit) : null;
   const [seen, setSeen] = useState<{
     selection: Selection;
     plain: boolean;
@@ -162,8 +161,8 @@ export function useCompactInspector(
       plain: applies && selection != null && (held || candidate == null),
     });
   }
-  const peek = held ? null : candidate;
-  const locate = peek?.locate ?? null;
+  const target = held ? null : candidate;
+  const locate = target?.locate ?? null;
 
   const active = locate != null && !stowed;
   const [fit, setFit] = useState<CompactSheetFit>({
@@ -172,9 +171,9 @@ export function useCompactInspector(
   });
   useResizeObserver(
     [
-      () => (peek ? compactSheetSlot() : null),
+      () => (target ? compactSheetSlot() : null),
       () =>
-        peek
+        target
           ? compactSheetPanel()?.querySelector(".bottom-sheet-header")
           : null,
     ],
@@ -189,7 +188,7 @@ export function useCompactInspector(
       }
     },
   );
-  // `view` re-runs it: the strip and the sheet cover different depths.
+  // `view` re-runs it: half and full cover different depths.
   useLayoutEffect(() => {
     if (active && locate && view) keepTargetClear(locate);
   }, [active, locate, view]);
@@ -207,9 +206,9 @@ export function useCompactInspector(
   }, [locate]);
 
   const shown = view === "half" && !fit.halfFits ? "full" : view;
-  return peek
+  return target
     ? {
-        peek,
+        target,
         view: shown,
         detents: fit.halfFits ? COMPACT_INSPECTOR_VIEWS : FULL_ONLY_VIEWS,
         pinsChrome: fit.pinsChrome,
@@ -226,20 +225,22 @@ export type CompactSheetProps = Pick<
 >;
 
 /**
- * The compact inspector is a swipeable drawer (#1051 round 4b): the strip at
- * peek, the full inspector at half and full height. It keeps the target's
- * name at every detent.
+ * The compact inspector is a swipeable drawer (#1051 round 4b): the full
+ * inspector at half and full height. It keeps the target's name at every
+ * detent.
  */
 export function compactSheetProps(
   compact: CompactInspector,
 ): CompactSheetProps {
   return {
-    title: compact.peek.title,
+    title: compact.target.title,
     compactHeaderActions: createElement(CompactHistoryControls),
     drawer: {
       detents: compact.detents,
       detent: compact.view,
-      onDetentChange: compact.setView,
+      // The drawer offers half and full only, so a detent is one of the two.
+      onDetentChange: (detent) =>
+        compact.setView(detent === "full" ? "full" : "half"),
       label: "Inspector height",
     },
     stowed: compact.stowed,

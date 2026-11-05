@@ -32,7 +32,7 @@ beforeEach(() => {
   useDawStore.setState({
     ...inspected({ kind: "clip", id: "c2", trackId: "host" }),
     selectionHit: { kind: "trim-in", id: "c2" },
-    compactInspectorView: "peek",
+    compactInspectorView: "half",
     timelineDragging: false,
     rangeArmed: false,
     sessionRegion: null,
@@ -43,15 +43,15 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("useInspectorOpen strip", () => {
-  it("peeks only on the phone's lanes", () => {
+describe("useInspectorOpen drawer", () => {
+  it("uses the drawer only on the phone's lanes", () => {
     const phone = renderHook(() => useInspectorOpen("phone", "timeline"));
-    expect(phone.result.current.strip?.props.className).toContain(
+    expect(phone.result.current.drawer?.className).toContain(
       "bottom-sheet--compact",
     );
     for (const shell of ["tablet", "desktop"] as const) {
       const { result } = renderHook(() => useInspectorOpen(shell, "timeline"));
-      expect(result.current).toMatchObject({ open: true, strip: null });
+      expect(result.current).toMatchObject({ open: true, drawer: null });
     }
   });
 
@@ -66,7 +66,7 @@ describe("useInspectorOpen strip", () => {
       selectionHit: null,
     });
     const { result } = renderHook(() => useInspectorOpen("phone", "timeline"));
-    expect(result.current).toMatchObject({ open: true, strip: null });
+    expect(result.current).toMatchObject({ open: true, drawer: null });
   });
 });
 

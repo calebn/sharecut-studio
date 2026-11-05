@@ -37,7 +37,7 @@ beforeEach(() => {
   useDawStore.setState({
     selection: { kind: "clip", id: "c2", trackId: "host" },
     selectionHit: { kind: "trim-in", id: "c2" },
-    compactInspectorView: "peek",
+    compactInspectorView: "half",
     timelineDragging: false,
   });
 });
@@ -48,14 +48,14 @@ afterEach(() => {
 });
 
 describe("useCompactInspector", () => {
-  it("opens the strip on a phone's timeline selection", () => {
+  it("opens the drawer at half height on a phone's timeline selection", () => {
     const { result } = renderHook(() => useCompactInspector(true, true));
-    expect(result.current?.peek.title).toBe("Trim start");
+    expect(result.current?.target.title).toBe("Trim start");
     expect(compactSheetProps(result.current!)).toMatchObject({
       title: "Trim start",
       drawer: {
-        detents: ["peek", "half", "full"],
-        detent: "peek",
+        detents: ["half", "full"],
+        detent: "half",
         label: "Inspector height",
       },
       stowed: false,
@@ -114,11 +114,11 @@ describe("useCompactInspector", () => {
         selection: { kind: "clip", id: "c2", trackId: "host" },
       }),
     );
-    expect(result.current?.peek.title).toBe("host clip");
-    expect(result.current?.view).toBe("peek");
+    expect(result.current?.target.title).toBe("host clip");
+    expect(result.current?.view).toBe("half");
   });
 
-  it("opens the strip for a timeline tap while a plain sheet is open, and ends a form's hold", () => {
+  it("opens the drawer for a timeline tap while a plain sheet is open, and ends a form's hold", () => {
     act(() =>
       useDawStore.setState({
         selection: { kind: "track", trackId: "host" },
@@ -128,7 +128,7 @@ describe("useCompactInspector", () => {
     const { result } = renderHook(() => useCompactInspector(true, true));
     expect(result.current).toBeNull();
     act(() => useDawStore.getState().selectClip("c2", "host"));
-    expect(result.current?.peek.title).toBe("host clip");
+    expect(result.current?.target.title).toBe("host clip");
 
     act(() => useDawStore.setState({ selection: null }));
     act(() =>
@@ -141,7 +141,7 @@ describe("useCompactInspector", () => {
     );
     expect(result.current).toBeNull();
     act(() => useDawStore.getState().selectClip("c2", "host"));
-    expect(result.current?.peek.title).toBe("host clip");
+    expect(result.current?.target.title).toBe("host clip");
   });
 
   it("remembers the drawer's detent for the next selection, and stows during a drag", () => {
@@ -163,9 +163,9 @@ describe("useCompactInspector", () => {
     act(() => useDawStore.setState({ timelineDragging: true }));
     expect(compactSheetProps(result.current!).stowed).toBe(true);
     act(() =>
-      compactSheetProps(result.current!).drawer?.onDetentChange("peek"),
+      compactSheetProps(result.current!).drawer?.onDetentChange("half"),
     );
-    expect(localStorage.getItem("sharecut.compactInspector")).toBe("peek");
+    expect(localStorage.getItem("sharecut.compactInspector")).toBe("half");
   });
 });
 
@@ -196,29 +196,28 @@ describe("the compact drawer's Expand and Collapse", () => {
       .querySelector(".bottom-sheet")
       ?.className.match(/bottom-sheet--(peek|half|full)/)?.[1];
 
-  it("steps up a detent with Expand, opens the next selection there, and Collapse returns to the strip", () => {
+  it("steps up to full with Expand, opens the next selection there, and Collapse returns to half", () => {
     const { unmount } = render(<CompactSheet />);
-    expect(size()).toBe("peek");
-    fireEvent.click(
-      screen.getByRole("button", { name: "Expand to half height" }),
-    );
-    select("fade-in");
-    expect({ size: size(), pref: readCompactInspectorView() }).toEqual({
-      size: "half",
-      pref: "half",
-    });
+    expect(size()).toBe("half");
+    expect(screen.queryByRole("button", { name: /^Collapse/ })).toBeNull();
     fireEvent.click(
       screen.getByRole("button", { name: "Expand to full height" }),
     );
-    expect(size()).toBe("full");
+    select("fade-in");
+    expect({ size: size(), pref: readCompactInspectorView() }).toEqual({
+      size: "full",
+      pref: "full",
+    });
     expect(screen.queryByRole("button", { name: /^Expand/ })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Collapse to strip" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Collapse to half height" }),
+    );
     select("trim-in");
     expect({
       size: size(),
       pref: readCompactInspectorView(),
       title: screen.getByRole("heading").textContent,
-    }).toEqual({ size: "peek", pref: "peek", title: "Trim start" });
+    }).toEqual({ size: "half", pref: "half", title: "Trim start" });
     unmount();
   });
 });

@@ -111,7 +111,7 @@ enforced-by:
 - gui/web/src/timeline/hitRouting.fingers.test.ts::counts as a first finger: a second finger's long press arms nothing and its lift saves nothing
 - gui/web/e2e-compat/touch-grammar.spec.ts::the create menu reaches every item and stays off the finger at every text size and screen height
 - gui/web/e2e-compat/touch-grammar.spec.ts::a create menu taller than 90% of the screen, with room beside the finger, is not cut to 90%
-- gui/web/src/inspector/InspectorPeek.test.tsx::rolls a held run back, saving nothing, when the router cancels it for a second finger
+- gui/web/src/inspector/SheetNudge.runs.test.tsx::rolls a held run back, saving nothing, when the router cancels it for a second finger
 - gui/web/src/timeline/hitRouting.grammar.test.ts::arms from its body near an end whose trim and fade targets are click-through, as on an unselected clip
 - gui/web/src/timeline/hitCandidates.test.ts::is still the one candidate when every target in reach is out of reach
 - gui/web/e2e-compat/compact-history-persistence.spec.ts::compact history ${name} root${rootPx} ${theme}
@@ -130,8 +130,7 @@ The owner tested the timeline on a phone and approved one input grammar for
 all timeline editing. Portrait phone is the primary target.
 
 - One finger moving scrolls and never edits.
-- A tap selects and opens the peek strip. On a crowded spot it picks the most
-  likely target.
+- A tap selects. On a crowded spot it picks the most likely target.
 - A long press arms a target, through the fan-out chooser when the spot is
   crowded. Only an armed target drags, and only along its own axes: an
   envelope point moves in time and level, an edge moves in time, and a clip
@@ -147,15 +146,15 @@ all timeline editing. Portrait phone is the primary target.
   focusable lane or clip (#1877).
 - A second finger means pinch or pan. It cancels and rolls back any
   uncommitted single-finger action, so a pinch never edits.
-- Nudges in the strip repeat while held.
+- Nudge buttons in the inspector sheet repeat while held.
 
 Hard limits always stop a change: source bounds, a fade longer than its clip,
 envelope points passing each other in time, and a clip moving before the
 session start. Soft boundaries are neighbour
 clip edges, adjacent pending edges, markers and the playhead. A held nudge
 stops at one with a visible, accessible bump, and a fresh press crosses it. A
-drag pauses briefly at a soft boundary. The bottom strip is a swipeable drawer
-with peek, half and full heights, and it keeps its buttons. Editor links edit
+drag pauses briefly at a soft boundary. The compact inspector is a swipeable
+drawer with half and full heights, and it keeps its buttons. Editor links edit
 envelopes on the timeline as the host does (the owner confirmed it on
 2026-10-06); Commenter and Viewer links see them view-only. This grammar
 replaces the #951 deferral of global gesture changes below.
@@ -163,13 +162,13 @@ replaces the #951 deferral of global gesture changes below.
 The checks (#1096) live with the code:
 - **One contract.** `HIT_KINDS` in `gui/web/src/timeline/inputContract.ts`
   is the typed table of each target kind's axes, whether a long press arms
-  it, its strip nudge rows, whether soft boundaries apply, its keys, its
+  it, its sheet nudge buttons, whether soft boundaries apply, its keys, its
   catalog command, the kinds it outranks and whether it is a body (a clip
   body, which counts only when nothing else is in reach). The router, the
-  chooser, the strip, the keys and the tests read it.
+  chooser, the sheet, the keys and the tests read it.
 - **Generated conformance.** `inputContract.conformance.test.ts` runs every
   kind in the table through a tap, a long press, an armed drag, a second
-  finger, its strip rows, its soft boundaries and its keys. It also scans the
+  finger, its sheet nudges, its soft boundaries and its keys. It also scans the
   timeline's components: every kind with an axis must be marked on an element
   that owns its drag, so it has a reachable touch path, and no drag may sit
   behind a plain surface, where a long press opens the create menu instead.
@@ -209,7 +208,7 @@ new gesture:
 
 The visible equivalent is Range actions' **Add word before**, **Add word
 after**, **Drop first word** and **Drop last word**, which repeat while held, as
-a strip nudge does (`transcript.extendRange`).
+a nudge button does (`transcript.extendRange`).
 
 The Script pane (`system/ScriptPane`) replaces the transcript panel's Select
 mode, so the rule changes in one place: a long press that does not move no
@@ -450,7 +449,7 @@ or named test owns that behavior; it does not certify unrun combinations.
 | Mix: `MixSheet`, native controls, `useCommitRange` | Native volume range and M/S controls; More → Mix | Volume follows the existing preview/commit lifecycle and permission reason; M/S and local/shared listening distinctions remain. Accepted host/editor volume writes use the existing document command. Sheet layout supports row scrolling and text wrapping. | **Keep.** Do not add swipe-to-mix. Existing `phone-mix.spec.ts` covers its current path; failure/cancel combinations not asserted there remain unverified. |
 | Transcript words: transcript views and correction flow | Tap seeks; double tap or long press opens correction; visible Correct/Select modes | First tap seeks immediately. Correction opens only for a host with hydrated words; current sheet lifecycle restores mode on close. Submission uses `submitWordCorrection`; failure/permission behavior stays there. Phone uses the sheet for keyboard room; desktop has its current inline path. | **Keep.** `transcript-wordbar.spec.ts` and `edit-boundary-touch.spec.ts` are retained evidence. No delayed tap-to-seek recognizer. |
 | Comment rows: Review queue | Visible Resolve/Reopen and Undo toast | The Comments panel's own swipe-to-resolve is gone, but a phone queue row swipes right for its verb, which resolves a comment; swipe left does nothing on a comment. Resolve is also the action-bar verb, host only; latest-only Undo toast remains. | **Panel swipe removed; queue-row swipe kept.** |
-| BottomSheet: `ui/BottomSheet.tsx` | **Only the compact inspector's drawer drags and flicks** (its header, round 4b); every other sheet has no drag gesture. Expand/Collapse and Close are visible single-pointer actions on all of them | Controlled `expanded` updates half/full view state only (peek/half/full for the #1051 compact inspector, which also stows during a timeline drag). There is no command/failure/History path for resize. Close and Escape dismiss; the interactive inspector scrim never takes a touch, and it is clear at the strip and dims the timeline at half and full; confirmation scrim dismisses. Shell CSS keeps phone nav and tablet chrome clear. | **Remove inert grip; retain and enlarge the resize button.** `BottomSheet.test.tsx` and new touch E2E exercise the existing callback and layout. No global button changes. |
+| BottomSheet: `ui/BottomSheet.tsx` | **Only the compact inspector's drawer drags and flicks** (its header, round 4b); every other sheet has no drag gesture. Expand/Collapse and Close are visible single-pointer actions on all of them | Controlled `expanded` updates half/full view state only (half/full for the #1051 compact inspector, which also stows during a timeline drag). There is no command/failure/History path for resize. Close and Escape dismiss; the interactive inspector scrim never takes a touch, and it dims the timeline at half and full (it is clear at a generic peek); confirmation scrim dismisses. Shell CSS keeps phone nav and tablet chrome clear. | **Remove inert grip; retain and enlarge the resize button.** `BottomSheet.test.tsx` and new touch E2E exercise the existing callback and layout. No global button changes. |
 | Transport, Gestures help and History: phone More hub (removed in #2292), command catalog | Two-finger tap is an optional ShareCut Undo shortcut; visible command routes remain | Existing recognizer dispatches `history.undo` and reports failure through the shared status path. It runs only when enabled by current project/command availability. It does not make a platform convention or modal-body guarantee. History is an Edit sheet and Gestures is in the Project menu. | **Modify attribution only.** `useTwoFingerTap.test.tsx` stays unchanged; `GesturesSheet.test.tsx` asserts the rendered optional ShareCut copy. |
 
 ## Explicit disposition
@@ -514,7 +513,7 @@ inventory or named source/tests; it does not imply every profile was run here.
 | Scroll, seek, selection and editing do not collide; pointer transitions are safe | **Existing limited evidence** in source and #878. Uncovered intersections remain open; this patch adds no recognizer. |
 | Cancel/unmount/background/rotation/failure leave no stuck gesture; history cardinality is correct | **Scoped browser recovery passed** for native fade cancel, 403/422/409 rejection, abort/replay and Undo. Sheet actions send no document commands and leave project bytes and preferences unchanged. A long-press clip move interrupted by pointer cancel, lost capture, window blur, Escape or unmount saves nothing (`ClipBlock.test.tsx`), and rotating a phone mid-move ends it with no write while the same move left alone saves one `MoveClips` (`touch-move-rotation.spec.ts`, CDP touch, not hardware). A Mix volume drag cancelled or backgrounded (visibilitychange hidden, pagehide) returns the thumb to the saved value and sends nothing, and the change that follows is ignored; a drag blurred with no change returns to the saved value too, while a change right after a blur still commits (`useCommitRange.test.tsx`; jsdom, not hardware). iPhone Simulator proof of #1034 found WebKit committing the half-dragged value on backgrounding; the fix awaits a Simulator re-run. A rejected save restores the saved value in the store, which the thumb follows (`trackMix.test.ts`). Rotation and backgrounding of trim and range select remain open (#1034); the added cases are in the next row. |
 | Exact destinations, extra pointers and trim cancels (#1034 follow-up) | **Jsdom cases passed, not hardware.** Mouse or pen drag of a clip from 7 s to 27 s saves one `edit.moveClips` with `timeline_start` exactly 27 (`TimelineView.test.tsx`, "saves the exact 7 s to 27 s destination"). A touch long press over the same 20 s reports a `deltaSec` of exactly 20 (`ClipBlock.test.tsx`, "reports a deltaSec of exactly 20"). The native non-drag controls keep their own browser cases in `non-drag-placement.spec.ts`; no 7/27-specific native case is added here. A second finger lifting after a saved touch move adds no second save (`ClipBlock.test.tsx`, "ignores a second finger lifting after the move saved"). A second pointer on the clip body during a trim drag leaves the first pointer's single trim save intact (`ClipBlock.test.tsx`, "ignores a second pointer on the clip body during a trim drag"). A second finger during an armed range select cannot take, move, end or cancel the first finger's range (`useRangeGesture.test.tsx`, "range select with a second pointer"). A pointer lifting on a Mix slider mid-drag still leaves one commit of the dragged value (`useCommitRange.test.tsx`, "with a second pointer"; the hook keeps no pointer identity). A trim drag cancelled by pointercancel or Escape, or unmounted mid-drag, saves nothing, checked against a following full drag as a positive control (`ClipBlock.test.tsx`, "saves nothing when a trim drag"). Trim-handle drags and range selections are not cancelled by window blur, hidden or pagehide, unlike a clip move; that gap is tracked in #2809 and is not tested here. A second finger landing on the same trim handle replaces the first drag and is untested. |
-| 360 portrait, short landscape, tablet, desktop, themes, reduced motion and 200% text | **Automated cases passed** for 360×800 and 667×360 (the compact drawer's strip and half geometry), 820×1180 (the tablet card, a no-legacy-sheet case) and 1440×900 (no sheet), both themes and motion preferences. The 200% case doubles computed root font size and proves title/control geometry and half-height body scrolling. This is CSS emulation; native keyboard, safe-area, OS text scaling and physical reflow remain pending #301. |
+| 360 portrait, short landscape, tablet, desktop, themes, reduced motion and 200% text | **Automated cases passed** for 360×800 and 667×360 (the compact drawer's open and full geometry), 820×1180 (the tablet card, a no-legacy-sheet case) and 1440×900 (no sheet), both themes and motion preferences. The 200% case doubles computed root font size and proves title/control geometry and half-height body scrolling. This is CSS emulation; native keyboard, safe-area, OS text scaling and physical reflow remain pending #301. |
 | Native browser zoom/Back and normal nested scrolling remain available | **Nested scrolling verified** with browser mouse-wheel input while the sheet stays expanded at 200% root text size. Native zoom/Back and physical scroll behavior remain open; this patch adds no gesture listener or touch-action override. |
 | Define task paths for seek, range, trim/fade, envelope, reorder, Mix and comment resolve/Undo | **Comparison paths defined** above. Named-task activation count, precision and recovery comparison remains open. Sheet sizing keeps one button activation per size change; no efficiency improvement is claimed. |
 | #879 named-device response/frame/long-task profiles | **External pending.** No performance budget or improvement is claimed. |
@@ -884,36 +883,44 @@ exists yet, so a grab from a chip has none.
 
 ### Compact inspector (#1051 round 3)
 
-A timeline selection on a phone-sized screen opens a peek
-strip instead of the half sheet. Phone-sized means the phone shell in
+Amended by #2294 (W3c2b, 2026-11-05, the coordinator's default product
+decision; rework if the owner picks otherwise): the peek strip is gone. Its
+name-and-value summary, its nudge rows and the peek detent no longer exist; the
+nudge buttons sit beside the Scrub fields of the sheet
+([Nudge buttons](#nudge-buttons-and-hold-to-repeat-1051-round-4)). The drawer
+opens at half height, and a stored `peek` reads as half. What follows is the
+round 3 record, with the strip's own parts struck out of the present tense.
+
+A timeline selection on a phone-sized screen opens the compact drawer, a
+half-height sheet, instead of a taller one that covers the timeline.
+Phone-sized means the phone shell in
 Timeline mode, or the tablet shell on a screen at most 40rem tall (a phone
 held sideways). Taller tablets and desktop keep their inspector.
 `stage/edit/useCompactInspector.ts` decides this for both shells. Where the
-Inspector is a [column](#decision-the-inspector-is-a-column-on-a-short-wide-touch-screen),
-at least 40rem wide on a coarse pointer, there is no strip: the measurements
+Inspector was a [column](#superseded-decision-the-inspector-is-a-column-on-a-short-wide-touch-screen),
+at least 40rem wide on a coarse pointer, there was no strip: the measurements
 below for 800×360 and 844×390 sideways are the strip's, before the column.
 
-- **The strip.** `BottomSheet` gains a `peek` size: a content-height strip
-  with the target's name in the header, then its key value
-  (`inspector/peekTarget.ts`), for example "Fade in" and "300 ms", or a trim's
-  source time. A clip's fade or trim adds four nudge buttons of at least
+- **The drawer.** The target's name is in the header (`stage/edit/compactTarget.ts`),
+  for example "Fade in" or "Pending cut"; the body is the inspector's own
+  sections. A clip's trim and fade fields, a pending edit's Source start and
+  end and an envelope point's Time and Level each carry four nudge buttons of at least
   `--touch-min` at the keyboard's steps (1 and 10 ms; 0.01 and 0.1 s,
-  `edit/clipHandleSteps.ts`). Round 4 adds nudge rows for pending edits and
-  envelope points, hold-to-repeat, and one save per run; see
-  [Strip nudges](#strip-nudges-and-hold-to-repeat-1051-round-4). Chapters
-  show their value without nudges; their fields stay in the full inspector.
-- **Expand and Collapse.** One tap on Expand opens the full inspector, one
-  tap on Collapse returns to the strip. Both stay visible buttons beside the
+  `edit/clipHandleSteps.ts`), with hold-to-repeat and one save per run; see
+  [Nudge buttons](#nudge-buttons-and-hold-to-repeat-1051-round-4).
+  Chapters show their fields without nudges.
+- **Expand and Collapse.** One tap on Expand opens the full height, one
+  tap on Collapse returns to half. Both stay visible buttons beside the
   drawer swipe of round 4b. The last choice opens the next selection
   (`compactInspectorView`, persisted per browser at
-  `sharecut.compactInspector`). Expanded, the sheet is at most half its slot
+  `sharecut.compactInspector`, half by default). At half the sheet is at most half its slot
   and leaves room for the transport, ruler, marker lane and one coarse lane.
   A selection the open plain sheet's own form makes, such as a point saved
   from a track's envelope form, stays in that sheet until it closes, so the
-  form keeps its layout and focus instead of turning into the strip. Only the
+  form keeps its layout and focus instead of turning into the drawer. Only the
   inspector's own forms count (`selectFromInspector`, compared by identity in
   `inspectorSelection`): a tap on the timeline while a track's sheet is open
-  opens the strip, as always, and ends the hold. At large text, on a phone
+  opens the drawer, as always, and ends the hold. At large text, on a phone
   held sideways, the leave-room share of the slot can shrink to nothing (1 px
   at a 32 px root font), so a folded frame's compact sheet drops its half
   detent where half the slot cannot hold the one-row chrome and a touch row
@@ -922,24 +929,21 @@ below for 800×360 and 844×390 sideways are the strip's, before the column.
   brings the active field and its complete label below the pinned header when
   the label fits; the sheet scrolls within its own content instead of measuring
   a dynamic scroll-padding value (`focusAndReveal`, `revealBelowChrome`).
-- **No dim at the strip.** The strip leaves the timeline undimmed (a clear,
-  touch-transparent scrim, `bottom-sheet-scrim--clear`), since its job is to
-  show the selection instead of covering the timeline. Half and full dim it
-  with the sheet scrim, still without taking a touch. This is a default; the
-  owner may choose the dim back at the strip (drop the class in
-  `BottomSheet.tsx`).
+- **Dim.** Half and full dim the timeline with the sheet scrim, without taking
+  a touch. The clear scrim the strip had (`bottom-sheet-scrim--clear`) stays in
+  `BottomSheet.tsx` for the generic peek detent that other sheets use.
 - **Keep the selection in view.** The timeline scroller gets bottom padding as
-  deep as the strip or sheet covers it, and scrolls the selected target above
+  deep as the sheet covers it, and scrolls the selected target above
   it. Sideways, the sheet takes the bottom tabs' place while it is open, so
   the timeline keeps their row.
-- **Out of the way.** Any timeline drag stows the strip or sheet: it slides
+- **Out of the way.** Any timeline drag stows the sheet: it slides
   off screen, click-through but still mounted. It returns on release with the
   new value. `timeline/dragWatch.ts` reports a drag: a pointer that started in
   the timeline, is captured there (or is the router's own replay), and has
   moved `HANDLE_DRAG_MIN_PX`. A scroll never counts.
 
-Measured in Playwright with the #1051 fixture (the same in Chromium and WebKit; a lone envelope point on lane 1), as px of timeline lanes left
-visible above the inspector:
+Measured in Playwright with the #1051 fixture (the same in Chromium and WebKit; a lone envelope point on lane 1) before the strip was removed, as px of timeline lanes left
+visible above the inspector (the Strip column is the retired peek detent; Expanded is the half drawer):
 
 | Viewport | Round 2 sheet | Strip | Expanded |
 |---|---|---|---|
@@ -964,12 +968,12 @@ superseded-by: D-inspector-sheet-no-column
 Amended by #2294 (W1b, calebn, 2026-10-28): the Inspector opens only on Inspect
 (I, the Inspect verb, a double-click on a clip) and never because something is
 selected; Esc, Close or a new selection shuts it. The column, the sheet and the
-peek strip below describe where it opens, not when.
+compact drawer below describe where it opens, not when.
 
 On a coarse primary pointer at most 40rem tall and at least 40rem wide, the
 selection Inspector is a column on the inline end of the shell, not a bottom
 sheet. One hook (removed in #2294 W3a) owned the three conditions; below 40rem
-wide, in portrait, and with a fine pointer the sheet or compact strip stays.
+wide, in portrait, and with a fine pointer the sheet or compact drawer stays.
 The column is `clamp(16rem, 32vw, 22rem)` wide and a cell of `.daw-shell`. It
 portals into the same host element as the sheet, and only that host's parent
 changes, so turning the phone keeps the Inspector's drafts and focus. The
@@ -980,9 +984,9 @@ the keep-clear helpers do nothing for it, and with the keyboard up it takes the
 visible band of the viewport (`--visual-viewport-top` and
 `--visual-viewport-height`), not the layout height minus the keyboard, and it
 ends above the tablet's status strip. Turning
-the phone upright shows the full Inspector, not the peek strip.
-This replaces the lane band and the compact strip on those screens, and no
-other. A gesture that needs the compact strip's Undo header does not exist
+the phone upright shows the full Inspector, not the compact drawer.
+This replaces the lane band and the compact drawer on those screens, and no
+other. A gesture that needs the compact drawer's Undo header does not exist
 there: Undo and Redo are in the app header, which the column leaves usable.
 
 Superseded by #2294 (W3a, calebn, 2026-10-30): the spec's Inspector sheet is a
@@ -1005,7 +1009,7 @@ enforced-by:
 - gui/web/src/stage/edit/InspectorHost.test.tsx::steps through its detents from the grip and closes from Close
 - gui/web/src/system/InspectorSheet.test.tsx::dismisses when let go more than 24 px below the dock
 - gui/web/src/stage/edit/useInspectorOpen.test.tsx::clears the selection when the phone sheet is dismissed
-- gui/web/src/stage/edit/useInspectorOpen.test.tsx::peeks only on the phone's lanes
+- gui/web/src/stage/edit/useInspectorOpen.test.tsx::uses the drawer only on the phone's lanes
 - gui/web/e2e/inspector-sheet-drag.spec.ts::a 667x375 phone shell gets the Inspector sheet and no column
 supersedes: D-inspector-column
 -->
@@ -1017,8 +1021,9 @@ the selection.
 At the dock detent the sheet's header and sections are inert and one grip tap
 away; the sheet opens at half (full when the box is too short for the dock),
 not at the dock.
-A timeline target on the phone still opens the peek strip until the legacy
-bodies are replaced.
+A timeline target on the phone still opens the compact drawer (half and full
+heights) until the legacy bodies are replaced; the peek strip it once had is
+gone (#2294 W3c2b).
 
 ### Pinch never edits (#1051 round 4)
 
@@ -1069,8 +1074,8 @@ enforced-by:
 - gui/web/e2e-compat/compact-form-scroll.spec.ts::scrolled fades and pinned actions retain pointer and keyboard ownership
 -->
 
-The strip covers the Player bar again. Its header keeps the shared Undo and
-Redo controls visible at peek, half and full height. The rail and header use
+The compact drawer covers the Player bar again. Its header keeps the shared Undo and
+Redo controls visible at half and full height (and, until #2294 W3c2b removed it, at peek). The rail and header use
 one authorization check, one unavailable-action message and the existing
 `history.undo` / `history.redo` command bus path, including its wait for this
 tab's edit saves (it queues behind a save that is still out, says "Undo runs after save", and never refuses for the wait). History controls stay
@@ -1086,17 +1091,17 @@ sheet, which carried Collapse and Close out of view above the timeline. The
 owner's Collapse never reached the button, so the next selection still opened
 expanded. The compact sheet's chrome (name, Expand or Collapse, Close) is now
 pinned at the top of the sheet's single scroller, and `ui/focusAndReveal.ts`
-reveals a field below pinned chrome rather than under it. The compact header keeps the strip's vertical spacing at every detent, so its
+reveals a field below pinned chrome rather than under it. The compact header keeps one vertical spacing at every detent, so its
 wrapped actions leave room for enlarged fade fields on a short screen. Native
 focus also reveals the complete field label when it fits below that header.
-The sheet still has one scroll owner. `e2e-compat/touch-peek.spec.ts` taps Expand and Collapse
+The sheet still has one scroll owner. `e2e-compat/touch-drawer.spec.ts` taps Expand and Collapse
 with a finger at 360×800 and 636×390 (the 844×390 it used moved to the column, #1696) and checks that the finger lands on the
 button; the sideways case failed on the round 3 build.
 
-### The strip over shell rows (#1051 round 4)
+### The drawer over shell rows (#1051 round 4)
 
 Sideways, the status row (where the Pipeline chip sits) floated over the
-strip and moved as the page scrolled. iOS rubber-bands the page when a scroll
+drawer (then the peek strip) and moved as the page scrolled. iOS rubber-bands the page when a scroll
 reaches an edge: in-flow rows move while the fixed sheet stays, and the
 status and nav rows (`--z-shell-chrome`) drew over the sheet
 (`--z-sheet`). Two changes:
@@ -1104,32 +1109,34 @@ status and nav rows (`--z-shell-chrome`) drew over the sheet
 - The editor no longer scrolls as a page: `html[data-shell]` and its body
   set `overscroll-behavior: none`, and the timeline scroller sets `contain`.
 - The compact sheet's root stacks at `--z-sheet-docked`, above the shell rows,
-  and clips its own slot, so neither the row draws over the strip nor the
-  strip's slide (entering, stowing) over the row.
+  and clips its own slot, so neither the row draws over the drawer nor the
+  drawer's slide (entering, stowing) over the row.
 
 `e2e-compat/touch-strip-stacking.spec.ts` moves the shell as a bounce does
 and freezes the stow slide halfway, in Chromium and WebKit at 360×800 and
 636×390 (844×390 before #1696). On the round 3 build the row covered the strip's bottom edge.
 
-### Strip nudges and hold-to-repeat (#1051 round 4)
+### Nudge buttons and hold-to-repeat (#1051 round 4)
 
-The owner asked for the strip's nudges as "a pattern worth repeating for a
+The owner asked for the nudges, first drawn in the phone strip, as "a pattern worth repeating for a
 consistent visual language", and for press-and-hold to repeat them.
 
-- **Also in the sheet (#2294 W3c2a).** The same row (`inspector/NudgeRow.tsx`,
-  drawn by `inspector/SheetNudge.tsx`) sits beside the Scrub fields of the
-  inspector sheet in every placement: a clip's Source start, Source end, Fade
-  in and Fade out, a pending edit's Source start and Source end, an envelope
-  point's Time and Level. The strip is unchanged; the sheet is the shell's
-  full view, so the two are never mounted together.
-- **One row per value.** `inspector/NudgeRow.tsx` (through `inspector/InspectorPeek.tsx`) draws the same row for
+- **In the sheet (#2294 W3c2a; the only place since W3c2b).** The row
+  (`inspector/NudgeRow.tsx`, drawn by `inspector/SheetNudge.tsx`) sits beside
+  the Scrub fields of the inspector sheet in every placement: a clip's Source
+  start, Source end, Fade in and Fade out, a pending edit's Source start and
+  Source end, an envelope point's Time and Level. The phone strip that first
+  drew it was removed in #2294 W3c2b; a phone user reaches the buttons by
+  opening the sheet (Inspect) and scrolling to the field, and no longer
+  nudges from a one-line summary.
+- **One row per value.** `inspector/NudgeRow.tsx` draws the same row for
   every value a target has: four buttons of at least `--touch-min`, smaller
   steps inside, earlier or shorter on the left. A clip's fade (1 and 10 ms)
-  or trim (0.01 and 0.1 s) has one row beside its key value. A pending edit
+  or trim (0.01 and 0.1 s) has one row beside its field. A pending edit
   gets Start and End rows (0.01 and 0.1 s of source time) and an envelope
-  point gets Time (0.01 and 0.1 s) and Level (0.01 and 0.1) rows, each row
-  labelled with its value. On a phone the rows stack; sideways they share a
-  line. `edit/nudge.ts` holds what each field steps, its hard limits, its
+  point gets Time (0.01 and 0.1 s) and Level (0.01 and 0.1) rows, each beside
+  the Scrub field that shows the value. The row has no readout of its own.
+  `edit/nudge.ts` holds what each field steps, its hard limits, its
   preview and its save. Envelope rows show for the host and Editor links,
   which edit envelopes as the host does (owner decision, 2026-10-06);
   Commenter and Viewer links get none.
@@ -1153,8 +1160,8 @@ consistent visual language", and for press-and-hold to repeat them.
   level's 0 to 1.5 range. Soft boundaries (`edit/nudgeBoundaries.ts`) are the
   playhead, chapter markers, and the clip and pending-edit edges on the
   target's track; a ripple trim leaves out what it carries along. A held step
-  that would reach or cross one stops exactly on it: the value gets an accent
-  ring and a short bump (the ring alone under reduced motion), and the live
+  that would reach or cross one stops exactly on it: the buttons get an accent
+  halo and a short bump (the halo alone under reduced motion), and the live
   region says, for example, "Envelope point stopped at a clip edge", then
   "Envelope point saved at a clip edge" on release. The first step of a
   fresh press, a tap or a key press, crosses it. A trim's start has no moving
@@ -1162,12 +1169,12 @@ consistent visual language", and for press-and-hold to repeat them.
   hard limits apply. An armed drag detents at the same soft boundaries
   ([round 4b](#touch-grammar-round-4b-1051), **Detents**).
 
-`e2e-compat/touch-nudge.spec.ts` holds a finger on the strip in Chromium and
-WebKit: the value moves during the hold, the run sends one `SetEnvelope`, and
+`e2e-compat/touch-nudge.spec.ts` holds a finger on the sheet's nudge buttons in Chromium and
+WebKit: the field moves during the hold, the run sends one `SetEnvelope`, and
 one Undo restores it; a held point stops at the clip edge at 50 s and a held
 pending start at the previous cut's end, and a fresh press crosses each; at
-360×800 and 636×390 (844×390 before the column, #1696) in both themes the pending and envelope rows have 44 px
-targets in view and no axe violations.
+360×800 and 636×390 (844×390 before the column, #1696) in both themes the pending and envelope buttons have 44 px
+targets (scrolled into view)  and no axe violations.
 
 ### Touch grammar round 4b (#1051)
 
@@ -1227,8 +1234,8 @@ chooser lab until the owner made it the default (2026-10-07).
   the finger pushes `DRAG_DETENT_PX` (16 px) past it, with a line and an
   "At the playhead" caption. The boundaries come from `softBoundaries`, the
   query held nudges use; a boundary the drag starts on does not catch it.
-- **Drawer.** The compact inspector swipes between peek (the strip), half
-  and full. Its covered editing rail stays inert while the drawer is visible;
+- **Drawer.** The compact inspector swipes between half
+  and full (and, until #2294 W3c2b, a peek strip). Its covered editing rail stays inert while the drawer is visible;
   closing or stowing restores the rail without changing its layout height.
   The stowed sheet is inert until it returns, so native keys reach only the
   visible controls.

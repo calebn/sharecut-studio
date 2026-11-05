@@ -1,6 +1,5 @@
 import { useCallback } from "react";
 import { isRangeSelection } from "../../edit/rangeSelection";
-import type { PeekTarget } from "../../inspector/peekTarget";
 import { opensSheet, type SheetScreen } from "../../inspector/selectionSurface";
 import { useDawStore } from "../../state/dawStore";
 import { inspectorOpenFor } from "../../state/selection";
@@ -15,8 +14,8 @@ export type InspectorShell = "desktop" | "tablet" | "phone";
 
 export interface InspectorOpen {
   open: boolean;
-  /** The phone's peek strip, which stands in for the sheet on a timeline target. */
-  strip: { props: CompactSheetProps; peek: PeekTarget | null } | null;
+  /** The phone's drawer, which stands in for the sheet on a timeline target. */
+  drawer: CompactSheetProps | null;
   rangeActionsInSheet: boolean;
   close: () => void;
   /** The phone sheet dragged down past its dock: the selection goes too. */
@@ -64,12 +63,7 @@ export function useInspectorOpen(
   }, []);
   return {
     open,
-    strip: compact
-      ? {
-          props: compactSheetProps(compact),
-          peek: compact.view === "peek" ? compact.peek : null,
-        }
-      : null,
+    drawer: compact ? compactSheetProps(compact) : null,
     rangeActionsInSheet:
       open &&
       (touch

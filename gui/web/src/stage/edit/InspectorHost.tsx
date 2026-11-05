@@ -87,10 +87,7 @@ function useBodySections(
             id: "body",
             control: (
               <div className="edit-inspector-body">
-                <SelectionSheetBody
-                  rangeActionsInSheet={rangeActionsInSheet}
-                  peek={null}
-                />
+                <SelectionSheetBody rangeActionsInSheet={rangeActionsInSheet} />
               </div>
             ),
           },
@@ -257,7 +254,7 @@ function Phone({
   );
 }
 
-function PeekStrip({
+function CompactDrawer({
   sheet,
   feedbackHostRef,
 }: {
@@ -268,8 +265,8 @@ function PeekStrip({
     sheetExpanded: s.sheetExpanded,
     setSheetExpanded: s.setSheetExpanded,
   }));
-  const strip = sheet.strip;
-  if (!strip) return null;
+  const drawer = sheet.drawer;
+  if (!drawer) return null;
   return (
     <BottomSheet
       backgroundPolicy="interactive"
@@ -280,17 +277,14 @@ function PeekStrip({
       className={INSPECTOR_SHEET_CLASS}
       expanded={sheetExpanded}
       onExpandedChange={setSheetExpanded}
-      {...strip.props}
+      {...drawer}
       bodyHeader={
-        strip.props.stowed ? null : (
+        drawer.stowed ? null : (
           <div ref={feedbackHostRef} className="compact-feedback-slot" />
         )
       }
     >
-      <SelectionSheetBody
-        rangeActionsInSheet={sheet.rangeActionsInSheet}
-        peek={strip.peek}
-      />
+      <SelectionSheetBody rangeActionsInSheet={sheet.rangeActionsInSheet} />
     </BottomSheet>
   );
 }
@@ -298,8 +292,8 @@ function PeekStrip({
 /**
  * Mounts the Inspector sheet (design system 9a) for the Edit stage: a card
  * beside the selection on the desktop and the tablet, a bottom sheet with the
- * Action bar as its dock on the phone, where a timeline target still opens the
- * peek strip. Each kind's body is the legacy one, as one section of the frame,
+ * Action bar as its dock on the phone, where a timeline target opens the
+ * compact drawer. Each kind's body is the legacy one, as one section of the frame,
  * until it is rebuilt from Scrub fields.
  */
 export function InspectorHost({
@@ -321,12 +315,12 @@ export function InspectorHost({
   }));
   const heading = inspectorHeading(selection, project);
   useKeepBandClear(
-    shell === "phone" && sheet.open && !sheet.strip
+    shell === "phone" && sheet.open && !sheet.drawer
       ? bandLocator(selection)
       : null,
   );
-  if (sheet.strip) {
-    return <PeekStrip sheet={sheet} feedbackHostRef={feedbackHostRef} />;
+  if (sheet.drawer) {
+    return <CompactDrawer sheet={sheet} feedbackHostRef={feedbackHostRef} />;
   }
   if (!sheet.open) return null;
   return (

@@ -8,8 +8,8 @@ import {
 afterEach(() => localStorage.clear());
 
 describe("compact inspector preference", () => {
-  it("opens at the peek strip until the user leaves the drawer at another detent", () => {
-    expect(readCompactInspectorView()).toBe("peek");
+  it("opens at half height until the user leaves the drawer at full", () => {
+    expect(readCompactInspectorView()).toBe("half");
     writeCompactInspectorView("full");
     expect(localStorage.getItem(COMPACT_INSPECTOR_STORAGE_KEY)).toBe("full");
     expect(readCompactInspectorView()).toBe("full");
@@ -17,8 +17,13 @@ describe("compact inspector preference", () => {
     expect(readCompactInspectorView()).toBe("half");
   });
 
-  it("reads anything else stored there as the peek strip", () => {
+  it("reads anything else stored there as half height", () => {
     localStorage.setItem(COMPACT_INSPECTOR_STORAGE_KEY, "inspector");
-    expect(readCompactInspectorView()).toBe("peek");
+    expect(readCompactInspectorView()).toBe("half");
+  });
+
+  it("reads the peek strip an earlier version stored as half height", () => {
+    localStorage.setItem(COMPACT_INSPECTOR_STORAGE_KEY, "peek");
+    expect(readCompactInspectorView()).toBe("half");
   });
 });

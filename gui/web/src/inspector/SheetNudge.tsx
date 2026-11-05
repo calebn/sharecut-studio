@@ -1,6 +1,6 @@
 /**
- * The nudge buttons beside a sheet Scrub field: the same fine and
- * coarse minus and plus the phone strip draws, for the field's own value.
+ * The nudge buttons beside a sheet Scrub field: fine and coarse minus and
+ * plus, for the field's own value.
  * Nothing draws for a viewer who may not change the value, or a value the
  * project does not have (a pending split has no edges).
  */
@@ -56,11 +56,7 @@ function SheetNudgeRow({
   return (
     <>
       {NUDGE_KINDS[field.kind].ripples ? <RippleMark /> : null}
-      <NudgeRow
-        row={{ field, label: null, name }}
-        project={project}
-        run={run}
-      />
+      <NudgeRow field={field} name={name} project={project} run={run} />
     </>
   );
 }

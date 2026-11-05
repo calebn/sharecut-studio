@@ -1,7 +1,7 @@
 import { useDaw } from "../../state/useDaw";
 import { useEnvelopePointSections } from "./envelopePointSections";
 
-/** The same content in the peek strip's drawer, until the strip goes. */
+/** The point's rows as the touch sheet and the compact drawer carry them. */
 export function EnvelopePointBody() {
   const sections = useEnvelopePointSections(useDaw((s) => s.selection));
   return (
