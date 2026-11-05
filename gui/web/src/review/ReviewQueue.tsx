@@ -39,8 +39,10 @@ import {
   type ReviewFilter,
   type ReviewGroup,
   type ReviewItem,
+  type ReviewSort,
   resultText,
   speakersOf,
+  timeQueue,
 } from "./reviewQueueModel";
 
 export type ReviewContent = {
@@ -91,6 +93,8 @@ export type ReviewQueueProps = {
   filter: ReviewFilter;
   /** The person whose edits show; absent or null for everyone. */
   speaker?: string | null;
+  /** By kind (default) or by where each edit sits in the episode. */
+  sort?: ReviewSort;
   /** The pipeline job finding suggestions, or the error of the one that failed. */
   job?: QueueJob;
   bulkRunning?: BulkProgress;
@@ -104,6 +108,8 @@ export type ReviewQueueProps = {
   onFilter: (filter: ReviewFilter) => void;
   /** Without it the queue shows no speaker chips. */
   onSpeaker?: (speaker: string | null) => void;
+  /** Without it the queue shows no sort control. */
+  onSort?: (sort: ReviewSort) => void;
   onSelect: (id: string) => void;
   onVerb?: (id: string) => void;
   onKeep?: (id: string) => void;
@@ -355,6 +361,7 @@ export function ReviewQueue({
   selectedId,
   filter,
   speaker = null,
+  sort = "kind",
   job,
   bulkRunning,
   guest = false,
@@ -363,6 +370,7 @@ export function ReviewQueue({
   attention,
   onFilter,
   onSpeaker,
+  onSort,
   onSelect,
   onVerb,
   onKeep,
@@ -377,7 +385,9 @@ export function ReviewQueue({
   const counts = filterCounts(items, speaker);
   const shown = filterItems(items, filter, speaker);
   const people = canDecide && onSpeaker ? speakersOf(items) : [];
-  const groups = groupQueue(shown);
+  const byTime = sort === "time";
+  const groups = byTime ? [] : groupQueue(shown);
+  const inTime = byTime ? timeQueue(shown) : [];
   const lowRisk = canDecide && !bulkRunning ? lowRiskBulk(shown) : null;
   const lowRiskLabel = lowRisk
     ? `Cut ${lowRisk.ids.length} clean ${lowRisk.ids.length === 1 ? "edit" : "edits"}`
@@ -462,6 +472,22 @@ export function ReviewQueue({
           />
         )}
       </div>
+      {onSort ? (
+        <div className="rv-filter rv-sort">
+          <SegmentedControl label="Sort">
+            <ToggleButton
+              quiet
+              pressed={!byTime}
+              onClick={() => onSort("kind")}
+            >
+              <span>By kind</span>
+            </ToggleButton>
+            <ToggleButton quiet pressed={byTime} onClick={() => onSort("time")}>
+              <span>By time</span>
+            </ToggleButton>
+          </SegmentedControl>
+        </div>
+      ) : null}
       {people.length > 0 && onSpeaker ? (
         <div className="rv-filter rv-speakers">
           <SegmentedControl label="Speaker">
@@ -490,6 +516,52 @@ export function ReviewQueue({
       ) : null}
     </header>
   );
+
+  const renderItem = (item: ReviewItem, running?: BulkProgress) => {
+    const { row, check } = content(item);
+    const selected = item.id === selectedId;
+    if (check) {
+      return (
+        <div
+          key={item.id}
+          className="rv-check"
+          data-selected={selected || undefined}
+        >
+          <StatusRow
+            state="needs-you"
+            title={check.title}
+            detail={check.detail}
+            action={{
+              label: check.actionLabel,
+              onAction: () => onSelect(item.id),
+            }}
+          />
+        </div>
+      );
+    }
+    return (
+      <QueueRow
+        key={item.id}
+        kind={item.kind}
+        {...row}
+        selected={selected}
+        onSelect={() => onSelect(item.id)}
+        onVerb={
+          !canDecide ||
+          running ||
+          item.blocked ||
+          (guest && item.kind === "comment")
+            ? undefined
+            : () => onVerb?.(item.id)
+        }
+        onKeep={
+          !canDecide || running || (guest && item.kind === "comment")
+            ? undefined
+            : () => onKeep?.(item.id)
+        }
+      />
+    );
+  };
 
   return (
     <section className="rv-queue" aria-label="Review queue">
@@ -557,7 +629,10 @@ export function ReviewQueue({
           <BulkRow running={bulkRunning} />
         </section>
       ) : null}
-      {groups.length === 0 && !cuttingAlone && !showAttention ? (
+      {groups.length === 0 &&
+      inTime.length === 0 &&
+      !cuttingAlone &&
+      !showAttention ? (
         <EmptyState as="div" role="status">
           {filter !== "all"
             ? "Nothing here"
@@ -582,54 +657,20 @@ export function ReviewQueue({
               canDecide={canDecide}
               onBulk={onBulk}
             />
-            {group.items.map((item) => {
-              const { row, check } = content(item);
-              const selected = item.id === selectedId;
-              if (check) {
-                return (
-                  <div
-                    key={item.id}
-                    className="rv-check"
-                    data-selected={selected || undefined}
-                  >
-                    <StatusRow
-                      state="needs-you"
-                      title={check.title}
-                      detail={check.detail}
-                      action={{
-                        label: check.actionLabel,
-                        onAction: () => onSelect(item.id),
-                      }}
-                    />
-                  </div>
-                );
-              }
-              return (
-                <QueueRow
-                  key={item.id}
-                  kind={item.kind}
-                  {...row}
-                  selected={selected}
-                  onSelect={() => onSelect(item.id)}
-                  onVerb={
-                    !canDecide ||
-                    running ||
-                    item.blocked ||
-                    (guest && item.kind === "comment")
-                      ? undefined
-                      : () => onVerb?.(item.id)
-                  }
-                  onKeep={
-                    !canDecide || running || (guest && item.kind === "comment")
-                      ? undefined
-                      : () => onKeep?.(item.id)
-                  }
-                />
-              );
-            })}
+            {group.items.map((item) => renderItem(item, running))}
           </section>
         );
       })}
+      {inTime.length > 0 ? (
+        <section className="rv-group" aria-label="In time order">
+          <div className="rv-group-head">
+            <SystemIcon name="clock" size={16} />
+            <span className="rv-group-name">In time order</span>
+            <span className="sys-mono rv-group-count">{inTime.length}</span>
+          </div>
+          {inTime.map((item) => renderItem(item))}
+        </section>
+      ) : null}
       {decided.length > 0 ? (
         <section className="rv-group" aria-label="Decided">
           <button

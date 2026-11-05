@@ -47,6 +47,45 @@ describe("ReviewQueue", () => {
     expect(onVerb).not.toHaveBeenCalledWith("f1");
   });
 
+  it("lists every edit in episode order under one heading when sorted by time", async () => {
+    const onSort = vi.fn();
+    const items = [
+      { id: "f1", kind: "filler" as const, at: 30, savedSeconds: 0.4 },
+      { id: "p1", kind: "pause" as const, at: 10, savedSeconds: 0.6 },
+      { id: "f2", kind: "filler" as const, at: 5, savedSeconds: 0.3 },
+    ];
+    const props = {
+      items,
+      content: reviewContent,
+      selectedId: null,
+      filter: "all" as const,
+      onFilter: vi.fn(),
+      onSelect: vi.fn(),
+      onSort,
+    };
+    const { container, rerender } = render(<ReviewQueue {...props} />);
+    expect(screen.getByRole("button", { name: "By kind" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.queryByLabelText("In time order")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "By time" }));
+    expect(onSort).toHaveBeenCalledWith("time");
+    rerender(<ReviewQueue {...props} sort="time" />);
+    const section = screen.getByLabelText("In time order");
+    expect(section.querySelectorAll(".sys-queue-row")).toHaveLength(3);
+    expect(container.querySelectorAll(".rv-group")).toHaveLength(1);
+    for (const row of section.querySelectorAll(".sys-queue-row")) {
+      const select = row.querySelector("button");
+      if (select) await userEvent.click(select);
+    }
+    expect(props.onSelect.mock.calls.map(([id]) => id)).toEqual([
+      "f2",
+      "p1",
+      "f1",
+    ]);
+  });
+
   it("gives an Editor guest no swipe on a comment row and no Checks chip", () => {
     const onVerb = vi.fn();
     const onKeep = vi.fn();

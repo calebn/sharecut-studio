@@ -10,7 +10,11 @@ import { type DecisionPlan, planDecision, stepUndecided } from "./advance";
 import type { ReviewContent } from "./ReviewQueue";
 import type { ReviewIntent } from "./ReviewStage";
 import type { ReviewEntry } from "./reviewItems";
-import { type ReviewFilter, speakersOf } from "./reviewQueueModel";
+import {
+  type ReviewFilter,
+  type ReviewSort,
+  speakersOf,
+} from "./reviewQueueModel";
 
 type DecidedEntry = {
   readonly entry: ReviewEntry;
@@ -23,6 +27,7 @@ export type ReviewSession = {
   readonly filter: ReviewFilter;
   /** The person whose edits show; null for everyone. */
   readonly speaker: string | null;
+  readonly sort: ReviewSort;
   readonly looksRight: ReadonlySet<string>;
 };
 
@@ -32,6 +37,7 @@ export type SessionAction =
   | { type: "select"; id: string | null }
   | { type: "filter"; filter: ReviewFilter }
   | { type: "speaker"; speaker: string | null }
+  | { type: "sort"; sort: ReviewSort }
   | { type: "looksRight"; id: string }
   | { type: "decided"; plan: DecisionPlan; snapshot: readonly ReviewEntry[] }
   | {
@@ -95,7 +101,7 @@ function observe(s: ReviewSession, open: readonly ReviewEntry[]) {
     : null;
   const selectedId = items.some((i) => i.id === s.selectedId)
     ? s.selectedId
-    : stepUndecided(items, null, "forward", s.filter, speaker);
+    : stepUndecided(items, null, "forward", s.filter, speaker, s.sort);
   return selectedId === s.selectedId && speaker === s.speaker
     ? base
     : { ...base, selectedId, speaker };
@@ -112,6 +118,8 @@ export function reviewSession(
       return { ...s, filter: a.filter };
     case "speaker":
       return { ...s, speaker: a.speaker };
+    case "sort":
+      return { ...s, sort: a.sort };
     case "looksRight":
       return { ...s, looksRight: new Set(s.looksRight).add(a.id) };
     case "decided": {
@@ -165,6 +173,7 @@ export function useReviewSession(
       decided: new Map(),
       filter,
       speaker: null,
+      sort: "kind",
       looksRight: new Set(),
       selectedId:
         init.selectedId ?? stepUndecided(items, null, "forward", filter),
@@ -196,11 +205,13 @@ export function useReviewSession(
       selectedId: s.selectedId,
       filter: s.filter,
       speaker: s.speaker,
+      sort: s.sort,
       looksRight: s.looksRight,
       onSelect: (id: string | null) => dispatch({ type: "select", id }),
       onFilter: (filter: ReviewFilter) => dispatch({ type: "filter", filter }),
       onSpeaker: (speaker: string | null) =>
         dispatch({ type: "speaker", speaker }),
+      onSort: (sort: ReviewSort) => dispatch({ type: "sort", sort }),
       onLooksRight: (id: string) => dispatch({ type: "looksRight", id }),
     },
     decide: ({ ids, result, waive }: ReviewIntent): DecisionPlan | null => {
@@ -214,6 +225,7 @@ export function useReviewSession(
       const plan = planDecision(view, fresh, result, {
         filter: s.filter,
         speaker: s.speaker,
+        sort: s.sort,
         waive: !!waive,
       });
       for (const id of plan.decidedIds) claimed.current.add(id);

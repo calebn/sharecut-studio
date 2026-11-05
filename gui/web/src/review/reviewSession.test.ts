@@ -26,6 +26,7 @@ const start = (selectedId: string | null = "a"): ReviewSession => ({
   selectedId,
   filter: "all",
   speaker: null,
+  sort: "kind",
   looksRight: new Set(),
 });
 

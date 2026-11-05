@@ -17,7 +17,11 @@ import {
   commentIdOf,
   commentItemId,
 } from "../../review/reviewItems";
-import type { ReviewFilter, ReviewItem } from "../../review/reviewQueueModel";
+import type {
+  ReviewFilter,
+  ReviewItem,
+  ReviewSort,
+} from "../../review/reviewQueueModel";
 import {
   canComment,
   canReply,
@@ -50,6 +54,7 @@ export type CommentNav = {
   items: readonly ReviewItem[];
   filter: ReviewFilter;
   speaker?: string | null;
+  sort?: ReviewSort;
   /** The selection now, not when the key was pressed. */
   selected: () => string | null;
   onSelect: (id: string | null) => void;
@@ -190,6 +195,7 @@ export function useReviewComments(guest: boolean) {
             "forward",
             nav.filter,
             nav.speaker ?? null,
+            nav.sort ?? "kind",
           )
         : null;
     if (nav && resolved) nav.onSelect(next);

@@ -5,6 +5,7 @@ import {
   type ReviewFilter,
   type ReviewItem,
   type ReviewResult,
+  type ReviewSort,
 } from "./reviewQueueModel";
 
 type Direction = "forward" | "backward";
@@ -20,11 +21,12 @@ export function stepUndecided(
   direction: Direction,
   filter: ReviewFilter = "all",
   speaker: string | null = null,
+  sort: ReviewSort = "kind",
 ): string | null {
   const visible = new Set(
     filterItems(items, filter, speaker).map((item) => item.id),
   );
-  const order = fullOrder(items);
+  const order = fullOrder(items, sort);
   const at = order.findIndex((item) => item.id === id);
   const walk =
     direction === "forward"
@@ -51,6 +53,7 @@ export type DecisionPlan = {
 type PlanOptions = {
   filter?: ReviewFilter;
   speaker?: string | null;
+  sort?: ReviewSort;
   /** Cut anyway: the transcript check counts as checked. */
   waive?: boolean;
 };
@@ -67,7 +70,12 @@ export function planDecision(
   items: readonly ReviewItem[],
   ids: readonly string[],
   result: ReviewResult,
-  { filter = "all", speaker = null, waive = false }: PlanOptions = {},
+  {
+    filter = "all",
+    speaker = null,
+    sort = "kind",
+    waive = false,
+  }: PlanOptions = {},
 ): DecisionPlan {
   const settled = new Set(ids);
   const wordsLeft = openOf(items, "unsure-word").some(
@@ -86,7 +94,7 @@ export function planDecision(
   const next = items.map((item) =>
     decidedIds.includes(item.id) ? { ...item, result } : item,
   );
-  const last = fullOrder(items)
+  const last = fullOrder(items, sort)
     .reverse()
     .find((item) => ids.includes(item.id));
   return {
@@ -97,6 +105,7 @@ export function planDecision(
       "forward",
       filter,
       speaker,
+      sort,
     ),
     decidedIds,
     message: decisionMessage(items, ids, result),

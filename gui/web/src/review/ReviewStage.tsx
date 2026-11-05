@@ -38,6 +38,7 @@ import {
   type ReviewFilter,
   type ReviewItem,
   type ReviewResult,
+  type ReviewSort,
 } from "./reviewQueueModel";
 
 export type ReviewIntent = {
@@ -60,10 +61,13 @@ export type ReviewStageProps = {
   filter: ReviewFilter;
   /** The person whose edits show; absent or null for everyone. */
   speaker?: string | null;
+  /** By kind (default) or by where each edit sits in the episode. */
+  sort?: ReviewSort;
   looksRight: ReadonlySet<string>;
   onSelect: (id: string | null) => void;
   onFilter: (filter: ReviewFilter) => void;
   onSpeaker?: (speaker: string | null) => void;
+  onSort?: (sort: ReviewSort) => void;
   onLooksRight: (id: string) => void;
   /** A promise that resolves to false says the decision failed. */
   onDecide: (intent: ReviewIntent) => void | Promise<boolean | void>;
@@ -113,10 +117,12 @@ export function ReviewStage({
   selectedId,
   filter,
   speaker = null,
+  sort = "kind",
   looksRight,
   onSelect,
   onFilter,
   onSpeaker,
+  onSort,
   onLooksRight,
   onDecide,
   duration,
@@ -184,7 +190,9 @@ export function ReviewStage({
     );
 
   const step = (direction: "forward" | "backward") =>
-    onSelect(stepUndecided(items, selectedId, direction, filter, speaker));
+    onSelect(
+      stepUndecided(items, selectedId, direction, filter, speaker, sort),
+    );
 
   /** Why Accept would refuse the take a pickup has chosen, if it would. */
   const takeRefusal = (item: ReviewItem) => {
@@ -398,6 +406,7 @@ export function ReviewStage({
       selectedId={selectedId}
       filter={filter}
       speaker={speaker}
+      sort={sort}
       job={job}
       bulkRunning={bulkRunning}
       guest={guest}
@@ -405,6 +414,7 @@ export function ReviewStage({
       attention={attention}
       state={state}
       onFilter={onFilter}
+      onSort={onSort}
       onSpeaker={
         onSpeaker &&
         ((next) => {
@@ -412,7 +422,7 @@ export function ReviewStage({
           onSpeaker(next);
           const open = items.find((i) => i.id === selectedId);
           if (next !== null && open?.speaker && open.speaker.id !== next)
-            onSelect(stepUndecided(items, null, "forward", filter, next));
+            onSelect(stepUndecided(items, null, "forward", filter, next, sort));
         })
       }
       onSelect={(id) => {
