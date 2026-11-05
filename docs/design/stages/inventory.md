@@ -210,7 +210,7 @@ Bottom nav `navigation "Primary"` with four toggle buttons: Listen, Timeline, Te
 
 ## 9. Guest review (`/r/<token>`)
 
-Guest mode comes from `guest_mode` in the review bootstrap: Viewer `view`, Commenter `comment`, Editor `edit` (`shareMode.ts`). Same shell as the host with fewer controls: no History/Pipeline tabs, no Project menu, no Share, banners for role and version.
+Guest mode comes from `guest_mode` in the review bootstrap: Viewer `view`, Commenter `comment`, Editor `edit` (`shareMode.ts`). Same shell as the host with fewer controls: no History/Pipeline tabs, no Project menu, no Share, a header Role chip and version banners.
 
 | ID | Surface | Reach | Files | Story | View split | Purpose |
 |---|---|---|---|---|---|---|
