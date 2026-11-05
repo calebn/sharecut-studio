@@ -1149,13 +1149,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                 place={create.place}
                 router={hitRouter}
                 bounds={visibleBox(scrollRef.current)}
-                avoidX={
-                  fixedPlayhead
-                    ? (scrollRef.current?.getBoundingClientRect().left ?? 0) +
-                      headerOffsetPx +
-                      timeViewportPx / 2
-                    : null
-                }
+                avoidX={null}
                 phone={fixedPlayhead}
               />
             ) : null}

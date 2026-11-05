@@ -389,6 +389,42 @@ describe("TimelineCreateMenu focus after close", () => {
 });
 
 describe("TimelineCreateMenu phone form", () => {
+  it("ignores desktop avoidX changes without replacing the phone Sheet or its command target", async () => {
+    const renderPhone = (avoidX: number | null) => (
+      <TimelineCreateMenu
+        view={view}
+        place={place}
+        router={router}
+        bounds={bounds}
+        avoidX={avoidX}
+        phone
+      />
+    );
+    const { rerender } = render(renderPhone(215));
+    const dialog = await screen.findByRole("dialog");
+    const close = screen.getByRole("button", { name: "Close" });
+    await waitFor(() => expect(close).toHaveFocus());
+    const chapter = screen.getByRole("button", { name: "Add chapter here" });
+    rerender(renderPhone(-999));
+    expect(screen.getByRole("dialog")).toBe(dialog);
+    expect(screen.getByRole("button", { name: "Close" })).toBe(close);
+    expect(close).toHaveFocus();
+    rerender(renderPhone(null));
+    expect(screen.getByRole("dialog")).toBe(dialog);
+    expect(screen.getByRole("button", { name: "Add chapter here" })).toBe(
+      chapter,
+    );
+    expect(close).toHaveFocus();
+    fireEvent.click(chapter);
+    expect(router.close).toHaveBeenCalledOnce();
+    expect(executePointerCommand).toHaveBeenCalledExactlyOnceWith(
+      "edit.addChapter",
+      {
+        atTime: 12.5,
+      },
+    );
+  });
+
   it("is the Sheet alone, named for the held time and lane, with no top-layer wrapper", async () => {
     mount(true);
     const dialog = await screen.findByRole("dialog", {
