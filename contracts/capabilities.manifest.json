@@ -100,8 +100,8 @@
       }
     },
     {
-      "id": "daw.transport.shuttle",
-      "label": "Shuttle back (jumps back) / forward",
+      "id": "daw.transport.shuttleBack",
+      "label": "Jump back",
       "effect": "session",
       "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
@@ -109,20 +109,43 @@
         "always"
       ],
       "surfaces": {
-        "command": "transport.shuttle",
+        "command": "transport.shuttleBack",
         "keyboard": "J",
         "mcp": [
-          "seek_session_tool",
-          "set_session_playing_tool"
+          "seek_session_tool"
         ],
         "cli": "podcast session seek"
       },
       "omit": {},
-      "tooltip": "J jumps back 3, 6, then 12 s; L plays, then 2\u00d7, then 4\u00d7",
+      "tooltip": "Jump back 3, 6, then 12 s on quick repeats",
       "presence": {
         "cursor": "anchor",
         "follow": "look",
-        "anchor": "transport:shuttle"
+        "anchor": "transport:shuttle-back"
+      }
+    },
+    {
+      "id": "daw.transport.shuttleForward",
+      "label": "Speed up (1\u00d7/2\u00d7/4\u00d7)",
+      "effect": "session",
+      "service": "ShareCut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "always"
+      ],
+      "surfaces": {
+        "command": "transport.shuttleForward",
+        "keyboard": "L",
+        "mcp": [
+          "set_session_playing_tool"
+        ]
+      },
+      "omit": {},
+      "tooltip": "Play at 1\u00d7, then step to 2\u00d7 and 4\u00d7",
+      "presence": {
+        "cursor": "anchor",
+        "follow": "look",
+        "anchor": "transport:shuttle-forward"
       }
     },
     {

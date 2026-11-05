@@ -19,9 +19,13 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Pause and return",
     tooltip: "Pause and return to where playback started",
   },
-  "daw.transport.shuttle": {
-    label: "Shuttle back (jumps back) / forward",
-    tooltip: "J jumps back 3, 6, then 12 s; L plays, then 2×, then 4×",
+  "daw.transport.shuttleBack": {
+    label: "Jump back",
+    tooltip: "Jump back 3, 6, then 12 s on quick repeats",
+  },
+  "daw.transport.shuttleForward": {
+    label: "Speed up (1×/2×/4×)",
+    tooltip: "Play at 1×, then step to 2× and 4×",
   },
   "daw.transport.audition": {
     label: "Audition Full mix / Edited stems / Original",

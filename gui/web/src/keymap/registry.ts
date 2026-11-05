@@ -105,16 +105,27 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     collision: "K alone pauses and returns; Mod+K splits at the playhead",
   },
   {
-    id: "transport.shuttle",
+    id: "transport.shuttleBack",
     category: "transport",
-    label: "Shuttle back (jumps back) / forward",
-    keys: ["J", "L"],
+    label: "Jump back",
+    keys: ["J"],
+    bareKey: true,
+    requireShift: false,
+    noRepeat: true,
+    when: "always",
+    notes: "Jumps back 3, 6, 12 s on quick repeats; no reverse audio",
+  },
+  {
+    id: "transport.shuttleForward",
+    category: "transport",
+    label: "Speed up (1×/2×/4×)",
+    keys: ["L"],
     bareKey: true,
     requireShift: false,
     noRepeat: true,
     when: "always",
     notes:
-      "J jumps back 3, 6, 12 s; L plays at 1×, 2×, 4×. A remap replaces both keys: the new key plays forward only and Back is unbound",
+      "Plays at 1×, then 2× and 4× on repeats; J, K or Space returns to 1×",
   },
   {
     id: "edit.clearSelection",
@@ -1092,9 +1103,6 @@ export function argsFromKeyEvent(
       shift: e.shiftKey,
       held: e.repeat,
     };
-  }
-  if (commandId === "transport.shuttle") {
-    return { dir: e.key.toLowerCase() === "j" ? "back" : "forward" };
   }
   if (
     commandId === "navigation.nudgePlayheadBack" ||
