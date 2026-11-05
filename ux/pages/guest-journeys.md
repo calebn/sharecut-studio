@@ -355,9 +355,8 @@ flowchart TD
    this take? Recording ends for everyone in the room.", **Keep recording** or
    **Stop take**). There is no Land button: each saved recording lands on its
    own once its file ACK arrives, and a failed land shows **Retry** on the take's
-   row in the Takes tray. Retry stays disabled with its reason while recordings
-   are still saving and none is ready to land, and until there is something to
-   land; live comments do not enable it while a recording saves. The native
+   row in the Takes tray. Retry is disabled with its reason before the first take
+   and while a take is open. The native
    leave warning stays
    until your full-quality recording finishes writing its final file, then
    clears. The guest's pill reads "Saving · N%" while the file uploads and "Saved"

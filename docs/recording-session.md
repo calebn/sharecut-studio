@@ -1322,13 +1322,11 @@ cannot. Every button runs the same `record.*` command as the palette.
 - **Land.** There is no Land button. The server lands each segment on its file
   ACK, so a saved recording reaches the timeline on its own. When that land
   fails, the take's row in the Takes tray shows **Retry** on that person's line,
-  and it runs `record.land`. The command is disabled with its reason while a
-  take is open ("Stop the take to land it on the timeline."), while recordings
-  are still saving and none is ready to land ("Recordings are still saving to the
-  project."), before anything arrived ("No recordings have reached the project
-  yet.") and when everything landed ("Every take is on the timeline."); it also
-  lands unlanded live comments once nothing is still saving, and comments never
-  override the saving reason. The server refuses an open take with the same reason, so every host surface
+  and it runs `record.land`. The command is disabled with its reason before the
+  first take ("Record a take first.") and while a take is open ("Stop the take
+  to land it on the timeline."); `landGate` in `record/hostControls.ts` checks
+  room state only and the server reports an empty land. The server refuses an
+  open take with the same reason, so every host surface
   (the `record.land` command, `POST /api/record/land`, `record_land_tool`,
   `podcast record land`) stops at one check in `RecordControlService.land`.
   `RecordTakeOpenError` carries the code `take_open`; HTTP answers 409 with

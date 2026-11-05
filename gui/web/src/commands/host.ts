@@ -314,7 +314,7 @@ export function registerHostCommands(): void {
       return { status: "disabled", reason: "Landing recordings is host-only" };
     }
     const snap = useRecordHostStore.getState().snapshot;
-    const gate = snap ? landGate(snap, null) : null;
+    const gate = snap ? landGate(snap) : null;
     if (gate && !gate.enabled) {
       return { status: "disabled", reason: gate.reason };
     }
