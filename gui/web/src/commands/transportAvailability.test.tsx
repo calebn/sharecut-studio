@@ -30,7 +30,6 @@ beforeEach(() => {
     .hydrate("/tmp/transport-availability", minimalProject());
   setChrome({
     commandPaletteOpen: false,
-    shareRequested: false,
   });
   useDawStore.setState({
     isPlaying: false,

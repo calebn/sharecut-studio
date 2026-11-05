@@ -5,6 +5,7 @@ import { ApiError } from "../../utils/apiError";
 import {
   corsWarning,
   createRecoveryOf,
+  LISTEN_CHOICES,
   reachOf,
   reviewMeta,
   roleLabel,
@@ -126,6 +127,32 @@ describe("shareRowsOf", () => {
     expect(out.rooms.map((r) => r.sessionId)).toEqual(["s1", "s2"]);
     expect(out.rooms[0].guests.map((r) => r.token)).toEqual(["g1"]);
     expect(out.rooms[0].producers.map((r) => r.token)).toEqual(["p1"]);
+  });
+  it("takes the Viewer link frozen on a version out of the review links as the listen link", () => {
+    const review = hostShareRow({ token: "r1" });
+    const followsLatest = hostShareRow({ token: "v1", docs_role: "viewer" });
+    const listen = hostShareRow({
+      token: "l1",
+      docs_role: "viewer",
+      follow_latest: false,
+    });
+    const revoked = hostShareRow({
+      token: "l0",
+      docs_role: "viewer",
+      follow_latest: false,
+      usable: false,
+    });
+    const out = shareRowsOf([review, followsLatest, revoked, listen]);
+    expect(out.listen?.token).toBe("l1");
+    expect(out.review.map((r) => r.token)).toEqual(["r1", "v1"]);
+    expect(shareRowsOf([review]).listen).toBeUndefined();
+  });
+  it("makes the listen link a frozen Viewer link without AI assistants", () => {
+    expect(LISTEN_CHOICES).toEqual({
+      role: "viewer",
+      withMcp: false,
+      freeze: true,
+    });
   });
   it("groups a record row with no session by its own token", () => {
     const out = shareRowsOf([

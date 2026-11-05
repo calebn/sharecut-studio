@@ -65,7 +65,6 @@ export function FeedAsk({ field, access, onSave, onCancel }: Props) {
         </Field>
         <Button
           type="submit"
-          variant="primary"
           disabledReason={why ?? undefined}
           {...reason.describedBy}
         >

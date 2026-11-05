@@ -24,7 +24,6 @@ import {
 } from "./deliverFixture";
 import type { ExportState } from "./deliverLogic";
 import { formatClock } from "./deliverLogic";
-import { SHARE_DEFAULTS, type ShareOptions } from "./shareLogic";
 import { SAMPLE_PREVIEW, transcriptOptions } from "./transcriptFixtures";
 
 const platform = vi.hoisted(() => ({ apple: false }));
@@ -2591,7 +2590,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.example.app/l/7Hq2mXk9TnP4vLr8Za3wPinned to Rough cutRPress Ctrl C0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.example.app/l/7Hq2mXk9TnP4vLr8Za3wPinned to Rough cutR1Press Ctrl C0:00 / 52:001515AB",
         },
         "desktop: done in the app": {
           "buttons": [
@@ -2654,7 +2653,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agoExportmp3field-notes.mp3Listening file50 MBRevealwavfield-notes.wavLossless master550 MBRevealwavcold-open.wavClip6 MBRevealChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutRCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agoExportmp3field-notes.mp3Listening file50 MBRevealwavfield-notes.wavLossless master550 MBRevealwavcold-open.wavClip6 MBRevealChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutR1Copy0:00 / 52:001515AB",
         },
         "desktop: done in the browser": {
           "buttons": [
@@ -2714,7 +2713,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agoExportmp3field-notes.mp3Listening file50 MBDownloadwavfield-notes.wavLossless master550 MBDownloadwavcold-open.wavClip6 MBDownloadThe master is large. Use Wi-Fi, or choose the listening file.ChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutRCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agoExportmp3field-notes.mp3Listening file50 MBDownloadwavfield-notes.wavLossless master550 MBDownloadwavcold-open.wavClip6 MBDownloadThe master is large. Use Wi-Fi, or choose the listening file.ChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutR1Copy0:00 / 52:001515AB",
         },
         "desktop: error": {
           "buttons": [],
@@ -3167,7 +3166,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutRCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutR1Copy0:00 / 52:001515AB",
         },
         "desktop: without a link": {
           "buttons": [
@@ -3344,7 +3343,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkhttps://share.example.app/l/7Hq2mXk9TnP4vLr8Za3wPinned to Rough cutRShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkhttps://share.example.app/l/7Hq2mXk9TnP4vLr8Za3wPinned to Rough cutR1ShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
         "phone: done in the app": {
           "buttons": [
@@ -3407,7 +3406,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agomp3field-notes.mp3Listening file50 MBRevealwavfield-notes.wavLossless master550 MBRevealwavcold-open.wavClip6 MBRevealListen linkhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutRShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agomp3field-notes.mp3Listening file50 MBRevealwavfield-notes.wavLossless master550 MBRevealwavcold-open.wavClip6 MBRevealListen linkhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutR1ShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
         "phone: done in the browser": {
           "buttons": [
@@ -3467,7 +3466,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agomp3field-notes.mp3Listening file50 MBDownloadwavfield-notes.wavLossless master550 MBDownloadwavcold-open.wavClip6 MBDownloadThe master is large. Use Wi-Fi, or choose the listening file.Listen linkhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutRShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agomp3field-notes.mp3Listening file50 MBDownloadwavfield-notes.wavLossless master550 MBDownloadwavcold-open.wavClip6 MBDownloadThe master is large. Use Wi-Fi, or choose the listening file.Listen linkhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutR1ShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
         "phone: error": {
           "buttons": [],
@@ -3921,7 +3920,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutRShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutR1ShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
         "phone: without a link": {
           "buttons": [
@@ -4611,24 +4610,32 @@ describe("clip trim handles in the stage", () => {
 
 describe("the Listen link reach in the stage", () => {
   it.each(["desktop", "phone"] as const)(
-    "says only this network can listen on %s",
-    (layout) => {
+    "marks a link only this network reaches with a slashed globe on %s, and says so in its popover",
+    async (layout) => {
       setup({
         layout,
         link: { url: "https://share.example.app/l/abc", reach: "network" },
       });
+      const glyph = screen.getByRole("button", {
+        name: "Only on this network",
+      });
+      expect(screen.queryByText(/Only people on this network/)).toBeNull();
+      await userEvent.click(glyph);
       expect(
         screen.getByText(
-          "Only people on this network can listen. Turn on online sharing to reach anyone.",
+          "Only people on this network can open it. Turn on online sharing to reach anyone.",
         ),
       ).toBeInTheDocument();
     },
   );
 
-  it("says nothing when the link reaches anywhere", () => {
+  it("marks a link that reaches anywhere with a filled globe", () => {
     setup({
       link: { url: "https://share.example.app/l/abc", reach: "anywhere" },
     });
+    expect(
+      screen.getByRole("button", { name: "Reachable from anywhere" }),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/Only people on this network/)).toBeNull();
   });
 });
@@ -5210,62 +5217,60 @@ describe("Bounce section", () => {
   });
 });
 
-describe("Share section", () => {
-  const share: ShareOptions = {
-    rows: [],
-    loaded: true,
-    choices: SHARE_DEFAULTS,
-    onChoices: vi.fn(),
-    busy: false,
-    recovery: { kind: "idle" },
-    error: null,
-    status: null,
-    copiedKey: null,
-    blockedKey: null,
-    onCreate: vi.fn(),
-    onRefreshMix: vi.fn(),
-    onCopy: vi.fn(),
-    onStop: vi.fn(),
-    onCreateRecord: vi.fn(),
-    onReplaceInvite: vi.fn(),
-    onEndRoom: vi.fn(),
-    onOpenRecord: vi.fn(),
-  };
+describe("host Listen link slot", () => {
+  const listen = vi.fn(({ highlight }: { highlight: boolean }) => (
+    <p>{highlight ? "highlighted listen row" : "plain listen row"}</p>
+  ));
 
-  it("sits in the side column after the episode and bounce when the host offers it", () => {
-    setup({ share });
+  it("puts the host's row in the Listen link section, in place of the one the link prop describes", () => {
+    setup({ listen, showLink: true, link: { url: "https://x.test/r/a" } });
+    expect(screen.getByRole("heading", { name: "Listen link" })).toBeTruthy();
+    expect(screen.getByText("plain listen row")).toBeTruthy();
+    expect(screen.queryByText("https://x.test/r/a")).toBeNull();
+  });
+
+  it("sits in the side column after the episode file, and there is no Share section", () => {
+    setup({ listen, showLink: true });
     const titles = screen
       .getAllByRole("heading", { level: 2 })
       .map((h) => h.textContent);
-    expect(titles.indexOf("Share")).toBeGreaterThan(
+    expect(titles.indexOf("Listen link")).toBeGreaterThan(
       titles.indexOf("Episode file"),
     );
-    expect(
-      screen.getByRole("button", { name: "Create review link" }),
-    ).toBeTruthy();
+    expect(titles).not.toContain("Share");
   });
 
-  it("stands in for the Listen link section", () => {
-    setup({ share, showLink: true, link: { url: "https://x.test/r/a" } });
-    expect(screen.getByRole("heading", { name: "Share" })).toBeTruthy();
+  it("comes after the episode file and before Chapters and Clips on a phone", () => {
+    setup({ listen, showLink: true, layout: "phone" });
+    const titles = screen
+      .getAllByRole("heading", { level: 2 })
+      .map((h) => h.textContent);
+    expect(titles.indexOf("Listen link")).toBeGreaterThan(
+      titles.indexOf("Episode file"),
+    );
+    expect(titles.indexOf("Listen link")).toBeLessThan(
+      titles.indexOf("Chapters"),
+    );
+    expect(titles.indexOf("Chapters")).toBeLessThan(titles.indexOf("Clips"));
+  });
+
+  it("is absent when the host offers none and showLink is off", () => {
+    setup({ listen, showLink: false });
     expect(screen.queryByRole("heading", { name: "Listen link" })).toBeNull();
   });
 
-  it("is absent without the host's share, and the Listen link stays", () => {
-    setup({ showLink: true });
-    expect(screen.queryByRole("heading", { name: "Share" })).toBeNull();
-    expect(screen.getByRole("heading", { name: "Listen link" })).toBeTruthy();
+  it("highlights the row once the export is done", () => {
+    setup({
+      listen,
+      showLink: true,
+      exportState: DONE as ExportState,
+    });
+    expect(screen.getByText("highlighted listen row")).toBeTruthy();
   });
 
-  it("is a skeleton while the page loads, and absent for a guest", () => {
-    const { unmount } = setup({ share, state: "loading" });
-    expect(
-      screen.queryByRole("button", { name: "Create review link" }),
-    ).toBeNull();
-    expect(screen.getByRole("heading", { name: "Share" })).toBeTruthy();
-    unmount();
-    setup({ share, guest: true });
-    expect(screen.queryByRole("heading", { name: "Share" })).toBeNull();
+  it("is a skeleton while the page loads", () => {
+    setup({ listen, showLink: true, state: "loading" });
+    expect(screen.queryByText("plain listen row")).toBeNull();
   });
 });
 
