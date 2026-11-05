@@ -130,7 +130,7 @@ function Result({
         detail={`Reference ${phase.reference}`}
         action={{
           label: copied ? "Copied" : "Copy",
-          name: "Copy reference",
+          name: copied ? "Copied" : "Copy reference",
           icon: "copy",
           onAction: () => void onCopyReference().then(setCopied),
         }}
