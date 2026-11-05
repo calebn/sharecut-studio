@@ -201,6 +201,28 @@ describe("ProjectCardList actions", () => {
     expect(await screen.findByRole("menu")).toBeInTheDocument();
   });
 
+  it("opens the keyboard context menu after a touch on the card", async () => {
+    const { cards } = withActions();
+    fireEvent.pointerDown(cards[0], { pointerType: "touch", clientX: 5 });
+    fireEvent.pointerUp(cards[0], { pointerType: "touch", clientX: 5 });
+    cards[0].focus();
+    fireEvent.keyDown(cards[0], { key: "F10", shiftKey: true });
+    fireEvent.contextMenu(cards[0]);
+    expect(await screen.findByRole("menu")).toBeInTheDocument();
+  });
+
+  it("names each swipe Remove button for its episode", () => {
+    withActions(PROJECTS, "row");
+    for (const project of PROJECTS) {
+      expect(
+        screen.getByRole("button", {
+          name: `Remove ${project.name} from list`,
+          hidden: true,
+        }),
+      ).toBeInTheDocument();
+    }
+  });
+
   it.each([
     ["Open", "onOpen"],
     ["Reveal in folder", "onReveal"],

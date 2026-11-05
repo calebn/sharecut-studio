@@ -430,14 +430,14 @@ def duplicate_project(project_path: Path | str) -> tuple[Path, str]:
     stay behind, as for any relocated workspace. Returns the new project file and its name.
     """
     source = require_episode_project_file(project_path)
-    name = f"{ProjectStore(source).load().name} copy"[:PROJECT_NAME_MAX_CHARS].strip()
+    suffix = " copy"
+    base = ProjectStore(source).load().name[: PROJECT_NAME_MAX_CHARS - len(suffix)]
+    name = f"{base.strip()}{suffix}"
+    # The reserved folder stays ours through the copy, so no concurrent create can take its number.
     reserved = default_workspace_dir(name)
-    reserved.rmdir()
     try:
         copied = copy_relocated_workspace(source, reserved, name=name)
-    except FileExistsError:
-        raise
-    except Exception:
+    except BaseException:
         shutil.rmtree(reserved, ignore_errors=True)
         raise
     record_recent(copied)

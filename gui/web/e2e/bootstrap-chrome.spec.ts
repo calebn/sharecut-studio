@@ -39,7 +39,7 @@ test.describe("Chrome-first bootstrap", () => {
     await expect(play).toBeDisabled();
     await expect(play).toHaveAccessibleDescription("Loading project…");
     await expect(page.getByLabel("Loading timeline")).toBeVisible();
-    await expect(page.getByText(/Drop audio files/)).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Start" })).toHaveCount(0);
     await expectPageAxeClean(page);
 
     releaseShell();

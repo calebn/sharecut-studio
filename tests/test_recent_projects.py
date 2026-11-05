@@ -14,6 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from podcast_mcp.gui.server import create_app
+from podcast_mcp.models.episode import PROJECT_NAME_MAX_CHARS
 from podcast_mcp.services.app import recent_projects as recent
 from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.util.atomic_file import atomic_write
@@ -701,6 +702,27 @@ def test_duplicate_copies_the_episode_under_a_copy_name_and_lists_it(local, tmp_
     assert recent.read_recent()[0].path == str(copied.resolve())
     again = local.post("/api/projects/recent/duplicate", json={"path": str(project)})
     assert Path(again.json()["project_path"]).parent.name == "Interview copy 2"
+
+
+def test_duplicate_of_a_name_at_the_length_limit_still_ends_in_copy(local, tmp_path):
+    project = _make(tmp_path, "L" * PROJECT_NAME_MAX_CHARS)
+    res = local.post("/api/projects/recent/duplicate", json={"path": str(project)})
+    assert res.status_code == 200
+    name = res.json()["name"]
+    assert name.endswith(" copy")
+    assert len(name) == PROJECT_NAME_MAX_CHARS
+
+
+def test_duplicate_keeps_symlinks_as_links_instead_of_following_them(local, tmp_path):
+    project = _make(tmp_path, "Linked")
+    secret = tmp_path / "outside" / "secret.txt"
+    secret.parent.mkdir()
+    secret.write_text("private")
+    (project.parent / "raw").mkdir(exist_ok=True)
+    (project.parent / "raw" / "link").symlink_to(secret)
+    res = local.post("/api/projects/recent/duplicate", json={"path": str(project)})
+    copied = Path(res.json()["project_path"]).parent / "raw" / "link"
+    assert copied.is_symlink()
 
 
 def test_duplicate_refuses_a_path_that_is_not_an_episode(local, tmp_path):
