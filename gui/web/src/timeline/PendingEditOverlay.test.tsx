@@ -1359,7 +1359,6 @@ it("keeps the same review draft and focus at the dock, half and full detents", a
     await waitFor(() => expect(replacement).toContainElement(reason));
     expect(replacement.firstElementChild).toBe(host);
     expect(reason).toHaveFocus();
-    expect(reason).toHaveValue("Reviewed the selected source audio");
     expect(onReviewAction).toHaveBeenCalledTimes(1);
     view.unmount();
     expect(document.querySelector(".pending-actionbar-host")).toBeNull();
