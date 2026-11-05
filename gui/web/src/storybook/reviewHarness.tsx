@@ -39,7 +39,7 @@ export function ReviewStageHarness({
   initialItems,
   initialSelectedId,
   initialFilter,
-  toastMs = 6000,
+  toastMs,
   content,
   onDecide,
   ...stage
