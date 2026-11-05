@@ -577,7 +577,7 @@ def test_advisory_release_guards_run_on_uncertainty_and_stop_on_cancellation() -
         assert checkout["with"]["fetch-depth"] == 0
         assert plan["id"] == "plan" and plan["uses"] == "./.github/actions/ci-plan"
         for job_name, job in workflow["jobs"].items():
-            if job_name not in ("changes", "nightly-alert"):
+            if job_name != "changes":
                 settings[f"{name}/{job_name}"] = job
     test = load_github_yaml(ROOT / ".github/workflows/test.yml")
     settings["test/pytest-python-floor"] = test["jobs"]["pytest-python-floor"]
@@ -640,7 +640,7 @@ def test_release_scope_keeps_policy_and_compatibility_checks() -> None:
         guard["if"] == "github.event_name == 'workflow_dispatch' && inputs.compatibility-base != ''"
     )
     assert "git merge-base --is-ancestor" in guard["run"]
-    assert "git ls-remote origin refs/heads/main" in guard["run"]
+    assert 'git ls-remote origin "$EXPECTED_BASE_REF"' in guard["run"]
     assert "git rev-parse HEAD" in guard["run"]
 
 
@@ -664,16 +664,23 @@ def test_dispatch_guard_checks_real_head_current_main_and_ancestry(release_repo:
     base = git(release_repo, "rev-parse", "main")
     head = git(release_repo, "rev-parse", "HEAD")
 
-    def run(expected_base: str, expected_head: str) -> int:
+    def run(expected_base: str, expected_head: str, ref: str = "refs/heads/main") -> int:
         return subprocess.run(
             ["bash", "-e", "-o", "pipefail", "-c", guard],
             cwd=release_repo,
-            env=os.environ | {"EXPECTED_BASE": expected_base, "EXPECTED_HEAD": expected_head},
+            env=os.environ
+            | {
+                "EXPECTED_BASE": expected_base,
+                "EXPECTED_BASE_REF": ref,
+                "EXPECTED_HEAD": expected_head,
+            },
             capture_output=True,
         ).returncode
 
     assert run(base, head) == 0
     assert run(base, base) != 0
+    assert run(base, head, "refs/heads/elsewhere") != 0
+    assert run(base, head, "main") != 0
     assert run("$(touch injected)", head) != 0
     assert not (release_repo / "injected").exists()
     git(release_repo, "checkout", "-q", "main")

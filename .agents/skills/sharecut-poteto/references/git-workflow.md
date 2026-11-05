@@ -6,7 +6,7 @@ Do not commit or push directly to `main` unless the user explicitly overrides.
 
 ## Prepare and deliver a change
 
-1. Fetch fresh `origin/main`. Create an isolated implementation worktree from that
+1. Fetch the fresh base branch from `origin` (the base branch in `config/branches.json`: `main` until the develop cutover, then `develop`). Create an isolated implementation worktree from that
    tip. Do not switch or reset another owner's checkout. Use
    `type/short-kebab-description` with `feat`, `fix`, `docs`, `chore`, `refactor`, or `test`.
 2. Run `make worktree-setup` there. It provisions hooks, the Python environment
@@ -17,7 +17,7 @@ Do not commit or push directly to `main` unless the user explicitly overrides.
 4. When the user authorizes commits or PR delivery, make focused Conventional
    Commits. Run `make docs-sync`. Read each changed doc beside the code it describes.
    Post issue-specific screenshots and receipts on the PR, never in `docs/issue-<n>/`.
-5. Push the branch and open a draft PR. Independent PRs target `main`.
+5. Push the branch and open a draft PR. Independent PRs target the base branch in `config/branches.json` (`main` until the develop cutover, then `develop`).
    A native base-branch stack targets its parent until the parent lands.
    Report the issue selection and draft PR URL to the parent or operator immediately.
    A delegated owner waits for the parent's acknowledgment before any merge.

@@ -13,6 +13,7 @@ from script_loader import load_script
 
 ROOT = Path(__file__).resolve().parents[1]
 checker = load_script("check_project_writers")
+branches = load_script("branches", register=True)
 
 CLI_SOURCE = """\
 from podcast_mcp.services.document_sync import apply_external_document_edit
@@ -191,21 +192,22 @@ def test_checked_in_contract_matches_main() -> None:
     assert proc.returncode == 0, proc.stderr + proc.stdout
 
 
-def test_checked_in_contract_has_not_grown_since_origin_main() -> None:
+def test_checked_in_contract_has_not_grown_since_origin_base() -> None:
+    base = f"origin/{branches.base()}"
     resolves = subprocess.run(
-        ["git", "rev-parse", "--verify", "--quiet", "origin/main^{commit}"],
+        ["git", "rev-parse", "--verify", "--quiet", f"{base}^{{commit}}"],
         cwd=ROOT,
         check=False,
         capture_output=True,
     )
     if resolves.returncode:
-        pytest.skip("origin/main is not available in this checkout")
+        pytest.skip(f"{base} is not available in this checkout")
     proc = subprocess.run(
         [
             sys.executable,
             str(ROOT / "scripts" / "check_project_writers.py"),
             "--base",
-            "origin/main",
+            base,
         ],
         cwd=ROOT,
         check=False,

@@ -10,6 +10,10 @@ inputs:
   token:
     description: Token that may write issues
     required: true
+  legacy-titles:
+    description: Newline-separated titles of issues an earlier alert opened; they are closed when the run is green
+    required: false
+    default: ""
 runs:
   using: composite
   steps:
@@ -18,6 +22,7 @@ runs:
         GH_TOKEN: ${{ inputs.token }}
         WORKFLOW: ${{ inputs.workflow }}
         RESULTS: ${{ inputs.results }}
+        LEGACY_TITLES: ${{ inputs.legacy-titles }}
         REPO: ${{ github.repository }}
         RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         SHA: ${{ github.sha }}
@@ -39,5 +44,12 @@ runs:
             if [ -n "$open" ]; then
               gh issue close "$open" --repo "$REPO" --comment "The nightly ${WORKFLOW} run passed again at ${SHA}: ${RUN_URL}"
             fi
+            while IFS= read -r legacy; do
+              [ -n "$legacy" ] || continue
+              gh issue list --repo "$REPO" --label "$label" --state open --search "\"$legacy\" in:title" --json number,title --jq ".[] | select(.title == \"$legacy\") | .number" |
+                while IFS= read -r number; do
+                  gh issue close "$number" --repo "$REPO" --comment "Superseded by the nightly ${WORKFLOW} run, which passed at ${SHA}: ${RUN_URL}"
+                done
+            done <<< "$LEGACY_TITLES"
             ;;
         esac

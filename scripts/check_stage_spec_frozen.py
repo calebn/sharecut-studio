@@ -5,7 +5,7 @@ docs/design/stages/ is the design, not a description of the code. A gap between
 the two goes on the spec-deviation list. An edit is allowed only when a commit in
 the range carries `Stage-Spec-Approved: <the owner's message or decision>`.
 
-Usage: python3 scripts/check_stage_spec_frozen.py [--range origin/main...HEAD]
+Usage: python3 scripts/check_stage_spec_frozen.py [--range origin/<base>...HEAD]
 """
 
 from __future__ import annotations
@@ -14,6 +14,12 @@ import argparse
 import re
 import subprocess
 import sys
+from pathlib import Path
+
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import branches
 
 FROZEN = "docs/design/stages/"
 _APPROVAL = re.compile(r"^Stage-Spec-Approved:[ \t]*\S.*$", re.M)
@@ -32,7 +38,7 @@ def violations(rng: str) -> list[str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--range", default="origin/main...HEAD")
+    parser.add_argument("--range", default=f"origin/{branches.base()}...HEAD")
     bad = violations(parser.parse_args().range)
     for path in bad:
         print(f"{path}: the stage specs are the design; do not edit them to match the code")

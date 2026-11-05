@@ -12,6 +12,7 @@ from script_loader import load_script
 
 ROOT = Path(__file__).resolve().parents[1]
 guard = load_script("check_stage_spec_frozen")
+branches = load_script("branches", register=True)
 
 
 def _git(repo: Path, *args: str) -> None:
@@ -63,17 +64,18 @@ def test_empty_trailer_does_not_count(repo):
 
 
 def test_this_change_leaves_the_stage_specs_alone():
+    base = f"origin/{branches.base()}"
     try:
         subprocess.run(
-            ["git", "-C", str(ROOT), "rev-parse", "--verify", "-q", "origin/main"],
+            ["git", "-C", str(ROOT), "rev-parse", "--verify", "-q", base],
             check=True,
             capture_output=True,
         )
     except subprocess.CalledProcessError:
-        pytest.skip("no origin/main to compare against")
+        pytest.skip(f"no {base} to compare against")
     cwd = Path.cwd()
     try:
         os.chdir(ROOT)
-        assert guard.violations("origin/main...HEAD") == []
+        assert guard.violations(f"{base}...HEAD") == []
     finally:
         os.chdir(cwd)

@@ -3,8 +3,8 @@
 
 Usage:
   python3 scripts/ci_plan.py plan --event pull_request --base <sha> --head <sha>
-  python3 scripts/ci_plan.py plan --event push          # main: lint, types and Vitest only
-  python3 scripts/ci_plan.py plan --event schedule      # nightly and dispatch: everything
+  python3 scripts/ci_plan.py plan --event push          # develop: lint, types and Vitest only
+  python3 scripts/ci_plan.py plan --event workflow_dispatch  # promotion and dispatch: everything
   python3 scripts/ci_plan.py subset-tests web|docs|web-docs  # pytest files that read that scope
   python3 scripts/ci_plan.py required-checks [--check]   # the required-checks table in the docs
 
@@ -131,8 +131,8 @@ PATH_RULES: tuple[tuple[Glob, Scope], ...] = tuple(
         ("src/podcast_mcp/config/**", Scope.GUI),
         ("src/podcast_mcp/cli/**", Scope.GUI),
         ("src/podcast_mcp/*.py", Scope.GUI),
-        # Audio and edit algorithms: pytest owns them on PRs; main and nightly
-        # run them through the browser suites too.
+        # Audio and edit algorithms: pytest owns them on PRs; nightly
+        # runs them through the browser suites too.
         ("src/podcast_mcp/clips/**", Scope.OTHER),
         ("src/podcast_mcp/edits/**", Scope.OTHER),
         ("src/podcast_mcp/effects/**", Scope.OTHER),
@@ -596,7 +596,7 @@ def plan(
 ) -> CiPlan:
     """Plan the jobs an event needs.
 
-    Pull requests run what their diff can reach. Pushes to main run the fast
+    Pull requests run what their diff can reach. Pushes to develop run the fast
     checks. Every other event (nightly, manual dispatch) runs everything.
     """
     if event == PUSH:

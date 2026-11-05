@@ -15,6 +15,7 @@ from urllib.parse import urlparse
 if str(Path(__file__).resolve().parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import branches
 from ci_plan import REQUIRED_CHECKS as _REQUIRED
 
 REQUIRED_CHECKS = tuple(check.name for check in _REQUIRED)
@@ -448,8 +449,9 @@ def evaluate_gate(
         blockers.append("head moved during gate collection")
     if before.get("state") != "OPEN" or after.get("state") != "OPEN":
         blockers.append("PR is not open")
-    if before.get("baseRefName") != "main" or after.get("baseRefName") != "main":
-        blockers.append("PR does not target main")
+    base = branches.base()
+    if before.get("baseRefName") != base or after.get("baseRefName") != base:
+        blockers.append(f"PR does not target {base}")
     if before.get("mergeStateStatus") != "CLEAN" or after.get("mergeStateStatus") != "CLEAN":
         blockers.append("PR merge state is not CLEAN")
     issue_number = issue.get("number")

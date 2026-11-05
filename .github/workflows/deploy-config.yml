@@ -7,7 +7,7 @@ on:
       - "scripts/check_deploy_config.sh"
       - ".github/workflows/deploy-config.yml"
   push:
-    branches: [main]
+    branches: [develop, main]
     paths: *deploy-paths
 
 concurrency:

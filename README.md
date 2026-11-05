@@ -117,7 +117,7 @@ Host MCP agents can read and replace it with revision checks. See the
 - [Interaction system](docs/interaction-system.md) — one path per interaction (selection, targets, menus, sheets, feedback, keyboard and touch equivalents), the registries, and the checklist a new interaction passes
 - [Setup](docs/setup.md) — install, extras, optional downloads, MCP, bootstrap, play, GUI
 - [Architecture](docs/architecture.md) — layers and timebase
-- [Contributing](docs/contributing.md) — where new code goes; [Git workflow](docs/contributing.md#git-workflow) (feature branch → PR → `main`)
+- [Contributing](docs/contributing.md) — where new code goes; [Git workflow](docs/contributing.md#git-workflow) (feature branch → PR → the base branch in `config/branches.json`)
 - [Agent instructions](AGENTS.md) — SOLID/DRY, tests-as-you-go, docs in sync
 - [Episode format v2](docs/episode-format-v2.md) — canonical `episode.sharecut` (see also [project-format.md](docs/project-format.md))
 - [Multitrack ingest & alignment](docs/multitrack-ingest.md) — raw files → one track per speaker

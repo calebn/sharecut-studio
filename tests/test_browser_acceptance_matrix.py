@@ -314,20 +314,20 @@ def test_compat_run_has_no_skips_retries_or_filters() -> None:
     )
 
 
-def test_ci_runs_both_browser_suites_on_nightly_and_dispatch_on_every_passing_engine() -> None:
+def test_ci_runs_both_browser_suites_on_dispatch_on_every_passing_engine() -> None:
     workflow = load_github_yaml(WORKFLOW)
     triggers = workflow["on"]
     for event in ("push", "pull_request"):
         assert "paths" not in triggers[event], f"{event} must not path-filter browser CI"
         assert "paths-ignore" not in triggers[event], f"{event} must not path-filter browser CI"
-    assert {"schedule", "workflow_dispatch"} <= set(triggers)
+    assert "workflow_dispatch" in triggers
+    assert "schedule" not in triggers
 
     job = workflow["jobs"][CI_SUITES_JOB]
     assert job["strategy"]["fail-fast"] is True
     assert job["strategy"]["matrix"] == CI_MATRIX
-    include = planned_include("schedule")
-    assert planned_include("workflow_dispatch") == include
-    assert planned_include("push") == [], "a push to main must not start browser suites"
+    include = planned_include("workflow_dispatch")
+    assert planned_include("push") == [], "a push to develop must not start browser suites"
     engines = compat_ci_engines(include)
     shards = [
         MAIN_SHARD_RE.match(entry["command"])
@@ -487,7 +487,7 @@ def test_pull_requests_run_every_webkit_compat_spec_in_complete_shards() -> None
     compat = [entry for entry in include if entry["name"].startswith("compat")]
     assert [entry["name"] for entry in include if entry not in compat] == [
         entry["name"]
-        for entry in planned_include("schedule")
+        for entry in planned_include("workflow_dispatch")
         if not entry["name"].startswith("compat")
     ]
     shard_re = re.compile(rf"^{COMPAT_COMMAND} -- --project=webkit --shard=(\d+)/(\d+)$")
@@ -505,7 +505,7 @@ def test_pull_requests_run_every_webkit_compat_spec_in_complete_shards() -> None
 
 
 def test_ci_compat_inventory_has_no_missing_or_duplicate_cases() -> None:
-    engines = compat_ci_engines(planned_include("schedule"))
+    engines = compat_ci_engines(planned_include("workflow_dispatch"))
     projects = compat_projects(COMPAT_CONFIG.read_text(encoding="utf-8"))
     checks = [
         (spec, check) for spec, source in compat_specs().items() for check in spec_checks(source)

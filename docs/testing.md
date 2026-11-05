@@ -100,7 +100,7 @@ or web-only diff.
 Run the focused checks with:
 
 ```bash
-uv run python scripts/project_compat.py check --base origin/main
+uv run python scripts/project_compat.py check --base "origin/$(python3 scripts/branches.py base)"
 uv run pytest -q --no-cov tests/test_project_compat.py tests/test_project_format.py tests/test_history.py
 ```
 
@@ -187,7 +187,7 @@ Run the same check locally (needs a Docker daemon) with `./scripts/check_deploy_
 ### Credential history scanning
 
 `.github/workflows/secret-scan.yml` runs Gitleaks with complete checkout history on every
-pull request, every push to `main`, a weekly schedule, and manual dispatch. The workflow has
+pull request, every push to the base branch, a weekly schedule, and manual dispatch. The workflow has
 read-only repository permission, does not comment, and does not upload a finding artifact.
 The repository intentionally carries no `.gitleaksignore` baseline. Test credentials use
 obvious placeholders; public state certificates retain their real digest format.
@@ -277,7 +277,7 @@ if a workflow goes back to an unlocked `pip install -e`.
 
 ### GitHub CI gate
 
-GitHub Actions runs the required checks on every pull request and the full suite every night and on `workflow_dispatch`; a push to `main` runs only `pytest-quality` and `frontend-suite` (see [§ Which jobs a run needs](#which-jobs-a-run-needs) and [superseded runs](testing-ci.md#superseded-prs-and-main-bursts)). Run focused tests locally while changing code, for example `uv run pytest -q --no-cov tests/test_effects_presets.py`; a single file cannot satisfy the repo-wide 95% coverage threshold. There is no pre-push full-CI hook or local CI stamp: contributors may push a branch and open a PR without running `make test` or `make ci` first, then use the GitHub results to make targeted fixes. Run local `make test` or `make ci` when changes are extensive or a failure needs full-suite diagnosis. Wait for the required GitHub checks on the latest PR head before merging.
+GitHub Actions runs the required checks on every pull request and the full suite on promotion dispatch and on `workflow_dispatch`; a push to the base branch after the cutover runs only `pytest-quality` and `frontend-suite` (see [§ Which jobs a run needs](#which-jobs-a-run-needs) and [superseded runs](testing-ci.md#superseded-prs-and-develop-bursts)). Run focused tests locally while changing code, for example `uv run pytest -q --no-cov tests/test_effects_presets.py`; a single file cannot satisfy the repo-wide 95% coverage threshold. There is no pre-push full-CI hook or local CI stamp: contributors may push a branch and open a PR without running `make test` or `make ci` first, then use the GitHub results to make targeted fixes. Run local `make test` or `make ci` when changes are extensive or a failure needs full-suite diagnosis. Wait for the required GitHub checks on the latest PR head before merging.
 
 #### Which jobs a run needs
 
@@ -291,12 +291,12 @@ GitHub Actions runs the required checks on every pull request and the full suite
 | PR where every changed file is docs (`docs/`, `docs-site/`, `ux/`, `.agents/skills/`, `README.md`, `ROADMAP.md`, `AGENTS.md`) | only the test files that name those paths, or run a `scripts/` file that does (`python3 scripts/ci_plan.py subset-tests docs`), `--no-cov`, then the docs-sync gate | skipped, unless the diff also touches a GUI-facing doc such as `docs/daw-shortcuts.md` | skipped, same exception |
 | PR whose changed files are all under `gui/web/` or the docs paths above (a UI change that updates its docs) | the union of the two subsets above (`python3 scripts/ci_plan.py subset-tests web-docs`), `--no-cov` | runs | as above |
 | Proven version-only release-please PR | planner and version-policy tests, without coverage; existing compatibility, lint, types, locked install, docs and commit gates still run | skipped | skipped |
-| Push to `main` | lint, types, compat checks (`pytest-quality`) only; no shards, no coverage floor | runs (Vitest and build) | skipped |
-| Nightly schedule (07:23 UTC), `workflow_dispatch` | full suite, 95% floor | runs | the four main shards, then complete `compat-chromium` and `compat-webkit`; a failure opens or updates a `nightly-failure` issue, and a green run closes it |
+| Push to the base branch (after the cutover) | lint, types, compat checks (`pytest-quality`) only; no shards, no coverage floor | runs (Vitest and build) | skipped |
+| Promotion dispatch (nightly 07:23 UTC; until the cutover `promote.yml` runs it on the `main` tip), `workflow_dispatch` | full suite, 95% floor | runs | the four main shards, then complete `compat-chromium` and `compat-webkit`; a red promotion opens or updates a `nightly-failure` issue, and a green one closes it |
 
-A GUI-facing path is one the browser suites or the frontend job read or talk to. `PATH_RULES` in `scripts/ci_plan.py` lists them in order, and the first match wins. The table covers `gui/web/` and the Python behind the browser: `gui/`, `services/`, `models/`, `mcp/`, `extensions/`, `history/`, `cli/` and the top-level `src/podcast_mcp/*.py`. It also covers every `contracts/` file except `contracts/test-wait-allowlist.json`, plus `schemas/`, `deploy/brand/`, `.agents/defaults/` and `config/distribution.dev.json` (the runtime loads them), the e2e and document-delta fixture projects, the scripts that `gui/web` and the frontend job run, the two cheatsheet docs, `pyproject.toml`, `uv.lock`, `.nvmrc`, `test.yml` and `.github/actions/`. The wait allowlist still runs full pytest, but it does not schedule frontend or browser jobs because only the test-wait checker reads it. The audio and edit algorithms (`engines`, `edits`, `pipeline`, `effects`, `ingest`, `clips`, `export`, `util`) run under pytest on PRs, and under the browser suites on the nightly schedule and dispatch. A path that no rule matches counts as GUI-facing, so a new directory runs every browser suite. `tests/test_ci_plan.py` pins the GUI pattern list, requires a rule for every tracked file and every `src/podcast_mcp` package, checks that no rule is shadowed, and requires every repo path that code under `gui/web` names (`tests/fixtures/`, `scripts/`, `contracts/`, `schemas/`, `.agents/`, `config/`) to be classified GUI-facing. When you add a directory, classify it there. Both test subsets are computed by scanning `tests/test_*.py` for the scope's paths (and for the `scripts/` files whose source names them), never listed by hand. Nightly and dispatch run the whole suite either way; a push to `main` runs only `pytest-quality` and `frontend-suite`.
+A GUI-facing path is one the browser suites or the frontend job read or talk to. `PATH_RULES` in `scripts/ci_plan.py` lists them in order, and the first match wins. The table covers `gui/web/` and the Python behind the browser: `gui/`, `services/`, `models/`, `mcp/`, `extensions/`, `history/`, `cli/` and the top-level `src/podcast_mcp/*.py`. It also covers every `contracts/` file except `contracts/test-wait-allowlist.json`, plus `schemas/`, `deploy/brand/`, `.agents/defaults/` and `config/distribution.dev.json` (the runtime loads them), the e2e and document-delta fixture projects, the scripts that `gui/web` and the frontend job run, the two cheatsheet docs, `pyproject.toml`, `uv.lock`, `.nvmrc`, `test.yml` and `.github/actions/`. The wait allowlist still runs full pytest, but it does not schedule frontend or browser jobs because only the test-wait checker reads it. The audio and edit algorithms (`engines`, `edits`, `pipeline`, `effects`, `ingest`, `clips`, `export`, `util`) run under pytest on PRs, and under the browser suites on promotion dispatch and `workflow_dispatch`. A path that no rule matches counts as GUI-facing, so a new directory runs every browser suite. `tests/test_ci_plan.py` pins the GUI pattern list, requires a rule for every tracked file and every `src/podcast_mcp` package, checks that no rule is shadowed, and requires every repo path that code under `gui/web` names (`tests/fixtures/`, `scripts/`, `contracts/`, `schemas/`, `.agents/`, `config/`) to be classified GUI-facing. When you add a directory, classify it there. Both test subsets are computed by scanning `tests/test_*.py` for the scope's paths (and for the `scripts/` files whose source names them), never listed by hand. Promotion (the nightly) and dispatch run the whole suite either way; a push to the base branch runs only `pytest-quality` and `frontend-suite`.
 
-A web-only, docs-only, web-and-docs-only, or strictly proven version-only release diff cannot move Python coverage. Every other PR still enforces the 95% floor. The nightly schedule and `workflow_dispatch` enforce it on every run; a push to `main` runs no shards. See [native selection](testing-ci.md#native-workload-selection) and [release validation](testing-ci.md#release-refreshes-and-final-validation).
+A web-only, docs-only, web-and-docs-only, or strictly proven version-only release diff cannot move Python coverage. Every other PR still enforces the 95% floor. Promotion dispatch and `workflow_dispatch` enforce it on every run; a push to the base branch after the cutover runs no shards. See [native selection](testing-ci.md#native-workload-selection) and [release validation](testing-ci.md#release-refreshes-and-final-validation).
 
 The required checks, rendered from `REQUIRED_CHECKS` in `scripts/ci_plan.py` (`python3 scripts/ci_plan.py required-checks` rewrites the table; `tests/test_ci_plan.py` fails when it is stale, when `make ci-body` drifts from the Local mirror column, or when a workflow loses the job):
 
@@ -325,7 +325,7 @@ cancelled workloads, and unexpected skips therefore block the required aggregate
 The repository merge helper still requires literal `SUCCESS` from `pytest`,
 `frontend`, `frontend-e2e`, and `gitleaks-history` on the exact PR head. It rejects
 missing contexts, arbitrary `SKIPPED` checks, API errors, and moved heads.
-Skipped-area regressions surface in the nightly run (`nightly-failure` issue); check it before trusting `main`.
+Skipped-area regressions surface in the promotion run (`nightly-failure` issue); check it before trusting `main`.
 
 The `pytest-quality` job's docs-sync step, on pull requests only, runs `scripts/docs_sync.py check --range` over the PR's base/head SHAs — the docs-sync gate from [AGENTS.md § Docs in sync](../AGENTS.md#docs-in-sync). It needs the job's `actions/checkout` at `fetch-depth: 0` (the merge base and commit trailers, not just the head commit). Run the same check locally with `make docs-sync` before opening a PR; the `docs-sync` pre-commit hook runs it on staged files but only warns.
 
@@ -620,7 +620,7 @@ requires HTTP 200 and host setup still waits for `networkidle`.
 ## Adding features
 
 1. Add or extend tests under `tests/` alongside your change.
-2. Run focused tests while developing; GitHub Actions runs the required checks after you push or open a PR, and the full suite on the nightly schedule ([§ Which jobs a run needs](#which-jobs-a-run-needs)).
+2. Run focused tests while developing; GitHub Actions runs the required checks after you push or open a PR, and the full suite on promotion dispatch ([§ Which jobs a run needs](#which-jobs-a-run-needs)).
 3. If you add a new module, include at least:
    - Happy-path test
    - One edge or error case where practical
@@ -766,7 +766,7 @@ recovery, not a runtime optimization. Both suites retry a failed test once in
 CI, so one flake does not force a job rerun.
 
 CI runs the main suite as four shards (`main-1of4` ... `main-4of4`, each
-`npm run test:e2e -- --shard=i/4`). On the nightly schedule and dispatch it runs the
+`npm run test:e2e -- --shard=i/4`). On promotion dispatch and `workflow_dispatch` it runs the
 compatibility suite as two complete engine jobs (`compat-chromium`,
 `compat-webkit`, each `npm run test:e2e:compat -- --project=<engine>`). On a
 pull request it runs every WebKit compat spec in three shards instead

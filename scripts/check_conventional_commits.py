@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fail when a commit on the PR branch does not start with a Conventional Commit type.
 
-Merges are rebase-only, so every PR commit lands on main as written and release-please
+Merges are rebase-only, so every PR commit lands on the base branch as written and release-please
 reads them to pick the next version. A commit it cannot parse is silently ignored.
 
 Usage: check_conventional_commits.py BASE...HEAD

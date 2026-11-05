@@ -1,5 +1,7 @@
 .PHONY: setup doctor hooks worktree-setup test test-fast test-quick test-e2e test-e2e-slow test-e2e-real test-web test-web-e2e profile-seek-trim test-desktop desktop-build desktop-linux-appimage-docker ci typecheck lint-py format-py format-py-check install ux-demo ux-demo-screens cheatsheet cheatsheet-check schema-export generated-check docs-sync docs-sync-table docs-sync-replay decisions-index golden-ear
 
+BASE ?= $(shell python3 scripts/branches.py base)
+
 setup:
 	./install.sh
 
@@ -99,7 +101,7 @@ cheatsheet-check:
 generated-check:
 	uv run pytest -q --no-cov tests/test_generated_artifacts.py
 	uv run python scripts/export_capabilities_copy.py --check
-	uv run python scripts/check_project_writers.py --base origin/main
+	uv run python scripts/check_project_writers.py --base origin/$(BASE)
 	uv run python scripts/export_timeline_zoom.py --check
 	uv run python scripts/export_limit_contracts.py --check
 	uv run python scripts/export_project_types.py --check
@@ -108,7 +110,7 @@ generated-check:
 # Docs-sync gate for this branch (the same check CI runs on the PR diff). Judges commits,
 # not uncommitted worktree edits; commit first, then run this before opening a PR.
 docs-sync:
-	uv run python scripts/docs_sync.py check --range origin/main...HEAD
+	uv run python scripts/docs_sync.py check --range origin/$(BASE)...HEAD
 
 # Regenerate AGENTS.md § Docs in sync from contracts/docs-sync.json.
 docs-sync-table:
