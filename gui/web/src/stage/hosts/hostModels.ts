@@ -20,6 +20,8 @@ export function hostStateOf(
   project: unknown,
   loadFailure: LoadFailure | null | undefined,
 ): HostState {
-  if (project != null) return "ready";
-  return loadFailure ? "error" : "loading";
+  // A standing failure wins: a project without its transcript and history is
+  // not safe to work on, so every stage says so rather than going silent.
+  if (loadFailure) return "error";
+  return project != null ? "ready" : "loading";
 }
