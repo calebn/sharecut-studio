@@ -219,14 +219,19 @@ function GuestRoomSession({
     meterRef.current = meter;
   }, [mic, meter]);
 
-  useEffect(() => {
+  const [joinObservation, setJoinObservation] = useState({ consented, error });
+  if (
+    joinObservation.consented !== consented ||
+    joinObservation.error !== error
+  ) {
+    setJoinObservation({ consented, error });
     if (consented !== null || error) {
       setJoining(false);
     }
     if (consented === true) {
       setRejoinOpen(false);
     }
-  }, [consented, error]);
+  }
 
   const recovering =
     state === "stopped" &&
