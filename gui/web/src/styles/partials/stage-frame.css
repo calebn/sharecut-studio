@@ -186,8 +186,18 @@ html[data-frame-short][data-shell="phone"] {
   border-block-end: 1px solid var(--color-border);
 }
 
-.stage-loading-name {
+.stage-loading-bar {
   flex: 1;
+  min-inline-size: 0;
+}
+
+/* Sized by its content, as in the App header, so the bar is not 0 wide. */
+.stage-loading-bar .sys-stage-bar {
+  container-type: normal;
+}
+
+.stage-loading-name {
+  flex: 0 1 14rem;
   min-inline-size: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -202,34 +212,39 @@ html[data-frame-short][data-shell="phone"] {
   padding: var(--space-5);
 }
 
+.stage-loading-blocks .stage-loading-block {
+  border: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-elevated);
+}
+
 .stage-loading-blocks {
   display: grid;
   gap: var(--space-4);
   grid-template-columns: minmax(0, 1fr);
 }
 
-.stage-loading-block--row {
+.stage-loading-blocks .stage-loading-block--row {
   block-size: 3.5rem;
 }
 
-.stage-loading-block--card {
+.stage-loading-blocks .stage-loading-block--card {
   block-size: 8rem;
 }
 
-.stage-loading-block--lane {
+.stage-loading-blocks .stage-loading-block--lane {
   block-size: 5rem;
 }
 
-.stage-loading-block--ruler,
-.stage-loading-block--strip {
+.stage-loading-blocks .stage-loading-block--ruler,
+.stage-loading-blocks .stage-loading-block--strip {
   block-size: 2rem;
 }
 
-.stage-loading-block--wide {
+.stage-loading-blocks .stage-loading-block--wide {
   block-size: 12rem;
 }
 
-.stage-loading-block--side {
+.stage-loading-blocks .stage-loading-block--side {
   block-size: 6rem;
 }
 
