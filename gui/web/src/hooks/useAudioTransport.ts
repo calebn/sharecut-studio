@@ -29,6 +29,7 @@ import {
   sourcePointToTimeline,
   timelinePointToSource,
 } from "../utils/timebase";
+import { useStableCallback } from "../utils/useStableCallback";
 
 const selectAudioTransportFields = pickDaw(
   "project",
@@ -218,8 +219,6 @@ export function useAudioTransport(enabled = true): void {
   } = useDaw(selectAudioTransportFields);
 
   const isPlaying = preview ? preview.playing : timelineIsPlaying;
-  const previewRef = useRef(preview);
-  previewRef.current = preview;
   const previewUrl = preview
     ? preview.media.kind === "rendered"
       ? preview.media.url
@@ -230,8 +229,6 @@ export function useAudioTransport(enabled = true): void {
           cacheKey: preview.media.cacheKey,
         })
     : null;
-  const previewUrlRef = useRef(previewUrl);
-  previewUrlRef.current = previewUrl;
   const playersRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   const rafRef = useRef<number | null>(null);
   const meterContextBarrier = useRef<HostMeterContextBarrier>({
@@ -240,15 +237,16 @@ export function useAudioTransport(enabled = true): void {
   const meterMonitorRef = useRef<ReturnType<
     typeof createHostPlaybackMeterMonitor
   > | null>(null);
-  const playheadRef = useRef(playheadSec);
   const appliedSeekRevision = useRef(playheadSeekRevision);
   const drivingPlayheadRef = useRef(false);
-  const projectRef = useRef(project);
-  const auditionModeRef = useRef(auditionMode);
-
-  playheadRef.current = playheadSec;
-  projectRef.current = project;
-  auditionModeRef.current = auditionMode;
+  const playbackInputs = useStableCallback(() => ({
+    preview,
+    previewUrl,
+    playheadSec,
+    project,
+    auditionMode,
+    playUntilSec,
+  }));
 
   // A premix mixed before a volume or mute change would play the old mix;
   // stems at their current output gain play the new one before a refresh.
@@ -286,7 +284,12 @@ export function useAudioTransport(enabled = true): void {
       }
       return;
     }
-    const project = projectRef.current;
+    const {
+      project,
+      preview: startingPreview,
+      previewUrl: startingPreviewUrl,
+      playheadSec: startingPlayhead,
+    } = playbackInputs();
     if (!project) {
       return;
     }
@@ -310,9 +313,9 @@ export function useAudioTransport(enabled = true): void {
           if (useDawStore.getState().projectEpoch !== projectEpoch) {
             return;
           }
-          const source = previewRef.current;
+          const { preview: source, previewUrl: sourceUrl } = playbackInputs();
           if (key === "source-preview") {
-            if (!source || previewUrlRef.current !== url) return;
+            if (!source || sourceUrl !== url) return;
             updateSourcePreview(
               source.ownerId,
               source.generation,
@@ -335,8 +338,8 @@ export function useAudioTransport(enabled = true): void {
       el.playbackRate = useDawStore.getState().playbackRate;
     };
 
-    if (previewUrlRef.current) {
-      make("source-preview", previewUrlRef.current);
+    if (startingPreviewUrl) {
+      make("source-preview", startingPreviewUrl);
     } else if (!needsMultitrack && auditionMode === "mix") {
       if (!project.render_status.premix.exists) {
         // Tracks without source media have nothing to play. The absent premix
@@ -357,10 +360,10 @@ export function useAudioTransport(enabled = true): void {
       }
     }
 
-    const t = previewRef.current?.startSec ?? playheadRef.current;
+    const t = startingPreview?.startSec ?? startingPlayhead;
     for (const [key, el] of players) {
       const mediaSec =
-        !previewRef.current && auditionMode === "raw" && key !== "premix"
+        !startingPreview && auditionMode === "raw" && key !== "premix"
           ? (rawSourceSec(project, key, t) ?? t)
           : t;
       const apply = () => {
@@ -392,6 +395,7 @@ export function useAudioTransport(enabled = true): void {
     setAudioError,
     setIsPlaying,
     updateSourcePreview,
+    playbackInputs,
   ]);
 
   useEffect(() => {
@@ -443,7 +447,7 @@ export function useAudioTransport(enabled = true): void {
     const explicitSeek = appliedSeekRevision.current !== playheadSeekRevision;
     if (
       !enabled ||
-      previewRef.current ||
+      playbackInputs().preview ||
       (drivingPlayheadRef.current && !explicitSeek) ||
       !project
     ) {
@@ -465,10 +469,8 @@ export function useAudioTransport(enabled = true): void {
     project,
     auditionMode,
     enabled,
+    playbackInputs,
   ]);
-
-  const playUntilRef = useRef(playUntilSec);
-  playUntilRef.current = playUntilSec;
 
   useEffect(() => {
     if (!enabled) {
@@ -496,10 +498,13 @@ export function useAudioTransport(enabled = true): void {
 
     let cancelled = false;
     const runEvents = new AbortController();
-    const ownedPreview = previewRef.current;
-    const startAt = ownedPreview?.startSec ?? playheadRef.current;
-    const proj = projectRef.current;
-    const mode = auditionModeRef.current;
+    const {
+      preview: ownedPreview,
+      playheadSec: startingPlayhead,
+      project: proj,
+      auditionMode: mode,
+    } = playbackInputs();
+    const startAt = ownedPreview?.startSec ?? startingPlayhead;
 
     const waitFor = (
       el: HTMLAudioElement,
@@ -595,12 +600,17 @@ export function useAudioTransport(enabled = true): void {
       // A Stop or Pause can land before this effect's cleanup; never write a stale clock over it.
       const tick = () => {
         meterMonitorRef.current?.sync();
+        const {
+          preview: currentPreview,
+          project: projNow,
+          auditionMode: modeNow,
+        } = playbackInputs();
         if (
           cancelled ||
           (ownedPreview
-            ? previewRef.current?.ownerId !== ownedPreview.ownerId ||
-              previewRef.current.generation !== ownedPreview.generation ||
-              !previewRef.current.playing
+            ? currentPreview?.ownerId !== ownedPreview.ownerId ||
+              currentPreview.generation !== ownedPreview.generation ||
+              !currentPreview.playing
             : !useDawStore.getState().isPlaying)
         ) {
           return;
@@ -628,8 +638,6 @@ export function useAudioTransport(enabled = true): void {
           return;
         }
         if (master && !master.paused && !master.ended) {
-          const projNow = projectRef.current;
-          const modeNow = auditionModeRef.current;
           const t =
             projNow != null
               ? masterTimelineSec(master, masterKey, projNow, modeNow)
@@ -640,7 +648,7 @@ export function useAudioTransport(enabled = true): void {
           queueMicrotask(() => {
             drivingPlayheadRef.current = false;
           });
-          const until = playUntilRef.current;
+          const until = playbackInputs().playUntilSec;
           if (until != null && t >= until - AUDITION_STOP_EPS_SEC) {
             stopAudition(until);
             return;
@@ -664,7 +672,7 @@ export function useAudioTransport(enabled = true): void {
           return;
         }
         if (master?.ended) {
-          stopAudition(playUntilRef.current ?? master.currentTime);
+          stopAudition(playbackInputs().playUntilSec ?? master.currentTime);
         }
       };
       rafRef.current = requestAnimationFrame(tick);
@@ -691,17 +699,22 @@ export function useAudioTransport(enabled = true): void {
     clearSessionRegion,
     setAudioError,
     updateSourcePreview,
+    playbackInputs,
   ]);
   useEffect(() => {
     if (!enabled) return;
     return bindPlaybackClock(() => {
+      const {
+        preview: currentPreview,
+        project: projectNow,
+        auditionMode: mode,
+      } = playbackInputs();
       if (
-        previewRef.current ||
+        currentPreview ||
         useDawStore.getState().projectEpoch !== projectEpoch
       )
         return null;
       const picked = pickMaster(playersRef.current);
-      const projectNow = projectRef.current;
       if (
         !picked ||
         !projectNow ||
@@ -711,19 +724,16 @@ export function useAudioTransport(enabled = true): void {
         picked[1].seeking
       )
         return null;
-      return masterTimelineSec(
-        picked[1],
-        picked[0],
-        projectNow,
-        auditionModeRef.current,
-      );
+      return masterTimelineSec(picked[1], picked[0], projectNow, mode);
     });
-  }, [enabled, projectEpoch, modeKey]);
+  }, [enabled, projectEpoch, modeKey, playbackInputs]);
   useEffect(() => {
+    const { project: currentProject, preview: currentPreview } =
+      playbackInputs();
     if (
       !enabled ||
-      !projectRef.current ||
-      previewRef.current ||
+      !currentProject ||
+      currentPreview ||
       isShareProjectKey(projectPath)
     )
       return;
@@ -733,7 +743,7 @@ export function useAudioTransport(enabled = true): void {
         const state = useDawStore.getState();
         const master = pickMaster(playersRef.current)?.[1];
         if (
-          previewRef.current ||
+          playbackInputs().preview ||
           state.projectEpoch !== projectEpoch ||
           !state.isPlaying ||
           !master ||
@@ -747,10 +757,10 @@ export function useAudioTransport(enabled = true): void {
       },
       tracks: () => {
         const state = useDawStore.getState();
-        const currentProject = projectRef.current;
+        const { project: currentProject, auditionMode: mode } =
+          playbackInputs();
         const master = pickMaster(playersRef.current);
         if (!currentProject || !master) return [];
-        const mode = auditionModeRef.current;
         const timelineSec = masterTimelineSec(
           master[1],
           master[0],
@@ -812,7 +822,7 @@ export function useAudioTransport(enabled = true): void {
       monitor.dispose();
       if (meterMonitorRef.current === monitor) meterMonitorRef.current = null;
     };
-  }, [enabled, projectPath, projectEpoch, modeKey]);
+  }, [enabled, projectPath, projectEpoch, modeKey, playbackInputs]);
 
   useEffect(() => {
     meterMonitorRef.current?.sync();
