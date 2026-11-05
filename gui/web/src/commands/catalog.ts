@@ -734,7 +734,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     ],
     when: "canManageProjects",
     notes:
-      "Host-only dialog listing every model with its state, size and a download",
+      "Host-only sheet listing every model by what it does, with its state, size and a Get",
   },
   "export.deliverables": {
     id: "export.deliverables",

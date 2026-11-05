@@ -10,7 +10,7 @@ describe("models.open", () => {
     clearRegisteredCommands();
     registerDawCommands();
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
-    setChrome({ modelsDialogOpen: false });
+    setChrome({ modelsSheetOpen: false });
   });
 
   afterEach(() => {
@@ -20,14 +20,14 @@ describe("models.open", () => {
   it("opens Help for a host project", async () => {
     const result = await execute("models.open");
     expect(result).toEqual({ status: "ok" });
-    expect(useDawStore.getState().chrome.modelsDialogOpen).toBe(true);
+    expect(useDawStore.getState().chrome.modelsSheetOpen).toBe(true);
   });
 
   it("disables for share guests", async () => {
     useDawStore.setState({ projectPath: "share:fantastic-acoustic-whale" });
     const result = await execute("models.open");
     expect(result.status).toBe("disabled");
-    expect(useDawStore.getState().chrome.modelsDialogOpen).toBe(false);
+    expect(useDawStore.getState().chrome.modelsSheetOpen).toBe(false);
   });
 
   it("reports the handler's own host-only reason on a bypassed (button) call", async () => {
@@ -37,6 +37,6 @@ describe("models.open", () => {
       status: "disabled",
       reason: "Manage models is host-only",
     });
-    expect(useDawStore.getState().chrome.modelsDialogOpen).toBe(false);
+    expect(useDawStore.getState().chrome.modelsSheetOpen).toBe(false);
   });
 });

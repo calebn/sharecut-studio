@@ -6,6 +6,7 @@ import {
   viewportStoryParameters,
 } from "../../storybook/storyLayout";
 import { playInCanvas } from "../../storybook/storyPlay";
+import { withModels } from "../../test/modelsStory";
 import { isApplePlatform } from "../../utils/platform";
 import { BOUNCE_DEFAULTS, type BounceState } from "./bounceLogic";
 import { DeliverStage, type DeliverStageProps } from "./DeliverStage";
@@ -131,7 +132,6 @@ const meta: Meta<StoryArgs> = {
     onPlayClip: fn(),
     onFindClips: fn(),
     onOpenClipInEdit: fn(),
-    onGetModel: fn(),
     onRetry: fn(),
   },
   parameters: {
@@ -270,10 +270,12 @@ export const EditedAfterExport: Story = {
 
 export const NeedsModel: Story = {
   args: { exportState: NEEDS_MODEL },
-  play: playInCanvas(async ({ canvasElement, args }) => {
+  decorators: [withModels],
+  play: playInCanvas(async ({ canvasElement }) => {
     const view = within(canvasElement);
-    await userEvent.click(view.getByRole("button", { name: "Get" }));
-    await expect(args.onGetModel).toHaveBeenCalledOnce();
+    await expect(
+      view.getByRole("button", { name: "Get the transcription model" }),
+    ).toBeEnabled();
     await expect(view.getByRole("button", { name: /^Export/ })).toBeDisabled();
   }),
 };

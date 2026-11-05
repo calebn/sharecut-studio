@@ -13,7 +13,7 @@ import { minimalProject } from "../../test/fixtures";
 import {
   modelStatus,
   registryRows,
-  renderWithModels,
+  renderWithLanding,
 } from "../../test/renderWithModels";
 import type { PipelineJobSnapshot } from "../../types/pipeline";
 import type { ExactRangeTarget } from "../../types/project";
@@ -521,7 +521,28 @@ describe("BounceFlowProvider", () => {
     expect(flow.run).toEqual({ kind: "idle" });
   });
 
-  describe("model gate", () => {
+  it("clears a fixed range and the choices when the person leaves Deliver", () => {
+    mount();
+    act(() => {
+      flow.setChoices({ ...BOUNCE_DEFAULTS, includeMp3: true });
+      useDawStore.setState({ bounceRangeTarget: RANGE });
+    });
+    expect(useDawStore.getState().bounceRangeTarget).toBe(RANGE);
+    act(() => useDawStore.setState({ stage: "edit" }));
+    expect(useDawStore.getState().bounceRangeTarget).toBeNull();
+    expect(flow.choices).toEqual(BOUNCE_DEFAULTS);
+  });
+
+  it("keeps a range set from Edit while arriving on Deliver", () => {
+    mount();
+    act(() => useDawStore.setState({ stage: "edit" }));
+    act(() =>
+      useDawStore.setState({ bounceRangeTarget: RANGE, stage: "deliver" }),
+    );
+    expect(useDawStore.getState().bounceRangeTarget).toBe(RANGE);
+  });
+
+  describe("model need", () => {
     const needed = () =>
       new ApiError("needs RNNoise", "model_needed", 409, {
         id: "rnnoise",
@@ -532,122 +553,79 @@ describe("BounceFlowProvider", () => {
         sizeBytes: null,
         state: "missing",
       });
-    const downloadModel = vi.fn();
-    const mountGated = () =>
-      renderWithModels(
+    const mountNeeding = () =>
+      renderWithLanding(
         <BounceFlowProvider>
           <Probe />
         </BounceFlowProvider>,
-        { status: modelStatus(registryRows()), download: downloadModel },
+        { status: modelStatus(registryRows()) },
       );
 
-    beforeEach(() => {
-      downloadModel.mockReset().mockResolvedValue({ kind: "ok" });
-    });
-
-    it("asks on Deliver and bounces once more after the download", async () => {
+    it("holds the bounce on Deliver and bounces again by itself when the model lands", async () => {
       vi.mocked(followJobToOk)
         .mockRejectedValueOnce(needed())
         .mockResolvedValue(finished);
-      mountGated();
+      const { land, api } = mountNeeding();
       act(() => flow.start());
-      await waitFor(() =>
-        expect(flow.gate.prompt?.label).toBe("Noise reduction (RNNoise)"),
-      );
-      act(() => flow.gate.accept());
+      await waitFor(() => expect(flow.needs?.id).toBe("rnnoise"));
+      expect(flow.run).toEqual({ kind: "idle" });
+      expect(startBounceJob).toHaveBeenCalledTimes(1);
+
+      land("rnnoise");
       await waitFor(() => expect(flow.run.kind).toBe("done"));
-      expect(downloadModel).toHaveBeenCalledWith(["rnnoise"], undefined);
       expect(startBounceJob).toHaveBeenCalledTimes(2);
+      expect(flow.needs).toBeNull();
+      expect(api.download).not.toHaveBeenCalled();
     });
 
-    it("returns quietly to idle when the person declines", async () => {
+    it("keeps waiting while the model is still missing", async () => {
       vi.mocked(followJobToOk).mockRejectedValue(needed());
-      mountGated();
+      mountNeeding();
       act(() => flow.start());
-      await waitFor(() => expect(flow.gate.prompt).not.toBeNull());
-      act(() => flow.gate.decline());
-      await waitFor(() => expect(flow.run).toEqual({ kind: "idle" }));
-      expect(flow.gate.declined).toEqual({
-        id: "rnnoise",
-        label: "Noise reduction (RNNoise)",
-      });
-    });
-
-    it("clears a fixed range and the choices when the person leaves Deliver", () => {
-      mount();
-      act(() => {
-        flow.setChoices({ ...BOUNCE_DEFAULTS, includeMp3: true });
-        useDawStore.setState({ bounceRangeTarget: RANGE });
-      });
-      expect(useDawStore.getState().bounceRangeTarget).toBe(RANGE);
-      act(() => useDawStore.setState({ stage: "edit" }));
-      expect(useDawStore.getState().bounceRangeTarget).toBeNull();
-      expect(flow.choices).toEqual(BOUNCE_DEFAULTS);
-    });
-
-    it("keeps a range set from Edit while arriving on Deliver", () => {
-      mount();
-      act(() => useDawStore.setState({ stage: "edit" }));
-      act(() =>
-        useDawStore.setState({ bounceRangeTarget: RANGE, stage: "deliver" }),
-      );
-      expect(useDawStore.getState().bounceRangeTarget).toBe(RANGE);
-    });
-
-    it("returns to idle, not a failure, when the project changes during the ask", async () => {
-      vi.mocked(followJobToOk).mockRejectedValue(needed());
-      mountGated();
-      act(() => flow.start());
-      await waitFor(() => expect(flow.gate.prompt).not.toBeNull());
-      act(() =>
-        useDawStore.setState({ projectPath: "/tmp/other.project.json" }),
-      );
-      await waitFor(() => expect(flow.gate.prompt).toBeNull());
+      await waitFor(() => expect(flow.needs).not.toBeNull());
+      await act(async () => {});
+      expect(startBounceJob).toHaveBeenCalledTimes(1);
       expect(flow.run).toEqual({ kind: "idle" });
     });
 
-    it("changes nothing when the decline lands after the project changed", async () => {
+    it("drops the wait, not into a failure, when the project changes", async () => {
       vi.mocked(followJobToOk).mockRejectedValue(needed());
-      mountGated();
-      act(() => useDawStore.setState({ bounceRangeTarget: RANGE }));
+      const { land } = mountNeeding();
       act(() => flow.start());
-      await waitFor(() => expect(flow.gate.prompt).not.toBeNull());
-      const before = useDawStore.getState().feedbackToast;
-
+      await waitFor(() => expect(flow.needs).not.toBeNull());
       act(() =>
         useDawStore.setState({ projectPath: "/tmp/other.project.json" }),
       );
-      await waitFor(() => expect(flow.gate.prompt).toBeNull());
+      await waitFor(() => expect(flow.needs).toBeNull());
+      land("rnnoise");
       await act(async () => {});
       expect(flow.run).toEqual({ kind: "idle" });
-      expect(flow.gate.declined).toBeNull();
-      expect(useDawStore.getState().feedbackToast).toBe(before);
-      expect(useDawStore.getState().bounceRangeTarget).toBe(RANGE);
+      expect(startBounceJob).toHaveBeenCalledTimes(1);
     });
 
-    it("does not loop when the same model is still missing after the download", async () => {
+    it("fails instead of looping when the same model is refused again after it landed", async () => {
       vi.mocked(followJobToOk).mockRejectedValue(needed());
-      mountGated();
+      const { land } = mountNeeding();
       act(() => flow.start());
-      await waitFor(() => expect(flow.gate.prompt).not.toBeNull());
-      act(() => flow.gate.accept());
+      await waitFor(() => expect(flow.needs).not.toBeNull());
+      land("rnnoise");
       await waitFor(() => expect(flow.run.kind).toBe("failed"));
       expect(startBounceJob).toHaveBeenCalledTimes(2);
+      expect(flow.needs).toBeNull();
     });
 
-    it("opens no prompt when the person left Deliver before the job failed", async () => {
+    it("says it plainly instead of waiting when the person left Deliver before the job failed", async () => {
       const settle = heldFollow();
-      mountGated();
+      mountNeeding();
       act(() => flow.start());
       await waitFor(() => expect(flow.run).toMatchObject({ jobId: "b1" }));
       act(() => useDawStore.setState({ stage: "edit" }));
       await act(async () => settle().fail(needed()));
-      expect(flow.gate.prompt).toBeNull();
+      expect(flow.needs).toBeNull();
       expect(flow.run).toEqual({
         kind: "failed",
         reason: expect.stringContaining("Noise reduction (RNNoise)"),
       });
-      expect(downloadModel).not.toHaveBeenCalled();
     });
   });
 });

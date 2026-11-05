@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useRef } from "react";
+import { useDawStore } from "../state/dawStore";
 import { StatusRow } from "../system/StatusRow";
 import { SystemIcon } from "../system/SystemIcon";
 import { Button } from "../ui";
@@ -10,7 +11,7 @@ import {
   plainSize,
   rowInstalled,
 } from "./capability";
-import { formatBytes } from "./format";
+import { progressText } from "./format";
 import type { ModelFailure, ModelState } from "./types";
 import { useModels } from "./useModels";
 
@@ -41,12 +42,7 @@ function progressOf(state: ModelState): number | undefined {
 }
 
 function bytesDetail(state: ModelState, size: string): string {
-  if (state.kind !== "downloading") {
-    return size;
-  }
-  return state.total != null
-    ? `${formatBytes(state.bytes)} of ${formatBytes(state.total)}`
-    : `${formatBytes(state.bytes)} downloaded`;
+  return state.kind === "downloading" ? progressText(state) : size;
 }
 
 function failureOf(state: ModelState): ModelFailure | null {
@@ -263,6 +259,10 @@ export function ModelNeedRow({
   children,
 }: ModelNeedRowProps) {
   const { models, busy, download, cancel } = useModels();
+  const manage =
+    placement === "need"
+      ? (onManage ?? (() => useDawStore.getState().setModelsSheetOpen(true)))
+      : undefined;
   const row = models?.find((m) => m.id === model.id) ?? null;
   const sizeAsked = model.id === "whisper" && model.variant;
   const foreign = row !== null && sizeAsked && row.variant !== model.variant;
@@ -285,7 +285,7 @@ export function ModelNeedRow({
         )
       }
       onCancel={() => void cancel()}
-      onManage={onManage}
+      onManage={manage}
     >
       {children}
     </ModelNeedRowView>

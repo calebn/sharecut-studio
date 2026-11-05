@@ -12,7 +12,7 @@ import {
   loadPipelineConfig,
   startExportJob,
 } from "../../api";
-import { useModelGate } from "../../models";
+import { useModelResume } from "../../models";
 import type { ExportRequest } from "../../stages/deliver/deliverLogic";
 import { useDawStore } from "../../state/dawStore";
 import { projectScopedSignal } from "../../state/projectScopedSignal";
@@ -21,6 +21,7 @@ import {
   errorMessage,
   isAbortError,
   isModelNeeded,
+  type ModelNeeded,
   notDownloadedLine,
 } from "../../utils/apiError";
 import { jobResultPaths } from "../../utils/pipeline";
@@ -56,8 +57,17 @@ export function ExportFlowProvider({ children }: { children: ReactNode }) {
   const [loadedGeneration, setLoadedGeneration] = useState(0);
   const generation = useRef(0);
   const [request, setRequest] = useState<ExportRequest | null>(null);
-  const gate = useModelGate();
-  const resetGate = gate.reset;
+  const stopped = useRef<{
+    keys: readonly string[];
+    asked: ExportRequest;
+  } | null>(null);
+  const restart = useRef<(need: ModelNeeded) => void>(() => undefined);
+  const retried = useRef<string | null>(null);
+  const {
+    stop: needs,
+    stopFor,
+    clear,
+  } = useModelResume((need) => restart.current(need));
   const runRef = useRef(run);
   runRef.current = run;
   const settingsRef = useRef(settings);
@@ -72,8 +82,8 @@ export function ExportFlowProvider({ children }: { children: ReactNode }) {
     setSelected([]);
     setRequest(null);
     setLoadedGeneration(0);
-    resetGate();
-  }, [projectPath, resetGate]);
+    clear();
+  }, [projectPath, clear]);
 
   useEffect(() => {
     if (!projectPath) return;
@@ -118,40 +128,22 @@ export function ExportFlowProvider({ children }: { children: ReactNode }) {
       runRef.current = running;
       setRun(running);
       try {
-        const ran = await gate.run(async () => {
-          try {
-            return await runAnnouncedJob(() => startExportJob(path, formats), {
-              failLabel: "Export failed",
-              resultCopy: exportResultCopy,
-              signal: scope.signal,
-              onStart: (job) => {
-                const history = useDawStore.getState().project?.history;
-                const head = history ? editHeadOf(history) : undefined;
-                if (head !== undefined) setRequest(withEditHead(head));
-                setRun((r) =>
-                  r.kind === "running" ? { ...r, jobId: job.id } : r,
-                );
-              },
-            });
-          } catch (err) {
-            if (
-              isModelNeeded(err) &&
-              useDawStore.getState().stage !== "deliver"
-            ) {
-              throw new Error(notDownloadedLine(err.model));
-            }
-            throw err;
-          }
-        });
-        if (ran.kind === "declined") {
-          setRun(
-            scope.signal.aborted
-              ? { kind: "idle" }
-              : { kind: "failed", reason: `${ran.label} is not downloaded.` },
-          );
-          return;
-        }
-        const done = ran.value;
+        const done = await runAnnouncedJob(
+          () => startExportJob(path, formats),
+          {
+            failLabel: "Export failed",
+            resultCopy: exportResultCopy,
+            signal: scope.signal,
+            onStart: (job) => {
+              const history = useDawStore.getState().project?.history;
+              const head = history ? editHeadOf(history) : undefined;
+              if (head !== undefined) setRequest(withEditHead(head));
+              setRun((r) =>
+                r.kind === "running" ? { ...r, jobId: job.id } : r,
+              );
+            },
+          },
+        );
         const exportedHead = done.result?.edit_head_id;
         if (typeof exportedHead === "string")
           setRequest(withEditHead(exportedHead));
@@ -164,6 +156,18 @@ export function ExportFlowProvider({ children }: { children: ReactNode }) {
       } catch (err) {
         if (isAbortError(err)) {
           setRun({ kind: "idle" });
+        } else if (
+          isModelNeeded(err) &&
+          !scope.signal.aborted &&
+          useDawStore.getState().stage === "deliver" &&
+          retried.current !== err.model.id
+        ) {
+          stopped.current = { keys, asked };
+          runRef.current = { kind: "idle" };
+          setRun({ kind: "idle" });
+          stopFor(err.model);
+        } else if (isModelNeeded(err)) {
+          setRun({ kind: "failed", reason: notDownloadedLine(err.model) });
         } else if (err instanceof JobCancelledError) {
           const exportedHead = err.job.result?.edit_head_id;
           if (typeof exportedHead === "string")
@@ -180,8 +184,15 @@ export function ExportFlowProvider({ children }: { children: ReactNode }) {
         scope.dispose();
       }
     },
-    [gate],
+    [stopFor],
   );
+
+  restart.current = (need) => {
+    const last = stopped.current;
+    if (!last) return;
+    retried.current = need.id;
+    void start(last.keys, last.asked);
+  };
 
   const cancel = useCallback(async () => {
     const r = runRef.current;
@@ -225,9 +236,12 @@ export function ExportFlowProvider({ children }: { children: ReactNode }) {
       loadedGeneration,
       selected,
       setSelected,
-      gate,
+      needs,
       request,
-      start: (keys, asked) => void start(keys, asked),
+      start: (keys, asked) => {
+        retried.current = null;
+        void start(keys, asked);
+      },
       cancel: () => void cancel(),
       again,
       reload,
@@ -240,7 +254,7 @@ export function ExportFlowProvider({ children }: { children: ReactNode }) {
       projectPath,
       loadedGeneration,
       selected,
-      gate,
+      needs,
       request,
       start,
       cancel,

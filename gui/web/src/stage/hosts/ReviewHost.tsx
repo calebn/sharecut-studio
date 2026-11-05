@@ -3,7 +3,6 @@ import { useShallow } from "zustand/react/shallow";
 import { runPointerCommand } from "../../commands/pointer";
 import { useShortViewport } from "../../hooks/useShortViewport";
 import { useViewportClass } from "../../hooks/useViewportClass";
-import { ModelGateDialog } from "../../models";
 import { ReviewStage } from "../../review/ReviewStage";
 import { undecidedOf } from "../../review/reviewQueueModel";
 import { isGuestSession, isShareProjectKey } from "../../shareMode";
@@ -69,28 +68,25 @@ function ReviewHostAdapter({
   const short = useShortViewport();
   const scrollRef = useStageScroll("review", "section:queue");
   return (
-    <>
-      <ReviewStageView
-        shell={shell}
-        state={hostStateOf(project, loadFailure)}
-        failure={loadFailure}
-        panel={panelFor(
-          queue,
-          find,
-          guest &&
-            (loadFailure != null ||
-              project?.meta.hydration?.transcript_words !== false),
-          guestPlayerCardShown("review", shell, guest, short),
-          loadFailure ? (
-            <LoadFailureCover stage="review" failure={loadFailure} />
-          ) : null,
-        )}
-        onDeliver={guest ? undefined : () => runPointerCommand("stage.deliver")}
-        undecided={undecidedOf(queue.stageProps.items)}
-        scrollRef={scrollRef}
-      />
-      <ModelGateDialog gate={find.gate} />
-    </>
+    <ReviewStageView
+      shell={shell}
+      state={hostStateOf(project, loadFailure)}
+      failure={loadFailure}
+      panel={panelFor(
+        queue,
+        find,
+        guest &&
+          (loadFailure != null ||
+            project?.meta.hydration?.transcript_words !== false),
+        guestPlayerCardShown("review", shell, guest, short),
+        loadFailure ? (
+          <LoadFailureCover stage="review" failure={loadFailure} />
+        ) : null,
+      )}
+      onDeliver={guest ? undefined : () => runPointerCommand("stage.deliver")}
+      undecided={undecidedOf(queue.stageProps.items)}
+      scrollRef={scrollRef}
+    />
   );
 }
 

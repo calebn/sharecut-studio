@@ -156,7 +156,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Land recording on timeline | `record.land` | Host project management |  |
 | Connect agent… | `mcp.connect` | Host project management | Copy local Streamable HTTP MCP URL for Cursor/Claude |
 | Export diagnostics… | `help.diagnosticsBundle` | Host project management | Host-only sanitized diagnostics zip for bug reports |
-| Manage models… | `models.open` | Host project management | Host-only dialog listing every model with its state, size and a download |
+| Manage models… | `models.open` | Host project management | Host-only sheet listing every model by what it does, with its state, size and a Get |
 | Open project… | `project.open` | Host project management | No key (Mod+O is project.home); OS dialog via local engine; Home's Open other… path field when there is none. Args: { path?: string } opens that episode without the picker (the palette's Projects group) |
 | Split speakers… | `track.splitSpeakers` | editStageSplitSpeakers | Opens Prepare at the split prompt for the inspector track (args { trackId? }); the split runs as a job and is one undo step |
 | Reorder track | `track.reorder` | editStageIngest | Args: { trackId?, index }: ReorderTrack; drag headers use skipWhen |

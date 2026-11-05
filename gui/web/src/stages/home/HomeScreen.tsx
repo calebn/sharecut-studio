@@ -11,7 +11,7 @@ import { desktopCloseGuardArmed } from "../../desktop/useDesktopCloseGuard";
 import { HelpDialog } from "../../home/HelpDialog";
 import { useWindowFileDrop } from "../../hooks/useWindowFileDrop";
 import { ingestIntoNewProject, pickAudioFiles } from "../../ingest/ingestFiles";
-import { ModelsDialog, useModels } from "../../models";
+import { ModelsSheet, useModels } from "../../models";
 import { HostMcpDialog } from "../../stage/dialogs/HostMcpDialog";
 import type { ProjectCardData } from "../../system/ProjectCard";
 import { ApiError, errorMessage } from "../../utils/apiError";
@@ -400,7 +400,7 @@ export function HomeScreen() {
         onClose={() => setMcpOpen(false)}
         hasProject={false}
       />
-      <ModelsDialog open={modelsOpen} onClose={() => setModelsOpen(false)} />
+      <ModelsSheet open={modelsOpen} onClose={() => setModelsOpen(false)} />
       <HelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
     </>
   );

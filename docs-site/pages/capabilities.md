@@ -100,7 +100,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Pause or resume take | view | `room.pause` | `P` | — | `RecordStage` | — | — | — | yes | none · none |
 | Connect agent… | view | `mcp.connect` | — (dialog from Menu) | — | `HostMcpDialog` | — | — | — | yes | none · none |
 | Export diagnostics… | view | `help.diagnosticsBundle` | — (dialog from Home / Menu) | — | `home.help`, `HelpDialog` | — | `podcast doctor --bundle` | — | yes | none · none |
-| Manage models… | view | `models.open` | — (dialog from Home / palette) | — | `home.models`, `ModelsDialog` | `model_download`, `model_download_status` | `podcast setup` | — | yes | none · none |
+| Manage models… | view | `models.open` | — (dialog from Home / palette) | — | `home.models`, `ModelsSheet` | `model_download`, `model_download_status` | `podcast setup` | — | yes | none · none |
 | Export deliverables… | project | `export.deliverables` | `Mod+E` | — | `deliverStage` | `export_audio_tool`, `bounce_audio_tool` | `podcast pipeline export-audio` | `podcast-master-export` | yes | none · none |
 | Export transcript… | project | `export.transcript` | — (Deliver page action, reached from the command palette) | — | `deliverTranscript` | `export_transcript`, `list_exported_transcripts` | `podcast transcript export` | `podcast-transcript-workflow` | yes | none · none |
 | New project… | project | `project.new` | — (Mod+N opens a browser window; New project is in the palette and on Home) | — | — | `episode_create` | `podcast episode init` | — | yes | none · none |
