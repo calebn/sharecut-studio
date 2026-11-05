@@ -154,7 +154,7 @@ describe("HelpSheet report", () => {
     await user.click(screen.getByRole("button", { name: "Copy reference" }));
     expect(onCopyReference).toHaveBeenCalledOnce();
     expect(
-      await screen.findByRole("button", { name: "Copy reference" }),
+      await screen.findByRole("button", { name: "Copied" }),
     ).toHaveTextContent("Copied");
     await user.click(screen.getByRole("button", { name: "Done" }));
   });
