@@ -98,11 +98,21 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
   {
     id: "transport.stop",
     category: "transport",
-    label: "Stop playback",
+    label: "Pause and return",
     keys: ["K"],
     bareKey: true,
     when: "always",
-    collision: "K alone stops playback; Mod+K splits at the playhead",
+    collision: "K alone pauses and returns; Mod+K splits at the playhead",
+  },
+  {
+    id: "transport.shuttle",
+    category: "transport",
+    label: "Shuttle back (jumps back) / forward",
+    keys: ["J", "L"],
+    bareKey: true,
+    noRepeat: true,
+    when: "always",
+    notes: "J jumps back 3, 6, 12 s; L plays at 1×, 2×, 4×",
   },
   {
     id: "edit.clearSelection",
@@ -558,6 +568,16 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: true,
     when: "timelineFocused",
     notes: "Timeline focused; also numpad -",
+  },
+  {
+    id: "view.zoomToSelection",
+    category: "view",
+    label: "Zoom to selection",
+    keys: ["Z"],
+    bareKey: true,
+    requireMod: false,
+    when: "editStage",
+    notes: "Edit stage; Mod+Z is Undo",
   },
   {
     id: "view.fit",
@@ -1053,6 +1073,9 @@ export function argsFromKeyEvent(
       shift: e.shiftKey,
       held: e.repeat,
     };
+  }
+  if (commandId === "transport.shuttle") {
+    return { dir: e.key.toLowerCase() === "j" ? "back" : "forward" };
   }
   if (
     commandId === "navigation.nudgePlayheadBack" ||

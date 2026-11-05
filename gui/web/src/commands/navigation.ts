@@ -7,6 +7,7 @@ import { errorMessage } from "../utils/apiError";
 import { GUESTS_HEAR_FULL_MIX } from "../utils/auditionModes";
 import { clampToSession } from "../utils/time";
 import { registerCommand } from "./execute";
+import { shuttleBack, shuttleForward } from "./shuttle";
 
 export function registerNavigationCommands(): void {
   registerCommand("transport.togglePlay", () => {
@@ -26,6 +27,21 @@ export function registerNavigationCommands(): void {
       return { status: "disabled", reason };
     }
     s.stopPlayback();
+    return { status: "ok" };
+  });
+
+  registerCommand("transport.shuttle", (args) => {
+    if (args.dir !== "back" && args.dir !== "forward") {
+      return { status: "disabled", reason: "dir must be back or forward" };
+    }
+    const s = useDawStore.getState();
+    const reason = transportAvailability(s).togglePlay;
+    if (reason !== undefined) {
+      return { status: "disabled", reason };
+    }
+    s.stopFollow("local");
+    if (args.dir === "back") shuttleBack();
+    else shuttleForward();
     return { status: "ok" };
   });
 

@@ -16,8 +16,12 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Seek playhead",
   },
   "daw.transport.stop": {
-    label: "Stop playback",
-    tooltip: "Stop and return to where playback started",
+    label: "Pause and return",
+    tooltip: "Pause and return to where playback started",
+  },
+  "daw.transport.shuttle": {
+    label: "Shuttle back (jumps back) / forward",
+    tooltip: "J jumps back 3, 6, then 12 s; L plays, then 2×, then 4×",
   },
   "daw.transport.audition": {
     label: "Audition Full mix / Edited stems / Original",
@@ -138,6 +142,10 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
   "daw.view.zoomOut": {
     label: "Zoom out",
     tooltip: "Zoom out",
+  },
+  "daw.view.zoomToSelection": {
+    label: "Zoom to selection",
+    tooltip: "Zoom the timeline to the selection",
   },
   "daw.view.fit": {
     label: "Fit session width",

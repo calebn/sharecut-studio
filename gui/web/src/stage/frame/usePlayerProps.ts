@@ -56,6 +56,7 @@ export function usePlayerProps(
     followingClientId,
     followDegraded,
     sessionClients,
+    playbackRate,
   } = useDaw((s) => ({
     project: s.project,
     projectPath: s.projectPath,
@@ -69,6 +70,7 @@ export function usePlayerProps(
     followingClientId: s.followingClientId,
     followDegraded: s.followDegraded,
     sessionClients: s.sessionClients,
+    playbackRate: s.playbackRate,
   }));
   const playheadSec = useDawStore((s) => s.playheadSec);
   // What was playing when A was pressed, so letting go goes back to it.
@@ -160,6 +162,8 @@ export function usePlayerProps(
     cuts: project
       ? cutsLabel(project.edit_impact.total_removed_sec)
       : undefined,
+    rate:
+      followingClientId == null && playbackRate > 1 ? playbackRate : undefined,
     state,
     status: unavailable ?? mixStatus,
     playUnavailable: unavailable !== undefined,

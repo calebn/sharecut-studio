@@ -57,6 +57,13 @@ export function playStartPatch(
   return !s.isPlaying && atSec !== s.playheadSec ? { playStartSec: null } : {};
 }
 
+/** Pause, Stop and end of media put a shuttled rate back; a followed leader's rate is theirs. */
+function unshuttledRate(
+  s: Pick<DawStore, "followingClientId" | "playbackRate">,
+): Partial<Pick<DawStore, "playbackRate">> {
+  return s.followingClientId == null ? { playbackRate: 1 } : {};
+}
+
 /** Where Stop leaves the playhead: the play start, clamped to the current timeline. */
 export function stopTargetSec(
   s: Pick<DawStore, "playStartSec" | "playheadSec" | "project">,
@@ -156,6 +163,7 @@ export const createTransportSlice: StateCreator<
       sourcePreview: null,
       sourcePreviewGeneration: s.sourcePreviewGeneration + 1,
       isPlaying,
+      ...(isPlaying ? {} : unshuttledRate(s)),
       ...playStartPatch(s, isPlaying, s.playheadSec),
       // Local transport owns the clock — clear agent audition auto-stop.
       playUntilSec: isPlaying ? null : s.playUntilSec,
@@ -167,6 +175,7 @@ export const createTransportSlice: StateCreator<
         sourcePreview: null,
         sourcePreviewGeneration: s.sourcePreviewGeneration + 1,
         isPlaying: next,
+        ...unshuttledRate(s),
         ...playStartPatch(s, next, s.playheadSec),
         playUntilSec: next ? null : s.playUntilSec,
       };
@@ -176,6 +185,7 @@ export const createTransportSlice: StateCreator<
       sourcePreview: null,
       sourcePreviewGeneration: s.sourcePreviewGeneration + 1,
       isPlaying: false,
+      ...unshuttledRate(s),
       playheadSec: stopTargetSec(s),
       playheadSeekRevision: s.playheadSeekRevision + 1,
       playStartSec: null,
