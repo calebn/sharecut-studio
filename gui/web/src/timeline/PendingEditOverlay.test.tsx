@@ -272,7 +272,8 @@ describe("PendingEditOverlay handles", () => {
   it("Edit timing focuses the selected inspector source field", async () => {
     const field = document.createElement("input");
     field.id = pendingEditTimingFieldId("cut_1", "start");
-    field.scrollIntoView = vi.fn();
+    const scrollIntoView = vi.fn();
+    field.scrollIntoView = scrollIntoView;
     document.body.appendChild(field);
     useDawStore
       .getState()
@@ -298,7 +299,7 @@ describe("PendingEditOverlay handles", () => {
     ) as HTMLButtonElement;
     fireEvent.click(timingButton);
     await waitFor(() => expect(document.activeElement).toBe(field));
-    expect(field.scrollIntoView).toHaveBeenCalledWith({ block: "center" });
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "center" });
     field.remove();
   });
 

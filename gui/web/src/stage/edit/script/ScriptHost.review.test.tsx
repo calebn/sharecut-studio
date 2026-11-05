@@ -27,14 +27,16 @@ const lastProps = vi.hoisted(() => ({
 }));
 vi.mock("../../../system/ScriptPane", async (original) => {
   const actual = await original<typeof import("../../../system/ScriptPane")>();
-  const { forwardRef } = await import("react");
+  const { forwardRef, useLayoutEffect } = await import("react");
   return {
     ...actual,
     ScriptPane: forwardRef<
       import("../../../system/ScriptPane").ScriptPaneHandle,
       import("../../../system/ScriptPane").ScriptPaneProps
     >((props, ref) => {
-      lastProps.current = props;
+      useLayoutEffect(() => {
+        lastProps.current = props;
+      });
       return <actual.ScriptPane {...props} ref={ref} />;
     }),
   };

@@ -484,10 +484,12 @@ describe("useDialogModal fallback focus", () => {
       const anchorRef = useRef<HTMLButtonElement>(null);
       const [popover, setPopover] = useState(true);
       const [anchor, setAnchor] = useState(true);
-      api = {
-        closePopover: () => setPopover(false),
-        dropAnchor: () => setAnchor(false),
-      };
+      useLayoutEffect(() => {
+        api = {
+          closePopover: () => setPopover(false),
+          dropAnchor: () => setAnchor(false),
+        };
+      });
       return (
         <>
           <button type="button">Timeline control</button>
@@ -525,7 +527,9 @@ describe("useDialogModal fallback focus", () => {
     function App() {
       const [b, setB] = useState(false);
       const [confirm, setConfirm] = useState(false);
-      api = { setB, setConfirm };
+      useLayoutEffect(() => {
+        api = { setB, setConfirm };
+      }, [setB, setConfirm]);
       return (
         <>
           <button type="button" onClick={() => setB(true)}>
@@ -600,10 +604,12 @@ describe("useDialogModal Escape across a remount", () => {
         },
         () => confirmOpen,
       );
-      api = {
-        remount: () => setGeneration((n) => n + 1),
-        confirm: setConfirmOpen,
-      };
+      useLayoutEffect(() => {
+        api = {
+          remount: () => setGeneration((n) => n + 1),
+          confirm: setConfirmOpen,
+        };
+      });
       return (
         <>
           <BottomSheet
@@ -665,7 +671,9 @@ describe("useDialogModal Escape across a remount", () => {
     }
     function App() {
       const [generation, setGeneration] = useState(0);
-      api = { remount: () => setGeneration((n) => n + 1) };
+      useLayoutEffect(() => {
+        api = { remount: () => setGeneration((n) => n + 1) };
+      });
       return (
         <>
           <BottomSheet
@@ -732,7 +740,9 @@ describe("useDialogModal unfocusable return target", () => {
       function App() {
         const returnRef = useRef<HTMLButtonElement>(null);
         const [peek, setPeek] = useState(true);
-        api = { closePeek: () => setPeek(false) };
+        useLayoutEffect(() => {
+          api = { closePeek: () => setPeek(false) };
+        });
         return (
           <>
             <button type="button" ref={returnRef}>
@@ -850,7 +860,9 @@ describe("useDialogModal remount close restore", () => {
         host.append(reason);
         hostRef.current = host;
       }
-      api = { remount: () => setGeneration((n) => n + 1) };
+      useLayoutEffect(() => {
+        api = { remount: () => setGeneration((n) => n + 1) };
+      });
       useLayoutEffect(() => {
         const host = hostRef.current;
         if (!host) return;
@@ -918,12 +930,14 @@ describe("useDialogModal remount close restore", () => {
     function App() {
       const [generation, setGeneration] = useState(0);
       const [open, setOpen] = useState(true);
-      api = {
-        remountClosed: () => {
-          setGeneration((n) => n + 1);
-          setOpen(false);
-        },
-      };
+      useLayoutEffect(() => {
+        api = {
+          remountClosed: () => {
+            setGeneration((n) => n + 1);
+            setOpen(false);
+          },
+        };
+      });
       return (
         <>
           <button type="button">Timeline control</button>
@@ -960,10 +974,12 @@ describe("useDialogModal remount close restore", () => {
     function App() {
       const [epoch, setEpoch] = useState(0);
       const [confirming, setConfirming] = useState(true);
-      api = {
-        rotate: () => setEpoch((n) => n + 1),
-        closeConfirm: () => setConfirming(false),
-      };
+      useLayoutEffect(() => {
+        api = {
+          rotate: () => setEpoch((n) => n + 1),
+          closeConfirm: () => setConfirming(false),
+        };
+      });
       return (
         <>
           <button type="button">Timeline control</button>

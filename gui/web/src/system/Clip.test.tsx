@@ -304,6 +304,7 @@ describe("Clip handles", () => {
     render(
       <div
         role="toolbar"
+        tabIndex={-1}
         aria-label="keymap"
         onKeyDown={(event) => event.key.startsWith("Arrow") && above()}
       >

@@ -678,9 +678,13 @@ describe("OPFS cleanup", () => {
     });
     try {
       const sink = await createOpfsSink();
-      entries.mockImplementationOnce(async function* () {
-        throw new DOMException("busy", "InvalidStateError");
-      });
+      entries.mockImplementationOnce(() => ({
+        [Symbol.asyncIterator]: () => ({
+          next: async () => {
+            throw new DOMException("busy", "InvalidStateError");
+          },
+        }),
+      }));
       await expect(sink.nextSegmentIndex("s", 0, "p")).rejects.toThrow("busy");
       entries.mockImplementationOnce(async function* () {
         yield ["0.wav", { kind: "file" }];

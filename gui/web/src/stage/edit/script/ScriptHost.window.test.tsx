@@ -29,14 +29,17 @@ const lastProps = vi.hoisted(() => ({
 const scrolling = vi.hoisted(() => ({ miss: false, calls: [] as number[] }));
 vi.mock("../../../system/ScriptPane", async (original) => {
   const actual = await original<typeof import("../../../system/ScriptPane")>();
-  const { forwardRef, useImperativeHandle, useRef } = await import("react");
+  const { forwardRef, useImperativeHandle, useLayoutEffect, useRef } =
+    await import("react");
   return {
     ...actual,
     ScriptPane: forwardRef<
       import("../../../system/ScriptPane").ScriptPaneHandle,
       import("../../../system/ScriptPane").ScriptPaneProps
     >((props, ref) => {
-      lastProps.current = props;
+      useLayoutEffect(() => {
+        lastProps.current = props;
+      });
       const inner =
         useRef<import("../../../system/ScriptPane").ScriptPaneHandle>(null);
       useImperativeHandle(

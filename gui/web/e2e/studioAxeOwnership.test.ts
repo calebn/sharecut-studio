@@ -84,31 +84,30 @@ function geometryFixture() {
     }),
     getByRole: () => ({ last: () => row }),
   };
+  const screenshot = vi.fn();
+  const attach = vi.fn();
   const page = {
     getByRole: () => mix,
     locator: () => ({ boundingBox: async () => ({ y: 0, height: 700 }) }),
-    screenshot: vi.fn(),
+    screenshot,
   } as unknown as Page;
   const info = {
-    attach: vi.fn(),
+    attach,
     outputPath: () => "mix.png",
   } as unknown as TestInfo;
-  return { page, info, row };
+  return { page, info, row, screenshot, attach };
 }
 
 describe("shared Mix acceptance", () => {
   it.each(owners)(
     "runs real scans for $owner and retains geometry evidence",
     async ({ owner, scans: count }) => {
-      const { page, info, row } = geometryFixture();
+      const { page, info, row, screenshot, attach } = geometryFixture();
       await checkMixGeometry(page, info, owner);
       expect(scans.analyzed).toHaveBeenCalledTimes(count);
       expect(row.scrollIntoViewIfNeeded).toHaveBeenCalledOnce();
-      expect(info.attach).toHaveBeenCalledWith(
-        "mix-geometry",
-        expect.any(Object),
-      );
-      expect(page.screenshot).toHaveBeenCalledOnce();
+      expect(attach).toHaveBeenCalledWith("mix-geometry", expect.any(Object));
+      expect(screenshot).toHaveBeenCalledOnce();
     },
   );
 

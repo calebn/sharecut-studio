@@ -71,12 +71,14 @@ const renders = vi.hoisted(() => ({
 }));
 vi.mock("./TrackLane", async (importOriginal) => {
   const mod = await importOriginal<typeof import("./TrackLane")>();
-  const { memo } = await import("react");
+  const { memo, useLayoutEffect } = await import("react");
   return {
     ...mod,
     TrackLane: memo((p: Parameters<typeof mod.TrackLaneView>[0]) => {
       renders.lanes.push(p.track.id);
-      renders.laneProps[p.track.id] = p;
+      useLayoutEffect(() => {
+        renders.laneProps[p.track.id] = p;
+      });
       return <mod.TrackLaneView {...p} />;
     }),
   };

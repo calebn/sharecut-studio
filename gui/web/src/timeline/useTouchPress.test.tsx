@@ -12,13 +12,13 @@ vi.mock("./hitRouting", async (importOriginal) => ({
 let router: HitRouter;
 const owner = vi.fn();
 
-function Lanes({ deferred }: { deferred: boolean }) {
+function Lanes() {
   const press = useTouchPress(router);
-  router.defers = () => deferred;
   return (
     <div data-testid="root" {...press}>
       <button
         type="button"
+        aria-label="Clip"
         data-testid="target"
         onPointerDown={owner}
         onClick={owner}
@@ -34,7 +34,7 @@ beforeEach(() => {
   owner.mockClear();
   router = {
     dispose: vi.fn(),
-    defers: vi.fn(),
+    defers: vi.fn(() => true),
     claimsClick: vi.fn(() => false),
     longPress: vi.fn(),
     choose: vi.fn(),
@@ -51,7 +51,7 @@ afterEach(() => {
 
 describe("useTouchPress", () => {
   it("keeps a deferred touch, and the click after it, from its target", () => {
-    const { getByTestId } = render(<Lanes deferred />);
+    const { getByTestId } = render(<Lanes />);
     const target = getByTestId("target");
     fireEvent.pointerDown(target, touch);
     fireEvent.pointerUp(target, touch);
@@ -62,7 +62,7 @@ describe("useTouchPress", () => {
   });
 
   it("lets the router's replayed click reach its target while the press is open", () => {
-    const { getByTestId } = render(<Lanes deferred />);
+    const { getByTestId } = render(<Lanes />);
     const target = getByTestId("target");
     fireEvent.pointerDown(target, touch);
     fireEvent.pointerUp(target, touch);
@@ -72,7 +72,7 @@ describe("useTouchPress", () => {
   });
 
   it("reports nothing when the browser takes the touch to scroll", () => {
-    const { getByTestId } = render(<Lanes deferred />);
+    const { getByTestId } = render(<Lanes />);
     const target = getByTestId("target");
     fireEvent.pointerDown(target, touch);
     fireEvent.pointerCancel(target, touch);
@@ -84,7 +84,7 @@ describe("useTouchPress", () => {
   });
 
   it("reports a long press after LONG_PRESS_MS", () => {
-    const { getByTestId } = render(<Lanes deferred />);
+    const { getByTestId } = render(<Lanes />);
     const target = getByTestId("target");
     fireEvent.pointerDown(target, touch);
     act(() => {
@@ -99,14 +99,15 @@ describe("useTouchPress", () => {
   });
 
   it("leaves a press the router did not defer to its target", () => {
-    const { getByTestId } = render(<Lanes deferred={false} />);
+    router.defers = () => false;
+    const { getByTestId } = render(<Lanes />);
     fireEvent.pointerDown(getByTestId("target"), touch);
 
     expect(owner).toHaveBeenCalledOnce();
   });
 
   it("blocks a touch context menu during and just after a press, and no other", () => {
-    const { getByTestId } = render(<Lanes deferred />);
+    const { getByTestId } = render(<Lanes />);
     const target = getByTestId("target");
     const menu = (pointerType: string) =>
       target.dispatchEvent(
@@ -133,7 +134,7 @@ describe("useTouchPress", () => {
   });
 
   it("leaves a keyboard click inside the click window to its target", () => {
-    const { getByTestId } = render(<Lanes deferred />);
+    const { getByTestId } = render(<Lanes />);
     const target = getByTestId("target");
     fireEvent.pointerDown(target, touch);
     fireEvent.pointerUp(target, touch);
@@ -143,7 +144,7 @@ describe("useTouchPress", () => {
   });
 
   it("starts a fresh press when the same pointer goes down without a release", () => {
-    const { getByTestId } = render(<Lanes deferred />);
+    const { getByTestId } = render(<Lanes />);
     const target = getByTestId("target");
     fireEvent.pointerDown(target, touch);
     act(() => {
@@ -158,7 +159,7 @@ describe("useTouchPress", () => {
   });
 
   it("stops suppressing the browser's click once its window has passed", () => {
-    const { getByTestId } = render(<Lanes deferred />);
+    const { getByTestId } = render(<Lanes />);
     const target = getByTestId("target");
     fireEvent.pointerDown(target, touch);
     fireEvent.pointerUp(target, touch);
@@ -171,7 +172,7 @@ describe("useTouchPress", () => {
   });
 
   it("lets a tap on a target the router did not defer through right after a release", () => {
-    const { getByTestId } = render(<Lanes deferred />);
+    const { getByTestId } = render(<Lanes />);
     const target = getByTestId("target");
     fireEvent.pointerDown(target, touch);
     fireEvent.pointerUp(target, touch);
@@ -187,7 +188,7 @@ describe("useTouchPress", () => {
   });
 
   it("keeps the click window open across the router's replayed pointerdown", () => {
-    const { getByTestId } = render(<Lanes deferred />);
+    const { getByTestId } = render(<Lanes />);
     const target = getByTestId("target");
     fireEvent.pointerDown(target, touch);
     fireEvent.pointerUp(target, touch);
@@ -201,7 +202,7 @@ describe("useTouchPress", () => {
   });
 
   it("does not suppress a click after a cancelled touch", () => {
-    const { getByTestId } = render(<Lanes deferred />);
+    const { getByTestId } = render(<Lanes />);
     const target = getByTestId("target");
     fireEvent.pointerDown(target, touch);
     fireEvent.pointerCancel(target, touch);
@@ -211,7 +212,7 @@ describe("useTouchPress", () => {
   });
 
   it("turns text selection off for the press and back on after", () => {
-    const { getByTestId } = render(<Lanes deferred />);
+    const { getByTestId } = render(<Lanes />);
     const target = getByTestId("target");
     fireEvent.pointerDown(target, touch);
     expect(document.documentElement.style.userSelect).toBe("none");
@@ -223,7 +224,7 @@ describe("useTouchPress", () => {
   });
 
   it("ends the press when a router listener stops the release before the document", () => {
-    const { getByTestId } = render(<Lanes deferred />);
+    const { getByTestId } = render(<Lanes />);
     const target = getByTestId("target");
     const stopRelease = (e: Event) => e.stopImmediatePropagation();
     document.addEventListener("pointerup", stopRelease, true);
@@ -243,7 +244,7 @@ describe("useTouchPress", () => {
   });
 
   it("leaves a mouse click inside the click window to its target", () => {
-    const { getByTestId } = render(<Lanes deferred />);
+    const { getByTestId } = render(<Lanes />);
     const target = getByTestId("target");
     fireEvent.pointerDown(target, touch);
     fireEvent.pointerUp(target, touch);
@@ -255,8 +256,8 @@ describe("useTouchPress", () => {
   });
 
   it("keeps text selection off until every instance has released it", () => {
-    const first = render(<Lanes deferred />);
-    const second = render(<Lanes deferred />);
+    const first = render(<Lanes />);
+    const second = render(<Lanes />);
     fireEvent.pointerDown(first.getAllByTestId("target")[0], touch);
     fireEvent.pointerDown(second.getAllByTestId("target")[1], {
       ...touch,
