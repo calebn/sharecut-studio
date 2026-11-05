@@ -404,8 +404,8 @@ async function undoStaysReachable(
   await page.waitForTimeout(60);
   await finger.up();
   await expect.poll(() => savedEnvelope(page)).toEqual(edited);
-  // The Save light reads Saved only after the attention poll has read the
-  // queue and settled, so the absence below follows a real read, not a pause.
+  // The Save light reads Saved only after the post-save read of the queue has
+  // settled, so the absence below follows a real read, not a pause.
   await expect(
     page.locator('.sys-save[role="status"]').filter({ hasText: /^Saved$/ }),
   ).toBeAttached();
