@@ -207,6 +207,104 @@ describe("useGuestRoom", () => {
     expect(sockets[0]?.commands("UpdateName")).toHaveLength(0);
   });
 
+  it("keeps an upload in flight across unrelated roster updates and replaces credentials on lease or identity change", async () => {
+    const reads: {
+      signal: AbortSignal | null | undefined;
+      headers: Headers;
+      finish: (response: Response) => void;
+    }[] = [];
+    stubFetch(
+      {
+        ...guestBootstrap,
+        build: { capture: false, monitor: false, upload: true },
+      },
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (!urlOf(input).includes("/upload"))
+          return new Response("not found", { status: 404 });
+        return new Promise<Response>((finish) => {
+          reads.push({
+            signal: init?.signal,
+            headers: new Headers(init?.headers),
+            finish,
+          });
+        });
+      },
+    );
+    const { result } = renderHook(() => useGuestRoom("guest-tok"));
+    await waitFor(() => expect(result.current.me?.participant_id).toBe("p_g"));
+    act(() =>
+      sockets[0]?.emit({
+        type: "Snapshot",
+        snapshot: snapshotOf({ participants: [{ ...guest, consented: true }] }),
+      }),
+    );
+    await waitFor(() => expect(reads).toHaveLength(1));
+    const first = result.current.uploadTransport;
+    expect(first).not.toBeNull();
+    expect(reads[0]?.signal?.aborted).toBe(false);
+    expect(reads[0]?.headers.get("X-Record-Lease")).toBe("lease-1");
+    act(() =>
+      sockets[0]?.emit({
+        type: "Snapshot",
+        snapshot: snapshotOf({
+          participants: [
+            {
+              ...guest,
+              consented: true,
+              display_name: "Ava updated",
+              muted: true,
+            },
+          ],
+        }),
+      }),
+    );
+    await waitFor(() =>
+      expect(result.current.me?.display_name).toBe("Ava updated"),
+    );
+    expect(result.current.uploadTransport).toBe(first);
+    expect(reads).toHaveLength(1);
+    expect(reads[0]?.signal?.aborted).toBe(false);
+    act(() =>
+      sockets[0]?.emit({
+        type: "Echo",
+        participant_id: "p_g",
+        lease: "lease-2",
+      }),
+    );
+    await waitFor(() => expect(reads).toHaveLength(2));
+    const second = result.current.uploadTransport;
+    expect(second).not.toBe(first);
+    expect(reads[0]?.signal?.aborted).toBe(true);
+    expect(reads[1]?.headers.get("X-Record-Participant")).toBe("p_g");
+    expect(reads[1]?.headers.get("X-Record-Lease")).toBe("lease-2");
+    act(() => {
+      sockets[0]?.emit({
+        type: "Snapshot",
+        snapshot: snapshotOf({
+          participants: [
+            { ...guest, participant_id: "p_new", consented: true },
+          ],
+        }),
+      });
+      sockets[0]?.emit({
+        type: "Echo",
+        participant_id: "p_new",
+        lease: "lease-2",
+      });
+    });
+    await waitFor(() => expect(reads).toHaveLength(3));
+    expect(result.current.uploadTransport).not.toBe(second);
+    expect(reads[1]?.signal?.aborted).toBe(true);
+    expect(reads[2]?.headers.get("X-Record-Participant")).toBe("p_new");
+    expect(reads[2]?.headers.get("X-Record-Lease")).toBe("lease-2");
+    await act(async () => {
+      for (const read of reads)
+        read.finish(
+          new Response(JSON.stringify({ segments: [] }), { status: 200 }),
+        );
+    });
+  });
+
   it("reports a bootstrap failure", async () => {
     vi.stubGlobal(
       "fetch",
