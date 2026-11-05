@@ -21,8 +21,10 @@ export function WhisperSize({ disabled = false }: { disabled?: boolean }) {
               disabled ? "Another download is running" : undefined
             }
             onClick={() => whisper.choose(option.id)}
+            aria-label={`${option.name} (${size})`}
           >
-            {option.name} ({size})
+            <span className="sys-size-name">{option.name}</span>
+            <span className="sys-size-bytes">{size}</span>
           </ToggleButton>
         );
       })}

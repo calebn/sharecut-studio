@@ -73,7 +73,7 @@ describe("ModelsSheet", () => {
     const size = screen.getByRole("group", { name: "Size" });
     const labels = within(size)
       .getAllByRole("button")
-      .map((b) => b.textContent);
+      .map((b) => b.getAttribute("aria-label"));
     expect(labels).toEqual([
       "Fast (75 MB)",
       "Balanced (500 MB)",

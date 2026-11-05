@@ -77,13 +77,24 @@
 }
 
 .sys-need-extra .ui-segmented {
-  flex-wrap: wrap;
+  display: flex;
   block-size: auto;
 }
 
+/* Name over size, three equal segments: "Balanced (500 MB)" never wraps or splits at 390 wide. */
 .sys-need-extra .ui-segmented > .ui-control {
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 0;
   min-block-size: var(--touch-min);
+  min-inline-size: 0;
   white-space: nowrap;
+}
+
+.sys-size-bytes {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+  font-weight: 400;
 }
 
 /* Models sheet: 420 px docked to the end of the screen on desktop, the full-height bottom sheet on a phone. */
