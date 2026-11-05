@@ -954,10 +954,13 @@ def test_the_descriptor_count_ignores_garbage_an_earlier_test_left_holding_a_fil
     gc.disable()
     try:
         Cycle()
-        baseline = _fds()
+        raw = len(os.listdir("/dev/fd"))
+        counted = _fds()
+        assert counted < raw
+        gc.collect()
+        assert counted == len(os.listdir("/dev/fd"))
     finally:
         gc.enable()
-    _no_spill_file_or_fd_left(baseline)
 
 
 def _refuse_with_enospc(array: np.ndarray) -> np.ndarray:
