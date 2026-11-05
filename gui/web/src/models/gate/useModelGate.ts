@@ -64,7 +64,18 @@ type Session = {
   sawMissing: boolean;
 };
 
-type Waiter = { token: object; resolve: (accepted: boolean) => void };
+type Waiter = {
+  token: object;
+  downloading: boolean;
+  resolve: (accepted: boolean) => void;
+};
+
+type GateState = {
+  owner: object | null;
+  session: Session | null;
+  declined: ModelGate["declined"];
+  manageRequested: object | null;
+};
 
 const MAX_PROMPTS = 3;
 
@@ -130,25 +141,35 @@ export function useModelGate(): ModelGate {
   }, [api]);
   const inert = context === null;
 
-  const [session, setSession] = useState<Session | null>(null);
-  const [declined, setDeclined] = useState<ModelGate["declined"]>(null);
-  const [manageRequested, setManageRequested] = useState(false);
-  const sessionRef = useRef(session);
-  useEffect(() => {
-    sessionRef.current = session;
-  }, [session]);
+  const [state, setState] = useState<GateState>({
+    owner: null,
+    session: null,
+    declined: null,
+    manageRequested: null,
+  });
+  const { owner, session, declined, manageRequested } = state;
   const waiter = useRef<Waiter | null>(null);
-  const resets = useRef(0);
+  const currentRun = useRef<object | null>(null);
 
   const patch = useCallback((token: object, change: Partial<Session>) => {
-    setSession((s) => (s && s.token === token ? { ...s, ...change } : s));
+    setState((current) =>
+      current.session?.token === token
+        ? { ...current, session: { ...current.session, ...change } }
+        : current,
+    );
   }, []);
 
   const settle = useCallback((accepted: boolean) => {
     const w = waiter.current;
     waiter.current = null;
-    setSession(null);
-    w?.resolve(accepted);
+    if (w) {
+      setState((current) =>
+        current.session?.token === w.token
+          ? { ...current, session: null }
+          : current,
+      );
+      w.resolve(accepted);
+    }
   }, []);
 
   const unmounted = useRef(false);
@@ -162,24 +183,31 @@ export function useModelGate(): ModelGate {
   }, []);
 
   const ask = useCallback(
-    (need: ModelNeed, info: NeedInfo): Promise<boolean> => {
-      waiter.current?.resolve(false);
-      if (unmounted.current) {
+    (need: ModelNeed, info: NeedInfo, request: object): Promise<boolean> => {
+      if (unmounted.current || currentRun.current !== request) {
         return Promise.resolve(false);
       }
+      waiter.current?.resolve(false);
       const token = {};
       const live = rowFor(apiRef.current, need);
       return new Promise<boolean>((resolve) => {
-        waiter.current = { token, resolve };
-        setSession({
-          token,
-          need,
-          info,
-          tried: false,
-          failed: false,
-          downloading: false,
-          sawMissing: !rowInstalled(live, need),
-        });
+        waiter.current = { token, downloading: false, resolve };
+        setState((current) =>
+          current.owner === request
+            ? {
+                ...current,
+                session: {
+                  token,
+                  need,
+                  info,
+                  tried: false,
+                  failed: false,
+                  downloading: false,
+                  sawMissing: !rowInstalled(live, need),
+                },
+              }
+            : current,
+        );
       });
     },
     [],
@@ -193,21 +221,40 @@ export function useModelGate(): ModelGate {
       if (inert) {
         return { kind: "ran", value: await action({ afterDownload: false }) };
       }
-      setDeclined(null);
-      const epoch = resets.current;
+      const request = {};
+      currentRun.current = request;
+      waiter.current?.resolve(false);
+      waiter.current = null;
+      setState((current) => ({
+        ...current,
+        owner: request,
+        session: null,
+        declined: null,
+        manageRequested: null,
+      }));
       const accepted = new Set<string>();
       let prompts = 0;
       let afterDownload = false;
+      let retiredRefusal: GateResult<never> | null = null;
       const decide = async (
         need: ModelNeed,
         info: NeedInfo,
       ): Promise<GateResult<never> | null> => {
         prompts += 1;
-        if (!(await ask(need, info))) {
-          if (resets.current === epoch) {
-            setDeclined({ id: need.id, label: info.label });
-          }
-          return { kind: "declined", id: need.id, label: info.label };
+        const refusal = {
+          kind: "declined" as const,
+          id: need.id,
+          label: info.label,
+        };
+        retiredRefusal = refusal;
+        const allowed = await ask(need, info, request);
+        if (!allowed || currentRun.current !== request) {
+          setState((current) =>
+            current.owner === request
+              ? { ...current, declined: { id: need.id, label: info.label } }
+              : current,
+          );
+          return refusal;
         }
         accepted.add(need.id);
         afterDownload = true;
@@ -224,10 +271,13 @@ export function useModelGate(): ModelGate {
         }
       }
       for (;;) {
+        if (retiredRefusal && currentRun.current !== request)
+          return retiredRefusal;
         try {
           return { kind: "ran", value: await action({ afterDownload }) };
         } catch (e: unknown) {
           if (
+            currentRun.current !== request ||
             !isModelNeeded(e) ||
             accepted.has(e.model.id) ||
             prompts >= MAX_PROMPTS
@@ -235,6 +285,7 @@ export function useModelGate(): ModelGate {
             throw e;
           }
           await apiRef.current.refresh();
+          if (currentRun.current !== request) throw e;
           const refusal = await decide(
             {
               id: e.model.id,
@@ -255,23 +306,19 @@ export function useModelGate(): ModelGate {
   const matched = session
     ? rowInstalled(rowFor(api, session.need), session.need)
     : false;
-  const sawMissing = session?.sawMissing ?? true;
-  const token = session?.token;
-  useEffect(() => {
-    if (token && !matched && !sawMissing) {
-      patch(token, { sawMissing: true });
-    }
-  }, [token, matched, sawMissing, patch]);
-
-  const declinedId = declined?.id;
+  const missingObserved = session !== null && !matched && !session.sawMissing;
   const declinedInstalled =
-    declinedId !== undefined &&
-    api.models?.find((m) => m.id === declinedId)?.state.kind === "installed";
-  useEffect(() => {
-    if (declinedInstalled) {
-      setDeclined(null);
-    }
-  }, [declinedInstalled]);
+    declined !== null &&
+    api.models?.some(
+      (model) => model.id === declined.id && model.state.kind === "installed",
+    );
+  if (missingObserved || declinedInstalled) {
+    setState({
+      ...state,
+      session: missingObserved ? { ...session, sawMissing: true } : session,
+      declined: declinedInstalled ? null : declined,
+    });
+  }
 
   const prompt = useMemo<GatePrompt | null>(() => {
     if (!session) {
@@ -319,14 +366,15 @@ export function useModelGate(): ModelGate {
   }, [session, api.models, api.busy]);
 
   const accept = useCallback(() => {
-    const s = sessionRef.current;
-    if (!s || s.downloading) {
+    const s = session;
+    const w = waiter.current;
+    if (!s || !w || w.token !== s.token || s.downloading || w.downloading)
       return;
-    }
     if (s.sawMissing && rowInstalled(rowFor(apiRef.current, s.need), s.need)) {
       settle(true);
       return;
     }
+    w.downloading = true;
     const { need, token: sessionToken } = s;
     patch(sessionToken, { downloading: true, tried: true, failed: false });
     const options =
@@ -334,9 +382,8 @@ export function useModelGate(): ModelGate {
         ? { whisperModel: need.variant }
         : undefined;
     void apiRef.current.download([need.id], options).then((outcome) => {
-      if (waiter.current?.token !== sessionToken) {
-        return;
-      }
+      if (waiter.current?.token !== sessionToken) return;
+      waiter.current.downloading = false;
       if (outcome.kind === "ok") {
         settle(true);
       } else {
@@ -346,42 +393,70 @@ export function useModelGate(): ModelGate {
         });
       }
     });
-  }, [patch, settle]);
+  }, [session, patch, settle]);
 
   const decline = useCallback(() => {
-    const s = sessionRef.current;
-    if (!s || s.downloading) {
+    const s = session;
+    const w = waiter.current;
+    if (!s || !w || w.token !== s.token || s.downloading || w.downloading)
       return;
-    }
-    setDeclined({ id: s.need.id, label: s.info.label });
+    setState((current) =>
+      current.owner === owner
+        ? { ...current, declined: { id: s.need.id, label: s.info.label } }
+        : current,
+    );
     settle(false);
-  }, [settle]);
+  }, [owner, session, settle]);
 
   const cancelDownload = useCallback(() => {
     void apiRef.current.cancel();
   }, []);
 
   const openModels = useCallback(() => {
-    const s = sessionRef.current;
-    if (s?.downloading) {
+    const s = session;
+    const w = waiter.current;
+    if (
+      s
+        ? !w || w.token !== s.token || s.downloading || w.downloading
+        : w !== null
+    )
       return;
-    }
     if (s) {
-      setDeclined({ id: s.need.id, label: s.info.label });
+      setState((current) =>
+        current.owner === owner
+          ? { ...current, declined: { id: s.need.id, label: s.info.label } }
+          : current,
+      );
       settle(false);
     }
-    setManageRequested(true);
-  }, [settle]);
+    const request = {};
+    setState((current) =>
+      current.owner === owner
+        ? { ...current, manageRequested: request }
+        : current,
+    );
+  }, [owner, session, settle]);
 
   const reset = useCallback(() => {
-    resets.current += 1;
-    setDeclined(null);
+    currentRun.current = null;
+    setState((current) => ({
+      ...current,
+      owner: null,
+      session: null,
+      declined: null,
+      manageRequested: null,
+    }));
     settle(false);
   }, [settle]);
 
+  const managed = useRef<object | null>(null);
   useEffect(() => {
-    if (manageRequested && session === null) {
-      setManageRequested(false);
+    if (
+      manageRequested &&
+      session === null &&
+      managed.current !== manageRequested
+    ) {
+      managed.current = manageRequested;
       useDawStore.getState().setModelsDialogOpen(true);
     }
   }, [manageRequested, session]);

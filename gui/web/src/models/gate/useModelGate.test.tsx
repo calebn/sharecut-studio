@@ -1,7 +1,15 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { useDawStore } from "../../state/dawStore";
+import { deferred } from "../../test/deferred";
 import {
   type ModelsFixture,
   modelStatus,
@@ -511,5 +519,226 @@ describe("useModelGate", () => {
 
     await act(async () => finish({ kind: "ok" }));
     expect(action).not.toHaveBeenCalled();
+  });
+  it("starts a single download for two accepts before React rerenders", async () => {
+    const pending = deferred<DownloadOutcome>();
+    const download = vi.fn().mockReturnValue(pending.promise);
+    const api = modelsApi(fixture([], { download }));
+    const action = ok();
+    const hook = renderHook(() => useModelGate(), {
+      wrapper: ({ children }) => (
+        <ModelsContext.Provider value={api}>{children}</ModelsContext.Provider>
+      ),
+    });
+    act(() => {
+      void hook.result.current.run(action, [{ id: "word-aligner" }]);
+    });
+    act(() => {
+      hook.result.current.accept();
+      hook.result.current.accept();
+    });
+    expect(download).toHaveBeenCalledTimes(1);
+    await act(async () => pending.resolve({ kind: "ok" }));
+    expect(action).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not publish an old refusal into the prompt that replaced it", async () => {
+    const api = modelsApi(fixture());
+    const hook = renderHook(() => useModelGate(), {
+      wrapper: ({ children }) => (
+        <ModelsContext.Provider value={api}>{children}</ModelsContext.Provider>
+      ),
+    });
+    let first!: Promise<GateResult<string>>;
+    let second!: Promise<GateResult<string>>;
+    await act(async () => {
+      first = hook.result.current.run(ok(), [{ id: "word-aligner" }]);
+      second = hook.result.current.run(ok(), [{ id: "whisper" }]);
+      await first;
+    });
+    expect(hook.result.current.prompt?.need.id).toBe("whisper");
+    expect(hook.result.current.declined).toBeNull();
+    await act(async () => {
+      hook.result.current.decline();
+      await second;
+    });
+  });
+
+  it("opens Manage after the prompt closes and accepts another Manage gesture later", async () => {
+    useDawStore.getState().setModelsDialogOpen(false);
+    mount(ok(), [{ id: "word-aligner" }], fixture());
+    await userEvent.click(screen.getByRole("button", { name: "Go" }));
+    await screen.findByRole("dialog");
+    const closedBeforeOpen: boolean[] = [];
+    const unsubscribe = useDawStore.subscribe((state, previous) => {
+      if (state.chrome.modelsDialogOpen && !previous.chrome.modelsDialogOpen) {
+        closedBeforeOpen.push(screen.queryByRole("dialog") === null);
+      }
+    });
+    try {
+      await userEvent.click(
+        screen.getByRole("button", { name: "Manage models" }),
+      );
+      expect(closedBeforeOpen).toEqual([true]);
+      expect(useDawStore.getState().chrome.modelsDialogOpen).toBe(true);
+      useDawStore.getState().setModelsDialogOpen(false);
+      await userEvent.click(
+        screen.getByRole("button", { name: "Manage models" }),
+      );
+      expect(closedBeforeOpen).toEqual([true, true]);
+    } finally {
+      unsubscribe();
+      useDawStore.getState().setModelsDialogOpen(false);
+    }
+  });
+
+  it("does not resurrect a cleared decline when the model later becomes missing", async () => {
+    const view = mount(ok(), [{ id: "word-aligner" }], fixture());
+    await userEvent.click(screen.getByRole("button", { name: "Go" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Not now" }),
+    );
+    expect(await screen.findByText(/will ask again/)).toBeInTheDocument();
+    view.swap(fixture(["word-aligner"]));
+    await waitFor(() =>
+      expect(screen.queryByText(/will ask again/)).toBeNull(),
+    );
+    view.swap(fixture());
+    expect(screen.queryByText(/will ask again/)).toBeNull();
+  });
+  it("rejects a Continue accepted just before the same event resets its run", async () => {
+    let api = modelsApi(fixture());
+    const action = ok();
+    const hook = renderHook(() => useModelGate(), {
+      wrapper: ({ children }) => (
+        <ModelsContext.Provider value={api}>{children}</ModelsContext.Provider>
+      ),
+    });
+    let result!: Promise<GateResult<string>>;
+    act(() => {
+      result = hook.result.current.run(action, [{ id: "word-aligner" }]);
+    });
+    api = modelsApi(fixture(["word-aligner"]));
+    hook.rerender();
+    expect(hook.result.current.prompt?.phase).toBe("ready");
+    await act(async () => {
+      hook.result.current.accept();
+      hook.result.current.reset();
+      await result;
+    });
+    expect(action).not.toHaveBeenCalled();
+    expect(hook.result.current.prompt).toBeNull();
+    expect(hook.result.current.declined).toBeNull();
+  });
+  it.each(["reset", "replacement"] as const)(
+    "retires a queued action when %s lands after the prompt decision",
+    async (next) => {
+      let api = modelsApi(fixture());
+      const action = ok();
+      const hook = renderHook(() => useModelGate(), {
+        wrapper: ({ children }) => (
+          <ModelsContext.Provider value={api}>
+            {children}
+          </ModelsContext.Provider>
+        ),
+      });
+      let first!: Promise<GateResult<string>>;
+      let second: Promise<GateResult<string>> | undefined;
+      act(() => {
+        first = hook.result.current.run(action, [{ id: "word-aligner" }]);
+      });
+      api = modelsApi(fixture(["word-aligner"]));
+      hook.rerender();
+      await act(async () => {
+        hook.result.current.accept();
+        await Promise.resolve();
+        if (next === "reset") hook.result.current.reset();
+        else second = hook.result.current.run(ok(), [{ id: "whisper" }]);
+        await first;
+      });
+      expect(action).not.toHaveBeenCalled();
+      expect(hook.result.current.declined).toBeNull();
+      if (second) {
+        expect(hook.result.current.prompt?.need.id).toBe("whisper");
+        await act(async () => {
+          hook.result.current.decline();
+          await second;
+        });
+      } else expect(hook.result.current.prompt).toBeNull();
+    },
+  );
+
+  it.each(["success", "failure"] as const)(
+    "preserves an already-started action's genuine %s after reset",
+    async (outcome) => {
+      const api = modelsApi(fixture());
+      const work = deferred<string>();
+      const action = vi.fn().mockReturnValue(work.promise);
+      const hook = renderHook(() => useModelGate(), {
+        wrapper: ({ children }) => (
+          <ModelsContext.Provider value={api}>
+            {children}
+          </ModelsContext.Provider>
+        ),
+      });
+      let result!: Promise<GateResult<string>>;
+      act(() => {
+        result = hook.result.current.run(action);
+      });
+      expect(action).toHaveBeenCalledOnce();
+      const settled = result.then(
+        (value) => ({ value }),
+        (error: unknown) => ({ error }),
+      );
+      act(() => hook.result.current.reset());
+      const failure = new Error("real action failed");
+      await act(async () => {
+        if (outcome === "success") work.resolve("real success");
+        else work.reject(failure);
+      });
+      expect(await settled).toEqual(
+        outcome === "success"
+          ? { value: { kind: "ran", value: "real success" } }
+          : { error: failure },
+      );
+    },
+  );
+
+  it("preserves the original action error when its refresh finishes under a newer prompt", async () => {
+    const refreshed = deferred();
+    const api = {
+      ...modelsApi(fixture()),
+      refresh: vi.fn().mockReturnValue(refreshed.promise),
+    };
+    const failure = modelNeeded();
+    const hook = renderHook(() => useModelGate(), {
+      wrapper: ({ children }) => (
+        <ModelsContext.Provider value={api}>{children}</ModelsContext.Provider>
+      ),
+    });
+    let first!: Promise<GateResult<string>>;
+    act(() => {
+      first = hook.result.current.run(vi.fn().mockRejectedValue(failure));
+    });
+    const settled = first.then(
+      (value) => ({ value }),
+      (error: unknown) => ({ error }),
+    );
+    await waitFor(() => expect(api.refresh).toHaveBeenCalledOnce());
+    let second!: Promise<GateResult<string>>;
+    act(() => {
+      second = hook.result.current.run(ok(), [{ id: "whisper" }]);
+    });
+    await act(async () => {
+      refreshed.resolve();
+      await settled;
+    });
+    expect(await settled).toEqual({ error: failure });
+    expect(hook.result.current.prompt?.need.id).toBe("whisper");
+    expect(hook.result.current.declined).toBeNull();
+    await act(async () => {
+      hook.result.current.decline();
+      await second;
+    });
   });
 });
