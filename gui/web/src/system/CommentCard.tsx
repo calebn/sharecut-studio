@@ -83,6 +83,7 @@ export function CommentCard({
           <span className="sys-comment-author">{c.author}</span>
           {c.at ? (
             <span className="sys-mono sys-comment-time">
+              {onSelect ? <SystemIcon name="play" size={12} /> : null}
               {formatAnchor(c.at)}
             </span>
           ) : null}

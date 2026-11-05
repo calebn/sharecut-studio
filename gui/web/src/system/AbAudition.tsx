@@ -26,7 +26,7 @@ export function AbAudition({ side, change, onSelect }: AbAuditionProps) {
           aria-keyshortcuts={before.keys[0]?.key}
           onClick={choose("A")}
         >
-          A
+          <span className="sys-ab-glyph">A</span>
         </ToggleButton>
         <ToggleButton
           quiet
@@ -35,7 +35,7 @@ export function AbAudition({ side, change, onSelect }: AbAuditionProps) {
           aria-keyshortcuts={after.keys[0]?.key}
           onClick={choose("B")}
         >
-          B
+          <span className="sys-ab-glyph">B</span>
         </ToggleButton>
       </SegmentedControl>
       <span className="sys-ab-note">3 s before and after</span>

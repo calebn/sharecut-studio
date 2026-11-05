@@ -340,7 +340,9 @@ export function DecisionCard(props: DecisionCardProps) {
         <p className="sys-decision-kind">
           <SystemIcon name={meta.icon} size={16} />
           <span>{meta.label}</span>
-          <span className="sys-mono">{time}</span>
+          {kind === "comment" && thread ? null : (
+            <span className="sys-mono">{time}</span>
+          )}
           {speaker ? (
             <span className="sys-decision-speaker">
               <Swatch colorIndex={speaker.colorIndex} />
@@ -364,7 +366,6 @@ export function DecisionCard(props: DecisionCardProps) {
             <p className="sys-decision-comment-by">
               <Swatch colorIndex={comment.author.colorIndex} />
               {comment.author.name}
-              <span className="sys-mono">{comment.time}</span>
             </p>
             <p>{comment.body}</p>
             {comment.replies ? (
