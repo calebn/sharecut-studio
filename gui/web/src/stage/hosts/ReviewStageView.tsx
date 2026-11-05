@@ -44,6 +44,7 @@ export function ReviewStageView({
             label="Deliver"
             variant={undecided === 0 ? "primary" : "secondary"}
             size={shell === "phone" ? 48 : 40}
+            keyHint={false}
             onActivate={onDeliver}
           />
         </div>

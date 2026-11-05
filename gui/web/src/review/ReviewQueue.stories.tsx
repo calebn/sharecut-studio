@@ -315,21 +315,7 @@ export const HostRefineWaiver: Story = {
   play: async ({ canvasElement }) => {
     const view = within(canvasElement);
     await expect(view.getByText(/^Your approval:/)).toBeVisible();
-    await userEvent.click(
-      view.getByRole("button", { name: "Waive with reason" }),
-    );
-    await expect(
-      await view.findByText(
-        "A reason is required to waive transcript refinement.",
-      ),
-    ).toBeVisible();
-    await userEvent.type(
-      view.getByLabelText("Waiver reason"),
-      "Host approved the raw transcript",
-    );
-    await userEvent.click(
-      view.getByRole("button", { name: "Waive with reason" }),
-    );
+    await userEvent.click(view.getByRole("button", { name: "Cut anyway" }));
     await expect(
       await view.findByText(
         "Waiver recorded. Retry approval to apply pending edits.",

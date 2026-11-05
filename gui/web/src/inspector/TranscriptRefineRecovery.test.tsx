@@ -3,8 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { waiveTranscriptRefine } from "../api";
 import { TRANSCRIPT_REFINE_REQUIRED_CODE } from "../utils/apiError";
 import {
+  CUT_ANYWAY_REASON,
   TranscriptRefineRecovery,
-  WAIVER_REASON_MAX,
 } from "./TranscriptRefineRecovery";
 
 vi.mock("../api", () => ({ waiveTranscriptRefine: vi.fn() }));
@@ -36,27 +36,28 @@ describe("TranscriptRefineRecovery", () => {
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
   });
 
-  it("counts the reason against the server cap and stops typing at it", () => {
+  it("offers Cut anyway with no text box, and saves the canned reason", async () => {
+    vi.mocked(waiveTranscriptRefine).mockResolvedValueOnce({} as never);
+    const onRecovered = vi.fn();
     render(
       <TranscriptRefineRecovery
         {...props}
+        onRecovered={onRecovered}
         errorCode={TRANSCRIPT_REFINE_REQUIRED_CODE}
       />,
     );
-    const box = screen.getByRole("textbox", { name: /Waiver reason/ });
-    expect(box).toHaveAttribute("maxlength", String(WAIVER_REASON_MAX));
-    expect(
-      screen.getByText(new RegExp(`0 of ${WAIVER_REASON_MAX} characters`)),
-    ).toBeInTheDocument();
-    fireEvent.change(box, { target: { value: "Checked by ear" } });
-    expect(
-      screen.getByText(new RegExp(`14 of ${WAIVER_REASON_MAX} characters`)),
-    ).toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Cut anyway" }));
+    await waitFor(() => expect(onRecovered).toHaveBeenCalledOnce());
+    expect(waiveTranscriptRefine).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      CUT_ANYWAY_REASON,
+    );
   });
 
   it("shows the server's plain message when the waiver is refused", async () => {
     vi.mocked(waiveTranscriptRefine).mockRejectedValueOnce(
-      new Error("reason must be at most 2000 characters"),
+      new Error("project is read-only"),
     );
     render(
       <TranscriptRefineRecovery
@@ -64,14 +65,11 @@ describe("TranscriptRefineRecovery", () => {
         errorCode={TRANSCRIPT_REFINE_REQUIRED_CODE}
       />,
     );
-    fireEvent.change(screen.getByRole("textbox", { name: /Waiver reason/ }), {
-      target: { value: "x" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Waive with reason" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cut anyway" }));
     await waitFor(() =>
-      expect(
-        screen.getByText("reason must be at most 2000 characters"),
-      ).toBeInTheDocument(),
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "project is read-only",
+      ),
     );
   });
 });

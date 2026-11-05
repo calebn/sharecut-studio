@@ -36,25 +36,21 @@ test("host can waive a blocked approval in the browser", async ({ page }) => {
     .locator(".modifier-inspector")
     .filter({ has: page.getByRole("heading", { name: "Pending edit" }) });
   await inspector.getByRole("button", { name: "Approve", exact: true }).click();
-  await expect(
-    page.getByRole("button", { name: "Waive with reason" }),
-  ).toBeVisible();
-  await expect(
-    page.getByText(/Review the transcript or waive with a reason below/),
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Cut anyway" })).toBeVisible();
+  await expect(page.getByText(/Cut anyway, or check it first/)).toBeVisible();
   await expect(
     page
       .locator(".modifier-inspector")
       .filter({ has: page.getByRole("heading", { name: "Pending edit" }) })
       .getByText(/Run podcast-transcript-refine/),
   ).toHaveCount(0);
-  await page
-    .getByRole("textbox", { name: "Waiver reason" })
-    .fill("Reviewed transcript");
-  await page.getByRole("button", { name: "Waive with reason" }).click();
+  await expect(
+    page.getByRole("textbox", { name: "Waiver reason" }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Cut anyway" }).click();
   await expect(
     page.getByText("Waiver recorded. Retry approval to apply pending edits."),
   ).toBeVisible();
-  expect(waiverReason).toBe("Reviewed transcript");
+  expect(waiverReason).toBe("Cut anyway, chosen by the host");
   expect(approvals).toBe(1);
 });

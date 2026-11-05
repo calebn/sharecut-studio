@@ -1,17 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { waiveTranscriptRefine } from "../api";
-import { Button, Field } from "../ui";
+import { Button } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
 import {
   errorMessage,
   TRANSCRIPT_REFINE_REQUIRED_CODE,
 } from "../utils/apiError";
 
-/** The server's cap on a waiver reason (characters). */
-export const WAIVER_REASON_MAX = 2000;
+/** The reason saved when the host chooses Cut anyway; the host types nothing. */
+export const CUT_ANYWAY_REASON = "Cut anyway, chosen by the host";
 
 export const REFINE_GATE_GUI_MESSAGE =
-  "Transcript refinement is required before approval. Review the transcript or waive with a reason below.";
+  "The transcript isn't checked yet. Cut anyway, or check it first.";
 
 type Props = {
   projectPath: string;
@@ -27,7 +27,6 @@ export function TranscriptRefineRecovery({
   errorCode,
   onRecovered,
 }: Props) {
-  const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [recovered, setRecovered] = useState(false);
@@ -48,16 +47,10 @@ export function TranscriptRefineRecovery({
   }
 
   const submit = async () => {
-    const trimmed = reason.trim();
-    if (!trimmed) {
-      setFormError("A reason is required to waive transcript refinement.");
-      return;
-    }
     setBusy(true);
     setFormError(null);
     try {
-      await waiveTranscriptRefine(projectPath, trimmed);
-      setReason("");
+      await waiveTranscriptRefine(projectPath, CUT_ANYWAY_REASON);
       setRecovered(true);
       onRecovered();
     } catch (cause) {
@@ -73,27 +66,12 @@ export function TranscriptRefineRecovery({
       className="transcript-refine-recovery"
       aria-label="Transcript refine recovery"
     >
-      <Field
-        label="Waiver reason"
-        hint={`This reason is saved with the transcript-refine status. ${reason.length} of ${WAIVER_REASON_MAX} characters.`}
-        error={formError}
-      >
-        {(control) => (
-          <textarea
-            {...control}
-            value={reason}
-            rows={3}
-            maxLength={WAIVER_REASON_MAX}
-            disabled={busy}
-            onChange={(event) => setReason(event.target.value)}
-          />
-        )}
-      </Field>
+      {formError ? <p role="alert">{formError}</p> : null}
       <Button
         disabledReason={busy ? BUSY_REASON : undefined}
         onClick={() => void submit()}
       >
-        Waive with reason
+        Cut anyway
       </Button>
     </section>
   );
