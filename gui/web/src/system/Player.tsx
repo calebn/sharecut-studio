@@ -201,6 +201,9 @@ function StatePills({
 }: PlayerProps) {
   return (
     <>
+      <span className="sr-only" role="status">
+        {following?.detail}
+      </span>
       {following ? (
         <Pill
           className="sys-player-pill"
@@ -214,9 +217,11 @@ function StatePills({
           <span className="sys-player-pill-text">
             Following {following.name}
           </span>
-          <span className="sr-only" role="status">
-            {following.detail}
-          </span>
+          {following.detail ? (
+            <span className="sys-player-pill-detail" aria-hidden>
+              · {following.detail}
+            </span>
+          ) : null}
           {onUnfollow ? (
             <button
               type="button"

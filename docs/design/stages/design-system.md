@@ -139,7 +139,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 - States: no audio (hidden), loading (ring around Play), playing, mix updating, audio error, following someone (their ring on Play), guest.
 - Used: CMP-TRANSPORT, CMP-TRANSPORT-PILLS, SCR-PHONE-LISTEN, the guest Player card, the phone mini player.
 - Replaces: Transport, Player bar, Player sheet (edit); mini player, Player card (rdp).
-- Story: `System/Player`: Ready, Playing, WithCuts, HearOriginalHeld, MixUpdating, AudioError, Soloed, Following, Phone, Expanded, ExpandedGuest.
+- Story: `System/Player`: Ready, Playing, WithCuts, HearOriginalHeld, MixUpdating, AudioError, Soloed, Following, FollowingPartial, FollowingGuestListeningInMix, Phone, Expanded, ExpandedGuest.
 
 **5. Overview strip**
 - A whole-episode miniature with the playhead, viewport rectangle, selection band and ticks (suggestions, comments, find matches, chapters, session bands).

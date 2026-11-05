@@ -753,6 +753,13 @@
   white-space: nowrap;
 }
 
+.sys-player-pill-detail {
+  min-inline-size: 0;
+  max-inline-size: 20ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .pill.sys-pill--danger {
   background: var(--color-danger-muted);
   color: var(--color-text-primary);
@@ -928,6 +935,16 @@
      A and B toggles stay, since switching what you hear can clear the error. */
   .sys-player-host[data-state="error"] .sys-player-right > .sys-icon-btn {
     display: none;
+  }
+
+  .sys-player-host .sys-player-pill-detail {
+    display: none;
+  }
+
+  .sys-player-host .sys-pill-x::after {
+    content: "";
+    position: absolute;
+    inset: calc((100% - var(--touch-min)) / 2);
   }
 
   .sys-player-host .sys-player-pill-text {

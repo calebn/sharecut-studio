@@ -161,6 +161,25 @@ describe("Player", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "in Pipeline (host-only) · auditioning FX",
     );
+    expect(pill).toHaveTextContent(
+      "· in Pipeline (host-only) · auditioning FX",
+    );
+  });
+
+  it("keeps one status region mounted so a detail that appears is announced", () => {
+    const { rerender } = render(
+      <Player {...base} following={{ name: "Rosa", colorIndex: 1 }} />,
+    );
+    const region = screen.getByRole("status");
+    expect(region).toHaveTextContent("");
+    rerender(
+      <Player
+        {...base}
+        following={{ name: "Rosa", colorIndex: 1, detail: "auditioning FX" }}
+      />,
+    );
+    expect(screen.getByRole("status")).toBe(region);
+    expect(region).toHaveTextContent("auditioning FX");
   });
 
   it("has no tooltip when the follow is complete", () => {

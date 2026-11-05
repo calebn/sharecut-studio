@@ -311,9 +311,13 @@ describe("StageFrame while following", () => {
     expect(pill.title).toBe(
       "Following Ada · Listening in Mix · in Pipeline (host-only) · auditioning FX",
     );
-    expect(within(pill).getByRole("status")).toHaveTextContent(
-      "Listening in Mix · in Pipeline (host-only) · auditioning FX",
-    );
+    expect(
+      screen.getByText(
+        "Listening in Mix · in Pipeline (host-only) · auditioning FX",
+        { selector: '[role="status"]' },
+      ),
+    ).toBeInTheDocument();
+    expect(pill).toHaveTextContent("· Listening in Mix");
   });
 
   it("stops following from the pill", async () => {
