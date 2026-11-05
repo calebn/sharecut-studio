@@ -415,7 +415,7 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 
 ### Guest review experience (SCR-GUEST-VIEWER, -COMMENTER, -EDITOR, -MOBILE)
 
-- **Today:** `SCR-GUEST-VIEWER--*`, `SCR-GUEST-COMMENTER--*`, `SCR-GUEST-EDITOR--*`, `SCR-GUEST-MOBILE--phone-light.png`. The guest sees the full host editor with two stacked text banners ("Shared comment view · You can comment and suggest edits", "Hearing "Share mix". This link follows the latest version…"), disabled tools they can't use, Shorter/Taller/Reset buttons; the phone shows a dark player card and "Open all".
+- **Today:** `SCR-GUEST-VIEWER--*`, `SCR-GUEST-COMMENTER--*`, `SCR-GUEST-EDITOR--*`, `SCR-GUEST-MOBILE--phone-light.png`. The guest sees the full host editor with a text banner ("Shared comment view · You can comment and suggest edits") and, under it, a version notice line (replaced by the header version line and New version pill, #2298), disabled tools they can't use, Shorter/Taller/Reset buttons; the phone shows a dark player card and "Open all".
 - **Fate:** replace with Guest Review (reduced Review stage).
 - **Spec:**
   - Frame: no Stage bar tabs for Viewer and Commenter (one stage, no switcher). Header 56 px: project name, under it in 13/16 meta the version ("Rough cut · 25 Oct") with a live glyph (two arrows circling = follows latest) or a pin glyph (frozen); right: presence avatars and the guest's own avatar (tap to set name). The Role chip sits next to the name (eye / bubble / pencil + word on desktop, icon only on phone with accessible name).

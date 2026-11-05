@@ -472,7 +472,6 @@
   text-overflow: ellipsis;
 }
 
-.sys-header-sub .sys-version,
 .sys-header-sub .sys-role,
 .sys-header-sub .sys-coach {
   flex: none;
@@ -480,14 +479,18 @@
 
 .sys-version {
   display: inline-flex;
+  flex: 0 1 auto;
   align-items: center;
   min-inline-size: 0;
+  max-inline-size: 100%;
   overflow: hidden;
 }
 
 .sys-version-line {
   display: inline-flex;
+  flex: 0 1 auto;
   align-items: center;
+  max-inline-size: 100%;
   gap: var(--space-1);
   min-inline-size: 0;
   overflow: hidden;
@@ -524,7 +527,9 @@ button.sys-version-line {
 
 .sys-version-pill {
   display: inline-flex;
+  flex: 0 1 auto;
   align-items: center;
+  max-inline-size: 100%;
   gap: var(--space-1);
   min-inline-size: 0;
   block-size: var(--control-height-compact);

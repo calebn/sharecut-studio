@@ -35,7 +35,7 @@ describe("VersionLine", () => {
       <VersionLine
         label="Rough cut"
         followsLatest
-        update={{ label: "Intro fix", onListen }}
+        update={{ id: "v2", label: "Intro fix", onListen }}
       />,
     );
     const pill = screen.getByRole("button", { name: /New version: Intro fix/ });
@@ -49,7 +49,7 @@ describe("VersionLine", () => {
       <VersionLine
         label="Rough cut"
         followsLatest
-        update={{ label: null, onListen: vi.fn() }}
+        update={{ id: "v2", label: null, onListen: vi.fn() }}
       />,
     );
     expect(screen.getByRole("button").textContent).toBe("New version·Listen");
@@ -62,7 +62,7 @@ describe("VersionLine", () => {
       <VersionLine
         label="Rough cut"
         followsLatest
-        update={{ label: "Intro fix", onListen }}
+        update={{ id: "v2", label: "Intro fix", onListen }}
       />,
     );
     expect(container.querySelector(".sys-version-dot")).toBeNull();
@@ -85,7 +85,7 @@ describe("VersionLine", () => {
       <VersionLine
         label="Rough cut"
         followsLatest
-        update={{ label: "Intro fix", onListen: vi.fn() }}
+        update={{ id: "v2", label: "Intro fix", onListen: vi.fn() }}
       />,
     );
     const button = screen.getByRole("button");
@@ -99,7 +99,11 @@ describe("VersionLine", () => {
 
   it("opens the pill again for a different new version", () => {
     vi.useFakeTimers();
-    const update = (label: string) => ({ label, onListen: vi.fn() });
+    const update = (label: string, id = label) => ({
+      id,
+      label,
+      onListen: vi.fn(),
+    });
     const { rerender } = render(
       <VersionLine label="A" followsLatest update={update("B")} />,
     );
@@ -111,17 +115,46 @@ describe("VersionLine", () => {
     expect(screen.getByText("New version: C")).toBeInTheDocument();
   });
 
-  it("announces the pill through a status region that is always present", () => {
+  it("opens the pill again for a new version with the same label, and restarts the 10 s", () => {
+    vi.useFakeTimers();
+    const update = (id: string) => ({
+      id,
+      label: null,
+      onListen: vi.fn(),
+    });
+    const { rerender } = render(
+      <VersionLine label="A" followsLatest update={update("v2")} />,
+    );
+    act(() => {
+      vi.advanceTimersByTime(NEW_VERSION_PILL_MS);
+    });
+    expect(screen.getByRole("button").className).toBe("sys-version-line");
+    rerender(<VersionLine label="A" followsLatest update={update("v3")} />);
+    expect(screen.getByRole("button").className).toBe("sys-version-pill");
+    act(() => {
+      vi.advanceTimersByTime(NEW_VERSION_PILL_MS - 1);
+    });
+    expect(screen.getByRole("button").className).toBe("sys-version-pill");
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(screen.getByRole("button").className).toBe("sys-version-line");
+  });
+
+  it("announces only the new version, never the label", () => {
     const { rerender } = render(<VersionLine label="A" followsLatest />);
     const region = screen.getByRole("status");
+    expect(region.textContent).toBe("");
+    rerender(<VersionLine label="Z" followsLatest />);
+    expect(region.textContent).toBe("");
     rerender(
       <VersionLine
-        label="A"
+        label="Z"
         followsLatest
-        update={{ label: "B", onListen: vi.fn() }}
+        update={{ id: "v2", label: "B", onListen: vi.fn() }}
       />,
     );
     expect(screen.getByRole("status")).toBe(region);
-    expect(region.textContent).toContain("New version: B");
+    expect(region.textContent).toBe("New version: B. Listen");
   });
 });

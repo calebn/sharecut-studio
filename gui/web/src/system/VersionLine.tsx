@@ -10,7 +10,7 @@ export type VersionLineProps = {
   /** True: the link plays whatever version is current (live glyph). False: pinned. Unknown (not read yet): no glyph. */
   followsLatest?: boolean;
   /** The host published while the guest was listening: the label of the new version. */
-  update?: { label: string | null; onListen: () => void };
+  update?: { id: string; label: string | null; onListen: () => void };
 };
 
 /**
@@ -24,21 +24,24 @@ export function VersionLine({
   update,
 }: VersionLineProps) {
   const [folded, setFolded] = useState<string | null>(null);
-  const updateLabel = update ? (update.label ?? "") : null;
-  // biome-ignore lint/correctness/useExhaustiveDependencies: a different new version opens the pill again
+  const updateId = update?.id ?? null;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a different new version (by id) opens the pill again
   useEffect(() => {
-    if (updateLabel === null) return;
+    if (updateId === null) return;
     const id = window.setTimeout(
-      () => setFolded(updateLabel),
+      () => setFolded(updateId),
       NEW_VERSION_PILL_MS,
     );
     return () => window.clearTimeout(id);
-  }, [updateLabel]);
+  }, [updateId]);
 
-  const open = folded !== updateLabel;
+  const open = folded !== updateId;
   const named = update?.label ? `New version: ${update.label}` : "New version";
   return (
-    <span className="sys-version" role="status">
+    <span className="sys-version">
+      <span role="status" className="sr-only">
+        {update && open ? `${named}. Listen` : ""}
+      </span>
       {update ? (
         <button
           type="button"

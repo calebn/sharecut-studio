@@ -311,7 +311,7 @@ export const GuestNewVersion: Story = {
           version: "Rough cut · 25 Oct",
           followsLatest: true,
           role: "commenter",
-          update: { label: "Intro fix", onListen },
+          update: { id: "v2", label: "Intro fix", onListen },
         }}
         people={people.slice(0, 2)}
       />

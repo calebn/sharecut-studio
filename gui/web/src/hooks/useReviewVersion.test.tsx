@@ -58,6 +58,7 @@ describe("useReviewVersion", () => {
     expect(result.current).toBeNull();
     await waitFor(() =>
       expect(result.current).toEqual({
+        versionId: "v1",
         label: "Cut 1",
         followsLatest: false,
         changed: false,
@@ -94,6 +95,7 @@ describe("useReviewVersion", () => {
     wake();
     await waitFor(() =>
       expect(result.current).toEqual({
+        versionId: "v2",
         label: "Cut 2",
         followsLatest: true,
         changed: true,
@@ -119,6 +121,22 @@ describe("useReviewVersion", () => {
     const { result } = mount();
     await waitFor(() => expect(result.current).not.toBeNull());
     expect(result.current?.changed).toBe(false);
+  });
+
+  it("ignores a read with no version id and keeps the last value", async () => {
+    vi.mocked(loadReviewVersionStatus).mockResolvedValue(frozen);
+    const { result } = mount();
+    await waitFor(() => expect(result.current?.label).toBe("Cut 1"));
+    vi.mocked(loadReviewVersionStatus).mockResolvedValue({
+      ...frozen,
+      versionId: null,
+      label: "Other",
+    });
+    wake();
+    await waitFor(() =>
+      expect(loadReviewVersionStatus).toHaveBeenCalledTimes(2),
+    );
+    expect(result.current?.label).toBe("Cut 1");
   });
 
   it("keeps the last version when a read fails", async () => {

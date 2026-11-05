@@ -1,10 +1,8 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { DawProvider } from "../../state/store";
 import { minimalProject } from "../../test/fixtures";
 import { BannerStack } from "./BannerStack";
-
-vi.mock("./GuestVersionNotice", () => ({ GuestVersionNotice: () => null }));
 
 function mount(shareCapabilities: string[] | null) {
   return render(

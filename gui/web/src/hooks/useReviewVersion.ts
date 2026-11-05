@@ -6,6 +6,8 @@ import { useDaw } from "../state/useDaw";
 import { useIntervalTick } from "./useIntervalTick";
 
 export type ReviewVersion = {
+  /** Id of the version this link plays. */
+  versionId: string;
   /** Label of the version this link plays; null while the host left it unnamed. */
   label: string | null;
   /** The link plays whatever version is current, so the mix can change under the guest. */
@@ -13,8 +15,6 @@ export type ReviewVersion = {
   /** A following link now plays a version other than the one this page loaded on. */
   changed: boolean;
 };
-
-type Read = ReviewVersion & { versionId: string };
 
 /**
  * Which version a review link plays. Read when the page loads, every
@@ -24,7 +24,7 @@ type Read = ReviewVersion & { versionId: string };
 export function useReviewVersion(): ReviewVersion | null {
   const projectPath = useDaw((s) => s.projectPath);
   const token = shareTokenFromKey(projectPath);
-  const [read, setRead] = useState<Read | null>(null);
+  const [read, setRead] = useState<ReviewVersion | null>(null);
   const [wake, setWake] = useState(0);
   const baseline = useRef<{ token: string; id: string | null } | null>(null);
   const tick = useIntervalTick(SANITY_POLL_MS, token !== null);
@@ -70,9 +70,5 @@ export function useReviewVersion(): ReviewVersion | null {
   }, [token, tick, wake]);
 
   if (!token || !read) return null;
-  return {
-    label: read.label,
-    followsLatest: read.followsLatest,
-    changed: read.changed,
-  };
+  return read;
 }

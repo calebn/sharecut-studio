@@ -54,7 +54,11 @@ export function useHeaderProps(): Omit<
           version: version?.label ?? "Shared link",
           followsLatest: version?.followsLatest,
           update: version?.changed
-            ? { label: version.label, onListen: reloadPage }
+            ? {
+                id: version.versionId,
+                label: version.label,
+                onListen: reloadPage,
+              }
             : undefined,
           role,
           hint: {
