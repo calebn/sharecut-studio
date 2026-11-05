@@ -47,7 +47,7 @@ export function VersionLine({
           type="button"
           className={open ? "sys-version-pill" : "sys-version-line"}
           title={open ? undefined : `${named}. Listen`}
-          aria-label={open ? undefined : `${label}. ${named}. Listen`}
+          aria-label={open ? `${named}. Listen` : `${label}. ${named}. Listen`}
           onClick={update.onListen}
         >
           {open ? (

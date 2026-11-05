@@ -56,7 +56,7 @@ describe("VersionLine", () => {
     expect(action?.textContent).toContain("Listen");
     expect(screen.getByRole("status").textContent).toContain("Listen");
     expect(
-      screen.getByRole("button", { name: /New version: Intro fix.*Listen/ }),
+      screen.getByRole("button", { name: "New version: Intro fix. Listen" }),
     ).toBeTruthy();
   });
 
