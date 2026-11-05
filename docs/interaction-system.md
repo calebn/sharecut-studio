@@ -177,7 +177,7 @@ There are three overlay primitives.
    (`feedback/FeedbackToast.tsx`) and speaks through the one shell live
    region (`ui/StatusLiveRegion.tsx`). A panel does not mount its own toast or
    its own `aria-live` region. The comment Undo toast and the Needs attention
-   banner speak through it too. Floating placement uses the card's horizontal
+   announcement speak through it too. Floating placement uses the card's horizontal
    footprint. Visible comment and guest-name fields that intersect it take
    protection priority when a clear position fits (`feedback/toastDock.ts`,
    #2199, #2221). If no clear position fits, the existing fallback can cover a

@@ -6,7 +6,7 @@ import { type SaveAttention, useSaveState } from "./useSaveState";
 /** How long the check stays after a save finishes. */
 const JUST_SAVED_MS = 2000;
 
-/** The header's Save indicator for a save state; Retry goes to the Needs attention banner. */
+/** The header's Save indicator for a save state; Retry goes to the Needs attention group. */
 export function saveIndicatorOf(
   state: SaveState,
   attention: SaveAttention,

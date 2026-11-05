@@ -93,7 +93,7 @@ describe("saveIndicatorOf", () => {
     });
   });
 
-  it("sends Retry to the Needs attention banner, and offers none when it is passive", () => {
+  it("sends Retry to the Needs attention group, and offers none when it is passive", () => {
     const failed = saveIndicatorOf(
       { kind: "failed", cause: "unreadable" },
       button,
