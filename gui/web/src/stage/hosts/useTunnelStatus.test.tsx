@@ -110,4 +110,48 @@ describe("useTunnelStatus", () => {
     });
     expect(result.current).toBeNull();
   });
+
+  it("starts a fresh read after reenable and ignores the retired poll", async () => {
+    let oldReply!: (value: ReturnType<typeof reply>) => void;
+    let newReply!: (value: ReturnType<typeof reply>) => void;
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(reply("online"))
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            oldReply = resolve;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            newReply = resolve;
+          }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const { result, rerender } = renderHook(
+      ({ enabled }) => useTunnelStatus(enabled),
+      { initialProps: { enabled: true } },
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current?.state).toBe("online");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(TUNNEL_STATUS_POLL_MS);
+    });
+    rerender({ enabled: false });
+    rerender({ enabled: true });
+    expect(result.current).toBeNull();
+    await act(async () => {
+      oldReply(reply("offline"));
+    });
+    expect(result.current).toBeNull();
+    await act(async () => {
+      newReply(reply("reconnecting"));
+    });
+    expect(result.current?.state).toBe("reconnecting");
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
 });

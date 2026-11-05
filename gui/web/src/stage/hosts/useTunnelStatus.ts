@@ -4,26 +4,39 @@ import type { TunnelStatus } from "../../types/tunnel";
 
 export const TUNNEL_STATUS_POLL_MS = 5000;
 
+type StatusRead = {
+  owner: { enabled: boolean };
+  status: TunnelStatus | null;
+};
+
 /** Poll the tunnel status while `enabled`; null until the first answer or when it is unreachable. */
 export function useTunnelStatus(enabled: boolean): TunnelStatus | null {
-  const [status, setStatus] = useState<TunnelStatus | null>(null);
+  const [read, setRead] = useState<StatusRead>(() => ({
+    owner: { enabled },
+    status: null,
+  }));
+  const { owner } = read;
+  if (owner.enabled !== enabled) {
+    setRead({ owner: { enabled }, status: null });
+  }
 
   useEffect(() => {
-    if (!enabled) {
-      setStatus(null);
-      return;
-    }
+    if (!owner.enabled) return;
     let cancelled = false;
     const refresh = () => {
       loadTunnelStatus().then(
         (next) => {
           if (!cancelled) {
-            setStatus(next);
+            setRead((current) =>
+              current.owner === owner ? { owner, status: next } : current,
+            );
           }
         },
         () => {
           if (!cancelled) {
-            setStatus(null);
+            setRead((current) =>
+              current.owner === owner ? { owner, status: null } : current,
+            );
           }
         },
       );
@@ -34,7 +47,7 @@ export function useTunnelStatus(enabled: boolean): TunnelStatus | null {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [enabled]);
+  }, [owner]);
 
-  return status;
+  return enabled ? read.status : null;
 }

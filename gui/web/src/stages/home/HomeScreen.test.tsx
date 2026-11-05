@@ -152,6 +152,74 @@ describe("HomeScreen", () => {
     ).toBeInTheDocument();
   });
 
+  it("retains the focused card while restored-page recents reload", async () => {
+    let finish!: (value: RecentProject[]) => void;
+    list.mockResolvedValueOnce([recent()]).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    render(<HomeScreen />);
+    const card = await screen.findByRole("button", { name: /Rosa and Maya/ });
+    card.focus();
+    act(() => {
+      window.dispatchEvent(
+        new PageTransitionEvent("pageshow", { persisted: true }),
+      );
+    });
+    expect(list).toHaveBeenCalledTimes(2);
+    expect(card).toHaveFocus();
+    expect(card).toBeInTheDocument();
+    await act(async () => {
+      finish([recent({ name: "Latest episode" })]);
+    });
+    expect(await screen.findByRole("button", { name: /Latest episode/ })).toBe(
+      card,
+    );
+    expect(card).toHaveFocus();
+  });
+
+  it("keeps a newer restored-page list when an older read finishes last", async () => {
+    let oldReply!: (value: RecentProject[]) => void;
+    let newReply!: (value: RecentProject[]) => void;
+    list
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            oldReply = resolve;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            newReply = resolve;
+          }),
+      );
+    render(<HomeScreen />);
+    act(() => {
+      window.dispatchEvent(
+        new PageTransitionEvent("pageshow", { persisted: true }),
+      );
+    });
+    expect(list).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      newReply([recent({ name: "Latest episode" })]);
+    });
+    expect(
+      await screen.findByRole("button", { name: /Latest episode/ }),
+    ).toBeInTheDocument();
+    await act(async () => {
+      oldReply([recent({ name: "Retired episode" })]);
+    });
+    expect(
+      screen.getByRole("button", { name: /Latest episode/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Retired episode/ }),
+    ).toBeNull();
+  });
+
   it("opens a card on the stage its chip names and drops ?home=1", async () => {
     const user = userEvent.setup();
     open.mockResolvedValue({ project_path: EP, name: "rosa" });
