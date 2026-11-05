@@ -30,6 +30,27 @@ describe("SetupCard checking", () => {
     expect(status).toHaveTextContent("Reading the setup status");
     expect(status.closest('[aria-busy="true"]')).toBeNull();
   });
+
+  it("gives up after 8 s and offers Try again", () => {
+    const onRetry = vi.fn();
+    render(
+      <SetupCard
+        state="checking"
+        sizeLabel=""
+        onGetReady={noop}
+        onChoose={noop}
+        onCancel={noop}
+        onRetry={onRetry}
+        onNotNow={noop}
+      />,
+    );
+    act(() => {
+      vi.advanceTimersByTime(8000);
+    });
+    expect(screen.getByText("Couldn't check what's installed.")).toBeVisible();
+    screen.getByRole("button", { name: "Try again" }).click();
+    expect(onRetry).toHaveBeenCalledOnce();
+  });
 });
 
 describe("SetupCard cancel", () => {

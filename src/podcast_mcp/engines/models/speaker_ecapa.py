@@ -37,6 +37,8 @@ SPEAKER_ECAPA_ENV = "PODCAST_MCP_SPEAKER_ECAPA_MODEL"
 SPEAKER_ECAPA_BOOTSTRAP = "podcast bootstrap --component speaker-ecapa"
 SPEAKER_ECAPA_LABEL = "Speaker recognition (ECAPA, ONNX)"
 SPEAKER_ECAPA_SIZE = "~80 MB"
+# The byte count behind the size text, approximate: the pin records the digest only.
+SPEAKER_ECAPA_SIZE_BYTES = 80_000_000
 # 0.05 s at 16 kHz; the network's reflect-padded convolutions fail below about 700 samples.
 MIN_SAMPLES = 800
 # Off until the Mac lab shows the accelerator is faster, within tolerance and affordable (#2249).

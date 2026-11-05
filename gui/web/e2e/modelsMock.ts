@@ -295,7 +295,7 @@ export async function prepare(
     ({ theme, skip }) => {
       window.localStorage.setItem("daw_theme", theme);
       if (skip) {
-        window.sessionStorage.setItem("sharecut.bootstrap.skip", "1");
+        window.sessionStorage.setItem("sharecut.setup.notNow", "1");
       }
     },
     { theme, skip },

@@ -107,7 +107,7 @@ class TranscriptVocabularyPutRequest(BaseModel):
 
 
 class BootstrapRunRequest(BaseModel):
-    """Studio model downloads for Whisper, optional RNNoise, and the opt-in word aligner."""
+    """Studio model downloads for Whisper, RNNoise, the word aligner and the speaker model."""
 
     components: list[str] | None = None
     whisper_model: str | None = None

@@ -3,6 +3,9 @@ import { useEffect, useRef, useState } from "react";
 /** Seconds of watching before the rate is steady enough to name a time. */
 const MIN_WATCH_SECONDS = 3;
 
+/** Seconds without a new byte before the estimate is dropped: a stalled download names no time. */
+const STALL_SECONDS = 10;
+
 type Mark = { at: number; bytes: number };
 
 /**
@@ -23,7 +26,8 @@ export function estimateSecondsLeft(
 /**
  * How long a download has left, from the bytes it reports. Null while the
  * total is unknown or the first few seconds have not told a rate yet; starts
- * over when the bytes fall back (a new download).
+ * over when the bytes fall back (a new download) and goes quiet when they
+ * stop moving.
  */
 export function useSecondsLeft(
   bytes: number | null,
@@ -44,6 +48,11 @@ export function useSecondsLeft(
       return;
     }
     setLeft(estimateSecondsLeft(first.current, now, total));
+    const stalled = window.setTimeout(
+      () => setLeft(null),
+      STALL_SECONDS * 1000,
+    );
+    return () => window.clearTimeout(stalled);
   }, [bytes, total]);
   return left;
 }

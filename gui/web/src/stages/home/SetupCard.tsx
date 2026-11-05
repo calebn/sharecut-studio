@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useAfter } from "../../hooks/useAfter";
 import { Card } from "../../system/Card";
 import { StatusRow } from "../../system/StatusRow";
 import { SystemIcon } from "../../system/SystemIcon";
@@ -33,13 +34,25 @@ const TOOLS_GUIDE =
 
 /** The first status read has not come back: nothing for 300 ms, then static grey blocks. */
 const CHECKING_BLANK_MS = 300;
+/** A status read this late is a failed check: say so and offer Try again. */
+const CHECKING_GIVE_UP_MS = 8000;
 
-function CheckingSkeleton() {
-  const [shown, setShown] = useState(false);
-  useEffect(() => {
-    const timer = window.setTimeout(() => setShown(true), CHECKING_BLANK_MS);
-    return () => window.clearTimeout(timer);
-  }, []);
+function CheckFailedCard({ onRetry }: Pick<SetupCardProps, "onRetry">) {
+  return (
+    <Card title={TITLE}>
+      <StatusRow
+        state="failed"
+        title="Couldn't check what's installed."
+        action={{ label: "Try again", onAction: onRetry }}
+      />
+    </Card>
+  );
+}
+
+function CheckingSkeleton({ onRetry }: Pick<SetupCardProps, "onRetry">) {
+  const shown = useAfter(CHECKING_BLANK_MS);
+  const gaveUp = useAfter(CHECKING_GIVE_UP_MS);
+  if (gaveUp) return <CheckFailedCard onRetry={onRetry} />;
   return (
     <div className="sys-setup-checking">
       {shown ? (
@@ -106,7 +119,7 @@ function SetupBody({
   onRetry,
   onNotNow,
 }: SetupCardProps) {
-  if (state === "checking") return <CheckingSkeleton />;
+  if (state === "checking") return <CheckingSkeleton onRetry={onRetry} />;
   if (state === "needed") {
     return (
       <Card title={TITLE}>
@@ -178,21 +191,20 @@ function SetupBody({
       </Card>
     );
   }
-  const checking = state === "check-error";
+  if (state === "check-error") return <CheckFailedCard onRetry={onRetry} />;
   return (
     <Card title={TITLE}>
       <StatusRow
         state="failed"
-        title={
-          checking
-            ? "Couldn't check what's installed."
-            : "The download didn't finish."
-        }
+        title="The download didn't finish."
         action={{ label: "Try again", onAction: onRetry }}
       />
     </Card>
   );
 }
+
+/** A card that changes later for another reason is not the Cancel the person pressed. */
+const CANCEL_FOCUS_MS = 5000;
 
 /** Moves focus off the Cancel button that is about to leave the page. */
 function focusAfterCancel(root: HTMLElement) {
@@ -207,20 +219,23 @@ function focusAfterCancel(root: HTMLElement) {
 
 export function SetupCard(props: SetupCardProps) {
   const root = useRef<HTMLDivElement>(null);
-  const cancelled = useRef(false);
+  const cancelledAt = useRef<number | null>(null);
   const { state, onCancel } = props;
   // biome-ignore lint/correctness/useExhaustiveDependencies: runs once per state change
   useEffect(() => {
-    if (!cancelled.current || state === "downloading") return;
-    cancelled.current = false;
-    if (root.current) focusAfterCancel(root.current);
+    const at = cancelledAt.current;
+    if (at === null || state === "downloading") return;
+    cancelledAt.current = null;
+    if (Date.now() - at < CANCEL_FOCUS_MS && root.current) {
+      focusAfterCancel(root.current);
+    }
   }, [state]);
   return (
     <div className="sys-setup" ref={root}>
       <SetupBody
         {...props}
         onCancel={() => {
-          cancelled.current = true;
+          cancelledAt.current = Date.now();
           onCancel();
         }}
       />
