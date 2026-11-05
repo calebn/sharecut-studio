@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useInsertionEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { hostRecordUploadTransport, loadHostRecordState } from "../api";
 import { executePointerCommand } from "../commands/pointer";
 import { seekTransport } from "../commands/seek";
@@ -27,6 +34,7 @@ import {
   captureAttention,
   findCurrentTake,
   hostReconnectPauseCopyFromSnapshot,
+  type RecordSnapshot,
   recordSourceId,
   shouldApplyRecordSnapshot,
 } from "./types";
@@ -42,6 +50,13 @@ import { useRecordLiveComments } from "./useRecordLiveComments";
 import { useRoomToneCapture } from "./useRoomToneCapture";
 
 export type RecordRoomLookup = "checking" | "none" | "found" | "failed";
+
+type HostLookupRequest = {
+  projectPath: string | null;
+  hydrate: boolean;
+  nonce: number;
+  setSnapshot: (snapshot: RecordSnapshot | null) => void;
+};
 
 const SHOWN_RESULTS = new Set(["record.createRoom", "record.copyGuestLink"]);
 // A refusal with no thrown error would otherwise leave the person guessing.
@@ -141,12 +156,40 @@ export function useHostRoom(
     send: (commandType, payload, commandId) =>
       sendRecordHostCommand(commandType, payload, commandId),
   });
-  const [hydrateError, setHydrateError] = useState<string | null>(null);
-  const [roomLookup, setRoomLookup] = useState<RecordRoomLookup>("checking");
   const [lookupNonce, setLookupNonce] = useState(0);
+  const [lookup, setLookup] = useState<{
+    request: HostLookupRequest;
+    status: RecordRoomLookup;
+    error: string | null;
+  }>(() => ({
+    request: { projectPath, hydrate, nonce: lookupNonce, setSnapshot },
+    status: "checking",
+    error: null,
+  }));
+  const { request, status: roomLookup, error: hydrateError } = lookup;
   const [doneNotice, setDoneNotice] = useState<string | null>(null);
   const [transportBusy, setTransportBusy] = useState(false);
   const [uploadRetryNonce, setUploadRetryNonce] = useState(0);
+  if (
+    request.projectPath !== projectPath ||
+    request.hydrate !== hydrate ||
+    request.nonce !== lookupNonce ||
+    request.setSnapshot !== setSnapshot
+  ) {
+    setLookup({
+      request: { projectPath, hydrate, nonce: lookupNonce, setSnapshot },
+      status: request.projectPath !== projectPath ? "checking" : roomLookup,
+      error: hydrate && projectPath ? null : hydrateError,
+    });
+    if (request.projectPath !== projectPath) setDoneNotice(null);
+  }
+  const activeLookup = useRef<HostLookupRequest | null>(null);
+  useInsertionEffect(() => {
+    activeLookup.current = request;
+    return () => {
+      if (activeLookup.current === request) activeLookup.current = null;
+    };
+  }, [request]);
   useEffect(() => {
     void prepareHostKeeperStorage().catch(() => undefined);
   }, []);
@@ -270,42 +313,51 @@ export function useHostRoom(
   );
 
   useEffect(() => {
-    setRoomLookup("checking");
-    setDoneNotice(null);
-  }, [projectPath]);
-
-  useEffect(() => {
-    if (!hydrate || !projectPath) {
-      return;
-    }
+    const { hydrate, projectPath, setSnapshot } = request;
+    if (!hydrate || !projectPath) return;
     let cancelled = false;
-    setHydrateError(null);
     void loadHostRecordState(projectPath)
       .then((snap) => {
-        if (cancelled) {
+        if (
+          cancelled ||
+          activeLookup.current !== request ||
+          useDawStore.getState().projectPath !== projectPath
+        ) {
           return;
         }
+        setLookup((current) =>
+          current.request === request
+            ? { ...current, status: snap ? "found" : "none" }
+            : current,
+        );
         if (!snap) {
           setSnapshot(null);
-          setRoomLookup("none");
           return;
         }
-        setRoomLookup("found");
         const current = useRecordHostStore.getState().snapshot;
         if (shouldApplyRecordSnapshot(snap, current)) {
           setSnapshot(snap);
         }
       })
       .catch((err: unknown) => {
-        if (!cancelled) {
-          setRoomLookup("failed");
-          setHydrateError(errorMessage(err));
+        if (
+          cancelled ||
+          activeLookup.current !== request ||
+          useDawStore.getState().projectPath !== projectPath
+        ) {
+          return;
         }
+        const message = errorMessage(err);
+        setLookup((current) =>
+          current.request === request
+            ? { ...current, status: "failed", error: message }
+            : current,
+        );
       });
     return () => {
       cancelled = true;
     };
-  }, [hydrate, projectPath, setSnapshot, lookupNonce]);
+  }, [request]);
 
   const recheck = useCallback(() => setLookupNonce((value) => value + 1), []);
   const announceStatus = useDawStore((s) => s.announceStatus);
@@ -318,7 +370,7 @@ export function useHostRoom(
     canEnd: end.enabled,
     onEnded: () => {
       setSnapshot(null);
-      setRoomLookup("none");
+      setLookup((current) => ({ ...current, status: "none" }));
       announceStatus("Session ended");
     },
     onFailed: setTransportError,
