@@ -513,6 +513,17 @@ export const PhoneEmpty: Story = {
   decorators: phoneFrame("22.5rem"),
 };
 
+export const PhoneLoading: Story = {
+  args: { layout: "phone", state: "loading" },
+  decorators: phoneFrame("22.5rem"),
+};
+
+export const PhoneError: Story = {
+  args: { layout: "phone", state: "error", onRetry: fn() },
+  decorators: phoneFrame("22.5rem"),
+  play: LoadError.play,
+};
+
 export const PhoneSwipe: Story = {
   args: { layout: "phone" },
   decorators: phoneFrame("22.5rem"),
