@@ -183,13 +183,16 @@ export function DeliverStage({
     if (next.formats.join("\n") !== settings.formats.join("\n"))
       onFormats?.(next.formats);
   };
-  const [chapters, setChapters] = useState<readonly Chapter[]>(initialChapters);
-  const [clips, setClips] = useState<readonly Clip[]>(initialClips);
-  const liveChapters = useWriteBack(chapters, onChapters);
+  const [chapters, editChapters] = useWriteBack<readonly Chapter[]>(
+    initialChapters,
+    onChapters,
+  );
   const [trimming, setTrimming] = useState(false);
-  const [settled, setSettled] = useState(clips);
-  if (!trimming && settled !== clips) setSettled(clips);
-  const liveClips = useWriteBack(settled, onClips, clips);
+  const [clips, editClips] = useWriteBack<readonly Clip[]>(
+    initialClips,
+    onClips,
+    trimming,
+  );
   const [toast, setToast] = useState<ToastState | null>(null);
   const [undo, setUndo] = useState<(() => void) | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -281,20 +284,20 @@ export function DeliverStage({
   const removeChapterWithUndo = (id: string) => {
     const gone = chapters.find((c) => c.id === id);
     if (!gone) return;
-    setChapters((now) => removeChapter(now, id));
+    editChapters((now) => removeChapter(now, id));
     notify(`Removed ${gone.title}`, () =>
-      setChapters((now) => restoreChapter(now, gone)),
+      editChapters((now) => restoreChapter(now, gone)),
     );
   };
   const removeClipWithUndo = (id: string) => {
     const index = clips.findIndex((c) => c.id === id);
     const gone = clips[index];
     if (!gone) return;
-    setClips((now) => removeClip(now, id));
+    editClips((now) => removeClip(now, id));
     notify(
       `Removed ${gone.title}`,
       clipUndo
-        ? () => setClips((now) => restoreClip(now, gone, index))
+        ? () => editClips((now) => restoreClip(now, gone, index))
         : undefined,
     );
   };
@@ -314,17 +317,15 @@ export function DeliverStage({
       total={total}
       state={sharedState}
       onRetitle={(id, title) => {
-        liveChapters.current = retitleChapter(liveChapters.current, id, title);
-        setChapters(liveChapters.current);
+        editChapters((current) => retitleChapter(current, id, title));
       }}
       onRetime={(id, at) => {
-        liveChapters.current = retimeChapter(liveChapters.current, id, at);
-        setChapters(liveChapters.current);
+        editChapters((current) => retimeChapter(current, id, at));
       }}
       onPlayFrom={onPlayFrom}
       onRemove={removeChapterWithUndo}
       onAdd={() =>
-        setChapters((now) =>
+        editChapters((now) =>
           addChapterAt(
             now,
             Math.min(getPlayheadSec(), total),
@@ -342,21 +343,17 @@ export function DeliverStage({
       words={words}
       peaks={peaks}
       onRetitle={(id, title) => {
-        liveClips.current = retitleClip(liveClips.current, id, title);
-        setClips(liveClips.current);
+        editClips((current) => retitleClip(current, id, title));
       }}
       onTrim={(id, edge, at) => {
-        liveClips.current = trimClip(liveClips.current, id, edge, at, total);
-        setClips(liveClips.current);
+        editClips((current) => trimClip(current, id, edge, at, total));
       }}
       onPlay={onPlayClip}
       onApprove={(id) => {
-        liveClips.current = approveClip(liveClips.current, id);
-        setClips(liveClips.current);
+        editClips((current) => approveClip(current, id));
       }}
       onUnapprove={(id) => {
-        liveClips.current = unapproveClip(liveClips.current, id);
-        setClips(liveClips.current);
+        editClips((current) => unapproveClip(current, id));
       }}
       onRemove={removeClipWithUndo}
       onOpenInEdit={onOpenClipInEdit}

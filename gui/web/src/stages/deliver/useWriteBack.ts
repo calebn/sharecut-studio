@@ -1,21 +1,30 @@
-import { useEffect, useEffectEvent, useRef } from "react";
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+} from "react";
 
 export function useWriteBack<T>(
-  value: T,
+  initialValue: T,
   onChange?: (value: T) => void,
-  latest: T = value,
+  paused = false,
 ) {
-  const reported = useRef(value);
-  const live = useRef(latest);
+  const [value, setValue] = useState(() => initialValue);
+  const live = useRef(initialValue);
+  const reported = useRef(initialValue);
   const notify = useEffectEvent((next: T) => onChange?.(next));
+  const edit = useCallback((change: (current: T) => T) => {
+    const next = change(live.current);
+    live.current = next;
+    setValue(() => next);
+  }, []);
   useEffect(() => {
-    live.current = latest;
-  });
-  useEffect(() => {
-    if (Object.is(reported.current, value)) return;
+    if (paused || Object.is(reported.current, value)) return;
     reported.current = value;
     notify(value);
-  }, [value]);
+  }, [value, paused]);
   useEffect(
     () => () => {
       queueMicrotask(() => {
@@ -26,5 +35,5 @@ export function useWriteBack<T>(
     },
     [],
   );
-  return live;
+  return [value, edit] as const;
 }
