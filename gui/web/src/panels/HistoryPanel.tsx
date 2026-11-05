@@ -2,7 +2,6 @@ import {
   Fragment,
   type ReactNode,
   useCallback,
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -28,16 +27,30 @@ function groupTitle(g: HistoryGroup): string {
 export const HISTORY_ROW_ESTIMATE_REM = 2.25;
 const EMPTY_GROUPS: HistoryGroup[] = [];
 
+type DiffView = {
+  selected: { key: string; request: number } | null;
+  diff: HistoryDiff | null;
+  showRaw: boolean;
+  loading: boolean;
+  error: string | null;
+};
+
 export function HistoryPanel() {
   const { project, projectPath } = useDaw((s) => ({
     project: s.project,
     projectPath: s.projectPath,
   }));
-  const { busy, error, run, setError } = useProjectMutation();
-  const [diff, setDiff] = useState<HistoryDiff | null>(null);
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
-  const [showRaw, setShowRaw] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const { busy, error: mutationError, run, setError } = useProjectMutation();
+  const [view, setView] = useState<DiffView>({
+    selected: null,
+    diff: null,
+    showRaw: false,
+    loading: false,
+    error: null,
+  });
+  const { diff, showRaw, loading } = view;
+  const selectedKey = view.selected?.key ?? null;
+  const error = view.error ?? mutationError;
   /** Only the latest diff request may apply its result. */
   const diffRequest = useLatestRequest();
 
@@ -51,17 +64,9 @@ export function HistoryPanel() {
   const selectionStale = selectedKey !== null && selectedIndex === -1;
   const shownDiff = selectionStale ? null : diff;
   const diffLoading = loading && !selectionStale;
-  // A step that left the list takes its selection, diff and pending load with
-  // it, so a reload that brings the same key back starts unselected.
-  useEffect(() => {
-    if (!selectionStale) {
-      return;
-    }
-    diffRequest.invalidate();
-    setSelectedKey(null);
-    setDiff(null);
-    setLoading(false);
-  }, [selectionStale, diffRequest]);
+  if (selectionStale) {
+    setView({ ...view, selected: null, diff: null, loading: false });
+  }
   // Pinned rows: the selected and the focused step.
   const pinned = useMemo(
     () => [selectedIndex, focusedIndex].filter((index) => index >= 0),
@@ -88,14 +93,18 @@ export function HistoryPanel() {
   const historyHydrated = project.meta.hydration?.history_groups !== false;
 
   const runHistoryAction = async (action: "undo" | "redo") => {
+    setView((current) => ({ ...current, error: null }));
     await run(async () => {
       await executePointerCommand(
         action === "undo" ? "history.undo" : "history.redo",
       );
       diffRequest.invalidate();
-      setDiff(null);
-      setSelectedKey(null);
-      setLoading(false);
+      setView((current) => ({
+        ...current,
+        selected: null,
+        diff: null,
+        loading: false,
+      }));
     });
   };
 
@@ -105,26 +114,29 @@ export function HistoryPanel() {
     afterIndex: number,
   ) => {
     const request = diffRequest.begin();
-    setSelectedKey(key);
-    setLoading(true);
+    setView((current) => ({
+      ...current,
+      selected: { key, request },
+      loading: true,
+      error: null,
+    }));
     setError(null);
     try {
       const d = await loadHistoryDiff(projectPath, beforeIndex, afterIndex);
-      if (!diffRequest.isCurrent(request)) {
-        return;
-      }
-      setDiff(d);
-      setShowRaw(false);
+      if (!diffRequest.isCurrent(request)) return;
+      setView((current) =>
+        current.selected?.request === request
+          ? { ...current, diff: d, showRaw: false, loading: false }
+          : current,
+      );
     } catch (e) {
-      if (!diffRequest.isCurrent(request)) {
-        return;
-      }
-      setDiff(null);
-      setError(errorMessage(e, "Could not load the history diff"));
-    } finally {
-      if (diffRequest.isCurrent(request)) {
-        setLoading(false);
-      }
+      if (!diffRequest.isCurrent(request)) return;
+      const message = errorMessage(e, "Could not load the history diff");
+      setView((current) =>
+        current.selected?.request === request
+          ? { ...current, diff: null, error: message, loading: false }
+          : current,
+      );
     }
   };
 
@@ -251,7 +263,12 @@ export function HistoryPanel() {
             {shownDiff && (
               <Button
                 className="transcript-follow-btn"
-                onClick={() => setShowRaw((v) => !v)}
+                onClick={() =>
+                  setView((current) => ({
+                    ...current,
+                    showRaw: !current.showRaw,
+                  }))
+                }
               >
                 {showRaw ? "Summary" : "Raw JSON"}
               </Button>

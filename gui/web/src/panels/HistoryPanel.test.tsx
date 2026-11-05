@@ -215,6 +215,24 @@ describe("HistoryPanel list", () => {
     expect(container.querySelector(".history-diff")).toBeNull();
   });
 
+  it("ignores a failed retired request after its history key returns", async () => {
+    const failures: ((error: Error) => void)[] = [];
+    vi.mocked(loadHistoryDiff).mockImplementation(
+      () =>
+        new Promise<HistoryDiff>((_resolve, reject) => failures.push(reject)),
+    );
+    const { container } = renderList();
+    fireEvent.click(rowAt(container, 2)!);
+    await waitFor(() => expect(failures).toHaveLength(1));
+    replaceGroupAfterId(2, "replaced");
+    replaceGroupAfterId(2, "after-2");
+    await act(async () => failures[0]!(new Error("retired failure")));
+    expect(screen.queryByText("retired failure")).toBeNull();
+    expect(screen.queryByText("Loading…")).toBeNull();
+    expect(container.querySelector(".history-row.selected")).toBeNull();
+    expect(container.querySelector(".history-diff")).toBeNull();
+  });
+
   it("renders a short list flat", () => {
     const { container } = render(
       <DawProvider projectPath="/tmp/p.json" initialProject={historyProject(5)}>
