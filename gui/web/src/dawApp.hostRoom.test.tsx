@@ -47,7 +47,7 @@ vi.mock("./stage/dialogs/HostMcpDialog", () => ({
 vi.mock("./feedback/AskDialog", () => ({ AskDialog: () => null }));
 vi.mock("./feedback/FeedbackToast", () => ({ FeedbackToast: () => null }));
 vi.mock("./home/HelpDialog", () => ({ HelpDialog: () => null }));
-vi.mock("./models", () => ({ ModelsDialog: () => null }));
+vi.mock("./models", () => ({ ModelsSheet: () => null }));
 vi.mock("./agentic/webmcp", () => ({ registerDawWebMcpTools: () => () => {} }));
 vi.mock("./desktop/useDesktopCloseGuard", () => ({
   useDesktopCloseGuard: () => {},

@@ -11,7 +11,7 @@ import {
   JobCancelledError,
   startBounceJob,
 } from "../../api";
-import { useModelGate } from "../../models";
+import { useModelResume } from "../../models";
 import {
   BOUNCE_DEFAULTS,
   type BounceChoices,
@@ -27,6 +27,7 @@ import {
   errorMessage,
   isAbortError,
   isModelNeeded,
+  type ModelNeeded,
   notDownloadedLine,
 } from "../../utils/apiError";
 import { jobResultPaths } from "../../utils/pipeline";
@@ -44,8 +45,13 @@ export function BounceFlowProvider({ children }: { children: ReactNode }) {
   const activityJob = useDawStore((s) => s.activityJob);
   const [run, setRun] = useState<BounceRun>({ kind: "idle" });
   const [choices, setChoices] = useState<BounceChoices>(BOUNCE_DEFAULTS);
-  const gate = useModelGate();
-  const resetGate = gate.reset;
+  const restart = useRef<(need: ModelNeeded) => void>(() => undefined);
+  const retried = useRef<string | null>(null);
+  const {
+    stop: needs,
+    stopFor,
+    clear,
+  } = useModelResume((need) => restart.current(need));
   const runRef = useRef(run);
   runRef.current = run;
   const choicesRef = useRef(choices);
@@ -55,8 +61,8 @@ export function BounceFlowProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setRun({ kind: "idle" });
     setChoices(BOUNCE_DEFAULTS);
-    resetGate();
-  }, [projectPath, resetGate]);
+    clear();
+  }, [projectPath, clear]);
 
   // Leaving Deliver ends this visit: a range fixed from Edit, the bounce
   // choices and a failed or cancelled outcome (its retry would bounce the whole
@@ -108,44 +114,34 @@ export function BounceFlowProvider({ children }: { children: ReactNode }) {
       range,
     });
     try {
-      const ran = await gate.run(async () => {
-        try {
-          return await runAnnouncedJob(() => startBounceJob(path, body), {
-            failLabel: "Bounce failed",
-            resultCopy: bounceResultCopy,
-            signal: scope.signal,
-            onStart: (job) =>
-              setRun((r) =>
-                r.kind === "running" ? { ...r, jobId: job.id } : r,
-              ),
-          });
-        } catch (err) {
-          // Nobody is looking at Deliver, so there is no one to ask.
-          if (
-            isModelNeeded(err) &&
-            useDawStore.getState().stage !== "deliver"
-          ) {
-            throw new Error(notDownloadedLine(err.model));
-          }
-          throw err;
-        }
+      const done = await runAnnouncedJob(() => startBounceJob(path, body), {
+        failLabel: "Bounce failed",
+        resultCopy: bounceResultCopy,
+        signal: scope.signal,
+        onStart: (job) =>
+          setRun((r) => (r.kind === "running" ? { ...r, jobId: job.id } : r)),
       });
       if (scope.signal.aborted) return;
-      if (ran.kind === "declined") {
-        // Declining is a choice, not a failure: back to idle.
-        setRun({ kind: "idle" });
-        return;
-      }
       // A range fixed while this run was going is a new request: keep it.
       if (useDawStore.getState().bounceRangeTarget === range) {
         useDawStore.getState().setBounceRangeTarget(null);
       }
-      setRun({ kind: "done", paths: jobResultPaths(ran.value) });
+      setRun({ kind: "done", paths: jobResultPaths(done) });
     } catch (err) {
       // The project changed: this outcome belongs to the old one.
       if (scope.signal.aborted) return;
       if (isAbortError(err)) {
         setRun({ kind: "idle" });
+      } else if (
+        isModelNeeded(err) &&
+        useDawStore.getState().stage === "deliver" &&
+        retried.current !== err.model.id
+      ) {
+        runRef.current = { kind: "idle" };
+        setRun({ kind: "idle" });
+        stopFor(err.model);
+      } else if (isModelNeeded(err)) {
+        setRun({ kind: "failed", reason: notDownloadedLine(err.model) });
       } else if (err instanceof JobCancelledError) {
         setRun({ kind: "cancelled", paths: jobResultPaths(err.job) });
       } else {
@@ -154,7 +150,12 @@ export function BounceFlowProvider({ children }: { children: ReactNode }) {
     } finally {
       scope.dispose();
     }
-  }, [gate]);
+  }, [stopFor]);
+
+  restart.current = (need) => {
+    retried.current = need.id;
+    void start();
+  };
 
   const cancel = useCallback(async () => {
     const r = runRef.current;
@@ -185,12 +186,15 @@ export function BounceFlowProvider({ children }: { children: ReactNode }) {
       job,
       choices,
       setChoices,
-      gate,
-      start: () => void start(),
+      needs,
+      start: () => {
+        retried.current = null;
+        void start();
+      },
       cancel: () => void cancel(),
       again,
     }),
-    [run, job, choices, gate, start, cancel, again],
+    [run, job, choices, needs, start, cancel, again],
   );
   return <Flow.Provider value={value}>{children}</Flow.Provider>;
 }

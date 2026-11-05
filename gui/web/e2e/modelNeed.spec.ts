@@ -25,7 +25,7 @@ import {
 import { trackHeaderButtons } from "./trackHeader";
 
 /**
- * The model gate against a mocked `/api/bootstrap/*` and a mocked 409 `model_needed` on the Run
+ * The Model need row against a mocked `/api/bootstrap/*` and a mocked 409 `model_needed` on the Run
  * and Split speakers routes: nothing here downloads anything. Set MODELS_SHOTS_DIR to also save one
  * screenshot per viewport, theme and case.
  */
@@ -203,7 +203,7 @@ async function openSplitSpeakers(page: Page): Promise<void> {
 
 for (const viewport of VIEWPORTS) {
   for (const theme of THEMES) {
-    test.describe(`model gate ${viewport.name} ${theme}`, () => {
+    test.describe(`model need ${viewport.name} ${theme}`, () => {
       // Axe reads colors as painted: with motion on, a scan can land mid-fade and measure a blend.
       test.use({
         viewport: { width: viewport.width, height: viewport.height },
@@ -238,7 +238,7 @@ for (const viewport of VIEWPORTS) {
         await expectNoHorizontalScroll(page);
         await expectTouchTargets(get);
         await expectSurfaceAxeClean(page, ".sys-prepare");
-        await shot(page, viewport.name, theme, "gate-idle");
+        await shot(page, viewport.name, theme, "need-idle");
 
         await get.click();
         await expect.poll(() => mock.runs.length).toBe(1);
@@ -246,7 +246,7 @@ for (const viewport of VIEWPORTS) {
         const bar = page.getByRole("progressbar").first();
         await expect(bar).toHaveAttribute("aria-valuenow", /^\d+$/);
         await expectSurfaceAxeClean(page, ".sys-prepare");
-        await shot(page, viewport.name, theme, "gate-downloading");
+        await shot(page, viewport.name, theme, "need-downloading");
         progress.advance();
 
         progress.finish();
@@ -299,7 +299,7 @@ for (const viewport of VIEWPORTS) {
         expect(run.posts()).toBe(1);
         await expectNoHorizontalScroll(page);
         await expectSurfaceAxeClean(page, ".sys-prepare");
-        await shot(page, viewport.name, theme, "gate-failed");
+        await shot(page, viewport.name, theme, "need-failed");
       });
 
       test("a missing model never downloads until the person taps Get", async ({
@@ -324,7 +324,7 @@ for (const viewport of VIEWPORTS) {
         expect(mock.runs).toEqual([]);
         expect(run.posts()).toBe(1);
         await expectSurfaceAxeClean(page, ".sys-prepare");
-        await shot(page, viewport.name, theme, "gate-declined");
+        await shot(page, viewport.name, theme, "need-declined");
       });
 
       test("a busy download slot shows the running job and no second start", async ({
@@ -374,7 +374,7 @@ for (const viewport of VIEWPORTS) {
         expect(mock.runs).toHaveLength(1);
         await expectNoHorizontalScroll(page);
         await expectSurfaceAxeClean(page, ".sys-prepare");
-        await shot(page, viewport.name, theme, "gate-busy");
+        await shot(page, viewport.name, theme, "need-busy");
       });
 
       test("Split speakers asks on its card, downloads the model, then splits once more", async ({
@@ -425,7 +425,7 @@ for (const viewport of VIEWPORTS) {
         expect(mock.runs).toHaveLength(1);
       });
 
-      test("Export asks inside Deliver, then exports once more", async ({
+      test("Export shows the Model need row inside Deliver, then exports by itself", async ({
         page,
       }) => {
         await prepare(page, theme, true);
@@ -445,31 +445,28 @@ for (const viewport of VIEWPORTS) {
         await startExport(page);
         const dialog = deliverPage(page);
 
-        await expect(dialog.getByText(/stored on this computer/)).toBeVisible();
+        await expect(dialog.getByText("Needs noise reduction")).toBeVisible();
         await expect(page.getByRole("dialog")).toHaveCount(0);
-        const download = dialog.getByRole("button", {
-          name: "Download",
-          exact: true,
-        });
-        await expect(download).toBeInViewport();
-        await expect(download).toBeFocused();
+        const get = dialog.getByRole("button", { name: "Get noise reduction" });
+        await expect(get).toBeInViewport();
+        await expect(get).toBeFocused();
         expect(mock.runs).toEqual([]);
         expect(exports.posts()).toBe(1);
         await expectNoHorizontalScroll(page);
-        await expectTouchTargets(dialog.locator(".model-gate-panel"));
+        await expectTouchTargets(get);
         await expectSurfaceAxeClean(page, '[aria-label="Deliver"]');
         await shot(page, viewport.name, theme, "export-idle");
 
-        await download.click();
+        await get.click();
         await expect.poll(() => mock.runs.length).toBe(1);
         expect(mock.runs[0]).toMatchObject({ components: ["rnnoise"] });
-        const cancel = dialog.getByRole("button", { name: "Cancel download" });
+        const cancel = dialog.getByRole("button", {
+          name: "Cancel noise reduction download",
+        });
         await expect(cancel).toBeInViewport();
-        await expect(cancel).toBeFocused();
-        await expect(dialog.getByRole("progressbar")).toHaveAttribute(
-          "aria-valuetext",
-          "420 MB of 1.6 GB",
-        );
+        await expect(
+          dialog.getByRole("progressbar", { name: "Getting noise reduction" }),
+        ).toHaveAttribute("aria-valuetext", "420 MB of 1.6 GB");
         await expectSurfaceAxeClean(page, '[aria-label="Deliver"]');
         await shot(page, viewport.name, theme, "export-downloading");
         progress.finish();
@@ -479,58 +476,7 @@ for (const viewport of VIEWPORTS) {
         await expectSurfaceAxeClean(page, '[aria-label="Deliver"]');
       });
 
-      test("Export declined leaves a hint, and Download waits in the banner", async ({
-        page,
-      }) => {
-        await prepare(page, theme, true);
-        const mock = await mockBootstrap(page);
-        const exports = await mockModelFailingJob(page, {
-          kind: "export",
-          post: "**/api/export/deliverables",
-          projectPath: e2eProjectPath,
-          modelId: "rnnoise",
-          ready: () => false,
-        });
-        await openHostProject(page);
-        await startExport(page);
-        const dialog = deliverPage(page);
-        await dialog
-          .getByRole("button", { name: "Not now", exact: true })
-          .click();
-
-        await expect(dialog).toContainText(
-          "Noise reduction (RNNoise) is not downloaded.",
-        );
-        await expect(dialog.getByText(/Export will ask again/)).toBeVisible();
-        await expectNoHorizontalScroll(page);
-        await expectSurfaceAxeClean(page, '[aria-label="Deliver"]');
-        await shot(page, viewport.name, theme, "export-declined");
-
-        const chipDownload = page.getByRole("button", {
-          name: "Download Noise reduction (RNNoise)",
-        });
-        await expect(chipDownload).toBeVisible();
-        await expect(page.getByRole("dialog")).toHaveCount(0);
-        if (
-          await page.evaluate(() => matchMedia("(pointer: coarse)").matches)
-        ) {
-          const box = await chipDownload.boundingBox();
-          expect(box?.height).toBeGreaterThanOrEqual(44);
-        }
-        await expectSurfaceAxeClean(page, "body");
-        await shot(page, viewport.name, theme, "export-chip");
-
-        await chipDownload.click();
-        await expect(
-          page.getByRole("dialog", {
-            name: "Download Noise reduction (RNNoise)?",
-          }),
-        ).toBeVisible();
-        expect(mock.runs).toEqual([]);
-        expect(exports.posts()).toBe(1);
-      });
-
-      test("a failed Refresh mix opens nothing until Download, then refreshes once", async ({
+      test("a failed Refresh mix shows the Model need row in the banner, then refreshes by itself", async ({
         page,
       }) => {
         await prepare(page, theme, true);
@@ -550,37 +496,32 @@ for (const viewport of VIEWPORTS) {
         await page.locator("body").click({ position: { x: 1, y: 1 } });
         await runPaletteCommand(page, "Refresh mix");
 
-        const chipDownload = page.getByRole("button", {
-          name: "Download Noise reduction (RNNoise)",
-        });
-        await expect(chipDownload).toBeVisible();
+        const banner = page.locator(".guest-banner");
+        const get = banner.getByRole("button", { name: "Get noise reduction" });
+        await expect(get).toBeVisible();
         await expect(page.getByRole("dialog")).toHaveCount(0);
         expect(renders.posts()).toBe(1);
         expect(mock.runs).toEqual([]);
-
-        await chipDownload.click();
-        const gate = page.getByRole("dialog", {
-          name: "Download Noise reduction (RNNoise)?",
-        });
-        await expect(gate).toBeVisible();
         await expectNoHorizontalScroll(page);
-        await expectSurfaceAxeClean(page, '[role="dialog"]');
-        await gate
-          .getByRole("button", { name: "Download", exact: true })
-          .click();
+        await expectTouchTargets(get);
+        await expectSurfaceAxeClean(page, ".guest-banner");
+        await shot(page, viewport.name, theme, "banner-idle");
+
+        await get.click();
         await expect.poll(() => mock.runs.length).toBe(1);
         await expect(
-          gate.getByRole("button", { name: "Cancel download" }),
-        ).toBeFocused();
+          banner.getByRole("button", {
+            name: "Cancel noise reduction download",
+          }),
+        ).toBeVisible();
         progress.finish();
-        await expect(gate).toBeHidden();
         await expect.poll(renders.posts).toBe(2);
       });
     });
   }
 }
 
-test.describe("model gate guest share", () => {
+test.describe("model need guest share", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
   test("a guest sees no prompt and makes no bootstrap calls", async ({
@@ -606,12 +547,9 @@ test.describe("model gate guest share", () => {
           }
         });
         await openGuestShare(guest, token);
-        await expect(
-          guest.getByRole("dialog", { name: /^Download / }),
-        ).toHaveCount(0);
-        await expect(
-          guest.getByRole("button", { name: /^Download / }),
-        ).toHaveCount(0);
+        await expect(guest.getByRole("button", { name: /^Get / })).toHaveCount(
+          0,
+        );
         expect(bootstrap).toEqual([]);
       } finally {
         await context.close();

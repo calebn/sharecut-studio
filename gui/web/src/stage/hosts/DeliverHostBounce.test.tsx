@@ -219,16 +219,16 @@ describe("Bounce on the Deliver stage", () => {
     expect(await screen.findByText("Bounce failed")).toBeVisible();
   });
 
-  it("asks before downloading a missing model, in the page", async () => {
+  it("shows the Model need row in the page for a missing model", async () => {
     renderWithModels(<Host />, { status: modelStatus(registryRows()) });
     await pressBounce();
     await act(async () =>
       server.settle({ ...EXPORT_MODEL_NEEDED, id: "b1", kind: "bounce" }),
     );
+    expect(await screen.findByText("Needs noise reduction")).toBeVisible();
     expect(
-      await screen.findByText(/Noise reduction \(RNNoise\)/),
+      screen.getByRole("button", { name: "Get noise reduction" }),
     ).toBeVisible();
-    expect(screen.getByRole("button", { name: "Download" })).toBeVisible();
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 

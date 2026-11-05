@@ -247,7 +247,7 @@ export function registerHostCommands(): void {
     if (!canManageProjects(s.projectPath)) {
       return { status: "disabled", reason: "Manage models is host-only" };
     }
-    s.setModelsDialogOpen(true);
+    s.setModelsSheetOpen(true);
     return { status: "ok" };
   });
 

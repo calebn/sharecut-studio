@@ -623,7 +623,18 @@ describe("round three of the audit", () => {
   );
 
   it("blocks Export while the model is missing, before any other reason", () => {
-    const needs = { phase: "needs-model", model: "m", size: "1 GB" } as const;
+    const needs = {
+      phase: "needs-model",
+      model: {
+        id: "whisper",
+        variant: null,
+        label: "Whisper",
+        purpose: "transcription",
+        size: "~1.6 GB",
+        sizeBytes: null,
+        state: "missing",
+      },
+    } as const;
     expect(exportBlocker(SETTINGS, needs)).toBe(
       "Needs the transcription model.",
     );
@@ -661,7 +672,18 @@ describe("round three of the audit", () => {
   });
 
   it("gives the host's own reason first", () => {
-    const needs = { phase: "needs-model", model: "m", size: "1 GB" } as const;
+    const needs = {
+      phase: "needs-model",
+      model: {
+        id: "whisper",
+        variant: null,
+        label: "Whisper",
+        purpose: "transcription",
+        size: "~1.6 GB",
+        sizeBytes: null,
+        state: "missing",
+      },
+    } as const;
     expect(
       exportBlocker({ ...SETTINGS, formats: [] }, needs, {
         blockedReason: "No project loaded",

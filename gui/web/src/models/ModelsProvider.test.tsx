@@ -1,10 +1,4 @@
-import {
-  act,
-  render,
-  renderHook,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { act, render, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
@@ -14,7 +8,8 @@ import type {
 } from "../api";
 import * as api from "../api";
 import { ApiError } from "../utils/apiError";
-import { ModelRow } from "./ModelRow";
+import { targetOfRow } from "./capability";
+import { ModelNeedRowView } from "./ModelNeedRow";
 import { ModelsProvider } from "./ModelsProvider";
 import { useModel, useModels } from "./useModels";
 
@@ -379,7 +374,7 @@ describe("ModelsProvider", () => {
     expect(result.current.busy).toBe(false);
   });
 
-  it("shows no environment name or absolute path in a failed row's alert", async () => {
+  it("shows no environment name or absolute path in a failed row's text", async () => {
     run.mockRejectedValue(
       new Error(
         "Could not reach PODCAST_BOOTSTRAP_CDN_BASE while writing /home/x/.cache/podcast/models/a.bin and C:\\Users\\x\\models\\a.bin",
@@ -389,10 +384,17 @@ describe("ModelsProvider", () => {
     await act(async () => {
       await result.current.download(["rnnoise"]);
     });
+    const failed = result.current.models![1]!;
     render(
-      <ModelRow model={result.current.models![1]!} action={{ kind: "none" }} />,
+      <ModelNeedRowView
+        placement="list"
+        model={targetOfRow(failed)}
+        state={failed.state}
+        onGet={vi.fn()}
+        onCancel={vi.fn()}
+      />,
     );
-    const alert = screen.getByRole("alert").textContent ?? "";
+    const alert = document.querySelector(".sys-need-meta")?.textContent ?? "";
     expect(alert).not.toBe("");
     expect(alert).not.toMatch(/PODCAST_/);
     expect(alert).not.toMatch(/\/home\/|C:\\/);
