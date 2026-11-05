@@ -101,7 +101,6 @@ SUBSETS: dict[SubsetName, Subset] = {
 
 
 def union_covers(changed: Sequence[str]) -> bool:
-    """A change split between gui/web and docs, which no single subset owns."""
     return owned_by((glob for subset in SUBSETS.values() for glob in subset.owns), changed)
 
 
