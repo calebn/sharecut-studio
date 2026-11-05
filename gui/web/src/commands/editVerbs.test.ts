@@ -602,6 +602,18 @@ describe("Backspace while playing with nothing selected", () => {
     expect(useDawStore.getState().selection).toMatchObject({ trackId: JONAS });
   });
 
+  it("falls back to a targeted track even when another track's word ended later", async () => {
+    const project = timelined();
+    project.transcript!.utterances.push(jonasUtterance(6.5, 7.2));
+    for (const w of project.transcript!.utterances[0]!.words!) {
+      w.timeline_start = 6.6;
+      w.timeline_end = 6.8;
+    }
+    playing({ project, playheadSec: 7.5, rangeScopeTrackIds: [MIRA] });
+    await execute("edit.delete");
+    expect(useDawStore.getState().selection).toMatchObject({ trackId: MIRA });
+  });
+
   it("skips a muted targeted track", async () => {
     const project = timelined();
     project.transcript!.utterances.push(jonasUtterance(7, 8));

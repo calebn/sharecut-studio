@@ -469,7 +469,8 @@ the focused or just-pressed control. Undo, Redo, resize and Close stay fully
 visible and on top before and after feedback, field focus and body scrolling.
 
 `FeedbackToast` moves one stable portal container between this body and its
-ordinary floating host. The same `Toast` card keeps its eight-second timer,
+ordinary floating host. The same `Toast` card keeps its six-second timer (ten
+seconds when it offers Undo),
 focus and hover pause, disabled-Undo pause, Dismiss and history freshness.
 A presentation-boundary intersection observer pauses expiry whenever the card
 is clipped by its actual ancestors. Toast retains the remaining visible time

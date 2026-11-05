@@ -83,7 +83,7 @@ test("clipped saved feedback pauses its remaining visible lifetime", async ({
     body: await page.screenshot({ path: info.outputPath("timer-clipped.png") }),
     contentType: "image/png",
   });
-  await page.waitForTimeout(9000);
+  await page.waitForTimeout(6500);
   await expect(card).toHaveCount(1);
   await expect.poll(() => savedEnvelope(page)).toEqual(edited);
   expect(commands.map((command) => command.type)).toEqual(["SetEnvelope"]);
