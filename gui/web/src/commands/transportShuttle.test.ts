@@ -3,6 +3,7 @@ import { useDawStore } from "../state/dawStore";
 import { minimalProject, sampleTrack } from "../test/fixtures";
 import { clearRegisteredCommands, execute } from "./execute";
 import { registerDawCommands } from "./register";
+import { resetShuttleEscalation } from "./shuttle";
 
 const s = () => useDawStore.getState();
 
@@ -10,6 +11,7 @@ describe("transport.shuttle", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(1_000_000);
+    resetShuttleEscalation();
     clearRegisteredCommands();
     registerDawCommands();
     s().hydrate("/tmp/p.json", minimalProject({ tracks: [sampleTrack()] }));
@@ -69,6 +71,29 @@ describe("transport.shuttle", () => {
     vi.advanceTimersByTime(1500);
     await execute("transport.shuttle", { dir: "back" });
     expect(s().playheadSec).toBe(4);
+  });
+
+  it("pausing restarts the J ladder inside the repeat window", async () => {
+    s().setPlayheadSec(40);
+    await execute("transport.shuttle", { dir: "back" });
+    vi.advanceTimersByTime(300);
+    await execute("transport.shuttle", { dir: "back" });
+    expect(s().playheadSec).toBe(31);
+    s().setIsPlaying(true);
+    s().setIsPlaying(false);
+    vi.advanceTimersByTime(300);
+    await execute("transport.shuttle", { dir: "back" });
+    expect(s().playheadSec).toBe(28);
+  });
+
+  it("a project change restarts the J ladder", async () => {
+    s().setPlayheadSec(40);
+    await execute("transport.shuttle", { dir: "back" });
+    s().hydrate("/tmp/other.json", minimalProject({ tracks: [sampleTrack()] }));
+    s().setPlayheadSec(40);
+    vi.advanceTimersByTime(300);
+    await execute("transport.shuttle", { dir: "back" });
+    expect(s().playheadSec).toBe(37);
   });
 
   it("J while playing at 4x drops to 1x and keeps playing", async () => {

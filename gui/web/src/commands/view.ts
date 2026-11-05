@@ -58,8 +58,15 @@ export function registerViewCommands(): void {
     if (!span || !(len > 0)) {
       return { status: "disabled", reason: "Select something to zoom to" };
     }
+    const viewport = s.measureTimelineViewport();
+    if (!(viewport > 0)) {
+      return {
+        status: "disabled",
+        reason: "Open the timeline to zoom to a selection",
+      };
+    }
     const zoom = clampZoomPxPerSec(
-      (s.measureTimelineViewport() * ZOOM_TO_SELECTION_FILL) / len,
+      (viewport * ZOOM_TO_SELECTION_FILL) / len,
       s.project.timeline_duration_sec,
     );
     s.zoomToSpan(span.start, span.end, zoom);

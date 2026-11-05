@@ -8,6 +8,17 @@ const FORWARD_RATES = [1, 2, 4] as const;
 let backStep = 0;
 let lastBackAt = Number.NEGATIVE_INFINITY;
 
+export function resetShuttleEscalation(): void {
+  backStep = 0;
+  lastBackAt = Number.NEGATIVE_INFINITY;
+}
+
+useDawStore.subscribe((s, prev) => {
+  if ((prev.isPlaying && !s.isPlaying) || prev.projectPath !== s.projectPath) {
+    resetShuttleEscalation();
+  }
+});
+
 export function shuttleForward(): void {
   const s = useDawStore.getState();
   const next = s.isPlaying

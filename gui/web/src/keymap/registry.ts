@@ -110,6 +110,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     label: "Shuttle back (jumps back) / forward",
     keys: ["J", "L"],
     bareKey: true,
+    requireShift: false,
     noRepeat: true,
     when: "always",
     notes: "J jumps back 3, 6, 12 s; L plays at 1×, 2×, 4×",
@@ -391,7 +392,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     requireShift: false,
     when: "editStageStructural",
     notes: "Mod+K: split at the playhead",
-    collision: "Mod+K splits; K alone stops playback",
+    collision: "Mod+K splits; K alone pauses and returns",
   },
   {
     id: "track.selectAll",
@@ -576,6 +577,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     keys: ["Z"],
     bareKey: true,
     requireMod: false,
+    requireShift: false,
     when: "editStage",
     notes: "Edit stage; Mod+Z is Undo",
   },
@@ -974,6 +976,22 @@ function eventKeyCandidates(
 function effectiveKeys(cmd: KeymapCommand): string[] {
   const override = getKeymapOverride(cmd.id);
   return override?.length ? override : [...cmd.keys];
+}
+
+/** Another bare-key command that already uses `key`, or undefined. */
+export function bareKeyConflict(
+  commandId: string,
+  key: string,
+): KeymapCommand | undefined {
+  const wanted = key.toUpperCase();
+  return KEYMAP_COMMANDS.find(
+    (cmd) =>
+      cmd.id !== commandId &&
+      cmd.bareKey !== false &&
+      !cmd.requireMod &&
+      !cmd.requireAlt &&
+      effectiveKeys(cmd).some((k) => k.toUpperCase() === wanted),
+  );
 }
 
 export function matchKeymapCommands(

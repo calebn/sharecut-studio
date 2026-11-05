@@ -21,7 +21,7 @@ const COMMANDS: PaletteCommand[] = [
     category: "edit",
     shortcut: "Mod+K",
     defaultKey: "K",
-    note: "Mod+K cuts; K alone stops playback",
+    note: "Mod+K cuts; K alone pauses and returns",
     disabledReason: null,
   },
   {
@@ -237,7 +237,7 @@ describe("CommandPaletteView", () => {
     await waitForDialogFocus();
     await user.click(
       screen.getByRole("option", {
-        name: "Blade cut Mod+K Mod+K cuts; K alone stops playback",
+        name: "Blade cut Mod+K Mod+K cuts; K alone pauses and returns",
       }),
     );
     expect(props.onRun).toHaveBeenCalledExactlyOnceWith("edit.bladeCut");
@@ -307,13 +307,13 @@ describe("CommandPaletteView", () => {
   it("includes the visible palette label with its shortcut and collision note", () => {
     renderPalette();
     const row = screen.getByRole("option", {
-      name: "Blade cut Mod+K Mod+K cuts; K alone stops playback",
+      name: "Blade cut Mod+K Mod+K cuts; K alone pauses and returns",
     });
     expect(row).toHaveAccessibleName(
-      "Blade cut Mod+K Mod+K cuts; K alone stops playback",
+      "Blade cut Mod+K Mod+K cuts; K alone pauses and returns",
     );
     expect(row).toHaveTextContent(
-      /^Blade cut Mod\+K Mod\+K cuts; K alone stops playback$/,
+      /^Blade cut Mod\+K Mod\+K cuts; K alone pauses and returns$/,
     );
     expect(row).toHaveAccessibleDescription("");
   });
