@@ -304,7 +304,7 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
 
     ``whisper.state`` is ``installed`` only with both the faster-whisper import **and** on-disk
     weights for ``whisper_model`` (working-set / resolved preference).
-    ``word-aligner`` is an offered download (``tier: offered``); the Precise word boundaries
+    ``word-aligner`` is a recommended download (``tier: recommended``); the Precise word boundaries
     toggle follows ``build_config_payload()["forced_alignment"]`` for its effective state.
     """
     from podcast_mcp.engines.models.whisper import resolve_whisper_model

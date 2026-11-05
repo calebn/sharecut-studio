@@ -66,7 +66,7 @@ def test_model_missing_carries_the_record_fields() -> None:
         "label": "Speaker recognition (ECAPA, ONNX)",
         "purpose": "speaker recognition and split",
         "size": "~80 MB",
-        "size_bytes": None,
+        "size_bytes": 80_000_000,
         "command": "podcast bootstrap --component speaker-ecapa",
         "state": "missing",
     }

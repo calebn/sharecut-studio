@@ -8,6 +8,7 @@ import {
 } from "react";
 import { loadReviewBootstrap } from "./api";
 import { ApiError, errorMessage } from "./utils/apiError";
+import { readNotServed } from "./utils/notServed";
 import "./styles/daw.css";
 import { FeatureProvider } from "./extensions/FeatureProvider";
 import { useFeaturesReady, useHasFeature } from "./extensions/FeaturesContext";
@@ -19,11 +20,20 @@ import {
 } from "./services/offlineQueue/offlineStore";
 import { isShareProjectKey, shareProjectKey } from "./shareMode";
 import { parseShareRoute } from "./shareRoute";
+import { StageLoading } from "./stage/frame/StageLoading";
+import {
+  BAD_LINK_HINT,
+  BAD_LINK_TITLE,
+  BadLinkCover,
+  HostCover,
+  NotServedCover,
+} from "./stage/frame/StatusCovers";
 import { HomeScreen } from "./stages/home/HomeScreen";
 import { DawProvider } from "./state/store";
-import { Cover } from "./system/Cover";
 import type { ProjectView } from "./types/project";
 import { ErrorScreen, LoadingScreen } from "./ui";
+import { peekOpenStage } from "./utils/openIntent";
+import { projectNameFromPath } from "./utils/projectUrl";
 
 void import("./dawApp");
 
@@ -75,6 +85,16 @@ function AppInner() {
     cover?: "bad-link" | "offline" | "failed";
   } | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const projectLoading = (
+    <StageLoading
+      stage={
+        (projectPath && peekOpenStage(projectPath)) ||
+        (reviewToken ? "review" : "prepare")
+      }
+      name={projectPath ? projectNameFromPath(projectPath) : undefined}
+      onRetry={() => window.location.reload()}
+    />
+  );
   const [shareBootstrapping, setShareBootstrapping] = useState(
     Boolean(reviewToken),
   );
@@ -129,8 +149,8 @@ function AppInner() {
           }
           if (!caps.includes("view")) {
             setError({
-              message: "This link does not open the project.",
-              hint: "Ask the person who shared it for a new link.",
+              message: BAD_LINK_TITLE,
+              hint: BAD_LINK_HINT,
               cover: "bad-link",
             });
             return;
@@ -152,8 +172,8 @@ function AppInner() {
               void clearOfflineSnapshot(reviewToken).catch(() => undefined);
             }
             setError({
-              message: "This link is invalid or has ended.",
-              hint: "Ask the host for a new link.",
+              message: BAD_LINK_TITLE,
+              hint: BAD_LINK_HINT,
               cover: "bad-link",
             });
             return;
@@ -205,34 +225,23 @@ function AppInner() {
   ]);
 
   if (!featuresReady || (Boolean(reviewToken) && shareBootstrapping)) {
-    return <LoadingScreen label="Loading project…" />;
+    return projectLoading;
   }
   if (error?.cover === "bad-link") {
     return (
       <main ref={coverRef} tabIndex={-1}>
-        <Cover size="page" glyph="octagon-alert" title={error.message}>
-          {error.hint}
-        </Cover>
+        <BadLinkCover title={error.message} hint={error.hint} />
       </main>
     );
   }
   if (error?.cover === "offline" || error?.cover === "failed") {
-    const offline = error.cover === "offline";
     return (
       <main ref={coverRef} tabIndex={-1}>
-        <Cover
-          size="page"
-          glyph={offline ? "cloud-off" : "triangle-alert"}
-          title={
-            offline ? "The host's computer is asleep" : "This link did not load"
-          }
-          primary={{
-            label: offline ? "Try now" : "Retry",
-            onClick: () => setAttempt((n) => n + 1),
-          }}
-        >
-          {offline ? "This page tries again every 30 seconds." : error.message}
-        </Cover>
+        <HostCover
+          asleep={error.cover === "offline"}
+          message={error.message}
+          onRetry={() => setAttempt((n) => n + 1)}
+        />
       </main>
     );
   }
@@ -257,7 +266,7 @@ function AppInner() {
         shareCapabilities={shareCapabilities}
         shareAuthor={shareAuthor}
       >
-        <Suspense fallback={<LoadingScreen label="Loading project…" />}>
+        <Suspense fallback={projectLoading}>
           <DawApp guestShare />
         </Suspense>
       </DawProvider>
@@ -270,7 +279,7 @@ function AppInner() {
 
   return (
     <DawProvider projectPath={projectPath} initialProject={null}>
-      <Suspense fallback={<LoadingScreen label="Loading project…" />}>
+      <Suspense fallback={projectLoading}>
         <DawApp />
       </Suspense>
     </DawProvider>
@@ -283,6 +292,17 @@ function isGuestLocation(): boolean {
 }
 
 export default function App() {
+  const notServed = readNotServed();
+  if (notServed) {
+    return (
+      <main>
+        <NotServedCover
+          notServed={notServed}
+          onNavigate={(href) => window.location.assign(href)}
+        />
+      </main>
+    );
+  }
   const inner = <AppInner />;
   return (
     <FeatureProvider>

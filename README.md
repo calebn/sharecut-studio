@@ -44,7 +44,7 @@ cd gui/web && npm ci && npm run build && cd ../..
 Notes (verified in a disposable Linux Docker image):
 
 - `uv sync --all-extras` installs every pip extra (`dev`, `gui`, `relay`, `object-store`, `prosody`).
-- A bare `podcast bootstrap` installs Whisper and RNNoise; `--component all` also installs the word aligner and the speaker model. `podcast bootstrap --component word-aligner` installs just the aligner; once downloaded, precise word boundaries (`transcribe.forced_alignment.enabled`, English) turn on by default; until then they stay unavailable and the pipeline reports word times as Whisper-only (Studio: download it next to the Pipeline tab's Precise word boundaries field).
+- A bare `podcast bootstrap` installs Whisper, RNNoise, the word aligner and the speaker model (`--component all` names the same set), and so does Studio's Get ready card. `podcast bootstrap --component word-aligner` installs just the aligner; once downloaded, precise word boundaries (`transcribe.forced_alignment.enabled`, English) turn on by default; until then they stay unavailable and the pipeline reports word times as Whisper-only (Studio: download it next to the Pipeline tab's Precise word boundaries field).
 - Without `uv`: `python3 -m venv .venv && .venv/bin/pip install -e ".[all]"` then the same bootstrap/doctor steps.
 
 Detail: [docs/setup.md § Maximal install](docs/setup.md#maximal-install-all-extras).

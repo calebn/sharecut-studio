@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-import html
+import json
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -139,7 +139,7 @@ def _accepts_html(request: Request) -> bool:
 
 
 #: ``/?home=1`` shows the host home without the pinned-project redirect
-#: (recovery page "Choose a different project", Studio New project).
+#: (the not-served cover's "All projects", Studio New project).
 #: Must match gui/web/src/utils/projectUrl.ts (test_home_query_param_matches_the_gui).
 HOME_QUERY_PARAM = "home"
 
@@ -191,42 +191,38 @@ def _pinned_root_redirect(request: Request, served: Path) -> RedirectResponse | 
     )
 
 
-def _project_mismatch_page(request: Request, served: Path) -> HTMLResponse:
-    """Friendly recovery page for browser navigation to a non-served project.
+#: The element the SPA reads to draw the "isn't open on this computer" cover
+#: (gui/web/src/utils/notServed.ts, test_not_served_element_id_matches_the_gui).
+NOT_SERVED_ELEMENT_ID = "sharecut-not-served"
 
-    The project API still returns JSON 403 for API clients; this page is only
-    served from the HTML index route so browser users get a way forward.
+
+def _project_mismatch_page(request: Request, served: Path, index_path: Path) -> HTMLResponse:
+    """The app shell with HTTP 403 for browser navigation to a non-served project.
+
+    The SPA draws the Status cover from the JSON this embeds (the served episode's
+    name and the two ways forward); the project API still returns JSON 403 for API
+    clients. This page is only served from the HTML index route.
     """
     from podcast_mcp.models import load_project
+    from podcast_mcp.services.collaboration import inject_share_document_head
 
     try:
         name = (load_project(served).meta.name or "").strip() or served.name
     except Exception:
         name = served.name
-    safe_name = html.escape(name, quote=True)
-    open_href = "/?" + _recovery_query(request, served, include_project=True)
-    home_href = "/?" + _recovery_query(request, served, include_project=False)
-    body = f"""<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Project not served &mdash; ShareCut Studio</title>
-    <link rel="stylesheet" href="/recovery.css" />
-  </head>
-  <body class="recovery-page">
-    <main class="recovery-card">
-      <h1>This project isn&rsquo;t served by this server</h1>
-      <p>This server instance is now serving <strong>{safe_name}</strong>.</p>
-      <div class="recovery-actions">
-        <a class="primary" href="{open_href}">Open {safe_name}</a>
-        <a class="secondary" href="{home_href}">Choose a different project&hellip;</a>
-      </div>
-    </main>
-  </body>
-</html>"""
+    payload = json.dumps(
+        {
+            "name": name,
+            "open_href": "/?" + _recovery_query(request, served, include_project=True),
+            "home_href": "/?" + _recovery_query(request, served, include_project=False),
+        }
+    ).replace("<", "\\u003c")
+    head = (
+        "<title>This episode isn&rsquo;t open on this computer &mdash; ShareCut Studio</title>\n"
+        f'    <script type="application/json" id="{NOT_SERVED_ELEMENT_ID}">{payload}</script>'
+    )
     return HTMLResponse(
-        body,
+        inject_share_document_head(index_path.read_text(encoding="utf-8"), head),
         status_code=403,
         headers={"Cache-Control": "no-cache"},
     )
@@ -366,7 +362,7 @@ def create_app(
                         code="project_path_not_allowed",
                     )
                 require_host(request, token=request.query_params.get("session_token"))
-                return _project_mismatch_page(request, Path(served))
+                return _project_mismatch_page(request, Path(served), index_path)
             try:
                 from podcast_mcp.models import load_project
                 from podcast_mcp.services.collaboration import (
@@ -402,25 +398,6 @@ def create_app(
             if not favicon_path.is_file():
                 raise coded_http_error(404, "favicon not found", code="static_asset_not_found")
             return FileResponse(favicon_path, media_type="image/svg+xml")
-
-        recovery_css_path = static_root / "recovery.css"
-        brand_tokens_path = static_root / "brand-tokens.css"
-
-        @app.get("/recovery.css")
-        def recovery_css() -> Any:
-            """Styles for the non-served-project recovery page."""
-            if not recovery_css_path.is_file():
-                raise coded_http_error(404, "recovery.css not found", code="static_asset_not_found")
-            return FileResponse(recovery_css_path, media_type="text/css")
-
-        @app.get("/brand-tokens.css")
-        def brand_tokens_css() -> Any:
-            """Shared brand tokens used by standalone recovery pages."""
-            if not brand_tokens_path.is_file():
-                raise coded_http_error(
-                    404, "brand-tokens.css not found", code="static_asset_not_found"
-                )
-            return FileResponse(brand_tokens_path, media_type="text/css")
 
         @app.get("/favicon.ico")
         def favicon_ico() -> Any:
