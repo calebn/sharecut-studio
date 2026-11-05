@@ -5,10 +5,10 @@
 > - Inspector sheet, Invite popover, eye popover, History popover, speaker popover and person popover became **Sheet** instances. Project menu, Create here and More became **Menu** instances.
 > - Script header notices became inline **Status rows**. The Empty state pattern became **Cover**. The corner zoom cluster and marker lane are parts of **Timeline**. The Edit surface switch is a Segmented control (`chart-gantt` / `text`).
 > - Comment popover and suggestion inspector became a compact **Decision card**.
-> - The Blade tool and the Select/Blade toggle are removed. Split is a visible Action bar verb on S (and Mod+K), or Alt-click at the pointer; on touch it is the bar's Split or a long-press on a lane ("Split here"). Solo moves to Shift+S. B now means Hear after.
+> - The Blade tool and the Select/Blade toggle are removed. Split is Mod+K, or Alt-click at the pointer. B now means Hear after.
 > - Keys: hold O became hold A. Shift+M chapter became Shift+C. Mod+Shift+E became Mod+E. Mod+B is palette only. Mod+N is dropped. Tab is "next of the same kind" and F6 moves between regions.
 > - Icons: Keep is `shield-check` (not the U-turn arrow). Hear is `ear`. Follow is `locate-fixed`. The listen role is `ear`. Review stage is `inbox`. Prepare stage is `wand-sparkles`. Deliver stage is `send`. Failed is `octagon-alert`.
-> - Commenter guests get Review only (their Cut makes a Suggestion). Editor guests get Edit, Review and Deliver (the Podcast listing only), not Prepare.
+> - Commenter guests get Review only (their Cut makes a Suggestion). Editor guests get Edit and Review, not Prepare.
 > - The Script 68-character measure applies in Script focus only (about 44 characters at 400 px).
 > - Storybook titles: `System/*` and `Stages/Edit/*` replace `Shell/*` and `Edit/*`.
 
@@ -43,7 +43,7 @@ Today's status bar, transport bar, Menu, View menu, bottom dock tabs, layout pre
 - Keys: Mod+1 Prepare, Mod+2 Record, Mod+3 Edit, Mod+4 Review, Mod+5 Deliver. These replace today's Mod+1..4 layout presets.
 - Opening a project lands on the stage you last used for that project. First open: no audio lands on Prepare; audio present lands on Edit.
 - Badges carry state so you know where work is waiting without visiting: Prepare shows a progress ring while a job runs and an amber dot when a step needs you; Record shows a red dot and elapsed time while a take is live; Review shows the count of open suggestions plus open comments; Deliver shows a check when the readiness list passes.
-- Guests see only the stages their link allows (Viewer: Review; Commenter: Review and Edit in suggest mode; Editor: Edit, Review and Deliver, where Deliver shows the Podcast listing only). Record room guests never see this shell; they use the Record room (spec-record).
+- Guests see only the stages their link allows (Viewer: Review; Commenter: Review and Edit in suggest mode; Editor: Prepare, Edit, Review). Record room guests never see this shell; they use the Record room (spec-record).
 
 ### What the Edit stage is for
 
@@ -64,16 +64,14 @@ Making precise changes to the episode: cutting words and ranges, trimming, fadin
 | Hear | speaker-wave | Shift+Space | plays the words | plays the range | plays the clip | plays 2 s across the seam | A/B: A before, B after | plays from it | n/a (Space plays) |
 | Cut | scissors | Backspace / Delete | removes them | removes time | removes clip | n/a | accepts the cut (Enter also) | n/a | n/a |
 | Keep | arrow-uturn (restore) | X | restores cut words | n/a | n/a | restores the cut at this seam | rejects the suggestion | n/a | n/a |
-| Split | blade | S | splits at both selected-word edges in one undo step | splits at both edges | splits at playhead | n/a | n/a | n/a | splits at playhead |
-| Comment | speech bubble | C | comment on words | comment on range | comment on clip span | comment at seam | comment on it | n/a (reply is R in Review) | comment at playhead |
-| Fix text | text-cursor | Enter, F2 or double-click | inline correction | n/a | n/a | n/a | n/a | rename (chapter, social) | n/a |
+| Split | blade | Mod+K | n/a | splits at both edges | splits at playhead | n/a | n/a | n/a | splits at playhead |
+| Comment | speech bubble | C | comment on words | comment on range | comment on clip span | comment at seam | comment on it | reply (comment) | comment at playhead |
+| Fix text | text-cursor | F2 or start typing | inline correction | n/a | n/a | n/a | n/a | rename (chapter, social) | n/a |
 | Remove | trash | Backspace | n/a | n/a | n/a | n/a | n/a | deletes the marker | n/a |
-| More | ellipsis | . (period) opens | Mute or Restore ignored words, Move to speaker, Copy | Mute, Fill room tone, Move to speaker, Export selection | Mute, Gain, Fade, Move to track | Join type, Precision | Adjust bounds | n/a | Add chapter, Add volume point, Paste |
+| More | ellipsis | . (period) opens | Mute, Move to speaker, Copy | Mute, Fill room tone, Move to speaker, Export selection | Mute, Gain, Fade, Move to track | Join type, Precision | Adjust bounds | n/a | Add chapter, Add volume point, Paste |
 | Inspect | sliders | I | timing | In/Out/Length | properties | offset, join | why, bounds | time, title | n/a |
 
 Rules. Cut always removes audio and is drawn as struck text plus a hatched waveform. Remove deletes a non-audio object and is never called Cut. Keep undoes a cut or rejects a proposal. Verbs that do not apply are absent, never disabled. When nothing is selected the verbs act at the playhead.
-
-For the host, the words More menu shows **Restore ignored words** only when every selected word is ignored. It clears Ignore on that selection. A mixed selection keeps **Mute**. Editor links keep **Mute**, which affects the range instead of Ignore. Commenter links stay in Review and do not expose the Edit words toolbar.
 
 **How you enter and leave Edit.** Click the Edit stage (Mod+3) from anywhere; tap Edit in the phone tab bar; press E ("Adjust in Edit") on a suggestion in Review, which opens Edit with that suggestion selected and zoomed to it; tap a comment's time in Review, which opens Edit at that time. Leave by any stage tab. Nothing in Edit blocks leaving; an in-progress drag is cancelled, an open Fix text field is committed.
 
@@ -198,7 +196,7 @@ For the host, the words More menu shows **Restore ignored words** only when ever
 | Connect agent… | Project menu "Connect agent" | Rare, project-level |
 | Import audio…, New track | Prepare; in Edit, the "+" under the last track header (Import audio / Empty track / Record a take); drop anywhere | Next to the tracks it creates |
 | Remove track, Move track up/down | Track header: drag to reorder; track action bar Remove (trash) | Act on the object |
-| Add chapter at playhead | Playhead action (More, Shift+C); double-click the marker lane | Direct |
+| Add chapter at playhead | Playhead action (More, Shift+M); double-click the marker lane | Direct |
 | Select a range | Drag on empty lane; text selection; R toggles range dragging on touch | Direct |
 | Audition (collapsed) | Player bar Hear original | One transport |
 | Mix status (collapsed) | Player bar mix ring | One transport |
@@ -239,7 +237,7 @@ For the host, the words More menu shows **Restore ignored words** only when ever
 - **Fate:** restyle into header avatars + NEW: Invite popover.
 - **Spec:**
   - Header right: up to 3 avatars, 24 px, each with a 2 px ring in that person's presence color; an avatar for someone in a different stage shows that stage's 10 px icon at its corner. "+N" overflow chip.
-  - Click an avatar: popover 260 px with name, role, where they are ("Review · 23:14"), buttons Follow (eye icon) and Go to (arrow icon, jumps your playhead and stage to theirs once, no follow). Following shows the Player's "Following {name}" pill and a ring of their color around the play button (see the presence spec in spec-review-deliver.md).
+  - Click an avatar: popover 260 px with name, role, where they are ("Review · 23:14"), buttons Follow (eye icon) and Go to (arrow icon, jumps your playhead and stage to theirs once, no follow). Following shows the BAN-FOLLOW bar (spec owned elsewhere) and a ring of their color around the play button.
   - Invite button (person-plus): popover 320 px: role segmented (Can listen / Can comment / Can edit, icons ear, bubble, pencil), "Copy link" primary button, list of people with this link. Same component as Deliver's share card.
   - Phone: one avatar max in the header plus the count; tap opens the same content as a sheet.
 - **Shared elements used:** Person tile (24 px avatar form), NEW: Invite popover (shared with Deliver).
@@ -271,14 +269,13 @@ For the host, the words More menu shows **Restore ignored words** only when ever
 - **Today:** SCR-SHELL-TABLET--tablet-light.png, SCR-PHONE-TIMELINE--phone-light.png, SCR-SHELL-DESKTOP shots. Hierarchy: tools are split between the transport (desktop) and a second row (tablet/phone). Interaction cost: ten tools (Select, Blade, Comment mode, Range, Undo, Redo, Zoom ±, Add track, Import, Cut at playhead). Consistency: phone shows Select range as a dashed box, tablet as the words "Select range".
 - **Fate:** replace. Tools collapse to a two-state tool toggle; the rest become verbs, header buttons or the corner zoom cluster.
 - **Spec:**
-  - There is no tool toggle (W1a, #2294). The tool rail, the Select/Blade modes, V, C and the spring-loaded Blade are gone; the corner box keeps the zoom cluster, the Script toggle, the eye and, on touch, the range toggle. Split is the Action bar's Split (S, or Mod+K at the playhead), or Alt-click at the pointer (mouse only); touch has the bar and the long-press menu.
-  - Comment mode removed (W1a): the ruler no longer pins a comment, `Mod+Shift+C` and the Comments panel mode button are gone. Comment is a verb on any selection and at the playhead (C, and the action bar's Comment).
-  - Range tool removed on desktop: drag on empty lane area (or Shift-drag over clips) selects a range. Touch: long-press on a lane then drag selects a range; a range toggle (bracket icon, `range.arm`, 44 px) sits in the corner box on touch devices only (W1a: moved from the old tool strip into `EditCorner`, story `Stages/Edit/Corner` `TouchWithRange`).
+  - Tool toggle sits in the timeline corner box (above the track headers, 168 × 48 px): two icon buttons, Select (arrow) and Blade (blade), 32 px, segmented. V selects, B toggles Blade; holding B gives a spring-loaded Blade that returns to Select on release.
+  - Comment mode removed: Comment is a verb on any selection and at the playhead (C).
+  - Range tool removed on desktop: drag on empty lane area (or Shift-drag over clips) selects a range. Touch: long-press on a lane then drag selects a range; a range toggle (bracket icon) appears in the corner box on touch devices only.
   - Undo/Redo move to the header. Zoom moves to the corner zoom cluster. Add track and Import move under the track headers ("+"). Cut at playhead is the Split verb at the playhead (Mod+K).
   - CMP-RAIL-PEEK is replaced by the standard tooltip: name + key, 500 ms delay, shown on hover and keyboard focus, and once on first touch use as a NEW: Coach tip.
 - **Shared elements used:** Icon language, NEW: Coach tip.
-- **Alt-click Split (W1a):** with Alt held a 2 px guide with a 1 px ring follows the pointer over the lanes the split will cut (the targeted tracks, else the dialogue tracks, exactly what Mod+K cuts; a clip selection does not narrow it) and the cursor becomes a crosshair. Alt-click runs `edit.bladeCut` at that time, with the permission gate unchanged and no confirm on phone or tablet (Undo is on the toast). A plain click never splits, a click on a control in the lane is left alone, and an Alt press that travels more than a drag threshold (5 px) before release is a drag, not a split. A refused or failed split (a gap with no clip, no permission) is announced as an error in plain words, never silent. Under forced colors the guide drops its fill and ring and paints as a 2 px border. Alt held while the pointer is outside the lanes shows nothing, and a viewer or a guest who cannot suggest edits gets neither the guide nor the crosshair; releasing Alt, a window blur or a hidden tab clears the guide. Alt-press on a clip body does not start a drag or a range. The Alt key is Option on macOS. Some Linux window managers, Windows and ChromeOS shells can take Alt-click before the page sees it, and on Windows an AltGr click reports Alt as well, so it can also split. Touch has no Alt, so touch splits with the action bar's Split verb, the S key, or the create menu's Split here.
-- **Story to build:** `Stages/Edit/Corner` stories `TouchWithRange`, `RangeArmed`, `RangeUnavailable` (built in W1a).
+- **Story to build:** `Edit/ToolToggle` stories `Select`, `Blade`, `SpringBlade`, `TouchWithRange`.
 
 ### CMP-STATUSBAR · Status bar
 
@@ -316,7 +313,7 @@ For the host, the words More menu shows **Restore ignored words** only when ever
 - **Fate:** restyle.
 - **Spec:**
   - Stack top to bottom: ruler 24 px; marker lane 24 px; lanes filling the rest. On phone and when Script focus is on, the NEW: Overview strip (16 px) sits above the ruler showing the whole episode with a draggable viewport rectangle.
-  - Lane: track color as a 3 px edge on the lane's own inline start (System/Lane draws it, not the header) and a 6 % tint behind the lane. Clips draw as rounded 6 px rectangles in the track color with the waveform at 70 % contrast.
+  - Lane: track color as a 3 px left edge on the header and a 6 % tint behind the lane. Clips draw as rounded 6 px rectangles in the track color with the waveform at 70 % contrast.
   - Playhead: 2 px accent line across ruler and lanes with a 10 px triangle on the ruler; on phone it is fixed at the horizontal center (existing fixed-playhead behavior) and content scrolls under it.
   - Suggestions draw in-lane as hatched regions (shared Suggestion element); applied cuts draw as Seam marks.
   - Corner zoom cluster: bottom-right of the lanes, floating 8 px inside, a 3-button pill: Fit (arrows-out), Zoom out, Zoom in; plus the eye button. 32 px buttons, 44 px on touch.
@@ -327,7 +324,7 @@ For the host, the words More menu shows **Restore ignored words** only when ever
 - **Touch:** one-finger horizontal swipe pans; pinch zooms about the fingers; tap selects; long-press empty opens Create here; long-press then drag selects a range.
 - **States:** empty (SCR-SHELL-INGEST), loading peaks (flat center line in track color until peaks arrive), recording (OVL-RECORDING), guest read-only (no handles; tap selects for Comment/Hear only).
 - **Shared elements used:** Suggestion, NEW: Seam, NEW: Overview strip, NEW: Corner zoom cluster, Action bar.
-- **Story to build:** `Stages/Edit/Timeline` stories `ThreeTracks`, `DeepZoom`, `PhoneFixedPlayhead` (built from the parts, S7b-1a) and `WithEnvelope` (S7b-1b); `System/Lane` stories `Empty`, `ThreeTracks`, `PeaksLoading`, `Muted`. Still to build, with the parts they need: `TwelveTracks`, `WithSuggestions`, `WithCuts`, `ReadOnlyGuest`. A guest's read-only look is the clip's, not the lane's.
+- **Story to build:** `Edit/Timeline` stories `ThreeTracks`, `TwelveTracks`, `DeepZoom`, `WithSuggestions`, `WithCuts`, `PeaksLoading`, `ReadOnlyGuest`, `PhoneFixedPlayhead`.
 
 ### CMP-RULER · Time ruler
 
@@ -335,7 +332,7 @@ For the host, the words More menu shows **Restore ignored words** only when ever
 - **Fate:** restyle.
 - **Spec:** 24 px. Labels in Plex Mono 11 px at adaptive intervals (never closer than 64 px). Click seeks; drag scrubs with audio (short grains, 1× speed cap); double-click fits; the current selection draws as a 4 px accent band along the bottom of the ruler with 12 px drag handles at both ends (resize the selection from the ruler). Comment anchors move to the marker lane.
 - **Shared elements used:** Transport (playhead), OVL-RANGE band.
-- **Built (design-system element 17a, `System/Ruler`):** the stories are `Fit`, `Zoomed`, `WithSelection`, `Scrubbing`, `Phone` and more, under `System/Ruler`, not `Edit/Ruler`. The part reports the scrub as seconds with commit or not; scrub audio (the grains and the 4x silent pan of INT-SCRUB) is the host's and is not built here. No minor ticks are drawn. A finger swipe scrubs after 10 px on the ruler body, the session bands carry one pill button each (a sibling layer in `timeline/TimelineRuler.tsx`, not inside the slider): it seeks to the session's start and selects its clips, host only for now, only as wide as its label (under a coarse pointer its target is that width by the 24 px height of the ruler row, so a tap beside it still seeks), named “S2, Session 2 - Name: select its clips” and drawn selected (outline, no ARIA state) while its clips are the selection; pills are placed in px (their width and gap scaled by the root font size) left to right, each at its band's left edge or just right of the previous pill, pulled left to stay inside the row, and a pill that cannot fit without covering another is left out, and a short band's pill can extend past the band, where a press still selects that session; while record clips are on the timeline the labels refetch (debounced 300 ms, at most 2 s after the first change of a run) on each history change and keep the last answer if a fetch fails; and the selection knobs are 44 px wide and 24 px tall under a coarse pointer, since a taller area would cover the marker lane.
+- **Story to build:** `Edit/Ruler` stories `Fit`, `Zoomed`, `WithSelection`, `Scrubbing`, `Phone`.
 
 ### CMP-MARKERS · Marker lane
 
@@ -343,17 +340,14 @@ For the host, the words More menu shows **Restore ignored words** only when ever
 - **Fate:** restyle into one NEW: Marker lane.
 - **Spec:** one 24 px lane. Chapter: 12 px flag in the chapter token with its title inline (truncated at the next marker). Comment: 16 px speech-bubble pin in the comment token with the author's initial; a span comment draws a 3 px bar in the same color from start to end. Social clip: bracket pair "[ ]" in the social token connected by a 2 px line, title on hover. Hover any marker: label tooltip with time. Click: select (action bar). Drag a chapter or bracket edge: move with a readout chip. Double-click empty lane: add chapter at that time and open its name for typing. Overlapping markers stack into a "+3" chip that opens a list.
 - **Shared elements used:** Icon language, Action bar, NEW: Readout chip.
-- **Built (design-system element 18a, `System/MarkerLane`):** the stories are `AllKinds`, `Dense`, `Selected`, `AddingChapter`, `Phone` and more, under `System/MarkerLane`, not `Edit/MarkerLane`. A whole bracket drags as well as its edges, and a comment pin is selectable but never drags. A touch area is 44 px wide for an isolated marker and exactly the lane's 24 px tall; chapter labels leave space for point pins, and reach beside a stack uses its actual button bounds. Other dense neighbours share the available gap, so a pin keeps 44 px wherever there is room and half the gap otherwise (design-system 18a), and the "+N" list is the reliable path. A double-tap on touch relies on `dblclick`, so the phone's primary way to add a chapter is the dock's "Add chapter". A marker folded into a "+N" chip is reached through the chip's list, also from the keyboard.
-
-- **Live editing contract:** pointer and keyboard moves preserve a clip idea's length within a known episode. Edges keep a 0.1 s minimum. Repeating at a bound discards overshoot so reversing moves immediately. Unknown duration and a whole span at least as long as the episode remain unbounded. A changed source span, zoom, window start, duration or read-only state cancels held input, including a press below the movement threshold. A preview and a refresh with identical source times do not cancel it. Arrow release or ordinary keyboard blur commits once. A held pointer drag cancels when its marker loses focus. Escape, invalidation and unmount cancel. Repeated arrows after cancellation wait for release before another held move.
-- **Live chapter creation and visibility:** inline naming, the playhead action and touch create menu use `edit.addChapter`. A supplied name is trimmed and must be nonempty. One pending flag disables overlapping additions, and a completion from an earlier project lifetime cannot select, announce or clear a newer add. Markers off hides clipping flags and their reserved row; visible comments remain independent. A short touch layout may show only the clipping row.
+- **Story to build:** `Edit/MarkerLane` stories `AllKinds`, `Dense`, `Selected`, `AddingChapter`, `Phone`.
 
 ### CMP-CLIP · Clip block
 
 - **Today:** INS-CLIP--desktop-light.png, POP-JOIN--desktop-light.png. Direct manipulation: trim handles and fade corners are invisible until you know where to hover; numbers live in a form. Language: "reference · 1m 0s" label repeats the track name on every clip.
 - **Fate:** restyle.
 - **Spec:**
-  - Label only when useful: take name or source file, top-left 11 px, hidden when the clip is 80 px wide or narrower (design-system element 17: shown only when wider than 80 px).
+  - Label only when useful: take name or source file, top-left 11 px, hidden when the clip is narrower than 80 px.
   - Hover (pointer): 8 px trim zones at both edges show a ↔ cursor; fade knobs (10 px circles) appear at the top corners. Selected: 2 px accent outline, trim handles become visible 6 × 24 px tabs, fade knobs stay visible; on touch the handles' hit areas grow to 44 px.
   - Fades draw as a curve in the top corners with the faded area at 40 % opacity.
   - Seams between adjacent clips draw as NEW: Seam marks (6 px diamond on the lane's top edge).
@@ -374,16 +368,15 @@ For the host, the words More menu shows **Restore ignored words** only when ever
 
 - **Today:** not reached (no shot, no story). Interaction cost: needed only when a finger covers several targets.
 - **Fate:** keep, restyle.
-- **Spec:** on long-press over overlapping targets, a fan of 44 px round chips appears 56 px above the finger (to the chip's centre; the outer chips bend back so their lower edge stays 28 px above it), each with the object-kind icon (clip, seam, comment, suggestion, envelope point, chapter, social clip, word) and its track color ring. A caption on the far side of the arc from the press point names the chip the finger is over. Slide to a chip and lift to select; lift elsewhere cancels, and the gesture is owned by the hit router, not by the chooser. The chips are 8 px apart, the outer ones sag 6 px, and the fan keeps 16 px from the box edges. At most five chips are drawn; the host shows the five best-ranked. Never shown when one target is unambiguous. Keyboard fallback: a menu of the same chips, Left and Right to move, Enter to pick, Escape to cancel.
+- **Spec:** on long-press over overlapping targets, a fan of 44 px round chips appears 56 px above the finger, each with the object-kind icon (clip, seam, comment, suggestion, envelope point, word) and its track color ring. Slide to a chip and lift to select; lift elsewhere cancels. Never shown when one target is unambiguous.
 - **Shared elements used:** Icon language.
-- **Story to build:** `Stages/Edit/TargetChooser` stories `TwoTargets`, `FourTargets`, `MarkerTargets`, `NearEdge`, `NearTop`, `Phone`, `PhoneEdge`, `Gesture`.
+- **Story to build:** `Edit/TargetChooser` stories `TwoTargets`, `FourTargets`, `NearEdge`.
 
 ### CMP-RANGE-ACTIONS · Range actions bar
 
 - **Today:** INS-RANGE--desktop-light.png, --phone-light.png, INS-WORD--desktop-light.png. Hierarchy: a full-width toolbar pushes the timeline down 68 px (152 px with word controls). Hierarchy: "Fill room tone" shows disabled with a sentence explaining why. Interaction cost: seven text buttons plus "Add word before / after / Drop first / last word / Ignore".
 - **Fate:** merge into the Action bar (range variant).
 - **Spec:** action bar over the range: Hear, Cut, Split, Comment, More (Mute, Fill with room tone only when the range contains a gap, Move to speaker only when lanes are speaker-split, Export selection…, Copy), Inspect (In, Out, Length Scrub fields). Left of the verbs: NEW: Scope chip showing which tracks are affected as stacked track-color dots ("All" when all) and a ripple glyph when time will close. Clicking the scope chip opens track toggles. The range edges are dragged directly on the lane or ruler; word-range adjustments are drag handles on the text selection (CMP-WORDRANGE).
-- **Built (W1b, #2294):** `stage/edit/EditActionBar.tsx` draws the bar from `editFacts` and `resolveBar`, worded and gated by `commands/editVerbs.ts` (`barModelOf`, `runEditVerb`): floating by the selection on desktop and tablet (below the selection so the ruler stays uncovered, flipping above when there is no room; hides while its anchor is scrolled or zoomed out of view), the dock above the Player on a phone. `timeline/RangeActions` shrank to `timeline/RangeFields`: the In and Out fields with the track scope and the agent range, the choice between audible occurrences, and the word-range handles. Its verb buttons, summary line and Clear range (Esc) are gone; Move to speaker is a More row per sibling lane. The gates carried over: busy, a join in flight, a stale range, "Suggest cut" and "Suggest mute" for a suggest link, host-only Export, the guest's "Play full mix" and its stale-mix refusal. A refusal of any verb is announced; only the primary shows a disabled reason in place. A selection across tracks covers the range on every one of them (W2 reads this for words). The Inspector opens only on Inspect (I, the verb, a double-click on a clip), never because something is selected.
 - **Anticipated next action:** after Cut, the next similar range. See INT-WORD-CUT and INT-RANGE.
 - **Shared elements used:** Action bar, NEW: Scope chip, Inspector sheet.
 - **Story to build:** `Edit/ActionBar` stories `Range`, `RangeWithGap`, `RangeScopeOneTrack`, `RangePhoneDock`.
@@ -429,18 +422,17 @@ For the host, the words More menu shows **Restore ignored words** only when ever
 
 - **Today:** MENU-PEOPLE--desktop-light.png (G avatar pinned on the lane). Consistency: avatar sits on the clip label.
 - **Fate:** restyle.
-- **Spec:** remote playhead: 1 px line in the person's color with a 16 px flag on the ruler (a circle in their color with their first initial, drawn by System/Presence; it is not a Person avatar size, see design-system element 32). Remote selection: 1 px outline in their color, no fill (dashed under forced colors). Hidden for the person you follow. One overlay over ruler, marker lane and lanes in the time column, taking no pointer. The remote pointer cursor in the lanes was dropped by the wiring slice (the local cursor is still published); a follow-up adds it to System/Presence.
-- **Built (#2294 S7b W2):** `timeline/TimelinePresence.tsx` mounts the leaf in the ruler's own window (`timeline/useRulerWindow.ts`) as the last child of the time column, one step above the sticky ruler and marker lane. It owns the join/leave announcer and a rAF ticker that moves a playing remote playhead, and widens point selections to 2 px (5 px for an envelope point) and spans to at least 2 px. The line stops at the bottom of the last lane (`--sys-presence-end`, set from the lane rows) and runs the full height when there are no lanes. People and selections keep their objects and arrays while their values are equal (`presence/useStableList.ts`), so a cursor-only roster change redraws nothing. Under vertical scroll the flag and the marker-row part of the line move with the lanes, not with the pinned ruler.
+- **Spec:** remote playhead: 1 px line in the person's color with a 16 px avatar flag on the ruler. Remote selection: 1 px outline in their color, no fill. Cursor shown only within the lanes. Hidden for the person you follow.
 - **Shared elements used:** Person tile (avatar form).
-- **Story to build:** `System/Presence` stories `TwoRemote`, `RemoteSelection`, `FollowedHidden`; the phone form is `PhoneFixedPlayhead` in `Stages/Edit/Timeline`.
+- **Story to build:** `Edit/Presence` stories `TwoRemote`, `RemoteSelection`, `Phone`.
 
 ### OVL-ENVELOPE · Volume envelope
 
 - **Today:** INS-ENVELOPE--desktop-light.png. Interaction cost: Show, Edit, then "Select a point" dropdown and "Add point" button. Language: "1.00× is unchanged, 0 is silent, 1.50× is the maximum".
 - **Fate:** restyle; points created directly.
-- **Spec:** shown from track or clip More > Volume, or when points exist. Line in the track color, 2 px, values in dB on a scale from -60 dB to +3.52 dB (the stored gain's ceiling), with a labelled 0 dB guide (design-system element 15b). Click the line adds a point; drag moves it (readout chip "−3.0 dB · 12:04.3"); select shows action bar (Hear, Remove, Inspect: Time and Level Scrub fields); Backspace removes. Hide envelope from the eye popover.
+- **Spec:** shown from track or clip More > Volume, or when points exist. Line in the track color, 2 px, values in dB. Click the line adds a point; drag moves it (readout chip "−3.0 dB · 12:04.3"); select shows action bar (Hear, Remove, Inspect: Time and Level Scrub fields); Backspace removes. Hide envelope from the eye popover.
 - **Shared elements used:** Action bar, NEW: Scrub field, NEW: Readout chip.
-- **Story to build:** `System/Envelope` stories `Empty`, `Points`, `PointSelected`, `Dragging`, `Tall`, `ReadOnly`, `Phone` (built, S7b-1b), `Fade`, `Wired` (leaf fix, W3a: gain-space line, one-axis drags, `hitProps`); `WithEnvelope` in `Stages/Edit/Timeline`.
+- **Story to build:** `Edit/Envelope` stories `Empty`, `Points`, `PointSelected`, `Dragging`, `Phone`.
 
 ### OVL-BLEED · Automatic reduction regions
 
@@ -460,7 +452,7 @@ For the host, the words More menu shows **Restore ignored words** only when ever
 - **Today:** no shot. Feedback: the only in-Edit sign of a live take.
 - **Fate:** keep; coordinate with spec-record.
 - **Spec:** while a take records, each recording lane shows a red-tinted band growing from the take start to the live edge with a live waveform; the Record stage badge pulses (static dot until the animation pass). Clips under the band can't be edited until the take lands; tapping the band offers "Go to Record".
-- **Story to build:** `Stages/Edit/Timeline` story `RecordingLive`.
+- **Story to build:** `Edit/Timeline` story `RecordingLive`.
 
 ### OVL-RANGE · Range and comment span overlay
 
@@ -479,11 +471,11 @@ For the host, the words More menu shows **Restore ignored words** only when ever
 
 ### MENU-CREATE · Create here menu
 
-- **Today:** MENU-CREATE--desktop-light.png. Before W1: disabled "Add envelope point · Show the volume envelope before adding a point". Consistency: verbs here (Blade cut, Add comment) use different names than the toolbar. Built (W1b, superseded by the next sentence): the long-press menu opened with Split here, then Add chapter and Add comment, then the lane's Add envelope point. Built (#2294 S7b W1): the menu is the Create here part `Stages/Edit/CreateMenu`, mounted by `timeline/TimelineCreateMenu.tsx`: Split here, Comment here, Add chapter here, Record here (host only), then Add volume point on a lane (picking it turns the volume layer on) and Paste while the clipboard has audio; rows the link cannot run are absent, not disabled.
+- **Today:** MENU-CREATE--desktop-light.png. Language: disabled "Add envelope point · Show the volume envelope before adding a point". Consistency: verbs here (Blade cut, Add comment) use different names than the toolbar.
 - **Fate:** restyle as the playhead/point variant of the verbs.
-- **Spec:** right-click, Shift+F10 or long-press on an empty point opens a 220 px menu headed by the time and track ("12:04.3 · Maya", a 32 px row): Split here (no key cap: its chord cuts at the playhead, and the keymap is held while the menu is open; the row carries the note "Cuts at this time, not the playhead" as its accessible description and tooltip, never visible text, with no change to the row's height) first, Comment here (C), Add chapter here (Shift+C), Record here (host only), Add volume point (the `spline` icon; on any lane, and picking it turns the volume layer on), Paste (when the clipboard has audio). Rows are 36 px, 44 on touch. Same icons as the action bar. Rows that can't apply are absent, so there are no disabled rows and no reasons. Escape closes the menu without clearing the selection, and Tab out closes it. Phone: the same rows in a content-height Sheet. When the menu closes and focus would otherwise be lost, it returns to the press target (its focusable, else the held lane, else the Timeline position slider); after a Paste that ran it lands on the held lane, named for its track and ringed, only if focus is still free.
-- **Shared elements used:** Icon language, Action bar verbs, Menu (220 px instance).
-- **Built (S7b-2a, #2294):** `Stages/Edit/CreateMenu` stories `Lane`, `WithNote`, `WithPaste`, `NearEdge`, `Phone` (design-system Edit-local list). Superseded by #2294 S7b W1, which wired the host: it maps `onPick(id)` to commands at the held time (Split here is `edit.bladeCut` with `atTime`), announces the menu, and adds the portal and top layer; Add volume point shows on any lane.
+- **Spec:** right-click, Shift+F10 or long-press on an empty point opens a 220 px menu headed by the time and track ("12:04.3 · Maya"): Split here (Mod+K), Comment here (C), Add chapter here (Shift+M), Add volume point, Paste (when the clipboard has audio). Same icons as the action bar. Rows that can't apply are absent.
+- **Shared elements used:** Icon language, Action bar verbs.
+- **Story to build:** `Edit/CreateMenu` stories `Lane`, `WithPaste`, `Phone`.
 
 ### Tracks
 
@@ -492,15 +484,15 @@ For the host, the words More menu shows **Restore ignored words** only when ever
 - **Today:** SCR-SHELL-DESKTOP--shell1280-light.png, SCR-SHELL-TABLET--tablet-light.png, SCR-PHONE-TIMELINE--phone-light.png. Hierarchy: name, role, M, S, FX chip, a tiny fader and a grip in 180 px. Language: M/S letters, "FX 1", "Out 0.0 dB". Touch: phone headers are a circle and an unlabeled slider.
 - **Fate:** restyle.
 - **Spec:**
-  - Desktop 168 px. Row 1: 28 px avatar (Person tile avatar form: photo or initials in the track color) with a level ring that lights during playback; name 13/600 (click to rename inline); a stale-stem glyph as a hollow ring on the avatar while rebuilding. Row 2 (shown on hover, focus or when set): mute (speaker-slash icon) and solo (headphones icon) toggles, 32 px (design-system 4.4; 44 px on touch); level as a thin 64 px bar showing gain, drag horizontally to set (readout chip), double-click resets to 0 dB.
+  - Desktop 168 px. Row 1: 28 px avatar (Person tile avatar form: photo or initials in the track color) with a level ring that lights during playback; name 13/600 (click to rename inline); a stale-stem glyph as a hollow ring on the avatar while rebuilding. Row 2 (shown on hover, focus or when set): mute (speaker-slash icon) and solo (headphones icon) 24 px toggles; level as a thin 64 px bar showing gain, drag horizontally to set (readout chip), double-click resets to 0 dB.
   - Set states stay visible without hover: muted shows a filled speaker-slash and greys the lane; soloed shows a filled headphones icon.
   - Effects count and role leave the header (track inspector).
-  - Drag anywhere on the header (not on a control) to reorder. The drag starts from the whole header; only its controls refuse it.
+  - Drag anywhere on the header (not on a control) to reorder.
   - Widen the column by dragging its right edge to 280 px: rows then show the full fader with dB and a meter (desktop mixer view).
   - Phone: 56 px column, avatar only with level ring; tap selects the track (action bar: Mute, Solo, Hear, Inspect); mix controls in SHEET-PHONE-MIX.
-- **Keyboard:** M mute, Shift+S solo on the focused or targeted track; Shift+↑/↓ reorder.
+- **Keyboard:** M mute, S solo on the focused or targeted track; Shift+↑/↓ reorder.
 - **Shared elements used:** Person tile (avatar + live level), NEW: Scrub field (level bar), Icon language.
-- **Story to build:** `System/TrackHeader` stories `Default`, `Hover`, `Muted`, `Soloed`, `ImpliedMute`, `Rebuilding`, `Wide`, `Phone`, `Reordering`.
+- **Story to build:** `Edit/TrackHeader` stories `Default`, `Hover`, `Muted`, `Soloed`, `ImpliedMute`, `Rebuilding`, `Wide`, `Phone`, `Reordering`.
 
 ### CMP-TRACK-FADER · Track fader
 
@@ -528,10 +520,10 @@ For the host, the words More menu shows **Restore ignored words** only when ever
   - Body: turns (CMP-TURN). Text IBM Plex Sans 16/26, words as plain text runs with normal word spacing, max 68 characters measure, 24 px side padding.
   - No modes. One grammar:
     - Click a word: places the caret before it and seeks the playhead there.
-    - Drag across words, Shift-click, or double-click (word) / triple-click (sentence): selects; the action bar appears above the selection. Built: mouse drag, Shift-click, long-press, Shift with the arrows and the two handles; double-click on a word starts Fix text (next bullet). Triple-click (sentence) is deferred.
-    - Enter, F2 or double-click on a word: Fix text on that selection. Typing never starts it.
+    - Drag across words, Shift-click, or double-click (word) / triple-click (sentence): selects; the action bar appears above the selection.
+    - Typing with a selection or pressing F2: Fix text on that selection.
     - Backspace with a selection: Cut. Backspace with only a caret: nothing (protects against accidental cuts).
-  - Rendering of state: playing word gets a 2 px accent underline; cut words collapse into an Edit boundary pill (CMP-EDITBOUNDARY) unless the eye is on, then they show struck in the cut token; suggested cuts show struck with hatch background (Suggestion); muted words show greyed with a speaker-slash glyph before the run; low-confidence words get a dotted underline (a suppressed word is never low-confidence, in the stepper chip or the underline).
+  - Rendering of state: playing word gets a 2 px accent underline; cut words collapse into an Edit boundary pill (CMP-EDITBOUNDARY) unless the eye is on, then they show struck in the cut token; suggested cuts show struck with hatch background (Suggestion); muted words show greyed with a speaker-slash glyph before the run; low-confidence words get a dotted underline.
   - Follow: pin on by default. Scrolling by hand turns it off and shows a "Back to playhead" pill at the bottom center; clicking it scrolls and re-pins.
 - **Primary action:** select words.
 - **Anticipated next action:** after selecting, Cut; after cutting, the next occurrence (INT-WORD-CUT).
@@ -539,7 +531,7 @@ For the host, the words More menu shows **Restore ignored words** only when ever
 - **Touch:** see SCR-PHONE-TEXT.
 - **States:** loading (skeleton lines), transcribing (lines appear progressively; untranscribed time shows as a grey "Not transcribed yet · 12:00 to 52:10" row), no transcript (empty state "Transcribe this episode" button that starts the job), stale ("Transcript out of date · Update" notice), guest (select, Hear and Comment only; Fix text and Cut hidden for Viewer and Commenter; Commenter's Cut creates a suggestion).
 - **Shared elements used:** NEW: Script pane, Action bar, Suggestion, NEW: Seam (as boundary pill), NEW: Selection handles.
-- **Story to build:** `Edit/ScriptPane` stories `Reading`, `Playing`, `WordsSelected`, `WithCuts`, `ShowCutText`, `WithSuggestions`, `LowConfidence`, `Transcribing`, `NoTranscript`, `OutOfDate`, `GuestSuggester`, `Phone`.
+- **Story to build:** `Edit/ScriptPane` stories `Reading`, `Playing`, `WordsSelected`, `WithCuts`, `ShowCutText`, `WithSuggestions`, `LowConfidence`, `Transcribing`, `NoTranscript`, `OutOfDate`, `GuestCommenter`, `Phone`.
 
 ### CMP-TURN · Speaker turn
 
@@ -559,7 +551,7 @@ For the host, the words More menu shows **Restore ignored words** only when ever
 
 - **Today:** POP-SPEAKER--desktop-light.png. Hierarchy: a dropdown, "All turns on reference.", Save speaker and Cancel push the turn text sideways. Language: "Save speaker".
 - **Fate:** replace with a speaker popover anchored to the margin name.
-- **Spec:** 320 px (20 rem) popover titled "Speaker": list of speakers (avatar + name, 44 px rows) with a check on the current one; choosing another moves this turn to that speaker's lane (Move to speaker); a pencil on each row renames the speaker everywhere (applies on Enter; Esc cancels; leaving the field changes nothing; an empty or duplicate name stays in the field with the reason); an "Add speaker" row takes a new name the same way. The arrows move the focus ring and picking is click, Space or Enter. No Save button. Undo covers both.
+- **Spec:** 260 px popover: list of speakers (avatar + name, 44 px rows) with a check on the current one; choosing another moves this turn to that speaker's lane (Move to speaker); a pencil on each row renames the speaker everywhere (applies on Enter; Esc cancels). No Save button. Undo covers both.
 - **Shared elements used:** Person tile avatar, Action bar verb Move to speaker.
 - **Story to build:** `Edit/SpeakerPopover` stories `Open`, `Renaming`, `Phone`.
 
@@ -575,7 +567,7 @@ For the host, the words More menu shows **Restore ignored words** only when ever
 
 - **Today:** CMP-FINDREPLACE--desktop-light.png. Hierarchy: Find and Replace fields render clipped inside the three-line dock. Interaction cost: Preview replacements then Replace all.
 - **Fate:** restyle.
-- **Spec:** opening search (Mod+F or magnifier) inserts a 44 px bar under the Script header: Find field (with "3 of 12" count and ↑/↓), a toggle to show Replace (second field + "Replace" and "All" text buttons), match-case toggle (Aa). Enter steps to the next hit, Shift+Enter to the previous one, Mod+Shift+Enter cuts all. Matches follow the backend: whole words, edge punctuation ignored, case folded, muted words skipped; cut words are also skipped here so Cut all does not repeat. Matches highlight in the text and as ticks on the overview strip. Two more verbs here anticipate the common case: "Cut all 12" (scissors) which creates 12 cuts as one undo step, and "Select all 12". Esc closes.
+- **Spec:** opening search (Mod+F or magnifier) inserts a 44 px bar under the Script header: Find field (with "3 of 12" count and ↑/↓), a toggle to show Replace (second field + "Replace" and "All" icon buttons), match-case toggle (Aa). Matches highlight in the text and as ticks on the overview strip. Two more verbs here anticipate the common case: "Cut all 12" (scissors) which creates 12 cuts as one undo step, and "Select all 12". Esc closes.
 - **Shared elements used:** NEW: Overview strip ticks, Action bar verbs.
 - **Story to build:** `Edit/FindBar` stories `Find`, `FindReplace`, `NoMatches`, `CutAll`, `Phone`.
 
@@ -586,13 +578,12 @@ For the host, the words More menu shows **Restore ignored words** only when ever
 - **Spec:** Inspect on a word or word run shows a 120 px zoomed waveform of the word with one neighbor each side, start and end handles (drag), Start/End Scrub fields, and Hear. Changes save on release. No Apply or Cancel; Esc during a drag cancels.
 - **Shared elements used:** Inspector sheet, NEW: Scrub field.
 - **Story to build:** `Edit/InspectorSheet` story `WordTiming`.
-- **Built (design-system element 9a, `System/InspectorSheet`):** the story `WordTiming` shows the frame with Start and End Scrub fields and Hear under a static waveform. The waveform and its two draggable handles are not built: the handles move with the fields only.
 
 ### CMP-WORDRANGE · Words-in-range controls
 
 - **Today:** INS-WORD--desktop-light.png. Interaction cost: five large buttons (Add word before/after, Drop first/last, Ignore).
 - **Fate:** replace with NEW: Selection handles.
-- **Spec:** text selection shows 2 px accent caret handles at both ends with 12 px knobs (44 px touch hit). Drag to extend or shrink by word. Keyboard: Shift+←/→ extends by word; Alt+Shift+→ shrinks from the start and Alt+Shift+← grows it at the start (design-system 13). Esc during a handle drag puts back the selection the grip took. The handles are pointer-only and not tab stops. Ignore becomes Mute (More).
+- **Spec:** text selection shows 2 px accent caret handles at both ends with 12 px knobs (44 px touch hit). Drag to extend or shrink by word. Keyboard: Shift+←/→ extends by word; Alt+Shift+←/→ shrinks from the start. Ignore becomes Mute (More).
 - **Story to build:** `Edit/ScriptPane` story `SelectionHandles`.
 
 ### CMP-EDITBOUNDARY · Edit boundary mark
@@ -609,7 +600,6 @@ For the host, the words More menu shows **Restore ignored words** only when ever
 - **Fate:** merge into the Seam Inspector sheet.
 - **Spec:** Seam inspector: Offset Scrub field (ms, drag 1 px = 1 ms, Shift 10 ms, Alt 0.1 ms), allowed range drawn as the field's track, A/B Hear before/after the change, join type and length. Applies live on release. No dialog.
 - **Story to build:** `Edit/InspectorSheet` story `Seam`.
-- **Built (design-system element 9a, `System/InspectorSheet`):** the story `Seam` has the Offset Scrub field (the track variant, 200 ms either way), the A/B Hear before and after, the join type and its length, each in a collapsible section. The allowed range is the field's track; Hear replaying after each change is the host's.
 
 ### Inspector
 
@@ -619,13 +609,12 @@ For the host, the words More menu shows **Restore ignored words** only when ever
 - **Fate:** replace with the shared Inspector sheet.
 - **Spec:**
   - Opened by the action bar's Inspect (sliders), the I key, or double-click on an object. Never open by default on selection.
-  - Desktop/tablet: a 320 px card anchored to the action bar, below or above it whichever has room, max height 60 % of the box it is placed in, scrolls inside. Header 40 px: object icon + name (rename inline where applicable) + close ✕. Body: rows of label (12 px secondary, left) and Scrub field (right). Sections collapse by heading.
-  - Phone: the action dock (4 rem: 64 px at the default root size) is the sheet's first detent. Drag up to half (50 %) and full (92 %); drag down past the dock clears the selection. Working grip, 36 × 5 px with a 44 px hit. No Expand/Collapse buttons; tapping the grip toggles half/dock.
+  - Desktop/tablet: a 320 px card anchored to the action bar, below or above it whichever has room, max height 60 % of the viewport, scrolls inside. Header 40 px: object icon + name (rename inline where applicable) + close ✕. Body: rows of label (12 px secondary, left) and Scrub field (right). Sections collapse by heading.
+  - Phone: the action dock (64 px) is the sheet's first detent. Drag up to half (50 %) and full (92 %); drag down past the dock clears the selection. Working grip, 36 × 5 px with a 44 px hit. No Expand/Collapse buttons; tapping the grip toggles half/dock.
   - Values apply as they change (live preview), committing one undo step on release or Enter. No Apply buttons anywhere.
   - CMP-SEEK-FOOTER's Seek/Play/A-B buttons are removed from the footer; Hear and A/B live in the action bar at the top, always visible.
 - **Shared elements used:** Inspector sheet, NEW: Scrub field, Action bar.
 - **Story to build:** `Edit/InspectorSheet` stories `DesktopCard`, `TabletCard`, `PhoneDock`, `PhoneHalf`, `PhoneFull`, `LongContent`.
-- **Built (design-system element 9a, `System/InspectorSheet`):** the stories are under `System/InspectorSheet`, not `Edit/InspectorSheet`, with the names above plus `WordTiming`, `Seam`, `Range` and `Closing`. The card takes an `anchor` rect and `bounds` as data and does not read the action bar; the phone sheet takes the host's dock as a slot. The header and sections sit under the dock and are inert at the dock detent. The grip's hit area (44 by 44 px) reaches 36 px above the sheet and 8 px into it. Letting go more than 24 px below the dock, or flicking down from the dock, calls `onDismiss` and the host clears the selection; a flick down from half or full lands on the dock. The demo bodies (Clip, Track, Range, Word timing and Seam sections, used by the stories above) are built on the existing Scrub field, Time field and A/B audition and wired to nothing; the clip stories are the live `Stages/Edit/ClipInspector` ones (W3b3a); the wiring is partly built (W3a, #2294): `stage/edit/InspectorHost.tsx` mounts the card on the desktop and the tablet, anchored beside the selection (hidden, state kept, while the anchor is out of view), and the phone sheet with the Edit action bar as its dock, without Inspect among its verbs. The open state is still `inspectorKey` (I, `edit.inspect`, a double-click); the host moves focus into the first control on open, or onto the dialog's focus anchor (`[data-inspector-anchor]`, a zero-size element inside the dialog) when that control takes text, or when the body has no focusable control (the keymap ignores a typing target, so a field would swallow the shortcuts), and returns it to the opener on Esc, Close, a new selection and the phone dismiss. Each kind's body is still the legacy one, bridged as one section of the frame; the phone keeps its peek strip for timeline targets, and a range armed with Select range still opens the sheet. What remains: the per-kind content (W3b), the compact Decision card for a suggestion or a comment (W3b2), and the legacy bodies, the peek strip and their CSS, stories and e2e rows (W3c; the envelope point is built, W3c1).
 
 ### SHEET-PHONE-INSPECTOR and INS-PEEK · Phone compact inspector and peek
 
@@ -638,7 +627,6 @@ For the host, the words More menu shows **Restore ignored words** only when ever
 
 - **Today:** INS-EMPTY--desktop-light.png. Purpose: an empty column or a heading with an unmapped-edits list.
 - **Fate:** remove. No inspector without a selection. Unmapped pending edits move to Review.
-- **Built (W1b, #2294):** `inspector/views/EmptyInspector*` is deleted; the Inspector opens only on Inspect for a selection. Unmapped pending edits stay in the Review queue (`review/ReviewQueue.tsx`).
 - **Story to build:** none.
 
 ### INS-CLIP · Clip inspector
@@ -647,7 +635,6 @@ For the host, the words More menu shows **Restore ignored words** only when ever
 - **Fate:** restyle.
 - **Spec:** header: clip icon + track avatar + "Maya · 12:04 to 12:23". Rows: Start, End, Length (Scrub fields, timeline time, mono); Source in (Scrub field with a 40 px source mini-map showing used portion); Fade in, Fade out (Scrub fields with a curve-shape picker: linear, equal-power, S); Gain (dB Scrub field); Track (row of track avatars, tap to move the clip to that track at the same time); Auto reduction (toggle + "Show regions" which reveals OVL-BLEED). Delete lives on the action bar (Cut / Backspace).
 - **Story to build:** `Edit/InspectorSheet` stories `Clip`, `ClipPhone`, `ClipReadOnly`.
-- **Built (#2294 W3b3a):** a selected clip opens as Inspector sheet sections (`stage/edit/clipSections.tsx`; stories `Stages/Edit/ClipInspector` `Clip`, `ClipPhone`, `ClipReadOnly`, `ClipTransition`, `ClipTransitionPhone`, which mount the live body over the hydrated episode). The heading is the speaker and the timeline bounds ("Mira · 00:00.000 to 00:02.000", `inspectorHeading.ts`). Rows: **Source start** and **Source end** (Scrub fields in seconds, limited by the trim bounds; arrows step 10 ms, Shift 100 ms, Alt 1 ms), **Fade in** and **Fade out** (ms, limited by the track cap, the clip length and what the other fade leaves; read-only until the track loads and at a cut join), **Incoming transition** with **Transition length** (shows the applied length in ms, as `aria-valuenow` and text, and is bounded like the join popover; story `ClipTransition`) on a clip that has a left neighbour, **Mute regions**, **Auto reduction** (the button **Inspect automatic audio reduction**) and **Move** (the existing Move clip form with Apply move and Cancel). Every committed value is one save and one undo step through `saveClipEdge`, `setClipFade` or `setClipJoin`; a refused trim, join or Ripple delete stays in the sheet as an alert, and a refused fade is announced ("Fade in not saved: ...") and shows the saved value again. **Seek join**, **Play across join** and **Ripple delete** (host, Editor and Commenter links) are rows under **More**; Delete is the Action bar's Cut. Not built: the Start, End and Length fields, the source mini-map, the fade curve picker, Gain (the clip has no such data), the Track avatars row and the Auto reduction toggle. A multi-clip selection shows the first clip only. The Source start, Source end, Fade in and Fade out fields each carry fine and coarse minus and plus nudge buttons beside them (#2294 W3c2a; `inspector/SheetNudge.tsx` over `inspector/NudgeRow.tsx`, the row the phone strip also draws): the keyboard's steps (fade 1 and 10 ms, trim 0.01 and 0.1 s), hold to repeat, one save and one Undo per run (`inspector/useNudgeRun.ts`), the groups named "Nudge trim start", "Nudge trim end", "Nudge fade in" and "Nudge fade out". They are hidden where the field is read-only (a locked clip, a fade at a cut) and where `edit/mayNudge.ts` refuses the viewer.
 
 ### INS-CLIP-MULTI · Several clips
 
@@ -661,8 +648,7 @@ For the host, the words More menu shows **Restore ignored words** only when ever
 - **Today:** INS-PENDING--desktop-light.png, --phone-light.png. Interaction cost: Approve/Reject plus two source fields with eight step buttons, "Apply timing" and "Snap to silence". Language: "Review required", "Boundary inaudible".
 - **Fate:** restyle; full decision flow is the Review stage (spec-review).
 - **Spec:** header: kind glyph + "Filler · Jon · 0.8 s". Rows: Why (one sentence from the suggester), Start and End Scrub fields with snap-to-silence as the default behavior (Alt disables while dragging), Confidence as a 5-dot meter. Verbs on the action bar (Hear A/B, Cut, Keep). After Cut or Keep, the sheet follows the selection to the next suggestion.
-- **Built (#2294 W3b2b steps 1, 2a, 2b and 2c):** a pending edit, and a comment linked to a still-pending edit, open as an Inspector sheet section (`stage/edit/pendingSections.tsx`, `PendingEditBody.tsx`). The header is a kind line from `system/decisionKinds.ts` (glyph, kind, track, length) with a Why row. Start and End are Scrub fields (`Source start`, `Source end`) that save once per commit (Enter, blur, arrow key or drag end); Snap to silence is a row. Where the Action bar renders and the suggestion has a cut, shorten or lower action and is not a split or an exact range, the sheet drops its own verb buttons. The bar's Cut for a cut action and its Keep run through the open sheet (its queued-timing lock, Still sending notice and refine recovery apply); the bar's Cut for a shorten or lower action applies the suggestion's own action (`ApplySuggestedActions`) after checking the sheet's busy reason, not through the sheet's decider. A split, an exact range proposal, a suggestion with no or a leave accept action and a comment-linked pending edit keep Approve and Reject in the sheet (the phone peek sheet body shows no verbs). Pre-existing: the bar's primary verb follows the accept action alone, so a split or exact range that carries one still shows Cut, Shorten or Lower on the bar while the sheet and card say Approve and Reject. Start and End accept seconds or m:ss.mmm. Apply timing is gone; a split keeps its Cut time field and Apply. Hear before, Hear after (the A/B pair) and a Seek to start row under More are on the Action bar; the bar of a guest link with neither edit nor suggest capability (a Viewer link) is Hear and Comment, and its Hear plays the suggested side (the current side where the edit has a `suggest_reason`), with no Seek row; a Commenter with suggest capability has the full suggestion bar. Where the Action bar renders, the sheet has no preview footer (Current/Suggested/A/B, Play around, Seek); `stage/edit/usePendingEditWarm.ts` warms the server renders and releases the edit's audio when the sheet closes. A sheet with no Action bar (the phone full sheet without its dock, a comment linked to a pending edit, the legacy surface) keeps the footer. The sheet's own buttons are always labelled Approve and Reject; `pendingOffersCut` (`commands/pendingDecision.ts`) only decides whether the sheet hides them for the bar. The timeline overlay card and the pinned phone chrome name the verbs by `pendingOffersCut` and `pendingCutWords`: Cut, Shorten or Lower, and Keep; for a split, an exact range proposal and a suggestion with no or a leave action they say Approve and Reject. Where the phone sheet has no Action bar dock (the compact drawer, the full sheet at a tight height) the sheet body keeps Approve and Reject while the docked card says Cut and Keep for the same cut suggestion; the peek strip's body shows no verbs but the card docks into its chrome. The overlay's Cut for a cut action and its Keep run through the open sheet when it shows the edit; its Cut for shorten or lower applies the suggestion's own action as the bar does. The Ask section is a `system/CommentCard` (with `commentCardOf` and the project duration, so a whole-episode note shows no time) plus a `system/Composer`: the first Ask is written in the Composer, later notes in the card's reply field (when the first Ask posts, focus moves to that empty reply field, for a host and a guest link alike), Enter posts on a fine pointer, Shift+Enter adds a line and Cmd or Ctrl+Enter posts on any pointer (Enter in the name field moves to the comment field, and Cmd or Ctrl+Enter there posts), the field is named **Your question** (a reply: **Reply to {author}**), and a failed post shows in the sheet's error slot. Resolve, Reopen and the action-item checkboxes show only where the sheet can apply the edit; the card has no track ids line, Open status text or long-press select, and a resolved card shows Resolved (by name when known) in its footer. Its empty copy reads "Ask a question here before you approve or reject." Suggested bounds is a bordered group with the same rows and buttons. Story `System/InspectorSheet` `Suggestion` is a static demo; `Stages/Edit/PendingInspector` `SuggestionLowConfidence` (a 0.31 Confidence row), `SuggestionGuest` and `CommentGuest` (a Commenter link; the last with a linked thread) mount the live `PendingEditBody` over the hydrated episode, in a separate file because a story file that hydrates cannot carry the autodocs tag the InspectorSheet file has. Nothing styles a low confidence differently yet. Start and End also carry the fine and coarse nudge buttons beside them again (#2294 W3c2a; groups "Nudge pending <type> start" and "... end", the same row as the phone strip, gated by `edit/mayNudge.ts` and absent for a split, an exact range, or a viewer that cannot retime).
-- **Stories:** `System/InspectorSheet` `Suggestion`; `Stages/Edit/PendingInspector` `SuggestionLowConfidence`, `SuggestionGuest`, `CommentGuest`.
+- **Story to build:** `Edit/InspectorSheet` stories `Suggestion`, `SuggestionLowConfidence`.
 
 ### INS-APPLIED · Applied edit
 
@@ -676,21 +662,20 @@ For the host, the words More menu shows **Restore ignored words** only when ever
 - **Fate:** restyle.
 - **Spec:** header: avatar + name (inline rename). Rows: Person (speaker picker: avatars), Kind (segmented icons: voice, music, other), Level (Scrub field), Mute/Solo toggles, Effects (list rows with on/off toggles), Volume envelope (toggle shows it on the lane), Split speakers (only when the track holds more than one voice; opens DLG-SPLIT owned by spec-prepare), Replace audio. Remove is the action bar's trash verb; it removes at once with an Undo toast (no confirm, since Undo restores it).
 - **Story to build:** `Edit/InspectorSheet` stories `Track`, `TrackMusic`, `TrackPhone`.
-- **Built (#2294 W3b3b):** a selected track, and the track-level envelope selection, open as Inspector sheet sections (`stage/edit/trackSections.tsx`; stories `Stages/Edit/TrackInspector` `Track`, `TrackPhone`, `TrackReadOnly`, which mount the live body over the hydrated episode). The heading is the track label. Rows: **Name** and **Speaker** (text, saved on blur or Enter), **Role** (the five roles dialogue, music, sfx, intro and outro, saved on change; no Kind field exists), **Level** (a Scrub field, −60 to +12 dB, committed through `track.setVolume`, with the staging gain and Balance notes under it), **Mute and solo**, **Playback** (the meter and Clear clip light), **Show or Hide volume envelope**, **Stem**, **Media**, **Import audio…** or **Replace audio…**, **Split speakers…** (host only, with its blocker note), then **Effects** with a Bypass checkbox per effect (read-only active or bypassed text on a link that cannot edit) and **Tools** with **Smooth all joins**, **Go to start**, **Preview effects at track start** and **Remove track**. **Move track up** and **Move track down** stay in the Related zone under the body. A refused rename, role, bypass, smooth or level save stays in the sheet as an alert. Name, Speaker, Role, Import or Replace, Split and Remove need a link that can ingest media, as before. Not built: the avatar, the Person picker (Speaker is free text), the Kind segmented control, and Remove on the Action bar (the track verbs are still Inspect only, so Remove stays in the sheet and keeps its confirm).
 
 ### INS-CHAPTER · Chapter
 
 - **Today:** INS-CHAPTER--desktop-light.png. Interaction cost: Title field and Time field with Apply.
 - **Fate:** restyle; editing is direct on the marker.
 - **Spec:** select chapter: action bar Hear (from here), Fix text (rename inline on the marker), Remove. Inspect: Title field, Time Scrub field. Dragging the flag moves it.
-- **Built (#2294 W3b3c):** a selected chapter opens as Inspector sheet sections (`stage/edit/chapterSections.tsx`; stories `Stages/Edit/MarkerInspector` `Chapter`, `ChapterPhone`, `ChapterReadOnly`, over the hydrated episode). The heading is "Chapter". Rows: **Title** (text, saved on blur or Enter; an empty title is refused with an alert), **Time** (a Scrub field in seconds, 0 or more, one save per commit), and **Seek**. Title and Time save through `updateChapter` on the chapter's old time and title, and the selection follows the new identity. A Viewer or edit-share link sees the title and time read-only. A chapter is removed with the Action bar's Remove verb; the sheet has no Delete. Not built: Fix text inline on the marker.
+- **Story to build:** `Edit/InspectorSheet` story `Chapter`.
 
 ### INS-SOCIAL · Social clip
 
 - **Today:** INS-SOCIAL--desktop-light.png. Interaction cost: two time fields and Apply. Language: "Score 0.77", "Approved no", "Review required".
 - **Fate:** restyle; export of clips is in Deliver.
 - **Spec:** action bar: Hear, Fix text (title), Comment, Remove. Inspect: Title, Start/End Scrub fields, Quality as a 5-dot meter. Bracket edges drag on the marker lane.
-- **Built (#2294 W3b3c):** a selected social clip opens as Inspector sheet sections (`stage/edit/socialSections.tsx`; stories `Stages/Edit/MarkerInspector` `SocialClip`, `SocialClipPhone`, `SocialClipReadOnly`). The heading is "Social clip". Rows: **Title**, **Track**, **Start** and **End** (Scrub fields in seconds, each saved once per commit through `updateSocialClip`; an end that is not after the start is refused with an alert), **Score**, **Approved**, **Review**, **Seek to start** and **Delete** (not a share key, as before). A Viewer or edit-share link sees the range read-only and no Delete. Not built: an editable Title (no save path from the sheet; Deliver edits it), the Quality 5-dot meter (Score stays a number), and the social verbs on the Action bar (Hear, Fix text, Comment, Remove: the social verb set is still Inspect only, so Delete stays in the sheet).
+- **Story to build:** `Edit/InspectorSheet` story `SocialClip`.
 
 ### INS-COMMENT · Comment
 
@@ -698,13 +683,12 @@ For the host, the words More menu shows **Restore ignored words** only when ever
 - **Fate:** replace with a comment popover in place (thread UI owned by spec-review; same component).
 - **Spec:** clicking a comment pin opens a 320 px popover anchored to it: author avatar + name + relative time, body, replies, reply field (Enter sends), resolve check icon in the header. Edit shows it in place; Review shows it in the queue. Same component.
 - **Story to build:** `Edit/CommentPopover` stories `Open`, `WithReplies`, `Resolved`, `Phone`.
-- **Built (#2294 W3b2a):** a bare comment opens as Inspector sheet sections (`stage/edit/commentSections.tsx`, story `System/InspectorSheet` `Comment`): Time (seek), author, status, tracks, body, action items, replies, Reply and Resolve or Reopen. The 320 px popover form with the header resolve check and Enter-to-send is not built; a comment with a linked pending edit opens the pending sheet section (W3b2b).
 
 ### INS-WORD · Words
 
 - **Today:** INS-WORD--desktop-light.png, --phone-light.png. Hierarchy: Range actions and words-in-range buttons fill 150 px above the timeline; on phone the sheet covers the text being edited.
 - **Fate:** restyle.
-- **Spec:** action bar above the words, clear of the Script header. If it would cover that header, move the whole bar beside or above the header within the Edit content area. Flip below only when the whole bar cannot fit above or beside. Order: Hear, Keep when available, Split, Comment, Fix text for one word, Re-record for the host, More, Inspect, then Cut as the trailing primary. Split cuts both selected-word edges in one undo step. More offers Mute or the host's contextual Restore ignored words, Move to speaker and Copy. Inspect: text, confidence meter, timing (CMP-WORDBAR content). On phone the dock leaves the selected line visible by scrolling the text so the selection sits above the dock; A live single word keeps Fix text inline and Re-record in More. When Keep consumes a dock slot, Fix text folds into More ahead of Re-record.
+- **Spec:** action bar above the words (Hear, Cut, Fix text, Comment, More: Mute, Move to speaker, Copy). Inspect: text, confidence meter, timing (CMP-WORDBAR content). On phone the dock leaves the selected line visible by scrolling the text so the selection sits above the dock.
 - **Story to build:** `Edit/InspectorSheet` story `Words`; `Edit/ActionBar` story `Words`.
 
 ### INS-RANGE · Range
@@ -718,7 +702,6 @@ For the host, the words More menu shows **Restore ignored words** only when ever
 - **Today:** INS-ENVELOPE--desktop-light.png. Interaction cost: Done, Show, "Select a point" dropdown, Add point.
 - **Fate:** merge into OVL-ENVELOPE direct editing plus point Inspect (Time, Level).
 - **Story to build:** `Edit/InspectorSheet` story `EnvelopePoint`.
-- **Built (#2294 W3c1):** the workspace is gone. A selected envelope point opens **Time** and **Level** (seconds and ×, kept from what shipped; the dB values in OVL-ENVELOPE are not built) as Scrub fields in the Inspector (`stage/edit/envelopePointSections.tsx`, story `System/InspectorSheet` `EnvelopePoint`), each gesture one save and one undo step through `setEnvelopePoint` in `commands/envelopes.ts`; **Remove** and Delete or Backspace share `removeEnvelopePoint`. A failed save stays in the sheet as an alert (**Reload points** on a stale baseline, **Select the point there** for a taken time). The track-level `envelope` selection opens the track's sheet, whose Show and Hide button stays; Add point is the lane's create menu. The phone still shows the peek strip for a lane point and its fields in the drawer until the strip goes (W3c2). Each field carries the same fine and coarse nudge buttons as the clip fields (#2294 W3c2a; groups "Nudge envelope point" for Time and "Nudge envelope point level" for Level), hidden when the field is locked, the envelope is hidden or the link cannot edit.
 
 ### INS-BLEED · Automatic reduction
 
@@ -730,7 +713,7 @@ For the host, the words More menu shows **Restore ignored words** only when ever
 
 ### DLG-PALETTE · Commands and shortcuts
 
-- **Today:** DLG-PALETTE--desktop-light.png, --phone-light.png. Hierarchy: a help sentence and a "Show remaps" checkbox above the results. Language: "K alone stops playback; Mod+K splits at the playhead".
+- **Today:** DLG-PALETTE--desktop-light.png, --phone-light.png. Hierarchy: a help sentence and a "Show remaps" checkbox above the results. Language: "K alone stops playback; Mod+K is Blade cut".
 - **Fate:** keep, restyle.
 - **Spec:** opened by the header magnifier, /, ? or Mod+Shift+P. 560 px centered card at 20 % from the top (phone: full-height sheet, search field at the top with the keyboard up). Search field first; below it "Recent" (5) when empty, else ranked results. Rows 36 px: verb icon, name, context ("in Edit"), key caps right. Enter runs; Tab shows the row's key so it can be remapped. Results include stages, projects, people, speakers and chapters ("Go to Chapter: Intro"). Gestures are a result group ("Gestures") on touch devices.
 - **Story to build:** `Shell/Palette` stories `Empty`, `Search`, `NoMatch`, `Remap`, `Phone`.
@@ -757,7 +740,7 @@ For the host, the words More menu shows **Restore ignored words** only when ever
 
 ### DLG-ASK-CONFIRM · Confirms in Edit
 
-- **Today:** DLG-ASK-CONFIRM--phone-light.png ("Remove the reference track?"). Feedback: confirm for an undoable action. Touch: Split no longer asks; the toast carries Undo.
+- **Today:** DLG-ASK-CONFIRM--phone-light.png ("Remove the reference track?"). Feedback: confirm for an undoable action. Touch: blade on phone asks "Cut at 0:12?".
 - **Fate:** remove both Edit confirms (Remove track, touch blade). Undo toast instead. Confirms stay only for actions Undo can't reverse (none in Edit).
 - **Story to build:** none for Edit.
 
@@ -824,14 +807,14 @@ Each interaction uses the object selection model above. Every edit is one undo s
 
 - **Today:** SCR-SHELL-DESKTOP shots. Hierarchy: Stop is as big as Play. Consistency: phone uses ±15 s, desktop has none.
 - **Fate:** restyle.
-- **Spec:** Space play/pause (any focus except text fields, Scrub values and the Fix text field); K pauses and returns to the play start; J/L shuttle; click ruler or word seeks; ← → 1 s (Shift 5 s); Home/End. Playback always follows the playhead in the timeline and the Script while Follow is on.
+- **Spec:** Space play/pause (any focus except text fields and the Fix text field); K pauses and returns to the play start; J/L shuttle; click ruler or word seeks; ← → 1 s (Shift 5 s); Home/End. Playback always follows the playhead in the timeline and the Script while Follow is on.
 - **Story to build:** `Shell/PlayerBar` (states).
 
 ### INT-AUDITION · Audition mode
 
 - **Today:** CMP-TRANSPORT shots. Language: "Full mix / Edited stems / Original".
-- **Fate:** replace with Hear original (hold A or the A/B button) and A/B on any change.
-- **Spec:** hold A with nothing selected: hear original at the playhead (not built yet; W2); release returns. A and B on a selected suggestion or seam: hear before / after with 1.5 s pre-roll.
+- **Fate:** replace with Hear original (hold O or the A/B button) and A/B on any change.
+- **Spec:** hold O: hear original at the same source position; release returns. A and B on a selected suggestion or seam: hear before / after with 1.5 s pre-roll.
 - **Story to build:** `Shell/PlayerBar` story `HearOriginalHeld`.
 
 ### INT-SCRUB · Scrub
@@ -864,10 +847,10 @@ Each interaction uses the object selection model above. Every edit is one undo s
 
 ### INT-SPLIT · Split and blade
 
-- **Today:** CMP-TOOLRAIL shots; touch blade asked for confirmation (removed in #2294).
+- **Today:** CMP-TOOLRAIL shots; touch blade asks for confirmation.
 - **Fate:** restyle.
-- **Spec:** Mod+K splits at the playhead on the targeted tracks (scope chip; default the selected tracks, else the dialogue tracks); Alt-click at the pointer splits at that time on the same targeted tracks (W1a; no Blade tool). Phone: Split here in the playhead dock. No confirm. After a split, the right-hand piece is selected (anticipating trim, move or Cut).
-- **Story to build:** `Edit/PhoneEdit` story `WaveNothingSelected`.
+- **Spec:** Mod+K splits at the playhead on the targeted tracks (scope chip; default all); Blade tool (B, or hold B) click splits that lane, Shift-click splits all lanes. Phone: Split here in the playhead dock. No confirm. After a split, the right-hand piece is selected (anticipating trim, move or Cut).
+- **Story to build:** `Edit/ToolToggle` story `SpringBlade`; `Edit/PhoneEdit` story `WaveNothingSelected`.
 
 ### INT-DELETE and INT-RIPPLE · Delete and ripple
 
@@ -909,7 +892,7 @@ Each interaction uses the object selection model above. Every edit is one undo s
 ### INT-MUTE-SOLO, INT-FADER, INT-REORDER · Track controls
 
 - **Fate:** per CMP-TRACK-HEADERS. Reorder by dragging the header (Shift+↑/↓ keyboard). Phone: drag the avatar in the Mix sheet.
-- **Story to build:** `System/TrackHeader` stories.
+- **Story to build:** `Edit/TrackHeader` stories.
 
 ### INT-ZOOM, INT-PINCH, INT-PAN · Zoom and pan
 
@@ -970,7 +953,7 @@ Existing vocabulary used: Stage bar (spec'd here), Transport (as Player bar), Ob
 
 **NEW: Player sheet.** Phone full-height listening view opened from the Player bar: big transport, whole-episode scrubber with chapters and comments, comment-at-time composer, chapter list. Replaces Listen.
 
-**NEW: Action bar** (the concrete form of the object selection model). Desktop/tablet: a 40 px (44 px touch) pill floating beside the selected object, horizontally centered on its visible part: below it by default so the ruler stays uncovered, above a selected word so the next line of the Script stays clickable, and on the other side when there is no room; never covers the selection. Anatomy: optional Scope chip, verbs in fixed order (Hear, Cut, Keep, Split, Comment, Fix text, Remove), More (ellipsis), Inspect (sliders). Icons only with tooltip (name + key). Phone: the 64 px action dock above the Player bar with icon over a small label; it is also the Inspector sheet's first detent. With nothing selected, it shows playhead verbs (phone always; desktop on Create here). Reused in Edit, Review (suggestion verbs), Deliver (social clips).
+**NEW: Action bar** (the concrete form of the object selection model). Desktop/tablet: a 40 px (44 px touch) pill floating 8 px above the selected object, horizontally centered on its visible part, flipping below when there is no room; never covers the selection. Anatomy: optional Scope chip, verbs in fixed order (Hear, Cut, Keep, Split, Comment, Fix text, Remove), More (ellipsis), Inspect (sliders). Icons only with tooltip (name + key). Phone: the 64 px action dock above the Player bar with icon over a small label; it is also the Inspector sheet's first detent. With nothing selected, it shows playhead verbs (phone always; desktop on Create here). Reused in Edit, Review (suggestion verbs), Deliver (social clips).
 
 **NEW: Scope chip.** Leftmost element of the action bar for ranges, words and Split: stacked track-color dots for affected tracks ("All" when all) and a glyph for the outcome (ripple arrows = time closes; gap bracket = time kept). Click opens track toggles. Replaces lane checkboxes and ripple modifiers.
 
@@ -1000,9 +983,9 @@ Existing vocabulary used: Stage bar (spec'd here), Transport (as Player bar), Ob
 
 **NEW verb: Remove (trash).** Deletes a non-audio object (marker, comment, track, envelope point). Keeps "Cut" reserved for removing audio. Proposed addition to the shared verb list.
 
-**Icon language proposals (coordinate with all specs):** Cut = scissors; Split = blade (vertical blade glyph), so the Split verb and the Alt-click guide share it; Keep = restore arrow; Hear = speaker-wave; Comment = speech bubble; Fix text = text cursor; Remove = trash; Mute = speaker-slash; Solo = headphones; Inspect = sliders; Hear original = A/B.
+**Icon language proposals (coordinate with all specs):** Cut = scissors; Split = blade (vertical blade glyph), so the Blade tool and Split verb share it; Keep = restore arrow; Hear = speaker-wave; Comment = speech bubble; Fix text = text cursor; Remove = trash; Mute = speaker-slash; Solo = headphones; Inspect = sliders; Hear original = A/B.
 
-**Keyboard map changes** (from ux/pages/shortcuts.md): Mod+1..5 now switch stages (were layouts). The Blade tool is removed (W1a): C is Comment (W1b), V is unbound, and B is Hear after. S is Split and Solo is Shift+S. / opens the palette (? kept). Shift+Space hears the selection. X is Keep. Enter applies a selected suggestion. Tab after a cut selects the next occurrence. I opens Inspect. T toggles the Script pane; Shift+T Script focus. Z zooms to selection. J/L shuttle. Hold-A hear-original is not built yet (A is Hear before on a suggestion). Shift+C adds a chapter at the playhead. Mod+K stays Split at playhead; K stays pause.
+**Keyboard map changes** (from ux/pages/shortcuts.md): Mod+1..5 now switch stages (were layouts). Blade tool moves from C to B (hold for spring-loaded). C becomes Comment. / opens the palette (? kept). Shift+Space hears the selection. X is Keep. Enter applies a selected suggestion. Tab after a cut selects the next occurrence. I opens Inspect. T toggles the Script pane; Shift+T Script focus. Z zooms to selection. J/L shuttle. O holds hear-original. Shift+M adds a chapter at the playhead. Mod+K stays Split at playhead; K stays pause.
 
 ---
 
@@ -1014,6 +997,6 @@ Existing vocabulary used: Stage bar (spec'd here), Transport (as Player bar), Ob
 4. **Audition modes.** Drop the "Full mix / Edited stems / Original" switch for hold-to-hear-original, with "edited stems" in the player's long-press menu? Recommended default: yes.
 5. **Phone tab bar with five stages.** Keep all five (Prepare included) on phone for one model across devices? Recommended default: yes; Prepare on phone mostly shows job progress and import.
 6. **Key changes.** Move Blade from C to B and make C Comment; Mod+1..5 for stages. Recommended default: yes (breaks muscle memory for current testers only).
-7. **Fixing words.** Fix text corrects transcript text only and never synthesizes audio. Recommended default: yes; no voice regeneration. Decided 2026-10-28: typing never starts a correction, because every letter is a shortcut; Fix text starts on Enter, F2, or a double-click or double-tap on a word (design-system element 14, D-script-gestures).
+7. **Typing over words.** Typing on a selection corrects transcript text only and never synthesizes audio. Recommended default: yes; no voice regeneration.
 8. **Drag words to reorder audio.** Not in this round. Recommended default: defer.
 9. **Recordings in Edit.** "+" under the tracks offers "Record a take", which opens Record set to add a new session to this project (initial vs later sessions is spec-record's call). Recommended default: yes.
