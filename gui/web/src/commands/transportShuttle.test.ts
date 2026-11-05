@@ -7,7 +7,7 @@ import { resetShuttleEscalation } from "./shuttle";
 
 const s = () => useDawStore.getState();
 
-describe("transport.shuttle", () => {
+describe("transport.shuttleBack / transport.shuttleForward", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(1_000_000);
@@ -22,13 +22,13 @@ describe("transport.shuttle", () => {
   });
 
   it("L plays a paused transport at 1x, then steps 2x, 4x and stays at 4x", async () => {
-    await execute("transport.shuttle", { dir: "forward" });
+    await execute("transport.shuttleForward");
     expect([s().isPlaying, s().playbackRate]).toEqual([true, 1]);
-    await execute("transport.shuttle", { dir: "forward" });
+    await execute("transport.shuttleForward");
     expect(s().playbackRate).toBe(2);
-    await execute("transport.shuttle", { dir: "forward" });
+    await execute("transport.shuttleForward");
     expect(s().playbackRate).toBe(4);
-    await execute("transport.shuttle", { dir: "forward" });
+    await execute("transport.shuttleForward");
     expect(s().playbackRate).toBe(4);
     expect(s().statusAnnouncement).toContain("4×");
   });
@@ -39,8 +39,8 @@ describe("transport.shuttle", () => {
       () => execute("transport.stop"),
       async () => s().setIsPlaying(false),
     ]) {
-      await execute("transport.shuttle", { dir: "forward" });
-      await execute("transport.shuttle", { dir: "forward" });
+      await execute("transport.shuttleForward");
+      await execute("transport.shuttleForward");
       expect(s().playbackRate).toBe(2);
       await reset();
       expect(s().playbackRate).toBe(1);
@@ -48,66 +48,66 @@ describe("transport.shuttle", () => {
   });
 
   it("a seek keeps the rate", async () => {
-    await execute("transport.shuttle", { dir: "forward" });
-    await execute("transport.shuttle", { dir: "forward" });
+    await execute("transport.shuttleForward");
+    await execute("transport.shuttleForward");
     await execute("transport.seek", { sec: 5 });
     expect(s().playbackRate).toBe(2);
   });
 
   it("J jumps back 3, 6 then 12 s inside a second, and keeps the play state", async () => {
     s().setPlayheadSec(40);
-    await execute("transport.shuttle", { dir: "back" });
+    await execute("transport.shuttleBack");
     expect(s().playheadSec).toBe(37);
     vi.advanceTimersByTime(500);
-    await execute("transport.shuttle", { dir: "back" });
+    await execute("transport.shuttleBack");
     expect(s().playheadSec).toBe(31);
     vi.advanceTimersByTime(500);
-    await execute("transport.shuttle", { dir: "back" });
+    await execute("transport.shuttleBack");
     expect(s().playheadSec).toBe(19);
     vi.advanceTimersByTime(500);
-    await execute("transport.shuttle", { dir: "back" });
+    await execute("transport.shuttleBack");
     expect(s().playheadSec).toBe(7);
     expect(s().isPlaying).toBe(false);
     vi.advanceTimersByTime(1500);
-    await execute("transport.shuttle", { dir: "back" });
+    await execute("transport.shuttleBack");
     expect(s().playheadSec).toBe(4);
   });
 
   it("pausing restarts the J ladder inside the repeat window", async () => {
     s().setPlayheadSec(40);
-    await execute("transport.shuttle", { dir: "back" });
+    await execute("transport.shuttleBack");
     vi.advanceTimersByTime(300);
-    await execute("transport.shuttle", { dir: "back" });
+    await execute("transport.shuttleBack");
     expect(s().playheadSec).toBe(31);
     s().setIsPlaying(true);
     s().setIsPlaying(false);
     vi.advanceTimersByTime(300);
-    await execute("transport.shuttle", { dir: "back" });
+    await execute("transport.shuttleBack");
     expect(s().playheadSec).toBe(28);
   });
 
   it("a project change restarts the J ladder", async () => {
     s().setPlayheadSec(40);
-    await execute("transport.shuttle", { dir: "back" });
+    await execute("transport.shuttleBack");
     s().hydrate("/tmp/other.json", minimalProject({ tracks: [sampleTrack()] }));
     s().setPlayheadSec(40);
     vi.advanceTimersByTime(300);
-    await execute("transport.shuttle", { dir: "back" });
+    await execute("transport.shuttleBack");
     expect(s().playheadSec).toBe(37);
   });
 
   it("J while playing at 4x drops to 1x and keeps playing", async () => {
     s().setPlayheadSec(40);
     for (let i = 0; i < 3; i++) {
-      await execute("transport.shuttle", { dir: "forward" });
+      await execute("transport.shuttleForward");
     }
-    await execute("transport.shuttle", { dir: "back" });
+    await execute("transport.shuttleBack");
     expect([s().isPlaying, s().playbackRate]).toEqual([true, 1]);
   });
 
   it("J never seeks before 0", async () => {
     s().setPlayheadSec(1);
-    await execute("transport.shuttle", { dir: "back" });
+    await execute("transport.shuttleBack");
     expect(s().playheadSec).toBe(0);
   });
 
@@ -117,18 +117,14 @@ describe("transport.shuttle", () => {
       isPlaying: true,
       playbackRate: 1,
     });
-    await execute("transport.shuttle", { dir: "forward" });
+    await execute("transport.shuttleForward");
     expect(s().followingClientId).toBeNull();
     expect(s().playbackRate).toBe(2);
   });
 
-  it("is disabled without a project and for an unknown direction", async () => {
-    expect(
-      (await execute("transport.shuttle", { dir: "sideways" })).status,
-    ).toBe("disabled");
+  it("is disabled without a project", async () => {
     useDawStore.setState({ project: null });
-    expect(
-      (await execute("transport.shuttle", { dir: "forward" })).status,
-    ).toBe("disabled");
+    expect((await execute("transport.shuttleBack")).status).toBe("disabled");
+    expect((await execute("transport.shuttleForward")).status).toBe("disabled");
   });
 });

@@ -88,8 +88,8 @@ export const VERBS = [
     touch: "swipe-timeline",
     surfaces: ["player"],
     status: "bound",
-    commandId: "transport.shuttle",
-    alsoBound: ["transport.stop"],
+    commandId: "transport.shuttleForward",
+    alsoBound: ["transport.shuttleBack", "transport.stop"],
     note: "J jumps back 3, 6, 12 s (no reverse audio); L plays, then 2x, 4x; K pauses and returns.",
   },
   {
