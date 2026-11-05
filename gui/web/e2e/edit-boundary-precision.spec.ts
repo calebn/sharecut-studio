@@ -37,21 +37,29 @@ test("precision boundary editing previews, cancels, and restores transcript audi
     testInfo.outputPath("boundary-precision");
   assertDisposableE2eProject(e2eProjectPath);
   await page.addInitScript(() => {
-    const originalPlay = HTMLMediaElement.prototype.play;
-    const originalPause = HTMLMediaElement.prototype.pause;
+    const originalPlay: TypedPropertyDescriptor<HTMLMediaElement["play"]> =
+      Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "play")!;
+    const originalPause: TypedPropertyDescriptor<HTMLMediaElement["pause"]> =
+      Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "pause")!;
     const events: Array<{ type: string; source: string }> = [];
     Object.defineProperty(window, "__boundaryMediaEvents", {
       configurable: false,
       value: events,
     });
-    HTMLMediaElement.prototype.play = function () {
-      events.push({ type: "play", source: this.currentSrc || this.src });
-      return originalPlay.call(this);
-    };
-    HTMLMediaElement.prototype.pause = function () {
-      events.push({ type: "pause", source: this.currentSrc || this.src });
-      return originalPause.call(this);
-    };
+    Object.defineProperty(HTMLMediaElement.prototype, "play", {
+      ...originalPlay,
+      value: function (this: HTMLMediaElement) {
+        events.push({ type: "play", source: this.currentSrc || this.src });
+        return originalPlay.value!.call(this);
+      },
+    });
+    Object.defineProperty(HTMLMediaElement.prototype, "pause", {
+      ...originalPause,
+      value: function (this: HTMLMediaElement) {
+        events.push({ type: "pause", source: this.currentSrc || this.src });
+        return originalPause.value!.call(this);
+      },
+    });
   });
 
   await openProject(page, e2eProjectPath);

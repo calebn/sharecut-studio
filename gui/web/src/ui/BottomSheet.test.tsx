@@ -853,10 +853,18 @@ describe("BottomSheet", () => {
             if (nodes.includes(body.parentElement?.parentElement as Node))
               top = 0;
           };
-        const after = Element.prototype.after;
-        const append = Element.prototype.append;
-        Element.prototype.after = resetOnMove(after);
-        Element.prototype.append = resetOnMove(append);
+        const after: TypedPropertyDescriptor<Element["after"]> =
+          Object.getOwnPropertyDescriptor(Element.prototype, "after")!;
+        const append: TypedPropertyDescriptor<Element["append"]> =
+          Object.getOwnPropertyDescriptor(Element.prototype, "append")!;
+        Object.defineProperty(Element.prototype, "after", {
+          ...after,
+          value: resetOnMove(after.value!),
+        });
+        Object.defineProperty(Element.prototype, "append", {
+          ...append,
+          value: resetOnMove(append.value!),
+        });
         try {
           await waitFor(() =>
             expect(screen.getByRole("button", { name: "Close" })).toHaveFocus(),
@@ -872,8 +880,8 @@ describe("BottomSheet", () => {
           expect(input).toHaveFocus();
           expect(top).toBe(140);
         } finally {
-          Element.prototype.after = after;
-          Element.prototype.append = append;
+          Object.defineProperty(Element.prototype, "after", after);
+          Object.defineProperty(Element.prototype, "append", append);
           grid.remove();
         }
       });

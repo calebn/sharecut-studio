@@ -11,13 +11,16 @@ HTMLCanvasElement.prototype.getContext = vi.fn().mockReturnValue(null);
 
 // jsdom has no Popover API and its UA stylesheet hides every closed
 // [popover]: showing one drops the attribute so Menu panels render.
-HTMLElement.prototype.showPopover ??= function showPopover(this: HTMLElement) {
-  this.removeAttribute("popover");
-};
-HTMLElement.prototype.hidePopover ??= () => undefined;
+if (HTMLElement.prototype.showPopover == null) {
+  HTMLElement.prototype.showPopover = function showPopover(this: HTMLElement) {
+    this.removeAttribute("popover");
+  };
+}
+if (HTMLElement.prototype.hidePopover == null)
+  HTMLElement.prototype.hidePopover = () => undefined;
 
 // jsdom has no hit testing; axe's elementsFromPoint polyfill calls this.
-document.elementFromPoint ??= () => null;
+if (document.elementFromPoint == null) document.elementFromPoint = () => null;
 
 class ResizeObserverStub {
   observe(): void {}

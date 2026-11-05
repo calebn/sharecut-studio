@@ -120,7 +120,14 @@ export const HostBrowser: Story = {
 };
 
 export const DesktopApp: Story = {
-  args: { access: "reveal", files: AUDIO.map(({ href: _, ...f }) => f) },
+  args: {
+    access: "reveal",
+    files: AUDIO.map((file) => {
+      const local = { ...file };
+      delete local.href;
+      return local;
+    }),
+  },
   render: HostBrowser.render,
   play: async ({ canvasElement, args }) => {
     const view = within(canvasElement);
