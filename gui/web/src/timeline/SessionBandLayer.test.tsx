@@ -64,7 +64,11 @@ function advanceHistory(headId: string) {
   );
 }
 
-const pill = (name: RegExp) => screen.findByRole("button", { name });
+async function pill(name: RegExp) {
+  const button = await screen.findByRole("button", { name });
+  await act(async () => {});
+  return button;
+}
 
 beforeEach(() => {
   vi.mocked(loadHostRecordSessions).mockResolvedValue(

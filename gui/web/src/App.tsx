@@ -1,4 +1,11 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { loadReviewBootstrap } from "./api";
 import { ApiError, errorMessage } from "./utils/apiError";
 import "./styles/daw.css";
@@ -82,7 +89,7 @@ function AppInner() {
     }
   }, [coverKind, attempt]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (coverKind) {
       coverRef.current?.focus();
     }

@@ -348,7 +348,7 @@ describe("App review route", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2_000);
     });
-    expect(calls).toBeGreaterThan(before);
+    await vi.waitFor(() => expect(calls).toBeGreaterThan(before));
   });
 
   it.each([
