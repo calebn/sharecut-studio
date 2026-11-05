@@ -121,6 +121,32 @@ describe("useGuestSync", () => {
     expect(useDawStore.getState().project?.meta.name).toBe("ep2");
   });
 
+  it("uses the newly committed receiver without reconnecting the guest socket", async () => {
+    const previous = vi.fn();
+    const current = vi.fn();
+    const setProject = vi.fn();
+    const { rerender } = renderHook(
+      ({ apply }) => useGuestSync("share:tok123", apply, setProject),
+      { initialProps: { apply: previous } },
+    );
+    const socket = FakeWebSocket.instances[0];
+    const url = socket.url;
+    rerender({ apply: current });
+    await act(async () => {
+      socket.emit({
+        type: "Snapshot",
+        plane: "session",
+        snapshot: { server_seq: 2, playhead_sec: 4.5 },
+      });
+    });
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(socket.url).toBe(url);
+    expect(previous).not.toHaveBeenCalled();
+    expect(current).toHaveBeenCalledWith(
+      expect.objectContaining({ playhead_sec: 4.5 }),
+    );
+  });
+
   it("reconnects once when an Applied delta has a sequence gap", async () => {
     const apply = vi.fn();
     renderHook(() => useGuestSync("share:tok123", apply, vi.fn(), true));
