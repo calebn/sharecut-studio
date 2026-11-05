@@ -768,7 +768,7 @@ Every place the specs disagreed or collided with each other or with themselves. 
 | K6 | O (E: hold to hear the original) next to A/B | Hold A with nothing selected plays the original. O is unused | One audition control |
 | K7 | M: E has Mute track, R has Marker, R has Mod+D mute self | M is Mute everywhere (track in Edit, your mic in Record). Mod+D is dropped | One key per verb. Mod+D is the browser's bookmark key |
 | K8 | Shift+M add chapter (E) clashes with the M = Mute meaning | Shift+C | The C family pins things to the marker lane |
-| K9 | R: D has reply, R has record start, D has Home ⌘R | R is Record everywhere. Reply to a comment is R and C starts a comment | Recording is the higher-consequence verb and owns its letter |
+| K9 | R: D has reply, R has record start, D has Home ⌘R | R is Record on every stage, except in the Review queue where the card has no record action and R replies to a comment. C starts a comment | Recording is the higher-consequence verb and owns its letter |
 | K10 | ⌘⇧C copy listen link (D) | Dropped (palette only) | Shift+C is Add chapter. The action is rare |
 | K11 | ⌘N new, ⌘O open (E); ⌘N import, ⌘R record, ⌘O open other, ⌘⇧O Home (D) | Mod+O goes to Home from anywhere (and on Home it opens Open other…). Mod+I imports. R records on Home. Enter opens the focused card. No Mod+N | Browsers reserve Mod+N and Mod+R. Mod+I is already Import in D's Prepare |
 | K12 | Mod+Shift+E (E) versus ⌘E (D) for export | Mod+E | One key. On a selected range it exports the range |
