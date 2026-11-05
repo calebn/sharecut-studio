@@ -386,7 +386,7 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 | SCR-GUEST-* | R-GUEST for each role at 1440x900 and 390x844. Offline: block `**/api/review/**` after a first load so the cached snapshot path runs (`e2e/offlineQueue.ts`, `e2e/networkOutage.ts`). Version line and New version pill: publish a new version from the host while the guest is open. |
 | SCR-REC-* | R-REC. Guest: dialog "Join the room"; textbox `Your name`, button `Allow microphone`, toggle "I'm wearing headphones", button `Join and record`. Producer: textbox `Your name`, button `Join to listen`. Declined: click `Not now`, then `Join recording` on the scrim. Full: open more guests than the room cap. Access ended: host ends access or closes invite. In-room: host clicks `Start`. |
 | TOAST-MAIN | Do any edit (for example nudge a fade) and read the toast; Undo button inside. |
-| BAN-LOADFAIL | Fail `/api/transcript` or `/api/history` once. |
+| BAN-LOADFAIL | Hold `/api/document/state` unanswered for 30 s (`e2e-compat/initial-load-recovery.spec.ts` does it with a fake clock). |
 | BAN-HOME-SCREEN-HINT | Emulate iOS Safari UA in a browser context, More hub. |
 
 ---
