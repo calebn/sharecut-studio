@@ -2,6 +2,7 @@
 
 Each entry caps functions under ``services/`` with a bare dictionary return, including
 ``Optional`` and ``Union`` members, qualified names, quoted annotations, and ``|`` unions.
+``Annotated`` wrappers count only their first type argument; metadata is ignored.
 Dictionaries nested inside other containers do not count. A typed result model lowers a
 cap and the lowered cap must be written here. A count above its cap fails, so a file
 cannot gain a bare dictionary return. A count below its cap does not fail, so two PRs
@@ -133,6 +134,12 @@ def _is_dict(annotation: ast.expr | None) -> bool:
             if isinstance(outer, ast.Attribute)
             else None
         )
+        if name == "Annotated":
+            return (
+                isinstance(annotation.slice, ast.Tuple)
+                and len(annotation.slice.elts) >= 2
+                and _is_dict(annotation.slice.elts[0])
+            )
         if name in {"Optional", "Union"}:
             members = (
                 annotation.slice.elts
@@ -206,6 +213,7 @@ def test_the_ratchet_recognises_every_bare_dict_spelling() -> None:
         "dict | None",
         "None | dict",
         "'dict[str, Any]'",
+        "Annotated[dict, 'metadata']",
     ]
     ignored = [
         "str",
@@ -219,7 +227,6 @@ def test_the_ratchet_recognises_every_bare_dict_spelling() -> None:
         "list[typing.Optional[dict]]",
         "Mapping[str, dict]",
         "tuple[dict, None]",
-        "Annotated[dict, 'metadata']",
     ]
     assert all(_is_dict(_annotation(text)) for text in flagged)
     assert not any(_is_dict(_annotation(text)) for text in ignored)
