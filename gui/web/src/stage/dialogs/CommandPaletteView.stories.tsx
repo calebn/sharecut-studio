@@ -182,7 +182,9 @@ export const Groups: Story = {
     if (viewMode === "docs") return;
     const dialog = await openDialogViaLauncher(canvasElement, LAUNCHER, TITLE);
     for (const name of ["Projects", "People", "Chapters"]) {
-      await expect(within(dialog).getByRole("group", { name })).toBeVisible();
+      await waitFor(() =>
+        expect(within(dialog).getByRole("group", { name })).toBeVisible(),
+      );
     }
     await userEvent.click(
       within(dialog).getByRole("option", { name: "Cold open 1:02" }),
