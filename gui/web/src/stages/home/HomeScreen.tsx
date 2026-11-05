@@ -54,8 +54,13 @@ const NOT_STARTED = "The episode didn't start. Try again.";
 const BUSY = "Finish the current step first.";
 const NO_TOOLS =
   "Audio tools are missing, so an episode can't start yet. Set them up above, then try again.";
-const NOT_REVEALED = "This computer couldn't open its file manager.";
+const NO_FILE_MANAGER = "This computer couldn't open its file manager.";
+const NOT_REVEALED = "Studio couldn't show that folder. Try again.";
 const NOT_DUPLICATED = "That episode didn't copy. Try again.";
+const FOLDER_MOVED =
+  "That episode's folder has moved. Find it with Open other…, or remove the card.";
+const COPY_NAME_RESERVED =
+  "Windows can't use this episode's name for a folder. Rename the episode, then copy it.";
 const NOT_REMOVED = "That episode is still listed. Try again.";
 const DUPLICATING = "Copying the episode…";
 const OPENING = "Opening…";
@@ -78,6 +83,22 @@ function startFailure(error: unknown, name: string): string {
     return `Windows can't use "${name}" as a folder name. Rename the file and drop it again.`;
   }
   return NOT_STARTED;
+}
+
+function revealFailure(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.code === "reveal_unavailable") return NO_FILE_MANAGER;
+    if (NOT_AN_EPISODE_CODES.has(error.code ?? "")) return FOLDER_MOVED;
+  }
+  return NOT_REVEALED;
+}
+
+function duplicateFailure(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.code === NAME_RESERVED_CODE) return COPY_NAME_RESERVED;
+    if (NOT_AN_EPISODE_CODES.has(error.code ?? "")) return FOLDER_MOVED;
+  }
+  return NOT_DUPLICATED;
 }
 
 function navigateToProject(path: string): true {
@@ -326,8 +347,8 @@ export function HomeScreen() {
   const reveal = useCallback(async (id: string) => {
     try {
       await revealRecentProject(id);
-    } catch {
-      setNotice(NOT_REVEALED);
+    } catch (error) {
+      setNotice(revealFailure(error));
     }
   }, []);
 
@@ -339,7 +360,7 @@ export function HomeScreen() {
           setReload((n) => n + 1);
           return undefined;
         },
-        () => setNotice(NOT_DUPLICATED),
+        (error) => setNotice(duplicateFailure(error)),
         DUPLICATING,
       ),
     [guarded],

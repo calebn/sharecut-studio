@@ -424,13 +424,17 @@ export function usePrepareModel(): PrepareModel {
         : openStage(target.target),
   };
   const { handoff, onHandoff } = view;
+  const runHandoff = useRef(onHandoff);
+  useEffect(() => {
+    runHandoff.current = onHandoff;
+  });
   useEffect(
     () =>
       offerStageHandoff({
         disabledReason: handoff.disabledReason,
-        run: onHandoff,
+        run: () => runHandoff.current(),
       }),
-    [handoff.disabledReason, onHandoff],
+    [handoff.disabledReason],
   );
   return {
     view,
