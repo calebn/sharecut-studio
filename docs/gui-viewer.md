@@ -311,7 +311,7 @@ screens. Focus reveal includes the field's label when the label fits below the
 pinned header. The bounded body scroller reveals that field and label below the
 pinned header without measuring or changing scroll padding.
 
-Host and guest shells reserve a banner row for offline command attention on all three sizes. Host pending edits remain visible there until replay; host and guest 409 conflicts appear in the same **Needs attention** list and can be dismissed. The guest share-mode label stays guest-only.
+Host and guest shells reserve a banner row for offline command attention on all three sizes. Host pending edits remain visible there until replay; host and guest 409 conflicts appear in the same **Needs attention** list and can be dismissed. The guest Role chip stays guest-only.
 
 ## Project save state
 
