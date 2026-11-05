@@ -8,6 +8,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { listRecentProjects } from "../../api";
 import { COMMANDS } from "../../commands/catalog";
 import { buildCommandContext } from "../../commands/context";
 import { registerCommand } from "../../commands/execute";
@@ -18,6 +19,7 @@ import { THEME_STORAGE_KEY } from "../../hooks/useTheme";
 import { pickAudioFiles } from "../../ingest/ingestFiles";
 import { useRecordHostStore } from "../../record/hostStore";
 import { useDawStore } from "../../state/dawStore";
+import { presenceProjectInitial } from "../../state/presenceSlice";
 import { DawProvider } from "../../state/store";
 import { fakeExportServer } from "../../test/fakeExportServer";
 import {
@@ -52,6 +54,10 @@ import { ShareFlowProvider } from "./shareFlow";
 vi.mock("../../ingest/ingestFiles", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../ingest/ingestFiles")>()),
   pickAudioFiles: vi.fn(async () => []),
+}));
+vi.mock("../../api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../api")>()),
+  listRecentProjects: vi.fn(async () => []),
 }));
 vi.mock("../edit/EditWorkspace", () => ({
   EditWorkspace: () => <div>edit workspace</div>,
@@ -506,6 +512,9 @@ describe("palette coverage of the removed menus", () => {
     stubViewportShell("desktop");
     registerDawCommands();
     useRecordHostStore.setState({ snapshot: null });
+    vi.mocked(listRecentProjects).mockReset();
+    vi.mocked(listRecentProjects).mockResolvedValue([]);
+    useDawStore.setState(presenceProjectInitial());
     useDawStore
       .getState()
       .hydrate(
