@@ -122,7 +122,22 @@ def test_an_unclassified_path_runs_the_browser_suites(path: str) -> None:
         (["src/podcast_mcp/engines/bleed_gate.py", "tests/test_bleed_gate.py"], False, "full", []),
         (["src/podcast_mcp/edits/cuts.py"], False, "full", []),
         (["gui/web/src/App.tsx", "gui/web/e2e/recordRoom.ts"], True, "web", PR_E2E),
-        (["gui/web/src/App.tsx", "docs/gui-integration.md"], True, "full", PR_E2E),
+        (["gui/web/src/App.tsx", "docs/gui-integration.md"], True, "web-docs", PR_E2E),
+        (
+            ["gui/web/src/App.tsx", "docs/design/stages/edit.md", "ux/pages/x.md"],
+            True,
+            "web-docs",
+            PR_E2E,
+        ),
+        (["gui/web/src/App.tsx", "src/podcast_mcp/edits/cuts.py"], True, "full", PR_E2E),
+        (
+            ["docs/setup.md", "src/podcast_mcp/edits/cuts.py", "gui/web/src/App.tsx"],
+            True,
+            "full",
+            PR_E2E,
+        ),
+        (["gui/web/src/App.tsx", "contracts/timeline-zoom.json"], True, "full", PR_E2E),
+        (["gui/web/package-lock.json", "docs/setup.md"], True, "web-docs", PR_E2E),
         (["docs/daw-shortcuts.md"], True, "docs", PR_E2E),
         (["src/podcast_mcp/services/play.py"], True, "full", PR_E2E),
         (["src/podcast_mcp/project/io.py"], True, "full", PR_E2E),
@@ -222,6 +237,17 @@ def test_docs_subset_selects_files_that_name_docs_paths(tmp_path: Path) -> None:
         "tests/test_skills.py",
         "tests/test_slash.py",
     ]
+
+
+def test_web_docs_subset_is_the_union_of_both_subsets() -> None:
+    assert set(cp.subset_tests("web-docs")) == set(cp.subset_tests("web")) | set(
+        cp.subset_tests("docs")
+    )
+
+
+def test_web_docs_scope_reaches_the_pytest_aggregator() -> None:
+    steps = load_github_yaml(WORKFLOW)["jobs"]["pytest"]["steps"]
+    assert "success:web-docs:success:success" in steps[0]["run"]
 
 
 def test_web_subset_includes_the_repo_gui_web_readers() -> None:
@@ -339,6 +365,10 @@ def test_pytest_shards_take_their_scope_from_the_planner_and_gate_coverage_on_fu
     assert docs["if"] == "env.PYTEST_SCOPE == 'docs'"
     assert '"$(python3 scripts/ci_plan.py subset-tests docs)"' in docs["run"]
     assert "--no-cov" in docs["run"]
+    union = by_name["Run the tests that read gui/web or docs"]
+    assert union["if"] == "env.PYTEST_SCOPE == 'web-docs'"
+    assert '"$(python3 scripts/ci_plan.py subset-tests web-docs)"' in union["run"]
+    assert "--no-cov" in union["run"]
     quality = {step.get("name"): step for step in jobs["pytest-quality"]["steps"]}
     assert "needs" not in jobs["pytest-quality"]
     assert "pytest" not in quality["Docs-sync gate (PR diff)"]["if"]

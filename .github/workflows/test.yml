@@ -236,6 +236,14 @@ jobs:
           docs_tests="$(python3 scripts/ci_plan.py subset-tests docs)"
           pytest -n auto --no-cov -m "not e2e_slow and not e2e_real" --durations=100 --durations-min=0.1 --junitxml=test-results/pytest.xml $docs_tests | tee test-results/pytest.log
 
+      - name: Run the tests that read gui/web or docs
+        # A PR split between gui/web and docs touches no Python; main and nightly keep the full suite.
+        if: env.PYTEST_SCOPE == 'web-docs'
+        run: |
+          set -o pipefail
+          union_tests="$(python3 scripts/ci_plan.py subset-tests web-docs)"
+          pytest -n auto --no-cov -m "not e2e_slow and not e2e_real" --durations=100 --durations-min=0.1 --junitxml=test-results/pytest.xml $union_tests | tee test-results/pytest.log
+
       - name: Run release policy and planner tests
         if: env.PYTEST_SCOPE == 'release'
         run: |
@@ -277,7 +285,7 @@ jobs:
           SHARDS: ${{ needs.pytest-shard.result }}
         run: |
           case "$PLAN:$SCOPE:$QUALITY:$SHARDS" in
-            success:full:success:success | success:web:success:success | success:docs:success:success | success:release:success:success) exit 0 ;;
+            success:full:success:success | success:web:success:success | success:docs:success:success | success:web-docs:success:success | success:release:success:success) exit 0 ;;
             *)
               printf 'Invalid plan or pytest result: %s/%s/%s/%s\n' "$PLAN" "$SCOPE" "$QUALITY" "$SHARDS" >&2
               exit 1
