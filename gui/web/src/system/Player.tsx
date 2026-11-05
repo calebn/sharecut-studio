@@ -175,7 +175,7 @@ function CutsPill({ cuts }: Pick<PlayerProps, "cuts">) {
 }
 
 function RatePill({ rate }: Pick<PlayerProps, "rate">) {
-  return rate !== undefined && rate > 1 ? (
+  return rate !== undefined ? (
     <Pill title="Playback speed">
       <span className="sys-mono">{`${rate}×`}</span>
     </Pill>
