@@ -130,42 +130,62 @@ export function useGuestRoom(
     // re-opening the stream (setDeviceId would); useMicStream skips it on Retry.
     writeLocal(storageKey(token, "mic"), staleMic ? "" : deviceId);
   }, [deviceId, staleMic, token]);
-  const [sink, setSink] = useState<ByteSink | null>(null);
-  const [sinkError, setSinkError] = useState<string | null>(null);
   const [storageAttempt, setStorageAttempt] = useState(0);
   const retryStorage = useCallback(() => setStorageAttempt((n) => n + 1), []);
   const storageRequired = !!(
     bootstrap?.build.capture || bootstrap?.build.upload
   );
+  const [storage, setStorage] = useState<{
+    owner: { required: boolean; producer: boolean; attempt: number };
+    sink: ByteSink | null;
+    error: string | null;
+  }>(() => ({
+    owner: { required: storageRequired, producer, attempt: storageAttempt },
+    sink: null,
+    error: null,
+  }));
+  if (
+    storage.owner.required !== storageRequired ||
+    storage.owner.producer !== producer ||
+    storage.owner.attempt !== storageAttempt
+  ) {
+    setStorage({
+      owner: { required: storageRequired, producer, attempt: storageAttempt },
+      sink: null,
+      error: null,
+    });
+  }
+  const { owner: storageOwner, sink, error: sinkError } = storage;
   useEffect(() => {
-    if (!storageRequired || producer) {
-      setSink(null);
-      setSinkError(null);
-      return;
-    }
+    if (!storageRequired || producer) return;
     let cancelled = false;
-    setSink(null);
-    setSinkError(null);
     void createOpfsSink()
       .then((next) => {
         if (!cancelled) {
-          setSink(next);
-          setSinkError(null);
+          setStorage((current) =>
+            current.owner === storageOwner
+              ? { ...current, sink: next, error: null }
+              : current,
+          );
         }
       })
       .catch((error: unknown) => {
         if (!cancelled) {
-          setSinkError(
+          const message =
             error instanceof OpfsUnavailableError
               ? OPFS_UNAVAILABLE_COPY
-              : UPLOAD_SINK_ERROR_COPY,
+              : UPLOAD_SINK_ERROR_COPY;
+          setStorage((current) =>
+            current.owner === storageOwner
+              ? { ...current, error: message }
+              : current,
           );
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [storageRequired, producer, storageAttempt]);
+  }, [storageRequired, producer, storageAttempt, storageOwner]);
   const captureEnabled =
     !!bootstrap?.build.capture &&
     !producer &&
