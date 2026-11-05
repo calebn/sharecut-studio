@@ -14,12 +14,7 @@ import {
   type InspectorSection,
   InspectorSheet,
 } from "../../system/InspectorSheet";
-import type {
-  InspectorBounds,
-  InspectorDetent,
-  InspectorRect,
-} from "../../system/inspectorSheetMath";
-import { type AnchorRect, unionRect } from "../../ui/anchoredPlacement";
+import type { InspectorDetent } from "../../system/inspectorSheetMath";
 import { BottomSheet } from "../../ui/BottomSheet";
 import { INSPECTOR_SHEET_CLASS } from "../../ui/compactSheet";
 import { useResizeObserver } from "../../ui/useResizeObserver";
@@ -27,6 +22,10 @@ import { EditActionBar } from "./EditActionBar";
 import { useEnvelopePointSections } from "./envelopePointSections";
 import { focusFirstControl } from "./inspectorFocus";
 import { type InspectorHeading, inspectorHeading } from "./inspectorHeading";
+import {
+  createInspectorPlacement,
+  type InspectorPlacement,
+} from "./inspectorPlacement";
 import { rangeSection } from "./rangeSection";
 import { useSelectionSections } from "./selectionSections";
 import type { InspectorOpen, InspectorShell } from "./useInspectorOpen";
@@ -104,24 +103,6 @@ function useBodySections(
   return rangeActionsInSheet ? [...envelope, rangeSection] : envelope;
 }
 
-const rounded = (rect: InspectorRect): InspectorRect => ({
-  x: Math.round(rect.x),
-  y: Math.round(rect.y),
-  width: Math.round(rect.width),
-  height: Math.round(rect.height),
-});
-
-type Placement = { anchor: InspectorRect; bounds: InspectorBounds };
-
-const samePlacement = (a: Placement | null, b: Placement) =>
-  a != null &&
-  a.bounds.width === b.bounds.width &&
-  a.bounds.height === b.bounds.height &&
-  a.anchor.x === b.anchor.x &&
-  a.anchor.y === b.anchor.y &&
-  a.anchor.width === b.anchor.width &&
-  a.anchor.height === b.anchor.height;
-
 function Card({
   sheet,
   heading,
@@ -134,55 +115,20 @@ function Card({
   const selection = useDaw((s) => s.selection);
   const anchor = useSelectionAnchor(root, selection, true);
   const box = useRef<HTMLDivElement>(null);
-  const [placement, setPlacement] = useState<Placement | null>(null);
-  const measure = useCallback(() => {
-    if (!root) return;
-    const frame = root.getBoundingClientRect();
-    const rects = [
-      anchor.ref.current,
-      // The card clears the Action bar that floats beside the same selection.
-      root.querySelector(".sys-actions--floating"),
-    ].flatMap((el) => (el ? [el.getBoundingClientRect()] : []));
-    const target = rects.length
-      ? rects.slice(1).reduce<AnchorRect>(unionRect, rects[0])
-      : null;
-    const next: Placement = {
-      bounds: {
-        width: Math.round(frame.width),
-        height: Math.round(frame.height),
-      },
-      // Armed with nothing selected there is no object to sit beside: the bottom edge.
-      anchor: rounded(
-        target
-          ? {
-              x: target.left - frame.left,
-              y: target.top - frame.top,
-              width: target.right - target.left,
-              height: target.bottom - target.top,
-            }
-          : { x: frame.width / 2, y: frame.height, width: 0, height: 0 },
-      ),
-    };
-    setPlacement((was) => (samePlacement(was, next) ? was : next));
-  }, [root, anchor.ref]);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: a zoom, a new anchor node or a new selection moves the anchor
+  const [placement, setPlacement] = useState<InspectorPlacement | null>(null);
+  const [geometry] = useState(() => createInspectorPlacement(setPlacement));
+  useLayoutEffect(() => geometry.attach(), [geometry]);
   useLayoutEffect(() => {
-    measure();
-    const onScroll = (event: Event) => {
-      if (event.target instanceof Node && box.current?.contains(event.target))
-        return;
-      measure();
-    };
-    window.addEventListener("resize", measure);
-    window.addEventListener("scroll", onScroll, true);
-    return () => {
-      window.removeEventListener("resize", measure);
-      window.removeEventListener("scroll", onScroll, true);
-    };
-  }, [measure, anchor.moves, anchor.visible]);
-  useResizeObserver(root, measure);
+    geometry.connect({
+      root,
+      anchorRef: anchor.ref,
+      panel: box.current,
+      revision: anchor.moves,
+      visible: anchor.visible,
+    });
+  });
+  useResizeObserver(root, geometry.measure);
   const sections = useBodySections(sheet.rangeActionsInSheet, true);
-  // The Action bar hides the same way when its anchor scrolls out.
   const shown = placement !== null && (anchor.visible || selection === null);
   useInspectorFocus(box, shown);
   return (
