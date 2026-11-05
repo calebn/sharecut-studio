@@ -670,6 +670,12 @@ describe("Review host decisions", () => {
       expect(screen.getByRole("button", { name: "Cut" })).toBeEnabled(),
     );
     expect(screen.queryByText("Too close")).toBeNull();
+    server.pending = [F1, F2, F3];
+    snapshot();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Cut" })).toBeEnabled(),
+    );
+    expect(screen.queryByText("Too close")).toBeNull();
   });
 
   it.each([false, true])(
