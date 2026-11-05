@@ -20,7 +20,9 @@ verify the exact PR head and its integration with current `main` as usual.
 If a coalesced main run fails, inspect or bisect the commits since the previous
 successful run. Pushes to `main` run only lint, types, compat checks and
 Vitest/build; the nightly and dispatch runs keep the coverage floor and both
-browser engines, and a failed nightly opens a `nightly-failure` issue.
+browser engines, and a failed nightly opens a `nightly-failure` issue. GitHub disables
+scheduled workflows after 60 days without repository activity, which would
+silence the nightly and its alert.
 Scheduled and manual dispatch runs have unique groups, so pushes cannot cancel
 them or replace their pending runs. Grouping changes scheduling, not which
 checks an event plans.
@@ -824,8 +826,8 @@ A proven refresh skips the advisory Python-floor job and the expensive desktop,
 extras-import, and registry Windows workloads. Each advisory workflow has a cheap
 PR selector. Missing or failed advisory planning requests ordinary work; workflow
 cancellation stops it. Scheduled, manual, and reusable wheel validation keep
-their existing full work, and pushes to main keep only the quick checks. The
-reusable wheel workflow stays outside this shortcut.
+their existing full work. The reusable wheel workflow stays outside this
+shortcut.
 The four required checks still report. Frontend aggregates accept only their
 existing successful-plan and planned-workload combinations, and the full-history
 secret scan runs on every PR.
