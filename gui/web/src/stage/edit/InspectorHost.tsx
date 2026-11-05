@@ -205,7 +205,8 @@ const FIELD_VERBS: ReadonlySet<BarId> = new Set([
   "fade",
   "moveToTrack",
 ]);
-const DOCK_ROOM_PX = 420;
+/** The room half needs to hold the dock and a few fields, in rem so large text asks for more. */
+const DOCK_ROOM_REM = 26.25;
 const SHEET_FULL = 0.92;
 
 function Phone({
@@ -227,7 +228,10 @@ function Phone({
   }, []);
   const fit = useCallback(() => {
     const room = lanes?.clientHeight ?? 0;
-    const short = room * SHEET_FULL < DOCK_ROOM_PX;
+    const rootPx =
+      Number.parseFloat(getComputedStyle(document.documentElement).fontSize) ||
+      16;
+    const short = room * SHEET_FULL < DOCK_ROOM_REM * rootPx;
     setTight(short);
     if (short && room > 0 && !chosen.current) setDetent("full");
   }, [lanes]);
