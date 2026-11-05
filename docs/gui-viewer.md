@@ -204,7 +204,7 @@ the best-ranked one, and a held touch on a crowded spot opens a target
 chooser. Data shape, ranking, routing and the
 chooser contract: [touch-editor-decisions.md](touch-editor-decisions.md#shared-hit-resolver-1051).
 Each target kind's input rules (its drag axes, whether a long press arms it,
-its strip nudges, soft boundaries, keys, command and the kinds it outranks,
+its nudges, soft boundaries, keys, command and the kinds it outranks,
 so a grab at a join rolls it) live in one table, `HIT_KINDS` in
 `gui/web/src/timeline/inputContract.ts`; the router reads it, and generated
 conformance tests check every kind against it. A long press arms a target, a long press on empty space opens the create menu, and armed
@@ -305,7 +305,7 @@ keyboard navigation.
 
 On a touch screen the phone and tablet frames are `position: fixed` and pad themselves with `env(safe-area-inset-*)` (`index.html` sets `viewport-fit=cover`). The page under them never scrolls. iPhone Safari gives a page no way to hide its bars, so the Home Screen app (`display-mode: standalone`, from `public/assets/app/manifest.webmanifest`) is the phone's full-screen path; a Safari tab shows a dismissible Add to Home Screen banner once per browser. A phone held sideways (at most 40rem tall) gets 72px touch lanes and no empty marker row, and Undo and Redo sit in the app header for people who can edit. A selected compact inspector repeats the same controls in its pinned header at every detent and covers the Player bar, above the tab bar. Detail: [gui-mobile.md § Browser chrome](gui-mobile.md#browser-chrome-safe-areas-and-home-screen-1077).
 
-Compact headers retain the strip's vertical spacing at half and full height,
+Compact headers retain their vertical spacing at half and full height,
 so enlarged history controls leave room for scrolled form fields on short
 screens. Focus reveal includes the field's label when the label fits below the
 pinned header. The bounded body scroller reveals that field and label below the

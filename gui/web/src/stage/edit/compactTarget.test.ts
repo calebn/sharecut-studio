@@ -106,4 +106,40 @@ describe("compactTarget", () => {
       ),
     ).toBe(null);
   });
+
+  it("leaves a pending edit with no timeline bounds, a clip not in the project and a missing envelope point to the regular sheet", () => {
+    const unplaced = minimalProject({
+      pending_edits: [
+        pendingEditView({
+          id: "p2",
+          track_id: "host",
+          track_ids: ["host"],
+          timeline_start: null,
+          timeline_end: null,
+        }),
+      ],
+      envelopes: [{ track_id: "host", parameter: "volume", points: [] }],
+    });
+    expect(
+      compactTarget(
+        unplaced,
+        { kind: "pending", id: "p2", trackId: "host" },
+        null,
+      ),
+    ).toBe(null);
+    expect(
+      compactTarget(
+        project,
+        { kind: "clip", id: "gone", trackId: "host" },
+        null,
+      ),
+    ).toBe(null);
+    expect(
+      compactTarget(
+        unplaced,
+        { kind: "envelopePoint", trackId: "host", pointId: "e1" },
+        null,
+      ),
+    ).toBe(null);
+  });
 });
