@@ -4,12 +4,17 @@ import { errorMessage } from "../utils/apiError";
  * Upload bytes then document commands (never fork probe/clip logic in the UI).
  */
 
-import { addTrackCommand, setTrackMediaCommand, uploadMediaFile } from "../api";
+import {
+  addTrackCommand,
+  replyHistoryHead,
+  setTrackMediaCommand,
+  uploadMediaFile,
+} from "../api";
 import { refreshDocumentProject } from "../document/applyDocumentUpdate";
-import { askConfirm } from "../feedback/ask";
 import { useDawStore } from "../state/dawStore";
+import type { HistoryEntryId } from "../types/project";
 import { formatIngestDuration } from "../utils/time";
-import { replaceAudioQuestion, trackHasMedia } from "./dropLabels";
+import { trackHasMedia } from "./dropLabels";
 
 /** Imports under way: busy ends when the last one settles, not the first. */
 let imports = 0;
@@ -97,7 +102,7 @@ function focusImportedTrack(trackId: string): void {
 
 function announceImportResult(
   trackId: string,
-  opts: { replaced: boolean },
+  opts: { replaced: boolean; undo?: HistoryEntryId | null },
 ): void {
   const s = useDawStore.getState();
   const track = s.project?.tracks.find((t) => t.id === trackId);
@@ -105,9 +110,11 @@ function announceImportResult(
   const verb = opts.replaced ? "Replaced" : "Added";
   const dur = track?.duration_sec;
   if (dur != null && dur > 0) {
-    s.announceStatus(`${verb} ${label} · ${formatIngestDuration(dur)}`);
+    s.announceStatus(`${verb} ${label} · ${formatIngestDuration(dur)}`, {
+      undo: opts.undo ?? null,
+    });
   } else {
-    s.announceStatus(`${verb} ${label}`);
+    s.announceStatus(`${verb} ${label}`, { undo: opts.undo ?? null });
   }
 }
 
@@ -130,24 +137,23 @@ export async function ingestFiles(
       mediaPath: track?.media_path,
       clipCount: s.project?.clips?.tracks?.[target.id]?.length ?? 0,
     });
-    if (
-      replaced &&
-      (!(await askConfirm(replaceAudioQuestion(track?.label || target.id))) ||
-        useDawStore.getState().projectPath !== projectPath)
-    ) {
-      return;
-    }
   }
   imports += 1;
   filesInFlight += list.length;
   s.setIngestBusy(true, filesInFlight);
   s.announceStatus(`Importing ${list.length} file(s)…`);
   let focusId: string | null = null;
+  let undoHead: HistoryEntryId | null = null;
   try {
     if (target.kind === "track") {
       const first = list[0]!;
       const uploaded = await uploadMediaFile(projectPath, first);
-      await setTrackMediaCommand(projectPath, target.id, uploaded.rel_path!);
+      const swap = await setTrackMediaCommand(
+        projectPath,
+        target.id,
+        uploaded.rel_path!,
+      );
+      if (list.length === 1) undoHead = replyHistoryHead(swap);
       focusId = target.id;
       for (const extra of list.slice(1)) {
         focusId = await createTrackWithMedia(projectPath, extra, taken);
@@ -161,7 +167,10 @@ export async function ingestFiles(
     await refreshDocumentProject(projectPath);
     if (focusId) {
       focusImportedTrack(focusId);
-      announceImportResult(focusId, { replaced });
+      announceImportResult(focusId, {
+        replaced,
+        undo: replaced ? undoHead : null,
+      });
     } else {
       s.announceStatus("Import complete");
     }

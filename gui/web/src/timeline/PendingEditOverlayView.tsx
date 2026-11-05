@@ -1085,7 +1085,6 @@ function PendingEditRegion({
                   {offersCut ? cutWords.label : "Approve"}
                 </Button>
                 <Button
-                  variant="danger"
                   disabledReason={
                     !canApply
                       ? "Only the host or an Editor can review exact range proposals."

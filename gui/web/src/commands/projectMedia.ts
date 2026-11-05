@@ -11,7 +11,6 @@ import { desktopCloseGuardArmed } from "../desktop/useDesktopCloseGuard";
 import { redisplayDrafts } from "../document/applyDocumentUpdate";
 import { currentDocumentSeq } from "../document/cursor";
 import { revertOptimisticIfUnchanged } from "../document/optimisticRevert";
-import { askConfirm } from "../feedback/ask";
 import { canIngestMedia, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { selectedTrackIdsOf } from "../state/selection";
@@ -276,16 +275,6 @@ export function registerProjectMediaCommands(): void {
     }
     const label =
       asked.project?.tracks.find((t) => t.id === trackId)?.label || trackId;
-    const confirmed = await askConfirm({
-      title: `Remove the ${label} track?`,
-      message: "Its clips leave the timeline.",
-      keepLabel: "Keep track",
-      actionLabel: "Remove track",
-      danger: true,
-    });
-    if (!confirmed) {
-      return { status: "disabled", reason: "Cancelled" };
-    }
     return enqueueTrackMutate(async () => {
       const s = useDawStore.getState();
       if (
