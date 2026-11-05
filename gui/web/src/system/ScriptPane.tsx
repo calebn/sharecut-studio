@@ -20,7 +20,7 @@ import { useResizeObserver } from "../ui/useResizeObserver";
 import { Cover } from "./Cover";
 import { PersonAvatar } from "./Person";
 import { percentOf } from "./progress";
-import { Seam } from "./Seam";
+import { Seam, type SeamRoll } from "./Seam";
 import { type HandlePlace, SelectionHandles } from "./SelectionHandles";
 import { Skeleton } from "./Skeleton";
 import { StatusRow } from "./StatusRow";
@@ -166,10 +166,13 @@ export type ScriptPaneProps = {
   editing?: ScriptSpan | null;
   renderEditor?: (span: ScriptSpan) => ReactNode;
   /**
-   * What sits beside a cut's pill where the cut begins: the join's own
-   * controls, until the Seam inspector takes them. `id` is the cut's id.
+   * Rolls a cut's seam from its pill: drag either edge, or Alt with an arrow
+   * key. `limits` is null for a cut whose clips do not abut. `id` is the cut's id.
    */
-  renderJoin?: (id: string) => ReactNode;
+  seamRoll?: {
+    limits: (id: string) => { minMs: number; maxMs: number } | null;
+    commit: (id: string, deltaMs: number) => void;
+  };
   /** Cut words show struck instead of collapsing into a pill. */
   showCutText?: boolean;
   /** The pane scrolls with the playhead. Off, "Back to playhead" shows. */
@@ -284,6 +287,7 @@ type Live = {
     | "onPrimary"
     | "onClearSelection"
     | "onSeamSelect"
+    | "seamRoll"
     | "onSuggestionSelect"
     | "onSeekTurn"
     | "onSpeaker"
@@ -308,6 +312,7 @@ type Actions = {
   click: (index: number, event: { shiftKey: boolean; detail: number }) => void;
   key: (event: KeyboardEvent<HTMLElement>, start: number) => void;
   seam: (id: string) => void;
+  roll: (id: string) => SeamRoll | undefined;
   suggestion: (id: string) => void;
   seekTurn: (turnId: string) => void;
   speaker: (turnId: string, anchor: HTMLElement) => void;
@@ -419,7 +424,6 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       findStatusKey,
       editing,
       renderEditor,
-      renderJoin,
       showCutText = false,
       following = true,
       findBar,
@@ -436,6 +440,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       onPrimary,
       onClearSelection,
       onSeamSelect,
+      seamRoll,
       onSuggestionSelect,
       onSeekTurn,
       onSpeaker,
@@ -671,6 +676,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
           onPrimary,
           onClearSelection,
           onSeamSelect,
+          seamRoll,
           onSuggestionSelect,
           onSeekTurn,
           onSpeaker,
@@ -946,6 +952,15 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
           }
         },
         seam: (id) => live.current.props.onSeamSelect?.(id),
+        roll: (id) => {
+          const rolls = live.current.props.seamRoll;
+          return rolls?.limits(id)
+            ? {
+                limits: () => rolls.limits(id),
+                onCommit: (ms) => rolls.commit(id, ms),
+              }
+            : undefined;
+        },
         suggestion: (id) => live.current.props.onSuggestionSelect?.(id),
         seekTurn: (turnId) => live.current.props.onSeekTurn?.(turnId),
         speaker: (turnId, anchor) =>
@@ -1308,7 +1323,6 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
                   renderEditor={
                     turnIndex === editTurn ? renderEditor : undefined
                   }
-                  renderJoin={renderJoin}
                   editSlot={turnIndex === editTurn ? editSlot : null}
                   canSeekTurn={canSeekTurn}
                   canSpeaker={canSpeaker}
@@ -1371,7 +1385,6 @@ type TurnProps = {
   found: readonly FoundHit[];
   tabStop: number;
   renderEditor: ((span: ScriptSpan) => ReactNode) | undefined;
-  renderJoin: ((id: string) => ReactNode) | undefined;
   editSlot: ScriptSpan | null;
   canSeekTurn: boolean;
   canSpeaker: boolean;
@@ -1390,7 +1403,6 @@ const TurnView = memo(function TurnView({
   found,
   tabStop,
   renderEditor,
-  renderJoin,
   editSlot,
   canSeekTurn,
   canSpeaker,
@@ -1426,19 +1438,16 @@ const TurnView = memo(function TurnView({
         return word(piece.word);
       case "cut":
         return (
-          <>
-            <SeamView
-              piece={piece}
-              selected={selectedCut === piece.id}
-              inSelection={
-                selectedCut !== piece.id &&
-                overlaps(selection, piece.start, piece.end)
-              }
-              tabbable={piece.start === tabStop}
-              actions={actions}
-            />
-            {piece.continued ? null : renderJoin?.(piece.id)}
-          </>
+          <SeamView
+            piece={piece}
+            selected={selectedCut === piece.id}
+            inSelection={
+              selectedCut !== piece.id &&
+              overlaps(selection, piece.start, piece.end)
+            }
+            tabbable={piece.start === tabStop}
+            actions={actions}
+          />
         );
       case "suggestion":
         return (
@@ -1636,10 +1645,12 @@ const SeamView = memo(function SeamView({
     <span
       className="sys-script-pill"
       data-stop={start}
+      data-seam-id={id}
       data-in-selection={inSelection ? "" : undefined}
       ref={(el) => actions.register(start, el)}
     >
       <Seam
+        roll={piece.continued ? undefined : actions.roll(id)}
         form="pill"
         removed={piece.removed}
         words={piece.words}

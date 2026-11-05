@@ -181,12 +181,12 @@ const pill = {
   onSelect: noop,
 } satisfies SeamProps;
 
-function Paragraph(props: { selected?: boolean }) {
+function Paragraph(props: { selected?: boolean; roll?: SeamProps["roll"] }) {
   return (
     <p style={copy}>
       The first season was mostly about getting the room right,{" "}
-      <Seam {...pill} selected={props.selected} /> and then we found the
-      microphones that made the voices sit properly.
+      <Seam {...pill} selected={props.selected} roll={props.roll} /> and then we
+      found the microphones that made the voices sit properly.
     </p>
   );
 }
@@ -207,6 +207,35 @@ export const TextPillHover: Story = {
     await expect(within(document.body).getByRole("tooltip")).toHaveTextContent(
       "so, um, you know what I mean",
     );
+  },
+};
+
+const rollable = {
+  limits: () => ({ minMs: -500, maxMs: 500 }),
+  onCommit: noop,
+};
+
+export const TextPillRolling: Story = {
+  render: () => <Paragraph roll={rollable} />,
+  play: async ({ canvasElement }) => {
+    const edge = canvasElement.querySelector<HTMLElement>(
+      '.sys-seam-edge[data-side="right"]',
+    );
+    if (!edge) throw new Error("The pill has no edge to drag");
+    const box = edge.getBoundingClientRect();
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    await userEvent.pointer([
+      {
+        keys: "[MouseLeft>]",
+        target: edge,
+        coords: { clientX: x, clientY: y },
+      },
+      { coords: { clientX: x + 8, clientY: y } },
+      { coords: { clientX: x + 24, clientY: y } },
+    ]);
+    await expect(within(canvasElement).getByText(/^\+\d+ ms$/)).toBeVisible();
+    await userEvent.pointer({ keys: "[/MouseLeft]" });
   },
 };
 
