@@ -86,25 +86,6 @@ html[data-shell="phone"] .bottom-sheet-root {
   height: min(75%, 32rem);
 }
 
-/* A selection the page cannot scroll clear of shortens the half sheet to sit
-   under it (keepTargetClear); the sheet body scrolls. On a tall screen it
-   also leaves the header, ruler, marker lane and one lane above it, so a pin or
-   a clip stays in reach of the next tap. */
-.bottom-sheet--inspector.bottom-sheet--half {
-  max-block-size: min(var(--sheet-cap, 100%), var(--sheet-lane-cap, 100%));
-}
-
-/* stylelint-disable-next-line media-feature-name-disallowed-list -- user-approved: tablet short viewport for portaled sheets */
-@media (min-height: 40rem) {
-  .bottom-sheet--inspector.bottom-sheet--half {
-    max-block-size: min(
-      var(--sheet-cap, 100%),
-      var(--sheet-lane-cap, 100%),
-      max(100% - var(--sheet-lane-clearance), min(100%, 9rem))
-    );
-  }
-}
-
 /* A touch lane is --lane-height-touch tall on a tall screen, so the one lane the
    sheet keeps clear is that tall (the next lane's header stays in reach). */
 @media (pointer: coarse) {
@@ -221,67 +202,6 @@ html[data-shell="phone"] .bottom-sheet-root {
   .bottom-sheet--half:has(.modifier-inspector),
   .bottom-sheet--half:has(.range-actions--sheet) {
     height: min(70%, 22rem);
-  }
-}
-
-/* A phone held sideways editing a lane: the sheet keeps its header (title,
-   Done, Close) pinned and scrolls only the form beneath it, so Done and the
-   form are on screen together (#1694). A tall iPad slot is not short. */
-/* stylelint-disable-next-line media-feature-name-disallowed-list -- user-approved: tablet short viewport for portaled sheets */
-@media (max-height: 40rem) {
-  @container sheet-slot (min-width: 30rem) {
-    .bottom-sheet.bottom-sheet--lane-band:has(.modifier-inspector) {
-      overflow: hidden;
-    }
-
-    .bottom-sheet.bottom-sheet--lane-band:has(.modifier-inspector)
-      .bottom-sheet-body {
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow: hidden;
-    }
-
-    .bottom-sheet--lane-band .bottom-sheet-header {
-      padding-block: var(--space-0);
-    }
-  }
-}
-
-/* The shortest landscape window (914x331) with the status line kept has no
-   room for a title row above Done: the sheet's Expand and Close sit on the
-   same row as the lane's name and Done, and the title stays readable to a
-   screen reader only (#1694). */
-/* stylelint-disable-next-line media-feature-name-disallowed-list -- user-approved: tablet short viewport for portaled sheets */
-@media (max-height: 24rem) {
-  @container sheet-slot (min-width: 30rem) {
-    .bottom-sheet.bottom-sheet--lane-band:has(.modifier-inspector)
-      .bottom-sheet-chrome {
-      block-size: 0;
-      border-block-end: 0;
-    }
-
-    .bottom-sheet--lane-band:has(.modifier-inspector) .bottom-sheet-header {
-      position: absolute;
-      inset-block-start: var(--space-1);
-      inset-inline-end: var(--space-4);
-      z-index: var(--z-local-chrome);
-      padding: 0;
-      min-block-size: 0;
-    }
-
-    .bottom-sheet--lane-band:has(.modifier-inspector) .bottom-sheet-title {
-      position: absolute;
-      inline-size: 1px;
-      block-size: 1px;
-      overflow: hidden;
-      clip-path: inset(50%);
-      white-space: nowrap;
-    }
-
-    .bottom-sheet--lane-band:has(.modifier-inspector)
-      .modifier-primary-actions {
-      margin-inline-end: calc(var(--touch-min) * 2.5 + var(--space-4));
-    }
   }
 }
 
@@ -460,14 +380,6 @@ html[data-keyboard="open"] .bottom-sheet .bottom-sheet-chrome {
 html[data-keyboard="open"] .bottom-sheet :is(input, select, textarea) {
   scroll-margin-block-end: var(--space-3);
 }
-
-/* With the keyboard up the lane band no longer applies: the sheet takes the
-   whole visible slot, so the form has every row there is (#1694). */
-html[data-keyboard="open"] .bottom-sheet--lane-band.bottom-sheet--half {
-  height: 100%;
-  max-block-size: 100%;
-}
-
 /* The Inspector as a column beside the timeline (#1696): a grid cell on the
    inline end of the shell (responsive.css), not a portaled sheet, so it has no
    scrim, detents or slide. The header stays pinned and the body scrolls inside

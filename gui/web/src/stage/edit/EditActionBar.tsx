@@ -115,7 +115,6 @@ function EditActionBarImpl({
     ) : model.leading === "count" ? (
       <SelectionCount count={facts.count} />
     ) : undefined;
-  // The phone dock names what it acts on: the object's icon and short name.
   const leading =
     !floating && selection ? (
       <>

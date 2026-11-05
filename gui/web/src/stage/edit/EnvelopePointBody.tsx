@@ -1,7 +1,7 @@
 import { useDaw } from "../../state/useDaw";
 import { useEnvelopePointSections } from "./envelopePointSections";
 
-/** The point's rows as the touch sheet and the compact drawer carry them. */
+/** The point's rows as the touch sheet carries them. */
 export function EnvelopePointBody() {
   const sections = useEnvelopePointSections(useDaw((s) => s.selection));
   return (

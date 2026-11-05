@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  capInspectorSheet,
   capInspectorSheetForLane,
   editedLaneTrack,
   inspectorSheetBottom,
@@ -23,25 +22,6 @@ describe("editedLaneTrack", () => {
   });
 });
 
-describe("capInspectorSheet", () => {
-  afterEach(() => {
-    document.body.replaceChildren();
-  });
-
-  it("keeps the lane cap apart from the transcript's, so one owner cannot lift the other", () => {
-    const panel = document.createElement("div");
-    panel.className = "sys-inspector--phone";
-    document.body.append(panel);
-    capInspectorSheetForLane(144.4);
-    capInspectorSheet(200);
-    expect(panel.style.getPropertyValue("--sheet-lane-cap")).toBe("144px");
-    expect(panel.style.getPropertyValue("--sheet-cap")).toBe("200px");
-    capInspectorSheet(null);
-    expect(panel.style.getPropertyValue("--sheet-lane-cap")).toBe("144px");
-    expect(panel.style.getPropertyValue("--sheet-cap")).toBe("");
-  });
-});
-
 describe("the Inspector column", () => {
   afterEach(() => {
     document.body.replaceChildren();
@@ -54,9 +34,7 @@ describe("the Inspector column", () => {
     expect(inspectorSheetPanel()).toBeNull();
     expect(inspectorSheetTop()).toBeNull();
     expect(inspectorSheetBottom()).toBeNull();
-    capInspectorSheet(120);
     capInspectorSheetForLane(120);
-    expect(panel.style.getPropertyValue("--sheet-cap")).toBe("");
     expect(panel.style.getPropertyValue("--sheet-lane-cap")).toBe("");
   });
 });
@@ -75,9 +53,7 @@ describe("the phone Inspector sheet", () => {
     expect(inspectorSheetPanel()).toBe(panel);
     expect(inspectorSheetTop()).toBe(400);
     expect(inspectorSheetBottom()).toBe(800);
-    capInspectorSheet(120);
     capInspectorSheetForLane(90);
-    expect(panel.style.getPropertyValue("--sheet-cap")).toBe("120px");
     expect(panel.style.getPropertyValue("--sheet-lane-cap")).toBe("90px");
   });
 });

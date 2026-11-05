@@ -40,7 +40,7 @@ export type KindCommand =
 export interface HitKindContract {
   /** Tie-break when targets crowd one spot (higher wins). */
   priority: number;
-  /** The kind's name in the chooser, the drawer title and announcements. */
+  /** The kind's name in the chooser, the sheet title and announcements. */
   label: string;
   /** Axes an armed drag moves it along. */
   axis: DragAxis;
