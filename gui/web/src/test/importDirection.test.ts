@@ -283,7 +283,6 @@ const ALLOWLIST_SIZE_BY_PAIR = {
   "api -> commands/edit": 3,
   "api -> views": 3,
   "services -> commands/edit": 2,
-
   "commands/edit -> hooks": 2,
   "commands/edit -> views": 14,
   "hooks -> views": 6,
