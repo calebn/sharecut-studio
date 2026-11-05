@@ -31,6 +31,10 @@
   overflow-y: auto;
 }
 
+.timeline-area--fixed-playhead .sys-lane {
+  overflow-x: visible;
+}
+
 /* Each lane's surface reaches across the pads, so a tap or long-press past
    either end acts on that lane at its nearest time, as on the lane itself:
    a long-press opens the create menu (#1051). Pseudo-elements hit-test as

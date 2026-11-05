@@ -145,9 +145,10 @@ async function tapClipBody(page: Page, finger: Finger): Promise<void> {
     .boundingBox({ timeout: 5000 });
   if (!box) throw new Error("clip 10-40 s has no box");
   await finger.down(
-    await clearOfScrollbars(page, {
+    await uncoveredPoint(page, {
       x: box.x + box.width * 0.1,
-      y: box.y + box.height * 0.9,
+      ys: [0.9, 0.75, 0.6, 0.45, 0.3].map((f) => box.y + box.height * f),
+      hits: `${lane} .clip-block[data-clip-id="${id}"]`,
     }),
   );
   await page.waitForTimeout(60);
@@ -177,6 +178,31 @@ async function clearOfScrollbars(page: Page, p: Point): Promise<Point> {
   );
 }
 
+/**
+ * A tall lane puts the low part of a clip under the floating Edit corner or the
+ * open sheet; a user taps the part still in view.
+ * Falls back to the first, so a target that is covered everywhere still fails.
+ */
+async function uncoveredPoint(
+  page: Page,
+  { x, ys, hits }: { x: number; ys: number[]; hits: string },
+): Promise<Point> {
+  const candidates = await Promise.all(
+    ys.map((y) => clearOfScrollbars(page, { x, y })),
+  );
+  const open = await page.evaluate(
+    ({ candidates, hits }) => {
+      const wanted = document.querySelector(hits);
+      return candidates.findIndex((p) => {
+        const top = document.elementFromPoint(p.x, p.y);
+        return !!wanted && !!top && wanted.contains(top);
+      });
+    },
+    { candidates, hits },
+  );
+  return candidates[Math.max(open, 0)]!;
+}
+
 async function tapTarget(
   page: Page,
   finger: Finger,
@@ -195,11 +221,13 @@ async function tapTarget(
     const right = Math.min(r.right, innerWidth);
     return {
       x: (left + right) / 2,
-      y: r.top + r.height * (r.height > 40 ? 0.85 : 0.5),
+      ys: (r.height > 40 ? [0.85, 0.7, 0.55, 0.4, 0.25] : [0.5]).map(
+        (f) => r.top + r.height * f,
+      ),
     };
   }, locate);
   if (!at) throw new Error(`${locate} has no box`);
-  await finger.down(await clearOfScrollbars(page, at));
+  await finger.down(await uncoveredPoint(page, { ...at, hits: locate }));
   await page.waitForTimeout(60);
   await finger.up();
   await page.waitForTimeout(700);

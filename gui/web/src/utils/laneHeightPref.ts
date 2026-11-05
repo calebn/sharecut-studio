@@ -22,7 +22,7 @@ export const LANE_HEIGHT_STORAGE_KEY = "sharecut.laneHeight";
 
 export const DEFAULT_LANE_HEIGHT_PREF: Readonly<LaneHeightPref> = Object.freeze(
   {
-    mode: "fixed",
+    mode: "fit",
     px: DEFAULT_LANE_HEIGHT_PX,
   },
 );

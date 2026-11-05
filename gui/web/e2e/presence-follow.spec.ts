@@ -14,6 +14,7 @@ import {
   peopleButton,
   waitForFollowPill,
 } from "./follow";
+import { pinFixedLaneHeight } from "./laneHeight";
 import { scrollTimelineBy } from "./scroll";
 import { withShareableProject } from "./shareableProject";
 import {
@@ -160,6 +161,7 @@ async function withTwoStudioPages<T>(
   viewport: { width: number; height: number },
   run: (pageA: Page, pageB: Page) => Promise<T>,
   followerViewport = viewport,
+  fixedLanes = false,
 ): Promise<T> {
   return withShareableProject(async (projectPath) => {
     return withTwoBrowserPages(
@@ -167,6 +169,7 @@ async function withTwoStudioPages<T>(
       { viewport },
       { viewport: followerViewport },
       async (pageA, pageB) => {
+        if (fixedLanes) await pinFixedLaneHeight(pageB);
         await openHostShare(pageA, projectPath);
         await openHostShare(pageB, projectPath);
         return await run(pageA, pageB);
@@ -356,6 +359,9 @@ test.describe("presence follow desktop", () => {
         // The ruler is pinned; the flag is not (option A, documented in spec-edit OVL-PRESENCE).
         expect((await ruler.boundingBox())!.y).toBeCloseTo(before.ruler, 0);
       },
+      { width: 1280, height: 380 },
+      // Kept pinned: this test scrolls the lanes, and Fit sizes them to fill the stage (scroll range 0).
+      true,
     );
   });
 

@@ -85,6 +85,7 @@ function renderLane(hostClips: ClipRow[] = [first, later]) {
           trackIndex={i}
           clips={lanes[t.id as keyof typeof lanes]}
           width={2000}
+          laneHeight={104}
           zoomPxPerSec={100}
           projectPath="/tmp/ripple.project.json"
           selection={{ kind: "clip", id: "c1", trackId: "host" }}

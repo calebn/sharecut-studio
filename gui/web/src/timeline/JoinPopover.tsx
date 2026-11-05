@@ -1,6 +1,7 @@
 import { type RefObject, useCallback } from "react";
 import { JOIN_AUDITION_PAD_SEC, joinSeamLabel } from "../edit/joinRender";
 import { useDawStore } from "../state/dawStore";
+import { useDaw } from "../state/useDaw";
 import type { ClipRow } from "../types/project";
 import { Dialog, InspectorSeekFooter } from "../ui";
 import { joinKind } from "../utils/editMarkerRegistry";
@@ -33,6 +34,9 @@ export function JoinPopover({
   railRef,
   gripRef,
 }: JoinPopoverProps) {
+  // Fit lanes refit when the window resizes, which moves the join under the
+  // panel after the resize event has already placed it.
+  const laneHeight = useDaw((s) => s.drawnLaneHeightPx);
   // Dismissing mid-request would unmount the popover and drop a failure
   // silently, so Escape, Close, an outside click and opening another join
   // glyph (EditMarkerLayer.tsx) all wait for SetClipJoin to settle.
@@ -55,7 +59,7 @@ export function JoinPopover({
         ref: anchorRef,
         avoidRef: railRef,
         clearRef: gripRef,
-        moves: `${seamSec}|${right.join_in_mode}|${edit.value}`,
+        moves: `${seamSec}|${right.join_in_mode}|${edit.value}|${laneHeight}`,
       }}
       footer={
         <InspectorSeekFooter

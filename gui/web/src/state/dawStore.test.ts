@@ -707,8 +707,8 @@ describe("lane height preference", () => {
     localStorage.removeItem(LANE_HEIGHT_STORAGE_KEY);
   });
 
-  it("defaults to fixed 104", () => {
-    expect(useDawStore.getInitialState().laneHeightMode).toBe("fixed");
+  it("defaults to fit with 104 as the fixed fallback", () => {
+    expect(useDawStore.getInitialState().laneHeightMode).toBe("fit");
     expect(useDawStore.getInitialState().laneHeightPx).toBe(104);
   });
 

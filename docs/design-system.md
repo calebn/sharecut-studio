@@ -76,7 +76,7 @@ organisms; domain screens are templates, colocated with their domain component
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, ClipLed, Pill, Timecode, EmptyState, SurfaceLadder (token reference), CloseButton |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl, Toast, FocusPull, InlineConfirm |
 | **Organisms** | Complex, generic, reusable components / sections | Dialog, AskDialog, BottomSheet, CoverScreen, LoadingScreen, ErrorScreen |
-| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy; a store-bound one hydrates the shared episode instead (see [Catalog boundary](#catalog-boundary-store-bound-components)) | UploadStatus, Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, AppliedEditOverlay, StaleInvalidationOverlay, PendingEditOverlay, MarkerLaneHost, EditBoundaryMark, ClipBlock, CommentPlaybackBubble, TrackHeader, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, HostMcpDialog, GesturesSheet, AvatarStack, OverlayLegend, CommandPalette |
+| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy; a store-bound one hydrates the shared episode instead (see [Catalog boundary](#catalog-boundary-store-bound-components)) | UploadStatus, Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, AppliedEditOverlay, PendingEditOverlay, MarkerLaneHost, EditBoundaryMark, ClipBlock, CommentPlaybackBubble, TrackHeader, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, HostMcpDialog, GesturesSheet, AvatarStack, OverlayLegend, CommandPalette |
 
 **Organisms vs Templates:** an organism is generic and reusable anywhere in the
 app; a template is one specific domain screen or panel (record room, review
@@ -178,14 +178,9 @@ production timeline lane. Fictional prop records cover visible and selected
 edits, densely spaced short cuts, and filtered and empty 360px lanes. The
 ticks remain decorative and non-interactive; the Applied edits list that selected them
 was removed with the former Impact panel (#2293). The story does not mount the DAW store or alter edit behavior.
-`Templates/StaleInvalidationOverlay` renders the same diagnostic bands used in
-the live track lane. Fictional regional, overlapping, short, clipped, filtered,
-and empty states show how render invalidations appear at desktop and 360px
-widths. Whole-track invalidations have no regional band. The bands remain
-decorative and hidden from the accessibility tree; the live stale-status
-controls communicate render state. Both overlay stories share the production
-lane shell through `timelineLaneStoryDecorator` so desktop and phone widths
-stay aligned while retaining each surface's accessible landmark name.
+Both overlay stories share the production lane shell through
+`timelineLaneStoryDecorator` so desktop and phone widths stay aligned while
+retaining each surface's accessible landmark name.
 `Templates/PendingEditOverlay` renders the production `PendingEditOverlayView`
 in the shared lane shell: remove, mute and split suggestions, a selected
 edit, an end-handle drag, a filtered lane and a 360px lane. The live

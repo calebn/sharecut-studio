@@ -369,6 +369,12 @@ export function attachHitRouting(
     restore: null,
   };
   let suppressClickUntil = 0;
+  /** The lift that opened the create menu without picking: its click is a ghost even over an item. */
+  let ghostOverItems = false;
+  const openGhostWindow = () => {
+    suppressClickUntil = Date.now() + GHOST_CLICK_MS;
+    ghostOverItems = false;
+  };
   let redirectedUntil = 0;
   let redirect: {
     tap: Element;
@@ -455,7 +461,7 @@ export function attachHitRouting(
     at: HitPoint,
     tap: boolean,
   ) => {
-    suppressClickUntil = Date.now() + GHOST_CLICK_MS;
+    openGhostWindow();
     if (tap) deferClick(element, source, at);
   };
   const tapOn = (
@@ -838,7 +844,7 @@ export function attachHitRouting(
           return;
         }
         // Lifting anywhere but a chip leaves the chips open to tap.
-        suppressClickUntil = Date.now() + GHOST_CLICK_MS;
+        openGhostWindow();
         phase.view = {
           ...phase.view,
           fingerDown: false,
@@ -852,7 +858,7 @@ export function attachHitRouting(
         if (!phase.view.fingerDown || event.pointerId !== phase.pointerId)
           return;
         stop(event);
-        suppressClickUntil = Date.now() + GHOST_CLICK_MS;
+        openGhostWindow();
         const item = createItemAt(at, phase.view.origin);
         if (item) {
           // Picked by lifting on it: the item's own click runs its command.
@@ -860,7 +866,10 @@ export function attachHitRouting(
           replayClick(item, event, at);
           return;
         }
-        // Lifting anywhere but an item leaves the menu open to tap.
+        // Lifting anywhere but an item leaves the menu open to tap. The Sheet
+        // can sit under the finger, so the lift's own compat click may land on
+        // an item; it is not a choice.
+        ghostOverItems = true;
         phase.view = { ...phase.view, fingerDown: false, over: null };
         emitCreate(phase.view);
         return;
@@ -879,7 +888,7 @@ export function attachHitRouting(
       case "precision": {
         if (event.pointerId !== phase.pointerId) return;
         stop(event);
-        suppressClickUntil = Date.now() + GHOST_CLICK_MS;
+        openGhostWindow();
         phase = IDLE;
         options.precision?.up(event);
         return;
@@ -924,15 +933,24 @@ export function attachHitRouting(
         replayClick(tap, source, at);
       }
     }
-    if (isReplayed(event) || Date.now() >= suppressClickUntil) return;
+    if (isReplayed(event)) return;
+    if (Date.now() >= suppressClickUntil) {
+      ghostOverItems = false;
+      return;
+    }
     // A chip's or create item's own press needs its click.
     if (
       event.target instanceof Element &&
-      event.target.closest(`[${TARGET_ID_ATTR}],[${CREATE_ITEM_ATTR}]`)
+      event.target.closest(
+        ghostOverItems
+          ? `[${TARGET_ID_ATTR}]`
+          : `[${TARGET_ID_ATTR}],[${CREATE_ITEM_ATTR}]`,
+      )
     ) {
       return;
     }
     suppressClickUntil = 0;
+    ghostOverItems = false;
     event.stopPropagation();
     event.preventDefault();
   };
@@ -950,6 +968,7 @@ export function attachHitRouting(
     // No click belongs to a pinch: a finger lifting before the other is not
     // a tap. The window closes once the last finger lifts.
     suppressClickUntil = Number.POSITIVE_INFINITY;
+    ghostOverItems = false;
     for (const [pointerId, down] of gesture.pointers) {
       // Each owner cancels on its own pointer's pointercancel, without saving:
       // whatever the finger pressed, and a target the router replayed it on.
@@ -979,6 +998,7 @@ export function attachHitRouting(
       // the click of the finger that just lifted, which comes before it.
       if (type === "down" && pointers.size === 0 && !gesture.multi) {
         suppressClickUntil = 0;
+        ghostOverItems = false;
         redirectedUntil = 0;
         if (redirect) {
           clearTimeout(redirect.timer);
@@ -1013,7 +1033,7 @@ export function attachHitRouting(
           pointers.delete(event.pointerId);
           if (pointers.size === 0) {
             gesture.multi = false;
-            suppressClickUntil = Date.now() + GHOST_CLICK_MS;
+            openGhostWindow();
           }
         }
         return;
@@ -1159,7 +1179,7 @@ export function attachHitRouting(
       setPhase(IDLE);
       // A tap outside closes on its press; its click must not reach whatever
       // the chooser or menu was covering.
-      suppressClickUntil = Date.now() + GHOST_CLICK_MS;
+      openGhostWindow();
     },
     disarm(element) {
       if (phase.kind === "grabbed" && phase.element === element) setPhase(IDLE);

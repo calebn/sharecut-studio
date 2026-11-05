@@ -20,7 +20,6 @@ import {
 } from "../types/project";
 import type { SessionClient } from "../types/session";
 import type { HostShareRow } from "../types/shares";
-import type { RenderInvalidationView } from "../utils/staleRender";
 
 /** A silent 16-bit mono WAV of `seconds` at 1 kHz, as the pending-preview route returns. */
 export function wavResponse(seconds: number): Response {
@@ -219,21 +218,6 @@ export function clipRow(overrides: Partial<ClipRow> = {}): ClipRow {
     source_id: null,
     source_duration_sec: null,
     recording_key: null,
-    ...overrides,
-  };
-}
-
-/** Fictional stale region for timeline previews and component tests. */
-export function renderInvalidation(
-  overrides: Partial<RenderInvalidationView> = {},
-): RenderInvalidationView {
-  return {
-    id: "stale-cut",
-    track_ids: ["mira-voice"],
-    timeline_start: 2,
-    timeline_end: 5,
-    reason: "cut",
-    at: "2026-01-01T00:00:00Z",
     ...overrides,
   };
 }

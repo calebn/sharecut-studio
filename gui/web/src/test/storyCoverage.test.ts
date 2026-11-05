@@ -72,7 +72,6 @@ const COVERED: Record<string, string[]> = {
   "OVL-PENDING": ["Templates/PendingEditOverlay"],
   "OVL-APPLIED": ["Templates/AppliedEditOverlay", "System/Seam"],
   "OVL-EDITMARKERS": ["Templates/EditMarkerLayer", "System/Seam"],
-  "OVL-STALE": ["Templates/StaleInvalidationOverlay"],
   "OVL-PRESENCE": ["System/Presence", "Stages/Edit/Timeline"],
   "OVL-ENVELOPE": [
     "System/ReadoutChip",
