@@ -325,11 +325,6 @@ export type ModelNeedRowProps = {
   children?: ReactNode;
 };
 
-/**
- * The Model need row wired to the models provider: Get starts the download, the row follows its
- * progress, failure and Cancel, and it renders nothing once the model is in. A step that waits on
- * it resumes through `useModelResume`. Reusable inside any Job row or Check row.
- */
 export function ModelNeedRow({
   model,
   placement = "need",

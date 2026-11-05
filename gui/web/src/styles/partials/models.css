@@ -1,6 +1,3 @@
-/* Model need row and the Models sheet. Intrinsic stack and cluster layout, no tables. */
-
-/* Model need row, list placement (design system 4.2): a 64 px row of icon, capability, meta and the trailing control. */
 .sys-need {
   display: flex;
   flex-direction: column;
@@ -81,7 +78,6 @@
   block-size: auto;
 }
 
-/* Name over size, three equal segments: "Balanced (500 MB)" never wraps or splits at 390 wide. */
 .sys-need-extra .ui-segmented > .ui-control {
   flex: 1 1 0;
   flex-direction: column;
@@ -97,7 +93,6 @@
   font-weight: 400;
 }
 
-/* Models sheet: 420 px docked to the end of the screen on desktop, the full-height bottom sheet on a phone. */
 .models-sheet-body {
   display: flex;
   flex-direction: column;

@@ -1468,9 +1468,6 @@ html[data-frame-short] .sys-header-project .sys-header-title {
   inline-size: min(var(--centered-card-width), 100%);
 }
 
-/* The end form (Models): a modal side sheet, 420 px, full height on the end edge. A phone gets the
-   bottom sheet instead, so this meets desktop and tablet, where the dialog root would otherwise
-   raise it from the bottom. */
 html:not([data-shell="phone"])
   .ui-dialog-root--end:not(.ui-dialog-root--anchored) {
   place-items: stretch end;
