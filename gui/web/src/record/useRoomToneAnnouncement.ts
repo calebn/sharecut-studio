@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import type { RoomToneStatus } from "./roomTone";
 import { ROOM_TONE_TOO_LOUD_COPY, ROOM_TONE_TOO_SHORT_COPY } from "./types";
 
@@ -21,25 +21,23 @@ const END_ANNOUNCEMENT: Partial<Record<RoomToneStatus, string>> = {
 export function useRoomToneAnnouncement(
   status: RoomToneStatus,
 ): { text: string; seq: number } | null {
-  const [line, setLine] = useState<{ text: string; seq: number } | null>(null);
-  const before = useRef<RoomToneStatus>(status);
-  useEffect(() => {
-    const was = before.current;
-    before.current = status;
-    if (status === was) {
-      return;
-    }
-    if (status === "capturing") {
-      setLine((now) => ({
-        text: ROOM_TONE_START_ANNOUNCEMENT,
-        seq: (now?.seq ?? 0) + 1,
-      }));
-    } else if (was === "capturing") {
-      const text = END_ANNOUNCEMENT[status];
-      if (text) {
-        setLine((now) => ({ text, seq: (now?.seq ?? 0) + 1 }));
-      }
-    }
-  }, [status]);
-  return line;
+  const [observation, setObservation] = useState<{
+    status: RoomToneStatus;
+    line: { text: string; seq: number } | null;
+  }>(() => ({ status, line: null }));
+  if (observation.status !== status) {
+    const text =
+      status === "capturing"
+        ? ROOM_TONE_START_ANNOUNCEMENT
+        : observation.status === "capturing"
+          ? END_ANNOUNCEMENT[status]
+          : undefined;
+    setObservation({
+      status,
+      line: text
+        ? { text, seq: (observation.line?.seq ?? 0) + 1 }
+        : observation.line,
+    });
+  }
+  return observation.line;
 }
