@@ -150,3 +150,109 @@
   color: var(--color-text-secondary);
   font-size: var(--font-size-body);
 }
+
+/* Model need row, list placement (design system 4.2): a 64 px row of icon, capability, meta and the trailing control. */
+.sys-need {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-body);
+}
+
+.sys-need-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-block-size: 4rem;
+}
+
+.sys-need-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--color-text-secondary);
+}
+
+.sys-need-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.sys-need-name {
+  font-size: var(--font-size-body);
+  font-weight: 600;
+  line-height: 1.33;
+  overflow-wrap: anywhere;
+}
+
+.sys-need-meta {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+  overflow-wrap: anywhere;
+}
+
+.sys-need-meta[data-failed] {
+  color: var(--color-danger);
+}
+
+.sys-need-control {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+}
+
+.sys-need-control .ui-control {
+  min-block-size: var(--touch-min);
+  gap: var(--space-2);
+}
+
+.sys-need-cancel {
+  position: relative;
+  min-inline-size: var(--touch-min);
+  justify-content: center;
+}
+
+.sys-need-cancel > svg:last-child {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  translate: -50% -50%;
+}
+
+.sys-need-extra {
+  padding-inline-start: calc(1.25rem + var(--space-4));
+}
+
+/* Models sheet: 420 px docked to the end of the screen on desktop, the full-height bottom sheet on a phone. */
+.models-sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.models-sheet-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.models-sheet-wait {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+html:not([data-shell="phone"]) .command-palette-panel.models-sheet {
+  inline-size: min(26.25rem, 100vw);
+  block-size: 100dvh;
+  max-block-size: none;
+  align-self: stretch;
+  justify-self: end;
+  border-radius: 0;
+}
