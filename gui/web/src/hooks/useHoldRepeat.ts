@@ -1,4 +1,5 @@
 import { type MouseEvent, type PointerEvent, useEffect, useRef } from "react";
+import { useStableCallback } from "../utils/useStableCallback";
 import { nudgeRepeatDelayMs } from "./gestureConstants";
 
 /** Marks a hold-to-repeat control; `layout.css` keeps native text selection off it. */
@@ -13,8 +14,7 @@ export const HOLD_REPEAT_CLASS = "hold-repeat";
  * a second step.
  */
 export function useHoldRepeat(step: () => boolean) {
-  const stepRef = useRef(step);
-  stepRef.current = step;
+  const stepNow = useStableCallback(step);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const stop = () => {
@@ -24,7 +24,7 @@ export function useHoldRepeat(step: () => boolean) {
 
   const repeatLater = (repeats: number) => {
     timer.current = setTimeout(() => {
-      if (!stepRef.current()) {
+      if (!stepNow()) {
         stop();
         return;
       }
@@ -39,14 +39,14 @@ export function useHoldRepeat(step: () => boolean) {
     onPointerDown: (event: PointerEvent<HTMLButtonElement>) => {
       if (event.button !== 0 || event.currentTarget.disabled) return;
       stop();
-      if (stepRef.current()) repeatLater(0);
+      if (stepNow()) repeatLater(0);
     },
     onPointerUp: stop,
     onPointerCancel: stop,
     onPointerLeave: stop,
     onBlur: stop,
     onClick: (event: MouseEvent<HTMLButtonElement>) => {
-      if (event.detail === 0) stepRef.current();
+      if (event.detail === 0) stepNow();
     },
   };
 }

@@ -1,4 +1,5 @@
 import { type RefObject, useEffect, useRef } from "react";
+import { useStableCallback } from "../utils/useStableCallback";
 import { focusHeld } from "./focusHold";
 import { isValidFocusTarget } from "./focusTarget";
 import { cancelInlineConfirm } from "./inlineConfirmGate";
@@ -76,8 +77,7 @@ export function useDialogModal({
   shortcuts,
   stackKey,
 }: UseDialogModalOptions): void {
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  const close = useStableCallback(onClose);
   // A string, so a caller's inline array does not reopen the overlay each render.
   const shortcutIds = shortcuts?.join(" ") ?? "";
   const restoreFocusRef = useRef<HTMLElement | null>(null);
@@ -154,7 +154,7 @@ export function useDialogModal({
           return;
         }
         escaped = true;
-        onCloseRef.current();
+        close();
         return;
       }
       if (mode !== "modal" || e.key !== "Tab" || !isInnermostOverlay(layer)) {
@@ -233,5 +233,6 @@ export function useDialogModal({
     mode,
     shortcutIds,
     stackKey,
+    close,
   ]);
 }
