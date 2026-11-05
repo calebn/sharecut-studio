@@ -1116,7 +1116,6 @@ async function drawerChrome(page: Page) {
       sheetPx: panel ? Math.round(panel.getBoundingClientRect().height) : 0,
       chromePx: chrome ? Math.round(chrome.getBoundingClientRect().height) : 0,
       header: reach(panel?.querySelector(".bottom-sheet-title")),
-      // The drawer's one resize button: Collapse at full, Expand at half.
       resize: reach(named("Collapse") ?? named("Expand")),
       close: reach(named("Close")),
     };

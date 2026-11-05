@@ -38,7 +38,7 @@ gap tolerance, ripple edge epsilon) sit in the `constants` block of
 A trim that newly moves a whole follower below timeline zero by more than 1 ns
 raises `ripple_before_zero` before any lane changes. This preserves the rendered
 source clock without cutting source audio or clamping one follower. Drag,
-keyboard, and strip nudge candidates validate through the same client draft
+keyboard, and nudge candidates validate through the same client draft
 operation before publication. Invalid input shows the existing error feedback
 and keeps the last valid draft and arrows. Release saves only that accepted
 value. `ripple-overlap-proof.spec.ts` checks the built GUI's large-overlap refusal,

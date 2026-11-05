@@ -344,6 +344,31 @@ describe("BottomSheet", () => {
       expect(screen.getByText("peek")).toBeInTheDocument();
       expect(body.scrollTop).toBe(0);
     });
+    it("keeps the scroll when the detents shrink to full under a sheet already at full", () => {
+      function Shrink({ detents }: { detents: ("half" | "full")[] }) {
+        return (
+          <BottomSheet
+            open
+            onClose={() => undefined}
+            backgroundPolicy="interactive"
+            title="Trim start"
+            drawer={{
+              detents,
+              detent: "full",
+              onDetentChange: () => undefined,
+              label: "Inspector height",
+            }}
+          >
+            <p>body</p>
+          </BottomSheet>
+        );
+      }
+      const { rerender } = render(<Shrink detents={["half", "full"]} />);
+      const body = document.querySelector(".bottom-sheet-body") as HTMLElement;
+      body.scrollTop = 184;
+      rerender(<Shrink detents={["full"]} />);
+      expect(body.scrollTop).toBe(184);
+    });
     /** A 600px slot: strip 100, half 300, full 600; the header is 50. */
     function layOut() {
       const height = (el: HTMLElement) => {
