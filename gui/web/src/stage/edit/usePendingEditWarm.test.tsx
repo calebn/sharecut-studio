@@ -67,6 +67,8 @@ function seed(path = "/tmp/p.json") {
   });
 }
 
+const revokeObjectURL = vi.fn();
+
 describe("usePendingEditWarm", () => {
   beforeEach(() => {
     vi.mocked(warmPendingPreview).mockClear();
@@ -78,7 +80,8 @@ describe("usePendingEditWarm", () => {
       vi.fn(async () => wavResponse(1.25)),
     );
     URL.createObjectURL = vi.fn(() => "blob:pending-preview");
-    URL.revokeObjectURL = vi.fn();
+    revokeObjectURL.mockClear();
+    URL.revokeObjectURL = revokeObjectURL;
   });
 
   it("warms the host for the edit it shows, again once the mix changes", async () => {
@@ -119,7 +122,7 @@ describe("usePendingEditWarm", () => {
     );
     unmount();
     expect(useDawStore.getState().sourcePreview).toBeNull();
-    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:pending-preview");
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:pending-preview");
   });
 
   it("releases the previous edit's audio when the edit id changes", async () => {

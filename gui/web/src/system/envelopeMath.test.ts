@@ -251,8 +251,8 @@ function driftPx(from: number, to: number, span: number, height: number) {
   }
   let worst = 0;
   for (let i = 1; i < verts.length; i += 1) {
-    const [ax = 0, ay = 0] = verts[i - 1] ?? [];
-    const [bx = 0, by = 0] = verts[i] ?? [];
+    const [ax, ay] = verts[i - 1];
+    const [bx, by] = verts[i];
     if (ax >= span) break;
     for (let k = 0; k <= 4; k += 1) {
       const x = ax + ((bx - ax) * k) / 4;

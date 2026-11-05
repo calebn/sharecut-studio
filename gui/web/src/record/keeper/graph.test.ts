@@ -73,7 +73,8 @@ describe("openKeeperTap", () => {
     const tap = await openKeeperTap(stream, onPcm);
     const data = new Float32Array(4);
     const node = nodes[0];
-    (node?.port.onmessage as (e: { data: Float32Array }) => void)({ data });
+    if (!node) throw new Error("No worklet node");
+    (node.port.onmessage as (e: { data: Float32Array }) => void)({ data });
     expect(onPcm).toHaveBeenCalledWith(data, 48000);
     tap.stop();
     expect(node?.port.onmessage).toBeNull();

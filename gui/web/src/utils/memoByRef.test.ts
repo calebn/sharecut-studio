@@ -14,7 +14,7 @@ describe("memoByRef", () => {
   });
 
   it("caches an undefined result too", () => {
-    const compute = vi.fn((_: object) => undefined);
+    const compute = vi.fn<(_: object) => undefined>(() => undefined);
     const memo = memoByRef(compute);
     const key = {};
     memo(key);

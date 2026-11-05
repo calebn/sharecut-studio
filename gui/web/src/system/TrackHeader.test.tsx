@@ -281,6 +281,7 @@ describe("TrackHeader reordering", () => {
     render(
       <div
         role="toolbar"
+        tabIndex={-1}
         aria-label="keymap"
         onKeyDown={(event) => event.key.startsWith("Arrow") && seen(event.key)}
       >

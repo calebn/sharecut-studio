@@ -27,7 +27,7 @@ function fakeWorker() {
       worker.onmessage?.({ data: m } as MessageEvent<SyncWriterOutMsg>);
     },
   };
-  return { worker, posted };
+  return { worker, posted, terminate };
 }
 
 const tick = () => vi.advanceTimersByTimeAsync(0);
@@ -73,12 +73,12 @@ describe("createSyncWriterClient", () => {
 
   it("closes once and terminates", async () => {
     vi.useFakeTimers();
-    const { worker, posted, stream } = await openReady();
+    const { worker, posted, stream, terminate } = await openReady();
     const c = stream.close();
     worker.emit({ type: "result", id: 2 });
     await c;
     expect(posted[1].msg.type).toBe("close");
-    expect(worker.terminate).toHaveBeenCalledTimes(1);
+    expect(terminate).toHaveBeenCalledTimes(1);
     await stream.close();
     expect(posted).toHaveLength(2);
   });
@@ -155,11 +155,11 @@ describe("createSyncWriterClient", () => {
 
   it("abort terminates the worker and rejects an in-flight close", async () => {
     vi.useFakeTimers();
-    const { worker, stream } = await openReady();
+    const { stream, terminate } = await openReady();
     const c = stream.close();
     await stream.abort?.();
     await expect(c).rejects.toThrow("aborted");
-    expect(worker.terminate).toHaveBeenCalled();
+    expect(terminate).toHaveBeenCalled();
   });
 
   it("latches after repeated open timeouts", async () => {
@@ -243,7 +243,7 @@ describe("createSyncWriterClient", () => {
     );
     await vi.advanceTimersByTimeAsync(50);
     await assertion;
-    expect(f.worker.terminate).toHaveBeenCalled();
+    expect(f.terminate).toHaveBeenCalled();
   });
 
   it("fails closed after a write error so later offset-less writes cannot leave a hole", async () => {
@@ -258,13 +258,13 @@ describe("createSyncWriterClient", () => {
 
   it("fails pending writes when the worker dies after ready", async () => {
     vi.useFakeTimers();
-    const { worker, stream } = await openReady();
+    const { worker, stream, terminate } = await openReady();
     const assertion = expect(stream.write(new Uint8Array(2))).rejects.toThrow(
       "stopped unexpectedly",
     );
     worker.onerror?.(new Event("error"));
     await assertion;
-    expect(worker.terminate).toHaveBeenCalled();
+    expect(terminate).toHaveBeenCalled();
   });
 
   it("surfaces an open error without marking the client unavailable", async () => {
@@ -288,7 +288,7 @@ describe("createSyncWriterClient", () => {
       message: "locked",
     });
     await assertion;
-    expect(f.worker.terminate).toHaveBeenCalled();
+    expect(f.terminate).toHaveBeenCalled();
     void client.open("b").catch(() => undefined);
     expect(spawn).toHaveBeenCalledTimes(2);
   });

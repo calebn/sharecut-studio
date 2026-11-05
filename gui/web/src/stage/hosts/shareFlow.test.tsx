@@ -1,5 +1,5 @@
 import { act, render, waitFor } from "@testing-library/react";
-import { StrictMode } from "react";
+import { StrictMode, useLayoutEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   LISTEN_CHOICES,
@@ -107,7 +107,10 @@ function setClipboard(value: unknown) {
 
 let flow: ShareFlow;
 function Probe() {
-  flow = useShareFlow();
+  const value = useShareFlow();
+  useLayoutEffect(() => {
+    flow = value;
+  });
   return null;
 }
 
@@ -820,7 +823,8 @@ describe("copying a listed link", () => {
 
   it("ignores a copy that finishes after the project changed", async () => {
     const clipboard = deferred<void>();
-    setClipboard({ writeText: vi.fn(() => clipboard.promise) });
+    const writeText = vi.fn(() => clipboard.promise);
+    setClipboard({ writeText });
     mount();
     act(() => flow.copy("link", liveRow.token, "Link", liveRow.url));
     act(() => useDawStore.setState({ projectEpoch: 2 }));
@@ -1003,14 +1007,13 @@ describe("record rooms", () => {
   it("ignores a replacement clipboard completion after the project changed", async () => {
     const replacement = { ...guestRow, token: "replacement-guest-token" };
     const clipboard = deferred<void>();
-    setClipboard({ writeText: vi.fn(() => clipboard.promise) });
+    const writeText = vi.fn(() => clipboard.promise);
+    setClipboard({ writeText });
     replaceHostRecordInvite.mockResolvedValue(replacement);
     listHostShares.mockResolvedValue(listed([liveRow]));
     mount();
     act(() => flow.replaceInvite("closed-guest-token"));
-    await waitFor(() =>
-      expect(navigator.clipboard.writeText).toHaveBeenCalled(),
-    );
+    await waitFor(() => expect(writeText).toHaveBeenCalled());
     act(() => useDawStore.setState({ projectEpoch: 2 }));
     await act(async () => {
       clipboard.resolve();
@@ -1024,13 +1027,12 @@ describe("record rooms", () => {
   it("ignores a replacement clipboard completion after Deliver is left and shown again", async () => {
     const replacement = { ...guestRow, token: "replacement-guest-token" };
     const clipboard = deferred<void>();
-    setClipboard({ writeText: vi.fn(() => clipboard.promise) });
+    const writeText = vi.fn(() => clipboard.promise);
+    setClipboard({ writeText });
     replaceHostRecordInvite.mockResolvedValue(replacement);
     mount();
     act(() => flow.replaceInvite("closed-guest-token"));
-    await waitFor(() =>
-      expect(navigator.clipboard.writeText).toHaveBeenCalled(),
-    );
+    await waitFor(() => expect(writeText).toHaveBeenCalled());
     leaveDeliver();
     enterDeliver();
     await act(async () => {

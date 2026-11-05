@@ -271,7 +271,7 @@ describe("OpenOther", () => {
   };
 
   it("closes on Esc from the field and focuses the trigger", async () => {
-    const user = await renderOpen();
+    const user = renderOpen();
     await user.click(
       screen.getByRole("textbox", { name: "Folder of the episode" }),
     );
@@ -281,7 +281,7 @@ describe("OpenOther", () => {
   });
 
   it("closes on Esc from the Open button and focuses the trigger", async () => {
-    const user = await renderOpen();
+    const user = renderOpen();
     screen.getByRole("button", { name: "Open" }).focus();
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();

@@ -1,5 +1,5 @@
 import { act, fireEvent, render } from "@testing-library/react";
-import { useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject, sampleTrack } from "../test/fixtures";
@@ -22,17 +22,19 @@ function Harness({
 } = {}) {
   const ref = useRef<HTMLDivElement>(null);
   const gesture = useRangeGesture(ref, 10, 60);
-  expose?.(gesture);
+  useLayoutEffect(() => {
+    expose?.(gesture);
+  });
   return (
     <div
       ref={ref}
       data-testid="lanes"
-      onPointerDownCapture={gesture.captureDown}
-      onPointerMoveCapture={gesture.captureMove}
-      onPointerUpCapture={gesture.captureUp}
-      onPointerCancelCapture={gesture.captureCancel}
-      onLostPointerCaptureCapture={gesture.captureLostCapture}
-      onClickCapture={gesture.captureClick}
+      onPointerDownCapture={(event) => gesture.captureDown(event)}
+      onPointerMoveCapture={(event) => gesture.captureMove(event)}
+      onPointerUpCapture={(event) => gesture.captureUp(event)}
+      onPointerCancelCapture={(event) => gesture.captureCancel(event)}
+      onLostPointerCaptureCapture={(event) => gesture.captureLostCapture(event)}
+      onClickCapture={(event) => gesture.captureClick(event)}
     >
       <div className="lane-row" data-track-id="destination">
         <div className="lane-seek" data-testid="blank" />
@@ -301,7 +303,10 @@ it("a stale body owner cannot clear the newer lane range", () => {
   let gesture!: ReturnType<typeof useRangeGesture>["gesture"];
   function OwnedHarness() {
     const ref = useRef<HTMLDivElement>(null);
-    gesture = useRangeGesture(ref, 10, 60).gesture;
+    const range = useRangeGesture(ref, 10, 60);
+    useLayoutEffect(() => {
+      gesture = range.gesture;
+    });
     return (
       <div ref={ref} data-testid="owned-lanes">
         <div className="lane-row" data-track-id="destination" />

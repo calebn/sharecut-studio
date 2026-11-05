@@ -9,7 +9,7 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Profiler, useState } from "react";
+import { Profiler, useLayoutEffect, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { stubRaf } from "../test/raf";
@@ -640,7 +640,9 @@ describe("BottomSheet", () => {
       function RotatingInspector() {
         const [epoch, setEpoch] = useState(0);
         const [confirming, setConfirming] = useState(false);
-        rotate = () => setEpoch((n) => n + 1);
+        useLayoutEffect(() => {
+          rotate = () => setEpoch((n) => n + 1);
+        });
         return (
           <>
             <BottomSheet

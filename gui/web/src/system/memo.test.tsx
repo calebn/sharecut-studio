@@ -43,6 +43,7 @@ vi.mock("./Marker", () => ({
     return (
       <button
         type="button"
+        aria-label="Marker"
         aria-pressed={props.selected}
         onClick={props.onSelect}
       />

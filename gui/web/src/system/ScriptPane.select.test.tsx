@@ -49,11 +49,11 @@ function layoutInGrid(pane?: { height: number }) {
       return rectOf(this);
     },
   );
-  vi.spyOn(HTMLElement.prototype, "getClientRects").mockImplementation(
-    function (this: HTMLElement) {
+  return vi
+    .spyOn(HTMLElement.prototype, "getClientRects")
+    .mockImplementation(function (this: HTMLElement) {
       return [rectOf(this)] as unknown as DOMRectList;
-    },
-  );
+    });
 }
 
 afterEach(() => {
@@ -425,14 +425,13 @@ describe("ScriptPane selection handles", () => {
   });
 
   it("measures the places once while a grip is dragged, not once per move", () => {
-    layoutInGrid();
+    const rects = layoutInGrid();
     const { container } = render(
       <ScriptPane {...props({ selection: words(12, 14) })} />,
     );
     const end = grips(container).end;
     if (!end) throw new Error("No grip");
-    const reads = () =>
-      vi.mocked(HTMLElement.prototype.getClientRects).mock.calls.length;
+    const reads = () => rects.mock.calls.length;
     fireEvent.pointerDown(end, { pointerId: 1, clientX: 0, clientY: 0 });
     fireEvent.pointerMove(end, { pointerId: 1, clientX: 100, clientY: 10 });
     const first = reads();
@@ -556,11 +555,10 @@ describe("ScriptPane keys the window keymap must not see", () => {
 
 describe("ScriptPane places are measured once per layout", () => {
   it("does not measure every word again on each arrow press, only after the layout changes", async () => {
-    layoutInGrid();
+    const rects = layoutInGrid();
     const user = userEvent.setup();
     const { rerender } = render(<ScriptPane {...props()} />);
-    const reads = () =>
-      vi.mocked(HTMLElement.prototype.getClientRects).mock.calls.length;
+    const reads = () => rects.mock.calls.length;
     word("sound").focus();
     await user.keyboard("{ArrowDown}");
     const afterFirst = reads();
