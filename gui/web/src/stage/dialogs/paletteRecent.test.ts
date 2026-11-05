@@ -1,8 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readPaletteRecent, rememberPaletteRecent } from "./paletteRecent";
 
 describe("palette recents", () => {
   beforeEach(() => localStorage.clear());
+  afterEach(() => vi.restoreAllMocks());
 
   it("keeps the newest first without repeats and caps the list", () => {
     rememberPaletteRecent("a");
@@ -28,19 +29,13 @@ describe("palette recents", () => {
   });
 
   it("does not throw when storage is blocked", () => {
-    const spy = vi
-      .spyOn(Storage.prototype, "getItem")
-      .mockImplementation(() => {
-        throw new Error("blocked");
-      });
-    const set = vi
-      .spyOn(Storage.prototype, "setItem")
-      .mockImplementation(() => {
-        throw new Error("blocked");
-      });
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
     expect(readPaletteRecent()).toEqual([]);
     expect(rememberPaletteRecent("a")).toEqual(["a"]);
-    spy.mockRestore();
-    set.mockRestore();
   });
 });

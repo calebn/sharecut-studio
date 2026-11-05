@@ -346,6 +346,11 @@ describe("project.open", () => {
       await act(async () => {
         finishOpen({ project_path: "/p/show", name: "show" });
       });
+      await waitFor(() =>
+        expect(useDawStore.getState().statusAnnouncement).toBe(
+          "Stop and finish recording before switching projects",
+        ),
+      );
       expect(assign).not.toHaveBeenCalled();
     });
 
