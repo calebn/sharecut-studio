@@ -143,13 +143,11 @@ export const ReadOnly: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      canvas.getByRole("slider", { name: "Volume Mira voice" }),
-    ).toBeDisabled();
+      canvas.getByRole("spinbutton", { name: "Volume Mira voice" }),
+    ).toHaveAttribute("aria-readonly", "true");
     await expect(
-      canvas.getByRole("slider", { name: "Volume Mira voice" }),
-    ).toHaveAccessibleDescription(
-      /Only the host and editors can change volume/,
-    );
+      canvas.getByText(/Only the host and editors can change volume/),
+    ).toBeVisible();
     await expect(
       canvas.getByRole("button", { name: "Mute Avery" }),
     ).toHaveAttribute("aria-disabled", "true");
@@ -186,10 +184,10 @@ export const LongNames: Story = {
   },
   play: async ({ canvasElement }) => {
     await expect(
-      within(canvasElement).getByRole("slider", {
+      within(canvasElement).getByRole("spinbutton", {
         name: "Volume Mira voice with a very long descriptive recording name",
       }),
-    ).toHaveValue("-3");
+    ).toHaveAttribute("aria-valuenow", "-3");
   },
 };
 export const ManyTracks: Story = {
