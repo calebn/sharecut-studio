@@ -227,21 +227,10 @@ caught and comments are ignored) and checks they never reach the store, the
 API layer, or `timelineMetrics` directly — `followSync` still reaches the
 store transitively through `clock.ts`, which the guard does not follow.
 
-`Templates/GhostWordChips` previews the restored-word preview with
-fictional data. Its stories show restored words, empty ghost output and a
-360px phone layout. The comment card and composer are the system components
+The comment card and composer are the system components
 (`System/CommentCard`, `System/Composer`); the old `Templates/CommentCompose`
 story was removed with `src/comments/CommentCompose`. The live comment panel
-remains outside this catalog slice. The restored-word preview
-uses the theme's unmapped text color at full opacity so its ghost styling
-remains readable in both themes.
-Open, Resolved, and Empty stay fixed for visual comparison. ResolveAndReopen
-and DraftAndPost exercise the controls separately; Empty passes an explicit
-disabled prop rather than adding validation to the shared form. GuestFeedback
-and MobileGuestFeedback use the same review shell and compose classes as the
-public review page in a fullscreen canvas. DraftAndPost clears its draft after
-the story-local successful submit; ActionsAndReplies ignores blank replies
-and displays trimmed successful replies, as the public review page does.
+remains outside this catalog slice. The removed `Templates/GhostWordChips` previewed the restored-word chips that the Seam's pill and the Inspector now replace.
 
 `System/ScriptPane` is the pure Script pane; `stage/edit/script/ScriptHost`
 reads the store, builds its turns with `scriptModel`, and owns seeking,
@@ -249,30 +238,14 @@ selection, Fix text, Find, the speaker popover and the word window.
 Each word the host gives an `anchor` carries it as `data-presence-anchor`, so
 another person's cursor and selection land on it.
 `Stages/Edit/ScriptHost` stories run the host over fictional store data.
-`Templates/EditBoundaryMark` renders the production `EditBoundaryMarkView`
-inline in a transcript row: a roll join, a live roll drag previewing
-restored words, a single-clip trim edge and a 360px row. The live
-`EditBoundaryMark` adapter resolves the roll pair and interval from the store
-when a drag starts (`getRollInterval` calls `rollJoinInterval`) and commits
-`RollClipJoin` / `TrimClipEdge`; story callbacks are `fn()`.
-The boundary button keeps `aria-grabbed` while dragging, as before the
-extraction, even though ARIA 1.2 deprecates it; axe lists it as needs-review
-(rule `aria-allowed-attr`, check `aria-no-deprecated-attr`, under
-`incomplete`) rather than a violation, and `EditBoundaryMark.test.tsx` pins
-that classification so an axe upgrade that changes it fails there. If it is
-ever dropped, replace it with a live-region or `aria-description` drag
-message. One drag runs at a time: a second finger on the button is ignored
-until the first lifts. Pointer cancel, lost capture, focus departure, window blur,
-ancestor scroll, resize, Escape, and unmount discard the gesture. Pointer up
-commits once. Saving blocks another gesture on that handle. Errors scroll within
-viewport bounds and provide a Dismiss button that restores focus.
+`System/Seam` renders a clip join inline in a transcript row: its pill rolls the
+join (80 px/s, Shift ×12.5, with an `ms` readout chip) and Esc cancels the
+roll before release. The Script host commits `RollClipJoin` through
+`stage/edit/script/useScriptSeamRoll`; story callbacks are `fn()`.
 
-The portal shows roll/trim intent, a delta at 0.01-second display precision,
-clamp limits, and restored-word side. Long previews report abbreviated or omitted
-words. Focused Vitest tests cover lifecycle behavior. Chromium tests in
-`gui/web/e2e/edit-boundary-touch.spec.ts` cover live-project geometry and touch.
-`gui/web/e2e-storybook/edit-boundary.spec.ts` covers word-bearing roll and trim,
-wrapped text, both themes, focus departure, and short-viewport error recovery.
+The Seam pill's readout chip shows the roll delta in milliseconds and clamps at the
+restorable limits; `System/Seam` stories and `e2e/edit-boundary-archive.spec.ts`
+cover the roll.
 
 `Templates/InspectorSeekFooter` renders the production `InspectorSeekFooterView`
 that every modifier inspector's footer uses. Fixed props cover the quiet-link
@@ -390,7 +363,7 @@ extracted at an I/O seam follow the props-only view pattern. Existing
 examples are `ScriptPane`,
 `EditCornerView`, `CommandPaletteView`,
 `ClipBlockView`, `MarkerLaneHost`, `PendingEditOverlayView`,
-`EditBoundaryMarkView` and `InspectorSeekFooterView`.
+and `InspectorSeekFooterView`.
 
 `Atoms/SurfaceLadder` renders the five ladder rungs, fields, the selected chip,
 stage, transport, accent, and danger from the live tokens — iterate on the
@@ -660,7 +633,7 @@ jsdom visibility checks.
 
 - 2026-09-27 — Closed #614: added `Templates/ClipBlock`,
   `Templates/MarkerLaneHost`, `Templates/PendingEditOverlay` and
-  `Templates/EditBoundaryMark` over props-only production views rendered by
+  `Templates/EditBoundaryMark` (later replaced by `System/Seam`) over props-only production views rendered by
   their live adapters; removed follow-up F from the Catalog boundary list.
 
 - 2026-09-27 — Closed #615 (the envelope template was later replaced by the

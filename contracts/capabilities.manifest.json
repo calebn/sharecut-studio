@@ -2894,7 +2894,7 @@
         "anchor": "transcript:word:<hash>"
       },
       "omit": {
-        "keyboard_reason": "Native range controls and numeric fields in the word inspector"
+        "keyboard_reason": "Start and End Scrub fields and waveform handles in the word inspector"
       }
     },
     {
@@ -2929,7 +2929,7 @@
       "id": "daw.transcript.extendRange",
       "label": "Extend transcript range",
       "effect": "view",
-      "tooltip": "Extend the selected word range by a word at either edge; on touch, long-press a word and drag",
+      "tooltip": "Extend the selected word range by a word at either edge with Shift+Arrow or the selection handles; on touch, long-press a word and drag",
       "service": "ShareCut Studio UI",
       "industry_standard_key": false,
       "gates": [
@@ -2937,15 +2937,12 @@
       ],
       "surfaces": {
         "command": "transcript.extendRange",
-        "gui": [
-          "rangeActions.words"
-        ],
         "touch": [
           "long-press-arm-drag"
         ]
       },
       "omit": {
-        "keyboard_reason": "Range action buttons are keyboard operable; no industry-standard key"
+        "keyboard_reason": "Shift+Arrow and the selection handles extend the range; no industry-standard key"
       },
       "presence": {
         "cursor": "anchor",
@@ -2968,8 +2965,7 @@
         "command": "transcript.ignoreWords",
         "gui": [
           "transcript.ignore",
-          "inspector.word.ignore",
-          "rangeActions.words"
+          "inspector.word.ignore"
         ],
         "mcp": [
           "set_words_ignored_tool"
@@ -3046,7 +3042,7 @@
       "id": "daw.edit.moveClips",
       "label": "Move clips",
       "effect": "project",
-      "tooltip": "Move clip in the inspector previews time and target track before Apply move; clip-body drag also moves clips",
+      "tooltip": "Scrub Start or tap a track in the clip inspector to move a clip; clip-body drag also moves clips",
       "service": "ShareCut Studio \u2192 MoveClips document command",
       "industry_standard_key": false,
       "gates": [

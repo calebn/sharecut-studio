@@ -5,8 +5,8 @@ import { openProject, phone } from "../e2e/stageNav";
 /*
  * #1029: Select mode works by touch on Chromium and WebKit. A long press on a
  * word arms a range and a drag over more words selects them; the selection
- * sheet opens when the finger lifts and never covers the selected words; the
- * Words controls add and drop a word without any gesture.
+ * sheet opens when the finger lifts and never covers the selected words.
+ * Handles and Shift+arrows extend a range; there are no step buttons.
  */
 
 test.use({ hasTouch: true, isMobile: true });
@@ -41,7 +41,7 @@ async function touch(
   );
 }
 
-test("a long press then a drag selects a word range, and the sheet clears it", async ({
+test("a long press then a drag selects a word range, and the sheet clears it with no step buttons", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 393, height: 852 });
@@ -57,13 +57,11 @@ test("a long press then a drag selects a word range, and the sheet clears it", a
     await expect(page.locator(".sys-script-word[data-selected]")).toHaveCount(
       4,
     );
+    await touch(page, "pointerup", 3);
+
     await expect(
       page.getByRole("group", { name: "Words in range" }),
     ).toHaveCount(0);
-    await touch(page, "pointerup", 3);
-
-    const words = page.getByRole("group", { name: "Words in range" });
-    await expect(words).toContainText("4 words");
     await expect(page.locator(".sys-script-word[data-selected]")).toHaveCount(
       4,
     );
@@ -79,11 +77,6 @@ test("a long press then a drag selects a word range, and the sheet clears it", a
       );
     });
     expect(clear).toBe(true);
-
-    await words.getByRole("button", { name: "Add word after" }).click();
-    await expect(words).toContainText("5 words");
-    await words.getByRole("button", { name: "Drop first word" }).click();
-    await expect(words).toContainText("4 words");
   });
 });
 

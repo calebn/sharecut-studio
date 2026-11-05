@@ -37,7 +37,7 @@ export function clipBleedDisabledReason(): string | undefined {
   if (state.rangeBusy) return "Wait for the range edit to finish.";
   if (state.timelineDragging) return "Finish the drag before restoring audio.";
   if (getClipPlacement().kind !== "idle")
-    return "Apply or cancel Move clip before restoring audio.";
+    return "Finish or cancel the clip move before restoring audio.";
   return undefined;
 }
 

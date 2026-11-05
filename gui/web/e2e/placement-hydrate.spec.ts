@@ -21,7 +21,7 @@ test.afterEach(async ({ page }) => {
   if (workspaceDir) removeRelocatedE2eProject(workspaceDir);
 });
 
-test("a late transcript word load keeps an open Move clip form and Apply sends one move", async ({
+test("a late transcript word load keeps the Start field's typed value and Enter sends one move", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -52,10 +52,11 @@ test("a late transcript word load keeps an open Move clip form and Apply sends o
   await expect(words).toHaveCount(0);
   await page.locator(".clip-block .clip-hit").first().click();
   await ensureInspected(page);
-  const entry = page.getByRole("button", { name: "Move clip", exact: true });
-  await expect(entry).toBeEnabled();
-  await entry.click();
-  const start = page.getByLabel("Timeline start (seconds)");
+  const field = page.getByRole("spinbutton", { name: "Start", exact: true });
+  await expect(field).not.toHaveAttribute("aria-readonly", "true");
+  await field.focus();
+  await page.keyboard.press("Enter");
+  const start = page.getByRole("textbox", { name: "Start", exact: true });
   await start.fill("7");
   await expect(start).toHaveValue("7");
 
@@ -67,7 +68,7 @@ test("a late transcript word load keeps an open Move clip form and Apply sends o
       response.url().includes("/api/document/command") &&
       /moveClips/i.test(response.request().postData() ?? ""),
   );
-  await page.getByRole("button", { name: "Apply move", exact: true }).click();
+  await start.press("Enter");
   await sent;
   await expect(start).toHaveCount(0);
   await expect.poll(() => inflight.size).toBe(0);

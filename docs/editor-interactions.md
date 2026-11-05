@@ -1,20 +1,17 @@
 # Editor interaction inventory
 
-The #1033 local placement owner shares the existing move geometry and command.
-Preview does not change the project. Apply checks the captured project, epoch,
-selection, permission, and edit basis inside the mutation queue. Cancel and no-op
-leave History unchanged. A stale queued apply is refused before patch or delivery.
-The server concurrency policy is unchanged.
+The Clip inspector's Start Scrub field and Move to track toggles share the move
+geometry and command with dragging. A drag or a field edit previews on the
+timeline without changing the project; committing checks the captured project,
+epoch, selection, permission and edit basis inside the mutation queue. Escape
+and a no-op leave History unchanged. The server concurrency policy is unchanged.
 
-`non-drag-placement.spec.ts` is the focused browser proof command target for the
-new controls. Its receipts distinguish native mouse or browser touch initiation
-from synthetic selectOption assistance.
-It covers exact saved 7/27 placements, lanes, refusal/recovery and Undo, plus local
-panel preference steps/reset/reload. Panel tests cover the measured ceiling,
-oversized preferences, and passive banner and root-font changes without a window
-resize. The banner-row and root-font stimuli are synthetic layout fixtures.
-The paired shell, role, theme, motion, short height and large-text cells are
-specified tests, not claimed acceptance results.
+`non-drag-placement.spec.ts` is the focused browser proof for the Start Scrub
+field: Escape saves nothing and a typed time saves one placement. Panel tests
+cover the measured ceiling, oversized preferences, and passive banner and
+root-font changes without a window resize. The paired shell, role, theme,
+motion, short height and large-text cells are specified tests, not claimed
+acceptance results.
 Arbitrary exact timestamp seek remains a separate precision gap.
 
 This inventory separates navigation, local drafts and browser preferences from
@@ -36,20 +33,20 @@ by a test are synthetic, even when the browser viewport resembles a phone.
 
 | Family | Pointer behavior and alternative | State and executable checks |
 | --- | --- | --- |
-| Clip body move | Drag an off-center grab; click selects and modifier click extends selection. Shift drag selects a range instead. The Clip inspector offers Move clip, native target track and exact timeline start, Earlier/Later 10 ms, Use playhead, Apply move and Cancel. No typing is required for time stepping. | Local in-place preview or destination-lane ghost before `MoveClips`; Escape cancels from the existing focus without changing selection timing. Owner cancellation/capture loss, focused-owner blur and unmount discard the preview; later held input is inert. One changed release and Undo. `ClipBlock.test.tsx` and `edit/clipMove.test.ts` cover the owner and geometry. `inventory-audit.spec.ts` uses a separated-clip fixture for native first-drag, reversal, cancellation, saved geometry and Undo. |
-| Roll seam | Drag the seam between adjacent clips. Click selects it; Precision boundary supplies exact offset and audition. | Preview moves the paired boundary within legal source limits. `transitions-acceptance.spec.ts` checks saved paired bounds and Undo; `edit-boundary-precision.spec.ts` checks the alternative. |
+| Clip body move | Drag an off-center grab; click selects and modifier click extends selection. Shift drag selects a range instead. The Clip inspector offers a Start Scrub field and a Track row of toggles: a drag on Start previews the move on the timeline and a release or Enter saves it, and a track toggle moves the clip there at the same time. There is no Apply or Cancel. | Local in-place preview or destination-lane ghost before `MoveClips`; Escape cancels from the existing focus without changing selection timing. Owner cancellation/capture loss, focused-owner blur and unmount discard the preview; later held input is inert. One changed release and Undo. `ClipBlock.test.tsx` and `edit/clipMove.test.ts` cover the owner and geometry. `inventory-audit.spec.ts` uses a separated-clip fixture for native first-drag, reversal, cancellation, saved geometry and Undo. |
+| Roll seam | Drag the seam between adjacent clips. Click selects it. | Preview moves the paired boundary within legal source limits. `transitions-acceptance.spec.ts` checks saved paired bounds and Undo. |
 | Ruler position | Click or tap seeks; double-click fits. Focused Left/Right steps major ticks; Home/End reaches session endpoints. Ordinary desktop ruler dragging is not continuous scrubbing. Phone scroll moves the time by what it moves the content: the playhead keeps its place in the view (time 0 beside the headers on load, the center once playback passes it). | Navigation only. `arrange-chrome.spec.ts`, `pinned-ruler.spec.ts` and `sharecut.mobile.spec.ts` check endpoints, fit, pinning and phone position. An atomic seek has no pointer-preview cancellation transaction. Handled ruler arrows and Home/End stay local rather than also invoking global navigation; global Escape remains available. `ruler-recovery.spec.ts` checks the current endpoint and fit paths. |
 | Alt-click Split | Alt held over the timeline lanes shows a 2 px guide (1 px ring) on the lanes the split will cut (the targeted tracks, else the dialogue tracks, the same set Mod+K cuts); Alt-click runs `edit.bladeCut` at that time. A plain click never splits, a click on a control inside a lane is left alone, an Alt press dragged past the 5 px move threshold is a drag and never a split, and the ruler stays a seek (#2294). | Mouse only. Releasing Alt, a window blur or a hidden tab clears the guide; a viewer who cannot suggest edits gets neither guide nor crosshair; a refused or failed split (including a gap with no clip) is announced as an error. Under forced colors the guide paints as a 2 px border. The Alt key is Option on macOS. Some Linux window managers, Windows and ChromeOS shells can take Alt-click before the page sees it, and on Windows an AltGr click reports Alt as well, so it can also split. The permission gate is that of `edit.bladeCut`, which splits at once on every shell (Undo is on the toast). `TimelineView.test.tsx` (Alt-click Split) and `stage-shell.spec.ts` cover it. The ruler comment anchor (comment mode) was removed in #2294. |
-| Timeline range | Empty-lane mouse drag, Shift clip drag or the phone/tablet Select range rail. Numeric In/Out and lane checkboxes are the alternative. | Local exact occurrence target until Cut/Mute/Comment/Bounce. `contextual-range.spec.ts` checks repeated occurrences, one Undo and guest proposal policy. A draft in progress is discarded, restoring the previous selection, on window blur, a hidden document, pagehide or lost pointer capture (`useRangeGesture.test.tsx`). Its dispatched phone range events are synthetic. |
+| Timeline range | Empty-lane mouse drag, Shift clip drag or the phone/tablet Select range rail. The Range inspector's In, Out and Length Scrub fields and Scope track toggles are the alternative. | Local exact occurrence target until Cut/Mute/Comment/Bounce. `contextual-range.spec.ts` checks repeated occurrences, one Undo and guest proposal policy. A draft in progress is discarded, restoring the previous selection, on window blur, a hidden document, pagehide or lost pointer capture (`useRangeGesture.test.tsx`). Its dispatched phone range events are synthetic. |
 | Transcript passage | A pointer sweep or a Shift-click extension selects a passage in the Script. Selection maps surviving words and pauses through clip placements. | Local range until an explicit action. Repeated placements require choosing the intended occurrence. `contextual-range.spec.ts` checks resulting range operations; `inventory-audit.spec.ts` checks native passage sweep and Shift-click endpoints without writes; `ScriptHost.test.tsx` checks passage selection. |
 | Clip trim | Drag the thin edge strip with existing waveform magnets and source/neighbor limits. Focused arrows move 10 ms, Shift 100 ms; exact timing controls remain available. | Draft then one saved boundary. `fade-curves.spec.ts` and `ClipBlock.test.tsx` check pointer/keyboard geometry, cancellation, no-op and durable values. Window blur, a hidden document or pagehide mid-pointer-drag discards the draft; a held arrow preview is unaffected (`useClipEdgeHandles.interrupt.test.tsx`). Hidden snap ticks do not disable the existing magnet. |
 | Fade and coupled crossfade | Drag the corner or coupled endpoint. Focused fade arrows move 1 ms, Shift 10 ms; numeric inspector controls supply precise values. | Preview respects remaining clip length, opposite edge and track cap. `fade-curves.spec.ts`, `crossfade-length.spec.ts` and `transitions-acceptance.spec.ts` check persistence, Undo and competing gesture blocking during acknowledgement. |
 | Existing volume envelope | Drag an existing point. Enter/Space selects an idle point; the Inspector's Time and Level fields are the exact alternative. Arrow keys do not provide point editing and may retain global playhead navigation. | Owned preview, for the host and Editor links (other links view envelopes only); Escape, blur and owner interruption cancel, foreign pointer events are ignored. `envelope-recovery.spec.ts` uses native mouse owners and explicitly synthetic foreign events. Points are created from the create menu's **Add volume point** (long press, right click or Shift+F10 on the lane) while the volume envelope is shown. |
 | Pending region and chapter/social marker | Pending bodies select; only eligible outer start/end handles drag. There is no whole pending-span drag transaction. Drag a chapter, or a social clip by its brackets (a bracket edge moves one bound); a selected marker nudges 0.1 s (Shift 1 s) with the arrows. Existing inspector numeric bounds supply exact edits; dense touch pending regions use Edit timing. | Pending drafts save through `UpdatePendingEdit`; review/apply remains separate. Chapter/social changes use their existing commands. Their owning marker restores its preview on Escape, cancellation/capture loss, blur or unmount; project switches end the old marker lifetime even when values match. Other pointer events are ignored. `transitions-acceptance.spec.ts`, `pending-edge-controls.spec.ts` and `MarkerLane.test.tsx` cover distinct paths; `inventory-audit.spec.ts` checks native chapter/social body preview, Escape, release, exact saved values and Undo in the representative fixture. |
-| Transcript edit boundary | Drag the boundary grab; Precision boundary supplies exact offsets, Apply/Cancel and Listen current/proposed. | Existing owned preview and roll lock. `edit-boundary-touch.spec.ts` checks owner isolation, grab geometry and one saved roll; `edit-boundary-precision.spec.ts` checks exact edits, stale recovery and current/proposed routes. The landed boundary engine remains unchanged. |
+| Script cut pill | Drag either edge of a cut's pill in the Script to roll the seam when its clips abut (80 px a second, Shift for 1 ms a pixel); a readout chip shows the roll in ms. Alt with Left or Right rolls 1 ms. A press that never moves selects the seam. | The pill holds one drag, so a second finger is ignored; Escape or a lost pointer drops it. One saved `RollClipJoin` on release, within the room the clips leave. `Seam.test.tsx` covers the drag and `edit-boundary-archive.spec.ts` the saved roll, restored words and Undo. There is no precision dialog; the Seam inspector's Offset field is the exact alternative once it lands. |
 | Script pane width | The Script divider (`role="separator"`, "Resize Script"): drag; arrows (1 rem), Shift arrows (4 rem), Home/End (smallest, largest), Enter or double-click resets. **T** hides or shows Script. Phone inspectors use Expand/Collapse. | Browser preference only. Keyboard, drag clamps and accessible values use `SCRIPT_WIDTH_MIN_REM` and `SCRIPT_WIDTH_MAX_REM`. The Shorter/Taller/Reset buttons, the bottom splitter and its rail collapse were removed in #2292, with `splitter-recovery.spec.ts`; `ScriptDivider.test.tsx` covers the keyboard and pointer paths. |
 | Zoom, pinch and scroll | Persistent zoom controls and Fit; Ctrl/Meta wheel and two-touch pinch at their anchor. Ordinary wheel scrolls. Safari gesture routing is a separate path. | Navigation only. `waveform.spec.ts`, `timelineZoomGestures.test.ts` and `applyAnchoredZoom.test.ts` check deep geometry and anchoring. Synthetic contact tests do not establish physical trackpad or touch delivery. |
-| Word timing resize | Wordbar source-local start/end handles, native range/number fields, explicit Apply timing/Cancel draft and optional edge listening. | Owned local draft before `SetTranscriptWordTiming`. `transcript-wordbar.spec.ts` checks real source timing, reload and Undo. Existing transcript boundary wrapping/grab checks live in `edit-boundary-touch.spec.ts`; they are retained rather than reimplemented. |
+| Word timing resize | The word Inspector's waveform start and end handles and its Start and End Scrub fields, with Hear. Escape during a drag cancels. | Owned local draft that saves one `SetTranscriptWordTiming` on release or when a field commits; there is no Apply or Cancel. `transcript-wordbar.spec.ts` checks real source timing, reload and Undo. |
 
 Build the frontend, then run the focused browser files through the existing
 wrapper with zero retries. The wrapper owns a disposable project, port and server.
@@ -60,8 +57,8 @@ runs. Do not run concurrent browsers against one mutable fixture.
 npm --prefix gui/web run build
 npm --prefix gui/web run test:e2e -- envelope-recovery.spec.ts arrange-chrome.spec.ts pinned-ruler.spec.ts \
   fade-curves.spec.ts crossfade-length.spec.ts transitions-acceptance.spec.ts \
-  contextual-range.spec.ts edit-boundary-touch.spec.ts \
-  edit-boundary-precision.spec.ts transcript-wordbar.spec.ts \
+  contextual-range.spec.ts edit-boundary-archive.spec.ts \
+  transcript-wordbar.spec.ts \
   pending-edge-controls.spec.ts --retries=0
 VITE_SHARECUT_E2E=1 npm --prefix gui/web run build
 npm --prefix gui/web run test:e2e -- waveform.spec.ts \
@@ -132,7 +129,7 @@ Keyboard trim/fade steps and exact numeric fields remain the fine-adjustment
 alternatives. Do not infer a new snap engine or modifier from this audit.
 
 The Clip inspector exposes Seek join / Play across join as a row under More.
-Retained Precision boundary evidence checks Listen current → Listen proposed →
+Retained join-audition evidence checks Listen current → Listen proposed →
 Listen current through the existing audio routes and playing state without saving
 that proposal. The join footer is source-verified here; this checkpoint does not
 claim a new native Play across join run. Cloud route and playing-state checks do

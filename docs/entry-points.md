@@ -94,9 +94,9 @@ The host **Adjust word timing** capability (`daw.transcript.adjustTiming`, comma
 
 Studio **Copy** and **Paste** (`daw.edit.copy`, `daw.edit.paste`) have the twins `copy_segment_tool` / `podcast edit copy-segment`, which return the clipboard (`{duration, extracts}`), and `paste_segment_tool` / `podcast edit paste-segment`, which submit it as `PasteSegment` with the GUI's payload; a clipboard the project cannot take fails with a coded `paste_*` error and writes nothing. Both adapters build that payload only in `submit_paste_segment` (`services/document_sync/host_submit.py`). `move_segment_tool` is not a Paste twin: it closes the source range instead of keeping it and opening a gap.
 
-The Clip inspector's **Move clip** form uses the existing `edit.moveClips`
+The Clip inspector's **Start** Scrub field and **Move to track** toggles use the existing `edit.moveClips`
 capability. Its local preview shares `computeClipMoves` and `laneMovePreview` with
-dragging. Only **Apply move** submits `MoveClips`; Cancel and no-op submit nothing.
+dragging. Committing the field submits `MoveClips`; Escape and a no-op submit nothing.
 The local owner token is checked again inside the existing track mutation queue.
 This adds an inspector GUI entry without a new server command or MCP name.
 

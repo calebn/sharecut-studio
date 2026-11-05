@@ -236,12 +236,12 @@ async function boundaryDrag(page: Page, recorder: Recorder) {
     ) ?? before.edit_boundaries?.[0];
   expect(boundary, "actual cut produced a boundary").toBeTruthy();
   await openPanel(page, "transcript");
-  const mark = page.locator(
-    `.edit-boundary-mark[data-boundary-id="${boundary!.id}"]`,
-  );
-  await expect(mark).toBeVisible();
-  await mark.scrollIntoViewIfNeeded();
-  const box = (await mark.boundingBox())!,
+  const pill = page.locator(`[data-seam-id="${boundary!.id}"]`);
+  await expect(pill).toBeVisible();
+  await pill.scrollIntoViewIfNeeded();
+  const box = (await pill
+      .locator('.sys-seam-edge[data-side="right"]')
+      .boundingBox())!,
     x = box.x + box.width / 2,
     y = box.y + box.height / 2;
   const commands: CapturedCommand[] = [];
@@ -263,19 +263,19 @@ async function boundaryDrag(page: Page, recorder: Recorder) {
     async () => {
       await page.mouse.move(x, y);
       await page.mouse.down();
-      const delta = page.locator(".edit-boundary-delta");
+      const delta = pill.locator(".sys-seam-readout");
       const deltasSec: number[] = [];
       for (let i = 1; i <= 10; i++) {
         await page.mouse.move(x + i * 2.4, y);
         await page.waitForTimeout(20);
         if (await delta.count()) {
-          const value = /Roll join ([+-][\d.]+)s/.exec(await delta.innerText());
-          if (value) deltasSec.push(Number(value[1]));
+          const value = /([+−-]\d+) ms/.exec(await delta.innerText());
+          if (value) deltasSec.push(Number(value[1].replace("−", "-")) / 1000);
         }
       }
       await expect(delta).toBeVisible();
       const previewLabel = await delta.innerText();
-      expect(previewLabel).toMatch(/Roll join \+0\.[1-9]/);
+      expect(previewLabel).toMatch(/\+\d+ ms/);
       expect(new Set(deltasSec).size).toBeGreaterThanOrEqual(2);
       expect(commands).toHaveLength(0);
       return {

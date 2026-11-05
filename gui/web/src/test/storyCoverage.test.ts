@@ -16,7 +16,6 @@ const COVERED: Record<string, string[]> = {
   ],
   "CMP-FINDREPLACE": ["Stages/Edit/FindBar", "Stages/Edit/ScriptHost"],
   "DLG-PRECISION": [
-    "Templates/Editor · Precision boundary dialog",
     "System/ScrubField",
     "System/Seam",
     "System/InspectorSheet",
@@ -91,8 +90,8 @@ const COVERED: Record<string, string[]> = {
   "CMP-LEGEND": ["Templates/OverlayLegend"],
   "CMP-TRACK-MIX": ["Templates/TrackMix"],
   "CMP-TURN": ["System/ScriptPane"],
-  "CMP-GHOST": ["Templates/GhostWordChips"],
-  "CMP-EDITBOUNDARY": ["Templates/EditBoundaryMark", "System/Seam"],
+  "CMP-GHOST": ["System/ScriptPane"],
+  "CMP-EDITBOUNDARY": ["System/Seam"],
   "CMP-REFINE": ["Stages/Review/Queue"],
   "INS-CLIP": ["Stages/Edit/ClipInspector", "System/ScrubField"],
   "INS-ENVELOPE": [
