@@ -195,6 +195,7 @@ function ProjectCard({
           type="button"
           className="sys-project-remove"
           tabIndex={swipe.revealed ? 0 : -1}
+          aria-label={`Remove ${project.name} from list`}
           onClick={() => remove?.(project.id)}
         >
           Remove from list
@@ -204,6 +205,9 @@ function ProjectCard({
         className="sys-project-slide"
         data-dragging={swipe.dragging || undefined}
         style={swipe.style}
+        onKeyDownCapture={() => {
+          pointerType.current = "";
+        }}
         onContextMenu={(event) => {
           event.preventDefault();
           if (pointerType.current !== "touch") setMenuOpen(true);

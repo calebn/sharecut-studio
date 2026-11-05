@@ -51,6 +51,21 @@ function setup() {
 }
 
 describe("useHomeKeys", () => {
+  it("runs the latest callbacks without re-adding its listener", async () => {
+    const add = vi.spyOn(window, "addEventListener");
+    const { actions, view, user } = setup();
+    const added = add.mock.calls.filter(([type]) => type === "keydown").length;
+    const onRecord = vi.fn();
+    view.rerender(<Host {...actions} onRecord={onRecord} />);
+    await user.keyboard("r");
+    expect(onRecord).toHaveBeenCalledOnce();
+    expect(actions.onRecord).not.toHaveBeenCalled();
+    expect(add.mock.calls.filter(([type]) => type === "keydown").length).toBe(
+      added,
+    );
+    add.mockRestore();
+  });
+
   it("runs each action on its key", async () => {
     const { actions, user } = setup();
     await user.keyboard("{Control>}i{/Control}r?{Control>}o{/Control}");

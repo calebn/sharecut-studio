@@ -46,9 +46,11 @@ describe("stage.handoff", () => {
     withdraw();
   });
 
-  it("refuses once the stage has withdrawn its hand-off", async () => {
-    offerStageHandoff({ run: vi.fn() })();
-    expect((await execute("stage.handoff")).status).toBe("disabled");
+  it("does nothing, and announces nothing, once the stage has withdrawn its hand-off", async () => {
+    const run = vi.fn();
+    offerStageHandoff({ run })();
+    expect(await execute("stage.handoff")).toEqual({ status: "ok" });
+    expect(run).not.toHaveBeenCalled();
   });
 
   it("keeps a newer stage's hand-off when an older one is withdrawn late", async () => {

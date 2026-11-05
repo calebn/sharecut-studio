@@ -18,9 +18,8 @@ export function offerStageHandoff(action: StageHandoffAction): () => void {
 
 export function registerStageHandoffCommand(): void {
   registerCommand("stage.handoff", () => {
-    if (!current) {
-      return { status: "disabled", reason: "Nothing to hand off here" };
-    }
+    // A stage without a hand-off has nothing to refuse: the key stays quiet there.
+    if (!current) return { status: "ok" };
     if (current.disabledReason) {
       return { status: "disabled", reason: current.disabledReason };
     }

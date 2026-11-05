@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { isButtonActivation, isTypingTarget } from "../../keymap/typing";
 import { overlayOpen } from "../../ui/modalGate";
 
@@ -32,6 +32,11 @@ export function homeKeyAction(
  * a focused button's own activation and any open menu or dialog.
  */
 export function useHomeKeys(actions: HomeKeyActions): void {
+  // The listener is added once; it reads the latest callbacks through the ref.
+  const latest = useRef(actions);
+  useEffect(() => {
+    latest.current = actions;
+  });
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.isComposing || event.keyCode === 229) return;
@@ -40,9 +45,9 @@ export function useHomeKeys(actions: HomeKeyActions): void {
       const action = homeKeyAction(event);
       if (!action || event.repeat) return;
       event.preventDefault();
-      actions[action]();
+      latest.current[action]();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [actions]);
+  }, []);
 }

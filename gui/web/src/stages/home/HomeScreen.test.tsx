@@ -827,7 +827,9 @@ describe("HomeScreen", () => {
         }),
       );
       expect(reveal).toHaveBeenCalledWith(EP);
-      reveal.mockRejectedValueOnce(new Error("409"));
+      reveal.mockRejectedValueOnce(
+        new ApiError("no file manager", "reveal_unavailable", 409),
+      );
       await user.click(
         within(await openMenu(user)).getByRole("menuitem", {
           name: "Reveal in folder",
@@ -835,6 +837,41 @@ describe("HomeScreen", () => {
       );
       expect(await screen.findByRole("alert")).toHaveTextContent(
         "This computer couldn't open its file manager.",
+      );
+    });
+
+    it("says the folder moved when reveal or duplicate finds no episode", async () => {
+      const user = userEvent.setup();
+      reveal.mockRejectedValueOnce(
+        new ApiError("gone", "project_file_missing", 404),
+      );
+      duplicate.mockRejectedValueOnce(
+        new ApiError("gone", "project_file_missing", 404),
+      );
+      render(<HomeScreen />);
+      for (const name of ["Reveal in folder", "Duplicate"]) {
+        await user.click(
+          within(await openMenu(user)).getByRole("menuitem", { name }),
+        );
+        expect(await screen.findByRole("alert")).toHaveTextContent(
+          "That episode's folder has moved.",
+        );
+      }
+    });
+
+    it("keeps Try again for a copy that failed for another reason", async () => {
+      const user = userEvent.setup();
+      duplicate.mockRejectedValueOnce(
+        new ApiError("disk", "project_duplicate_failed", 400),
+      );
+      render(<HomeScreen />);
+      await user.click(
+        within(await openMenu(user)).getByRole("menuitem", {
+          name: "Duplicate",
+        }),
+      );
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "That episode didn't copy. Try again.",
       );
     });
 
