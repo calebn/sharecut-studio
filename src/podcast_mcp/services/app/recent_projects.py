@@ -427,13 +427,13 @@ def duplicate_project(project_path: Path | str) -> tuple[Path, str]:
     """Copy an episode into a new "<name> copy" folder under the workspace root and list it.
 
     The copy keeps the media, transcripts and project file; the history and derived artifacts
-    stay behind, as for any relocated workspace. Returns the new project file and its name.
+    stay behind, as for any relocated workspace. The reserved folder is kept through the copy, so a
+    concurrent create cannot take its number. Returns the new project file and its name.
     """
     source = require_episode_project_file(project_path)
     suffix = " copy"
     base = ProjectStore(source).load().name[: PROJECT_NAME_MAX_CHARS - len(suffix)]
     name = f"{base.strip()}{suffix}"
-    # The reserved folder stays ours through the copy, so no concurrent create can take its number.
     reserved = default_workspace_dir(name)
     try:
         copied = copy_relocated_workspace(source, reserved, name=name)

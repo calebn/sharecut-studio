@@ -146,6 +146,9 @@ def copy_relocated_workspace(
 ) -> Path:
     """Copy an episode tree and rewrite ``workspace_dir`` (and the episode *name*, when given).
 
+    *dest_workspace* must not exist or must be an empty folder the caller reserved. Symlinks are
+    copied as links, so a link out of the episode never pulls outside files into the copy.
+
     The source is only written to by adopting its retired entry name, which runs first.
     """
     src_file = require_episode_project_file(src_project)
@@ -156,11 +159,9 @@ def copy_relocated_workspace(
     if dest_ws == src_ws or src_ws in dest_ws.parents:
         raise ValueError("output workspace must not be inside the source project")
     dest_file = dest_ws / EPISODE_PROJECT_FILENAME
-    # An empty folder is a reservation the caller made; anything else is taken.
     if dest_ws.exists() and not (dest_ws.is_dir() and not any(dest_ws.iterdir())):
         raise FileExistsError(f"workspace already exists: {dest_ws}")
     dest_ws.parent.mkdir(parents=True, exist_ok=True)
-    # Links stay links: following them would pull files from outside the episode into the copy.
     shutil.copytree(
         src_ws,
         dest_ws,
