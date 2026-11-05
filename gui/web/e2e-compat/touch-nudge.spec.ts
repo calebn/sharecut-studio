@@ -143,7 +143,12 @@ async function tap(page: Page, finger: Finger, at: Point) {
   await page.waitForTimeout(700);
 }
 
-/** Holds a finger on `button` for `ms`, saving a frame every `everyMs`. */
+/**
+ * Holds a finger on `button`, saving a frame every `everyMs`, until `ms` pass
+ * or `done` says the hold has shown what the test needs. A loaded runner takes
+ * fewer frames per second, so a test that counts frames waits on `done`, not
+ * on the clock.
+ */
 async function hold(
   page: Page,
   finger: Finger,
@@ -151,11 +156,12 @@ async function hold(
   ms: number,
   frame?: (n: number) => Promise<void>,
   everyMs = 120,
+  done?: () => boolean,
 ) {
   await finger.down(await centerOfBox(button));
   const start = Date.now();
   let n = 0;
-  while (Date.now() - start < ms) {
+  while (Date.now() - start < ms && !done?.()) {
     if (frame) await frame(n++);
     await page.waitForTimeout(frame ? everyMs : ms);
   }
@@ -185,11 +191,12 @@ test("a held nudge repeats, saves once, and one Undo restores it", async ({
   await inspectSelection(page);
   const commands = watchCommands(page);
   const values: string[] = [];
+  const started = Date.now();
   await hold(
     page,
     finger,
     page.getByRole("button", { name: "Envelope point 0.01 s later" }),
-    1500,
+    10_000,
     async (n) => {
       values.push((await rowValue(page, "Time")) ?? "");
       save(
@@ -198,6 +205,8 @@ test("a held nudge repeats, saves once, and one Undo restores it", async ({
         await page.screenshot(),
       );
     },
+    120,
+    () => new Set(values).size > 3 && Date.now() - started >= 1500,
   );
   const after = await pointTime(page, "env-c");
   const types = commands.map((c) => c.type);
