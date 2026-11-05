@@ -311,6 +311,7 @@ describe("stable callback source governance", () => {
         .map(({ source, callback }) => `${source.rel}:${callback}`)
         .sort(),
     ).toEqual([
+      "hooks/useAudioTransport.ts:playbackInputs",
       "hooks/useCommitRange.ts:restoreSaved",
       "hooks/useFileMetaPoll.ts:fetchCurrentMeta",
       "hooks/useFileMetaPoll.ts:notifyChange",
