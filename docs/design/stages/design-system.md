@@ -427,7 +427,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 
 **28. Toast**
 - One position: centered 12 px above the Player bar (above the dock on phone). Max 480 × 44. Icon, past-tense result, at most one action (Undo, or the next step).
-- Lasts 6 s, paused on hover or touch, and 10 s for session-level undo (End session, Stop sharing). A new toast replaces the old one, and same-kind toasts merge ("3 cuts · Undo all").
+- Lasts 8 s, paused on hover or touch, and 60 s when it offers Undo (End session, Stop sharing, applied edits). A new toast replaces the old one, and same-kind toasts merge ("3 cuts · Undo all").
 - Used: TOAST-MAIN, every undoable action.
 - Story: `System/Toast`.
 
@@ -768,7 +768,7 @@ Every place the specs disagreed or collided with each other or with themselves. 
 | K6 | O (E: hold to hear the original) next to A/B | Hold A with nothing selected plays the original. O is unused | One audition control |
 | K7 | M: E has Mute track, R has Marker, R has Mod+D mute self | M is Mute everywhere (track in Edit, your mic in Record). Mod+D is dropped | One key per verb. Mod+D is the browser's bookmark key |
 | K8 | Shift+M add chapter (E) clashes with the M = Mute meaning | Shift+C | The C family pins things to the marker lane |
-| K9 | R: D has reply, R has record start, D has Home ⌘R | R is Record everywhere. Reply is C | Recording is the higher-consequence verb and owns its letter |
+| K9 | R: D has reply, R has record start, D has Home ⌘R | R is Record everywhere. Reply to a comment is R and C starts a comment | Recording is the higher-consequence verb and owns its letter |
 | K10 | ⌘⇧C copy listen link (D) | Dropped (palette only) | Shift+C is Add chapter. The action is rare |
 | K11 | ⌘N new, ⌘O open (E); ⌘N import, ⌘R record, ⌘O open other, ⌘⇧O Home (D) | Mod+O goes to Home from anywhere (and on Home it opens Open other…). Mod+I imports. R records on Home. Enter opens the focused card. No Mod+N | Browsers reserve Mod+N and Mod+R. Mod+I is already Import in D's Prepare |
 | K12 | Mod+Shift+E (E) versus ⌘E (D) for export | Mod+E | One key. On a selected range it exports the range |
@@ -811,7 +811,7 @@ Every place the specs disagreed or collided with each other or with themselves. 
 | L5 | Review context strip at 56 (D) versus Overview strip (E) | Overview strip, 32 px, above the Player | One miniature |
 | L6 | Status cover (D) versus Room cover (R) versus Empty state (E); glyph 48 versus 64; phone text in the lower half versus at 30 % | One Cover. 48 px glyph. Text from 30 %, primary pinned in the thumb zone | Reads well and reaches well |
 | L7 | Loading: 4 s (E, R) versus 8 s (D) | 300 ms blank, then skeleton, then 4 s "Still loading…" with Retry | Two of the three specs agreed. Sooner honesty |
-| L8 | Toast 5 s (E) versus 6 s (D) versus 10 s (R, End session) | 6 s, and 10 s for session-level undo | Enough to reach Undo. The long form only where the server's window applies |
+| L8 | Toast 5 s (E) versus 6 s (D) versus 10 s (R, End session) | 8 s, and 60 s when the toast offers Undo | Enough to reach Undo. The long form only where the server's window applies |
 | L9 | Stop sharing as an inline confirm (D) versus End session as an undo toast (R) | Both undo toasts (10 s). The server keeps the token restorable for 10 s. Confirm in place only for Remove person from the room | Confirm only when Undo is impossible (rubric) |
 | L10 | Home: a New sheet with Record and Import (R) versus Start tiles on Home (D) | Start tiles on Home. No New sheet. Name and folder default | One click fewer. D removed the create form |
 | L11 | Invites: header Invite (E), Review header Invite (D), Invite tiles (R), Deliver share card (E, D) | One Invite sheet of Link rows, from the header on every stage. The empty Person tile opens it at Record links. Deliver embeds the Listen row | One sharing object. D's Q4 is answered |

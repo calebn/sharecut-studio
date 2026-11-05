@@ -7,7 +7,7 @@
 > - Icons: the listen role is `ear` (not eye). Editor role and "Open in Edit" use the Edit stage icon (not pencil). Producer is `ear` (not headphones). "Find more" is `wand-sparkles`. Keep stays `shield-check`.
 > - Swipe left on a comment row no longer resolves: swipe right is the primary (Resolve), and swipe left does nothing on a comment (it is Keep or Remove on other cards). The phone Review buttons are one 64 px dock row (Keep, A/B, verb).
 > - Clip ideas use Approve (`check`), not Keep. Dismissing one is Remove.
-> - Stop sharing is an undo toast (10 s), not an inline confirm.
+> - Stop sharing is an undo toast (60 s), not an inline confirm.
 > - Loudness lives in Deliver only. Vocabulary lives in Prepare only. Home's Help and "more" buttons fold into the app menu.
 > - Invites: one Invite sheet from the header on every stage, with Deliver embedding the Listen row (answers Q4). Guest header is the 48 px App header. Guest Editor gets Edit, Review and Deliver (the Podcast listing only).
 > - A Toast lasts 8 s, or 60 s when it offers Undo. Loading shows "Still loading…" at 4 s (not 8).
