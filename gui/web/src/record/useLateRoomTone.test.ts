@@ -1,6 +1,22 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import {
+  createElement,
+  StrictMode,
+  Suspense,
+  startTransition,
+  useState,
+} from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { deferred } from "../test/deferred";
 import { recordParticipant, recordSnapshot } from "../test/fixtures";
+import { roomToneMarkKey, writeRoomToneMark } from "./lateRoomTone";
 import type { RoomToneStatus } from "./roomTone";
 import type { RecordSnapshot } from "./types";
 import {
@@ -31,9 +47,10 @@ type Props = {
   captureReady?: boolean;
   transport?: ReturnType<typeof memoryUploadTransport> | null;
   error?: string | null;
+  consented?: boolean | null;
 };
 
-function setup(initial: Props = {}) {
+function setup(initial: Props = {}, wrapper?: typeof StrictMode) {
   const record = vi.fn();
   const skip = vi.fn();
   const base = memoryUploadTransport();
@@ -42,7 +59,10 @@ function setup(initial: Props = {}) {
     (props: Props) =>
       useLateRoomTone({
         snapshot: props.snapshot === undefined ? snap() : props.snapshot,
-        me,
+        me:
+          props.consented === undefined
+            ? me
+            : { ...me, consented: props.consented },
         producer: props.producer ?? false,
         transport: props.transport === undefined ? transport : props.transport,
         roomTone: {
@@ -53,14 +73,17 @@ function setup(initial: Props = {}) {
           skip,
         },
       }),
-    { initialProps: initial },
+    { initialProps: initial, wrapper },
   );
   return { record, skip, transport, ...view };
 }
 
 describe("useLateRoomTone", () => {
   beforeEach(() => localStorage.clear());
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
 
   it("offers Record room tone and Skip to a late guest, wired to the shared capture", async () => {
     const { result, record, skip } = setup();
@@ -254,5 +277,325 @@ describe("useLateRoomTone", () => {
     });
     await act(async () => {});
     expect(result.current).toBeNull();
+  });
+
+  describe("resolution ownership", () => {
+    const key = roomToneMarkKey("sess-1", "p_late")!;
+
+    it("trusts a skipped local mark without asking a failing host", async () => {
+      writeRoomToneMark(key, "skipped");
+      const status = vi.fn(async () => ({
+        segments: [],
+        room_tone_status: [
+          { participant_id: "p_late", file_ack: true, land_failed: true },
+        ],
+      }));
+      const { result } = setup({ transport: withStatus(status) });
+      await act(async () => {});
+      expect(result.current).toBeNull();
+      expect(status).not.toHaveBeenCalled();
+    });
+
+    it.each(["recorded", "skipped"] as const)(
+      "replaces a same-key false result after %s was persisted",
+      async (status) => {
+        const view = setup();
+        await waitFor(() =>
+          expect(view.result.current?.kind).toBe("room-tone"),
+        );
+        view.rerender({ status });
+        expect(localStorage.getItem(key)).toBe(status);
+        expect(view.result.current).toBeNull();
+        const request = vi.fn(async () => ({ segments: [] }));
+        view.rerender({
+          status: "idle",
+          transport: status === "recorded" ? null : withStatus(request),
+        });
+        await act(async () => {});
+        expect(view.result.current).toBeNull();
+        expect(request).not.toHaveBeenCalled();
+      },
+    );
+
+    it("retains a visible same-key result through pending and offline rechecks", async () => {
+      const view = setup();
+      await waitFor(() => expect(view.result.current?.kind).toBe("room-tone"));
+      const pending = deferred<RecordUploadStatus>();
+      view.rerender({ transport: withStatus(() => pending.promise) });
+      expect(view.result.current?.kind).toBe("room-tone");
+      view.rerender({ transport: null });
+      expect(view.result.current?.kind).toBe("room-tone");
+      await act(async () =>
+        pending.resolve({
+          segments: [],
+          room_tone_status: [{ participant_id: "p_late", file_ack: true }],
+        }),
+      );
+      expect(view.result.current?.kind).toBe("room-tone");
+    });
+
+    it("retains a completed same-key result until a replacement request rejects", async () => {
+      const view = setup({
+        transport: withStatus(async () => ({
+          segments: [],
+          room_tone_status: [{ participant_id: "p_late", file_ack: true }],
+        })),
+      });
+      await act(async () => {});
+      expect(view.result.current).toBeNull();
+      const pending = deferred<RecordUploadStatus>();
+      view.rerender({ transport: withStatus(() => pending.promise) });
+      expect(view.result.current).toBeNull();
+      await act(async () => pending.reject(new Error("offline")));
+      expect(view.result.current?.kind).toBe("room-tone");
+    });
+
+    it.each(["consent", "producer"] as const)(
+      "keeps same-key history through %s withdrawal and a pending recheck",
+      async (admission) => {
+        const view = setup();
+        await waitFor(() =>
+          expect(view.result.current?.kind).toBe("room-tone"),
+        );
+        const pending = deferred<RecordUploadStatus>();
+        const status = vi.fn(() => pending.promise);
+        const transport = withStatus(status);
+        view.rerender({
+          ...(admission === "consent"
+            ? { consented: false }
+            : { producer: true }),
+          transport,
+        });
+        expect(view.result.current).toBeNull();
+        expect(status).not.toHaveBeenCalled();
+        view.rerender({
+          ...(admission === "consent"
+            ? { consented: true }
+            : { producer: false }),
+          transport,
+        });
+        expect(view.result.current?.kind).toBe("room-tone");
+        expect(status).toHaveBeenCalledOnce();
+        await act(async () =>
+          pending.resolve({
+            segments: [],
+            room_tone_status: [{ participant_id: "p_late", file_ack: true }],
+          }),
+        );
+        expect(view.result.current).toBeNull();
+      },
+    );
+
+    it("uses the local mark captured when the actual host request began", async () => {
+      writeRoomToneMark(key, "recorded");
+      const pending = deferred<RecordUploadStatus>();
+      const status = vi.fn(() => pending.promise);
+      const view = setup({ transport: withStatus(status) });
+      expect(status).toHaveBeenCalledOnce();
+      localStorage.removeItem(key);
+      await act(async () => pending.resolve({ segments: [] }));
+      expect(view.result.current).toBeNull();
+    });
+
+    it.each(["same-key", "new-key"] as const)(
+      "rejects retired %s status resolution",
+      async (scope) => {
+        const pending = deferred<RecordUploadStatus>();
+        const view = setup({ transport: withStatus(() => pending.promise) });
+        view.rerender({
+          snapshot: snap({ session_id: scope === "new-key" ? "B" : "sess-1" }),
+          transport: withStatus(async () => ({ segments: [] })),
+        });
+        await waitFor(() =>
+          expect(view.result.current?.kind).toBe("room-tone"),
+        );
+        await act(async () =>
+          pending.resolve({
+            segments: [],
+            room_tone_status: [{ participant_id: "p_late", file_ack: true }],
+          }),
+        );
+        expect(view.result.current?.kind).toBe("room-tone");
+      },
+    );
+
+    it.each([false, true])(
+      "keeps one result slot when the other key has published=%s",
+      async (publishOther) => {
+        const a = snap();
+        const view = setup({ snapshot: a });
+        await waitFor(() =>
+          expect(view.result.current?.kind).toBe("room-tone"),
+        );
+        const pending = deferred<RecordUploadStatus>();
+        view.rerender({
+          snapshot: snap({ session_id: "B" }),
+          transport: withStatus(() => pending.promise),
+        });
+        expect(view.result.current).toBeNull();
+        if (publishOther)
+          await act(async () =>
+            pending.resolve({
+              segments: [],
+              room_tone_status: [{ participant_id: "p_late", file_ack: true }],
+            }),
+          );
+        const next = deferred<RecordUploadStatus>();
+        view.rerender({
+          snapshot: a,
+          transport: withStatus(() => next.promise),
+        });
+        expect(view.result.current?.kind ?? null).toBe(
+          publishOther ? null : "room-tone",
+        );
+        await act(async () => next.resolve({ segments: [] }));
+        expect(view.result.current?.kind).toBe("room-tone");
+      },
+    );
+
+    it("replaces the countdown deadline for an equal-content new snapshot", async () => {
+      vi.useFakeTimers();
+      const a = snap({ countdown_left_ms: 1000 });
+      const view = setup({ snapshot: a });
+      await act(async () => {});
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
+      view.rerender({ snapshot: { ...a } });
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
+      expect(view.result.current).toBeNull();
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
+      expect(view.result.current?.kind).toBe("room-tone");
+    });
+
+    it("retires the first replay request without replacing the second result", async () => {
+      const first = deferred<RecordUploadStatus>();
+      const second = deferred<RecordUploadStatus>();
+      const status = vi
+        .fn()
+        .mockReturnValueOnce(first.promise)
+        .mockReturnValueOnce(second.promise);
+      const view = setup({ transport: withStatus(status) }, StrictMode);
+      expect(status).toHaveBeenCalledTimes(2);
+      await act(async () => second.resolve({ segments: [] }));
+      expect(view.result.current?.kind).toBe("room-tone");
+      await act(async () =>
+        first.resolve({
+          segments: [],
+          room_tone_status: [{ participant_id: "p_late", file_ack: true }],
+        }),
+      );
+      expect(view.result.current?.kind).toBe("room-tone");
+    });
+
+    it.each([false, true])(
+      "keeps mixed-row precedence with recorded mark=%s",
+      async (recorded) => {
+        if (recorded) writeRoomToneMark(key, "recorded");
+        const view = setup({
+          transport: withStatus(async () => ({
+            segments: [],
+            room_tone_status: [
+              { participant_id: "other", file_ack: true },
+              { participant_id: "p_late", file_ack: false, land_failed: true },
+              { participant_id: "p_late", file_ack: true, land_failed: true },
+              { participant_id: "p_late", file_ack: true },
+            ],
+          })),
+        });
+        await act(async () => {});
+        expect(view.result.current?.kind ?? null).toBe(
+          recorded ? "room-tone" : null,
+        );
+      },
+    );
+
+    it("ignores a retired same-key rejection after the new host confirms completion", async () => {
+      const pending = deferred<RecordUploadStatus>();
+      const view = setup({ transport: withStatus(() => pending.promise) });
+      view.rerender({
+        transport: withStatus(async () => ({
+          segments: [],
+          room_tone_status: [{ participant_id: "p_late", file_ack: true }],
+        })),
+      });
+      await act(async () => {});
+      expect(view.result.current).toBeNull();
+      await act(async () => pending.reject(new Error("old offline")));
+      expect(view.result.current).toBeNull();
+    });
+
+    it("does not read marks or start requests for an attempted suspended key", async () => {
+      const a = snap();
+      const b = snap({ session_id: "B" });
+      const pending = deferred();
+      const consumed = vi.spyOn(pending.promise, "then");
+      const read = vi.spyOn(Storage.prototype, "getItem");
+      const status = vi.fn(async () => ({ segments: [] }));
+      const transport = withStatus(status);
+      const roomTone = {
+        status: "idle" as const,
+        error: null,
+        captureReady: true,
+        record: vi.fn(),
+        skip: vi.fn(),
+      };
+      function Probe({ snapshot }: { snapshot: RecordSnapshot }) {
+        const alert = useLateRoomTone({
+          snapshot,
+          me,
+          producer: false,
+          transport,
+          roomTone,
+        });
+        if (snapshot === b) throw pending.promise;
+        return createElement(
+          "output",
+          { "aria-label": "Prompt" },
+          alert?.kind ?? "quiet",
+        );
+      }
+      function Host() {
+        const [snapshot, setSnapshot] = useState(a);
+        return createElement(
+          "div",
+          null,
+          createElement(
+            "button",
+            {
+              type: "button",
+              onClick: () => startTransition(() => setSnapshot(b)),
+            },
+            "Attempt key",
+          ),
+          createElement(
+            Suspense,
+            { fallback: createElement("p", null, "Loading prompt") },
+            createElement(Probe, { snapshot }),
+          ),
+        );
+      }
+      render(createElement(Host));
+      await waitFor(() =>
+        expect(screen.getByLabelText("Prompt")).toHaveTextContent("room-tone"),
+      );
+      expect(status).toHaveBeenCalledOnce();
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Attempt key" }));
+      });
+      expect(consumed).toHaveBeenCalled();
+      expect(screen.getByLabelText("Prompt")).toHaveTextContent("room-tone");
+      expect(screen.queryByText("Loading prompt")).not.toBeInTheDocument();
+      expect(status).toHaveBeenCalledOnce();
+      expect(
+        read.mock.calls.some(
+          ([candidate]) => candidate === roomToneMarkKey("B", "p_late"),
+        ),
+      ).toBe(false);
+    });
   });
 });
