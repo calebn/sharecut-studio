@@ -153,6 +153,7 @@ export {
   loadReviewVersionStatus,
   openEpisodeProject,
   pickEpisodeProject,
+  revealProjectFolder,
   reviewVersionAtBootstrap,
   uploadMediaFile,
 } from "./api/project";

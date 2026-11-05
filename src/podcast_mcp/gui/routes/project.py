@@ -29,6 +29,7 @@ from podcast_mcp.gui.routes.deps import (
     require_host,
     resolve_project,
 )
+from podcast_mcp.gui.routes.export_files import require_local_peer, reveal_path
 from podcast_mcp.gui.routes.handoff import set_served_project
 from podcast_mcp.models.episode import EPISODE_PROJECT_FILENAME
 from podcast_mcp.project.io import (
@@ -222,6 +223,19 @@ def close_project_path(
         )
     _unpin_served_if_allowed(request)
     return {"ok": True}
+
+
+@router.post("/api/project/reveal")
+def reveal_project_folder(
+    body: OpenProjectBody,
+    request: Request,
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> dict[str, bool]:
+    """Show the episode's folder in this computer's file manager (Settings > Saved in)."""
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    require_local_peer(request)
+    return reveal_path(_require_episode_path(body.path))
 
 
 def _require_recent_access(request: Request) -> None:

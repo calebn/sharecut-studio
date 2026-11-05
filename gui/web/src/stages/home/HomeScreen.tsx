@@ -8,6 +8,7 @@ import {
   type RecentProject,
 } from "../../api";
 import { desktopCloseGuardArmed } from "../../desktop/useDesktopCloseGuard";
+import { useNativeSettings } from "../../desktop/useNativeSettings";
 import { useWindowFileDrop } from "../../hooks/useWindowFileDrop";
 import { ingestIntoNewProject, pickAudioFiles } from "../../ingest/ingestFiles";
 import { ModelsSheet, useModels } from "../../models";
@@ -127,6 +128,8 @@ export function HomeScreen() {
   );
   const [sheet, setSheet] = useState<AppMenuCommand | null>(null);
   const [modelsOpen, setModelsOpen] = useState(false);
+  const openSettings = useCallback(() => setSheet("settings"), []);
+  useNativeSettings(openSettings);
   const busy = useRef(false);
 
   useEffect(() => {

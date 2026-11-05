@@ -19,7 +19,7 @@ const meta: Meta<typeof SettingsSheet> = {
       ...isolatedStoryParameters.docs,
       description: {
         component:
-          "Settings: Models, and Project settings while an episode is open. Project settings pushes a step inside the same sheet and shows where the episode is saved. Loudness lives in Deliver and vocabulary in Prepare, so they are not repeated here. A centred card on desktop, a bottom sheet on a phone.\n\n**Motion.** The pushed step slides in with `--motion-panel`.",
+          "Settings: Appearance (System, Light, Dark), Saved in with Reveal in folder while an episode is open, Models, and Keyboard shortcuts where the app has a reference. Choices apply as they are made. Reveal in folder shows only in the desktop app, which runs on the computer that holds the folder. The native Settings… menu item (Cmd+, on macOS, Ctrl+, elsewhere) opens this same sheet. Loudness lives in Deliver and vocabulary in Prepare, so they are not repeated here. A centred card on desktop, a bottom sheet on a phone.",
       },
     },
   },
@@ -34,8 +34,9 @@ export const Home: Story = {
     const sheet = within(
       await within(document.body).findByRole("dialog", { name: "Settings" }),
     );
+    await expect(sheet.queryByText("Saved in")).toBeNull();
     await expect(
-      sheet.queryByRole("button", { name: /Project settings/ }),
+      sheet.queryByRole("button", { name: /Keyboard shortcuts/ }),
     ).toBeNull();
     await userEvent.click(sheet.getByRole("button", { name: /Models/ }));
     await expect(args.onModels).toHaveBeenCalled();
@@ -43,27 +44,52 @@ export const Home: Story = {
 };
 
 export const InProject: Story = {
-  args: { projectFolder: "/Users/maya/ShareCut/Episode 14" },
+  args: {
+    projectFolder: "/Users/maya/ShareCut/Episode 14",
+    onRevealFolder: fn(),
+    onShortcuts: fn(),
+  },
+  play: async ({ args, viewMode }) => {
+    if (viewMode === "docs") return;
+    const sheet = within(
+      await within(document.body).findByRole("dialog", { name: "Settings" }),
+    );
+    await expect(
+      sheet.getByText("/Users/maya/ShareCut/Episode 14"),
+    ).toBeVisible();
+    await userEvent.click(
+      sheet.getByRole("button", { name: "Reveal in folder" }),
+    );
+    await expect(args.onRevealFolder).toHaveBeenCalled();
+    await userEvent.click(
+      sheet.getByRole("button", { name: /Keyboard shortcuts/ }),
+    );
+    await expect(args.onShortcuts).toHaveBeenCalled();
+  },
+};
+
+export const InBrowser: Story = {
+  args: {
+    projectFolder: "/Users/maya/ShareCut/Episode 14",
+    onShortcuts: fn(),
+  },
   play: async ({ viewMode }) => {
     if (viewMode === "docs") return;
     const sheet = within(
       await within(document.body).findByRole("dialog", { name: "Settings" }),
     );
-    await userEvent.click(
-      sheet.getByRole("button", { name: /Project settings/ }),
-    );
     await expect(
-      await within(document.body).findByRole("dialog", {
-        name: "Project settings",
-      }),
-    ).toBeVisible();
-    await expect(
-      sheet.getByText("/Users/maya/ShareCut/Episode 14"),
-    ).toBeVisible();
+      sheet.queryByRole("button", { name: "Reveal in folder" }),
+    ).toBeNull();
   },
 };
 
 export const Phone: Story = {
-  args: { form: "bottom", projectFolder: "/Users/maya/ShareCut/Episode 14" },
+  args: {
+    form: "bottom",
+    projectFolder: "/Users/maya/ShareCut/Episode 14",
+    onRevealFolder: fn(),
+    onShortcuts: fn(),
+  },
   globals: { viewport: { value: "mobile390", isRotated: false } },
 };

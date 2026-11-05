@@ -66,6 +66,10 @@ artifacts and upload to object storage; do not put object storage credentials or
 in this repo. An operator can still build a notarized DMG locally with
 `make desktop-build` on a Mac with `APPLE_*`.
 
+## Native menu
+
+**Settings…** opens the web app's Settings sheet (macOS: app menu, `Cmd+,`; Linux and Windows: File menu, `Ctrl+,`). See [desktop-packaging.md](../../docs/desktop-packaging.md) for how the host reaches the page.
+
 ## In-app updates
 
 Builds whose distribution profile sets `updater_endpoint` and `updater_public_key` check for signed updates through `tauri-plugin-updater`. Profiles without them (the dev profile) register no plugin, no menu item, and make no update request.

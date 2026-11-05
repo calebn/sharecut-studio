@@ -10,6 +10,7 @@ import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RecentProject } from "../../api";
 import * as api from "../../api";
+import { NATIVE_SETTINGS_EVENT } from "../../desktop/useNativeSettings";
 import * as ingest from "../../ingest/ingestFiles";
 import { ModelsContext } from "../../models/useModels";
 import { expectNoA11yViolations } from "../../test/a11y";
@@ -111,6 +112,17 @@ describe("HomeScreen", () => {
     const card = within(list_).getByRole("button", { name: /Rosa and Maya/ });
     expect(card).toHaveTextContent("52:10 · edited just now");
     expect(card).toHaveTextContent("Review 6");
+  });
+
+  it("opens Settings when the desktop app's native Settings… item asks", async () => {
+    list.mockResolvedValue([]);
+    render(<HomeScreen />);
+    act(() => {
+      window.dispatchEvent(new CustomEvent(NATIVE_SETTINGS_EVENT));
+    });
+    expect(
+      await screen.findByRole("dialog", { name: "Settings" }),
+    ).toBeInTheDocument();
   });
 
   it("shows the empty line when nothing was opened yet", async () => {

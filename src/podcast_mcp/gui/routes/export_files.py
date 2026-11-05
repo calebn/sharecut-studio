@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import asdict
+from pathlib import Path
 from typing import Any
 
 from fastapi import Request
@@ -85,12 +86,21 @@ def download_exported_file(
         raise coded_http_error(404, EXPORT_FILE_GONE, code="export_file_gone") from exc
 
 
-def reveal_exported_file(request: Request, ws: ProjectWorkspace, file_id: str) -> dict[str, bool]:
-    """Show the listed file *file_id* in this computer's file manager; loopback peers only."""
+def require_local_peer(request: Request) -> None:
+    """Refuse a Show-in-folder request that does not come from this computer."""
     host = peer_host(request)
     if host is not None and (not host or not is_loopback_host(host.removeprefix("::ffff:"))):
         raise coded_http_error(403, REVEAL_REFUSED, code="reveal_not_allowed")
-    found = _open_listed(ws, file_id)
-    if not reveal_in_file_manager(found.path):
+
+
+def reveal_path(path: Path) -> dict[str, bool]:
+    """Show *path* in this computer's file manager."""
+    if not reveal_in_file_manager(path):
         raise coded_http_error(409, REVEAL_UNAVAILABLE, code="reveal_unavailable")
     return {"revealed": True}
+
+
+def reveal_exported_file(request: Request, ws: ProjectWorkspace, file_id: str) -> dict[str, bool]:
+    """Show the listed file *file_id* in this computer's file manager; loopback peers only."""
+    require_local_peer(request)
+    return reveal_path(_open_listed(ws, file_id).path)
