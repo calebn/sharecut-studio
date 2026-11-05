@@ -3,14 +3,14 @@
 > - Stage icons: Prepare is `wand-sparkles` (not sliders), Edit is waveform with cursor (not scissors), Deliver is `send` (not the export arrow). Import is `file-plus`.
 > - Mini player and Player card became **Player** (56 px bar, expanded form). Review context strip became **Overview strip** (32 px).
 > - Job row, Check row, Model need row and the Readiness list became **Status row** and Status list. Status cover became **Cover**. History sheet, Models, Help and Connect agent sheets became **Sheet** instances. Source tile became **Start tile**. Comment row became **Queue row**. Following, version and stage chips became **Status pill**.
-> - Keys: J/K/L are transport everywhere. Review moves with ↓/↑ or Tab, and Later is Tab or ↓ (not L). Reply to a comment is R, and C starts a comment. ⌘⇧C is dropped. ⌘N and ⌘R on Home became Mod+I and R. ⌘O and ⌘⇧O became Mod+O. ? opens the Palette. ⌘E stays as Mod+E.
+> - Keys: J/K/L are transport everywhere. Review moves with ↓/↑ or Tab, and Later is Tab or ↓ (not L). Reply is C (not R). ⌘⇧C is dropped. ⌘N and ⌘R on Home became Mod+I and R. ⌘O and ⌘⇧O became Mod+O. ? opens the Palette. ⌘E stays as Mod+E.
 > - Icons: the listen role is `ear` (not eye). Editor role and "Open in Edit" use the Edit stage icon (not pencil). Producer is `ear` (not headphones). "Find more" is `wand-sparkles`. Keep stays `shield-check`.
-> - Swipe left on a comment row no longer resolves: swipe right is the primary (Resolve), and swipe left does nothing on a comment (it is Keep or Remove on other cards). The phone Review buttons are one 64 px dock row (Keep, A/B, verb).
+> - Swipe left on a comment row no longer resolves: swipe right is the primary (Resolve), and left is Keep or Remove. The phone Review buttons are one 64 px dock row (Keep, A/B, verb).
 > - Clip ideas use Approve (`check`), not Keep. Dismissing one is Remove.
-> - Stop sharing is an inline confirm in its row, not a Toast.
+> - Stop sharing is an undo toast (10 s), not an inline confirm.
 > - Loudness lives in Deliver only. Vocabulary lives in Prepare only. Home's Help and "more" buttons fold into the app menu.
-> - Invites: one Invite sheet from the header on every stage, with Deliver embedding the Listen row (answers Q4). Guest header is the 48 px App header. Guest Editor gets Edit, Review and Deliver (the Podcast listing only).
-> - A Toast lasts 8 s, or 60 s when it offers Undo. Loading shows "Still loading…" at 4 s (not 8).
+> - Invites: one Invite sheet from the header on every stage, with Deliver embedding the Listen row (answers Q4). Guest header is the 48 px App header. Guest Editor gets Edit and Review.
+> - Toast lasts 6 s, or 10 s for session-level undo. Loading shows "Still loading…" at 4 s (not 8).
 > - Storybook titles: `System/*` and `Stages/<Stage>/*`.
 
 # Spec: Home, Prepare, Review and Deliver
@@ -112,19 +112,19 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 
 ### SCR-HOME-OPEN · Open project form
 
-- **Today:** `SCR-HOME-OPEN--desktop-light.png`, `SCR-HOME-OPEN--phone-light.png`. The user must know a file is called `episode.sharecut`; three equal buttons; Cancel wraps on phone.
+- **Today:** `SCR-HOME-OPEN--desktop-light.png`, `SCR-HOME-OPEN--phone-light.png`. The user must know a file is called `episode.project.json`; three equal buttons; Cancel wraps on phone.
 - **Fate:** replace with "Open other…" (OS folder picker that accepts the project folder or the json) plus Project cards.
-- **Spec:** "Open other…" opens the OS picker in folder mode; choosing a folder that contains `episode.sharecut` opens it. When no OS picker exists (plain browser), a popover anchored to the button holds one path field (placeholder "Folder of the episode") and an Open button; Enter submits. Errors appear under the field (see SCR-HOME-ERROR).
+- **Spec:** "Open other…" opens the OS picker in folder mode; choosing a folder that contains `episode.project.json` opens it. When no OS picker exists (plain browser), a popover anchored to the button holds one path field (placeholder "Folder of the episode") and an Open button; Enter submits. Errors appear under the field (see SCR-HOME-ERROR).
 - **Shared elements used:** popover, inline error.
 - **Story to build:** `Stages/Home/OpenOther` stories `Picker`, `PathFallback`, `PathError`.
 
 ### SCR-HOME-ERROR · Home error
 
-- **Today:** `SCR-HOME-ERROR--desktop-light.png`, `SCR-HOME-ERROR--phone-light.png`. Error appears above the form, far from the field, in internal phrasing "expected episode.sharecut, got 'bad.project.json'".
+- **Today:** `SCR-HOME-ERROR--desktop-light.png`, `SCR-HOME-ERROR--phone-light.png`. Error appears above the form, far from the field, in internal phrasing "expected episode.project.json, got 'bad.project.json'".
 - **Fate:** restyle into inline field errors.
-- **Spec:** error text 13/16 in the danger color directly under the path field, with a fix: "That folder has no ShareCut episode. Choose the folder that holds episode.sharecut." Opening a project another window already has open: "This episode is open in another window. Switch to it" (button).
+- **Spec:** error text 13/16 in the danger color directly under the path field, with a fix: "That folder has no ShareCut episode. Choose the folder that holds episode.project.json." Opening a project another window already has open: "This episode is open in another window. Switch to it" (button).
 - **Shared elements used:** inline error.
-- **Story to build:** covered by `Stages/Home/OpenOther` `PathError`.
+- **Story to build:** covered by `Stages/Home/OpenOther` `PathError`, `AlreadyOpen`.
 
 ### SCR-SETUP · Setup wizard (+ CHECKING, DOWNLOAD, LOADERROR)
 
@@ -163,7 +163,7 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 
 ### DLG-MODEL-GATE · Download model? (+ DOWNLOADING) and DLG-WHISPER · Download Whisper model?
 
-- **Today:** `DLG-MODEL-GATE--*`, `DLG-MODEL-GATE-DOWNLOADING--*`, `DLG-WHISPER--*`. A modal interrupts the run; "Use without downloading" does nothing (narrow F07, real-recording F04); the old Pipeline panel told the user to run `podcast bootstrap` in a terminal (narrow F02); the Getting ready row now asks and downloads on Get.
+- **Today:** `DLG-MODEL-GATE--*`, `DLG-MODEL-GATE-DOWNLOADING--*`, `DLG-WHISPER--*`. A modal interrupts the run; "Use without downloading" does nothing (narrow F07, real-recording F04); the Pipeline panel tells the user to run `podcast bootstrap` in a terminal (narrow F02).
 - **Fate:** replace with the Model need row shown in place, inside the job that needs it.
 - **Spec:** when a step needs a missing model, its Job row in Prepare (or the export Job row in Deliver) shows the Model need row inline: "Needs the transcription model · 1.6 GB" and a Get button. Pressing Get downloads and the step resumes by itself when it lands. Steps that don't need the model keep running. No modal, no "use without". Choosing a model size in Prepare's advanced sheet never opens a dialog; the size row just shows "Not installed" with Get.
 - **Shared elements used:** Model need row, Job row.
@@ -206,7 +206,6 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 - **Today:** `DLG-ASK-TEXT--*`. A modal asking for a json path, "No native file picker here".
 - **Fate:** merge into SCR-HOME-OPEN (path popover).
 - **Spec:** see SCR-HOME-OPEN. The in-project "Open project" menu item goes to Home.
-- **Built (#2295):** the prompt and `askText` are gone. With no OS picker, `project.open` navigates to `/?home=1&openOther=1`, where Home opens the Open other… path field.
 - **Shared elements used:** popover.
 - **Story to build:** covered by `Stages/Home/OpenOther`.
 
@@ -227,7 +226,7 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
   - Anticipated next: name the speakers while transcription runs (Source cards have the name field focused-ready, Tab moves between them), then go to Review.
   - Direct manipulation: drop files on the Sources column to add; drag Source cards between sessions is not allowed (sessions are recordings); drag to reorder tracks within a session.
   - Keyboard: ⌘I add audio, Tab through speaker names, ⌘Enter takes the hand-off.
-  - Phone: one column. The first thing is a one-line summary button (72 px) "Getting ready: 2 of 3 done" that opens the full Ready list in place (it opens by itself when a row needs you or failed); then Sources, Help the transcriber, Cleanup. The summary exists only at phone width; the full card stays in the middle column from 60 rem wide. The DOM order equals the drawn order at every width, with no CSS reordering, so the first Tab stop on a phone is the summary and the next is Sources. Hand-off button fixed above the mini player when ready. Add audio and Record as a 2-up bar at the top of Sources.
+  - Phone: one column in this order: Ready list (collapsed to a 72 px summary row "Getting ready · Transcribing 2 of 3" that expands), Sources, Help the transcriber, Cleanup. Hand-off button fixed above the mini player when ready. Add audio and Record as a 2-up bar at the top of Sources.
   - States: empty (new project): the center shows two large Source tiles (Import audio, Record) and nothing else; processing; needs you (amber dot on the tab, the row that needs input is first and expanded); done; failed step (row red with "Try again" and a "Details" disclosure that shows plain-language cause, raw log in Help bundle).
   - Copy: section titles "Sources", "Getting ready", "Help the transcriber", "Cleanup".
 - **Shared elements used:** Stage bar, Stage hand-off button (NEW), Source tile (NEW), Source card (NEW), Job row (NEW), Check row (NEW), segmented control, Person tile color swatches for speakers.
@@ -255,7 +254,7 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 - **Shared elements used:** Job row, Check row, Model need row, A/B audition (for the align move).
 - **Story to build:** `Stages/Prepare/ReadyList` stories `Queued`, `Running`, `NeedsAlignCheck`, `NeedsModel`, `KeepMyFixes`, `Failed`, `Done`.
 
-### PNL-PIPELINE · Pipeline panel (now the Getting ready list and Advanced)
+### PNL-PIPELINE · Pipeline panel
 
 - **Today:** `PNL-PIPELINE--desktop-light.png`, `PNL-PIPELINE--phone-light.png`. Mode select "Batch (waive align + refine)", Analyze/Reset/Run, terminal commands with temp paths (narrow F02), results summary clipped at 320 (narrow F01), all inside a 200 px dock.
 - **Fate:** merge into SCR-PREPARE: the Ready list is the default view; the full step list moves behind "Advanced" in an Inspector sheet.
@@ -299,7 +298,7 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 
 - **Today:** status bar says "QC ok" while the step result says "forced alignment unavailable … (podcast bootstrap --component word-aligner)".
 - **Fate:** replace with a Check row in Prepare and Review.
-- **Spec:** in Prepare's Ready list, row 2 finishes with an amber glyph: "Transcribed. Word timing is approximate" and a Model need row "Download word timing (360 MB)". In Review's Checks group the same Check row appears once ("Cuts may clip word edges until word timing is installed") with Get. After install, a "Re-time words" action runs alignment only.
+- **Spec:** in Prepare's Ready list, row 2 finishes with an amber glyph: "Transcribed. Word timing is approximate" and a Model need row "Get word timing · 360 MB". In Review's Checks group the same Check row appears once ("Cuts may clip word edges until word timing is installed") with Get. After install, a "Re-time words" action runs alignment only.
 - **Shared elements used:** Check row, Model need row.
 - **Story to build:** `Stages/Prepare/ReadyList` `ApproximateTiming`; `Stages/Review/Queue` `AlignerMissingCheck`.
 
@@ -309,43 +308,43 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 
 ### SCR-REVIEW (new) · Review stage (host)
 
-- **Today:** Review is spread across PNL-REVIEW-QUEUE, PNL-TIGHTEN, PNL-COMMENTS, INS-PENDING and OVL-PENDING. Shots: `PNL-IMPACT--*` (the Impact tab, now PNL-REVIEW-QUEUE), `PNL-TIGHTEN--*`, `PNL-COMMENTS--*`, `INS-PENDING--*`.
+- **Today:** Review is spread across PNL-IMPACT, PNL-TIGHTEN, PNL-COMMENTS, INS-PENDING and OVL-PENDING. Shots: `PNL-IMPACT--*`, `PNL-TIGHTEN--*`, `PNL-COMMENTS--*`, `INS-PENDING--*`.
   - Purpose: decisions are split across four places with four vocabularies ("pending edit", "tighten hit", "comment", "applied").
   - Interaction cost: approving one cut needs the timeline, an inspector and a 409 recovery (desktop F03).
   - Feedback: Apply suggested runs 65 to 79 s with no progress (real-recording F01).
 - **Fate:** replace with NEW Review stage.
 - **Spec:**
-  - Layout desktop (1280 x 800): Stage bar 48. Left **Queue** 360 px full height. Center **Decision card** column, card max 760 px wide, centered. Bottom of the center column: a 32 px Overview strip (overview waveform of the whole episode with ticks for every queue item, the current one accented; click a tick to jump). No right column at 1280; at 1920 the card stays 760 and the extra width is margin.
-  - Queue header (88 px): progress "6 of 14 decided · saves 7.8 s" (the seconds are the actual timeline duration change, one number used everywhere, fixing real-recording F05), a filter segmented control of icons with counts: All / Suggestions (scissors) / Comments (bubble) / Checks (triangle), and a "Find more" icon button (magnifier) that reruns suggestion finding with the "How tight" setting. Shipped in PR 4a (#2293): host only, uses the saved How tight, asks before it replaces pending hits, shows the Job row "Finding more suggestions" while it runs, and is disabled with a reason while the pipeline slot is busy. A bulk verb shows "Cutting N…" (indeterminate, because the host reports no count) in the group's place until it ends.
-  - Queue body: groups in this order: Checks, Comments, then suggestion groups by kind (Fillers, Pauses, Repeats, False starts, Sounds), then "Decided" (collapsed). Group header row 40 px: kind icon, name, count, seconds, and a bulk button with the verb icon ("Cut all 11"; a group with one cuttable item says plain "Cut", named "Cut this one" for assistive tech). A group verb is always offered whatever the cut quality: harsh, join-risk and listen-one-by-one items join it (edits are non-destructive and can be fixed up afterwards), and while the transcript check is open the group asks first, with Cut anyway. Only unsure-word items and blocked cuts stay out of the verb; they are counted in a "N to decide one by one" line in the header, shown to editors and not to guests. Keep and lower actions have no group verb. When some cuts need a listen, a "Low risk" row sits above the groups with one "Approve N low-risk edits" button for every clean cut across kinds (eligible for a group verb, no join risk, no harsh or listen-first flag); it is left out when every eligible cut is clean, since the group verbs already cover them. Inside each group the riskiest items come first, then by time, and a flagged row names why in its value slot ("Join may be audible · 0.8 s", "Join needs a listen", "Listen first"). Item rows 56 px: kind icon, quoted snippet with the struck words drawn as the Suggestion visual, time right-aligned in monospace, saved seconds under it. Unsure-word items are tagged with a dotted underline and are excluded from bulk (a word decision, not cut quality).
+  - Layout desktop (1280 x 800): Stage bar 48. Left **Queue** 360 px full height. Center **Decision card** column, card max 760 px wide, centered. Bottom of the center column: a 56 px context strip (overview waveform of the whole episode with ticks for every queue item, the current one accented; click a tick to jump). No right column at 1280; at 1920 the card stays 760 and the extra width is margin.
+  - Queue header (88 px): progress "6 of 14 decided · saves 7.8 s" (the seconds are the actual timeline duration change, one number used everywhere, fixing real-recording F05), a filter segmented control of icons with counts: All / Suggestions (scissors) / Comments (bubble) / Checks (triangle), and a "Find more" icon button (magnifier) that reruns suggestion finding with the "How tight" setting.
+  - Queue body: groups in this order: Checks, Comments, then suggestion groups by kind (Fillers, Pauses, Repeats, False starts, Sounds), then "Decided" (collapsed). Group header row 40 px: kind icon, name, count, seconds, and a bulk button with the verb icon ("Cut all 11"). Item rows 56 px: kind icon, quoted snippet with the struck words drawn as the Suggestion visual, time right-aligned in monospace, saved seconds under it. Unsure-word items are tagged with a dotted underline and are excluded from bulk.
   - Primary action: the Decision card's verb button (Cut / Shorten / Lower / Resolve / Looks right), Enter.
-  - Anticipated next action: the next undecided item. After any decision the card advances to the next undecided item in the queue in under 100 ms, and the decided row collapses to a single line with its result glyph. A Toast with Undo shows for 60 s while it is not hovered or focused ("Cut 0.8 s · Undo").
-  - Keyboard: Tab or Down next, Shift+Tab or Up previous, Enter primary verb, X Keep, A / B hear before / after (each plays 3 s before the change through 3 s after), Space play/pause the context, E open in Edit with this item selected, C comment on this item, R reply to a comment, ⇧Enter bulk verb for the item's group. All shown in the card's footer in 13 px meta, once per session, then only on hover.
-  - Phone: the Decision card fills the screen above the mini player. Top: a 48 px row "3 of 14" (tap opens the Queue as a large sheet) and filter icon. Bottom thumb zone: one 64 px dock row with Keep (left, outlined), the A/B segmented control (center) and the verb (right, primary). Under the dock sits the 32 px Overview strip (a 56 px row with 12 px padding); the hand-off button and the Player bar follow below it. Gestures: swipe the card right = primary verb, left = Keep, up = Later; 80 px threshold with the verb icon growing under the card while dragging; release below threshold springs back. Haptic on commit where available.
+  - Anticipated next action: the next undecided item. After any decision the card advances to the next undecided item in the queue in under 100 ms, and the decided row collapses to a single line with its result glyph. A Toast with Undo shows for 6 s ("Cut 0.8 s · Undo").
+  - Keyboard: J / K next / previous, Enter primary verb, X Keep, L Later, A / B hear before / after (each plays 3 s before the change through 3 s after), Space play/pause the context, E open in Edit with this item selected, C comment on this item, ⇧Enter bulk verb for the item's group. All shown in the card's footer in 13 px meta, once per session, then only on hover.
+  - Phone: the Decision card fills the screen above the mini player. Top: a 48 px row "3 of 14" (tap opens the Queue as a large sheet) and filter icon. Bottom thumb zone: Keep (left, 56 px, outlined) and the verb (right, 56 px, primary), a full-width A/B segmented control (48 px) above them. Gestures: swipe the card right = primary verb, left = Keep, up = Later; 80 px threshold with the verb icon growing under the card while dragging; release below threshold springs back. Haptic on commit where available.
   - States: empty "Nothing to decide" with the inbox-check icon 48 px and the hand-off "Deliver"; processing (Prepare still finding suggestions) shows decided items and a top Job row "Finding suggestions · 60%"; bulk running shows a Job row in the group header with a count "Cutting 11 · 4 done", the group's buttons disabled, Undo available as soon as it finishes (one step for the whole group); offline guest edits pending (see guest).
 - **Shared elements used:** Review queue (NEW), Decision card (NEW), Suggestion, A/B audition, Check row, Job row, Toast with Undo, Stage hand-off button, Transport (context strip + mini player).
-- **Story to build:** `Stages/Review/Review` stories `Mixed`, `Suggestion`, `Comment`, `Check`, `Empty`, `BulkRunning`, `Processing`, `Phone`, `PhoneSwipe`; `PhoneQueueSheet` lives in the `Stages/Review/Queue` stories.
+- **Story to build:** `Stages/Review/Review` stories `Mixed`, `Suggestion`, `Comment`, `Check`, `Empty`, `BulkRunning`, `Processing`, `Phone`, `PhoneSwipe`, `PhoneQueueSheet`.
 
 ### Decision card (the focus surface; replaces INS-PENDING in Review)
 
 - **Today:** `INS-PENDING--desktop-light.png`, `INS-PENDING--phone-light.png`. Approve/Reject at the top, then Source fields with −100/−10/+10/+100 nudge buttons and "Apply timing", "Boundary inaudible", "Review required" as field values. The phone sheet hides the cut it describes.
 - **Fate:** replace with Decision card in Review; in Edit, selecting a suggestion shows the floating action bar with the same verbs (Edit worker).
 - **Spec:**
-  - Anatomy, top to bottom: kind line (icon + "Filler", 13/16) and time "18:36" + speaker swatch and name; title 20/24 in plain words ("Remove “um, you know”", "Shorten a 2.9 s pause to 0.6 s", "Lower a laugh by 12 dB"); transcript excerpt 17/26, two sentences of context, with the change drawn as the Suggestion visual (struck words in the cut color, a hatched gap glyph for pauses); a 96 px waveform of ±6 s with the hatched Suggestion region and two 12 px edge handles (hit area 44 px) to adjust bounds by dragging, snapping to silence by default (hold Alt to disable); under it one plain "why" line from the suggester ("Jon cuts off a word and says it again"); A/B audition control; action row.
+  - Anatomy, top to bottom: kind line (icon + "Filler", 13/16) and time "18:36" + speaker swatch and name; title 20/24 in plain words ("Remove “um, you know”", "Shorten a 2.9 s pause to 0.6 s", "Lower a laugh by 12 dB"); transcript excerpt 17/26, two sentences of context, with the change drawn as the Suggestion visual (struck words in the cut color, a hatched gap glyph for pauses); a 96 px waveform of ±6 s with the hatched Suggestion region and two 12 px edge handles (hit area 44 px) to adjust bounds by dragging, snapping to silence by default (hold Alt to disable); under it one plain "why" line from the suggester ("Jon restarts the sentence; nobody talks over it"); A/B audition control; action row.
   - Action row (desktop, right-aligned): Later (chevron, text button), Keep (shield, outlined), primary verb (filled, verb icon + word). A pencil icon at the far left: "Open in Edit".
   - Adjusting a handle updates the "saves" number live and switches the A/B control to B so the next play is the adjusted result.
   - Comment thread on the same moment (if any) shows below the action row, collapsed to its first line.
   - Unsure word inside the range: the word has a dotted underline and the card shows "Unsure word: is this “uncle”?" with Fix text (inline field) before the primary verb is enabled; this keeps unsure words out of blind approval (ui-philosophy §1).
 - **Shared elements used:** Suggestion, A/B audition, Decision card (NEW), Object selection verbs (Cut, Keep, Comment, Hear, Fix text).
-- **Stories:** `Stages/Review/DecisionCard` stories `Filler`, `Pause`, `Sound`, `Adjusting`, `UnsureWord`, `UnsureWordEmptySave`, `UnsureWordWithHear`, `CutWithUnsureWord`, `WithComment`, `Check`, `CutAnywayPrompt`, `Comment`, `GuestSuggestion`, `GuestReadOnly`, `GuestEditor`, `Empty`, `Loading`, `LoadError`, `Phone`, `Phone390`, `PhoneGuest`, `PhoneUnsureWordOpenInEdit`, `PhoneEmpty`, `PhoneSwipe`.
+- **Story to build:** `Stages/Review/DecisionCard` stories `Filler`, `Pause`, `Sound`, `Adjusting`, `UnsureWord`, `WithComment`, `GuestSuggestion`, `Phone`.
 
-### PNL-REVIEW-QUEUE · Impact, now the Review queue (incl. refine-gate state, PNL-REVIEW-QUEUE-REFINE-GATE)
+### PNL-IMPACT · Impact (incl. refine-gate state, PNL-IMPACT-REFINE-GATE)
 
-- **Today (before #2293, as the Impact tab; the shots keep their original `PNL-IMPACT--*` and `PNL-IMPACT-REFINE-GATE--*` names):** Totals as a definition list ("Total removed 0.00 s"), Approve all / Reject all, links like "guest's cut at 0:20.0 · agent:suggest"; the refine gate shows "Transcript refinement is required before approval…" and a required Waiver reason textarea (desktop F03, narrow F04, phone F01, F03).
-- **Fate:** merged into SCR-REVIEW (shipped in #2293 as the Queue tab) and Deliver's readiness check ("Edits"). The refine gate is a Check row and an in-card Cut anyway prompt.
+- **Today:** `PNL-IMPACT--*`, `PNL-IMPACT-REFINE-GATE--*`. Totals as a definition list ("Total removed 0.00 s"), Approve all / Reject all, links like "guest's cut at 0:20.0 · agent:suggest"; the refine gate shows "Transcript refinement is required before approval…" and a required Waiver reason textarea (desktop F03, narrow F04, phone F01, F03).
+- **Fate:** merge into SCR-REVIEW (queue header summary and groups) and Deliver's readiness check ("Edits"). The refine gate becomes a Check row and an in-card prompt.
 - **Spec (refine gate):**
   - What it is in user terms: cuts are placed by words, so someone should glance at the transcript before cut suggestions are applied.
-  - When the gate is open, Checks holds a row "Check the transcript before cutting" with the count of unsure words ("3 unsure words"). Selecting it opens a Decision card that steps through the unsure words (each with Hear, Fix text, Looks right). Finishing the last word marks the transcript checked (records refine-done for the human). A text button on that card, "Mark as checked", marks it without stepping through. Shipped in PR 3 (#2293): each unsure word is a Review item under "Unsure words" with Hear, Fix text and Looks right; the last one marks the check.
+  - When the gate is open, Checks holds a row "Check the transcript before cutting" with the count of unsure words ("3 unsure words"). Selecting it opens a Decision card that steps through the unsure words (each with Hear, Fix text, Looks right). Finishing the last word marks the transcript checked (records refine-done for the human). A text button on that card, "Mark as checked", marks it without stepping through.
   - Never a dead end: pressing a cut verb while the gate is open does not fail. The card shows one inline line above the action row: "The transcript isn't checked yet. Cut anyway?" with the primary "Cut anyway" and a text button "Check 3 words". "Cut anyway" records a waiver with the reason "Approved after listening in Review" plus the user name and applies the cut. A "Add a note" disclosure lets the user write their own reason. The prompt appears once per session; later cuts go through.
   - Bulk verbs while the gate is open show the same line in the group header.
   - Phone: the inline line sits above the two thumb buttons; no nested scroller.
@@ -356,10 +355,9 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 
 - **Today:** `PNL-TIGHTEN--desktop-light.png`, `PNL-TIGHTEN--phone-light.png`. Search field, class chips, Track select, "Harsh cuts only", Intensity select, "Find hits", a disabled "Apply suggested actions (0)" and "0 of 0 hits". Pauses barely shorten (real-recording F06); apply-all has no progress (F01).
 - **Fate:** merge. Finding runs automatically in Prepare (row 5) with "How tight" in Prepare's Cleanup; results become suggestion groups in the Review queue; "Find more" in the queue header reruns.
-- **Spec:** the class filter becomes the queue's group headers. Apply suggested = each group's bulk verb with a Job row and one Undo (see SCR-REVIEW). "Most noticeable first" is the queue's risk order (the Low risk row, then the riskiest cuts first inside each group), built from `harsh`, the join-risk verdict and `listen_one_by_one`. The speaker filter is a second chip row under the type filter (Everyone, then one chip per person who still has an open edit, with that count), shown to editors only when two or more people have edits. It narrows the rows, the counts, the group verbs, the Low risk row and J/K together; comments, checks and pickups have no speaker and stay in view; the filter ends by itself when that person has no open edit left. The "Just applied" list is dropped: History lists each action in plain words, so an applied batch is one row there.
+- **Spec:** the class filter becomes the queue's group headers; track filter becomes a speaker swatch filter in the Queue header's more menu; "Harsh cuts only" becomes a sort option "Most noticeable first". Apply suggested = each group's bulk verb with a Job row and one Undo (see SCR-REVIEW). The "Just applied" list is dropped: History lists each action in plain words, so an applied batch is one row there (Caleb, 11-05, #2650).
 - **Shared elements used:** Review queue, Job row.
 - **Story to build:** covered by `Stages/Review/Review` `BulkRunning` and `Stages/Review/Queue` `Groups`.
-- **Shipped in PR 4 (#2293):** Find more, the Job row, the group bulk running row and `Cut all`; the Tighten tab, panel and `tighten.*` commands and keys are removed. A wire tab `tighten` from an older client lands on Queue. Dropped for good (#2650, owner decision 11-05): the Just applied list; History covers it.
 
 ### PNL-HISTORY · History
 
@@ -373,7 +371,7 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 
 - **Today:** `PNL-COMMENTS--desktop-light.png`, `PNL-COMMENTS--phone-light.png`. "Commenting as Host · Change", four filter tabs, a "Toggle comment mode" button, a composer with a separate "at 0:00" chip, cards with Reply fields and Resolve buttons stacked.
 - **Fate:** merge into the Review queue (Comments group) and the Decision card for comments; composing moves to the Comment verb everywhere.
-- **Spec:** comments are queue items. Their Decision card shows the thread (author avatar, name, relative time, body), the anchor ("18:36 to 18:41", tap plays it), action items as checkboxes, a reply field (one line, grows to 4), and the primary "Resolve" (Enter). R focuses reply. Composing a new comment happens from the Comment verb: C key, the comment button in the mini player, or the object action bar; it anchors at the playhead or selection and opens the composer inline in the queue at that time position. Filters live in the queue filter (Comments) and a "Resolved" toggle in the group header. Picking an open comment on the timeline selects it in the queue and switches the filter to All when the active filter hides comments (Suggestions, Checks); the Comments filter is kept. A comment that is already decided is not selected.
+- **Spec:** comments are queue items. Their Decision card shows the thread (author avatar, name, relative time, body), the anchor ("18:36 to 18:41", tap plays it), action items as checkboxes, a reply field (one line, grows to 4), and the primary "Resolve" (Enter). R focuses reply. Composing a new comment happens from the Comment verb: C key, the comment button in the mini player, or the object action bar; it anchors at the playhead or selection and opens the composer inline in the queue at that time position. Filters live in the queue filter (Comments) and a "Resolved" toggle in the group header.
 - **Shared elements used:** Review queue, Decision card, Comment verb, Person tile avatar.
 - **Story to build:** `Stages/Review/CommentCard` stories `Open`, `WithActions`, `Replying`, `Resolved`, `Phone`.
 
@@ -382,16 +380,16 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 - **Today:** seen in `PNL-COMMENTS--*`, `INS-COMMENT--*`. Author line shows lowercase role words ("host", "reviewer"); time chip and anchor chip are separate controls; Reply and Resolve are outlined boxes of equal weight; the inspector repeats the same comment as a form ("Author host / Status Open / Tracks reference").
 - **Fate:** restyle into one Comment row (queue) and one Comment thread (card); INS-COMMENT is removed (the card is the inspector).
 - **Spec:**
-  - Comment row (queue, 56 px): avatar 24 px, first line of body, time in monospace, reply count glyph. The unread accent dot is not shipped (owner decision: no unread state; follow-up if wanted).
-  - Comment thread (card): author line = avatar + display name + relative time; body 15/22; anchor shown once as a time range button with a play glyph; editing a comment body in place is not shipped (owner decision; follow-up if wanted); action items as checkboxes with the item text; reply composer; Resolve primary. Resolved threads show the comment-check icon and "Reopen" text button.
-  - Composer: a single field with the anchor time as a leading chip inside the field ("18:36"), the chip is a static label that follows the playhead until typing pins it (C, Comment here or a range command set the time); Enter posts, ⇧Enter newline; on phone the Post button is an arrow icon 44 px inside the field's right edge.
-  - Swipe right on a comment card (touch) = Resolve, with Undo toast. Swipe left does nothing on a comment: Keep does not apply, and Remove would delete it.
+  - Comment row (queue, 56 px): avatar 24 px, first line of body, time in monospace, reply count glyph. Unread: 8 px accent dot.
+  - Comment thread (card): author line = avatar + display name + relative time; body 15/22; anchor shown once as a time range button with a play glyph; edit own comment by clicking the body (InlineEditInput, Enter saves, Esc cancels); action items as checkboxes with the item text; reply composer; Resolve primary. Resolved threads show the comment-check icon and "Reopen" text button.
+  - Composer: a single field with the anchor time as a leading chip inside the field ("18:36"), tap the chip to re-anchor to the playhead; Enter posts, ⇧Enter newline; on phone the Post button is an arrow icon 44 px inside the field's right edge.
+  - Swipe left on a comment row (touch) = Resolve, with Undo toast.
 - **Shared elements used:** Person tile avatar, Comment verb, Toast with Undo.
 - **Story to build:** `Stages/Review/CommentCard` (as above) and `Stages/Review/Composer` stories `Empty`, `Anchored`, `Posting`, `Offline`, `GuestFirstPost`, `Phone`.
 
 ### CMP-GUEST-NAME · Guest name step (and CMP-GUEST-COMMENT)
 
-- **Before #2298 (replaced by the Composer name field):** `CMP-GUEST-NAME--desktop-light.png`, `CMP-GUEST-NAME--phone-light.png`. A full-width "Your name" field with an error-red border before any error, plus two post buttons ("Post as Guest", "Post comment").
+- **Today:** `CMP-GUEST-NAME--desktop-light.png`, `CMP-GUEST-NAME--phone-light.png`. A full-width "Your name" field with an error-red border before any error, plus two post buttons ("Post as Guest", "Post comment").
 - **Fate:** restyle into the composer.
 - **Spec:** on a guest's first post, the composer grows a second line above the field: an avatar placeholder and "Your name" field (placeholder "Name, so the host knows who said it"), prefilled from this browser if known. One Post action; blank name posts as "Guest". The name is then shown as the guest's Person tile in presence and on every comment; change it by tapping their own avatar in the header.
 - **Shared elements used:** Composer, Person tile.
@@ -409,13 +407,13 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 
 - **Today:** `DLG-ASK-CONFIRM--*` ("Remove the reference track? Keep track / Remove track"), `DLG-ASK-CONFIRM-BULK--*` ("Approve 2 pending edits? … One Undo takes them back. Keep reviewing / Approve 2"). The bulk dialog itself says the action is undoable, yet blocks with a modal.
 - **Fate:** remove for anything undoable (bulk verbs, remove track, touch blade, replace audio); keep a confirm only where undo is impossible.
-- **Spec:** undoable actions run at once and show a Toast with Undo (60 s, and the History sheet after). The remaining confirms (Stop sharing a link, which breaks a URL people hold; End record room, Record worker) use an inline confirm inside the row that triggered it: the button turns into "Stop sharing?" with "Keep" focused and "Stop" in danger style, 44 px each. No modal.
+- **Spec:** undoable actions run at once and show a Toast with Undo (6 s, and the History sheet after). The remaining confirms (Stop sharing a link, which breaks a URL people hold; End record room, Record worker) use an inline confirm inside the row that triggered it: the button turns into "Stop sharing?" with "Keep" focused and "Stop" in danger style, 44 px each. No modal.
 - **Shared elements used:** Toast with Undo, inline confirm (CMP-INLINE-CONFIRM).
 - **Story to build:** `Stages/Frame/InlineConfirm` stories `StopSharing`, `Phone`.
 
 ### Guest review experience (SCR-GUEST-VIEWER, -COMMENTER, -EDITOR, -MOBILE)
 
-- **Today:** `SCR-GUEST-VIEWER--*`, `SCR-GUEST-COMMENTER--*`, `SCR-GUEST-EDITOR--*`, `SCR-GUEST-MOBILE--phone-light.png`. The guest sees the full host editor with the header Role chip ("Commenter: can comment") and, under it, a version notice line (replaced by the header version line and New version pill, #2298), disabled tools they can't use, Shorter/Taller/Reset buttons; the phone shows a dark player card and "Open all".
+- **Today:** `SCR-GUEST-VIEWER--*`, `SCR-GUEST-COMMENTER--*`, `SCR-GUEST-EDITOR--*`, `SCR-GUEST-MOBILE--phone-light.png`. The guest sees the full host editor with two stacked text banners ("Shared comment view · You can comment and suggest edits", "Hearing "Share mix". This link follows the latest version…"), disabled tools they can't use, Shorter/Taller/Reset buttons; the phone shows a dark player card and "Open all".
 - **Fate:** replace with Guest Review (reduced Review stage).
 - **Spec:**
   - Frame: no Stage bar tabs for Viewer and Commenter (one stage, no switcher). Header 56 px: project name, under it in 13/16 meta the version ("Rough cut · 25 Oct") with a live glyph (two arrows circling = follows latest) or a pin glyph (frozen); right: presence avatars and the guest's own avatar (tap to set name). The Role chip sits next to the name (eye / bubble / pencil + word on desktop, icon only on phone with accessible name).
@@ -430,23 +428,25 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 
 ### BAN-GUEST-ROLE · Guest role banner
 
-- **Was:** `BAN-GUEST-ROLE--*`, `BAN-GUEST-ROLE-EDITOR--*`, `BAN-GUEST-ROLE-VIEWER--*`. Two full-width text rows above the transport, about 56 px of permanent prose. Removed.
-- **Fate:** replaced by the Role chip in the guest header.
-- **Spec:** see Guest Review. Tapping the Role chip opens a popover with one sentence ("You can comment and suggest cuts. The host decides.") shown automatically on a visit until it is dismissed (the close button or a press on the chip), once per browser and role, anchored to the chip.
+- **Today:** `BAN-GUEST-ROLE--*`, `BAN-GUEST-ROLE-EDITOR--*`, `BAN-GUEST-ROLE-VIEWER--*`. Two full-width text rows above the transport, about 56 px of permanent prose.
+- **Fate:** replace with the Role chip in the guest header.
+- **Spec:** see Guest Review. Tapping the Role chip opens a popover with one sentence ("You can comment and suggest cuts. The host decides.") shown automatically once on first visit, anchored to the chip, dismissed by any tap.
 - **Shared elements used:** Role chip, popover.
 - **Story to build:** `Stages/Review/Guest` `FirstVisitRoleHint`.
 
-### Guest version line and New version pill
+### BAN-GUEST-VERSION · Newer version notice
 
-- **Shipped (#2298):** the guest header shows the real version label under the project name, with a live glyph (two arrows circling) on a link that follows the latest version or a pin glyph on a frozen one. Following link: when the host publishes, the line becomes an accent pill "New version: Intro fix · Listen" for 10 s, then stays as the version line with a 6 px accent dot until the guest listens. Listen reloads the page onto the new version. Frozen link: nothing changes, it keeps showing the pinned version. The page reads the version on load, every 30 s and when the tab returns (`useReviewVersion`).
-- **Not built:** carrying the playback position over to the new version by matching transcript words.
-- **Shared elements used:** pill. Stories: `System/AppHeader` GuestFollowing, GuestFrozen, GuestNewVersion.
+- **Today:** no story, no shot (amber banner per guest-journeys.md).
+- **Fate:** replace with an inline version pill in the guest header.
+- **Spec:** following link: when the host publishes, the version line becomes an accent pill "New version: Intro fix · Listen" for 10 s, then stays as the version line with a 6 px accent dot until played. Playback position carries over by matching transcript words. Frozen link: nothing changes.
+- **Shared elements used:** pill.
+- **Story to build:** `Stages/Review/Guest` `NewVersion`.
 
-### SCR-GUEST-OFFLINE · Offline guest and Needs attention
+### SCR-GUEST-OFFLINE · Offline guest and BAN-GUEST-ATTENTION · Needs attention
 
-- **Today:** `SCR-GUEST-OFFLINE--*` (red "Couldn't reach the server" line that stays after reconnect, phone F08), the former `BAN-GUEST-ATTENTION--*-story.png` banner ("Needs attention 2 · Details", beige bar that pushes the editor down 45 px, real-recording F01).
+- **Today:** `SCR-GUEST-OFFLINE--*` (red "Couldn't reach the server" line that stays after reconnect, phone F08), `BAN-GUEST-ATTENTION--*-story.png` ("Needs attention 2 · Details", beige bar that pushes the editor down 45 px, real-recording F01).
 - **Fate:** merge into the Save state dot and queue Check rows.
-- **Spec:** offline: the Save state dot turns to a hollow cloud with a count ("2 waiting") in the header; posted comments show in the queue with a small clock glyph and a lower contrast until sent; they send by themselves on reconnect and the clock disappears. Conflicts (a guest suggestion that no longer fits a newer host edit) appear as Check rows in the guest's queue: "Your cut at 12:04 overlaps a newer edit" with Hear and "Suggest again here" / "Drop it". The host's Save state dot uses the same states. No banner. The host's actions that the banner carried are Check rows in the Review queue's "Needs attention" group: "N edits waiting to send" with Send now, a conflict row with Inspect History when the outcome may have applied, the transcript-refine waiver form on a refine-gate refusal, and Retry on an unreadable queue; the dot's "See why" opens Review and focuses the group.
+- **Spec:** offline: the Save state dot turns to a hollow cloud with a count ("2 waiting") in the header; posted comments show in the queue with a small clock glyph and a lower contrast until sent; they send by themselves on reconnect and the clock disappears. Conflicts (a guest suggestion that no longer fits a newer host edit) appear as Check rows in the guest's queue: "Your cut at 12:04 overlaps a newer edit" with Hear and "Suggest again here" / "Drop it". The host's Save state dot uses the same states. No banner.
 - **Shared elements used:** Save state dot, Check row, Review queue.
 - **Story to build:** `Stages/Review/Guest` `Offline`, `OfflineQueued`, `Conflict`, `Reconnected`.
 
@@ -458,21 +458,21 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 - **Shared elements used:** Status cover.
 - **Story to build:** `Stages/Frame/StatusCover` `BadLink`.
 
-### BAN-FOLLOW · Following (banner removed in #2298), and presence (MENU-PEOPLE, OVL-PRESENCE, INT-FOLLOW)
+### BAN-FOLLOW · Following banner, and presence (MENU-PEOPLE, OVL-PRESENCE, INT-FOLLOW)
 
 - **Today:** `BAN-FOLLOW--desktop-light.png`: a full-width "Following Guest · Stop following" bar plus a duplicate "Following Guest · Dismiss" toast.
 - **Fate:** replace with the followed person's avatar ring plus a compact pill.
-- **Spec:** presence avatars (Person tiles at 28 px) in the Stage bar or guest header; each has a 2 px ring in that person's color and a small badge showing their stage (stage icon at 12 px). Click an avatar: popover with "Follow", "Go to where they are" (jumps once), and their current playhead time. Following: their avatar's ring thickens to 3 px, a pill "Following Rosa ×" appears in the Player beside Play (its tooltip and a polite status say why a follow is partial: "in History (host-only)", "auditioning FX", "Listening in Mix" for a guest), and a 2 px frame in their color outlines the content area. Esc or × stops; any edit by the follower stops following. One indicator, no toast.
+- **Spec:** presence avatars (Person tiles at 28 px) in the Stage bar or guest header; each has a 2 px ring in that person's color and a small badge showing their stage (stage icon at 12 px). Click an avatar: popover with "Follow", "Go to where they are" (jumps once), and their current playhead time. Following: their avatar's ring thickens to 3 px, a 32 px pill "Following Rosa ×" appears beside the avatars, and a 2 px frame in their color outlines the content area. Esc or × stops; any edit by the follower stops following. One indicator, no toast.
 - **Shared elements used:** Person tile, pill, Icon language (stage icons).
 - **Story to build:** `Stages/Frame/Presence` stories `Avatars`, `Popover`, `Following`, `FollowingPhone`.
 
-### BAN-LOADFAIL · Load failure cover
+### BAN-LOADFAIL · Load failure banner
 
-- **Was:** no shot; "Could not load transcript and history. Retry" as a page banner. Removed.
-- **Fate:** replaced by an in-place failure in the region that failed.
-- **Spec:** the stage body shows the system Cover at region size: icon, "Could not load the project" (Review: "The transcript didn't load"), "Try again", announced as an alert. The cover is the stage body, not a part of the collapsible Script pane, so it shows on a phone with the Script collapsed. While Try again runs the same button stays, busy (`aria-busy`, `aria-disabled`), so focus is not lost.
+- **Today:** no shot; "Could not load transcript and history. Retry" as a page banner.
+- **Fate:** replace with an in-place failure in the region that failed.
+- **Spec:** the transcript region (or queue) shows its Status cover variant at region size: icon, "The transcript didn't load", "Try again". Other regions stay usable.
 - **Shared elements used:** Status cover (region size).
-- **Stories:** `LoadError` in `Stages/Review/Host`, `Stages/Prepare/Host` and `Stages/Edit/Workspace`; `LoadRetrying` in `Stages/Review/Host`.
+- **Story to build:** `Stages/Frame/StatusCover` `RegionFailure`.
 
 ---
 
@@ -485,7 +485,7 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 - **Spec:**
   - Layout desktop: single scrolling page in the stage frame, content max 1040 px. Top: **Readiness** (full width). Then two columns (640 / 376 px, 24 px gap): left **Episode file**, **Chapters**, **Clips**; right **Listen link** and the Export Job history ("Last export 2 h ago · Reveal").
   - Primary action: "Export" in the Episode file section (filled, 48 px, with export icon). It is the only filled button on the page.
-  - Anticipated next action: export, then reveal or download the files, then send a listen link. After export finishes, Export stays the only filled button, the Episode file section lists the files the export folder holds with a quiet "Reveal" (desktop app) or "Download" (browser, phone) on each row, and the Listen link section highlights "Copy link" as the follow-up.
+  - Anticipated next action: export, then reveal or download the files, then send a listen link. After export finishes, the Episode file section shows "Reveal in Finder" (desktop app) or "Download" (browser, phone) as the new primary, and the Listen link section highlights "Copy link" as the follow-up.
   - Keyboard: ⌘E export, ⌘⇧C copy listen link.
   - Phone: one column in the order Readiness, Episode file, Listen link, Chapters, Clips; the Export button is fixed above the mini player until pressed.
   - States: never exported; exporting (Job row); exported and current (Deliver tab check); exported but stale ("Edited since export · Export again"); export failed (Job row red with plain cause and Try again).
@@ -494,7 +494,7 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 
 ### Readiness check
 
-- **Today:** none. The export (then a dialog) didn't warn about pending edits or stale mix (desktop F11).
+- **Today:** none. The export dialog doesn't warn about pending edits or stale mix (desktop F11).
 - **Fate:** new.
 - **Spec:** a list of Check rows, 48 px each, in two columns on desktop (one on phone): "Suggestions decided 14 of 14", "Comments resolved 2 of 3", "Unsure words checked 0 left", "Mix up to date", "Loudness −16.0 LUFS" (after export: measured; before: target with "will be checked"), "Peaks under −1.5 dBTP", "Chapters 5", "Edits saved 23.6 s" (the same number as Review). Each open row has a fix button that opens the right stage with the item selected ("Resolve" opens Review on that comment). The section title is a sentence that summarizes: "Ready to export" or "2 things left. You can still export." Nothing here blocks Export.
 - **Shared elements used:** Readiness check list, Check row.
@@ -504,15 +504,9 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 
 - **Today:** `DLG-EXPORT--desktop-light.png`, `DLG-EXPORT--phone-light.png`. A paragraph explaining file replacement, a disabled WAV checkbox "Always written. Turn it off in the Pipeline tab", loudness explained in prose pointing to another tab; done state gives a relative path, no reveal, no download (desktop F11, narrow F10); captions go stale on re-export (real-recording F02).
 - **Fate:** merge into SCR-DELIVER "Episode file".
-- **Spec:** a row of format toggles as chips (MP3 on, WAV on, FLAC off), each with its size estimate; "Captions and transcript" always written and regenerated with every export (fixes stale SRT and Markdown); loudness segmented (Podcast −16 / Broadcast −23 / Streaming −14) mirrors Prepare's setting (one setting, two places). "Saves to Field Notes/export" with a "Change" text button. MP3 includes chapters when chapters exist (verify before stating as shipped; ui-philosophy §5). Export runs as a Job row inside the section ("Mastering · Writing MP3 · 60%", cancel); the user can leave the page. Done: each file the export folder holds is one row (name, what it is, size) with one quiet Reveal or Download action; Export stays the only filled button and there is no "Download all". Rows come from the folder, not the last job, so they stay after a failed or cancelled export, and are disabled while an export writes.
+- **Spec:** a row of format toggles as chips (MP3 on, WAV on, FLAC off), each with its size estimate; "Captions and transcript" always written and regenerated with every export (fixes stale SRT and Markdown); loudness segmented (Podcast −16 / Broadcast −23 / Streaming −14) mirrors Prepare's setting (one setting, two places). "Saves to Field Notes/export" with a "Change" text button. MP3 includes chapters when chapters exist (verify before stating as shipped; ui-philosophy §5). Export runs as a Job row inside the section ("Mastering · Writing MP3 · 60%", cancel); the user can leave the page. Done: file list with name, size, and per-file Reveal / Download icons; one primary "Reveal" or "Download all".
 - **Shared elements used:** Job row, chip toggles, segmented control, Model need row.
 - **Story to build:** `Stages/Deliver/EpisodeFile` stories `Settings`, `Exporting`, `Exported`, `ExportedPhone`, `NeedsModel`, `Failed`.
-- **Shipped (#2451):** the host runs the real export job from this section and the dialog is gone. The format chips come from the Pipeline config (WAV always written as a note, MP3, M4A, FLAC), loudness is the sentence "Mastered to X LUFS, peaks under Y dBTP. Change the target in the Pipeline tab." in place of the segmented choice, and Range, "Saves to", Reveal and Download are hidden because nothing in the project backs them. Progress, Cancel with its reasons, the late-cancel list, Try again, the model prompt and the measured loudness are all in the section; the flow lives in `DawApp`, so leaving Deliver does not stop it.
-
-Cancel failure feedback belongs to the export job that received the request.
-A late failure from an earlier job leaves the current export's cancellation
-state unchanged. A failed Cancel for the current job shows its error and allows
-another attempt.
 
 ### DLG-BOUNCE · Bounce (+ READY)
 
@@ -521,29 +515,8 @@ another attempt.
 - **Spec:** with a range selected anywhere, the action bar's Export icon renders that range of the full mix as WAV immediately (Job row in a toast with Reveal / Download when done). A small chevron next to the icon opens a popover with: source segmented (Full mix / Selected tracks / Soloed) and "Also MP3". In Deliver, Episode file has "Whole episode / Part…" where Part shows In and Out scrub fields.
 - **Shared elements used:** Object selection model (Export verb), Job row, popover.
 - **Story to build:** `Stages/Edit/ExportRange` stories `Default`, `Options`, `Done` (coordinate with Edit worker); `Stages/Deliver/EpisodeFile` `PartOfEpisode`.
-- **Shipped (#2449):** until the Export verb lands in Edit, the dialog is replaced by a Bounce section in Deliver (`Stages/Deliver/Bounce`): the source (Entire mix, Selected tracks, Soloed tracks), Limit to session region, Also write MP3, a range fixed in Edit, progress with Cancel, the files written, and the model prompt. `Mod+Shift+B`, the palette and Range actions → Bounce go to Deliver and focus the Bounce button; the flow lives in `DawApp`, so leaving Deliver does not stop it. Leaving Deliver ends the visit: it clears a fixed range and the bounce choices, while a running bounce continues.
 
-Cancel failure feedback belongs to the bounce job that received the request.
-A late failure from an earlier job leaves the current bounce's cancellation
-state unchanged. A failed Cancel for the current job shows its error and allows
-another attempt.
-
-Starting Bounce keeps its new running row and Cancel reachable while Transcript
-loads. The original disabled Bounce button stays below that row. Bounce uses
-the existing command and focus recovery with normal native anchoring. Background
-runs and returning to Deliver do not take ownership of the reader's position or
-focus. Application proof of reachability and deliberate reading remains required.
-
-### Transcript (new Deliver section)
-
-- **Spec:** `Stages/Deliver/Transcript` writes the edited transcript next to the audio as Text, Markdown, SRT or VTT (defaults Markdown and SRT, what every audio export already writes). A preview lists the first turns (four on phone) as the files will hold them, with speaker, `[m:ss]` time, the turn count, duration and language, and the first caption cue when SRT or VTT is chosen. Export writes the chosen files; Copy text puts the plain text on the clipboard (a blocked clipboard says so and points to the exported files; a failed read says the transcript could not be read). Files already on disk list with a note when the edit has moved on since ("Edited since export"); the section note and the button ("Export again") count only files of ticked formats. A failed export is retried with Export, which honours the same blockers as a first export. Not transcribed shows "Go to Prepare"; every word cut hides the actions.
-- **Wiring:** the preview is a debounced dry run in `stage/hosts/useTranscriptFlow.ts`; the call is synchronous and sub-second, so the flow is a host hook, not a provider that outlives the stage. The command `export.transcript` (palette, "Export transcript…") opens Deliver and focuses Export once.
-- **Composition:** the whole Transcript section follows Bounce, Chapters and Clips in each responsive flow. Desktop keeps it in the existing left column; phone puts it after the existing outside-column Chapters and Clips. This deliberately moves Transcript later than the previously shipped order, keeping its asynchronous growth below those controls without waiting for transcript readiness, reserving fixed heights or adding a scroller. Props, state and the compact preview remain unchanged. Crossing the phone breakpoint remounts Transcript under its responsive parent; the existing stage focus recovery falls back to the stage root if its removed control had focus. Same-layout hydration preserves the section and reader focus; an explicit Transcript focus request still targets its export control. Forced real-preview hydration and deliberate reader-departure tests qualify the resulting reachability and reading behavior; DOM order alone is not browser acceptance.
-- **Episode file note:** the automatic-export explanation is stable across loading, ready, unavailable and failed preview states. Available captions and transcript are included with audio export; “Choose more files in Transcript below” is appended only when the host actually includes this section. Episode file receives section presence, not preview kind, so this asynchronous load does not change content above Bounce or the reader. This removes a remaining preview-dependent layout input; it does not by itself prove the native reader-position requirement.
-- **Loading:** the shared Skeleton shows four static list blocks after 300 ms and "Still loading…" with Retry at 4 s. Retry calls the existing transcript reload callback.
-- **Stories:** `Stages/Deliver/Transcript`: `Ready`, `Compact`, `Loading`, `NotTranscribed`, `EverythingCut`, `LoadFailed`, `Writing`, `Done`, `ExportFailed`, `EditedSinceExport`, `CopyBlocked`.
-
-### Share (was DLG-SHARE; incl. created state and record-link section)
+### DLG-SHARE · Share (incl. created state and record-link section)
 
 - **Today:** `DLG-SHARE--*`, `DLG-SHARE-CREATED--*`. Three radio roles with explanations, two checkboxes with paragraphs, the created link hidden below the footer on phone (narrow F09), raw clipboard error ("Failed to execute 'writeText' on 'Clipboard'…") beside a toast "Review link created".
 - **Fate:** replace with Link rows in two homes: review links in Review (header "Invite" button opens a popover), the listen link for the final in Deliver. **Record invites move to the Record stage (designed by the Record worker);** the record room section is removed from this surface, and the Link row element is shared with Record.
@@ -554,9 +527,6 @@ focus. Application proof of reachability and deliberate reading remains required
   - Online sharing state (tunnel): shown as a glyph on the Link row (globe filled = reachable from anywhere; globe slashed = only on this network) with a popover explaining in one sentence and the fix.
 - **Shared elements used:** Link row (NEW), Role chip, Person tile, inline confirm, popover.
 - **Story to build:** `Stages/Review/InvitePopover` stories `Default`, `Copied`, `ClipboardBlocked`, `NoMix`, `WithViewers`, `Phone`; `Stages/Deliver/ListenLink` stories `Default`, `Pinned`, `OfflineOnly`.
-- **Shipped (#2450):** Deliver has a Share section (`Stages/Deliver/Share`). The header Invite, Project > Share… (`share.manage`) and the Record stage's Invite open Deliver on it, and the old Share dialog is gone. The section holds what the dialog did: the role (Viewer, Commenter, Editor; Commenter by default), Allow AI assistants (MCP), Freeze on the current version, Create review link, the live links (role, version, dates, address, Copy, Copy MCP URL, Stop sharing with its in-place confirm), the online sharing line, and record rooms (create, copy guest and producer links, replace a closed invite, End room, Open Record stage). A link only this network can open says so on its row. It stands in for the Listen link on Deliver, and the Share a listen link button now brings the section into focus.
-  - **Where it differs from the spec above.** There is still a Create review link button: the link is made on the click that asks for it and copied in the same click (the copy starts with the click and takes the link when it arrives, so the browser still counts it as a gesture). Copy on a listed link only copies. When the browser refuses a copy, the row reads "Press Ctrl C" with the whole link selected, and no raw clipboard error shows. The role stays a three-way choice on the section, not a chip on each row.
-  - **Not done in this part.** Record rooms stay in this section until the Record stage has its own.
 
 ### Social clips (INS-SOCIAL)
 
@@ -573,24 +543,6 @@ focus. Application proof of reachability and deliberate reading remains required
 - **Spec:** "Chapters" list, 44 px rows: time in monospace (scrub field, drag to retime, snaps to sentence starts), title (inline edit), play-from button, delete on hover (Undo toast). "Add at playhead" button at the end. Empty: "Chapters help listeners skip around. Add at playhead".
 - **Shared elements used:** scrub field, Toast with Undo.
 - **Story to build:** `Stages/Deliver/Chapters` stories `List`, `Editing`, `Empty`, `Phone`.
-
-### Podcast listing (issue #2684)
-
-- **Status:** mounted. `FeedPanel` loads the listing from the service (`GET /api/feed`, or `GET /api/review/{token}/feed` for a share link) with `useFeed`, sends each edit and the write, and shows what the service answers in `FeedSection` (`Stages/Deliver/Podcast listing`). The fixture server in `feedFixture.ts` stands in for the service only in stories and tests.
-- **Access:** the host edits everything. An Editor link opens Deliver to this section alone (no export, bounce or share) and edits episode and plain show values and writes the feed file. Setting up or choosing the show, the hosting address template and artwork given as a file path stay with the host, shown disabled with the reason. A value an Editor wrote carries a quiet **Guest** mark. A Viewer or Commenter link, which cannot open Deliver today, would read the same section without edit controls.
-- **Spec:**
-  - The section opens on a listing preview shaped like a podcast app: art, title, show, date, duration, transcript and soundbite badges, the notes with live chapters, and the people with their roles. No input shows until a value is clicked.
-  - A quiet **Auto** mark sits on a value a click would pin. **Edited** marks a pin a person made, so editing is discoverable, and **Agent** (with a sparkle glyph) marks a pin an agent made. Inherited art says "From your show". A measured or minted value carries no mark.
-  - A click edits a value in place with the same control as a chapter title (`system/InlineEdit`). Enter or leaving the field commits, Escape puts the value back, and emptying it hands the value back. On a mouse a quiet "Enter to save, Esc to cancel" line says so. **Use auto** (or **Clear** where nothing stands in) unsets a pin and offers Undo through a toast. On touch an explicit **Done** ends the edit.
-  - A pin whose auto value changed shows "This changed since you edited it" (with what changed, when the view supplies display text) and **Keep mine** and **Use new**. **Use new** offers Undo. The strip reads "Check the notes" in the warning tone, never "Ready to publish", while such a pin stands. Only a blocker uses the strong tone.
-  - A missing value says what it needs and is never an empty box. The strip carries the one button that supplies it. Inline, a missing value you can type is a dashed placeholder that opens the editor.
-  - One strip says "Ready to publish" or "2 things left" and its button is the first finding's fix. Checks stays closed and tags each finding with the platform it protects. Blockers hold back Copy feed item and Write, and the reason shows as a visible note.
-  - Chapters, clips, speakers and transcripts jump to the stage that owns them. The section never edits them.
-  - First run with no show shows one "Set up your show" card with the language and hosts taken from the speakers, a show name and Create.
-  - Actions: Listing and XML toggle, Copy notes, Copy feed item, and Write feed file (or "Feed file is out of date. Write").
-- **Interaction checklist (`docs/interaction-system.md`) for the edits:** the section has no `CommandDef`, manifest row, keymap or gesture; every edit is a click in place or a button that sends one `FeedEdit` or command to the service, and the service's answer replaces the view. A refused action shows in plain words above the footer and is dismissed with a button. The GUI view model is designed to be shared: `FeedEdit` (set or unset over an open field key), and a `Fix` that is an edit, an input (a value only a person can supply for a key), or a command (`export_episode`, `create_show`, `link_show`, `choose_art`, `write_feed`). Setting a value to the empty string means unset on every path. Button labels live in a UI table in `feedLogic`, never on the wire. The CLI, MCP and GUI speak this view. `feedGolden.json` holds the `(view, fix) -> view` cases the web fixture server and the Python `FeedService` both pass.
-- **Shared elements used:** `DeliverSection`, `StatusRow`, `PersonAvatar`, `Button`, `SegmentedControl`, `InlineEdit` (extracted from the chapter title).
-- **Story to build:** `Stages/Deliver/Podcast listing` stories `Preview`, `EditingInPlace`, `DriftedPin`, `UsedNew`, `Pending`, `ShowSetupEmpty`, `ShowPick`, `Checks`, `StaleFile`, `Writing`, `WriteFailed`, `XmlView`, `AgentPin`, `EditorGuest`, `EditorGuestShowIsHosts`, `ViewerReadOnly`, `BlockedWithFix`, `UnreadableShow`, `WriteSucceeded`, `LoadFailed`, `ActionRefused`, `Loading`, `Phone`.
 
 ---
 
