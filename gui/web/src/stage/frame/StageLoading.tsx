@@ -100,19 +100,16 @@ export function StageLoading({
       stage={stage}
       stageLabel={STAGE_NAME[stage]}
       header={
-        <div className="stage-loading-head">
+        <header className="stage-loading-head">
           <span className="stage-loading-name">{name}</span>
           {shell === "phone" ? null : (
             <div className="stage-loading-bar">{bar("bar")}</div>
           )}
-        </div>
+        </header>
       }
       tabs={shell === "phone" ? bar("tabs") : null}
     >
-      <div
-        className={`stage-loading-body stage-loading-body--${stage}`}
-        aria-busy="true"
-      >
+      <div className={`stage-loading-body stage-loading-body--${stage}`}>
         <p className="sr-only" role="status">
           {LOADING_STATUS}
         </p>

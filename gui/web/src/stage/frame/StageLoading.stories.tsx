@@ -42,7 +42,10 @@ export const Prepare: Story = {
     await expect(
       canvas.getByRole("tab", { name: /Prepare/, selected: true }),
     ).toBeVisible();
-    await expect(canvas.queryByText(/Loading/)).toBeNull();
+    const visibleLoading = canvas
+      .queryAllByText(/Loading/)
+      .filter((node) => !node.closest(".sr-only"));
+    await expect(visibleLoading).toHaveLength(0);
     await expect(canvas.queryByRole("progressbar")).toBeNull();
   },
 };

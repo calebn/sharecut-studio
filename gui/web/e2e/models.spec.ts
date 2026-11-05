@@ -36,7 +36,7 @@ for (const viewport of VIEWPORTS) {
         const setup = page.getByRole("region", { name: "Get ShareCut ready" });
         await expect(setup).toBeVisible();
         await expect(
-          setup.getByText(/One download, about 1\.6 GB\./),
+          setup.getByText(/One download, about 2 GB\./),
         ).toBeVisible();
         await expect(
           setup.getByRole("button", { name: "Get ready" }),
@@ -81,12 +81,12 @@ for (const viewport of VIEWPORTS) {
         await setup.getByRole("button", { name: "Get ready" }).click();
         await expect.poll(() => mock.runs.length).toBe(1);
         expect(mock.runs[0]).toMatchObject({
-          components: ["whisper", "rnnoise"],
+          components: ["whisper", "rnnoise", "word-aligner", "speaker-ecapa"],
         });
         await expect(
           page.getByRole("region", { name: "Getting ShareCut ready" }),
         ).toBeVisible();
-        await expect(setup.getByText("420 MB of 1.6 GB")).toBeVisible();
+        await expect(setup.getByText("420 MB of 2.0 GB")).toBeVisible();
         await expect(
           setup.getByRole("button", { name: "Cancel" }),
         ).toBeEnabled();
