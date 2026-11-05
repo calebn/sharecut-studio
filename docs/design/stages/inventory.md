@@ -26,10 +26,10 @@ All paths are relative to `gui/web/src/` unless they start with `/` or a repo fo
 | Menus (MENU-) | 4 |
 | Components, overlays, banners, toasts, status items, empty states (CMP- 48, OVL- 11, BAN- 6, TOAST/STAT/EMPTY/CHIP 4) | 69 |
 | Interactions (INT-) | 46 |
-| Total catalogued items | 199 |
-| Story files / exported stories | 89 files / 446 stories |
+| Total catalogued items | 198 |
+| Story files / exported stories | 88 files / 445 stories |
 
-Of the 153 non-interaction items: 65 have a story (yes), 33 partial, 55 none (counted from the Story column of the tables). Of the 46 interactions: 18 have a frozen-state story, 15 partial, 13 none. The per-surface table is section 14.
+Of the 152 non-interaction items: 64 have a story (yes), 33 partial, 55 none (counted from the Story column of the tables). Of the 46 interactions: 18 have a frozen-state story, 15 partial, 13 none. The per-surface table is section 14.
 
 ---
 
@@ -221,7 +221,6 @@ Guest mode comes from `guest_mode` in the review bootstrap: Viewer `view`, Comme
 | SCR-GUEST-LINK-INVALID | "This link does not open the project." | `/r/<token without view>` | `App.tsx` + `ui/ErrorScreen.tsx` | `ui/ErrorScreen.stories.tsx` WithNextStep | Props | Dead link |
 | SCR-GUEST-OFFLINE | Cached snapshot when the host is unreachable | `/r/<token>` with bootstrap failing and a stored offline snapshot | `App.tsx`, `services/offlineQueue/offlineStore.ts`, `stage/frame/GuestAttentionBannerView.tsx` | `stage/frame/GuestAttentionBannerView.stories.tsx` (PendingHostEdits, Conflicts, PendingAndConflict, PhoneManyConflicts) | View | Keep working offline, show conflicts |
 | BAN-GUEST-ROLE | Guest role banner (`guestShareBannerLabel`) | Top of guest shell | `stage/frame/BannerStack.tsx`, `shareMode.ts` | NONE | Props | State what this link allows |
-| BAN-GUEST-VERSION | Guest "newer version available" notice | Host republishes while the guest is open | `stage/frame/GuestVersionNotice.tsx`, `stage/frame/GuestVersionNoticeView.tsx` | `stage/frame/GuestVersionNoticeView.stories.tsx` (Frozen, NewerAvailable, FollowsLatest, ChangedUnderGuest) | View | Prompt refresh |
 | BAN-GUEST-ATTENTION | Offline / pending host edits / conflicts attention banner | Guest with queued or conflicting edits | `stage/frame/GuestAttentionBanner.tsx`, `stage/frame/GuestAttentionBannerView.tsx` | `stage/frame/GuestAttentionBannerView.stories.tsx` | View | Surface sync state |
 | BAN-FOLLOW | "Following X" banner (host, guest, agent leader; host-only-tab notice; Esc to stop) | Click an avatar > Follow | `stage/frame/FollowBanner.tsx`, `stage/frame/FollowBannerView.tsx` | `stage/frame/FollowBannerView.stories.tsx` (Following, AgentLeader, GuestHostOnlyTab, HostMirrorsAudition, PhoneLongName) | View | Follow someone else's view |
 | CMP-GUEST-COMMENT | Guest comment compose and name field | Review queue composer (always shown to a Commenter) | `system/Composer.tsx`, `stage/hosts/ComposeAnchor.tsx` | Composer yes (`System/Composer`); `stage/hosts/ReviewHost.stories.tsx` GuestCommenterPhone390 renders the Composer in the Review host | Props | Leave feedback |
@@ -439,7 +438,6 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 | SCR-GUEST-VIEWER/COMMENTER/EDITOR/MOBILE | partial | Shell chrome and role toggles only; no role banner story |
 | SCR-GUEST-LINK-INVALID | yes | ErrorScreen |
 | SCR-GUEST-OFFLINE, BAN-GUEST-ATTENTION, BAN-FOLLOW | yes | |
-| BAN-GUEST-VERSION | yes | |
 | BAN-GUEST-ROLE, CMP-GUEST-NAME, CMP-GUEST-COMMENT | partial | Compose yes; others no |
 | SCR-REC-LOADING, -INVALID, -FULL, -DECLINED, -LOBBY-*, -ROOM-*, CMP-REC-DEVICE/CONSENT/INDICATOR/ROSTER/LIVECOMMENTS/UPLOAD/CLIPPING | yes | |
 | SCR-REC-ACCESS-ENDED, CMP-REC-HOSTROSTER, CMP-REC-STOP, CHIP-REC-TRANSPORT | no | The last three are removed |
@@ -450,7 +448,7 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 | STAT-LIVE, CMP-RAIL-PEEK | no | |
 | CMP-TUNNEL, CMP-PRESENCE-STATUS | yes | |
 
-Tally of the 153 non-interaction items, counted from the Story columns: 65 yes, 33 partial, 55 no. Interactions: 18 yes (frozen states), 15 partial, 13 none.
+Tally of the 152 non-interaction items, counted from the Story columns: 64 yes, 33 partial, 55 no. Interactions: 18 yes (frozen states), 15 partial, 13 none.
 
 ---
 
@@ -470,7 +468,7 @@ Tally of the 153 non-interaction items, counted from the Story columns: 65 yes, 
 12. **SCR-PHONE-MORE and SCR-PHONE-LISTEN bodies.** Extract `MoreHub` as a View (it is already a separate function in `MobileShell.tsx`), add Listen body stories with chips and comments list, guest variant.
 13. **MENU-MAIN and MENU-VIEW as real menus.** Story with Menu open for host, guest, collapsed (tablet/phone) and menu-only (Listen).
 14. **MENU-CREATE, POP-CHOOSER, CMP-RANGE-ACTIONS** (touch-first, core editing) with phone frames.
-15. **SCR-GUEST role banners and GuestVersionNotice, LoadFailureBanner, BAN-GUEST-ROLE**: one story file `Templates/GuestBanners` covering Viewer, Commenter, Editor, version notice, load failure.
+15. **SCR-GUEST role banners, LoadFailureBanner, BAN-GUEST-ROLE**: one story file `Templates/GuestBanners` covering Viewer, Commenter, Editor, load failure.
 16. **POP-WORD-EDIT, POP-SPEAKER, CMP-FINDREPLACE, CMP-WORDBAR**: prop-only components; quick wins.
 17. **SCR-REC-ACCESS-ENDED, CMP-REC-NOTICES** (small).
 18. **SCR-LAYOUT-* modes and CMP-DRAWER-HANDLE, CMP-LAYOUT-CHIP**: add three StudioShellView stories for Timeline/Text/Review layouts.

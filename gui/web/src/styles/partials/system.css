@@ -472,9 +472,83 @@
   text-overflow: ellipsis;
 }
 
+.sys-header-sub .sys-version,
 .sys-header-sub .sys-role,
 .sys-header-sub .sys-coach {
   flex: none;
+}
+
+.sys-version {
+  display: inline-flex;
+  align-items: center;
+  min-inline-size: 0;
+  overflow: hidden;
+}
+
+.sys-version-line {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-inline-size: 0;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+
+button.sys-version-line {
+  cursor: pointer;
+}
+
+.sys-version-line .sys-mono {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sys-version-glyph {
+  display: inline-flex;
+  flex: none;
+}
+
+/* A 6 px dot: a newer version waits behind this line until the guest listens. */
+.sys-version-dot {
+  flex: none;
+  inline-size: 6px;
+  block-size: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+
+.sys-version-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-inline-size: 0;
+  block-size: var(--control-height-compact);
+  padding-inline: var(--space-3);
+  border: 0;
+  border-radius: var(--radius-xl);
+  background: var(--color-accent-subtle);
+  color: var(--color-accent-fg);
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.sys-version-pill-text {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (pointer: coarse) {
+  .sys-version-pill,
+  button.sys-version-line {
+    min-block-size: var(--touch-min);
+  }
 }
 
 .sys-header-people {
