@@ -138,7 +138,7 @@ describe("SheetNudge", () => {
     expect(screen.queryByRole("group", { name: /Nudge/ })).toBeNull();
   });
 
-  it("marks a trim nudge as a ripple, as the strip does, and a fade not", () => {
+  it("marks a trim nudge as a ripple, and a fade not", () => {
     const view = open(
       <SheetNudge
         field={{ kind: "trim", edge: "out", trackId: "host", clipId: "c2" }}

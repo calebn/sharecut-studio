@@ -261,7 +261,7 @@ describe("SelectionSheetBody", () => {
     });
     render(
       <div className="bottom-sheet-body">
-        <SelectionSheetBody rangeActionsInSheet peek={null} />
+        <SelectionSheetBody rangeActionsInSheet />
       </div>,
     );
     expect(screen.getAllByLabelText("Selection actions")).toHaveLength(1);
@@ -271,7 +271,7 @@ describe("SelectionSheetBody", () => {
     useDawStore.setState({ selection: null, rangeArmed: true });
     render(
       <div className="bottom-sheet-body">
-        <SelectionSheetBody rangeActionsInSheet peek={null} />
+        <SelectionSheetBody rangeActionsInSheet />
       </div>,
     );
     expect(
@@ -287,7 +287,7 @@ describe("SelectionSheetBody", () => {
     });
     render(
       <div className="bottom-sheet-body">
-        <SelectionSheetBody rangeActionsInSheet peek={null} />
+        <SelectionSheetBody rangeActionsInSheet />
       </div>,
     );
     expect(

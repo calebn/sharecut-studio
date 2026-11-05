@@ -1,9 +1,9 @@
 /**
  * An automatic-reduction band is picked on the timeline, and its inspector is
- * the full sheet, not a peek strip: the session behind the bands lives in that
- * sheet's body, so a strip would close them. The sheet covers the lower part of
- * a phone held upright, so while it is open for a band this scrolls the band
- * above the sheet, as the peek strip does for a clip, and again whenever the
+ * the regular sheet, not the compact drawer: the session behind the bands lives
+ * in that sheet's body, so a drawer would close them. The sheet covers the lower
+ * part of a phone held upright, so while it is open for a band this scrolls the
+ * band above the sheet, as the drawer does for a clip, and again whenever the
  * sheet resizes (a detent, a rotation) or the bands arrive.
  */
 import { useLayoutEffect, useSyncExternalStore } from "react";

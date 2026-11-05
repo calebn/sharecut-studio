@@ -1,7 +1,7 @@
 /**
  * The touch input grammar's single source (#1051, governance #1096). Every
  * hit-testable timeline target kind declares here how each input treats it;
- * the hit router, the target chooser, the peek strip, the keyboard and the
+ * the hit router, the target chooser, the sheet, the keyboard and the
  * conformance tests (`inputContract.conformance.test.ts`) all read this table,
  * so a new kind cannot ship with its own gesture rules.
  *
@@ -40,11 +40,11 @@ export type KindCommand =
 export interface HitKindContract {
   /** Tie-break when targets crowd one spot (higher wins). */
   priority: number;
-  /** The kind's name in the chooser, the strip and announcements. */
+  /** The kind's name in the chooser, the drawer title and announcements. */
   label: string;
   /** Axes an armed drag moves it along. */
   axis: DragAxis;
-  /** Nudge rows the strip shows for it, in order (`edit/nudge.ts`). */
+  /** Nudge buttons the sheet draws for it, in order (`edit/nudge.ts`). */
   nudges: readonly NudgeKind[];
   /**
    * Soft boundaries apply to it (`edit/nudgeBoundaries.ts`): its moving point
@@ -401,7 +401,7 @@ export function softMover(
 export const TOUCH_GESTURES = {
   "long-press-arm-drag": "Long-press to arm, then drag",
   "long-press-empty": "Long-press empty space: create menu",
-  "hold-nudge": "Hold a strip nudge",
+  "hold-nudge": "Hold a nudge button",
   "double-tap": "Double-tap",
   "swipe-left": "Swipe left",
   pinch: "Pinch",

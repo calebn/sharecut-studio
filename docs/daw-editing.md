@@ -6,7 +6,7 @@ Agents mutate via MCP/CLI; the GUI writes the same services through typed docume
 
 ## Keyboard clip handles
 
-Focused timeline fade and trim handles accept Left/Right arrows through the shared command bus. Fade steps are 1 ms (Shift 10 ms); trim steps are 10 ms (Shift 100 ms), without snapping. Right grows fade-in, Left grows fade-out; Right advances either source boundary. Holding a key previews repeated steps and releasing that arrow saves once, so one Undo restores the gesture. Normal blur also saves; Escape, pointer cancellation, unmount, or changed project/clip geometry discards the preview. An in-flight save blocks another handle gesture. Fades preserve the opposite edge and clamp to the track cap and remaining clip length; trims preserve minimum span and neighbor bounds. A handle that retains native focus after a project reload edits the fresh clip. Removing the focused handle releases keyboard ownership. Arrow keys outside a focused handle retain playhead navigation. The phone peek strip's nudge buttons step a selected fade or trim by the same amounts, and each tap saves once (`edit/clipHandleSteps.ts`, `edit/clipEdgeSave.ts`; see [touch-editor-decisions.md § Compact inspector](touch-editor-decisions.md#compact-inspector-1051-round-3)). A pointer drag on a trim handle is also discarded by window blur, a hidden document, or pagehide; a held key is not. A stale strip nudge cancels its held pointer gesture and consumes that gesture's release click, so the click cannot start a new edit on the updated project.
+Focused timeline fade and trim handles accept Left/Right arrows through the shared command bus. Fade steps are 1 ms (Shift 10 ms); trim steps are 10 ms (Shift 100 ms), without snapping. Right grows fade-in, Left grows fade-out; Right advances either source boundary. Holding a key previews repeated steps and releasing that arrow saves once, so one Undo restores the gesture. Normal blur also saves; Escape, pointer cancellation, unmount, or changed project/clip geometry discards the preview. An in-flight save blocks another handle gesture. Fades preserve the opposite edge and clamp to the track cap and remaining clip length; trims preserve minimum span and neighbor bounds. A handle that retains native focus after a project reload edits the fresh clip. Removing the focused handle releases keyboard ownership. Arrow keys outside a focused handle retain playhead navigation. The nudge buttons beside a selected clip's fade and trim fields in the inspector sheet step them by the same amounts, and each tap saves once (`edit/clipHandleSteps.ts`, `edit/clipEdgeSave.ts`; see [touch-editor-decisions.md § Compact inspector](touch-editor-decisions.md#compact-inspector-1051-round-3)). A pointer drag on a trim handle is also discarded by window blur, a hidden document, or pagehide; a held key is not. A stale strip nudge cancels its held pointer gesture and consumes that gesture's release click, so the click cannot start a new edit on the updated project.
 
 Timeline handles, phone nudges, and Clip Inspector fades send the saved fade pair
 captured when the gesture began as `SetClipFade.expected`. The server compares
@@ -365,7 +365,7 @@ enforced-by:
 - gui/web/src/inspector/useNudgeRun.test.tsx::does not save on release when an update arrives before the next repeat
 - gui/web/src/inspector/useNudgeRun.test.tsx::does not restore its preview when a pending save rejects after an update
 - gui/web/src/timeline/ClipBlock.test.tsx::keeps the last valid %s %s drag through pointer release
-- gui/web/src/inspector/InspectorPeek.test.tsx::saves a manual ripple trim directly with its current boundary token
+- gui/web/src/inspector/SheetNudge.runs.test.tsx::saves a manual ripple trim directly with its current boundary token
 -->
 
 The manual-confirmation requirement in this decision is superseded by
@@ -399,7 +399,7 @@ their document commands (`TrimClipEdge`, `DeleteClip`, `CutRange`, `PasteSegment
   below timeline zero by more than 1 ns, refuse the whole trim with
   `ripple_before_zero` before changing any lane. Preserve source audio,
   project state, history, and the document journal. Drag, held keyboard, and
-  strip nudge previews keep their last valid geometry and arrows and show the
+  held nudge-button previews keep their last valid geometry and arrows and show the
   error. Release saves only the last valid value. A lane without a moving edge keeps the
   existing time-splice behavior.
 - A held trim strip nudge has a run token and a detachable project-store

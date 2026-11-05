@@ -347,8 +347,8 @@ Branded Chrome keeps its full local inventory. Its `browserName` is `chromium`,
 so those conditional scans do not run there. Comment-undo and wordbar retain
 their existing unconditional helper scans in branded Chrome.
 
-The touch-nudge strip rows and touch-peek theme and motion row describe
-assertions both engines run. WebKit also scans every collected strip state
+The touch-nudge sheet rows and touch-drawer theme and motion row describe
+assertions both engines run. WebKit also scans every collected sheet state
 with axe before the collected results are asserted.
 
 | Check | Spec | Area | Chromium (Chrome) | WebKit (Safari) | Firefox |
@@ -432,7 +432,7 @@ with axe before the collected results are asserted.
 | every native compact Tab target paints its focus indicator inside actual clips | `gui/web/e2e-compat/compact-painted-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | scrolled fades and pinned actions retain pointer and keyboard ownership | `gui/web/e2e-compat/compact-form-scroll.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | one finger moving never edits; a long-press arms, and the armed point drags in time and level | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
-| at 390x844 by default, one finger dragging a selected clip's trim end saves nothing and opens the strip, not the half sheet | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
+| at 390x844 by default, one finger dragging a selected clip's trim end saves nothing and opens the drawer at half height | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | a long-press arms a clip, which moves in time only, holds at its neighbour's edge and saves there | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | a second finger cancels an armed clip move | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | a long-press on empty space opens the create menu; Add volume point adds one there | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
@@ -441,7 +441,7 @@ with axe before the collected results are asserted.
 | tablet landscape at 200% text still lets Zoom hit the ruler | `gui/web/e2e-compat/touch-grammar.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the create menu reaches every item and stays off the finger at every text size and screen height | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | a create menu taller than 90% of the screen, with room beside the finger, is not cut to 90% | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
-| the strip follows the finger; a flick opens or closes it fully, a slow drag lands at the nearest detent | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
+| the drawer follows the finger; a flick opens or closes it fully, a slow drag lands at the nearest detent | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | a second finger cancels an armed drag and the create menu | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | the crossfade grip drags only once a long press arms it | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | #1135: a long-press at a join offers the ripple trim, which shows where later clips go | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
@@ -453,40 +453,40 @@ with axe before the collected results are asserted.
 | compact header queues Undo behind a pending save | `gui/web/e2e-compat/compact-save-refusal.spec.ts` | Core flow | Pass | Pass | Not run |
 | a held nudge repeats, saves once, and one Undo restores it | `gui/web/e2e-compat/touch-nudge.spec.ts` | Core flow | Pass | Pass | Not run |
 | a held nudge stops at a soft boundary with a cue; a fresh press goes past | `gui/web/e2e-compat/touch-nudge.spec.ts` | Core flow | Pass | Pass | Not run |
-| pending and envelope strips: nudge rows and targets (portrait-360) | `gui/web/e2e-compat/touch-nudge.spec.ts` | Core flow | Pass | Pass | Not run |
+| pending and envelope sheets: nudge buttons and targets (portrait-360) | `gui/web/e2e-compat/touch-nudge.spec.ts` | Core flow | Pass | Pass | Not run |
 | iPhone envelope Time field is at least 16px | `gui/web/e2e-compat/touch-field-size.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | iPhone comment field is at least 16px | `gui/web/e2e-compat/touch-field-size.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| pending and envelope strips: nudge rows and targets (landscape-636) | `gui/web/e2e-compat/touch-nudge.spec.ts` | Core flow | Pass | Pass | Not run |
-| chip: slid on, settled, slid along the axis | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
-| chip: lifted at the origin, chip pressed again, slid along the axis | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
-| chip: slid on and lifted without moving | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
-| chip: rested a long press, then dragged off the axis (no grab) | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
-| no grab while passing over chips or moving off the axis | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
-| the strip and the expanded inspector leave the selection in view | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
-| a drag stows the strip, which returns with the new value: portrait-360 | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
-| a drag stows the strip, which returns with the new value: landscape-636 | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
-| Expand is remembered for the next selection, and so is Collapse: portrait-360 | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
-| Expand is remembered for the next selection, and so is Collapse: landscape-636 | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
-| both themes and reduced motion with the strip open | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
+| pending and envelope sheets: nudge buttons and targets (landscape-636) | `gui/web/e2e-compat/touch-nudge.spec.ts` | Core flow | Pass | Pass | Not run |
+| chip: slid on, settled, slid along the axis | `gui/web/e2e-compat/touch-drawer.spec.ts` | Core flow | Pass | Pass | Not run |
+| chip: lifted at the origin, chip pressed again, slid along the axis | `gui/web/e2e-compat/touch-drawer.spec.ts` | Core flow | Pass | Pass | Not run |
+| chip: slid on and lifted without moving | `gui/web/e2e-compat/touch-drawer.spec.ts` | Core flow | Pass | Pass | Not run |
+| chip: rested a long press, then dragged off the axis (no grab) | `gui/web/e2e-compat/touch-drawer.spec.ts` | Core flow | Pass | Pass | Not run |
+| no grab while passing over chips or moving off the axis | `gui/web/e2e-compat/touch-drawer.spec.ts` | Core flow | Pass | Pass | Not run |
+| the half drawer leaves the selection in view and the full one is recorded | `gui/web/e2e-compat/touch-drawer.spec.ts` | Core flow | Pass | Pass | Not run |
+| a drag stows the drawer, which returns with the new value: portrait-360 | `gui/web/e2e-compat/touch-drawer.spec.ts` | Core flow | Pass | Pass | Not run |
+| a drag stows the drawer, which returns with the new value: landscape-636 | `gui/web/e2e-compat/touch-drawer.spec.ts` | Core flow | Pass | Pass | Not run |
+| Expand is remembered for the next selection, and so is Collapse: portrait-360 | `gui/web/e2e-compat/touch-drawer.spec.ts` | Core flow | Pass | Pass | Not run |
+| Expand is remembered for the next selection, and so is Collapse: landscape-636 | `gui/web/e2e-compat/touch-drawer.spec.ts` | Core flow | Pass | Pass | Not run |
+| both themes and reduced motion with the drawer open | `gui/web/e2e-compat/touch-drawer.spec.ts` | Core flow | Pass | Pass | Not run |
 | a second finger cancels the drag and pinches (portrait-360) | `gui/web/e2e-compat/touch-pinch.spec.ts` | Core flow | Pass | Pass | Not run |
 | a second finger cancels the drag and pinches (landscape-844) | `gui/web/e2e-compat/touch-pinch.spec.ts` | Core flow | Pass | Pass | Not run |
 | timeline text takes no selection or callout | `gui/web/e2e-compat/touch-selection.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | no shell row draws over the strip, nor the strip over it: portrait-360 | `gui/web/e2e-compat/touch-strip-stacking.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | no shell row draws over the strip, nor the strip over it: landscape-636 | `gui/web/e2e-compat/touch-strip-stacking.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| a pending edit's Approve and Reject stay reachable in pinned chrome at enlarged text sizes | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
+| a pending edit's Approve and Reject stay reachable in the drawer at enlarged text sizes | `gui/web/e2e-compat/touch-drawer.spec.ts` | Core flow | Pass | Pass | Not run |
 | live waiver draft survives a short to tall tablet resize | `gui/web/e2e-compat/pending-actionbar-lifecycle.spec.ts` | Core flow | Pass | Pass | Not run |
 | docks in the inspector sheet | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | floats between the ruler and the bottom panel | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | leaves Approve and Reject to the inspector | `gui/web/e2e-compat/pending-actionbar-ruler.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | pending card: a marker added while it floats leaves the one-row lane where it was and the card clear of it | `gui/web/e2e-compat/pending-actionbar-reflow.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| Expand keeps the header, Collapse and Close usable at 636x390 with a 16 px root font | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
-| Expand keeps the header, Collapse and Close usable at 636x390 with a 32 px root font | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
-| the half drawer keeps a readable title at 390x844 with a 16 px root font | `gui/web/e2e-compat/touch-peek.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| the half drawer keeps a readable title at 390x844 with a 32 px root font | `gui/web/e2e-compat/touch-peek.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| a timeline tap while a track's sheet is open selects, and Inspect opens the strip: portrait-390 | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
-| a point added from a track's sheet shows its fields in the drawer: portrait-390 | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
-| Tab focus never lands a field under the drawer header at 32 px text: a pending cut | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
-| the strip leaves the timeline undimmed and the half sheet dims it: portrait-390 | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
+| Expand keeps the header, Collapse and Close usable at 636x390 with a 16 px root font | `gui/web/e2e-compat/touch-drawer.spec.ts` | Core flow | Pass | Pass | Not run |
+| Expand keeps the header, Collapse and Close usable at 636x390 with a 32 px root font | `gui/web/e2e-compat/touch-drawer.spec.ts` | Core flow | Pass | Pass | Not run |
+| the half drawer keeps a readable title at 390x844 with a 16 px root font | `gui/web/e2e-compat/touch-drawer.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| the half drawer keeps a readable title at 390x844 with a 32 px root font | `gui/web/e2e-compat/touch-drawer.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| a timeline tap while a track's sheet is open selects, and Inspect opens the drawer: portrait-390 | `gui/web/e2e-compat/touch-drawer.spec.ts` | Core flow | Pass | Pass | Not run |
+| a point added from a track's sheet shows its fields in the drawer: portrait-390 | `gui/web/e2e-compat/touch-drawer.spec.ts` | Core flow | Pass | Pass | Not run |
+| Tab focus never lands a field under the drawer header at 32 px text: a pending cut | `gui/web/e2e-compat/touch-drawer.spec.ts` | Core flow | Pass | Pass | Not run |
+| the half and the full drawer dim the timeline: portrait-390 | `gui/web/e2e-compat/touch-drawer.spec.ts` | Core flow | Pass | Pass | Not run |
 | phone: a boundary load the server never answers says to try again and recovers on Try again | `gui/web/e2e-compat/precision-boundary-timeout.spec.ts` | Core flow | Pass | Pass | Not run |
 | desktop: a boundary load the server never answers says to try again and recovers on Try again | `gui/web/e2e-compat/precision-boundary-timeout.spec.ts` | Core flow | Pass | Pass | Not run |
 | desktop: network boundary load keeps focus through recovery | `gui/web/e2e-compat/precision-boundary-timeout.spec.ts` | Core flow | Pass | Pass | Not run |

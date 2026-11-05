@@ -424,7 +424,7 @@ In ShareCut Studio an Editor link's Review queue lists the pending edits with **
 
 An Editor also edits volume envelopes as the host does: `SetEnvelope` is in
 the Editor command set, and the Studio's envelope overlay, envelope inspector,
-peek strip and touch create menu read `canEditEnvelopes`. Commenter and
+sheet nudge buttons and touch create menu read `canEditEnvelopes`. Commenter and
 Viewer links see envelopes view-only (owner, 2026-10-06; see
 [touch-editor-decisions.md](touch-editor-decisions.md#decision-one-touch-input-grammar-for-timeline-editing)).
 
