@@ -22,7 +22,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 |----------|---------|------|-------|
 | `Space` | Play / pause (`transport.togglePlay`) | Timeline or transcript focused | When timeline or transcript is focused; Shift+Space is Hear |
 | `K` | Pause and return (`transport.stop`) | Always (when not typing in a field or on a focused Scrub field) | K alone pauses and returns; Mod+K splits at the playhead |
-| `J` | Shuttle back (jumps back) / forward (`transport.shuttle`) | Always (when not typing in a field or on a focused Scrub field) | J jumps back 3, 6, 12 s; L plays at 1×, 2×, 4× |
+| `J` | Shuttle back (jumps back) / forward (`transport.shuttle`) | Always (when not typing in a field or on a focused Scrub field) | J jumps back 3, 6, 12 s; L plays at 1×, 2×, 4×. A remap replaces both keys: the new key plays forward only and Back is unbound |
 | `Mod+B` | Refresh mix (`render.refreshMix`) | Refresh mix allowed | Mod+B: rebuild stems/premix when host or Docs Editor |
 
 ## navigation
