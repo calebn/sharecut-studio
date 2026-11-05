@@ -234,7 +234,9 @@ for (const waived of [true, false]) {
           } else {
             await editor.locator(".guest-attention-head").click();
             await expect(
-              editor.getByText(/blocked until transcript refinement/),
+              editor
+                .getByRole("region", { name: /^Needs attention/ })
+                .getByText(/blocked until transcript refinement/),
             ).toBeVisible();
             expect(await openSuggestions(host, projectPath)).toBe(before);
           }
