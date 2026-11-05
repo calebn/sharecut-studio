@@ -229,10 +229,6 @@ const BACK_EDGE_ALLOWLIST: Record<string, readonly string[]> = {
     "audio/pendingPreview.ts -> edit/rangeSelection (static)",
     "audio/proxyMath.ts -> edit/joinRender (static)",
   ],
-  "services -> views": [
-    "ingest/dropLabels.ts -> feedback/ask (type)",
-    "ingest/ingestFiles.ts -> feedback/ask (static)",
-  ],
   "commands/edit -> hooks": [
     "commands/projectMedia.ts -> desktop/useDesktopCloseGuard (static)",
     "edit/dragThreshold.ts -> hooks/gestureConstants (static)",
@@ -246,7 +242,6 @@ const BACK_EDGE_ALLOWLIST: Record<string, readonly string[]> = {
     "commands/gestures.ts -> timeline/inputContract (type)",
     "commands/host.ts -> extensions/features (static)",
     "commands/host.ts -> record (static)",
-    "commands/projectMedia.ts -> feedback/ask (static)",
     "commands/rangeActions.ts -> comments/commentAnchor (static)",
     "commands/trackMix.ts -> tracks/trackMuteCopy (static)",
     "commands/transcriptIgnore.ts -> transcript/ignoredWords (static)",
@@ -288,12 +283,12 @@ const ALLOWLIST_SIZE_BY_PAIR = {
   "api -> commands/edit": 3,
   "api -> views": 3,
   "services -> commands/edit": 2,
-  "services -> views": 2,
+
   "commands/edit -> hooks": 2,
-  "commands/edit -> views": 15,
+  "commands/edit -> views": 14,
   "hooks -> views": 6,
 };
-const ALLOWLIST_SIZE = 60;
+const ALLOWLIST_SIZE = 57;
 
 const ID_SHAPE = /^(.+) -> (.+) \((static|type|dynamic)\)$/;
 
