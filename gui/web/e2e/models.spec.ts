@@ -289,13 +289,16 @@ test.describe("models sheet in a project on a phone", () => {
     const dialog = page.getByRole("dialog", { name: "Models" });
     await expect(dialog).toBeVisible();
     const panel = dialog;
-    // The sheet rises into place; wait for it to settle on the bottom edge.
+    // The sheet rises into place; wait for it to settle on the bottom edge of its slot, which
+    // sits above the shell's bottom chrome and below the header.
+    const slot = page.locator(".bottom-sheet-root");
+    const bottomOf = async (target: typeof slot) => {
+      const box = await target.boundingBox();
+      return box && Math.round(box.y + box.height);
+    };
     await expect
-      .poll(async () => {
-        const box = await panel.boundingBox();
-        return box && Math.round(box.y + box.height);
-      })
-      .toBe(844);
+      .poll(async () => (await bottomOf(panel)) === (await bottomOf(slot)))
+      .toBe(true);
     const last = row(dialog, "Noise reduction").getByRole("button", {
       name: "Get Noise reduction",
     });
