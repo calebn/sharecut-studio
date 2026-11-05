@@ -9,19 +9,17 @@ import { SpeakerPopover } from "../../../stages/edit/SpeakerPopover";
 import { useDawStore } from "../../../state/dawStore";
 import { ScriptPane, type ScriptPaneHandle } from "../../../system/ScriptPane";
 import type { ScriptStatus } from "../../../system/scriptPieces";
-import { ScriptJoin } from "./ScriptJoin";
 import { scriptGuestOf } from "./scriptGuest";
 import { useScriptCarets } from "./useScriptCarets";
 import { useScriptFind } from "./useScriptFind";
 import { useScriptFixText } from "./useScriptFixText";
 import { useScriptModel } from "./useScriptModel";
 import { useScriptPlayback } from "./useScriptPlayback";
+import { useScriptSeamRoll } from "./useScriptSeamRoll";
 import { useScriptSelection } from "./useScriptSelection";
 import { useScriptSpeaker } from "./useScriptSpeaker";
 import { useScriptUnsure } from "./useScriptUnsure";
 import { useScriptWindow } from "./useScriptWindow";
-
-const renderJoin = (id: string) => <ScriptJoin id={id} />;
 
 export type ScriptHostProps = {
   /** Where the Script is drawn. Left out, it follows the shell. */
@@ -93,6 +91,7 @@ export function ScriptHost({
     jump,
   );
   const find = useScriptFind(model, bar, win.scrollTo, say);
+  const seamRoll = useScriptSeamRoll(say);
   const speaker = useScriptSpeaker(model, mayIngest && ready, say);
 
   const phone =
@@ -149,7 +148,7 @@ export function ScriptHost({
             />
           ) : null
         }
-        renderJoin={renderJoin}
+        seamRoll={seamRoll}
         onCaret={selection.onCaret}
         onSelect={selection.onSelect}
         onClearSelection={selection.onClearSelection}
