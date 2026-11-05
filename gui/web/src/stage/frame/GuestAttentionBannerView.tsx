@@ -14,6 +14,7 @@ import {
   attentionRegionLabel,
   conflictAdvice,
   DISMISS_FAILED_NOTE,
+  dismissReason,
   NEEDS_ATTENTION,
   UNREADABLE_NOTE,
 } from "./attentionLabel";
@@ -147,11 +148,7 @@ export function GuestAttentionBannerView({
   if (keptWaivedIds.length !== refineWaivedIds.size)
     setRefineWaivedIds(new Set(keptWaivedIds));
   const dismissUnavailable = unreadable || checking || dismissFailed;
-  const dismissReason = unreadable
-    ? "Saved edits could not be read. Dismissal is unavailable."
-    : dismissFailed
-      ? "Dismissal failed. Your saved outcomes were kept."
-      : "Checking saved edits. Dismissal is unavailable.";
+  const dismissalReason = dismissReason({ unreadable, dismissFailed });
 
   if (!visible) {
     return null;
@@ -235,7 +232,7 @@ export function GuestAttentionBannerView({
                   aria-describedby={
                     dismissUnavailable ? dismissReasonId : undefined
                   }
-                  title={dismissUnavailable ? dismissReason : undefined}
+                  title={dismissUnavailable ? dismissalReason : undefined}
                   onClick={onDismissAll}
                 >
                   Dismiss all
@@ -243,7 +240,7 @@ export function GuestAttentionBannerView({
               )}
               {conflicts.length > 0 && dismissUnavailable && (
                 <span id={dismissReasonId} className="sr-only">
-                  {dismissReason}
+                  {dismissalReason}
                 </span>
               )}
               <ul className="guest-attention-list">

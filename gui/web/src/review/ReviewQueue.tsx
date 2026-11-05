@@ -1,7 +1,8 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { useNowSec } from "../hooks/useNowSec";
 import {
   DISMISS_FAILED_NOTE,
+  dismissReason,
   NEEDS_ATTENTION,
   UNREADABLE_NOTE,
 } from "../stage/frame/attentionLabel";
@@ -24,7 +25,7 @@ import {
   attentionVisible,
   commentLine,
   decidedItems,
-  dismissReasonOf,
+  dismissHeld,
   filterCounts,
   filterItems,
   groupQueue,
@@ -219,26 +220,53 @@ function GroupHeader({
   );
 }
 
-function AttentionGroup({ attention }: { attention: ReviewAttention }) {
+function AttentionGroup({
+  attention,
+  onFocusChange,
+}: {
+  attention: ReviewAttention;
+  onFocusChange: (inside: boolean) => void;
+}) {
   const { rows } = attention;
+  const reasonId = useId();
+  const held = dismissHeld(attention);
   const failure = attention.unreadable
     ? UNREADABLE_NOTE
     : attention.dismissFailed
       ? DISMISS_FAILED_NOTE
       : null;
   return (
-    <section className="rv-group" aria-label={attentionLabelOf(attention)}>
+    <section
+      className="rv-group"
+      aria-label={attentionLabelOf(attention)}
+      onFocus={() => onFocusChange(true)}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget))
+          onFocusChange(false);
+      }}
+    >
       <div className="rv-group-head">
         <SystemIcon name="triangle-alert" size={16} />
         <span className="rv-group-name">{NEEDS_ATTENTION}</span>
-        <span className="sys-mono rv-group-count">{rows.length}</span>
+        <span className="sys-mono rv-group-count">{rows.length || "!"}</span>
         {rows.length > 0 && attention.canDismiss ? (
-          <Button
-            disabledReason={dismissReasonOf(attention)}
-            onClick={attention.onDismissAll}
-          >
-            Dismiss all
-          </Button>
+          <>
+            <Button
+              aria-disabled={held || undefined}
+              aria-describedby={held ? reasonId : undefined}
+              title={held ? dismissReason(attention) : undefined}
+              onClick={() => {
+                if (!held) attention.onDismissAll();
+              }}
+            >
+              Dismiss all
+            </Button>
+            {held ? (
+              <span id={reasonId} className="sr-only">
+                {dismissReason(attention)}
+              </span>
+            ) : null}
+          </>
         ) : null}
       </div>
       {failure ? (
@@ -296,6 +324,13 @@ export function ReviewQueue({
     kindInFilter(bulkRunning.kind, filter) &&
     !groups.some((g) => g.kind === bulkRunning.kind);
   const showAttention = attentionVisible(attention, filter);
+  const attentionFocused = useRef(false);
+  const progressRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (showAttention || !attentionFocused.current) return;
+    attentionFocused.current = false;
+    progressRef.current?.focus();
+  }, [showAttention]);
   const reason = useDisabledReasonNote(guest ? undefined : findMoreDisabled);
 
   if (state !== "ready") {
@@ -319,7 +354,12 @@ export function ReviewQueue({
 
   const header = (
     <header className="rv-head">
-      <p className="rv-progress sys-mono" aria-live="polite">
+      <p
+        ref={progressRef}
+        tabIndex={-1}
+        className="rv-progress sys-mono"
+        aria-live="polite"
+      >
         {canDecide ? progressLine(items) : commentLine(items)}
       </p>
       <div className="rv-filter">
@@ -412,7 +452,14 @@ export function ReviewQueue({
           progress={job.progress}
         />
       ) : null}
-      {showAttention ? <AttentionGroup attention={attention} /> : null}
+      {showAttention ? (
+        <AttentionGroup
+          attention={attention}
+          onFocusChange={(inside) => {
+            attentionFocused.current = inside;
+          }}
+        />
+      ) : null}
       {lowRisk ? (
         <section className="rv-group" aria-label="Low-risk edits">
           <div className="rv-group-head">

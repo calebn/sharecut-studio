@@ -180,18 +180,21 @@ export const GuestFiltered: Story = {
 const guestAttention = (
   over: Partial<ReviewAttention> = {},
 ): ReviewAttention => ({
-  rows: attentionRowsOf([
-    offlineConflict({
-      command: { command_id: "conflict-1", type: "TrimClip" },
-      reason: "Clip was already trimmed",
-    }),
-    offlineConflict({
-      command: { command_id: "conflict-2" },
-      kind: "unknown",
-      reason: "The host may have applied it",
-      recovery: "inspect-history",
-    }),
-  ]),
+  rows: attentionRowsOf(
+    [
+      offlineConflict({
+        command: { command_id: "conflict-1", type: "TrimClip" },
+        reason: "Clip was already trimmed",
+      }),
+      offlineConflict({
+        command: { command_id: "conflict-2" },
+        kind: "unknown",
+        reason: "The host may have applied it",
+        recovery: "inspect-history",
+      }),
+    ],
+    true,
+  ),
   unreadable: false,
   dismissFailed: false,
   checking: false,
@@ -201,6 +204,7 @@ const guestAttention = (
   ...over,
 });
 
+/** The rows sit outside the filter counts: "All N" and the chip counts do not include them. */
 export const GuestConflicts: Story = {
   args: {
     guest: true,

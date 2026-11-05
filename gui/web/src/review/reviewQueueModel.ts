@@ -320,11 +320,12 @@ export type ReviewAttention = {
 
 export const attentionRowsOf = (
   conflicts: readonly OfflineConflict[],
+  guest: boolean,
 ): AttentionRow[] =>
   conflicts.map((conflict) => ({
     id: conflict.command.command_id,
     title: `${conflict.command.type}: ${conflict.reason}`,
-    detail: conflictAdvice(conflict, true),
+    detail: conflictAdvice(conflict, guest),
   }));
 
 export const attentionVisible = (
@@ -339,20 +340,12 @@ export const attentionVisible = (
 
 export const attentionLabelOf = (attention: ReviewAttention): string =>
   attentionRegionLabel({
+    // queued host edits are never counted for a guest
     pending: 0,
     conflictCount: attention.rows.length,
     unreadable: attention.unreadable,
     dismissFailed: attention.dismissFailed,
   });
 
-export function dismissReasonOf(
-  attention: ReviewAttention,
-): string | undefined {
-  if (attention.unreadable)
-    return "Saved edits could not be read. Dismissal is unavailable.";
-  if (attention.dismissFailed)
-    return "Dismissal failed. Your saved outcomes were kept.";
-  if (attention.checking)
-    return "Checking saved edits. Dismissal is unavailable.";
-  return undefined;
-}
+export const dismissHeld = (attention: ReviewAttention): boolean =>
+  attention.unreadable || attention.dismissFailed || attention.checking;

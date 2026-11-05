@@ -345,10 +345,13 @@ describe("ReviewQueue", () => {
     const attention = (
       over: Partial<ReviewAttention> = {},
     ): ReviewAttention => ({
-      rows: attentionRowsOf([
-        offlineConflict({ command: { command_id: "c1", type: "TrimClip" } }),
-        offlineConflict({ command: { command_id: "c2" }, reason: "Moved" }),
-      ]),
+      rows: attentionRowsOf(
+        [
+          offlineConflict({ command: { command_id: "c1", type: "TrimClip" } }),
+          offlineConflict({ command: { command_id: "c2" }, reason: "Moved" }),
+        ],
+        true,
+      ),
       unreadable: false,
       dismissFailed: false,
       checking: false,
@@ -408,11 +411,80 @@ describe("ReviewQueue", () => {
         />,
       );
       const held = screen.getByRole("button", { name: "Dismiss all" });
-      expect(held).toBeDisabled();
-      expect(held).toHaveAttribute(
-        "title",
+      expect(held).not.toBeDisabled();
+      expect(held).toHaveAttribute("aria-disabled", "true");
+      expect(held).toHaveAccessibleDescription(
         "Checking saved edits. Dismissal is unavailable.",
       );
+      await userEvent.click(held);
+      expect(onDismissAll).toHaveBeenCalledOnce();
+    });
+
+    it("keeps focus on Dismiss all when a read starts and ends", () => {
+      const { rerender } = renderQueue(attention());
+      const button = screen.getByRole("button", { name: "Dismiss all" });
+      button.focus();
+      for (const checking of [true, false]) {
+        rerender(
+          <ReviewQueue
+            items={[]}
+            content={reviewContent}
+            selectedId={null}
+            filter="all"
+            guest
+            attention={attention({ checking })}
+            onFilter={vi.fn()}
+            onSelect={vi.fn()}
+          />,
+        );
+        expect(button).toHaveFocus();
+      }
+      expect(button).not.toHaveAttribute("aria-disabled");
+    });
+
+    it("moves focus to the progress line when a dismissal clears the group", () => {
+      const { rerender } = renderQueue(attention());
+      screen.getByRole("button", { name: "Dismiss all" }).focus();
+      rerender(
+        <ReviewQueue
+          items={[{ id: "m", kind: "comment", at: 5, savedSeconds: 0 }]}
+          content={reviewContent}
+          selectedId={null}
+          filter="all"
+          guest
+          attention={attention({ rows: [], canDismiss: false })}
+          onFilter={vi.fn()}
+          onSelect={vi.fn()}
+        />,
+      );
+      expect(screen.getByText(/of 1 resolved/)).toHaveFocus();
+    });
+
+    it("does not take focus when the group clears while focus is elsewhere", () => {
+      const { rerender } = renderQueue(attention());
+      rerender(
+        <ReviewQueue
+          items={[{ id: "m", kind: "comment", at: 5, savedSeconds: 0 }]}
+          content={reviewContent}
+          selectedId={null}
+          filter="all"
+          guest
+          attention={attention({ rows: [], canDismiss: false })}
+          onFilter={vi.fn()}
+          onSelect={vi.fn()}
+        />,
+      );
+      expect(screen.getByText(/of 1 resolved/)).not.toHaveFocus();
+    });
+
+    it("counts a failure with no rows as ! and holds nothing", () => {
+      renderQueue(attention({ rows: [], unreadable: true }));
+      expect(
+        screen.getByRole("region", {
+          name: "Needs attention. Saved edits could not be read",
+        }),
+      ).toHaveTextContent("!");
+      expect(screen.queryByRole("button", { name: "Dismiss all" })).toBeNull();
     });
 
     it("offers no Dismiss all when only a recovered outcome is listed", () => {
@@ -430,7 +502,11 @@ describe("ReviewQueue", () => {
 
     it("shows a failed dismissal with Retry", () => {
       renderQueue(attention({ dismissFailed: true }));
-      expect(screen.getByText(/Dismissal failed/)).toBeVisible();
+      expect(
+        screen.getByText(
+          "Dismissal failed. Your saved outcomes have been kept.",
+        ),
+      ).toBeVisible();
       expect(screen.getByRole("button", { name: "Retry" })).toBeVisible();
     });
 

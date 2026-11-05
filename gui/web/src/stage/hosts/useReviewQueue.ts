@@ -139,6 +139,7 @@ export function useReviewQueue(guestShare = false) {
     return {
       rows: attentionRowsOf(
         saved.recoverySelection ? [...active, saved.recoverySelection] : active,
+        guest,
       ),
       unreadable: saved.status === "unreadable" || saved.status === "retrying",
       dismissFailed: saved.status === "dismiss-failed",

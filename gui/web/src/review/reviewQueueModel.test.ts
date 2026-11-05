@@ -8,7 +8,6 @@ import {
   commentLine,
   decidedItems,
   decisionMessage,
-  dismissReasonOf,
   filterCounts,
   filterItems,
   fullOrder,
@@ -416,7 +415,7 @@ describe("speaker filter", () => {
 
 describe("guest attention rows", () => {
   const attention = (over: Partial<ReviewAttention> = {}): ReviewAttention => ({
-    rows: attentionRowsOf([offlineConflict()]),
+    rows: attentionRowsOf([offlineConflict()], true),
     unreadable: false,
     dismissFailed: false,
     checking: false,
@@ -428,26 +427,29 @@ describe("guest attention rows", () => {
 
   it("words each conflict as the banner does, with the guest advice", () => {
     expect(
-      attentionRowsOf([
-        offlineConflict({ command: { command_id: "a", type: "TrimClip" } }),
-        offlineConflict({
-          command: { command_id: "b" },
-          kind: "unknown",
-          reason: "Unclear",
-          recovery: "inspect-history",
-        }),
-        offlineConflict({
-          command: { command_id: "c" },
-          reason: "Missing",
-          blocksSave: true,
-        }),
-        offlineConflict({
-          command: { command_id: "d" },
-          kind: "unknown",
-          reason: "Dropped",
-          recovery: "retry-same-command",
-        }),
-      ]),
+      attentionRowsOf(
+        [
+          offlineConflict({ command: { command_id: "a", type: "TrimClip" } }),
+          offlineConflict({
+            command: { command_id: "b" },
+            kind: "unknown",
+            reason: "Unclear",
+            recovery: "inspect-history",
+          }),
+          offlineConflict({
+            command: { command_id: "c" },
+            reason: "Missing",
+            blocksSave: true,
+          }),
+          offlineConflict({
+            command: { command_id: "d" },
+            kind: "unknown",
+            reason: "Dropped",
+            recovery: "retry-same-command",
+          }),
+        ],
+        true,
+      ),
     ).toEqual([
       {
         id: "a",
@@ -491,17 +493,6 @@ describe("guest attention rows", () => {
     expect(attentionLabelOf(attention())).toBe("Needs attention. 1 conflict");
     expect(attentionLabelOf(attention({ unreadable: true }))).toBe(
       "Needs attention. 1 conflict. Saved edits could not be read",
-    );
-  });
-
-  it("says why dismissing is unavailable", () => {
-    expect(dismissReasonOf(attention())).toBeUndefined();
-    expect(dismissReasonOf(attention({ checking: true }))).toMatch(/Checking/);
-    expect(dismissReasonOf(attention({ dismissFailed: true }))).toMatch(
-      /failed/,
-    );
-    expect(dismissReasonOf(attention({ unreadable: true }))).toMatch(
-      /could not be read/,
     );
   });
 });

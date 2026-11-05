@@ -166,23 +166,26 @@ function set(source: Source, patch: Partial<AttentionSnapshot>): void {
   for (const listener of [...source.listeners]) listener();
 }
 
-function refresh(projectPath: string, source: Source): void {
+/** A poll keeps a failed dismissal showing; a Retry (`manual`) reads it fresh. */
+function refresh(projectPath: string, source: Source, manual = false): void {
   const { status } = source.snapshot;
   if (status === "dismissing") return;
+  const keepFailure = status === "dismiss-failed" && !manual;
   const reading = ++source.generation;
-  set(source, {
-    status:
-      status === "unreadable" || status === "retrying"
-        ? "retrying"
-        : "checking",
-  });
+  if (!keepFailure)
+    set(source, {
+      status:
+        status === "unreadable" || status === "retrying"
+          ? "retrying"
+          : "checking",
+    });
   read(projectPath)
     .then(([pending, conflicts]) => {
       if (reading !== source.generation) return;
       set(source, {
         pending,
         conflicts: withVolatileOutcomes(projectPath, conflicts),
-        status: "ready",
+        status: keepFailure ? "dismiss-failed" : "ready",
         loaded: true,
         settling: documentActivityBusy(projectPath),
       });
@@ -250,7 +253,7 @@ function subscribe(projectPath: string, listener: () => void): () => void {
 /** Read the queue and conflicts again now, e.g. after a Retry. */
 export function refreshOfflineAttention(projectPath: string): void {
   const source = sources.get(projectPath);
-  if (source) refresh(projectPath, source);
+  if (source) refresh(projectPath, source, true);
 }
 
 export function selectRecoveryOutcome(
@@ -266,10 +269,15 @@ export function selectRecoveryOutcome(
   return true;
 }
 
-/** Clear the project's conflict list. A no-op unless the last read succeeded. */
+/** Clear the project's conflict list. A no-op unless the last read succeeded or only the last dismissal failed. */
 export function dismissAllConflicts(projectPath: string): void {
   const source = sources.get(projectPath);
-  if (!source || source.snapshot.status !== "ready") return;
+  if (
+    !source ||
+    (source.snapshot.status !== "ready" &&
+      source.snapshot.status !== "dismiss-failed")
+  )
+    return;
   const clearing = ++source.generation;
   const captured = source.snapshot.conflicts.filter(
     (conflict) => !conflict.dismissed,

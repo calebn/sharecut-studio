@@ -56,3 +56,15 @@ export function conflictAdvice(
       : "Inspect History before trying this action again."
     : "The app will retry this same command automatically.";
 }
+
+/** Why Dismiss all is held, in the order the states take precedence. */
+export function dismissReason(input: {
+  unreadable: boolean;
+  dismissFailed: boolean;
+}): string {
+  if (input.unreadable)
+    return "Saved edits could not be read. Dismissal is unavailable.";
+  if (input.dismissFailed)
+    return "Dismissal failed. Your saved outcomes were kept.";
+  return "Checking saved edits. Dismissal is unavailable.";
+}
