@@ -845,7 +845,7 @@ function shortcutParts(cmd: KeymapCommand): string[] {
   return parts;
 }
 
-/** Catalog form (`Mod+Shift+B`) — docs, cheatsheet, tooltips. */
+/** Catalog form (`Mod+E`) — docs, cheatsheet, tooltips. */
 export function formatShortcutKeys(cmd: KeymapCommand): string {
   return shortcutParts(cmd).join("+");
 }

@@ -1350,7 +1350,7 @@ describe.each(["desktop", "phone"] as const)(
       expect(stale.all.onExport).toHaveBeenCalledOnce();
     });
 
-    it("Mod+E exports the same request the button does", () => {
+    it("the Export button sends the full request", () => {
       const { all } = setup({ layout });
       pressExport();
       expect(all.onExport).toHaveBeenCalledWith(REQUEST);
