@@ -1999,3 +1999,65 @@ def test_pending_cuts_on_a_later_recording_do_not_shrink_the_primary_recordings_
     assert avoid == {"host": [(10.0, 11.8)]}
     assert isinstance(selected, OwnQuietSample)
     assert POOL[2].start <= selected.sample.start < POOL[2].end
+
+
+def test_many_pending_cuts_on_a_later_recording_leave_the_pool_spread_across_pads(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.edits.cut_placement import pending_pad_source_spans
+
+    project = _pooled_project(tmp_path, monkeypatch, POOL)
+    _host_clip(project).source_end = 30.0
+    applying = _pending_cut("later", 400.0, 401.0)
+    project.edit_decisions = [
+        applying,
+        _pending_cut(None, 10.0, 11.8),
+        *(_pending_cut("later", 3.0 * i, 3.0 * i + 1.8) for i in range(100)),
+    ]
+
+    avoid = pending_pad_source_spans(project, applying)
+    starts = {
+        room_tone_span(
+            project,
+            "host",
+            near_sec=2300.0,
+            near_source_id="later",
+            timeline_sec=timeline_sec,
+            duration_sec=0.5,
+            avoid=avoid.get("host", ()),
+        ).sample.start
+        for timeline_sec in (100.0, 700.0, 1300.0, 1900.0)
+    }
+
+    assert avoid == {"host": [(10.0, 11.8)]}
+    assert len(starts) > 1
+    assert all(
+        any(sample.start <= start < sample.end for sample in (POOL[0], POOL[2])) for start in starts
+    )
+
+
+def test_a_pending_cut_on_an_alias_of_the_primary_file_is_still_avoided(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.edits.cut_placement import pending_pad_source_spans
+
+    project = _pooled_project(tmp_path, monkeypatch, POOL)
+    _host_clip(project).source_end = 30.0
+    project.sources.append(
+        SourceRecording(
+            id="alias",
+            path="raw/host.wav",
+            duration_sec=DURATION_SEC,
+            sample_rate=SR,
+            channels=1,
+        )
+    )
+    applying = _pending_cut("later", 100.0, 101.0)
+    project.edit_decisions = [
+        applying,
+        _pending_cut("alias", 5.0, 6.0),
+        _pending_cut("ghost", 7.0, 8.0),
+        _pending_cut(None, 10.0, 11.8),
+    ]
+
+    assert pending_pad_source_spans(project, applying) == {"host": [(5.0, 6.0), (10.0, 11.8)]}

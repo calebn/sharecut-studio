@@ -67,6 +67,7 @@ def pending_pad_source_spans(
             or other.applied
             or other.exact_range is not None
             or other.type not in (EditDecisionType.REMOVE, EditDecisionType.MUTE)
+            or None not in project.equivalent_source_ids(other.track_id, other.source_id)
             or not timeline.map_source_span(
                 other.track_id, SourceSec(other.start), SourceSec(other.end)
             )
