@@ -5,7 +5,7 @@ import { TRANSCRIPT_REFINE_REQUIRED_CODE } from "../utils/apiError";
 const REFINE_WAIVED_MESSAGE =
   "Waiver recorded. Retry approval to apply pending edits.";
 
-/** The waiver form for a refine-gate refusal; once recorded, a status line that takes focus. */
+/** The Cut anyway prompt for a refine-gate refusal; once recorded, a status line that takes focus. */
 export function RefineGateWaiver({
   projectPath,
   reason,
