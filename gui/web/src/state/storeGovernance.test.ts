@@ -445,6 +445,11 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
       "computes snap ticks from the live playhead and split guide position",
   },
   {
+    file: "stage/dialogs/CommandPalette.tsx",
+    reason:
+      "leaf that reads the presence roster itself, only while open, for its People rows",
+  },
+  {
     file: "stage/frame/AvatarStack.tsx",
     reason: "leaf that reads the presence roster itself",
   },

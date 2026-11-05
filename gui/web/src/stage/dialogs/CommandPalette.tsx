@@ -9,10 +9,13 @@ import { sessionClientList } from "../../presence/roster";
 import { useLivePresenceClients } from "../../presence/useLivePresenceClients";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
+import type { SessionClient } from "../../types/session";
 import { CommandPaletteView } from "./CommandPaletteView";
 import { paletteCommands, paletteEntries } from "./commandPaletteRows";
 import { readPaletteRecent, rememberPaletteRecent } from "./paletteRecent";
 import type { PaletteEntry } from "./paletteSearch";
+
+const NO_CLIENTS: SessionClient[] = [];
 
 /**
  * Command palette (Commands and shortcuts): every runnable catalog command,
@@ -34,7 +37,10 @@ export function CommandPalette() {
     project,
     projectPath,
   } = useDaw((s) => ({
-    sessionClients: sessionClientList(s.sessionClients),
+    // The roster only feeds People rows, so a closed palette ignores presence frames.
+    sessionClients: s.chrome.commandPaletteOpen
+      ? sessionClientList(s.sessionClients)
+      : NO_CLIENTS,
     localClientId: s.localClientId,
     followingClientId: s.followingClientId,
     project: s.project,
