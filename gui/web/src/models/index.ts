@@ -28,6 +28,7 @@ export type {
   ModelFailure,
   ModelState,
   ModelView,
+  RemoveOutcome,
   WhisperChoice,
 } from "./types";
 export { useModelResume } from "./useModelResume";

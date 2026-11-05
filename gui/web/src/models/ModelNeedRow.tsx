@@ -1,9 +1,12 @@
-import { type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import { runPointerCommand } from "../commands/pointer";
+import { askConfirm } from "../feedback/ask";
+import { canManageProjects } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { percentOf } from "../system/progress";
 import { StatusRow } from "../system/StatusRow";
 import { SystemIcon } from "../system/SystemIcon";
-import { Button } from "../ui";
+import { Button, Menu, MenuItem } from "../ui";
 import { useDisabledReasonNote } from "../ui/disabledReason";
 import { type ModelActivity, modelActivity } from "./activity";
 import {
@@ -32,6 +35,8 @@ export type ModelNeedRowViewProps = {
   onCancel: () => void;
   /** The Manage link to the Models sheet; absent inside the sheet itself. */
   onManage?: () => void;
+  /** Sheet rows only: Remove in the more menu of an installed or out-of-date model. */
+  onRemove?: () => void;
   /** A control that belongs under the row, such as the Whisper size. */
   children?: ReactNode;
 };
@@ -144,8 +149,10 @@ function ListRow({
   blockedReason,
   onGet,
   onCancel,
+  onRemove,
   children,
 }: Omit<ModelNeedRowViewProps, "placement" | "onManage">) {
+  const [menuOpen, setMenuOpen] = useState(false);
   const { name, icon } = capabilityOf(model.id, model.label);
   const size = plainSize(model.size);
   const reason = useDisabledReasonNote(blockedReason, "sys-need-meta");
@@ -237,6 +244,30 @@ function ListRow({
               {state.kind === "failed" ? "Try again" : get}
             </Button>
           ) : null}
+          {onRemove &&
+          (state.kind === "installed" || state.kind === "update_needed") ? (
+            <Menu
+              open={menuOpen}
+              onOpenChange={setMenuOpen}
+              label={`More for ${name}`}
+              className="ui-menu-root sys-menu"
+              trigger={(props) => (
+                <Button {...props} aria-label={`More for ${name}`}>
+                  <SystemIcon name="ellipsis" size={16} />
+                </Button>
+              )}
+            >
+              <MenuItem
+                disabledReason={blockedReason}
+                onSelect={() => {
+                  setMenuOpen(false);
+                  onRemove();
+                }}
+              >
+                {`Remove ${name}`}
+              </MenuItem>
+            </Menu>
+          ) : null}
         </div>
       </div>
       {children ? <div className="sys-need-extra">{children}</div> : null}
@@ -252,6 +283,37 @@ export function ModelNeedRowView(props: ModelNeedRowViewProps) {
   ) : (
     <NeedRow {...row} />
   );
+}
+
+async function removeWithConfirm(
+  model: NeedTarget,
+  remove: ReturnType<typeof useModels>["remove"],
+): Promise<void> {
+  const { name } = capabilityOf(model.id, model.label);
+  const size = plainSize(model.size);
+  const sure = await askConfirm({
+    title: `Remove ${name}?`,
+    message: `This frees about ${size}. Get downloads it again.`,
+    keepLabel: "Keep it",
+    actionLabel: "Remove",
+    danger: false,
+  });
+  if (!sure) {
+    return;
+  }
+  const outcome = await remove(model.id, model.variant);
+  const { announceStatus } = useDawStore.getState();
+  if (outcome.kind === "ok") {
+    announceStatus(`${name} removed.`);
+  } else if (outcome.kind === "busy") {
+    announceStatus(`${name} stays: a download or job is running.`, {
+      tone: "error",
+    });
+  } else {
+    announceStatus(`Couldn't remove ${name}. ${outcome.plain}`, {
+      tone: "error",
+    });
+  }
 }
 
 export type ModelNeedRowProps = {
@@ -275,10 +337,11 @@ export function ModelNeedRow({
   onManage,
   children,
 }: ModelNeedRowProps) {
-  const { models, busy, download, cancel } = useModels();
+  const { models, busy, download, cancel, remove } = useModels();
+  const mayManage = useDawStore((s) => canManageProjects(s.projectPath));
   const manage =
-    placement === "need"
-      ? (onManage ?? (() => useDawStore.getState().setModelsSheetOpen(true)))
+    placement === "need" && mayManage
+      ? (onManage ?? (() => runPointerCommand("models.open")))
       : undefined;
   const row = models?.find((m) => m.id === model.id) ?? null;
   const sizeAsked = model.id === "whisper" && model.variant;
@@ -304,6 +367,11 @@ export function ModelNeedRow({
       }}
       onCancel={() => void cancel()}
       onManage={manage}
+      onRemove={
+        placement === "list"
+          ? () => void removeWithConfirm(model, remove)
+          : undefined
+      }
     >
       {children}
     </ModelNeedRowView>

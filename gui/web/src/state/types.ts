@@ -46,7 +46,7 @@ export interface ChromeFlags {
   hostMcpDialogOpen: boolean;
   /** Host Help → diagnostics bundle dialog. */
   helpDialogOpen: boolean;
-  /** Models dialog: every model, its state and download. */
+  /** Models sheet: every model, its state and download. */
   modelsSheetOpen: boolean;
   /** Transcript find/replace panel open. */
   transcriptFindReplaceOpen: boolean;

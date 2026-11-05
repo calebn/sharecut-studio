@@ -11,6 +11,7 @@ export {
   cancelBootstrap,
   fetchBootstrapJob,
   fetchBootstrapStatus,
+  removeBootstrapModel,
   runBootstrap,
   waitForBootstrapJob,
 } from "./api/bootstrap";

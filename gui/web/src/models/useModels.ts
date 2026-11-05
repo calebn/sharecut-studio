@@ -4,6 +4,7 @@ import type {
   DownloadOptions,
   DownloadOutcome,
   ModelView,
+  RemoveOutcome,
   WhisperChoice,
 } from "./types";
 
@@ -21,6 +22,8 @@ export type ModelsApi = {
     options?: DownloadOptions,
   ) => Promise<DownloadOutcome>;
   cancel: () => Promise<void>;
+  /** Deletes a downloaded model (for Whisper, the size `variant` names) and reads the status again. */
+  remove: (id: string, variant?: string | null) => Promise<RemoveOutcome>;
   refresh: () => Promise<void>;
 };
 
@@ -39,6 +42,7 @@ export const INERT_MODELS: ModelsApi = {
   whisper: { variant: "", variants: [], choose: () => undefined },
   download: () => Promise.resolve({ kind: "cancelled" }),
   cancel: () => Promise.resolve(),
+  remove: () => Promise.resolve({ kind: "busy" }),
   refresh: () => Promise.resolve(),
 };
 

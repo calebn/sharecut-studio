@@ -83,6 +83,7 @@
 
 .sys-need-extra .ui-segmented > .ui-control {
   min-block-size: var(--touch-min);
+  white-space: nowrap;
 }
 
 /* Models sheet: 420 px docked to the end of the screen on desktop, the full-height bottom sheet on a phone. */
