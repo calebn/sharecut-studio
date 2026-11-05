@@ -189,22 +189,23 @@ export function useGuestRoom(
     send: (payload) => send("Signal", payload),
   });
   const output = useOutputDevice(monitor);
+  const uploadParticipantId = me?.participant_id;
   const uploadTransport = useMemo(() => {
     if (
       !bootstrap?.build.upload ||
       producer ||
       accessEnded ||
-      !me?.participant_id ||
+      !uploadParticipantId ||
       !lease
     ) {
       return null;
     }
-    return guestRecordUploadTransport(token, me.participant_id, lease);
+    return guestRecordUploadTransport(token, uploadParticipantId, lease);
   }, [
     bootstrap?.build.upload,
     producer,
     accessEnded,
-    me?.participant_id,
+    uploadParticipantId,
     lease,
     token,
   ]);
