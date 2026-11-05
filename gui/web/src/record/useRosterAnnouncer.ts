@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { MARKER_BODY } from "./liveCommentQueue";
 import type { RecordParticipant, RecordSnapshot } from "./types";
 
@@ -10,6 +10,75 @@ function liveIds(participants: readonly RecordParticipant[], meId: string) {
   );
 }
 
+type RosterObservation = {
+  people: ReadonlySet<string> | null;
+  names: ReadonlyMap<string, string>;
+  comments: ReadonlySet<string> | null;
+  announcement: string;
+};
+
+function sameOrder(before: ReadonlySet<string>, now: ReadonlySet<string>) {
+  if (before.size !== now.size) return false;
+  const current = now.values();
+  for (const id of before) {
+    if (id !== current.next().value) return false;
+  }
+  return true;
+}
+
+function observeRoster(
+  before: RosterObservation,
+  snapshot: RecordSnapshot | null,
+  meId: string | null,
+): RosterObservation {
+  if (!snapshot || !meId) return before;
+  const names = new Map(before.names);
+  for (const person of snapshot.participants) {
+    names.set(person.participant_id, person.display_name);
+  }
+  const nameOf = (id: string) => names.get(id) || "Someone";
+  const people = liveIds(snapshot.participants, meId);
+  const lines: string[] = [];
+  if (before.people) {
+    for (const id of people) {
+      if (!before.people.has(id)) lines.push(`${nameOf(id)} joined`);
+    }
+    for (const id of before.people) {
+      if (!people.has(id)) lines.push(`${nameOf(id)} left`);
+    }
+  }
+  const rows = snapshot.comments ?? [];
+  const comments = new Set(rows.map((row) => row.id));
+  if (before.comments) {
+    for (const row of rows) {
+      if (!before.comments.has(row.id) && row.author !== meId) {
+        lines.push(
+          row.body === MARKER_BODY
+            ? `${nameOf(row.author)} added a marker`
+            : `${nameOf(row.author)}: ${row.body}`,
+        );
+      }
+    }
+  }
+  if (
+    before.people !== null &&
+    sameOrder(before.people, people) &&
+    names.size === before.names.size &&
+    [...names].every(([id, name]) => before.names.get(id) === name) &&
+    before.comments !== null &&
+    comments.size === before.comments.size &&
+    [...comments].every((id) => before.comments?.has(id))
+  ) {
+    return before;
+  }
+  return {
+    people,
+    names,
+    comments,
+    announcement: lines.length ? lines.join(". ") : before.announcement,
+  };
+}
+
 /**
  * The one polite line a screen reader hears from the room: who joined or left,
  * and what someone else just wrote. What is already there on first render, and
@@ -19,51 +88,16 @@ export function useRosterAnnouncer(
   snapshot: RecordSnapshot | null,
   meId: string | null,
 ): string {
-  const [announcement, setAnnouncement] = useState("");
-  const people = useRef<Set<string> | null>(null);
-  const names = useRef<Map<string, string>>(new Map());
-  const comments = useRef<Set<string> | null>(null);
-
-  useEffect(() => {
-    if (!snapshot || !meId) {
-      return;
-    }
-    for (const p of snapshot.participants) {
-      names.current.set(p.participant_id, p.display_name);
-    }
-    const nameOf = (id: string) => names.current.get(id) || "Someone";
-    const lines: string[] = [];
-
-    const now = liveIds(snapshot.participants, meId);
-    const before = people.current;
-    people.current = now;
-    if (before) {
-      for (const id of now) {
-        if (!before.has(id)) lines.push(`${nameOf(id)} joined`);
-      }
-      for (const id of before) {
-        if (!now.has(id)) lines.push(`${nameOf(id)} left`);
-      }
-    }
-
-    const all = snapshot.comments ?? [];
-    const known = comments.current;
-    comments.current = new Set(all.map((row) => row.id));
-    if (known) {
-      for (const row of all) {
-        if (!known.has(row.id) && row.author !== meId) {
-          lines.push(
-            row.body === MARKER_BODY
-              ? `${nameOf(row.author)} added a marker`
-              : `${nameOf(row.author)}: ${row.body}`,
-          );
-        }
-      }
-    }
-    if (lines.length > 0) {
-      setAnnouncement(lines.join(". "));
-    }
-  }, [snapshot, meId]);
-
-  return announcement;
+  const [observation, setObservation] = useState<RosterObservation>(() => ({
+    people: null,
+    names: new Map(),
+    comments: null,
+    announcement: "",
+  }));
+  const next = useMemo(
+    () => observeRoster(observation, snapshot, meId),
+    [observation, snapshot, meId],
+  );
+  if (next !== observation) setObservation(next);
+  return observation.announcement;
 }
