@@ -1,4 +1,11 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  createEvent,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -27,8 +34,8 @@ describe("SourceCard", () => {
     const order = [
       "Speaker name for voice 2",
       "Hear voice 2",
-      "Fewer voices for voice 2",
-      "More voices for voice 2",
+      "Number of voices for voice 2",
+      "Reset Number of voices for voice 2 to 2 voices",
       "Split voice 2",
       "Remove voice 2",
       "More for voice 2",
@@ -87,59 +94,42 @@ describe("SourceCard", () => {
     );
   });
 
-  it("steps the number of voices within 2 and 8, with the reason shown", async () => {
+  it("sets the number of voices from 2 to 8 with a scrub field, not step buttons", async () => {
     const onVoices = vi.fn();
     const { rerender } = render(
-      <SourceCard
-        state="ready"
-        canSplit
-        index={1}
-        name="Maya"
-        onName={vi.fn()}
-        fileName="a.wav"
-        onRemove={vi.fn()}
-        voices={2}
-        onVoices={onVoices}
-      />,
+      <Card canSplit name="Maya" voices={2} onVoices={onVoices} />,
     );
-    const group = screen.getByRole("group", { name: "Number of voices" });
-    expect(group).toBeVisible();
-    expect(screen.getByText("Two is the fewest")).toBeVisible();
-    const fewer = screen.getByRole("button", { name: /^Fewer voices/ });
-    expect(fewer).toHaveAttribute("aria-disabled", "true");
-    expect(fewer).not.toBeDisabled();
-    expect(fewer).toHaveAccessibleDescription("Two is the fewest");
+    const field = screen.getByRole("spinbutton", {
+      name: "Number of voices for Maya",
+    });
+    expect(field).toHaveAttribute("aria-valuemin", "2");
+    expect(field).toHaveAttribute("aria-valuemax", "8");
+    expect(field).toHaveAttribute("aria-valuetext", "2 voices");
     expect(
-      screen.getByRole("button", { name: /^More voices/ }),
-    ).not.toHaveAttribute("aria-describedby");
-    await userEvent.click(fewer);
+      screen.queryByRole("button", { name: /Fewer|More voices/ }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /^Reset Number of voices/ }),
+    ).toBeNull();
+    field.focus();
+    await userEvent.keyboard("{ArrowDown}");
     expect(onVoices).not.toHaveBeenCalled();
-    await userEvent.click(screen.getByRole("button", { name: /^More voices/ }));
-    expect(onVoices).toHaveBeenCalledWith(3);
-    rerender(
-      <SourceCard
-        state="ready"
-        canSplit
-        index={1}
-        name="Maya"
-        onName={vi.fn()}
-        fileName="a.wav"
-        onRemove={vi.fn()}
-        voices={8}
-        onVoices={onVoices}
-      />,
-    );
-    expect(screen.getByText("Eight is the most")).toBeVisible();
-    expect(
-      screen.getByRole("button", { name: /^More voices/ }),
-    ).toHaveAccessibleDescription("Eight is the most");
-    await userEvent.click(screen.getByRole("button", { name: /^More voices/ }));
+    await userEvent.keyboard("{ArrowUp}");
+    expect(onVoices).toHaveBeenLastCalledWith(3);
+    await userEvent.keyboard("{Enter}9{Enter}");
     expect(onVoices).toHaveBeenCalledTimes(1);
-    expect(group.querySelector("output")).toHaveTextContent("8");
-    expect(group.querySelector("output")).toHaveAttribute(
-      "aria-live",
-      "polite",
+    expect(screen.getByRole("alert")).toHaveTextContent(/2/);
+    await userEvent.keyboard("{Escape}");
+    rerender(<Card canSplit name="Maya" voices={8} onVoices={onVoices} />);
+    screen
+      .getByRole("spinbutton", { name: "Number of voices for Maya" })
+      .focus();
+    await userEvent.keyboard("{ArrowUp}");
+    expect(onVoices).toHaveBeenCalledTimes(1);
+    await userEvent.click(
+      screen.getByRole("button", { name: /^Reset Number of voices/ }),
     );
+    expect(onVoices).toHaveBeenLastCalledWith(2);
   });
 
   it("offers Replace audio and Merge from the More menu", async () => {
@@ -227,13 +217,11 @@ describe("SourceCard", () => {
 
   it("shows the voice count and Split only when the card can split", () => {
     const { rerender } = render(<Card />);
-    expect(
-      screen.queryByRole("group", { name: "Number of voices" }),
-    ).toBeNull();
+    expect(screen.queryByRole("spinbutton")).toBeNull();
     expect(screen.queryByRole("button", { name: /^Split/ })).toBeNull();
     rerender(<Card state="split-prompt" />);
     expect(
-      screen.getByRole("group", { name: "Number of voices" }),
+      screen.getByRole("spinbutton", { name: "Number of voices for voice 2" }),
     ).toBeVisible();
     expect(screen.getByRole("button", { name: "Split voice 2" })).toBeVisible();
     rerender(<Card state="split-prompt" canSplit={false} />);
@@ -308,9 +296,7 @@ describe("SourceCard", () => {
       "aria-valuenow",
       "40",
     );
-    expect(
-      screen.queryByRole("group", { name: "Number of voices" }),
-    ).toBeNull();
+    expect(screen.queryByRole("spinbutton")).toBeNull();
     expect(screen.queryByRole("button", { name: /^Split/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /^More for/ })).toBeNull();
     await userEvent.click(
@@ -472,5 +458,74 @@ describe("SourceCard focus", () => {
     expect(
       screen.getByRole("button", { name: "Remove voice 1" }),
     ).toHaveFocus();
+  });
+
+  describe("dropping audio on the card", () => {
+    const wav = new File(["RIFF"], "take2.wav", { type: "audio/wav" });
+    const dataTransfer = (files: File[]) => ({
+      types: ["Files"],
+      files,
+      dropEffect: "none",
+    });
+
+    it("hands the audio over at once and lets the stage label the drop", () => {
+      const onDropAudio = vi.fn();
+      const onDropHover = vi.fn();
+      render(
+        <Card
+          name="Maya"
+          onDropAudio={onDropAudio}
+          onDropHover={onDropHover}
+        />,
+      );
+      const card = screen.getByRole("region", { name: "Voice 2, Maya" });
+      fireEvent.dragEnter(card, { dataTransfer: dataTransfer([wav]) });
+      expect(onDropHover).toHaveBeenLastCalledWith(true);
+      expect(card).toHaveAttribute("data-drop-over", "true");
+      const over = createEvent.dragOver(card, {
+        dataTransfer: dataTransfer([wav]),
+      });
+      fireEvent(card, over);
+      expect(over.defaultPrevented).toBe(true);
+      const drop = createEvent.drop(card, {
+        dataTransfer: dataTransfer([wav]),
+      });
+      fireEvent(card, drop);
+      expect(drop.defaultPrevented).toBe(true);
+      expect(onDropAudio).toHaveBeenCalledWith([wav]);
+      expect(onDropHover).toHaveBeenLastCalledWith(false);
+      expect(card).not.toHaveAttribute("data-drop-over");
+    });
+
+    it("ignores anything that is not audio, and cards still checking their file", () => {
+      const onDropAudio = vi.fn();
+      const { rerender } = render(
+        <Card name="Maya" onDropAudio={onDropAudio} />,
+      );
+      const text = new File(["x"], "notes.txt", { type: "text/plain" });
+      fireEvent.drop(screen.getByRole("region", { name: "Voice 2, Maya" }), {
+        dataTransfer: dataTransfer([text]),
+      });
+      expect(onDropAudio).not.toHaveBeenCalled();
+      rerender(<Card name="Maya" state="probing" onDropAudio={onDropAudio} />);
+      const drop = createEvent.drop(
+        screen.getByRole("region", { name: "Voice 2, Maya" }),
+        { dataTransfer: dataTransfer([wav]) },
+      );
+      fireEvent(screen.getByRole("region", { name: "Voice 2, Maya" }), drop);
+      expect(drop.defaultPrevented).toBe(false);
+      expect(onDropAudio).not.toHaveBeenCalled();
+    });
+
+    it("clears the hover when the drag leaves the card", () => {
+      const onDropHover = vi.fn();
+      render(
+        <Card name="Maya" onDropAudio={vi.fn()} onDropHover={onDropHover} />,
+      );
+      const card = screen.getByRole("region", { name: "Voice 2, Maya" });
+      fireEvent.dragEnter(card, { dataTransfer: dataTransfer([wav]) });
+      fireEvent.dragLeave(card, { dataTransfer: dataTransfer([wav]) });
+      expect(onDropHover).toHaveBeenLastCalledWith(false);
+    });
   });
 });

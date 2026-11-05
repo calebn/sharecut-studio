@@ -46,7 +46,13 @@ export type SourceActions = {
   onRetry: (id: string) => void;
   onDetails: (id: string) => void;
   onReplace: (id: string) => void;
+  /** Audio dropped on the card replaces that source's audio. */
+  onDropAudio: (id: string, files: File[]) => void;
+  /** Audio is over (or left) the card; the stage labels the drop. */
+  onDropHover?: (id: string, over: boolean) => void;
   /** Left out where merging two voices is not offered. */
   onMerge?: (id: string) => void;
   onMove: (id: string, direction: "up" | "down") => void;
+  /** Dragged into the place `targetId` holds in the session's order. */
+  onReorder: (id: string, targetId: string) => void;
 };
