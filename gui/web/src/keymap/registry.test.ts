@@ -36,6 +36,10 @@ function keyEvent(
 }
 
 describe("keymap registry", () => {
+  it("ignores key repeat on Export deliverables so a held Mod+E cannot start a full export", () => {
+    expect(keymapCommandById("export.deliverables")?.noRepeat).toBe(true);
+  });
+
   it("binds J and L to shuttle, K to Pause and return, and bare Z to zoom to selection", () => {
     expect(matchKeymapCommand(keyEvent({ key: "j", code: "KeyJ" }))?.id).toBe(
       "transport.shuttleBack",
