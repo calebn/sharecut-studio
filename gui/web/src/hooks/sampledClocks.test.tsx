@@ -1,7 +1,7 @@
 import { cleanup, render, renderHook, screen } from "@testing-library/react";
 import { StrictMode, Suspense } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createWallSample } from "./sampledClocks";
+import { createActiveElapsedSample, createWallSample } from "./sampledClocks";
 import { useElapsedSince } from "./useElapsedSince";
 import { startInterval } from "./useIntervalTick";
 import { useNowSec } from "./useNowSec";
@@ -42,6 +42,70 @@ describe("sampled clock ownership", () => {
     inactive();
     unsubscribe();
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("starts nullable elapsed wall time only at active acquisition and caches reads", () => {
+    const read = vi.spyOn(Date, "now").mockReturnValue(10000);
+    const clock = createActiveElapsedSample();
+    const get = clock.getSnapshot;
+    const subscribe = clock.subscribe;
+    expect(get()).toBeNull();
+    expect(read).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+    const idle = clock.connect(false);
+    expect(read).not.toHaveBeenCalled();
+    const listener = vi.fn();
+    const unsubscribe = subscribe(listener);
+    const active = clock.connect(true);
+    expect(read).toHaveBeenCalledOnce();
+    expect(get()).toBe(0);
+    expect(vi.getTimerCount()).toBe(1);
+    read.mockReturnValue(15000);
+    expect(get()).toBe(0);
+    expect(get()).toBe(0);
+    vi.advanceTimersByTime(1000);
+    expect(get()).toBe(5);
+    read.mockReturnValue(9000);
+    vi.advanceTimersByTime(1000);
+    expect(get()).toBe(-1);
+    active();
+    const inactive = clock.connect(false);
+    expect(get()).toBeNull();
+    expect(clock.getSnapshot).toBe(get);
+    expect(clock.subscribe).toBe(subscribe);
+    expect(listener).toHaveBeenCalledTimes(4);
+    inactive();
+    idle();
+    unsubscribe();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("keeps a replacement elapsed acquisition safe from the retired callback and cleanup", () => {
+    const callbacks: (() => void)[] = [];
+    vi.stubGlobal(
+      "setInterval",
+      vi.fn((callback: () => void) => {
+        callbacks.push(callback);
+        return callbacks.length;
+      }),
+    );
+    const clear = vi.fn();
+    vi.stubGlobal("clearInterval", clear);
+    const read = vi.spyOn(Date, "now").mockReturnValue(10000);
+    const clock = createActiveElapsedSample();
+    const old = clock.connect(true);
+    old();
+    read.mockReturnValue(20000);
+    const current = clock.connect(true);
+    read.mockReturnValue(25000);
+    callbacks[0]();
+    old();
+    expect(clock.getSnapshot()).toBe(0);
+    expect(clear).toHaveBeenCalledTimes(1);
+    callbacks[1]();
+    expect(clock.getSnapshot()).toBe(5);
+    current();
+    expect(clear).toHaveBeenCalledTimes(2);
   });
 
   it("rejects a retained released interval callback and disposes its native id once", () => {

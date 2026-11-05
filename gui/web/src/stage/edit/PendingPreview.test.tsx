@@ -222,6 +222,49 @@ describe("pending preview footer", () => {
     }
   });
 
+  it("waits two whole committed busy seconds and samples delayed wall time", async () => {
+    vi.useFakeTimers();
+    let unmount = () => {};
+    try {
+      vi.setSystemTime(10000);
+      let finish!: (response: Response) => void;
+      vi.mocked(hostFetch).mockReturnValueOnce(
+        new Promise<Response>((resolve) => {
+          finish = resolve;
+        }),
+      );
+      ({ unmount } = setup({ edit: () => ordinaryEdit() }));
+      fireEvent.click(playButton());
+      fireEvent.click(playButton());
+      expect(hostFetch).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1999);
+      });
+      expect(screen.queryByRole("button", { name: /Preparing/ })).toBeNull();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+      expect(
+        screen.getByRole("button", { name: "Preparing this preview… 2s" }),
+      ).toHaveAttribute("aria-busy", "true");
+      vi.setSystemTime(18000);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      expect(
+        screen.getByRole("button", { name: "Preparing this preview… 9s" }),
+      ).toHaveAttribute("aria-busy", "true");
+      await act(async () => {
+        finish(wavResponse(1.25));
+      });
+      expect(screen.queryByRole("button", { name: /Preparing/ })).toBeNull();
+      expect(playButton()).not.toHaveAttribute("aria-busy", "true");
+    } finally {
+      unmount();
+      vi.useRealTimers();
+    }
+  });
+
   it.each(["current", "suggested", "ab"] as const)(
     "requests the host %s full mix for an exact range",
     async (mode) => {

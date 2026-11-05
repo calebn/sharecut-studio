@@ -1,34 +1,22 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   canPlayPendingPreview,
   pendingPreviewBlockReason,
   playPendingPreview,
 } from "../../audio/pendingPreview";
 import { seekTransport } from "../../commands/seek";
+import { createActiveElapsedSample } from "../../hooks/sampledClocks";
 import { useDawStore } from "../../state/dawStore";
 import type { PendingEditView } from "../../types/project";
 import { InspectorSeekFooterView } from "../../ui/InspectorSeekFooterView";
 import type { PreviewMode } from "../../utils/playRange";
 
-/** A click that returns sooner never shows the busy label (docs/communication-philosophy.md). */
 const BUSY_LABEL_AFTER_SEC = 2;
 
-/** Whole seconds since `active` turned true; null while it is false. */
 function useElapsedSec(active: boolean): number | null {
-  const [sec, setSec] = useState<number | null>(null);
-  useEffect(() => {
-    if (!active) {
-      setSec(null);
-      return;
-    }
-    const started = Date.now();
-    setSec(0);
-    const timer = setInterval(
-      () => setSec(Math.floor((Date.now() - started) / 1000)),
-      1000,
-    );
-    return () => clearInterval(timer);
-  }, [active]);
+  const [clock] = useState(createActiveElapsedSample);
+  const sec = useSyncExternalStore(clock.subscribe, clock.getSnapshot);
+  useEffect(() => clock.connect(active), [clock, active]);
   return sec;
 }
 

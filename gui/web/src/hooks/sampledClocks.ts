@@ -1,7 +1,7 @@
 import { startInterval } from "./useIntervalTick";
 
-function numberSample(read: () => number) {
-  let value = read();
+function cachedSample<T>(initial: T) {
+  let value = initial;
   const listeners = new Set<() => void>();
   return {
     getSnapshot: () => value,
@@ -11,11 +11,38 @@ function numberSample(read: () => number) {
         listeners.delete(listener);
       };
     },
-    sample: () => {
-      const next = read();
+    publish: (next: T) => {
       if (Object.is(value, next)) return;
       value = next;
       for (const listener of listeners) listener();
+    },
+  };
+}
+
+function numberSample(read: () => number) {
+  const clock = cachedSample(read());
+  return {
+    getSnapshot: clock.getSnapshot,
+    subscribe: clock.subscribe,
+    sample: () => clock.publish(read()),
+  };
+}
+
+export function createActiveElapsedSample() {
+  const clock = cachedSample<number | null>(null);
+  return {
+    getSnapshot: clock.getSnapshot,
+    subscribe: clock.subscribe,
+    connect: (active: boolean) => {
+      if (!active) {
+        clock.publish(null);
+        return () => {};
+      }
+      const started = Date.now();
+      clock.publish(0);
+      return startInterval(1000, () => {
+        clock.publish(Math.floor((Date.now() - started) / 1000));
+      });
     },
   };
 }
