@@ -53,7 +53,6 @@ export type SourceCardProps = {
   onCancelSplit?: () => void;
   onRemove: () => void;
   onReplace?: () => void;
-  /** Audio dropped on the card replaces its audio at once; Undo is the toast's. */
   onDropAudio?: (files: File[]) => void;
   /** True while audio is dragged over the card, so the stage can label the drop. */
   onDropHover?: (over: boolean) => void;
