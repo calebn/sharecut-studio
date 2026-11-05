@@ -351,6 +351,30 @@ describe("useMicPermission", () => {
     expect(gum).toHaveBeenCalledTimes(1);
   });
 
+  it("retires explicit acquisition intent on disable and waits for a new request after re-enable", async () => {
+    const gum = stubGum(async () => ({
+      getTracks: () => [dryTrack],
+      getAudioTracks: () => [dryTrack],
+    }));
+    const { result, rerender } = renderHook(
+      ({ enabled }) => useMicPermission(enabled, ""),
+      { initialProps: { enabled: true } },
+    );
+    act(() => result.current.request());
+    await waitFor(() => expect(result.current.status).toBe("granted"));
+    expect(gum).toHaveBeenCalledTimes(1);
+    rerender({ enabled: false });
+    expect(result.current.stream).toBeNull();
+    expect(result.current.status).toBe("idle");
+    rerender({ enabled: true });
+    expect(result.current.status).toBe("idle");
+    expect(result.current.stream).toBeNull();
+    expect(gum).toHaveBeenCalledTimes(1);
+    act(() => result.current.request());
+    await waitFor(() => expect(result.current.status).toBe("granted"));
+    expect(gum).toHaveBeenCalledTimes(2);
+  });
+
   it("accepts the current request in the same event as a flushed enable", async () => {
     const gum = stubGum(async () => ({
       getTracks: () => [dryTrack],

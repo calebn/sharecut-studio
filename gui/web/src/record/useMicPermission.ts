@@ -54,14 +54,6 @@ export function useMicPermission(
 
   useEffect(() => {
     if (!enabled) {
-      setWantStream(false);
-      setQueryDenied(false);
-      setHadGrant(false);
-    }
-  }, [enabled]);
-
-  useEffect(() => {
-    if (!enabled) {
       return;
     }
     const perms = microphonePermissionsQuery();
@@ -100,19 +92,37 @@ export function useMicPermission(
     };
   }, [enabled]);
 
-  useEffect(() => {
-    if (!enabled || queryDenied) {
-      setHadGrant(false);
-      return;
+  const [observed, setObserved] = useState({
+    enabled,
+    queryDenied,
+    stream: mic.stream,
+    error: mic.error,
+    pending: mic.pending,
+  });
+  if (
+    observed.enabled !== enabled ||
+    observed.queryDenied !== queryDenied ||
+    observed.stream !== mic.stream ||
+    observed.error !== mic.error ||
+    observed.pending !== mic.pending
+  ) {
+    setObserved({
+      enabled,
+      queryDenied,
+      stream: mic.stream,
+      error: mic.error,
+      pending: mic.pending,
+    });
+    if (observed.enabled !== enabled && !enabled) {
+      setWantStream(false);
+      setQueryDenied(false);
     }
-    if (mic.error && !mic.pending) {
+    if (!enabled || queryDenied || (mic.error && !mic.pending)) {
       setHadGrant(false);
-      return;
-    }
-    if (mic.stream) {
+    } else if (mic.stream) {
       setHadGrant(true);
     }
-  }, [enabled, queryDenied, mic.stream, mic.error, mic.pending]);
+  }
 
   const beginAcquire = useCallback(() => {
     if (!enabled) {
