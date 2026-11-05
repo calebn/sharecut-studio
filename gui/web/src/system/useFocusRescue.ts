@@ -1,4 +1,5 @@
 import { type RefObject, useEffect, useLayoutEffect, useRef } from "react";
+import { useStableCallback } from "../utils/useStableCallback";
 
 type Anchor = () => HTMLElement | null | undefined;
 
@@ -26,8 +27,7 @@ export function useFocusRescue(
   container: RefObject<HTMLElement | null>,
   anchorFor: (target: HTMLElement) => Anchor,
 ): void {
-  const resolve = useRef(anchorFor);
-  resolve.current = anchorFor;
+  const resolve = useStableCallback(anchorFor);
   const lost = useRef<{ target: HTMLElement; anchor: Anchor } | null>(null);
 
   useEffect(() => {
@@ -39,7 +39,7 @@ export function useFocusRescue(
         return;
       }
       const trigger = triggerOf(target);
-      const anchor = resolve.current(target);
+      const anchor = resolve(target);
       lost.current = {
         target,
         anchor: () => (trigger?.isConnected ? trigger : anchor()),
@@ -63,7 +63,7 @@ export function useFocusRescue(
       document.removeEventListener("focusin", onIn);
       document.removeEventListener("focusout", onOut);
     };
-  }, [container]);
+  }, [container, resolve]);
 
   useLayoutEffect(() => {
     const held = lost.current;

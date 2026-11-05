@@ -29,6 +29,33 @@ function renderConfirm(disabled = false) {
 }
 
 describe("InlineConfirm", () => {
+  it("keeps focus and lets Escape use the latest Keep callback", async () => {
+    const first = vi.fn();
+    const next = vi.fn();
+    const close = vi.fn();
+    function Confirm({ keep }: { keep: () => void }) {
+      return (
+        <Dialog open onClose={close} title="Track">
+          <InlineConfirm
+            prompt={PROMPT}
+            keepLabel="Keep track"
+            actionLabel="Remove track"
+            onKeep={keep}
+            onConfirm={() => undefined}
+          />
+        </Dialog>
+      );
+    }
+    const view = render(<Confirm keep={first} />);
+    const action = screen.getByRole("button", { name: "Remove track" });
+    action.focus();
+    view.rerender(<Confirm keep={next} />);
+    expect(action).toHaveFocus();
+    await userEvent.keyboard("{Escape}");
+    expect(next).toHaveBeenCalledOnce();
+    expect(first).not.toHaveBeenCalled();
+    expect(close).not.toHaveBeenCalled();
+  });
   it("names the consequence, puts Keep first and focuses it; axe-clean", async () => {
     const { baseElement } = renderConfirm();
     const group = screen.getByRole("group", { name: PROMPT });

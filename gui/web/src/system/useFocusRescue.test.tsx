@@ -56,6 +56,36 @@ function MenuHost({ onPick }: { onPick: () => void }) {
 }
 
 describe("useFocusRescue", () => {
+  it("uses a replaced resolver for the next focus capture", () => {
+    function Entry({
+      destination,
+      shown,
+    }: {
+      destination: string;
+      shown: boolean;
+    }) {
+      const container = useRef<HTMLDivElement>(null);
+      useFocusRescue(
+        container,
+        () => () =>
+          container.current?.querySelector<HTMLInputElement>(
+            `[aria-label="${destination}"]`,
+          ),
+      );
+      return (
+        <div ref={container}>
+          {shown ? <button type="button">Remove</button> : null}
+          <input aria-label="First" />
+          <input aria-label="Next" />
+        </div>
+      );
+    }
+    const view = render(<Entry destination="First" shown />);
+    view.rerender(<Entry destination="Next" shown />);
+    act(() => screen.getByRole("button").focus());
+    view.rerender(<Entry destination="Next" shown={false} />);
+    expect(screen.getByLabelText("Next")).toHaveFocus();
+  });
   it("moves focus to the anchor when the focused element is removed", async () => {
     render(<Host />);
     await userEvent.click(screen.getByRole("button", { name: "Go" }));

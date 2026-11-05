@@ -19,6 +19,29 @@ function Harness({ onLongPress }: { onLongPress: () => void }) {
 }
 
 describe("useLongPress", () => {
+  it("uses the latest callback for a released press without restarting its fallback", () => {
+    vi.useFakeTimers();
+    const first = vi.fn();
+    const next = vi.fn();
+    const view = render(<Harness onLongPress={first} />);
+    const target = view.getByText("target");
+    fireEvent.pointerDown(target, {
+      pointerType: "touch",
+      isPrimary: true,
+      pointerId: 1,
+    });
+    vi.advanceTimersByTime(550);
+    fireEvent.pointerUp(target, { pointerId: 1 });
+    vi.advanceTimersByTime(400);
+    view.rerender(<Harness onLongPress={next} />);
+    vi.advanceTimersByTime(99);
+    expect(next).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(next).toHaveBeenCalledExactlyOnceWith(target);
+    expect(first).not.toHaveBeenCalled();
+    fireEvent.click(target);
+    expect(next).toHaveBeenCalledTimes(1);
+  });
   afterEach(() => {
     vi.useRealTimers();
   });

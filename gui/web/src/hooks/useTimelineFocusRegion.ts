@@ -1,4 +1,5 @@
 import { useCallback, useRef } from "react";
+import { useStableCallback } from "../utils/useStableCallback";
 
 /**
  * Callback-ref focus capture for timeline vs panels without JSX mouse
@@ -8,24 +9,23 @@ export function useTimelineFocusRegion<T extends HTMLElement>(
   focused: boolean,
   setTimelineFocused: (focused: boolean) => void,
 ): (node: T | null) => void {
-  const focusedRef = useRef(focused);
-  focusedRef.current = focused;
-  const setterRef = useRef(setTimelineFocused);
-  setterRef.current = setTimelineFocused;
+  const set = useStableCallback(() => setTimelineFocused(focused));
   const cleanupRef = useRef<(() => void) | null>(null);
 
-  return useCallback((node: T | null) => {
-    cleanupRef.current?.();
-    cleanupRef.current = null;
-    if (!node) {
-      return;
-    }
-    const set = () => setterRef.current(focusedRef.current);
-    node.addEventListener("mousedown", set);
-    node.addEventListener("focusin", set);
-    cleanupRef.current = () => {
-      node.removeEventListener("mousedown", set);
-      node.removeEventListener("focusin", set);
-    };
-  }, []);
+  return useCallback(
+    (node: T | null) => {
+      cleanupRef.current?.();
+      cleanupRef.current = null;
+      if (!node) {
+        return;
+      }
+      node.addEventListener("mousedown", set);
+      node.addEventListener("focusin", set);
+      cleanupRef.current = () => {
+        node.removeEventListener("mousedown", set);
+        node.removeEventListener("focusin", set);
+      };
+    },
+    [set],
+  );
 }

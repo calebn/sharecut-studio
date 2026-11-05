@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useId, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
+import { useStableCallback } from "../utils/useStableCallback";
 import { CloseButton } from "./CloseButton";
 import { type DialogAnchor, useAnchoredPanel } from "./useAnchoredPanel";
 import { useDialogModal } from "./useDialogModal";
@@ -92,11 +93,10 @@ export function Dialog({
 
   const anchored = anchor != null;
   const modalOpen = useModalOpen();
-  const dismissRef = useRef(dismiss);
-  dismissRef.current = dismiss;
+  const dismissNow = useStableCallback(dismiss);
   useEffect(() => {
-    if (anchored && open && modalOpen) dismissRef.current();
-  }, [anchored, open, modalOpen]);
+    if (anchored && open && modalOpen) dismissNow();
+  }, [anchored, open, modalOpen, dismissNow]);
   const topLayer = useTopLayerPanel();
 
   useDialogModal({

@@ -6,6 +6,71 @@ import type { FileMeta } from "./useFileMetaPoll";
 import { SANITY_POLL_MS, useFileMetaPoll } from "./useFileMetaPoll";
 
 describe("useFileMetaPoll", () => {
+  it("keeps an in-flight read and cadence while replacing both callbacks", async () => {
+    const pending = deferred<FileMeta>();
+    const firstFetch = vi
+      .fn<() => Promise<FileMeta>>()
+      .mockResolvedValueOnce({ mtime_ns: 1 })
+      .mockReturnValueOnce(pending.promise);
+    const nextFetch = vi
+      .fn<() => Promise<FileMeta>>()
+      .mockResolvedValue({ mtime_ns: 3 });
+    const firstChange = vi.fn();
+    const nextChange = vi.fn();
+    const { rerender } = renderHook(
+      ({ fetch, change }) => useFileMetaPoll(true, fetch, change, 100),
+      { initialProps: { fetch: firstFetch, change: firstChange } },
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    expect(firstFetch).toHaveBeenCalledTimes(2);
+    rerender({ fetch: nextFetch, change: nextChange });
+    expect(nextFetch).not.toHaveBeenCalled();
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      pending.resolve({ mtime_ns: 2 });
+    });
+    expect(nextFetch).not.toHaveBeenCalled();
+    expect(nextChange).toHaveBeenCalledExactlyOnceWith({ mtime_ns: 2 });
+    expect(firstChange).not.toHaveBeenCalled();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    expect(nextFetch).toHaveBeenCalledTimes(1);
+    expect(nextChange).toHaveBeenLastCalledWith({ mtime_ns: 3 });
+  });
+
+  it("ignores an old owner's pending result while the new baseline is busy", async () => {
+    const oldRead = deferred<FileMeta>();
+    const newRead = deferred<FileMeta>();
+    const fetch = vi
+      .fn<() => Promise<FileMeta>>()
+      .mockReturnValueOnce(oldRead.promise)
+      .mockReturnValueOnce(newRead.promise)
+      .mockResolvedValue({ mtime_ns: 3 });
+    const change = vi.fn();
+    const { rerender } = renderHook(
+      ({ owner }) => useFileMetaPoll(true, fetch, change, 100, owner),
+      { initialProps: { owner: "a" } },
+    );
+    rerender({ owner: "b" });
+    await act(async () => {
+      oldRead.resolve({ mtime_ns: 9 });
+    });
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      newRead.resolve({ mtime_ns: 2 });
+    });
+    expect(change).not.toHaveBeenCalled();
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    expect(change).toHaveBeenCalledExactlyOnceWith({ mtime_ns: 3 });
+  });
   beforeEach(() => {
     vi.useFakeTimers();
   });
