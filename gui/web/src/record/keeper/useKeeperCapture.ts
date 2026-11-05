@@ -558,9 +558,21 @@ export function useKeeperCapture({
     !muted &&
     snapshot?.state === "recording" &&
     openTap !== null;
-  useEffect(() => {
+  const [watchdogInput, setWatchdogInput] = useState({
+    active: watchdogActive,
+    stream,
+    tap: openTap,
+  });
+  if (
+    watchdogInput.active !== watchdogActive ||
+    watchdogInput.stream !== stream ||
+    watchdogInput.tap !== openTap
+  ) {
+    setWatchdogInput({ active: watchdogActive, stream, tap: openTap });
     setNoAudio(false);
     setMicCheckFailed(false);
+  }
+  useEffect(() => {
     const watchdog = watchdogRef.current;
     if (!watchdogActive) {
       watchdog.disarm();

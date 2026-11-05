@@ -987,6 +987,66 @@ describe("useKeeperCapture silent PCM watchdog", () => {
     return hook;
   }
 
+  it("retains both alerts across unchanged watchdog inputs", async () => {
+    const { result, rerender } = await setup();
+    await advance(6000, zeros);
+    tapResume.mockResolvedValueOnce("suspended");
+    await act(async () => {
+      result.current.checkMic();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.noAudio).toBe(true);
+    expect(result.current.micCheckFailed).toBe(true);
+    rerender({ snapshot: snap, muted: false });
+    expect(result.current.noAudio).toBe(true);
+    expect(result.current.micCheckFailed).toBe(true);
+  });
+
+  it("clears both alerts for a replacement stream and waits for its attached tap before rearming", async () => {
+    const { result, rerender } = renderHook(
+      ({ inputStream }: { inputStream: MediaStream }) =>
+        useKeeperCapture({ ...args, enabled: true, stream: inputStream }),
+      { initialProps: { inputStream: stream } },
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.recordingLocally).toBe(true);
+    await advance(6000, zeros);
+    tapResume.mockResolvedValueOnce("suspended");
+    await act(async () => {
+      result.current.checkMic();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.noAudio).toBe(true);
+    expect(result.current.micCheckFailed).toBe(true);
+    let attach!: () => void;
+    graphOpen.mockImplementationOnce(async (_stream, onPcm) => {
+      await new Promise<void>((resolve) => {
+        attach = resolve;
+      });
+      graphEmit.fn = (pcm) => onPcm(pcm, 48_000);
+      return { stop: () => undefined, resume: tapResume };
+    });
+    const replacement = {
+      getTracks: () => [],
+      getAudioTracks: () => [track],
+    } as unknown as MediaStream;
+    rerender({ inputStream: replacement });
+    expect(result.current.noAudio).toBe(false);
+    expect(result.current.micCheckFailed).toBe(false);
+    await advance(8000);
+    expect(result.current.noAudio).toBe(false);
+    await act(async () => {
+      attach();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await advance(4000, zeros);
+    expect(result.current.noAudio).toBe(false);
+    await advance(2000, zeros);
+    expect(result.current.noAudio).toBe(true);
+  });
+
   it("alarms on sustained zero PCM while recording locally", async () => {
     const { result } = await setup();
     await advance(6000, zeros);
