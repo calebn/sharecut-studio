@@ -11,6 +11,7 @@ import {
   runPointerCommand,
 } from "../../commands/pointer";
 import { refreshDocumentProject } from "../../document/applyDocumentUpdate";
+import { ingestFiles } from "../../ingest/ingestFiles";
 import { useModels } from "../../models";
 import { useDawStore } from "../../state/dawStore";
 import { projectScopedSignal } from "../../state/projectScopedSignal";
@@ -222,6 +223,14 @@ export function usePrepareSources(input: {
     }),
   );
 
+  const moveTo = (id: string, targetId: string | undefined) => {
+    const all = latest.current.tracks;
+    const here = all.findIndex((track) => track.id === id);
+    const to = all.findIndex((track) => track.id === targetId);
+    if (here < 0 || to < 0) return;
+    void executePointerCommand("track.reorder", { trackId: id, index: to });
+  };
+
   const actions: SourceActions = {
     onName: (id, name) => {
       const toast = useDawStore.getState().feedbackToast;
@@ -264,16 +273,13 @@ export function usePrepareSources(input: {
       if (cause) useDawStore.getState().announceStatus(cause);
     },
     onReplace: (id) => runPointerCommand("media.import", { trackId: id }),
+    onDropAudio: (id, files) => void ingestFiles(files, { kind: "track", id }),
     onMove: (id, direction) => {
-      const all = latest.current.tracks;
-      const here = all.findIndex((track) => track.id === id);
-      const mine = sourceTracks(all);
+      const mine = sourceTracks(latest.current.tracks);
       const at = mine.findIndex((track) => track.id === id);
-      const neighbour = mine[direction === "up" ? at - 1 : at + 1];
-      const to = neighbour ? all.findIndex((t) => t.id === neighbour.id) : -1;
-      if (here < 0 || to < 0) return;
-      void executePointerCommand("track.reorder", { trackId: id, index: to });
+      moveTo(id, mine[direction === "up" ? at - 1 : at + 1]?.id);
     },
+    onReorder: moveTo,
   };
 
   return {

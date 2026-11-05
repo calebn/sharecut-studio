@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fireEvent, fn, userEvent, within } from "storybook/test";
 import { viewportStoryParameters } from "../storybook/storyLayout";
 import { VOICE_PEAKS } from "./prepareFixtures";
 import { SourceCard, type SourceCardProps } from "./SourceCard";
@@ -39,7 +39,7 @@ const meta: Meta<typeof SourceCard> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          'One uploaded voice track, as a section. Its controls are separate tab stops in reading order: the speaker name, Hear, Remove and More. A card that sounds like several people asks "One recording of several people?" and adds the voice count (2 to 8, with the reason shown at each limit) and Split (`canSplit`, on by default only for that state). Remove, Split, Fewer and More voices, Speaker name, Try again, Details, Cancel splitting, Replace audio and Move carry the card name for assistive tech ("Remove Maya"). More holds Replace audio, Merge, and Move up and Move down, the keyboard way to reorder tracks. While `splitting` the card shows progress with Cancel splitting. Hear reads "Hear voice 2" until the voice is named, then "Hear Maya". Time reads "5:11 of audio", never a share. The status line says what is happening in words: Uploading, Checking file, Ready, Needs a name, or the plain cause of a failure.\n\n**Motion.** None.',
+          'One uploaded voice track, as a section. Its controls are separate tab stops in reading order: the speaker name, Hear, Remove and More. A card that sounds like several people asks "One recording of several people?" and adds the voice count (a scrub field, 2 to 8, with a reset dot off 2) and Split (`canSplit`, on by default only for that state). Remove, Split, Number of voices, Speaker name, Try again, Details, Cancel splitting, Replace audio and Move carry the card name for assistive tech ("Remove Maya"). More holds Replace audio, Merge, and Move up and Move down, the keyboard way to reorder tracks. Dropping an audio file on a ready card replaces its audio at once (`onDropAudio`), with an Undo toast and no question; the stage labels the drop \"Replace Maya\'s audio\" (`onDropHover`). A grip at the start of the actions row drags the card to reorder it within its session (pointer only; `grip`). While `splitting` the card shows progress with Cancel splitting. Hear reads "Hear voice 2" until the voice is named, then "Hear Maya". Time reads "5:11 of audio", never a share. The status line says what is happening in words: Uploading, Checking file, Ready, Needs a name, or the plain cause of a failure.\n\n**Motion.** None.',
       },
     },
   },
@@ -127,16 +127,51 @@ export const SplitPrompt: Story = {
   render: (args) => <Live {...args} />,
 };
 
-export const StepperLimits: Story = {
+export const VoicesScrub: Story = {
   args: { state: "split-prompt", name: "Maya", voices: 8 },
   render: (args) => <Live {...args} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByText("Eight is the most")).toBeVisible();
-    await expect(
-      canvas.getByRole("button", { name: /^More voices/ }),
-    ).toHaveAttribute("aria-disabled", "true");
+    const voices = canvas.getByRole("spinbutton", {
+      name: "Number of voices for Maya",
+    });
+    await expect(voices).toHaveAttribute("aria-valuemax", "8");
+    await userEvent.click(
+      canvas.getByRole("button", { name: /^Reset Number of voices/ }),
+    );
+    await expect(voices).toHaveAttribute("aria-valuetext", "2 voices");
   },
+};
+
+export const ReplaceByDrop: Story = {
+  args: { state: "ready", name: "Maya", onDropAudio: fn(), onDropHover: fn() },
+  render: (args) => <Live {...args} />,
+  play: async ({ args, canvasElement }) => {
+    const card = within(canvasElement).getByRole("region", {
+      name: "Voice 2, Maya",
+    });
+    const file = new File(["RIFF"], "take2.wav", { type: "audio/wav" });
+    const dataTransfer = { types: ["Files"], files: [file] };
+    fireEvent.dragEnter(card, { dataTransfer });
+    await expect(card).toHaveAttribute("data-drop-over", "true");
+    fireEvent.drop(card, { dataTransfer });
+    await expect(args.onDropAudio).toHaveBeenCalledWith([file]);
+    await expect(card).not.toHaveAttribute("data-drop-over");
+  },
+};
+
+export const WithGrip: Story = {
+  args: {
+    state: "ready",
+    name: "Maya",
+    grip: {
+      onPointerDown: fn(),
+      onPointerMove: fn(),
+      onPointerUp: fn(),
+      onPointerCancel: fn(),
+    },
+  },
+  render: (args) => <Live {...args} />,
 };
 
 export const ReadyCanSplit: Story = {

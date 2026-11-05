@@ -12,6 +12,7 @@ import {
   runPointerCommand,
 } from "../../commands/pointer";
 import { refreshDocumentProject } from "../../document/applyDocumentUpdate";
+import { ingestFiles } from "../../ingest/ingestFiles";
 import { ModelsContext } from "../../models/useModels";
 import { useDawStore } from "../../state/dawStore";
 import { pipelineJobSnapshot, sampleTrack } from "../../test/fixtures";
@@ -35,6 +36,7 @@ vi.mock("../../commands/pointer", () => ({
   runPointerCommand: vi.fn(),
   executePointerCommand: vi.fn(async () => ({ status: "ok" })),
 }));
+vi.mock("../../ingest/ingestFiles", () => ({ ingestFiles: vi.fn() }));
 vi.mock("../../document/applyDocumentUpdate", async (original) => ({
   ...(await original<typeof import("../../document/applyDocumentUpdate")>()),
   refreshDocumentProject: vi.fn(async () => undefined),
@@ -180,6 +182,25 @@ describe("track commands", () => {
     expect(executePointerCommand).toHaveBeenCalledWith("track.reorder", {
       trackId: "maya",
       index: 2,
+    });
+  });
+
+  it("moves a dragged voice to the place of the voice it was dropped on", () => {
+    const { result } = setup();
+    act(() => result.current.actions.onReorder("joss", "maya"));
+    expect(executePointerCommand).toHaveBeenCalledWith("track.reorder", {
+      trackId: "joss",
+      index: 0,
+    });
+  });
+
+  it("replaces the audio of the card a file was dropped on, by track", () => {
+    const { result } = setup();
+    const wav = new File(["x"], "take.wav", { type: "audio/wav" });
+    act(() => result.current.actions.onDropAudio("maya", [wav]));
+    expect(ingestFiles).toHaveBeenCalledWith([wav], {
+      kind: "track",
+      id: "maya",
     });
   });
 
