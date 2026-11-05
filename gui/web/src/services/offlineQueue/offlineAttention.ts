@@ -333,8 +333,8 @@ export function dismissAllConflicts(projectPath: string): void {
 
 /**
  * The persisted offline queue and conflicts for a project: one shared poll per
- * project however many components read it. `null` reads nothing. The "Needs attention" banner lists
- * them and the save state counts them.
+ * project however many components read it. `null` reads nothing. The Review queue's "Needs attention"
+ * group lists them and the save state counts them.
  */
 export function useOfflineAttention(
   projectPath: string | null,
