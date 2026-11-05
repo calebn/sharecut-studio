@@ -106,7 +106,6 @@ describe("paletteCommands", () => {
         (id) => `stage.${id}`,
       ),
     );
-    // The hand-off leads with the icon of the stage it opens, so its row has none of its own.
     expect(stages.filter((r) => r.icon === undefined).map((r) => r.id)).toEqual(
       ["stage.handoff"],
     );
