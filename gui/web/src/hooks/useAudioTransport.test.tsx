@@ -353,6 +353,36 @@ describe("useAudioTransport project transitions", () => {
     unmount();
   });
 
+  it("uses an updated audition boundary without replacing the playing source", async () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    vi.stubGlobal("cancelAnimationFrame", () => {});
+    const state = useDawStore.getState();
+    state.setProject(trackProject("raw/host.wav"));
+    state.setAuditionMode("raw");
+    state.setPlayUntilSec(30);
+    const { unmount } = renderHook(() => useAudioTransport());
+    act(() => state.setIsPlaying(true));
+    await act(async () => {});
+    const player = FakeAudio.instances[0];
+    expect(player.paused).toBe(false);
+    expect(frames.length).toBeGreaterThan(0);
+    act(() => state.setPlayUntilSec(12));
+    expect(FakeAudio.instances).toEqual([player]);
+    player.currentTime = 13;
+    act(() => {
+      for (const frame of frames.splice(0)) frame(0);
+    });
+    expect(useDawStore.getState().playheadSec).toBe(12);
+    expect(useDawStore.getState().isPlaying).toBe(false);
+    expect(useDawStore.getState().playUntilSec).toBeNull();
+    expect(player.paused).toBe(true);
+    unmount();
+  });
+
   it("does not restart clock updates when an old play promise resolves after project change", async () => {
     let finishPlay: (() => void) | undefined;
     const pending = new Promise<void>((resolve) => {
