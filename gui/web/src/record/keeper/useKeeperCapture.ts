@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useInsertionEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -104,7 +105,6 @@ export function useKeeperCapture({
   const mountedRef = useMountedRef();
   const pendingDisposals = useRef(0);
   const writingRef = useRef(writing);
-  writingRef.current = writing;
   const [initializationAttempt, setInitializationAttempt] = useState(0);
   const [tapAttempt, setTapAttempt] = useState(0);
   const sessionRef = useRef<KeeperSession | null>(null);
@@ -119,7 +119,10 @@ export function useKeeperCapture({
   const applyChain = useRef(Promise.resolve());
   const sessionId = snapshot?.session_id ?? null;
   const reportRef = useRef(reportSegments);
-  reportRef.current = reportSegments;
+  useInsertionEffect(() => {
+    writingRef.current = writing;
+    reportRef.current = reportSegments;
+  }, [writing, reportSegments]);
   const reportedRef = useRef(
     new Map<
       number,
