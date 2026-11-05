@@ -8,6 +8,13 @@ import { minimalProject } from "../../test/fixtures";
 import { stubMatchMedia } from "../../test/matchMedia";
 import { StageFrame } from "./StageFrame";
 
+vi.mock("../../services/offlineQueue/offlineStore", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("../../services/offlineQueue/offlineStore")
+  >()),
+  loadGuestAttention: vi.fn(async () => ({ pending: 0, conflicts: [] })),
+}));
+
 const PROJECT_PATH = "/tmp/stage-frame/episode.sharecut";
 
 function mount() {
@@ -109,10 +116,44 @@ describe("StageFrame header", () => {
     expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled();
   });
 
-  it("shows no save light for a guest, who has no host save state", () => {
-    useDawStore.setState({ guestMode: "edit" });
+  it.each([
+    ["view", "a live link", ["view"], /^Saved$/],
+    ["comment", "a live link", ["comment"], /^Saved$/],
+    ["edit", "a live link", ["edit"], /^Saved$/],
+    ["view", "a saved copy", null, /Saved copy.*read-only/],
+    ["comment", "a saved copy", null, /Saved copy.*read-only/],
+    ["edit", "a saved copy", null, /Saved copy.*read-only/],
+  ] as const)(
+    "shows the Save dot to a %s guest on %s",
+    async (guestMode, _name, caps, text) => {
+      useDawStore.getState().hydrate("share:tok-s5", minimalProject(), null);
+      useDawStore.setState({
+        guestMode,
+        stage: "review",
+        shareCapabilities: caps ? [...caps] : null,
+      });
+      mount();
+      const header = screen.getAllByRole("banner")[0];
+      await waitFor(() =>
+        expect(within(header).getByRole("status")).toHaveTextContent(text),
+      );
+    },
+  );
+
+  it("keeps the Save dot in the phone header for a guest", async () => {
+    stubMatchMedia(true);
+    useDawStore.getState().hydrate("share:tok-s5", minimalProject(), null);
+    useDawStore.setState({
+      guestMode: "comment",
+      stage: "review",
+      shareCapabilities: ["comment"],
+    });
     mount();
-    expect(screen.queryByRole("status", { name: /Save/ })).toBeNull();
+    expect(document.querySelector(".stage-frame--phone")).not.toBeNull();
+    const header = screen.getAllByRole("banner")[0];
+    await waitFor(() =>
+      expect(within(header).getByRole("status")).toHaveTextContent(/^Saved$/),
+    );
   });
 });
 

@@ -33,11 +33,11 @@ const offlineStore = vi.hoisted(() => {
       return { pending, conflicts };
     }),
     loadGuestAttention: vi.fn(async (token: string) => {
-      const [, conflicts] = await Promise.all([
+      const [queue, conflicts] = await Promise.all([
         state.loadCommandQueue(token),
         state.loadConflicts(token),
       ]);
-      return { pending: 0, conflicts };
+      return { pending: queue.length, conflicts };
     }),
   };
 });
@@ -331,12 +331,57 @@ describe("useSaveState", () => {
     expect(getActionButton("Inspect History")).toBeInTheDocument();
   });
 
-  it("shows nothing to a share guest and reads no host queue", async () => {
-    useDawStore.getState().hydrate("share:tok-1448", minimalProject(), null);
-    render(<SaveDot />);
-    await settle();
-    expect(screen.queryByRole("status")).toBeNull();
-    expect(screen.queryByRole("group")).toBeNull();
-    expect(offlineStore.loadHostCommandCount).not.toHaveBeenCalled();
+  describe("as a share guest", () => {
+    const queued = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({ command_id: `q${i}` }));
+
+    function hydrateGuest(shareCapabilities: string[] | null) {
+      useDawStore.getState().hydrate("share:tok-1448", minimalProject(), null);
+      useDawStore.setState({ guestMode: "comment", shareCapabilities });
+    }
+
+    it("shows Saved once the guest queue has been read, without reading a host queue", async () => {
+      hydrateGuest(["comment"]);
+      render(<SaveDot />);
+      expect(screen.queryByRole("status")).toBeNull();
+      await settle();
+      expect(screen.getByRole("status")).toHaveTextContent("Saved");
+      expect(offlineStore.loadCommandQueue).toHaveBeenCalledWith("tok-1448");
+      expect(offlineStore.loadHostCommandCount).not.toHaveBeenCalled();
+    });
+
+    it("counts the comments waiting in the guest queue", async () => {
+      hydrateGuest(["comment"]);
+      offlineStore.loadCommandQueue.mockResolvedValue(queued(2));
+      render(<SaveDot />);
+      await settle();
+      expect(screen.getByRole("status")).toHaveTextContent("2 waiting");
+    });
+
+    it("turns to Retry when the saved edits cannot be read", async () => {
+      hydrateGuest(["comment"]);
+      offlineStore.loadCommandQueue.mockRejectedValue(new Error("idb"));
+      render(<SaveDot />);
+      await settle();
+      expect(screen.getByRole("alert")).toHaveTextContent("Save failed");
+      offlineStore.loadCommandQueue.mockClear();
+      offlineStore.loadCommandQueue.mockResolvedValue([]);
+      fireEvent.click(screen.getByRole("button", { name: /^Retry/ }));
+      await settle();
+      expect(offlineStore.loadCommandQueue).toHaveBeenCalledWith("tok-1448");
+      expect(screen.getByRole("status")).toHaveTextContent("Saved");
+    });
+
+    it("says it is a saved copy, with the waiting count, when the host cannot be reached", async () => {
+      hydrateGuest(null);
+      offlineStore.loadCommandQueue.mockResolvedValue(queued(1));
+      render(<SaveDot />);
+      await settle();
+      const status = screen.getByRole("status");
+      expect(status).toHaveTextContent("Saved copy · 1 waiting");
+      expect(status).toHaveTextContent(
+        "Showing a saved copy because the host can't be reached. It is read-only.",
+      );
+    });
   });
 });

@@ -1,10 +1,10 @@
 import { SystemIcon } from "./SystemIcon";
 
 export type SaveIndicatorProps = {
-  state: "saved" | "saving" | "offline" | "failed";
+  state: "saved" | "saving" | "offline" | "unreachable" | "failed";
   /** Saved: show the check for the 2 s after a save. */
   justSaved?: boolean;
-  /** Offline: edits waiting to send. */
+  /** Offline or unreachable: edits waiting to send. */
   waiting?: number;
   /**
    * Narrow chrome: glyph, a count and Retry only. The App header gets the same
@@ -14,6 +14,9 @@ export type SaveIndicatorProps = {
   onRetry?: () => void;
   onDownload?: () => void;
 };
+
+const SAVED_COPY_TEXT =
+  "Showing a saved copy because the host can't be reached. It is read-only.";
 
 /** The save state after the title (design system 2, Frame 3). Props only. */
 export function SaveIndicator({
@@ -63,6 +66,26 @@ export function SaveIndicator({
       <span className={`sys-save sys-save--offline${size}`} role="status">
         <SystemIcon name="cloud-off" size={16} className="sys-tone-warning" />
         <span className="sys-save-text">{text}</span>
+        {waiting ? (
+          <span aria-hidden="true" className="sys-save-count">
+            {waiting}
+          </span>
+        ) : null}
+      </span>
+    );
+  }
+  if (state === "unreachable") {
+    return (
+      <span
+        className={`sys-save sys-save--unreachable${size}`}
+        role="status"
+        title={SAVED_COPY_TEXT}
+      >
+        <SystemIcon name="cloud" size={16} className="sys-tone-warning" />
+        <span className="sys-save-text">
+          {waiting ? `Saved copy · ${waiting} waiting` : "Saved copy"}
+          <span className="sr-only">. {SAVED_COPY_TEXT}</span>
+        </span>
         {waiting ? (
           <span aria-hidden="true" className="sys-save-count">
             {waiting}

@@ -22,7 +22,7 @@ export type AttentionStatus =
 
 /** What the project's persisted offline queue and conflict list hold, as last read. */
 export type AttentionSnapshot = {
-  /** Host edits queued but not yet applied (always 0 for a share guest). */
+  /** Edits queued but not yet applied. */
   pending: number;
   conflicts: readonly OfflineConflict[];
   recoverySelection: OfflineConflict | null;
