@@ -401,7 +401,6 @@ export function useClipSections(
                 id: "ripple",
                 control: (
                   <Button
-                    variant="danger"
                     disabledReason={busy ? BUSY_REASON : undefined}
                     onClick={() => void ripple()}
                   >

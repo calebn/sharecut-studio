@@ -1,4 +1,3 @@
-import type { ConfirmQuestion } from "../feedback/ask";
 import { plural } from "../utils/format";
 import { readLocal, writeLocal } from "../utils/storage";
 
@@ -65,21 +64,6 @@ export function newTracksDropLabel(fileCount: number): string {
     return "Create new track";
   }
   return `Create ${fileCount} new tracks`;
-}
-
-/** The question before a drop or import replaces a track's audio. */
-export function replaceAudioQuestion(
-  trackLabel: string,
-): Omit<ConfirmQuestion, "kind"> {
-  const name = trackLabel ? `the ${trackLabel} track` : "this track";
-  return {
-    title: `Replace the audio on ${name}?`,
-    message:
-      "Its current audio leaves the track. To add a new speaker instead, drop below the tracks or on + Track.",
-    keepLabel: "Keep audio",
-    actionLabel: "Replace audio",
-    danger: true,
-  };
 }
 
 export const INGEST_COACH_STORAGE_KEY = "sharecut.ingestCoachDismissed";

@@ -132,7 +132,7 @@ describe("track.remove / nav / Escape fall-through", () => {
     });
   });
 
-  it("removes inspector track after confirm and clears selection", async () => {
+  it("removes the inspector track without asking and clears selection", async () => {
     useDawStore.setState({
       selection: { kind: "track", trackId: "host" },
     });
@@ -141,20 +141,13 @@ describe("track.remove / nav / Escape fall-through", () => {
     expect(useDawStore.getState().selection).toBeNull();
   });
 
-  it("asks by the track's name, then offers Undo for the entry its reply names", async () => {
+  it("offers Undo for the entry its reply names", async () => {
     vi.mocked(api.removeTrackCommand).mockResolvedValueOnce({
       history_head_id: "e-remove",
     });
     useDawStore.setState({ selection: { kind: "track", trackId: "host" } });
     expect((await execute("track.remove")).status).toBe("ok");
-    expect(confirmReply).toHaveBeenCalledWith({
-      kind: "confirm",
-      title: "Remove the Host track?",
-      message: "Its clips leave the timeline.",
-      keepLabel: "Keep track",
-      actionLabel: "Remove track",
-      danger: true,
-    });
+    expect(confirmReply).not.toHaveBeenCalled();
     expect(useDawStore.getState().feedbackToast).toMatchObject({
       id: expect.any(Number),
       message: "Removed Host",
@@ -179,17 +172,6 @@ describe("track.remove / nav / Escape fall-through", () => {
       status: "disabled",
       reason: "Select one track to remove",
     });
-    expect(api.removeTrackCommand).not.toHaveBeenCalled();
-  });
-
-  it("cancels remove when confirm is false", async () => {
-    answerQuestions(confirmReply.mockReturnValue(false));
-    useDawStore.setState({
-      selection: { kind: "track", trackId: "host" },
-    });
-    expect((await execute("track.remove", {}, { skipWhen: true })).status).toBe(
-      "disabled",
-    );
     expect(api.removeTrackCommand).not.toHaveBeenCalled();
   });
 

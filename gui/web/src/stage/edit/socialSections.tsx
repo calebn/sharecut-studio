@@ -15,11 +15,14 @@ const END_BEFORE_START = "End must be greater than start";
 export function useSocialSections(
   selection: Selection,
 ): readonly InspectorSection[] | null {
-  const { project, projectPath, setSelection } = useDaw((s) => ({
-    project: s.project,
-    projectPath: s.projectPath,
-    setSelection: s.setSelection,
-  }));
+  const { project, projectPath, setSelection, announceStatus } = useDaw(
+    (s) => ({
+      project: s.project,
+      projectPath: s.projectPath,
+      setSelection: s.setSelection,
+      announceStatus: s.announceStatus,
+    }),
+  );
   const { busy, error, setError, run } = useProjectMutation();
   const id = selection?.kind === "social" ? selection.id : null;
   const clip = (project?.social_clips ?? []).find((c) => c.id === id);
@@ -50,8 +53,9 @@ export function useSocialSections(
 
   const remove = async () => {
     await run(async () => {
-      await deleteSocialClip(projectPath, clip.id);
+      const undo = await deleteSocialClip(projectPath, clip.id);
       setSelection(null);
+      announceStatus("Deleted the social clip", { undo });
     });
   };
 
@@ -123,7 +127,6 @@ export function useSocialSections(
                 id: "remove",
                 control: (
                   <Button
-                    variant="danger"
                     className="track-sheet-action"
                     disabledReason={busy ? BUSY_REASON : undefined}
                     onClick={() => void remove()}

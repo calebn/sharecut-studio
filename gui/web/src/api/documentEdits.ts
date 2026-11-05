@@ -819,10 +819,13 @@ export async function updateSocialClipDetails(
 export async function deleteSocialClip(
   projectPath: string,
   id: string,
-): Promise<void> {
-  await submitDocumentCommand(projectPath, DocumentCommand.DeleteSocialClip, {
-    id,
-  });
+): Promise<HistoryEntryId | null> {
+  const reply = await submitDocumentCommand(
+    projectPath,
+    DocumentCommand.DeleteSocialClip,
+    { id },
+  );
+  return reply ? replyHistoryHead(reply) : null;
 }
 
 export async function splitAtTime(

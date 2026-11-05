@@ -134,30 +134,22 @@ describe("ingestFiles", () => {
       });
     });
 
-    it("asks before replacing it, and imports nothing when kept", async () => {
-      const { asked } = answerQuestions(null);
-      await ingestFiles([file], { kind: "track", id: "guest" });
-      expect(asked).toEqual([
-        expect.objectContaining({
-          kind: "confirm",
-          title: "Replace the audio on the Guest track?",
-          actionLabel: "Replace audio",
-          danger: true,
-        }),
-      ]);
-      expect(uploadMock).not.toHaveBeenCalled();
-      expect(useDawStore.getState().statusAnnouncement).toBe("");
-    });
-
-    it("replaces it once confirmed", async () => {
-      answerQuestions(true);
+    it("replaces it without asking, and offers Undo for the swap", async () => {
+      const { asked } = answerQuestions(true);
       uploadMock.mockResolvedValue({
         complete: true,
         rel_path: "media/take2.wav",
       });
       refreshMock.mockResolvedValue(minimalProject());
+      vi.mocked(api.setTrackMediaCommand).mockResolvedValueOnce({
+        history_head_id: "e-swap",
+      });
       await ingestFiles([file], { kind: "track", id: "guest" });
+      expect(asked).toEqual([]);
       expect(uploadMock).toHaveBeenCalledOnce();
+      expect(useDawStore.getState().feedbackToast).toMatchObject({
+        undo: "e-swap",
+      });
       expect(useDawStore.getState().statusAnnouncement).toMatch(
         /^Replaced Guest/,
       );

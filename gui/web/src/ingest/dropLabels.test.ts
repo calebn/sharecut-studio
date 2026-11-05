@@ -5,7 +5,6 @@ import {
   isIngestCoachDismissed,
   laneDropLabel,
   newTracksDropLabel,
-  replaceAudioQuestion,
   trackHasMedia,
 } from "./dropLabels";
 
@@ -48,20 +47,6 @@ describe("dropLabels", () => {
     expect(trackHasMedia({ mediaPath: null, clipCount: 0 })).toBe(false);
     expect(trackHasMedia({ mediaPath: "raw/a.wav", clipCount: 0 })).toBe(true);
     expect(trackHasMedia({ mediaPath: null, clipCount: 1 })).toBe(true);
-  });
-
-  it("explains replace vs new-track in confirm copy", () => {
-    expect(replaceAudioQuestion("guest")).toEqual({
-      title: "Replace the audio on the guest track?",
-      message:
-        "Its current audio leaves the track. To add a new speaker instead, drop below the tracks or on + Track.",
-      keepLabel: "Keep audio",
-      actionLabel: "Replace audio",
-      danger: true,
-    });
-    expect(replaceAudioQuestion("").title).toBe(
-      "Replace the audio on this track?",
-    );
   });
 
   it("accepts audio MIME or allowlisted extensions", () => {
