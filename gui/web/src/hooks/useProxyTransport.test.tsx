@@ -20,6 +20,7 @@ import {
 } from "../services/offlineQueue/offlineStore";
 import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { deferred } from "../test/deferred";
 import { minimalProject, sampleTrack } from "../test/fixtures";
 import { ApiError } from "../utils/apiError";
 import { useAudioTransport } from "./useAudioTransport";
@@ -488,6 +489,29 @@ describe("useProxyTransport", () => {
       useDawStore.getState().projectPath,
       "copied-url",
     );
+  });
+
+  it("requires fresh acceptance after a basis changes away and back", async () => {
+    renderHook(() => useProxyTransport());
+    await ready();
+    const original = useDawStore.getState().project!;
+    const pending = deferred<ProxyManifest>();
+    vi.mocked(loadProxyManifest).mockReturnValue(pending.promise);
+    const changed = structuredClone(original);
+    changed.history.head_id = "changed-basis" as typeof changed.history.head_id;
+    engine.play.mockClear();
+    engine.setSnapshot.mockClear();
+    act(() => useDawStore.getState().setProject(changed));
+    expect(useDawStore.getState().audioError).toBeTruthy();
+    act(() => useDawStore.getState().setProject(original));
+    act(() => useDawStore.getState().setIsPlaying(true));
+    expect(engine.play).not.toHaveBeenCalled();
+    expect(engine.setSnapshot).not.toHaveBeenCalled();
+    await act(async () => pending.resolve(manifestFor(original)));
+    await ready();
+    expect(useDawStore.getState().audioError).toBeNull();
+    act(() => useDawStore.getState().setIsPlaying(true));
+    expect(engine.play).toHaveBeenCalled();
   });
 
   it("keeps an unchanged basis through object refreshes without a manifest or engine loop", async () => {

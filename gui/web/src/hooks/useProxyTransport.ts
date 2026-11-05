@@ -34,6 +34,16 @@ import { audioContextCtor } from "../utils/audio";
 import { AUDITION_STOP_EPS_SEC } from "../utils/auditionStop";
 import { sortedVolumePoints } from "../utils/envelopes";
 
+type ProxyAcceptance =
+  | {
+      kind: "ready";
+      path: string;
+      epoch: number;
+      key: string;
+      manifest: ProxyManifest;
+    }
+  | { kind: "revoked"; path: string; epoch: number };
+
 /**
  * Guest proxy transport: Web Audio clip scheduler over FX source-clock chunks.
  * Returns true while the proxy owns timeline playback. Owned source previews
@@ -77,12 +87,18 @@ export function useProxyTransport(): boolean {
     [project],
   );
   const basisKey = basis ? proxyBasisKey(basis) : "";
-  const [accepted, setAccepted] = useState<{
-    path: string;
-    epoch: number;
-    key: string;
-    manifest: ProxyManifest;
-  } | null>(null);
+  const [accepted, setAccepted] = useState<ProxyAcceptance | null>(null);
+  if (
+    accepted?.kind === "ready" &&
+    accepted.path === projectPath &&
+    accepted.epoch === projectEpoch &&
+    accepted.key !== basisKey
+  )
+    setAccepted({
+      kind: "revoked",
+      path: accepted.path,
+      epoch: accepted.epoch,
+    });
   const [refresh, setRefresh] = useState(0);
   const engineRef = useRef<ProxyEngine | null>(null);
   const requestGeneration = useRef(0);
@@ -103,13 +119,13 @@ export function useProxyTransport(): boolean {
   const ownsTimeline =
     !!projectPath && isShareProjectKey(projectPath) && sourcePreview === null;
   const active =
-    accepted !== null &&
+    accepted?.kind === "ready" &&
     accepted.path === projectPath &&
     accepted.epoch === projectEpoch &&
     accepted.key === basisKey;
   const timelineActive = active && sourcePreview === null;
 
-  const block = useEffectEvent((error: unknown): void => {
+  const stopForError = useEffectEvent((error: unknown): void => {
     const state = useDawStore.getState();
     const engine = engineRef.current;
     if (
@@ -128,6 +144,9 @@ export function useProxyTransport(): boolean {
     ownedErrorRef.current = message;
     state.setAudioError(message);
     acceptedKeyRef.current = null;
+  });
+  const block = useEffectEvent((error: unknown): void => {
+    stopForError(error);
     setAccepted(null);
   });
 
@@ -154,9 +173,6 @@ export function useProxyTransport(): boolean {
     },
   );
 
-  // A blocked proxy (a failed chunk fetch, a missing manifest) leaves nothing to retry it,
-  // so a second Play would show Pause over a frozen playhead. Each Play after a block asks
-  // for a fresh acceptance; if that fails again, block() stops playback with the error.
   const retryBlockedProxy = useEffectEvent((): void => {
     if (!ownsTimeline || active || ownedErrorRef.current === null) return;
     if (!engineRef.current) {
@@ -171,13 +187,14 @@ export function useProxyTransport(): boolean {
 
   useLayoutEffect(() => {
     if (
-      accepted &&
+      accepted?.kind === "revoked" &&
       accepted.path === projectPath &&
-      accepted.epoch === projectEpoch &&
-      accepted.key !== basisKey
+      accepted.epoch === projectEpoch
     )
-      block(new Error("Audio is waiting for a matching project snapshot."));
-  }, [accepted, projectPath, projectEpoch, basisKey]);
+      stopForError(
+        new Error("Audio is waiting for a matching project snapshot."),
+      );
+  }, [accepted, projectPath, projectEpoch]);
 
   useEffect(() => {
     if (!projectPath || !isShareProjectKey(projectPath)) return;
@@ -285,6 +302,7 @@ export function useProxyTransport(): boolean {
         pendingManifest.current = null;
         acceptedKeyRef.current = basisKey;
         setAccepted({
+          kind: "ready",
           path: projectPath,
           epoch: projectEpoch,
           key: basisKey,
@@ -367,8 +385,6 @@ export function useProxyTransport(): boolean {
       };
       rafRef.current = requestAnimationFrame(tick);
     } else {
-      // Keep the store playhead (Stop may have rewound it); the seek effect
-      // below moves the paused engine there.
       engine.pause();
       if (rafRef.current != null) {
         cancelAnimationFrame(rafRef.current);
