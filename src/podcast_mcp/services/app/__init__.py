@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     )
     from podcast_mcp.services.app.recent_projects import (
         default_workspace_dir,
+        duplicate_project,
         forget_recent,
         recent_project_cards,
         record_recent,
@@ -65,6 +66,7 @@ __all__ = [
     "announce_studio_host",
     "default_workspace_dir",
     "drop_oldest_overflow",
+    "duplicate_project",
     "ensure_viewer",
     "env_differences",
     "forget_recent",
@@ -95,6 +97,7 @@ _MODULE_BY_NAME = {
     "resolve_gui_static_root": "gui_launch",
     "viewer_url": "gui_launch",
     "default_workspace_dir": "recent_projects",
+    "duplicate_project": "recent_projects",
     "forget_recent": "recent_projects",
     "recent_project_cards": "recent_projects",
     "record_recent": "recent_projects",

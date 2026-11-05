@@ -123,6 +123,7 @@ describe("keymap registry", () => {
       "stage.edit",
       "stage.review",
       "stage.deliver",
+      "stage.handoff",
     ]);
   });
 

@@ -123,13 +123,16 @@ def open_project(path: Path | str) -> tuple[Path, EpisodeProject]:
     return resolved, ProjectStore(resolved).load()
 
 
-def rewrite_workspace_dir(project_file: Path) -> Path:
-    """Point ``meta.workspace_dir`` at the directory that contains *project_file*."""
+def rewrite_workspace_dir(project_file: Path, *, name: str | None = None) -> Path:
+    """Point ``meta.workspace_dir`` at the directory that contains *project_file*; *name* renames the episode."""
     path = Path(project_file)
     data = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         raise ValueError(f"episode project must be a JSON object: {path}")
-    data.setdefault("meta", {})["workspace_dir"] = str(path.parent.resolve())
+    meta = data.setdefault("meta", {})
+    meta["workspace_dir"] = str(path.parent.resolve())
+    if name is not None:
+        meta["name"] = name
     write_json_atomic(path, data)
     return path
 
@@ -139,8 +142,9 @@ def copy_relocated_workspace(
     dest_workspace: Path,
     *,
     ignore: tuple[str, ...] = WORKSPACE_COPY_IGNORE,
+    name: str | None = None,
 ) -> Path:
-    """Copy an episode tree and rewrite ``workspace_dir``.
+    """Copy an episode tree and rewrite ``workspace_dir`` (and the episode *name*, when given).
 
     The source is only written to by adopting its retired entry name, which runs first.
     """
@@ -156,4 +160,4 @@ def copy_relocated_workspace(
         raise FileExistsError(f"workspace already exists: {dest_ws}")
     dest_ws.parent.mkdir(parents=True, exist_ok=True)
     shutil.copytree(src_ws, dest_ws, ignore=shutil.ignore_patterns(*ignore))
-    return rewrite_workspace_dir(dest_file)
+    return rewrite_workspace_dir(dest_file, name=name)

@@ -192,7 +192,7 @@ const COVERED: Record<string, string[]> = {
   "MENU-CREATE": ["Stages/Edit/CreateMenu"],
   "POP-CHOOSER": ["Stages/Edit/TargetChooser"],
   "CMP-SOLO-CHIP": ["Templates/SoloChip"],
-  "BAN-HOME-SCREEN-HINT": ["Templates/HomeScreenHint", "Stages/Home/Home"],
+  "BAN-HOME-SCREEN-HINT": ["Stages/Home/Home"],
   "SCR-REC-ACCESS-ENDED": ["System/Cover"],
   "BAN-LOADFAIL": [
     "Stages/Review/Host",

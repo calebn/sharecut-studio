@@ -144,6 +144,7 @@ export type {
 export {
   closeEpisodeProject,
   createEpisodeProject,
+  duplicateRecentProject,
   forgetRecentProject,
   listRecentProjects,
   loadDocumentState,
@@ -153,6 +154,7 @@ export {
   loadReviewVersionStatus,
   openEpisodeProject,
   pickEpisodeProject,
+  revealRecentProject,
   reviewVersionAtBootstrap,
   uploadMediaFile,
 } from "./api/project";

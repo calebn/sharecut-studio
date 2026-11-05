@@ -73,76 +73,17 @@
   );
 }
 
-.empty-session-drop {
+.empty-session-tiles {
   flex: 1;
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: var(--s0);
-  border: 1px dashed var(--color-timeline-text);
-  border-radius: var(--radius-lg);
-  margin: var(--space-3);
-  color: var(--color-text-primary);
-  min-height: 12rem;
-  background: var(--bg-empty-stage-card);
-  cursor: pointer;
-  box-shadow: inset 0 0 4rem var(--color-timeline-vignette);
-}
-
-.empty-session-ghost {
-  display: block;
-  inline-size: min(60%, 22rem);
-  block-size: 3rem;
-  opacity: 0.4;
-  border-block: 1px solid var(--color-timeline-text);
-  background: var(--bg-empty-stage-ghost);
-  /* The mask only reads alpha, so any opaque color works; currentcolor keeps
-     primitives out of partials. */
-  mask-image: radial-gradient(ellipse at center, currentcolor, transparent 70%);
-}
-
-.empty-session-drop-label {
-  max-inline-size: 28ch;
-  text-align: center;
-  font-size: var(--font-size-emphasis);
-  font-weight: 600;
-}
-
-.empty-session-drop:focus-visible {
-  border-color: var(--color-accent);
-  color: var(--color-text-primary);
-  outline: var(--focus-ring-width) solid var(--color-accent);
-  outline-offset: var(--focus-ring-offset);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .empty-session-drop:hover {
-    border-color: var(--color-accent);
-    color: var(--color-text-primary);
-    box-shadow: var(--shadow-empty-stage-hover);
-  }
-}
-
-.empty-session-coach {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  align-content: center;
   gap: var(--space-4);
-  margin: 0 var(--space-3) var(--space-3);
+  padding: var(--space-4);
 }
 
-.empty-session-coach p {
-  margin: 0;
-  font-size: var(--font-size-body);
-  color: var(--color-text-secondary);
-}
-
-.empty-session-coach-dismiss {
-  flex-shrink: 0;
-  border: none;
-  background: transparent;
-  color: var(--color-accent-fg);
-  cursor: pointer;
-  font-size: var(--font-size-body);
+.empty-session-tiles .sys-start {
+  inline-size: 10rem;
 }

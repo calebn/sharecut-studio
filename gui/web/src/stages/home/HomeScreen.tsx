@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createEpisodeProject,
+  duplicateRecentProject,
   forgetRecentProject,
   listRecentProjects,
   openEpisodeProject,
   pickEpisodeProject,
   type RecentProject,
+  revealRecentProject,
 } from "../../api";
 import { desktopCloseGuardArmed } from "../../desktop/useDesktopCloseGuard";
 import { HelpDialog } from "../../home/HelpDialog";
@@ -16,9 +18,9 @@ import { HostMcpDialog } from "../../stage/dialogs/HostMcpDialog";
 import type { ProjectCardData } from "../../system/ProjectCard";
 import { ApiError, errorMessage } from "../../utils/apiError";
 import {
+  countHomeVisit,
   dismissHomeScreenHint,
-  homeScreenHintDismissed,
-  offersHomeScreenHint,
+  homeScreenHintDue,
   readHomeScreenEnv,
 } from "../../utils/homeScreenHint";
 import { writeOpenIntent } from "../../utils/openIntent";
@@ -41,6 +43,7 @@ import {
   untitledEpisodeName,
 } from "./homeModel";
 import { NOT_AN_EPISODE, type OpenOtherProps } from "./OpenOther";
+import { useHomeKeys } from "./useHomeKeys";
 
 export const SETUP_DISMISSED_KEY = "sharecut.bootstrap.skip";
 
@@ -51,6 +54,10 @@ const NOT_STARTED = "The episode didn't start. Try again.";
 const BUSY = "Finish the current step first.";
 const NO_TOOLS =
   "Audio tools are missing, so an episode can't start yet. Set them up above, then try again.";
+const NOT_REVEALED = "This computer couldn't open its file manager.";
+const NOT_DUPLICATED = "That episode didn't copy. Try again.";
+const NOT_REMOVED = "That episode is still listed. Try again.";
+const DUPLICATING = "Copying the episode…";
 const OPENING = "Opening…";
 const STARTING = "Starting an episode…";
 const NO_PICKER =
@@ -121,9 +128,8 @@ export function HomeScreen() {
   const [setupDismissed, setSetupDismissed] = useState(
     () => readLocal(SETUP_DISMISSED_KEY) === "1",
   );
-  const [hintShown, setHintShown] = useState(
-    () =>
-      offersHomeScreenHint(readHomeScreenEnv()) && !homeScreenHintDismissed(),
+  const [hintShown, setHintShown] = useState(() =>
+    homeScreenHintDue(readHomeScreenEnv(), countHomeVisit()),
   );
   const [mcpOpen, setMcpOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -317,7 +323,48 @@ export function HomeScreen() {
     );
   }, [guarded, noTools]);
 
+  const reveal = useCallback(async (id: string) => {
+    try {
+      await revealRecentProject(id);
+    } catch {
+      setNotice(NOT_REVEALED);
+    }
+  }, []);
+
+  const duplicate = useCallback(
+    (id: string) =>
+      guarded(
+        async () => {
+          await duplicateRecentProject(id);
+          setReload((n) => n + 1);
+          return undefined;
+        },
+        () => setNotice(NOT_DUPLICATED),
+        DUPLICATING,
+      ),
+    [guarded],
+  );
+
+  const remove = useCallback(async (id: string) => {
+    setRecents((current) =>
+      current ? current.filter((entry) => entry.path !== id) : current,
+    );
+    try {
+      await forgetRecentProject(id);
+    } catch {
+      setNotice(NOT_REMOVED);
+      setReload((n) => n + 1);
+    }
+  }, []);
+
   const drop = useWindowFileDrop(true, (files) => void startFromFiles(files));
+
+  useHomeKeys({
+    onImport,
+    onRecord,
+    onOpenOther: () => void pick(),
+    onHelp: () => setHelpOpen(true),
+  });
 
   const setup = setupOf(models);
   const getReady = useCallback(
@@ -375,6 +422,9 @@ export function HomeScreen() {
         onRetryLoad={() => setReload((n) => n + 1)}
         onOpenProject={(id, stage) => void open(id, stage)}
         onFindProject={(id) => void pick(id)}
+        onRevealProject={(id) => void reveal(id)}
+        onDuplicateProject={(id) => void duplicate(id)}
+        onRemoveProject={(id) => void remove(id)}
         onImport={onImport}
         onRecord={onRecord}
         onOpenOther={() => void pick()}

@@ -243,29 +243,6 @@ const mixSheet: Probe = async () => {
   ).toBeInTheDocument();
 };
 
-const homeScreenHint: Probe = async () => {
-  for (const [key, value] of Object.entries({
-    standalone: false,
-    maxTouchPoints: 5,
-  })) {
-    Object.defineProperty(navigator, key, { value, configurable: true });
-  }
-  vi.stubGlobal(
-    "matchMedia",
-    (query: string) =>
-      ({
-        media: query,
-        matches: query === "(display-mode: browser)",
-        addEventListener: () => {},
-        removeEventListener: () => {},
-      }) as unknown as MediaQueryList,
-  );
-  mountFrame();
-  expect(
-    screen.getByRole("complementary", { name: "Full screen" }),
-  ).toBeInTheDocument();
-};
-
 const gesturesButton: Probe = async () => {
   asHost("edit");
   useDawStore.getState().setCommandPaletteOpen(true);
@@ -493,7 +470,6 @@ const REMOVED_SURFACES: Entry[] = [
     plusMenuRow(/Add chapter at playhead/, "edit.addChapter"),
   ]),
   component("More hub", "Gestures", [gesturesButton]),
-  component("More hub", "Home-screen hint", [homeScreenHint]),
   component("More hub", "People", [peopleSlot]),
 
   // Tool rail and the transport bar's own tool buttons.

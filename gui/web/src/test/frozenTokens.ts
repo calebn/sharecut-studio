@@ -117,22 +117,6 @@ export const FROZEN: readonly (readonly [string, readonly string[]])[] = [
     ["linear-gradient( to left, var(--color-timeline-edge), transparent )"],
   ],
   [
-    "--bg-empty-stage-card",
-    ["color-mix( in srgb, var(--color-timeline-lane) 80%, transparent )"],
-  ],
-  [
-    "--bg-empty-stage-ghost",
-    [
-      "repeating-linear-gradient( to right, transparent 0 0.375rem, var(--color-timeline-text) 0.375rem 0.5rem, transparent 0.5rem 0.75rem )",
-    ],
-  ],
-  [
-    "--shadow-empty-stage-hover",
-    [
-      "inset 0 0 4rem var(--color-timeline-vignette), 0 0 1.5rem var(--color-transport-play-glow)",
-    ],
-  ],
-  [
     "--bg-scroll-shadows-raised",
     [
       "linear-gradient(var(--color-bg-raised) 30%, transparent) top / 100% 2rem no-repeat local, linear-gradient(transparent, var(--color-bg-raised) 70%) bottom / 100% 2rem no-repeat local, radial-gradient(farthest-side at 50% 0, var(--color-shadow), transparent) top / 100% 0.5rem no-repeat, radial-gradient(farthest-side at 50% 100%, var(--color-shadow), transparent) bottom / 100% 0.5rem no-repeat",
