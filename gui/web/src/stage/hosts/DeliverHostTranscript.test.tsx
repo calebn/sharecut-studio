@@ -21,6 +21,7 @@ import { clearRegisteredCommands, execute } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { FeaturesContext } from "../../extensions/FeaturesContext";
 import { useDawStore } from "../../state/dawStore";
+import { deferred } from "../../test/deferred";
 import {
   BOUNCE_FINISHED,
   EXPORT_FINISHED,
@@ -103,6 +104,68 @@ describe("Transcript on the Deliver stage", () => {
       ).toHaveFocus(),
     );
     expect(useDawStore.getState().chrome.transcriptRequested).toBe(false);
+  });
+
+  it("retains a pending command through host and transcript preview loading", async () => {
+    const preview = deferred<typeof dryRun>();
+    vi.mocked(api.exportTranscript).mockReturnValueOnce(preview.promise);
+    asHost(true);
+    const project = useDawStore.getState().project!;
+    useDawStore.setState({ project: null });
+    useDawStore.getState().setTranscriptRequested(true);
+    render(<Host />);
+    await act(async () => {});
+    expect(useDawStore.getState().chrome.transcriptRequested).toBe(true);
+    act(() => useDawStore.getState().setProject(project));
+    await waitFor(() =>
+      expect(useDawStore.getState().chrome.transcriptRequested).toBe(false),
+    );
+    expect(screen.queryByText("Hello there.")).toBeNull();
+    await act(async () => preview.resolve(dryRun));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Export 2 files" }),
+      ).toHaveFocus(),
+    );
+  });
+
+  it("accepts a repeated transcript command after the first focus was acknowledged", async () => {
+    asHost(true);
+    render(<Host />);
+    await screen.findByText("Hello there.");
+    act(() => useDawStore.getState().setTranscriptRequested(true));
+    const exportButton = screen.getByRole("button", { name: "Export 2 files" });
+    await waitFor(() => expect(exportButton).toHaveFocus());
+    expect(useDawStore.getState().chrome.transcriptRequested).toBe(false);
+    exportButton.blur();
+    act(() => useDawStore.getState().setTranscriptRequested(true));
+    await waitFor(() => expect(exportButton).toHaveFocus());
+    expect(useDawStore.getState().chrome.transcriptRequested).toBe(false);
+  });
+
+  it("does not transfer a held transcript focus intent into a replacement project epoch", async () => {
+    const oldPreview = deferred<typeof dryRun>();
+    vi.mocked(api.exportTranscript).mockReturnValueOnce(oldPreview.promise);
+    asHost(true);
+    render(<Host />);
+    act(() => useDawStore.getState().setTranscriptRequested(true));
+    await waitFor(() =>
+      expect(useDawStore.getState().chrome.transcriptRequested).toBe(false),
+    );
+    await waitFor(() => expect(api.exportTranscript).toHaveBeenCalledTimes(1));
+    act(() =>
+      useDawStore.setState({
+        projectEpoch: useDawStore.getState().projectEpoch + 1,
+      }),
+    );
+    await screen.findByText("Hello there.");
+    try {
+      expect(
+        screen.getByRole("button", { name: "Export 2 files" }),
+      ).not.toHaveFocus();
+    } finally {
+      await act(async () => oldPreview.resolve(dryRun));
+    }
   });
 
   it("sends a project without a transcript to Prepare", async () => {

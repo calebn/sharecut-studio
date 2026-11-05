@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
   addChapter,
@@ -81,6 +81,41 @@ import { useTunnelStatus } from "./useTunnelStatus";
 export type DeliverStageProps = {
   loadFailure?: LoadFailure | null;
 };
+
+type FocusIntent = { accepted: boolean; focus: boolean };
+type DeliverEntry = {
+  owner: { path: string | null; epoch: number };
+  settingsAfter: number;
+  transcript: FocusIntent;
+  share: FocusIntent;
+  bounce: FocusIntent;
+};
+
+function enterDeliver(
+  path: string | null,
+  epoch: number,
+  loadedGeneration: number,
+): DeliverEntry {
+  return {
+    owner: { path, epoch },
+    settingsAfter: loadedGeneration,
+    transcript: { accepted: false, focus: false },
+    share: { accepted: false, focus: false },
+    bounce: { accepted: false, focus: false },
+  };
+}
+
+function acceptFocusIntent(
+  current: FocusIntent,
+  requested: boolean,
+  eligible: boolean,
+  offered = true,
+): FocusIntent {
+  if (!requested)
+    return current.accepted ? { ...current, accepted: false } : current;
+  if (!eligible || current.accepted) return current;
+  return { accepted: true, focus: current.focus || offered };
+}
 
 let liveHosts = 0;
 
@@ -244,9 +279,40 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     offline.pending > 0 ||
     offline.settling;
 
-  const wantedSettings = useRef<number | null>(null);
+  const [entry, setEntry] = useState(() =>
+    enterDeliver(projectPath, projectEpoch, exportFlow.loadedGeneration),
+  );
+  const { owner } = entry;
+  if (owner.path !== projectPath || owner.epoch !== projectEpoch) {
+    setEntry(
+      enterDeliver(projectPath, projectEpoch, exportFlow.loadedGeneration),
+    );
+  } else {
+    const transcript = acceptFocusIntent(
+      entry.transcript,
+      transcriptRequested,
+      state === "ready",
+    );
+    const share = acceptFocusIntent(
+      entry.share,
+      shareRequested,
+      state === "ready" && featuresReady,
+      shareOffered,
+    );
+    const bounce = acceptFocusIntent(
+      entry.bounce,
+      bounceRequested,
+      state === "ready",
+    );
+    if (
+      transcript !== entry.transcript ||
+      share !== entry.share ||
+      bounce !== entry.bounce
+    )
+      setEntry({ ...entry, transcript, share, bounce });
+  }
   useEffect(() => {
-    wantedSettings.current = reloadExportSettings();
+    reloadExportSettings();
   }, [reloadExportSettings]);
   const exportBlockedReason =
     exportCmd.whenReason ??
@@ -293,12 +359,18 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
   useEffect(() => {
     if (exportDone) reloadTranscript();
   }, [exportDone, reloadTranscript]);
-  const [focusTranscript, setFocusTranscript] = useState(false);
-  const clearTranscriptFocus = useCallback(() => setFocusTranscript(false), []);
+  const clearTranscriptFocus = useCallback(
+    () =>
+      setEntry((current) =>
+        current.owner === owner && current.transcript.focus
+          ? { ...current, transcript: { ...current.transcript, focus: false } }
+          : current,
+      ),
+    [owner],
+  );
   useEffect(() => {
     if (!transcriptRequested || state !== "ready") return;
     setTranscriptRequested(false);
-    setFocusTranscript(true);
   }, [transcriptRequested, state, setTranscriptRequested]);
   const exportOptions = exportOptionsOf(exportFlow);
   const formatsBlocker =
@@ -340,9 +412,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
       }, 0);
     };
   }, []);
-  const settingsCurrent =
-    wantedSettings.current !== null &&
-    exportFlow.loadedGeneration >= wantedSettings.current;
+  const settingsCurrent = exportFlow.loadedGeneration > entry.settingsAfter;
   useEffect(() => {
     if (exportRequested && (unsaved || offline.pending > 0))
       setExportRequested(false);
@@ -370,24 +440,35 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     currentRequest,
   ]);
   const [findingClips, setFindingClips] = useState(false);
-  const [focusShare, setFocusShare] = useState(false);
-  const clearShareFocus = useCallback(() => setFocusShare(false), []);
+  const clearShareFocus = useCallback(
+    () =>
+      setEntry((current) =>
+        current.owner === owner && current.share.focus
+          ? { ...current, share: { ...current.share, focus: false } }
+          : current,
+      ),
+    [owner],
+  );
   useEffect(() => {
     if (!shareRequested || state !== "ready" || !featuresReady) return;
     setShareRequested(false);
-    if (shareOffered) setFocusShare(true);
-  }, [shareRequested, state, featuresReady, shareOffered, setShareRequested]);
-  // The links are listed as Deliver shows, and again for a reopened project.
+  }, [shareRequested, state, featuresReady, setShareRequested]);
   useEffect(() => {
     if (state !== "ready" || !shareOffered || !projectPath) return;
     reloadShares();
   }, [state, shareOffered, projectPath, projectEpoch, reloadShares]);
-  const [focusBounce, setFocusBounce] = useState(false);
-  const clearBounceFocus = useCallback(() => setFocusBounce(false), []);
+  const clearBounceFocus = useCallback(
+    () =>
+      setEntry((current) =>
+        current.owner === owner && current.bounce.focus
+          ? { ...current, bounce: { ...current.bounce, focus: false } }
+          : current,
+      ),
+    [owner],
+  );
   useEffect(() => {
     if (!bounceRequested || state !== "ready") return;
     setBounceRequested(false);
-    setFocusBounce(true);
   }, [bounceRequested, state, setBounceRequested]);
   useEffect(() => {
     if (!projectPath || state !== "ready" || draft.page?.key === seedKey)
@@ -429,7 +510,6 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
   const onFindClips = () => {
     if (!projectPath || findingClips) return;
     setFindingClips(true);
-    // The project refreshes through document sync; the body remounts with the new clips.
     sendDeliverEdit(projectPath, async (path) => {
       try {
         await proposeSocialClips(path);
@@ -529,7 +609,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
             range: bounceRange,
             clearRange: () => setBounceRange(null),
             blockedReason: bounceCmd.whenReason,
-            focusRequested: focusBounce,
+            focusRequested: entry.bounce.focus,
             onFocused: clearBounceFocus,
           })}
           feed={
@@ -564,7 +644,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
             onCopy: transcriptFlow.copyText,
             onRetry: transcriptFlow.reload,
             onPrepare: () => runPointerCommand("stage.prepare"),
-            focusRequested: focusTranscript,
+            focusRequested: entry.transcript.focus,
             onFocused: clearTranscriptFocus,
           }}
           share={
@@ -573,7 +653,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
                   tunnel,
                   blockedReason: shareCmd.whenReason,
                   onOpenRecord: () => runPointerCommand("stage.record"),
-                  focusRequested: focusShare,
+                  focusRequested: entry.share.focus,
                   onFocused: clearShareFocus,
                 })
               : undefined
@@ -607,7 +687,13 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
           <Slot id={FEATURE_SHARE_UI_MENU}>
             <Button
               disabledReason={shareCmd.whenReason}
-              onClick={() => setFocusShare(true)}
+              onClick={() =>
+                setEntry((current) =>
+                  current.owner === owner
+                    ? { ...current, share: { ...current.share, focus: true } }
+                    : current,
+                )
+              }
             >
               Share a listen link
             </Button>

@@ -13,6 +13,7 @@ vi.mock("../../services/offlineQueue/offlineStore", async (importOriginal) => ({
 import { clearRegisteredCommands, execute } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { useDawStore } from "../../state/dawStore";
+import { deferred } from "../../test/deferred";
 import {
   EXPORT_FINISHED,
   EXPORT_MODEL_NEEDED,
@@ -578,6 +579,26 @@ describe("the export command", () => {
       path: PATH,
       formats: [{ ext: "flac", codec: "flac" }],
     });
+  });
+
+  it("does not admit a replacement project's Export from an old settings completion", async () => {
+    const old = deferred();
+    const current = deferred();
+    server.holdConfig = old.promise;
+    render(<Host />);
+    await waitFor(() => expect(server.configRequests).toContain(PATH));
+    const nextPath = "/tmp/next/episode.sharecut";
+    server.holdConfig = current.promise;
+    act(() => {
+      asHost(nextPath);
+      useDawStore.getState().setExportRequested(true);
+    });
+    await waitFor(() => expect(server.configRequests).toContain(nextPath));
+    await act(async () => old.resolve());
+    expect(server.exportRequests).toEqual([]);
+    await act(async () => current.resolve());
+    await waitFor(() => expect(server.exportRequests).toHaveLength(1));
+    expect(server.exportRequests[0]?.path).toBe(nextPath);
   });
 
   it("waits for the settings before it starts", async () => {
