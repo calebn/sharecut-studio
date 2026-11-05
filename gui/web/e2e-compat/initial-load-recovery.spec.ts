@@ -47,6 +47,9 @@ async function proveHungLoadRecovers(
   }
 
   answering = true;
+  // WebKit does not move focus on a click, so focus first: the proof is that
+  // pressing the button does not lose it.
+  await retry.focus();
   await retry.click();
   await expect.poll(() => stateRequests.length).toBe(attempts + 1);
   // The same button stays, busy and focused, while the retry is in flight.
