@@ -123,9 +123,7 @@ describe("stageActionFor", () => {
   it("ignores chords with Ctrl or Meta", () => {
     expect(stageActionFor(key("x", { metaKey: true }))).toBeNull();
   });
-});
 
-describe("stageActionFor with Mod+E", () => {
   it("does not swallow Mod+E, so export reaches the keymap", () => {
     expect(stageActionFor(key("e", { ctrlKey: true }))).toBeNull();
     expect(stageActionFor(key("e", { metaKey: true }))).toBeNull();

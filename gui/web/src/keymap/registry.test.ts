@@ -533,6 +533,7 @@ describe("remapped shortcuts", () => {
         keyEvent({ key: "X", code: "KeyX", metaKey: true, shiftKey: true }),
       )?.id,
     ).toBe("history.redo");
+    // Bare X alone must not look bound in menus nor fire Redo.
     expect(
       matchKeymapCommand(keyEvent({ key: "x", code: "KeyX" }))?.id,
     ).not.toBe("history.redo");
