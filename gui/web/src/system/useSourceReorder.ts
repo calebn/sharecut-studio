@@ -70,10 +70,11 @@ export function useSourceReorder(
       )
         return;
       const card = event.currentTarget.closest<HTMLElement>("[data-source-id]");
-      const cards = card?.parentElement
+      const list = card?.parentElement?.parentElement;
+      const cards = list
         ? [
-            ...card.parentElement.querySelectorAll<HTMLElement>(
-              ":scope > [data-source-id]",
+            ...list.querySelectorAll<HTMLElement>(
+              ":scope > * > [data-source-id]",
             ),
           ]
         : [];

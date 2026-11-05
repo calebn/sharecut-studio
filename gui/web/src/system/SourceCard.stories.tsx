@@ -152,9 +152,9 @@ export const ReplaceByDrop: Story = {
     });
     const file = new File(["RIFF"], "take2.wav", { type: "audio/wav" });
     const dataTransfer = { types: ["Files"], files: [file] };
-    fireEvent.dragEnter(card, { dataTransfer });
+    await fireEvent.dragEnter(card, { dataTransfer });
     await expect(card).toHaveAttribute("data-drop-over", "true");
-    fireEvent.drop(card, { dataTransfer });
+    await fireEvent.drop(card, { dataTransfer });
     await expect(args.onDropAudio).toHaveBeenCalledWith([file]);
     await expect(card).not.toHaveAttribute("data-drop-over");
   },
