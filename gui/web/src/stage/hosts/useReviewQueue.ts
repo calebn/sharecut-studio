@@ -728,7 +728,6 @@ export function useReviewQueue(guestShare = false) {
     const mode = side === "A" ? "current" : "suggested";
     const outcome = await playPendingPreview(projectPath, editId, mode, {
       padSec: 3,
-      startAtEdit: true,
     });
     if (outcome.status === "disabled")
       useDawStore.getState().announceStatus(outcome.reason, { tone: "error" });
