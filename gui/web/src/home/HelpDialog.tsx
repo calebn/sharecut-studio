@@ -14,6 +14,7 @@ import {
 } from "../api";
 import type { HelpStep } from "../state/types";
 import { errorMessage } from "../utils/apiError";
+import { useStableCallback } from "../utils/useStableCallback";
 import { HelpDialogView } from "./HelpDialogView";
 
 type Props = {
@@ -39,6 +40,7 @@ export function HelpDialog({
     setWasOpen(open);
     if (open) setStep(initialStep);
   }
+  const [session, setSession] = useState({ open, epoch: 0 });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [bundle, setBundle] = useState<DiagnosticsBundleResult | null>(null);
@@ -46,34 +48,42 @@ export function HelpDialog({
   const [consent, setConsent] = useState(false);
   const [submitted, setSubmitted] = useState<string | null>(null);
   const submitting = useRef(false);
-  const reportSent = useRef(false);
+  const [reportSent, setReportSent] = useState(false);
   const activeReportUrl = useRef<string | null>(null);
   const requestGeneration = useRef(0);
   const [reportStatus, setReportStatus] = useState<string | null>(null);
   const [reportAvailable, setReportAvailable] = useState(false);
   const [issueUrl, setIssueUrl] = useState<string | null>(null);
   const [supportUrl, setSupportUrl] = useState<string | null>(null);
+  if (session.open !== open) {
+    setSession({ open, epoch: session.epoch + 1 });
+    if (!open) {
+      setBusy(false);
+      setError(null);
+      setBundle(null);
+      if (reportSent) setDescription("");
+      setReportSent(false);
+      setConsent(false);
+      setSubmitted(null);
+      setReportStatus(null);
+      setIssueUrl(null);
+    }
+  }
+  const acceptsSession = useStableCallback(
+    (epoch: number) => open && session.epoch === epoch,
+  );
 
   useEffect(() => {
     if (!open) {
       requestGeneration.current += 1;
-      setBusy(false);
-      setError(null);
-      setBundle(null);
-      if (reportSent.current) setDescription("");
-      reportSent.current = false;
-      setConsent(false);
-      setSubmitted(null);
       submitting.current = false;
       activeReportUrl.current = null;
-      setReportStatus(null);
-      setIssueUrl(null);
       return;
     }
     let cancelled = false;
     void fetchDiagnosticsMeta()
       .then((meta) => {
-        if (!cancelled) {
+        if (!cancelled && acceptsSession(session.epoch)) {
           setSupportUrl(meta.support_url);
           setReportAvailable(meta.report_available);
         }
@@ -84,7 +94,7 @@ export function HelpDialog({
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, session.epoch, acceptsSession]);
 
   useEffect(() => {
     if (!open || !submitted || issueUrl || reportStatus === "failed") return;
@@ -92,7 +102,11 @@ export function HelpDialog({
     const check = () => {
       void fetchDiagnosticsReportStatus(submitted)
         .then((result) => {
-          if (!cancelled && activeReportUrl.current === submitted) {
+          if (
+            !cancelled &&
+            acceptsSession(session.epoch) &&
+            activeReportUrl.current === submitted
+          ) {
             setReportStatus(result.status);
             if (result.status === "published") setIssueUrl(result.issue_url);
           }
@@ -107,7 +121,7 @@ export function HelpDialog({
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [open, submitted, issueUrl, reportStatus]);
+  }, [open, submitted, issueUrl, reportStatus, session.epoch, acceptsSession]);
 
   const onCreate = useCallback(async () => {
     requestGeneration.current += 1;
@@ -122,22 +136,31 @@ export function HelpDialog({
     setError(null);
     try {
       const result = await createDiagnosticsBundle();
-      if (!open || generation !== requestGeneration.current) {
+      if (
+        !acceptsSession(session.epoch) ||
+        generation !== requestGeneration.current
+      ) {
         return;
       }
       setBundle(result);
       setSupportUrl(result.support_url);
     } catch (err) {
-      if (!open || generation !== requestGeneration.current) {
+      if (
+        !acceptsSession(session.epoch) ||
+        generation !== requestGeneration.current
+      ) {
         return;
       }
       setError(errorMessage(err));
     } finally {
-      if (open && generation === requestGeneration.current) {
+      if (
+        acceptsSession(session.epoch) &&
+        generation === requestGeneration.current
+      ) {
         setBusy(false);
       }
     }
-  }, [open]);
+  }, [session.epoch, acceptsSession]);
 
   const onSubmit = useCallback(async () => {
     if (!bundle || !consent || submitted || submitting.current) return;
@@ -154,7 +177,10 @@ export function HelpDialog({
         description,
         consent,
       });
-      if (!open || generation !== requestGeneration.current) {
+      if (
+        !acceptsSession(session.epoch) ||
+        generation !== requestGeneration.current
+      ) {
         // Clear only the draft that was sent, not one typed since a reopen.
         setDescription((current) =>
           current === sentDescription ? "" : current,
@@ -162,19 +188,25 @@ export function HelpDialog({
         return;
       }
       activeReportUrl.current = result.status_url;
-      reportSent.current = true;
+      setReportSent(true);
       setSubmitted(result.status_url);
       setReportStatus("queued");
     } catch (err) {
-      if (open && generation === requestGeneration.current)
+      if (
+        acceptsSession(session.epoch) &&
+        generation === requestGeneration.current
+      )
         setError(errorMessage(err));
     } finally {
-      if (open && generation === requestGeneration.current) {
+      if (
+        acceptsSession(session.epoch) &&
+        generation === requestGeneration.current
+      ) {
         submitting.current = false;
         setBusy(false);
       }
     }
-  }, [bundle, consent, description, open, submitted]);
+  }, [bundle, consent, description, submitted, session.epoch, acceptsSession]);
 
   const issueHref = bundle?.support_url ?? supportUrl;
   const fallbackHref =

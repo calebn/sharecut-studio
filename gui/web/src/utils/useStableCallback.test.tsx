@@ -311,6 +311,7 @@ describe("stable callback source governance", () => {
         .map(({ source, callback }) => `${source.rel}:${callback}`)
         .sort(),
     ).toEqual([
+      "home/HelpDialog.tsx:acceptsSession",
       "hooks/useAudioTransport.ts:playbackInputs",
       "hooks/useCommitRange.ts:restoreSaved",
       "hooks/useFileMetaPoll.ts:fetchCurrentMeta",
@@ -335,6 +336,7 @@ describe("stable callback source governance", () => {
       "record/useRecordSync.ts:currentName",
       "stage/edit/script/ScriptHost.tsx:onSelect",
       "stage/edit/script/useScriptFind.ts:advance",
+      "stage/dialogs/HostMcpDialog.tsx:acceptsSession",
       "stage/edit/script/useScriptFind.ts:closeBar",
       "stage/edit/script/useScriptFind.ts:openBar",
       "stage/edit/script/useScriptFixText.tsx:commit",
