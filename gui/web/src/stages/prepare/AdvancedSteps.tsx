@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { ScrubField } from "../../system/ScrubField";
 import { StatusRow } from "../../system/StatusRow";
 import { SystemIcon } from "../../system/SystemIcon";
 import { useFocusRescue } from "../../system/useFocusRescue";
@@ -9,6 +10,7 @@ import {
   SegmentedControl,
   ToggleButton,
 } from "../../ui";
+import { LanguagePicker } from "./LanguagePicker";
 
 type ScrubParam = {
   kind: "scrub";
@@ -97,10 +99,9 @@ function clampedValue(param: ScrubParam): number {
   return Math.min(param.max, Math.max(param.min, value));
 }
 
-function valueText(param: ScrubParam): string {
+function unitFor(param: ScrubParam, value: number): string {
   const [one, many] = param.unit;
-  const value = Number(clampedValue(param).toFixed(6));
-  return `${value} ${value === 1 ? one : many}`;
+  return value === 1 ? one : many;
 }
 
 function Help({ id, children }: { id: string; children: ReactNode }) {
@@ -135,24 +136,45 @@ function ParamField({
   const field = useRef<HTMLDivElement>(null);
   useFocusRescue(
     field,
-    () => () => field.current?.querySelector<HTMLElement>("input, select"),
+    () => () =>
+      field.current?.querySelector<HTMLElement>("input, [role='spinbutton']"),
   );
-  const shown = param.kind === "scrub" ? clampedValue(param) : param.value;
-  const changed = shown !== param.defaultValue;
-  const known =
-    param.kind === "language" &&
-    param.options.some((option) => option.value === param.value);
+  if (param.kind === "scrub") {
+    const shown = clampedValue(param);
+    return (
+      <div ref={field} className="sys-adv-field">
+        <div className="sys-adv-field-head">
+          <p className="sys-adv-label" aria-hidden="true">
+            {param.label}
+          </p>
+        </div>
+        <ScrubField
+          variant="track"
+          label={param.label}
+          describedBy={describedBy}
+          value={shown}
+          unit={unitFor(param, shown)}
+          min={param.min}
+          max={param.max}
+          step={param.step}
+          defaultValue={param.defaultValue}
+          readOnly={off || Boolean(busyId)}
+          onCommit={(next) => {
+            if (next === param.defaultValue) onReset(stepId, param.id);
+            else onParam(stepId, param.id, next);
+          }}
+        />
+        <Help id={helpId}>{param.help}</Help>
+      </div>
+    );
+  }
+  const changed = param.value !== param.defaultValue;
   return (
     <div ref={field} className="sys-adv-field">
       <div className="sys-adv-field-head">
         <label className="sys-adv-label" htmlFor={id}>
           {param.label}
         </label>
-        {param.kind === "scrub" ? (
-          <span className="sys-adv-value" aria-hidden="true">
-            {valueText(param)}
-          </span>
-        ) : null}
         {changed ? (
           <button
             type="button"
@@ -169,47 +191,17 @@ function ParamField({
           </button>
         ) : null}
       </div>
-      {param.kind === "scrub" ? (
-        <input
-          id={id}
-          type="range"
-          className="sys-adv-range"
-          min={param.min}
-          max={param.max}
-          step={param.step}
-          value={shown}
-          disabled={off}
-          aria-disabled={busyId ? true : undefined}
-          aria-valuetext={valueText(param)}
-          aria-describedby={describedBy}
-          onChange={(event) => {
-            if (!busyId) onParam(stepId, param.id, Number(event.target.value));
-          }}
-        />
-      ) : (
-        <select
-          id={id}
-          className="sys-adv-select"
-          value={param.value}
-          disabled={off}
-          aria-disabled={busyId ? true : undefined}
-          aria-describedby={describedBy}
-          onChange={(event) => {
-            if (!busyId) onParam(stepId, param.id, event.target.value);
-          }}
-        >
-          {known ? null : (
-            <option value={param.value} disabled>
-              {param.value ? `Custom (${param.value})` : "Custom"}
-            </option>
-          )}
-          {param.options.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      )}
+      <LanguagePicker
+        id={id}
+        options={param.options}
+        value={param.value}
+        disabled={off}
+        locked={Boolean(busyId)}
+        describedBy={describedBy}
+        onChoose={(value) => {
+          if (!busyId) onParam(stepId, param.id, value);
+        }}
+      />
       <Help id={helpId}>{param.help}</Help>
     </div>
   );

@@ -1,10 +1,13 @@
-import { useId, useRef, useState } from "react";
+import { type DragEvent, useRef, useState } from "react";
+import { audioFilesFromDrop } from "../ingest/dropLabels";
 import { Button, Field, Menu, MenuItem } from "../ui";
 import { OverviewStrip } from "./OverviewStrip";
 import { percentOf } from "./progress";
+import { ScrubField } from "./ScrubField";
 import { StatusRow } from "./StatusRow";
 import { SystemIcon } from "./SystemIcon";
 import { useFocusRescue } from "./useFocusRescue";
+import type { SourceGrip } from "./useSourceReorder";
 
 type SourceCardState =
   | "uploading"
@@ -18,6 +21,7 @@ type SourceCardState =
 
 const MIN_VOICES = 2;
 const MAX_VOICES = 8;
+const VOICES_UNIT = "voices";
 const MAX_NAME = 80;
 
 export type SourceCardProps = {
@@ -49,10 +53,16 @@ export type SourceCardProps = {
   onCancelSplit?: () => void;
   onRemove: () => void;
   onReplace?: () => void;
+  /** Audio dropped on the card replaces its audio at once; Undo is the toast's. */
+  onDropAudio?: (files: File[]) => void;
+  /** True while audio is dragged over the card, so the stage can label the drop. */
+  onDropHover?: (over: boolean) => void;
   onMerge?: () => void;
   /** Reorder within the session without dragging. Omit at the ends. */
   onMoveUp?: () => void;
   onMoveDown?: () => void;
+  /** Pointer drag to reorder; the pointer-only twin of Move up and Move down. */
+  grip?: SourceGrip;
   /** Plain cause when the file failed. */
   cause?: string;
   onRetry?: () => void;
@@ -106,9 +116,12 @@ export function SourceCard({
   onCancelSplit,
   onRemove,
   onReplace,
+  onDropAudio,
+  onDropHover,
   onMerge,
   onMoveUp,
   onMoveDown,
+  grip,
   cause,
   onRetry,
   onDetails,
@@ -118,7 +131,8 @@ export function SourceCard({
   const [menuOpen, setMenuOpen] = useState(false);
   const card = useRef<HTMLElement>(null);
   useFocusRescue(card, () => () => card.current);
-  const reasonId = useId();
+  const dragDepth = useRef(0);
+  const [dropOver, setDropOver] = useState(false);
   const named = name.trim();
   const who = !named
     ? `voice ${index}`
@@ -126,13 +140,14 @@ export function SourceCard({
       ? `${named}, voice ${index}`
       : named;
   const splittable = canSplit ?? state === "split-prompt";
-  const atFewest = voices <= MIN_VOICES;
-  const atMost = voices >= MAX_VOICES;
-  const reason = atFewest
-    ? "Two is the fewest"
-    : atMost
-      ? "Eight is the most"
-      : null;
+  const accepting =
+    onDropAudio !== undefined && hasAudio(state) && state !== "splitting";
+  const setOver = (over: boolean) => {
+    setDropOver(over);
+    onDropHover?.(over);
+  };
+  const carriesFiles = (event: DragEvent) =>
+    accepting && Array.from(event.dataTransfer.types).includes("Files");
   return (
     <section
       ref={card}
@@ -141,6 +156,30 @@ export function SourceCard({
       className="sys-source"
       aria-label={named ? `Voice ${index}, ${named}` : `Voice ${index}`}
       data-state={state}
+      data-drop-over={dropOver || undefined}
+      onDragEnter={(event) => {
+        if (!carriesFiles(event)) return;
+        dragDepth.current += 1;
+        if (dragDepth.current === 1) setOver(true);
+      }}
+      onDragOver={(event) => {
+        if (!carriesFiles(event)) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "copy";
+      }}
+      onDragLeave={(event) => {
+        if (!carriesFiles(event)) return;
+        dragDepth.current = Math.max(0, dragDepth.current - 1);
+        if (dragDepth.current === 0) setOver(false);
+      }}
+      onDrop={(event) => {
+        if (!carriesFiles(event)) return;
+        event.preventDefault();
+        dragDepth.current = 0;
+        setOver(false);
+        const files = audioFilesFromDrop(event.dataTransfer.files);
+        if (files.length > 0) onDropAudio?.(files);
+      }}
     >
       <Field
         label="Speaker name"
@@ -261,43 +300,17 @@ export function SourceCard({
               </Button>
               {splittable ? (
                 <>
-                  <div
-                    className="sys-stepper"
-                    role="group"
-                    aria-label="Number of voices"
-                    aria-describedby={reason ? reasonId : undefined}
-                  >
-                    <Button
-                      className="sys-stepper-button"
-                      aria-label={`Fewer voices for ${who}`}
-                      aria-disabled={atFewest || undefined}
-                      aria-describedby={atFewest ? reasonId : undefined}
-                      onClick={
-                        atFewest ? undefined : () => onVoices?.(voices - 1)
-                      }
-                    >
-                      <SystemIcon name="minus" size={16} />
-                    </Button>
-                    <output className="sys-stepper-value" aria-live="polite">
-                      {voices}
-                    </output>
-                    <Button
-                      className="sys-stepper-button"
-                      aria-label={`More voices for ${who}`}
-                      aria-disabled={atMost || undefined}
-                      aria-describedby={atMost ? reasonId : undefined}
-                      onClick={
-                        atMost ? undefined : () => onVoices?.(voices + 1)
-                      }
-                    >
-                      <SystemIcon name="plus" size={16} />
-                    </Button>
-                  </div>
-                  {reason ? (
-                    <span id={reasonId} className="sys-stepper-reason">
-                      {reason}
-                    </span>
-                  ) : null}
+                  <ScrubField
+                    label={`Number of voices for ${who}`}
+                    value={voices}
+                    unit={VOICES_UNIT}
+                    min={MIN_VOICES}
+                    max={MAX_VOICES}
+                    step={1}
+                    integerOnly
+                    defaultValue={MIN_VOICES}
+                    onCommit={(next) => onVoices?.(next)}
+                  />
                   <Button onClick={onSplit} aria-label={`Split ${who}`}>
                     <SystemIcon name="split" size={14} />
                     Split
@@ -309,6 +322,18 @@ export function SourceCard({
         </>
       ) : null}
       <div className="sys-source-actions">
+        {grip ? (
+          <button
+            type="button"
+            {...grip}
+            className="sys-source-grip"
+            tabIndex={-1}
+            aria-hidden="true"
+            data-grip
+          >
+            <span className="sys-source-grip-dots" />
+          </button>
+        ) : null}
         {state === "failed" && onDetails ? (
           <Button onClick={onDetails} aria-label={`Details for ${who}`}>
             Details

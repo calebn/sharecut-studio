@@ -5,6 +5,7 @@ import type {
 import { getByPath, setByPath } from "../../utils/configPath";
 import type { AdvancedGroup, AdvancedStep } from "./AdvancedSteps";
 import { SOUND_SCAN_COST, SOUND_SCAN_PATH, SOUND_SCAN_STEP } from "./soundScan";
+import { AUTO_LANGUAGE, LANGUAGES } from "./whisperLanguages";
 
 /**
  * The four pipeline steps that have a row in the Prepare design, with the one
@@ -41,22 +42,12 @@ type StepDef = {
 type GroupDef = { id: string; title: string; steps: readonly StepDef[] };
 
 const LANGUAGE_PATH = "transcribe.language";
-const AUTO_LANGUAGE = "auto";
 const TIGHTEN_ENABLED_PATH = "tighten.enabled";
 /** A switch on one of these also turns tighten on or off in the saved settings. */
 const TIGHTEN_STEPS = new Set([
   "analyze_fillers_pauses",
   "tighten_from_transcript",
 ]);
-
-const LANGUAGES = [
-  { value: AUTO_LANGUAGE, label: "Detect automatically" },
-  { value: "en", label: "English" },
-  { value: "es", label: "Spanish" },
-  { value: "fr", label: "French" },
-  { value: "de", label: "German" },
-  { value: "nl", label: "Dutch" },
-] as const;
 
 const SECONDS = ["second", "seconds"] as const;
 

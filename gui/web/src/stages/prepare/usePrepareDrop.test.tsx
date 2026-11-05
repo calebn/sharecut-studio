@@ -55,6 +55,16 @@ describe("usePrepareDrop", () => {
     expect(ingestFiles).toHaveBeenCalledWith([wav], { kind: "new" });
   });
 
+  it("leaves a drop to the card that already took it, and still ends the frame", () => {
+    const { result } = renderHook(() => usePrepareDrop(true));
+    act(() => void window.dispatchEvent(drag("dragenter", [wav])));
+    const claimed = drag("drop", [wav]);
+    claimed.preventDefault();
+    act(() => void window.dispatchEvent(claimed));
+    expect(ingestFiles).not.toHaveBeenCalled();
+    expect(result.current.active).toBe(false);
+  });
+
   it("does nothing when adding is not allowed", () => {
     const { result } = renderHook(() => usePrepareDrop(false));
     act(() => void window.dispatchEvent(drag("dragenter", [wav])));
