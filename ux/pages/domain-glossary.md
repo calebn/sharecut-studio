@@ -24,7 +24,6 @@ Two layers: **Partner terms** (plain language) and **Schema map** (for people wh
 | **Review link** | `/r/…` URL with limited powers. It works until the host chooses **Stop sharing**; it never expires on its own |
 | **Viewer / Commenter / Editor** | Review-link roles, as in Google Docs. Viewer views and plays; Commenter (default) also comments and suggests edits; Editor also edits directly and approves or rejects suggestions |
 | **ShareCut Studio guest** | Full-ish timeline UI; every review role opens it |
-| **Mode banner** | Top strip naming Shared edit / comment / read-only view |
 | **Proxy listen** | Short MP3 chunks for guest playback (faster than full WAVs) |
 | **Needs attention** | Host pending edits and host/guest offline conflicts |
 | **Offline queue** | Guest edits waiting until the network returns |
