@@ -24,12 +24,12 @@ All paths are relative to `gui/web/src/` unless they start with `/` or a repo fo
 | Dialogs, sheets and popovers (DLG- 15, SHEET- 3, POP- 4) | 22 |
 | Panels and inspector variants (PNL- 6, INS- 14) | 20 |
 | Menus (MENU-) | 4 |
-| Components, overlays, banners, toasts, status items, empty states (CMP- 48, OVL- 11, BAN- 4, TOAST/STAT/EMPTY/CHIP 4) | 67 |
+| Components, overlays, banners, toasts, status items, empty states (CMP- 49, OVL- 11, BAN- 4, TOAST/STAT/EMPTY/CHIP 4) | 68 |
 | Interactions (INT-) | 46 |
-| Total catalogued items | 197 |
+| Total catalogued items | 198 |
 | Story files / exported stories | 88 files / 443 stories |
 
-Of the 151 non-interaction items: 64 have a story (yes), 33 partial, 54 none (counted from the Story column of the tables). Of the 46 interactions: 18 have a frozen-state story, 15 partial, 13 none. The per-surface table is section 14.
+Of the 152 non-interaction items: 65 have a story (yes), 33 partial, 54 none (counted from the Story column of the tables). Of the 46 interactions: 18 have a frozen-state story, 15 partial, 13 none. The per-surface table is section 14.
 
 ---
 
@@ -222,6 +222,7 @@ Guest mode comes from `guest_mode` in the review bootstrap: Viewer `view`, Comme
 | SCR-GUEST-OFFLINE | Cached snapshot when the host is unreachable | `/r/<token>` with bootstrap failing and a stored offline snapshot | `App.tsx`, `services/offlineQueue/offlineStore.ts`, `stage/frame/GuestAttentionBannerView.tsx` | `stage/frame/GuestAttentionBannerView.stories.tsx` (PendingHostEdits, Conflicts, PendingAndConflict, PhoneManyConflicts) | View | Keep working offline, show conflicts |
 | BAN-GUEST-VERSION | Guest "newer version available" notice | Host republishes while the guest is open | `stage/frame/GuestVersionNotice.tsx`, `stage/frame/GuestVersionNoticeView.tsx` | `stage/frame/GuestVersionNoticeView.stories.tsx` (Frozen, NewerAvailable, FollowsLatest, ChangedUnderGuest) | View | Prompt refresh |
 | BAN-GUEST-ATTENTION | Offline / pending host edits / conflicts attention banner | Guest with queued or conflicting edits | `stage/frame/GuestAttentionBanner.tsx`, `stage/frame/GuestAttentionBannerView.tsx` | `stage/frame/GuestAttentionBannerView.stories.tsx` | View | Surface sync state |
+| CMP-GUEST-CONFLICT | A share guest's offline edits that did not apply, as Check rows at the top of the Review queue: one row per conflict worded as the banner words it, Dismiss all (held while the edits are read), and an unreadable or failed-dismissal row with Retry. The banner still shows the same conflicts until it is removed | Review > Queue (share guest), under All and Checks | `review/ReviewQueue.tsx`, `review/reviewQueueModel.ts`, `stage/hosts/useReviewQueue.ts`, `stage/frame/attentionLabel.ts` | `review/ReviewQueue.stories.tsx` (GuestConflicts, GuestSavedEditsUnreadable) | Props | Notice an edit that did not apply |
 | CMP-GUEST-COMMENT | Guest comment compose and name field | Review queue composer (always shown to a Commenter) | `system/Composer.tsx`, `stage/hosts/ComposeAnchor.tsx` | Composer yes (`System/Composer`); `stage/hosts/ReviewHost.stories.tsx` GuestCommenterPhone390 renders the Composer in the Review host | Props | Leave feedback |
 
 Guest-specific interactions: INT-COMMENT-MODE, INT-COMMENT-RESOLVE (host only), INT-FOLLOW, INT-PENDING-SUGGEST (Commenter blade or select-range proposes edits for host review).
@@ -436,6 +437,7 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 | SCR-GUEST-VIEWER/COMMENTER/EDITOR/MOBILE | partial | Shell chrome and role toggles only; Role chip in the header, no first-visit hint story |
 | SCR-GUEST-LINK-INVALID | yes | ErrorScreen |
 | SCR-GUEST-OFFLINE, BAN-GUEST-ATTENTION | yes | |
+| CMP-GUEST-CONFLICT | yes | |
 | BAN-GUEST-VERSION | yes | |
 | CMP-GUEST-NAME, CMP-GUEST-COMMENT | partial | Compose yes; others no |
 | SCR-REC-LOADING, -INVALID, -FULL, -DECLINED, -LOBBY-*, -ROOM-*, CMP-REC-DEVICE/CONSENT/INDICATOR/ROSTER/LIVECOMMENTS/UPLOAD/CLIPPING | yes | |
@@ -447,7 +449,7 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 | STAT-LIVE, CMP-RAIL-PEEK | no | |
 | CMP-TUNNEL, CMP-PRESENCE-STATUS | yes | |
 
-Tally of the 151 non-interaction items, counted from the Story columns: 64 yes, 33 partial, 54 no. Interactions: 18 yes (frozen states), 15 partial, 13 none.
+Tally of the 152 non-interaction items, counted from the Story columns: 65 yes, 33 partial, 54 no. Interactions: 18 yes (frozen states), 15 partial, 13 none.
 
 ---
 

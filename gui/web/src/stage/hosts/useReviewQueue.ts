@@ -45,8 +45,18 @@ import {
   type WordTarget,
   wordIdOf,
 } from "../../review/reviewItems";
-import { itemVerb, landPlan } from "../../review/reviewQueueModel";
+import {
+  attentionRowsOf,
+  itemVerb,
+  landPlan,
+  type ReviewAttention,
+} from "../../review/reviewQueueModel";
 import { useReviewSession } from "../../review/reviewSession";
+import {
+  dismissAllConflicts,
+  refreshOfflineAttention,
+  useOfflineAttention,
+} from "../../services/offlineQueue/offlineAttention";
 import {
   canReviewPendingEdit,
   isGuestSession,
@@ -120,6 +130,28 @@ export function useReviewQueue(guestShare = false) {
     }));
   const guest = isGuestSession(projectPath, guestMode, guestShare);
   const comments = useReviewComments(guest);
+  const saved = useOfflineAttention(
+    isShareProjectKey(projectPath) ? projectPath : null,
+  );
+  const attention = useMemo<ReviewAttention | undefined>(() => {
+    if (!isShareProjectKey(projectPath)) return undefined;
+    const active = saved.conflicts.filter((conflict) => !conflict.dismissed);
+    return {
+      rows: attentionRowsOf(
+        saved.recoverySelection ? [...active, saved.recoverySelection] : active,
+        guest,
+      ),
+      unreadable: saved.status === "unreadable" || saved.status === "retrying",
+      dismissFailed: saved.status === "dismiss-failed",
+      checking:
+        saved.status === "checking" ||
+        saved.status === "retrying" ||
+        saved.status === "dismissing",
+      canDismiss: active.length > 0,
+      onDismissAll: () => dismissAllConflicts(projectPath),
+      onRetry: () => refreshOfflineAttention(projectPath),
+    };
+  }, [projectPath, saved]);
   const [status, setStatus] = useState<TranscriptCheckStatus | null>(null);
   const [bulkRunning, setBulkRunning] = useState<BulkProgress | null>(null);
   const [held, setHeld] = useState<ReadonlyMap<string, Held>>(new Map());
@@ -793,6 +825,7 @@ export function useReviewQueue(guestShare = false) {
       bulkRunning: bulkRunning ?? undefined,
       guest,
       canDecide,
+      attention,
       ...comments.stageProps,
       onDecide,
       onHear,

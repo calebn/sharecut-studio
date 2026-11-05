@@ -1,5 +1,11 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { useNowSec } from "../hooks/useNowSec";
+import {
+  DISMISS_FAILED_NOTE,
+  dismissReason,
+  NEEDS_ATTENTION,
+  UNREADABLE_NOTE,
+} from "../stage/frame/attentionLabel";
 import type { DecisionCardProps } from "../system/DecisionCard";
 import { type DecisionKind, KIND_META } from "../system/decisionKinds";
 import { QueueRow, type QueueRowProps } from "../system/QueueRow";
@@ -15,14 +21,18 @@ import { Button, EmptyState, SegmentedControl, ToggleButton } from "../ui";
 import { disabledAttrs, useDisabledReasonNote } from "../ui/disabledReason";
 import { formatTimeShort } from "../utils/time";
 import {
+  attentionLabelOf,
+  attentionVisible,
   commentLine,
   decidedItems,
+  dismissHeld,
   filterCounts,
   filterItems,
   groupQueue,
   kindInFilter,
   lowRiskBulk,
   progressLine,
+  type ReviewAttention,
   type ReviewFilter,
   type ReviewGroup,
   type ReviewItem,
@@ -86,6 +96,8 @@ export type ReviewQueueProps = {
   /** Without it the queue is comments only: no bulk verbs, Cut or Keep, swipes. */
   canDecide?: boolean;
   state?: "ready" | "loading" | "error";
+  /** A share guest's edits that did not apply. */
+  attention?: ReviewAttention;
   onFilter: (filter: ReviewFilter) => void;
   /** Without it the queue shows no speaker chips. */
   onSpeaker?: (speaker: string | null) => void;
@@ -208,6 +220,72 @@ function GroupHeader({
   );
 }
 
+function AttentionGroup({
+  attention,
+  onFocusChange,
+}: {
+  attention: ReviewAttention;
+  onFocusChange: (inside: boolean) => void;
+}) {
+  const { rows } = attention;
+  const reasonId = useId();
+  const held = dismissHeld(attention);
+  const failure = attention.unreadable
+    ? UNREADABLE_NOTE
+    : attention.dismissFailed
+      ? DISMISS_FAILED_NOTE
+      : null;
+  return (
+    <div
+      role="group"
+      className="rv-group"
+      aria-label={attentionLabelOf(attention)}
+      onFocus={() => onFocusChange(true)}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget))
+          onFocusChange(false);
+      }}
+    >
+      <div className="rv-group-head">
+        <SystemIcon name="triangle-alert" size={16} />
+        <span className="rv-group-name">{NEEDS_ATTENTION}</span>
+        <span className="sys-mono rv-group-count">{rows.length || "!"}</span>
+        {rows.length > 0 && attention.canDismiss ? (
+          <>
+            <Button
+              aria-disabled={held || undefined}
+              aria-describedby={held ? reasonId : undefined}
+              title={held ? dismissReason(attention) : undefined}
+              onClick={() => {
+                if (!held) attention.onDismissAll();
+              }}
+            >
+              Dismiss all
+            </Button>
+            {held ? (
+              <span id={reasonId} className="sr-only">
+                {dismissReason(attention)}
+              </span>
+            ) : null}
+          </>
+        ) : null}
+      </div>
+      {failure ? (
+        <StatusRow
+          state="failed"
+          title={failure}
+          action={{ label: "Retry", onAction: attention.onRetry }}
+        />
+      ) : null}
+      {rows.map((row) => (
+        <div key={row.id} className="rv-check">
+          <StatusRow state="needs-you" title={row.title} detail={row.detail} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function ReviewQueue({
   items,
   content,
@@ -219,6 +297,7 @@ export function ReviewQueue({
   guest = false,
   canDecide = !guest,
   state = "ready",
+  attention,
   onFilter,
   onSpeaker,
   onSelect,
@@ -245,6 +324,14 @@ export function ReviewQueue({
     !!bulkRunning &&
     kindInFilter(bulkRunning.kind, filter) &&
     !groups.some((g) => g.kind === bulkRunning.kind);
+  const showAttention = attentionVisible(attention, filter);
+  const attentionFocused = useRef(false);
+  const progressRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (showAttention || !attentionFocused.current) return;
+    attentionFocused.current = false;
+    progressRef.current?.focus();
+  }, [showAttention]);
   const reason = useDisabledReasonNote(guest ? undefined : findMoreDisabled);
 
   if (state !== "ready") {
@@ -268,7 +355,12 @@ export function ReviewQueue({
 
   const header = (
     <header className="rv-head">
-      <p className="rv-progress sys-mono" aria-live="polite">
+      <p
+        ref={progressRef}
+        tabIndex={-1}
+        className="rv-progress sys-mono"
+        aria-live="polite"
+      >
         {canDecide ? progressLine(items) : commentLine(items)}
       </p>
       <div className="rv-filter">
@@ -361,6 +453,14 @@ export function ReviewQueue({
           progress={job.progress}
         />
       ) : null}
+      {showAttention ? (
+        <AttentionGroup
+          attention={attention}
+          onFocusChange={(inside) => {
+            attentionFocused.current = inside;
+          }}
+        />
+      ) : null}
       {lowRisk ? (
         <section className="rv-group" aria-label="Low-risk edits">
           <div className="rv-group-head">
@@ -388,7 +488,7 @@ export function ReviewQueue({
           <BulkRow running={bulkRunning} />
         </section>
       ) : null}
-      {groups.length === 0 && !cuttingAlone ? (
+      {groups.length === 0 && !cuttingAlone && !showAttention ? (
         <EmptyState as="div" role="status">
           {filter !== "all"
             ? "Nothing here"
