@@ -2851,6 +2851,11 @@ button.sys-picker-option:focus-visible {
 
 /* Source card */
 
+/* The drop listener wraps the card without adding a box of its own. */
+.sys-source-drop {
+  display: contents;
+}
+
 .sys-source {
   container: sys-source / inline-size;
   display: flex;
