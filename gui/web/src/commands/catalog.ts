@@ -760,7 +760,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     keywords: ["delete", "lane"],
     when: "editStageTrackInspector",
     notes:
-      "Backspace/Delete when inspector track selected; confirms then RemoveTrack. Menu/inspector use skipWhen + trackId args.",
+      "Backspace/Delete when inspector track selected; RemoveTrack, with an Undo toast. Menu/inspector use skipWhen + trackId args.",
   },
   "track.splitSpeakers": {
     id: "track.splitSpeakers",

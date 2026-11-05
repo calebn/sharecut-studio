@@ -3,13 +3,13 @@ import { create } from "zustand";
 /** A yes/no question before an action, answered in the app's own dialog. */
 export type ConfirmQuestion = {
   kind: "confirm";
-  /** Names the action and its target, e.g. "Remove the guest track?". */
+  /** Names the action and its target, e.g. "Find hits again?". */
   title: string;
   /** The consequence, in human terms. */
   message: string;
-  /** The safe choice, shown first and focused, e.g. "Keep track". */
+  /** The safe choice, shown first and focused, e.g. "Keep hits". */
   keepLabel: string;
-  /** The action, shown last, e.g. "Remove track". */
+  /** The action, shown last, e.g. "Find again". */
   actionLabel: string;
   /** Danger styling for an action that discards work; primary otherwise. */
   danger: boolean;
