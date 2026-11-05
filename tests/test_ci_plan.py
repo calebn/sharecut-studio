@@ -165,10 +165,25 @@ def test_pull_request_plan(
     assert (plan.gui, plan.pytest, _names(plan)) == (gui, pytest_scope, e2e)
 
 
-@pytest.mark.parametrize("event", ["push", "schedule", "workflow_dispatch"])
-def test_main_nightly_and_dispatch_run_everything(event: str) -> None:
+@pytest.mark.parametrize("event", ["schedule", "workflow_dispatch"])
+def test_nightly_and_dispatch_run_everything(event: str) -> None:
     plan = cp.plan(event, [])
     assert (plan.gui, plan.pytest, _names(plan)) == (True, "full", FULL_E2E)
+    assert plan.outputs()["e2e"] == "true"
+
+
+def test_push_to_main_plans_only_the_quick_checks() -> None:
+    plan = cp.plan("push", [])
+    assert (plan.gui, plan.pytest, _names(plan)) == (True, "quick", [])
+    outputs = plan.outputs()
+    assert (outputs["gui"], outputs["e2e"], outputs["pytest"]) == ("true", "false", "quick")
+    assert json.loads(outputs["e2e-matrix"]) == {"include": []}
+
+
+def test_e2e_output_tracks_whether_any_browser_suite_is_planned() -> None:
+    assert cp.plan("pull_request", ["gui/web/src/App.tsx"]).outputs()["e2e"] == "true"
+    docs_only = cp.plan("pull_request", ["docs/testing.md"]).outputs()
+    assert (docs_only["gui"], docs_only["e2e"]) == ("false", "false")
 
 
 def test_matrix_output_is_the_workflow_include_list() -> None:
@@ -249,9 +264,11 @@ def test_web_docs_subset_is_the_union_of_both_subsets() -> None:
 def test_every_planned_pytest_scope_reaches_the_pytest_aggregator() -> None:
     scopes = typing.get_args(typing.get_type_hints(cp.CiPlan)["pytest"])
     run = load_github_yaml(WORKFLOW)["jobs"]["pytest"]["steps"][0]["run"]
-    assert set(scopes) == {"full", "web", "docs", "web-docs", "release"}
+    assert set(scopes) == {"full", "web", "docs", "web-docs", "quick", "release"}
     for scope in scopes:
-        assert f"success:{scope}:success:success" in run
+        shards = "skipped" if scope == "quick" else "success"
+        assert f"success:{scope}:success:{shards}" in run
+    assert "success:quick:success:success" not in run
 
 
 def test_web_subset_includes_the_repo_gui_web_readers() -> None:
@@ -356,7 +373,9 @@ def test_pytest_shards_take_their_scope_from_the_planner_and_gate_coverage_on_fu
     jobs = load_github_yaml(WORKFLOW)["jobs"]
     shard = jobs["pytest-shard"]
     assert shard["needs"] == "changes"
-    assert shard["if"] == "needs.changes.result == 'success'"
+    assert shard["if"] == (
+        "needs.changes.result == 'success' && needs.changes.outputs.pytest != 'quick'"
+    )
     assert "plan" not in {step.get("id") for step in shard["steps"]}
     assert shard["env"]["PYTEST_SCOPE"] == "${{ needs.changes.outputs.pytest }}"
     by_name = {step.get("name"): step for step in shard["steps"]}
@@ -383,21 +402,57 @@ def test_changes_job_feeds_frontend_and_the_browser_suites() -> None:
     changes = jobs["changes"]
     assert changes["outputs"] == {
         "gui": "${{ steps.plan.outputs.gui }}",
+        "e2e": "${{ steps.plan.outputs.e2e }}",
         "e2e-matrix": "${{ steps.plan.outputs.e2e-matrix }}",
         "release-only": "${{ steps.plan.outputs.release-only }}",
         "pytest": "${{ steps.plan.outputs.pytest }}",
     }
     (plan,) = [step for step in changes["steps"] if step.get("id") == "plan"]
     assert plan["uses"] == "./.github/actions/ci-plan"
-    for name in ("frontend-suite", "frontend-e2e-suites"):
-        assert jobs[name]["needs"] == "changes"
-        assert jobs[name]["if"] == "needs.changes.outputs.gui == 'true'"
+    assert jobs["frontend-suite"]["needs"] == "changes"
+    assert jobs["frontend-suite"]["if"] == "needs.changes.outputs.gui == 'true'"
+    assert jobs["frontend-e2e-suites"]["needs"] == "changes"
+    assert jobs["frontend-e2e-suites"]["if"] == "needs.changes.outputs.e2e == 'true'"
+    assert jobs["frontend-e2e"]["steps"][0]["env"]["GUI"] == "${{ needs.changes.outputs.e2e }}"
     assert set(load_github_yaml(WORKFLOW)["on"]) == {
         "push",
         "pull_request",
         "schedule",
         "workflow_dispatch",
     }
+
+
+ALERT_ACTION = ROOT / ".github" / "actions" / "nightly-alert" / "action.yml"
+
+
+@pytest.mark.parametrize("workflow", ["test.yml", "desktop.yml"])
+def test_nightly_alert_job_runs_only_on_schedule_and_sees_every_job(workflow: str) -> None:
+    jobs = load_github_yaml(ROOT / ".github" / "workflows" / workflow)["jobs"]
+    alert = jobs["nightly-alert"]
+    assert alert["if"] == "${{ always() && github.event_name == 'schedule' }}"
+    assert set(alert["needs"]) == set(jobs) - {"nightly-alert"}
+    assert alert["permissions"] == {"contents": "read", "issues": "write"}
+    step = next(s for s in alert["steps"] if s.get("uses") == "./.github/actions/nightly-alert")
+    assert step["with"]["results"] == "${{ join(needs.*.result, ' ') }}"
+    assert step["with"]["token"] == "${{ secrets.GITHUB_TOKEN }}"
+    assert step["with"]["workflow"] == workflow.removesuffix(".yml")
+
+
+def test_nightly_alert_action_opens_comments_and_closes_the_labelled_issue() -> None:
+    action = load_github_yaml(ALERT_ACTION)
+    assert action["runs"]["using"] == "composite"
+    assert set(action["inputs"]) == {"workflow", "results", "token"}
+    run = action["runs"]["steps"][0]["run"]
+    assert 'label="nightly-failure"' in run
+    assert '*" failure "* | *" cancelled "*)' in run
+    for command in ("gh issue create", "gh issue comment", "gh issue close"):
+        assert command in run
+    assert "--label" in run
+
+
+def test_desktop_workflow_runs_nightly_manually_and_on_pull_requests_not_on_push() -> None:
+    triggers = set(load_github_yaml(ROOT / ".github" / "workflows" / "desktop.yml")["on"])
+    assert triggers == {"pull_request", "schedule", "workflow_dispatch"}
 
 
 def test_playwright_summary_reads_the_report_configured_for_its_matrix_job() -> None:

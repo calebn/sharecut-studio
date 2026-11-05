@@ -4,6 +4,9 @@ outputs:
   gui:
     description: Whether frontend and browser workloads are required
     value: ${{ steps.plan.outputs.gui }}
+  e2e:
+    description: Whether any browser suite runs
+    value: ${{ steps.plan.outputs.e2e }}
   pytest:
     description: Python test scope
     value: ${{ steps.plan.outputs.pytest }}

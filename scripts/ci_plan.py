@@ -3,12 +3,13 @@
 
 Usage:
   python3 scripts/ci_plan.py plan --event pull_request --base <sha> --head <sha>
-  python3 scripts/ci_plan.py plan --event push          # main, nightly, dispatch: everything
+  python3 scripts/ci_plan.py plan --event push          # main: lint, types and Vitest only
+  python3 scripts/ci_plan.py plan --event schedule      # nightly and dispatch: everything
   python3 scripts/ci_plan.py subset-tests web|docs|web-docs  # pytest files that read that scope
   python3 scripts/ci_plan.py required-checks [--check]   # the required-checks table in the docs
 
 `plan` prints `key=value` lines for `$GITHUB_OUTPUT`: `gui` (run Vitest and the
-browser suites), `pytest` (`full`, `web`, `docs`, `web-docs` or `release`), `release-only`
+browser suites), `pytest` (`full`, `web`, `docs`, `web-docs`, `quick` or `release`), `release-only`
 (digit `1` proves a release update), `e2e-matrix` (the browser jobs), and seven
 `skip-native-*` proofs from `ci_native` (digit `1` skips a native family; `0` runs it).
 `REQUIRED_CHECKS` is the one list of required status contexts: `required-checks` renders
@@ -41,6 +42,7 @@ from version_policy import problems
 
 ROOT = Path(__file__).resolve().parents[1]
 PULL_REQUEST = "pull_request"
+PUSH = "push"
 # A pytest file that names gui/web reads it (source, config, generated copies).
 WEB_READER_RE = re.compile(r"""gui/web|["']gui["']\s*(?:/|,)\s*["']web["']""")
 # A pytest file that names a docs path reads it, in "docs/x.md" or "docs" / "x.md" form.
@@ -568,7 +570,7 @@ def classify_release(
 @dataclass(frozen=True)
 class CiPlan:
     gui: bool
-    pytest: Literal["full", "web", "docs", "web-docs", "release"]
+    pytest: Literal["full", "web", "docs", "web-docs", "quick", "release"]
     e2e: tuple[E2eJob, ...]
     release_only: bool = False
     native: NativeSelection = field(default_factory=NativeSelection)
@@ -577,6 +579,7 @@ class CiPlan:
         matrix = {"include": [vars(job) for job in self.e2e]}
         return {
             "gui": "true" if self.gui else "false",
+            "e2e": "true" if self.e2e else "false",
             "release-only": "1" if self.release_only else "0",
             "pytest": self.pytest,
             "e2e-matrix": json.dumps(matrix, separators=(",", ":")),
@@ -591,7 +594,9 @@ def plan(
     release: ReleaseProof | FullRelease | None = None,
     head_ref: str | None = None,
 ) -> CiPlan:
-    """Pull requests run what their diff can reach; every other event runs everything."""
+    """Pull requests run what their diff can reach, pushes to main run the fast checks, and the nightly and manual runs run everything."""
+    if event == PUSH:
+        return CiPlan(gui=True, pytest="quick", e2e=())
     if event != PULL_REQUEST:
         return CiPlan(gui=True, pytest="full", e2e=(*main_shards(), *full_compat()))
     if isinstance(release, ReleaseProof):

@@ -18,8 +18,8 @@ current main tip. Before merging,
 verify the exact PR head and its integration with current `main` as usual.
 
 If a coalesced main run fails, inspect or bisect the commits since the previous
-successful run. Each retained main run and the full nightly test run retain the
-coverage floor and both browser engines. Scheduled and manual dispatch runs have
+successful run. Pushes to `main` run only lint, types, compat checks and Vitest/build. The full nightly test run (07:23 UTC)
+retains the coverage floor and both browser engines and opens a `nightly-failure` issue when it fails. Scheduled and manual dispatch runs have
 unique groups, so pushes cannot cancel them or replace their pending runs.
 This policy changes scheduling, not which checks a run plans.
 
@@ -27,7 +27,7 @@ This policy changes scheduling, not which checks a run plans.
 
 GitHub Actions workflow `.github/workflows/test.yml` runs Python, frontend and
 a six-job browser matrix (plus the advisory `pytest-python-floor`) in parallel on
-pushes to `main`, nightly and on `workflow_dispatch`. On pull requests the
+nightly and on `workflow_dispatch`; a push to `main` runs only `pytest-quality` and `frontend-suite` (the planner's `quick` scope). On pull requests the
 `changes` job skips what the diff cannot reach (see
 [§ Which jobs a run needs](testing.md#which-jobs-a-run-needs)). **All required checks must pass** (including Playwright axe) for a green build:
 
@@ -38,10 +38,10 @@ pushes to `main`, nightly and on `workflow_dispatch`. On pull requests the
 | `changes` | Not a required check. Runs `scripts/ci_plan.py plan` and hands `frontend-suite` and the browser matrix their plan; both required frontend aggregates fail when it does not succeed. |
 | `pytest-quality` | Python 3.14. `ruff check` + `ruff format --check` + `bandit` + `vulture` + `deptry` + `mypy`, project compatibility, the docs-sync gate and Conventional Commit subjects. Runs once per run, beside the shards. |
 | `pytest-shard` | Four matrix jobs on Python 3.14 with CTracer, each running its hash share of `pytest -n auto -m "not e2e_slow and not e2e_real"` with `--cov-fail-under=0` and uploading its coverage data (`tests/test_generated_artifacts.py` runs every generated-artifact and contract check, so one failing file names the stale output). On a PR that changes only `gui/web/`, only docs, or both, a single job runs only the test files that read those paths, without coverage. A strictly proven version-only release refresh runs the planner and version-policy tests without coverage; [final release validation](#release-refreshes-and-final-validation) still requires a full pre-merge receipt. |
-| `pytest` | The required check. Needs `changes`, `pytest-quality` and `pytest-shard`, and fails unless the plan, quality and every planned shard succeeded. On full runs it combines the shard coverage and enforces the 95% floor. |
+| `pytest` | The required check. Needs `changes`, `pytest-quality` and `pytest-shard`, and fails unless the plan, quality and every planned shard succeeded (a `quick` push plan accepts skipped shards). On full runs it combines the shard coverage and enforces the 95% floor. |
 | `pytest-python-floor` | Advisory (not a required repository merge check): Python 3.11, the `requires-python` floor, runs `tests/test_wav_util.py` and `tests/test_bleed_gate_channels.py`, which pin the EXTENSIBLE-WAV reads that 3.11's stdlib `wave` rejects (#1183). The `pytest-shard` jobs use 3.14; a local 3.11 venv reproduces the gap. |
 | `frontend-suite` → `frontend` | The workload runs in `gui/web`: `npm ci`, `npm audit --omit=dev --audit-level=high` (advisory, `continue-on-error`, failures noted in the job summary; see [§ Dependency updates and audit](testing.md#dependency-updates-and-audit)), `npm run lint` (oxlint + Stylelint tokens/rem/`@container`; `!important`/`@layer` consent-gated), `npm run format:check` (Biome), `npm run typecheck` (strict `tsc`), `npm test` (Vitest + `axe-core` via `expectNoA11yViolations`; all `.stories.ts` and `.stories.tsx` modules are discovered, rendered with Storybook preview annotations, played, and axe-checked including body portals by `gui/web/src/test/allStories.test.tsx`; keeper PCM/WAV/segment bars in `gui/web/src/record/keeper/`; mix-minus MM1–MM9 in `gui/web/src/audio/mixMinus.test.ts`; stories/Storybook/test helpers never imported by app code or root build configs in `gui/web/src/test/storyGovernance.test.ts`), `npm run build` (Vite module-ID guard rejects story/Storybook inputs in every app build) |
-| `frontend-e2e-suites` → `frontend-e2e` | On `main`, nightly and dispatch, six matrix jobs build ShareCut Studio and install only their declared browser engine with Playwright `--with-deps`: the four main-suite shards (`main-1of4` through `main-4of4`) use Chromium, `compat-chromium` uses Chromium, and `compat-webkit` uses WebKit. They run Playwright against a **temp copy** of `aligned_dialogue` (no committed waveform data: pyramids build on demand from fixture WAVs; the copy skips `artifacts/`, `history/`, `export/`, `_build/`, `.git`, and sync sqlite; see [§ Fixture hygiene](testing.md#fixture-hygiene)). Ordinary loopback Playwright launches leave `podcast gui` unpinned and provide each temporary `?project=` path. The main jobs run `npm run test:e2e -- --shard=i/4`; each deletes its live copy after Playwright terminates the web server. Host→guest follow seeds a temp premix and needs `ffmpeg` on PATH. `e2e/host-tab-selection.spec.ts` opens two host tabs on one project: a click in one leaves the other's selection alone, and an agent-set selection reaches both. Presence follow also covers tab follow, chrome ghosts, lane-bottom no-jump, guest Pipeline/FX degrade, and the 360px phone guest Following pill (`e2e/presence-follow.spec.ts`). Full-page axe runs through `expectPageAxeClean` in `gui/web/e2e/axe.ts`. Each compatibility job runs the complete matrix for its named engine with one worker and one CI retry (see [§ Browser compatibility matrix](#browser-compatibility-matrix)). A pull request with a GUI-facing change runs the four main shards and `compat-webkit-1of2` / `compat-webkit-2of2` instead of the two compat engines. Failed-spec traces upload as `playwright-test-results-<name>` (`main-1of4` through `main-4of4`, `compat-chromium`, or `compat-webkit`; `compat-webkit-1of2` or `compat-webkit-2of2` on a PR). Every job uploads timing JSON as `playwright-reports-<name>` with the same suffixes. Touch-peek screenshots upload as `playwright-touch-peek-<name>` with the same suffixes. All three artifact types are kept for 7 days. The required `frontend-e2e` aggregate rejects any failed or cancelled matrix result, a skip the plan did not order, and a `changes` job that did not succeed. Firefox pending-inspector layout remains [Follow-up](../ROADMAP.md#after-the-beta) (original #155 report was Firefox @ 1280). `e2e/root-pin.spec.ts` checks that `/` with a pinned project redirects to it and never POSTs `/api/project/close`; specs that need Home call `openHome` from `e2e/home.ts` (it loads `/?home=1` and, unless a spec is about the Setup card, dismisses that card first). |
+| `frontend-e2e-suites` → `frontend-e2e` | On the nightly schedule and dispatch (the planner's `e2e` output; skipped on push to `main`), six matrix jobs build ShareCut Studio and install only their declared browser engine with Playwright `--with-deps`: the four main-suite shards (`main-1of4` through `main-4of4`) use Chromium, `compat-chromium` uses Chromium, and `compat-webkit` uses WebKit. They run Playwright against a **temp copy** of `aligned_dialogue` (no committed waveform data: pyramids build on demand from fixture WAVs; the copy skips `artifacts/`, `history/`, `export/`, `_build/`, `.git`, and sync sqlite; see [§ Fixture hygiene](testing.md#fixture-hygiene)). Ordinary loopback Playwright launches leave `podcast gui` unpinned and provide each temporary `?project=` path. The main jobs run `npm run test:e2e -- --shard=i/4`; each deletes its live copy after Playwright terminates the web server. Host→guest follow seeds a temp premix and needs `ffmpeg` on PATH. `e2e/host-tab-selection.spec.ts` opens two host tabs on one project: a click in one leaves the other's selection alone, and an agent-set selection reaches both. Presence follow also covers tab follow, chrome ghosts, lane-bottom no-jump, guest Pipeline/FX degrade, and the 360px phone guest Following pill (`e2e/presence-follow.spec.ts`). Full-page axe runs through `expectPageAxeClean` in `gui/web/e2e/axe.ts`. Each compatibility job runs the complete matrix for its named engine with one worker and one CI retry (see [§ Browser compatibility matrix](#browser-compatibility-matrix)). A pull request with a GUI-facing change runs the four main shards and `compat-webkit-1of2` / `compat-webkit-2of2` instead of the two compat engines. Failed-spec traces upload as `playwright-test-results-<name>` (`main-1of4` through `main-4of4`, `compat-chromium`, or `compat-webkit`; `compat-webkit-1of2` or `compat-webkit-2of2` on a PR). Every job uploads timing JSON as `playwright-reports-<name>` with the same suffixes. Touch-peek screenshots upload as `playwright-touch-peek-<name>` with the same suffixes. All three artifact types are kept for 7 days. The required `frontend-e2e` aggregate rejects any failed or cancelled matrix result, a skip the plan did not order, and a `changes` job that did not succeed. Firefox pending-inspector layout remains [Follow-up](../ROADMAP.md#after-the-beta) (original #155 report was Firefox @ 1280). `e2e/root-pin.spec.ts` checks that `/` with a pinned project redirects to it and never POSTs `/api/project/close`; specs that need Home call `openHome` from `e2e/home.ts` (it loads `/?home=1` and, unless a spec is about the Setup card, dismisses that card first). |
 
 The [release refresh and final validation policy](#release-refreshes-and-final-validation) describes the advisory selector jobs and the mandatory full release receipt.
 
@@ -325,7 +325,7 @@ the unchanged four-worker cap so runner execution can qualify local measurements
 
 Per-engine results for every check in the
 [§ Browser compatibility matrix](#browser-compatibility-matrix) run. Each Pass
-cell is backed by the required `frontend-e2e` job on `main` and nightly, which
+cell is backed by the required `frontend-e2e` job on the nightly schedule and dispatch, which
 is what the guard below enforces. Pull requests run only the WebKit column. The matrix was first assembled from #703 (Chromium,
 PR #739) and #704 (WebKit, PR #747); those numbers are provenance only.
 The Chromium column is Playwright's bundled Chromium,
@@ -542,7 +542,7 @@ viewport, color scheme, or reduced-motion drift in either Chromium profile.
 Behavioral Vitest checks preserve main/reading scan execution and fail on
 injected violations. Live WebKit checks still qualify the actual scan states. The guard also fails if a compat spec uses
 `test.skip`, `fixme`, `fail` or `only`, or if the compat config's `retries` is
-not `process.env.CI ? 1 : 0`. It also fails if the `main` / nightly plan stops
+not `process.env.CI ? 1 : 0`. It also fails if the nightly / dispatch plan stops
 running the complete main shard set or either complete compat engine, or stops
 installing an engine with a Pass cell. It fails if the PR plan's WebKit shards
 stop covering the whole WebKit project, if the `frontend-e2e` aggregate can pass
@@ -712,7 +712,7 @@ workflow. A `pinned-media-windows` job runs `tests/test_pinned_media.py` on `win
 
 Native PR selection uses the seven families documented in
 [Native workload selection](testing.md#native-workload-selection). Desktop and
-registry workflows run fully on main, nightly, and manual events. Cargo checks
+registry workflows run fully on nightly and manual events; `desktop.yml` no longer triggers on push to `main`. Cargo checks
 use the checked-in desktop splash and run independently of the web artifact.
 The Windows cargo check stages its sidecar stub without downloading web output.
 Linux and Windows CI must qualify that dependency removal on the changed head.
@@ -774,7 +774,7 @@ consumers remain admitted. Any additional admitted path starts the desktop
 planner and contributes its native consumers. This changes workflow admission,
 while these known empty contracts already selected no native workloads.
 Other docs PRs start cheap planners but no expensive native jobs. Registry PR
-events remain broad. Every main push, nightly, and manual dispatch runs all
+events remain broad. Every nightly and manual dispatch run runs all
 native workloads. Proven release-only PRs skip all native families.
 
 Six Python contracts plus the FFmpeg artifact catalog are native inputs.

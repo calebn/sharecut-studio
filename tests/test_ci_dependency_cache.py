@@ -30,6 +30,7 @@ def test_workflow_keeps_installs_checks_and_pinned_prebuilt_consumers() -> None:
         "frontend-suite",
         "frontend-e2e-suites",
         "frontend-e2e",
+        "nightly-alert",
     }
     for name in ("pytest-quality", "pytest-shard", "pytest-python-floor", "frontend-e2e-suites"):
         steps = jobs[name]["steps"]
