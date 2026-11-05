@@ -5,7 +5,6 @@ const nodeTestFiles = [
   "src/edit/clipboard.test.ts",
   "src/edit/dragThreshold.test.ts",
   "src/edit/fadeLimits.test.ts",
-  "src/edit/ghostPreview.test.ts",
   "src/edit/joinRender.test.ts",
   "src/edit/nudgeBoundaries.test.ts",
   "src/edit/rangeSelection.test.ts",

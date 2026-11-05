@@ -10,7 +10,7 @@ import { openPanel, openProject } from "./stageNav";
 
 const CLIENT_ID = "e2e-edit-boundary-archive";
 
-test("rolling a cut boundary restores an archived transcript word through history", async ({
+test("rolling a cut seam from its pill restores an archived transcript word through history", async ({
   page,
 }) => {
   assertDisposableE2eProject(e2eProjectPath);
@@ -53,12 +53,11 @@ test("rolling a cut boundary restores an archived transcript word through histor
 
     await openPanel(page, "transcript");
 
-    const mark = page.locator(
-      `.edit-boundary-mark[data-boundary-id="${boundary!.id}"]`,
-    );
-    await expect(mark).toBeVisible();
-    await mark.scrollIntoViewIfNeeded();
-    const box = await mark.boundingBox();
+    const pill = page.locator(`[data-seam-id="${boundary!.id}"]`);
+    await expect(pill).toBeVisible();
+    await pill.scrollIntoViewIfNeeded();
+    const edge = pill.locator('.sys-seam-edge[data-side="right"]');
+    const box = await edge.boundingBox();
     expect(box).toBeTruthy();
     const x = box!.x + box!.width / 2;
     const y = box!.y + box!.height / 2;
@@ -88,9 +87,8 @@ test("rolling a cut boundary restores an archived transcript word through histor
       const command = response.request().postDataJSON() as { type?: string };
       return command.type === "RollClipJoin";
     });
-    await page.mouse.move(x + 120, y);
-    const preview = page.getByRole("group", { name: "Preview restored words" });
-    await expect(preview).toContainText("dissatisfied");
+    await page.mouse.move(x + 120, y, { steps: 6 });
+    await expect(pill.locator(".sys-seam-readout")).toHaveText(/^\+\d+ ms$/);
     await page.mouse.up();
     const roll = await rollResponse;
     expect(roll.ok()).toBe(true);
