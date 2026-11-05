@@ -915,9 +915,7 @@ describe("Review host unsure words", () => {
     expect(regions.indexOf("Checks")).toBeLessThan(
       regions.indexOf("Unsure words"),
     );
-    expect(
-      screen.getAllByText("3 words the transcript is unsure of.").length,
-    ).toBeGreaterThan(0);
+    expect(screen.getAllByText("3 unsure words").length).toBeGreaterThan(0);
     expect(screen.queryByText("Run the CLI refine.")).toBeNull();
   });
 

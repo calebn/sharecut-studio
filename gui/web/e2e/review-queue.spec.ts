@@ -55,7 +55,9 @@ test("Keep, then Undo from the toast returns the row selected with focus on the 
       const toast = page.locator(".ui-toast-region--app");
       await expect(toast.getByText("Kept", { exact: true })).toBeVisible();
       await expect(
-        page.getByRole("heading", { name: "Check the transcript" }),
+        page.getByRole("heading", {
+          name: "Check the transcript before cutting",
+        }),
       ).toBeVisible();
       await toast.getByRole("button", { name: /undo/i }).click();
       await expect(selectedRow(page)).toContainText("0:02");

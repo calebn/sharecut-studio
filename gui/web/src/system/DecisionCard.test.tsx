@@ -52,7 +52,7 @@ describe("DecisionCard", () => {
     ["pause", "Shorten"],
     ["sound", "Lower"],
     ["comment", "Resolve"],
-    ["check", "Approve"],
+    ["check", "Mark as checked"],
     ["unsure-word", "Looks right"],
   ] as const)("a %s card's verb is %s", (kind, verb) => {
     render(

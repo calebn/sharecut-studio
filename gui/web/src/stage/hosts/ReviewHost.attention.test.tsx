@@ -68,7 +68,7 @@ describe("Review queue attention rows", () => {
     const group = screen.getByRole("group", {
       name: "Needs attention. 1 conflict",
     });
-    expect(group).toHaveTextContent("TrimClip:");
+    expect(group).toHaveTextContent("Your change:");
     await userEvent.click(screen.getByRole("button", { name: "Dismiss all" }));
     expect(attention.dismissAll).toHaveBeenCalledWith("share:tok");
   });

@@ -303,15 +303,13 @@ describe("checkEntryOf", () => {
       transcript: true,
     });
     expect(editIdOf(CHECK_ID)).toBeNull();
-    expect(entry?.content.check?.detail).toBe(
-      "3 words the transcript is unsure of.",
-    );
+    expect(entry?.content.check?.detail).toBe("3 unsure words");
   });
 
   it("words the detail as the count even when the server sends a hint", () => {
     expect(
       checkEntryOf(status({ hint: "Run the CLI." }))?.content.check?.detail,
-    ).toBe("3 words the transcript is unsure of.");
+    ).toBe("3 unsure words");
   });
 });
 

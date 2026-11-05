@@ -1,6 +1,7 @@
 import {
   type CSSProperties,
   type ReactNode,
+  useEffect,
   useId,
   useRef,
   useState,
@@ -193,6 +194,12 @@ function UnsureWord({
 }
 
 /** One decidable item. On phone it fills the screen and swipes decide it. */
+/** The keys, said once per session in the card's footer and then only on hover. */
+const KEYS_LINE =
+  "Enter decides · X keeps · Tab for later · A and B hear it · E opens it in Edit · C comments · Shift+Enter does the whole group";
+
+let keysIntroSeen = false;
+
 export function DecisionCard(props: DecisionCardProps) {
   const {
     kind,
@@ -235,6 +242,10 @@ export function DecisionCard(props: DecisionCardProps) {
     ? "Check the unsure word first."
     : verbDisabledReason;
   const verbHeld = holdVerb || verbDisabledReason !== undefined;
+  const [keysIntro] = useState(() => !keysIntroSeen);
+  useEffect(() => {
+    keysIntroSeen = true;
+  }, []);
   const swipe = useSwipeDecision(
     { verb: verbHeld ? undefined : onVerb, keep: onKeep, next: onLater },
     { disabled: !phone || readOnly || state !== "ready" },
@@ -418,6 +429,14 @@ export function DecisionCard(props: DecisionCardProps) {
         onOpenInEdit={onOpenInEdit}
         onComment={onComment}
       />
+      {layout === "card" && !readOnly ? (
+        <p
+          className="sys-decision-keys"
+          data-intro={keysIntro ? "true" : undefined}
+        >
+          {KEYS_LINE}
+        </p>
+      ) : null}
       {comment && kind !== "comment" ? (
         <p className="sys-decision-thread">
           <SystemIcon name={iconOf("comment")} size={14} />

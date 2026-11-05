@@ -42,7 +42,6 @@ const meta: Meta<typeof ReviewStageHarness> = {
     onComment: fn(),
     onDecide: fn(),
     onFindMore: fn(),
-    onHandOff: fn(),
     onRetry: fn(),
   },
   decorators: [
@@ -120,8 +119,8 @@ export const Empty: Story = {
       0,
     );
     await expect(
-      view.getByRole("button", { name: "Go to Deliver" }),
-    ).toBeInTheDocument();
+      view.queryByRole("button", { name: "Go to Deliver" }),
+    ).toBeNull();
     await expect(view.queryByRole("button", { name: "Cut" })).toBeNull();
     await expect(canvasElement.querySelector(".sys-decision-title")).toBeNull();
   }),

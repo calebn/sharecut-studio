@@ -104,6 +104,10 @@ function groupVerbOf(items: readonly ReviewItem[]): VerbId {
 
 const isDecided = (item: ReviewItem) => item.result !== undefined;
 
+/** Items still waiting on a decision. */
+export const undecidedOf = (items: readonly ReviewItem[]): number =>
+  items.filter((item) => !isDecided(item)).length;
+
 /**
  * Unsure words (a word decision), blocked cuts (the server refuses them) and
  * leave-alone items are never bulk-applied. Cut quality does not matter: harsh,
@@ -342,6 +346,20 @@ export type ReviewAttention = {
   onInspectHistory?: () => void;
 };
 
+const COMMAND_NOUNS: Readonly<Record<string, string>> = {
+  [DocumentCommand.ApproveEdits]: "Your approval",
+  [DocumentCommand.RejectEdits]: "Your rejection",
+  [DocumentCommand.AddComment]: "Your comment",
+  [DocumentCommand.AddReply]: "Your reply",
+  [DocumentCommand.DeleteComment]: "Your comment removal",
+  [DocumentCommand.CutRange]: "Your cut",
+  [DocumentCommand.MoveClips]: "Your move",
+};
+
+/** The queued command in plain words; the wire name never reaches the screen. */
+export const commandNoun = (type: string): string =>
+  COMMAND_NOUNS[type] ?? "Your change";
+
 export const attentionRowsOf = (
   conflicts: readonly OfflineConflict[],
   guest: boolean,
@@ -351,11 +369,9 @@ export const attentionRowsOf = (
       !guest &&
       conflict.kind === "refused" &&
       conflict.reason === TRANSCRIPT_REFINE_REFUSAL;
-    const approve =
-      refineGate && conflict.command.type === DocumentCommand.ApproveEdits;
     return {
       id: conflict.command.command_id,
-      title: `${approve ? "Approve" : conflict.command.type}: ${conflict.reason}`,
+      title: `${commandNoun(conflict.command.type)}: ${conflict.reason}`,
       detail: refineGate ? "" : conflictAdvice(conflict, guest),
       refineReason: refineGate ? conflict.reason : undefined,
       inspectHistory:

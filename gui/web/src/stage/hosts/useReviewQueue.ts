@@ -808,7 +808,6 @@ export function useReviewQueue(guestShare = false) {
           selected,
           root: () => stageRef.current,
         }),
-      onHandOff: guest ? undefined : () => runPointerCommand("stage.deliver"),
     },
   };
 }

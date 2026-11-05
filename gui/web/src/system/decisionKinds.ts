@@ -29,6 +29,7 @@ export const KIND_META: Readonly<Record<DecisionKind, DecisionKindMeta>> = {
     label: "Check",
     icon: "triangle-alert",
     verb: "approve",
+    verbLabel: "Mark as checked",
     wave: false,
   },
   "unsure-word": {

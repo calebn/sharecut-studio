@@ -95,7 +95,6 @@ export type ReviewStageProps = {
   onReply?: (id: string) => void;
   onFindMore?: () => void;
   findMoreDisabled?: string;
-  onHandOff?: () => void;
   onRetry?: () => void;
 };
 
@@ -139,7 +138,6 @@ export function ReviewStage({
   onReply,
   onFindMore,
   findMoreDisabled,
-  onHandOff,
   onRetry,
 }: ReviewStageProps) {
   const [side, setSide] = useState<AuditionSide>("B");
@@ -449,6 +447,16 @@ export function ReviewStage({
                 : `${position} of ${items.length}`}
               {attentionVisible(attention, "all") ? " · Needs attention" : ""}
             </Button>
+            <button
+              type="button"
+              className="sys-icon-btn"
+              aria-haspopup="dialog"
+              aria-label="Filter the queue"
+              title="Filter the queue"
+              onClick={() => setSheetOpen(true)}
+            >
+              <SystemIcon name="sliders-horizontal" size={16} />
+            </button>
           </div>
         ) : (
           queue
@@ -512,11 +520,6 @@ export function ReviewStage({
             readOnly={!canDecide}
             canEdit={!guest}
             layout={phone ? "phone" : "card"}
-            emptyAction={
-              onHandOff
-                ? { label: "Go to Deliver", onClick: onHandOff }
-                : undefined
-            }
             onRetry={onRetry}
             onVerb={() => selected && verb(selected.id)}
             onKeep={
@@ -548,7 +551,7 @@ export function ReviewStage({
           form="bottom"
           title="Review queue"
           open={sheetOpen}
-          detent="half"
+          detent="full"
           onClose={() => setSheetOpen(false)}
         >
           {queue}

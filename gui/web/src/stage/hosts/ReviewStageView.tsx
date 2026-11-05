@@ -1,6 +1,6 @@
 import type { ReactNode, Ref } from "react";
 import type { ShellBreakpoint } from "../../state/types";
-import { Button } from "../../ui";
+import { StageHandoff } from "../../system/StageHandoff";
 import { HostBody } from "./HostBody";
 import type { HostState, LoadFailure } from "./hostModels";
 
@@ -10,8 +10,10 @@ export type ReviewStageViewProps = {
   failure?: LoadFailure | null;
   /** The Queue panel. */
   panel: ReactNode;
-  /** Offered to the host once review is done. */
+  /** Offered to the host; secondary while anything waits on a decision. */
   onDeliver?: () => void;
+  /** Items still waiting on a decision; zero makes the hand-off primary. */
+  undecided?: number;
   scrollRef?: Ref<HTMLDivElement>;
 };
 
@@ -22,6 +24,7 @@ export function ReviewStageView({
   failure,
   panel,
   onDeliver,
+  undecided = 0,
   scrollRef,
 }: ReviewStageViewProps) {
   return (
@@ -36,7 +39,13 @@ export function ReviewStageView({
       </div>
       {onDeliver ? (
         <div className="stage-host-handoff">
-          <Button onClick={onDeliver}>Deliver</Button>
+          <StageHandoff
+            stage="deliver"
+            label="Deliver"
+            variant={undecided === 0 ? "primary" : "secondary"}
+            size={shell === "phone" ? 48 : 40}
+            onActivate={onDeliver}
+          />
         </div>
       ) : null}
     </HostBody>

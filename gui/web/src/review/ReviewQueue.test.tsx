@@ -394,9 +394,9 @@ describe("ReviewQueue", () => {
         name: "Needs attention. 2 conflicts",
       });
       expect(group).toHaveTextContent(
-        "TrimClip: Envelope changed since this edit was queued",
+        "Your change: Envelope changed since this edit was queued",
       );
-      expect(group).toHaveTextContent("SetEnvelope: Moved");
+      expect(group).toHaveTextContent("Your change: Moved");
       expect(group).toHaveTextContent("Edit the change and submit it again.");
     });
 
@@ -412,7 +412,7 @@ describe("ReviewQueue", () => {
         name: "Needs attention. 7 conflicts",
       });
       for (let i = 0; i < 7; i++)
-        expect(group).toHaveTextContent(`TrimClip: Conflict number ${i}`);
+        expect(group).toHaveTextContent(`Your change: Conflict number ${i}`);
       expect(screen.queryByText(/\+\s*\d+ more/)).toBeNull();
     });
 
@@ -658,7 +658,7 @@ describe("ReviewQueue", () => {
     it("lets the host waive a refine-gate refusal, says to approve again and takes focus", async () => {
       waive.mockResolvedValue({});
       renderHost(hostAttention([gated("a")]));
-      expect(screen.getByText(/^Approve:/)).toBeVisible();
+      expect(screen.getByText(/^Your approval:/)).toBeVisible();
       expect(
         screen.queryByText("Edit the change and submit it again."),
       ).toBeNull();
@@ -680,12 +680,10 @@ describe("ReviewQueue", () => {
       ).toBeNull();
     });
 
-    it("names the command unless it is an approve", () => {
+    it("names the command in plain words, never by its wire name", () => {
       renderHost(hostAttention([gated("t", DocumentCommand.RemoveTrack)]));
       expect(
-        screen.getByText(
-          `${DocumentCommand.RemoveTrack}: ${TRANSCRIPT_REFINE_REFUSAL}`,
-        ),
+        screen.getByText(`Your change: ${TRANSCRIPT_REFINE_REFUSAL}`),
       ).toBeVisible();
     });
 
