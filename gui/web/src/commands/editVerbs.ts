@@ -611,7 +611,7 @@ async function dispatch(
     case "adjustBounds":
     case "fade":
     case "moveToTrack":
-      return executePointerCommand("edit.inspect");
+      return executePointerCommand("edit.inspect", { open: true });
     case "approve":
       return approveSocial();
     case "resolve":
