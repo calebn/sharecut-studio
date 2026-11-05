@@ -548,6 +548,17 @@ export const VERBS = [
     commandId: "models.open",
   },
   {
+    id: "openSettings",
+    label: "Settings",
+    icon: "settings",
+    keys: [],
+    touch: "tap",
+    surfaces: ["app-menu", "palette"],
+    status: "new",
+    commandId: "help.settings",
+    note: "No default key: browsers reserve Mod+, for their own settings.",
+  },
+  {
     id: "splitSpeakers",
     label: "Split speakers",
     icon: "split",
