@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { useNowSec } from "../hooks/useNowSec";
-import { ModelNeedRow } from "../models";
+import { ModelNeedRow, useWordTiming } from "../models";
 import {
   DISMISS_FAILED_NOTE,
   dismissReason,
@@ -22,6 +22,7 @@ import { Button, EmptyState, SegmentedControl, ToggleButton } from "../ui";
 import { disabledAttrs, useDisabledReasonNote } from "../ui/disabledReason";
 import type { ModelNeeded } from "../utils/apiError";
 import { formatTimeShort } from "../utils/time";
+import { AlignerMissingCheck } from "./AlignerMissingCheck";
 import { RefineGateWaiver } from "./RefineGateWaiver";
 import {
   attentionLabelOf,
@@ -390,6 +391,14 @@ export function ReviewQueue({
 }: ReviewQueueProps) {
   const [showDecided, setShowDecided] = useState(false);
   const [waived, setWaived] = useState<ReadonlySet<string>>(() => new Set());
+  const wordTiming = useWordTiming();
+  const alignerCheck =
+    canDecide &&
+    !guest &&
+    wordTiming.approximate &&
+    (filter === "all" || filter === "checks")
+      ? wordTiming.row
+      : null;
   const counts = filterCounts(items, speaker);
   const shown = filterItems(items, filter, speaker);
   const people = canDecide && onSpeaker ? speakersOf(items) : [];
@@ -612,6 +621,7 @@ export function ReviewQueue({
           }}
         />
       ) : null}
+      {alignerCheck ? <AlignerMissingCheck model={alignerCheck} /> : null}
       {lowRisk ? (
         <section className="rv-group" aria-label="Low-risk edits">
           <div className="rv-group-head">
@@ -642,7 +652,8 @@ export function ReviewQueue({
       {groups.length === 0 &&
       inTime.length === 0 &&
       !cuttingAlone &&
-      !showAttention ? (
+      !showAttention &&
+      !alignerCheck ? (
         <EmptyState as="div" role="status">
           {filter !== "all"
             ? "Nothing here"
