@@ -78,7 +78,6 @@ function mount() {
   );
 }
 
-/** A follow that settles only when the test says so. */
 function heldFollow() {
   let settle!: {
     ok: (job: PipelineJobSnapshot) => void;
@@ -255,6 +254,35 @@ describe("BounceFlowProvider", () => {
     expect(useDawStore.getState().bounceRangeTarget).toBe(RANGE);
   });
 
+  it("accepts only one start when two commands arrive before rerender", async () => {
+    heldFollow();
+    mount();
+    act(() => {
+      flow.start();
+      flow.start();
+    });
+    await waitFor(() => expect(flow.run).toMatchObject({ jobId: "b1" }));
+    expect(startBounceJob).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a start reply from a retired document epoch before seeding Activity", async () => {
+    const start = deferred<PipelineJobSnapshot>();
+    vi.mocked(startBounceJob).mockReturnValueOnce(start.promise);
+    mount();
+    act(() => flow.start());
+    act(() =>
+      useDawStore.setState({
+        projectEpoch: useDawStore.getState().projectEpoch + 1,
+      }),
+    );
+    expect(flow.run).toEqual({ kind: "idle" });
+    await act(async () => start.resolve(started));
+    expect(flow.run).toEqual({ kind: "idle" });
+    expect(useDawStore.getState().activityJob).toBeNull();
+    expect(useDawStore.getState().pendingJobResults).toEqual({});
+    expect(followJobToOk).not.toHaveBeenCalled();
+  });
+
   it("ignores a second start while one runs", async () => {
     heldFollow();
     mount();
@@ -429,7 +457,6 @@ describe("BounceFlowProvider", () => {
   });
 
   it("ignores a job that resolves after the project changed", async () => {
-    // A follow that finishes ok without honouring the abort signal.
     let finish!: (job: PipelineJobSnapshot) => void;
     vi.mocked(followJobToOk).mockImplementation(
       () =>

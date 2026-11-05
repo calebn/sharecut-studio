@@ -45,78 +45,154 @@ function withEditHead(head: string) {
       : request;
 }
 
+interface ExportOwner {
+  projectPath: string | null;
+  projectEpoch: number;
+}
+
+type ExportAttempt = { owner: ExportOwner };
+
+type ExportState = {
+  owner: ExportOwner;
+  run: ExportRun;
+  attempt: ExportAttempt | null;
+  settings: ExportSettings | null;
+  settingsError: string | null;
+  selected: readonly string[];
+  reloads: number;
+  loadedGeneration: number;
+  request: ExportRequest | null;
+};
+
 export function ExportFlowProvider({ children }: { children: ReactNode }) {
   const projectPath = useDawStore((s) => s.projectPath);
+  const projectEpoch = useDawStore((s) => s.projectEpoch);
   const activityJob = useDawStore((s) => s.activityJob);
-  const [run, setRun] = useState<ExportRun>({ kind: "idle" });
-  const [settings, setSettings] = useState<ExportSettings | null>(null);
-  const [settingsError, setSettingsError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<readonly string[]>([]);
-  const [reloads, setReloads] = useState(0);
-  const [loadedGeneration, setLoadedGeneration] = useState(0);
+  const [state, setState] = useState<ExportState>(() => ({
+    owner: { projectPath, projectEpoch },
+    run: { kind: "idle" },
+    attempt: null,
+    settings: null,
+    settingsError: null,
+    selected: [],
+    reloads: 0,
+    loadedGeneration: 0,
+    request: null,
+  }));
+  const {
+    owner,
+    run,
+    settings,
+    settingsError,
+    selected,
+    reloads,
+    loadedGeneration,
+    request,
+  } = state;
+  if (
+    owner.projectPath !== projectPath ||
+    owner.projectEpoch !== projectEpoch
+  ) {
+    setState({
+      owner: { projectPath, projectEpoch },
+      run: { kind: "idle" },
+      attempt: null,
+      settings: null,
+      settingsError: null,
+      selected: [],
+      reloads,
+      loadedGeneration: 0,
+      request: null,
+    });
+  }
   const generation = useRef(0);
-  const [request, setRequest] = useState<ExportRequest | null>(null);
+  const inFlight = useRef<ExportAttempt | null>(null);
   const gate = useModelGate();
   const resetGate = gate.reset;
-  const runRef = useRef(run);
-  runRef.current = run;
-  const settingsRef = useRef(settings);
-  settingsRef.current = settings;
-  const settingsErrorRef = useRef(settingsError);
-  settingsErrorRef.current = settingsError;
+  useEffect(() => resetGate(), [owner, resetGate]);
 
   useEffect(() => {
-    setRun({ kind: "idle" });
-    setSettings(null);
-    setSettingsError(null);
-    setSelected([]);
-    setRequest(null);
-    setLoadedGeneration(0);
-    resetGate();
-  }, [projectPath, resetGate]);
-
-  useEffect(() => {
-    if (!projectPath) return;
+    if (!owner.projectPath) return;
     let live = true;
-    loadPipelineConfig(projectPath)
+    loadPipelineConfig(owner.projectPath)
       .then((res) => {
         if (!live) return;
         const next = exportSettingsFromConfig(res.config);
-        setSettingsError(null);
-        if (!sameSettings(settingsRef.current, next)) {
-          setSettings(next);
-          setSelected(next.configured);
-        }
+        setState((current) => {
+          if (current.owner !== owner || current.reloads !== reloads)
+            return current;
+          return sameSettings(current.settings, next)
+            ? { ...current, settingsError: null }
+            : {
+                ...current,
+                settingsError: null,
+                settings: next,
+                selected: next.configured,
+              };
+        });
       })
       .catch((err: unknown) => {
-        if (live) setSettingsError(errorMessage(err));
+        if (!live) return;
+        setState((current) =>
+          current.owner === owner && current.reloads === reloads
+            ? { ...current, settingsError: errorMessage(err) }
+            : current,
+        );
       })
       .finally(() => {
-        if (live) setLoadedGeneration(reloads);
+        if (!live) return;
+        setState((current) =>
+          current.owner === owner && current.reloads === reloads
+            ? { ...current, loadedGeneration: reloads }
+            : current,
+        );
       });
     return () => {
       live = false;
     };
-  }, [projectPath, reloads]);
+  }, [owner, reloads]);
+
+  const setSelected = useCallback(
+    (keys: readonly string[]) => {
+      setState((current) =>
+        current.owner === owner ? { ...current, selected: keys } : current,
+      );
+    },
+    [owner],
+  );
 
   const start = useCallback(
     async (keys: readonly string[], asked: ExportRequest) => {
-      const path = useDawStore.getState().projectPath;
-      if (!path || runRef.current.kind === "running") return;
+      const store = useDawStore.getState();
+      const path = store.projectPath;
+      if (
+        !path ||
+        path !== owner.projectPath ||
+        store.projectEpoch !== owner.projectEpoch ||
+        inFlight.current?.owner === owner
+      )
+        return;
       const running: ExportRun = {
         kind: "running",
         jobId: null,
         cancelling: false,
         cancelError: null,
       };
-      const current = settingsRef.current;
+      const current = settings;
       const formats = current ? selectedFormats(current, keys) : null;
       if (current && formats?.length === 0 && !current.wav) return;
-      setSelected(keys);
-      setRequest(asked);
-      const scope = projectScopedSignal(path);
-      runRef.current = running;
-      setRun(running);
+      const scope = projectScopedSignal({
+        lifetime: "document",
+        path,
+        epoch: owner.projectEpoch,
+      });
+      const attempt: ExportAttempt = { owner };
+      inFlight.current = attempt;
+      setState((now) =>
+        now.owner === owner
+          ? { ...now, attempt, selected: keys, request: asked, run: running }
+          : now,
+      );
       try {
         const ran = await gate.run(async () => {
           try {
@@ -127,9 +203,19 @@ export function ExportFlowProvider({ children }: { children: ReactNode }) {
               onStart: (job) => {
                 const history = useDawStore.getState().project?.history;
                 const head = history ? editHeadOf(history) : undefined;
-                if (head !== undefined) setRequest(withEditHead(head));
-                setRun((r) =>
-                  r.kind === "running" ? { ...r, jobId: job.id } : r,
+                setState((now) =>
+                  now.owner === owner &&
+                  now.attempt === attempt &&
+                  now.run.kind === "running"
+                    ? {
+                        ...now,
+                        request:
+                          head !== undefined
+                            ? withEditHead(head)(now.request)
+                            : now.request,
+                        run: { ...now.run, jobId: job.id },
+                      }
+                    : now,
                 );
               },
             });
@@ -143,70 +229,134 @@ export function ExportFlowProvider({ children }: { children: ReactNode }) {
             throw err;
           }
         });
+        if (scope.signal.aborted) return;
         if (ran.kind === "declined") {
-          setRun(
-            scope.signal.aborted
-              ? { kind: "idle" }
-              : { kind: "failed", reason: `${ran.label} is not downloaded.` },
+          setState((now) =>
+            now.owner === owner && now.attempt === attempt
+              ? {
+                  ...now,
+                  run: {
+                    kind: "failed",
+                    reason: `${ran.label} is not downloaded.`,
+                  },
+                }
+              : now,
           );
           return;
         }
         const done = ran.value;
         const exportedHead = done.result?.edit_head_id;
-        if (typeof exportedHead === "string")
-          setRequest(withEditHead(exportedHead));
-        setRun({
-          kind: "done",
-          paths: jobResultPaths(done),
-          measured: masterMeasuredCopy(done.result?.master),
-          finishedAt: Date.now(),
-        });
+        const finishedAt = Date.now();
+        setState((now) =>
+          now.owner === owner && now.attempt === attempt
+            ? {
+                ...now,
+                request:
+                  typeof exportedHead === "string"
+                    ? withEditHead(exportedHead)(now.request)
+                    : now.request,
+                run: {
+                  kind: "done",
+                  paths: jobResultPaths(done),
+                  measured: masterMeasuredCopy(done.result?.master),
+                  finishedAt,
+                },
+              }
+            : now,
+        );
       } catch (err) {
+        if (scope.signal.aborted) return;
         if (isAbortError(err)) {
-          setRun({ kind: "idle" });
+          setState((now) =>
+            now.owner === owner && now.attempt === attempt
+              ? { ...now, run: { kind: "idle" } }
+              : now,
+          );
         } else if (err instanceof JobCancelledError) {
           const exportedHead = err.job.result?.edit_head_id;
-          if (typeof exportedHead === "string")
-            setRequest(withEditHead(exportedHead));
-          setRun({
-            kind: "cancelled",
-            paths: jobResultPaths(err.job),
-            finishedAt: Date.now(),
-          });
+          const finishedAt = Date.now();
+          setState((now) =>
+            now.owner === owner && now.attempt === attempt
+              ? {
+                  ...now,
+                  request:
+                    typeof exportedHead === "string"
+                      ? withEditHead(exportedHead)(now.request)
+                      : now.request,
+                  run: {
+                    kind: "cancelled",
+                    paths: jobResultPaths(err.job),
+                    finishedAt,
+                  },
+                }
+              : now,
+          );
         } else {
-          setRun({ kind: "failed", reason: errorMessage(err) });
+          setState((now) =>
+            now.owner === owner && now.attempt === attempt
+              ? { ...now, run: { kind: "failed", reason: errorMessage(err) } }
+              : now,
+          );
         }
       } finally {
         scope.dispose();
+        if (inFlight.current === attempt) inFlight.current = null;
       }
     },
-    [gate],
+    [gate, owner, settings],
   );
 
   const cancel = useCallback(async () => {
-    const r = runRef.current;
-    if (r.kind !== "running" || r.jobId == null) return;
-    setRun({ ...r, cancelling: true, cancelError: null });
+    const r = run;
+    const attempt = state.attempt;
+    const currentProject = useDawStore.getState();
+    if (
+      r.kind !== "running" ||
+      r.jobId == null ||
+      attempt === null ||
+      inFlight.current !== attempt ||
+      currentProject.projectPath !== owner.projectPath ||
+      currentProject.projectEpoch !== owner.projectEpoch
+    )
+      return;
+    setState((now) =>
+      now.owner === owner && now.attempt === attempt
+        ? { ...now, run: { ...r, cancelling: true, cancelError: null } }
+        : now,
+    );
     try {
       await cancelPipelineRun(r.jobId);
     } catch (err) {
-      setRun((now) =>
-        now.kind === "running" && now.jobId === r.jobId
-          ? { ...now, cancelling: false, cancelError: errorMessage(err) }
+      setState((now) =>
+        now.owner === owner &&
+        now.attempt === attempt &&
+        now.run.kind === "running" &&
+        now.run.jobId === r.jobId
+          ? {
+              ...now,
+              run: {
+                ...now.run,
+                cancelling: false,
+                cancelError: errorMessage(err),
+              },
+            }
           : now,
       );
     }
-  }, []);
+  }, [owner, run, state.attempt]);
 
   const reload = useCallback(() => {
     generation.current += 1;
-    setReloads(generation.current);
-    return generation.current;
-  }, []);
+    const next = generation.current;
+    setState((now) => (now.owner === owner ? { ...now, reloads: next } : now));
+    return next;
+  }, [owner]);
   const again = useCallback(() => {
-    setRun({ kind: "idle" });
-    if (settingsErrorRef.current !== null) reload();
-  }, [reload]);
+    setState((now) =>
+      now.owner === owner ? { ...now, run: { kind: "idle" } } : now,
+    );
+    if (settingsError !== null) reload();
+  }, [owner, settingsError, reload]);
 
   const job =
     run.kind === "running" &&
@@ -240,6 +390,7 @@ export function ExportFlowProvider({ children }: { children: ReactNode }) {
       projectPath,
       loadedGeneration,
       selected,
+      setSelected,
       gate,
       request,
       start,

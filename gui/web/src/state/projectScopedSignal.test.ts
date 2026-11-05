@@ -8,22 +8,53 @@ describe("projectScopedSignal", () => {
   });
 
   it("aborts when the project path changes", () => {
-    const { signal } = projectScopedSignal("/tmp/a.project.json");
+    const { signal } = projectScopedSignal({
+      lifetime: "path",
+      path: "/tmp/a.project.json",
+    });
     useDawStore.setState({ projectPath: "/tmp/b.project.json" });
     expect(signal.aborted).toBe(true);
     expect((signal.reason as DOMException).name).toBe("AbortError");
   });
 
   it("ignores other store changes", () => {
-    const { signal } = projectScopedSignal("/tmp/a.project.json");
+    const { signal } = projectScopedSignal({
+      lifetime: "path",
+      path: "/tmp/a.project.json",
+    });
     useDawStore.setState({ statusAnnouncement: "x" });
     expect(signal.aborted).toBe(false);
   });
 
   it("stops watching after dispose", () => {
-    const { signal, dispose } = projectScopedSignal("/tmp/a.project.json");
+    const { signal, dispose } = projectScopedSignal({
+      lifetime: "path",
+      path: "/tmp/a.project.json",
+    });
     dispose();
     useDawStore.setState({ projectPath: "/tmp/b.project.json" });
     expect(signal.aborted).toBe(false);
+  });
+  it("binds an explicitly supplied epoch even when its project path is unchanged", () => {
+    const epoch = useDawStore.getState().projectEpoch;
+    const { signal } = projectScopedSignal({
+      lifetime: "document",
+      path: "/tmp/a.project.json",
+      epoch,
+    });
+    useDawStore.setState({ projectEpoch: epoch + 1 });
+    expect(signal.aborted).toBe(true);
+  });
+
+  it("keeps path-owned server work independent of epoch-only changes", () => {
+    const { signal, dispose } = projectScopedSignal({
+      lifetime: "path",
+      path: "/tmp/a.project.json",
+    });
+    useDawStore.setState({
+      projectEpoch: useDawStore.getState().projectEpoch + 1,
+    });
+    expect(signal.aborted).toBe(false);
+    dispose();
   });
 });

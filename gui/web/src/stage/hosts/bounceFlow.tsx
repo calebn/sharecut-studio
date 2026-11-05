@@ -32,54 +32,90 @@ import {
 import { jobResultPaths } from "../../utils/pipeline";
 import { type BounceFlow, type BounceRun, Flow } from "./bounceFlowContext";
 
-/**
- * The host bounce, outside any stage so it outlives them: the same
- * `BounceService` job as MCP `bounce_audio_tool` and CLI `podcast pipeline bounce`.
- * Switching stage leaves the bounce running on the Activity chip, and Deliver
- * shows its progress or outcome again. A project switch stops following the
- * job and returns to idle.
- */
+interface BounceOwner {
+  projectPath: string | null;
+  projectEpoch: number;
+}
+
+type BounceAttempt = { owner: BounceOwner };
+
+type BounceState = {
+  owner: BounceOwner;
+  onDeliver: boolean;
+  run: BounceRun;
+  attempt: BounceAttempt | null;
+  choices: BounceChoices;
+};
+
+/** A project-owned bounce that keeps running when the person leaves Deliver. */
 export function BounceFlowProvider({ children }: { children: ReactNode }) {
   const projectPath = useDawStore((s) => s.projectPath);
+  const projectEpoch = useDawStore((s) => s.projectEpoch);
   const activityJob = useDawStore((s) => s.activityJob);
-  const [run, setRun] = useState<BounceRun>({ kind: "idle" });
-  const [choices, setChoices] = useState<BounceChoices>(BOUNCE_DEFAULTS);
+  const onDeliver = useDawStore((s) => s.stage === "deliver");
+  const [state, setState] = useState<BounceState>(() => ({
+    owner: { projectPath, projectEpoch },
+    onDeliver,
+    run: { kind: "idle" },
+    attempt: null,
+    choices: BOUNCE_DEFAULTS,
+  }));
+  const { owner, run, choices } = state;
+  if (
+    owner.projectPath !== projectPath ||
+    owner.projectEpoch !== projectEpoch
+  ) {
+    setState({
+      owner: { projectPath, projectEpoch },
+      onDeliver,
+      run: { kind: "idle" },
+      attempt: null,
+      choices: BOUNCE_DEFAULTS,
+    });
+  } else if (state.onDeliver !== onDeliver) {
+    setState({
+      ...state,
+      onDeliver,
+      choices: onDeliver ? choices : BOUNCE_DEFAULTS,
+      run:
+        !onDeliver && (run.kind === "failed" || run.kind === "cancelled")
+          ? { kind: "idle" }
+          : run,
+    });
+  }
   const gate = useModelGate();
   const resetGate = gate.reset;
-  const runRef = useRef(run);
-  runRef.current = run;
-  const choicesRef = useRef(choices);
-  choicesRef.current = choices;
+  const inFlight = useRef<BounceAttempt | null>(null);
+  useEffect(() => resetGate(), [owner, resetGate]);
 
-  // A new project starts over, and its running bounce is no longer followed.
-  useEffect(() => {
-    setRun({ kind: "idle" });
-    setChoices(BOUNCE_DEFAULTS);
-    resetGate();
-  }, [projectPath, resetGate]);
-
-  // Leaving Deliver ends this visit: a range fixed from Edit, the bounce
-  // choices and a failed or cancelled outcome (its retry would bounce the whole
-  // mix once the range is gone) do not carry to the next visit.
-  const stage = useDawStore((s) => s.stage);
-  const wasDeliver = useRef(stage === "deliver");
+  const wasDeliver = useRef(onDeliver);
   useEffect(() => {
     const was = wasDeliver.current;
-    wasDeliver.current = stage === "deliver";
-    if (!was || stage === "deliver") return;
-    useDawStore.getState().setBounceRangeTarget(null);
-    setChoices(BOUNCE_DEFAULTS);
-    setRun((r) =>
-      r.kind === "failed" || r.kind === "cancelled" ? { kind: "idle" } : r,
-    );
-  }, [stage]);
+    wasDeliver.current = onDeliver;
+    if (was && !onDeliver) useDawStore.getState().setBounceRangeTarget(null);
+  }, [onDeliver]);
+
+  const setChoices = useCallback(
+    (next: BounceChoices) => {
+      setState((current) =>
+        current.owner === owner ? { ...current, choices: next } : current,
+      );
+    },
+    [owner],
+  );
 
   const start = useCallback(async () => {
     const s = useDawStore.getState();
     const path = s.projectPath;
-    if (!path || runRef.current.kind === "running") return;
+    if (
+      !path ||
+      path !== owner.projectPath ||
+      s.projectEpoch !== owner.projectEpoch ||
+      inFlight.current?.owner === owner
+    )
+      return;
     const range = s.bounceRangeTarget;
-    const picked = choicesRef.current;
+    const picked = choices;
     const selectedTrackIds = selectedTrackIdsOf(s.selection);
     const soloTracks = s.soloTracks;
     const soloed = Object.values(soloTracks).filter(Boolean).length;
@@ -99,14 +135,28 @@ export function BounceFlowProvider({ children }: { children: ReactNode }) {
       region: s.sessionRegion,
       range,
     });
-    const scope = projectScopedSignal(path);
-    setRun({
-      kind: "running",
-      jobId: null,
-      cancelling: false,
-      cancelError: null,
-      range,
+    const scope = projectScopedSignal({
+      lifetime: "document",
+      path,
+      epoch: owner.projectEpoch,
     });
+    const attempt: BounceAttempt = { owner };
+    inFlight.current = attempt;
+    setState((current) =>
+      current.owner === owner
+        ? {
+            ...current,
+            attempt,
+            run: {
+              kind: "running",
+              jobId: null,
+              cancelling: false,
+              cancelError: null,
+              range,
+            },
+          }
+        : current,
+    );
     try {
       const ran = await gate.run(async () => {
         try {
@@ -115,12 +165,15 @@ export function BounceFlowProvider({ children }: { children: ReactNode }) {
             resultCopy: bounceResultCopy,
             signal: scope.signal,
             onStart: (job) =>
-              setRun((r) =>
-                r.kind === "running" ? { ...r, jobId: job.id } : r,
+              setState((current) =>
+                current.owner === owner &&
+                current.attempt === attempt &&
+                current.run.kind === "running"
+                  ? { ...current, run: { ...current.run, jobId: job.id } }
+                  : current,
               ),
           });
         } catch (err) {
-          // Nobody is looking at Deliver, so there is no one to ask.
           if (
             isModelNeeded(err) &&
             useDawStore.getState().stage !== "deliver"
@@ -132,46 +185,98 @@ export function BounceFlowProvider({ children }: { children: ReactNode }) {
       });
       if (scope.signal.aborted) return;
       if (ran.kind === "declined") {
-        // Declining is a choice, not a failure: back to idle.
-        setRun({ kind: "idle" });
+        setState((current) =>
+          current.owner === owner && current.attempt === attempt
+            ? { ...current, run: { kind: "idle" } }
+            : current,
+        );
         return;
       }
-      // A range fixed while this run was going is a new request: keep it.
       if (useDawStore.getState().bounceRangeTarget === range) {
         useDawStore.getState().setBounceRangeTarget(null);
       }
-      setRun({ kind: "done", paths: jobResultPaths(ran.value) });
+      setState((current) =>
+        current.owner === owner && current.attempt === attempt
+          ? {
+              ...current,
+              run: { kind: "done", paths: jobResultPaths(ran.value) },
+            }
+          : current,
+      );
     } catch (err) {
-      // The project changed: this outcome belongs to the old one.
       if (scope.signal.aborted) return;
       if (isAbortError(err)) {
-        setRun({ kind: "idle" });
+        setState((current) =>
+          current.owner === owner && current.attempt === attempt
+            ? { ...current, run: { kind: "idle" } }
+            : current,
+        );
       } else if (err instanceof JobCancelledError) {
-        setRun({ kind: "cancelled", paths: jobResultPaths(err.job) });
+        setState((current) =>
+          current.owner === owner && current.attempt === attempt
+            ? {
+                ...current,
+                run: { kind: "cancelled", paths: jobResultPaths(err.job) },
+              }
+            : current,
+        );
       } else {
-        setRun({ kind: "failed", reason: errorMessage(err) });
+        setState((current) =>
+          current.owner === owner && current.attempt === attempt
+            ? { ...current, run: { kind: "failed", reason: errorMessage(err) } }
+            : current,
+        );
       }
     } finally {
       scope.dispose();
+      if (inFlight.current === attempt) inFlight.current = null;
     }
-  }, [gate]);
+  }, [gate, owner, choices]);
 
   const cancel = useCallback(async () => {
-    const r = runRef.current;
-    if (r.kind !== "running" || r.jobId == null) return;
-    setRun({ ...r, cancelling: true, cancelError: null });
+    const r = run;
+    const attempt = state.attempt;
+    const currentProject = useDawStore.getState();
+    if (
+      r.kind !== "running" ||
+      r.jobId == null ||
+      attempt === null ||
+      inFlight.current !== attempt ||
+      currentProject.projectPath !== owner.projectPath ||
+      currentProject.projectEpoch !== owner.projectEpoch
+    )
+      return;
+    setState((current) =>
+      current.owner === owner && current.attempt === attempt
+        ? { ...current, run: { ...r, cancelling: true, cancelError: null } }
+        : current,
+    );
     try {
       await cancelPipelineRun(r.jobId);
     } catch (err) {
-      setRun((now) =>
-        now.kind === "running" && now.jobId === r.jobId
-          ? { ...now, cancelling: false, cancelError: errorMessage(err) }
-          : now,
+      setState((current) =>
+        current.owner === owner &&
+        current.attempt === attempt &&
+        current.run.kind === "running" &&
+        current.run.jobId === r.jobId
+          ? {
+              ...current,
+              run: {
+                ...current.run,
+                cancelling: false,
+                cancelError: errorMessage(err),
+              },
+            }
+          : current,
       );
     }
-  }, []);
+  }, [owner, run, state.attempt]);
 
-  const again = useCallback(() => setRun({ kind: "idle" }), []);
+  const again = useCallback(() => {
+    setState((current) =>
+      current.owner === owner ? { ...current, run: { kind: "idle" } } : current,
+    );
+  }, [owner]);
 
   const job =
     run.kind === "running" &&
@@ -190,7 +295,7 @@ export function BounceFlowProvider({ children }: { children: ReactNode }) {
       cancel: () => void cancel(),
       again,
     }),
-    [run, job, choices, gate, start, cancel, again],
+    [run, job, choices, setChoices, gate, start, cancel, again],
   );
   return <Flow.Provider value={value}>{children}</Flow.Provider>;
 }

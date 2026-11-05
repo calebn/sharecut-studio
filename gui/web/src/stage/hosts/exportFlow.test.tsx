@@ -470,6 +470,56 @@ describe("the export flow over the server's routes", () => {
     );
   });
 
+  it("does not let the retired start reply reset a new project's running export", async () => {
+    const oldStart = deferred();
+    server.holdStart = oldStart.promise;
+    mount();
+    await loaded();
+    act(() => flow.start(["mp3"], REQUEST));
+    await waitFor(() => expect(server.exportRequests).toHaveLength(1));
+    const nextPath = "/tmp/other.project.json";
+    act(() => useDawStore.setState({ projectPath: nextPath }));
+    server.holdStart = null;
+    server.started = { ...EXPORT_STARTED, id: "x2", project_path: nextPath };
+    await waitFor(() => expect(server.configRequests).toContain(nextPath));
+    act(() => flow.start(["mp3"], REQUEST));
+    await waitFor(() => expect(flow.run).toMatchObject({ jobId: "x2" }));
+    await act(async () => oldStart.resolve());
+    expect(flow.run).toMatchObject({ kind: "running", jobId: "x2" });
+  });
+
+  it("keeps monotonic reload intents accepted in a single event", async () => {
+    mount();
+    await loaded();
+    const generations: number[] = [];
+    act(() => {
+      generations.push(flow.reload(), flow.reload());
+    });
+    expect(generations).toEqual([1, 2]);
+    await waitFor(() => expect(flow.loadedGeneration).toBe(2));
+    expect(flow.selected).toEqual(["mp3"]);
+  });
+
+  it("rejects a start reply from a retired document epoch before publishing its job", async () => {
+    const oldStart = deferred();
+    server.holdStart = oldStart.promise;
+    mount();
+    await loaded();
+    act(() => flow.start(["mp3"], REQUEST));
+    await waitFor(() => expect(server.exportRequests).toHaveLength(1));
+    act(() =>
+      useDawStore.setState({
+        projectEpoch: useDawStore.getState().projectEpoch + 1,
+      }),
+    );
+    expect(flow.run).toEqual({ kind: "idle" });
+    await act(async () => oldStart.resolve());
+    expect(flow.run).toEqual({ kind: "idle" });
+    expect(flow.request).toBeNull();
+    expect(useDawStore.getState().activityJob).toBeNull();
+    expect(useDawStore.getState().pendingJobResults).toEqual({});
+  });
+
   it("forgets a finished export when the project changes", async () => {
     mount();
     await loaded();

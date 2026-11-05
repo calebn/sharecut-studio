@@ -150,7 +150,7 @@ export function usePrepareSources(input: {
       ...current,
       [trackId]: { detail: "Starting" },
     }));
-    const scope = projectScopedSignal(path);
+    const scope = projectScopedSignal({ lifetime: "path", path });
     let jobId: string | null = null;
     try {
       const job = await startSplitSpeakersJob(path, {

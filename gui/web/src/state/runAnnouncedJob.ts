@@ -28,9 +28,6 @@ export async function runAnnouncedJob(
   },
 ): Promise<PipelineJobSnapshot> {
   const job = await start();
-  // A project switch (or dialog close) while the start POST was in flight: the
-  // server job keeps running, but do not put it on the chip that now belongs to
-  // another project.
   if (opts.signal?.aborted) {
     throw new DOMException("Aborted", "AbortError");
   }
@@ -42,11 +39,16 @@ export async function runAnnouncedJob(
     const done = await followJobToOk(job.id, opts.failLabel, {
       signal: opts.signal,
     });
+    if (opts.signal?.aborted) {
+      throw new DOMException("Aborted", "AbortError");
+    }
     s.announceJobResult(job.id, opts.resultCopy(jobResultPaths(done)));
     return done;
   } catch (err) {
     const written =
-      err instanceof JobCancelledError ? jobResultPaths(err.job) : [];
+      !opts.signal?.aborted && err instanceof JobCancelledError
+        ? jobResultPaths(err.job)
+        : [];
     if (written.length) {
       s.announceJobResult(job.id, lateCancelCopy(opts.resultCopy(written)));
     } else {

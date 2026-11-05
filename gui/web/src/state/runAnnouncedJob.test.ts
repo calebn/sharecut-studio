@@ -164,4 +164,39 @@ describe("runAnnouncedJob", () => {
     expect(followMock).not.toHaveBeenCalled();
     expect(useDawStore.getState().pendingJobResults).toEqual({});
   });
+  it("rejects a successful reply after its caller stopped following", async () => {
+    const ac = new AbortController();
+    followMock.mockImplementationOnce(async () => {
+      ac.abort();
+      return okJob;
+    });
+    await expect(
+      runAnnouncedJob(async () => snap, {
+        failLabel: "F",
+        resultCopy: (paths) => `${paths.length} done`,
+        signal: ac.signal,
+      }),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(useDawStore.getState().pendingJobResults).toEqual({});
+  });
+
+  it("settles a late cancellation without announcing after its caller left", async () => {
+    const ac = new AbortController();
+    const cancelled = new JobCancelledError(
+      { ...snap, status: "cancelled", result: { paths: ["a.wav"] } },
+      "Cancelled",
+    );
+    followMock.mockImplementationOnce(async () => {
+      ac.abort();
+      throw cancelled;
+    });
+    await expect(
+      runAnnouncedJob(async () => snap, {
+        failLabel: "F",
+        resultCopy: (paths) => `${paths.length} done`,
+        signal: ac.signal,
+      }),
+    ).rejects.toBe(cancelled);
+    expect(useDawStore.getState().pendingJobResults).toEqual({});
+  });
 });
