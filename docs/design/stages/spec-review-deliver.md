@@ -460,11 +460,11 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 - **Shared elements used:** Status cover.
 - **Story to build:** `Stages/Frame/StatusCover` `BadLink`.
 
-### BAN-FOLLOW · Following banner, and presence (MENU-PEOPLE, OVL-PRESENCE, INT-FOLLOW)
+### BAN-FOLLOW · Following (banner removed in #2298), and presence (MENU-PEOPLE, OVL-PRESENCE, INT-FOLLOW)
 
 - **Today:** `BAN-FOLLOW--desktop-light.png`: a full-width "Following Guest · Stop following" bar plus a duplicate "Following Guest · Dismiss" toast.
 - **Fate:** replace with the followed person's avatar ring plus a compact pill.
-- **Spec:** presence avatars (Person tiles at 28 px) in the Stage bar or guest header; each has a 2 px ring in that person's color and a small badge showing their stage (stage icon at 12 px). Click an avatar: popover with "Follow", "Go to where they are" (jumps once), and their current playhead time. Following: their avatar's ring thickens to 3 px, a 32 px pill "Following Rosa ×" appears beside the avatars, and a 2 px frame in their color outlines the content area. Esc or × stops; any edit by the follower stops following. One indicator, no toast.
+- **Spec:** presence avatars (Person tiles at 28 px) in the Stage bar or guest header; each has a 2 px ring in that person's color and a small badge showing their stage (stage icon at 12 px). Click an avatar: popover with "Follow", "Go to where they are" (jumps once), and their current playhead time. Following: their avatar's ring thickens to 3 px, a pill "Following Rosa ×" appears in the Player beside Play (its tooltip and a polite status say why a follow is partial: "in History (host-only)", "auditioning FX", "Listening in Mix" for a guest), and a 2 px frame in their color outlines the content area. Esc or × stops; any edit by the follower stops following. One indicator, no toast.
 - **Shared elements used:** Person tile, pill, Icon language (stage icons).
 - **Story to build:** `Stages/Frame/Presence` stories `Avatars`, `Popover`, `Following`, `FollowingPhone`.
 

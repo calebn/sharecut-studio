@@ -142,6 +142,33 @@ describe("Player", () => {
     expect(screen.getByText("Following Rosa")).toBeInTheDocument();
   });
 
+  it("explains a partial follow in the pill tooltip and a status for screen readers", () => {
+    render(
+      <Player
+        {...base}
+        following={{
+          name: "Rosa",
+          colorIndex: 1,
+          detail: "in Pipeline (host-only) · auditioning FX",
+        }}
+      />,
+    );
+    const pill = screen.getByText("Following Rosa").closest(".sys-player-pill");
+    expect(pill).toHaveAttribute(
+      "title",
+      "Following Rosa · in Pipeline (host-only) · auditioning FX",
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "in Pipeline (host-only) · auditioning FX",
+    );
+  });
+
+  it("has no tooltip when the follow is complete", () => {
+    render(<Player {...base} following={{ name: "Rosa", colorIndex: 1 }} />);
+    const pill = screen.getByText("Following Rosa").closest(".sys-player-pill");
+    expect(pill).not.toHaveAttribute("title");
+  });
+
   describe("hear original", () => {
     afterEach(() => vi.restoreAllMocks());
 

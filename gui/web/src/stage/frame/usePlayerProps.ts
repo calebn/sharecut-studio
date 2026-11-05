@@ -3,6 +3,7 @@ import { runPointerCommand } from "../../commands/pointer";
 import { seekTransport } from "../../commands/seek";
 import { useStaleRenderBreakdown } from "../../hooks/useStaleRenderBreakdown";
 import { rosterDisplayName } from "../../presence/colors";
+import { followDetail } from "../../presence/followSync";
 import { rosterEntry } from "../../presence/roster";
 import { needsReview } from "../../review/reviewItems";
 import {
@@ -29,6 +30,7 @@ import {
   playerTicks,
   sortChapters,
 } from "./playerModel";
+import { TAB_LABELS } from "./tabLabels";
 
 const NONE: never[] = [];
 
@@ -52,6 +54,7 @@ export function usePlayerProps(
     renderPreviewBusy,
     guestMode,
     followingClientId,
+    followDegraded,
     sessionClients,
   } = useDaw((s) => ({
     project: s.project,
@@ -64,6 +67,7 @@ export function usePlayerProps(
     renderPreviewBusy: s.renderPreviewBusy,
     guestMode: s.guestMode,
     followingClientId: s.followingClientId,
+    followDegraded: s.followDegraded,
     sessionClients: s.sessionClients,
   }));
   const playheadSec = useDawStore((s) => s.playheadSec);
@@ -165,6 +169,11 @@ export function usePlayerProps(
       ? {
           name: leader ? rosterDisplayName(leader) : followingClientId,
           colorIndex: leader?.meta?.color_index ?? 0,
+          detail: followDetail(
+            followDegraded,
+            (tab) => TAB_LABELS[tab],
+            guestMode != null,
+          ),
         }
       : undefined,
     title: project?.meta.name,

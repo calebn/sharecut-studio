@@ -3,6 +3,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useTimelineFocusRegion } from "../../hooks/useTimelineFocusRegion";
 import { useTwoFingerTap } from "../../hooks/useTwoFingerTap";
 import { PresenceGhostLayer } from "../../presence/PresenceGhostLayer";
+import { rosterEntry } from "../../presence/roster";
 import { usePresenceCursorSource } from "../../presence/usePresenceCursorSource";
 import { canApplyPass12 } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
@@ -42,10 +43,13 @@ function StageFrameAdapter({
   children,
 }: StageFrameProps) {
   const shell = useShellAttributes();
-  const { stage, following, setTimelineFocused } = useDawStore(
+  const { stage, followColorIndex, setTimelineFocused } = useDawStore(
     useShallow((s) => ({
       stage: s.stage,
-      following: Boolean(s.followingClientId),
+      followColorIndex: s.followingClientId
+        ? (rosterEntry(s.sessionClients, s.followingClientId)?.meta
+            ?.color_index ?? 0)
+        : null,
       setTimelineFocused: s.setTimelineFocused,
     })),
   );
@@ -84,7 +88,7 @@ function StageFrameAdapter({
       stage={stage}
       stageLabel={stageLabel(stage)}
       guest={guestShare}
-      following={following}
+      followColorIndex={followColorIndex}
       header={
         <AppHeader
           {...headerProps}

@@ -1,9 +1,10 @@
 import { expect, test } from "@playwright/test";
 import {
-  followUntilBannerVisible,
+  followPill,
+  followUntilPillVisible,
   openPeopleMenu,
   withTwoHostPages,
-} from "./followBanner";
+} from "./follow";
 import {
   expectMenuLastItemReachable,
   SHORT_VIEWPORTS,
@@ -16,28 +17,27 @@ import {
 } from "./shareNavigation";
 import { withTwoBrowserPages } from "./twoBrowserPages";
 
-test.describe("overlay with follow banner", () => {
+test.describe("overlay while following", () => {
   for (const viewport of SHORT_VIEWPORTS) {
     const label = `${viewport.width}x${viewport.height}`;
 
     test(`menu last item stays reachable at ${label}`, async ({ browser }) => {
       await withTwoHostPages(browser, viewport, async (_pageA, pageB) => {
-        await followUntilBannerVisible(pageB);
-        await expect(pageB.locator(".follow-banner")).toBeVisible();
-        // The banner row above the stage shrinks --menu-available-height;
-        // the menu must still fit and keep its last item reachable.
+        await followUntilPillVisible(pageB);
+        await expect(followPill(pageB)).toBeVisible();
+        // The menu must still fit and keep its last item reachable.
         await expectMenuLastItemReachable(pageB);
       });
     });
   }
 });
 
-test.describe("overlay with guest and follow banners", () => {
+test.describe("overlay with guest banner and follow pill", () => {
   for (const viewport of [
     { width: 1280, height: 715 },
     { width: 390, height: 844 },
   ]) {
-    test(`menu last item stays reachable with stacked banners at ${viewport.width}x${viewport.height}`, async ({
+    test(`menu last item stays reachable with the guest banner and follow pill at ${viewport.width}x${viewport.height}`, async ({
       browser,
     }) => {
       await withShareableProject(async (projectPath) => {
@@ -51,10 +51,10 @@ test.describe("overlay with guest and follow banners", () => {
             await openGuestShare(guest, token);
             await expect(guest.locator(".guest-banner")).toBeVisible();
 
-            // Stack the follow banner under the guest banner. Phone uses the
-            // People menu while desktop keeps Follow controls in the avatar stack.
-            await followUntilBannerVisible(guest);
-            await expect(guest.locator(".follow-banner")).toBeVisible();
+            // Phone uses the People menu while desktop keeps Follow controls
+            // in the avatar stack.
+            await followUntilPillVisible(guest);
+            await expect(followPill(guest)).toBeVisible();
             await expect(guest.locator(".guest-banner")).toBeVisible();
 
             // A shared link has no Project menu; the People menu is its menu.

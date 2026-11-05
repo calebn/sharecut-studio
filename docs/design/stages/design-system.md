@@ -459,7 +459,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 - Host tile: a small Record glyph badge (no accent outline, since accent means selection).
 - Empty tile: dashed, `user-plus`. It opens the Invite sheet at the record links.
 - States: placeholder, joining, live, muted, speaking, clipping, weak, lost, saving, saved, failed, declined, left, empty.
-- Used: MENU-PEOPLE, OVL-PRESENCE, CMP-TURN, CMP-TRACK-HEADERS, CMP-REC-ROSTER, all SCR-REC-ROOM-*, DLG-MCP (agent presence), BAN-FOLLOW.
+- Used: MENU-PEOPLE, OVL-PRESENCE, CMP-TURN, CMP-TRACK-HEADERS, CMP-REC-ROSTER, all SCR-REC-ROOM-*, DLG-MCP (agent presence).
 - Replaces: Person tile (brief), Invite tile (record), presence avatars (edit, rdp).
 - Story: `System/Person`: Avatar sizes, Tile states, Empty.
 
