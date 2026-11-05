@@ -1,5 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { deferred } from "../test/deferred";
 import { seedPendingKeeper } from "../test/keepers";
 import { urlOf } from "../test/urlOf";
 import {
@@ -528,6 +529,69 @@ describe("useGuestRoom", () => {
       expect(createOpfsSink).toHaveBeenCalledTimes(2);
       expect(result.current.sinkError).toBeNull();
     });
+
+    it.each(["resolve", "reject"])(
+      "retires an old storage initialization after retry on late %s",
+      async (settlement) => {
+        const old = deferred<MemorySink>();
+        const fresh = deferred<MemorySink>();
+        vi.mocked(createOpfsSink)
+          .mockReturnValueOnce(old.promise)
+          .mockReturnValueOnce(fresh.promise);
+        stubFetch(guestBootstrap);
+        const { result } = renderHook(() => useGuestRoom("guest-tok"));
+        await waitFor(() => expect(createOpfsSink).toHaveBeenCalledTimes(1));
+        act(() => result.current.retryStorage());
+        await waitFor(() => expect(createOpfsSink).toHaveBeenCalledTimes(2));
+        const accepted = new MemorySink();
+        await act(async () => fresh.resolve(accepted));
+        await waitFor(() => expect(result.current.sink).toBe(accepted));
+        await act(async () => {
+          if (settlement === "resolve") old.resolve(new MemorySink());
+          else old.reject(new OpfsUnavailableError());
+        });
+        expect(result.current.sink).toBe(accepted);
+        expect(result.current.sinkError).toBeNull();
+        expect(getUserMedia).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(["resolve", "reject"])(
+      "retires storage eligibility on a producer transition before late %s",
+      async (settlement) => {
+        const old = deferred<MemorySink>();
+        vi.mocked(createOpfsSink).mockReturnValueOnce(old.promise);
+        vi.stubGlobal(
+          "fetch",
+          vi.fn(
+            async (input: RequestInfo | URL) =>
+              new Response(
+                JSON.stringify(
+                  urlOf(input).includes("/prod-tok/")
+                    ? producerBootstrap
+                    : guestBootstrap,
+                ),
+                { status: 200 },
+              ),
+          ),
+        );
+        const { result, rerender } = renderHook(
+          ({ token }) => useGuestRoom(token),
+          { initialProps: { token: "guest-tok" } },
+        );
+        await waitFor(() => expect(createOpfsSink).toHaveBeenCalledTimes(1));
+        rerender({ token: "prod-tok" });
+        await waitFor(() => expect(result.current.producer).toBe(true));
+        await act(async () => {
+          if (settlement === "resolve") old.resolve(new MemorySink());
+          else old.reject(new OpfsUnavailableError());
+        });
+        expect(result.current.sink).toBeNull();
+        expect(result.current.sinkError).toBeNull();
+        expect(createOpfsSink).toHaveBeenCalledTimes(1);
+        expect(getUserMedia).not.toHaveBeenCalled();
+      },
+    );
 
     it("stays pending while the preflight runs", async () => {
       vi.mocked(createOpfsSink).mockImplementationOnce(
