@@ -114,17 +114,21 @@ export function pipelineChromeLabel(
 /** Seconds without a domain progress event before chrome shows stale copy. */
 export const STALE_AFTER_S = 15;
 
+/** True when a running job has gone `STALE_AFTER_S` without a progress event. */
+export function isStaleUpdate(
+  lastProgressAt: number | null | undefined,
+  nowSec: number,
+): boolean {
+  return lastProgressAt != null && nowSec - lastProgressAt > STALE_AFTER_S;
+}
+
 /** Honest stall copy — not a moving bar. Null when heartbeats are still arriving. */
 export function staleUpdateLabel(
   lastProgressAt: number | null | undefined,
   nowSec: number,
 ): string | null {
-  if (lastProgressAt == null) {
+  if (lastProgressAt == null || !isStaleUpdate(lastProgressAt, nowSec)) {
     return null;
   }
-  const lag = nowSec - lastProgressAt;
-  if (lag <= STALE_AFTER_S) {
-    return null;
-  }
-  return `last update ${Math.floor(lag)}s ago`;
+  return `last update ${Math.floor(nowSec - lastProgressAt)}s ago`;
 }

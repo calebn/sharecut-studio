@@ -37,7 +37,7 @@ import { useDawStore } from "../../state/dawStore";
 import { selectedTrackIdsOf } from "../../state/selection";
 import { StatusRow } from "../../system/StatusRow";
 import { lowConfidenceStops } from "../../transcript/lowConfidence";
-import { Button, StatusLiveRegion } from "../../ui";
+import { Button } from "../../ui";
 import { useCommand } from "../../ui/useCommand";
 import { mediaSignature } from "../../waveform/mediaRef";
 import { useStageScroll } from "../useStageScroll";
@@ -181,18 +181,22 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
   const nowSec = useNowSec(
     exportFlow.run.kind === "running" || bounceFlow.run.kind === "running",
   );
-  const stall = useStallAnnouncement(
+  const announceStatus = useDawStore((s) => s.announceStatus);
+  useStallAnnouncement(
     [
       {
         running: exportFlow.run.kind === "running",
+        tracked: exportFlow.job != null,
         lastProgressAt: exportFlow.job?.last_progress_at,
       },
       {
         running: bounceFlow.run.kind === "running",
+        tracked: bounceFlow.job != null,
         lastProgressAt: bounceFlow.job?.last_progress_at,
       },
     ],
     nowSec,
+    (message) => announceStatus(message, { toast: false }),
   );
   const exportDoneAt =
     exportFlow.run.kind === "done" || exportFlow.run.kind === "cancelled"
@@ -501,7 +505,6 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
             />
           </div>
         ) : null}
-        <StatusLiveRegion message={stall.message} seq={stall.seq} />
         <DeliverStageBody
           key={`${projectPath}|${page.key}`}
           facts={facts}

@@ -241,18 +241,6 @@ beforeEach(() => {
   useDawStore.setState({ stage: "deliver", guestMode: null, playheadSec: 300 });
 });
 
-// The stall announcer is a second, visually hidden role=status; these name the visible row.
-const queryRowStatus = () =>
-  screen
-    .queryAllByRole("status")
-    .find((el) => !el.classList.contains("sr-only")) ?? null;
-const rowStatus = () => {
-  const el = queryRowStatus();
-  if (!el) throw new Error("no status row");
-  return el;
-};
-const findRowStatus = () => waitFor(rowStatus);
-
 describe("Deliver host Resolve fix", () => {
   it("picks the earliest open comment for Review", async () => {
     setProject(
@@ -386,7 +374,7 @@ describe("Deliver host when a save does not land at once", () => {
     network.mode = "down";
     render(<DeliverStage />);
     await removeMiddle();
-    const status = await findRowStatus();
+    const status = await screen.findByRole("status");
     expect(status).toHaveTextContent("Not saved yet");
     expect(status).toHaveTextContent("1 waiting to send");
     expect(screen.queryByRole("alert")).toBeNull();
@@ -398,20 +386,20 @@ describe("Deliver host when a save does not land at once", () => {
     network.mode = "down";
     render(<DeliverStage />);
     await removeMiddle();
-    await findRowStatus();
+    await screen.findByRole("status");
     setProject(projectAt("h2"));
     expect(screen.queryByRole("button", { name: "Remove Middle" })).toBeNull();
-    expect(rowStatus()).toBeInTheDocument();
+    expect(screen.getByRole("status")).toBeInTheDocument();
   });
 
   it("settles when the queue drains and the document catches up", async () => {
     network.mode = "down";
     render(<DeliverStage />);
     await removeMiddle();
-    await findRowStatus();
+    await screen.findByRole("status");
     network.mode = "up";
     await act(async () => requestHostDrain(PATH));
-    await waitFor(() => expect(queryRowStatus()).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
     expect(screen.queryByRole("button", { name: "Remove Middle" })).toBeNull();
     expect(useDawStore.getState().project?.chapters).toEqual([INTRO]);
     expect(wire.rows).toHaveLength(0);
@@ -526,7 +514,7 @@ describe("Deliver host when a refusal needs the page back", () => {
     const title = screen.getByRole("textbox", { name: "Title of Middle" });
     await userEvent.clear(title);
     await userEvent.type(title, "Mid2{Enter}");
-    await findRowStatus();
+    await screen.findByRole("status");
     network.mode = "refusing";
     await act(async () => requestHostDrain(PATH));
     const alert = await screen.findByRole("alert");
@@ -850,7 +838,7 @@ describe("Deliver host export while an edit is not saved", () => {
     network.mode = "down";
     render(<DeliverStage />);
     await removeMiddle();
-    await findRowStatus();
+    await screen.findByRole("status");
     expect(exportHeld()).toBeDisabled();
     expect(exportHeld()).toHaveAttribute("title", "Saving your changes first.");
     network.mode = "up";
@@ -875,7 +863,7 @@ describe("Deliver host export while an edit is not saved", () => {
     network.mode = "down";
     render(<DeliverStage />);
     await removeMiddle();
-    await findRowStatus();
+    await screen.findByRole("status");
     const fetched = vi.spyOn(globalThis, "fetch");
     act(() => useDawStore.getState().setExportRequested(true));
     await waitFor(() =>
@@ -915,7 +903,7 @@ describe("Deliver host export while an edit is not saved", () => {
     render(<DeliverStage />);
     const fix = await screen.findByRole("button", { name: "Export episode" });
     await removeMiddle();
-    await findRowStatus();
+    await screen.findByRole("status");
     await userEvent.click(fix);
     expect(exportStarts(fetched)).toBe(0);
     network.mode = "up";
@@ -1105,7 +1093,7 @@ describe("Deliver host clip titles and approvals", () => {
         title_suggestion: "A better line",
       }),
     );
-    expect(queryRowStatus()).toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.getByDisplayValue("A better line")).toBeInTheDocument();
   });
@@ -1204,11 +1192,13 @@ describe("Deliver host clip titles and approvals", () => {
     await userEvent.click(
       screen.getByRole("button", { name: "Unapprove A line" }),
     );
-    expect(await findRowStatus()).toHaveTextContent("Not saved yet");
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Not saved yet",
+    );
     expect(wire.rows).toHaveLength(1);
     network.mode = "up";
     await act(async () => requestHostDrain(PATH));
-    await waitFor(() => expect(queryRowStatus()).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
     expect(useDawStore.getState().project?.social_clips[0]?.approved).toBe(
       false,
     );
@@ -1221,13 +1211,13 @@ describe("Deliver host clip titles and approvals", () => {
     await userEvent.click(
       screen.getByRole("button", { name: "Approve A line" }),
     );
-    const status = await findRowStatus();
+    const status = await screen.findByRole("status");
     expect(status).toHaveTextContent("Not saved yet");
     expect(screen.getByText("Approved")).toBeInTheDocument();
     expect(wire.rows).toHaveLength(1);
     network.mode = "up";
     await act(async () => requestHostDrain(PATH));
-    await waitFor(() => expect(queryRowStatus()).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
     expect(useDawStore.getState().project?.social_clips[0]?.approved).toBe(
       true,
     );

@@ -203,6 +203,41 @@ describe("Export on the Deliver stage", () => {
     expect(exportButton()).toBeDisabled();
   });
 
+  it("announces a stall through the shell channel without a toast", async () => {
+    render(<Host />);
+    await pressExport();
+    await waitFor(() =>
+      expect(useDawStore.getState().activityJob?.id).toBe("x1"),
+    );
+    const announce = vi.fn();
+    const nowS = () => Date.now() / 1000;
+    act(() =>
+      useDawStore.setState({
+        announceStatus: announce,
+        activityJob: { ...EXPORT_STARTED, last_progress_at: nowS() },
+      }),
+    );
+    act(() =>
+      useDawStore.setState({
+        activityJob: { ...EXPORT_STARTED, last_progress_at: nowS() - 30 },
+      }),
+    );
+    await waitFor(
+      () =>
+        expect(announce).toHaveBeenCalledWith("Progress stalled", {
+          toast: false,
+        }),
+      { timeout: 3000 },
+    );
+    act(() =>
+      useDawStore.setState({
+        activityJob: { ...EXPORT_STARTED, id: "other" },
+      }),
+    );
+    await new Promise((r) => setTimeout(r, 1200));
+    expect(announce).toHaveBeenCalledTimes(1);
+  });
+
   it("lists the files the folder holds after an export, as downloads in a browser", async () => {
     server.files = [
       {
