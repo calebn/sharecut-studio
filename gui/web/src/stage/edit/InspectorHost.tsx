@@ -308,7 +308,6 @@ export function InspectorHost({
     dragging: s.timelineDragging,
   }));
   const heading = inspectorHeading(selection, project);
-  // The sheet covers the lower part of the lanes: the selected target stays above it.
   const target =
     !rangeArmed && project ? compactTarget(project, selection, hit) : null;
   useKeepTargetClear(
