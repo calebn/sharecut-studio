@@ -2,6 +2,7 @@ import { useAfter } from "../../hooks/useAfter";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import type { ShellBreakpoint } from "../../state/types";
 import { StageBar } from "../../system/StageBar";
+import { stageLabel } from "../../system/verbs";
 import type { StageId } from "../../types/stage";
 import { Button } from "../../ui";
 import { STAGE_BODY_ID, StageFrameView } from "./StageFrameView";
@@ -29,14 +30,6 @@ const BODY: Record<StageId, readonly string[]> = {
   edit: ["ruler", "lane", "lane", "lane", "side"],
   review: ["row", "row", "row", "row", "row"],
   deliver: ["card", "card", "card"],
-};
-
-const STAGE_NAME: Record<StageId, string> = {
-  record: "Record",
-  prepare: "Prepare",
-  edit: "Edit",
-  review: "Review",
-  deliver: "Deliver",
 };
 
 export type StageLoadingProps = {
@@ -91,7 +84,7 @@ export function StageLoading({
     <StageFrameView
       shell={shell}
       stage={stage}
-      stageLabel={STAGE_NAME[stage]}
+      stageLabel={stageLabel(stage)}
       header={
         <header className="stage-loading-head">
           <span className="stage-loading-name">{name}</span>
