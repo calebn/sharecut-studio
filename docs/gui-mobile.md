@@ -435,7 +435,7 @@ holds Escape: `overlayOpen()` skips keymap `edit.clearSelection`. Every `Dialog`
 phone More sheet is a `Menu` behind a "People · n" button.
 Inspector dismiss still clears the clip selection. A remounted Inspector
 sheet stays under a still-open JoinPopover and does not steal focus from
-a docked waiver field. A new sheet still takes Close after deferred
+a docked Cut anyway button. A new sheet still takes Close after deferred
 first-entry focus.
 Typing, Tab and Enter inside
 the dialog stay native. A modal can hand on named shortcuts; the Record room

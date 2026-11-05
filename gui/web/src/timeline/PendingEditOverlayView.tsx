@@ -141,7 +141,7 @@ function bottomChromeTop(): number {
 
 /**
  * How far down the card its Approve and Reject row ends at natural height:
- * the card less whatever follows the row (an alert, the waiver form), so a
+ * the card less whatever follows the row (an alert, the Cut anyway prompt), so a
  * card capped by its max height reports the same reach as an uncapped one.
  */
 function actionsReach(card: HTMLElement, naturalHeight: number): number {

@@ -319,7 +319,7 @@ export const OPEN_REVIEW_ATTENTION_EVENT = "sharecut:open-review-attention";
 export type AttentionRow = {
   id: string;
   title: string;
-  /** The advice line; empty when a waiver form takes its place. */
+  /** The advice line; empty when the Cut anyway prompt takes its place. */
   detail: string;
   /** The reason of a host refusal by the transcript-refine gate, settled by a waiver. */
   refineReason?: string;
