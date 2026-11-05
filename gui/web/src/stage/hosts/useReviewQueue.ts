@@ -181,7 +181,9 @@ export function useReviewQueue(guestShare = false) {
   useEffect(() => {
     void refreshStatus();
   }, [refreshStatus, projectPath]);
-  useEffect(() => {
+  const [heldForPending, setHeldForPending] = useState(pending);
+  if (heldForPending !== pending) {
+    setHeldForPending(pending);
     const ranges = new Map(
       (pending ?? []).map((e) => [reviewIdOf(e.id), rangeOf(e)]),
     );
@@ -198,15 +200,22 @@ export function useReviewQueue(guestShare = false) {
       );
       return kept.length === prev.size ? prev : new Map(kept);
     });
-  }, [pending]);
+  }
 
-  useEffect(() => {
+  const [detailsForSessions, setDetailsForSessions] = useState(sessions);
+  if (detailsForSessions !== sessions) {
+    setDetailsForSessions(sessions);
     const listed = new Set((sessions ?? []).map((s) => sessionItemId(s.id)));
     setAskedPickups((prev) => {
       const kept = [...prev].filter(([id]) => listed.has(id));
       return kept.length === prev.size ? prev : new Map(kept);
     });
-  }, [sessions]);
+    const sessionIds = new Set((sessions ?? []).map((s) => s.id));
+    setTakeDetails((prev) => {
+      const kept = [...prev].filter(([id]) => sessionIds.has(id));
+      return kept.length === prev.size ? prev : new Map(kept);
+    });
+  }
 
   const utterances = guest ? undefined : project?.transcript?.utterances;
   const detail = useTranscriptDetail();
@@ -394,13 +403,6 @@ export function useReviewQueue(guestShare = false) {
       if (chosenTakes.current.has(id) && chosenTakes.current.get(id) !== take)
         releaseSessionPreview(id);
     chosenTakes.current = next;
-  }, [sessions]);
-  useEffect(() => {
-    const listed = new Set((sessions ?? []).map((s) => s.id));
-    setTakeDetails((prev) => {
-      const kept = [...prev].filter(([id]) => listed.has(id));
-      return kept.length === prev.size ? prev : new Map(kept);
-    });
   }, [sessions]);
   useEffect(() => {
     const listed = new Set(open.map((e) => e.item.id));
