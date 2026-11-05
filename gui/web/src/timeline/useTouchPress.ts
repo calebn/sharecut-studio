@@ -22,6 +22,7 @@ import {
   useRef,
 } from "react";
 import { LONG_PRESS_MS } from "../hooks/gestureConstants";
+import { useStableCallback } from "../utils/useStableCallback";
 import { type HitRouter, isReplayed } from "./hitRouting";
 
 export interface TouchPressProps {
@@ -60,8 +61,7 @@ function releaseSelection(): void {
 }
 
 export function useTouchPress(router: HitRouter | null): TouchPressProps {
-  const routerRef = useRef(router);
-  routerRef.current = router;
+  const longPress = useStableCallback(() => router?.longPress());
   const press = useRef<Press | null>(null);
   const clickUntil = useRef(0);
   const contextMenuUntil = useRef(0);
@@ -91,12 +91,11 @@ export function useTouchPress(router: HitRouter | null): TouchPressProps {
     restoreTimer.current = setTimeout(restoreSelection, SELECTION_RESTORE_MS);
   };
 
-  const unmount = useRef(() => {});
-  unmount.current = () => {
+  const unmount = useStableCallback(() => {
     end(false);
     restoreSelection();
-  };
-  useEffect(() => () => unmount.current(), []);
+  });
+  useEffect(() => unmount, [unmount]);
 
   return {
     onPointerDownCapture(event) {
@@ -129,7 +128,7 @@ export function useTouchPress(router: HitRouter | null): TouchPressProps {
         longPressed: false,
         timer: setTimeout(() => {
           started.longPressed = true;
-          routerRef.current?.longPress();
+          longPress();
         }, LONG_PRESS_MS),
         stop() {
           window.removeEventListener("pointerup", onUp, true);

@@ -6,6 +6,8 @@ import {
   useState,
 } from "react";
 
+import { useStableCallback } from "../utils/useStableCallback";
+
 export interface CommitRangeInputProps {
   ref: (el: HTMLInputElement | null) => void;
   value: number;
@@ -48,8 +50,7 @@ export function useCommitRange({
   const uncommittedRef = useRef(false);
   const revertTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const interruptedRef = useRef(false);
-  const savedRef = useRef(saved);
-  savedRef.current = saved;
+  const restoreSaved = useStableCallback(() => setValue(saved));
 
   const cancelRevert = () => {
     if (revertTimerRef.current !== null) {
@@ -76,7 +77,7 @@ export function useCommitRange({
     draggingRef.current = false;
     uncommittedRef.current = false;
     interruptedRef.current = true;
-    setValue(savedRef.current);
+    restoreSaved();
   };
   const commit = (next: number) => {
     cancelRevert();
@@ -120,7 +121,7 @@ export function useCommitRange({
       revertTimerRef.current = null;
       if (uncommittedRef.current) {
         uncommittedRef.current = false;
-        setValue(savedRef.current);
+        restoreSaved();
       }
     }, 0);
   };

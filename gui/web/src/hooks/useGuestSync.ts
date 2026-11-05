@@ -40,6 +40,7 @@ import {
   type GuestProgressEvent,
   guestProgressToJob,
 } from "../utils/guestProgress";
+import { useStableCallback } from "../utils/useStableCallback";
 
 function guestWsUrl(token: string, clientId: string): string {
   const proto = window.location.protocol === "https:" ? "wss" : "ws";
@@ -93,11 +94,10 @@ export function useGuestSync(
   enabled = true,
 ): boolean {
   const projectEpoch = useDawStore((state) => state.projectEpoch);
-  const applyRef = useRef(applyAgentSession);
-  applyRef.current = applyAgentSession;
+  const applySession = useStableCallback(applyAgentSession);
   const wsOpenRef = useRef(false);
-  const connectIdRef = useRef(newClientId());
-  const clientIdRef = useRef(connectIdRef.current);
+  const [connectId] = useState(newClientId);
+  const clientIdRef = useRef(connectId);
   const pendingAgentRecoveryRef = useRef<GuestMsg | null>(null);
   const sendRef = useRef<WsSender | null>(null);
   const [wsReady, setWsReady] = useState(false);
@@ -199,7 +199,7 @@ export function useGuestSync(
             : full;
           pendingAgentRecoveryRef.current = null;
           ctx.markHealthy();
-          applyRef.current(recovered);
+          applySession(recovered);
           return;
         }
         if (msg.type !== "Applied") return;
@@ -229,7 +229,7 @@ export function useGuestSync(
           return;
         }
         sessionSnapshot = merged;
-        applyRef.current(merged);
+        applySession(merged);
         return;
       }
       if (msg.plane === "document") {
@@ -241,7 +241,7 @@ export function useGuestSync(
     };
 
     const socket = openPlaneSocket<GuestMsg>({
-      url: () => guestWsUrl(token, connectIdRef.current),
+      url: () => guestWsUrl(token, connectId),
       isActive: () => isCurrentDocumentScope(scope),
       onOpen: (ctx) => {
         wsOpenRef.current = true;
@@ -297,7 +297,7 @@ export function useGuestSync(
       rosterRequester.dispose();
       setWsReady(false);
     };
-  }, [projectPath, enabled, projectEpoch]);
+  }, [projectPath, enabled, projectEpoch, connectId, applySession]);
 
   const sendPresence = useCallback((frame: Record<string, unknown>) => {
     sendRef.current?.(frame);

@@ -49,6 +49,27 @@ describe("usePresencePublisher", () => {
     }
   });
 
+  it("uses the committed label without resetting publication or client sequence", () => {
+    useDawStore.setState({ followingClientId: null, isPlaying: false });
+    const sent: Record<string, unknown>[] = [];
+    const send = (frame: Record<string, unknown>) => sent.push(frame);
+    const { rerender } = renderHook(
+      ({ label }) => usePresencePublisher(send, label),
+      { initialProps: { label: "Before" } },
+    );
+    const before = sent.length;
+    const sequence = sent.at(-1)?.client_seq as number;
+    rerender({ label: "After" });
+    expect(sent).toHaveLength(before);
+    act(() => useDawStore.setState({ isPlaying: true }));
+    expect(sent).toHaveLength(before + 1);
+    expect(sent.at(-1)).toMatchObject({
+      label: "After",
+      client_seq: sequence + 1,
+      meta: { display_name: "After" },
+    });
+  });
+
   it("publishes a padded fixed-playhead viewport from 0 (#385)", () => {
     // Scrolled 15 s before the start; no measured viewport, so a 60 s span.
     useDawStore.setState({

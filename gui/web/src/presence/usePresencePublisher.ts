@@ -7,6 +7,7 @@ import { timelineViewportRegistry } from "../state/timelineViewportRegistry";
 import type { DawStore } from "../state/types";
 import type { PresenceCursor } from "../types/session";
 import { timelineTimeViewportWidth } from "../utils/timelineViewport";
+import { useStableCallback } from "../utils/useStableCallback";
 import { setPresenceCursorSink, zoomScrollToViewport } from "./followSync";
 import { createPresenceThrottle, type PresenceSend } from "./publisher";
 
@@ -34,21 +35,11 @@ export function usePresencePublisher(
 ): void {
   const throttleRef = useRef(createPresenceThrottle());
   const seqRef = useRef(1);
-  const sendRef = useRef(send);
-  sendRef.current = send;
-  const labelRef = useRef(label);
-  labelRef.current = label;
-
-  useEffect(() => {
-    const throttle = createPresenceThrottle();
-    throttleRef.current = throttle;
-    throttle.onSend((meta) => {
-      const socketSend = sendRef.current;
-      if (!socketSend) {
-        return;
-      }
+  const publish = useStableCallback(
+    (meta: Parameters<PresenceThrottle["push"]>[0]) => {
+      if (!send) return;
       const s = useDawStore.getState();
-      socketSend({
+      send({
         type: "Presence",
         client_seq: seqRef.current++,
         ...(s.followingClientId
@@ -60,15 +51,18 @@ export function usePresencePublisher(
                   ? (playbackPositionSec() ?? s.playheadSec)
                   : s.playheadSec),
             }),
-        label: labelRef.current,
-        meta: {
-          display_name: labelRef.current,
-          ...meta,
-        },
+        label,
+        meta: { display_name: label, ...meta },
       });
-    });
+    },
+  );
+
+  useEffect(() => {
+    const throttle = createPresenceThrottle();
+    throttleRef.current = throttle;
+    throttle.onSend(publish);
     return () => throttle.dispose();
-  }, []);
+  }, [publish]);
 
   useEffect(() => {
     if (!send) {

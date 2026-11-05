@@ -13,6 +13,7 @@ import { canSuggestStructuralOnProject } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { ApiError } from "../utils/apiError";
 import { clientXToTimelineSec } from "../utils/timelinePointer";
+import { useStableCallback } from "../utils/useStableCallback";
 
 const SPLIT_ARMED_ATTR = "data-split-armed";
 
@@ -97,15 +98,14 @@ export function useSplitAtPointer(
   );
 
   // The window listeners are bound once.
-  const showRef = useRef(show);
-  showRef.current = show;
+  const showCurrent = useStableCallback(show);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Alt") return;
-      showRef.current(e.type === "keydown");
+      showCurrent(e.type === "keydown");
     };
-    const release = () => showRef.current(false);
+    const release = () => showCurrent(false);
     const onVisibility = () => {
       if (document.visibilityState === "hidden") release();
     };
@@ -120,18 +120,21 @@ export function useSplitAtPointer(
       document.removeEventListener("visibilitychange", onVisibility);
       useDawStore.getState().setSplitHoverSec(null);
     };
-  }, []);
+  }, [showCurrent]);
 
-  const onPointerMove = useCallback((e: ReactPointerEvent<HTMLElement>) => {
-    pointer.current = { clientX: e.clientX, inside: true };
-    const armed = isSplitModifier(e);
-    if (armed || shown.current) showRef.current(armed);
-  }, []);
+  const onPointerMove = useCallback(
+    (e: ReactPointerEvent<HTMLElement>) => {
+      pointer.current = { clientX: e.clientX, inside: true };
+      const armed = isSplitModifier(e);
+      if (armed || shown.current) showCurrent(armed);
+    },
+    [showCurrent],
+  );
 
   const onPointerLeave = useCallback(() => {
     pointer.current.inside = false;
-    showRef.current(false);
-  }, []);
+    showCurrent(false);
+  }, [showCurrent]);
 
   const onPointerDownCapture = useCallback(
     (e: ReactPointerEvent<HTMLElement>) => {
