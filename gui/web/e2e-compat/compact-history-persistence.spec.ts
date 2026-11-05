@@ -405,7 +405,9 @@ async function undoStaysReachable(
   await finger.up();
   await expect.poll(() => savedEnvelope(page)).toEqual(edited);
   await page.waitForTimeout(900);
-  await expect(page.locator(".guest-attention")).not.toBeVisible();
+  await expect(
+    page.getByRole("group", { name: /^Needs attention/ }),
+  ).toHaveCount(0);
   await check("strip-open-after-edit", headerHistory);
   for (const detent of detents(["half", "full", "peek"])) {
     if (!(await page.locator(`.bottom-sheet--${detent}`).count())) {

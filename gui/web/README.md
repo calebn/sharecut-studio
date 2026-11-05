@@ -136,11 +136,6 @@ preview modes with a blocked-skip reason, and a 360px footer. The live
 props and local callbacks.
 `Stages/Edit/Divider` shows the Script divider with keyboard resize; stories
 use local state only.
-`Templates/GuestAttentionBanner` uses the production
-`GuestAttentionBannerView` shared with the live `GuestAttentionBanner`
-adapter, which keeps the IndexedDB polling and share-vs-host token resolution.
-The story shares the `frameStoryDecorator` `.stage-frame` at desktop
-and 360px widths.
 `Templates/AvatarStack` and `Templates/OverlayLegend`
 show the production `AvatarStackView` and `OverlayLegendView`
 used by the live `AvatarStack` and `OverlayLegend` adapters,

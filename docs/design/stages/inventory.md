@@ -24,12 +24,12 @@ All paths are relative to `gui/web/src/` unless they start with `/` or a repo fo
 | Dialogs, sheets and popovers (DLG- 15, SHEET- 3, POP- 4) | 22 |
 | Panels and inspector variants (PNL- 6, INS- 14) | 20 |
 | Menus (MENU-) | 4 |
-| Components, overlays, banners, toasts, status items, empty states (CMP- 49, OVL- 11, BAN- 4, TOAST/STAT/EMPTY/CHIP 4) | 68 |
+| Components, overlays, banners, toasts, status items, empty states (CMP- 49, OVL- 11, BAN- 3, TOAST/STAT/EMPTY/CHIP 4) | 67 |
 | Interactions (INT-) | 46 |
-| Total catalogued items | 198 |
-| Story files / exported stories | 87 files / 442 stories |
+| Total catalogued items | 197 |
+| Story files / exported stories | 86 files / 436 stories |
 
-Of the 152 non-interaction items: 65 have a story (yes), 33 partial, 54 none (counted from the Story column of the tables). Of the 46 interactions: 18 have a frozen-state story, 15 partial, 13 none. The per-surface table is section 14.
+Of the 151 non-interaction items: 64 have a story (yes), 33 partial, 54 none (counted from the Story column of the tables). Of the 46 interactions: 18 have a frozen-state story, 15 partial, 13 none. The per-surface table is section 14.
 
 ---
 
@@ -219,8 +219,7 @@ Guest mode comes from `guest_mode` in the review bootstrap: Viewer `view`, Comme
 | SCR-GUEST-EDITOR | Guest shell, Editor: Role chip "Editor: can edit", Import, approve/reject range proposals | `/r/<editor token>` | same | partial | View | Delegated editing |
 | SCR-GUEST-MOBILE | Guest commenter on phone: the Review host with its comment composer (`ComposeAnchor`), no host-only controls | `/r/<token>` at 390 px | `stage/hosts/ReviewHost.tsx`, `stage/hosts/useReviewComments.tsx`, `stage/hosts/ComposeAnchor.tsx` | `stage/hosts/ReviewHost.stories.tsx` (GuestCommenterPhone, GuestCommenterPhone390) | Partial | Mobile reviewer |
 | SCR-GUEST-LINK-INVALID | "This link does not open the project." | `/r/<token without view>` | `App.tsx` + `ui/ErrorScreen.tsx` | `ui/ErrorScreen.stories.tsx` WithNextStep | Props | Dead link |
-| SCR-GUEST-OFFLINE | Cached snapshot when the host is unreachable | `/r/<token>` with bootstrap failing and a stored offline snapshot | `App.tsx`, `services/offlineQueue/offlineStore.ts`, `stage/frame/GuestAttentionBannerView.tsx` | `stage/frame/GuestAttentionBannerView.stories.tsx` (Conflicts, PhoneManyConflicts) | View | Keep working offline, show conflicts |
-| BAN-GUEST-ATTENTION | Offline / conflicts attention banner (guests only; the host's waiting edits, conflicts and unreadable queue are Check rows in the Review queue, CMP-GUEST-CONFLICT) | Guest with conflicting edits | `stage/frame/GuestAttentionBanner.tsx`, `stage/frame/GuestAttentionBannerView.tsx` | `stage/frame/GuestAttentionBannerView.stories.tsx` | View | Surface sync state |
+| SCR-GUEST-OFFLINE | Cached snapshot when the host is unreachable | `/r/<token>` with bootstrap failing and a stored offline snapshot | `App.tsx`, `services/offlineQueue/offlineStore.ts` | `system/Cover.stories.tsx` | View | Keep working offline, show conflicts |
 | CMP-GUEST-CONFLICT | Offline edits that did not apply or have not been sent, as Check rows at the top of the Review queue under "Needs attention": one row per conflict (guest wording for a share guest, host wording otherwise), Dismiss all (held while the edits are read), and an unreadable or failed-dismissal row with Retry. Host only: an "N edits waiting to send" row with Send now, Inspect History on an outcome that may have applied, and the transcript-refine waiver form (then its "Waiver recorded" status) on a refine-gate refusal. The Save dot's "See why" on a host project opens Review and focuses the group (on a phone the queue button reads "N of M · Needs attention" and "See why" opens the queue sheet). The guest banner still shows a guest's conflicts until it is removed | Review > Queue, under All and Checks | `review/ReviewQueue.tsx`, `review/reviewQueueModel.ts`, `review/RefineGateWaiver.tsx`, `stage/hosts/useReviewAttention.ts`, `stage/hosts/useReviewQueue.ts`, `stage/frame/attentionLabel.ts` | `review/ReviewQueue.stories.tsx` (GuestConflicts, GuestSavedEditsUnreadable, HostWaitingEdits, HostRefineWaiver) | Props | Notice an edit that did not apply, send waiting edits, waive the refine gate |
 | CMP-GUEST-COMMENT | Guest comment compose and name field | Review queue composer (always shown to a Commenter) | `system/Composer.tsx`, `stage/hosts/ComposeAnchor.tsx` | Composer yes (`System/Composer`); `stage/hosts/ReviewHost.stories.tsx` GuestCommenterPhone390 renders the Composer in the Review host | Props | Leave feedback |
 
@@ -435,7 +434,7 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 | BAN-HOME-SCREEN-HINT | yes | |
 | SCR-GUEST-VIEWER/COMMENTER/EDITOR/MOBILE | partial | Shell chrome and role toggles only; Role chip in the header, no first-visit hint story |
 | SCR-GUEST-LINK-INVALID | yes | ErrorScreen |
-| SCR-GUEST-OFFLINE, BAN-GUEST-ATTENTION | yes | |
+| SCR-GUEST-OFFLINE | yes | |
 | CMP-GUEST-CONFLICT | yes | |
 | CMP-GUEST-NAME, CMP-GUEST-COMMENT | partial | Compose yes; others no |
 | SCR-REC-LOADING, -INVALID, -FULL, -DECLINED, -LOBBY-*, -ROOM-*, CMP-REC-DEVICE/CONSENT/INDICATOR/ROSTER/LIVECOMMENTS/UPLOAD/CLIPPING | yes | |
@@ -447,7 +446,7 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 | STAT-LIVE, CMP-RAIL-PEEK | no | |
 | CMP-TUNNEL, CMP-PRESENCE-STATUS | yes | |
 
-Tally of the 152 non-interaction items, counted from the Story columns: 65 yes, 33 partial, 54 no. Interactions: 18 yes (frozen states), 15 partial, 13 none.
+Tally of the 151 non-interaction items, counted from the Story columns: 64 yes, 33 partial, 54 no. Interactions: 18 yes (frozen states), 15 partial, 13 none.
 
 ---
 

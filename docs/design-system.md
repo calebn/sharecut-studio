@@ -76,7 +76,7 @@ organisms; domain screens are templates, colocated with their domain component
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, ClipLed, Pill, Timecode, EmptyState, SurfaceLadder (token reference), CloseButton |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl, Toast, FocusPull, InlineConfirm |
 | **Organisms** | Complex, generic, reusable components / sections | Dialog, AskDialog, BottomSheet, CoverScreen, LoadingScreen, ErrorScreen |
-| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy; a store-bound one hydrates the shared episode instead (see [Catalog boundary](#catalog-boundary-store-bound-components)) | UploadStatus, Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, AppliedEditOverlay, StaleInvalidationOverlay, PendingEditOverlay, MarkerLaneHost, EditBoundaryMark, ClipBlock, CommentPlaybackBubble, TrackHeader, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, HostMcpDialog, GesturesSheet, GuestAttentionBanner, AvatarStack, OverlayLegend, CommandPalette |
+| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy; a store-bound one hydrates the shared episode instead (see [Catalog boundary](#catalog-boundary-store-bound-components)) | UploadStatus, Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, AppliedEditOverlay, StaleInvalidationOverlay, PendingEditOverlay, MarkerLaneHost, EditBoundaryMark, ClipBlock, CommentPlaybackBubble, TrackHeader, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, HostMcpDialog, GesturesSheet, AvatarStack, OverlayLegend, CommandPalette |
 
 **Organisms vs Templates:** an organism is generic and reusable anywhere in the
 app; a template is one specific domain screen or panel (record room, review
@@ -290,16 +290,6 @@ The view derives the blocked-Suggested reason id
 with `useId()`, so several footers on one autodocs page never share an
 `aria-describedby` target.
 
-`Templates/GuestAttentionBanner` renders the production `GuestAttentionBannerView` used by the live
-`GuestAttentionBanner`, which polls IndexedDB every 2s for a share
-guest's 409 conflicts; the view renders the conflict summary, the
-conflict list (first 5 items, then a muted, unbulleted "+N more" summary
-item), and the dismiss control from props alone. A host project's waiting
-edits, conflicts and unreadable queue are Check rows in the Review queue
-(`Stages/Review/Queue`).
-The story shares `frameStoryDecorator` for a real `.stage-frame` at
-desktop and 360px widths.
-
 `Templates/AvatarStack` and `Templates/OverlayLegend` follow the same
 adapter/view split as
 `ScriptPane`: each live component is a thin adapter that reads the DAW
@@ -401,7 +391,6 @@ one page and the stories would overwrite each other's hydration.
 and `MenuItem`, which already have stories and need none of their own. Views
 extracted at an I/O seam follow the props-only view pattern. Existing
 examples are `ScriptPane`,
-`GuestAttentionBannerView`,
 `EditCornerView`, `CommandPaletteView`,
 `ClipBlockView`, `MarkerLaneHost`, `PendingEditOverlayView`,
 `EditBoundaryMarkView` and `InspectorSeekFooterView`.
@@ -693,7 +682,8 @@ jsdom visibility checks.
 
 - 2026-09-27 — Closed #609: extracted props-only `FollowBannerView` and
   `GuestAttentionBannerView` from `FollowBanner` and `GuestAttentionBanner`,
-  added `Templates/FollowBanner` and `Templates/GuestAttentionBanner` with
+  added `Templates/FollowBanner` and `Templates/GuestAttentionBanner` (the
+  latter deleted in #2298 when the Review queue took its rows) with
   the shared `dawShellStoryDecorator`, and removed cluster **B** from the
   Catalog boundary follow-up list; the conflict list now ends with a "+N
   more" item when more than 5 conflicts are queued.

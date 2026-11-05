@@ -130,7 +130,7 @@ export function appliedEditRecord(
   };
 }
 
-/** Fictional offline queue conflict for guest-attention unit tests and stories. */
+/** Fictional offline queue conflict for Review-queue attention tests and stories. */
 export function offlineConflict(
   overrides: {
     command?: Partial<QueuedCommand>;

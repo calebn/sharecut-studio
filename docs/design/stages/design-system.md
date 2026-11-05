@@ -123,7 +123,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
   - Saving: hollow ring.
   - Offline: amber `cloud-off` with a count ("2 waiting").
   - Failed: red `octagon-alert`, with Retry and Download a copy.
-- Used: CMP-SAVEDOT, SCR-GUEST-OFFLINE, BAN-GUEST-ATTENTION.
+- Used: CMP-SAVEDOT, SCR-GUEST-OFFLINE.
 - Replaces: Save dot (edit), Save state dot with the offline cloud (rdp), the guest offline banner.
 - Story: `System/SaveIndicator`.
 

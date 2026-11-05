@@ -1,6 +1,6 @@
 import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { GuestAttentionBanner } from "../stage/frame/GuestAttentionBanner";
+import { OfflineAttentionAnnouncer } from "../stage/frame/OfflineAttentionAnnouncer";
 import { StatusLive } from "../stage/frame/StatusLive";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
@@ -48,7 +48,7 @@ describe("useOfflineAttentionAnnouncement", () => {
     offlineStore.loadHostCommandCount.mockResolvedValue(2);
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
-        <GuestAttentionBanner />
+        <OfflineAttentionAnnouncer />
         <StatusLive />
       </DawProvider>,
     );
@@ -76,7 +76,7 @@ describe("useOfflineAttentionAnnouncement", () => {
     offlineStore.loadHostCommandCount.mockRejectedValue(new Error("idb"));
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
-        <GuestAttentionBanner />
+        <OfflineAttentionAnnouncer />
         <StatusLive />
       </DawProvider>,
     );
