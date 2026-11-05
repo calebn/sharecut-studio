@@ -4345,7 +4345,7 @@ def test_recovery_home_link_keeps_the_pin(minimal_project, tmp_path) -> None:
         follow_redirects=False,
     )
     assert page.status_code == 403
-    assert 'href="/?home=1"' in page.text
+    assert _not_served_payload(page.text)["home_href"] == "/?home=1"
     home = client.get("/", params={"home": "1"}, follow_redirects=False)
     assert home.status_code == 200
     assert Path(client.app.state.served_project).resolve() == served
