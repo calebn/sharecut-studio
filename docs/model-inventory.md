@@ -9,8 +9,8 @@ Which features use a downloaded model or an optional runtime, where setup covers
 | Transcription | Whisper tiers (`faster-whisper` / CTranslate2) | `bootstrap_whisper_model`, pinned HF snapshot | Yes, first-run default | Revision pin, `whisper_model_problem` | Works |
 | Voice activity | Silero VAD ONNX, bundled with `faster-whisper` | None | Reported by `podcast doctor` only, not in bootstrap status | n/a | Works |
 | Noise reduction | RNNoise `.rnnn` for FFmpeg `arnndn` | `bootstrap_rnnoise_model` | Yes, optional | sha256 and size_bytes pinned in contracts/bootstrap-assets.json; GitHub source is a commit-pinned raw URL (GregorR/rnnoise-models@3eee541); CDN copy not yet uploaded | Works |
-| Precise word boundaries | Forced word aligner (ONNX, `onnxruntime` is a core dependency) | `bootstrap_word_aligner`, pinned HF snapshot | Yes, opt-in | Revision pin, `word_aligner_problem` | Works |
-| Speaker recognition and split | ECAPA embedding network exported to ONNX (`engines/models/speaker_ecapa.py`), `onnxruntime` | `bootstrap_speaker_ecapa`, sha256-pinned file at a direct first-party CDN url | Yes, opt-in (`speaker-ecapa`) | sha256 pin, `speaker_ecapa_problem` | Works once downloaded |
+| Precise word boundaries | Forced word aligner (ONNX, `onnxruntime` is a core dependency) | `bootstrap_word_aligner`, pinned HF snapshot | Yes, recommended (installed by Get ready and a bare bootstrap) | Revision pin, `word_aligner_problem` | Works |
+| Speaker recognition and split | ECAPA embedding network exported to ONNX (`engines/models/speaker_ecapa.py`), `onnxruntime` | `bootstrap_speaker_ecapa`, sha256-pinned file at a direct first-party CDN url | Yes, recommended (`speaker-ecapa`; installed by Get ready and a bare bootstrap) | sha256 pin, `speaker_ecapa_problem` | Works once downloaded |
 
 ## Findings
 

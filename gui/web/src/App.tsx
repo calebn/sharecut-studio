@@ -23,8 +23,6 @@ import { parseShareRoute } from "./shareRoute";
 import { GuestLoadingScreen } from "./stage/frame/GuestLoadingScreen";
 import { StageLoading } from "./stage/frame/StageLoading";
 import {
-  BAD_LINK_HINT,
-  BAD_LINK_TITLE,
   BadLinkCover,
   HostCover,
   NotServedCover,
@@ -80,11 +78,15 @@ function AppInner() {
     null,
   );
   const [shareAuthor, setShareAuthor] = useState<string | null>(null);
-  const [error, setError] = useState<{
-    message: string;
-    hint?: string;
-    cover?: "bad-link" | "offline" | "failed";
-  } | null>(null);
+  const [error, setError] = useState<
+    | { cover: "bad-link" }
+    | {
+        message: string;
+        hint?: string;
+        cover?: "offline" | "failed";
+      }
+    | null
+  >(null);
   const [attempt, setAttempt] = useState(0);
   const projectLoading = (
     <StageLoading
@@ -149,11 +151,7 @@ function AppInner() {
             return;
           }
           if (!caps.includes("view")) {
-            setError({
-              message: BAD_LINK_TITLE,
-              hint: BAD_LINK_HINT,
-              cover: "bad-link",
-            });
+            setError({ cover: "bad-link" });
             return;
           }
           setShareKey(shareProjectKey(reviewToken));
@@ -172,11 +170,7 @@ function AppInner() {
             if (e.code === "share_not_found") {
               void clearOfflineSnapshot(reviewToken).catch(() => undefined);
             }
-            setError({
-              message: BAD_LINK_TITLE,
-              hint: BAD_LINK_HINT,
-              cover: "bad-link",
-            });
+            setError({ cover: "bad-link" });
             return;
           }
           const cached = await loadOfflineSnapshot(reviewToken);
@@ -239,7 +233,7 @@ function AppInner() {
   if (error?.cover === "bad-link") {
     return (
       <main ref={coverRef} tabIndex={-1}>
-        <BadLinkCover title={error.message} hint={error.hint} />
+        <BadLinkCover />
       </main>
     );
   }

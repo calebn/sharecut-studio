@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useAfter } from "../../hooks/useAfter";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import type { ShellBreakpoint } from "../../state/types";
 import { StageBar } from "../../system/StageBar";
@@ -8,8 +8,8 @@ import { STAGE_BODY_ID, StageFrameView } from "./StageFrameView";
 
 /** Nothing is drawn before this. */
 export const LOADING_BLANK_MS = 300;
-/** "Still loading. Try again" appears under the body at this time. */
-export const LOADING_SLOW_MS = 8000;
+/** "Still loading…" and Retry appear under the body at this time. */
+export const LOADING_SLOW_MS = 4000;
 
 const LOADING_STATUS = "Loading the project";
 
@@ -52,24 +52,17 @@ export type StageLoadingProps = {
 };
 
 function useElapsedPhase(elapsedMs: number | undefined): Phase {
-  const [timed, setTimed] = useState<Phase>("blank");
   const controlled = elapsedMs !== undefined;
-  useEffect(() => {
-    if (controlled) return;
-    const bar = window.setTimeout(() => setTimed("bar"), LOADING_BLANK_MS);
-    const slow = window.setTimeout(() => setTimed("slow"), LOADING_SLOW_MS);
-    return () => {
-      window.clearTimeout(bar);
-      window.clearTimeout(slow);
-    };
-  }, [controlled]);
-  return controlled ? phaseOf(elapsedMs) : timed;
+  const bar = useAfter(controlled ? null : LOADING_BLANK_MS);
+  const slow = useAfter(controlled ? null : LOADING_SLOW_MS);
+  if (controlled) return phaseOf(elapsedMs);
+  return slow ? "slow" : bar ? "bar" : "blank";
 }
 
 /**
  * The Loading cover: nothing for 300 ms, then the Stage bar for real and static
- * grey placeholders in the destination stage's layout, and after 8 s one line
- * with Try again. No spinner and no visible "Loading"; a hidden status line tells a screen reader.
+ * grey placeholders in the destination stage's layout, and after 4 s one line
+ * with Retry. No spinner and no visible "Loading"; a hidden status line tells a screen reader.
  */
 export function StageLoading({
   stage,
@@ -124,8 +117,8 @@ export function StageLoading({
         </div>
         {phase === "slow" ? (
           <p className="stage-loading-slow" role="status">
-            <span>Still loading.</span>
-            <Button onClick={onRetry}>Try again</Button>
+            <span>Still loading…</span>
+            <Button onClick={onRetry}>Retry</Button>
           </p>
         ) : null}
       </div>
