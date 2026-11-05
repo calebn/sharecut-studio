@@ -91,6 +91,9 @@ export function useRecordMonitor({
 } {
   const [remoteCount, setRemoteCount] = useState(0);
   const [levels, setLevels] = useState<Record<string, number>>({});
+  if (remoteCount === 0 && Object.keys(levels).length > 0) {
+    setLevels({});
+  }
   const [error, setError] = useState<string | null>(null);
   const [contextGeneration, setContextGeneration] = useState(0);
   const sessionId = snapshot?.session_id ?? null;
@@ -290,7 +293,6 @@ export function useRecordMonitor({
 
   useEffect(() => {
     if (remoteCount === 0) {
-      setLevels((prev) => (Object.keys(prev).length === 0 ? prev : {}));
       return;
     }
     const taps = tapsRef.current;
