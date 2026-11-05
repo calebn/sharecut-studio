@@ -3,7 +3,11 @@ import { type ReactElement, type ReactNode, useMemo, useState } from "react";
 import { vi } from "vitest";
 import type { BootstrapJobSnapshot, BootstrapStatus } from "../api";
 import { overlay, toolsOf } from "../models/controller";
-import type { DownloadOutcome, ModelFailure } from "../models/types";
+import type {
+  DownloadOutcome,
+  ModelFailure,
+  RemoveOutcome,
+} from "../models/types";
 import { type ModelsApi, ModelsContext } from "../models/useModels";
 
 export type ModelsFixture = {
@@ -31,6 +35,7 @@ export function modelsApi(fixture: ModelsFixture): ModelsApi {
       fixture.download ??
       vi.fn(async (): Promise<DownloadOutcome> => ({ kind: "ok" })),
     cancel: vi.fn(async () => undefined),
+    remove: vi.fn(async (): Promise<RemoveOutcome> => ({ kind: "ok" })),
     refresh: vi.fn(async () => undefined),
   };
 }

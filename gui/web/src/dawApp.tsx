@@ -29,6 +29,7 @@ import { StageFrame } from "./stage/frame/StageFrame";
 import { useLandingStage } from "./stage/frame/useLandingStage";
 import { BounceFlowProvider } from "./stage/hosts/bounceFlow";
 import { ExportFlowProvider } from "./stage/hosts/exportFlow";
+import { FindMoreFlowProvider } from "./stage/hosts/findMoreFlow";
 import { StageHost } from "./stage/hosts/StageHost";
 import { ShareFlowProvider } from "./stage/hosts/shareFlow";
 import { useDawStore } from "./state/dawStore";
@@ -223,36 +224,38 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     <HostRoomProvider value={hostRoom}>
       <ExportFlowProvider>
         <BounceFlowProvider>
-          <ShareFlowProvider>
-            {engines}
-            <div data-daw-app-chrome>
-              <StageFrame guestShare={guestShare} sheets={EDIT_SHEETS}>
-                <StageHost
-                  guestShare={guestShare}
-                  loadFailure={loadFailure}
-                  onRetryLoad={retryBootstrap}
-                />
-              </StageFrame>
-            </div>
-            <CheatsheetDialogs />
-            <HostMcpDialog
-              open={hostMcpDialogOpen}
-              onClose={() => setHostMcpDialogOpen(false)}
-              hasProject={hasProject}
-            />
-            <HelpDialog
-              open={helpDialogOpen}
-              onClose={() => setHelpDialogOpen(false)}
-            />
-            {syncEnabled ? (
-              <ModelsSheet
-                open={modelsSheetOpen}
-                onClose={() => setModelsSheetOpen(false)}
+          <FindMoreFlowProvider>
+            <ShareFlowProvider>
+              {engines}
+              <div data-daw-app-chrome>
+                <StageFrame guestShare={guestShare} sheets={EDIT_SHEETS}>
+                  <StageHost
+                    guestShare={guestShare}
+                    loadFailure={loadFailure}
+                    onRetryLoad={retryBootstrap}
+                  />
+                </StageFrame>
+              </div>
+              <CheatsheetDialogs />
+              <HostMcpDialog
+                open={hostMcpDialogOpen}
+                onClose={() => setHostMcpDialogOpen(false)}
+                hasProject={hasProject}
               />
-            ) : null}
-            <AskDialog />
-            <FeedbackToast />
-          </ShareFlowProvider>
+              <HelpDialog
+                open={helpDialogOpen}
+                onClose={() => setHelpDialogOpen(false)}
+              />
+              {syncEnabled ? (
+                <ModelsSheet
+                  open={modelsSheetOpen}
+                  onClose={() => setModelsSheetOpen(false)}
+                />
+              ) : null}
+              <AskDialog />
+              <FeedbackToast />
+            </ShareFlowProvider>
+          </FindMoreFlowProvider>
         </BounceFlowProvider>
       </ExportFlowProvider>
     </HostRoomProvider>

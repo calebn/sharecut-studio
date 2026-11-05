@@ -1,5 +1,6 @@
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { loadPipelineConfig, startPipelineRun } from "../../api";
 import type { Question } from "../../feedback/ask";
@@ -16,6 +17,7 @@ import type {
   PipelineJobSnapshot,
 } from "../../types/pipeline";
 import { ApiError } from "../../utils/apiError";
+import { FindMoreFlowProvider } from "./findMoreFlow";
 import { ReviewHost } from "./ReviewHost";
 
 const PATH = "/tmp/find-more/episode.sharecut";
@@ -73,9 +75,12 @@ function mount(pending = [hit], guestMode: string | null = null) {
     pipelineJob: null,
     activityJob: null,
   });
-  return renderWithLanding(<ReviewHost />, {
-    status: modelStatus(registryRows()),
-  });
+  return renderWithLanding(
+    <FindMoreFlowProvider>
+      <ReviewHost />
+    </FindMoreFlowProvider>,
+    { status: modelStatus(registryRows()) },
+  );
 }
 
 const setJob = (next: PipelineJobSnapshot | null) =>
@@ -194,6 +199,49 @@ describe("Find more in the Review host", () => {
     await waitFor(() =>
       expect(screen.queryByText("Needs the transcription model")).toBeNull(),
     );
+  });
+
+  it("still runs Find more when the model lands after the person left Review, and shows it on return", async () => {
+    vi.mocked(startPipelineRun).mockRejectedValueOnce(WHISPER_NEEDED());
+    const { land, rerender } = mount([]);
+    await waitFor(async () => expect(await button()).toBeEnabled());
+    await userEvent.click(await button());
+    await screen.findByText("Needs the transcription model");
+    const leave = (ui: ReactElement) =>
+      rerender(<FindMoreFlowProvider>{ui}</FindMoreFlowProvider>);
+    leave(<p>Deliver</p>);
+    expect(screen.queryByText("Needs the transcription model")).toBeNull();
+    land("whisper");
+    await waitFor(() => expect(startPipelineRun).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(useDawStore.getState().pipelineJob?.id).toBe("job1"),
+    );
+    leave(<ReviewHost />);
+    expect(await screen.findByText("Finding more suggestions")).toBeVisible();
+    expect(screen.queryByText("Needs the transcription model")).toBeNull();
+    expect(startPipelineRun).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows the waiting row again when Review is reopened before the model lands", async () => {
+    vi.mocked(startPipelineRun).mockRejectedValueOnce(WHISPER_NEEDED());
+    const { rerender } = mount([]);
+    await waitFor(async () => expect(await button()).toBeEnabled());
+    await userEvent.click(await button());
+    await screen.findByText("Needs the transcription model");
+    rerender(
+      <FindMoreFlowProvider>
+        <p>Deliver</p>
+      </FindMoreFlowProvider>,
+    );
+    rerender(
+      <FindMoreFlowProvider>
+        <ReviewHost />
+      </FindMoreFlowProvider>,
+    );
+    expect(
+      await screen.findByText("Needs the transcription model"),
+    ).toBeVisible();
+    expect(startPipelineRun).toHaveBeenCalledTimes(1);
   });
 
   it("shows the failure instead of looping when the model is refused again after it landed", async () => {

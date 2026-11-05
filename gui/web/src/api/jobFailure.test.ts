@@ -33,7 +33,7 @@ function failed(extra: Partial<PipelineJobSnapshot>): PipelineJobSnapshot {
 }
 
 describe("jobFailure", () => {
-  it("turns a model_needed snapshot into the error a model gate asks on", () => {
+  it("turns a model_needed snapshot into the error a Model need row asks on", () => {
     const err = jobFailure(
       failed({ error_code: "model_needed", error_model: MODEL }),
       "Export failed",
