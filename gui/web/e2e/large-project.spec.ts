@@ -129,6 +129,7 @@ test.describe("large project benchmark (opt-in fixture)", () => {
       headless,
     );
     let failure: unknown;
+    let bodyFailed = false;
     try {
       const slider = page.getByRole("slider", { name: "Timeline position" });
       const clipButton = (id: string) =>
@@ -509,22 +510,24 @@ test.describe("large project benchmark (opt-in fixture)", () => {
         `large-project benchmark: ${JSON.stringify(profiles)}\n`,
       );
     } catch (error) {
+      bodyFailed = true;
       failure = error;
-      throw error;
+    }
+    let cleanupFailure: { error: unknown } | undefined;
+    try {
+      await recorder.finish(failure);
+    } catch (error) {
+      if (failure === undefined) cleanupFailure = { error };
+      else process.stderr.write(`profile cleanup: ${String(error)}\n`);
     } finally {
       try {
-        await recorder.finish(failure);
+        await cdp.detach();
       } catch (error) {
-        if (failure === undefined) throw error;
-        process.stderr.write(`profile cleanup: ${String(error)}\n`);
-      } finally {
-        try {
-          await cdp.detach();
-        } catch (error) {
-          if (failure === undefined) throw error;
-          process.stderr.write(`CDP cleanup: ${String(error)}\n`);
-        }
+        if (failure === undefined) cleanupFailure = { error };
+        else process.stderr.write(`CDP cleanup: ${String(error)}\n`);
       }
     }
+    if (cleanupFailure) throw cleanupFailure.error;
+    if (bodyFailed) throw failure;
   });
 });
