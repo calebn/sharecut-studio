@@ -477,6 +477,103 @@
   flex: none;
 }
 
+.sys-version {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  overflow: hidden;
+}
+
+.sys-version-line {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  max-inline-size: 100%;
+  gap: var(--space-1);
+  min-inline-size: 0;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+
+button.sys-version-line {
+  cursor: pointer;
+}
+
+.sys-version-line .sys-mono {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sys-version-glyph {
+  display: inline-flex;
+  flex: none;
+}
+
+/* A 6 px dot: a newer version waits behind this line until the guest listens. */
+.sys-version-dot {
+  flex: none;
+  inline-size: 6px;
+  block-size: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+
+.sys-version-pill {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  max-inline-size: 100%;
+  gap: var(--space-1);
+  min-inline-size: 0;
+  block-size: var(--control-height-compact);
+  padding-inline: var(--space-3);
+  border: 0;
+  border-radius: var(--radius-xl);
+  background: var(--color-accent-subtle);
+  color: var(--color-accent-fg);
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.sys-version-pill-action {
+  display: inline-flex;
+  flex: none;
+  gap: var(--space-1);
+}
+
+.sys-version-pill-text {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* On a narrow header the version name gets the room; Listen stays in the accessible name and the status text. */
+@container sys-app-header (max-width: 40rem) {
+  .sys-version-pill-action {
+    display: none;
+  }
+
+  .sys-version-pill,
+  button.sys-version-line {
+    min-block-size: 2.75rem;
+  }
+}
+
+@media (pointer: coarse) {
+  .sys-version-pill,
+  button.sys-version-line {
+    min-block-size: var(--touch-min);
+  }
+}
+
 .sys-header-people {
   display: flex;
   margin: 0;

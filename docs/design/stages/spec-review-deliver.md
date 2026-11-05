@@ -415,7 +415,7 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 
 ### Guest review experience (SCR-GUEST-VIEWER, -COMMENTER, -EDITOR, -MOBILE)
 
-- **Today:** `SCR-GUEST-VIEWER--*`, `SCR-GUEST-COMMENTER--*`, `SCR-GUEST-EDITOR--*`, `SCR-GUEST-MOBILE--phone-light.png`. The guest sees the full host editor with the header Role chip ("Commenter: can comment") and a text banner (“Hearing ‘Share mix’. This link follows the latest version…”), disabled tools they can't use, Shorter/Taller/Reset buttons; the phone shows a dark player card and "Open all".
+- **Today:** `SCR-GUEST-VIEWER--*`, `SCR-GUEST-COMMENTER--*`, `SCR-GUEST-EDITOR--*`, `SCR-GUEST-MOBILE--phone-light.png`. The guest sees the full host editor with the header Role chip ("Commenter: can comment") and, under it, a version notice line (replaced by the header version line and New version pill, #2298), disabled tools they can't use, Shorter/Taller/Reset buttons; the phone shows a dark player card and "Open all".
 - **Fate:** replace with Guest Review (reduced Review stage).
 - **Spec:**
   - Frame: no Stage bar tabs for Viewer and Commenter (one stage, no switcher). Header 56 px: project name, under it in 13/16 meta the version ("Rough cut · 25 Oct") with a live glyph (two arrows circling = follows latest) or a pin glyph (frozen); right: presence avatars and the guest's own avatar (tap to set name). The Role chip sits next to the name (eye / bubble / pencil + word on desktop, icon only on phone with accessible name).
@@ -436,13 +436,11 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 - **Shared elements used:** Role chip, popover.
 - **Story to build:** `Stages/Review/Guest` `FirstVisitRoleHint`.
 
-### BAN-GUEST-VERSION · Newer version notice
+### Guest version line and New version pill
 
-- **Today:** no story, no shot (amber banner per guest-journeys.md).
-- **Fate:** replace with an inline version pill in the guest header.
-- **Spec:** following link: when the host publishes, the version line becomes an accent pill "New version: Intro fix · Listen" for 10 s, then stays as the version line with a 6 px accent dot until played. Playback position carries over by matching transcript words. Frozen link: nothing changes.
-- **Shared elements used:** pill.
-- **Story to build:** `Stages/Review/Guest` `NewVersion`.
+- **Shipped (#2298):** the guest header shows the real version label under the project name, with a live glyph (two arrows circling) on a link that follows the latest version or a pin glyph on a frozen one. Following link: when the host publishes, the line becomes an accent pill "New version: Intro fix · Listen" for 10 s, then stays as the version line with a 6 px accent dot until the guest listens. Listen reloads the page onto the new version. Frozen link: nothing changes, it keeps showing the pinned version. The page reads the version on load, every 30 s and when the tab returns (`useReviewVersion`).
+- **Not built:** carrying the playback position over to the new version by matching transcript words.
+- **Shared elements used:** pill. Stories: `System/AppHeader` GuestFollowing, GuestFrozen, GuestNewVersion.
 
 ### SCR-GUEST-OFFLINE · Offline guest and BAN-GUEST-ATTENTION · Needs attention
 

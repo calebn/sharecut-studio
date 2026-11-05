@@ -879,7 +879,7 @@ html[data-shell="phone"] .guest-attention-dismiss {
   border-radius: var(--radius-sm);
 }
 
-/* Which review version a guest hears (#1785): a quiet line; amber only when it changed or a newer cut exists. */
+/* Saved-copy notice: a quiet line; amber because the host cannot be reached. */
 .guest-version {
   display: flex;
   align-items: center;
@@ -898,18 +898,8 @@ html[data-shell="phone"] .guest-attention-dismiss {
   color: var(--color-text-primary);
 }
 
-.guest-version--attention .ui-control.linkish {
-  color: var(--color-text-primary);
-}
-
 .guest-version-text {
   flex: 1 1 12rem;
   min-inline-size: 0;
   overflow-wrap: anywhere;
-}
-
-@media (pointer: coarse) {
-  .guest-version .ui-control {
-    min-block-size: var(--touch-min);
-  }
 }
