@@ -49,7 +49,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 
@@ -1057,12 +1057,14 @@ def _speech_prob(audio: np.ndarray) -> float | None:
     return float(np.max(vad.speech_probs(audio)))
 
 
-_FLOOR_FLIGHTS: dict[tuple, list] = {}
+_FLOOR_FLIGHTS: dict[tuple[Path, FileRevision, str | None], list[Any]] = {}
 _FLOOR_FLIGHTS_LOCK = threading.Lock()
 
 
-def _floor_single_flight(path: Path, revision: FileRevision, content_sha256: str | None):
-    """Measure one file revision once: a second thread asking for it waits for the first."""
+def _floor_single_flight(
+    path: Path, revision: FileRevision, content_sha256: str | None
+) -> FloorRead:
+    """A second thread asking for a file revision being measured waits for the first."""
     key = (path, revision, content_sha256)
     with _FLOOR_FLIGHTS_LOCK:
         flight = _FLOOR_FLIGHTS.setdefault(key, [threading.Lock(), 0])
@@ -1078,7 +1080,7 @@ def _floor_single_flight(path: Path, revision: FileRevision, content_sha256: str
 
 
 def track_floor(path: Path, *, content_sha256: str | None = None) -> FloorRead:
-    """Live, digital or unreadable source facts cached per file revision, measured once at a time."""
+    """Live, digital or unreadable source facts cached per file revision."""
     try:
         resolved = path.resolve(strict=True)
         return _floor_single_flight(resolved, file_revision(resolved), content_sha256)
