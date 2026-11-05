@@ -418,7 +418,20 @@ describe("Prepare host", () => {
     ).toHaveTextContent("The transcript didn't load");
   });
 
+  it("covers a stage whose project is already open when the load failed", () => {
+    asHost("prepare");
+    render(
+      <StageHost loadFailure={{ message: "No answer.", onRetry: vi.fn() }} />,
+    );
+    expect(
+      within(screen.getByRole("alert")).getByRole("button", {
+        name: "Try again",
+      }),
+    ).toBeInTheDocument();
+  });
+
   it("keeps the focused Try again button mounted while the retry runs", () => {
+    asHost("prepare");
     useDawStore.setState({ project: null });
     const failure = { message: "No answer.", onRetry: vi.fn() };
     const { rerender } = render(<StageHost loadFailure={failure} />);
