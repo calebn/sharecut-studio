@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Card } from "../../system/Card";
 import { StatusRow } from "../../system/StatusRow";
 import { SystemIcon } from "../../system/SystemIcon";
@@ -41,7 +41,7 @@ function CheckingSkeleton() {
     return () => window.clearTimeout(timer);
   }, []);
   return (
-    <div className="sys-setup-checking" aria-busy="true">
+    <div className="sys-setup-checking">
       {shown ? (
         <>
           <p className="sr-only" role="status">
@@ -194,10 +194,36 @@ function SetupBody({
   );
 }
 
+/** Moves focus off the Cancel button that is about to leave the page. */
+function focusAfterCancel(root: HTMLElement) {
+  const next =
+    root.querySelector<HTMLElement>(".sys-setup-actions button") ??
+    root.querySelector<HTMLElement>("h1, h2, h3, h4, [role='heading']");
+  if (next) {
+    if (!next.matches("button")) next.tabIndex = -1;
+    next.focus();
+  }
+}
+
 export function SetupCard(props: SetupCardProps) {
+  const root = useRef<HTMLDivElement>(null);
+  const cancelled = useRef(false);
+  const { state, onCancel } = props;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs once per state change
+  useEffect(() => {
+    if (!cancelled.current || state === "downloading") return;
+    cancelled.current = false;
+    if (root.current) focusAfterCancel(root.current);
+  }, [state]);
   return (
-    <div className="sys-setup">
-      <SetupBody {...props} />
+    <div className="sys-setup" ref={root}>
+      <SetupBody
+        {...props}
+        onCancel={() => {
+          cancelled.current = true;
+          onCancel();
+        }}
+      />
     </div>
   );
 }

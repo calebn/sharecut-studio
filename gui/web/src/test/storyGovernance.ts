@@ -277,6 +277,7 @@ export function importsStorybook(text: string): boolean {
   return importSpecifiers(text).some((s) => STORYBOOK_PACKAGE_RE.test(s));
 }
 
+/** Stage list: docs/design/stages/design-system.md line 92 ("where Stage is Frame, Home, Record, ..."). */
 const STORY_TITLE_RE =
   /^(?:(?:Atoms|Molecules|Organisms|Templates|System)|Stages\/(?:Home|Record|Prepare|Edit|Review|Deliver|Guest|Frame))\/[^/\s][^/]*$/;
 
