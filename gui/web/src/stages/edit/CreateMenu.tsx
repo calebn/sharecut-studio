@@ -32,36 +32,38 @@ import {
  */
 export const CREATE_ITEM_ATTR = "data-create-item";
 
-export type CreateMenuProps = {
+type ContentProps = {
   /** The rows the held point offers; absent rows are simply not in the list. */
   rows: readonly CreateRow[];
   /** The held time, formatted ("12:04.3"). */
   time: string;
   /** The held lane's name, or null off a lane. */
   track: string | null;
+  onPick: (id: CreateRowId) => void;
+  onClose: () => void;
+};
+
+type PositionedProps = {
   /** The held point, in the positioned box the leaf is mounted in. */
   anchor: Point;
   /** The box the menu stays inside, in the same coordinates. */
   bounds: Bounds;
   /** The room used when the menu is taller than `bounds`; defaults to `bounds`. */
   viewport?: Bounds;
-  /** The fixed playhead's x on a phone, which the menu sits beside. */
+  /** An x coordinate the positioned menu keeps clear of. */
   avoidX?: number | null;
-  /**
-   * The row index a sliding finger is over, or null. The popover form only:
-   * the phone Sheet is modal and its rows are plain buttons, so `over` is
-   * ignored there (no row is highlighted under a sliding finger).
-   */
+  /** The row index a sliding finger is over, or null. */
   over?: number | null;
   /** The held lane's top and bottom, for the dashed time mark. */
   mark?: { top: number; bottom: number } | null;
-  /** The phone form: the same rows in a content-height bottom Sheet. */
-  phone?: boolean;
-  onPick: (id: CreateRowId) => void;
-  onClose: () => void;
 };
 
-type PopoverProps = Omit<CreateMenuProps, "phone"> & { title: string };
+export type CreateMenuProps = ContentProps &
+  ({ phone: true } | (PositionedProps & { phone?: false }));
+
+type PopoverProps = Extract<CreateMenuProps, { phone?: false }> & {
+  title: string;
+};
 
 /**
  * The menu in its box. Its size is read once, when it mounts: `CreateMenu`
@@ -172,11 +174,11 @@ function Popover({
  * 12:04.3 on Maya, 4 actions"), as design-system.md MENU-CREATE wiring item 3
  * records.
  */
-function CreateMenuView({ phone = false, ...props }: CreateMenuProps) {
+function CreateMenuView(props: CreateMenuProps) {
   const { rows, time, track, onPick, onClose } = props;
   const sheetId = useId();
   const title = track ? `${time} · ${track}` : time;
-  if (phone) {
+  if (props.phone) {
     return (
       <Sheet form="bottom" detent="fit" title={title} onClose={onClose}>
         {rows.map((row, index) => (

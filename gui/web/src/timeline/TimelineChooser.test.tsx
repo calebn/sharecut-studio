@@ -113,6 +113,23 @@ function chipFor(name: RegExp) {
 }
 
 describe("TimelineChooser", () => {
+  it("attaches its target fan only after the layer enters the top layer", () => {
+    const atShow: (Element | null)[] = [];
+    const entered = vi
+      .spyOn(HTMLElement.prototype, "showPopover")
+      .mockImplementation(function (this: HTMLElement) {
+        atShow.push(document.querySelector('[role="menu"]'));
+        this.removeAttribute("popover");
+      });
+    try {
+      show();
+      expect(atShow).toEqual([null]);
+      expect(screen.getByRole("menu")).toBeVisible();
+    } finally {
+      entered.mockRestore();
+    }
+  });
+
   it("enters the top layer as a popover and leaves it on close", () => {
     const showPopover = vi.spyOn(HTMLElement.prototype, "showPopover");
     const hidePopover = vi.spyOn(HTMLElement.prototype, "hidePopover");

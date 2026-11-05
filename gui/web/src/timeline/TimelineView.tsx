@@ -71,7 +71,6 @@ import { AuditionOverlay } from "./AuditionOverlay";
 import { CommentPlaybackBubble } from "./CommentPlaybackBubble";
 import { CommentSelectionOverlay } from "./CommentSelectionOverlay";
 import { clippingFlags } from "./clippingFlags";
-import { DetentMark } from "./DetentMark";
 import { attachDragWatch } from "./dragWatch";
 import { FixedPlayheadNeedle } from "./FixedPlayheadNeedle";
 import { selectFollowColorIndex } from "./followTarget";
@@ -96,9 +95,8 @@ import { PrecisionLayer } from "./precision/PrecisionLayer";
 import { precisionHandoff } from "./precision/precisionController";
 import { RecordingOverlay, RecordingScrollExtent } from "./RecordingOverlay";
 import { snapActive } from "./snapOverlay";
-import { TimelineChooser } from "./TimelineChooser";
-import { TimelineCreateMenu } from "./TimelineCreateMenu";
 import { FollowPlayheadChip, SplitGuide } from "./TimelineLeaves";
+import { TimelinePhysicalOverlays } from "./TimelinePhysicalOverlays";
 import { TimelinePresence } from "./TimelinePresence";
 import { TimelineRuler } from "./TimelineRuler";
 import { TrackLane } from "./TrackLane";
@@ -131,7 +129,6 @@ import {
 import { useRangeGesture } from "./useRangeGesture";
 import { useSplitAtPointer } from "./useSplitAtPointer";
 import { useTouchPress } from "./useTouchPress";
-import { visibleBox } from "./visibleBox";
 
 type Props = {
   /** Phone Timeline mode: playhead fixed at viewport center; scrub by scrolling. */
@@ -1136,29 +1133,15 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
             {scrollLeaves}
             {/* After the scroller on purpose: at the lane floor's z, tree order
               paints the edges over it, and clips and markers stay above. */}
-            {chooser && hitRouter ? (
-              <TimelineChooser
-                view={chooser}
-                router={hitRouter}
-                bounds={visibleBox(scrollRef.current)}
-              />
-            ) : null}
-            {create && hitRouter ? (
-              <TimelineCreateMenu
-                view={create.view}
-                place={create.place}
-                router={hitRouter}
-                bounds={visibleBox(scrollRef.current)}
-                avoidX={null}
-                phone={fixedPlayhead}
-              />
-            ) : null}
-            {detent ? (
-              <DetentMark
-                detent={detent}
-                bounds={visibleBox(lanesRef.current ?? scrollRef.current)}
-              />
-            ) : null}
+            <TimelinePhysicalOverlays
+              scrollerRef={scrollRef}
+              lanesRef={lanesRef}
+              chooser={chooser}
+              create={create}
+              detent={detent}
+              router={hitRouter}
+              phone={fixedPlayhead}
+            />
             <PrecisionLayer />
             <div className="timeline-edge timeline-edge--start" aria-hidden />
             <div className="timeline-edge timeline-edge--end" aria-hidden />

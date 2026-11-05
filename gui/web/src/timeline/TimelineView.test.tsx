@@ -5,6 +5,7 @@ import {
   type ClipBleedInspection,
   loadClipBleedInspection,
 } from "../api/clipBleed";
+import { openCreateMenu } from "../commands/createMenuHost";
 import { resetDocumentAuthority } from "../document/authorityState";
 import { projectFromDocumentSnapshot } from "../document/projectPatch";
 import { bleedAttenuationRegionKey } from "../edit/bleedAttenuation";
@@ -1627,6 +1628,55 @@ describe("TimelineView render isolation", () => {
       estimateTimelineViewportWidth(s.shellBreakpoint),
     );
   });
+
+  it.each([false, true])(
+    "keeps lanes and clips isolated while a Create overlay is open (phone=%s)",
+    (phone) => {
+      const raf = stubRaf();
+      useDawStore.setState({ guestMode: null, shareCapabilities: null });
+      const view = mount(phone);
+      try {
+        act(() => {
+          expect(openCreateMenu()).toBe(true);
+        });
+        const overlay = screen.getByRole(phone ? "dialog" : "menu");
+        act(() => {
+          raf.fire(0);
+        });
+        renders.lanes = [];
+        renders.clips = [];
+        const state = useDawStore.getState();
+        for (let i = 1; i <= 5; i++) {
+          act(() => {
+            state.setPlayheadSec(i, "playback");
+            state.setScrollLeft(i * 10);
+            state.setPointerTrackId(trackIds[i % trackIds.length]!);
+            state.setSessionClients([
+              {
+                client_id: `overlay-peer-${i}`,
+                role: "viewer",
+                playhead_sec: i,
+                last_seen_ns: Date.now() * 1e6,
+              },
+            ]);
+            useRecordHostStore.getState().setSnapshot(
+              recordSnapshot({
+                recording_ms: i * 1000,
+                timeline_start_sec: 7,
+              }),
+            );
+            raf.fire(i * 1000);
+          });
+        }
+        expect(screen.getByRole(phone ? "dialog" : "menu")).toBe(overlay);
+        expect(renders.lanes).toEqual([]);
+        expect(renders.clips).toEqual([]);
+      } finally {
+        act(() => useRecordHostStore.getState().setSnapshot(null));
+        view.unmount();
+      }
+    },
+  );
 
   it("renders no lane or clip on playhead, scroll, pointer or presence ticks", () => {
     mount();
