@@ -349,7 +349,7 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
   },
   "daw.models.open": {
     label: "Manage models…",
-    tooltip: "See every model and download the ones you want",
+    tooltip: "See every model and get the ones you want",
   },
   "daw.export.deliverables": {
     label: "Export deliverables…",

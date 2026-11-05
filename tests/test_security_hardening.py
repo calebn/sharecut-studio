@@ -399,6 +399,7 @@ def test_require_host_raises_for_relayed():
         ("post", "/api/export/bounce", False, {}),
         ("post", "/api/diagnostics/bundle", False, {}),
         ("post", "/api/bootstrap/cancel", False, {}),
+        ("delete", "/api/bootstrap/models/rnnoise", False, None),
         ("post", "/api/record/land", True, None),
         ("post", "/api/shares", False, {}),
         (

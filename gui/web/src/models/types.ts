@@ -33,6 +33,12 @@ export type DownloadOutcome =
   | { kind: "busy" }
   | { kind: "cancelled" };
 
+export type RemoveOutcome =
+  | { kind: "ok" }
+  /** A download or job holds the server now; the model stays. */
+  | { kind: "busy" }
+  | { kind: "failed"; plain: string };
+
 export type DownloadOptions = { whisperModel?: string };
 
 export type WhisperChoice = {

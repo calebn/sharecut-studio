@@ -786,3 +786,91 @@ def test_first_run_readiness_checks_bare_and_nonexecutable_explicit_commands(
     assert boot.component_status()["tools"]["ffmpeg"]["state"] == (
         "installed" if executable else "missing"
     )
+
+
+def _client() -> TestClient:
+    from podcast_mcp.gui.server import create_app
+
+    return TestClient(create_app())
+
+
+def test_remove_model_deletes_the_downloaded_file_and_reports_the_record(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from podcast_mcp.util.model_assets import rnnoise_model_path
+
+    monkeypatch.delenv("PODCAST_MCP_RNNOISE_MODEL", raising=False)
+    path = rnnoise_model_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"x" * 100)
+
+    res = _client().delete("/api/bootstrap/models/rnnoise")
+
+    assert res.status_code == 200
+    body = res.json()
+    assert body["ok"] is True
+    assert body["freed_bytes"] == 100
+    assert body["model"]["id"] == "rnnoise"
+    assert body["model"]["state"] == "missing"
+    assert not path.exists()
+
+
+def test_remove_model_that_is_not_installed_frees_nothing(monkeypatch) -> None:
+    monkeypatch.delenv("PODCAST_MCP_RNNOISE_MODEL", raising=False)
+
+    res = _client().delete("/api/bootstrap/models/rnnoise")
+
+    assert res.status_code == 200
+    assert res.json()["freed_bytes"] == 0
+
+
+def test_remove_whisper_deletes_only_the_asked_size(tmp_path: Path) -> None:
+    from podcast_mcp.config.defaults import whisper_cache_dir
+    from podcast_mcp.engines.models.whisper import WHISPER_PINS
+
+    root = whisper_cache_dir()
+    pinned = WHISPER_PINS["tiny.en"].hf_repo.replace("/", "--")
+    mine = root / f"models--{pinned}"
+    other = root / "models--Systran--faster-whisper-small.en"
+    for folder in (mine, other):
+        (folder / "snapshots").mkdir(parents=True)
+        (folder / "snapshots" / "model.bin").write_bytes(b"w" * 10)
+
+    res = _client().delete("/api/bootstrap/models/whisper", params={"whisper_model": "tiny.en"})
+
+    assert res.status_code == 200
+    assert res.json()["freed_bytes"] == 10
+    assert not mine.exists()
+    assert other.exists()
+
+
+def test_remove_model_is_refused_while_a_download_runs(monkeypatch) -> None:
+    import threading
+
+    from podcast_mcp.services.jobs import shared_job_manager
+
+    gate = threading.Event()
+
+    def slow_run(*args, **kwargs):
+        gate.wait(5)
+        return {
+            "ok": True,
+            "results": {},
+            "ready": True,
+            "whisper_model": "x",
+            "models": [],
+            "tools": {},
+        }
+
+    monkeypatch.setattr("podcast_mcp.services.jobs.manager.run_bootstrap", slow_run)
+    shared_job_manager(reset=True)
+    client = _client()
+    started = client.post("/api/bootstrap/run", json={"components": ["rnnoise"]})
+    assert started.status_code == 200
+
+    res = client.delete("/api/bootstrap/models/rnnoise")
+
+    assert res.status_code == 409
+    assert res.headers["X-Sharecut-Error-Code"] == "bootstrap_job_running"
+    assert res.json()["detail"]["running"] == ["rnnoise"]
+    gate.set()
