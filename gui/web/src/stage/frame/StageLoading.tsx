@@ -11,6 +11,8 @@ export const LOADING_BLANK_MS = 300;
 /** "Still loading. Try again" appears under the body at this time. */
 export const LOADING_SLOW_MS = 8000;
 
+const LOADING_STATUS = "Loading the project";
+
 type Phase = "blank" | "bar" | "slow";
 
 const phaseOf = (elapsed: number): Phase =>
@@ -67,7 +69,7 @@ function useElapsedPhase(elapsedMs: number | undefined): Phase {
 /**
  * The Loading cover: nothing for 300 ms, then the Stage bar for real and static
  * grey placeholders in the destination stage's layout, and after 8 s one line
- * with Try again. No spinner and no text that says "Loading".
+ * with Try again. No spinner and no visible "Loading"; a hidden status line tells a screen reader.
  */
 export function StageLoading({
   stage,
@@ -83,12 +85,14 @@ export function StageLoading({
     return <div className="stage-loading-blank" aria-busy="true" />;
   }
   const bar = (form: "bar" | "tabs") => (
-    <StageBar
-      active={stage}
-      form={form}
-      onSelect={noop}
-      panelId={STAGE_BODY_ID}
-    />
+    <div className="stage-loading-stages" inert>
+      <StageBar
+        active={stage}
+        form={form}
+        onSelect={noop}
+        panelId={STAGE_BODY_ID}
+      />
+    </div>
   );
   return (
     <StageFrameView
@@ -109,6 +113,9 @@ export function StageLoading({
         className={`stage-loading-body stage-loading-body--${stage}`}
         aria-busy="true"
       >
+        <p className="sr-only" role="status">
+          {LOADING_STATUS}
+        </p>
         <div className="stage-loading-blocks" aria-hidden="true">
           {BODY[stage].map((kind, index) => (
             <span
