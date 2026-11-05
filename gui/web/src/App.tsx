@@ -46,31 +46,114 @@ function shareRouteFromLocation(): {
   return review ? { kind: "review", token: review } : null;
 }
 
+type BootstrapError = {
+  message: string;
+  hint?: string;
+  cover?: "bad-link" | "offline" | "failed";
+};
+type GuestAccess = {
+  key: string;
+  mode: string;
+  capabilities: string[] | null;
+  author: string | null;
+};
+type CachedGuestProject = { key: string; project: ProjectView };
+type BootstrapRequest = {
+  projectPath: string | null;
+  reviewToken: string | null;
+  recordToken: string | null;
+  featuresReady: boolean;
+  shareRoutesEnabled: boolean;
+  attempt: number;
+};
+type BootstrapObservation = {
+  request: BootstrapRequest;
+  status: "pending" | "settled";
+  guest: GuestAccess | null;
+  cached: CachedGuestProject | null;
+  error: BootstrapError | null;
+};
+type BootstrapOutcome =
+  | { kind: "online"; guest: GuestAccess }
+  | { kind: "cached"; guest: GuestAccess; cached: CachedGuestProject }
+  | { kind: "error"; error: BootstrapError };
+
+function sameRequest(a: BootstrapRequest, b: BootstrapRequest) {
+  return (
+    a.projectPath === b.projectPath &&
+    a.reviewToken === b.reviewToken &&
+    a.recordToken === b.recordToken &&
+    a.featuresReady === b.featuresReady &&
+    a.shareRoutesEnabled === b.shareRoutesEnabled &&
+    a.attempt === b.attempt
+  );
+}
+
+function admitBootstrap(
+  request: BootstrapRequest,
+  previous: BootstrapObservation | null,
+): BootstrapObservation {
+  const retained: BootstrapObservation = previous
+    ? { ...previous, request }
+    : {
+        request,
+        status: request.reviewToken ? "pending" : "settled",
+        guest: null,
+        cached: null,
+        error: null,
+      };
+  if (!request.featuresReady) return retained;
+  if (
+    (request.reviewToken || request.recordToken) &&
+    !request.shareRoutesEnabled
+  ) {
+    return {
+      ...retained,
+      status: "settled",
+      error: {
+        message:
+          "Share / guest routes (review and record) are not available (online extension not loaded).",
+      },
+    };
+  }
+  if (request.recordToken) {
+    return { ...retained, status: "settled", guest: null, error: null };
+  }
+  return {
+    ...retained,
+    status: request.reviewToken ? "pending" : "settled",
+    error: null,
+  };
+}
+
 function AppInner() {
   const shareRoute = shareRouteFromLocation();
   const reviewToken = shareRoute?.kind === "review" ? shareRoute.token : null;
   const recordToken = shareRoute?.kind === "record" ? shareRoute.token : null;
-  const guestToken = reviewToken ?? recordToken;
   const featuresReady = useFeaturesReady();
   const shareRoutesEnabled = useHasFeature(FEATURE_SHARE_UI_ROUTES);
   const projectPath = projectPathFromQuery();
-  const [cachedGuestProject, setCachedGuestProject] =
-    useState<ProjectView | null>(null);
-  const [shareKey, setShareKey] = useState<string | null>(null);
-  const [guestMode, setGuestMode] = useState<string | null>(null);
-  const [shareCapabilities, setShareCapabilities] = useState<string[] | null>(
-    null,
-  );
-  const [shareAuthor, setShareAuthor] = useState<string | null>(null);
-  const [error, setError] = useState<{
-    message: string;
-    hint?: string;
-    cover?: "bad-link" | "offline" | "failed";
-  } | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const [shareBootstrapping, setShareBootstrapping] = useState(
-    Boolean(reviewToken),
-  );
+  const input: BootstrapRequest = {
+    projectPath,
+    reviewToken,
+    recordToken,
+    featuresReady,
+    shareRoutesEnabled,
+    attempt,
+  };
+  const [bootstrap, setBootstrap] = useState(() => admitBootstrap(input, null));
+  let current = bootstrap;
+  if (!sameRequest(bootstrap.request, input)) {
+    current = admitBootstrap(input, bootstrap);
+    setBootstrap(current);
+  }
+  const { request, guest, cached: cachedGuestProject, error } = current;
+  const shareKey = guest?.key ?? null;
+  const guestMode = guest?.mode ?? null;
+  const shareCapabilities = guest?.capabilities ?? null;
+  const shareAuthor = guest?.author ?? null;
+  const shareBootstrapping = current.status === "pending";
 
   const coverRef = useRef<HTMLElement>(null);
   const coverKind = error?.cover;
@@ -89,113 +172,111 @@ function AppInner() {
   }, [coverKind]);
 
   useEffect(() => {
-    if (!featuresReady) {
+    const { featuresReady, shareRoutesEnabled, reviewToken, recordToken } =
+      request;
+    if (!featuresReady || !shareRoutesEnabled || !reviewToken || recordToken)
       return;
-    }
-    if (guestToken && !shareRoutesEnabled) {
-      setError({
-        message:
-          "Share / guest routes (review and record) are not available (online extension not loaded).",
-      });
-      setShareBootstrapping(false);
-      return;
-    }
-    if (recordToken) {
-      setShareKey(null);
-      setGuestMode(null);
-      setShareCapabilities(null);
-      setShareAuthor(null);
-      setError(null);
-      setShareBootstrapping(false);
-      return;
-    }
-    if (reviewToken) {
-      let cancelled = false;
-      setShareBootstrapping(true);
-      setError(null);
-      void (async () => {
-        try {
-          const bootstrap = await loadReviewBootstrap(reviewToken);
-          const caps = bootstrap.capabilities ?? [];
-          if (cancelled) {
-            return;
-          }
-          if (!caps.includes("view")) {
-            setError({
+    let cancelled = false;
+    void (async () => {
+      let outcome: BootstrapOutcome | null = null;
+      try {
+        const bootstrap = await loadReviewBootstrap(reviewToken);
+        const caps = bootstrap.capabilities ?? [];
+        if (cancelled) return;
+        if (!caps.includes("view")) {
+          outcome = {
+            kind: "error",
+            error: {
               message: "This link does not open the project.",
               hint: "Ask the person who shared it for a new link.",
               cover: "bad-link",
-            });
-            return;
+            },
+          };
+          return;
+        }
+        outcome = {
+          kind: "online",
+          guest: {
+            key: shareProjectKey(reviewToken),
+            mode: bootstrap.guest_mode ?? "view",
+            capabilities: caps,
+            author: bootstrap.author ?? null,
+          },
+        };
+      } catch (e: unknown) {
+        if (cancelled) return;
+        if (
+          e instanceof ApiError &&
+          (e.code === "share_not_found" ||
+            (e.code === null && e.status === 404))
+        ) {
+          if (e.code === "share_not_found") {
+            void clearOfflineSnapshot(reviewToken).catch(() => undefined);
           }
-          setShareKey(shareProjectKey(reviewToken));
-          setGuestMode(bootstrap.guest_mode ?? "view");
-          setShareCapabilities(caps);
-          setShareAuthor(bootstrap.author ?? null);
-        } catch (e: unknown) {
-          if (cancelled) {
-            return;
-          }
-          if (
-            e instanceof ApiError &&
-            (e.code === "share_not_found" ||
-              (e.code === null && e.status === 404))
-          ) {
-            if (e.code === "share_not_found") {
-              void clearOfflineSnapshot(reviewToken).catch(() => undefined);
-            }
-            setError({
+          outcome = {
+            kind: "error",
+            error: {
               message: "This link is invalid or has ended.",
               hint: "Ask the host for a new link.",
               cover: "bad-link",
-            });
-            return;
-          }
-          const cached = await loadOfflineSnapshot(reviewToken);
-          if (cancelled) {
-            return;
-          }
-          const cachedProject = cached?.project as ProjectView | undefined;
-          if (cachedProject && typeof cachedProject === "object") {
-            setShareKey(shareProjectKey(reviewToken));
-            setCachedGuestProject(cachedProject);
-            setGuestMode("view");
-            setShareCapabilities(null);
-            setShareAuthor(null);
-            setError(null);
-            return;
-          }
-          const unreachable =
-            !(e instanceof ApiError) ||
-            e.status === null ||
-            e.status === 502 ||
-            e.status === 503 ||
-            e.status === 504;
-          setError({
+            },
+          };
+          return;
+        }
+        const saved = await loadOfflineSnapshot(reviewToken);
+        if (cancelled) return;
+        const cachedProject = saved?.project as ProjectView | undefined;
+        if (cachedProject && typeof cachedProject === "object") {
+          const key = shareProjectKey(reviewToken);
+          outcome = {
+            kind: "cached",
+            guest: { key, mode: "view", capabilities: null, author: null },
+            cached: { key, project: cachedProject },
+          };
+          return;
+        }
+        const unreachable =
+          !(e instanceof ApiError) ||
+          e.status === null ||
+          e.status === 502 ||
+          e.status === 503 ||
+          e.status === 504;
+        outcome = {
+          kind: "error",
+          error: {
             message: errorMessage(e),
             cover: unreachable ? "offline" : "failed",
+          },
+        };
+      } finally {
+        if (!cancelled) {
+          const completed = outcome;
+          setBootstrap((state) => {
+            if (state.request !== request) return state;
+            if (completed?.kind === "online") {
+              return { ...state, status: "settled", guest: completed.guest };
+            }
+            if (completed?.kind === "cached") {
+              return {
+                ...state,
+                status: "settled",
+                guest: completed.guest,
+                cached: completed.cached,
+                error: null,
+              };
+            }
+            if (completed?.kind === "error") {
+              return { ...state, status: "settled", error: completed.error };
+            }
+            return { ...state, status: "settled" };
           });
-        } finally {
-          if (!cancelled) {
-            setShareBootstrapping(false);
-          }
         }
-      })();
-      return () => {
-        cancelled = true;
-      };
-    }
-    setError(null);
-    setShareBootstrapping(false);
-  }, [
-    projectPath,
-    reviewToken,
-    recordToken,
-    guestToken,
-    featuresReady,
-    shareRoutesEnabled,
-    attempt,
-  ]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [request]);
 
   if (!featuresReady || (Boolean(reviewToken) && shareBootstrapping)) {
     return <LoadingScreen label="Loading project…" />;
@@ -245,7 +326,11 @@ function AppInner() {
     return (
       <DawProvider
         projectPath={shareKey}
-        initialProject={cachedGuestProject}
+        initialProject={
+          cachedGuestProject?.key === shareKey
+            ? cachedGuestProject.project
+            : null
+        }
         guestMode={guestMode}
         shareCapabilities={shareCapabilities}
         shareAuthor={shareAuthor}
