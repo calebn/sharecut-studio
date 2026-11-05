@@ -490,50 +490,6 @@ html[data-shell="phone"] select.track-sheet-field {
   }
 }
 
-/* One value's nudge buttons, drawn beside its Scrub field. */
-.nudge-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1) var(--space-4);
-}
-
-.nudge-row-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-}
-
-.nudge-button {
-  min-inline-size: var(--touch-min);
-  min-block-size: var(--touch-min);
-  font-variant-numeric: tabular-nums;
-  /* A held finger repeats the step; it must not start a text selection or
-     the iOS callout. */
-  user-select: none;
-  -webkit-touch-callout: none;
-}
-
-/* Shorter or earlier on the left, longer or later on the right. */
-.nudge-button:nth-child(3) {
-  margin-inline-start: var(--space-3);
-}
-
-/* A held nudge stopped at a boundary or limit: its buttons get the armed halo
-   (and bump, motion allowing) while the note is read out. A halo, not an
-   outline, so it never reads as keyboard focus. */
-.nudge-row[data-bump] .nudge-row-buttons {
-  border-radius: var(--radius-xs);
-  background: var(--color-accent-muted);
-  box-shadow: 0 0 0 var(--space-1) var(--color-accent-muted);
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .nudge-row[data-bump] .nudge-row-buttons {
-    animation: nudge-bump var(--motion-state) var(--motion-ease-out);
-  }
-}
-
 @keyframes nudge-bump {
   30% {
     translate: 0.1875rem 0;
@@ -594,45 +550,4 @@ html[data-shell="phone"] select.track-sheet-field {
 .edit-bleed-regions > .ui-control[aria-pressed="true"] {
   border-color: var(--color-accent);
   background: var(--color-accent-subtle);
-}
-
-/* A sheet Scrub field with its nudge buttons: the field first, the
-   buttons on the next line when the sheet is narrow or the text is large. */
-.scrub-nudge {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-/* Two and two, so a narrow sheet never strands one button on a line. */
-.scrub-nudge .nudge-row-buttons {
-  display: grid;
-  grid-template-columns: repeat(2, auto);
-}
-
-.scrub-nudge .nudge-button:nth-child(3) {
-  margin-inline-start: 0;
-}
-
-/* A taller control keeps the row label at the top, clear of the buttons. */
-.sys-inspector-row:has(.scrub-nudge .nudge-row) {
-  grid-template-columns: minmax(min-content, 1fr) minmax(0, 11rem);
-  align-items: start;
-}
-
-/* A phone held sideways has no height to spare: the four nudges lay out as one
-   row beside the field, so a Time or Level row stays one button tall and the
-   sheet fits the point's rows without scrolling. */
-/* stylelint-disable-next-line media-feature-name-disallowed-list -- user-approved: tablet short viewport for portaled sheets */
-@media (max-height: 40rem) {
-  @container sheet-slot (min-width: 30rem) {
-    .scrub-nudge .nudge-row-buttons {
-      grid-template-columns: repeat(4, auto);
-    }
-
-    .sys-inspector-row:has(.scrub-nudge .nudge-row) {
-      grid-template-columns: minmax(min-content, 1fr) minmax(0, 22rem);
-      align-items: center;
-    }
-  }
 }

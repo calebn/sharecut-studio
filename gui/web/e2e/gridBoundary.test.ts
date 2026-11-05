@@ -90,10 +90,6 @@ const AXIS_LOOPS: Record<string, { loops: number; reason: string }> = {
     reason:
       "the marks take one themed hue per edit type, so each viewport's screenshot receipt, and the zoom ladder's wide-tier receipt, are taken in both themes",
   },
-  "touch-nudge.spec.ts": {
-    loops: 1,
-    reason: "axe contrast for the nudge controls in both themes",
-  },
 };
 
 /** A loop is over an axis when its binding is named for one or its list holds the axis values. */

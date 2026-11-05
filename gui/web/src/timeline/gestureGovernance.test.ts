@@ -205,8 +205,6 @@ const SURFACE_GESTURES: Record<string, string> = {
     "fader: a native range input previews its gain and saves one track volume on release (useCommitRange)",
   "stage/edit/TrackColumn.tsx":
     "reorder drop: the column takes a track header dragged over a header slot and moves the track on drop; Shift with Up or Down on a header and the Move up and Move down commands do the same by key",
-  "inspector/useNudgeRun.ts":
-    "a held nudge button steps the selected clip and saves one run edit on release",
   "transcript/EditBoundaryMarkView.tsx":
     "the transcript edit-boundary mark drags a cut's gap with pointer capture, the same roll as edit.rollClipJoin",
   "transcript/TranscriptWordbar.tsx":
