@@ -101,7 +101,14 @@ type TimingDraft = Readonly<{
   start: string;
   commandId?: string;
 }>;
+type TimingOwner = Readonly<{
+  identity: string;
+  start: number | null;
+  end: number | null;
+}>;
+
 type TimingCapture = Readonly<{
+  owner: TimingOwner;
   projectPath: string;
   projectEpoch: number;
   editId: string;
@@ -187,6 +194,7 @@ export function PendingEditBody({
     edge: "start" | "end";
     value: number;
     commandId: string;
+    owner: TimingOwner;
   }> | null>(null);
   const [startStr, setStartStr] = useState(sourceTime(edit.source_start));
   const [tracksStr, setTracksStr] = useState(
@@ -200,6 +208,31 @@ export function PendingEditBody({
     edit.type,
     edit.timebase ?? "source",
   ]);
+  const [timingOwner, setTimingOwner] = useState<TimingOwner>({
+    identity: timingIdentity,
+    start: edit.source_start,
+    end: edit.source_end,
+  });
+  if (
+    timingOwner.identity !== timingIdentity ||
+    !Object.is(timingOwner.start, edit.source_start) ||
+    !Object.is(timingOwner.end, edit.source_end)
+  ) {
+    setTimingOwner({
+      identity: timingIdentity,
+      start: edit.source_start,
+      end: edit.source_end,
+    });
+  }
+  if (
+    enteredEdge &&
+    (enteredEdge.owner !== timingOwner ||
+      (settlement &&
+        settlement.commandId === enteredEdge.commandId &&
+        settlement.outcome === "applied"))
+  ) {
+    setEnteredEdge(null);
+  }
   const previousTiming = useRef({
     identity: timingIdentity,
     start: edit.source_start,
@@ -352,20 +385,6 @@ export function PendingEditBody({
     return null;
   };
 
-  useEffect(() => {
-    if (
-      enteredEdge &&
-      settlement &&
-      settlement.commandId === enteredEdge.commandId &&
-      settlement.outcome === "applied"
-    )
-      setEnteredEdge(null);
-  }, [settlement, enteredEdge]);
-
-  useEffect(() => {
-    setEnteredEdge(null);
-  }, [timingIdentity, edit.source_start, edit.source_end]);
-
   const busyRef = useRef(timingBusy);
   useEffect(() => {
     busyRef.current = timingBusy;
@@ -413,6 +432,7 @@ export function PendingEditBody({
     )
       return null;
     const capture: TimingCapture = {
+      owner: timingOwner,
       projectPath,
       projectEpoch,
       editId: edit.id,
@@ -464,8 +484,11 @@ export function PendingEditBody({
         }
         setQueued(result.queued, result.queued ? result.commandId : undefined);
         setEnteredEdge(
-          result.queued && entered
-            ? { ...entered, commandId: result.commandId }
+          result.queued &&
+            entered &&
+            Object.is(saved.source_start, capture.expected.start) &&
+            Object.is(saved.source_end, capture.expected.end)
+            ? { ...entered, commandId: result.commandId, owner: capture.owner }
             : null,
         );
         if (!result.queued && draft) {

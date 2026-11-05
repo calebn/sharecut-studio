@@ -1,5 +1,6 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Suspense, startTransition } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type PendingCutProposal,
@@ -205,6 +206,108 @@ describe("pending timing queue settlement", () => {
       true,
       undefined,
       pendingEditBaseline(edit),
+    );
+  });
+
+  it.each([
+    "changed bounds",
+    "bounds round trip",
+    "epoch",
+    "store bounds before props",
+  ])("retires a held queued edge after %s commits", async (change) => {
+    let finish!: (result: { queued: boolean; commandId: string }) => void;
+    mocks.updatePendingEdit.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const user = userEvent.setup();
+    const { rerender } = render(<PendingEditBody edit={edit} />);
+    await screen.findByText("0:09.97525 to 0:12.03525");
+    await commitField(user, "Source start", "10.01");
+    const changed = { ...edit, source_end: 13 };
+    if (change === "epoch") {
+      const previousEpoch = useDawStore.getState().projectEpoch;
+      act(() => useDawStore.setState({ projectEpoch: previousEpoch + 1 }));
+      expect(useDawStore.getState().projectEpoch).toBe(previousEpoch + 1);
+    } else {
+      act(() =>
+        useDawStore
+          .getState()
+          .hydrate("/tmp/p.json", minimalProject({ pending_edits: [changed] })),
+      );
+      if (change !== "store bounds before props") {
+        rerender(<PendingEditBody edit={changed} />);
+      }
+      if (change === "bounds round trip") {
+        act(() =>
+          useDawStore
+            .getState()
+            .hydrate("/tmp/p.json", minimalProject({ pending_edits: [edit] })),
+        );
+        rerender(<PendingEditBody edit={edit} />);
+      }
+    }
+    mocks.loadHostCommandQueue.mockResolvedValue([command]);
+    await act(async () =>
+      finish({ queued: true, commandId: command.command_id }),
+    );
+    expect(
+      screen.getByRole("spinbutton", { name: "Source start" }),
+    ).toHaveAttribute("aria-valuetext", "10.000000 s");
+    expect(mocks.updatePendingEdit).toHaveBeenCalledTimes(1);
+  });
+
+  it("retires an already queued edge across committed bounds round trips", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<PendingEditBody edit={edit} />);
+    await screen.findByText("0:09.97525 to 0:12.03525");
+    mocks.loadHostCommandQueue.mockResolvedValue([command]);
+    await commitField(user, "Source start", "10.01");
+    expect(
+      screen.getByRole("spinbutton", { name: "Source start" }),
+    ).toHaveAttribute("aria-valuetext", "10.010000 s");
+    rerender(<PendingEditBody edit={{ ...edit, source_end: 13 }} />);
+    rerender(<PendingEditBody edit={edit} />);
+    expect(
+      screen.getByRole("spinbutton", { name: "Source start" }),
+    ).toHaveAttribute("aria-valuetext", "10.000000 s");
+    expect(screen.getByRole("status")).toHaveTextContent("Still sending.");
+  });
+
+  it("keeps the committed queued edge through an abandoned bounds render", async () => {
+    const never = new Promise<void>(() => {});
+    let tentativeRenders = 0;
+    function PendingRender({ suspend }: { suspend: boolean }): null {
+      if (suspend) {
+        tentativeRenders += 1;
+        throw never;
+      }
+      return null;
+    }
+    const view = (end: number, suspend: boolean) => (
+      <Suspense fallback={<p>Waiting for tentative bounds</p>}>
+        <PendingEditBody edit={{ ...edit, source_end: end }} />
+        <PendingRender suspend={suspend} />
+      </Suspense>
+    );
+    const user = userEvent.setup();
+    const { rerender } = render(view(12, false));
+    await screen.findByText("0:09.97525 to 0:12.03525");
+    mocks.loadHostCommandQueue.mockResolvedValue([command]);
+    await commitField(user, "Source start", "10.01");
+    act(() => {
+      startTransition(() => rerender(view(13, true)));
+    });
+    expect(tentativeRenders).toBeGreaterThan(0);
+    expect(screen.queryByText("Waiting for tentative bounds")).toBeNull();
+    rerender(view(12, false));
+    expect(
+      screen.getByRole("spinbutton", { name: "Source start" }),
+    ).toHaveAttribute("aria-valuetext", "10.010000 s");
+    expect(useDawStore.getState().project?.pending_edits[0]?.source_end).toBe(
+      12,
     );
   });
 
