@@ -782,7 +782,7 @@ for overs the meter cannot see. One threshold drives everything: the live clip i
 the encoder's clip regions, the room alert and tile badge, the take's jump to its first clipped span and the timeline flags.
 
 **Own mic only.** Each recorded person (guest or host) sees only their own
-meter. Nothing is added to the record wire (`services/record/signal.py`,
+meter; the host's room tiles are the one exception, below. Nothing is added to the record wire (`services/record/signal.py`,
 `hostWire.ts`, `useRecordSync` are unchanged), and remote-participant meters are
 out of scope; other people's room tiles light from the monitor graph's own
 analysers (`useRecordMonitor().levels`), not from anything sent over the wire.
@@ -822,7 +822,8 @@ meter. Producers have no meter and no clipping alert.
   without re-checking the audio.
 
 **Surfaces.** While a take records and the encoder has seen clipping, the
-person's own tile shows a clipping badge (the host's tiles also show each guest's count once their segments upload) and the room shows the alert "You're
+person's own tile shows a clipping badge (the host's tiles also show each
+guest's count once their segments upload) and the room shows the alert "You're
 clipping. Move back a little." (guest and host; `useTakeClipping`). The Join
 sheet shows a clip indicator while the guest checks their mic. On the host
 Record stage a landed take's row in the Takes tray jumps (Hear) to the earliest clipped span of anyone in the take (source -> timeline via the landed source id
