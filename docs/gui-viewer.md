@@ -98,7 +98,7 @@ code to show recovery guidance without exposing the CLI-oriented server hint.
 The waiver route is host-origin protected and serializes its project save with
 document commands.
 
-An Approve click made while another live host command from the same tab (or this tab's offline-queue drain) is still in flight waits for it (up to 5 s in total, `DOCUMENT_SEND_WAIT_MS`) and then posts, so the typed 409 reaches the inspector. If the earlier work is still running after 5 s, the approval stays queued for the drain: the Pending edit inspector, and the Review Queue show a **Still sending** status instead of treating it as done (it clears once the project's command queue is empty), and a refusal of the later replay appears in the **Needs attention** group of the Review queue, where a transcript-refine refusal offers the host **Waive with reason**.
+An Approve click made while another live host command from the same tab (or this tab's offline-queue drain) is still in flight waits for it (up to 5 s in total, `DOCUMENT_SEND_WAIT_MS`) and then posts, so the typed 409 reaches the inspector. If the earlier work is still running after 5 s, the approval stays queued for the drain: the Pending edit inspector, and the Review Queue show a **Still sending** status instead of treating it as done (it clears once the project's command queue is empty), and a refusal of the later replay appears in the **Needs attention** group of the Review queue, where a transcript-refine refusal offers the host **Cut anyway**.
 
 ## Busy project (503)
 
@@ -311,7 +311,7 @@ screens. Focus reveal includes the field's label when the label fits below the
 pinned header. The bounded body scroller reveals that field and label below the
 pinned header without measuring or changing scroll padding.
 
-Offline command attention is a **Needs attention** group at the top of the Review queue (under All and Checks) for the host and a share guest alike, so no stage reserves a row for it: waiting edits (**N edits waiting to send** with **Send now**), 409 conflicts (dismissible, with **Inspect History** on an outcome that may have applied and the **Waive with reason** form on a refine-gate refusal) and an unreadable queue (**Retry**). Host and guest 409 conflicts can be dismissed. The guest Role chip stays guest-only.
+Offline command attention is a **Needs attention** group at the top of the Review queue (under All and Checks) for the host and a share guest alike, so no stage reserves a row for it: waiting edits (**N edits waiting to send** with **Send now**), 409 conflicts (dismissible, with **Inspect History** on an outcome that may have applied and the **Cut anyway** button on a refine-gate refusal) and an unreadable queue (**Retry**). Host and guest 409 conflicts can be dismissed. The guest Role chip stays guest-only.
 
 ## Project save state
 

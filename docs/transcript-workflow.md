@@ -56,10 +56,12 @@ Pass 2 reconcile, and the reconcile a premix render runs, change only
 audibility flags, so they never stale a refine decision (see
 [§ What stales a refine decision](#what-stales-a-refine-decision)).
 
-In the host GUI, an approval blocked by this gate offers a **Waive with
-reason** recovery form (in the inspector, the Review Queue's Cut anyway prompt, timeline action, or, for a replayed approval, its Needs attention row in the Review queue). The waiver is recorded as a user decision; it does not
-retry or automatically approve the edit. Review the transcript, enter a
-non-empty reason, then retry approval intentionally.
+In the host GUI, an approval blocked by this gate offers one **Cut anyway**
+button (in the inspector, the Review queue's prompt, the timeline action or, for
+a replayed approval, its Needs attention row in the Review queue). It records a
+waiver with the reason "Cut anyway, chosen by the host" as a user decision; it
+does not retry or automatically approve the edit. Check the transcript first if
+you are unsure, then retry the approval intentionally.
 
 Resume examples:
 
