@@ -84,10 +84,6 @@ without mounting DAW state.
 the timeline lane with fictional visible, selected, dense, filtered and empty
 records, including 360px variants. The ticks are decorative and cannot select
 an edit; the live Review Queue (`stage/hosts/ReviewHost.tsx`) owns selection.
-`Templates/StaleInvalidationOverlay` previews the production stale-render
-regions, including overlapping causes, minimum-width spans, right-edge clipping,
-and filtered or empty 360px lanes. These bands are decorative; the live stale
-status controls explain the render state.
 `Templates/PendingEditOverlay` previews the production `PendingEditOverlayView`
 with fictional remove, mute and split suggestions, a selected edit, an
 end-handle drag, and filtered and 360px lanes. The live adapter commits

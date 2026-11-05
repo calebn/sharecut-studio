@@ -110,11 +110,6 @@
     var(--color-warning) 22%,
     transparent
   );
-  --color-warning-band: color-mix(
-    in srgb,
-    var(--color-warning) 26%,
-    transparent
-  );
   --color-warning-strong: color-mix(
     in srgb,
     var(--color-warning) 32%,
@@ -489,11 +484,6 @@
     --color-warning-muted: color-mix(
       in srgb,
       var(--color-warning) 22%,
-      transparent
-    );
-    --color-warning-band: color-mix(
-      in srgb,
-      var(--color-warning) 26%,
       transparent
     );
     --color-warning-strong: color-mix(

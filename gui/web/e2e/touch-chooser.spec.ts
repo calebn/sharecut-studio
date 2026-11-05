@@ -4,6 +4,7 @@ import { LONG_PRESS_MS } from "../src/hooks/gestureConstants";
 import { STUDIO_AXE_DISABLED_RULES } from "./axe";
 import { rulerWidthPx } from "./deepZoom";
 import { e2eProjectPath } from "./env";
+import { pinFixedLaneHeight } from "./laneHeight";
 import {
   createRelocatedE2eProject,
   removeRelocatedE2eProject,
@@ -76,8 +77,16 @@ const editedProject = async (page: Page) => {
   const { clips, pending_edits } = await projectJson(page);
   return { clips, pending_edits };
 };
-const openTimeline = (page: Page, viewport: ViewportName, theme: Theme) =>
-  openTouchTimeline(page, projectPath, viewport, theme);
+// Kept pinned: a cluster is targets within one touch radius of each other (a join glyph at a
+// lane's top, its roll seam in the bottom 48 px), which only holds at the 104 px touch lane.
+const openTimeline = async (
+  page: Page,
+  viewport: ViewportName,
+  theme: Theme,
+) => {
+  await pinFixedLaneHeight(page);
+  await openTouchTimeline(page, projectPath, viewport, theme);
+};
 
 /** Chip label text → the target kind it names. */
 const KIND_BY_LABEL: [string, string][] = [

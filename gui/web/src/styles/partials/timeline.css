@@ -1,9 +1,6 @@
 /* Timeline lanes, clips, overlays */
 .lane-row {
   position: relative;
-  height: var(--lane-height);
-  background: var(--color-timeline-lane);
-  border-bottom: 1px solid var(--color-timeline-border);
 }
 
 .lane-row:focus-visible {
@@ -12,32 +9,28 @@
 }
 
 /* A track this listener doesn't hear goes grey, like a muted region in a
-   DAW: lane, clip fill and waveform lose their colour and the waveform
-   fades. The fill drops its sheen so the label keeps AA contrast. */
-.lane-row:is(.muted, .mute-implied) {
-  background: var(--color-track-muted);
-}
-
-/* Painted over the lane colour, not instead of it: the waveform tint reads
-   the clip's background-color (waveformStyle) and caches it per lane colour. */
-.lane-row:is(.muted, .mute-implied) .clip-block {
+   DAW: clip fill and waveform lose their colour and the waveform fades. The
+   fill drops its sheen so the label keeps AA contrast. */
+.sys-lane[data-mute]:not([data-mute="off"]) .clip-block {
+  /* Painted over the lane colour, not instead of it: the waveform tint reads
+     the clip's background-color (waveformStyle) and caches it per lane colour. */
   background-image: linear-gradient(
     var(--color-clip-muted),
     var(--color-clip-muted)
   );
 }
 
-.lane-row:is(.muted, .mute-implied) .clip-block::before {
+.sys-lane[data-mute]:not([data-mute="off"]) .clip-block::before {
   background: none;
 }
 
-.lane-row:is(.muted, .mute-implied) .clip-waveform {
+.sys-lane[data-mute]:not([data-mute="off"]) .clip-waveform {
   filter: grayscale(1);
   opacity: var(--mute-waveform-opacity);
 }
 
-.lane-row:is(.muted, .mute-implied) .join-blend-waves,
-.lane-row:is(.muted, .mute-implied) .join-blend-seam {
+.sys-lane[data-mute]:not([data-mute="off"]) .join-blend-waves,
+.sys-lane[data-mute]:not([data-mute="off"]) .join-blend-seam {
   filter: grayscale(1);
   opacity: var(--mute-waveform-opacity);
 }
@@ -47,7 +40,9 @@
    background-position froze it for the seconds the load takes (#1750). */
 .timeline-skeleton-lane {
   position: relative;
+  height: var(--lane-height);
   overflow: hidden;
+  border-bottom: 1px solid var(--color-timeline-border);
   background: var(--color-timeline-lane-muted);
 }
 

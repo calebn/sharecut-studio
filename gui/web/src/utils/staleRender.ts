@@ -302,5 +302,3 @@ export function wholeTrackReasonsForTrack(
   }
   return [...reasons];
 }
-
-export { isRegional as isRegionalInvalidation };

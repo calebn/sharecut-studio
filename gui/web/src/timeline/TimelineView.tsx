@@ -30,7 +30,6 @@ import {
 } from "../edit/clipMove";
 import { cancelClipPlacement, useClipPlacement } from "../edit/clipPlacement";
 import { useShortTouchScreen } from "../hooks/useShortTouchScreen";
-import { useStaleRenderBreakdown } from "../hooks/useStaleRenderBreakdown";
 import { presenceColorVar } from "../presence/colors";
 import { useProsodyOverlayViews } from "../prosody/useProsodyOverlay";
 import { canApplyPass12 } from "../shareMode";
@@ -39,7 +38,7 @@ import { selectedClipIdsOf, selectedTrackIdsOf } from "../state/selection";
 import { timelineViewportRegistry } from "../state/timelineViewportRegistry";
 import type { DawState } from "../state/types";
 import { pickDaw, useDaw } from "../state/useDaw";
-import type { ClipRow, ProjectView } from "../types/project";
+import type { ClipRow } from "../types/project";
 import type { ProsodyOverlayTrack } from "../types/prosody";
 import { useResizeObserver } from "../ui/useResizeObserver";
 import { bladeTrackIds, dialogueTrackIds } from "../utils/bladeTracks";
@@ -154,7 +153,6 @@ const selectTimelineViewFields = pickDaw(
   "selectClip",
   "guestMode",
   "shareCapabilities",
-  "highlightStaleRender",
   "followingClientId",
   "setTimelineViewportWidth",
   "laneHeightMode",
@@ -202,7 +200,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     selectClip,
     guestMode,
     shareCapabilities,
-    highlightStaleRender,
     followingClientId,
     setTimelineViewportWidth,
     laneHeightMode,
@@ -234,14 +231,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
         (prosody?.tracks ?? []).map((t) => [t.track_id, t]),
       ),
     [prosody],
-  );
-  const staleBreakdown = useStaleRenderBreakdown(project as ProjectView | null);
-  const showStaleInv = highlightStaleRender;
-  // Fallback whole-lane edge when stem stale but no journal (or whole-track cause).
-  const fallbackWhole = new Set(
-    staleBreakdown.invalidations.length === 0
-      ? staleBreakdown.staleTrackIds
-      : staleBreakdown.wholeTrackIds,
   );
   const areaRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -856,9 +845,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     ? "timeline-lock-inner timeline-lock-inner--headers"
     : "timeline-lock-inner";
   const selectedCommentId = selection?.kind === "comment" ? selection.id : null;
-  const staleInvalidations = showStaleInv
-    ? staleBreakdown.invalidations
-    : EMPTY_ARR;
 
   return (
     <TimelineMetricsProvider value={metrics}>
@@ -1072,6 +1058,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                             trackIndex={idx}
                             clips={laneClips}
                             width={width}
+                            laneHeight={laneHeight}
                             zoomPxPerSec={zoomPxPerSec}
                             projectPath={projectPath}
                             selection={selection}
@@ -1103,11 +1090,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                             }
                             onSelectBleed={onSelectBleed}
                             onSelectClip={onSelectClip}
-                            staleWholeTrack={Boolean(
-                              showStaleInv && fallbackWhole.has(track.id),
-                            )}
-                            showStaleInvalidations={showStaleInv}
-                            staleInvalidations={staleInvalidations}
                             onSelectPending={onSelectPending}
                             onSelectApplied={onSelectApplied}
                             prosody={prosodyByTrack.get(track.id) ?? null}
