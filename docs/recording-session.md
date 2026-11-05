@@ -15,7 +15,8 @@ that used it).
 saved to the project during the session. Its status reads **Saving to
 project…**, then **Saved to project**, per participant and per segment (a
 segment is saved once the host holds the verified file, the file ACK; landing it
-on the timeline is the separate **Land** step). "Keeper" stays in code, schema,
+on the timeline follows on its own right after the file ACK; a failed land shows
+**Retry** on that take's row in the Takes tray). "Keeper" stays in code, schema,
 API paths, the wire `kind`, and this document's engineering sections. It never
 appears in UI copy, notifications, errors, MCP tool descriptions or user docs
 ([Terminology](communication-philosophy.md#terminology)).
@@ -1311,22 +1312,23 @@ cannot. Every button runs the same `record.*` command as the palette.
   finishes." When the storage check fails, the room alert offers **Retry
   recording**.
 - **Stop.** Holding the Record button while live stops the take; Enter or Space
-  asks first ("Stop this take? Recording ends for everyone in the room."). **More**
-  also has **Stop take**, which asks once with **Keep recording** (focused) and
-  **Stop take**. The palette's **Stop recording** runs without the question.
+  asks first ("Stop this take? Recording ends for everyone in the room.", with
+  **Keep recording** focused and **Stop take**). **More** has no Stop. The
+  palette's **Stop recording** runs without the question.
 - **Saving status.** After Stop, a list names each recorded participant (never
   a producer) with "Saving to project…" or "Saved to project", one line per
   segment when a participant has several (`saveStatus.ts`).
   The host's own recording reads the same way beside it.
-- **Land.** In **More**, shown once the room has a take. It is disabled with its reason beside
-  it while a take is open ("Stop the take to land it on the timeline."), while
-  recordings are still saving and none is ready to land ("Recordings are still
-  saving to the project."),
-  before anything arrived ("No recordings have reached the project yet.") and
-  when everything landed ("Every take is on the timeline."). It turns into
-  **Retry land** after a failed land, and also lands unlanded live comments
-  once nothing is still saving; comments never override the saving reason.
-  The server refuses an open take with the same reason, so every host surface
+- **Land.** There is no Land button. The server lands each segment on its file
+  ACK, so a saved recording reaches the timeline on its own. When that land
+  fails, the take's row in the Takes tray shows **Retry** on that person's line,
+  and it runs `record.land`. The command is disabled with its reason while a
+  take is open ("Stop the take to land it on the timeline."), while recordings
+  are still saving and none is ready to land ("Recordings are still saving to the
+  project."), before anything arrived ("No recordings have reached the project
+  yet.") and when everything landed ("Every take is on the timeline."); it also
+  lands unlanded live comments once nothing is still saving, and comments never
+  override the saving reason. The server refuses an open take with the same reason, so every host surface
   (the `record.land` command, `POST /api/record/land`, `record_land_tool`,
   `podcast record land`) stops at one check in `RecordControlService.land`.
   `RecordTakeOpenError` carries the code `take_open`; HTTP answers 409 with
@@ -1334,7 +1336,7 @@ cannot. Every button runs the same `record.*` command as the palette.
   ACK calls `RecordLandingService.land` directly and still runs while a later
   take is open.
 - Mute, the Record button and **More** sit in the dock under the room, so they
-  stay in reach on a phone; Comment joins them once a take is live. **More** holds **Stop take**, Land, the upload
+  stay in reach on a phone; Comment joins them once a take is live. **More** holds the upload
   status, a note when a removed participant's invite is closed, **Devices…**
   and, last, **Invite and links…** (opens Share). **Record 1 minute of room
   tone** is in the Devices sheet and works only in the lobby or after Stop;
