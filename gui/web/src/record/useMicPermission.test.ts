@@ -1,4 +1,6 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { useState } from "react";
+import { flushSync } from "react-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { keeperAudioConstraints } from "./keeper/constraints";
 import { useMicPermission } from "./useMicPermission";
@@ -264,6 +266,110 @@ describe("useMicPermission", () => {
     await waitFor(() => {
       expect(result.current.status).toBe("granted");
     });
+  });
+
+  it("admits a retained request after denial and coalesces same-event calls", async () => {
+    let finish:
+      | ((value: {
+          getTracks: () => (typeof dryTrack)[];
+          getAudioTracks: () => (typeof dryTrack)[];
+        }) => void)
+      | undefined;
+    const denied = new Error("Permission denied");
+    denied.name = "NotAllowedError";
+    const gum = stubGum(
+      vi
+        .fn()
+        .mockRejectedValueOnce(denied)
+        .mockImplementation(
+          () =>
+            new Promise((resolve) => {
+              finish = resolve;
+            }),
+        ),
+    );
+    const { result } = renderHook(() => useMicPermission(true, ""));
+    const request = result.current.request;
+    act(() => {
+      request();
+      request();
+      request();
+    });
+    await waitFor(() => expect(result.current.status).toBe("denied"));
+    expect(gum).toHaveBeenCalledTimes(1);
+    act(() => {
+      request();
+      request();
+      request();
+    });
+    await waitFor(() => expect(gum).toHaveBeenCalledTimes(2));
+    expect(result.current.status).toBe("prompting");
+    await act(async () => {
+      finish?.({
+        getTracks: () => [dryTrack],
+        getAudioTracks: () => [dryTrack],
+      });
+    });
+    await waitFor(() => expect(result.current.status).toBe("granted"));
+  });
+
+  it("keeps a retained disabled request disabled after re-enabling", async () => {
+    const gum = stubGum(async () => ({
+      getTracks: () => [dryTrack],
+      getAudioTracks: () => [dryTrack],
+    }));
+    const { result, rerender } = renderHook(
+      ({ enabled }) => useMicPermission(enabled, ""),
+      { initialProps: { enabled: false } },
+    );
+    const disabledRequest = result.current.request;
+    rerender({ enabled: true });
+    act(() => disabledRequest());
+    expect(gum).not.toHaveBeenCalled();
+    expect(result.current.status).toBe("idle");
+    act(() => result.current.request());
+    await waitFor(() => expect(result.current.status).toBe("granted"));
+    expect(gum).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves the enabled closure of an old request through a disabled interval", async () => {
+    const gum = stubGum(async () => ({
+      getTracks: () => [dryTrack],
+      getAudioTracks: () => [dryTrack],
+    }));
+    const { result, rerender } = renderHook(
+      ({ enabled }) => useMicPermission(enabled, ""),
+      { initialProps: { enabled: true } },
+    );
+    const enabledRequest = result.current.request;
+    rerender({ enabled: false });
+    act(() => enabledRequest());
+    expect(gum).not.toHaveBeenCalled();
+    expect(result.current.status).toBe("idle");
+    rerender({ enabled: true });
+    await waitFor(() => expect(result.current.status).toBe("granted"));
+    expect(gum).toHaveBeenCalledTimes(1);
+  });
+
+  it("accepts the current request in the same event as a flushed enable", async () => {
+    const gum = stubGum(async () => ({
+      getTracks: () => [dryTrack],
+      getAudioTracks: () => [dryTrack],
+    }));
+    const { result } = renderHook(() => {
+      const [enabled, setEnabled] = useState(false);
+      return {
+        mic: useMicPermission(enabled, ""),
+        enable: () => setEnabled(true),
+      };
+    });
+    expect(gum).not.toHaveBeenCalled();
+    act(() => {
+      flushSync(() => result.current.enable());
+      result.current.mic.request();
+    });
+    await waitFor(() => expect(result.current.mic.status).toBe("granted"));
+    expect(gum).toHaveBeenCalledTimes(1);
   });
 
   it("stays granted while reopening the stream for a new device", async () => {

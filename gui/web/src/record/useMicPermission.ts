@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useInsertionEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   type MicPermissionStatus,
   microphonePermissionsQuery,
@@ -42,7 +48,9 @@ export function useMicPermission(
   const mic = useMicStream(streamOn, deviceId, attempt);
   const micLost = mic.lost;
   const retryMic = mic.retry;
-  settledRef.current = mic.settledAttempt;
+  useInsertionEffect(() => {
+    settledRef.current = mic.settledAttempt;
+  }, [mic.settledAttempt]);
 
   useEffect(() => {
     if (!enabled) {
@@ -134,7 +142,7 @@ export function useMicPermission(
     status = "denied";
   } else if (mic.lost) {
     status = "lost";
-  } else if (attemptRef.current !== mic.settledAttempt && !mic.stream) {
+  } else if (attempt !== mic.settledAttempt && !mic.stream) {
     status = "prompting";
   } else if (wantStream && !mic.pending) {
     const mapped = mic.errorName ? statusFromGumError(mic.errorName) : null;
