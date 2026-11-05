@@ -958,7 +958,6 @@ def test_the_descriptor_count_ignores_garbage_an_earlier_test_left_holding_a_fil
     finally:
         gc.enable()
     _no_spill_file_or_fd_left(baseline)
-    assert _fds() == baseline
 
 
 def _refuse_with_enospc(array: np.ndarray) -> np.ndarray:
