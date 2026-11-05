@@ -17,7 +17,7 @@ the host's private secret.
 
 ```mermaid
 flowchart TD
-  open[Open review link] --> daw[ShareCut Studio guest + banner]
+  open[Open review link] --> daw[ShareCut Studio guest + Role chip]
   daw --> play[Play the review mix]
   play --> scrub[Scrub to a moment]
   scrub --> note[Type in the comment field, post]
@@ -68,7 +68,7 @@ receive no isolated selected-track audio through this action.
 
 ```mermaid
 flowchart TD
-  open[Open review link] --> daw[ShareCut Studio guest + banner]
+  open[Open review link] --> daw[ShareCut Studio guest + Role chip]
   daw --> listen[Review queue]
   listen --> select[Select a region / pending]
   select --> propose[Propose cut - not hard apply]
