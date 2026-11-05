@@ -849,7 +849,7 @@ metadata from clean jobs.
 | Review roles (Viewer / Commenter / Editor) | `test_share_roles.py` (role → capabilities, CLI and MCP mint by role only, guest MCP allowlist per role), `test_guest_document_gate.py::test_each_role_runs_exactly_its_document_commands` (role × document command matrix) |
 | Document submit crash consistency (every store handoff, lock contention) | `test_document_submit_crash_recovery.py`, `test_project_commit_lock.py` (spawned children are reaped with `tests/process_helpers.py` `reap`, which kills a child that hangs) |
 | GUI / timeline inspector APIs | `test_gui_api.py`, `test_waveform_zoom.py` |
-| Ripple trim preview, saved geometry, and atomic timeline-zero refusal | `test_ripple_scope_contract.py`, `test_trim_clip_edge.py`, `gui/web/src/edit/ripplePreview.test.ts` (`contracts/ripple-scope.json`), `gui/web/src/timeline/ClipBlock.test.tsx`, `gui/web/src/inspector/useNudgeRun.test.tsx`, `gui/web/e2e/ripple-overlap-proof.spec.ts` |
+| Ripple trim preview, saved geometry, and atomic timeline-zero refusal | `test_ripple_scope_contract.py`, `test_trim_clip_edge.py`, `gui/web/src/edit/ripplePreview.test.ts` (`contracts/ripple-scope.json`), `gui/web/src/timeline/ClipBlock.test.tsx`, `gui/web/e2e/ripple-overlap-proof.spec.ts` |
 | Zoom-matched waveforms | `test_timeline_zoom.py`, `test_waveform_pyramid.py`, `test_waveform_service.py`, `test_waveform_routes.py`, `test_waveform_snap.py` (incl. guest snap ACL), `gui/web/src/waveform/*.test.ts` (tile geometry, envelope reduction vs brute force, shared CPU/GL shading, stores, worker), `gui/web/src/timeline/WaveformLayer.test.tsx`, Playwright `e2e/waveform.spec.ts` (host tiles, WebGL2 + raster parity on Chromium, guest tiles through the share route with no PCM) and the compat matrix (`webgl2` or `cpu-worker`; `deep-zoom.spec.ts` geometry at the 15 M px ceiling on Chromium and WebKit) |
 | Brand / public CSS | `test_brand_color_roles.py`, `test_public_sites.py`, `test_css_policy.py`, `test_css_no_important.py` |
 | Body / host security hardening | `test_security_hardening.py` (pure ASGI `MaxBodySizeMiddleware`, authz, served_project) |
@@ -952,9 +952,6 @@ half-sample window count and mute-origin checks. Envelope tests reject stems
 from render revisions 10, 13, and 14 under revision 15.
 `tests/test_render_precision.py` checks saved ordinary CUT boundaries and
 fractional requested-window extents against literal frames and PCM.
-`useNudgeRun.handoff.test.tsx` uses the real trim save with deferred boundary
-loading to check clean geometry, foreign comments, drafts, stale submission,
-synthetic roll refusal, and token-specific settlement.
 
 ## Render regression fingerprints
 
@@ -1129,7 +1126,7 @@ outside its actual body clip, and waits nine seconds without card hover or
 focus. It then exposes Dismiss and verifies expiry within the remaining visible
 time. Unit tests cover portal continuity, focus, remaining time and guarded
 Undo through host movement. Run `npm run test:e2e:compat --
-compact-history-persistence.spec.ts compact-save-refusal.spec.ts compact-feedback-lifetime.spec.ts compact-feedback-focus.spec.ts compact-form-scroll.spec.ts` from `gui/web` after
+compact-history-persistence.spec.ts compact-feedback-detents.spec.ts compact-painted-focus.spec.ts` from `gui/web` after
 building the production app. These browser receipts do not establish physical
 device behavior or Linux CI results.
 
