@@ -2756,6 +2756,12 @@ button.sys-picker-option:focus-visible {
   min-block-size: 2.5rem;
 }
 
+@media (pointer: coarse) {
+  .sys-handoff--40 {
+    min-block-size: 2.75rem;
+  }
+}
+
 .sys-handoff--48 {
   min-block-size: 3rem;
 }
