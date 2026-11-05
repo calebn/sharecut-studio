@@ -27,7 +27,7 @@ All paths are relative to `gui/web/src/` unless they start with `/` or a repo fo
 | Components, overlays, banners, toasts, status items, empty states (CMP- 48, OVL- 11, BAN- 4, TOAST/STAT/EMPTY/CHIP 4) | 67 |
 | Interactions (INT-) | 46 |
 | Total catalogued items | 197 |
-| Story files / exported stories | 87 files / 442 stories |
+| Story files / exported stories | 87 files / 443 stories |
 
 Of the 151 non-interaction items: 64 have a story (yes), 33 partial, 54 none (counted from the Story column of the tables). Of the 46 interactions: 18 have a frozen-state story, 15 partial, 13 none. The per-surface table is section 14.
 
