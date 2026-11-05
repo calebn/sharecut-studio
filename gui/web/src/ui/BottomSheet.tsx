@@ -280,6 +280,6 @@ export function BottomSheet({
       )}
       {panel}
     </>,
-    host,
+    host.container,
   );
 }
