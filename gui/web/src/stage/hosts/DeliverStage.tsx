@@ -37,7 +37,7 @@ import { useDawStore } from "../../state/dawStore";
 import { selectedTrackIdsOf } from "../../state/selection";
 import { StatusRow } from "../../system/StatusRow";
 import { lowConfidenceStops } from "../../transcript/lowConfidence";
-import { Button } from "../../ui";
+import { Button, StatusLiveRegion } from "../../ui";
 import { useCommand } from "../../ui/useCommand";
 import { mediaSignature } from "../../waveform/mediaRef";
 import { useStageScroll } from "../useStageScroll";
@@ -74,6 +74,7 @@ import { hostStateOf, type LoadFailure } from "./hostModels";
 import { useShareFlow } from "./shareFlowContext";
 import { hostFileAccess, useDeliverFiles } from "./useDeliverFiles";
 import { useEpisodePeaks } from "./useEpisodePeaks";
+import { useStallAnnouncement } from "./useStallAnnouncement";
 import { useTranscriptFlow } from "./useTranscriptFlow";
 import { useTunnelStatus } from "./useTunnelStatus";
 
@@ -179,6 +180,19 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
   );
   const nowSec = useNowSec(
     exportFlow.run.kind === "running" || bounceFlow.run.kind === "running",
+  );
+  const stall = useStallAnnouncement(
+    [
+      {
+        running: exportFlow.run.kind === "running",
+        lastProgressAt: exportFlow.job?.last_progress_at,
+      },
+      {
+        running: bounceFlow.run.kind === "running",
+        lastProgressAt: bounceFlow.job?.last_progress_at,
+      },
+    ],
+    nowSec,
   );
   const exportDoneAt =
     exportFlow.run.kind === "done" || exportFlow.run.kind === "cancelled"
@@ -487,6 +501,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
             />
           </div>
         ) : null}
+        <StatusLiveRegion message={stall.message} seq={stall.seq} />
         <DeliverStageBody
           key={`${projectPath}|${page.key}`}
           facts={facts}
