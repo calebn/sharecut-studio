@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**141** capabilities · **107** ShareCut Studio commands · **62** keyed · **212** MCP tools · **17** skills on rows (+ **19** hub skills).
+**142** capabilities · **108** ShareCut Studio commands · **62** keyed · **212** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -83,7 +83,8 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Commands and shortcuts | view | `ui.toggleCommandPalette` | `?` | — | `GesturesSheet` | — | — | — | — | none · none |
 | Refresh mix | project | `render.refreshMix` | `Mod+B` | — | `deliverShare` | `render_preview` | `podcast render-preview` | `podcast-play-audition` | — | none · none |
 | Bounce… | project | `export.bounce` | `Mod+Shift+B` | — | `deliverBounce` | `bounce_audio_tool` | `podcast pipeline bounce` | `podcast-bounce-export` | yes | none · none |
-| Share… | project | `share.manage` | — (Invite, or Menu) | — | `deliverShare` | — | `podcast review share` | — | yes | none · none |
+| Share… | project | `share.manage` | — (Invite, or Menu) | — | `inviteSheet` | — | `podcast review share` | — | yes | none · none |
+| Copy listen link | project | `share.copyListenLink` | — (Palette command; the Listen link row on Deliver and in the Invite sheet has a Copy button) | — | `inviteSheet` | — | `podcast review share` | — | yes | none · none |
 | Create record room | project | `record.createRoom` | — (empty-state action on the Record stage) | — | `RecordStage` | `create_record_room_tool` | `podcast review share --kind record` | `podcast-record-session` | yes | none · none |
 | Copy guest link | session | `record.copyGuestLink` | — (Palette command; Share also has a Copy guest link button) | — | — | — | — | — | yes | none · none |
 | Start recording | project | `record.start` | — (chords in a later PR) | — | `RecordStage` | `record_start_tool` | `podcast record start` | `podcast-record-session` | yes | none · none |

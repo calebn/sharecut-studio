@@ -316,9 +316,11 @@ open episode, the no-episode warning, the gesture sheet's callback handoff
 to Commands and shortcuts, and a 360px phone viewport without app or network
 context.
 
-`Stages/Deliver/Share` renders the props-only `ShareSection`, which carries the
-same actions inside the Deliver stage; `ShareFlowProvider` owns listing,
-making, copying and stopping, and `deliverShare.ts` maps it to the section.
+`Stages/Frame/InviteSheet` renders the Invite sheet: Link rows grouped Review
+links, Record links and Listen link, opened by `share.manage` from the header
+Invite on every stage. Deliver embeds only the Listen link row;
+`ShareFlowProvider` owns listing, making, copying and stopping, and
+`deliverShare.ts` maps it to both.
 
 `Stages/Deliver/Bounce` renders the props-only `BounceSection`. The Deliver
 host keeps selection and solo resolution, and `BounceFlowProvider` keeps

@@ -14,6 +14,7 @@ function flow(over: Partial<ShareFlow> = {}): ShareFlow {
     setChoices: vi.fn(),
     busy: false,
     recovery: { kind: "idle" },
+    refreshFor: null,
     error: null,
     status: null,
     copiedKey: null,
@@ -33,8 +34,6 @@ function flow(over: Partial<ShareFlow> = {}): ShareFlow {
 const host = () => ({
   tunnel: null as TunnelStatus | null,
   onOpenRecord: vi.fn(),
-  focusRequested: false,
-  onFocused: vi.fn(),
 });
 
 describe("shareOptionsOf", () => {
@@ -70,7 +69,7 @@ describe("shareOptionsOf", () => {
     expect(o.onEndRoom).toBe(f.endRoom);
   });
 
-  it("adds what only the host knows: online sharing, why Share is blocked, the Record stage and focus", () => {
+  it("adds what only the host knows: online sharing, why sharing is blocked and the Record stage", () => {
     const tunnel: TunnelStatus = {
       state: "online",
       reason: null,
@@ -81,12 +80,10 @@ describe("shareOptionsOf", () => {
       retry_at: null,
     };
     const h = { ...host(), tunnel, blockedReason: "Open a project first." };
-    const o = shareOptionsOf(flow(), { ...h, focusRequested: true });
+    const o = shareOptionsOf(flow(), h);
     expect(o.tunnel).toBe(tunnel);
     expect(o.blockedReason).toBe("Open a project first.");
     expect(o.onOpenRecord).toBe(h.onOpenRecord);
-    expect(o.focusRequested).toBe(true);
-    expect(o.onFocused).toBe(h.onFocused);
   });
 
   it("has no tunnel without the feature", () => {

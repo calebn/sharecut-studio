@@ -57,11 +57,11 @@ share minting, guest routes, or remote MCP.
 | `share.routes` | FastAPI routers (review, record, remote MCP, host `/api/shares`) |
 | `share.mcp_tools` | Share mint MCP tools |
 | `share.cli` | Share mint CLI (`podcast review share*`, `backup-registry`) |
-| `share.ui.menu` | Host Menu → Share… (the Deliver Share section) |
+| `share.ui.menu` | Host Menu → Share… and the header Invite (the Invite sheet) |
 | `share.ui.banner` | Share banner capability id (mirrors Python). The host app no longer renders a banner for it: a guest's role shows in the header Role chip |
 | `share.ui.routes` | Guest `/r/{token}` SPA |
 | `share.remote_mcp` | Remote MCP bridge (`/mcp/{token}/mcp`). `collaboration` contributes it; each link opts in with `--with-mcp` and revoking the link ends it. |
-| `tunnel.status` | Online sharing indicator: `GET /api/tunnel/status` and the Deliver Share section's status line ("Guests can open your links", "Reconnecting…", "Not reachable online", "Online sharing is off") ([host-online-relay.md § Tunnel status](host-online-relay.md#tunnel-status)) |
+| `tunnel.status` | Online sharing indicator: `GET /api/tunnel/status` and the Invite sheet's status line ("Guests can open your links", "Reconnecting…", "Not reachable online", "Online sharing is off") ([host-online-relay.md § Tunnel status](host-online-relay.md#tunnel-status)) |
 | `online.account` | Provider account/auth surface |
 
 Experimental: `extension.more.0`, `extension.status.0` (may change in minors).

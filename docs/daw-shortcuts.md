@@ -138,7 +138,8 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Clear solo | `track.clearSolo` | Project loaded | Unsolo every track: the Solo on chip above the track headers, phone status row and Mix sheet (listen-only, no key) |
 | Fit tracks to window height | `view.fitTracksHeight` | Always (when not typing in a field or on a focused Scrub field) | Toggle: fill the stage height, or a fixed track height |
 | Export transcript… | `export.transcript` | Loaded host project | Go to Deliver and focus the Transcript Export → export/ |
-| Share… | `share.manage` | Loaded host project | Open the Deliver Share section: live links, create, revoke |
+| Share… | `share.manage` | Loaded host project | Open the Invite sheet on any stage: review, record and listen links. Args: at = record to open at the Record links |
+| Copy listen link | `share.copyListenLink` | Loaded host project | Copy the listen link: a Viewer link frozen on the exported version, made on first use. Palette only |
 | Create record room | `record.createRoom` | Loaded host project | Mint guest + producer links in place and copy the guest link |
 | Copy guest link | `record.copyGuestLink` | Loaded host project | Copy the open record room's guest link |
 | Start recording | `record.start` | Host project management |  |
