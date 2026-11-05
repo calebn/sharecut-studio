@@ -20,10 +20,15 @@ def test_registry_rows_and_tiers() -> None:
     assert [(spec.id, spec.setup) for spec in MODELS] == [
         ("whisper", "required"),
         ("rnnoise", "recommended"),
-        ("word-aligner", "offered"),
-        ("speaker-ecapa", "offered"),
+        ("word-aligner", "recommended"),
+        ("speaker-ecapa", "recommended"),
     ]
-    assert [spec.id for spec in models_for("required", "recommended")] == ["whisper", "rnnoise"]
+    assert [spec.id for spec in models_for("required", "recommended")] == [
+        "whisper",
+        "rnnoise",
+        "word-aligner",
+        "speaker-ecapa",
+    ]
 
 
 def test_bootstrap_views_derive_from_the_registry() -> None:
@@ -56,9 +61,16 @@ def test_whisper_sizes_cover_the_catalog_and_the_unlisted_fall_back() -> None:
 def test_size_is_pinned_or_unknown() -> None:
     assert model_spec("rnnoise").size_bytes(None) == 297646
     assert model_spec("rnnoise").size_label(None) == "~0.3 MB"
-    assert model_spec("word-aligner").size_bytes(None) is None
+    assert model_spec("word-aligner").size_bytes(None) == 360_000_000
     assert model_spec("word-aligner").size_label(None) == "~360 MB"
-    assert model_spec("speaker-ecapa").size_bytes(None) is None
+    assert model_spec("speaker-ecapa").size_bytes(None) == 80_000_000
+
+
+def test_the_default_bundle_totals_about_two_gigabytes() -> None:
+    total = sum(spec.size_bytes(None) or 0 for spec in models_for("recommended")) + (
+        model_spec("whisper").size_bytes("large-v3-turbo") or 0
+    )
+    assert 1_900_000_000 <= total <= 2_100_000_000
 
 
 def test_fix_command_names_the_component() -> None:
@@ -76,7 +88,7 @@ def test_component_status_lists_every_registry_model(monkeypatch: pytest.MonkeyP
     assert speaker["state"] == "missing"
     assert speaker["model"] == "speaker-ecapa"
     assert speaker["size"] == "~80 MB"
-    assert speaker["size_bytes"] is None
+    assert speaker["size_bytes"] == 80_000_000
     assert speaker["bootstrap"] == "podcast bootstrap --component speaker-ecapa"
     assert status["models"][0]["tier"] == "required"
 

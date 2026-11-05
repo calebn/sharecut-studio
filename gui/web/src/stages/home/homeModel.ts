@@ -134,10 +134,9 @@ function needsDownload(model: ModelView): boolean {
   return kind === "missing" || kind === "update_needed" || kind === "failed";
 }
 
+/** Get ready's bundle: every model that is not installed (the aligner and speaker model included). */
 export function bundleToGet(models: readonly ModelView[] | null): string[] {
-  return (models ?? [])
-    .filter((m) => m.tier !== "offered" && needsDownload(m))
-    .map((m) => m.id);
+  return (models ?? []).filter(needsDownload).map((m) => m.id);
 }
 
 function sizeLabelOf(models: readonly ModelView[]): string {
@@ -159,49 +158,81 @@ export function toolsMissing(
   return api.models !== null && api.tools.ffmpeg !== "installed";
 }
 
+function isRunning(model: ModelView): boolean {
+  return model.state.kind === "downloading" || model.state.kind === "queued";
+}
+
+export type DownloadTotals = {
+  bytes: number;
+  /** Null while any running model's size is unknown. */
+  total: number | null;
+};
+
+/** What the running downloads have fetched so far, or null when none runs. */
+export function downloadTotals(
+  models: readonly ModelView[] | null,
+): DownloadTotals | null {
+  const running = (models ?? []).filter(isRunning);
+  if (running.length === 0) return null;
+  let bytes = 0;
+  let total = 0;
+  let known = true;
+  for (const m of running) {
+    if (m.state.kind === "downloading") {
+      bytes += m.state.bytes;
+      if (m.state.total === null) known = false;
+      else total += m.state.total;
+    } else if (m.sizeBytes === null) known = false;
+    else total += m.sizeBytes;
+  }
+  return { bytes, total: known && total > 0 ? total : null };
+}
+
+/** "about 3 min", "about 1 h 5 min", or "less than a minute" for the last stretch. */
+export function timeLeftText(seconds: number): string {
+  const minutes = Math.ceil(seconds / 60);
+  if (seconds < 45) return "less than a minute";
+  if (minutes < 60) return `about ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest === 0 ? `about ${hours} h` : `about ${hours} h ${rest} min`;
+}
+
 /**
  * The Setup card's state from the models provider, or null when nothing is
- * needed (or the first status has not arrived: nothing renders while checking).
- * Missing audio tools are their own state with nothing to download.
+ * needed. While the first status is on its way the state is `checking` (the
+ * card draws nothing for its first 300 ms). Missing audio tools are their own
+ * state with nothing to download. `secondsLeft` is the caller's estimate for a
+ * running download, appended to the bytes line.
  */
 export function setupOf(
   api: Pick<
     ReturnType<typeof useModels>,
     "models" | "tools" | "ready" | "loadError"
   >,
+  secondsLeft: number | null = null,
 ): SetupData | null {
   const { models, ready, loadError } = api;
   if (models === null) {
-    return loadError ? { state: "check-error", sizeLabel: "" } : null;
+    return { state: loadError ? "check-error" : "checking", sizeLabel: "" };
   }
-  const running = models.filter(
-    (m) => m.state.kind === "downloading" || m.state.kind === "queued",
-  );
-  if (running.length > 0) {
-    let bytes = 0;
-    let total = 0;
-    let known = true;
-    for (const m of running) {
-      if (m.state.kind === "downloading") {
-        bytes += m.state.bytes;
-        if (m.state.total === null) known = false;
-        else total += m.state.total;
-      } else if (m.sizeBytes === null) known = false;
-      else total += m.sizeBytes;
-    }
+  const totals = downloadTotals(models);
+  if (totals) {
+    const { bytes, total } = totals;
+    const left = secondsLeft === null ? "" : ` · ${timeLeftText(secondsLeft)}`;
     return {
       state: "downloading",
-      sizeLabel: sizeLabelOf(running),
-      progress: known && total > 0 ? Math.min(1, bytes / total) : undefined,
+      sizeLabel: sizeLabelOf(models.filter(isRunning)),
+      progress: total === null ? undefined : Math.min(1, bytes / total),
       detail:
-        known && total > 0
-          ? `${formatBytes(bytes)} of ${formatBytes(total)}`
-          : `${formatBytes(bytes)} downloaded`,
+        total === null
+          ? `${formatBytes(bytes)} downloaded`
+          : `${formatBytes(bytes)} of ${formatBytes(total)}${left}`,
     };
   }
   if (toolsMissing(api)) return { state: "tools-missing", sizeLabel: "" };
   if (ready) return null;
-  const toGet = models.filter((m) => m.tier !== "offered" && needsDownload(m));
+  const toGet = models.filter(needsDownload);
   if (toGet.length === 0) return null;
   const failed = toGet.some((m) => m.state.kind === "failed");
   return {

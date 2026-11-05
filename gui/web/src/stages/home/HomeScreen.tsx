@@ -33,12 +33,13 @@ import {
   RETIRED_PROJECT_FILENAME,
 } from "../../utils/projectFile";
 import { OPEN_OTHER_QUERY_PARAM, projectUrl } from "../../utils/projectUrl";
-import { readLocal, writeLocal } from "../../utils/storage";
+import { readSession, writeSession } from "../../utils/storage";
 import { applySoundScanStart } from "../prepare/applySoundScanStart";
 import { HomeView } from "./HomeView";
 import {
   bundleToGet,
   cardsOf,
+  downloadTotals,
   episodeNameFromFiles,
   importingLine,
   importStoppedLine,
@@ -48,6 +49,7 @@ import {
 } from "./homeModel";
 import { NOT_AN_EPISODE, type OpenOtherProps } from "./OpenOther";
 import { useHomeKeys } from "./useHomeKeys";
+import { useSecondsLeft } from "./useSecondsLeft";
 
 export const SETUP_DISMISSED_KEY = "sharecut.bootstrap.skip";
 
@@ -151,7 +153,7 @@ export function HomeScreen() {
   const [pathError, setPathError] = useState<string | undefined>();
   const [replacing, setReplacing] = useState<string | undefined>();
   const [setupDismissed, setSetupDismissed] = useState(
-    () => readLocal(SETUP_DISMISSED_KEY) === "1",
+    () => readSession(SETUP_DISMISSED_KEY) === "1",
   );
   const [hintShown, setHintShown] = useState(() =>
     homeScreenHintDue(readHomeScreenEnv(), countHomeVisit()),
@@ -403,7 +405,12 @@ export function HomeScreen() {
     onHelp: () => openPalette(true),
   });
 
-  const setup = setupOf(models);
+  const transfer = downloadTotals(models.models);
+  const secondsLeft = useSecondsLeft(
+    transfer?.bytes ?? null,
+    transfer?.total ?? null,
+  );
+  const setup = setupOf(models, secondsLeft);
   const getReady = useCallback(
     () => void models.download(bundleToGet(models.models)),
     [models],
@@ -414,7 +421,7 @@ export function HomeScreen() {
     setup?.state !== "failed" &&
     setup?.state !== "tools-missing";
   const dismissSetup = useCallback(() => {
-    writeLocal(SETUP_DISMISSED_KEY, "1");
+    writeSession(SETUP_DISMISSED_KEY, "1");
     setSetupDismissed(true);
   }, []);
 

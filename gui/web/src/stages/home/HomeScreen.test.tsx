@@ -670,7 +670,12 @@ describe("HomeScreen", () => {
       await user.click(
         await screen.findByRole("button", { name: "Get ready" }),
       );
-      expect(models.download).toHaveBeenCalledWith(["whisper", "rnnoise"]);
+      expect(models.download).toHaveBeenCalledWith([
+        "whisper",
+        "rnnoise",
+        "word-aligner",
+        "speaker-ecapa",
+      ]);
       await user.click(
         screen.getByRole("button", { name: "More about setup" }),
       );
@@ -678,11 +683,11 @@ describe("HomeScreen", () => {
         await screen.findByRole("menuitem", { name: "Not now" }),
       );
       expect(screen.queryByText("Get ShareCut ready")).not.toBeInTheDocument();
-      expect(window.localStorage.getItem(SETUP_DISMISSED_KEY)).toBe("1");
+      expect(window.sessionStorage.getItem(SETUP_DISMISSED_KEY)).toBe("1");
     });
 
     it("keeps a failed or running download visible after Not now", async () => {
-      window.localStorage.setItem(SETUP_DISMISSED_KEY, "1");
+      window.sessionStorage.setItem(SETUP_DISMISSED_KEY, "1");
       const failed = modelsApi({
         status: modelStatus(registryRows(), { ready: false }),
         failures: { whisper: { kind: "network", plain: "x" } },
@@ -739,7 +744,7 @@ describe("HomeScreen", () => {
         });
 
       it("shows the card with no download, even after Not now, and never the raw hint", async () => {
-        window.localStorage.setItem(SETUP_DISMISSED_KEY, "1");
+        window.sessionStorage.setItem(SETUP_DISMISSED_KEY, "1");
         const models = noTools();
         rtlRender(
           <ModelsContext.Provider value={models}>
@@ -782,12 +787,12 @@ describe("HomeScreen", () => {
     });
 
     it("stays away after it was dismissed, and when models are ready", async () => {
-      window.localStorage.setItem(SETUP_DISMISSED_KEY, "1");
+      window.sessionStorage.setItem(SETUP_DISMISSED_KEY, "1");
       const { unmount } = render(<HomeScreen />, false);
       await screen.findByRole("list", { name: "Recent episodes" });
       expect(screen.queryByText("Get ShareCut ready")).not.toBeInTheDocument();
       unmount();
-      window.localStorage.clear();
+      window.sessionStorage.clear();
       render(<HomeScreen />, true);
       await screen.findByRole("list", { name: "Recent episodes" });
       expect(screen.queryByText("Get ShareCut ready")).not.toBeInTheDocument();

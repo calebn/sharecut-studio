@@ -86,7 +86,7 @@ export const BlockedByAnotherDownload: Story = {
   args: {
     model: model(
       { kind: "missing" },
-      { tier: "offered", label: "Word aligner" },
+      { tier: "recommended", label: "Word aligner" },
     ),
     action: { ...download, blockedReason: "Another download is running" },
   },
