@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { viewportStoryParameters } from "../../storybook/storyLayout";
+import { registryModels, withModels } from "../../test/modelsStory";
 import { ROWS } from "./prepareFixture";
 import { ReadyList } from "./ReadyList";
 
@@ -29,7 +30,7 @@ const meta: Meta<typeof ReadyList> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          'The Getting ready rows: Add audio, Transcribe, Line up tracks, Clean and level, Find suggestions, each a Status row in a Status list. A row has one primary action in its line; any other button sits in the row\'s opened body as a labelled group (Hear it, Looks right, Undo move; Keep my fixes, Replace). A row that needs you comes first and starts open, but opening never moves focus, so a step that finishes while someone types does not pull them away. Keep my fixes is the filled default and Replace, which overwrites hand-fixed words, is the outlined danger button. Rows are 48 px at every width. The words say what to do: "Get (1.6 GB)", "Download word timing (360 MB)".\n\n**Motion.** Bars grow with `--motion-state`; a row opens with `--motion-panel`. Not implemented in this slice.',
+          'The Getting ready rows: Add audio, Transcribe, Line up tracks, Clean and level, Find suggestions, each a Status row in a Status list. A row has one primary action in its line; any other button sits in the row\'s opened body as a labelled group (Hear it, Looks right, Undo move; Keep my fixes, Replace). A row that needs you comes first and starts open, but opening never moves focus, so a step that finishes while someone types does not pull them away. Keep my fixes is the filled default and Replace, which overwrites hand-fixed words, is the outlined danger button. Rows are 48 px at every width. A row that waits on a model holds the Model need row inside it: "Needs the transcription model" and Get, then a progress bar with Cancel.\n\n**Motion.** Bars grow with `--motion-state`; a row opens with `--motion-panel`. Not implemented in this slice.',
       },
     },
   },
@@ -79,31 +80,41 @@ export const NeedsAlignCheck: Story = {
 
 export const NeedsModel: Story = {
   args: { rows: ROWS.needsModel },
-  play: async ({ args, canvasElement }) => {
+  decorators: [withModels],
+  play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getAllByRole("listitem")[1]).toHaveTextContent(
       "Transcribe",
     );
-    await userEvent.click(
-      canvas.getByRole("button", { name: /^Get \(1.6 GB\)/ }),
-    );
-    await expect(args.onAction).toHaveBeenCalledWith(
-      "transcribe",
-      "download-model",
-    );
+    await expect(
+      canvas.getByText("Needs the transcription model"),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Get the transcription model" }),
+    ).toBeVisible();
   },
 };
 
 export const ModelDownloading: Story = {
-  args: { rows: ROWS.modelDownloading },
+  args: { rows: ROWS.needsModel },
+  decorators: [withModels],
+  parameters: {
+    models: {
+      models: registryModels({
+        whisper: {
+          kind: "downloading",
+          bytes: 640_000_000,
+          total: 1_600_000_000,
+        },
+      }),
+      busy: true,
+    },
+  },
   play: async ({ canvasElement }) => {
     const bar = within(canvasElement).getByRole("progressbar", {
-      name: "Transcribe",
+      name: "Getting the transcription model",
     });
     await expect(bar).toHaveAttribute("aria-valuenow", "40");
-    await expect(
-      within(canvasElement).getByText("Downloading the transcription model"),
-    ).toBeVisible();
   },
 };
 
@@ -158,14 +169,12 @@ export const Done: Story = {
 
 export const ApproximateTiming: Story = {
   args: { rows: ROWS.approximateTiming },
-  play: async ({ args, canvasElement }) => {
+  decorators: [withModels],
+  play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(
-      canvas.getByRole("button", { name: /^Download word timing \(360 MB\)/ }),
-    );
-    await expect(args.onAction).toHaveBeenCalledWith(
-      "transcribe",
-      "download-aligner",
-    );
+    await expect(canvas.getByText("Needs word timing")).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Get word timing" }),
+    ).toBeVisible();
   },
 };

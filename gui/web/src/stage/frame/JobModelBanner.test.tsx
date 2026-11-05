@@ -69,13 +69,15 @@ describe("JobModelBanner", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("stays out of the way for other failures, for guests, and for jobs Deliver owns", () => {
+  it("stays out of the way for other failures, for guests, and for jobs a stage owns", () => {
     const { container } = mount();
     fail(failedJob({ error_code: "other", error_model: null }));
     expect(container.textContent).toBe("");
     fail(failedJob({ kind: "export" }));
     expect(container.textContent).toBe("");
     fail(failedJob({ kind: "bounce" }));
+    expect(container.textContent).toBe("");
+    fail(failedJob({ kind: "split_speakers" }));
     expect(container.textContent).toBe("");
     const guest = mount(true);
     fail(failedJob());
@@ -123,18 +125,6 @@ describe("JobModelBanner", () => {
     );
     await waitFor(() =>
       expect(useDawStore.getState().pipelineJob).toMatchObject({ id: "next" }),
-    );
-  });
-
-  it("says what to press when a job kind cannot run again by itself", async () => {
-    const { land } = mount();
-    useDawStore.setState({ statusAnnouncement: "" });
-    fail(failedJob({ kind: "split_speakers" }));
-    land("rnnoise");
-    await waitFor(() =>
-      expect(useDawStore.getState().statusAnnouncement).toBe(
-        "Noise reduction (RNNoise) downloaded. Split again.",
-      ),
     );
   });
 

@@ -1,3 +1,4 @@
+import type { NeedTarget } from "../../models";
 import { PEOPLE, VOICE_PEAKS } from "../../system/prepareFixtures";
 import type { PrepareSession, PrepareSource } from "./prepareTypes";
 import type { ReadyRowData } from "./ReadyList";
@@ -113,6 +114,20 @@ const planRow = (
   action: { label: "Skip", run: "skip" },
 });
 
+const WHISPER_NEED: NeedTarget = {
+  id: "whisper",
+  variant: "large-v3-turbo",
+  label: "Whisper",
+  size: "~1.6 GB",
+};
+
+const ALIGNER_NEED: NeedTarget = {
+  id: "word-aligner",
+  variant: "wav2vec2",
+  label: "Word aligner",
+  size: "~360 MB",
+};
+
 export const ROWS = {
   queued: [
     ADD_DONE,
@@ -162,25 +177,8 @@ export const ROWS = {
       id: "transcribe",
       state: "needs-you",
       title: "Transcribe",
-      detail: "Needs a 1.6 GB download first.",
-      action: {
-        label: "Get (1.6 GB)",
-        icon: "cloud-download",
-        run: "download-model",
-      },
-    },
-    ALIGN,
-    { id: "clean", state: "running", title: "Clean and level", progress: 0.45 },
-    SUGGEST,
-  ],
-  modelDownloading: [
-    ADD_DONE,
-    {
-      id: "transcribe",
-      state: "running",
-      title: "Transcribe",
-      detail: "Downloading the transcription model",
-      progress: 0.4,
+      detail: "Waiting for the transcription model",
+      model: WHISPER_NEED,
     },
     ALIGN,
     { id: "clean", state: "running", title: "Clean and level", progress: 0.45 },
@@ -309,11 +307,7 @@ export const ROWS = {
       title: "Transcribe",
       detail:
         "Transcribed. Word timing is approximate, so cuts may clip word edges.",
-      action: {
-        label: "Download word timing (360 MB)",
-        icon: "cloud-download",
-        run: "download-aligner",
-      },
+      model: ALIGNER_NEED,
     },
     ALIGN,
     { id: "clean", state: "done", title: "Clean and level" },

@@ -46,10 +46,10 @@ export function capabilityOf(id: string, label: string): Capability {
   );
 }
 
-export type WhisperSize = { id: string; name: string; size: string };
+export type WhisperSizeOption = { id: string; name: string; size: string };
 
 /** The three sizes the person picks from; `size` is the catalog's, used until the server lists it. */
-export const WHISPER_SIZES: readonly WhisperSize[] = [
+export const WHISPER_SIZES: readonly WhisperSizeOption[] = [
   { id: "tiny.en", name: "Fast", size: "75 MB" },
   { id: "small.en", name: "Balanced", size: "500 MB" },
   { id: "large-v3-turbo", name: "Best", size: "1.6 GB" },
@@ -62,15 +62,6 @@ export function plainSize(size: string): string {
 
 /** The model a step stopped on, or one the sheet lists, reduced to what a need row asks. */
 export type NeedTarget = Pick<ModelNeeded, "id" | "variant" | "label" | "size">;
-
-export function targetOfRow(row: ModelView): NeedTarget {
-  return {
-    id: row.id,
-    variant: row.variant,
-    label: row.label,
-    size: row.size,
-  };
-}
 
 /** True when the row is installed, and for Whisper is the size the step asked for. */
 export function rowInstalled(

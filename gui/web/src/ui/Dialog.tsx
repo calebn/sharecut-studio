@@ -12,8 +12,13 @@ type Props = {
   onClose: () => void;
   title: string;
   children: ReactNode;
-  /** Extra class on the panel (e.g. models-dialog-panel). */
+  /** Extra class on the panel (e.g. share-dialog-panel). */
   panelClassName?: string;
+  /**
+   * `end` docks the panel full height to the end edge of a desktop or tablet screen, as a side
+   * sheet. A phone still raises it from the bottom.
+   */
+  edge?: "end";
   /** Initial focus; defaults to Close. */
   initialFocusRef?: React.RefObject<HTMLElement | null>;
   /** Keep the dialog open (no scrim/Escape/Close dismiss). */
@@ -47,6 +52,7 @@ export function Dialog({
   title,
   children,
   panelClassName,
+  edge,
   initialFocusRef,
   closeDisabled = false,
   footer,
@@ -100,7 +106,9 @@ export function Dialog({
       className={
         anchored
           ? "ui-dialog-root ui-dialog-root--anchored"
-          : "ui-dialog-root command-palette-root"
+          : edge
+            ? `ui-dialog-root command-palette-root ui-dialog-root--${edge}`
+            : "ui-dialog-root command-palette-root"
       }
       role={anchored ? undefined : "dialog"}
       aria-modal={anchored ? undefined : true}

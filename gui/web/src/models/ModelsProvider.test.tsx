@@ -8,10 +8,9 @@ import type {
 } from "../api";
 import * as api from "../api";
 import { ApiError } from "../utils/apiError";
-import { targetOfRow } from "./capability";
 import { ModelNeedRowView } from "./ModelNeedRow";
 import { ModelsProvider } from "./ModelsProvider";
-import { useModel, useModels } from "./useModels";
+import { useModels } from "./useModels";
 
 vi.mock("../api", () => ({
   fetchBootstrapStatus: vi.fn(),
@@ -388,7 +387,7 @@ describe("ModelsProvider", () => {
     render(
       <ModelNeedRowView
         placement="list"
-        model={targetOfRow(failed)}
+        model={failed}
         state={failed.state}
         onGet={vi.fn()}
         onCancel={vi.fn()}
@@ -482,28 +481,6 @@ describe("ModelsProvider", () => {
   });
 });
 
-describe("useModel", () => {
-  it("returns one row and download bound to its id", async () => {
-    run.mockResolvedValue({ job: job({ components: ["rnnoise"] }) });
-    const hook = renderHook(() => useModel("rnnoise"), { wrapper });
-    await waitFor(() => expect(hook.result.current.row).not.toBeNull());
-    expect(hook.result.current.row!.id).toBe("rnnoise");
-    act(() => {
-      void hook.result.current.download();
-    });
-    await waitFor(() => expect(run).toHaveBeenCalledTimes(1));
-    expect(run.mock.calls[0]![0]).toMatchObject({ components: ["rnnoise"] });
-    await waitFor(() => expect(hook.result.current.busy).toBe(true));
-  });
-
-  it("is null for an id the server does not list", async () => {
-    const hook = renderHook(() => useModel("nope"), { wrapper });
-    await waitFor(() => expect(fetchStatus).toHaveBeenCalled());
-    await act(async () => {});
-    expect(hook.result.current.row).toBeNull();
-  });
-});
-
 describe("useModels outside a provider", () => {
   it("is inert: no rows, not busy, downloads do nothing", async () => {
     const { result } = renderHook(() => useModels());
@@ -515,12 +492,6 @@ describe("useModels outside a provider", () => {
     await result.current.refresh();
     expect(run).not.toHaveBeenCalled();
     expect(fetchStatus).not.toHaveBeenCalled();
-  });
-
-  it("gives useModel a null row and a no-op download", async () => {
-    const { result } = renderHook(() => useModel("speaker-ecapa"));
-    expect(result.current.row).toBeNull();
-    expect(await result.current.download()).toEqual({ kind: "cancelled" });
   });
 });
 
