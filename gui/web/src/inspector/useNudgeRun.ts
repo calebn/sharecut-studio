@@ -57,7 +57,7 @@ import type { ProjectView } from "../types/project";
 import { errorMessage } from "../utils/apiError";
 import { findVolumeEnvelope, sameEnvelopePoints } from "../utils/envelopes";
 
-/** How long the bump cue shows on the value it stopped. */
+/** How long the bump cue shows on the buttons that stopped. */
 const BUMP_MS = 1200;
 
 interface Run {
@@ -88,8 +88,6 @@ interface Run {
 
 export interface NudgeBump {
   key: string;
-  /** Changes on every bump, so the cue replays. */
-  n: number;
 }
 
 export function useNudgeRun() {
@@ -98,7 +96,6 @@ export function useNudgeRun() {
   const [running, setRunning] = useState(false);
   const [saving, setSaving] = useState(false);
   const [bump, setBump] = useState<NudgeBump | null>(null);
-  const bumps = useRef(0);
   const endedAt = useRef(Number.NEGATIVE_INFINITY);
   const stalePointerClick = useRef(false);
 
@@ -229,8 +226,7 @@ export function useNudgeRun() {
         r.stopped = true;
         if (r.timer) clearTimeout(r.timer);
         r.timer = null;
-        bumps.current += 1;
-        setBump({ key: nudgeKey(r.field), n: bumps.current });
+        setBump({ key: nudgeKey(r.field) });
         store.announceStatus(`${r.name} failed: ${errorMessage(error)}`, {
           tone: "error",
         });
@@ -242,8 +238,7 @@ export function useNudgeRun() {
     if (next.stop.kind === "boundary") r.stoppedAt = next.stop.boundary.label;
     if (r.timer) clearTimeout(r.timer);
     r.timer = null;
-    bumps.current += 1;
-    setBump({ key: nudgeKey(r.field), n: bumps.current });
+    setBump({ key: nudgeKey(r.field) });
     store.announceStatus(
       next.stop.kind === "boundary"
         ? `${r.name} stopped at ${next.stop.boundary.label}`

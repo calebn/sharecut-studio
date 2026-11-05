@@ -669,7 +669,7 @@ Show the volume envelope (**Show volume envelope** in the track inspector, or
 the Volume envelope layer in the eye popover), then add a point from the lane's
 create menu (long press, right click, or Shift+F10): **Add volume point**. The
 new point is selected and **Inspect** opens its **Time** and **Level** in the
-Inspector (the inspector sheet on a phone, where the peek drawer also shows
+Inspector (the inspector sheet on a phone, where the compact drawer also shows
 them). The layer is shared by all tracks and hiding it does not change saved
 audio. Shared-project Editors can edit the envelope; Commenters and Viewers can
 select points and read their values but cannot edit them.

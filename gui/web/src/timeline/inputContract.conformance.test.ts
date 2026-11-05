@@ -2,21 +2,22 @@
  * Conformance (#1096): every hit kind in `HIT_KINDS` behaves as its contract
  * says, for every input. The cases are generated from the table, so a new
  * kind gets them all without a new test, and a kind whose row changes fails
- * here until the router, strip and keys agree. A scan of the timeline's
+ * here until the router, the sheet and keys agree. A scan of the timeline's
  * components checks that every kind with an axis is marked on an element
  * that owns its drag, and that no drag hides behind a plain surface, so a
  * mouse drag cannot lose its touch path unnoticed (the clip move did once).
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { fireEvent, render } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { nudgeAxis, nudgeStep } from "../edit/nudge";
+import { type NudgeKind, nudgeAxis, nudgeStep } from "../edit/nudge";
 import { softBoundaries } from "../edit/nudgeBoundaries";
 import { TOUCH_SLOP_PX } from "../hooks/gestureConstants";
-import { peekTarget } from "../inspector/peekTarget";
+import { renderSelectionBody } from "../inspector/selectionSurface";
 import { argsFromKeyEvent, KEYMAP_COMMANDS } from "../keymap/registry";
+import { useDawStore } from "../state/dawStore";
 import {
   clipRow,
   minimalProject,
@@ -110,8 +111,8 @@ const TARGET: Record<HitKind, { id: string; sec: number }> = {
   clip: { id: "c2", sec: 10 },
 };
 
-/** The selection the strip shows each kind's rows for. */
-function selectionFor(kind: HitKind): Selection {
+/** The selection whose sheet draws each kind's nudge buttons. */
+function selectionFor(kind: HitKind): NonNullable<Selection> {
   if (kind.startsWith("pending")) {
     return { kind: "pending", id: "p1", trackId: "host" };
   }
@@ -120,6 +121,15 @@ function selectionFor(kind: HitKind): Selection {
   }
   return { kind: "clip", id: "c2", trackId: "host" };
 }
+
+/** The aria-label of the group the sheet draws for each nudge kind. */
+const NUDGE_GROUP: Record<NudgeKind, RegExp> = {
+  fade: /^Nudge fade /,
+  trim: /^Nudge trim /,
+  pending: /^Nudge pending /,
+  "envelope-time": /^Nudge envelope point$/,
+  "envelope-level": /^Nudge envelope point level$/,
+};
 
 let root: HTMLDivElement;
 let router: HitRouter;
@@ -522,15 +532,28 @@ describe.each(HIT_KIND_NAMES)("%s", (kind) => {
     }
   });
 
-  it(`its strip rows are: ${contract.nudges.join(", ") || "none"}`, () => {
+  it(`its sheet nudges are: ${contract.nudges.join(", ") || "none"}`, async () => {
     if (contract.nudges.length === 0) return;
-    const peek = peekTarget(project, selectionFor(kind), {
-      kind,
-      id: TARGET[kind].id,
-    });
-    expect([...new Set(peek?.nudges.map((row) => row.field.kind))]).toEqual(
-      contract.nudges,
+    vi.useRealTimers();
+    useDawStore.getState().hydrate("/tmp/p.json", project, null);
+    useDawStore.getState().setLayerVisible("showLevels", true);
+    useDawStore.getState().setSelection(selectionFor(kind));
+    const sheet = render(
+      createElement(() =>
+        renderSelectionBody(selectionFor(kind), {
+          project,
+          projectEpoch: 0,
+          placement: "sheet",
+        }),
+      ),
     );
+    for (const nudge of contract.nudges) {
+      expect(
+        await screen.findAllByRole("group", { name: NUDGE_GROUP[nudge] }),
+        `${kind}: a "${nudge}" nudge group`,
+      ).not.toHaveLength(0);
+    }
+    sheet.unmount();
   });
 
   it(`soft boundaries ${contract.soft ? "apply" : "do not apply"}`, () => {
@@ -561,7 +584,7 @@ describe.each(HIT_KIND_NAMES)("%s", (kind) => {
         contract.command!,
       ),
     ).toMatchObject({ phase: "nudge", held: true });
-    // A held arrow steps the same field as the strip's first row, and stops
+    // A held arrow steps the same field as the sheet's first nudge, and stops
     // where a held nudge does.
     const field =
       contract.nudges[0] === "fade" || contract.nudges[0] === "trim"

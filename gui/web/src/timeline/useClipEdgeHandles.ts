@@ -296,7 +296,7 @@ export function useClipEdgeHandles(context: Context) {
   };
   /**
    * A pointer drag to `candidate`: past a hard limit (the source's start or
-   * end, a neighbour, a fade's clip) it stops there, with the strip's bump
+   * end, a neighbour, a fade's clip) it stops there, with the nudge's bump
    * and note, as a held nudge does (#1135).
    */
   const drag = (d: Draft, candidate: number) => {
@@ -429,7 +429,7 @@ export function useClipEdgeHandles(context: Context) {
       d.kind === "fade" && d.edge === "out"
         ? -action.direction
         : action.direction;
-    // The strip's held nudges and these keys share one step: hard limits
+    // The sheet's held nudges and these keys share one step: hard limits
     // always stop it, and a held key stops at a soft boundary that a fresh
     // press then crosses (#1115).
     if (action.held && keyStopped.current) return { status: "ok" as const };

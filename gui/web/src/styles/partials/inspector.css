@@ -490,71 +490,12 @@ html[data-shell="phone"] select.track-sheet-field {
   }
 }
 
-/* Compact inspector peek strip (#1051): name in the sheet header, then the
-   value on the left and the nudges in thumb reach on the right. */
-.inspector-peek {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3) var(--space-4);
-  padding: 0 var(--space-4) var(--space-4);
-}
-
-.inspector-peek-reading {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-0);
-  min-inline-size: 0;
-  margin: 0;
-}
-
-.inspector-peek-owner {
-  overflow: hidden;
-  font-size: var(--font-size-small);
-  color: var(--color-text-secondary);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.inspector-peek-value {
-  font-size: var(--font-size-heading);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-/* One nudge row per value. A lone row sits beside the key value. Labelled
-   rows (a pending edit's start and end, a point's time and level) take a
-   line each on a phone and share one when the strip is wide (sideways), so
-   the strip stays short. */
+/* One value's nudge buttons, drawn beside its Scrub field. */
 .nudge-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-1) var(--space-4);
-}
-
-.nudge-row:has(.nudge-row-reading) {
-  flex: 1 1 19rem;
-}
-
-.nudge-row-reading {
-  display: flex;
-  flex-direction: column;
-  /* Room for the bump ring between the label and the value. */
-  gap: var(--space-1);
-  min-inline-size: 4.5rem;
-}
-
-.nudge-row-label {
-  font-size: var(--font-size-small);
-  color: var(--color-text-secondary);
-}
-
-.nudge-row-value {
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
 }
 
 .nudge-row-buttons {
@@ -578,19 +519,17 @@ html[data-shell="phone"] select.track-sheet-field {
   margin-inline-start: var(--space-3);
 }
 
-/* A held nudge stopped at a boundary or limit: the value it stopped on gets
-   the armed halo (and bumps, motion allowing) while the note is read out.
-   A halo, not an outline, so it never reads as keyboard focus. */
-.nudge-row[data-bump] .nudge-row-value,
-.inspector-peek-value[data-bump] {
+/* A held nudge stopped at a boundary or limit: its buttons get the armed halo
+   (and bump, motion allowing) while the note is read out. A halo, not an
+   outline, so it never reads as keyboard focus. */
+.nudge-row[data-bump] .nudge-row-buttons {
   border-radius: var(--radius-xs);
   background: var(--color-accent-muted);
   box-shadow: 0 0 0 var(--space-1) var(--color-accent-muted);
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .nudge-row[data-bump] .nudge-row-value,
-  .inspector-peek-value[data-bump] {
+  .nudge-row[data-bump] .nudge-row-buttons {
     animation: nudge-bump var(--motion-state) var(--motion-ease-out);
   }
 }

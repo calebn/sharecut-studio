@@ -404,7 +404,7 @@ describe("the phone sheet keeps a picked band clear of itself", () => {
         shell="phone"
         sheet={{
           open: true,
-          strip: null,
+          drawer: null,
           rangeActionsInSheet: false,
           close: vi.fn(),
           dismiss: vi.fn(),

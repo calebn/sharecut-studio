@@ -321,13 +321,13 @@ describe("PendingEditOverlay handles", () => {
     );
     const sheetRoot = document.createElement("div");
     sheetRoot.className = "bottom-sheet-root";
-    const strip = document.createElement("div");
-    strip.className =
+    const panel = document.createElement("div");
+    panel.className =
       "bottom-sheet bottom-sheet--inspector bottom-sheet--compact";
-    sheetRoot.append(strip);
-    // jsdom lays nothing out: the strip rests 100 px tall on an 800 px slot.
+    sheetRoot.append(panel);
+    // jsdom lays nothing out: the sheet rests 100 px tall on an 800 px slot.
     sheetRoot.getBoundingClientRect = () => ({ bottom: 800 }) as DOMRect;
-    Object.defineProperty(strip, "offsetHeight", { value: 100 });
+    Object.defineProperty(panel, "offsetHeight", { value: 100 });
     document.body.append(sheetRoot);
     try {
       const docked = render(view);

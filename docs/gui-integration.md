@@ -305,8 +305,8 @@ Storybook browser tests cover these behaviors at desktop and phone widths.
 
 Pending edit review actions keep one state and command owner. On phones and
 sideways compact layouts, the selected action card portals into the compact
-inspector's pinned header, so Cut and Keep (Approve and Reject for a split, an exact range or a suggestion with no accept action) remain available while the
-inspector body scrolls. Timing stays in the peek strip or expanded inspector.
+inspector's body, above its fields, so Cut and Keep (Approve and Reject for a split, an exact range or a suggestion with no accept action) remain available while the
+inspector body scrolls. Timing is in the fields beneath it.
 Outside compact mode, the card floats beside the selected timeline region,
 between the sticky ruler and marker lane and the bottom panel. It re-places
 itself on scroll, window resize, and any size change of the region, the card,
