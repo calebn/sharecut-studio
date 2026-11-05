@@ -181,8 +181,8 @@ point at which the request can occur.
 The US-1 scenario (`records a remote interview end to end`) waits for at least
 1 s of guest keeper PCM before Stop, then polls the host upload API until the
 guest's and the host's keeper segments are all file-ACKed. It lands through
-whichever comes first, ACK auto-land or an enabled Land button, polls the saved
-project JSON until the three live comments appear in `review.comments[]`
+the server's ACK auto-land (`waitForTakeLanded` polls the host upload API until
+every segment reads landed), polls the saved project JSON until the three live comments appear in `review.comments[]`
 (each within ±0.25 s of the host recording clock around its press), checks that
 both Ava's and the host keeper's landed clips point at files under `raw/`, and
 checks server-side that the producer has no upload rows and that the host
