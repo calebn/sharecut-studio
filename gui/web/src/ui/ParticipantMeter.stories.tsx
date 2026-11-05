@@ -1,44 +1,22 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { type FrameReader, usePeakMeter } from "../audio/usePeakMeter";
-import { dbToLinear } from "../utils/audio";
 import { Avatar, LevelMeter } from "./index";
-
-/**
- * Layout sketch, not a shipped component: how per-participant meters could
- * sit in the record room roster (issue #170). Rows reuse
- * the `<ul className="record-roster">` markup (as UploadStatus does) with `.cluster`
- * items; each row is an Avatar, a name and a compact LevelMeter driven by
- * `usePeakMeter`, the same loop `useInputPeakDb` runs on a real mic.
- */
-function wander(seed: number, t: number): number {
-  return (
-    -18 +
-    Math.sin(t * 5 + seed) * 3 +
-    Math.sin(t * 11 + seed * 2) * 2 +
-    Math.random() * 4
-  );
-}
+import { createParticipantMeterSource } from "./meterStorySource";
 
 function useParticipantFrames(
   seed: number,
   clipAt: number | null,
 ): FrameReader {
-  return useMemo(() => {
-    const frame = new Float32Array(1024);
-    return () => {
-      const t = performance.now() / 1000;
-      let target = wander(seed, t);
-      if (clipAt !== null && t % 20 > clipAt && t % 20 < clipAt + 0.4) {
-        target = -0.3; // hot mic moment
-      }
-      const amp = dbToLinear(target);
-      for (let i = 0; i < frame.length; i++) {
-        frame[i] = amp * Math.sin((i / frame.length) * Math.PI * 6);
-      }
-      return frame;
-    };
-  }, [seed, clipAt]);
+  const source = useMemo(
+    () => createParticipantMeterSource(seed, clipAt),
+    [seed, clipAt],
+  );
+  useEffect(() => {
+    source.attach();
+    return () => source.dispose();
+  }, [source]);
+  return source.read;
 }
 
 function RosterRow({
@@ -103,6 +81,6 @@ function Roster() {
   );
 }
 
-export const RecordRoster: Story = {
+export const RecordRoster = {
   render: () => <Roster />,
-};
+} satisfies Story;

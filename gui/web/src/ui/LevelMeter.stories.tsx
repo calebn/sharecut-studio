@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { type FrameReader, usePeakMeter } from "../audio/usePeakMeter";
-import { dbToLinear } from "../utils/audio";
 import { Button, LevelMeter } from "./index";
+import { createScriptedMeterSource } from "./meterStorySource";
 
 const meta: Meta<typeof LevelMeter> = {
   title: "Atoms/LevelMeter",
@@ -82,32 +82,13 @@ export const Compact: Story = {
   },
 };
 
-/**
- * Scripted take: room tone, speech, a laugh that clips, more speech.
- * Feeds synthesized frames through `usePeakMeter` — the same loop
- * `useInputPeakDb` runs on a real mic — so this story previews the real
- * wiring, not a copy of it.
- */
-function scriptedDb(tSec: number): number {
-  const cyc = tSec % 16;
-  if (cyc < 2) return -48 + Math.random() * 4;
-  if (cyc < 8) return -16 + Math.sin(cyc * 7) * 4 + Math.random() * 5;
-  if (cyc < 8.5) return -0.5 + Math.random() * 1.2;
-  return -16 + Math.sin(cyc * 6.3) * 4 + Math.random() * 5;
-}
-
 function useScriptedFrames(): FrameReader {
-  return useMemo(() => {
-    const start = performance.now();
-    const frame = new Float32Array(2048);
-    return () => {
-      const amp = dbToLinear(scriptedDb((performance.now() - start) / 1000));
-      for (let i = 0; i < frame.length; i++) {
-        frame[i] = amp * Math.sin((i / frame.length) * Math.PI * 8);
-      }
-      return frame;
-    };
-  }, []);
+  const source = useMemo(() => createScriptedMeterSource(), []);
+  useEffect(() => {
+    source.attach();
+    return () => source.dispose();
+  }, [source]);
+  return source.read;
 }
 
 function LiveSimulationDemo() {
@@ -146,6 +127,6 @@ function LiveSimulationDemo() {
   );
 }
 
-export const LiveSimulation: Story = {
+export const LiveSimulation = {
   render: () => <LiveSimulationDemo />,
-};
+} satisfies Story;
