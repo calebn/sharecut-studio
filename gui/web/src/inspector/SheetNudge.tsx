@@ -6,9 +6,10 @@
  */
 
 import { mayNudge } from "../edit/mayNudge";
-import { type NudgeField, nudgeAxis } from "../edit/nudge";
+import { NUDGE_KINDS, type NudgeField, nudgeAxis } from "../edit/nudge";
 import { useDaw } from "../state/useDaw";
 import type { ProjectView } from "../types/project";
+import { RippleMark } from "../ui/RippleMark";
 import { NudgeRow } from "./NudgeRow";
 import { useNudgeRun } from "./useNudgeRun";
 
@@ -53,6 +54,13 @@ function SheetNudgeRow({
 }) {
   const run = useNudgeRun();
   return (
-    <NudgeRow row={{ field, label: null, name }} project={project} run={run} />
+    <>
+      {NUDGE_KINDS[field.kind].ripples ? <RippleMark /> : null}
+      <NudgeRow
+        row={{ field, label: null, name }}
+        project={project}
+        run={run}
+      />
+    </>
   );
 }

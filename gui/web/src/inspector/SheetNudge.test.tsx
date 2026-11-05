@@ -138,6 +138,18 @@ describe("SheetNudge", () => {
     expect(screen.queryByRole("group", { name: /Nudge/ })).toBeNull();
   });
 
+  it("marks a trim nudge as a ripple, as the strip does, and a fade not", () => {
+    const view = open(
+      <SheetNudge
+        field={{ kind: "trim", edge: "out", trackId: "host", clipId: "c2" }}
+        name="Trim end"
+      />,
+    );
+    expect(view.container.querySelector(".ripple-mark")).not.toBeNull();
+    view.rerender(<SheetNudge field={FADE} name="Fade in" />);
+    expect(view.container.querySelector(".ripple-mark")).toBeNull();
+  });
+
   it("steps a key press by one fine step", async () => {
     open(<SheetNudge field={FADE} name="Fade in" />);
     const minus = button("Fade in 1 ms shorter");
