@@ -623,7 +623,7 @@ export function PendingEditBody({
           },
           {
             label: "Reject",
-            variant: "danger" as const,
+            variant: "default" as const,
             action: "reject" as const,
           },
         ]

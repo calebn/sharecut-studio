@@ -148,17 +148,16 @@ export async function ingestFiles(
     if (target.kind === "track") {
       const first = list[0]!;
       const uploaded = await uploadMediaFile(projectPath, first);
+      focusId = target.id;
+      for (const extra of list.slice(1)) {
+        focusId = await createTrackWithMedia(projectPath, extra, taken);
+      }
       const swap = await setTrackMediaCommand(
         projectPath,
         target.id,
         uploaded.rel_path!,
       );
-      if (list.length === 1) undoHead = replyHistoryHead(swap);
-      focusId = target.id;
-      for (const extra of list.slice(1)) {
-        focusId = await createTrackWithMedia(projectPath, extra, taken);
-        replaced = false;
-      }
+      undoHead = replyHistoryHead(swap);
     } else {
       for (const file of list) {
         focusId = await createTrackWithMedia(projectPath, file, taken);
@@ -167,10 +166,11 @@ export async function ingestFiles(
     await refreshDocumentProject(projectPath);
     if (focusId) {
       focusImportedTrack(focusId);
-      announceImportResult(focusId, {
-        replaced,
-        undo: replaced ? undoHead : null,
-      });
+      if (replaced && target.kind === "track") {
+        announceImportResult(target.id, { replaced, undo: undoHead });
+      } else {
+        announceImportResult(focusId, { replaced: false, undo: null });
+      }
     } else {
       s.announceStatus("Import complete");
     }

@@ -154,6 +154,27 @@ describe("ingestFiles", () => {
         /^Replaced Guest/,
       );
     });
+
+    it("offers Undo for the swap when several files are dropped", async () => {
+      uploadMock.mockResolvedValue({
+        complete: true,
+        rel_path: "media/take.wav",
+      });
+      refreshMock.mockResolvedValue(minimalProject());
+      vi.mocked(api.setTrackMediaCommand)
+        .mockResolvedValueOnce({ history_head_id: "e-extra" })
+        .mockResolvedValueOnce({ history_head_id: "e-swap" });
+      await ingestFiles([file, new File(["b"], "Extra.wav")], {
+        kind: "track",
+        id: "guest",
+      });
+      expect(useDawStore.getState().feedbackToast).toMatchObject({
+        undo: "e-swap",
+      });
+      expect(useDawStore.getState().statusAnnouncement).toMatch(
+        /^Replaced Guest/,
+      );
+    });
   });
 });
 
