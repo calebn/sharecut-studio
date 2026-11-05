@@ -7,7 +7,10 @@ import {
   waitForPipelineJob,
 } from "../api";
 import { refreshDocumentProject } from "../document/applyDocumentUpdate";
-import { resolveSelectionRange } from "../edit/rangeSelection";
+import {
+  isRangeSelection,
+  resolveSelectionRange,
+} from "../edit/rangeSelection";
 import {
   FEATURE_SHARE_UI_MENU,
   hasFeature,
@@ -352,11 +355,15 @@ export function registerHostCommands(): void {
       return blocked;
     }
     const s = useDawStore.getState();
-    if (s.project) {
-      const { targets } = resolveSelectionRange(s.project, s.selection);
-      if (targets.length === 1) {
+    if (isRangeSelection(s.selection)) {
+      const resolved = s.project
+        ? resolveSelectionRange(s.project, s.selection)
+        : null;
+      if (resolved?.targets.length === 1) {
         return runRangeAction("bounce");
       }
+      const reason = resolved?.reason ?? "Choose the audible occurrence";
+      return { status: "disabled", reason };
     }
     s.openStage("deliver");
     s.setExportRequested(true);

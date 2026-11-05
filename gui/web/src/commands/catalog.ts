@@ -724,8 +724,9 @@ export const COMMANDS: Record<string, CommandDef> = {
       "final",
     ],
     when: "hostProjectLoaded",
+    announcesRefusal: true,
     notes:
-      "Master encode to export/ (same as MCP export_audio). Mod+E; with a range selected, Bounce of that range",
+      "Master encode to export/ (same as MCP export_audio). Mod+E; with one range selected, opens Deliver with Bounce focused and that range filled in",
   },
   "project.new": {
     id: "project.new",

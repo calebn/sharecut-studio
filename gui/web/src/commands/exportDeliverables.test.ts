@@ -75,7 +75,7 @@ describe("export.deliverables", () => {
       ["a"],
     )!;
 
-    it("bounces the range in Deliver instead of asking for the export", async () => {
+    it("opens Deliver with Bounce focused on the range instead of asking for the export", async () => {
       useDawStore.setState({
         project: rangedProject,
         selection: { kind: "range", target },
@@ -89,6 +89,28 @@ describe("export.deliverables", () => {
       expect(s.bounceRangeTarget).toEqual(target);
       expect(s.chrome.bounceRequested).toBe(true);
       expect(s.chrome.exportRequested).toBe(false);
+    });
+
+    it("refuses with the resolver's reason when a transcript range has no target", async () => {
+      useDawStore.setState({
+        project: rangedProject,
+        selection: {
+          kind: "transcriptRange",
+          startWordIndex: 0,
+          endWordIndex: 0,
+        } as never,
+        bounceRangeTarget: null,
+      });
+      const result = await execute(
+        "export.deliverables",
+        {},
+        { skipWhen: true },
+      );
+      expect(result.status).toBe("disabled");
+      const s = useDawStore.getState();
+      expect(s.chrome.exportRequested).toBe(false);
+      expect(s.chrome.bounceRequested).toBe(false);
+      expect(s.stage).toBe("edit");
     });
 
     it("exports as before when the selection is not a range", async () => {

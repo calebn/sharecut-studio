@@ -59,7 +59,10 @@ const MARKER_END = "<!-- /keymap-cheatsheet:generated -->";
 
 function defaultShortcut(cmd: KeymapCommand): string {
   // Ignore localStorage remaps for published docs.
-  const primary = cmd.keys[0] ?? "";
+  const primary = cmd.keys[0];
+  if (!primary) {
+    return "";
+  }
   if (primary === " " || primary === "Space") {
     return cmd.requireShift ? "Shift+Space" : "Space";
   }
@@ -128,8 +131,9 @@ function generatedBody(linkStyle: "docs" | "ux"): string {
       const when = WHEN_HINTS[cmd.when] ?? cmd.when;
       const noteParts = [cmd.notes, cmd.collision].filter(Boolean);
       const notes = noteParts.join(" — ").replace(/\|/g, "\\|");
+      const shortcutCell = shortcut ? `\`${shortcut}\`` : "Palette only";
       lines.push(
-        `| \`${shortcut}\` | ${cmd.label} (\`${cmd.id}\`) | ${when} | ${notes} |`,
+        `| ${shortcutCell} | ${cmd.label} (\`${cmd.id}\`) | ${when} | ${notes} |`,
       );
     }
     lines.push("");
@@ -272,6 +276,13 @@ if (check && okDocs && okUx) {
     process.exit(1);
   }
   const bound = new Set(KEYMAP_COMMANDS.map((c) => c.id));
+  const dangling = gen.split("\n").filter((line) => /`[^`]*\+`/.test(line));
+  if (dangling.length) {
+    console.error(
+      `dangling modifier in shortcut cell:\n${dangling.join("\n")}`,
+    );
+    process.exit(1);
+  }
   for (const c of KEYMAP_COMMANDS) {
     if (!gen.includes(c.id)) {
       console.error(`docs generated body missing keymap id ${c.id}`);

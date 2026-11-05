@@ -1,6 +1,5 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ModelGate } from "../../models";
 import { registryModels } from "../../test/modelsStory";
@@ -82,154 +81,25 @@ function setup(extra: Partial<DeliverStageProps> = {}) {
   return { ...view, all, stage };
 }
 
+const pressExport = () =>
+  fireEvent.click(screen.getByRole("button", { name: /^Export/ }));
+
 const modE = (el: Element, init: KeyboardEventInit = {}) =>
   fireEvent.keyDown(el, { key: "e", ctrlKey: true, ...init });
 
 describe("Mod+E", () => {
-  it("exports once with the chosen settings, clips and range", () => {
+  it("is left to the window keymap, so the stage never exports on it", () => {
     const { stage, all } = setup();
-    modE(stage());
-    expect(all.onExport).toHaveBeenCalledOnce();
-    expect(all.onExport).toHaveBeenCalledWith({
-      settings: SETTINGS,
-      clips: [{ id: "k3", start: 0, end: 33, title: "Cold open" }],
-      chapters: CHAPTERS,
-      range: null,
+    const event = new KeyboardEvent("keydown", {
+      key: "e",
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
     });
-  });
-
-  it("ignores a held key even once the double-export guard has released", () => {
-    vi.useFakeTimers();
-    try {
-      const { stage, all } = setup();
-      modE(stage());
-      act(() => {
-        vi.advanceTimersByTime(2500);
-      });
-      modE(stage(), { repeat: true });
-      expect(all.onExport).toHaveBeenCalledOnce();
-      modE(stage());
-      expect(all.onExport).toHaveBeenCalledTimes(2);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("needs the bare chord: Shift or Alt with it does nothing", () => {
-    const { stage, all } = setup();
-    modE(stage(), { shiftKey: true });
-    modE(stage(), { altKey: true });
+    stage().dispatchEvent(event);
+    modE(stage(), { metaKey: true, ctrlKey: false });
+    expect(event.defaultPrevented).toBe(false);
     expect(all.onExport).not.toHaveBeenCalled();
-  });
-
-  it("is Cmd on Apple platforms and Ctrl elsewhere", () => {
-    platform.apple = true;
-    const apple = setup();
-    modE(apple.stage());
-    expect(apple.all.onExport).not.toHaveBeenCalled();
-    fireEvent.keyDown(apple.stage(), { key: "e", metaKey: true });
-    expect(apple.all.onExport).toHaveBeenCalledOnce();
-    apple.unmount();
-    platform.apple = false;
-    const other = setup();
-    fireEvent.keyDown(other.stage(), { key: "e", metaKey: true });
-    expect(other.all.onExport).not.toHaveBeenCalled();
-    modE(other.stage());
-    expect(other.all.onExport).toHaveBeenCalledOnce();
-  });
-
-  it("exports a range passed in from Edit instead of the Deliver part", () => {
-    const { stage, all } = setup({ selection: { start: 40, end: 90 } });
-    modE(stage());
-    expect(vi.mocked(all.onExport).mock.calls[0]?.[0].range).toEqual({
-      start: 40,
-      end: 90,
-    });
-  });
-
-  it("falls back to the Deliver range for a selection that cannot be exported", () => {
-    for (const selection of [
-      { start: 5, end: 5 },
-      { start: 9, end: 3 },
-      { start: Number.NaN, end: 30 },
-      { start: TOTAL + 10, end: TOTAL + 20 },
-    ]) {
-      const { stage, all, unmount } = setup({ selection });
-      modE(stage());
-      expect(vi.mocked(all.onExport).mock.calls[0]?.[0].range).toBeNull();
-      unmount();
-    }
-    const { stage, all } = setup({ selection: { start: -4, end: TOTAL + 50 } });
-    modE(stage());
-    expect(vi.mocked(all.onExport).mock.calls[0]?.[0].range).toEqual({
-      start: 0,
-      end: TOTAL,
-    });
-  });
-
-  it("can export again when the host ignores the first request", () => {
-    vi.useFakeTimers();
-    try {
-      const { stage, all } = setup();
-      modE(stage());
-      modE(stage());
-      expect(all.onExport).toHaveBeenCalledOnce();
-      act(() => {
-        vi.advanceTimersByTime(2500);
-      });
-      modE(stage());
-      expect(all.onExport).toHaveBeenCalledTimes(2);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("does nothing while exporting, with no format, or while loading", () => {
-    const running = setup({
-      exportState: { phase: "running", progress: 0.1, detail: "" },
-    });
-    modE(running.stage());
-    expect(running.all.onExport).not.toHaveBeenCalled();
-    running.unmount();
-    const empty = setup({ initialSettings: { ...SETTINGS, formats: [] } });
-    modE(empty.stage());
-    expect(empty.all.onExport).not.toHaveBeenCalled();
-    empty.unmount();
-    const loading = setup({ state: "loading" });
-    modE(loading.stage());
-    expect(loading.all.onExport).not.toHaveBeenCalled();
-  });
-
-  it("does nothing while the transcription model is missing", () => {
-    const { stage, all } = setup({ exportState: NEEDS_MODEL });
-    modE(stage());
-    expect(all.onExport).not.toHaveBeenCalled();
-  });
-
-  it("works after an error mount recovers", () => {
-    const all = props();
-    function Host() {
-      const [state, setState] = useState<"error" | "ready">("error");
-      return (
-        <DeliverStage
-          {...all}
-          state={state}
-          onRetry={() => setState("ready")}
-        />
-      );
-    }
-    const { container } = render(<Host />);
-    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
-    modE(container.querySelector(".dv-stage") as Element);
-    expect(all.onExport).toHaveBeenCalledOnce();
-  });
-
-  it("works after a guest mount becomes the host", () => {
-    const all = props({ guest: true });
-    const { container, rerender } = render(<DeliverStage {...all} />);
-    rerender(<DeliverStage {...all} guest={false} />);
-    modE(container.querySelector(".dv-stage") as Element);
-    expect(all.onExport).toHaveBeenCalledOnce();
   });
 });
 
@@ -248,7 +118,6 @@ describe("Export button", () => {
     const button = screen.getByRole("button", { name: /^Export/ });
     await userEvent.click(button);
     await userEvent.click(button);
-    modE(button);
     expect(all.onExport).toHaveBeenCalledOnce();
   });
 
@@ -799,68 +668,30 @@ describe("what each part of the page shows", () => {
 });
 
 describe("the double-export timer", () => {
-  it("is cancelled when the host answers, so it cannot release a later export early", () => {
+  it("is cancelled when the host answers, so it cannot release a later export early", async () => {
     vi.useFakeTimers();
     try {
       const all = props();
-      const { container, rerender } = render(<DeliverStage {...all} />);
-      const stage = () => container.querySelector(".dv-stage") as Element;
-      modE(stage());
+      const { rerender } = render(<DeliverStage {...all} />);
+      const click = () =>
+        fireEvent.click(screen.getByRole("button", { name: /^Export/ }));
+      click();
       rerender(
         <DeliverStage {...all} exportState={{ phase: "failed", cause: "x" }} />,
       );
       act(() => {
         vi.advanceTimersByTime(1000);
       });
-      modE(stage());
+      click();
       expect(all.onExport).toHaveBeenCalledTimes(2);
       act(() => {
         vi.advanceTimersByTime(1100);
       });
-      modE(stage());
+      click();
       expect(all.onExport).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();
     }
-  });
-});
-
-describe("Mod+E on Apple with both modifiers", () => {
-  it("needs Cmd without Ctrl", () => {
-    platform.apple = true;
-    const { stage, all } = setup();
-    fireEvent.keyDown(stage(), { key: "e", metaKey: true, ctrlKey: true });
-    expect(all.onExport).not.toHaveBeenCalled();
-  });
-});
-
-describe("Mod+E only for E", () => {
-  it("ignores other chords and plain E, and takes the browser's Ctrl+E", () => {
-    const { stage, all } = setup();
-    for (const key of ["c", "v", "z", "a", "s"]) modE(stage(), { key });
-    fireEvent.keyDown(stage(), { key: "e" });
-    expect(all.onExport).not.toHaveBeenCalled();
-    const event = new KeyboardEvent("keydown", {
-      key: "e",
-      ctrlKey: true,
-      bubbles: true,
-      cancelable: true,
-    });
-    stage().dispatchEvent(event);
-    expect(event.defaultPrevented).toBe(true);
-    expect(all.onExport).toHaveBeenCalledOnce();
-  });
-
-  it("leaves typing in a title alone but still exports with the chord", async () => {
-    const { all } = setup();
-    const title = chapterTitle("The old mill");
-    await userEvent.type(title, "e");
-    expect(all.onExport).not.toHaveBeenCalled();
-    expect(title).toHaveValue("The old mille");
-    fireEvent.keyDown(title, { key: "c", ctrlKey: true });
-    expect(all.onExport).not.toHaveBeenCalled();
-    fireEvent.keyDown(title, { key: "e", ctrlKey: true });
-    expect(all.onExport).toHaveBeenCalledOnce();
   });
 });
 
@@ -1166,14 +997,6 @@ describe("a stale export still has its files", () => {
   });
 });
 
-describe("Mod+E on other platforms with both modifiers", () => {
-  it("needs Ctrl without Cmd", () => {
-    const { stage, all } = setup();
-    fireEvent.keyDown(stage(), { key: "e", ctrlKey: true, metaKey: true });
-    expect(all.onExport).not.toHaveBeenCalled();
-  });
-});
-
 describe("state edits build on each other", () => {
   it("keeps every chapter and clip edit made one after the other", async () => {
     setup();
@@ -1237,13 +1060,13 @@ describe("state edits build on each other", () => {
 
 describe("export settings reach the stage", () => {
   it("blocks Export once every format is off, and says why", async () => {
-    const { stage, all } = setup();
+    const { all } = setup();
     await userEvent.click(screen.getByRole("button", { name: /^MP3/ }));
     await userEvent.click(screen.getByRole("button", { name: /^WAV/ }));
     const button = screen.getByRole("button", { name: /^Export/ });
     expect(button).toBeDisabled();
     expect(button).toHaveAttribute("title", "Choose a format first.");
-    modE(stage());
+    await userEvent.click(button);
     expect(all.onExport).not.toHaveBeenCalled();
   });
 
@@ -1552,8 +1375,8 @@ describe.each(["desktop", "phone"] as const)(
     });
 
     it("Mod+E exports the same request the button does", () => {
-      const { stage, all } = setup({ layout });
-      modE(stage());
+      const { all } = setup({ layout });
+      pressExport();
       expect(all.onExport).toHaveBeenCalledWith(REQUEST);
     });
 
@@ -1785,9 +1608,9 @@ describe("toasts and timers", () => {
   it("leaves no timer running once unmounted, with a toast and an export in flight", () => {
     vi.useFakeTimers();
     try {
-      const { unmount, all, stage } = setup({ toastMs: 5000 });
+      const { unmount, all } = setup({ toastMs: 5000 });
       remove("The old mill");
-      modE(stage());
+      pressExport();
       expect(all.onExport).toHaveBeenCalledOnce();
       expect(vi.getTimerCount()).toBeGreaterThan(0);
       const error = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -1804,13 +1627,13 @@ describe("toasts and timers", () => {
   it("lets Export run again 2 seconds after an answer that never came", () => {
     vi.useFakeTimers();
     try {
-      const { stage, all } = setup();
-      modE(stage());
+      const { all } = setup();
+      pressExport();
       wait(1900);
-      modE(stage());
+      pressExport();
       expect(all.onExport).toHaveBeenCalledOnce();
       wait(200);
-      modE(stage());
+      pressExport();
       expect(all.onExport).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();
@@ -1866,12 +1689,12 @@ describe("timers that depend on the host's settings", () => {
   });
 
   it("keeps the double-export guard through re-renders until the host answers", async () => {
-    const { stage, all } = setup();
-    modE(stage());
+    const { all } = setup();
+    pressExport();
     await userEvent.click(
       screen.getByRole("button", { name: "Remove The old mill" }),
     );
-    modE(stage());
+    pressExport();
     expect(all.onExport).toHaveBeenCalledOnce();
   });
 });
@@ -2088,11 +1911,11 @@ describe("round three of the audit: what the page shows", () => {
   });
 
   it("disables Export with the reason while the model is missing", async () => {
-    const { all, stage } = setup({ exportState: NEEDS_MODEL });
+    const { all } = setup({ exportState: NEEDS_MODEL });
     const button = screen.getByRole("button", { name: /^Export/ });
     expect(button).toBeDisabled();
     expect(button).toHaveAttribute("title", "Needs the transcription model.");
-    modE(stage());
+    pressExport();
     expect(all.onExport).not.toHaveBeenCalled();
   });
 
@@ -2222,7 +2045,7 @@ describe("round three of the audit: names that tell items apart", () => {
 
 describe("round three of the audit: chapters", () => {
   it("never lets a chapter go below zero by arrow, Shift-arrow or drag", () => {
-    const { stage, all } = setup();
+    const { all } = setup();
     const time = screen.getByRole("textbox", { name: "Time of Cold open" });
     time.focus();
     fireEvent.keyDown(time, { key: "ArrowDown" });
@@ -2231,7 +2054,7 @@ describe("round three of the audit: chapters", () => {
     fireEvent.pointerDown(grip, { clientX: 100, pointerId: 1 });
     fireEvent.pointerMove(grip, { clientX: 20, pointerId: 1 });
     fireEvent.pointerUp(grip, { pointerId: 1 });
-    modE(stage());
+    pressExport();
     const sent = vi.mocked(all.onExport).mock.calls[0]?.[0].chapters ?? [];
     expect(sent.length).toBeGreaterThan(0);
     expect(sent.every((c) => c.at >= 0)).toBe(true);
@@ -4422,7 +4245,7 @@ describe("round six of the audit", () => {
   });
 
   it("keeps two-decimal times typed into the chapter, In and Out fields", async () => {
-    const { stage, all } = setup();
+    const { all } = setup();
     const time = screen.getByRole("textbox", { name: "Time of The old mill" });
     await userEvent.clear(time);
     await userEvent.type(time, "1:23.26{Enter}");
@@ -4436,7 +4259,7 @@ describe("round six of the audit", () => {
     const out = screen.getByRole("textbox", { name: "Out" });
     await userEvent.clear(out);
     await userEvent.type(out, "2:00.74{Enter}");
-    modE(stage());
+    pressExport();
     const sent = vi.mocked(all.onExport).mock.calls[0]?.[0];
     expect(sent?.range?.start).toBeCloseTo(83.26, 5);
     expect(sent?.range?.end).toBeCloseTo(120.74, 5);
@@ -4444,11 +4267,11 @@ describe("round six of the audit", () => {
   });
 
   it("lists formats in the order they were switched on", async () => {
-    const { stage, all } = setup();
+    const { all } = setup();
     await userEvent.click(screen.getByRole("button", { name: /^MP3/ }));
     await userEvent.click(screen.getByRole("button", { name: /^FLAC/ }));
     await userEvent.click(screen.getByRole("button", { name: /^MP3/ }));
-    modE(stage());
+    pressExport();
     expect(vi.mocked(all.onExport).mock.calls[0]?.[0].settings.formats).toEqual(
       ["wav", "flac", "mp3"],
     );
@@ -4643,13 +4466,13 @@ describe("round eight of the audit", () => {
   it.each(nudges)(
     "%s+ArrowUp moves a chapter time by %f steps of 0.1 s",
     (_n, init, steps) => {
-      const { stage, all } = setup();
+      const { all } = setup();
       const time = screen.getByRole("textbox", {
         name: "Time of The old mill",
       });
       time.focus();
       fireEvent.keyDown(time, keys(init));
-      modE(stage());
+      pressExport();
       const at = vi
         .mocked(all.onExport)
         .mock.calls[0]?.[0].chapters.find((c) => c.id === "c2")?.at;
@@ -4661,12 +4484,12 @@ describe("round eight of the audit", () => {
     "%s+ArrowUp moves Part In and Out by %f steps of 0.1 s",
     async (_n, init, steps) => {
       for (const which of ["In", "Out"] as const) {
-        const { stage, all, unmount } = setup();
+        const { all, unmount } = setup();
         await userEvent.click(screen.getByRole("button", { name: "Part…" }));
         const field = screen.getByRole("textbox", { name: which });
         field.focus();
         fireEvent.keyDown(field, keys(init));
-        modE(stage());
+        pressExport();
         const range = vi.mocked(all.onExport).mock.calls[0]?.[0].range;
         const base = which === "In" ? 0 : 60;
         expect(range?.[which === "In" ? "start" : "end"]).toBeCloseTo(
@@ -4682,7 +4505,7 @@ describe("round eight of the audit", () => {
     "%s+ArrowUp moves a clip's In and Out by %f steps of 0.1 s",
     async (_n, init, steps) => {
       for (const which of ["In", "Out"] as const) {
-        const { stage, all, unmount } = setup();
+        const { all, unmount } = setup();
         await userEvent.click(
           screen.getByRole("button", {
             name: "Approve Nobody asked the river",
@@ -4701,7 +4524,7 @@ describe("round eight of the audit", () => {
         });
         field.focus();
         fireEvent.keyDown(field, keys(init));
-        modE(stage());
+        pressExport();
         const clip = vi
           .mocked(all.onExport)
           .mock.calls[0]?.[0].clips.find((c) => c.id === "k1");
@@ -4716,7 +4539,7 @@ describe("round eight of the audit", () => {
   );
 
   it("brings back both of two chapters with the same title, in order, after Undo", async () => {
-    const { stage, all } = setup({
+    const { all } = setup({
       initialChapters: [
         { id: "a", at: 10, title: "Intro" },
         { id: "b", at: 20, title: "Intro" },
@@ -4735,7 +4558,7 @@ describe("round eight of the audit", () => {
         .getAllByRole("textbox", { name: /^Title of / })
         .filter((el) => el.classList.contains("dv-chapter-title")),
     ).toHaveLength(4);
-    modE(stage());
+    pressExport();
     expect(
       vi.mocked(all.onExport).mock.calls[0]?.[0].chapters.map((c) => c.id),
     ).toEqual(["a", "b", "c", "d"]);
@@ -4752,14 +4575,14 @@ describe("round eight of the audit", () => {
     "NaN",
     "1:23:45",
   ])("keeps the old chapter time when %j is committed", async (typed) => {
-    const { stage, all } = setup();
+    const { all } = setup();
     const time = screen.getByRole("textbox", { name: "Time of The old mill" });
     await userEvent.clear(time);
     await userEvent.type(time, `${typed}{Enter}`);
     expect(
       screen.getByRole("textbox", { name: "Time of The old mill" }),
     ).toHaveValue("5:12.4");
-    modE(stage());
+    pressExport();
     const at = vi
       .mocked(all.onExport)
       .mock.calls[0]?.[0].chapters.find((c) => c.id === "c2")?.at;
@@ -4810,7 +4633,7 @@ describe("clip trim handles in the stage", () => {
     "%s %s %j moves 10 ms or 100 ms, with and without words",
     async (edge, key, init, kind, expected) => {
       for (const extra of [{ words: WORDS, peaks: PEAKS }, {}]) {
-        const { stage, all, unmount } = setup(extra);
+        const { all, unmount } = setup(extra);
         await userEvent.click(
           screen.getByRole("button", {
             name: "Approve Nobody asked the river",
@@ -4818,7 +4641,7 @@ describe("clip trim handles in the stage", () => {
         );
         await openTrim();
         fireEvent.keyDown(handle(edge), { key, ...init });
-        modE(stage());
+        pressExport();
         expect(exportedClip(all)?.[kind]).toBeCloseTo(expected, 6);
         unmount();
       }
@@ -4839,7 +4662,7 @@ describe("clip trim handles in the stage", () => {
   ] as const)(
     "a drag of %s snaps to a word edge",
     async (kind, atSeconds, expected) => {
-      const { stage, all } = setup({ words: WORDS, peaks: PEAKS });
+      const { all } = setup({ words: WORDS, peaks: PEAKS });
       await userEvent.click(
         screen.getByRole("button", { name: "Approve Nobody asked the river" }),
       );
@@ -4875,7 +4698,7 @@ describe("clip trim handles in the stage", () => {
         buttons: 1,
       });
       fireEvent.pointerUp(handle(edge), { pointerId: 1 });
-      modE(stage());
+      pressExport();
       expect(exportedClip(all)?.[kind]).toBeCloseTo(expected, 6);
     },
   );
@@ -5176,7 +4999,7 @@ describe("host export options", () => {
   });
 
   it("says WAV is always written, and still exports with nothing else chosen", () => {
-    const { all, stage } = setup({
+    const { all } = setup({
       initialSettings: { ...SETTINGS, formats: [] },
       exportOptions: { wavAlwaysWritten: true, formats: [] },
     });
@@ -5186,7 +5009,7 @@ describe("host export options", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "WAV" })).toBeDisabled();
-    modE(stage());
+    pressExport();
     expect(all.onExport).toHaveBeenCalledOnce();
   });
 
@@ -5205,16 +5028,16 @@ describe("host export options", () => {
   });
 
   it("still exports the project's saved formats when the settings did not load", () => {
-    const { all, stage } = setup({
+    const { all } = setup({
       initialSettings: { ...SETTINGS, formats: [] },
       exportOptions: { settingsError: "no config", formats: [] },
     });
-    modE(stage());
+    pressExport();
     expect(all.onExport).toHaveBeenCalledOnce();
   });
 
   it("says the settings are loading and holds Export until they are", () => {
-    const { all, stage } = setup({
+    const { all } = setup({
       initialSettings: { ...SETTINGS, formats: [] },
       exportOptions: { loading: true, formats: [] },
     });
@@ -5225,7 +5048,7 @@ describe("host export options", () => {
     expect(
       screen.getAllByRole("button", { name: "Export" })[0],
     ).toHaveAttribute("title", "Wait for the settings to load.");
-    modE(stage());
+    pressExport();
     expect(all.onExport).not.toHaveBeenCalled();
   });
 
@@ -5375,14 +5198,14 @@ describe("host export options", () => {
   });
 
   it("shows the host's reason on a disabled Export and exports nothing", () => {
-    const { all, stage } = setup({
+    const { all } = setup({
       exportOptions: { blockedReason: "No project loaded" },
     });
     const button = screen.getAllByRole("button", { name: "Export" })[0];
     expect(button).toBeDisabled();
     expect(button).toHaveAttribute("title", "No project loaded");
     expect(screen.getByText("No project loaded")).toBeInTheDocument();
-    modE(stage());
+    pressExport();
     expect(all.onExport).not.toHaveBeenCalled();
   });
 

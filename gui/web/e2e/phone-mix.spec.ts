@@ -8,7 +8,12 @@ import {
 } from "./phoneMix";
 import { withShareableProject } from "./shareableProject";
 import { createReviewShare } from "./shareNavigation";
-import { deliverPage, openProject, openProjectDialog } from "./stageNav";
+import {
+  deliverPage,
+  openProject,
+  openProjectDialog,
+  runPaletteCommand,
+} from "./stageNav";
 import { withAppearance } from "./theme";
 
 for (const { cell: viewport, theme } of withAppearance([
@@ -169,7 +174,7 @@ test("phone Mix restores Escape focus after Tab and yields to the Bounce shortcu
       page.getByRole("button", { name: "Mix", exact: true }),
     ).toBeFocused();
     await openPhoneMix(page);
-    await page.keyboard.press("Control+Shift+B");
+    await runPaletteCommand(page, "Bounce…");
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(
       deliverPage(page).getByRole("button", { name: "Bounce", exact: true }),

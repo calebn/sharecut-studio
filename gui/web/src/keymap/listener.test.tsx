@@ -12,12 +12,13 @@ import { redoHistory, undoHistory } from "../api";
 import { clearRegisteredCommands, execute } from "../commands/execute";
 import { registerFocusedClipHandle } from "../commands/focusedClipHandle";
 import { registerDawCommands } from "../commands/register";
+import { makeRangeTarget } from "../edit/rangeSelection";
 import { AskDialog } from "../feedback/AskDialog";
 import { askConfirm } from "../feedback/ask";
 import { useDawStore } from "../state/dawStore";
 import { trackEditSave } from "../state/documentSendOrder";
 import { setChrome } from "../test/chrome";
-import { minimalProject } from "../test/fixtures";
+import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import { BottomSheet } from "../ui/BottomSheet";
 import { Dialog } from "../ui/Dialog";
 import { Menu, MenuItem } from "../ui/Menu";
@@ -727,4 +728,91 @@ it("leaves J, L and Z to a text field or contenteditable", async () => {
       expect(execute).not.toHaveBeenCalled();
     }
   }
+});
+
+function rangedProject() {
+  return minimalProject({
+    render_status: {
+      needs_rerender: false,
+      reconciliation: { stale: false },
+      premix: { exists: true },
+    },
+    tracks: [sampleTrack({ id: "a", range_media_seal: "a" })],
+    clips: {
+      tracks: {
+        a: [
+          clipRow({
+            id: "c",
+            track_id: "a",
+            source_id: null,
+            source_start: 0,
+            source_end: 5,
+            timeline_start: 10,
+            timeline_end: 15,
+          }),
+        ],
+      },
+      clip_count: 1,
+    },
+  });
+}
+
+async function pressModE(target: Element) {
+  await act(async () => {
+    fireEvent.keyDown(target, {
+      key: "e",
+      code: "KeyE",
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+}
+
+it("Mod+E with one range selected opens Deliver on Bounce and does not request the export", async () => {
+  const project = rangedProject();
+  const target = makeRangeTarget(project, [{ start: 11, end: 12 }], ["a"])!;
+  useDawStore.setState({
+    project,
+    selection: { kind: "range", target },
+    bounceRangeTarget: null,
+  });
+  setChrome({ exportRequested: false, bounceRequested: false });
+  render(<KeymapHost />);
+  await pressModE(screen.getByRole("button", { name: "Boundary button" }));
+  const s = useDawStore.getState();
+  expect(execute).toHaveBeenCalledWith(
+    "export.deliverables",
+    expect.anything(),
+    expect.anything(),
+  );
+  expect(s.stage).toBe("deliver");
+  expect(s.bounceRangeTarget).toEqual(target);
+  expect(s.chrome.bounceRequested).toBe(true);
+  expect(s.chrome.exportRequested).toBe(false);
+});
+
+it("Mod+E with no range selected asks for the full export once", async () => {
+  useDawStore.setState({ selection: null, bounceRangeTarget: null });
+  setChrome({ exportRequested: false, bounceRequested: false });
+  render(<KeymapHost />);
+  await pressModE(screen.getByRole("button", { name: "Boundary button" }));
+  const s = useDawStore.getState();
+  expect(s.stage).toBe("deliver");
+  expect(s.chrome.exportRequested).toBe(true);
+  expect(s.chrome.bounceRequested).toBe(false);
+});
+
+it("Mod+E from a Deliver text field is left to the field", async () => {
+  useDawStore.setState({ selection: null, stage: "deliver" });
+  setChrome({ exportRequested: false });
+  render(
+    <>
+      <KeymapHost />
+      <input aria-label="Chapter title" />
+    </>,
+  );
+  await pressModE(screen.getByRole("textbox", { name: "Chapter title" }));
+  expect(useDawStore.getState().chrome.exportRequested).toBe(false);
 });
