@@ -286,10 +286,10 @@ describe("usePrepareRun auto-run", () => {
     );
     rerender({ ingestBusy: false, mediaKey: "a:/a.wav" });
     await waitFor(() =>
-      expect(result.current.model).toEqual({
-        phase: "ask",
+      expect(result.current.model).toMatchObject({
+        id: "whisper",
+        variant: "large-v3-turbo",
         size: "~1.6 GB",
-        what: "the transcription model",
       }),
     );
     expect(missing.download).not.toHaveBeenCalled();
@@ -301,26 +301,16 @@ describe("usePrepareRun auto-run", () => {
     await waitFor(() => expect(result.current.model).toBeNull());
   });
 
-  it("downloads the model only when the person taps Get", async () => {
-    start.mockRejectedValueOnce(WHISPER_NEEDED);
-    const { result, rerender, api } = setup();
-    rerender({ ingestBusy: true, mediaKey: "" });
-    rerender({ ingestBusy: false, mediaKey: "a:/a.wav" });
-    await waitFor(() => expect(result.current.model?.phase).toBe("ask"));
-    act(() => result.current.getModel());
-    expect(api.download).toHaveBeenCalledWith(["whisper"], {
-      whisperModel: "large-v3-turbo",
-    });
-  });
-
   it("does not loop when the model row already says installed", async () => {
     start.mockRejectedValue(WHISPER_NEEDED);
-    const { rerender } = setup(modelsFor("installed"));
+    const { result, rerender } = setup(modelsFor("installed"));
     rerender({ ingestBusy: true, mediaKey: "" });
     rerender({ ingestBusy: false, mediaKey: "a:/a.wav" });
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(2));
     await act(async () => undefined);
-    await act(async () => undefined);
-    expect(start).toHaveBeenCalledOnce();
+    expect(start).toHaveBeenCalledTimes(2);
+    expect(result.current.model).toBeNull();
+    expect(result.current.startError).toBe("Whisper is not downloaded.");
   });
 });
 
@@ -422,7 +412,7 @@ describe("usePrepareRun after a model download", () => {
       start.mockRejectedValueOnce(WHISPER_NEEDED);
       const { result, arrive } = setupWithArrival();
       await act(async () => result.current.run(mode, true));
-      await waitFor(() => expect(result.current.model?.phase).toBe("ask"));
+      await waitFor(() => expect(result.current.model?.id).toBe("whisper"));
       arrive();
       await waitFor(() => expect(start).toHaveBeenCalledTimes(2));
       expect(start.mock.calls[1][1]).toMatchObject({
@@ -437,7 +427,7 @@ describe("usePrepareRun after a model download", () => {
     start.mockRejectedValueOnce(WHISPER_NEEDED);
     const { result, arrive } = setupWithArrival();
     await act(async () => result.current.run("run", false, "tighten_tracks"));
-    await waitFor(() => expect(result.current.model?.phase).toBe("ask"));
+    await waitFor(() => expect(result.current.model?.id).toBe("whisper"));
     arrive();
     await waitFor(() => expect(start).toHaveBeenCalledTimes(2));
     expect(start.mock.calls[1][1]).toMatchObject({
@@ -445,6 +435,77 @@ describe("usePrepareRun after a model download", () => {
       forceTranscribe: false,
       retimeWords: false,
     });
+  });
+});
+
+describe("usePrepareRun word timing", () => {
+  function alignerSetup() {
+    const row = (state: "missing" | "installed") =>
+      modelsApi({
+        status: modelStatus(
+          registryRows().map((r) =>
+            r.id === "word-aligner" ? modelRow({ ...r, state }) : r,
+          ),
+        ),
+      });
+    const api = { current: row("missing") };
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <ModelsContext.Provider value={api.current}>
+        {children}
+      </ModelsContext.Provider>
+    );
+    const view = renderHook(
+      () =>
+        usePrepareRun({
+          projectPath: "/tmp/p/episode.sharecut",
+          workingSet: workingSet(),
+          transcribed: 1,
+          untranscribed: 0,
+          mediaKey: "a:/a.wav",
+          ingestBusy: false,
+          canRun: true,
+          nameOf: (id) => id,
+        }),
+      { wrapper },
+    );
+    return {
+      ...view,
+      land: () => {
+        api.current = row("installed");
+        view.rerender();
+      },
+    };
+  }
+
+  it("offers the aligner as a Model need and re-times the words once Get lands it", async () => {
+    vocabulary.mockResolvedValue({
+      show_title: null,
+      prompt_limit: null,
+      prompt_primer: "",
+      terms: [],
+      guest_names: [],
+      revision: "r1",
+      needs_retranscription: false,
+      edited_tracks: [],
+    });
+    start.mockResolvedValue(pipelineJobSnapshot({ status: "running" }));
+    const { result, land } = alignerSetup();
+    expect(result.current.approximateTiming).toMatchObject({
+      id: "word-aligner",
+    });
+    act(() => result.current.awaitAligner(result.current.approximateTiming!));
+    expect(start).not.toHaveBeenCalled();
+    land();
+    await waitFor(() => expect(start).toHaveBeenCalledOnce());
+    expect(start.mock.calls[0][1]).toMatchObject({ retimeWords: true });
+    expect(result.current.approximateTiming).toBeNull();
+  });
+
+  it("does not re-time when the aligner lands without Get having been pressed on the row", async () => {
+    const { land } = alignerSetup();
+    land();
+    await act(async () => undefined);
+    expect(start).not.toHaveBeenCalled();
   });
 });
 

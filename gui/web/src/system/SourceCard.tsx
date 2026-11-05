@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from "react";
+import { type ReactNode, useId, useRef, useState } from "react";
 import { Button, Field, Menu, MenuItem } from "../ui";
 import { OverviewStrip } from "./OverviewStrip";
 import { percentOf } from "./progress";
@@ -55,6 +55,8 @@ export type SourceCardProps = {
   onMoveDown?: () => void;
   /** Plain cause when the file failed. */
   cause?: string;
+  /** A Model need row, when the failure is a missing model; it replaces the cause and Try again. */
+  modelAsk?: ReactNode;
   onRetry?: () => void;
   onDetails?: () => void;
   /** Another card in this session carries this name too: said aloud and shown. */
@@ -110,6 +112,7 @@ export function SourceCard({
   onMoveUp,
   onMoveDown,
   cause,
+  modelAsk,
   onRetry,
   onDetails,
   sameNameAs,
@@ -228,7 +231,8 @@ export function SourceCard({
           }
         />
       ) : null}
-      {state === "failed" ? (
+      {state === "failed" && modelAsk ? modelAsk : null}
+      {state === "failed" && !modelAsk ? (
         <StatusRow
           density="inline"
           state="failed"

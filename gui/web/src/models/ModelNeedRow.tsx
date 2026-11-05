@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useRef } from "react";
 import { useDawStore } from "../state/dawStore";
+import { percentOf } from "../system/progress";
 import { StatusRow } from "../system/StatusRow";
 import { SystemIcon } from "../system/SystemIcon";
 import { Button } from "../ui";
@@ -151,6 +152,7 @@ function ListRow({
   const rowRef = useRef<HTMLDivElement>(null);
   const holdsFocus = useRef(false);
   const working = state.kind === "downloading" || state.kind === "queued";
+  const known = progressOf(state);
   const get = state.kind === "update_needed" ? "Update" : "Get";
   const getting =
     state.kind === "missing" ||
@@ -197,6 +199,22 @@ function ListRow({
           </span>
           {reason.note}
         </div>
+        {state.kind === "downloading" ? (
+          <span
+            className="sr-only"
+            role="progressbar"
+            aria-label={`Getting ${name}`}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={known === undefined ? undefined : percentOf(known)}
+            aria-valuetext={progressText(state)}
+          />
+        ) : null}
+        <span className="sr-only" role="status">
+          {state.kind === "failed"
+            ? `Couldn't get ${name}. ${state.failure.plain}`
+            : ""}
+        </span>
         <div className="sys-need-control">
           {working ? (
             <Button
@@ -204,11 +222,7 @@ function ListRow({
               aria-label={`Cancel ${name} download`}
               onClick={act(onCancel)}
             >
-              <SystemIcon
-                name="progress-ring"
-                size={20}
-                progress={progressOf(state)}
-              />
+              <SystemIcon name="progress-ring" size={20} progress={known} />
               <SystemIcon name="x" size={14} />
             </Button>
           ) : getting ? (
@@ -243,6 +257,8 @@ export function ModelNeedRowView(props: ModelNeedRowViewProps) {
 export type ModelNeedRowProps = {
   model: NeedTarget;
   placement?: ModelNeedPlacement;
+  /** Called when the person presses Get, Update or Try again, as the download starts. */
+  onGet?: () => void;
   onManage?: () => void;
   children?: ReactNode;
 };
@@ -255,6 +271,7 @@ export type ModelNeedRowProps = {
 export function ModelNeedRow({
   model,
   placement = "need",
+  onGet,
   onManage,
   children,
 }: ModelNeedRowProps) {
@@ -278,12 +295,13 @@ export function ModelNeedRow({
       model={model}
       state={state}
       blockedReason={activity.blockedReason}
-      onGet={() =>
+      onGet={() => {
+        onGet?.();
         void download(
           [model.id],
           sizeAsked ? { whisperModel: model.variant ?? undefined } : undefined,
-        )
-      }
+        );
+      }}
       onCancel={() => void cancel()}
       onManage={manage}
     >
