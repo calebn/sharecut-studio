@@ -53,7 +53,9 @@ describe("useStallAnnouncement", () => {
     rerender({ us: [{ at: 100 }], now: 116 });
     rerender({ us: [{ at: 100, running: false }], now: 117 });
     expect(announce).toHaveBeenCalledTimes(1);
-    rerender({ us: [{ at: 100 }], now: 130 });
+    rerender({ us: [{ at: 120 }], now: 121 });
+    expect(announce).toHaveBeenCalledTimes(1);
+    rerender({ us: [{ at: 120 }], now: 140 });
     expect(announce).toHaveBeenCalledTimes(2);
     expect(announce).toHaveBeenLastCalledWith(PROGRESS_STALLED);
   });
@@ -102,5 +104,57 @@ describe("useStallAnnouncement", () => {
     expect(announce).toHaveBeenCalledTimes(1);
     rerender({ us: [{ at: 100 }], now: 125 });
     expect(announce).toHaveBeenCalledTimes(1);
+  });
+
+  it("stays silent for a run that was never fresh (clock skew)", () => {
+    const { announce, rerender } = setup([{ at: 100 }], 200);
+    rerender({ us: [{ at: 100 }], now: 201 });
+    rerender({ us: [{ at: 100 }], now: 300 });
+    expect(announce).not.toHaveBeenCalled();
+    rerender({ us: [{ at: 299 }], now: 301 });
+    expect(announce).not.toHaveBeenCalled();
+  });
+
+  it("stays silent for a run that starts stale, then speaks once it was fresh", () => {
+    const { announce, rerender } = setup([{ at: 100, running: false }], 200);
+    rerender({ us: [{ at: 100 }], now: 201 });
+    expect(announce).not.toHaveBeenCalled();
+    rerender({ us: [{ at: 200 }], now: 202 });
+    rerender({ us: [{ at: 200 }], now: 220 });
+    expect(announce).toHaveBeenLastCalledWith(PROGRESS_STALLED);
+  });
+
+  it("does not speak resumed without a spoken stall", () => {
+    const { announce, rerender } = setup([{ at: 100 }], 200);
+    rerender({ us: [{ at: 199 }], now: 201 });
+    expect(announce).not.toHaveBeenCalled();
+  });
+
+  it("speaks stall then resume", () => {
+    const { announce, rerender } = setup([{ at: 100 }], 105);
+    rerender({ us: [{ at: 100 }], now: 130 });
+    rerender({ us: [{ at: 129 }], now: 131 });
+    expect(announce.mock.calls.map((c) => c[0])).toEqual([
+      PROGRESS_STALLED,
+      PROGRESS_RESUMED,
+    ]);
+  });
+
+  it("speaks resumed once when the slot returns fresh after a spoken stall", () => {
+    const { announce, rerender } = setup([{ at: 100 }], 110);
+    rerender({ us: [{ at: 100 }], now: 116 });
+    rerender({ us: [{ at: undefined as never, tracked: false }], now: 120 });
+    rerender({ us: [{ at: 124 }], now: 125 });
+    rerender({ us: [{ at: 125 }], now: 126 });
+    expect(announce.mock.calls.map((c) => c[0])).toEqual([
+      PROGRESS_STALLED,
+      PROGRESS_RESUMED,
+    ]);
+  });
+
+  it("treats a run that is not running as silent (cancelling is passed as not running)", () => {
+    const { announce, rerender } = setup([{ at: 100 }], 105);
+    rerender({ us: [{ at: 100, running: false }], now: 130 });
+    expect(announce).not.toHaveBeenCalled();
   });
 });
