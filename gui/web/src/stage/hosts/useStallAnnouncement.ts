@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { isStaleUpdate } from "../../utils/pipelineProgress";
 
 export const PROGRESS_STALLED = "Progress stalled";
@@ -14,14 +14,18 @@ type Update = {
   lastProgressAt: number | null | undefined;
 };
 
+type State = { stale: boolean; seenFresh: boolean };
+
 /**
  * One-shot stall/resume announcement for the Deliver progress rows (export,
- * bounce), spoken through the shell's one status channel via `announce`. It
- * speaks only when a running job turns stale or its updates return, never on
- * mount and never again while the state holds. A job that ends (finished,
- * cancelled, failed) resets silently: the frame's job-status announcement
- * already says so. A flapping heartbeat near the 15 s threshold speaks on each
- * transition; that chatter is accepted and documented.
+ * bounce), spoken through the shell's one status channel via `announce`.
+ * A run can stall only after it was seen running and fresh at least once, so a
+ * run that is stale from its first look (clock skew between client and Studio
+ * host, or a mount while already stale) stays silent. "Resumed" is spoken only
+ * when a stall was actually spoken. The hook speaks on the aggregate edge: a
+ * second job going stale while another is already stale says nothing. A job
+ * that ends (finished, cancelled, failed) resets silently. A flapping
+ * heartbeat near the 15 s threshold speaks on each transition; accepted.
  */
 export function useStallAnnouncement(
   updates: readonly Update[],
@@ -29,31 +33,45 @@ export function useStallAnnouncement(
   announce: (message: string) => void,
 ): void {
   const announceRef = useRef(announce);
-  announceRef.current = announce;
-  const prev = useRef<boolean[] | null>(null);
+  useLayoutEffect(() => {
+    announceRef.current = announce;
+  });
+  const prev = useRef<State[] | null>(null);
+  const spoken = useRef(false);
   useEffect(() => {
     const before = prev.current;
-    const next = updates.map((u, i) =>
-      !u.running
-        ? false
-        : u.tracked
-          ? isStaleUpdate(u.lastProgressAt, nowSec)
-          : (before?.[i] ?? false),
-    );
+    const next = updates.map((u, i): State => {
+      if (!u.running) {
+        return { stale: false, seenFresh: false };
+      }
+      const was = before?.[i] ?? { stale: false, seenFresh: false };
+      if (!u.tracked) {
+        return was;
+      }
+      const stale = isStaleUpdate(u.lastProgressAt, nowSec);
+      const fresh = u.lastProgressAt != null && !stale;
+      return {
+        stale: was.seenFresh && stale,
+        seenFresh: was.seenFresh || fresh,
+      };
+    });
     prev.current = next;
     if (before === null) {
       return;
     }
-    const was = before.some(Boolean);
-    const now = next.some(Boolean);
+    const was = before.some((s) => s.stale);
+    const now = next.some((s) => s.stale);
     if (!was && now) {
+      spoken.current = true;
       announceRef.current(PROGRESS_STALLED);
-    } else if (
-      was &&
-      !now &&
-      updates.some((u, i) => before[i] && u.running && u.tracked)
-    ) {
-      announceRef.current(PROGRESS_RESUMED);
+    } else if (was && !now) {
+      const resumed = updates.some(
+        (u, i) => before[i]?.stale && u.running && u.tracked,
+      );
+      if (resumed && spoken.current) {
+        announceRef.current(PROGRESS_RESUMED);
+      }
+      spoken.current = false;
     }
   });
 }

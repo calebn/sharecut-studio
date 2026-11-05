@@ -74,7 +74,10 @@ function asHost(path = PATH) {
   useDawStore.setState({ stage: "deliver", guestMode: null });
 }
 
+const realAnnounceStatus = useDawStore.getState().announceStatus;
+
 beforeEach(() => {
+  useDawStore.setState({ announceStatus: realAnnounceStatus });
   server = fakeExportServer();
   stubViewportShell("desktop");
   clearRegisteredCommands();
@@ -84,6 +87,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  useDawStore.setState({ announceStatus: realAnnounceStatus });
   vi.unstubAllGlobals();
 });
 
@@ -222,19 +226,14 @@ describe("Export on the Deliver stage", () => {
         activityJob: { ...EXPORT_STARTED, last_progress_at: nowS() - 30 },
       }),
     );
-    await waitFor(
-      () =>
-        expect(announce).toHaveBeenCalledWith("Progress stalled", {
-          toast: false,
-        }),
-      { timeout: 3000 },
-    );
+    expect(announce).toHaveBeenCalledWith("Progress stalled", {
+      toast: false,
+    });
     act(() =>
       useDawStore.setState({
         activityJob: { ...EXPORT_STARTED, id: "other" },
       }),
     );
-    await new Promise((r) => setTimeout(r, 1200));
     expect(announce).toHaveBeenCalledTimes(1);
   });
 

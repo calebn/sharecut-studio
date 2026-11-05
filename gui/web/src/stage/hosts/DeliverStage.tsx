@@ -185,12 +185,14 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
   useStallAnnouncement(
     [
       {
-        running: exportFlow.run.kind === "running",
+        running:
+          exportFlow.run.kind === "running" && !exportFlow.run.cancelling,
         tracked: exportFlow.job != null,
         lastProgressAt: exportFlow.job?.last_progress_at,
       },
       {
-        running: bounceFlow.run.kind === "running",
+        running:
+          bounceFlow.run.kind === "running" && !bounceFlow.run.cancelling,
         tracked: bounceFlow.job != null,
         lastProgressAt: bounceFlow.job?.last_progress_at,
       },
