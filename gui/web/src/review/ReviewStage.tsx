@@ -252,6 +252,7 @@ export function ReviewStage({
     else void onDecide({ ids, result: "applied", group: true });
   };
   const applyGroup = () =>
+    sort === "kind" &&
     bulk(
       groupQueue(filterItems(items, "all", speaker)).find((g) =>
         g.items.some((i) => i.id === selectedId),
@@ -396,7 +397,7 @@ export function ReviewStage({
       : undefined;
   const unsureWords = openOf(items, "unsure-word").length;
   const position = selected
-    ? fullOrder(items).findIndex((i) => i.id === selected.id) + 1
+    ? fullOrder(items, sort).findIndex((i) => i.id === selected.id) + 1
     : 0;
 
   const queue = (
