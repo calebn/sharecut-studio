@@ -469,6 +469,21 @@ describe("Review queue for a guest", () => {
     expect(localStorage.getItem(NAME_KEY)).toBeNull();
   });
 
+  it("shows the saved name when a blanked field posts under it", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem(NAME_KEY, "Maya");
+    join("comment");
+    render(<ReviewHost guestShare />);
+    await user.clear(name());
+    await user.type(field(), "Hello");
+    await user.click(post());
+    expect(createComment).toHaveBeenCalledWith(
+      "share:tok",
+      expect.objectContaining({ body: "Hello", author: "Maya" }),
+    );
+    expect(name()).toHaveValue("Maya");
+  });
+
   it("leaves a blank name blank after a failed post, and never saves it", async () => {
     const user = userEvent.setup();
     createComment.mockRejectedValueOnce(new Error("Server said no"));
