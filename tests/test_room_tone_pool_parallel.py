@@ -244,3 +244,28 @@ def test_a_track_whose_pool_key_cannot_be_read_does_not_raise_from_ensure(
 
     monkeypatch.setattr(room_tone, "_pool_key", broken)
     room_tone.ensure_room_tone_pools(live, ["host", "guest"])
+
+
+def test_two_threads_asking_for_one_cold_floor_decode_the_file_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "cold.wav"
+    _write_wav(path, _noise(-62.0, seed=5))
+    room_tone._track_floor.cache_clear()
+    calls = _slow_decode(monkeypatch)
+    start = threading.Barrier(2)
+    reads: list[object] = []
+
+    def ask() -> None:
+        start.wait()
+        reads.append(room_tone.track_floor(path))
+
+    threads = [threading.Thread(target=ask) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert len(calls) == 1
+    assert len(reads) == 2 and reads[0] == reads[1]
+    assert not room_tone._FLOOR_FLIGHTS
