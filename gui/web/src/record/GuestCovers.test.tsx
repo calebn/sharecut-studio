@@ -160,7 +160,7 @@ describe("GuestCovers", () => {
         },
       });
       const save = screen.getByRole("button", { name: "Save my recording" });
-      expect(save).toBeDisabled();
+      expect(save).toHaveAttribute("aria-disabled", "true");
       expect(save).toHaveAttribute("aria-busy", "true");
       expect(screen.getByRole("status")).toHaveTextContent(
         "locked by another tab",
