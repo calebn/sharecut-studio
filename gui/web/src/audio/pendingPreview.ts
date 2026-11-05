@@ -24,67 +24,6 @@ type ActivePreview = {
   url: string | null;
 };
 
-/**
- * Where a rendered audition file sits, in seconds, from the `X-Preview-*`
- * headers. `startSec` / `endSec` bound the file on its own timeline: the
- * current timeline for A, the timeline after the edit for B (the cut span is
- * gone, so the join sits at `editStartSec`). `editStartSec` / `editEndSec` are
- * the edit on the current timeline, so the edit is `editStartSec - startSec`
- * into either file.
- */
-export type PendingAuditionSpan = {
-  editId: string;
-  padSec: number;
-  startSec: number;
-  endSec: number;
-  editStartSec: number;
-  editEndSec: number;
-};
-
-function previewHeader(headers: Headers, name: string): string {
-  const value = headers.get(name);
-  if (value === null) throw new Error(`Invalid preview response: ${name}`);
-  return value;
-}
-
-function previewSeconds(headers: Headers, name: string): number {
-  const text = previewHeader(headers, name);
-  const value = text.trim() === "" ? Number.NaN : Number(text);
-  if (!Number.isFinite(value))
-    throw new Error(`Invalid preview response: ${name}`);
-  return value;
-}
-
-/** Read the placement headers; throws when one is missing or not a number. */
-export function parsePendingAuditionSpan(
-  headers: Headers,
-): PendingAuditionSpan {
-  return {
-    editId: previewHeader(headers, "X-Preview-Edit-Id"),
-    padSec: previewSeconds(headers, "X-Preview-Pad-Sec"),
-    startSec: previewSeconds(headers, "X-Preview-Start-Sec"),
-    endSec: previewSeconds(headers, "X-Preview-End-Sec"),
-    editStartSec: previewSeconds(headers, "X-Preview-Edit-Start-Sec"),
-    editEndSec: previewSeconds(headers, "X-Preview-Edit-End-Sec"),
-  };
-}
-
-/**
- * Seconds into the rendered file where the edit sits, or 0 (the file start)
- * when the headers are missing, malformed or put the edit outside the file.
- */
-function editOffsetSec(headers: Headers, durationSec: number): number {
-  try {
-    const span = parsePendingAuditionSpan(headers);
-    const offset = span.editStartSec - span.startSec;
-    return Number.isFinite(offset) && offset > 0 && offset < durationSec
-      ? offset
-      : 0;
-  } catch {
-    return 0;
-  }
-}
-
 /** One server-rendered pending preview plays at a time, from any caller. */
 let active: ActivePreview | null = null;
 
@@ -219,14 +158,12 @@ export async function warmPendingPreview(
  * Fetch the server's Current / Suggested / A/B render around a pending edit
  * and play it as a source preview. Suggested is the edit approved on a
  * snapshot, so it carries the paced pad, fades and premix trim approval ships.
- * With `startAtEdit` the playhead starts at the edit (A) or the join (B) read
- * from the `X-Preview-*` headers, and at the file start when they are missing.
  */
 export async function playPendingPreview(
   projectPath: string,
   editId: string,
   mode: PreviewMode,
-  opts: { padSec?: number; startAtEdit?: boolean } = {},
+  opts: { padSec?: number } = {},
 ): Promise<PendingPreviewOutcome> {
   const captured = useDawStore.getState();
   const edit = livePendingEdit(captured, projectPath, editId);
@@ -286,9 +223,7 @@ export async function playPendingPreview(
     live.beginSourcePreview({
       ownerId: request.ownerId,
       media: { kind: "rendered", url: request.url },
-      startSec: opts.startAtEdit
-        ? editOffsetSec(response.headers, durationSec)
-        : 0,
+      startSec: 0,
       endSec: durationSec,
     });
     return { status: "ok" };
