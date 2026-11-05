@@ -323,7 +323,7 @@ def test_component_status_shape() -> None:
     assert "ffmpeg" in status
     assert status["ffmpeg"]["state"] in {"installed", "missing"}
     assert set(status) == {"ffmpeg", "whisper", "rnnoise", "word-aligner"}
-    assert status["word-aligner"]["tier"] == "offered"
+    assert status["word-aligner"]["tier"] == "recommended"
     assert status["whisper"]["tier"] == "required"
     assert all("ok" not in entry for entry in status.values())
 

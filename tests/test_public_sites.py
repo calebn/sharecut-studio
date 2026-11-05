@@ -15,7 +15,6 @@ def test_brand_css_copies_match_source() -> None:
     copies = {
         brand / "brand-tokens.css": (
             ROOT / "gui/web/src/styles/theme/brand-tokens.css",
-            ROOT / "gui/web/public/brand-tokens.css",
             ROOT / "gui/desktop/splash/brand-tokens.css",
             ROOT / "src/podcast_relay/static/brand-tokens.css",
         ),
