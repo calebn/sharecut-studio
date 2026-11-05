@@ -794,9 +794,6 @@ Retained scenarios keep all non-axe assertions. See [the ownership map](testing-
 `tests/test_browser_acceptance_matrix.py` rejects missing,
 duplicate or filtered engine selections, checks their disjoint coverage, and
 checks that the PR shards cover the whole WebKit project.
-The compact history reach test attaches each control's name, rectangle and
-center hit stack, plus a screenshot, before asserting ownership. These receipts
-preserve the covering element even when a later assertion fails.
 
 The required `frontend-e2e` check waits for every matrix job. It fails for any
 failed or cancelled one, for a skipped one the plan did not skip, and whenever
@@ -1102,28 +1099,13 @@ These signals prove rendered behavior, not owner listening acceptance.
 
 ### Compact feedback lifetime and discovery
 
-The compact history reach check asserts Undo, Redo, resize and Close before
-any scripted recovery, then repeats those assertions after body scrolling.
-Its pre-edit half and full traversal also taps unavailable Redo and checks
-its reason, accessible description, caption visibility, exact panel, header, body,
-and button rectangles, and absence of document commands. The blocked caption
-must disappear before the first saved edit. All four orientation and root-size
-cells retain the saved-history journey in both engines.
-Saved Time and Level edits compare literal whole arrays through exact
-`UndoHistory` and `RedoHistory` commands. Clipping receipts include every
-ancestor while the card is active. Ordinary wheel discovery exposes the whole
-card where it fits, or each feedback action where a long card cannot fit.
-Native Tab checks every intermediate compact field with its complete label.
-After Undo restores the saved envelope, the dependent Level nudge first checks
-that the compact Time output displays the restored point time; saved state and
-the client's displayed point are separate preconditions.
-The short-form refusal uses explicitly labeled HTTP `history_stale` fault
-injection after a real fade edit, whose successful save is silent.
+`compact-history-persistence.spec.ts` covers the App-header Undo and Redo
+against the phone Inspector sheet (four tests). The earlier compact reach
+check, the short-form `history_stale` refusal check and the clipped saved
+feedback check were deleted with the drawer header and the nudge buttons
+(#2294 W3c2b).
 
-The clipped saved feedback check measures a fully visible card, scrolls it
-outside its actual body clip, and waits nine seconds without card hover or
-focus. It then exposes Dismiss and verifies expiry within the remaining visible
-time. Unit tests cover portal continuity, focus, remaining time and guarded
+Unit tests cover portal continuity, focus, remaining time and guarded
 Undo through host movement. Run `npm run test:e2e:compat --
 compact-history-persistence.spec.ts compact-feedback-detents.spec.ts compact-painted-focus.spec.ts` from `gui/web` after
 building the production app. These browser receipts do not establish physical
