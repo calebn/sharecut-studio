@@ -251,7 +251,7 @@ function ProjectMenu({
             data-app-menu
             {...props}
             ref={(node) => {
-              ref.current = node;
+              ref(node);
               projectButton.current = node;
             }}
           >
