@@ -87,6 +87,56 @@ function renderPalette(
 }
 
 describe("CommandPaletteView", () => {
+  it("keeps one section per run when a category repeats, across query changes", async () => {
+    const user = userEvent.setup();
+    const cmd = (
+      id: string,
+      label: string,
+      category: PaletteCommand["category"],
+    ): PaletteCommand => ({
+      id,
+      label,
+      category,
+      shortcut: null,
+      disabledReason: null,
+    });
+    renderPalette({
+      commands: [
+        cmd("a", "Alpha", "transport"),
+        cmd("b", "Bravo", "view"),
+        cmd("c", "Charlie", "edit"),
+        cmd("d", "Delta", "view"),
+      ],
+      entries: ENTRIES,
+    });
+    const labels = () =>
+      screen
+        .getAllByRole("group")
+        .map(
+          (g) =>
+            document.getElementById(g.getAttribute("aria-labelledby") ?? "")
+              ?.textContent,
+        );
+    expect(labels()).toEqual([
+      "Transport",
+      "View",
+      "Edit",
+      "View",
+      "Projects",
+      "People",
+      "Chapters",
+    ]);
+    const search = screen.getByRole("combobox");
+    await user.type(search, "alp");
+    expect(screen.getAllByRole("option")).toHaveLength(1);
+    expect(screen.queryAllByRole("group")).toHaveLength(0);
+    await user.clear(search);
+    expect(labels()).toHaveLength(7);
+    expect(screen.getAllByRole("option")).toHaveLength(7);
+    const ids = screen.getAllByRole("option").map((o) => o.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
   it("renders nothing when closed", () => {
     renderPalette({ open: false });
     expect(screen.queryByRole("dialog")).toBeNull();

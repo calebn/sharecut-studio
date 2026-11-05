@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { listRecentProjects, type RecentProject } from "../../api";
 import { buildCommandContext } from "../../commands/context";
+import { execute } from "../../commands/execute";
 import { executePointerCommand } from "../../commands/pointer";
 import { clearKeymapOverride, setKeymapOverride } from "../../keymap/remaps";
 import { disambiguatedNames } from "../../presence/colors";
@@ -42,22 +43,31 @@ export function CommandPalette() {
   const { others } = useLivePresenceClients(sessionClients, localClientId);
   const [recent, setRecent] = useState<string[]>([]);
   const [projects, setProjects] = useState<RecentProject[]>([]);
+  const [wasOpen, setWasOpen] = useState(commandPaletteOpen);
   const hostLink = buildCommandContext().canManageProjects;
 
-  useEffect(() => {
-    if (!commandPaletteOpen) {
-      return;
-    }
-    setRecent(readPaletteRecent());
-    if (!hostLink) {
+  // Read Recent in the render that opens the palette, so its first frame has it.
+  if (commandPaletteOpen !== wasOpen) {
+    setWasOpen(commandPaletteOpen);
+    if (commandPaletteOpen) {
+      setRecent(readPaletteRecent());
       setProjects([]);
+    }
+  }
+
+  useEffect(() => {
+    if (!commandPaletteOpen || !hostLink) {
       return;
     }
-    // Projects are the host's recent list; a failed fetch just leaves the group out.
+    // Projects are the host's recent list; a failed fetch leaves the group out.
     const controller = new AbortController();
     listRecentProjects(controller.signal)
       .then(setProjects)
-      .catch(() => undefined);
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setProjects([]);
+        }
+      });
     return () => controller.abort();
   }, [commandPaletteOpen, hostLink]);
 
@@ -94,13 +104,12 @@ export function CommandPalette() {
       onRunEntry={(entry: PaletteEntry) => {
         setRecent(rememberPaletteRecent(entry.id));
         setCommandPaletteOpen(false);
-        void executePointerCommand(entry.commandId, entry.args).then(
-          (result) => {
-            if (result.status === "disabled") {
-              useDawStore.getState().announceStatus(result.reason);
-            }
-          },
-        );
+        // Re-check the command's gate now: the row was built when the palette opened.
+        void execute(entry.commandId, entry.args).then((result) => {
+          if (result.status === "disabled") {
+            useDawStore.getState().announceStatus(result.reason);
+          }
+        });
       }}
       commands={
         commandPaletteOpen ? paletteCommands(buildCommandContext()) : []

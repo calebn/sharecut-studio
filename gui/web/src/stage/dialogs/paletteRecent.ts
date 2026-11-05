@@ -12,7 +12,9 @@ export function readPaletteRecent(): string[] {
   try {
     const parsed: unknown = JSON.parse(raw);
     return Array.isArray(parsed)
-      ? parsed.filter((v): v is string => typeof v === "string").slice(0, KEPT)
+      ? [
+          ...new Set(parsed.filter((v): v is string => typeof v === "string")),
+        ].slice(0, KEPT)
       : [];
   } catch {
     return [];
