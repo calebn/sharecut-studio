@@ -439,7 +439,7 @@ a docked Cut anyway button. A new sheet still takes Close after deferred
 first-entry focus.
 Typing, Tab and Enter inside
 the dialog stay native. A modal can hand on named shortcuts; the Record room
-hands on M for a live marker. On close, focus returns to the control that
+hands on C for a live marker. On close, focus returns to the control that
 opened it (`ui/pressedControl.ts`: the focused control, or the one just
 clicked, since Safari does not focus a clicked button).
 
