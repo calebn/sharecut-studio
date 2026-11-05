@@ -48,7 +48,7 @@ vi.mock("./hooks/usePipelineJob", () => ({ usePipelineJob: () => {} }));
 vi.mock("./hooks/useProjectBootstrap", () => ({
   useProjectBootstrap: () => ({
     error: null,
-    recovering: false,
+    retrying: false,
     retry: () => {},
   }),
 }));

@@ -3,8 +3,7 @@ import type { ShellBreakpoint } from "../../state/types";
 import { Cover } from "../../system/Cover";
 import { Skeleton } from "../../system/Skeleton";
 import type { StageId } from "../../types/stage";
-import type { LoadFailure } from "../frame/LoadFailureBanner";
-import type { HostState } from "./hostModels";
+import type { HostState, LoadFailure } from "./hostModels";
 
 type HostBodyProps = {
   stage: StageId;
@@ -16,7 +15,11 @@ type HostBodyProps = {
   children: ReactNode;
 };
 
-/** A stage host's scroller: the loading skeleton and the load failure Cover share it. */
+/**
+ * A stage host's scroller: the loading skeleton and the load failure Cover share it.
+ * The failure Cover stays mounted while Try again runs (`failure.recovering`), so
+ * its button keeps focus.
+ */
 export function HostBody({
   stage,
   shell,
@@ -35,16 +38,28 @@ export function HostBody({
       {state === "loading" ? (
         <Skeleton layout="list" />
       ) : state === "error" ? (
-        <Cover
-          size="region"
-          glyph="triangle-alert"
-          title="Could not load the project"
-          primary={
-            failure ? { label: "Retry", onClick: failure.onRetry } : undefined
-          }
-        >
-          {failure?.message ?? "Try again in a moment."}
-        </Cover>
+        <div role="alert">
+          <Cover
+            size="region"
+            glyph="triangle-alert"
+            title={
+              stage === "review"
+                ? "The transcript didn't load"
+                : "Could not load the project"
+            }
+            primary={
+              failure
+                ? {
+                    label: "Try again",
+                    onClick: failure.onRetry,
+                    busy: failure.recovering,
+                  }
+                : undefined
+            }
+          >
+            {failure?.message ?? "Try again in a moment."}
+          </Cover>
+        </div>
       ) : (
         children
       )}

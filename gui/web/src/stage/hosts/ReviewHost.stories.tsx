@@ -17,7 +17,7 @@ const meta: Meta<StageHostProps> = {
   component: StageHost,
   beforeEach: episodeBeforeEach,
   render: ({ guestShare, loadFailure }) => (
-    <StageFrame guestShare={guestShare} loadFailure={loadFailure}>
+    <StageFrame guestShare={guestShare}>
       <StageHost guestShare={guestShare} loadFailure={loadFailure} />
     </StageFrame>
   ),
@@ -213,10 +213,31 @@ export const LoadError: Story = {
     const host = canvasElement.querySelector<HTMLElement>(
       "[data-stage-host='review']",
     );
+    await expect(
+      await within(host as HTMLElement).findByRole("heading", {
+        name: "The transcript didn't load",
+      }),
+    ).toBeVisible();
     await userEvent.click(
-      await within(host as HTMLElement).findByRole("button", { name: "Retry" }),
+      await within(host as HTMLElement).findByRole("button", {
+        name: "Try again",
+      }),
     );
     await expect(args.loadFailure?.onRetry).toHaveBeenCalledOnce();
+  },
+};
+
+export const LoadRetrying: Story = {
+  args: {
+    loadFailure: { ...FAILURE, message: "Trying again…", recovering: true },
+  },
+  parameters: { episode: { state: { stage: "review", project: null } } },
+  play: async ({ canvasElement }) => {
+    const retry = await within(canvasElement).findByRole("button", {
+      name: "Try again",
+    });
+    await expect(retry).toHaveAttribute("aria-busy", "true");
+    await expect(retry).toHaveAttribute("aria-disabled", "true");
   },
 };
 

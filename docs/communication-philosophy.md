@@ -371,9 +371,10 @@ the empty state, not a separate discovery task.
   A network failure says "The boundary couldn't load. Check your connection and
   try again." and also offers **Try again**. A stale load keeps **Reload boundary**;
   an error a second attempt cannot fix offers neither. Both recovery actions move
-  focus to progress, then to the boundary control when it is ready. The banner over a project whose transcript and history never
-  loaded says "Could not load transcript and history. The server didn't
-  answer." with a **Retry** button.
+  focus to progress, then to the boundary control when it is ready. The region over a project that never loaded says
+  "Could not load the project. The server didn't answer." with a **Try again**
+  button, announced as an alert (Review says "The transcript didn't load").
+  Pressing **Try again** keeps the button in place, busy, so focus stays on it.
 - **Form errors are wired, not just shown.** `Field` sets
   `aria-describedby` to its error; `InlineError` carries
   `role="alert"`. Fix the primitives once; every caller inherits it.

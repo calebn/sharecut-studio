@@ -14,7 +14,6 @@ import type { StageSheet } from "../../types/stage";
 import { ToolsButton } from "../edit/ToolsButton";
 import { AvatarStack } from "./AvatarStack";
 import { BannerStack } from "./BannerStack";
-import type { LoadFailure } from "./LoadFailureBanner";
 import { PlayerBar } from "./PlayerBar";
 import { SheetHost } from "./SheetHost";
 import { STAGE_BODY_ID, StageFrameView } from "./StageFrameView";
@@ -27,7 +26,6 @@ import { useStageBarProps } from "./useStageBarProps";
 
 export type StageFrameProps = {
   guestShare?: boolean;
-  loadFailure?: LoadFailure | null;
   /** Content for the View and Mix sheets; History is hosted by the frame. */
   sheets?: Partial<Record<StageSheet, ReactNode>>;
   /** The stage host for the open stage. */
@@ -36,7 +34,6 @@ export type StageFrameProps = {
 
 function StageFrameAdapter({
   guestShare = false,
-  loadFailure,
   sheets,
   children,
 }: StageFrameProps) {
@@ -103,9 +100,7 @@ function StageFrameAdapter({
           toolsSlot={shortFrame && stage === "edit" ? <ToolsButton /> : null}
         />
       }
-      banners={
-        <BannerStack guestShare={guestShare} loadFailure={loadFailure} />
-      }
+      banners={<BannerStack guestShare={guestShare} />}
       player={stage === "record" ? null : <PlayerBar />}
       tabs={
         shell === "phone" && stageBar ? (

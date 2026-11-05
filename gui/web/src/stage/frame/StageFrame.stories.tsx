@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ReactNode } from "react";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { HostRoomProvider } from "../../record/hostRoomContext";
 import { useHostRoom } from "../../record/useHostRoom";
 import { useDawStore } from "../../state/dawStore";
@@ -168,24 +168,6 @@ export const Empty: Story = {
     await expect(
       await within(canvasElement).findByRole("main", { name: "Edit" }),
     ).toBeVisible();
-  },
-};
-
-export const LoadError: Story = {
-  args: {
-    loadFailure: { message: "The server did not answer.", onRetry: fn() },
-  },
-  parameters: { episode: { state: { project: null } } },
-  play: async ({ args, canvasElement }) => {
-    const banner = (
-      await within(canvasElement).findByText(
-        /Could not load transcript and history/,
-      )
-    ).closest<HTMLElement>("[role='alert']");
-    await userEvent.click(
-      within(banner as HTMLElement).getByRole("button", { name: "Retry" }),
-    );
-    await expect(args.loadFailure?.onRetry).toHaveBeenCalledOnce();
   },
 };
 

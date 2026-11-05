@@ -135,7 +135,7 @@ describe("sequenced project bootstrap", () => {
     await waitFor(() => expect(hook.result.current.error).not.toBeNull());
     expect(hook.result.current.error).toContain("The server didn't answer.");
     expect(shellLoads).toBe(1);
-    expect(hook.result.current.recovering).toBe(false);
+    expect(hook.result.current.retrying).toBe(false);
   });
 
   it("retries a warm shell load when the server is slow but the episode is open", async () => {
@@ -153,11 +153,7 @@ describe("sequenced project bootstrap", () => {
       return detail();
     });
     const hook = renderHook(() => useProjectBootstrap("/tmp/p.json"));
-    await waitFor(() => expect(hook.result.current.recovering).toBe(true));
-    await waitFor(() => expect(hook.result.current.recovering).toBe(false), {
-      timeout: 5_000,
-    });
-    expect(shellLoads).toBe(2);
+    await waitFor(() => expect(shellLoads).toBe(2), { timeout: 5_000 });
     expect(hook.result.current.error).toBeNull();
   });
 
@@ -177,7 +173,9 @@ describe("sequenced project bootstrap", () => {
       project,
     });
     act(() => hook.result.current.retry());
+    expect(hook.result.current.retrying).toBe(true);
     await waitFor(() => expect(useDawStore.getState().project).not.toBeNull());
+    await waitFor(() => expect(hook.result.current.retrying).toBe(false));
     expect(isCurrentDocumentScope(socketScope)).toBe(true);
     applyDocumentSnapshot(
       {

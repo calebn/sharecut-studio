@@ -37,15 +37,16 @@ export function useProjectBootstrap(
   enabled = true,
 ): {
   error: string | null;
-  recovering: boolean;
+  /** Try again was pressed and the load has not settled yet. */
+  retrying: boolean;
   retry: () => void;
 } {
   const [error, setError] = useState<string | null>(null);
-  const [recovering, setRecovering] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const [retryToken, setRetryToken] = useState(0);
   const retry = useCallback(() => {
     setError(null);
-    setRecovering(false);
+    setRetrying(true);
     setRetryToken((n) => n + 1);
   }, []);
 
@@ -66,7 +67,6 @@ export function useProjectBootstrap(
     const scope = activateDocumentScope(projectPath);
     const hadProjectAtStart = useDawStore.getState().project != null;
     setError(null);
-    setRecovering(false);
     void (async () => {
       let warmAttempts = 0;
       while (!cancelled && isCurrentDocumentScope(scope)) {
@@ -78,7 +78,7 @@ export function useProjectBootstrap(
           );
           if (cancelled || !isCurrentDocumentScope(scope)) return;
           applyDocumentSnapshot(shell, { scope });
-          setRecovering(false);
+          setRetrying(false);
           return;
         } catch (e: unknown) {
           if (cancelled || isAbortError(e)) return;
@@ -90,7 +90,6 @@ export function useProjectBootstrap(
             isServerTimeoutError(e);
           if (warm && warmAttempts < WARM_SHELL_MAX_ATTEMPTS) {
             warmAttempts += 1;
-            setRecovering(true);
             try {
               await delay(WARM_SHELL_RETRY_DELAY_MS, ac.signal);
             } catch {
@@ -98,7 +97,7 @@ export function useProjectBootstrap(
             }
             continue;
           }
-          setRecovering(false);
+          setRetrying(false);
           setError(errorMessage(e));
           return;
         }
@@ -110,5 +109,5 @@ export function useProjectBootstrap(
     };
   }, [enabled, projectPath, retryToken]);
 
-  return { error, recovering, retry };
+  return { error, retrying, retry };
 }

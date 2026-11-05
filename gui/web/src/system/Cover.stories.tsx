@@ -373,7 +373,7 @@ export const EndedBusy: Story = {
     const save = within(canvasElement).getByRole("button", {
       name: "Save my recording",
     });
-    await expect(save).toBeDisabled();
+    await expect(save).toHaveAttribute("aria-disabled", "true");
     await expect(save).toHaveAttribute("aria-busy", "true");
   },
 };

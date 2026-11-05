@@ -1,9 +1,8 @@
 import type { ReactNode, Ref } from "react";
 import type { ShellBreakpoint } from "../../state/types";
 import { Button } from "../../ui";
-import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { HostBody } from "./HostBody";
-import type { HostState } from "./hostModels";
+import type { HostState, LoadFailure } from "./hostModels";
 
 export type ReviewStageViewProps = {
   shell: ShellBreakpoint;

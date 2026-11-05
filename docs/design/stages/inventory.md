@@ -27,7 +27,7 @@ All paths are relative to `gui/web/src/` unless they start with `/` or a repo fo
 | Components, overlays, banners, toasts, status items, empty states (CMP- 49, OVL- 11, BAN- 3, TOAST/STAT/EMPTY/CHIP 4) | 67 |
 | Interactions (INT-) | 46 |
 | Total catalogued items | 197 |
-| Story files / exported stories | 86 files / 436 stories |
+| Story files / exported stories | 85 files / 434 stories |
 
 Of the 151 non-interaction items: 64 have a story (yes), 33 partial, 54 none (counted from the Story column of the tables). Of the 46 interactions: 18 have a frozen-state story, 15 partial, 13 none. The per-surface table is section 14.
 
@@ -262,7 +262,7 @@ Guest-specific interactions: INT-COMMENT-MODE, INT-COMMENT-RESOLVE (host only), 
 |---|---|---|---|---|---|---|
 | TOAST-MAIN | Feedback toast: success/error/info, Undo, Dismiss, gesture toasts, docks above sheets and tool rail | After edits, failures, copy actions | `feedback/FeedbackToast.tsx`, `feedback/toastDock.ts`, `ui/Toast.tsx`, `state/uiSlice.ts` (`announceStatus`) | `ui/Toast.stories.tsx` (Shown, UndoAndDismiss, UndoUnavailable, UndoReadyAfterSave, Phone, WithoutUndo); the dock is not storied | Props for Toast; Store for the host | Confirm and undo |
 | STAT-LIVE | Screen-reader status live region | Silent | `ui/StatusLiveRegion.tsx` | NONE | Props | Accessibility |
-| BAN-LOADFAIL | "Could not load transcript and history. {message}" with a Retry button / "Still loading transcript and history. {message}" banner | Bootstrap failure | `stage/frame/LoadFailureBanner.tsx` | `stage/frame/LoadFailureBanner.stories.tsx` (Failed, Recovering) | Props | Recoverable load error |
+| BAN-LOADFAIL | In-place failure cover (role alert): "Could not load the project. {message}" (Review: "The transcript didn't load"), button "Try again" that stays, busy, while the retry runs | Bootstrap failure | `stage/hosts/HostBody.tsx`, `stage/edit/EditWorkspace.tsx`, `system/Cover.tsx` | `stage/hosts/ReviewHost.stories.tsx` (LoadError, LoadRetrying); `PrepareStage`, `DeliverStage`, `RecordStage` LoadError; `stage/edit/EditWorkspace.stories.tsx` LoadError | Props | Recoverable load error |
 | EMPTY-STATES | Empty states: comments none, pipeline "Analyze to load the pipeline steps", history loading, empty session drop, inspector empty, mix empty | various | `ui/EmptyState.tsx` | `ui/EmptyState.stories.tsx` (Default, BesideAField, WithAction) | Props | Teach the next action |
 | CMP-INLINE-ERROR | Inline error | many | `ui/InlineError.tsx` | `ui/InlineError.stories.tsx` (Default, Empty, Inline) | Props | Show errors in place |
 | CMP-TUNNEL | Online sharing / tunnel status line | Deliver > Share | `stages/deliver/TunnelStatusLine.tsx`, `stages/deliver/tunnelStatusCopy.ts`, `stage/hosts/useTunnelStatus.ts` | `stages/deliver/ShareSection.stories.tsx` OnlineSharing* | Props | Is the host reachable |
@@ -466,7 +466,7 @@ Tally of the 151 non-interaction items, counted from the Story columns: 64 yes, 
 12. **SCR-PHONE-MORE and SCR-PHONE-LISTEN bodies.** Extract `MoreHub` as a View (it is already a separate function in `MobileShell.tsx`), add Listen body stories with chips and comments list, guest variant.
 13. **MENU-MAIN and MENU-VIEW as real menus.** Story with Menu open for host, guest, collapsed (tablet/phone) and menu-only (Listen).
 14. **MENU-CREATE, POP-CHOOSER, CMP-RANGE-ACTIONS** (touch-first, core editing) with phone frames.
-15. **LoadFailureBanner**: one story file `Templates/GuestBanners` covering load failure (the role banner is gone; the header Role chip states the role).
+15. **Load failure**: done. The page banner is gone; each stage body shows the failure cover in place (`BAN-LOADFAIL`).
 16. **POP-WORD-EDIT, POP-SPEAKER, CMP-FINDREPLACE, CMP-WORDBAR**: prop-only components; quick wins.
 17. **SCR-REC-ACCESS-ENDED, CMP-REC-NOTICES** (small).
 18. **SCR-LAYOUT-* modes and CMP-DRAWER-HANDLE, CMP-LAYOUT-CHIP**: add three StudioShellView stories for Timeline/Text/Review layouts.

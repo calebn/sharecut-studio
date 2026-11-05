@@ -7,7 +7,10 @@ import { SystemIcon } from "./SystemIcon";
 type CoverAction = {
   label: string;
   onClick: () => void;
-  /** Working on it: the button holds its place, disabled and aria-busy. */
+  /**
+   * Working on it: the button holds its place, aria-busy and aria-disabled
+   * (not natively disabled, so a focused button keeps focus), and ignores presses.
+   */
   busy?: boolean;
 };
 
@@ -58,9 +61,10 @@ export function Cover({
             {primary ? (
               <Button
                 variant="primary"
-                onClick={primary.onClick}
+                onClick={primary.busy ? undefined : primary.onClick}
                 aria-busy={primary.busy || undefined}
-                disabledReason={primary.busy ? BUSY_REASON : undefined}
+                aria-disabled={primary.busy || undefined}
+                title={primary.busy ? BUSY_REASON : undefined}
               >
                 {primary.busy ? (
                   <SystemIcon name="progress-ring" size={16} progress={0.3} />

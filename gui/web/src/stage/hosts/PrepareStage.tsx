@@ -3,9 +3,8 @@ import { useViewportClass } from "../../hooks/useViewportClass";
 import { usePrepareModel } from "../../stages/prepare/usePrepareModel";
 import { useDawStore } from "../../state/dawStore";
 import { useKeepFocusInView } from "../../ui/useKeepFocusInView";
-import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { useStageScroll } from "../useStageScroll";
-import { hostStateOf } from "./hostModels";
+import { hostStateOf, type LoadFailure } from "./hostModels";
 import { PrepareStageView } from "./PrepareStageView";
 
 export type PrepareStageProps = {

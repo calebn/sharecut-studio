@@ -1,4 +1,10 @@
-import { expect, type Page, type Request, test } from "@playwright/test";
+import {
+  expect,
+  type Page,
+  type Request,
+  type Route,
+  test,
+} from "@playwright/test";
 import { assertDisposableE2eProject, e2eProjectPath } from "../e2e/env";
 import { openProject } from "../e2e/stageNav";
 
@@ -14,22 +20,26 @@ async function proveHungLoadRecovers(
   assertDisposableE2eProject(e2eProjectPath);
   const stateRequests: Request[] = [];
   let answering = false;
+  let held: Route | null = null;
   await page.route("**/api/document/state*", async (route) => {
     stateRequests.push(route.request());
-    if (answering) await route.continue();
+    if (!answering) return;
+    // The retry waits here so the busy button can be inspected.
+    if (!held) held = route;
+    else await route.continue();
   });
   await page.clock.install();
   await openProject(page, e2eProjectPath);
   await expect.poll(() => stateRequests.length).toBeGreaterThan(0);
   await page.clock.runFor(STATE_LOAD_TIMEOUT_MS + 1_000);
 
-  const banner = page.getByRole("alert");
-  await expect(banner).toContainText(
-    "Could not load transcript and history. The server didn't answer.",
-  );
+  const cover = page.getByRole("alert");
+  await expect(cover).toContainText("Could not load the project");
+  await expect(cover).toContainText("The server didn't answer.");
+  await expect(cover).toBeInViewport();
   const attempts = stateRequests.length;
 
-  const retry = banner.getByRole("button", { name: "Retry" });
+  const retry = cover.getByRole("button", { name: "Try again" });
   if (options.touchTarget) {
     const box = await retry.boundingBox();
     expect(box?.width).toBeGreaterThanOrEqual(TOUCH_TARGET_PX);
@@ -39,13 +49,17 @@ async function proveHungLoadRecovers(
   answering = true;
   await retry.click();
   await expect.poll(() => stateRequests.length).toBe(attempts + 1);
-  await expect(banner).toBeHidden();
+  // The same button stays, busy and focused, while the retry is in flight.
+  await expect(retry).toHaveAttribute("aria-busy", "true");
+  await expect(retry).toBeFocused();
+  await (held as Route | null)?.continue();
+  await expect(cover).toBeHidden();
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
     /aligned dialogue/i,
   );
 }
 
-test("a document state load the server never answers shows a banner whose retry recovers", async ({
+test("a document state load the server never answers shows the project failure cover whose Try again recovers", async ({
   page,
 }) => {
   await proveHungLoadRecovers(page);
@@ -58,7 +72,7 @@ test.describe("on a touch phone", () => {
     viewport: { width: 393, height: 852 },
   });
 
-  test("the banner sits in view, not under the fixed shell, and its retry recovers", async ({
+  test("the failure cover sits in view, not under the fixed shell, and its Try again recovers", async ({
     page,
   }) => {
     await proveHungLoadRecovers(page, { touchTarget: true });

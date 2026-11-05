@@ -400,8 +400,38 @@ describe("Prepare host", () => {
     useDawStore.setState({ project: null });
     const onRetry = vi.fn();
     render(<StageHost loadFailure={{ message: "No answer.", onRetry }} />);
-    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(
+      within(screen.getByRole("alert")).getByRole("heading"),
+    ).toHaveTextContent("Could not load the project");
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(onRetry).toHaveBeenCalledOnce();
+  });
+
+  it("announces that the Review transcript did not load", () => {
+    asHost("review");
+    useDawStore.setState({ project: null });
+    render(
+      <StageHost loadFailure={{ message: "No answer.", onRetry: vi.fn() }} />,
+    );
+    expect(
+      within(screen.getByRole("alert")).getByRole("heading"),
+    ).toHaveTextContent("The transcript didn't load");
+  });
+
+  it("keeps the focused Try again button mounted while the retry runs", () => {
+    useDawStore.setState({ project: null });
+    const failure = { message: "No answer.", onRetry: vi.fn() };
+    const { rerender } = render(<StageHost loadFailure={failure} />);
+    const retry = screen.getByRole("button", { name: "Try again" });
+    retry.focus();
+    rerender(
+      <StageHost
+        loadFailure={{ ...failure, message: "Trying again…", recovering: true }}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Try again" })).toBe(retry);
+    expect(retry).toHaveFocus();
+    expect(retry).toHaveAttribute("aria-busy", "true");
   });
 });
 

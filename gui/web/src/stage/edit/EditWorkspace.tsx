@@ -10,11 +10,11 @@ import { useTimelineFocusRegion } from "../../hooks/useTimelineFocusRegion";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import { canEditMix, canIngestMedia } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
-import { Cover } from "../../system/Cover";
 import { Skeleton } from "../../system/Skeleton";
 import { RangeFields } from "../../timeline/RangeFields";
 import { TimelineView } from "../../timeline/TimelineView";
-import type { LoadFailure } from "../frame/LoadFailureBanner";
+import { HostBody } from "../hosts/HostBody";
+import type { LoadFailure } from "../hosts/hostModels";
 import { useStageScroll } from "../useStageScroll";
 import { EditActionBar } from "./EditActionBar";
 import { EditCorner } from "./EditCorner";
@@ -39,7 +39,7 @@ export type EditWorkspaceProps = {
   guestShare?: boolean;
   /** Where the compact Inspector's toast lands. */
   feedbackHostRef?: RefCallback<HTMLDivElement>;
-  /** The transcript and history failed to load: the Script pane says so. */
+  /** The project failed to load: the stage body says so, with Try again. */
   loadFailure?: LoadFailure | null;
 };
 
@@ -170,18 +170,7 @@ function EditWorkspaceAdapter({
     );
 
   // The pane is the Script region once it shows; before that the shell names it.
-  const script = loadFailure ? (
-    <section aria-label="Script" className="edit-script-state">
-      <Cover
-        size="region"
-        glyph="triangle-alert"
-        title="Script could not load"
-        primary={{ label: "Retry", onClick: loadFailure.onRetry }}
-      >
-        {loadFailure.message}
-      </Cover>
-    </section>
-  ) : loading ? (
+  const script = loading ? (
     <section aria-label="Script" className="edit-script-state">
       <Skeleton layout="list" />
     </section>
@@ -203,6 +192,17 @@ function EditWorkspaceAdapter({
     <EditActionBar form={phone ? "dock" : "floating"} root={root} />
   );
   const corner = <EditCorner showScript={!phone} />;
+
+  // The failure is the stage body, always in view (the Script pane may be
+  // collapsed, the phone may be on its lanes), and a project without its
+  // transcript and history is not safe to edit.
+  if (loadFailure) {
+    return (
+      <HostBody stage="edit" shell={shell} state="error" failure={loadFailure}>
+        {null}
+      </HostBody>
+    );
+  }
 
   return (
     <EditWorkspaceView

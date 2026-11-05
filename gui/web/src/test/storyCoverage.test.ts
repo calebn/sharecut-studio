@@ -196,7 +196,11 @@ const COVERED: Record<string, string[]> = {
   "CMP-SOLO-CHIP": ["Templates/SoloChip"],
   "BAN-HOME-SCREEN-HINT": ["Templates/HomeScreenHint", "Stages/Home/Home"],
   "SCR-REC-ACCESS-ENDED": ["System/Cover"],
-  "BAN-LOADFAIL": ["Templates/LoadFailureBanner"],
+  "BAN-LOADFAIL": [
+    "Stages/Review/Host",
+    "Stages/Prepare/Host",
+    "Stages/Edit/Workspace",
+  ],
   "MENU-VIEW": ["Templates/OverlayLegend"],
   "CMP-TIMELINE": [
     "Templates/TimelineRange",

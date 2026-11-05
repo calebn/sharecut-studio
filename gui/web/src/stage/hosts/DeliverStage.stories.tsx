@@ -29,7 +29,7 @@ const meta: Meta<StageHostProps> = {
   component: StageHost,
   beforeEach: episodeBeforeEach,
   render: ({ guestShare, loadFailure }) => (
-    <StageFrame guestShare={guestShare} loadFailure={loadFailure}>
+    <StageFrame guestShare={guestShare}>
       <StageHost guestShare={guestShare} loadFailure={loadFailure} />
     </StageFrame>
   ),
@@ -155,7 +155,9 @@ export const LoadError: Story = {
       "[data-stage-host='deliver']",
     );
     await userEvent.click(
-      await within(host as HTMLElement).findByRole("button", { name: "Retry" }),
+      await within(host as HTMLElement).findByRole("button", {
+        name: "Try again",
+      }),
     );
     await expect(args.loadFailure?.onRetry).toHaveBeenCalledOnce();
   },
