@@ -85,7 +85,7 @@ the [UI philosophy](https://github.com/calebn/sharecut-studio/blob/main/docs/ui-
 | Metric | Target |
 |--------|--------|
 | Time to first comment on a cold review link | &lt; 5 minutes for 4/5 hallway testers |
-| Mode understanding | ≥ 4/5 guests correctly say what they can do after reading the banner |
+| Mode understanding | ≥ 4/5 guests correctly say what they can do after reading the Role chip |
 | Offline conflict recovery | Guest can dismiss/recover from **Needs attention** without host coaching |
 
 ---
@@ -158,7 +158,7 @@ Guest step flows: [Guest journeys](#/journeys).
 | Surface | Audience | Notes |
 |---------|----------|-------|
 | **ShareCut Studio host** | Editor | Full project; document commands + pipeline |
-| **ShareCut Studio guest** | Every review role | Mode banner; role gates; proxy MP3 when available; no History/Pipeline |
+| **ShareCut Studio guest** | Every review role | Role chip; role gates; proxy MP3 when available; no History/Pipeline |
 | **CLI / MCP** | Agent + power user | Same domain services; not a parallel product |
 | **Remote MCP (share)** | Agent as guest | Same caps as the share; `{base}/mcp/{token}/mcp` |
 
