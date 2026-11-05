@@ -46,8 +46,7 @@ export type SourceActions = {
   onRetry: (id: string) => void;
   onDetails: (id: string) => void;
   onReplace: (id: string) => void;
-  /** Audio dropped on the card replaces that source's audio. */
-  /** Absent when the viewer may not add audio: the cards then take no drop. */
+  /** Audio dropped on the card replaces that source's audio; absent when the viewer may not add audio. */
   onDropAudio?: (id: string, files: File[]) => void;
   /** Audio is over (or left) the card; the stage labels the drop. */
   onDropHover?: (id: string, over: boolean) => void;
