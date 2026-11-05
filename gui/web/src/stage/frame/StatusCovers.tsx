@@ -4,7 +4,6 @@ import type { NotServed } from "../../utils/notServed";
 const BAD_LINK_TITLE = "This link doesn't open anything";
 const BAD_LINK_HINT = "Ask the person who sent it for a new link.";
 
-/** A bad or revoked review link: no button for a guest, who can only ask. */
 export function BadLinkCover() {
   return (
     <Cover size="page" glyph="unlink" title={BAD_LINK_TITLE}>
@@ -38,7 +37,6 @@ export function HostCover({
   );
 }
 
-/** This server is serving another episode: open it, or go to all projects. */
 export function NotServedCover({
   notServed,
   onNavigate,

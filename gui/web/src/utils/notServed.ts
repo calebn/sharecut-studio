@@ -7,9 +7,7 @@
 export const NOT_SERVED_ELEMENT_ID = "sharecut-not-served";
 
 export type NotServed = {
-  /** The episode this server is serving. */
   name: string;
-  /** Opens it (keeps the session token). */
   openHref: string;
   /** The host home (`/?home=1`, keeps the session token). */
   homeHref: string;

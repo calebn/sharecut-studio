@@ -172,7 +172,6 @@ export type DownloadTotals = {
   total: number | null;
 };
 
-/** What the running downloads have fetched so far, or null when none runs. */
 export function downloadTotals(
   models: readonly ModelView[] | null,
 ): DownloadTotals | null {
