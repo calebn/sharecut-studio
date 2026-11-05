@@ -4,6 +4,7 @@ import {
   groupPaletteEntries,
   type PaletteCommand,
   type PaletteEntry,
+  paletteGesturesMatch,
   searchPaletteCommands,
   searchPaletteEntries,
 } from "./paletteSearch";
@@ -178,5 +179,20 @@ describe("group names in search", () => {
     expect(ids(searchPaletteCommands([stage, help], "help"))).toEqual([
       "help.x",
     ]);
+  });
+});
+
+describe("paletteGesturesMatch", () => {
+  it("matches an empty query, the group name, touch and a gesture name", () => {
+    expect(paletteGesturesMatch("")).toBe(true);
+    expect(paletteGesturesMatch("  ")).toBe(true);
+    expect(paletteGesturesMatch("gestures")).toBe(true);
+    expect(paletteGesturesMatch("touch")).toBe(true);
+    expect(paletteGesturesMatch("Pinch")).toBe(true);
+    expect(paletteGesturesMatch("two-finger tap")).toBe(true);
+  });
+  it("rejects a word no gesture or label contains", () => {
+    expect(paletteGesturesMatch("blade")).toBe(false);
+    expect(paletteGesturesMatch("pinch blade")).toBe(false);
   });
 });
