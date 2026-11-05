@@ -260,6 +260,99 @@ export const Guest: Story = {
   },
 };
 
+export const GuestFollowing: Story = {
+  render: () => (
+    <Header
+      guest={{
+        version: "Rough cut · 25 Oct",
+        followsLatest: true,
+        role: "commenter",
+      }}
+      people={people.slice(0, 2)}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole("img", {
+        name: "Follows the latest version",
+      }),
+    ).toBeVisible();
+  },
+};
+
+export const GuestFrozen: Story = {
+  render: () => (
+    <Header
+      guest={{
+        version: "Rough cut · 25 Oct",
+        followsLatest: false,
+        role: "commenter",
+      }}
+      people={people.slice(0, 2)}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("img", { name: "Pinned to this version" }),
+    ).toBeVisible();
+    await expect(
+      canvas.queryByRole("button", { name: /New version/ }),
+    ).toBeNull();
+  },
+};
+
+export const GuestNewVersion: Story = {
+  render: () => {
+    const onListen = fn();
+    return (
+      <Header
+        guest={{
+          version: "Rough cut · 25 Oct",
+          followsLatest: true,
+          role: "commenter",
+          update: { id: "v2", label: "Intro fix", onListen },
+        }}
+        people={people.slice(0, 2)}
+      />
+    );
+  },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole("button", {
+        name: /New version: Intro fix/,
+      }),
+    ).toBeVisible();
+  },
+};
+
+export const GuestNewVersionPhone: Story = {
+  render: () => (
+    <div style={{ inlineSize: 390 }}>
+      <Header
+        guest={{
+          version: "Rough cut · 25 Oct",
+          followsLatest: true,
+          role: "commenter",
+          update: {
+            id: "v2",
+            label: "Intro fix with a very long name",
+            onListen: fn(),
+          },
+        }}
+        people={people.slice(0, 2)}
+        withStages={false}
+      />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const pill = within(canvasElement).getByRole("button", {
+      name: /New version: Intro fix.*Listen/,
+    });
+    await expect(pill).toBeVisible();
+  },
+};
+
 export const GuestEditor: Story = {
   render: () => (
     <Header

@@ -27,7 +27,7 @@ All paths are relative to `gui/web/src/` unless they start with `/` or a repo fo
 | Components, overlays, banners, toasts, status items, empty states (CMP- 48, OVL- 11, BAN- 4, TOAST/STAT/EMPTY/CHIP 4) | 67 |
 | Interactions (INT-) | 46 |
 | Total catalogued items | 197 |
-| Story files / exported stories | 88 files / 443 stories |
+| Story files / exported stories | 87 files / 442 stories |
 
 Of the 151 non-interaction items: 64 have a story (yes), 33 partial, 54 none (counted from the Story column of the tables). Of the 46 interactions: 18 have a frozen-state story, 15 partial, 13 none. The per-surface table is section 14.
 
@@ -220,7 +220,6 @@ Guest mode comes from `guest_mode` in the review bootstrap: Viewer `view`, Comme
 | SCR-GUEST-MOBILE | Guest commenter on phone: the Review host with its comment composer (`ComposeAnchor`), no host-only controls | `/r/<token>` at 390 px | `stage/hosts/ReviewHost.tsx`, `stage/hosts/useReviewComments.tsx`, `stage/hosts/ComposeAnchor.tsx` | `stage/hosts/ReviewHost.stories.tsx` (GuestCommenterPhone, GuestCommenterPhone390) | Partial | Mobile reviewer |
 | SCR-GUEST-LINK-INVALID | "This link does not open the project." | `/r/<token without view>` | `App.tsx` + `ui/ErrorScreen.tsx` | `ui/ErrorScreen.stories.tsx` WithNextStep | Props | Dead link |
 | SCR-GUEST-OFFLINE | Cached snapshot when the host is unreachable | `/r/<token>` with bootstrap failing and a stored offline snapshot | `App.tsx`, `services/offlineQueue/offlineStore.ts`, `stage/frame/GuestAttentionBannerView.tsx` | `stage/frame/GuestAttentionBannerView.stories.tsx` (PendingHostEdits, Conflicts, PendingAndConflict, PhoneManyConflicts) | View | Keep working offline, show conflicts |
-| BAN-GUEST-VERSION | Guest "newer version available" notice | Host republishes while the guest is open | `stage/frame/GuestVersionNotice.tsx`, `stage/frame/GuestVersionNoticeView.tsx` | `stage/frame/GuestVersionNoticeView.stories.tsx` (Frozen, NewerAvailable, FollowsLatest, ChangedUnderGuest) | View | Prompt refresh |
 | BAN-GUEST-ATTENTION | Offline / pending host edits / conflicts attention banner | Guest with queued or conflicting edits | `stage/frame/GuestAttentionBanner.tsx`, `stage/frame/GuestAttentionBannerView.tsx` | `stage/frame/GuestAttentionBannerView.stories.tsx` | View | Surface sync state |
 | CMP-GUEST-COMMENT | Guest comment compose and name field | Review queue composer (always shown to a Commenter) | `system/Composer.tsx`, `stage/hosts/ComposeAnchor.tsx` | Composer yes (`System/Composer`); `stage/hosts/ReviewHost.stories.tsx` GuestCommenterPhone390 renders the Composer in the Review host | Props | Leave feedback |
 
@@ -384,7 +383,7 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 | DLG-ASK-TEXT | Removed. Menu > `Open project…` with the OS file picker unavailable (mock `pickEpisodeProject` to `{unavailable:true}`) goes to `/?home=1&openOther=1`, where the path field is open. |
 | DLG-RECORD | Removed. R-HOST; Stage bar > `Record` (the Record stage, main "Record"). |
 | SCR-PHONE-LISTEN/TIMELINE/TEXT/MORE | R-HOST at 390x844; `navigation "Primary"` buttons `Listen`, `Timeline`, `Text`, `More` (see `e2e/phoneTimeline.ts`). Timeline waits for `.timeline-scroll .track-headers:not([aria-busy=true])`. |
-| SCR-GUEST-* | R-GUEST for each role at 1440x900 and 390x844. Offline: block `**/api/review/**` after a first load so the cached snapshot path runs (`e2e/offlineQueue.ts`, `e2e/networkOutage.ts`). Version notice: bump the project from the host while the guest is open. |
+| SCR-GUEST-* | R-GUEST for each role at 1440x900 and 390x844. Offline: block `**/api/review/**` after a first load so the cached snapshot path runs (`e2e/offlineQueue.ts`, `e2e/networkOutage.ts`). Version line and New version pill: publish a new version from the host while the guest is open. |
 | SCR-REC-* | R-REC. Guest: dialog "Join the room"; textbox `Your name`, button `Allow microphone`, toggle "I'm wearing headphones", button `Join and record`. Producer: textbox `Your name`, button `Join to listen`. Declined: click `Not now`, then `Join recording` on the scrim. Full: open more guests than the room cap. Access ended: host ends access or closes invite. In-room: host clicks `Start`. |
 | TOAST-MAIN | Do any edit (for example nudge a fade) and read the toast; Undo button inside. |
 | BAN-LOADFAIL | Fail `/api/transcript` or `/api/history` once. |
@@ -436,7 +435,6 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 | SCR-GUEST-VIEWER/COMMENTER/EDITOR/MOBILE | partial | Shell chrome and role toggles only; Role chip in the header, no first-visit hint story |
 | SCR-GUEST-LINK-INVALID | yes | ErrorScreen |
 | SCR-GUEST-OFFLINE, BAN-GUEST-ATTENTION | yes | |
-| BAN-GUEST-VERSION | yes | |
 | CMP-GUEST-NAME, CMP-GUEST-COMMENT | partial | Compose yes; others no |
 | SCR-REC-LOADING, -INVALID, -FULL, -DECLINED, -LOBBY-*, -ROOM-*, CMP-REC-DEVICE/CONSENT/INDICATOR/ROSTER/LIVECOMMENTS/UPLOAD/CLIPPING | yes | |
 | SCR-REC-ACCESS-ENDED, CMP-REC-HOSTROSTER, CMP-REC-STOP, CHIP-REC-TRANSPORT | no | The last three are removed |
@@ -467,7 +465,7 @@ Tally of the 151 non-interaction items, counted from the Story columns: 64 yes, 
 12. **SCR-PHONE-MORE and SCR-PHONE-LISTEN bodies.** Extract `MoreHub` as a View (it is already a separate function in `MobileShell.tsx`), add Listen body stories with chips and comments list, guest variant.
 13. **MENU-MAIN and MENU-VIEW as real menus.** Story with Menu open for host, guest, collapsed (tablet/phone) and menu-only (Listen).
 14. **MENU-CREATE, POP-CHOOSER, CMP-RANGE-ACTIONS** (touch-first, core editing) with phone frames.
-15. **SCR-GUEST version notice and LoadFailureBanner**: one story file `Templates/GuestBanners` covering the version notice and load failure (the role banner is gone; the header Role chip states the role).
+15. **LoadFailureBanner**: one story file `Templates/GuestBanners` covering load failure (the role banner is gone; the header Role chip states the role).
 16. **POP-WORD-EDIT, POP-SPEAKER, CMP-FINDREPLACE, CMP-WORDBAR**: prop-only components; quick wins.
 17. **SCR-REC-ACCESS-ENDED, CMP-REC-NOTICES** (small).
 18. **SCR-LAYOUT-* modes and CMP-DRAWER-HANDLE, CMP-LAYOUT-CHIP**: add three StudioShellView stories for Timeline/Text/Review layouts.
