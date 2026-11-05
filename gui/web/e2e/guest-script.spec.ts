@@ -277,6 +277,7 @@ test("a Commenter keeps readable Script through native page zoom and viewport re
           });
         };
         let bodyFailed = false;
+        let bodyFailure: unknown;
         try {
           await expect.poll(async () => (await observe()).visual.scale).toBe(1);
           await capture("initial", true);
@@ -314,33 +315,33 @@ test("a Commenter keeps readable Script through native page zoom and viewport re
           }
         } catch (error) {
           bodyFailed = true;
-          throw error;
-        } finally {
-          const cleanupFailures: unknown[] = [];
-          try {
-            await info.attach("guest-viewport-observations", {
-              body: Buffer.from(
-                JSON.stringify({
-                  browserVersion: browser.version(),
-                  observations,
-                }),
-              ),
-              contentType: "application/json",
-            });
-          } catch (error) {
-            cleanupFailures.push(error);
-          }
-          try {
-            await cdp.detach();
-          } catch (error) {
-            cleanupFailures.push(error);
-          }
-          if (!bodyFailed && cleanupFailures.length > 0)
-            throw new AggregateError(
-              cleanupFailures,
-              "Guest proof cleanup failed",
-            );
+          bodyFailure = error;
         }
+        const cleanupFailures: unknown[] = [];
+        try {
+          await info.attach("guest-viewport-observations", {
+            body: Buffer.from(
+              JSON.stringify({
+                browserVersion: browser.version(),
+                observations,
+              }),
+            ),
+            contentType: "application/json",
+          });
+        } catch (error) {
+          cleanupFailures.push(error);
+        }
+        try {
+          await cdp.detach();
+        } catch (error) {
+          cleanupFailures.push(error);
+        }
+        if (bodyFailed) throw bodyFailure;
+        if (cleanupFailures.length > 0)
+          throw new AggregateError(
+            cleanupFailures,
+            "Guest proof cleanup failed",
+          );
       },
     );
   });

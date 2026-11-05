@@ -393,52 +393,51 @@ export async function createEditorProfiler(
         await action();
       } catch (error) {
         failure = error;
-      } finally {
-        try {
-          let timer: ReturnType<typeof setTimeout>;
-          const completed = new Promise<{ stream?: string }>(
-            (resolve, reject) => {
-              timer = setTimeout(
-                () => reject(new Error("Chrome trace completion timed out")),
-                10_000,
-              );
-              cdp.once("Tracing.tracingComplete", resolve);
-            },
-          );
-          let stream: string | undefined;
-          try {
-            await cdp.send("Tracing.end");
-            ({ stream } = await completed);
-          } finally {
-            clearTimeout(timer!);
-          }
-          if (!stream) throw new Error("Chrome trace has no stream");
-          let text = "";
-          for (;;) {
-            const part = await cdp.send("IO.read", { handle: stream });
-            text += part.base64Encoded
-              ? Buffer.from(part.data, "base64").toString("utf8")
-              : part.data;
-            if (part.eof) break;
-          }
-          await cdp.send("IO.close", { handle: stream });
-          fs.writeFileSync(path.join(output, "chrome-trace.json"), text);
-          report.artifacts.push("chrome-trace.json");
-          const parsed = JSON.parse(text) as {
-            traceEvents?: { name: string }[];
-          };
-          if (
-            !parsed.traceEvents?.some((event) =>
-              /RunTask|FunctionCall|Layout|editor-profile/.test(event.name),
-            )
-          )
-            throw new Error("Chrome trace has no relevant workload events");
-        } catch (error) {
-          report.errors.push(`trace retention: ${failureReason(error)}`);
-          failure ??= error;
-        }
-        retain();
       }
+      try {
+        let timer: ReturnType<typeof setTimeout>;
+        const completed = new Promise<{ stream?: string }>(
+          (resolve, reject) => {
+            timer = setTimeout(
+              () => reject(new Error("Chrome trace completion timed out")),
+              10_000,
+            );
+            cdp.once("Tracing.tracingComplete", resolve);
+          },
+        );
+        let stream: string | undefined;
+        try {
+          await cdp.send("Tracing.end");
+          ({ stream } = await completed);
+        } finally {
+          clearTimeout(timer!);
+        }
+        if (!stream) throw new Error("Chrome trace has no stream");
+        let text = "";
+        for (;;) {
+          const part = await cdp.send("IO.read", { handle: stream });
+          text += part.base64Encoded
+            ? Buffer.from(part.data, "base64").toString("utf8")
+            : part.data;
+          if (part.eof) break;
+        }
+        await cdp.send("IO.close", { handle: stream });
+        fs.writeFileSync(path.join(output, "chrome-trace.json"), text);
+        report.artifacts.push("chrome-trace.json");
+        const parsed = JSON.parse(text) as {
+          traceEvents?: { name: string }[];
+        };
+        if (
+          !parsed.traceEvents?.some((event) =>
+            /RunTask|FunctionCall|Layout|editor-profile/.test(event.name),
+          )
+        )
+          throw new Error("Chrome trace has no relevant workload events");
+      } catch (error) {
+        report.errors.push(`trace retention: ${failureReason(error)}`);
+        failure ??= error;
+      }
+      retain();
       if (failure !== undefined) throw failure;
     },
     async finish(failure?: unknown) {
