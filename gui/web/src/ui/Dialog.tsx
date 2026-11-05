@@ -112,16 +112,16 @@ export function Dialog({
     shortcuts,
   });
   useAnchoredPanel(panelRef, anchor, open);
-  useOutsidePointerDown(
-    [
+  useOutsidePointerDown({
+    liveRefs: [
       panelRef,
       ...(anchor ? [anchor.ref] : []),
       ...(anchor?.avoidRef ? [anchor.avoidRef] : []),
     ],
-    dismiss,
-    open && anchored,
-    { capture: anchored && outsideDismissal === "preserve-focus" },
-  );
+    onOutside: dismiss,
+    enabled: open && anchored,
+    capture: anchored && outsideDismissal === "preserve-focus",
+  });
 
   if (!open) {
     return null;

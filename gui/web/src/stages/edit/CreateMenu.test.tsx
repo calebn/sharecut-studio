@@ -6,6 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../../test/a11y";
+import { stubRaf } from "../../test/raf";
 import {
   CREATE_ITEM_ATTR,
   CreateMenu,
@@ -256,6 +257,18 @@ describe("CreateMenu placement", () => {
       height,
     );
   };
+
+  it("settles its initial measured position without an animation frame", () => {
+    stubRaf();
+    size(220, 200);
+    try {
+      render(<CreateMenu {...props()} />);
+      expect(menu().style.left).toBe("190px");
+      expect(menu().style.top).toBe("76px");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 
   it("sits above the held point, 24 px clear of it", () => {
     size(220, 200);

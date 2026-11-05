@@ -58,7 +58,10 @@ export function SplitPopover({
     },
     true,
   );
-  useOutsidePointerDown([panelRef, anchorRef], onClose);
+  useOutsidePointerDown({
+    liveRefs: [panelRef, anchorRef],
+    onOutside: onClose,
+  });
   usePopoverKeyboard({
     panelRef,
     anchorRef,

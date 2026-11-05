@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { useRef } from "react";
+import { createRef, type RefObject, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { useOutsidePointerDown } from "./useOutsidePointerDown";
 
@@ -12,17 +12,20 @@ function Harness({
   enabled?: boolean;
   capture?: boolean;
 }) {
-  const panelRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  useOutsidePointerDown([panelRef, triggerRef], onOutside, enabled, {
+  const [panel, setPanel] = useState<HTMLDivElement | null>(null);
+  const [trigger, setTrigger] = useState<HTMLButtonElement | null>(null);
+  useOutsidePointerDown({
+    nodes: [panel, trigger],
+    onOutside,
+    enabled,
     capture,
   });
   return (
     <div>
-      <button ref={triggerRef} type="button">
+      <button ref={setTrigger} type="button">
         Trigger
       </button>
-      <div ref={panelRef} data-testid="panel">
+      <div ref={setPanel} data-testid="panel">
         <span>Inside</span>
       </div>
       <p>Outside</p>
@@ -31,6 +34,32 @@ function Harness({
 }
 
 describe("useOutsidePointerDown", () => {
+  it("reads a foreign anchor's live target without requiring a rerender", () => {
+    const onOutside = vi.fn();
+    const first = document.createElement("button");
+    const second = document.createElement("button");
+    const anchor = createRef<HTMLButtonElement>();
+    anchor.current = first;
+    document.body.append(first, second);
+    function LiveAnchor({ target }: { target: RefObject<HTMLElement | null> }) {
+      useOutsidePointerDown({ liveRefs: [target], onOutside });
+      return null;
+    }
+    const { unmount } = render(<LiveAnchor target={anchor} />);
+    try {
+      fireEvent.pointerDown(first);
+      anchor.current = second;
+      fireEvent.pointerDown(second);
+      expect(onOutside).not.toHaveBeenCalled();
+      fireEvent.pointerDown(first);
+      expect(onOutside).toHaveBeenCalledTimes(1);
+    } finally {
+      unmount();
+      first.remove();
+      second.remove();
+    }
+  });
+
   it("fires for a pointerdown outside every ref, not inside one", () => {
     const onOutside = vi.fn();
     render(<Harness onOutside={onOutside} />);

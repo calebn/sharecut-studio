@@ -2,16 +2,28 @@ import { type RefObject, useEffect, useEffectEvent } from "react";
 
 /**
  * Calls `onOutside` on a window `pointerdown` whose target is outside every
- * element in `refs` (a floating panel and its trigger). Shared by `Menu`, `Dialog`, and the view popover.
+ * supplied node or live reference target. Owned nodes are committed inputs;
+ * foreign live references are resolved at the actual event (Dialog anchors).
+ * Shared by `Menu`, `Dialog`, and the view popover.
  */
-export function useOutsidePointerDown(
-  refs: readonly RefObject<HTMLElement | null>[],
-  onOutside: () => void,
+export function useOutsidePointerDown({
+  nodes = [],
+  liveRefs = [],
+  onOutside,
   enabled = true,
-  { capture = false }: { capture?: boolean } = {},
-): void {
+  capture = false,
+}: {
+  nodes?: readonly (HTMLElement | null)[];
+  liveRefs?: readonly RefObject<HTMLElement | null>[];
+  onOutside: () => void;
+  enabled?: boolean;
+  capture?: boolean;
+}): void {
   const onPointerDown = useEffectEvent((target: Node) => {
-    if (refs.some((r) => r.current?.contains(target))) {
+    if (
+      nodes.some((node) => node?.contains(target)) ||
+      liveRefs.some((ref) => ref.current?.contains(target))
+    ) {
       return;
     }
     onOutside();
