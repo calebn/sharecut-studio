@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RecentProject } from "../../api";
 import { listRecentProjects } from "../../api";
 import { COMMANDS } from "../../commands/catalog";
@@ -8,6 +8,7 @@ import { registerCommand } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { getKeymapOverride } from "../../keymap/remaps";
 import { useDawStore } from "../../state/dawStore";
+import { presenceProjectInitial } from "../../state/presenceSlice";
 import { DawProvider } from "../../state/store";
 import { setChrome } from "../../test/chrome";
 import { waitForDialogFocus } from "../../test/dialogFocus";
@@ -68,7 +69,14 @@ describe("CommandPalette", () => {
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
     useDawStore.getState().setCommandPaletteOpen(true);
     setChrome({ exportRequested: false });
-    useDawStore.setState({ statusAnnouncement: "" });
+    useDawStore.setState({
+      statusAnnouncement: "",
+      ...presenceProjectInitial(),
+    });
+  });
+
+  afterEach(() => {
+    useDawStore.setState(presenceProjectInitial());
   });
 
   it("lists keyed and keyless catalog commands together", () => {
