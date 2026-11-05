@@ -13,12 +13,11 @@ export async function openPhoneTimeline(page: Page): Promise<void> {
 
 /**
  * Opens the phone timeline's compact inspector at `detent` for every
- * selection on this page, as a user who left the drawer there would: a spec
- * about the inspector's own controls opens it at half instead of the strip.
+ * selection on this page, as a user who left the drawer there would.
  */
 export async function rememberInspectorDetent(
   page: Page,
-  detent: "peek" | "half" | "full",
+  detent: "half" | "full",
 ): Promise<void> {
   await page.addInitScript((view) => {
     localStorage.setItem("sharecut.compactInspector", view);

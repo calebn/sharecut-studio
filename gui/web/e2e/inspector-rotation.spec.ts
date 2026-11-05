@@ -12,7 +12,6 @@ test("rotating a phone with the Inspector open keeps the focused field on screen
   await phone.showTimeline(page);
   await page.locator(".lane-row .clip-block").first().click();
   await inspectSelection(page);
-  await page.getByRole("button", { name: "Expand to half height" }).click();
   const field = page.getByRole("spinbutton", { name: "Fade out" });
   await expect(field).toBeAttached();
   await field.focus();
