@@ -58,12 +58,19 @@ def test_whisper_sizes_cover_the_catalog_and_the_unlisted_fall_back() -> None:
     assert whisper.size_label(None) == whisper.size
 
 
-def test_size_is_pinned_or_unknown() -> None:
+def test_size_is_pinned_approximate_or_unknown() -> None:
     assert model_spec("rnnoise").size_bytes(None) == 297646
     assert model_spec("rnnoise").size_label(None) == "~0.3 MB"
     assert model_spec("word-aligner").size_bytes(None) == 360_000_000
     assert model_spec("word-aligner").size_label(None) == "~360 MB"
     assert model_spec("speaker-ecapa").size_bytes(None) == 80_000_000
+
+
+@pytest.mark.parametrize("model_id", ["word-aligner", "speaker-ecapa"])
+def test_the_size_text_and_the_byte_count_agree(model_id: str) -> None:
+    spec = model_spec(model_id)
+    megabytes = int(spec.size_label(None).strip("~ MB"))
+    assert spec.size_bytes(None) == megabytes * 1_000_000
 
 
 def test_the_default_bundle_totals_about_two_gigabytes() -> None:

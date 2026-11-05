@@ -19,7 +19,6 @@ from podcast_mcp.services.pipeline import (
     ModelSpec,
     install_model,
     model_status,
-    models_for,
     persist_whisper_model,
     resolve_whisper_model,
     unexpected_text,
@@ -237,10 +236,7 @@ def bootstrap(
     component: str | None = typer.Option(
         None,
         "--component",
-        help=(
-            f"Which model to install: all, {', '.join(_COMPONENT_IDS)}. "
-            f"Default: {', '.join(spec.id for spec in models_for('required', 'recommended'))}."
-        ),
+        help=(f"Which model to install: {', '.join(_COMPONENT_IDS)}. Default: every model."),
     ),
     whisper_model: str = typer.Option(
         DEFAULT_WHISPER_MODEL,
@@ -261,19 +257,14 @@ def bootstrap(
     (`--component whisper`) to top up just that piece. Safe to re-run;
     already-cached assets are skipped unless `--upgrade`.
     """
-    if component is not None and component != "all" and component not in _COMPONENT_IDS:
+    if component is not None and component not in _COMPONENT_IDS:
         typer.echo(
-            f"Unknown component {component!r}; choose from: all, {', '.join(_COMPONENT_IDS)}",
+            f"Unknown component {component!r}; choose from: {', '.join(_COMPONENT_IDS)}",
             err=True,
         )
         raise typer.Exit(2)
 
-    if component is None:
-        wanted = models_for("required", "recommended")
-    elif component == "all":
-        wanted = MODELS
-    else:
-        wanted = tuple(spec for spec in MODELS if spec.id == component)
+    wanted = MODELS if component is None else tuple(spec for spec in MODELS if spec.id == component)
     if any(spec.id == "whisper" for spec in wanted):
         try:
             whisper_model = validate_whisper_model(whisper_model)

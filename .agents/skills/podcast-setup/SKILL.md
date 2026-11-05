@@ -36,7 +36,7 @@ For a **maximal** install (every extra):
 ```bash
 uv sync --all-extras
 source .venv/bin/activate
-podcast bootstrap --component all
+podcast bootstrap
 podcast doctor
 ```
 
@@ -110,8 +110,8 @@ podcast track add --project /path/to/my_episode/episode.sharecut \
 | Kind | What | Required for core CLI? |
 |------|------|------------------------|
 | FFmpeg pair | Matching FFmpeg/FFprobe 9.0.2 or later 9.x | Source installs; desktop includes exact 9.0.2 |
-| `bootstrap` whisper / rnnoise (a bare `podcast bootstrap` installs both plus word-aligner and speaker-ecapa, as does `--component all`; `podcast setup` prints each model as ready or missing with its fix command) | Model cache (`large-v3-turbo` default) | Whisper required before pipeline/transcribe Run (no silent download); catalog Whisper sizes are pinned by revision + per-file sha256; a mismatch fails closed (`podcast doctor` `[fail]`); re-download with `podcast bootstrap --component whisper --whisper-model <id> --upgrade` (a plain bootstrap or Studio **Download** also re-fetches it) |
-| `bootstrap` word-aligner | Forced-aligner ONNX snapshot (recommended: a bare bootstrap, `--component all` or by name; English). Once downloaded, forced alignment is **on by default** (`transcribe.forced_alignment.enabled` unset, #780); without it unset remains unavailable and an explicit `true` fails the run with this command. Studio lets a person turn off that blocked saved request; word times remain Whisper's. A sha256 mismatch in any snapshot file (`vocab.json`, configs, ONNX) fails closed (keeps Whisper's times) — re-download with `--upgrade`, or Studio Pipeline tab **Download word aligner**; `podcast doctor` reports `[fail]` | No |
+| `bootstrap` whisper / rnnoise (a bare `podcast bootstrap` installs both plus word-aligner and speaker-ecapa; `podcast setup` prints each model as ready or missing with its fix command) | Model cache (`large-v3-turbo` default) | Whisper required before pipeline/transcribe Run (no silent download); catalog Whisper sizes are pinned by revision + per-file sha256; a mismatch fails closed (`podcast doctor` `[fail]`); re-download with `podcast bootstrap --component whisper --whisper-model <id> --upgrade` (a plain bootstrap or Studio **Download** also re-fetches it) |
+| `bootstrap` word-aligner | Forced-aligner ONNX snapshot (recommended: a bare bootstrap or by name; English). Once downloaded, forced alignment is **on by default** (`transcribe.forced_alignment.enabled` unset, #780); without it unset remains unavailable and an explicit `true` fails the run with this command. Studio lets a person turn off that blocked saved request; word times remain Whisper's. A sha256 mismatch in any snapshot file (`vocab.json`, configs, ONNX) fails closed (keeps Whisper's times) — re-download with `--upgrade`, or Studio Pipeline tab **Download word aligner**; `podcast doctor` reports `[fail]` | No |
 | npm `gui/web` | `node_modules` + `dist` | No — only for Sharecut Studio HTML UI |
 
 ## Code standards

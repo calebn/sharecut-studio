@@ -457,7 +457,7 @@ Root switching (same CSS contract as marketing):
 
 ### Adding a token
 
-1. **Shared brand / scale:** edit `deploy/brand/brand-tokens.css`, copy to public dirs and `src/styles/theme/brand-tokens.css`.
+1. **Shared brand / scale:** edit `deploy/brand/brand-tokens.css`, copy to `gui/desktop/splash/`, `src/podcast_relay/static/` and `src/styles/theme/brand-tokens.css`.
 2. **ShareCut Studio-only:** declare scales, layout dimensions, motion values, and composite paint recipes in `theme/tokens.css`. Define semantic color roles in `theme-dark.css`, `theme-light.css`, or `theme-fixed.css`. For a new **color**, add its raw value to `theme/primitives.css` (`--primitive-<family>-<step>`), then map it onto a `--color-*` semantic role in both themes using the same selectors as brand-tokens. Never put raw hex in the theme files; never consume `--primitive-*` directly from components. See [docs/design-tokens.md](../../docs/design-tokens.md).
 3. Use `var(--…)` in partials / components — **never** invent one-off hex/`rgb` outside `src/styles/theme/`. Stylelint enforces this in CI.
 

@@ -20,7 +20,7 @@ const meta: Meta<typeof StageLoading> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          'The Loading cover for a project on its way: nothing for 300 ms, then the Stage bar for real (the name is known from the URL or the Home card) over static grey placeholders in the destination stage\'s own layout, and after 8 s one line, "Still loading." with a Try again button. No spinner, no "Loading" text. The stories fix the elapsed time; the app lets the timers run.',
+          'The Loading cover for a project on its way: nothing for 300 ms, then the Stage bar for real (the name is known from the URL or the Home card) over static grey placeholders in the destination stage\'s own layout, and after 4 s one line, "Still loading…" with a Retry button. No spinner, no "Loading" text. The stories fix the elapsed time; the app lets the timers run.',
       },
     },
   },
@@ -60,8 +60,8 @@ export const Slow: Story = {
   args: { elapsedMs: 9000 },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByText("Still loading.")).toBeVisible();
-    await userEvent.click(canvas.getByRole("button", { name: "Try again" }));
+    await expect(canvas.getByText("Still loading…")).toBeVisible();
+    await userEvent.click(canvas.getByRole("button", { name: "Retry" }));
     await expect(args.onRetry).toHaveBeenCalledOnce();
   },
 };

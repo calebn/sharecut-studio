@@ -12,6 +12,7 @@ from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
 from podcast_mcp.engines.models import registry
+from podcast_mcp.services.pipeline import InstallFailure
 
 runner = CliRunner()
 R = "podcast_mcp.engines.models.registry"
@@ -216,15 +217,31 @@ def test_bootstrap_bare_default_installs_every_model(
     assert result.exit_code == 0
     assert installed == ["whisper", "rnnoise", "word-aligner", "speaker-ecapa"]
     assert "Bootstrap complete." in result.stdout
-
-
-def test_bootstrap_all_installs_every_registry_model(monkeypatch: pytest.MonkeyPatch) -> None:
-    installed = _stub_installers(monkeypatch)
-    result = runner.invoke(app, ["bootstrap", "--component", "all"])
-    assert result.exit_code == 0
-    assert installed == ["whisper", "rnnoise", "word-aligner", "speaker-ecapa"]
     assert "[ok] speaker-ecapa: /stub/speaker-ecapa" in result.stdout
     assert "[ok] word-aligner: /stub/word-aligner" in result.stdout
+
+
+def test_bootstrap_exits_1_when_an_optional_model_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _stub_installers(monkeypatch)
+
+    def fail(variant, force, on_progress):
+        raise InstallFailure("offline")
+
+    registry_models = tuple(
+        replace(spec, install=fail) if spec.id == "word-aligner" else spec
+        for spec in registry.MODELS
+    )
+    monkeypatch.setattr("podcast_mcp.cli.setup_cmd.MODELS", registry_models)
+    result = runner.invoke(app, ["bootstrap"])
+    assert result.exit_code == 1
+    assert "Bootstrap complete." not in result.stdout
+
+
+def test_bootstrap_rejects_the_retired_all_component() -> None:
+    result = runner.invoke(app, ["bootstrap", "--component", "all"])
+    assert result.exit_code == 2
 
 
 def _network_installers_patched():
@@ -267,13 +284,13 @@ def _stock_speaker_download(monkeypatch: pytest.MonkeyPatch) -> _ModelOpener:
     return opener
 
 
-def test_bootstrap_all_installs_speaker_on_a_stock_build(
+def test_bare_bootstrap_installs_speaker_on_a_stock_build(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     opener = _stock_speaker_download(monkeypatch)
     whisper, rnnoise, problem, aligner = _network_installers_patched()
     with whisper, rnnoise, problem, aligner:
-        result = runner.invoke(app, ["bootstrap", "--component", "all"])
+        result = runner.invoke(app, ["bootstrap"])
     assert result.exit_code == 0
     assert opener.requested == [
         "https://cdn.sharecut.studio/models/speaker-ecapa/ecapa-voxceleb-embedding.onnx"
@@ -299,7 +316,7 @@ def test_bootstrap_failure_of_one_model_does_not_skip_the_rest(
     installed = _stub_installers(monkeypatch)
     failing = replace(registry.MODELS[0], install=lambda variant, force, on_progress: 1 / 0)
     monkeypatch.setattr("podcast_mcp.cli.setup_cmd.MODELS", (failing, *registry.MODELS[1:]))
-    result = runner.invoke(app, ["bootstrap", "--component", "all"])
+    result = runner.invoke(app, ["bootstrap"])
     assert result.exit_code == 1
     assert "[fail] whisper: Whisper speech model could not be installed." in result.stderr
     assert installed == ["rnnoise", "word-aligner", "speaker-ecapa"]

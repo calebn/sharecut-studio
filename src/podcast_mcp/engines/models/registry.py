@@ -18,6 +18,7 @@ from podcast_mcp.engines.models.speaker_ecapa import (
     SPEAKER_ECAPA_BOOTSTRAP,
     SPEAKER_ECAPA_LABEL,
     SPEAKER_ECAPA_SIZE,
+    SPEAKER_ECAPA_SIZE_BYTES,
     bootstrap_speaker_ecapa,
     speaker_ecapa_path,
     speaker_ecapa_problem,
@@ -194,9 +195,13 @@ def _rnnoise_sizes(variant: str | None) -> tuple[str | None, int | None]:
 _WORD_ALIGNER = word_aligner_model(DEFAULT_WORD_ALIGNER)
 
 
-def _approximate_size(size_bytes: int) -> Callable[[str | None], tuple[str | None, int | None]]:
-    """The byte count behind a row's size text, so Studio can total a download it has no pin for."""
-    return lambda variant: (None, size_bytes)
+def _word_aligner_sizes(variant: str | None) -> tuple[str | None, int | None]:
+    model = word_aligner_model(variant or DEFAULT_WORD_ALIGNER)
+    return model.size, model.size_bytes
+
+
+def _speaker_ecapa_sizes(variant: str | None) -> tuple[str | None, int | None]:
+    return None, SPEAKER_ECAPA_SIZE_BYTES
 
 
 MODELS: tuple[ModelSpec, ...] = (
@@ -233,7 +238,7 @@ MODELS: tuple[ModelSpec, ...] = (
         install=_word_aligner_install,
         location=word_aligner_cache_dir,
         default_variant=DEFAULT_WORD_ALIGNER,
-        variant_sizes=_approximate_size(360_000_000),
+        variant_sizes=_word_aligner_sizes,
     ),
     ModelSpec(
         id="speaker-ecapa",
@@ -244,7 +249,7 @@ MODELS: tuple[ModelSpec, ...] = (
         problem=_speaker_ecapa_problem,
         install=_speaker_ecapa_install,
         location=speaker_ecapa_path,
-        variant_sizes=_approximate_size(80_000_000),
+        variant_sizes=_speaker_ecapa_sizes,
     ),
 )
 
