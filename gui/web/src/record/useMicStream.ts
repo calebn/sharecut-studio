@@ -43,11 +43,17 @@ export function useMicStream(
   const [error, setError] = useState<string | null>(null);
   const [errorName, setErrorName] = useState<string | null>(null);
   const [settingsWarning, setSettingsWarning] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
-  const [settledAttempt, setSettledAttempt] = useState(0);
+  const [pending, setPending] = useState(enabled);
+  const [settledAttempt, setSettledAttempt] = useState(enabled ? 0 : resetKey);
   const [lost, setLost] = useState(false);
   const [fellBackFrom, setFellBackFrom] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
+  const [admitted, setAdmitted] = useState(() => ({
+    enabled,
+    deviceId,
+    resetKey,
+    retryKey,
+  }));
   const streamRef = useRef<MediaStream | null>(null);
   const lostRef = useRef(false);
   const acquiringRef = useRef(false);
@@ -68,16 +74,9 @@ export function useMicStream(
     if (!enabled) {
       stopTracks(streamRef.current);
       streamRef.current = null;
-      setStream(null);
-      setError(null);
-      setErrorName(null);
-      setSettingsWarning(null);
-      setPending(false);
-      setSettledAttempt(resetKey);
       // Keep the stale-mic latch: it describes the saved id, not this stream, so
       // GuestRoomApp never writes a dead id back to storage while the mic is off.
       lostRef.current = false;
-      setLost(false);
       return;
     }
     let cancelled = false;
@@ -119,9 +118,6 @@ export function useMicStream(
       void refreshDevices();
     };
     mediaDevices?.addEventListener?.("devicechange", onDeviceChange);
-    setPending(true);
-    setError(null);
-    setErrorName(null);
     const start = async () => {
       try {
         let next: MediaStream;
@@ -219,6 +215,23 @@ export function useMicStream(
       setStream(null);
     };
   }, [enabled, deviceId, resetKey, retryKey]);
+
+  if (
+    admitted.enabled !== enabled ||
+    admitted.deviceId !== deviceId ||
+    !Object.is(admitted.resetKey, resetKey) ||
+    !Object.is(admitted.retryKey, retryKey)
+  ) {
+    setAdmitted({ enabled, deviceId, resetKey, retryKey });
+    setError(null);
+    setErrorName(null);
+    setPending(enabled);
+    if (!enabled) {
+      setSettingsWarning(null);
+      setSettledAttempt(resetKey);
+      setLost(false);
+    }
+  }
 
   return {
     stream,
