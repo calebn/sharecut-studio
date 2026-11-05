@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useInsertionEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { flushSync } from "react-dom";
 import { useAfter } from "../hooks/useAfter";
 import { useElapsedSince } from "../hooks/useElapsedSince";
@@ -207,9 +213,11 @@ function GuestRoomSession({
   );
 
   const micRef = useRef(mic);
-  micRef.current = mic;
   const meterRef = useRef(meter);
-  meterRef.current = meter;
+  useInsertionEffect(() => {
+    micRef.current = mic;
+    meterRef.current = meter;
+  }, [mic, meter]);
 
   useEffect(() => {
     if (consented !== null || error) {

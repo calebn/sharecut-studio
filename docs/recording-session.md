@@ -1649,6 +1649,15 @@ explicit integer sequence retain their `(client_id, client_seq)` retry coordinat
 even when a retry carries a new command ID. Persisted commands always have integer
 sequences. Roles and participant IDs still determine authorization and actor identity.
 
+On the client, monitor operational inputs, upload polling and maintenance inputs,
+and the guest room's microphone/meter gesture actions publish their latest React
+inputs at commit, before layout callbacks. A discarded render must not replace
+those active inputs. This keeps the host's Snapshot-before-Signal ordering and
+lets Join recording commit reopened mic enablement before calling the current
+request in the same click callback. The monitor/upload input tests and the guest
+room Join recording test cover this local ordering with synthetic fixtures;
+the headphone and device test contracts below still apply.
+
 | Data | How |
 |------|-----|
 | Roster, consent, take clock, `pauses[]`, `host_offline_since_wall_ms`, `host_last_beat_wall_ms`, live `pause_reason` | `RecordSessionService` + pure `apply_record_command` reducer; hub key `record:{workspace}`. `pause_reason: "host_reconnect"` is stored on the `PauseEntry` (pause log) and mirrored on the snapshot while that pause is open. Each take also stores `consented_participant_ids` (see "Locked for the lobby PR" below). |
