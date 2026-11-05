@@ -58,7 +58,7 @@ export function playStartPatch(
 }
 
 /** Pause, Stop and end of media put a shuttled rate back; a followed leader's rate is theirs. */
-function unshuttledRate(
+export function unshuttledRate(
   s: Pick<DawStore, "followingClientId" | "playbackRate">,
 ): Partial<Pick<DawStore, "playbackRate">> {
   return s.followingClientId == null ? { playbackRate: 1 } : {};
@@ -214,6 +214,7 @@ export const createTransportSlice: StateCreator<
       playheadSec,
       playheadSeekRevision: s.playheadSeekRevision + 1,
       isPlaying: true,
+      ...unshuttledRate(s),
       playStartSec: playheadSec,
       playUntilSec: untilSec,
     })),

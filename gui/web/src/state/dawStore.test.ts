@@ -164,6 +164,40 @@ describe("dawStore listen-first transport", () => {
     expect(useDawStore.getState().playStartSec).toBe(7);
   });
 
+  it("an agent pause puts a shuttled rate back to 1x", () => {
+    useDawStore.setState({
+      isPlaying: true,
+      playbackRate: 2,
+      followingClientId: null,
+    });
+    useDawStore
+      .getState()
+      .applyAgentSession(agentSession({ is_playing: false }));
+    expect(useDawStore.getState().playbackRate).toBe(1);
+  });
+
+  it("an agent pause leaves a followed leader's rate alone", () => {
+    useDawStore.setState({
+      isPlaying: true,
+      playbackRate: 2,
+      followingClientId: "leader",
+    });
+    useDawStore
+      .getState()
+      .applyAgentSession(agentSession({ is_playing: false }));
+    expect(useDawStore.getState().playbackRate).toBe(2);
+  });
+
+  it("beginAudition starts at 1x after a shuttle", () => {
+    useDawStore.setState({
+      isPlaying: true,
+      playbackRate: 4,
+      followingClientId: null,
+    });
+    useDawStore.getState().beginAudition({ playheadSec: 4, untilSec: 8 });
+    expect(useDawStore.getState().playbackRate).toBe(1);
+  });
+
   it("an agent seek while paused becomes the new start", () => {
     const s = () => useDawStore.getState();
     s().setPlayheadSec(10);
