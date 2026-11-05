@@ -88,7 +88,7 @@ function AppInner() {
     | null
   >(null);
   const [attempt, setAttempt] = useState(0);
-  const projectLoading = (
+  const projectLoading = () => (
     <StageLoading
       stage={
         (projectPath && peekOpenStage(projectPath)) ||
@@ -228,7 +228,7 @@ function AppInner() {
     );
   }
   if (!featuresReady) {
-    return projectLoading;
+    return projectLoading();
   }
   if (error?.cover === "bad-link") {
     return (
@@ -269,7 +269,7 @@ function AppInner() {
         shareCapabilities={shareCapabilities}
         shareAuthor={shareAuthor}
       >
-        <Suspense fallback={projectLoading}>
+        <Suspense fallback={projectLoading()}>
           <DawApp guestShare />
         </Suspense>
       </DawProvider>
@@ -282,7 +282,7 @@ function AppInner() {
 
   return (
     <DawProvider projectPath={projectPath} initialProject={null}>
-      <Suspense fallback={projectLoading}>
+      <Suspense fallback={projectLoading()}>
         <DawApp />
       </Suspense>
     </DawProvider>
