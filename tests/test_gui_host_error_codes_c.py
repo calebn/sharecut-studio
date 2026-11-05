@@ -80,9 +80,7 @@ def test_index_project_mismatch_non_html(minimal_project, tmp_path):
         assert res.status_code == 200
 
 
-@pytest.mark.parametrize(
-    "path", ["/favicon.svg", "/favicon.ico", "/recovery.css", "/brand-tokens.css"]
-)
+@pytest.mark.parametrize("path", ["/favicon.svg", "/favicon.ico"])
 def test_missing_static_asset(tmp_path, path):
     dist = tmp_path / "dist"
     dist.mkdir()

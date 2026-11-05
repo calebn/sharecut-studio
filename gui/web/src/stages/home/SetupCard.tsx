@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card } from "../../system/Card";
 import { StatusRow } from "../../system/StatusRow";
 import { SystemIcon } from "../../system/SystemIcon";
 import { Button, Menu, MenuItem } from "../../ui";
 
 export type SetupState =
+  | "checking"
   | "needed"
   | "downloading"
   | "failed"
@@ -29,6 +30,27 @@ export type SetupCardProps = {
 const TITLE = "Get ShareCut ready";
 const TOOLS_GUIDE =
   "https://github.com/calebn/sharecut-studio/blob/main/docs/setup.md#acquire-the-pinned-ffmpeg-pair";
+
+/** The first status read has not come back: nothing for 300 ms, then static grey blocks. */
+const CHECKING_BLANK_MS = 300;
+
+function CheckingSkeleton() {
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setShown(true), CHECKING_BLANK_MS);
+    return () => window.clearTimeout(timer);
+  }, []);
+  return (
+    <div className="sys-setup-checking" aria-busy="true">
+      {shown ? (
+        <div className="sys-card" aria-hidden="true">
+          <span className="sys-skeleton-block sys-setup-skeleton-title" />
+          <span className="sys-skeleton-block sys-setup-skeleton-line" />
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function NotNowMenu({ onNotNow }: Pick<SetupCardProps, "onNotNow">) {
   const [open, setOpen] = useState(false);
@@ -79,6 +101,7 @@ function SetupBody({
   onRetry,
   onNotNow,
 }: SetupCardProps) {
+  if (state === "checking") return <CheckingSkeleton />;
   if (state === "needed") {
     return (
       <Card title={TITLE}>
@@ -108,13 +131,23 @@ function SetupBody({
   if (state === "downloading") {
     return (
       <Card title="Getting ShareCut ready">
-        <StatusRow
-          state="running"
-          title="Downloading"
-          detail={detail}
-          progress={progress}
-          action={{ label: "Cancel", onAction: onCancel }}
-        />
+        <div className="sys-setup-job">
+          <StatusRow
+            state="running"
+            title="Downloading"
+            detail={detail}
+            progress={progress}
+          />
+          <button
+            type="button"
+            className="sys-icon-btn sys-setup-cancel"
+            aria-label="Cancel the download"
+            title="Cancel"
+            onClick={onCancel}
+          >
+            <SystemIcon name="x" size={16} />
+          </button>
+        </div>
       </Card>
     );
   }

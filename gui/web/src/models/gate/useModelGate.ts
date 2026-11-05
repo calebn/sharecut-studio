@@ -295,7 +295,7 @@ export function useModelGate(): ModelGate {
       id: need.id,
       label: info.label,
       purpose: info.purpose,
-      tier: "offered",
+      tier: "recommended",
       size: info.size,
       sizeBytes: null,
       variant: need.variant ?? null,

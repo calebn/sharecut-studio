@@ -76,7 +76,7 @@ export function modelRow(over: Partial<Row> & { id: string }): Row {
   return {
     label: over.id,
     purpose: "purpose",
-    tier: "offered",
+    tier: "recommended",
     model: over.id,
     size: "~1 MB",
     size_bytes: 1_000_000,
@@ -124,18 +124,18 @@ export function registryRows(): Row[] {
       id: "word-aligner",
       label: "Word aligner",
       purpose: "precise word boundaries",
-      tier: "offered",
+      tier: "recommended",
       model: "wav2vec2",
       size: "~360 MB",
-      size_bytes: null,
+      size_bytes: 360_000_000,
     }),
     modelRow({
       id: "speaker-ecapa",
       label: "Speaker model",
       purpose: "speaker recognition and split",
-      tier: "offered",
-      size: "~25 MB",
-      size_bytes: null,
+      tier: "recommended",
+      size: "~80 MB",
+      size_bytes: 80_000_000,
     }),
   ];
 }

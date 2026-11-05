@@ -256,8 +256,8 @@ def bootstrap(
 
     Nothing here is required to install the package -- everything is fetched
     lazily into the cache dir (`podcast doctor` shows the path) the first time
-    you actually need it. A bare run installs the recommended models (Whisper
-    and RNNoise); `--component all` installs every model, or name one
+    you actually need it. A bare run installs every model (Whisper, RNNoise,
+    the word aligner and the speaker model); name one
     (`--component whisper`) to top up just that piece. Safe to re-run;
     already-cached assets are skipped unless `--upgrade`.
     """
