@@ -419,6 +419,11 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
     reason: "pure anchor resolution: a post reads it once",
   },
   {
+    file: "stages/settings/useAgentName.ts",
+    reason:
+      "a leaf that reduces the presence roster to the agent's name, so roster ticks do not re-render the app",
+  },
+  {
     file: "hooks/useAudioTransport.ts",
     reason: "drives audio transport from the live playhead",
   },
