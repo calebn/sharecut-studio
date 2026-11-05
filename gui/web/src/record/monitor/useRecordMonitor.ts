@@ -1,10 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useInsertionEffect,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useInsertionEffect, useState } from "react";
 import { MIX_MINUS_RAMP_S, MixMinusGraph } from "../../audio/mixMinus";
 import { errorMessage } from "../../utils/apiError";
 import { audioContextCtor } from "../../utils/audio";
@@ -69,6 +63,263 @@ export function attachRemoteSource(
   graph.setRemoteMuted(peerId, muted);
 }
 
+type MonitorInputs = Pick<
+  Args,
+  "send" | "localStream" | "snapshot" | "localId"
+>;
+type Acquisition = Pick<Args, "enabled" | "localId" | "role"> & {
+  sessionId: string | null;
+};
+type MonitorObservation =
+  | { kind: "inactive" }
+  | { kind: "context-opened" }
+  | { kind: "peer-count"; count: number }
+  | { kind: "peer-levels"; levels: Record<string, number> }
+  | { kind: "failure"; message: string };
+
+class MonitorResources {
+  private inputs: MonitorInputs;
+  private readonly observe: (event: MonitorObservation) => void;
+  private graph: MixMinusGraph | null = null;
+  private readonly sources = new Map<string, AudioNode>();
+  private readonly oscillators = new Map<string, OscillatorNode>();
+  private readonly taps = new Map<string, PeerLevelTap>();
+  private ctx: AudioContext | null = null;
+  private mesh: RecordMesh | null = null;
+  private readonly goneTimers = new Map<string, number>();
+  private readonly sourceGens = new Map<string, number>();
+
+  constructor(
+    inputs: MonitorInputs,
+    observe: (event: MonitorObservation) => void,
+  ) {
+    this.inputs = inputs;
+    this.observe = observe;
+  }
+
+  commitInputs(inputs: MonitorInputs): void {
+    this.inputs = inputs;
+  }
+
+  syncRoster(): void {
+    const { localId } = this.inputs;
+    const mesh = this.mesh;
+    const graph = this.graph;
+    const snap = this.inputs.snapshot;
+    if (!mesh || !snap || !localId) {
+      return;
+    }
+    const peers = snap.participants.filter(
+      (person) => person.connected && person.participant_id !== localId,
+    );
+    mesh.syncPeers(
+      peers.map((person) => ({
+        id: person.participant_id,
+        gen: person.connected_wall_ms ?? person.joined_wall_ms ?? 0,
+      })),
+    );
+    const ctx = this.ctx;
+    const sources = this.sources;
+    const oscillators = this.oscillators;
+    for (const person of peers) {
+      graph?.setRemoteMuted(person.participant_id, person.muted);
+      if (recordE2eEnabled() && ctx && graph) {
+        const injected = injectE2eRemote(
+          ctx,
+          graph,
+          sources,
+          oscillators,
+          person.participant_id,
+          person.muted,
+        );
+        if (injected) {
+          this.observe({ kind: "peer-count", count: sources.size });
+        }
+      }
+    }
+  }
+
+  acquire({
+    enabled,
+    localId,
+    role,
+    sessionId,
+  }: Acquisition): (() => void) | undefined {
+    const sources = this.sources;
+    const oscillators = this.oscillators;
+    const taps = this.taps;
+    const dropTap = (peerId: string) => {
+      taps.get(peerId)?.dispose();
+      taps.delete(peerId);
+    };
+    if (!enabled || !localId || !sessionId) {
+      this.mesh?.dispose();
+      this.mesh = null;
+      this.graph?.dispose();
+      this.graph = null;
+      for (const timer of this.goneTimers.values()) {
+        window.clearTimeout(timer);
+      }
+      this.goneTimers.clear();
+      this.sourceGens.clear();
+      for (const id of [...sources.keys()]) {
+        detachE2eRemote(sources, oscillators, id);
+      }
+      for (const id of [...taps.keys()]) {
+        dropTap(id);
+      }
+      const ctx = this.ctx;
+      this.ctx = null;
+      if (ctx) {
+        void ctx.close();
+      }
+      this.observe({ kind: "inactive" });
+      return;
+    }
+    const Ctor = audioContextCtor();
+    if (!Ctor) {
+      this.observe({ kind: "failure", message: "AudioContext unavailable" });
+      return;
+    }
+    let cancelled = false;
+    const ctx = new Ctor();
+    this.ctx = ctx;
+    this.observe({ kind: "context-opened" });
+    const graph = new MixMinusGraph(ctx, { localId });
+    this.graph = graph;
+    const gone = this.goneTimers;
+    const gens = this.sourceGens;
+    const mesh = new RecordMesh({
+      localId,
+      role,
+      localStream: this.inputs.localStream,
+      send: (payload) => this.inputs.send(payload),
+      onError: (err) => {
+        this.observe({
+          kind: "failure",
+          message: errorMessage(err, "signal failed"),
+        });
+      },
+      onRemoteTrack: (peerId, stream) => {
+        if (cancelled) {
+          return;
+        }
+        const previous = gone.get(peerId);
+        if (previous !== undefined) {
+          window.clearTimeout(previous);
+          gone.delete(peerId);
+        }
+        const gen = (gens.get(peerId) ?? 0) + 1;
+        gens.set(peerId, gen);
+        const source = ctx.createMediaStreamSource(stream);
+        attachRemoteSource(
+          graph,
+          sources,
+          peerId,
+          source,
+          peerMuted(this.inputs.snapshot, peerId),
+        );
+        dropTap(peerId);
+        const tap = createPeerLevelTap(ctx, source);
+        if (tap) {
+          taps.set(peerId, tap);
+        }
+        this.observe({ kind: "peer-count", count: sources.size });
+      },
+      onRemoteGone: (peerId) => {
+        const previous = gone.get(peerId);
+        if (previous !== undefined) {
+          window.clearTimeout(previous);
+        }
+        graph.removeRemote(peerId);
+        const holdMs = MIX_MINUS_RAMP_S * 1000 + 5;
+        const heldGen = gens.get(peerId);
+        const timer = window.setTimeout(() => {
+          gone.delete(peerId);
+          if (gens.get(peerId) !== heldGen) {
+            return;
+          }
+          detachE2eRemote(sources, oscillators, peerId);
+          dropTap(peerId);
+          this.observe({ kind: "peer-count", count: sources.size });
+        }, holdMs);
+        gone.set(peerId, timer);
+      },
+    });
+    this.mesh = mesh;
+    void ctx.resume().catch(() => undefined);
+    const unsub = subscribeRecordSignal((msg) => {
+      void mesh.handleSignal(msg).catch((err: unknown) => {
+        this.observe({
+          kind: "failure",
+          message: errorMessage(err, "signal failed"),
+        });
+      });
+    });
+    this.syncRoster();
+    return () => {
+      cancelled = true;
+      unsub();
+      mesh.dispose();
+      this.mesh = null;
+      graph.dispose();
+      this.graph = null;
+      for (const timer of gone.values()) {
+        window.clearTimeout(timer);
+      }
+      gone.clear();
+      gens.clear();
+      for (const id of [...sources.keys()]) {
+        detachE2eRemote(sources, oscillators, id);
+      }
+      for (const id of [...taps.keys()]) {
+        dropTap(id);
+      }
+      this.ctx = null;
+      void ctx.close();
+    };
+  }
+
+  watchLevels(remoteCount: number): (() => void) | undefined {
+    if (remoteCount === 0) {
+      return;
+    }
+    const taps = this.taps;
+    const timer = window.setInterval(() => {
+      const next = readPeerLevels(taps);
+      this.observe({ kind: "peer-levels", levels: next });
+    }, PEER_LEVEL_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }
+
+  connectLocal(localStream: MediaStream | null, role: RecordRole): void {
+    this.mesh?.setLocalStream(localStream);
+    const graph = this.graph;
+    const ctx = this.ctx;
+    if (!graph || !ctx) {
+      return;
+    }
+    graph.disconnectLocal();
+    if (localStream && role !== "producer") {
+      const source = ctx.createMediaStreamSource(localStream);
+      graph.connectLocal(source);
+    }
+  }
+
+  setSendEnabled(enabled: boolean): void {
+    this.mesh?.setSendEnabled(enabled);
+  }
+
+  readonly setSinkId = async (deviceId: string): Promise<boolean> => {
+    const ctx = this.ctx as SinkContext | null;
+    if (!ctx?.setSinkId) {
+      return false;
+    }
+    await ctx.setSinkId(deviceId);
+    return true;
+  };
+}
+
 export function useRecordMonitor({
   enabled,
   localId,
@@ -97,19 +348,34 @@ export function useRecordMonitor({
   const [error, setError] = useState<string | null>(null);
   const [contextGeneration, setContextGeneration] = useState(0);
   const sessionId = snapshot?.session_id ?? null;
-  const sendRef = useRef(send);
-  const streamRef = useRef(localStream);
-  const snapshotRef = useRef(snapshot);
-  const graphRef = useRef<MixMinusGraph | null>(null);
-  const sourcesRef = useRef(new Map<string, AudioNode>());
-  const oscillatorsRef = useRef(new Map<string, OscillatorNode>());
-  const tapsRef = useRef(new Map<string, PeerLevelTap>());
-  const ctxRef = useRef<AudioContext | null>(null);
-  const meshRef = useRef<RecordMesh | null>(null);
-  const goneTimers = useRef(new Map<string, number>());
-  const sourceGens = useRef(new Map<string, number>());
-  const syncRosterRef = useRef<() => void>(() => undefined);
-
+  const [monitor] = useState(
+    () =>
+      new MonitorResources(
+        { send, localStream, snapshot, localId },
+        (event) => {
+          switch (event.kind) {
+            case "inactive":
+              setRemoteCount(0);
+              setLevels((prev) => (Object.keys(prev).length === 0 ? prev : {}));
+              break;
+            case "context-opened":
+              setContextGeneration((n) => n + 1);
+              break;
+            case "peer-count":
+              setRemoteCount(event.count);
+              break;
+            case "peer-levels":
+              setLevels((prev) =>
+                sameLevels(prev, event.levels) ? prev : event.levels,
+              );
+              break;
+            case "failure":
+              setError(event.message);
+              break;
+          }
+        },
+      ),
+  );
   const rosterKey =
     snapshot?.participants
       .map(
@@ -119,220 +385,23 @@ export function useRecordMonitor({
       .join("|") ?? "";
 
   useInsertionEffect(() => {
-    sendRef.current = send;
-    streamRef.current = localStream;
-    snapshotRef.current = snapshot;
-    syncRosterRef.current = () => {
-      const mesh = meshRef.current;
-      const graph = graphRef.current;
-      const snap = snapshotRef.current;
-      if (!mesh || !snap || !localId) {
-        return;
-      }
-      const peers = snap.participants.filter(
-        (person) => person.connected && person.participant_id !== localId,
-      );
-      mesh.syncPeers(
-        peers.map((person) => ({
-          id: person.participant_id,
-          gen: person.connected_wall_ms ?? person.joined_wall_ms ?? 0,
-        })),
-      );
-      const ctx = ctxRef.current;
-      const sources = sourcesRef.current;
-      const oscillators = oscillatorsRef.current;
-      for (const person of peers) {
-        graph?.setRemoteMuted(person.participant_id, person.muted);
-        if (recordE2eEnabled() && ctx && graph) {
-          const injected = injectE2eRemote(
-            ctx,
-            graph,
-            sources,
-            oscillators,
-            person.participant_id,
-            person.muted,
-          );
-          if (injected) {
-            setRemoteCount(sources.size);
-          }
-        }
-      }
-    };
-  }, [send, localStream, snapshot, localId]);
+    monitor.commitInputs({ send, localStream, snapshot, localId });
+  }, [monitor, send, localStream, snapshot, localId]);
 
+  useEffect(
+    () => monitor.acquire({ enabled, localId, role, sessionId }),
+    [monitor, enabled, localId, role, sessionId],
+  );
+  useEffect(() => monitor.watchLevels(remoteCount), [monitor, remoteCount]);
   useEffect(() => {
-    const sources = sourcesRef.current;
-    const oscillators = oscillatorsRef.current;
-    const taps = tapsRef.current;
-    const dropTap = (peerId: string) => {
-      taps.get(peerId)?.dispose();
-      taps.delete(peerId);
-    };
-    if (!enabled || !localId || !sessionId) {
-      meshRef.current?.dispose();
-      meshRef.current = null;
-      graphRef.current?.dispose();
-      graphRef.current = null;
-      for (const timer of goneTimers.current.values()) {
-        window.clearTimeout(timer);
-      }
-      goneTimers.current.clear();
-      sourceGens.current.clear();
-      for (const id of [...sources.keys()]) {
-        detachE2eRemote(sources, oscillators, id);
-      }
-      for (const id of [...taps.keys()]) {
-        dropTap(id);
-      }
-      const ctx = ctxRef.current;
-      ctxRef.current = null;
-      if (ctx) {
-        void ctx.close();
-      }
-      setRemoteCount(0);
-      setLevels((prev) => (Object.keys(prev).length === 0 ? prev : {}));
-      return;
-    }
-    const Ctor = audioContextCtor();
-    if (!Ctor) {
-      setError("AudioContext unavailable");
-      return;
-    }
-    let cancelled = false;
-    const ctx = new Ctor();
-    ctxRef.current = ctx;
-    setContextGeneration((n) => n + 1);
-    const graph = new MixMinusGraph(ctx, { localId });
-    graphRef.current = graph;
-    const gone = goneTimers.current;
-    const gens = sourceGens.current;
-    const mesh = new RecordMesh({
-      localId,
-      role,
-      localStream: streamRef.current,
-      send: (payload) => sendRef.current(payload),
-      onError: (err) => {
-        setError(errorMessage(err, "signal failed"));
-      },
-      onRemoteTrack: (peerId, stream) => {
-        if (cancelled) {
-          return;
-        }
-        const previous = gone.get(peerId);
-        if (previous !== undefined) {
-          window.clearTimeout(previous);
-          gone.delete(peerId);
-        }
-        const gen = (gens.get(peerId) ?? 0) + 1;
-        gens.set(peerId, gen);
-        const source = ctx.createMediaStreamSource(stream);
-        attachRemoteSource(
-          graph,
-          sources,
-          peerId,
-          source,
-          peerMuted(snapshotRef.current, peerId),
-        );
-        dropTap(peerId);
-        const tap = createPeerLevelTap(ctx, source);
-        if (tap) {
-          taps.set(peerId, tap);
-        }
-        setRemoteCount(sources.size);
-      },
-      onRemoteGone: (peerId) => {
-        const previous = gone.get(peerId);
-        if (previous !== undefined) {
-          window.clearTimeout(previous);
-        }
-        graph.removeRemote(peerId);
-        const holdMs = MIX_MINUS_RAMP_S * 1000 + 5;
-        const heldGen = gens.get(peerId);
-        const timer = window.setTimeout(() => {
-          gone.delete(peerId);
-          if (gens.get(peerId) !== heldGen) {
-            return;
-          }
-          detachE2eRemote(sources, oscillators, peerId);
-          dropTap(peerId);
-          setRemoteCount(sources.size);
-        }, holdMs);
-        gone.set(peerId, timer);
-      },
-    });
-    meshRef.current = mesh;
-    void ctx.resume().catch(() => undefined);
-    const unsub = subscribeRecordSignal((msg) => {
-      void mesh.handleSignal(msg).catch((err: unknown) => {
-        setError(errorMessage(err, "signal failed"));
-      });
-    });
-    syncRosterRef.current();
-    return () => {
-      cancelled = true;
-      unsub();
-      mesh.dispose();
-      meshRef.current = null;
-      graph.dispose();
-      graphRef.current = null;
-      for (const timer of gone.values()) {
-        window.clearTimeout(timer);
-      }
-      gone.clear();
-      gens.clear();
-      for (const id of [...sources.keys()]) {
-        detachE2eRemote(sources, oscillators, id);
-      }
-      for (const id of [...taps.keys()]) {
-        dropTap(id);
-      }
-      ctxRef.current = null;
-      void ctx.close();
-    };
-  }, [enabled, localId, role, sessionId]);
-
+    monitor.connectLocal(localStream, role);
+  }, [monitor, localStream, role]);
   useEffect(() => {
-    if (remoteCount === 0) {
-      return;
-    }
-    const taps = tapsRef.current;
-    const timer = window.setInterval(() => {
-      const next = readPeerLevels(taps);
-      setLevels((prev) => (sameLevels(prev, next) ? prev : next));
-    }, PEER_LEVEL_INTERVAL_MS);
-    return () => window.clearInterval(timer);
-  }, [remoteCount]);
-
+    monitor.setSendEnabled(!muted && role !== "producer");
+  }, [monitor, muted, role]);
   useEffect(() => {
-    meshRef.current?.setLocalStream(localStream);
-    const graph = graphRef.current;
-    const ctx = ctxRef.current;
-    if (!graph || !ctx) {
-      return;
-    }
-    graph.disconnectLocal();
-    if (localStream && role !== "producer") {
-      const source = ctx.createMediaStreamSource(localStream);
-      graph.connectLocal(source);
-    }
-  }, [localStream, role]);
-
-  useEffect(() => {
-    meshRef.current?.setSendEnabled(!muted && role !== "producer");
-  }, [muted, role]);
-
-  useEffect(() => {
-    syncRosterRef.current();
-  }, [localId, rosterKey]);
-
-  const setSinkId = useCallback(async (deviceId: string) => {
-    const ctx = ctxRef.current as SinkContext | null;
-    if (!ctx?.setSinkId) {
-      return false;
-    }
-    await ctx.setSinkId(deviceId);
-    return true;
-  }, []);
+    monitor.syncRoster();
+  }, [monitor, localId, rosterKey]);
 
   return {
     hearing: remoteCount > 0,
@@ -341,6 +410,6 @@ export function useRecordMonitor({
     levels,
     outputSupported: outputSelectable(),
     contextGeneration,
-    setSinkId,
+    setSinkId: monitor.setSinkId,
   };
 }
