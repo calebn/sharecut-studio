@@ -1,3 +1,8 @@
+import type { OfflineConflict } from "../services/offlineQueue/offlineStore";
+import {
+  attentionRegionLabel,
+  conflictAdvice,
+} from "../stage/frame/attentionLabel";
 import type { DecisionKind } from "../system/decisionKinds";
 import { KIND_META } from "../system/decisionKinds";
 import { formatSeconds } from "../system/seconds";
@@ -298,3 +303,49 @@ export function decisionMessage(
   if (result === "kept") return `Kept ${picked.length}`;
   return `${verbOf(groupVerbOf(picked)).label} ${picked.length} · saves ${formatSeconds(sumSaved(picked))}`;
 }
+
+export type AttentionRow = { id: string; title: string; detail: string };
+
+/** A share guest's offline edits that did not apply, shown as Check rows above the groups. */
+export type ReviewAttention = {
+  rows: readonly AttentionRow[];
+  unreadable: boolean;
+  dismissFailed: boolean;
+  /** Reading or clearing the saved edits is under way. */
+  checking: boolean;
+  canDismiss: boolean;
+  onDismissAll: () => void;
+  onRetry: () => void;
+};
+
+export const attentionRowsOf = (
+  conflicts: readonly OfflineConflict[],
+  guest: boolean,
+): AttentionRow[] =>
+  conflicts.map((conflict) => ({
+    id: conflict.command.command_id,
+    title: `${conflict.command.type}: ${conflict.reason}`,
+    detail: conflictAdvice(conflict, guest),
+  }));
+
+export const attentionVisible = (
+  attention: ReviewAttention | undefined,
+  filter: ReviewFilter,
+): attention is ReviewAttention =>
+  !!attention &&
+  (filter === "all" || filter === "checks") &&
+  (attention.rows.length > 0 ||
+    attention.unreadable ||
+    attention.dismissFailed);
+
+export const attentionLabelOf = (attention: ReviewAttention): string =>
+  attentionRegionLabel({
+    // queued host edits are never counted for a guest
+    pending: 0,
+    conflictCount: attention.rows.length,
+    unreadable: attention.unreadable,
+    dismissFailed: attention.dismissFailed,
+  });
+
+export const dismissHeld = (attention: ReviewAttention): boolean =>
+  attention.unreadable || attention.dismissFailed || attention.checking;

@@ -31,6 +31,7 @@ import {
   groupQueue,
   holdsGateKind,
   itemVerb,
+  type ReviewAttention,
   type ReviewFilter,
   type ReviewItem,
   type ReviewResult,
@@ -72,6 +73,7 @@ export type ReviewStageProps = {
   canDecide?: boolean;
   layout?: "desktop" | "phone";
   state?: "ready" | "loading" | "error";
+  attention?: ReviewAttention;
   job?: QueueJob;
   bulkRunning?: BulkProgress;
   onOpenInEdit?: (id: string) => void;
@@ -118,6 +120,7 @@ export function ReviewStage({
   duration,
   peaks,
   guest = false,
+  attention,
   canDecide = !guest,
   layout = "desktop",
   state = "ready",
@@ -392,6 +395,7 @@ export function ReviewStage({
       bulkRunning={bulkRunning}
       guest={guest}
       canDecide={canDecide}
+      attention={attention}
       state={state}
       onFilter={onFilter}
       onSpeaker={
