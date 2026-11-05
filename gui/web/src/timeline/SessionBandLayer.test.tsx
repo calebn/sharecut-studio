@@ -65,9 +65,9 @@ function advanceHistory(headId: string) {
 }
 
 async function pill(name: RegExp) {
-  const button = await screen.findByRole("button", { name });
+  await screen.findByRole("button", { name });
   await act(async () => {});
-  return button;
+  return screen.getByRole("button", { name });
 }
 
 beforeEach(() => {
