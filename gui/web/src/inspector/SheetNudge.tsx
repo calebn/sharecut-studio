@@ -1,5 +1,5 @@
 /**
- * The nudge buttons beside a sheet Scrub field (#2294): the same fine and
+ * The nudge buttons beside a sheet Scrub field: the same fine and
  * coarse minus and plus the phone strip draws, for the field's own value.
  * Nothing draws for a viewer who may not change the value, or a value the
  * project does not have (a pending split has no edges).

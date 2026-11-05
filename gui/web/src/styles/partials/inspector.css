@@ -657,7 +657,7 @@ html[data-shell="phone"] select.track-sheet-field {
   background: var(--color-accent-subtle);
 }
 
-/* A sheet Scrub field with its nudge buttons (#2294): the field first, the
+/* A sheet Scrub field with its nudge buttons: the field first, the
    buttons on the next line when the sheet is narrow or the text is large. */
 .scrub-nudge {
   display: flex;
