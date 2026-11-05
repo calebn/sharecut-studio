@@ -24,6 +24,7 @@ import { Button, Dialog, InlineError } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
 import { ApiError, errorMessage, isRetryLater } from "../utils/apiError";
 import { clamp } from "../utils/math";
+import { useStableCallback } from "../utils/useStableCallback";
 
 type LoadAction = "reload" | "retry" | null;
 
@@ -41,6 +42,25 @@ type State =
     }
   | { kind: "saving"; context: BoundaryContext; value: number }
   | { kind: "queued"; context: BoundaryContext; value: number };
+
+type BoundaryVisit = {
+  path: string;
+  epoch: number;
+  target: string;
+  geometry: string;
+  open: boolean;
+  guest: ReturnType<typeof useDawStore.getState>["guestMode"];
+};
+
+function initialBoundaryState(guest: BoundaryVisit["guest"]): State {
+  return guest
+    ? {
+        kind: "load-error",
+        message: "Precision boundary audition is available in the host editor.",
+        action: null,
+      }
+    : { kind: "loading" };
+}
 
 type Props = {
   open: boolean;
@@ -154,12 +174,9 @@ export function PrecisionBoundaryDialog({
     () => JSON.parse(expectedGeometryKey) as BoundaryGeometryClip[],
     [expectedGeometryKey],
   );
-  const [state, setState] = useState<State>({ kind: "loading" });
-  const [inputValue, setInputValue] = useState("0");
-  const stateRef = useRef(state);
-  stateRef.current = state;
   const mounted = useRef(false);
   const generation = useRef(0);
+  const applying = useRef<number | null>(null);
   const request = useRef<AbortController | null>(null);
   const reloadFocus = useRef<number | null>(null);
   const progressRef = useRef<HTMLParagraphElement | null>(null);
@@ -167,7 +184,6 @@ export function PrecisionBoundaryDialog({
   const errorRef = useRef<HTMLDivElement | null>(null);
   const ownerId = useId();
   const valueId = useId();
-  const openingEpoch = useRef(useDawStore.getState().projectEpoch);
   const { guestMode, projectEpoch } = useDaw((s) => ({
     guestMode: s.guestMode,
     projectEpoch: s.projectEpoch,
@@ -176,23 +192,58 @@ export function PrecisionBoundaryDialog({
     s.sourcePreview?.ownerId === ownerId ? s.sourcePreviewError : null,
   );
 
-  useEffect(() => {
-    if (!previewError || previewError.kind !== "unavailable") return;
-    setState((current) =>
-      current.kind === "editing" && current.pair
-        ? { ...current, preview: "idle", pair: null }
-        : current,
-    );
-  }, [previewError]);
-
-  const valid = useCallback(
-    () =>
-      mounted.current &&
-      useDawStore.getState().projectPath === projectPath &&
-      useDawStore.getState().projectEpoch === openingEpoch.current &&
-      useDawStore.getState().projectEpoch === projectEpoch,
-    [projectEpoch, projectPath],
+  const [visit, setVisit] = useState<BoundaryVisit>(() => ({
+    path: projectPath,
+    epoch: projectEpoch,
+    target: targetKey,
+    geometry: expectedGeometryKey,
+    open,
+    guest: guestMode,
+  }));
+  const [state, setState] = useState<State>(() =>
+    initialBoundaryState(guestMode),
   );
+  const [inputValue, setInputValue] = useState("0");
+  const [observedPreviewError, setObservedPreviewError] =
+    useState(previewError);
+  if (
+    visit.path !== projectPath ||
+    visit.epoch !== projectEpoch ||
+    visit.target !== targetKey ||
+    visit.geometry !== expectedGeometryKey ||
+    visit.open !== open ||
+    visit.guest !== guestMode
+  ) {
+    setVisit({
+      path: projectPath,
+      epoch: projectEpoch,
+      target: targetKey,
+      geometry: expectedGeometryKey,
+      open,
+      guest: guestMode,
+    });
+    setState(initialBoundaryState(guestMode));
+    setInputValue("0");
+    setObservedPreviewError(previewError);
+  } else if (observedPreviewError !== previewError) {
+    setObservedPreviewError(previewError);
+    if (
+      previewError?.kind === "unavailable" &&
+      state.kind === "editing" &&
+      state.pair
+    )
+      setState({ ...state, preview: "idle", pair: null });
+  }
+
+  const currentVisit = useStableCallback(
+    (candidate: BoundaryVisit) =>
+      candidate === visit &&
+      candidate.open &&
+      mounted.current &&
+      useDawStore.getState().projectPath === candidate.path &&
+      useDawStore.getState().projectEpoch === candidate.epoch,
+  );
+  const valid = useCallback(() => currentVisit(visit), [currentVisit, visit]);
 
   useLayoutEffect(() => {
     if (!open || !valid() || reloadFocus.current !== generation.current) return;
@@ -263,15 +314,9 @@ export function PrecisionBoundaryDialog({
   useEffect(() => {
     if (!open) return;
     mounted.current = true;
-    openingEpoch.current = projectEpoch;
     stopPreview();
     const loadGeneration = generation.current;
     if (guestMode) {
-      setState({
-        kind: "load-error",
-        message: "Precision boundary audition is available in the host editor.",
-        action: null,
-      });
       return () => {
         mounted.current = false;
         stopPreview();
@@ -279,7 +324,6 @@ export function PrecisionBoundaryDialog({
     }
     const controller = new AbortController();
     request.current = controller;
-    setState({ kind: "loading" });
     runLoad(controller, loadGeneration);
     return () => {
       mounted.current = false;
@@ -289,7 +333,7 @@ export function PrecisionBoundaryDialog({
   }, [open, projectPath, projectEpoch, guestMode, runLoad, stopPreview]);
 
   const changeValue = (next: number, preserveInput = false) => {
-    const current = stateRef.current;
+    const current = state;
     if (current.kind !== "editing" || !Number.isFinite(next)) return;
     stopPreview();
     const limits = offsetLimits(current.context);
@@ -310,7 +354,7 @@ export function PrecisionBoundaryDialog({
   };
 
   const listen = async (choice: "current" | "proposed") => {
-    const current = stateRef.current;
+    const current = state;
     if (
       current.kind !== "editing" ||
       current.preview === "preparing" ||
@@ -349,9 +393,7 @@ export function PrecisionBoundaryDialog({
       if (
         !valid() ||
         controller.signal.aborted ||
-        generation.current !== requestGeneration ||
-        stateRef.current.kind !== "editing" ||
-        stateRef.current.value !== current.value
+        generation.current !== requestGeneration
       )
         return;
       const actualValue = editValue(
@@ -397,7 +439,8 @@ export function PrecisionBoundaryDialog({
   };
 
   const apply = async () => {
-    const current = stateRef.current;
+    if (applying.current === generation.current) return;
+    const current = state;
     if (
       current.kind !== "editing" ||
       !offsetInputValid(inputValue, current.context) ||
@@ -409,6 +452,8 @@ export function PrecisionBoundaryDialog({
       onClose();
       return;
     }
+    const applyGeneration = generation.current;
+    applying.current = applyGeneration;
     setState({
       kind: "saving",
       context: current.context,
@@ -419,7 +464,7 @@ export function PrecisionBoundaryDialog({
         editFor(target, current.value, current.context.current.source_sec),
         current.context.token,
       );
-      if (valid()) {
+      if (valid() && generation.current === applyGeneration) {
         if (result.queued)
           setState({
             kind: "queued",
@@ -429,7 +474,7 @@ export function PrecisionBoundaryDialog({
         else onClose();
       }
     } catch (error) {
-      if (!valid()) return;
+      if (!valid() || generation.current !== applyGeneration) return;
       setState({
         ...current,
         preview: "idle",
@@ -437,6 +482,8 @@ export function PrecisionBoundaryDialog({
         saveError: errorMessage(error),
         stale: isStale(error),
       });
+    } finally {
+      if (applying.current === applyGeneration) applying.current = null;
     }
   };
 

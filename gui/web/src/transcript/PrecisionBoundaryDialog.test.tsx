@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { BoundaryAudition, BoundaryContext } from "../api/boundary";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
+import { deferred } from "../test/deferred";
 import { waitForDialogFocus } from "../test/dialogFocus";
 import { minimalProject } from "../test/fixtures";
 import { ApiError } from "../utils/apiError";
@@ -592,5 +593,81 @@ describe("PrecisionBoundaryDialog", () => {
     fireEvent.change(input, { target: { value: "0.06" } });
     await act(async () => resolveAudition?.(audition));
     expect(useDawStore.getState().sourcePreview).toBeNull();
+  });
+  it("does not close a reopened boundary when an old Apply completes", async () => {
+    const saved = deferred<{ queued: boolean }>();
+    const onClose = vi.fn();
+    const onApply = vi.fn(() => saved.promise);
+    const props = boundaryProps({ onClose, onApply });
+    const view = render(<PrecisionBoundaryDialog {...props} />);
+    fireEvent.change(await screen.findByRole("spinbutton"), {
+      target: { value: "0.125" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    view.rerender(<PrecisionBoundaryDialog {...props} open={false} />);
+    view.rerender(<PrecisionBoundaryDialog {...props} open />);
+    const input = await screen.findByRole("spinbutton");
+    fireEvent.change(input, { target: { value: "0.25" } });
+    await act(async () => saved.resolve({ queued: false }));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(input).toHaveValue(0.25);
+  });
+
+  it("does not replace a new target draft with an old Apply refusal", async () => {
+    const saved = deferred<{ queued: boolean }>();
+    const onApply = vi.fn(() => saved.promise);
+    const props = boundaryProps({ onApply });
+    const view = render(<PrecisionBoundaryDialog {...props} />);
+    fireEvent.change(await screen.findByRole("spinbutton"), {
+      target: { value: "0.125" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    const nextTarget = { ...target, clip_id: "clip-2" };
+    loadBoundaryContext.mockResolvedValue({
+      ...context,
+      target: nextTarget,
+      token: "next-token",
+    });
+    view.rerender(<PrecisionBoundaryDialog {...props} target={nextTarget} />);
+    const input = await screen.findByRole("spinbutton");
+    fireEvent.change(input, { target: { value: "0.25" } });
+    await act(async () => saved.reject(new Error("Old save refused")));
+    expect(screen.queryByText("Old save refused")).not.toBeInTheDocument();
+    expect(input).toHaveValue(0.25);
+  });
+
+  it("accepts one Apply before the saving view commits", async () => {
+    const saved = deferred<{ queued: boolean }>();
+    const onApply = vi.fn(() => saved.promise);
+    render(<PrecisionBoundaryDialog {...boundaryProps({ onApply })} />);
+    fireEvent.change(await screen.findByRole("spinbutton"), {
+      target: { value: "0.125" },
+    });
+    const apply = screen.getByRole("button", { name: "Apply" });
+    act(() => {
+      apply.click();
+      apply.click();
+    });
+    try {
+      expect(onApply).toHaveBeenCalledOnce();
+    } finally {
+      await act(async () => saved.resolve({ queued: true }));
+    }
+  });
+  it("does not begin a late audition in a rehydrated project epoch", async () => {
+    const heard = deferred<BoundaryAudition>();
+    auditionBoundary.mockReturnValueOnce(heard.promise);
+    const props = boundaryProps();
+    render(<PrecisionBoundaryDialog {...props} />);
+    await screen.findByRole("spinbutton");
+    fireEvent.click(screen.getByRole("button", { name: "Listen proposed" }));
+    act(() =>
+      useDawStore.getState().hydrate(props.projectPath, minimalProject()),
+    );
+    const input = await screen.findByRole("spinbutton");
+    fireEvent.change(input, { target: { value: "0.25" } });
+    await act(async () => heard.resolve(audition));
+    expect(useDawStore.getState().sourcePreview).toBeNull();
+    expect(input).toHaveValue(0.25);
   });
 });
