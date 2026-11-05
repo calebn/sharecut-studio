@@ -370,6 +370,77 @@ describe("the Inspector sheet on the phone", () => {
   });
 });
 
+describe("a timeline target on the phone opens the Inspector sheet with its dock", () => {
+  const CLIP = { kind: "clip", id: "c1", trackId: "host" } as const;
+
+  it.each([
+    ["a clip", CLIP],
+    ["a chapter", { kind: "chapter", id: "Intro", time: 3 } as const],
+  ])(
+    "opens %s at half with the dock, the object name and the grip toggle",
+    async (_name, selection) => {
+      stubViewportShell("phone");
+      useDawStore.setState({ selection });
+      render(<EditWorkspace />);
+      await inspect();
+      const sheet = screen.getByRole("dialog", { name: "Inspector" });
+      expect(sheet).toHaveAttribute("data-detent", "half");
+      expect(sheet.className).not.toContain("bottom-sheet");
+      const dock = within(sheet).getByRole("group", { name: "Edit actions" });
+      expect(dock.querySelector(".sys-actions-object")).not.toBeNull();
+      expect(within(dock).getByRole("button", { name: /^Hear/ })).toBeVisible();
+      const grip = within(sheet).getByRole("slider", { name: "Sheet height" });
+      fireEvent.click(grip);
+      expect(sheet).toHaveAttribute("data-detent", "dock");
+      fireEvent.click(grip);
+      expect(sheet).toHaveAttribute("data-detent", "half");
+    },
+  );
+
+  it("has no Expand or Collapse buttons", async () => {
+    stubViewportShell("phone");
+    useDawStore.setState({ selection: CLIP });
+    render(<EditWorkspace />);
+    await inspect();
+    expect(
+      screen.queryByRole("button", { name: /^(Expand|Collapse)/ }),
+    ).toBeNull();
+  });
+
+  it("scrolls a selected clip above the sheet it opens over it", async () => {
+    stubViewportShell("phone");
+    useDawStore.setState({ selection: CLIP });
+    document.body.insertAdjacentHTML(
+      "beforeend",
+      `<div class="timeline-scroll"><div class="marker-lane" style="position: sticky"></div>
+        <div data-clip-id="c1"></div></div>`,
+    );
+    const box = (top: number, bottom: number) =>
+      ({ top, bottom, left: 0, right: 360, height: bottom - top }) as DOMRect;
+    const rects = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockImplementation(function (this: HTMLElement) {
+        if (this.classList.contains("timeline-scroll")) return box(52, 700);
+        if (this.classList.contains("marker-lane")) return box(52, 96);
+        if (this.getAttribute("data-clip-id") === "c1") {
+          const scrolled = this.closest(".timeline-scroll")?.scrollTop ?? 0;
+          return box(500 - scrolled, 560 - scrolled);
+        }
+        if (this.classList.contains("sys-inspector--phone"))
+          return box(388, 748);
+        return box(0, 0);
+      });
+    render(<EditWorkspace />);
+    await inspect();
+    expect(document.querySelector(".timeline-scroll")).toHaveProperty(
+      "scrollTop",
+      180,
+    );
+    rects.mockRestore();
+    document.querySelector(".timeline-scroll")?.remove();
+  });
+});
+
 describe("the phone sheet keeps a picked band clear of itself", () => {
   it("scrolls the band above the sheet it opens over it", () => {
     document.body.innerHTML = `
