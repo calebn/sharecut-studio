@@ -1065,3 +1065,37 @@ describe("Prepare execution resource integration", () => {
     expect(useDawStore.getState().pipelineJob).toBe(newer);
   });
 });
+
+describe("Prepare busy-transition error ownership", () => {
+  it("retains a new failure while an already-busy slot receives unrelated and progress updates", async () => {
+    const answer = deferred<PipelineJobSnapshot>();
+    start.mockReturnValueOnce(answer.promise);
+    const hook = setup();
+    let pending!: Promise<void>;
+    act(() => {
+      pending = hook.result.current.run("run");
+    });
+    const other = pipelineJobSnapshot({
+      id: "other-job",
+      status: "running",
+      current: 1,
+      total: 8,
+    });
+    act(() => useDawStore.getState().setPipelineJob(other));
+    await act(async () => {
+      answer.reject(new Error("new failure after slot became busy"));
+      await pending;
+    });
+    expect(hook.result.current.startError).toBe(
+      "new failure after slot became busy",
+    );
+    act(() => useDawStore.setState({ playheadSec: 12 }));
+    expect(hook.result.current.startError).toBe(
+      "new failure after slot became busy",
+    );
+    act(() => useDawStore.getState().setPipelineJob({ ...other, current: 2 }));
+    expect(hook.result.current.startError).toBe(
+      "new failure after slot became busy",
+    );
+  });
+});

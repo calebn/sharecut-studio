@@ -119,15 +119,14 @@ function installed(row: ModelView | null, need: ModelNeeded): boolean {
     (need.id !== WHISPER || !need.variant || row.variant === need.variant)
   );
 }
-function slotBusy(): boolean {
-  const store = useDawStore.getState();
+function slotBusy(store = useDawStore.getState()): boolean {
   return (
     isPipelineSlotBusy(store.pipelineJob) ||
     isPipelineSlotBusy(store.activityJob)
   );
 }
-function overwriteRefusal(): string | null {
-  const job = useDawStore.getState().pipelineJob;
+function overwriteRefusal(store = useDawStore.getState()): string | null {
+  const job = store.pipelineJob;
   return job?.status === "error" && job.error_code === OVERWRITE_REFUSED
     ? job.id
     : null;
@@ -153,6 +152,7 @@ export class PrepareExecution {
   } | null = null;
   private attached = false;
   private reconciling = false;
+  private busyObserved: boolean | null = null;
   private listeners = new Set<() => void>();
   private snapshot: PrepareSnapshot = {
     owner: null,
@@ -173,7 +173,16 @@ export class PrepareExecution {
   };
   attach = (): (() => void) => {
     this.attached = true;
-    const unsubscribe = useDawStore.subscribe(() => this.reconcile());
+    const unsubscribe = useDawStore.subscribe((current, previous) => {
+      if (
+        current.projectPath !== previous.projectPath ||
+        current.projectEpoch !== previous.projectEpoch ||
+        slotBusy(current) !== slotBusy(previous) ||
+        overwriteRefusal(current) !== overwriteRefusal(previous)
+      ) {
+        this.reconcile();
+      }
+    });
     this.reconcile();
     return () => {
       this.attached = false;
@@ -359,8 +368,9 @@ export class PrepareExecution {
       )
         void this.start(frame, { mode: "run", overwriteEdited: false });
       const busy = slotBusy();
+      if (busy && this.busyObserved !== true) this.failure = null;
+      this.busyObserved = busy;
       if (busy) {
-        this.failure = null;
         if (this.waiting) this.waiting.freeAttempted = false;
       } else if (
         this.waiting &&
