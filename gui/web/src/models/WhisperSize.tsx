@@ -2,10 +2,6 @@ import { SegmentedControl, ToggleButton } from "../ui";
 import { plainSize, WHISPER_SIZES } from "./capability";
 import { useModels } from "./useModels";
 
-/**
- * Fast, Balanced or Best for the transcription model, each with its download size. Choosing one
- * only picks the size: the row above it then says "Not installed" with Get, and nothing opens.
- */
 export function WhisperSize({ disabled = false }: { disabled?: boolean }) {
   const { whisper } = useModels();
   return (
