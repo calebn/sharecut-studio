@@ -378,6 +378,26 @@ describe("CommandPaletteView", () => {
     expect(within(recent).queryByText("Export diagnostics…")).toBeNull();
   });
 
+  it("caps Recent at five rows", () => {
+    const many: PaletteCommand[] = Array.from({ length: 7 }, (_, i) => ({
+      id: `cmd.${i}`,
+      label: `Command ${i}`,
+      category: "view",
+      shortcut: null,
+      disabledReason: null,
+    }));
+    renderPalette({ commands: many, recent: many.map((c) => c.id) });
+    const recent = screen.getByRole("group", { name: "Recent" });
+    expect(within(recent).getAllByRole("option")).toHaveLength(5);
+  });
+
+  it("says Nothing matches when entries exist and the search finds none", async () => {
+    renderPalette({ entries: ENTRIES });
+    await userEvent.setup().type(screen.getByRole("combobox"), "zzzz");
+    expect(screen.getByText(/Nothing matches/).textContent).toContain("zzzz");
+    expect(screen.queryByText(/No commands match/)).toBeNull();
+  });
+
   it("shows no Recent group without recents or while searching", async () => {
     const { rerender, props } = renderPalette({ entries: ENTRIES });
     expect(screen.queryByRole("group", { name: "Recent" })).toBeNull();

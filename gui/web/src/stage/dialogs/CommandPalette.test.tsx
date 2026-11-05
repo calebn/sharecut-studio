@@ -1,6 +1,8 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { RecentProject } from "../../api";
+import { listRecentProjects } from "../../api";
 import { COMMANDS } from "../../commands/catalog";
 import { registerCommand } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
@@ -9,12 +11,48 @@ import { useDawStore } from "../../state/dawStore";
 import { DawProvider } from "../../state/store";
 import { setChrome } from "../../test/chrome";
 import { waitForDialogFocus } from "../../test/dialogFocus";
-import { minimalProject } from "../../test/fixtures";
+import { minimalProject, sessionRoster } from "../../test/fixtures";
 import { CommandPalette } from "./CommandPalette";
 
-function renderPalette() {
+const ctxOverride = vi.hoisted(() => ({
+  value: null as Record<string, unknown> | null,
+}));
+
+vi.mock("../../api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../api")>()),
+  listRecentProjects: vi.fn(),
+}));
+
+// Lets a test close a gate after the palette built its rows, without a re-render.
+vi.mock("../../commands/context", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../commands/context")>();
+  return {
+    ...actual,
+    buildCommandContext: (
+      ...args: Parameters<typeof actual.buildCommandContext>
+    ) => ({
+      ...actual.buildCommandContext(...args),
+      ...ctxOverride.value,
+    }),
+  };
+});
+
+const recentProject: RecentProject = {
+  path: "/p/Gala",
+  name: "Gala",
+  opened_at: "",
+  edited_at: null,
+  duration_sec: null,
+  stage: "edit",
+  chip: { text: "Ready", state: "ready" },
+  peaks: [],
+  folder_missing: false,
+};
+
+function renderPalette(path = "/tmp/p.json") {
   return render(
-    <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+    <DawProvider projectPath={path} initialProject={minimalProject()}>
       <CommandPalette />
     </DawProvider>,
   );
@@ -22,6 +60,9 @@ function renderPalette() {
 
 describe("CommandPalette", () => {
   beforeEach(() => {
+    ctxOverride.value = null;
+    vi.mocked(listRecentProjects).mockReset();
+    vi.mocked(listRecentProjects).mockResolvedValue([]);
     localStorage.clear();
     registerDawCommands();
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
@@ -260,5 +301,91 @@ describe("CommandPalette", () => {
     expect(
       within(recent).getByRole("option", { name: "Fit session width \\" }),
     ).toBeTruthy();
+  });
+
+  it("fetches the host's recent projects on a host link and lists them", async () => {
+    vi.mocked(listRecentProjects).mockResolvedValue([recentProject]);
+    renderPalette();
+    const projects = await screen.findByRole("group", { name: "Projects" });
+    expect(
+      within(projects).getByRole("option", { name: /^Gala/ }),
+    ).toBeTruthy();
+    expect(listRecentProjects).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves the Projects group out when the fetch fails", async () => {
+    vi.mocked(listRecentProjects).mockRejectedValue(new Error("offline"));
+    renderPalette();
+    await waitFor(() => expect(listRecentProjects).toHaveBeenCalled());
+    await act(async () => {});
+    expect(screen.queryByRole("group", { name: "Projects" })).toBeNull();
+    expect(screen.getByRole("option", { name: "Show cut away" })).toBeTruthy();
+  });
+
+  it("never fetches projects on a guest link", async () => {
+    useDawStore.getState().hydrate("share:tok", minimalProject());
+    vi.mocked(listRecentProjects).mockResolvedValue([recentProject]);
+    renderPalette("share:tok");
+    await act(async () => {});
+    expect(listRecentProjects).not.toHaveBeenCalled();
+    expect(screen.queryByRole("group", { name: "Projects" })).toBeNull();
+  });
+
+  it("aborts the projects fetch when the palette closes", async () => {
+    vi.mocked(listRecentProjects).mockReturnValue(new Promise(() => {}));
+    renderPalette();
+    await waitFor(() => expect(listRecentProjects).toHaveBeenCalled());
+    const signal = vi.mocked(listRecentProjects).mock.calls[0]?.[0];
+    expect(signal?.aborted).toBe(false);
+    act(() => useDawStore.getState().setCommandPaletteOpen(false));
+    expect(signal?.aborted).toBe(true);
+  });
+
+  it("lists live remote clients as People and follows one on click", async () => {
+    renderPalette();
+    act(() =>
+      useDawStore.setState({
+        localClientId: "me",
+        sessionClients: sessionRoster([
+          {
+            client_id: "me",
+            role: "owner",
+            last_seen_ns: Date.now() * 1e6,
+          },
+          {
+            client_id: "ana-1",
+            label: "Ana",
+            role: "editor",
+            last_seen_ns: Date.now() * 1e6,
+          },
+        ]),
+      }),
+    );
+    const people = screen.getByRole("group", { name: "People" });
+    expect(within(people).getAllByRole("option")).toHaveLength(1);
+    await userEvent
+      .setup()
+      .click(within(people).getByRole("option", { name: /^Ana/ }));
+    expect(useDawStore.getState().followingClientId).toBe("ana-1");
+    expect(useDawStore.getState().chrome.commandPaletteOpen).toBe(false);
+  });
+
+  it("runs nothing and says why when an entry's gate closed after open", async () => {
+    vi.mocked(listRecentProjects).mockResolvedValue([recentProject]);
+    const open = vi.fn(() => ({ status: "ok" as const }));
+    registerCommand("project.open", open);
+    const user = userEvent.setup();
+    renderPalette();
+    await screen.findByRole("group", { name: "Projects" });
+    await waitForDialogFocus();
+    await user.keyboard("gala");
+    ctxOverride.value = { canManageProjects: false };
+    await user.keyboard("{Enter}");
+    await waitFor(() =>
+      expect(useDawStore.getState().statusAnnouncement).not.toBe(""),
+    );
+    expect(open).not.toHaveBeenCalled();
+    expect(useDawStore.getState().statusAnnouncement).toMatch(/host-only/i);
+    expect(useDawStore.getState().chrome.commandPaletteOpen).toBe(false);
   });
 });
