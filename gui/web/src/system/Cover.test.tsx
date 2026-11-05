@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { partial, rule } from "../test/cssRules";
 import { Cover } from "./Cover";
 
 describe("Cover", () => {
@@ -87,5 +88,15 @@ describe("Cover", () => {
       </Cover>,
     );
     expect(container.querySelector(".sys-cover-actions")).toBeNull();
+  });
+
+  it("keeps a page cover's action next to its text on a wide screen", () => {
+    const css = partial("system.css");
+    expect(rule(css, ".sys-cover--page .sys-cover-body")).toMatch(
+      /margin-block:\s*auto 0/,
+    );
+    expect(rule(css, ".sys-cover--page .sys-cover-actions")).toMatch(
+      /margin-block-end:\s*auto/,
+    );
   });
 });

@@ -31,8 +31,24 @@ describe("StageLoading", () => {
       ),
     ).toHaveLength(5);
     expect(screen.queryByRole("progressbar")).toBeNull();
-    expect(screen.queryByText(/Loading/)).toBeNull();
+    expect(
+      screen.queryAllByText(/Loading/).filter((el) => !el.matches(".sr-only")),
+    ).toHaveLength(0);
     expect(screen.queryByText("Still loading.")).toBeNull();
+  });
+
+  it("keeps the Stage bar inert and announces the wait only after the blank", () => {
+    const { container } = render(
+      <StageLoading stage="review" shell="desktop" onRetry={vi.fn()} />,
+    );
+    expect(screen.queryByRole("status")).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(screen.getByRole("status")).toHaveTextContent("Loading the project");
+    const stages = container.querySelector(".stage-loading-stages");
+    expect(stages).toHaveAttribute("inert");
+    expect(stages?.querySelector(".sys-stage-tab")).not.toBeNull();
   });
 
   it("lays the blocks out like the destination stage", () => {
