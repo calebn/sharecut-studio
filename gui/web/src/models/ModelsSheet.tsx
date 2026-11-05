@@ -12,12 +12,6 @@ type Props = {
   onClose: () => void;
 };
 
-/**
- * Every capability the app can download, one Model need row each: Transcription, Word timing,
- * Speaker split, Noise reduction. A 420 px sheet on the end edge of a desktop, the full-height
- * bottom sheet on a phone. Rows act as they change (Get, a progress ring with cancel); there is no
- * Apply. Transcription carries the Size control. One download runs at a time.
- */
 export function ModelsSheet({ open, onClose }: Props) {
   const phone = useViewportClass() === "phone";
   const { models, tools, busy, loadError } = useModels();
