@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { useDawStore } from "../../state/dawStore";
-import { minimalProject } from "../../test/fixtures";
+import { minimalProject, sessionRoster } from "../../test/fixtures";
 import { stubMatchMedia } from "../../test/matchMedia";
 import { StageFrame } from "./StageFrame";
 
@@ -312,5 +312,77 @@ describe("StageFrame roles", () => {
     mount();
     expect(document.querySelector(".stage-frame--phone")).not.toBeNull();
     expect(document.querySelectorAll(".sys-stage-bar--tabs")).toHaveLength(1);
+  });
+});
+
+describe("StageFrame while following", () => {
+  const follow = () =>
+    act(() => {
+      useDawStore.setState({
+        followingClientId: "ada",
+        sessionClients: sessionRoster([
+          {
+            client_id: "ada",
+            role: "viewer",
+            meta: { display_name: "Ada", color_index: 2 },
+          },
+        ]),
+      });
+    });
+
+  afterEach(() => {
+    useDawStore.setState({
+      followingClientId: null,
+      followDegraded: {},
+      sessionClients: sessionRoster([]),
+    });
+  });
+
+  it("outlines the stage in the followed person's color and drops it on unfollow", () => {
+    mount();
+    const frame = document.querySelector<HTMLElement>(".stage-frame");
+    expect(frame?.classList.contains("stage-frame--following")).toBe(false);
+    follow();
+    expect(frame?.classList.contains("stage-frame--following")).toBe(true);
+    expect(frame?.style.getPropertyValue("--stage-follow")).toBe(
+      "var(--color-presence-2)",
+    );
+    act(() => useDawStore.setState({ followingClientId: null }));
+    expect(frame?.classList.contains("stage-frame--following")).toBe(false);
+  });
+
+  it("puts a partial follow's reason on the Following pill for a guest", () => {
+    useDawStore.setState({ guestMode: "view" });
+    mount();
+    follow();
+    act(() =>
+      useDawStore.setState({
+        followDegraded: { tab: "pipeline", audition: "fx" },
+      }),
+    );
+    const pill = screen
+      .getByText("Following Ada")
+      .closest(".sys-player-pill") as HTMLElement;
+    expect(pill.title).toBe(
+      "Following Ada · Listening in Mix · in Pipeline (host-only) · auditioning FX",
+    );
+    expect(
+      screen.getByText(
+        "Listening in Mix · in Pipeline (host-only) · auditioning FX",
+        { selector: "[aria-live]" },
+      ),
+    ).toBeInTheDocument();
+    expect(pill).toHaveTextContent("· Listening in Mix");
+  });
+
+  it("stops following from the pill", async () => {
+    mount();
+    follow();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Stop following Ada" }),
+    );
+    await waitFor(() =>
+      expect(useDawStore.getState().followingClientId).toBeNull(),
+    );
   });
 });

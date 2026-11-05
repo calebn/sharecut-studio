@@ -1,4 +1,5 @@
-import type { ReactNode, Ref } from "react";
+import type { CSSProperties, ReactNode, Ref } from "react";
+import { presenceColorVar } from "../../presence/colors";
 import type { ShellBreakpoint } from "../../state/types";
 import type { StageId } from "../../types/stage";
 
@@ -10,7 +11,8 @@ export type StageFrameViewProps = {
   /** Accessible name of the stage body. */
   stageLabel: string;
   guest?: boolean;
-  following?: boolean;
+  /** Presence color slot of the person being followed; outlines the stage body. */
+  followColorIndex?: number | null;
   header: ReactNode;
   banners?: ReactNode;
   /** The stage host. */
@@ -40,7 +42,7 @@ export function StageFrameView({
   stage,
   stageLabel,
   guest = false,
-  following = false,
+  followColorIndex = null,
   header,
   banners,
   children,
@@ -58,11 +60,18 @@ export function StageFrameView({
         "stage-frame",
         `stage-frame--${shell}`,
         guest ? "stage-frame--guest" : "",
-        following ? "stage-frame--following" : "",
+        followColorIndex !== null ? "stage-frame--following" : "",
       ]
         .filter(Boolean)
         .join(" ")}
       data-stage={stage}
+      style={
+        followColorIndex !== null
+          ? ({
+              "--stage-follow": presenceColorVar(followColorIndex),
+            } as CSSProperties)
+          : undefined
+      }
     >
       <div ref={bindings?.header} className="stage-frame-header">
         {header}

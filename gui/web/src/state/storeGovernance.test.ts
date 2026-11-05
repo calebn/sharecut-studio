@@ -449,8 +449,8 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
     reason: "leaf that reads the presence roster itself",
   },
   {
-    file: "stage/frame/FollowBanner.tsx",
-    reason: "leaf that reads the presence roster itself",
+    file: "stage/frame/StageFrame.tsx",
+    reason: "looks up the followed person's color for the stage frame",
   },
   {
     file: "presence/PresenceGhostLayer.tsx",

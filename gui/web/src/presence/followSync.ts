@@ -301,16 +301,21 @@ export function tabAvailable(tab: PresenceTab, caps: FollowUiCaps): boolean {
 
 export type FollowDegraded = { tab?: PresenceTab; audition?: "fx" | "raw" };
 
-export function followBannerDetail(
+/** Why a follow is only partial, for the Following pill's tooltip and screen-reader text. */
+export function followDetail(
   d: FollowDegraded,
   tabLabel: (t: PresenceTab) => string,
-): string {
+  guest: boolean,
+): string | undefined {
   const bits: string[] = [];
+  if (guest && d.audition) {
+    bits.push("Listening in Mix");
+  }
   if (d.tab) {
     bits.push(`in ${tabLabel(d.tab)} (host-only)`);
   }
   if (d.audition) {
     bits.push(`auditioning ${d.audition.toUpperCase()}`);
   }
-  return bits.length ? ` · ${bits.join(" · ")}` : "";
+  return bits.length ? bits.join(" · ") : undefined;
 }
