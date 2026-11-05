@@ -286,7 +286,7 @@ GitHub Actions runs the required checks on every pull request and the full suite
 | Run | `pytest` | Frontend workload (`frontend-suite`) | Browser suites (`frontend-e2e-suites`) |
 |---|---|---|---|
 | PR with no GUI-facing change | full suite, 95% floor | skipped | skipped |
-| PR with a GUI-facing change | full suite, 95% floor | runs | `main-1of4` … `main-4of4`, then every WebKit compat spec as `compat-webkit-1of2` and `compat-webkit-2of2` |
+| PR with a GUI-facing change | full suite, 95% floor | runs | `main-1of4` … `main-4of4`, then every WebKit compat spec as `compat-webkit-1of3` through `compat-webkit-3of3` |
 | PR where every changed file is under `gui/web/` | only the test files that name `gui/web`, or run a `scripts/` file that does (`python3 scripts/ci_plan.py subset-tests web`), `--no-cov` | runs | as above |
 | PR where every changed file is docs (`docs/`, `docs-site/`, `ux/`, `.agents/skills/`, `README.md`, `ROADMAP.md`, `AGENTS.md`) | only the test files that name those paths, or run a `scripts/` file that does (`python3 scripts/ci_plan.py subset-tests docs`), `--no-cov`, then the docs-sync gate | skipped, unless the diff also touches a GUI-facing doc such as `docs/daw-shortcuts.md` | skipped, same exception |
 | PR whose changed files are all under `gui/web/` or the docs paths above (a UI change that updates its docs) | the union of the two subsets above (`python3 scripts/ci_plan.py subset-tests web-docs`), `--no-cov` | runs | as above |
@@ -769,9 +769,9 @@ CI runs the main suite as four shards (`main-1of4` ... `main-4of4`, each
 `npm run test:e2e -- --shard=i/4`). On the nightly schedule and dispatch it runs the
 compatibility suite as two complete engine jobs (`compat-chromium`,
 `compat-webkit`, each `npm run test:e2e:compat -- --project=<engine>`). On a
-pull request it runs every WebKit compat spec in two shards instead
-(`compat-webkit-1of2`, `compat-webkit-2of2`, each
-`--project=webkit --shard=i/2`) and no Chromium compat. All of them run
+pull request it runs every WebKit compat spec in three shards instead
+(`compat-webkit-1of3` through `compat-webkit-3of3`, each
+`--project=webkit --shard=i/3`) and no Chromium compat. All of them run
 concurrently in separate `frontend-e2e-suites` matrix jobs, and
 `scripts/ci_plan.py` builds the list (see
 [§ Which jobs a run needs](#which-jobs-a-run-needs)). Each runner owns its checkout,
@@ -808,7 +808,7 @@ still run sequentially within one checkout.
 CI uploads one `playwright-reports-<name>` artifact per matrix job
 (`playwright-reports-main-1of4` ... `playwright-reports-main-4of4` and
 `playwright-reports-compat-chromium` and `playwright-reports-compat-webkit`, or
-`playwright-reports-compat-webkit-1of2` and `-2of2` on a PR) on successful and failed runs. Each holds
+`playwright-reports-compat-webkit-1of3` through `-3of3` on a PR) on successful and failed runs. Each holds
 `<name>.json` with per-test durations, retries and errors. The matrix sets
 `PLAYWRIGHT_JSON_OUTPUT_FILE` for each job. Download them all with
 `gh run download <run-id> --pattern 'playwright-reports-*'` and sum durations

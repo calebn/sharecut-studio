@@ -18,7 +18,7 @@ WORKFLOW = ROOT / ".github" / "workflows" / "test.yml"
 cp = load_script("ci_plan", register=True)
 
 MAIN = ["main-1of4", "main-2of4", "main-3of4", "main-4of4"]
-PR_E2E = [*MAIN, "compat-webkit-1of2", "compat-webkit-2of2"]
+PR_E2E = [*MAIN, "compat-webkit-1of3", "compat-webkit-2of3", "compat-webkit-3of3"]
 FULL_E2E = [*MAIN, "compat-chromium", "compat-webkit"]
 
 # Every pattern whose changes run Vitest and the browser suites on a PR. Editing
@@ -190,8 +190,8 @@ def test_matrix_output_is_the_workflow_include_list() -> None:
     assert outputs["gui"] == "true"
     assert outputs["pytest"] == "web"
     assert json.loads(outputs["e2e-matrix"])["include"][-1] == {
-        "name": "compat-webkit-2of2",
-        "command": "npm run test:e2e:compat -- --project=webkit --shard=2/2",
+        "name": "compat-webkit-3of3",
+        "command": "npm run test:e2e:compat -- --project=webkit --shard=3/3",
         "browser": "webkit",
     }
 
