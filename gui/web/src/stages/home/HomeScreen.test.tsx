@@ -94,6 +94,10 @@ describe("HomeScreen", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    useDawStore.getState().setCommandPaletteOpen(false);
+    useDawStore.getState().setHelpDialogOpen(false);
+    useDawStore.getState().setModelsDialogOpen(false);
+    useDawStore.getState().setHostMcpDialogOpen(false);
     window.sessionStorage.clear();
     window.localStorage.clear();
     list.mockResolvedValue([recent()]);
@@ -1009,13 +1013,6 @@ describe("HomeScreen", () => {
   });
 
   describe("command palette on Home", () => {
-    beforeEach(() => {
-      useDawStore.getState().setCommandPaletteOpen(false);
-      useDawStore.getState().setHelpDialogOpen(false);
-      useDawStore.getState().setModelsDialogOpen(false);
-      useDawStore.getState().setHostMcpDialogOpen(false);
-    });
-
     it("opens on ? with the Help group first and only the commands that fit Home", async () => {
       const user = userEvent.setup();
       render(<HomeScreen />);
