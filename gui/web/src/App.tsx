@@ -88,16 +88,22 @@ function AppInner() {
     | null
   >(null);
   const [attempt, setAttempt] = useState(0);
-  const projectLoading = () => (
-    <StageLoading
-      stage={
-        (projectPath && peekOpenStage(projectPath)) ||
-        (reviewToken ? "review" : "prepare")
-      }
-      name={projectPath ? projectNameFromPath(projectPath) : undefined}
-      onRetry={() => window.location.reload()}
-    />
-  );
+  const projectLoading = () =>
+    guestToken || shareKey ? (
+      <GuestLoadingScreen
+        label="Loading project…"
+        onRetry={() => setAttempt((n) => n + 1)}
+      />
+    ) : (
+      <StageLoading
+        stage={
+          (projectPath && peekOpenStage(projectPath)) ||
+          (reviewToken ? "review" : "prepare")
+        }
+        name={projectPath ? projectNameFromPath(projectPath) : undefined}
+        onRetry={() => window.location.reload()}
+      />
+    );
   const [shareBootstrapping, setShareBootstrapping] = useState(
     Boolean(reviewToken),
   );
