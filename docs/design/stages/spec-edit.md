@@ -5,7 +5,7 @@
 > - Inspector sheet, Invite popover, eye popover, History popover, speaker popover and person popover became **Sheet** instances. Project menu, Create here and More became **Menu** instances.
 > - Script header notices became inline **Status rows**. The Empty state pattern became **Cover**. The corner zoom cluster and marker lane are parts of **Timeline**. The Edit surface switch is a Segmented control (`chart-gantt` / `text`).
 > - Comment popover and suggestion inspector became a compact **Decision card**.
-> - The Blade tool and the Select/Blade toggle are removed. Split is Mod+K, or Alt-click at the pointer. B now means Hear after.
+> - The Blade tool and the Select/Blade toggle are removed. Split is S or Mod+K, or Alt-click at the pointer. B now means Hear after.
 > - Keys: hold O became hold A. Shift+M chapter became Shift+C. Mod+Shift+E became Mod+E. Mod+B is palette only. Mod+N is dropped. Tab is "next of the same kind" and F6 moves between regions.
 > - Icons: Keep is `shield-check` (not the U-turn arrow). Hear is `ear`. Follow is `locate-fixed`. The listen role is `ear`. Review stage is `inbox`. Prepare stage is `wand-sparkles`. Deliver stage is `send`. Failed is `octagon-alert`.
 > - Commenter guests get Review only (their Cut makes a Suggestion). Editor guests get Edit and Review, not Prepare.
@@ -64,7 +64,7 @@ Making precise changes to the episode: cutting words and ranges, trimming, fadin
 | Hear | speaker-wave | Shift+Space | plays the words | plays the range | plays the clip | plays 2 s across the seam | A/B: A before, B after | plays from it | n/a (Space plays) |
 | Cut | scissors | Backspace / Delete | removes them | removes time | removes clip | n/a | accepts the cut (Enter also) | n/a | n/a |
 | Keep | arrow-uturn (restore) | X | restores cut words | n/a | n/a | restores the cut at this seam | rejects the suggestion | n/a | n/a |
-| Split | blade | Mod+K | n/a | splits at both edges | splits at playhead | n/a | n/a | n/a | splits at playhead |
+| Split | blade | S, or Mod+K | n/a | splits at both edges | splits at playhead | n/a | n/a | n/a | splits at playhead |
 | Comment | speech bubble | C | comment on words | comment on range | comment on clip span | comment at seam | comment on it | reply (comment) | comment at playhead |
 | Fix text | text-cursor | F2 or start typing | inline correction | n/a | n/a | n/a | n/a | rename (chapter, social) | n/a |
 | Remove | trash | Backspace | n/a | n/a | n/a | n/a | n/a | deletes the marker | n/a |
@@ -170,7 +170,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
   - Height 56 px, full width, surface-raised token, 1 px top border.
   - Left zone (desktop 240 px): current time in IBM Plex Mono 15 px, then "/ 52:10" edited length in secondary text, then a delta chip "−4:10" (scissors glyph + removed time) when cuts exist. Clicking the time turns it into an input: type 12:04 or 12m4s, Enter seeks.
   - Center: skip back (rewind-5 icon), Play/Pause 40 px circle in the accent fill (the only filled control in the shell), skip forward (forward-5 icon). Stop is removed; K pauses and returns to where play started (current Stop behavior), shown on hover of Play as the shortcut hint.
-  - Right zone: Hear original (A/B icon) as a press-and-hold button; while held, playback switches to the unedited original at the same source time and the icon fills. Click (not hold) toggles a latched state shown by the filled icon. Then the solo chip (CMP-SOLO-CHIP) when any track is soloed. Then mix status only when not fresh: a 16 px ring around a waveform icon, filled to the progress fraction, while the mix updates; tapping it shows "Updating mix · plays edited stems meanwhile". Stale mix refreshes automatically; there is no Refresh button in normal use. Mod+B still forces it.
+  - Right zone: Hear original (A/B icon) as a press-and-hold button; while held, playback switches to the unedited original at the same source time and the icon fills. Click (not hold) toggles a latched state shown by the filled icon. Then the solo chip (CMP-SOLO-CHIP) when any track is soloed. Then mix status only when not fresh: a 16 px ring around a waveform icon, filled to the progress fraction, while the mix updates; tapping it shows "Updating mix · plays edited stems meanwhile". Stale mix refreshes automatically; there is no Refresh button in normal use. Refresh mix forces it from the command palette.
   - "Edited stems" audition mode moves into the player's long-press/right-click menu as "Hear without mix processing". The three-way switch is removed.
   - Importing and audio-error pills move: import progress shows as the Prepare badge ring and a toast on completion; an audio error shows in the left zone as a red dot + "Audio error" text button that opens the details popover.
   - Phone: same bar, 56 px; time left, play centered, Hear original right; skip buttons hidden (swipe the timeline instead); swipe up on the bar opens the Player sheet (SCR-PHONE-LISTEN replacement).
@@ -190,7 +190,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 |---|---|---|
 | New project…, Open project… | Project menu (title dropdown): "Recent" list (5) + "Open…" + "New project"; Mod+N, Mod+O | Project switching is project-level |
 | Bounce… | Range action bar ⋯ "Export selection…"; Deliver | Bounce is always of a selection |
-| Export deliverables… | Deliver stage (Mod+5, Mod+Shift+E still works) | Stage C |
+| Export deliverables… | Deliver stage (Mod+5; Mod+E exports) | Stage C |
 | Share… | Header invite button (person-plus) for review links; Deliver "Share for review" card | Inviting happens mid-edit too |
 | Record room… | Record stage (Mod+2) | Stage C |
 | Connect agent… | Project menu "Connect agent" | Rare, project-level |
@@ -490,7 +490,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
   - Drag anywhere on the header (not on a control) to reorder.
   - Widen the column by dragging its right edge to 280 px: rows then show the full fader with dB and a meter (desktop mixer view).
   - Phone: 56 px column, avatar only with level ring; tap selects the track (action bar: Mute, Solo, Hear, Inspect); mix controls in SHEET-PHONE-MIX.
-- **Keyboard:** M mute, S solo on the focused or targeted track; Shift+↑/↓ reorder.
+- **Keyboard:** M mute, Shift+S solo on the focused or targeted track (bare S splits at the playhead); Shift+↑/↓ reorder.
 - **Shared elements used:** Person tile (avatar + live level), NEW: Scrub field (level bar), Icon language.
 - **Story to build:** `Edit/TrackHeader` stories `Default`, `Hover`, `Muted`, `Soloed`, `ImpliedMute`, `Rebuilding`, `Wide`, `Phone`, `Reordering`.
 
