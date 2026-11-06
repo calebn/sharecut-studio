@@ -43,7 +43,7 @@ Lane PRs merge into `develop` after the fast, path-filtered checks. Each night `
 
 The `always()` cleanup step deletes this run's branch and every `promote/*` branch whose name carries an epoch more than a day old (the branch's creation time, not its commit date, so a quiet `develop` never loses a live branch). A rerun picks S again and redispatches everything. The alert job opens or updates the `nightly-failure` issue on a red run and closes it on a green one. Dry runs never alert, and dry runs and non-`main` targets use a separate concurrency group so they cannot cancel the pending nightly. The job runs only from `main`.
 
-**Dry run.** Dispatch `promote` with `dry-run` set, or run `python scripts/promote.py run --no-push`. Everything through polling runs for real. The script then prints the push and the Storybook dispatch it would make and exits on the verdict. `--target` must be the release branch or start with `promote-canary`; anything else is refused. Dispatching with `target=promote-canary` rehearses the ruleset bypass against a throwaway branch.
+**Dry run.** Dispatch `promote` with `dry-run` set, or run `python scripts/promote.py run --no-push`. Everything through polling runs for real. The script then prints the push and the Storybook dispatch it would make and exits on the verdict. `--target` must be the release branch or start with `promote-canary`; anything else is refused. Dispatching with `target=promote-canary` rehearses the push against a throwaway branch; the `main` ruleset does not cover that branch, so it proves the mechanics, not the ruleset.
 
 **Cutover.** `config/branches.json` `base` is `develop`. Caleb skipped the canary at the cutover; the fallback is a `develop` to `main` PR. [Contributing § Cutover record](contributing.md#cutover-record) has the state. Setting `base` equal to `release` turns `promote.py run` back into a nightly on the `main` tip that pushes nothing.
 
@@ -52,11 +52,11 @@ The `always()` cleanup step deletes this run's branch and every `promote/*` bran
 **Known limits.**
 
 - Promotion runs S's own workflow files, so whoever can land a workflow change on `develop` can weaken the gate. Accepted: it is the same trust as merging to `develop`, and the gate is a CI check, not an access control.
-- `promote.yml`'s promote job runs only from `main`, so dispatching it needs write access and a run on `main`; a branch copy of the workflow is the accepted "any workflow can use the Actions bypass" residual.
+- `promote.yml`'s promote job runs only from `main`, so dispatching it needs write access and a run on `main`; a branch copy of the workflow cannot push to `main` past the ruleset, because it has no bypass either.
 - `deploy-config`, `release-wheel`, `extras-import` and `relay-ci` neither gate promotion nor run on the promoted `main`.
-- A `GITHUB_TOKEN` push cannot create or update `.github/workflows/*`, and a ruleset bypass does not lift that. The canary that would have tested this was skipped, so promotion across a workflow change may fail at the final push, after a full CI run, and every night until fixed. The fallback is a `develop` to `main` PR.
+- A `GITHUB_TOKEN` push cannot create or update `.github/workflows/*`. The canary that would have tested this was skipped, so promotion across a workflow change may fail at the final push, after a full CI run, and every night until fixed. The fallback is a `develop` to `main` PR.
 - `GITHUB_TOKEN` pushes trigger no `push: main` workflows. Never add a `push: main` trigger expecting it to fire after a promotion; `promote.py` dispatches Storybook explicitly.
-- Main-ahead cases that cannot be avoided (Dependabot security updates ignore `target-branch`) stop promotion at "merge main into develop". The back-merge needs a merge commit, the one exception to linear history on `develop`, made by an admin with ruleset bypass. Open decision for Caleb; no policy is set here.
+- Main-ahead cases that cannot be avoided (Dependabot security updates ignore `target-branch`) stop promotion at "merge main into develop". Neither ruleset has a bypass actor (GitHub rejects an Actions bypass on a personal repository), and `develop` accepts only rebase-merged PRs, so a back-merge needs Caleb to set the `develop` ruleset to disabled, run `git push origin main:develop` (valid while `develop` is an ancestor of `main`), and re-enable it. Automating this is open.
 
 **Red `develop`.** A red promotion never skips a night. Rerun once, bisect, and revert the culprit PR on `develop` before fixing forward. The owning lane re-lands it afterwards.
 

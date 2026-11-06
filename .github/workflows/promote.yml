@@ -11,7 +11,7 @@ on:
         default: false
         type: boolean
       target:
-        description: Branch to fast-forward; promote-canary rehearses the ruleset bypass
+        description: Branch to fast-forward; promote-canary rehearses the push on a throwaway branch
         required: false
         default: main
         type: string
