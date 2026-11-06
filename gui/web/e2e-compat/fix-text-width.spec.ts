@@ -44,12 +44,27 @@ test("Fix text fallback fits wide text and stays within its row", async ({
   expect(wideText.inputWidth).toBeLessThanOrEqual(wideText.rowWidth);
   expect(wideText.rowWidth).toBeLessThanOrEqual(wideText.availableWidth);
 
+  await input.fill("W".repeat(6));
+  const narrowWidth = await input.evaluate(
+    (element) => element.getBoundingClientRect().width,
+  );
+  expect(narrowWidth).toBeLessThan(wideText.inputWidth);
+
+  await input.fill("W".repeat(12));
+  await input.press("End");
+  await input.press("Backspace");
+  const deletedWidth = await input.evaluate(
+    (element) => element.getBoundingClientRect().width,
+  );
+  expect(deletedWidth).toBeLessThan(wideText.inputWidth);
+
   await input.fill("");
   await expect(input).toBeFocused();
   const emptyWidth = await input.evaluate(
     (element) => element.getBoundingClientRect().width,
   );
   expect(emptyWidth).toBeGreaterThanOrEqual(48);
+  expect(emptyWidth).toBeLessThan(wideText.inputWidth);
   await input.press("Escape");
   await expect(input).toHaveCount(0);
 });

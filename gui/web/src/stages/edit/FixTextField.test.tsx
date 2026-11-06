@@ -116,16 +116,25 @@ describe("FixTextField", () => {
     expect(onDone).not.toHaveBeenCalled();
   });
 
-  it("keeps an aria-hidden sizing copy in step with the draft", async () => {
+  it("restores and reports the raw draft without losing focus", async () => {
     const user = userEvent.setup();
-    const { field } = setup("a");
-    const measure = field.parentElement?.firstElementChild;
-    expect(measure).toHaveAttribute("aria-hidden", "true");
-    expect(measure).toHaveTextContent("a");
-    await user.keyboard("bcdef");
-    expect(measure).toHaveTextContent("bcdef");
-    await user.clear(field);
-    expect(measure?.textContent).toBe(" ");
+    const onDraftChange = vi.fn();
+    render(
+      <FixTextField
+        value="original"
+        initialDraft="  draft "
+        label="Fix"
+        onDone={vi.fn()}
+        onDraftChange={onDraftChange}
+      />,
+    );
+    const field = screen.getByRole("textbox");
+    expect(field).toHaveValue("  draft ");
+    expect(field).toHaveFocus();
+    await user.type(field, "{End} appended");
+    expect(field).toHaveValue("  draft  appended");
+    expect(onDraftChange).toHaveBeenLastCalledWith("  draft  appended");
+    expect(field).toHaveFocus();
   });
 
   it("hands the host the words it opened with, even after the value prop moves on", async () => {
