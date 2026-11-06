@@ -12,6 +12,7 @@ import "./styles/daw.css";
 import { FeatureProvider } from "./extensions/FeatureProvider";
 import { useFeaturesReady, useHasFeature } from "./extensions/FeaturesContext";
 import { FEATURE_SHARE_UI_ROUTES } from "./extensions/features";
+import { AskDialog } from "./feedback/AskDialog";
 import { ModelsProvider } from "./models";
 import {
   clearOfflineSnapshot,
@@ -287,6 +288,8 @@ export default function App() {
   return (
     <FeatureProvider>
       {isGuestLocation() ? inner : <ModelsProvider>{inner}</ModelsProvider>}
+      {/* The one host for askConfirm questions, on Home and in a project alike. */}
+      <AskDialog />
     </FeatureProvider>
   );
 }

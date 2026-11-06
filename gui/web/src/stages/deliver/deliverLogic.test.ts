@@ -642,6 +642,22 @@ describe("round three of the audit", () => {
     expect(exportBlocker(SETTINGS)).toBeUndefined();
   });
 
+  it("names the model that is missing, not always transcription", () => {
+    const needs = {
+      phase: "needs-model",
+      model: {
+        id: "rnnoise",
+        variant: null,
+        label: "RNNoise",
+        purpose: "noise reduction",
+        size: "~0.3 MB",
+        sizeBytes: null,
+        state: "missing",
+      },
+    } as const;
+    expect(exportBlocker(SETTINGS, needs)).toBe("Needs noise reduction.");
+  });
+
   it("waits for host settings before anything else but the model", () => {
     const none = { ...SETTINGS, formats: [] };
     expect(exportBlocker(none, undefined, { loading: true })).toBe(

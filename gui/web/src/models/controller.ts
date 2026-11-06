@@ -107,6 +107,7 @@ export function overlay(
   job: BootstrapJobSnapshot | null,
   failures: Record<string, ModelFailure>,
   variant: string = status.whisper_model,
+  starting: readonly string[] = [],
 ): ModelView[] {
   const live = job && !isTerminalJobStatus(job.status) ? job : null;
   return status.models.map((row) => {
@@ -120,6 +121,9 @@ export function overlay(
               total: live.download.total,
             }
           : { kind: "queued" };
+    } else if (starting.includes(row.id)) {
+      // Get was pressed and the server has not answered: this row is already ours, not blocked.
+      state = { kind: "queued" };
     } else if (
       failures[row.id] &&
       (row.state !== "installed" ||
