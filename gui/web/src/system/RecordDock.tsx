@@ -101,7 +101,6 @@ export function RecordDock({
       ) : null}
     </button>
   );
-  const recording = record !== undefined && record.face !== "idle";
 
   let center: ReactNode;
   if (status !== undefined) {
@@ -114,12 +113,11 @@ export function RecordDock({
         {mute}
         {comment}
         {record ? <RecordButton {...record} /> : null}
-        {recording ? (
+        {record?.face === "live" ? (
           <VerbButton
             verb="pauseTake"
             className="sys-dock-btn"
             size={20}
-            aria-pressed={record.face === "paused"}
             onClick={onPause}
           />
         ) : null}
@@ -128,6 +126,7 @@ export function RecordDock({
             verb="stopTake"
             className="sys-dock-btn"
             size={20}
+            disabled={record.busy}
             onClick={onStop}
           />
         ) : null}

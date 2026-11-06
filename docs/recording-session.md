@@ -1310,8 +1310,9 @@ cannot. Every button runs the same `record.*` command as the palette.
   `podcast review share --kind record` and MCP `create_record_room_tool`.
 - **One Record button.** The dock's Record button starts a take, shows **Stop take**
   while one is open (hold it to stop) and **Resume recording** while paused;
-  **Pause** (and Resume while paused) sits beside it while a take runs, and a
-  paused take also shows **Stop take** beside Resume. The
+  **Pause** sits beside it while a take runs; a paused take shows **Stop take**
+  beside Resume instead, so the row stays as wide (it is disabled while a
+  command is in flight). The
   Record button and Pause run `record.start`, `pause` or `resume` (`TAKE_CONTROL`
   in `record/hostControls.ts`); a held or confirmed Stop runs `record.stop`.
 - **Start blockers.** A disabled Record button gives its reasons as one sentence

@@ -22,7 +22,7 @@ describe("RecordDock", () => {
     ]);
   });
 
-  it("host: a paused take shows Stop beside Resume and Pause", async () => {
+  it("host: a paused take shows Stop beside Resume, in place of Pause", async () => {
     const onStop = vi.fn();
     render(
       <RecordDock
@@ -35,13 +35,23 @@ describe("RecordDock", () => {
       "Mute",
       "Comment",
       "Resume recording",
-      "Pause take",
       "Stop take",
       "Notes",
       "More",
     ]);
     await userEvent.click(screen.getByRole("button", { name: "Stop take" }));
     expect(onStop).toHaveBeenCalledOnce();
+  });
+
+  it("host: Stop on a paused take is disabled while a command is in flight", () => {
+    render(
+      <RecordDock
+        seat="host"
+        record={{ ...record, face: "paused", busy: true }}
+        onStop={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Stop take" })).toBeDisabled();
   });
 
   it("guest: Mute is the 64 px primary, then Comment, Notes, Leave", () => {

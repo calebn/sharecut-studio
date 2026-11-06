@@ -1765,19 +1765,14 @@ describe("Record stage take controls", () => {
     setRoom({ state: "recording", take_index: 0 });
     mount();
     expect(screen.getByRole("button", { name: "Stop take" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Pause take" })).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
+    expect(screen.getByRole("button", { name: "Pause take" })).toBeEnabled();
     expect(screen.queryByRole("button", { name: "Record" })).toBeNull();
     act(() => setRoom({ state: "paused", take_index: 0 }));
     expect(
       screen.getByRole("button", { name: "Resume recording" }),
     ).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Pause take" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    expect(screen.queryByRole("button", { name: "Pause take" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Stop take" })).toBeEnabled();
   });
 
   it("pauses and resumes through the record commands", async () => {
