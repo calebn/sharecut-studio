@@ -137,7 +137,6 @@ export {
 } from "./api/pipeline";
 export type {
   MediaUploadResult,
-  MoveProjectFolderResult,
   PickEpisodeProjectResult,
   RecentProject,
   ReviewVersionStatus,
