@@ -37,6 +37,10 @@
   align-items: center;
 }
 
+.sys-composer-change {
+  flex: none;
+}
+
 .sys-composer-as {
   flex: 1;
   min-inline-size: 0;
