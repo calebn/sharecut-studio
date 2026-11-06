@@ -1,12 +1,25 @@
 import type { ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Avatar, Button } from "../ui";
+import { Menu, MenuItem } from "../ui/Menu";
 import type { LinkRole } from "./linkRoles";
 import { middleTruncate } from "./linkText";
+import { type LinkReach, ReachGlyph } from "./ReachGlyph";
 import { RoleChip } from "./RoleChip";
 import { SystemIcon } from "./SystemIcon";
 import { capsOf, iconOf } from "./verbDisplay";
 
 export type LinkCopyState = "idle" | "copied" | "blocked";
+
+/** One choice in a Link row's More menu. */
+export type LinkMoreItem = {
+  id: string;
+  label: string;
+  onSelect: () => void;
+  /** A setting the item turns on or off, such as Allow AI assistants. */
+  checked?: boolean;
+  disabledReason?: string;
+};
 
 export type LinkRowProps = {
   access: LinkRole;
@@ -23,7 +36,22 @@ export type LinkRowProps = {
   /** One short note, such as "Pinned to Rough cut". */
   note?: ReactNode;
   compact?: boolean;
-  reach?: "anywhere" | "network";
+  /** Online sharing: a globe glyph with a popover. Shown only once there is a link. */
+  reach?: LinkReach;
+  /** Lets the person pick the role while the link is not made yet. */
+  onRole?: (role: LinkRole) => void;
+  /** The pin toggle: frozen on this version (on) or following the latest (off). Without `onChange` it only shows the state. */
+  pin?: {
+    pressed: boolean;
+    onChange?: (next: boolean) => void;
+    disabledReason?: string;
+  };
+  /** How many people opened it; defaults to the avatars given. */
+  openedCount?: number;
+  /** The More menu: QR code, Allow AI assistants, Replace link, Stop sharing. Without items there is no button. */
+  more?: readonly LinkMoreItem[];
+  /** Replaces the row's actions with a confirm in place, such as Stop sharing. */
+  confirming?: ReactNode;
   /** Names the link for assistive technology when a page has several rows: "Copy Commenter link". */
   linkName?: string;
   disabledReason?: string;
@@ -42,12 +70,29 @@ export function LinkRow({
   highlight = false,
   note,
   compact = false,
-  reach = "anywhere",
+  reach,
+  onRole,
+  pin,
+  openedCount,
+  more = [],
+  confirming,
   linkName,
   disabledReason,
   placeholder = "Made when you copy it",
   onCopy,
 }: LinkRowProps) {
+  const [moreOpen, setMoreOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const wasConfirming = useRef(false);
+  // Keeping the link puts focus back on the More button that asked.
+  useEffect(() => {
+    if (wasConfirming.current && !confirming) {
+      root.current
+        ?.querySelector<HTMLElement>('[aria-haspopup="menu"]')
+        ?.focus();
+    }
+    wasConfirming.current = Boolean(confirming);
+  }, [confirming]);
   if (noMix) {
     return (
       <div className="sys-link" data-state="no-mix">
@@ -56,6 +101,7 @@ export function LinkRow({
       </div>
     );
   }
+  const people = openedCount ?? openedBy.length;
   const label =
     copyState === "copied"
       ? "Copied"
@@ -66,12 +112,17 @@ export function LinkRow({
           : "Copy";
   return (
     <div
+      ref={root}
       className="sys-link"
       data-copy={copyState}
       data-highlight={highlight ? "true" : undefined}
     >
       <div className="sys-link-main">
-        <RoleChip access={access} compact={compact} />
+        <RoleChip
+          access={access}
+          compact={compact}
+          onChange={link ? undefined : onRole}
+        />
         <span
           className="sys-link-text sys-mono"
           data-selected={copyState === "blocked" || undefined}
@@ -85,14 +136,8 @@ export function LinkRow({
         </span>
       </div>
       {note ? <span className="sys-link-note">{note}</span> : null}
-      {reach === "network" ? (
-        <span className="sys-link-reach">
-          <SystemIcon name={iconOf("copyLink")} size={14} />
-          Only people on this network can listen. Turn on online sharing to
-          reach anyone.
-        </span>
-      ) : null}
       <div className="sys-link-side">
+        {link && reach ? <ReachGlyph reach={reach} /> : null}
         {openedBy.length > 0 ? (
           <span
             className="sys-link-opened"
@@ -109,6 +154,33 @@ export function LinkRow({
             ))}
           </span>
         ) : null}
+        {people > 0 ? (
+          <span
+            className="sys-link-count"
+            data-testid="link-opened-count"
+            {...(openedBy.length > 0
+              ? { "aria-hidden": true }
+              : {
+                  role: "img",
+                  "aria-label": `Opened by ${people} ${people === 1 ? "person" : "people"}`,
+                })}
+          >
+            {people}
+          </span>
+        ) : null}
+        {pin ? (
+          <button
+            type="button"
+            className="sys-icon-btn"
+            aria-pressed={pin.pressed}
+            aria-label="Pin to this version"
+            title={pin.disabledReason ?? "Pin to this version"}
+            disabled={pin.disabledReason !== undefined || !pin.onChange}
+            onClick={() => pin.onChange?.(!pin.pressed)}
+          >
+            <SystemIcon name="pin" size={14} />
+          </button>
+        ) : null}
         <Button
           variant="default"
           disabledReason={disabledReason}
@@ -119,7 +191,38 @@ export function LinkRow({
           <SystemIcon name={iconOf("copyLink")} size={14} />
           {label}
         </Button>
+        {more.length > 0 ? (
+          <Menu
+            open={moreOpen}
+            onOpenChange={setMoreOpen}
+            label={linkName ? `More for ${linkName}` : "More"}
+            trigger={(props) => (
+              <Button
+                {...props}
+                aria-label={linkName ? `More for ${linkName}` : "More"}
+                title="More"
+              >
+                <SystemIcon name="ellipsis" size={16} />
+              </Button>
+            )}
+          >
+            {more.map((item) => (
+              <MenuItem
+                key={item.id}
+                checked={item.checked}
+                disabledReason={item.disabledReason}
+                onSelect={() => {
+                  setMoreOpen(false);
+                  item.onSelect();
+                }}
+              >
+                {item.label}
+              </MenuItem>
+            ))}
+          </Menu>
+        ) : null}
       </div>
+      {confirming ? <div className="sys-link-confirm">{confirming}</div> : null}
     </div>
   );
 }

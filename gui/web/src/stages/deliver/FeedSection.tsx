@@ -354,11 +354,6 @@ export function FeedSection({
             </Button>
             {file.action && access !== "viewer" ? (
               <Button
-                variant={
-                  file.blockedReason || request === "failed"
-                    ? "default"
-                    : "primary"
-                }
                 disabledReason={file.blockedReason}
                 {...reason.describedBy}
                 onClick={() =>

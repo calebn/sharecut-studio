@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useRecordHostStore } from "../record/hostStore";
 import { useDawStore } from "../state/dawStore";
-import { setChrome } from "../test/chrome";
 import { minimalProject, recordSnapshot } from "../test/fixtures";
 import type { HostShareRow } from "../types/shares";
 import { clearRegisteredCommands, execute } from "./execute";
@@ -58,7 +57,6 @@ describe("record room commands", () => {
     writeText.mockResolvedValue(undefined);
     vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
-    setChrome({ shareRequested: false });
     useDawStore.setState({ stage: "record" });
     useDawStore.setState({
       statusAnnouncement: "",

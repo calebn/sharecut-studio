@@ -38,8 +38,6 @@ export interface ChromeFlags {
   bounceRequested: boolean;
   /** An export asked for by a command; the Deliver stage starts it and clears this. */
   exportRequested: boolean;
-  /** A Share request from a command; the Deliver stage focuses its Share section and clears this. */
-  shareRequested: boolean;
   transcriptRequested: boolean;
   /** Local host MCP connect dialog (Streamable HTTP URL). */
   hostMcpDialogOpen: boolean;
@@ -504,7 +502,6 @@ export interface DawState {
   setTranscriptFindReplaceOpen: (on: boolean) => void;
   setExportRequested: (on: boolean) => void;
   setPrepareFocusTrackId: (trackId: string | null) => void;
-  setShareRequested: (on: boolean) => void;
   setTranscriptRequested: (on: boolean) => void;
   setHostMcpDialogOpen: (on: boolean) => void;
   setHelpDialogOpen: (on: boolean) => void;

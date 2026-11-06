@@ -16,9 +16,18 @@ export type ReviewSection = (typeof REVIEW_SECTIONS)[number];
 /** Phone Edit shows the lanes or the Script, never both. */
 export type EditSurface = "lanes" | "text";
 
-export const STAGE_SHEETS = ["history", "view", "mix", "tools"] as const;
+export const STAGE_SHEETS = [
+  "history",
+  "view",
+  "mix",
+  "tools",
+  "invite",
+] as const;
 
 export type StageSheet = (typeof STAGE_SHEETS)[number];
+
+/** The Invite sheet's groups, in order. */
+export type InviteGroup = "review" | "record" | "listen";
 
 /** What a stage remembers while another stage is up. */
 export type StageView = {

@@ -16,7 +16,7 @@ describe("share.manage", () => {
     resetFeaturesCache();
     registerDawCommands();
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
-    useDawStore.getState().setShareRequested(false);
+    useDawStore.getState().setOpenSheet(null);
   });
 
   afterEach(() => {
@@ -24,13 +24,25 @@ describe("share.manage", () => {
     vi.unstubAllGlobals();
   });
 
-  it("goes to Deliver when features have not loaded yet", async () => {
+  it("opens the Invite sheet over the current stage when features have not loaded yet", async () => {
     expect(peekCachedFeatures()).toBeNull();
     useDawStore.getState().openStage("edit");
     const result = await execute("share.manage");
     expect(result).toEqual({ status: "ok" });
-    expect(useDawStore.getState().stage).toBe("deliver");
-    expect(useDawStore.getState().chrome.shareRequested).toBe(true);
+    expect(useDawStore.getState().stage).toBe("edit");
+    expect(useDawStore.getState().openSheet).toBe("invite");
+    expect(useDawStore.getState().inviteAt).toBeNull();
+  });
+
+  it("opens the Invite sheet at the Record links when asked", async () => {
+    useDawStore.getState().openStage("record");
+    const result = await execute("share.manage", { at: "record" });
+    expect(result).toEqual({ status: "ok" });
+    expect(useDawStore.getState().stage).toBe("record");
+    expect(useDawStore.getState().openSheet).toBe("invite");
+    expect(useDawStore.getState().inviteAt).toBe("record");
+    useDawStore.getState().setOpenSheet(null);
+    expect(useDawStore.getState().inviteAt).toBeNull();
   });
 
   it("disables after features load without share.ui.menu", async () => {
@@ -44,10 +56,10 @@ describe("share.manage", () => {
     await fetchFeatures();
     const result = await execute("share.manage");
     expect(result.status).toBe("disabled");
-    expect(useDawStore.getState().chrome.shareRequested).toBe(false);
+    expect(useDawStore.getState().openSheet).toBeNull();
   });
 
-  it("goes to Deliver when share.ui.menu is cached", async () => {
+  it("opens the sheet when share.ui.menu is cached", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -61,6 +73,6 @@ describe("share.manage", () => {
     await fetchFeatures();
     const result = await execute("share.manage");
     expect(result).toEqual({ status: "ok" });
-    expect(useDawStore.getState().chrome.shareRequested).toBe(true);
+    expect(useDawStore.getState().openSheet).toBe("invite");
   });
 });

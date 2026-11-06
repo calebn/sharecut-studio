@@ -61,20 +61,53 @@
 }
 
 .sys-link-reach {
-  display: flex;
+  position: relative;
+  display: inline-flex;
+}
+
+.sys-link-popover {
+  position: absolute;
+  inset-block-start: 100%;
+  inset-inline-end: 0;
+  z-index: 2;
+  inline-size: 15rem;
+  max-inline-size: 80vw;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-small);
+}
+
+.sys-link-confirm {
   flex-basis: 100%;
-  align-items: flex-start;
-  gap: var(--space-3);
+}
+
+.sys-link-count {
   color: var(--color-text-secondary);
   font-size: var(--font-size-small);
 }
 
-.sys-link-reach svg {
-  flex: none;
+.sys-role-set {
+  display: inline-flex;
+  gap: var(--space-1);
+}
+
+button.sys-role {
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+button.sys-role[aria-pressed="true"] {
+  background: var(--color-accent-subtle);
+  color: var(--color-text-primary);
 }
 
 .sys-link-opened {
   display: inline-flex;
+  align-items: center;
 }
 
 .sys-time {

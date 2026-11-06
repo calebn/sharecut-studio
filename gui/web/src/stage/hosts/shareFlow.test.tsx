@@ -1,7 +1,10 @@
 import { act, render, waitFor } from "@testing-library/react";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SHARE_DEFAULTS } from "../../stages/deliver/shareLogic";
+import {
+  LISTEN_CHOICES,
+  SHARE_DEFAULTS,
+} from "../../stages/deliver/shareLogic";
 import { useDawStore } from "../../state/dawStore";
 import type { HostShareRow } from "../../types/shares";
 import { ApiError } from "../../utils/apiError";
@@ -244,6 +247,41 @@ describe("creating a link", () => {
     expect(announcement()).toBe("Review link created and copied");
     await waitFor(() => expect(flow.rows).toEqual([liveRow]));
     await waitFor(() => expect(flow.busy).toBe(false));
+  });
+
+  it("makes the listen link from the override, not from the choices, and names it", async () => {
+    createHostShare.mockResolvedValue(liveRow);
+    mount();
+    act(() =>
+      flow.setChoices({ role: "editor", withMcp: true, freeze: false }),
+    );
+    act(() => flow.create(LISTEN_CHOICES));
+    await waitFor(() => expect(flow.copiedKey).toBe(`link:${liveRow.token}`));
+    expect(createHostShare).toHaveBeenCalledWith(PATH, {
+      role: "viewer",
+      with_mcp: false,
+      freeze: true,
+    });
+    expect(announcement()).toBe("Listen link created and copied");
+  });
+
+  it("remembers which create needs Refresh mix, and retries a listen link as itself", async () => {
+    const stale = () => new ApiError("stale", "stale_mix", 409);
+    createHostShare.mockRejectedValueOnce(stale()).mockResolvedValue(liveRow);
+    mount();
+    act(() =>
+      flow.setChoices({ role: "editor", withMcp: false, freeze: false }),
+    );
+    act(() => flow.create(LISTEN_CHOICES));
+    await waitFor(() => expect(flow.recovery.kind).toBe("needs_refresh"));
+    expect(flow.refreshFor).toEqual({ choices: LISTEN_CHOICES, listen: true });
+    act(() => flow.refreshMix());
+    await waitFor(() => expect(createHostShare).toHaveBeenCalledTimes(2));
+    expect(createHostShare).toHaveBeenLastCalledWith(PATH, {
+      role: "viewer",
+      with_mcp: false,
+      freeze: true,
+    });
   });
 
   it("sends the role, MCP and freeze the person chose", async () => {
@@ -690,6 +728,36 @@ describe("create recovery", () => {
     expect(flow.choices).toEqual(SHARE_DEFAULTS);
     expect(flow.error).toBeNull();
     expect(flow.status).toBeNull();
+  });
+});
+
+describe("where the links are on show", () => {
+  it("keeps working over any stage while the Invite sheet is open, and starts over when both are left", async () => {
+    createHostShare.mockResolvedValue(liveRow);
+    mount();
+    leaveDeliver();
+    act(() => useDawStore.getState().openInvite());
+    act(() => flow.create());
+    await waitFor(() => expect(flow.copiedKey).toBe(`link:${liveRow.token}`));
+    act(() =>
+      flow.setChoices({ role: "editor", withMcp: false, freeze: false }),
+    );
+    act(() => useDawStore.getState().setOpenSheet(null));
+    expect(flow.choices).toEqual(SHARE_DEFAULTS);
+    expect(flow.copiedKey).toBeNull();
+  });
+
+  it("drops a result that arrives after the sheet closed on another stage", async () => {
+    const minted = deferred<HostShareRow>();
+    createHostShare.mockReturnValue(minted.promise);
+    mount();
+    leaveDeliver();
+    act(() => useDawStore.getState().openInvite());
+    act(() => flow.create());
+    act(() => useDawStore.getState().setOpenSheet(null));
+    await act(async () => minted.resolve(liveRow));
+    expect(flow.copiedKey).toBeNull();
+    expect(announcement()).toBe("");
   });
 });
 
