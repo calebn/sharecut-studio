@@ -53,6 +53,9 @@ export function RecordLinks({
         >
           Create record links
         </Button>
+        {rooms.length > 0 && options.onOpenRecord ? (
+          <Button onClick={options.onOpenRecord}>Open Record stage</Button>
+        ) : null}
       </div>
     </>
   );
@@ -67,7 +70,7 @@ function RoomCard({
   onConfirm,
   trigger,
 }: EndProps & { room: RecordRoomGroup }) {
-  const { busy, onOpenRecord } = options;
+  const { busy } = options;
   const labelId = useId();
   const busyReason = busy ? BUSY_REASON : undefined;
   const target: ShareEnd = { kind: "room", sessionId: room.sessionId };
@@ -115,15 +118,6 @@ function RoomCard({
         />
       ) : (
         <div className="inv-actions">
-          {onOpenRecord ? (
-            <Button
-              disabledReason={busyReason}
-              aria-describedby={labelId}
-              onClick={onOpenRecord}
-            >
-              Open Record stage
-            </Button>
-          ) : null}
           <Button
             ref={trigger(target)}
             variant="danger"
