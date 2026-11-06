@@ -75,6 +75,7 @@ export {
   selectSessionTakeCommand,
   setClipFade,
   setClipJoin,
+  setClipsFade,
   setEffectBypass,
   setEnvelope,
   setRecordSessionNameCommand,

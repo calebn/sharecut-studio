@@ -281,6 +281,31 @@ class SetClipFadePayload(BaseModel):
     )
 
 
+class ClipFadeTarget(BaseModel):
+    clip_id: str
+    fade_in_ms: int
+    fade_out_ms: int
+    expected: ClipFadeBaseline = Field(
+        description="Both saved fades of this clip captured when the edit began."
+    )
+
+
+class SetClipsFadePayload(BaseModel):
+    fades: list[ClipFadeTarget] = Field(
+        min_length=1,
+        description="One target per clip, each clamped like SetClipFade. Any clip whose saved "
+        "fades differ from its expected pair returns clip_fade_changed and nothing changes. "
+        "One history entry covers every clip.",
+    )
+
+    @field_validator("fades")
+    @classmethod
+    def _distinct_clips(cls, fades: list[ClipFadeTarget]) -> list[ClipFadeTarget]:
+        if len({f.clip_id for f in fades}) != len(fades):
+            raise ValueError("fades must name each clip once")
+        return fades
+
+
 class TrimClipEdgePayload(BaseModel):
     clip_id: str
     edge: Literal["in", "out"]
@@ -1087,6 +1112,11 @@ class SetClipFadeCommand(DocumentCommandEnvelope):
     payload: SetClipFadePayload
 
 
+class SetClipsFadeCommand(DocumentCommandEnvelope):
+    type: Literal["SetClipsFade"] = "SetClipsFade"
+    payload: SetClipsFadePayload
+
+
 class TrimClipEdgeCommand(DocumentCommandEnvelope):
     type: Literal["TrimClipEdge"] = "TrimClipEdge"
     payload: TrimClipEdgePayload
@@ -1456,6 +1486,7 @@ DocumentCommandBody = Annotated[
     | RestoreAppliedEditCommand
     | RestoreClipBleedCommand
     | SetClipFadeCommand
+    | SetClipsFadeCommand
     | TrimClipEdgeCommand
     | RollClipJoinCommand
     | SetJoinModeCommand

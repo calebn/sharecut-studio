@@ -298,6 +298,44 @@ def set_clip_fade_tool(
     )
 
 
+def set_clips_fade_tool(
+    project_path: str,
+    clip_ids: list[str],
+    fade_in_delta_ms: int = 0,
+    fade_out_delta_ms: int = 0,
+) -> str:
+    """Add a delta (ms, negative shortens) to the fade-in and fade-out of several clips at once.
+
+    One undo step covers every clip. Each clip is clamped like ``set_clip_fade_tool``. A clip
+    changed since it was read returns ``clip_fade_changed`` and no clip changes.
+    """
+    ws = ProjectWorkspace.open(project_path)
+    by_id = {c.id: c for c in ws.project.clips}
+    missing = next((cid for cid in clip_ids if cid not in by_id), None)
+    if missing is not None:
+        raise CodedValueError(f"unknown clip_id: {missing!r}", code="clip_not_found")
+    return to_json(
+        submit_host_command_result(
+            project_path,
+            "SetClipsFade",
+            {
+                "fades": [
+                    {
+                        "clip_id": cid,
+                        "fade_in_ms": max(0, by_id[cid].fade_in_ms + fade_in_delta_ms),
+                        "fade_out_ms": max(0, by_id[cid].fade_out_ms + fade_out_delta_ms),
+                        "expected": {
+                            "fade_in_ms": by_id[cid].fade_in_ms,
+                            "fade_out_ms": by_id[cid].fade_out_ms,
+                        },
+                    }
+                    for cid in clip_ids
+                ]
+            },
+        )
+    )
+
+
 def set_join_mode_tool(
     project_path: str,
     clip_id: str,
@@ -893,6 +931,7 @@ def register(mcp: MCPServer) -> None:
         fade_joins_tool,
         crossfade_joins_tool,
         set_clip_fade_tool,
+        set_clips_fade_tool,
         set_join_mode_tool,
         set_clip_join_tool,
         trim_clip_edge_tool,
@@ -912,6 +951,7 @@ def register(mcp: MCPServer) -> None:
     mutating.discard(shorten_gaps_tool)
     mutating.discard(strip_silence_tool)
     mutating.discard(move_clips_tool)
+    mutating.discard(set_clips_fade_tool)
     mutating.discard(fade_joins_tool)
     mutating.discard(crossfade_joins_tool)
     mutating.discard(fill_with_room_tone_tool)
@@ -930,6 +970,7 @@ def register(mcp: MCPServer) -> None:
         fade_joins_tool,
         crossfade_joins_tool,
         set_clip_fade_tool,
+        set_clips_fade_tool,
         set_join_mode_tool,
         set_clip_join_tool,
         trim_clip_edge_tool,

@@ -119,6 +119,20 @@ def set_clip_fade(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def set_clips_fade(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    return TimelineService(ws).set_clips_fade(
+        [
+            (
+                f["clip_id"],
+                int(f["fade_in_ms"]),
+                int(f["fade_out_ms"]),
+                ClipFadeBaseline(**f["expected"]),
+            )
+            for f in p["fades"]
+        ]
+    )
+
+
 def trim_clip_edge(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     return TimelineService(ws).trim_clip_edge(
         p["clip_id"],

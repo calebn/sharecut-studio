@@ -3358,3 +3358,35 @@ def test_a_retry_of_an_ordinary_command_carries_no_ask(minimal_project):
     )
     svc.submit(cmd)
     assert "needs_confirmation" not in svc.submit(cmd)
+
+
+def test_document_set_clips_fade_is_one_command_and_projects_the_clips(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    ws.project.timeline.clips = [
+        Clip(id=cid, track_id="host", source_start=s, source_end=s + 5.0, timeline_start=s)
+        for cid, s in (("c1", 0.0), ("c2", 5.0))
+    ]
+    ws.save()
+    svc = DocumentSyncService.open(minimal_project)
+    faded = svc.submit(
+        DocumentCommand(
+            type="SetClipsFade",
+            payload={
+                "fades": [
+                    {
+                        "clip_id": cid,
+                        "fade_in_ms": 12,
+                        "fade_out_ms": 3,
+                        "expected": {"fade_in_ms": 0, "fade_out_ms": 0},
+                    }
+                    for cid in ("c1", "c2")
+                ]
+            },
+            client_id="c1",
+            role="viewer",
+            client_seq=1,
+        )
+    )
+    assert faded["ok"]
+    lane = _current_projection(svc, faded)["patch"]["clips"]["tracks"]["host"]
+    assert [(c["fade_in_ms"], c["fade_out_ms"]) for c in lane] == [(12, 3), (12, 3)]

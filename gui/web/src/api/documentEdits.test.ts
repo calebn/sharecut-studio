@@ -28,6 +28,7 @@ import {
   moveClips,
   restoreAppliedEdit,
   selectSessionTakeCommand,
+  setClipsFade,
   setTranscriptWordAutomatic,
   setTranscriptWordSuppressed,
   setTranscriptWordsIgnored,
@@ -661,6 +662,26 @@ describe("moveClips reply history", () => {
       .mockResolvedValueOnce({ command_id: "retry", idempotent: true });
     expect(await moveClips("/tmp/ep", clips)).toBe("move-first");
     expect(await moveClips("/tmp/ep", clips)).toBeNull();
+  });
+});
+
+describe("setClipsFade", () => {
+  it("sends every clip's target with its baseline and returns the entry", async () => {
+    const expected = { fade_in_ms: 1, fade_out_ms: 2 };
+    vi.mocked(submitQueuedDocumentCommand).mockResolvedValueOnce({
+      history_head_id: "fades",
+    });
+    expect(
+      await setClipsFade("/tmp/ep", [
+        { clip_id: "c1", fade_in_ms: 5, fade_out_ms: 2, expected },
+      ]),
+    ).toBe("fades");
+    expect(submitQueuedDocumentCommand).toHaveBeenLastCalledWith(
+      "/tmp/ep",
+      "SetClipsFade",
+      { fades: [{ clip_id: "c1", fade_in_ms: 5, fade_out_ms: 2, expected }] },
+      undefined,
+    );
   });
 });
 

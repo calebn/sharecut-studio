@@ -24,6 +24,7 @@ CLIP_SLICE_COMMANDS: frozenset[str] = frozenset(
     {
         "RestoreClipBleed",
         "SetClipFade",
+        "SetClipsFade",
         "SetJoinMode",
         "SetClipJoin",
         "ApplyFadeRecommendations",

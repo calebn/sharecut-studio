@@ -63,6 +63,7 @@ SNAPSHOT: dict[str, tuple[str, str, str]] = {
     "RestoreAppliedEdit": ("RestoreAppliedEditPayload", "edits.restore_applied_edit", "editor"),
     "RestoreClipBleed": ("RestoreClipBleedPayload", "edits.restore_clip_bleed", "editor"),
     "SetClipFade": ("SetClipFadePayload", "edits.set_clip_fade", "editor"),
+    "SetClipsFade": ("SetClipsFadePayload", "edits.set_clips_fade", "editor"),
     "TrimClipEdge": ("TrimClipEdgePayload", "edits.trim_clip_edge", "editor"),
     "RollClipJoin": ("RollClipJoinPayload", "edits.roll_clip_join", "editor"),
     "SetJoinMode": ("SetJoinModePayload", "edits.set_join_mode", "editor"),
@@ -234,7 +235,7 @@ def _access(command_type: str) -> str:
 
 def test_snapshot_covers_every_command_type() -> None:
     assert set(SNAPSHOT) == set(get_args(DocumentCommandType))
-    assert len(SNAPSHOT) == 86
+    assert len(SNAPSHOT) == 87
 
 
 @pytest.mark.parametrize("command_type", sorted(SNAPSHOT))
@@ -484,6 +485,7 @@ def test_a_type_that_names_the_generic_surface_is_one_the_generic_tool_accepts()
         ("AddTrack", ("track_add_empty_tool", GENERIC_MCP), (GENERIC_CLI,)),
         ("SetTrackMeta", ("track_set_meta_tool", GENERIC_MCP), (GENERIC_CLI,)),
         ("SetClipFade", ("set_clip_fade_tool",), (GENERIC_CLI,)),
+        ("SetClipsFade", ("set_clips_fade_tool",), (GENERIC_CLI,)),
         ("SetEnvelope", ("set_envelope",), ("podcast edit list-envelope", GENERIC_CLI)),
         ("FillRoomTone", ("fill_with_room_tone_tool",), (GENERIC_CLI,)),
         ("SetTranscriptWordsIgnored", ("set_words_ignored_tool",), (GENERIC_CLI,)),
