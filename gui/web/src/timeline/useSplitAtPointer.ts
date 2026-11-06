@@ -113,7 +113,14 @@ export function useSplitAtPointer(
     window.addEventListener("keyup", onKey);
     window.addEventListener("blur", release);
     document.addEventListener("visibilitychange", onVisibility);
+    // Follow and fit scrolls move the lanes too, so watch the store, not the DOM.
+    const unsubscribeScroll = useDawStore.subscribe((next, prev) => {
+      if (next.scrollLeft !== prev.scrollLeft && shown.current) {
+        showRef.current(true);
+      }
+    });
     return () => {
+      unsubscribeScroll();
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("keyup", onKey);
       window.removeEventListener("blur", release);
