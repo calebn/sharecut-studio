@@ -403,12 +403,12 @@ const selectionBarPlay: Story["play"] = async ({ canvasElement }) => {
     within(bar).getByRole("button", { name: "Suggest a cut" }),
   ).toBeVisible();
   // Inside the viewport on both sides, and clear of the selected word.
-  await waitFor(() => {
+  await waitFor(async () => {
     const box = bar.getBoundingClientRect();
     const sel = word.getBoundingClientRect();
-    expect(box.left).toBeGreaterThanOrEqual(0);
-    expect(box.right).toBeLessThanOrEqual(window.innerWidth);
-    expect(
+    await expect(box.left).toBeGreaterThanOrEqual(0);
+    await expect(box.right).toBeLessThanOrEqual(window.innerWidth);
+    await expect(
       box.bottom <= sel.top ||
         box.top >= sel.bottom ||
         box.right <= sel.left ||
