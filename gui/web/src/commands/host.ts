@@ -118,7 +118,11 @@ export function registerHostCommands(): void {
     try {
       const started = await startRenderPreview(s.projectPath);
       if (!isCurrentProject()) {
-        return { status: "disabled", reason: "Project changed during refresh" };
+        return {
+          status: "disabled",
+          reason: "Project changed during refresh",
+          told: true,
+        };
       }
       if (started.mode === "job") {
         seedStudioJob(started.job);
@@ -147,11 +151,19 @@ export function registerHostCommands(): void {
         return { status: "disabled", reason, told: true };
       }
       if (!isCurrentProject()) {
-        return { status: "disabled", reason: "Project changed during refresh" };
+        return {
+          status: "disabled",
+          reason: "Project changed during refresh",
+          told: true,
+        };
       }
       await refreshDocumentProject(s.projectPath);
       if (!isCurrentProject()) {
-        return { status: "disabled", reason: "Project changed during refresh" };
+        return {
+          status: "disabled",
+          reason: "Project changed during refresh",
+          told: true,
+        };
       }
       const store = useDawStore.getState();
       store.setHighlightStaleRender(false);
