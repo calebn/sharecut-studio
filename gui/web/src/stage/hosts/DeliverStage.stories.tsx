@@ -112,7 +112,7 @@ export const ExportFormats: Story = {
     await expect(
       within(formats).getByRole("button", { name: /^MP3/ }),
     ).toHaveAttribute("aria-pressed", "true");
-    await expect(canvas.getByText(/always written/)).toBeVisible();
+    await expect(canvas.getByText(/written with every export/)).toBeVisible();
   },
 };
 
