@@ -177,6 +177,28 @@ describe("TrackLane mute dim", () => {
     expect(css).not.toMatch(/\.clip-label[^{]*\{[^}]*opacity/);
   });
 
+  it("draws the drop ring above the opaque lane, not on the wrapper under it", () => {
+    const ingest = partial("ingest.css");
+    expect(rule(ingest, ".lane-row.lane-drop-target")).toMatch(
+      /outline:\s*none/,
+    );
+    const ring = rule(ingest, ".lane-row.lane-drop-target::after");
+    expect(ring).toMatch(/position:\s*absolute/);
+    expect(ring).toMatch(/inset:\s*0/);
+    expect(ring).toMatch(/z-index:\s*var\(--z-status-overlay\)/);
+    expect(ring).toMatch(/pointer-events:\s*none/);
+    expect(ring).toMatch(
+      /outline:\s*var\(--focus-ring-width\)\s+solid\s+var\(--color-accent\)/,
+    );
+    const { container } = render(
+      <TrackLane {...baseProps} onSeek={vi.fn()} onSelectClip={vi.fn()} />,
+    );
+    const row = container.querySelector(".lane-row");
+    expect(row).not.toBeNull();
+    fireEvent.dragOver(row as Element, { dataTransfer: { files: [] } });
+    expect(row?.classList.contains("lane-drop-target")).toBe(true);
+  });
+
   it("keeps the lane colour as each clip's background-color, which the waveform tint reads", () => {
     const { container } = render(
       <TrackLane {...baseProps} onSeek={vi.fn()} onSelectClip={vi.fn()} />,

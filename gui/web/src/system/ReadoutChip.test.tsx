@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import { partial, rule } from "../test/cssRules";
 import { ReadoutChip } from "./ReadoutChip";
 
 describe("ReadoutChip", () => {
@@ -28,5 +29,13 @@ describe("ReadoutChip", () => {
     expect(chip.style.getPropertyValue("--sys-readout-x")).toBe("120px");
     expect(chip.style.getPropertyValue("--sys-readout-y")).toBe("40px");
     expect(chip).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("keeps a floating chip inside a lane that clips its sides", () => {
+    const body = rule(partial("system.css"), ".sys-readout[data-floating]");
+    expect(body).toMatch(/max\(-50%,\s*calc\(-1 \* var\(--sys-readout-x\)\)\)/);
+    expect(body).toMatch(
+      /var\(--sys-lane-width,\s*[^)]+\)\s*-\s*var\(--sys-readout-x\)\s*-\s*100%/,
+    );
   });
 });

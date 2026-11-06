@@ -4153,7 +4153,12 @@ button.sys-scope:hover {
   position: absolute;
   inset-inline-start: var(--sys-readout-x);
   inset-block-start: var(--sys-readout-y);
-  translate: -50% calc(-100% - var(--sys-readout-lift));
+  /* Centred on the point, but nudged to stay inside the lane: a lane clips its sides, so a point at an end would lose half the chip. */
+  translate: min(
+      max(-50%, calc(-1 * var(--sys-readout-x))),
+      calc(var(--sys-lane-width, 100000rem) - var(--sys-readout-x) - 100%)
+    )
+    calc(-100% - var(--sys-readout-lift));
   z-index: var(--z-bubble);
 }
 
