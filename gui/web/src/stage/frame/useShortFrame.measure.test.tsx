@@ -44,7 +44,6 @@ function EditFrame() {
   );
 }
 
-/** The dock is always mounted; it fills once the project loads, with no re-render of the frame. */
 function Dock() {
   const filled = useDawStore((s) => s.project != null);
   return (
@@ -171,12 +170,10 @@ describe("useShortFrame dock height", () => {
     const { container } = render(<DockFrame />);
     const frame = container.firstElementChild as HTMLElement;
     const dock = container.querySelector(".edit-dock") as HTMLElement;
-    // No dock row yet: 60 + 80 + 200 fits 380.
     expect(frame.dataset.folded).toBe("no");
 
     act(() => useDawStore.setState({ project: minimalProject() }));
     act(() => FakeResizeObserver.of(dock).fire(dock));
-    // The dock adds its 60 px row: 400 does not fit.
     expect(frame.dataset.folded).toBe("yes");
   });
 });

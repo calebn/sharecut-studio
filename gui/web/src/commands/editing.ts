@@ -51,7 +51,6 @@ function canSuggestStructuralFor(s: DawState): boolean {
     s.project != null,
   );
 }
-/** The server's own tolerance for "a clip starts at this time" (timeline_ops.py). */
 const SPLIT_TIME_TOLERANCE = 1e-6;
 
 function selectRightPieces(

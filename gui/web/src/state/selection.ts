@@ -156,7 +156,6 @@ export function trackClickSelection(
   return trackSelection(ids, ids.includes(trackId) ? trackId : ids.at(-1)!);
 }
 
-/** The selection naming exactly `clips`, the first as primary; none clears it. */
 export function clipsSelection(
   clips: readonly { id: string; trackId: string }[],
 ): Selection {

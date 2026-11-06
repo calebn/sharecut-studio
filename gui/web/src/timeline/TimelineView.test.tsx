@@ -1895,7 +1895,6 @@ describe("TimelineView render isolation", () => {
       fireEvent.pointerMove(lanes, { clientX: 100, altKey: true });
       expect(useDawStore.getState().splitHoverSec).toBe(2.5);
 
-      // Scrolling 80 px moves the lanes under the resting pointer: 180 px at 40 px/s.
       const scroller = container.querySelector(
         ".timeline-scroll",
       ) as HTMLElement;

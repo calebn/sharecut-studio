@@ -828,10 +828,6 @@ export async function deleteSocialClip(
   return reply ? replyHistoryHead(reply) : null;
 }
 
-/**
- * What Split did. The server splits at the times it found a clip for, or only
- * proposes the cut when the caller may suggest but not apply.
- */
 export type SplitOutcome =
   | { kind: "split"; times: number[]; undo: HistoryEntryId | null }
   | { kind: "suggested"; times: number[] };
