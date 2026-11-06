@@ -2804,7 +2804,8 @@ button.sys-picker-option:focus-visible {
 }
 
 .sys-source {
-  transform: translateY(var(--sys-source-shift, 0));
+  --sys-source-shift: 0;
+  transform: translateY(var(--sys-source-shift));
 }
 
 .sys-source[data-reordering] {
@@ -2814,8 +2815,10 @@ button.sys-picker-option:focus-visible {
   cursor: grabbing;
 }
 
-.sys-source[data-making-room] {
-  transition: transform var(--motion-hover);
+@media (prefers-reduced-motion: no-preference) {
+  .sys-source[data-making-room] {
+    transition: transform var(--motion-hover);
+  }
 }
 
 .sys-source-grip {
