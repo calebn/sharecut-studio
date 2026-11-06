@@ -217,7 +217,7 @@ selector where a band starts at a join lists the Roll and the band. In that
 fixture the selector and the comment pin are farther apart than
 `TOUCH_HIT_RADIUS_PX`, so a held press on the pin lists the Join and the comment, not the band.
 
-Selecting a reduction cancels a local Move clip placement preview first.
+Selecting a reduction cancels a local clip placement preview first.
 Reduction selection and its inspection target stay local to this tab. Canceling
 a touch selection restores the prior selection. A stale inspection or a clip
 placement preview does not display actionable bands at obsolete geometry.
