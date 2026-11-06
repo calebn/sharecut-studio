@@ -181,6 +181,9 @@ export function RoomView({
   const [detent, setDetent] = useState<DrawerDetent>("half");
   // The chip pins the live clock; clearing it makes the next note a session note.
   const [timeCleared, setTimeCleared] = useState<string | null>(null);
+  const [typedAt, setTypedAt] = useState<{ key: string; time: string } | null>(
+    null,
+  );
   const model = roomViewModel({
     role: seat,
     people,
@@ -199,7 +202,11 @@ export function RoomView({
       : null;
   // Clearing holds until the phase changes (a new take, a pause, a save) or the
   // note is sent, so a cleared chip never comes back on its own mid-take.
-  const draftTime = timeCleared === phaseKey(phase) ? null : pinned;
+  // Typing pins the chip to the clock at the first keystroke (spec: "pinned to
+  // the recording time at the moment typing began"); it ticks only while empty.
+  const frozen =
+    typedAt !== null && typedAt.key === phaseKey(phase) ? typedAt.time : null;
+  const draftTime = timeCleared === phaseKey(phase) ? null : (frozen ?? pinned);
   const paused = phase.kind === "paused";
 
   const closeSheet = useCallback(() => setNotesChoice(false), []);
@@ -210,7 +217,14 @@ export function RoomView({
       viewer={seat}
       selfName={selfName}
       draft={draft}
-      onDraftChange={setDraft}
+      onDraftChange={(next) => {
+        setDraft(next);
+        if (next === "") {
+          setTypedAt(null);
+        } else if (draft === "" && pinned !== null) {
+          setTypedAt({ key: phaseKey(phase), time: pinned });
+        }
+      }}
       draftTime={draftTime}
       onClearTime={() => setTimeCleared(phaseKey(phase))}
       everyone={everyone}
@@ -220,6 +234,7 @@ export function RoomView({
         onSendNote(note);
         setDraft("");
         setTimeCleared(null);
+        setTypedAt(null);
       }}
       paused={paused}
     />

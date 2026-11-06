@@ -322,6 +322,38 @@ describe("RoomView", () => {
     expect(screen.queryByRole("button", { name: "Invite" })).toBeNull();
   });
 
+  it("pins the note time at the first keystroke while the clock keeps running", async () => {
+    const { rerender, onSendNote } = renderRoom({
+      seat: "producer",
+      people: [HOST, ROSA],
+    });
+    const field = screen.getByLabelText("Add a note");
+    await userEvent.type(field, "Cut this");
+    rerender(
+      <RoomView
+        seat="producer"
+        title="Episode 14"
+        people={[HOST, ROSA]}
+        phase={{ kind: "live", take: 1, clockSec: 800 }}
+        notes={[]}
+        selfName="Rosa Diaz"
+        onSendNote={onSendNote}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: /12:04, clear time/ }),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Send note" }));
+    expect(onSendNote).toHaveBeenLastCalledWith({
+      text: "Cut this",
+      time: "12:04",
+      everyone: false,
+    });
+    expect(
+      screen.getByRole("button", { name: /13:20, clear time/ }),
+    ).toBeInTheDocument();
+  });
+
   it("the cleared time chip stays cleared until the phase changes", async () => {
     const { rerender, onSendNote } = renderRoom({
       seat: "producer",
