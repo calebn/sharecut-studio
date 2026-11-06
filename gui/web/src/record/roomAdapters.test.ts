@@ -24,6 +24,19 @@ const row = (over: Partial<SegmentAckRow> = {}): SegmentAckRow => ({
 });
 
 describe("roomPeople", () => {
+  it("shows a guest's level and clip count to the host", () => {
+    const snap = recordSnapshot({ participants: [host, guest] });
+    const [, bo] = roomPeople(snap, {
+      peerLevels: { p_g: 0.6 },
+      peerClipped: { p_g: 3 },
+    });
+    expect(bo.level).toBe(0.6);
+    expect(bo.speaking).toBe(true);
+    expect(bo.clipped).toBe(3);
+    const [, quiet] = roomPeople(snap, { peerClipped: { p_g: 0 } });
+    expect(quiet.clipped).toBeUndefined();
+  });
+
   it("is empty without a snapshot", () => {
     expect(roomPeople(null)).toEqual([]);
   });

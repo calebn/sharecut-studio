@@ -42,6 +42,7 @@ export { roomPeople } from "./roomPeople";
 export { type RoomToneDelivery, type RoomToneStatus } from "./roomTone";
 export { StorageHeadroomWarning } from "./StorageHeadroomWarning";
 export { SAVE_STATE_COPY, type SegmentAckRow } from "./saveStatus";
+export { clippingFromRows } from "./takeClippingRows";
 export { type TakeInput, takeInputs } from "./takeInputs";
 export {
   type CaptureHealth,

@@ -161,6 +161,10 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     send: (payload) => sendRecordHostCommand("Signal", payload),
   });
   const hostOutput = useOutputDevice(hostMonitor);
+  const setHostPeerLevels = useRecordHostStore((s) => s.setPeerLevels);
+  useEffect(() => {
+    setHostPeerLevels(hostMonitor.levels);
+  }, [hostMonitor.levels, setHostPeerLevels]);
 
   const recordStageActive = useDawStore((s) => s.stage === "record");
   const hostRoom = useHostRoom(

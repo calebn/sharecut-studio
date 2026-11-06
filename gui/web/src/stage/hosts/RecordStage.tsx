@@ -8,6 +8,7 @@ import { useElapsedSince } from "../../hooks/useElapsedSince";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import { slugText, uniqueTrackId } from "../../ingest/ingestFiles";
 import {
+  clippingFromRows,
   copyForMicStatus,
   deviceMic,
   deviceTone,
@@ -301,11 +302,29 @@ function RecordStageBody({
     dropped: room.offline,
     segments: room.hostSegments,
   });
+  const peerLevels = useRecordHostStore((s) => s.peerLevels);
+  const peerClipped = useMemo(() => {
+    const counts: Record<string, number> = {};
+    const rows = room.hostSegments ?? [];
+    if (!snapshot || rows.length === 0) return counts;
+    for (const person of snapshot.participants) {
+      if (person.participant_id === host?.participant_id) continue;
+      const found = clippingFromRows(
+        rows,
+        snapshot.take_index,
+        person.participant_id,
+      );
+      if (found) counts[person.participant_id] = found.regions.length;
+    }
+    return counts;
+  }, [room.hostSegments, snapshot, host?.participant_id]);
   const people = roomPeople(snapshot, {
     youLevel: level,
     youSpeaking: level > SPEAKING_FRACTION && !host?.muted,
     dropped: room.offline,
     clipped: room.takeClipping?.regions.length ?? 0,
+    peerLevels,
+    peerClipped,
   });
   const alerts = roomAlerts(
     {
