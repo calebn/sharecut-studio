@@ -982,7 +982,7 @@
         "keyboard": "Mod+3"
       },
       "omit": {},
-      "tooltip": "Go to Edit",
+      "tooltip": "Go to Edit; again on Edit, scroll to the playhead",
       "presence": {
         "cursor": "none",
         "follow": "look"

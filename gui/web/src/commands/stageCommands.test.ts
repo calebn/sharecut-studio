@@ -1,7 +1,8 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { rangeEditMode } from "../shareMode";
 import { paletteCommands } from "../stage/dialogs/commandPaletteRows";
 import { useDawStore } from "../state/dawStore";
+import { playheadScrollRegistry } from "../state/playheadScrollRegistry";
 import { minimalProject } from "../test/fixtures";
 import { STAGE_IDS } from "../types/stage";
 import { COMMANDS } from "./catalog";
@@ -53,6 +54,67 @@ describe("stage commands", () => {
     expect(useDawStore.getState().editSurface).toBe("text");
     await execute("stage.edit", { surface: "nope" });
     expect(useDawStore.getState().editSurface).toBe("text");
+  });
+
+  describe("re-selecting the active Edit stage", () => {
+    const scrollers = (script: boolean, timeline: boolean) => {
+      const onScript = vi.fn(() => script);
+      const onTimeline = vi.fn(() => timeline);
+      const offs = [
+        playheadScrollRegistry.register("script", onScript),
+        playheadScrollRegistry.register("timeline", onTimeline),
+      ];
+      return { onScript, onTimeline, off: () => offs.forEach((o) => o()) };
+    };
+
+    it("scrolls the Script and the Timeline to the playhead and says so", async () => {
+      const { onScript, onTimeline, off } = scrollers(true, true);
+      expect(await execute("stage.edit")).toEqual({ status: "ok" });
+      expect(onScript).toHaveBeenCalledTimes(1);
+      expect(onTimeline).toHaveBeenCalledTimes(1);
+      expect(useDawStore.getState().feedbackToast?.message).toBe(
+        "Scrolled to playhead",
+      );
+      off();
+    });
+
+    it("stays silent when no surface scrolled", async () => {
+      const { onScript, off } = scrollers(false, false);
+      useDawStore.setState({ feedbackToast: null });
+      await execute("stage.edit");
+      expect(onScript).toHaveBeenCalledTimes(1);
+      expect(useDawStore.getState().feedbackToast).toBeNull();
+      off();
+    });
+
+    it("does not scroll when switching to Edit from another stage", async () => {
+      const { onScript, onTimeline, off } = scrollers(true, true);
+      useDawStore.setState({ stage: "review" });
+      await execute("stage.edit");
+      expect(onScript).not.toHaveBeenCalled();
+      expect(onTimeline).not.toHaveBeenCalled();
+      off();
+    });
+
+    it("does not scroll when re-selecting another stage", async () => {
+      const { onScript, onTimeline, off } = scrollers(true, true);
+      useDawStore.setState({ stage: "review" });
+      await execute("stage.review");
+      expect(onScript).not.toHaveBeenCalled();
+      expect(onTimeline).not.toHaveBeenCalled();
+      off();
+    });
+
+    it.each([{ sheet: "history" }, { section: "queue" }, { surface: "text" }])(
+      "does not scroll when the call carries %j",
+      async (args) => {
+        const { onScript, onTimeline, off } = scrollers(true, true);
+        await execute("stage.edit", args);
+        expect(onScript).not.toHaveBeenCalled();
+        expect(onTimeline).not.toHaveBeenCalled();
+        off();
+      },
+    );
   });
 
   it("breaks the follow of the host when a control switches stage", async () => {

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   canIngestMedia,
   isShareProjectKey,
@@ -7,6 +7,7 @@ import {
 import { FindBar, type FindBarHandle } from "../../../stages/edit/FindBar";
 import { SpeakerPopover } from "../../../stages/edit/SpeakerPopover";
 import { useDawStore } from "../../../state/dawStore";
+import { playheadScrollRegistry } from "../../../state/playheadScrollRegistry";
 import { ScriptPane, type ScriptPaneHandle } from "../../../system/ScriptPane";
 import type { ScriptStatus } from "../../../system/scriptPieces";
 import { ScriptJoin } from "./ScriptJoin";
@@ -95,6 +96,15 @@ export function ScriptHost({
   const find = useScriptFind(model, bar, win.scrollTo, say);
   const speaker = useScriptSpeaker(model, mayIngest && ready, say);
 
+  const backToPlayhead = () => {
+    playback.onFollowChange(true);
+    const word = playback.playing[0] ?? playback.playheadWord;
+    if (word === undefined) return false;
+    win.scrollTo(word, "center");
+    return true;
+  };
+  useEffect(() => playheadScrollRegistry.register("script", backToPlayhead));
+
   const phone =
     (layoutProp ?? (breakpoint === "phone" ? "phone" : "desktop")) === "phone";
   const mayReplace = hostEditable && ready && loading !== true;
@@ -168,11 +178,7 @@ export function ScriptHost({
           useDawStore.getState().setShowCutAwayUtterances(show)
         }
         onFollowChange={playback.onFollowChange}
-        onBackToPlayhead={() => {
-          playback.onFollowChange(true);
-          const word = playback.playing[0] ?? playback.playheadWord;
-          if (word !== undefined) win.scrollTo(word, "center");
-        }}
+        onBackToPlayhead={backToPlayhead}
         onUserScroll={playback.onUserScroll}
       />
       {speaker.open ? (

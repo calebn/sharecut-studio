@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../../../state/dawStore";
+import { playheadScrollRegistry } from "../../../state/playheadScrollRegistry";
 import {
   scriptUtterance,
   scriptWord,
@@ -190,6 +191,23 @@ describe("ScriptHost window", () => {
     render(<ScriptHost />);
     expect(hasWord("a300")).toBe(true);
     expect(hasWord("a0")).toBe(false);
+  });
+
+  it("scrolls to the playhead word and follows again when the Edit stage is re-selected", () => {
+    seedScript({
+      utterances: longTranscript(),
+      playheadSec: 600.2,
+      transcriptFollowPlayhead: false,
+    });
+    render(<ScriptHost />);
+    scrolling.calls.length = 0;
+    let scrolled = false;
+    act(() => {
+      scrolled = playheadScrollRegistry.scrollAllToPlayhead();
+    });
+    expect(scrolled).toBe(true);
+    expect(useDawStore.getState().transcriptFollowPlayhead).toBe(true);
+    expect([...new Set(scrolling.calls)]).toEqual([600]);
   });
 
   it("keeps the words being read when the reader stops following the playhead", () => {

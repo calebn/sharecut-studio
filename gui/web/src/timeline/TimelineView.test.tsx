@@ -18,6 +18,7 @@ import {
 import { LONG_PRESS_MS } from "../hooks/gestureConstants";
 import { useRecordHostStore } from "../record/hostStore";
 import { estimateTimelineViewportWidth, useDawStore } from "../state/dawStore";
+import { playheadScrollRegistry } from "../state/playheadScrollRegistry";
 import { selectedClipIdsOf } from "../state/selection";
 import { DawProvider } from "../state/store";
 import { timelineViewportRegistry } from "../state/timelineViewportRegistry";
@@ -274,6 +275,98 @@ describe("TimelineView follow auto-fit", () => {
     });
     expect(stopFollow).not.toHaveBeenCalled();
     expect(useDawStore.getState().followingClientId).toBe("leader");
+  });
+});
+
+describe("TimelineView scroll to playhead", () => {
+  const { fitToWindow, stopFollow } = useDawStore.getState();
+  let raf: ReturnType<typeof stubRaf>;
+
+  beforeEach(() => {
+    stubResizeObserver();
+    raf = stubRaf();
+    stubElementSize(400, 600);
+    useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
+    useDawStore.setState({
+      userZoomed: true,
+      zoomPxPerSec: 10,
+      playheadSec: 0,
+      scrollLeft: 0,
+      followingClientId: null,
+      fitToWindow,
+      stopFollow,
+    });
+  });
+
+  afterEach(() => {
+    raf.fire(0);
+    vi.unstubAllGlobals();
+    Reflect.deleteProperty(HTMLElement.prototype, "clientWidth");
+    Reflect.deleteProperty(HTMLElement.prototype, "clientHeight");
+  });
+
+  function mount(fixedPlayhead: boolean) {
+    const view = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <TimelineView fixedPlayhead={fixedPlayhead} />
+      </DawProvider>,
+    );
+    const scroller = view.container.querySelector(
+      ".timeline-scroll",
+    ) as HTMLElement;
+    let left = 0;
+    Object.defineProperty(scroller, "scrollLeft", {
+      configurable: true,
+      get: () => left,
+      set(v: number) {
+        left = v;
+      },
+    });
+    return scroller;
+  }
+
+  it("centres the playhead in the viewport", () => {
+    const scroller = mount(false);
+    useDawStore.setState({ playheadSec: 30 });
+    let scrolled = false;
+    act(() => {
+      scrolled = playheadScrollRegistry.scrollAllToPlayhead();
+    });
+    expect(scrolled).toBe(true);
+    expect(scroller.scrollLeft).toBe(100);
+    expect(useDawStore.getState().scrollLeft).toBe(100);
+  });
+
+  it("clamps to the end of the canvas", () => {
+    const scroller = mount(false);
+    useDawStore.setState({ playheadSec: 58 });
+    act(() => {
+      playheadScrollRegistry.scrollAllToPlayhead();
+    });
+    expect(scroller.scrollLeft).toBe(200);
+    expect(useDawStore.getState().scrollLeft).toBe(200);
+  });
+
+  it("clamps to the start of the canvas", () => {
+    const scroller = mount(false);
+    useDawStore.setState({ playheadSec: 5, scrollLeft: 150 });
+    scroller.scrollLeft = 150;
+    act(() => {
+      playheadScrollRegistry.scrollAllToPlayhead();
+    });
+    expect(scroller.scrollLeft).toBe(0);
+    expect(useDawStore.getState().scrollLeft).toBe(0);
+  });
+
+  it("declines with a fixed playhead, which is always centred", () => {
+    const scroller = mount(true);
+    const before = scroller.scrollLeft;
+    let scrolled = true;
+    act(() => {
+      scrolled = playheadScrollRegistry.scrollAllToPlayhead();
+    });
+    expect(scrolled).toBe(false);
+    expect(scroller.scrollLeft).toBe(before);
   });
 });
 

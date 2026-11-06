@@ -165,7 +165,7 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
   },
   "daw.stage.edit": {
     label: "Go to Edit",
-    tooltip: "Go to Edit",
+    tooltip: "Go to Edit; again on Edit, scroll to the playhead",
   },
   "daw.stage.review": {
     label: "Go to Review",

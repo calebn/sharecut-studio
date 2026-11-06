@@ -34,6 +34,7 @@ import { presenceColorVar } from "../presence/colors";
 import { useProsodyOverlayViews } from "../prosody/useProsodyOverlay";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { playheadScrollRegistry } from "../state/playheadScrollRegistry";
 import { selectedClipIdsOf, selectedTrackIdsOf } from "../state/selection";
 import { timelineViewportRegistry } from "../state/timelineViewportRegistry";
 import type { DawState } from "../state/types";
@@ -51,6 +52,7 @@ import {
   MARKER_ROW_HEIGHT,
   RULER_HEIGHT,
 } from "../utils/layout";
+import { clamp } from "../utils/math";
 import { clientXToTimelineSec } from "../utils/timelinePointer";
 import {
   domToLogicalScrollLeft,
@@ -411,6 +413,26 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
       timelineViewportRegistry.setLanesElement(null);
     };
   }, [project]);
+
+  useEffect(
+    () =>
+      playheadScrollRegistry.register("timeline", () => {
+        const el = scrollRef.current;
+        if (!el || fixedPlayhead) {
+          return false;
+        }
+        const { playheadSec, zoomPxPerSec: zoom } = useDawStore.getState();
+        const target = clamp(
+          playheadSec * zoom - timeViewportPx / 2,
+          0,
+          Math.max(0, width - timeViewportPx),
+        );
+        writeScroll(el, target, leadPx);
+        setScrollLeft(target);
+        return true;
+      }),
+    [fixedPlayhead, timeViewportPx, width, leadPx, writeScroll, setScrollLeft],
+  );
 
   useEffect(() => {
     const el = scrollRef.current;
