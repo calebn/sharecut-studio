@@ -142,7 +142,7 @@ describe("clip content", () => {
     );
   });
 
-  it("converts End by the clip's timeline start and locks timed clips", async () => {
+  it("converts End by the clip's timeline start", async () => {
     open([{ ...clip, timeline_start: 4, timeline_end: 6 }]);
     await type("End", "5.5");
     expect(saveClipEdge).toHaveBeenLastCalledWith(
@@ -151,6 +151,21 @@ describe("clip content", () => {
       { kind: "trim", edge: "out", mode: TRIM_MODE, sourceSec: 2.5 },
       expect.any(Function),
     );
+  });
+
+  it("lists the clip rows in the spec order", () => {
+    open();
+    const names = screen
+      .getAllByRole("spinbutton")
+      .map((field) => field.getAttribute("aria-label"));
+    expect(names.slice(0, 6)).toEqual([
+      "Start",
+      "End",
+      "Length",
+      "Source start",
+      "Source end",
+      "Fade in",
+    ]);
   });
 
   it("makes End and Length read-only for a clip with timing steps", () => {
@@ -166,6 +181,10 @@ describe("clip content", () => {
       },
     ]);
     expect(screen.getByRole("spinbutton", { name: "End" })).toHaveAttribute(
+      "aria-readonly",
+      "true",
+    );
+    expect(screen.getByRole("spinbutton", { name: "Length" })).toHaveAttribute(
       "aria-readonly",
       "true",
     );
