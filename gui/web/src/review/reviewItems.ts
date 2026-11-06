@@ -240,13 +240,16 @@ function entryOf(
   const suggested = !action
     ? undefined
     : (SUGGESTED.find((a) => a === action) ?? ("leave" as const));
-  const savedSeconds =
+  const spans =
     suggested === "lower" || suggested === "leave"
-      ? 0
-      : (edit.timeline_spans ?? []).reduce((sum, s) => {
-          const length = s.end - s.start;
-          return Number.isFinite(length) && length > 0 ? sum + length : sum;
-        }, 0);
+      ? []
+      : (edit.timeline_spans ?? [])
+          .filter((s) => Number.isFinite(s.end - s.start) && s.end > s.start)
+          .map((s) => [s.start, s.end] as const);
+  const savedSeconds = spans.reduce(
+    (sum, [start, end]) => sum + (end - start),
+    0,
+  );
   const title = edit.label ?? "Suggestion";
   const time = Number.isFinite(at) ? formatTimeShort(at) : "Unplaced";
   const words = edit.unsure_words ?? [];
@@ -265,6 +268,7 @@ function entryOf(
       kind: decisionKindOf(edit.kind),
       at,
       savedSeconds,
+      ...(spans.length ? { spans } : {}),
       suggested,
       ...(risk ? { risk } : {}),
       ...(speaker ? { speaker } : {}),

@@ -22,6 +22,7 @@ import {
   type ReviewItem,
   resultText,
   speakersOf,
+  sumSaved,
 } from "./reviewQueueModel";
 
 const item = (over: Partial<ReviewItem>): ReviewItem => ({
@@ -579,5 +580,50 @@ describe("attention rows", () => {
     expect(attentionLabelOf(attention({ unreadable: true }))).toBe(
       "Needs attention. 1 conflict. Saved edits could not be read",
     );
+  });
+});
+
+describe("what a set of edits saves", () => {
+  it("counts a moment once when two tracks cut it", () => {
+    const span = [[10, 12.9]] as const;
+    expect(
+      sumSaved([
+        item({ id: "a", savedSeconds: 2.9, spans: span }),
+        item({ id: "b", savedSeconds: 2.9, spans: span }),
+      ]),
+    ).toBeCloseTo(2.9);
+  });
+
+  it("counts only the union of ranges that overlap", () => {
+    expect(
+      sumSaved([
+        item({ id: "a", savedSeconds: 2, spans: [[10, 12]] }),
+        item({ id: "b", savedSeconds: 2, spans: [[11, 13]] }),
+        item({ id: "c", savedSeconds: 1, spans: [[20, 21]] }),
+      ]),
+    ).toBeCloseTo(4);
+  });
+
+  it("falls back to an item's own seconds when it has no ranges", () => {
+    expect(
+      sumSaved([
+        item({ id: "a", savedSeconds: 1.5 }),
+        item({ id: "b", savedSeconds: 2, spans: [[3, 5]] }),
+      ]),
+    ).toBeCloseTo(3.5);
+  });
+
+  it("ignores empty and non-finite ranges", () => {
+    expect(
+      sumSaved([
+        item({
+          savedSeconds: 0,
+          spans: [
+            [5, 5],
+            [Number.NaN, 7],
+          ],
+        }),
+      ]),
+    ).toBe(0);
   });
 });

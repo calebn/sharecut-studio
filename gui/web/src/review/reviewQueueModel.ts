@@ -20,6 +20,8 @@ export type ReviewItem = {
   at: number;
   /** Seconds the item removes when applied. Zero for comments and checks. */
   savedSeconds: number;
+  /** The timeline ranges it removes, so edits that cut the same moment on two tracks count once. */
+  spans?: readonly (readonly [start: number, end: number])[];
   unsure?: boolean;
   /** A staged record session waiting to be placed: its verb is Insert or Replace. */
   pickup?: { kind: "insert" | "replace"; number: number };
@@ -135,8 +137,34 @@ const byTime = (a: ReviewItem, b: ReviewItem) =>
 const byRisk = (a: ReviewItem, b: ReviewItem) =>
   (b.risk?.rank ?? 0) - (a.risk?.rank ?? 0) || byTime(a, b);
 
-const sumSaved = (items: readonly ReviewItem[]) =>
-  items.reduce((sum, item) => sum + item.savedSeconds, 0);
+/**
+ * What the timeline actually shortens by: the union of the removed ranges, so two edits over
+ * the same moment save it once. An item with no ranges counts its own seconds.
+ */
+export function sumSaved(items: readonly ReviewItem[]): number {
+  const ranges: [number, number][] = [];
+  let loose = 0;
+  for (const item of items) {
+    if (item.spans?.length) {
+      for (const [start, end] of item.spans) {
+        if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
+          ranges.push([start, end]);
+        }
+      }
+    } else {
+      loose += item.savedSeconds;
+    }
+  }
+  ranges.sort((a, b) => a[0] - b[0]);
+  let covered = 0;
+  let edge = Number.NEGATIVE_INFINITY;
+  for (const [start, end] of ranges) {
+    const from = Math.max(start, edge);
+    if (end > from) covered += end - from;
+    edge = Math.max(edge, end);
+  }
+  return loose + covered;
+}
 
 /** Groups of undecided items in queue order: kind order, then time. */
 export function groupQueue(items: readonly ReviewItem[]): ReviewGroup[] {
