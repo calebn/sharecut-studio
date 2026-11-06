@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { useDawStore } from "../state/dawStore";
+import { deferred } from "../test/deferred";
 import { runAndAnnounceRefusal } from "./refusal";
 import type { ExecuteResult } from "./types";
 
@@ -55,6 +56,28 @@ describe("runAndAnnounceRefusal", () => {
     });
     expect(told()).toEqual({ text: "Nothing selected", tone: "error" });
   });
+
+  it("does not let an unrelated error hide a pending untold refusal", async () => {
+    const pending = deferred<ExecuteResult>();
+    const result = runAndAnnounceRefusal(() => pending.promise);
+    useDawStore
+      .getState()
+      .announceStatus("An unrelated export failed", { tone: "error" });
+    pending.resolve({ status: "disabled", reason: "Nothing selected" });
+    await result;
+    expect(told()).toEqual({ text: "Nothing selected", tone: "error" });
+  });
+
+  it.each(["", "   "])(
+    "does not publish an empty refusal %j",
+    async (reason) => {
+      useDawStore.getState().announceStatus("Ready");
+      const seq = useDawStore.getState().statusAnnouncementSeq;
+      await runAndAnnounceRefusal(async () => ({ status: "disabled", reason }));
+      expect(useDawStore.getState().statusAnnouncement).toBe("Ready");
+      expect(useDawStore.getState().statusAnnouncementSeq).toBe(seq);
+    },
+  );
 
   it("announces a repeated refusal again after an earlier identical one", async () => {
     const refuse = async (): Promise<ExecuteResult> => ({
