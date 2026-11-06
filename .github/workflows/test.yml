@@ -247,6 +247,16 @@ jobs:
           union_tests="$(python3 scripts/ci_plan.py subset-tests web-docs)"
           pytest -n auto --no-cov -m "not e2e_slow and not e2e_real" --durations=100 --durations-min=0.1 --junitxml=test-results/pytest.xml $union_tests | tee test-results/pytest.log
 
+      - name: Run the tests the diff reaches
+        if: env.PYTEST_SCOPE == 'changed'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -o pipefail
+          changed_tests="$(python3 scripts/ci_plan.py changed-tests --base "$BASE_SHA" --head "$HEAD_SHA")"
+          pytest -n auto --no-cov -m "not e2e_slow and not e2e_real" --durations=100 --durations-min=0.1 --junitxml=test-results/pytest.xml $changed_tests | tee test-results/pytest.log
+
       - name: Run release policy and planner tests
         if: env.PYTEST_SCOPE == 'release'
         run: |
@@ -288,7 +298,7 @@ jobs:
           SHARDS: ${{ needs.pytest-shard.result }}
         run: |
           case "$PLAN:$SCOPE:$QUALITY:$SHARDS" in
-            success:quick:success:skipped | success:full:success:success | success:web:success:success | success:docs:success:success | success:web-docs:success:success | success:release:success:success) exit 0 ;;
+            success:quick:success:skipped | success:full:success:success | success:web:success:success | success:docs:success:success | success:web-docs:success:success | success:changed:success:success | success:release:success:success) exit 0 ;;
             *)
               printf 'Invalid plan or pytest result: %s/%s/%s/%s\n' "$PLAN" "$SCOPE" "$QUALITY" "$SHARDS" >&2
               exit 1

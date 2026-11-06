@@ -482,8 +482,13 @@ def test_ci_retains_only_approved_touch_peek_screenshots(tmp_path: Path) -> None
     assert selected == expected
 
 
-def test_pull_requests_run_every_webkit_compat_spec_in_complete_shards() -> None:
-    include = planned_include("pull_request", ("gui/web/src/App.tsx",))
+def test_release_pull_requests_run_every_webkit_compat_spec_in_complete_shards() -> None:
+    matrix = ci_plan.plan(
+        "pull_request",
+        ["gui/web/src/App.tsx"],
+        head_ref="release-please--branches--main--components--podcast-mcp",
+    ).outputs()["e2e-matrix"]
+    include = json.loads(matrix)["include"]
     compat = [entry for entry in include if entry["name"].startswith("compat")]
     assert [entry["name"] for entry in include if entry not in compat] == [
         entry["name"]
