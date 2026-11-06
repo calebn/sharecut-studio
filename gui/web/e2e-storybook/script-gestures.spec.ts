@@ -168,6 +168,44 @@ test("a double-click starts Fix text and a single click does not", async ({
   await expect(page.getByRole("textbox", { name: "Fix text" })).toBeVisible();
 });
 
+test("the Fix text field fits every word without clipping at either end", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+  await page.goto(
+    storyUrl("stages-edit-scriptpane--fix-text-open", { theme: "light" }),
+  );
+  await page.getByRole("button", { name: "Fix text" }).click();
+  const field = page.getByRole("textbox", { name: "Fix text" });
+  await expect(field).toBeVisible();
+  const fit = () =>
+    field.evaluate((el: HTMLInputElement) => ({
+      scrollLeft: el.scrollLeft,
+      scrollWidth: el.scrollWidth,
+      clientWidth: el.clientWidth,
+    }));
+  for (const word of [
+    "mmmm",
+    "WWWW",
+    "mmmmmmmm",
+    "women",
+    "swimming",
+    "Washington",
+    "Mommy",
+  ]) {
+    await field.fill(word);
+    for (const key of ["End", "Home"]) {
+      await field.press(key);
+      const { scrollLeft, scrollWidth, clientWidth } = await fit();
+      expect(scrollLeft, `${word} at ${key}`).toBe(0);
+      expect(scrollWidth, `${word} at ${key}`).toBeLessThanOrEqual(clientWidth);
+    }
+  }
+  await field.fill("a");
+  expect((await fit()).clientWidth).toBe(56);
+});
+
 test("Esc in the middle of a drag cancels it and the earlier selection stays", async ({
   page,
 }) => {

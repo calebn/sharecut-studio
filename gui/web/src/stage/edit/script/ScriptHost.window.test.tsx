@@ -383,6 +383,49 @@ describe("ScriptHost window", () => {
     expect(hasWord("a310")).toBe(true);
   });
 
+  it("shows the window around the start after the transcript shrinks below the reader's window and regrows", async () => {
+    const view = await jumpToLastUnsure();
+    act(() => {
+      seedScript({ utterances: longTranscript(300, []) });
+    });
+    view.rerender(<ScriptHost />);
+    act(() => {
+      seedScript({ utterances: longTranscript(400, []) });
+    });
+    view.rerender(<ScriptHost />);
+    expect(hasWord("a0")).toBe(true);
+    expect(hasWord("a350")).toBe(false);
+  });
+
+  it("keeps the slid window the reader last saw when the transcript regrows", async () => {
+    const view = await jumpToLastUnsure();
+    act(() => {
+      seedScript({ utterances: longTranscript(360, []) });
+    });
+    view.rerender(<ScriptHost />);
+    act(() => {
+      seedScript({ utterances: longTranscript(400, []) });
+    });
+    view.rerender(<ScriptHost />);
+    expect(hasWord("a359")).toBe(true);
+    expect(hasWord("a279")).toBe(true);
+    expect(hasWord("a390")).toBe(false);
+  });
+
+  it("draws a window around the start when the transcript shrinks to a short one and regrows", async () => {
+    const view = await jumpToLastUnsure();
+    act(() => {
+      seedScript({ utterances: longTranscript(100, []) });
+    });
+    view.rerender(<ScriptHost />);
+    act(() => {
+      seedScript({ utterances: longTranscript(400, []) });
+    });
+    view.rerender(<ScriptHost />);
+    expect(hasWord("a0")).toBe(true);
+    expect(hasWord("a350")).toBe(false);
+  });
+
   it("keeps the reader's window when the transcript is replaced by one that still covers it", async () => {
     const view = await jumpToLastUnsure();
     act(() => {
