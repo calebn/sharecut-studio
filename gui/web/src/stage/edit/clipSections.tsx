@@ -181,6 +181,47 @@ export function useClipSections(
     );
   };
 
+  const outLimits =
+    index < 0 ? null : trimEdgeLimits(lane, index, "out", TRIM_MODE);
+  const trimOutToLength = (lengthSec: number) =>
+    void trim("out", clip.source_start + lengthSec);
+  const endField = (
+    <ScrubField
+      label="End"
+      value={clip.timeline_start + clipSec}
+      unit="s"
+      step={CLIP_HANDLE_STEPS.trim.small}
+      decimals={3}
+      skipUnchanged
+      min={
+        outLimits
+          ? clip.timeline_start + outLimits.lo - clip.source_start
+          : undefined
+      }
+      max={
+        outLimits
+          ? clip.timeline_start + outLimits.hi - clip.source_start
+          : undefined
+      }
+      readOnly={locked}
+      onCommit={(value) => trimOutToLength(value - clip.timeline_start)}
+    />
+  );
+  const lengthField = (
+    <ScrubField
+      label="Length"
+      value={clipSec}
+      unit="s"
+      step={CLIP_HANDLE_STEPS.trim.small}
+      decimals={3}
+      skipUnchanged
+      min={outLimits ? outLimits.lo - clip.source_start : undefined}
+      max={outLimits ? outLimits.hi - clip.source_start : undefined}
+      readOnly={locked}
+      onCommit={trimOutToLength}
+    />
+  );
+
   const fadeField = (which: "in" | "out") => {
     const atCut = which === "in" ? cutIn : cutOut;
     return (
@@ -235,6 +276,8 @@ export function useClipSections(
             />
           ),
         },
+        { id: "end", label: "End", control: endField },
+        { id: "length", label: "Length", control: lengthField },
         { id: "in", label: "Source start", control: edge("in") },
         { id: "out", label: "Source end", control: edge("out") },
         { id: "fadeIn", label: "Fade in", control: fadeField("in") },
