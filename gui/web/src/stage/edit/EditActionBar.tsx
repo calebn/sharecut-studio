@@ -3,11 +3,16 @@ import { useShallow } from "zustand/react/shallow";
 import { barModelOf, editFactsOf, runEditVerb } from "../../commands/editVerbs";
 import { makeRangeTarget } from "../../edit/rangeSelection";
 import { useDawStore } from "../../state/dawStore";
-import { ActionBar, SelectionCount } from "../../system/ActionBar";
+import {
+  ActionBar,
+  SelectionCount,
+  SelectionObject,
+} from "../../system/ActionBar";
 import type { BarId } from "../../system/editActionSets";
 import { ScopeChip } from "../../system/ScopeChip";
 import { dialogueTrackIds } from "../../utils/bladeTracks";
 import { scopeOf } from "./barScope";
+import { inspectorHeading, inspectorShortName } from "./inspectorHeading";
 import { useSelectionAnchor } from "./useSelectionAnchor";
 
 type EditActionBarForm = "floating" | "dock";
@@ -39,7 +44,7 @@ function EditActionBarImpl({
 }: {
   form: EditActionBarForm;
   root: HTMLElement | null;
-  onRan?: () => void;
+  onRan?: (id: BarId) => void;
   /** The dock of the open Inspector sheet, whose own grip stands for Inspect. */
   inInspector?: boolean;
 }) {
@@ -85,7 +90,7 @@ function EditActionBarImpl({
     (id: BarId, arg?: string) => {
       const live = factsRef.current;
       if (live) void runEditVerb(id, live, arg);
-      onRan?.();
+      onRan?.(id);
     },
     [onRan],
   );
@@ -95,7 +100,7 @@ function EditActionBarImpl({
   if (!model.items.length && !model.primary) return null;
 
   const scope = scopeOf(facts, project);
-  const leading =
+  const kindLeading =
     model.leading === "scope" ? (
       <ScopeChip
         tracks={scope.tracks}
@@ -110,6 +115,18 @@ function EditActionBarImpl({
     ) : model.leading === "count" ? (
       <SelectionCount count={facts.count} />
     ) : undefined;
+  const leading =
+    !floating && selection ? (
+      <>
+        <SelectionObject
+          icon={inspectorHeading(selection, project).icon}
+          name={inspectorShortName(selection, project)}
+        />
+        {model.leading === "count" ? null : kindLeading}
+      </>
+    ) : (
+      kindLeading
+    );
 
   return (
     <ActionBar

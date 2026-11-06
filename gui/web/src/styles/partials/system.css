@@ -3849,6 +3849,12 @@ button.sys-picker-option:focus-visible {
   min-inline-size: 0;
 }
 
+/* At very large text the verbs keep their touch width and the row scrolls. */
+.sys-actions--dock .sys-dock-slot--start {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
 .sys-dock-slot--end {
   justify-content: flex-end;
 }
@@ -3897,7 +3903,7 @@ button.sys-picker-option:focus-visible {
   align-items: center;
   justify-content: center;
   gap: var(--space-0);
-  min-inline-size: 0;
+  min-inline-size: 2.75rem;
   min-block-size: var(--target-dock-button);
   padding: 0 var(--space-0);
   border: 0;
@@ -3996,6 +4002,30 @@ button.sys-scope:hover {
 .sys-scope-mode {
   display: inline-flex;
   align-items: center;
+}
+
+.sys-actions-object {
+  display: inline-flex;
+  flex: 0 100 6rem;
+  align-items: center;
+  gap: var(--space-1);
+  max-inline-size: 6rem;
+  min-inline-size: 0;
+  padding-inline: var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+  font-weight: 600;
+}
+
+.sys-actions-object > svg {
+  flex: none;
+}
+
+.sys-actions-object-name {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sys-actions-count {
@@ -6409,6 +6439,11 @@ input.sys-edit-fix {
   min-block-size: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+
+  /* A control at either end of the scroll keeps its focus ring (width plus
+     offset, 0.25rem) inside the clip. */
+  padding-block: var(--space-1);
+  scroll-padding-block: var(--space-3);
 }
 
 .sys-inspector-header {

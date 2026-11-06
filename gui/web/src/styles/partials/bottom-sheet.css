@@ -33,14 +33,6 @@ html[data-shell="phone"] .bottom-sheet-root {
   top: calc(var(--app-header-height-phone) + env(safe-area-inset-top));
 }
 
-/* The compact strip stacks above the shell's rows, so the status or nav row
-   beside it never draws over it, and its slot clips it, so its own slide
-   (entering, stowing) never draws over them (#1051 round 4). */
-.bottom-sheet-root:has(.bottom-sheet--compact) {
-  z-index: var(--z-sheet-docked);
-  overflow: clip;
-}
-
 .bottom-sheet-scrim {
   position: absolute;
   inset: 0;
@@ -94,25 +86,6 @@ html[data-shell="phone"] .bottom-sheet-root {
   height: min(75%, 32rem);
 }
 
-/* A selection the page cannot scroll clear of shortens the half sheet to sit
-   under it (keepTargetClear); the sheet body scrolls. On a tall screen it
-   also leaves the header, ruler, marker lane and one lane above it, so a pin or
-   a clip stays in reach of the next tap. */
-.bottom-sheet--inspector.bottom-sheet--half {
-  max-block-size: min(var(--sheet-cap, 100%), var(--sheet-lane-cap, 100%));
-}
-
-/* stylelint-disable-next-line media-feature-name-disallowed-list -- user-approved: tablet short viewport for portaled sheets */
-@media (min-height: 40rem) {
-  .bottom-sheet--inspector.bottom-sheet--half {
-    max-block-size: min(
-      var(--sheet-cap, 100%),
-      var(--sheet-lane-cap, 100%),
-      max(100% - var(--sheet-lane-clearance), min(100%, 9rem))
-    );
-  }
-}
-
 /* A touch lane is --lane-height-touch tall on a tall screen, so the one lane the
    sheet keeps clear is that tall (the next lane's header stays in reach). */
 @media (pointer: coarse) {
@@ -154,44 +127,12 @@ html[data-shell="phone"] .bottom-sheet-root {
   }
 }
 
-/* A strip as tall as its content: the selection's name, value and nudges. */
 .bottom-sheet--peek {
   height: auto;
 }
 
-/* A refused Approve adds its form to the strip. Cap that strip at the header, ruler and
-   marker lane clearance (not the half sheet's 50% limit, and not a lane too, so the form
-   and its Waive button keep their room); the sheet body scrolls (#2158). Other peek strips
-   keep their content height. */
-.bottom-sheet--compact.bottom-sheet--peek:has(.transcript-refine-recovery) {
-  max-block-size: max(100% - var(--sheet-chrome-clearance), min(100%, 9rem));
-}
-
 .bottom-sheet--peek .bottom-sheet-header {
   padding-block: var(--space-1);
-}
-
-/* Compact inspector expanded on a phone-sized screen: half the slot at most,
-   never the taller modifier share, and short enough to leave the transport,
-   ruler, marker lane and one coarse-pointer lane (104 px) above it, so the
-   selection stays in view (the inspector scrolls inside). */
-.bottom-sheet--compact.bottom-sheet--half,
-.bottom-sheet--compact.bottom-sheet--half:has(.modifier-inspector) {
-  height: max(
-    min(50%, 26.25rem, 100% - var(--sheet-lane-clearance)),
-    min(100%, 9rem)
-  );
-}
-
-/* The compact inspector keeps its name, Collapse and Close in reach. A new
-   selection reveals its fields by scrolling the sheet, which used to carry
-   Collapse out of view (#1051 round 4); focusAndReveal reveals fields below
-   this pinned chrome. */
-.bottom-sheet--compact .bottom-sheet-chrome {
-  position: sticky;
-  top: 0;
-  z-index: var(--z-local-chrome);
-  background: var(--color-bg-overlay);
 }
 
 /* The swipeable drawer (#1051 round 4b): the header drags the sheet between
@@ -242,12 +183,6 @@ html[data-shell="phone"] .bottom-sheet-root {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .bottom-sheet-root .bottom-sheet--compact {
-    transition:
-      translate var(--motion-panel) var(--motion-ease-out),
-      opacity var(--motion-panel) var(--motion-ease-out);
-  }
-
   /* A released drawer decelerates into its detent; reduced motion lands it
      at once. The transform's time comes first: useDrawerSwipe reads it. */
   .bottom-sheet-root .bottom-sheet[data-drawer-motion="settle"] {
@@ -267,67 +202,6 @@ html[data-shell="phone"] .bottom-sheet-root {
   .bottom-sheet--half:has(.modifier-inspector),
   .bottom-sheet--half:has(.range-actions--sheet) {
     height: min(70%, 22rem);
-  }
-}
-
-/* A phone held sideways editing a lane: the sheet keeps its header (title,
-   Done, Close) pinned and scrolls only the form beneath it, so Done and the
-   form are on screen together (#1694). A tall iPad slot is not short. */
-/* stylelint-disable-next-line media-feature-name-disallowed-list -- user-approved: tablet short viewport for portaled sheets */
-@media (max-height: 40rem) {
-  @container sheet-slot (min-width: 30rem) {
-    .bottom-sheet.bottom-sheet--lane-band:has(.modifier-inspector) {
-      overflow: hidden;
-    }
-
-    .bottom-sheet.bottom-sheet--lane-band:has(.modifier-inspector)
-      .bottom-sheet-body {
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow: hidden;
-    }
-
-    .bottom-sheet--lane-band .bottom-sheet-header {
-      padding-block: var(--space-0);
-    }
-  }
-}
-
-/* The shortest landscape window (914x331) with the status line kept has no
-   room for a title row above Done: the sheet's Expand and Close sit on the
-   same row as the lane's name and Done, and the title stays readable to a
-   screen reader only (#1694). */
-/* stylelint-disable-next-line media-feature-name-disallowed-list -- user-approved: tablet short viewport for portaled sheets */
-@media (max-height: 24rem) {
-  @container sheet-slot (min-width: 30rem) {
-    .bottom-sheet.bottom-sheet--lane-band:has(.modifier-inspector)
-      .bottom-sheet-chrome {
-      block-size: 0;
-      border-block-end: 0;
-    }
-
-    .bottom-sheet--lane-band:has(.modifier-inspector) .bottom-sheet-header {
-      position: absolute;
-      inset-block-start: var(--space-1);
-      inset-inline-end: var(--space-4);
-      z-index: var(--z-local-chrome);
-      padding: 0;
-      min-block-size: 0;
-    }
-
-    .bottom-sheet--lane-band:has(.modifier-inspector) .bottom-sheet-title {
-      position: absolute;
-      inline-size: 1px;
-      block-size: 1px;
-      overflow: hidden;
-      clip-path: inset(50%);
-      white-space: nowrap;
-    }
-
-    .bottom-sheet--lane-band:has(.modifier-inspector)
-      .modifier-primary-actions {
-      margin-inline-end: calc(var(--touch-min) * 2.5 + var(--space-4));
-    }
   }
 }
 
@@ -385,11 +259,6 @@ html[data-shell="phone"] .bottom-sheet-root {
   margin-inline-start: auto;
 }
 
-.bottom-sheet--compact .bottom-sheet-header {
-  position: relative;
-  padding-block: var(--space-1);
-}
-
 /* A slot this short (a small phone, or one the keyboard shrank) pads every
    sheet's header as the strip does, so the form under it keeps its rows. */
 @container sheet-slot (max-height: 28rem) {
@@ -416,59 +285,6 @@ html[data-shell="phone"] .bottom-sheet-root {
   .bottom-sheet .bottom-sheet-header {
     padding-block: 0;
   }
-}
-
-/* A phone held sideways (636x390) at large text leaves the strip a slot under
-   20rem tall, with no room for a title line of its own beside its header actions;
-   let the title shrink so they share a row (#1762). This holds at the strip,
-   half and full sizes in any slot under 20rem: a small portrait phone at large
-   text, or a slot the keyboard has shrunk. A taller slot keeps the 8rem title
-   line. */
-@container sheet-slot (max-height: 20rem) {
-  .bottom-sheet--compact .bottom-sheet-title {
-    flex-basis: 4rem;
-  }
-}
-
-.bottom-sheet--compact .bottom-sheet-header-actions {
-  flex: 0 1 auto;
-  max-inline-size: 100%;
-  flex-wrap: wrap;
-}
-
-html[data-frame-short] .bottom-sheet--compact .bottom-sheet-title {
-  flex: 1 1 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.compact-history-controls {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.compact-history-controls .compact-history-button {
-  position: relative;
-}
-
-.history-controls-icon--hidden {
-  visibility: hidden;
-}
-
-.compact-history-caption {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-primary);
-  font-size: var(--font-size-small);
-  line-height: 1.1;
-  pointer-events: none;
 }
 
 .bottom-sheet-body {
@@ -514,8 +330,7 @@ html[data-frame-short] .bottom-sheet--compact .bottom-sheet-title {
 /* Select range armed on a tablet: the sheet holds only In, Out, the tracks and
    its two buttons, so it is as tall as they are and the lanes the range is
    dragged across stay in view (#1793). */
-html[data-shell="tablet"]
-  .bottom-sheet--half:not(.bottom-sheet--compact):has(.range-numeric) {
+html[data-shell="tablet"] .bottom-sheet--half:has(.range-numeric) {
   height: auto;
   max-block-size: min(70%, 22rem);
 }
@@ -531,46 +346,6 @@ html[data-shell="tablet"]
 .bottom-sheet:has(.range-actions--sheet) .bottom-sheet-body > :not(.inspector) {
   flex: 0 0 auto;
   min-height: auto;
-  overflow: visible;
-}
-
-.compact-feedback-slot:has(.ui-toast) {
-  flex: 0 0 auto;
-  padding: var(--space-3) var(--space-4);
-}
-
-.bottom-sheet--compact,
-.bottom-sheet--compact:has(.modifier-inspector) {
-  overflow: hidden;
-}
-
-.bottom-sheet--compact .bottom-sheet-body,
-.bottom-sheet--compact:has(.modifier-inspector) .bottom-sheet-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
-}
-
-.bottom-sheet--compact .bottom-sheet-body > *,
-.bottom-sheet--compact .bottom-sheet-body .inspector,
-.bottom-sheet--compact .bottom-sheet-body .modifier-body {
-  flex: 0 0 auto;
-  min-height: auto;
-  height: auto;
-  overflow: visible;
-}
-
-.bottom-sheet--compact.bottom-sheet--chrome-scrolls {
-  overflow-x: hidden;
-  overflow-y: auto;
-}
-
-.bottom-sheet--compact.bottom-sheet--chrome-scrolls .bottom-sheet-chrome {
-  position: static;
-}
-
-.bottom-sheet--compact.bottom-sheet--chrome-scrolls .bottom-sheet-body {
-  flex: 0 0 auto;
   overflow: visible;
 }
 
@@ -605,14 +380,6 @@ html[data-keyboard="open"] .bottom-sheet .bottom-sheet-chrome {
 html[data-keyboard="open"] .bottom-sheet :is(input, select, textarea) {
   scroll-margin-block-end: var(--space-3);
 }
-
-/* With the keyboard up the lane band no longer applies: the sheet takes the
-   whole visible slot, so the form has every row there is (#1694). */
-html[data-keyboard="open"] .bottom-sheet--lane-band.bottom-sheet--half {
-  height: 100%;
-  max-block-size: 100%;
-}
-
 /* The Inspector as a column beside the timeline (#1696): a grid cell on the
    inline end of the shell (responsive.css), not a portaled sheet, so it has no
    scrim, detents or slide. The header stays pinned and the body scrolls inside

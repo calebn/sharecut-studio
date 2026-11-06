@@ -312,6 +312,30 @@ describe("InspectorSheet phone", () => {
     ).not.toHaveAttribute("inert");
   });
 
+  it("resets the content scroll when the sheet drops to the dock", () => {
+    const props = (detent: InspectorPhoneProps["detent"]) => (
+      <InspectorSheet
+        form="phone"
+        icon="sliders-horizontal"
+        name="Maya"
+        sections={sections}
+        dock={<button type="button">Hear</button>}
+        detent={detent}
+        onClose={vi.fn()}
+        onDetentChange={vi.fn()}
+        onDismiss={vi.fn()}
+      />
+    );
+    const { container, rerender } = render(props("half"));
+    const content = container.querySelector(".sys-inspector-scroll");
+    if (!content) throw new Error("no content");
+    content.scrollTop = 120;
+    rerender(props("full"));
+    expect(content.scrollTop).toBe(120);
+    rerender(props("dock"));
+    expect(content.scrollTop).toBe(0);
+  });
+
   it("shows the host's dock above the header", () => {
     phone();
     expect(screen.getByRole("button", { name: "Hear" })).toBeVisible();

@@ -19,7 +19,7 @@ import {
   keepTargetClear,
   pinnedChromeBottom,
   useShortScreen,
-} from "./useCompactInspector";
+} from "./keepTargetClear";
 
 export function laneSheetCap(
   slotBottom: number,

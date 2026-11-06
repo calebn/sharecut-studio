@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useKeyboardInset } from "../hooks/useKeyboardInset";
 import { Button } from "./Button";
 import { CloseButton } from "./CloseButton";
-import { focusAndReveal, revealBelowChrome } from "./focusAndReveal";
+import { revealBelowChrome } from "./focusAndReveal";
 import { Icon } from "./Icon";
 import { SheetHostPlacement } from "./sheetHost";
 import { useDialogModal } from "./useDialogModal";
@@ -29,6 +29,8 @@ export type BottomSheetBackgroundPolicy = "interactive" | "dismiss";
  * changes parent (`sheetHost`), so turning the phone keeps the tree mounted.
  */
 export type SheetPlacement = "sheet" | "column";
+
+const DETENT_RANK: Record<DrawerDetent, number> = { peek: 0, half: 1, full: 2 };
 
 /** How each detent reads to a screen reader and on the buttons' names. */
 const DETENT_TEXT: Record<DrawerDetent, string> = {
@@ -60,15 +62,11 @@ type Props = {
   /** Size while expanded. */
   expandedSize?: BottomSheetSize;
   children: ReactNode;
-  /** First content in the scrolling body, below the pinned chrome. */
-  bodyHeader?: ReactNode;
   /** When true, show `expandedSize` (user or parent). */
   expanded?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
   /** Accessible names of the Expand and Collapse actions. */
   resizeLabels?: { expand: string; collapse: string };
-  /** Additional actions for a compact inspector header. */
-  compactHeaderActions?: ReactNode;
   /** Detents the header swipes between; replaces the expand toggle. */
   drawer?: SheetDrawer;
   /**
@@ -76,7 +74,7 @@ type Props = {
    * what it describes; it slides back when they let go.
    */
   stowed?: boolean;
-  /** Extra class on the panel (the compact inspector's strip and sheet). */
+  /** Extra class on the panel. */
   className?: string;
   placement?: SheetPlacement;
 };
@@ -95,11 +93,9 @@ export function BottomSheet({
   size = "half",
   expandedSize = "full",
   children,
-  bodyHeader,
   expanded,
   onExpandedChange,
   resizeLabels,
-  compactHeaderActions,
   drawer: requestedDrawer,
   stowed = false,
   className,
@@ -125,23 +121,31 @@ export function BottomSheet({
     const reveal = (event: FocusEvent) => {
       const chrome = chromeRef.current;
       if (chrome && event.target instanceof HTMLElement) {
-        if (panel.matches(".bottom-sheet--compact")) {
-          if (!chrome.contains(event.target)) focusAndReveal(event.target);
-        } else revealBelowChrome(panel, chrome, event.target);
+        revealBelowChrome(panel, chrome, event.target);
       }
     };
     panel.addEventListener("focusin", reveal);
     return () => panel.removeEventListener("focusin", reveal);
   }, [open, hasDrawer, className]);
-  // Collapsing to the strip shows its top again. The body keeps the scroll it
-  // had open, which the strip would otherwise clamp to its end, leaving the
-  // first nudge out of view when the strip fills a short, large-text screen
-  // (#1762).
-  const atLowest = drawer != null && drawer.detent === drawer.detents[0];
+  // Dropping to the lowest detent, or opening there, shows the body's top. The
+  // body keeps the scroll it had at a taller detent, which a short, large-text
+  // screen would clamp to its end, leaving the first nudge out of view (#1762).
+  // The detents shrinking under a sheet already at full (rotation, keyboard,
+  // text zoom) is not a drop, so it keeps its scroll.
+  const detent = drawer?.detent;
+  const lowestRef = useRef(drawer?.detents[0]);
+  lowestRef.current = drawer?.detents[0];
+  const prevDetent = useRef<DrawerDetent | undefined>(undefined);
   useEffect(() => {
+    const before = prevDetent.current;
+    prevDetent.current = open ? detent : undefined;
     const body = panelRef.current?.querySelector(".bottom-sheet-body");
-    if (open && atLowest && body) body.scrollTop = 0;
-  }, [open, atLowest]);
+    const dropped =
+      before === undefined ||
+      (detent !== undefined && DETENT_RANK[detent] < DETENT_RANK[before]);
+    if (open && body && dropped && detent === lowestRef.current)
+      body.scrollTop = 0;
+  }, [open, detent]);
   const isExpanded = expanded ?? size === expandedSize;
   const current = drawer ? drawer.detent : isExpanded ? expandedSize : size;
 
@@ -249,14 +253,12 @@ export function BottomSheet({
             <span className="bottom-sheet-title-spacer" />
           )}
           <div className="bottom-sheet-header-actions">
-            {compactHeaderActions}
             {resizeButtons}
             <CloseButton ref={closeRef} onClick={dismiss} />
           </div>
         </div>
       </div>
       <div className="bottom-sheet-body" ref={keepFocusInView}>
-        {bodyHeader}
         {children}
       </div>
     </div>
