@@ -138,15 +138,13 @@ describe("README rule: prefer useProjectMutation", () => {
 
   /** Files that keep their own error state beside an API call. */
   const ALLOWLIST: string[] = [
-    "App.tsx",
     "comments/useCommentActions.ts",
     "comments/usePostComment.ts",
     "home/HelpDialog.tsx",
-    "hooks/useProjectBootstrap.ts",
     // The Deliver Share flow keeps its own busy, error and recovery state.
     "stage/hosts/shareFlow.tsx",
   ];
-  const ALLOWLIST_SIZE = 6;
+  const ALLOWLIST_SIZE = 4;
 
   it("keeps API-call error state in useProjectMutation outside the allowlist", () => {
     expect(handRolledMutations(sourceFiles())).toEqual(ALLOWLIST);
