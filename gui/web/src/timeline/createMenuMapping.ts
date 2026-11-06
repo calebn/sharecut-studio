@@ -135,8 +135,7 @@ export function createAnnouncement(
  * here, since the session can change while the menu is open (a share link
  * loses edit rights); a shut gate tells its reason and runs nothing. The volume
  * layer is turned on first when it is hidden, and stays on if the command then
- * refuses. A refusal is told, since the menu is gone by then; a command that
- * told its own failure says so with `told` and is not told again.
+ * refuses. A refusal is told, since the menu is gone by then.
  */
 export async function runCreatePick(
   id: CreateRowId,
