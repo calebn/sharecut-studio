@@ -41,12 +41,7 @@ function NewShow({
           />
         )}
       </Field>
-      <Button
-        type="submit"
-        variant="primary"
-        disabledReason={why}
-        {...reason.describedBy}
-      >
+      <Button type="submit" disabledReason={why} {...reason.describedBy}>
         Create
       </Button>
       {reason.note}

@@ -1,5 +1,6 @@
 import {
   type HostShareRow,
+  listenRowOf,
   REVIEW_ROLES,
   type ShareRole,
 } from "../../types/shares";
@@ -103,14 +104,24 @@ function groupRecordRooms(rows: readonly HostShareRow[]): RecordRoomGroup[] {
   return [...map.values()];
 }
 
-/** The usable rows, split into review links and record rooms. */
+/** What the next listen link is: a Viewer link frozen on the exported version. */
+export const LISTEN_CHOICES: ShareChoices = {
+  role: "viewer",
+  withMcp: false,
+  freeze: true,
+};
+
+/** The usable rows, split into review links, the listen link and record rooms. */
 export function shareRowsOf(rows: readonly HostShareRow[]): {
   review: HostShareRow[];
+  listen: HostShareRow | undefined;
   rooms: RecordRoomGroup[];
 } {
   const live = rows.filter((row) => row.usable);
+  const listen = listenRowOf(live);
   return {
-    review: live.filter((row) => row.kind !== "record"),
+    review: live.filter((row) => row.kind !== "record" && row !== listen),
+    listen,
     rooms: groupRecordRooms(live.filter((row) => row.kind === "record")),
   };
 }
@@ -213,19 +224,22 @@ export function shareEndKey(end: ShareEnd): string {
   return end.kind === "link" ? `link:${end.token}` : `room:${end.sessionId}`;
 }
 
-/** What the Share section shows and does, from the host's flow. */
+/** What the Invite sheet and the Deliver listen link show and do, from the host's flow. */
 export type ShareOptions = {
-  /** Every host share row; the section shows the usable ones. */
+  /** Every host share row; the sheet shows the usable ones. */
   rows: readonly HostShareRow[];
   /** False until the first list answers. */
   loaded: boolean;
   /** True while the last list failed; the empty states then say so. */
   listFailed?: boolean;
+  /** What the next review link will be: its role, AI assistants and pin. */
   choices: ShareChoices;
   onChoices: (next: ShareChoices) => void;
   /** One action runs at a time; the buttons wait. */
   busy: boolean;
   recovery: ShareCreateRecovery;
+  /** The choices of the create that needs Refresh mix. */
+  refreshFor: { choices: ShareChoices; listen: boolean } | null;
   error: string | null;
   status: string | null;
   /** The copy button that reads Copied for 2 s. */
@@ -234,10 +248,10 @@ export type ShareOptions = {
   blockedKey: ShareCopiedKey | null;
   /** Online sharing state; null or undefined when the `tunnel.status` feature is unavailable. */
   tunnel?: TunnelStatus | null;
-  /** Why Share is unavailable (the command's reason); undefined when it is available. */
+  /** Why sharing is unavailable (the command's reason); undefined when it is available. */
   blockedReason?: string;
-  /** Mints the link from the click that asks for it. */
-  onCreate: () => void;
+  /** Mints the link from the click that asks for it; `override` makes the listen link. */
+  onCreate: (override?: ShareChoices) => void;
   onRefreshMix: () => void;
   onCopy: (
     kind: ShareCopyKind,
@@ -249,8 +263,6 @@ export type ShareOptions = {
   onCreateRecord: () => void;
   onReplaceInvite: (sourceToken: string) => void;
   onEndRoom: (sessionId: string) => void;
-  onOpenRecord: () => void;
-  /** Something asked to bring Share into view: focus Create review link (or the first enabled button), then call `onFocused`. */
-  focusRequested?: boolean;
-  onFocused?: () => void;
+  /** Without it a room has no "Open Record stage" button (the sheet is already over Record). */
+  onOpenRecord?: () => void;
 };

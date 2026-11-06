@@ -6,17 +6,19 @@ import { Sheet } from "../../system/Sheet";
 import type { StageSheet } from "../../types/stage";
 import type { DrawerDetent } from "../../ui/BottomSheet";
 import { useModalOpen } from "../../ui/useModalOpen";
+import { InviteSheet } from "./InviteSheet";
 
 const TITLES: Record<StageSheet, string> = {
   history: "History",
   view: "View",
   mix: "Mix",
   tools: "Tools",
+  invite: "Invite",
 };
 
 /**
  * Renders the open Stage sheet: a bottom Sheet on a phone, a centered one
- * elsewhere. History is hosted here; the stage hosts hand in View and Mix. The
+ * elsewhere. History and Invite are hosted here; the stage hosts hand in View and Mix. The
  * phone's Mix sheet closes when a dialog opens over it.
  */
 export function SheetHost({
@@ -40,6 +42,16 @@ export function SheetHost({
     if (yieldsToDialog) setOpenSheet(null);
   }, [yieldsToDialog, setOpenSheet]);
   if (!openSheet || yieldsToDialog) return null;
+  if (openSheet === "invite") {
+    return (
+      <InviteSheet
+        form={shell === "phone" ? "bottom" : "centered"}
+        detent={detent}
+        onDetentChange={setDetent}
+        onClose={() => setOpenSheet(null)}
+      />
+    );
+  }
   const body =
     content?.[openSheet] ?? (openSheet === "history" ? <HistoryPanel /> : null);
   if (!body) return null;

@@ -10,6 +10,7 @@ import type { BounceOptions } from "./bounceLogic";
 import { ChaptersList } from "./ChaptersList";
 import { ClipsRow } from "./ClipsRow";
 import type { ClipWord } from "./clipTrim";
+import { DeliverSection } from "./DeliverSection";
 import type { DeliverFiles } from "./deliverFiles";
 import {
   addChapterAt,
@@ -39,8 +40,6 @@ import { EpisodeFile } from "./EpisodeFile";
 import { ExportButton } from "./ExportButton";
 import { ListenLink } from "./ListenLink";
 import { Readiness } from "./Readiness";
-import { ShareSection } from "./ShareSection";
-import type { ShareOptions } from "./shareLogic";
 import { TranscriptSection } from "./TranscriptSection";
 import type { TranscriptOptions } from "./transcriptLogic";
 import { useFocusRecovery } from "./useFocusRecovery";
@@ -91,9 +90,12 @@ export type DeliverStageProps = {
   bounce?: BounceOptions;
   /** Without it the Transcript section is not shown. */
   transcript?: TranscriptOptions;
-  /** Without it the Share section is not shown, and the Listen link section stands in when `showLink` is on. */
-  share?: ShareOptions;
-  /** The Podcast listing section, mounted after Share. Without it the section is not shown. */
+  /**
+   * The host's Listen link row, in the Listen link section instead of the one
+   * `link` describes. It gets `highlight` once an export is done, and `phone`.
+   */
+  listen?: (state: { highlight: boolean; phone: boolean }) => ReactNode;
+  /** The Podcast listing section, mounted after the Listen link. Without it the section is not shown. */
   feed?: ReactNode;
   /** False when the host cannot put a removed clip back into the project. */
   clipUndo?: boolean;
@@ -147,7 +149,7 @@ export function DeliverStage({
   exportOptions,
   bounce,
   transcript,
-  share,
+  listen,
   feed,
   clipUndo = true,
   clipTitleCommit = false,
@@ -415,10 +417,15 @@ export function DeliverStage({
             )}
           </div>
           <div className="dv-col">
-            {share ? (
-              <ShareSection options={share} state={sharedState} />
-            ) : !showLink ? null : state === "loading" ? (
+            {!showLink ? null : state === "loading" ? (
               <Skeleton layout="list" rows={2} />
+            ) : listen ? (
+              <DeliverSection title="Listen link">
+                {listen({
+                  highlight: shownState.phase === "done",
+                  phone,
+                })}
+              </DeliverSection>
             ) : (
               <ListenLink
                 pinnedTo={pinnedTo}
