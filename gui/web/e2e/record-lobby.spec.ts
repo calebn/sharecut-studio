@@ -19,7 +19,6 @@ import {
 import { CHROMIUM_FAKE_MEDIA_ARGS } from "./launchOptions";
 import {
   clickHostTransport,
-  closeHostMore,
   createRecordRoom,
   ensureHostRecordCommand,
   fillDisplayNameField,
@@ -28,7 +27,6 @@ import {
   joinAsGuest,
   joinAsProducer,
   joinNameField,
-  landParticipant,
   markSharecutE2e,
   openHostDevices,
   openHostMore,
@@ -41,6 +39,7 @@ import {
   roomTile,
   stopHostTake,
   waitForSegmentsAcked,
+  waitForTakeLanded,
 } from "./recordRoom";
 import { withShareableProject } from "./shareableProject";
 import { goToStage, openPanel, openProject, phone, stageTab } from "./stageNav";
@@ -1144,7 +1143,7 @@ test.describe("record lobby", () => {
             ].filter((row) => row.participant_id === producerId),
           ).toEqual([]);
 
-          await landParticipant(roomDlg, "Ava");
+          await waitForTakeLanded(host, projectPath);
           await expect(roomPill(guest)).toHaveText("Saved", {
             timeout: 30_000,
           });
@@ -1225,7 +1224,6 @@ test.describe("record lobby", () => {
           );
           expect(byBody("Producer note")?.author).toBe(producerId);
 
-          await closeHostMore(roomDlg);
           // The landed take is a track on Edit.
           await goToStage(host, "edit");
           await expect(trackHeaderButton(host, "Ava")).toBeVisible();

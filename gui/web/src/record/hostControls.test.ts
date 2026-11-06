@@ -98,103 +98,23 @@ describe("startBlockerItems with the host mic off", () => {
 });
 
 describe("landGate", () => {
-  const stopped = recordSnapshot({ state: "stopped", take_index: 0 });
-
   it("refuses before the first take and while a take is open", () => {
-    expect(landGate(recordSnapshot({ take_index: -1 }), [])).toEqual({
+    expect(landGate(recordSnapshot({ take_index: -1 }))).toEqual({
       enabled: false,
-      label: "Land",
       reason: "Record a take first.",
     });
     expect(
-      landGate(recordSnapshot({ state: "paused", take_index: 1 }), null),
+      landGate(recordSnapshot({ state: "paused", take_index: 1 })),
     ).toEqual({
       enabled: false,
-      label: "Land",
       reason: "Stop the take to land it on the timeline.",
     });
   });
 
-  it("lands an acknowledged recording and retries a failed land", () => {
-    expect(landGate(stopped, [segment({ file_ack: true })])).toEqual({
-      enabled: true,
-      label: "Land",
-    });
+  it("leaves the rest to the server once a take has stopped", () => {
     expect(
-      landGate(stopped, [
-        segment({ file_ack: true, landed: false, land_failed: true }),
-      ]),
-    ).toEqual({ enabled: true, label: "Retry land" });
-  });
-
-  const withComment = recordSnapshot({
-    state: "stopped",
-    take_index: 0,
-    comments: [
-      {
-        id: "c1",
-        take_index: 0,
-        recording_ms: 10,
-        pressed_wall_ms: 10,
-        author: "p_host",
-        body: "Marker",
-      },
-    ],
-  });
-  const saving = "Recordings are still saving to the project.";
-
-  it("lands live comments even when every recording already landed", () => {
-    expect(
-      landGate(withComment, [segment({ file_ack: true, landed: true })]),
-    ).toEqual({ enabled: true, label: "Land" });
-    expect(landGate(withComment, [])).toEqual({ enabled: true, label: "Land" });
-  });
-
-  it("keeps Land disabled while a recording saves, comments or not", () => {
-    expect(landGate(withComment, [segment({ file_ack: false })])).toEqual({
-      enabled: false,
-      label: "Land",
-      reason: saving,
-    });
-  });
-
-  it("lands an acknowledged recording with comments present", () => {
-    expect(
-      landGate(withComment, [segment({ file_ack: true, landed: false })]),
-    ).toEqual({ enabled: true, label: "Land" });
-  });
-
-  it("lands what is ready while another recording still saves", () => {
-    expect(
-      landGate(withComment, [
-        segment({ file_ack: true, landed: false }),
-        { ...segment({ file_ack: false }), segment_index: 1 },
-      ]),
-    ).toEqual({ enabled: true, label: "Land" });
-  });
-
-  it("explains why there is nothing to land yet", () => {
-    expect(landGate(stopped, [segment({ file_ack: false })])).toEqual({
-      enabled: false,
-      label: "Land",
-      reason: "Recordings are still saving to the project.",
-    });
-    expect(landGate(stopped, [])).toEqual({
-      enabled: false,
-      label: "Land",
-      reason: "No recordings have reached the project yet.",
-    });
-    expect(
-      landGate(stopped, [segment({ file_ack: true, landed: true })]),
-    ).toEqual({
-      enabled: false,
-      label: "Land",
-      reason: "Every take is on the timeline.",
-    });
-  });
-
-  it("leaves an unread upload status to the server", () => {
-    expect(landGate(stopped, null)).toEqual({ enabled: true, label: "Land" });
+      landGate(recordSnapshot({ state: "stopped", take_index: 0 })),
+    ).toEqual({ enabled: true });
   });
 });
 

@@ -543,10 +543,6 @@ function RecordStageBody({
       open={moreOpen}
       onClose={() => setMoreOpen(false)}
       busy={room.transportBusy}
-      land={room.land}
-      onLand={() => room.runCommand("record.land")}
-      canStop={room.control?.stop === true}
-      onStop={() => room.runCommand("record.stop")}
       upload={room.upload}
       keeperActions={room.keeperActions}
       stopped={state === "stopped"}

@@ -56,6 +56,10 @@ test("host publishes close risk across recording and pause, then clears after st
         "host",
       );
 
+      await dialog
+        .getByRole("button", { name: "Resume recording", exact: true })
+        .click();
+      await expect(dialog.getByText(/^\d+:\d{2} · Take \d+$/)).toBeVisible();
       await stopHostTake(host, dialog, projectPath);
       await expect
         .poll(() => new URL(host.url()).searchParams.has("sc_close_guard"))

@@ -8,9 +8,7 @@ export {
   useSheetMic,
 } from "./deviceSheet";
 export {
-  type LandGate,
   landGate,
-  STOP_CONFIRM_COPY,
   type StartBlockerItem,
 } from "./hostControls";
 export { useHostRoomContext, useHostRoomSelector } from "./hostRoomContext";
