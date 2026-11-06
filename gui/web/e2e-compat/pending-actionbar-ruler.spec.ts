@@ -116,10 +116,10 @@ async function expectCardOutcome(
     await expect(bar).toHaveClass(/pending-actionbar--docked/);
     expect(
       await bar.evaluate((el) => ({
-        inspectorSheet: el.closest(".bottom-sheet--inspector") !== null,
-        compactSheet: el.closest(".bottom-sheet--compact") !== null,
+        inspectorSheet: el.closest(".sys-inspector") !== null,
+        phoneSheet: el.closest(".sys-inspector--phone") !== null,
       })),
-    ).toEqual({ inspectorSheet: true, compactSheet: true });
+    ).toEqual({ inspectorSheet: true, phoneSheet: true });
     await expectHitTestable(bar.getByRole("button", { name: "Approve" }));
     await expectHitTestable(bar.getByRole("button", { name: "Reject" }));
     return;

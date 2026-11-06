@@ -661,15 +661,9 @@ function PendingEditRegion({
       return;
     }
     const sheet = docked ? inspectorSheetPanel() : null;
-    const inBody = sheet?.matches(
-      ".bottom-sheet--compact:is(.bottom-sheet--half, .bottom-sheet--full), .sys-inspector--phone",
-    );
     const destination =
-      sheet?.querySelector<HTMLElement>(
-        inBody
-          ? ".bottom-sheet-body, .sys-inspector-scroll"
-          : ".bottom-sheet-chrome",
-      ) ?? document.body;
+      sheet?.querySelector<HTMLElement>(".sys-inspector-scroll") ??
+      document.body;
     if (actionbarHost.parentElement === destination) return;
     const active = document.activeElement;
     const focusedInHost =
@@ -683,8 +677,7 @@ function PendingEditRegion({
         : null;
     const restore =
       focusedInHost ?? (destination !== document.body ? remembered : null);
-    if (inBody && destination !== document.body)
-      destination.prepend(actionbarHost);
+    if (destination !== document.body) destination.prepend(actionbarHost);
     else destination.append(actionbarHost);
     if (restore?.isConnected) restore.focus({ preventScroll: true });
   });

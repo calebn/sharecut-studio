@@ -669,13 +669,11 @@ Show the volume envelope (**Show volume envelope** in the track inspector, or
 the Volume envelope layer in the eye popover), then add a point from the lane's
 create menu (long press, right click, or Shift+F10): **Add volume point**. The
 new point is selected and **Inspect** opens its **Time** and **Level** in the
-Inspector (the inspector sheet on a phone, where the peek drawer also shows
-them). The layer is shared by all tracks and hiding it does not change saved
+Inspector (the inspector sheet on a phone). The layer is shared by all tracks and hiding it does not change saved
 audio. Shared-project Editors can edit the envelope; Commenters and Viewers can
 select points and read their values but cannot edit them.
 
-On a short phone screen, choose **Expand** in the inspector sheet to reach the
-envelope controls. Opening a point does not expand the sheet automatically.
+On a short phone screen, drag or tap the inspector sheet's grip to raise it to full height to reach the envelope controls.
 
 **Time** is in seconds from 0 to the end of the timeline and **Level** runs from
 0 to 1.50: zero is silent and 1.00 leaves the track’s volume unchanged. Each

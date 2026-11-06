@@ -1,7 +1,6 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { waiveRefineGate } from "./documentCommand";
 import { e2eProjectPath } from "./env";
-import { expectPreviewFooterTouchBounds } from "./inspectorFooterBounds";
 import { exposeControl } from "./inspectorResponsiveEvidence";
 import { openSuggestedPendingEdit } from "./pendingEdit";
 import { phone } from "./stageNav";
@@ -72,18 +71,6 @@ async function clickApproveUntilError(root: Locator): Promise<void> {
   }).toPass();
 }
 
-async function expectErrorPinnedAboveAudition(root: Locator): Promise<void> {
-  const error = root.locator(".modifier-error");
-  const seek = root.getByRole("button", { name: "Seek" });
-  const preview = root.getByRole("group", { name: "Preview mode" });
-  await expect(error).toBeVisible();
-  await expect(
-    root.getByRole("region", { name: "Ask about this edit" }),
-  ).toBeAttached();
-  await expectNoOverlap(error, seek);
-  await expectNoOverlap(error, preview);
-}
-
 /** The preview footer is gone where the Action bar plays and seeks; the error sits above Ask. */
 async function expectErrorAboveAskWithNoFooter(root: Locator): Promise<void> {
   const error = root.locator(".modifier-error");
@@ -119,16 +106,9 @@ test.describe("Pending inspector layout", () => {
         if (entrypoint === "phone inspector") {
           await page.setViewportSize({ width: 390, height: 844 });
           await phone.showTimeline(page);
-          const sheet = page.locator(".bottom-sheet--inspector");
+          const sheet = page.locator(".sys-inspector--phone");
           await expect(sheet).toBeVisible();
-          for (let step = 0; step < 2; step++) {
-            const expand = sheet.getByRole("button", {
-              name: /^Expand(?: to (?:half|full) height)?$/,
-              exact: true,
-            });
-            if (!(await expand.count())) break;
-            await expand.click();
-          }
+          await page.getByRole("slider", { name: "Sheet height" }).press("End");
           root = sheet.getByRole("complementary");
           await exposeControl(
             page,
@@ -206,7 +186,7 @@ test.describe("Pending inspector layout", () => {
     await expectErrorAboveAskWithNoFooter(inspector);
   });
 
-  test("phone drawer keeps error above Ask and above its preview footer", async ({
+  test("phone sheet keeps error above Ask and has no preview footer", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
@@ -218,30 +198,18 @@ test.describe("Pending inspector layout", () => {
       await page.evaluate(() => matchMedia("(pointer: fine)").matches),
     ).toBe(true);
     await phone.showTimeline(page);
-    // The phone timeline opens the compact drawer; at full height it holds
+    // The phone timeline opens the Inspector sheet; at full height it holds
     // the whole pending inspector.
-    const dialog = page.locator(".bottom-sheet--compact");
+    const dialog = page.locator(".sys-inspector--phone");
     await expect(dialog).toBeVisible();
-    await dialog.getByRole("button", { name: "Expand to half height" }).click();
-    await dialog.getByRole("button", { name: "Expand to full height" }).click();
+    await page.getByRole("slider", { name: "Sheet height" }).press("End");
     await expect(
       dialog.getByRole("heading", { name: "Pending edit" }),
     ).toBeVisible();
     const inspector = dialog.getByRole("complementary");
     await clickApproveUntilError(inspector);
-    // The timeline's compact drawer has no Action bar dock, so the footer stays.
-    await expectErrorPinnedAboveAudition(inspector);
-    await exposeControl(
-      page,
-      inspector.getByRole("button", { name: "Seek" }),
-      [],
-    );
-    await exposeControl(
-      page,
-      inspector.getByRole("group", { name: "Preview mode" }),
-      [],
-    );
-    await expectPreviewFooterTouchBounds(inspector);
+    // The sheet's dock carries Seek and Preview, so the preview footer is gone.
+    await expectErrorAboveAskWithNoFooter(inspector);
   });
 
   test("inline review stays hit-testable and tall recovery scrolls outside the lane", async ({

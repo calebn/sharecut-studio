@@ -139,7 +139,6 @@ export const createStageSlice: StateCreator<
         stage: next,
         reviewSection: section,
         openSheet: sheet,
-        sheetExpanded: false,
         timelineFocused: next === "edit",
         stageViews: {
           ...s.stageViews,

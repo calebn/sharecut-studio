@@ -9,7 +9,13 @@ import {
   EDIT_SELECTIONS,
 } from "../test/actionBarFixtures";
 import type { Selection } from "../types/project";
-import { ActionBar, type ActionBarProps, SelectionCount } from "./ActionBar";
+import {
+  ActionBar,
+  type ActionBarProps,
+  SelectionCount,
+  SelectionObject,
+} from "./ActionBar";
+import type { SystemIconName } from "./icons";
 import { ScopeChip } from "./ScopeChip";
 
 const meta: Meta<typeof ActionBar> = {
@@ -47,6 +53,8 @@ function leadingFor(scene: BarScene, ripple: boolean) {
 }
 
 type SceneProps = {
+  /** The dock's object icon and short name; the phone dock names what it acts on. */
+  object?: { icon: SystemIconName; name: string };
   selection: Selection;
   role?: EditRole;
   clipboardHasAudio?: boolean;
@@ -93,6 +101,7 @@ function FloatingScene({
 }
 
 function DockScene({
+  object,
   selection,
   role,
   clipboardHasAudio,
@@ -114,7 +123,12 @@ function DockScene({
     >
       <ActionBar
         placement={{ form: "dock" }}
-        leading={leadingFor(scene, ripple)}
+        leading={
+          <>
+            {object ? <SelectionObject {...object} /> : null}
+            {leadingFor(scene, ripple)}
+          </>
+        }
         items={scene.items}
         more={scene.more}
         primary={scene.primary}
@@ -340,4 +354,104 @@ export const PhoneDockPlayhead390: Story = {
   name: "Phone Dock Playhead 390",
   ...dock(EDIT_SELECTIONS.playhead, "24.375rem", { clipboardHasAudio: true }),
   play: playPlayhead,
+};
+
+const objectName = (canvasElement: HTMLElement) =>
+  canvasElement.querySelector(".sys-actions-object")?.textContent;
+
+export const PhoneDockWords: Story = {
+  ...dock(EDIT_SELECTIONS.cutWords, "24.375rem", {
+    object: { icon: "text-cursor-input", name: "Words" },
+  }),
+  play: async (context) => {
+    await playDock(context);
+    await expect(objectName(context.canvasElement)).toBe("Words");
+  },
+};
+
+export const PhoneDockClip: Story = {
+  ...dock(EDIT_SELECTIONS.clip, "24.375rem", {
+    object: { icon: "sliders-horizontal", name: "Mira" },
+  }),
+  play: async ({ args, canvasElement }) => {
+    await expect(objectName(canvasElement)).toBe("Mira");
+    await expect(barNames(canvasElement)).toEqual([
+      "Inspect",
+      "Hear",
+      "Split",
+      "Comment",
+      "Cut",
+      "More",
+    ]);
+    await userEvent.click(
+      within(canvasElement).getByRole("button", { name: "Hear" }),
+    );
+    await expect(args.onVerb).toHaveBeenLastCalledWith("hear");
+  },
+};
+
+export const PhoneDockSuggestion: Story = {
+  ...dock(EDIT_SELECTIONS.suggestion, "24.375rem", {
+    object: { icon: "wand-sparkles", name: "Suggestion" },
+  }),
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(objectName(canvasElement)).toBe("Suggestion");
+    await expect(
+      canvas.getByRole("group", { name: "Hear before and after" }),
+    ).toBeVisible();
+    await expect(canvasElement.querySelectorAll(".primary")).toHaveLength(1);
+    await userEvent.click(canvas.getByRole("button", { name: "Keep" }));
+    await expect(args.onVerb).toHaveBeenLastCalledWith("keep");
+  },
+};
+
+export const PhoneDockEnvelopePoint: Story = {
+  ...dock(
+    { kind: "envelopePoint", trackId: "mira-voice", pointId: "p2" },
+    "24.375rem",
+    {
+      object: { icon: "volume-1", name: "Mira point 2" },
+    },
+  ),
+  play: async ({ canvasElement }) => {
+    await expect(objectName(canvasElement)).toBe("Mira point 2");
+    await expect(barNames(canvasElement)).toEqual([
+      "Inspect",
+      "Hear",
+      "Remove",
+    ]);
+  },
+};
+
+export const PhoneDockChapter: Story = {
+  ...dock({ kind: "chapter", id: "Intro", time: 3 }, "24.375rem", {
+    object: { icon: "flag", name: "Chapter" },
+  }),
+  play: async ({ canvasElement }) => {
+    await expect(objectName(canvasElement)).toBe("Chapter");
+    await expect(barNames(canvasElement)).toEqual([
+      "Inspect",
+      "Hear",
+      "Fix text",
+      "Remove",
+    ]);
+  },
+};
+
+export const PhoneDockSocial: Story = {
+  ...dock({ kind: "social", id: "s1" }, "24.375rem", {
+    object: { icon: "send", name: "Social clip" },
+  }),
+  play: async ({ canvasElement }) => {
+    await expect(objectName(canvasElement)).toBe("Social clip");
+    await expect(barNames(canvasElement)).toEqual([
+      "Inspect",
+      "Hear",
+      "Comment",
+      "Fix text",
+      "Remove",
+      "Approve",
+    ]);
+  },
 };

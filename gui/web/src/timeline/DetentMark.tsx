@@ -1,6 +1,6 @@
 /**
  * Where an armed drag is held (#1051 round 4b): a line through the lanes at
- * the soft boundary and a caption naming it, the drag's twin of the strip's
+ * the soft boundary and a caption naming it, the drag's twin of the nudge's
  * "stopped at" bump. Push on past it and both go.
  */
 import type { CSSProperties } from "react";

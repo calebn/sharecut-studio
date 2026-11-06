@@ -32,7 +32,6 @@ beforeEach(() => {
   useDawStore.setState({
     ...inspected({ kind: "clip", id: "c2", trackId: "host" }),
     selectionHit: { kind: "trim-in", id: "c2" },
-    compactInspectorView: "peek",
     timelineDragging: false,
     rangeArmed: false,
     sessionRegion: null,
@@ -43,19 +42,15 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("useInspectorOpen strip", () => {
-  it("peeks only on the phone's lanes", () => {
-    const phone = renderHook(() => useInspectorOpen("phone", "timeline"));
-    expect(phone.result.current.strip?.props.className).toContain(
-      "bottom-sheet--compact",
-    );
-    for (const shell of ["tablet", "desktop"] as const) {
+describe("useInspectorOpen on the phone", () => {
+  it("opens the same sheet for a timeline target on every shell", () => {
+    for (const shell of ["phone", "tablet", "desktop"] as const) {
       const { result } = renderHook(() => useInspectorOpen(shell, "timeline"));
-      expect(result.current).toMatchObject({ open: true, strip: null });
+      expect(result.current.open).toBe(true);
     }
   });
 
-  it("keeps the full Inspector for an automatic-reduction band, whose session lives in its body", () => {
+  it("opens the sheet for an automatic-reduction band, whose session lives in its body", () => {
     useDawStore.setState({
       ...inspected({
         kind: "bleedAttenuation",
@@ -66,7 +61,7 @@ describe("useInspectorOpen strip", () => {
       selectionHit: null,
     });
     const { result } = renderHook(() => useInspectorOpen("phone", "timeline"));
-    expect(result.current).toMatchObject({ open: true, strip: null });
+    expect(result.current.open).toBe(true);
   });
 });
 
@@ -97,14 +92,12 @@ describe("useInspectorOpen open state", () => {
   });
 
   it("clears the selection when the phone sheet is dismissed", () => {
-    useDawStore.setState({ sheetExpanded: true });
     const { result } = renderHook(() => useInspectorOpen("phone", "timeline"));
     act(() => result.current.dismiss());
     expect(useDawStore.getState()).toMatchObject({
       inspectorKey: null,
       selection: null,
       rangeArmed: false,
-      sheetExpanded: false,
     });
   });
 

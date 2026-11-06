@@ -121,7 +121,7 @@ navigation does not grant it.
 
 The representative cloud matrix uses desktop 1440×900, tablet 820×1024 and
 phone 390×844 in light/dark, with sampled reduced motion and fit/deep zoom.
-The Script divider is absent on phone; test the shipped Expand/Collapse control.
+The Script divider is absent on phone; test the shipped sheet grip.
 A mouse at phone width is a mouse test. Record trusted contacts separately from
 synthetic foreign-pointer rejection and DOM-dispatched touch.
 
