@@ -241,8 +241,12 @@ function entryOf(
   const suggested = !action
     ? undefined
     : (SUGGESTED.find((a) => a === action) ?? ("leave" as const));
+  // Mirrors the server's `edit_time_behavior`: a mute, a track-scope cut or an
+  // exact-range cut leaves the timeline length alone, so it saves nothing.
+  const inPlace =
+    edit.type === "mute" || edit.scope === "track" || !!edit.exact_range;
   const spans =
-    suggested === "lower" || suggested === "leave"
+    suggested === "lower" || suggested === "leave" || inPlace
       ? []
       : (edit.timeline_spans ?? [])
           .filter((s) => Number.isFinite(s.end - s.start) && s.end > s.start)
