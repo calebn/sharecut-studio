@@ -9,4 +9,4 @@
 | **Empty / error** | No episode open: URL still copies, tools error until a project is open |
 | **Out of scope** | Writing `~/.cursor/mcp.json`; PATH-installing `podcast-mcp`; guest share-token MCP (that stays on Share…) |
 
-Not the Share section. Guest share agents use `{base}/mcp/{token}/mcp`.
+Guest share agents use `{base}/mcp/{token}/mcp`.

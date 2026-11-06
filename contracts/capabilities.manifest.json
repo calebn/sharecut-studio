@@ -1434,7 +1434,7 @@
         "command": "record.copyGuestLink"
       },
       "omit": {
-        "keyboard_reason": "Palette command; Share also has a Copy guest link button",
+        "keyboard_reason": "Palette command; the Invite sheet also has a Copy guest link button",
         "guest": true
       },
       "tooltip": "Copy guest link",
