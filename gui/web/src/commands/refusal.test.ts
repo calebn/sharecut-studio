@@ -26,6 +26,25 @@ describe("runAndAnnounceRefusal", () => {
     expect(told()).toEqual({ text: "Refresh already running", tone: "error" });
   });
 
+  it("escalates a matching status message when the command refuses", async () => {
+    useDawStore.getState().announceStatus("Nothing selected");
+    const statusToast = useDawStore.getState().feedbackToast;
+    const statusSeq = useDawStore.getState().statusAnnouncementSeq;
+
+    await runAndAnnounceRefusal(async () => ({
+      status: "disabled",
+      reason: "Nothing selected",
+    }));
+
+    expect(useDawStore.getState().statusAnnouncement).toBe("Nothing selected");
+    expect(useDawStore.getState().statusAnnouncementSeq).toBe(statusSeq + 1);
+    expect(useDawStore.getState().feedbackToast).not.toBe(statusToast);
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      message: "Nothing selected",
+      tone: "error",
+    });
+  });
+
   it("leaves a failure the command already told in its own words", async () => {
     await runAndAnnounceRefusal(async () => {
       useDawStore
