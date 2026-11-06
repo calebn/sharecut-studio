@@ -184,6 +184,25 @@ describe("Seam pill rolling", () => {
     expect(container.querySelector(".sys-seam-readout")).toBeNull();
   });
 
+  it("commits the whole milliseconds its readout shows", () => {
+    const onCommit = vi.fn();
+    const { container } = render(
+      <Seam
+        {...pill}
+        roll={{ limits: () => ({ minMs: -500, maxMs: 500 }), onCommit }}
+      />,
+    );
+    const right = edge(container, "right");
+    fireEvent.pointerDown(right, { pointerId: 1, button: 0, clientX: 100 });
+    fireEvent.pointerMove(right, { pointerId: 1, clientX: 108 });
+    fireEvent.pointerMove(right, { pointerId: 1, clientX: 109 });
+    expect(container.querySelector(".sys-seam-readout")).toHaveTextContent(
+      "+113 ms",
+    );
+    fireEvent.pointerUp(right, { pointerId: 1 });
+    expect(onCommit).toHaveBeenCalledWith(113);
+  });
+
   it("holds the roll to the room the clips leave", () => {
     const onCommit = vi.fn();
     const { container } = render(
