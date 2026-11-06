@@ -158,8 +158,10 @@ The restored-word fixtures make ghost preview geometry observable without a
 live episode or backend. Real mouse trajectories check stable text and row
 layout, handle displacement, preview bounds, and Escape cleanup at 1440px
 and 360px in light and dark themes. `.github/workflows/storybook.yml` installs
-Chromium and runs this suite against the catalog build. This supplements
-the jsdom story interaction and axe checks.
+Chromium and runs this suite against the catalog build on pushes, manual
+dispatch and the nightly promotion. A pull request runs only the render smoke
+(`coverage.spec.ts` and `docs-theme.spec.ts`) and skips the story sweep. This
+supplements the jsdom story interaction and axe checks.
 
 `e2e-storybook/story-layout.spec.ts` checks floating panels in both standalone
 Canvas and Docs at desktop and phone widths in both themes. Menus must fit
