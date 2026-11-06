@@ -134,6 +134,7 @@ export function registerHostCommands(): void {
           return {
             status: "disabled",
             reason,
+            told: true,
           };
         }
       } else if (!started.ok) {
@@ -143,7 +144,7 @@ export function registerHostCommands(): void {
             .getState()
             .announceStatus(`Refresh failed: ${reason}`, { tone: "error" });
         }
-        return { status: "disabled", reason };
+        return { status: "disabled", reason, told: true };
       }
       if (!isCurrentProject()) {
         return { status: "disabled", reason: "Project changed during refresh" };
@@ -168,6 +169,7 @@ export function registerHostCommands(): void {
       return {
         status: "disabled",
         reason,
+        told: true,
       };
     } finally {
       if (isCurrentProject()) {
