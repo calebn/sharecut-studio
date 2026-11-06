@@ -205,8 +205,8 @@ const SURFACE_GESTURES: Record<string, string> = {
     "the waveform handles preview a word's timing and save one adjustment on release; Escape cancels, and the Start and End Scrub fields do the same by key",
   "system/Seam.tsx":
     "the pill's edges roll the seam with pointer capture and save one roll on release; Alt with an arrow key rolls it 1 ms",
-  "stages/prepare/AdvancedSteps.tsx":
-    "a step's seconds setting is a native range input beside its value; it is a setting, not a timeline target",
+  "system/useSourceReorder.ts":
+    "source reorder: a pointer drag on a Source card's grip, with pointer capture, moves the card among the session's cards and saves one new order on release; Escape, a cancel or a lost capture put it back; the card menu moves a source by key; it is a list reorder, not a timeline target",
   "system/wavePointer.ts":
     "the pointer helpers shared by the suggestion and clip trim handles: a pointer position as a ratio of a strip, and a safe pointer capture; no gesture of its own",
   "system/useScriptGestures.ts":

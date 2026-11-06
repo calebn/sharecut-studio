@@ -1,5 +1,6 @@
 import { SessionGroup } from "../../system/SessionGroup";
 import { SourceCard } from "../../system/SourceCard";
+import { useSourceReorder } from "../../system/useSourceReorder";
 import type { PrepareSession, SourceActions } from "./prepareTypes";
 
 type SessionSourcesProps = {
@@ -21,6 +22,10 @@ export function SessionSources({
   onTarget,
 }: SessionSourcesProps) {
   const { sources } = session;
+  const gripFor = useSourceReorder((id, to) => {
+    const target = sources[to];
+    if (target) actions.onReorder(id, target.id);
+  });
   const here = new Map<string, number>();
   for (const source of sources) {
     const key = source.name.trim().toLowerCase();
@@ -67,6 +72,17 @@ export function SessionSources({
                 onRetry={() => actions.onRetry(source.id)}
                 onDetails={() => actions.onDetails(source.id)}
                 onReplace={() => actions.onReplace(source.id)}
+                grip={sources.length > 1 ? gripFor(source.id) : undefined}
+                onDropAudio={
+                  actions.onDropAudio
+                    ? (files) => actions.onDropAudio?.(source.id, files)
+                    : undefined
+                }
+                onDropHover={
+                  actions.onDropHover
+                    ? (over) => actions.onDropHover?.(source.id, over)
+                    : undefined
+                }
                 onMerge={
                   actions.onMerge
                     ? () => actions.onMerge?.(source.id)

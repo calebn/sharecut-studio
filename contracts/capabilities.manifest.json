@@ -496,7 +496,8 @@
       "surfaces": {
         "command": "track.reorder",
         "gui": [
-          "trackHeader"
+          "trackHeader",
+          "SourceCard"
         ],
         "mcp": [
           "track_reorder_tool"
@@ -2358,7 +2359,8 @@
         "command": "media.import",
         "gui": [
           "drop",
-          "editPlusMenu"
+          "editPlusMenu",
+          "SourceCard"
         ],
         "keyboard": "Mod+I",
         "mcp": [
