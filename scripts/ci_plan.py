@@ -6,10 +6,11 @@ Usage:
   python3 scripts/ci_plan.py plan --event push          # develop: lint, types and Vitest only
   python3 scripts/ci_plan.py plan --event workflow_dispatch  # promotion and dispatch: everything
   python3 scripts/ci_plan.py subset-tests web|docs|web-docs  # pytest files that read that scope
+  python3 scripts/ci_plan.py changed-tests --base <sha> --head <sha>  # pytest files a diff reaches
   python3 scripts/ci_plan.py required-checks [--check]   # the required-checks table in the docs
 
 `plan` prints `key=value` lines for `$GITHUB_OUTPUT`: `gui` (run Vitest and the
-browser suites), `pytest` (`full`, `web`, `docs`, `web-docs`, `quick` or `release`), `release-only`
+browser suites), `pytest` (`full`, `web`, `docs`, `web-docs`, `changed`, `quick` or `release`), `release-only`
 (digit `1` proves a release update), `e2e-matrix` (the browser jobs), and seven
 `skip-native-*` proofs from `ci_native` (digit `1` skips a native family; `0` runs it).
 `REQUIRED_CHECKS` is the one list of required status contexts: `required-checks` renders
@@ -62,6 +63,17 @@ SCRIPT_REF_RES = (
 )
 MAIN_SHARDS = 4
 PR_WEBKIT_SHARDS = 3
+# Browser specs a pull request runs: the critical paths. The promotion run keeps the rest.
+SMOKE_SPECS = (
+    "sharecut.smoke.spec.ts",
+    "fresh-project.spec.ts",
+    "home-states.spec.ts",
+    "root-pin.spec.ts",
+    "stage-shell.spec.ts",
+    "bounce-deliver.spec.ts",
+)
+# A diff that selects more pytest files than this touched a core module: run the whole suite.
+MAX_CHANGED_TESTS = 120
 
 
 def owned_by(owns: Iterable[Glob], changed: Sequence[str]) -> bool:
@@ -333,6 +345,11 @@ def main_shards() -> list[E2eJob]:
     ]
 
 
+def smoke_jobs() -> list[E2eJob]:
+    specs = " ".join(f"e2e/{name}" for name in SMOKE_SPECS)
+    return [E2eJob("main-smoke", f"npm run test:e2e -- {specs}", "chromium")]
+
+
 def full_compat() -> list[E2eJob]:
     return [
         E2eJob(f"compat-{engine}", f"npm run test:e2e:compat -- --project={engine}", engine)
@@ -341,7 +358,7 @@ def full_compat() -> list[E2eJob]:
 
 
 def pr_compat() -> list[E2eJob]:
-    """Every WebKit compat spec, split so PR wall time tracks the main shards."""
+    """Every WebKit compat spec for a release PR, in shards that track the main shards."""
     return [
         E2eJob(
             f"compat-webkit-{i}of{PR_WEBKIT_SHARDS}",
@@ -570,7 +587,7 @@ def classify_release(
 @dataclass(frozen=True)
 class CiPlan:
     gui: bool
-    pytest: Literal["full", "web", "docs", "web-docs", "quick", "release"]
+    pytest: Literal["full", "web", "docs", "web-docs", "changed", "quick", "release"]
     e2e: tuple[E2eJob, ...]
     release_only: bool = False
     native: NativeSelection = field(default_factory=NativeSelection)
@@ -596,8 +613,9 @@ def plan(
 ) -> CiPlan:
     """Plan the jobs an event needs.
 
-    Pull requests run what their diff can reach. Pushes to develop run the fast
-    checks. Every other event (nightly, manual dispatch) runs everything.
+    Pull requests run the fast checks, the pytest files their diff reaches and a
+    browser smoke set; the promotion run keeps the rest. Pushes to develop run the
+    fast checks. Every other event (nightly, manual dispatch) runs everything.
     """
     if event == PUSH:
         return CiPlan(gui=True, pytest="quick", e2e=())
@@ -614,14 +632,17 @@ def plan(
     if isinstance(release, FullRelease) or (head_ref or "").startswith("release-please"):
         return CiPlan(gui=True, pytest="full", e2e=(*main_shards(), *pr_compat()))
     gui = not changed or any(scope_of(path) is Scope.GUI for path in changed)
-    scope: Literal["full", "web", "docs", "web-docs"] = next(
+    scope: Literal["full", "web", "docs", "web-docs", "changed", "quick"] = next(
         (name for name, subset in SUBSETS.items() if subset.covers(changed)),
-        "web-docs" if union_covers(changed) else "full",
+        "web-docs" if union_covers(changed) else "changed",
     )
+    if scope == "changed":
+        reached = changed_tests(changed)
+        scope = "full" if reached is None or not changed else "changed" if reached else "quick"
     return CiPlan(
         gui=gui,
         pytest=scope,
-        e2e=(*main_shards(), *pr_compat()) if gui else (),
+        e2e=tuple(smoke_jobs()) if gui else (),
         native=select_native(changed),
     )
 
@@ -664,6 +685,44 @@ def subset_tests(
     return sorted(selected)
 
 
+def _needles(path: str) -> list[str]:
+    """Strings a pytest file contains when it exercises the file at *path*."""
+    needles = [path]
+    stem = Path(path).name
+    if path.startswith("src/") and path.endswith(".py"):
+        dotted = path.removeprefix("src/").removesuffix(".py").removesuffix("/__init__")
+        needles.append(dotted.replace("/", "."))
+    elif path.startswith((".github/workflows/", "contracts/", "config/")) and len(stem) > 8:
+        needles.append(stem)
+    return needles
+
+
+def changed_tests(changed: Sequence[str], root: Path = ROOT) -> list[str] | None:
+    """Pytest files a diff can reach, or None when it reaches too many to be a smoke set.
+
+    A changed test file runs. So does every test that names a changed path, the dotted
+    module of a changed source file, or a changed script it loads or imports. The
+    promotion run keeps the full suite, so a missed link costs a night, not a release.
+    """
+    tests = {
+        path
+        for path in changed
+        if path.startswith("tests/")
+        and Path(path).name.startswith("test_")
+        and path.endswith(".py")
+    }
+    existing = {path for path in tests if (root / path).is_file()}
+    others = [path for path in changed if path not in tests]
+    script_stems = {Path(p).stem for p in others if p.startswith("scripts/") and p.endswith(".py")}
+    needles = [needle for path in others for needle in _needles(path)]
+    selected = set(existing)
+    for path in (root / "tests").rglob("test_*.py"):
+        source = path.read_text(encoding="utf-8")
+        if any(needle in source for needle in needles) or _referenced_scripts(source, script_stems):
+            selected.add(path.relative_to(root).as_posix())
+    return None if len(selected) > MAX_CHANGED_TESTS else sorted(selected)
+
+
 def changed_files(base: str, head: str, root: Path = ROOT) -> list[str]:
     """Paths changed on *head* since its merge base with *base*."""
     out = subprocess.run(
@@ -693,6 +752,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     plan_cmd.add_argument("--head-repository")
     plan_cmd.add_argument("--base-repository")
     plan_cmd.add_argument("--base-ref")
+    changed_cmd = sub.add_parser("changed-tests")
+    changed_cmd.add_argument("--base", required=True)
+    changed_cmd.add_argument("--head", required=True)
     subset_cmd = sub.add_parser("subset-tests")
     subset_cmd.add_argument("scope", choices=[*sorted(SUBSETS), "web-docs", "release"])
     required_cmd = sub.add_parser("required-checks")
@@ -705,6 +767,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             verb = "stale" if args.check else "rewrote"
             print(f"{relative}: required-checks table {verb}", file=sys.stderr)
         return 1 if stale and args.check else 0
+
+    if args.command == "changed-tests":
+        _print_lines(changed_tests(changed_files(args.base, args.head)) or [])
+        return 0
 
     if args.command == "subset-tests":
         _print_lines(subset_tests(args.scope))

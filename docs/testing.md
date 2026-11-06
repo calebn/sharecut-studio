@@ -285,8 +285,8 @@ GitHub Actions runs the required checks on every pull request and the full suite
 
 | Run | `pytest` | Frontend workload (`frontend-suite`) | Browser suites (`frontend-e2e-suites`) |
 |---|---|---|---|
-| PR with no GUI-facing change | full suite, 95% floor | skipped | skipped |
-| PR with a GUI-facing change | full suite, 95% floor | runs | `main-1of4` … `main-4of4`, then every WebKit compat spec as `compat-webkit-1of3` through `compat-webkit-3of3` |
+| PR with no GUI-facing change | only the test files the diff reaches (`python3 scripts/ci_plan.py changed-tests`), `--no-cov`; none when it reaches none (`quick`); the full suite with the floor when it reaches more than `MAX_CHANGED_TESTS` | skipped | skipped |
+| PR with a GUI-facing change | as above | runs | one `main-smoke` job: the `SMOKE_SPECS` in `scripts/ci_plan.py` |
 | PR where every changed file is under `gui/web/` | only the test files that name `gui/web`, or run a `scripts/` file that does (`python3 scripts/ci_plan.py subset-tests web`), `--no-cov` | runs | as above |
 | PR where every changed file is docs (`docs/`, `docs-site/`, `ux/`, `.agents/skills/`, `README.md`, `ROADMAP.md`, `AGENTS.md`) | only the test files that name those paths, or run a `scripts/` file that does (`python3 scripts/ci_plan.py subset-tests docs`), `--no-cov`, then the docs-sync gate | skipped, unless the diff also touches a GUI-facing doc such as `docs/daw-shortcuts.md` | skipped, same exception |
 | PR whose changed files are all under `gui/web/` or the docs paths above (a UI change that updates its docs) | the union of the two subsets above (`python3 scripts/ci_plan.py subset-tests web-docs`), `--no-cov` | runs | as above |
@@ -296,7 +296,7 @@ GitHub Actions runs the required checks on every pull request and the full suite
 
 A GUI-facing path is one the browser suites or the frontend job read or talk to. `PATH_RULES` in `scripts/ci_plan.py` lists them in order, and the first match wins. The table covers `gui/web/` and the Python behind the browser: `gui/`, `services/`, `models/`, `mcp/`, `extensions/`, `history/`, `cli/` and the top-level `src/podcast_mcp/*.py`. It also covers every `contracts/` file except `contracts/test-wait-allowlist.json`, plus `schemas/`, `deploy/brand/`, `.agents/defaults/` and `config/distribution.dev.json` (the runtime loads them), the e2e and document-delta fixture projects, the scripts that `gui/web` and the frontend job run, the two cheatsheet docs, `pyproject.toml`, `uv.lock`, `.nvmrc`, `test.yml` and `.github/actions/`. The wait allowlist still runs full pytest, but it does not schedule frontend or browser jobs because only the test-wait checker reads it. The audio and edit algorithms (`engines`, `edits`, `pipeline`, `effects`, `ingest`, `clips`, `export`, `util`) run under pytest on PRs, and under the browser suites on promotion dispatch and `workflow_dispatch`. A path that no rule matches counts as GUI-facing, so a new directory runs every browser suite. `tests/test_ci_plan.py` pins the GUI pattern list, requires a rule for every tracked file and every `src/podcast_mcp` package, checks that no rule is shadowed, and requires every repo path that code under `gui/web` names (`tests/fixtures/`, `scripts/`, `contracts/`, `schemas/`, `.agents/`, `config/`) to be classified GUI-facing. When you add a directory, classify it there. Both test subsets are computed by scanning `tests/test_*.py` for the scope's paths (and for the `scripts/` files whose source names them), never listed by hand. Promotion (the nightly) and dispatch run the whole suite either way; a push to the base branch runs only `pytest-quality` and `frontend-suite`.
 
-A web-only, docs-only, web-and-docs-only, or strictly proven version-only release diff cannot move Python coverage. Every other PR still enforces the 95% floor. Promotion dispatch and `workflow_dispatch` enforce it on every run; a push to the base branch after the cutover runs no shards. See [native selection](testing-ci.md#native-workload-selection) and [release validation](testing-ci.md#release-refreshes-and-final-validation).
+Pull requests run `--no-cov`: promotion dispatch and `workflow_dispatch` enforce the 95% floor, and a release-please PR whose proof fails still runs the full suite with it; a push to the base branch after the cutover runs no shards. See [native selection](testing-ci.md#native-workload-selection) and [release validation](testing-ci.md#release-refreshes-and-final-validation).
 
 The required checks, rendered from `REQUIRED_CHECKS` in `scripts/ci_plan.py` (`python3 scripts/ci_plan.py required-checks` rewrites the table; `tests/test_ci_plan.py` fails when it is stale, when `make ci-body` drifts from the Local mirror column, or when a workflow loses the job):
 
@@ -765,11 +765,12 @@ server, project, share registry and output directory. Retries are failure
 recovery, not a runtime optimization. Both suites retry a failed test once in
 CI, so one flake does not force a job rerun.
 
-CI runs the main suite as four shards (`main-1of4` ... `main-4of4`, each
-`npm run test:e2e -- --shard=i/4`). On promotion dispatch and `workflow_dispatch` it runs the
+On a pull request CI runs only the `main-smoke` job (the critical-path specs named in
+`SMOKE_SPECS`). On promotion dispatch and `workflow_dispatch` it runs the main suite as four shards
+(`main-1of4` ... `main-4of4`, each `npm run test:e2e -- --shard=i/4`) and the
 compatibility suite as two complete engine jobs (`compat-chromium`,
 `compat-webkit`, each `npm run test:e2e:compat -- --project=<engine>`). On a
-pull request it runs every WebKit compat spec in three shards instead
+release-please pull request it runs every WebKit compat spec in three shards
 (`compat-webkit-1of3` through `compat-webkit-3of3`, each
 `--project=webkit --shard=i/3`) and no Chromium compat. All of them run
 concurrently in separate `frontend-e2e-suites` matrix jobs, and
@@ -808,7 +809,7 @@ still run sequentially within one checkout.
 CI uploads one `playwright-reports-<name>` artifact per matrix job
 (`playwright-reports-main-1of4` ... `playwright-reports-main-4of4` and
 `playwright-reports-compat-chromium` and `playwright-reports-compat-webkit`, or
-`playwright-reports-compat-webkit-1of3` through `-3of3` on a PR) on successful and failed runs. Each holds
+`playwright-reports-main-smoke` on a PR) on successful and failed runs. Each holds
 `<name>.json` with per-test durations, retries and errors. The matrix sets
 `PLAYWRIGHT_JSON_OUTPUT_FILE` for each job. Download them all with
 `gh run download <run-id> --pattern 'playwright-reports-*'` and sum durations
