@@ -78,16 +78,17 @@ export const PartOfEpisode: Story = {
   play: async ({ canvasElement }) => {
     const view = within(canvasElement);
     await userEvent.click(view.getByRole("button", { name: "Part…" }));
-    const out = view.getByRole("textbox", { name: "Out" });
-    await userEvent.clear(out);
-    await userEvent.type(out, "0:30{Enter}");
-    await expect(out).toHaveValue("0:30.0");
+    const out = view.getByRole("spinbutton", { name: "Out" });
+    await userEvent.click(out);
+    await userEvent.keyboard("0:30{Enter}");
+    const read = (name: string) =>
+      view.getByRole("spinbutton", { name }).getAttribute("aria-valuetext");
+    await expect(read("Out")).toBe("30.00 s");
     await userEvent.click(view.getByRole("button", { name: "Part…" }));
-    await expect(out).toHaveValue("0:30.0");
-    const start = view.getByRole("textbox", { name: "In" });
-    await userEvent.clear(start);
-    await userEvent.type(start, "9:00{Enter}");
-    await expect(out).not.toHaveValue("0:30.0");
+    await expect(read("Out")).toBe("30.00 s");
+    await userEvent.click(view.getByRole("spinbutton", { name: "In" }));
+    await userEvent.keyboard("9:00{Enter}");
+    await expect(read("Out")).not.toBe("30.00 s");
   },
 };
 

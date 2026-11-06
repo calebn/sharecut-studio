@@ -1,8 +1,8 @@
 import { useEffect, useId, useRef } from "react";
 import { formatBytes, ModelGateHint, ModelGatePanel } from "../../models";
+import { ScrubField } from "../../system/ScrubField";
 import { Skeleton } from "../../system/Skeleton";
 import { StatusRow } from "../../system/StatusRow";
-import { TimeField } from "../../system/TimeField";
 import { Button, InlineError, SegmentedControl, ToggleButton } from "../../ui";
 import { DeliverSection } from "./DeliverSection";
 import { type DeliverFiles, filesOfKinds } from "./deliverFiles";
@@ -15,9 +15,7 @@ import {
   exportBlocker,
   FORMATS,
   type FormatId,
-  formatClock,
   LOUDNESS,
-  parseClock,
   partSeconds,
 } from "./deliverLogic";
 import { ExportButton } from "./ExportButton";
@@ -204,38 +202,53 @@ export function EpisodeFile({
           </div>
           {settings.part.mode === "part" ? (
             <div className="dv-part">
-              <TimeField
-                label="In"
-                value={settings.part.start}
-                min={0}
-                max={total}
-                step={0.1}
-                format={formatClock}
-                parse={parseClock}
-                onChange={(start) =>
-                  settings.part.mode === "part" &&
-                  onSettings({
-                    ...settings,
-                    part: clampPart({ start, end: settings.part.end }, total),
-                  })
-                }
-              />
-              <TimeField
-                label="Out"
-                value={settings.part.end}
-                min={0}
-                max={total}
-                step={0.1}
-                format={formatClock}
-                parse={parseClock}
-                onChange={(end) =>
-                  settings.part.mode === "part" &&
-                  onSettings({
-                    ...settings,
-                    part: clampPart({ start: settings.part.start, end }, total),
-                  })
-                }
-              />
+              <div className="dv-part-field">
+                <span className="dv-part-label" aria-hidden="true">
+                  In
+                </span>
+                <ScrubField
+                  label="In"
+                  value={settings.part.start}
+                  min={0}
+                  max={total}
+                  step={0.1}
+                  unit="s"
+                  decimals={2}
+                  commitOnUnmount
+                  onCommit={(start) =>
+                    settings.part.mode === "part" &&
+                    onSettings({
+                      ...settings,
+                      part: clampPart({ start, end: settings.part.end }, total),
+                    })
+                  }
+                />
+              </div>
+              <div className="dv-part-field">
+                <span className="dv-part-label" aria-hidden="true">
+                  Out
+                </span>
+                <ScrubField
+                  label="Out"
+                  value={settings.part.end}
+                  min={0}
+                  max={total}
+                  step={0.1}
+                  unit="s"
+                  decimals={2}
+                  commitOnUnmount
+                  onCommit={(end) =>
+                    settings.part.mode === "part" &&
+                    onSettings({
+                      ...settings,
+                      part: clampPart(
+                        { start: settings.part.start, end },
+                        total,
+                      ),
+                    })
+                  }
+                />
+              </div>
             </div>
           ) : null}
         </>

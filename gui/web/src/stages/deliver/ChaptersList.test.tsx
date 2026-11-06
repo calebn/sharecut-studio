@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -68,9 +68,9 @@ describe("ChaptersList title edit", () => {
     expect(a).toBeDefined();
     await user.click(b);
     await user.keyboard(" draft");
-    const time = screen.getAllByRole("textbox", { name: /^Time of/ })[0];
+    const time = screen.getAllByRole("spinbutton", { name: /^Time of/ })[0];
     await user.click(time);
-    await user.keyboard("{Control>}a{/Control}30:00{Enter}");
+    await user.keyboard("30:00{Enter}");
     expect(onRetitle).toHaveBeenCalledTimes(1);
     expect(
       screen
@@ -99,5 +99,79 @@ describe("ChaptersList external title change", () => {
     rerender(<ChaptersList chapters={renamed} {...props} />);
     expect(first()).toHaveValue("Renamed elsewhere");
     expect(props.onRetitle).not.toHaveBeenCalled();
+  });
+});
+
+describe("ChaptersList time scrub", () => {
+  const props = {
+    chapters: CHAPTERS,
+    total: TOTAL,
+    onRetitle: vi.fn(),
+    onPlayFrom: vi.fn(),
+    onRemove: vi.fn(),
+    onAdd: vi.fn(),
+  };
+  const time = () =>
+    screen.getByRole("spinbutton", { name: "Time of Cold open" });
+  const drag = (to: number) => {
+    fireEvent.pointerDown(time(), { clientX: 100, pointerId: 1, button: 0 });
+    fireEvent.pointerMove(time(), { clientX: 110, pointerId: 1 });
+    fireEvent.pointerMove(time(), { clientX: to, pointerId: 1 });
+    fireEvent.pointerUp(time(), { pointerId: 1 });
+  };
+
+  it("snaps a drag to the nearest sentence start and retimes once", () => {
+    const onRetime = vi.fn();
+    render(
+      <ChaptersList {...props} onRetime={onRetime} sentenceStarts={[5, 20]} />,
+    );
+    drag(230);
+    expect(onRetime).toHaveBeenCalledTimes(1);
+    expect(onRetime).toHaveBeenCalledWith("c1", 5);
+  });
+
+  it("moves freely without sentence starts", () => {
+    const onRetime = vi.fn();
+    render(<ChaptersList {...props} onRetime={onRetime} />);
+    drag(230);
+    expect(onRetime).toHaveBeenCalledWith("c1", 12);
+  });
+
+  it("shows the snapped time while the drag runs and sends nothing until it ends", () => {
+    const onRetime = vi.fn();
+    render(
+      <ChaptersList {...props} onRetime={onRetime} sentenceStarts={[5, 20]} />,
+    );
+    fireEvent.pointerDown(time(), { clientX: 100, pointerId: 1, button: 0 });
+    fireEvent.pointerMove(time(), { clientX: 110, pointerId: 1 });
+    fireEvent.pointerMove(time(), { clientX: 230, pointerId: 1 });
+    expect(time()).toHaveAttribute("aria-valuetext", "5.00 s");
+    expect(onRetime).not.toHaveBeenCalled();
+    fireEvent.pointerUp(time(), { pointerId: 1 });
+  });
+
+  it("does not snap a typed time or an arrow step", async () => {
+    const onRetime = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ChaptersList {...props} onRetime={onRetime} sentenceStarts={[5, 20]} />,
+    );
+    await user.click(time());
+    await user.keyboard("7.5{Enter}");
+    expect(onRetime).toHaveBeenLastCalledWith("c1", 7.5);
+    fireEvent.keyDown(time(), { key: "ArrowUp" });
+    expect(onRetime).toHaveBeenLastCalledWith("c1", 0.1);
+  });
+
+  it("Escape in the typed field sends nothing and keeps focus on the time", async () => {
+    const onRetime = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ChaptersList {...props} onRetime={onRetime} sentenceStarts={[5]} />,
+    );
+    await user.click(time());
+    await user.keyboard("9{Escape}");
+    expect(onRetime).not.toHaveBeenCalled();
+    expect(time()).toHaveFocus();
   });
 });

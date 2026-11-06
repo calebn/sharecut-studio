@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Cover } from "../../system/Cover";
 import type { LinkCopyState } from "../../system/LinkRow";
 import { Player } from "../../system/Player";
@@ -34,6 +34,7 @@ import {
   retitleChapter,
   retitleClip,
   reviewHandoff,
+  sentenceStarts,
   trimClip,
   unapproveClip,
 } from "./deliverLogic";
@@ -199,6 +200,7 @@ export function DeliverStage({
   const inFlight = useRef(false);
   const phone = layout === "phone";
   const loading = state === "loading";
+  const starts = useMemo(() => sentenceStarts(words), [words]);
 
   const blocker = loading
     ? "Still loading."
@@ -313,6 +315,7 @@ export function DeliverStage({
     <ChaptersList
       chapters={chapters}
       total={total}
+      sentenceStarts={starts}
       state={sharedState}
       onRetitle={(id, title) => {
         liveChapters.current = retitleChapter(liveChapters.current, id, title);

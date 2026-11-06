@@ -2,6 +2,7 @@ import type { ModelGate } from "../../models";
 import type { StatusRowState } from "../../system/StatusRow";
 import { formatSeconds } from "../../system/seconds";
 import type { StageId } from "../../types/stage";
+import { type ClipWord, normaliseWords } from "./clipTrim";
 
 export type FormatId = string;
 
@@ -455,6 +456,37 @@ export function retimeChapter(
   at: number,
 ): Chapter[] {
   return chapters.map((c) => (c.id === id ? { ...c, at } : c)).sort(byTime);
+}
+
+const SENTENCE_END = /[.?!\u2026]["'\u201d\u2019)\]]*$/;
+
+/** The first word and each word after one that ends a sentence; `words` need not be sorted. */
+export function sentenceStarts(
+  words: readonly ClipWord[] | undefined,
+): number[] {
+  const sorted = normaliseWords(words ?? []);
+  return sorted.flatMap((word, index) =>
+    index === 0 || SENTENCE_END.test(sorted[index - 1]?.text.trim() ?? "")
+      ? [word.start]
+      : [],
+  );
+}
+
+/** The sentence start nearest `at`; with none the time stays. */
+export function snapToSentenceStart(
+  starts: readonly number[],
+  at: number,
+): number {
+  let best = at;
+  let bestGap = Number.POSITIVE_INFINITY;
+  for (const start of starts) {
+    const gap = Math.abs(start - at);
+    if (gap < bestGap) {
+      best = start;
+      bestGap = gap;
+    }
+  }
+  return best;
 }
 
 export function removeChapter(
