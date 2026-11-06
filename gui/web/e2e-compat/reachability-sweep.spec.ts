@@ -299,9 +299,9 @@ async function sweepCell(
       .locator(".rv-compose")
       .getByRole("textbox", { name: "Comment", exact: true });
     await body.fill("Check this join");
-    await expect(
-      page.getByRole("textbox", { name: "Your name" }),
-    ).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Your name" })).toHaveCount(
+      0,
+    );
     await settle(page);
     found["review comment field"] = await reachFailures(page, {
       scope: STAGE_BODY,
