@@ -134,4 +134,16 @@ describe("manifest surfaces", () => {
     }
     expect(drift).toEqual([]);
   });
+
+  it("names the eye popover as a surface of the waveform amplitude commands", () => {
+    const hosts = MANIFEST.filter((cap) =>
+      cap.surfaces?.gui?.includes("viewPopover"),
+    ).map((cap) => cap.id);
+    expect(hosts).toEqual(
+      expect.arrayContaining([
+        "daw.view.waveformZoomIn",
+        "daw.view.waveformZoomOut",
+      ]),
+    );
+  });
 });
