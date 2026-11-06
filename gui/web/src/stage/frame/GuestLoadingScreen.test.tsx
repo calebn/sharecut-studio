@@ -60,6 +60,16 @@ describe("GuestLoadingScreen", () => {
     expect(collapses[0]?.[1]).toContain(
       "grid-template-columns: minmax(0, 1fr)",
     );
+    const queue = css.match(
+      /\.sys-skeleton-blocks--guest\[data-shell="phone"\] \.sys-skeleton-block--queue \{([^}]*)\}/,
+    );
+    expect(queue?.[1]).toContain("display: none");
+    expect(css).toMatch(
+      /\.sys-skeleton-blocks--guest\[data-shell="phone"\] \.sys-skeleton-block--player,/,
+    );
+    expect(css).not.toMatch(
+      /:root\[data-shell="phone"\]\s+\.sys-skeleton-blocks--guest/,
+    );
     expect(css).not.toMatch(/@media \(max-width: (40rem|767px)\)/);
   });
 
