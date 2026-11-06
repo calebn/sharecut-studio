@@ -99,6 +99,8 @@ export type DeliverStageProps = {
   feed?: ReactNode;
   /** False when the host cannot put a removed clip back into the project. */
   clipUndo?: boolean;
+  /** Called when Undo brings a removed clip back, so a host can take the removal back too. */
+  onClipRestore?: (clip: Clip) => void;
   /** True when each clip title is saved as it is finished (Enter or leaving the field), not on every keystroke. */
   clipTitleCommit?: boolean;
   onFix: (stage: StageId, target?: string) => void;
@@ -152,6 +154,7 @@ export function DeliverStage({
   share,
   feed,
   clipUndo = true,
+  onClipRestore,
   clipTitleCommit = false,
   onChapters,
   onClips,
@@ -297,7 +300,10 @@ export function DeliverStage({
     notify(
       `Removed ${gone.title}`,
       clipUndo
-        ? () => setClips((now) => restoreClip(now, gone, index))
+        ? () => {
+            setClips((now) => restoreClip(now, gone, index));
+            onClipRestore?.(gone);
+          }
         : undefined,
     );
   };
@@ -393,6 +399,7 @@ export function DeliverStage({
               files={files}
               state={sharedState}
               dock={phone}
+              hasTranscriptSection={Boolean(transcript)}
               options={
                 exportOptions && {
                   ...exportOptions,

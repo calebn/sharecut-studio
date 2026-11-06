@@ -171,6 +171,8 @@ function serve(type: string, p: Record<string, number | string | boolean>) {
     ];
   } else if (type === "DeleteSocialClip") {
     held.social_clips = held.social_clips.filter((c) => c.id !== p.id);
+  } else if (type === "UndoHistory") {
+    held.social_clips = [CLIP];
   }
 }
 
@@ -933,18 +935,34 @@ describe("Deliver host export while an edit is not saved", () => {
 });
 
 describe("Deliver host clip removal", () => {
-  it("offers no Undo, because the project cannot take a clip back", async () => {
-    render(<DeliverStage />);
+  const removeClip = async () => {
     await userEvent.click(
       screen.getByRole("button", { name: "More for A line" }),
     );
     await userEvent.click(
       await screen.findByRole("menuitem", { name: "Remove" }),
     );
-    expect(screen.getByText("Removed A line")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
-    await waitFor(() => expect(wire.post).toHaveBeenCalledOnce());
+  };
+
+  it("takes the removal back through history when Undo is pressed", async () => {
+    render(<DeliverStage />);
+    await removeClip();
     expect(screen.queryByDisplayValue("A line")).toBeNull();
+    await waitFor(() => expect(wire.post).toHaveBeenCalledOnce());
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(screen.getByDisplayValue("A line")).toBeInTheDocument();
+    await waitFor(() => expect(wire.post).toHaveBeenCalledTimes(2));
+    expect(sent()[0]).toEqual(["DeleteSocialClip", { id: "s1" }]);
+    expect(sent()[1]?.[0]).toBe("UndoHistory");
+    expect(sent()[1]?.[1]).toMatchObject({ expected_head_id: "s1" });
+    expect(server.held.social_clips).toEqual([CLIP]);
+  });
+
+  it("sends the removal alone when Undo is not pressed", async () => {
+    render(<DeliverStage />);
+    await removeClip();
+    await waitFor(() => expect(wire.post).toHaveBeenCalledOnce());
+    expect(sent()).toEqual([["DeleteSocialClip", { id: "s1" }]]);
   });
 });
 
