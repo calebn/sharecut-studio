@@ -1,0 +1,1 @@
+tsc, e2e tsc, biome, oxlint, stylelint, css_policy, generated checks, stage-spec guard clean; vitest 9211/9212 (rangeActions known cloud-only)

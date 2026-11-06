@@ -1,0 +1,1 @@
+On the paused face the host dock shows Stop take after Pause (48px .sys-dock-btn); a tap opens the modal askConfirm "Stop this take?" (Keep recording / Stop take) and a confirm runs record.stop through room.runCommand. Guests and producers never get the callback (host branch only, canRecord gate).
