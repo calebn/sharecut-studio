@@ -18,6 +18,7 @@ import {
 import { DocumentCommand } from "../types/documentCommands.generated";
 import type { TrackView } from "../types/project";
 import { clearRegisteredCommands, execute } from "./execute";
+import { runAndAnnounceRefusal } from "./refusal";
 import {
   _resetMixLanesForTests,
   flushPendingMix,
@@ -158,13 +159,46 @@ describe("track mix commands (#386)", () => {
       serverSends({ muted: true });
       return {};
     });
-    const pending = execute("track.setVolume", { db: -6 });
+    const announced = vi.spyOn(useDawStore.getState(), "announceStatus");
+    const pending = runAndAnnounceRefusal(() =>
+      execute("track.setVolume", { db: -6 }),
+    );
     await execute("track.muteToggle");
     await vi.advanceTimersByTimeAsync(VOLUME_SAVE_DELAY_MS);
     const result = await pending;
-    expect(result.status).toBe("disabled");
+    expect(result).toEqual({
+      status: "disabled",
+      reason: "nope",
+      told: true,
+    });
+    expect(announced).toHaveBeenCalledTimes(1);
+    expect(announced).toHaveBeenCalledWith("Mix change failed: nope", {
+      tone: "error",
+    });
     expect(hostTrack()).toMatchObject({ fader_db: 0, muted: true });
     expect(useDawStore.getState().statusAnnouncement).toContain("nope");
+  });
+
+  it("preserves the failed mute context with one announcement", async () => {
+    vi.mocked(api.setTrackMuteCommand).mockRejectedValueOnce(
+      new Error("offline"),
+    );
+    const announced = vi.spyOn(useDawStore.getState(), "announceStatus");
+    const result = await runAndAnnounceRefusal(() =>
+      execute("track.muteToggle"),
+    );
+    expect(result).toEqual({
+      status: "disabled",
+      reason: "offline",
+      told: true,
+    });
+    expect(announced).toHaveBeenCalledTimes(1);
+    expect(announced).toHaveBeenCalledWith("Mix change failed: offline", {
+      tone: "error",
+    });
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Mix change failed: offline",
+    );
   });
 
   it("doesn't revert a failed step that a newer one replaced", async () => {
@@ -355,10 +389,18 @@ describe("track mix commands (#386)", () => {
         tracks: [sampleTrack({ id: "host", muted: true })],
       }),
     });
-    const result = await execute("track.muteToggle");
+    const announced = vi.spyOn(useDawStore.getState(), "announceStatus");
+    const result = await runAndAnnounceRefusal(() =>
+      execute("track.muteToggle"),
+    );
     expect(result).toEqual({
       status: "disabled",
       reason: SAVED_MUTE_READ_ONLY,
+      told: true,
+    });
+    expect(announced).toHaveBeenCalledTimes(1);
+    expect(announced).toHaveBeenCalledWith(SAVED_MUTE_READ_ONLY, {
+      tone: "error",
     });
     expect(useDawStore.getState().statusAnnouncement).toBe(
       SAVED_MUTE_READ_ONLY,

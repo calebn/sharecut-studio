@@ -112,7 +112,7 @@ async function applyTrackReorder(
     useDawStore
       .getState()
       .announceStatus(`Reorder failed: ${msg}`, { tone: "error" });
-    return { status: "disabled", reason: msg };
+    return { status: "disabled", reason: msg, told: true };
   }
 }
 function closeProjectAndGoHome(failure: string): ExecuteResult {
@@ -120,7 +120,7 @@ function closeProjectAndGoHome(failure: string): ExecuteResult {
     useDawStore
       .getState()
       .announceStatus(PROJECT_SWITCH_BLOCKED, { tone: "error" });
-    return { status: "disabled", reason: PROJECT_SWITCH_BLOCKED };
+    return { status: "disabled", reason: PROJECT_SWITCH_BLOCKED, told: true };
   }
   if (projectNewInFlight) {
     return { status: "ok" };
@@ -176,7 +176,7 @@ export function registerProjectMediaCommands(): void {
       useDawStore
         .getState()
         .announceStatus(PROJECT_SWITCH_BLOCKED, { tone: "error" });
-      return { status: "disabled", reason: PROJECT_SWITCH_BLOCKED };
+      return { status: "disabled", reason: PROJECT_SWITCH_BLOCKED, told: true };
     }
     if (projectOpenInFlight) {
       return { status: "ok" };
@@ -296,7 +296,7 @@ export function registerProjectMediaCommands(): void {
         useDawStore
           .getState()
           .announceStatus(`Remove failed: ${msg}`, { tone: "error" });
-        return { status: "disabled", reason: msg };
+        return { status: "disabled", reason: msg, told: true };
       }
     });
   });

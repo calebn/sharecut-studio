@@ -81,6 +81,7 @@ export async function runMoveSpeakerLaneSpan(
     const message = errorMessage(error);
     if (useDawStore.getState().projectEpoch === epoch) {
       useDawStore.getState().announceStatus(message, { tone: "error" });
+      return { status: "disabled", reason: message, told: true };
     }
     return { status: "disabled", reason: message };
   } finally {

@@ -11,6 +11,7 @@ import {
   MIRA,
 } from "../test/actionBarFixtures";
 import { minimalProject } from "../test/fixtures";
+import { HISTORY_ROOT_ID } from "../types/project";
 import {
   barModelOf,
   currentEditFacts as factsOf,
@@ -266,6 +267,7 @@ describe("host words Restore", () => {
     expect(await runMute()).toEqual({
       status: "disabled",
       reason: "Selected words changed",
+      told: true,
     });
     expect(api.setTranscriptWordsIgnored).toHaveBeenCalledExactlyOnceWith(
       "/tmp/episode",
@@ -383,6 +385,79 @@ describe("Split", () => {
   });
 });
 
+describe("edit verb refusal ownership", () => {
+  it("preserves a handler-owned announcement through public dispatch", async () => {
+    const result = {
+      status: "disabled",
+      reason: "generic refusal",
+      told: true,
+    } as const;
+    host(EDIT_SELECTIONS.clip);
+    registerCommand("edit.delete", async () => {
+      useDawStore
+        .getState()
+        .announceStatus("Mute failed: project changed", { tone: "error" });
+      return result;
+    });
+    const announce = vi.spyOn(useDawStore.getState(), "announceStatus");
+
+    await runEditVerb("cut", factsOf()!);
+
+    expect(announce).toHaveBeenCalledExactlyOnceWith(
+      "Mute failed: project changed",
+      { tone: "error" },
+    );
+    expect(announced()).toBe("Mute failed: project changed");
+  });
+
+  it("announces an untold refusal", async () => {
+    registerCommand("edit.delete", async () => ({
+      status: "disabled",
+      reason: "generic refusal",
+    }));
+    host(EDIT_SELECTIONS.clip);
+    useDawStore
+      .getState()
+      .announceStatus("Saved edit", { undo: HISTORY_ROOT_ID });
+    const announce = vi.spyOn(useDawStore.getState(), "announceStatus");
+    announce.mockClear();
+
+    const result = await runEditVerb("cut", factsOf()!);
+
+    expect(result).toEqual({ status: "disabled", reason: "generic refusal" });
+    expect(announce).toHaveBeenCalledExactlyOnceWith("generic refusal", {
+      tone: "error",
+    });
+    expect(announced()).toBe("generic refusal");
+  });
+
+  it("leaves a standing Undo toast alone for an intentionally quiet refusal", async () => {
+    registerCommand("edit.delete", async () => ({
+      status: "disabled",
+      reason: "Project changed during refresh",
+      told: true,
+    }));
+    host(EDIT_SELECTIONS.clip);
+    useDawStore
+      .getState()
+      .announceStatus("Saved edit", { undo: HISTORY_ROOT_ID });
+    const announce = vi.spyOn(useDawStore.getState(), "announceStatus");
+    announce.mockClear();
+
+    const result = await runEditVerb("cut", factsOf()!);
+
+    expect(result).toEqual({
+      status: "disabled",
+      reason: "Project changed during refresh",
+      told: true,
+    });
+    expect(announce).not.toHaveBeenCalled();
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      undo: HISTORY_ROOT_ID,
+    });
+  });
+});
+
 describe("Cut, and the Backspace order", () => {
   it("deletes the selected clips and leaves a gap", async () => {
     host(EDIT_SELECTIONS.clips);
@@ -487,7 +562,9 @@ describe("Cut, and the Backspace order", () => {
     expect(await execute("edit.delete", {}, { skipWhen: true })).toEqual({
       status: "disabled",
       reason: "Show the volume envelope before changing points",
+      told: true,
     });
+    expect(announced()).toBe("Show the volume envelope before changing points");
     expect(api.setEnvelope).not.toHaveBeenCalled();
   });
 
