@@ -5054,6 +5054,12 @@ input.sys-edit-fix {
   font-size: var(--font-size-field-current);
   line-height: inherit;
 }
+@supports (field-sizing: content) {
+  input.sys-edit-fix {
+    field-sizing: content;
+    inline-size: auto;
+  }
+}
 
 .sys-picker-renaming {
   cursor: default;
@@ -5103,6 +5109,7 @@ input.sys-edit-fix {
 
 .sys-picker-renaming input.sys-edit-fix {
   flex: 1;
+  field-sizing: fixed;
   inline-size: auto;
   padding-block: var(--space-1);
   font-size: var(--font-size-field);
