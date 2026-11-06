@@ -8,7 +8,6 @@ const FLAGS = [
   "gesturesSheetOpen",
   "bounceRequested",
   "exportRequested",
-  "shareRequested",
   "transcriptRequested",
   "hostMcpDialogOpen",
   "helpDialogOpen",
@@ -22,7 +21,6 @@ const SETTERS: Record<Flag, string> = {
   gesturesSheetOpen: "setGesturesSheetOpen",
   bounceRequested: "setBounceRequested",
   exportRequested: "setExportRequested",
-  shareRequested: "setShareRequested",
   transcriptRequested: "setTranscriptRequested",
   hostMcpDialogOpen: "setHostMcpDialogOpen",
   helpDialogOpen: "setHelpDialogOpen",
@@ -132,12 +130,11 @@ describe("dawStore chrome flags", () => {
       expect(read("transcriptFindReplaceOpen")).toBe(true);
       expect(read("bounceRequested")).toBe(true);
       expect(read("exportRequested")).toBe(true);
-      expect(read("shareRequested")).toBe(true);
       expect(read("transcriptRequested")).toBe(true);
       for (const f of OTHER) expect(read(f)).toBe(true);
     });
 
-    it("closes find/replace on a path change and leaves the untouched five open", () => {
+    it("closes find/replace on a path change and leaves the untouched four open", () => {
       useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
       openEverything();
       useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
@@ -145,13 +142,12 @@ describe("dawStore chrome flags", () => {
       for (const f of OTHER) expect(read(f)).toBe(true);
     });
 
-    it("drops a pending bounce, export, share and transcript request when the project switches", () => {
+    it("drops a pending bounce, export and transcript request when the project switches", () => {
       useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
       openEverything();
       useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
       expect(read("bounceRequested")).toBe(false);
       expect(read("exportRequested")).toBe(false);
-      expect(read("shareRequested")).toBe(false);
       expect(read("transcriptRequested")).toBe(false);
     });
   });

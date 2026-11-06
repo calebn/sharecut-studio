@@ -252,6 +252,8 @@ describe("Storybook title tiers", () => {
     "Stages/Review/Queue",
     "Stages/Deliver/Export",
     "Stages/Guest/Lobby",
+    // The app frame: surfaces every stage shares, such as the Invite sheet.
+    "Stages/Frame/InviteSheet",
   ])("accepts the %s title", (title) => {
     expect(
       storyTitleViolation(`export default { title: "${title}" };`),
@@ -269,7 +271,6 @@ describe("Storybook title tiers", () => {
     "Stages/Edit/",
     "Stages//X",
     "Stages/Nope/X",
-    "Stages/Frame/X",
     "Stages/Edit/A/B",
     "stages/Edit/X",
     "Stages/edit/X",

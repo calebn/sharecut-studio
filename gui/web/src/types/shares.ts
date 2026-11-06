@@ -71,3 +71,23 @@ export type MintedRecordRoom = HostRecordRoom & {
   /** True when the server could not revoke every earlier room's invite links, so some may still work. */
   linksStale: boolean;
 };
+
+/** The listen link: a Viewer link frozen on the version that was exported. */
+export const LISTEN_LINK_BODY = {
+  role: "viewer",
+  with_mcp: false,
+  freeze: true,
+} as const;
+
+/** The one usable Viewer link frozen on a version, if the host has made it. */
+export function listenRowOf(
+  rows: readonly HostShareRow[],
+): HostShareRow | undefined {
+  return rows.find(
+    (row) =>
+      row.usable &&
+      row.kind !== "record" &&
+      row.docs_role === "viewer" &&
+      row.follow_latest === false,
+  );
+}
