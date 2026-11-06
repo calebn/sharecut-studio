@@ -119,9 +119,11 @@ export function Composer(props: ComposerProps) {
   }, [renaming]);
   // Each post that went through saved the name, so the row folds back.
   const postedRev = name?.postedRev;
-  useEffect(() => {
-    if (postedRev) setRenaming(false);
-  }, [postedRev]);
+  const [seenRev, setSeenRev] = useState(postedRev);
+  if (postedRev !== seenRev) {
+    setSeenRev(postedRev);
+    setRenaming(false);
+  }
   const setBodyRef = useCallback(
     (node: HTMLTextAreaElement | null) => {
       bodyRef.current = node;
