@@ -1,7 +1,6 @@
-import { isShareProjectKey } from "../shareMode";
 import { DocumentCommand } from "../types/documentCommands.generated";
 import { submitDocumentCommand } from "./documentEdits";
-import { apiFetch } from "./http";
+import { apiFetch, isHostProjectKey } from "./http";
 
 export interface TranscriptReplacementOptions {
   search: string;
@@ -27,7 +26,7 @@ export interface TranscriptReplacementPreview {
 }
 
 function requireHost(projectPath: string) {
-  if (isShareProjectKey(projectPath))
+  if (!isHostProjectKey(projectPath))
     throw new Error("Find and replace is only available to the host.");
 }
 
