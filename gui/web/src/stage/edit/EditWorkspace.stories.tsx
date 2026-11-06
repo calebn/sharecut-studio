@@ -284,7 +284,7 @@ export const Empty: Story = {
     await expect(
       await canvas.findByRole("button", { name: /^Import audio/ }),
     ).toBeVisible();
-    await expect(canvas.getByRole("button", { name: /^Record/ })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Record" })).toBeVisible();
   },
 };
 
