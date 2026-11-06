@@ -190,9 +190,9 @@ pull request, every push to the base branch, a weekly schedule, and manual dispa
 read-only repository permission, does not comment, and does not upload a finding artifact.
 Manual dispatch and the schedule scan every ref, so the promotion's `gitleaks-history` job also sees
 abandoned PR branches. The root `.gitleaksignore` lists the 14 known false positives as exact
-`commit:file:rule:line` fingerprints, because history cannot be rewritten and an exact fingerprint
-suppresses nothing else (no rule or path is allowlisted). Build new key-shaped test fixtures at runtime
-instead of committing them. Test credentials use obvious placeholders; public state certificates retain their real digest format.
+`commit:file:rule:line` fingerprints, since history cannot be rewritten. Build new key-shaped test
+fixtures at runtime instead of committing them. Test credentials use obvious placeholders; public state
+certificates retain their real digest format.
 `.gitleaks.toml` extends the default rules with scoped allowlists on `generic-api-key`.
 The first matches lines in
 `src/podcast_mcp/engines/models/whisper.py` / `engines/models/word_aligner.py` that pin a model file by sha256

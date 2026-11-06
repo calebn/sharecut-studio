@@ -1,5 +1,5 @@
 # Known false positives in the full-history scan (gitleaks detect over all refs).
-# Exact commit:file:rule:line fingerprints only; no rules or paths are allowlisted.
+# Exact commit:file:rule:line fingerprints only.
 
 # Test fixture keys: key-shaped strings in test files.
 0c5d8a26d75ad65cf4485665431a5f4104715a56:tests/test_promote.py:generic-api-key:864
