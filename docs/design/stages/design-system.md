@@ -512,14 +512,14 @@ Decision (owner): `SystemIcon` stroke 2.1. Lucide draws on a 24 grid, so the 1.7
 | Fix text (also rename) | `text-cursor-input` | F2, or start typing on a selection | Double-tap | Script, Decision card unsure word, marker titles, speaker, project title, session name |
 | Remove (non-audio) | `trash-2` | Backspace or Delete on a non-audio object | Swipe left on list rows | Markers, comments, tracks, envelope points, chapter rows, clip ideas, Home Recent ("Remove from list"), person in room (Confirm in place) |
 | Mute | `volume-x` (track, words) / `mic-off` (your mic) | M | Tap | Track header, Mix sheet, Action bar More, Record dock, Person tile |
-| Solo | `headphones` | S | Tap | Track header, Mix sheet, Solo Status pill |
+| Solo | `headphones` | Shift+S | Tap | Track header, Mix sheet, Solo Status pill |
 | Inspect | `sliders-horizontal` | I | Swipe the dock up; double-click the object | Action bar, Prepare Advanced |
 | More | `ellipsis` | . (period) | Long-press or right-click | Action bar, rows, cards |
 | Record | filled circle | R: in Record, start or resume, and hold R 600 ms to stop. In Edit, opens Record with a Replace target (selection) or Insert target (playhead) | Tap; hold the Record button to stop | Stage bar, Start tile, Record button, Action bar (Edit, host only), "+" menu |
 | Pause take | `pause` | P | Tap | Record dock (host) |
 | Invite | `user-plus` | none (palette) | Tap | App header (every stage), empty Person tile, Deliver |
 | Copy link | `copy` (phone: share sheet) | none | Tap | Link row |
-| Export | `download` | Mod+E (with a range selected: export the range) | Tap | Deliver primary, Action bar on a range |
+| Export | `download` | Mod+E (with one range selected: opens Deliver with Bounce focused and the range filled in) | Tap | Deliver primary, Action bar on a range |
 | Import | `file-plus` | Mod+I; drop files anywhere | Tap Start tile | Start tiles, Prepare, Edit "+" |
 | Undo / Redo | `undo-2` / `redo-2` | Mod+Z / Mod+Shift+Z | Two-finger tap / three-finger swipe; long-press Undo = History | App header, every toast |
 | Add chapter | `flag` | Shift+C | Double-tap the marker lane | Playhead menu, phone dock, Deliver Chapters |
