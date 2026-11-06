@@ -275,6 +275,7 @@ export const Clip = memo(function Clip({
   }, [abort, editable, ghost, narrow]);
 
   const down = (grip: ClipGrip) => (event: PointerEvent<HTMLElement>) => {
+    dragged.current = false;
     if (!editable) return;
     const finger = event.pointerType === "touch" || event.pointerType === "pen";
     if (

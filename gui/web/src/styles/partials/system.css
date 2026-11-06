@@ -5696,10 +5696,16 @@ input.sys-edit-fix {
   .sys-track-toggle[aria-pressed="true"] {
     --sys-toggle-on: Highlight;
     --sys-toggle-on-ink: HighlightText;
+    --sys-toggle-edge: ButtonText;
     forced-color-adjust: none;
-    border-color: var(--sys-toggle-on);
+    border-color: var(--sys-toggle-edge);
     background: var(--sys-toggle-on);
     color: var(--sys-toggle-on-ink);
+  }
+
+  .sys-track-toggle:focus-visible {
+    --sys-toggle-focus: CanvasText;
+    outline-color: var(--sys-toggle-focus);
   }
 
   .sys-track-avatar {
