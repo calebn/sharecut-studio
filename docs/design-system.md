@@ -355,7 +355,7 @@ Stories compose fictional factory data with `ScriptPane`. Callbacks forward to `
 and update local state. The fullscreen fixture frame has a definite block size
 and sets document shell metadata for portaled sheets; cleanup restores the
 previous document metadata. Phone stories use a 360 CSS-pixel frame.
-`e2e-storybook/coverage.spec.ts` (`SHELL_TITLES`) and `shellFit.ts` verify usable
+`src/storybook/storySweep.sweep.browser.test.tsx` (`SHELL_TITLES`) and `shellFit.ts` verify usable
 body height and horizontal fit in both themes. `src/stage/` holds the app-wired
 adapter and View pairs; `src/system/` stays presentational.
 

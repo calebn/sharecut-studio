@@ -170,8 +170,11 @@ toolbar choice. The Docs page and its stories must follow the chosen theme.
 
 Storybook's accessibility addon and `e2e/axe.ts` apply the WCAG 2.0 and 2.1
 A and AA tags, including contrast and label-content-name-mismatch.
-`e2e-storybook/coverage.spec.ts` checks each story in both themes and its
-supported phone and desktop widths. These checks do not certify the live
+`src/storybook/storySweep.sweep.browser.test.tsx` (`npm run test:stories`,
+Vitest browser mode, sharded 4 ways in `storybook.yml`) checks each story in both
+themes and its supported phone and desktop widths. The few stories that need the
+Storybook runtime (`src/storybook/storybookOnlyStories.ts`) stay in
+`e2e-storybook/coverage.spec.ts`. These checks do not certify the live
 palette, which also needs browser verification against the current catalog.
 
 Storybook specs open story frames through `storyUrl()` in
