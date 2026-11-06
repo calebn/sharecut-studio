@@ -10,7 +10,7 @@ function setup(props: Partial<SettingsSheetProps> = {}) {
   const onClose = vi.fn();
   const view = render(
     <SettingsSheet
-      form="centered"
+      form="end"
       open
       onClose={onClose}
       onModels={onModels}
@@ -59,6 +59,21 @@ describe("SettingsSheet", () => {
     expect(
       screen.queryByRole("button", { name: "Reveal in folder" }),
     ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Move…" })).toBeNull();
+  });
+
+  it("moves the folder where the app can", async () => {
+    const onMoveFolder = vi.fn();
+    const { user } = setup({ projectFolder: "/ep", onMoveFolder });
+    await user.click(screen.getByRole("button", { name: "Move…" }));
+    expect(onMoveFolder).toHaveBeenCalledOnce();
+  });
+
+  it("docks to the end edge at 400 px on desktop", () => {
+    setup();
+    expect(
+      document.querySelector(".sys-sheet-end.settings-sheet"),
+    ).not.toBeNull();
   });
 
   it("reveals the folder where the app can", async () => {
@@ -86,6 +101,7 @@ describe("SettingsSheet", () => {
     const { baseElement } = setup({
       projectFolder: "/ep",
       onRevealFolder: vi.fn(),
+      onMoveFolder: vi.fn(),
       onShortcuts: vi.fn(),
     });
     await expectNoA11yViolations(baseElement);

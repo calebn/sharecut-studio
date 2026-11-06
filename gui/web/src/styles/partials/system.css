@@ -1488,6 +1488,13 @@ html:not([data-shell="phone"])
   border-radius: 0;
 }
 
+/* Settings is the 400 px side panel (design system, Sheet placements). */
+html:not([data-shell="phone"])
+  .ui-dialog-root--end:not(.ui-dialog-root--anchored)
+  > .command-palette-panel.sys-sheet-end.settings-sheet {
+  inline-size: min(25rem, 100vw);
+}
+
 @media (prefers-reduced-motion: no-preference) {
   html:not([data-shell="phone"])
     .ui-dialog-root--end:not(.ui-dialog-root--anchored)

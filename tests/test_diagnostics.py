@@ -609,40 +609,6 @@ def test_bundle_registry_uses_one_locked_initializer(tmp_path: Path) -> None:
     assert registry == {"first.zip": str(tmp_path)}
 
 
-def test_report_status_accepts_actionable_publication_states(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from podcast_mcp.services.support import report_submission
-
-    monkeypatch.setenv("PODCAST_REPORT_RELAY_URL", "https://relay.example.test")
-
-    class Response:
-        def raise_for_status(self) -> None:
-            pass
-
-        def json(self) -> dict[str, str | None]:
-            return {"status": "publish_uncertain", "issue_url": None}
-
-    class Client:
-        def __init__(self, **kwargs: object) -> None:
-            pass
-
-        def __enter__(self) -> Client:
-            return self
-
-        def __exit__(self, *args: object) -> None:
-            pass
-
-        def get(self, url: str) -> Response:
-            return Response()
-
-    monkeypatch.setattr(report_submission.httpx, "Client", Client)
-    assert report_submission.get_report_status("https://relay.example.test/api/reports/abc") == {
-        "status": "publish_uncertain",
-        "issue_url": None,
-    }
-
-
 def test_doctor_probe_and_timebase_edges(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     info = ffmpeg_probe_info()
     assert "ffmpeg" in info and "ffprobe" in info
@@ -976,9 +942,7 @@ def test_submit_registered_bundle_requires_host_and_consent(
     assert guest.status_code == 403
 
 
-def test_submit_registered_bundle_and_status(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_submit_registered_bundle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     import json
     import zipfile
 
@@ -999,25 +963,8 @@ def test_submit_registered_bundle_and_status(
             "status_url": "https://relay.example.test/api/reports/abc",
         },
     )
-    monkeypatch.setattr(
-        "podcast_mcp.gui.routes.diagnostics.get_report_status",
-        lambda url: {
-            "status": "published",
-            "issue_url": "https://github.com/calebn/sharecut-studio/issues/123",
-        },
-    )
     sent = client.post(
         "/api/diagnostics/submit",
         json={"filename": name, "description": "Episode fails to open", "consent": True},
     )
     assert sent.status_code == 200
-    status = client.get(
-        "/api/diagnostics/report-status",
-        params={"url": "https://relay.example.test/api/reports/abc"},
-    )
-    assert status.json()["issue_url"].endswith("/123")
-    unknown = client.get(
-        "/api/diagnostics/report-status",
-        params={"url": "https://other.example.test/api/reports/abc"},
-    )
-    assert unknown.status_code == 404

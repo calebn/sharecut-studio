@@ -299,6 +299,7 @@ export function chromeInitial(): ChromeFlags {
     transcriptRequested: false,
     agentSheetOpen: false,
     helpSheetOpen: false,
+    helpSheetStep: "menu",
     settingsSheetOpen: false,
     modelsSheetOpen: false,
     transcriptFindReplaceOpen: false,
@@ -674,7 +675,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
         chrome: {
           ...s.chrome,
           commandPaletteOpen: on,
-          ...(on ? { gesturesSheetOpen: false } : {}),
+          ...(on ? { gesturesSheetOpen: false, ...NO_APP_SHEETS } : {}),
         },
       })),
     setGesturesSheetOpen: (on) =>
@@ -690,7 +691,9 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
         chrome: {
           ...s.chrome,
           commandPaletteOpen: !s.chrome.commandPaletteOpen,
-          ...(!s.chrome.commandPaletteOpen ? { gesturesSheetOpen: false } : {}),
+          ...(!s.chrome.commandPaletteOpen
+            ? { gesturesSheetOpen: false, ...NO_APP_SHEETS }
+            : {}),
         },
       })),
     setBounceRangeTarget: (bounceRangeTarget) => set({ bounceRangeTarget }),
@@ -712,12 +715,13 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
           agentSheetOpen: on,
         },
       })),
-    setHelpSheetOpen: (on) =>
+    setHelpSheetOpen: (on, step = "menu") =>
       set((s) => ({
         chrome: {
           ...s.chrome,
           ...(on ? NO_APP_SHEETS : {}),
           helpSheetOpen: on,
+          helpSheetStep: step,
         },
       })),
     setSettingsSheetOpen: (on) =>

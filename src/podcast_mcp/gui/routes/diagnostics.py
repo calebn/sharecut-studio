@@ -25,7 +25,6 @@ from podcast_mcp.services.support import (
     MAX_BUNDLE_BYTES,
     DiagnosticsService,
     default_bundle_dir,
-    get_report_status,
     is_allowed_bundle_name,
     preview_bundle,
     report_relay_url,
@@ -199,11 +198,7 @@ def submit_diagnostics_report(
     if path is None:
         raise coded_http_error(404, "bundle not found", code="bundle_not_found")
     try:
-        result = submit_bundle(path, description=body.description)
-        statuses: set[str] = getattr(request.app.state, "diagnostics_report_statuses", set())
-        statuses.add(result["status_url"])
-        request.app.state.diagnostics_report_statuses = statuses
-        return result
+        return submit_bundle(path, description=body.description)
     except ValueError as exc:
         raise coded_exception_error(400, exc, code="report_submit_invalid") from exc
     except (OSError, httpx.HTTPError):
@@ -212,23 +207,4 @@ def submit_diagnostics_report(
             502,
             "report relay unavailable; use the download fallback",
             code="report_relay_unavailable",
-        ) from None
-
-
-@router.get("/api/diagnostics/report-status")
-def diagnostics_report_status(
-    request: Request,
-    url: str,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
-) -> dict[str, str | None]:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
-    statuses: set[str] = getattr(request.app.state, "diagnostics_report_statuses", set())
-    if url not in statuses:
-        raise coded_http_error(404, "report not found", code="report_not_found")
-    try:
-        return get_report_status(url)
-    except (ValueError, httpx.HTTPError):
-        raise coded_http_error(
-            502, "report status unavailable", code="report_status_unavailable"
         ) from None

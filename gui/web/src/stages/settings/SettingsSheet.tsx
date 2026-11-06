@@ -4,7 +4,8 @@ import { Button, SegmentedControl, ToggleButton } from "../../ui";
 import { MenuRow } from "./MenuRow";
 
 export type SettingsSheetProps = {
-  form: "centered" | "bottom";
+  /** `end` is the 400 px side panel on desktop and tablet; `bottom` is the phone's sheet. */
+  form: "end" | "bottom";
   open: boolean;
   onClose: () => void;
   /** Opens the Models sheet. */
@@ -15,6 +16,8 @@ export type SettingsSheetProps = {
   projectFolder?: string;
   /** Shows that folder in the computer's file manager. Left out where the app is not on that computer. */
   onRevealFolder?: () => void;
+  /** Asks for a folder on this computer and moves the episode there. Left out where the app is not on that computer. */
+  onMoveFolder?: () => void;
 };
 
 /**
@@ -30,6 +33,7 @@ export function SettingsSheet({
   onShortcuts,
   projectFolder,
   onRevealFolder,
+  onMoveFolder,
 }: SettingsSheetProps) {
   const { preference, setPreference } = useTheme();
   return (
@@ -38,6 +42,7 @@ export function SettingsSheet({
       open={open}
       title="Settings"
       detent="half"
+      panelClassName="settings-sheet"
       onClose={onClose}
     >
       <div className="set-fact">
@@ -59,10 +64,15 @@ export function SettingsSheet({
         <div className="set-fact">
           <span className="set-row-label">Saved in</span>
           <span className="set-fact-value">{projectFolder}</span>
-          {onRevealFolder ? (
-            <Button className="set-fact-action" onClick={onRevealFolder}>
-              Reveal in folder
-            </Button>
+          {onRevealFolder || onMoveFolder ? (
+            <div className="set-fact-actions">
+              {onMoveFolder ? (
+                <Button onClick={onMoveFolder}>Move…</Button>
+              ) : null}
+              {onRevealFolder ? (
+                <Button onClick={onRevealFolder}>Reveal in folder</Button>
+              ) : null}
+            </div>
           ) : null}
         </div>
       ) : null}

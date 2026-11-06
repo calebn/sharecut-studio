@@ -2067,7 +2067,7 @@
     },
     {
       "id": "daw.help.diagnosticsBundle",
-      "label": "Export diagnostics\u2026",
+      "label": "Report a problem\u2026",
       "effect": "view",
       "service": "DiagnosticsService",
       "industry_standard_key": false,
@@ -2082,10 +2082,10 @@
         "cli": "podcast doctor --bundle"
       },
       "omit": {
-        "keyboard_reason": "dialog from Home / Menu",
+        "keyboard_reason": "Report a problem step in Help, from Home / Menu / palette",
         "guest": true
       },
-      "tooltip": "Create a sanitized diagnostics bundle",
+      "tooltip": "Report a problem with a sanitized diagnostics bundle",
       "presence": {
         "cursor": "none",
         "follow": "none"
@@ -2129,7 +2129,7 @@
       "service": "ShareCut Studio command bus",
       "industry_standard_key": false,
       "gates": [
-        "always"
+        "canManageProjects"
       ],
       "surfaces": {
         "command": "help.settings",
@@ -2138,7 +2138,8 @@
         ]
       },
       "omit": {
-        "keyboard_reason": "dialog from Menu / palette; browsers reserve Mod+,"
+        "keyboard_reason": "dialog from Menu / palette; browsers reserve Mod+,",
+        "guest": true
       },
       "tooltip": "Open Settings",
       "presence": {

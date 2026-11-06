@@ -893,7 +893,7 @@ describe("FeedbackToast", () => {
     expect(card).toHaveClass("ui-toast--error");
     expect(
       screen.getByText(
-        "Refresh failed. Export diagnostics from the command palette and try again.",
+        "Refresh failed. Report a problem from the command palette and try again.",
       ),
     ).toBeVisible();
     expect(useDawStore.getState().statusAnnouncement).not.toMatch(/PODCAST/);

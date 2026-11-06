@@ -45,13 +45,16 @@ interface DialogCase {
   menuItem: string;
   /** Lowest action/content target; asserted reachable, never clicked. */
   targetName: string;
+  /** Role of that target; a button unless set. */
+  targetRole?: "link";
 }
 
 const DIALOG_CASES: DialogCase[] = [
   {
     name: "Help",
-    menuItem: "Export diagnostics…",
-    targetName: "Create diagnostics bundle",
+    menuItem: "Help",
+    targetName: "Guides",
+    targetRole: "link",
   },
   {
     name: "Commands and shortcuts",
@@ -79,7 +82,7 @@ test.describe("dialog consumers reachability", () => {
                   .locator('[role="option"]:not([aria-disabled="true"])')
                   .last()
             : (dialog: Locator) =>
-                dialog.getByRole("button", {
+                dialog.getByRole(dialogCase.targetRole ?? "button", {
                   name: dialogCase.targetName,
                   exact: true,
                 });

@@ -231,6 +231,38 @@ export async function revealProjectFolder(projectPath: string): Promise<void> {
   );
 }
 
+export type MoveProjectFolderResult =
+  | { project_path: string }
+  | { cancelled: true }
+  | { unavailable: true; detail?: string };
+
+/** Asks this computer for a folder, then moves the episode's folder into it; resolves with the episode's new path. */
+export async function moveProjectFolder(
+  projectPath: string,
+): Promise<MoveProjectFolderResult> {
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: "/api/project/move" },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: projectPath }),
+    },
+  );
+  const body = (await res.json()) as Record<string, unknown>;
+  if (body.cancelled === true) return { cancelled: true };
+  if (body.unavailable === true) {
+    return {
+      unavailable: true,
+      detail: typeof body.detail === "string" ? body.detail : undefined,
+    };
+  }
+  if (typeof body.project_path === "string" && body.project_path.trim()) {
+    return { project_path: body.project_path };
+  }
+  throw new Error("Unexpected move response");
+}
+
 export type PickEpisodeProjectResult =
   | { project_path: string }
   | { cancelled: true; detail?: string }

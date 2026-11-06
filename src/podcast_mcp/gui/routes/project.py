@@ -19,7 +19,7 @@ from podcast_mcp.gui.audio import (
     audio_file_response,
     resolve_viewer_transport,
 )
-from podcast_mcp.gui.host_file_dialog import pick_episode_project_path
+from podcast_mcp.gui.host_file_dialog import pick_episode_project_path, pick_folder_path
 from podcast_mcp.gui.poll_meta import project_meta
 from podcast_mcp.gui.routes.deps import (
     bad_request_error,
@@ -236,6 +236,66 @@ def reveal_project_folder(
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     require_local_peer(request)
     return reveal_path(_require_episode_path(body.path))
+
+
+@router.post("/api/project/move")
+def move_project_folder(
+    body: OpenProjectBody,
+    request: Request,
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+):
+    """Ask this computer for a folder, then move the episode's folder into it (Saved in > Move…)."""
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    require_local_peer(request)
+    if not _peer_may_switch_project(request):
+        raise coded_http_error(
+            403, "project move not allowed from this client", code="project_move_not_allowed"
+        )
+    source = _require_episode_path(body.path)
+    folder = source.parent
+    if request.app.state.jobs.status(str(source))["running"]:
+        raise coded_http_error(
+            409, "Finish the running step before moving the episode", code="project_move_busy"
+        )
+    if not _PICK_LOCK.acquire(blocking=False):
+        raise coded_http_error(409, "A file dialog is already open", code="file_dialog_open")
+    try:
+        picked = pick_folder_path()
+    finally:
+        _PICK_LOCK.release()
+    if picked.unavailable:
+        return {"unavailable": True, "detail": picked.detail}
+    if picked.cancelled or not picked.path:
+        return {"cancelled": True}
+    parent = Path(picked.path)
+    target = parent / folder.name
+    if parent == folder.parent:
+        raise coded_http_error(
+            400, "The episode is already saved in that folder", code="project_move_same"
+        )
+    if parent == folder or folder in parent.parents:
+        raise coded_http_error(
+            400, "An episode cannot move into its own folder", code="project_move_inside"
+        )
+    if os.path.lexists(target):
+        raise coded_http_error(
+            409, f"{target} already exists; choose another folder", code="project_move_exists"
+        )
+    try:
+        ensure_utf8_path(target)
+        shutil.move(str(folder), str(target))
+    except ValueError as exc:
+        raise coded_exception_error(400, exc, code="project_path_invalid") from exc
+    except OSError as exc:
+        raise coded_exception_error(409, exc, code="project_move_failed") from exc
+    moved = target / source.name
+    served = request.app.state.served_project
+    forget_recent(source)
+    if served is not None and served.resolve() == source.resolve():
+        set_served_project(request.app, moved.resolve())
+    record_recent(moved)
+    return {"project_path": str(moved)}
 
 
 def _require_recent_access(request: Request) -> None:

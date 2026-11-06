@@ -210,7 +210,7 @@ describe("CommandPalette", () => {
     expect(state.feedbackToast).toMatchObject({
       tone: "error",
       message:
-        "Reorder failed. Export diagnostics from the command palette and try again.",
+        "Reorder failed. Report a problem from the command palette and try again.",
     });
   });
 
@@ -297,7 +297,7 @@ describe("CommandPalette", () => {
     ).toHaveLength(5);
     expect(
       within(screen.getByRole("group", { name: "Help" })).getByRole("option", {
-        name: /^Export diagnostics…/,
+        name: /^Report a problem…/,
       }),
     ).toBeTruthy();
     expect(
@@ -370,7 +370,7 @@ describe("CommandPalette", () => {
   it("shows the Help row enabled for the host and disabled with its reason on a review link", () => {
     const { unmount } = renderPalette();
     expect(
-      screen.getByRole("option", { name: /^Export diagnostics…/ }),
+      screen.getByRole("option", { name: /^Report a problem…/ }),
     ).not.toHaveAttribute("aria-disabled");
     unmount();
     useDawStore
@@ -378,7 +378,7 @@ describe("CommandPalette", () => {
       .hydrate("share:tok", minimalProject(), "view", ["play"]);
     useDawStore.getState().setCommandPaletteOpen(true);
     renderPalette("share:tok");
-    const row = screen.getByRole("option", { name: /^Export diagnostics…/ });
+    const row = screen.getByRole("option", { name: /^Report a problem…/ });
     expect(row).toHaveAttribute("aria-disabled", "true");
     expect(row.textContent).toMatch(/host/i);
   });
@@ -396,7 +396,7 @@ describe("CommandPalette", () => {
     await user.clear(screen.getByRole("combobox"));
     await user.keyboard("help");
     expect(
-      screen.getByRole("option", { name: /^Export diagnostics…/ }),
+      screen.getByRole("option", { name: /^Report a problem…/ }),
     ).toBeTruthy();
   });
 

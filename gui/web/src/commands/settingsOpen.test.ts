@@ -27,4 +27,15 @@ describe("help.settings", () => {
     expect(result).toEqual({ status: "ok" });
     expect(useDawStore.getState().chrome.settingsSheetOpen).toBe(true);
   });
+
+  it("is host-only: a share guest cannot open it", async () => {
+    useDawStore.setState({ projectPath: "share:fantastic-acoustic-whale" });
+    expect((await execute("help.settings")).status).toBe("disabled");
+    const bypassed = await execute("help.settings", {}, { skipWhen: true });
+    expect(bypassed).toEqual({
+      status: "disabled",
+      reason: "Settings is host-only",
+    });
+    expect(useDawStore.getState().chrome.settingsSheetOpen).toBe(false);
+  });
 });

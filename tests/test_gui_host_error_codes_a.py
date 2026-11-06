@@ -348,18 +348,13 @@ def test_diagnostics_bundle_download_refusals(local):
     )
 
 
-def test_diagnostics_submit_and_status_refusals(local):
+def test_diagnostics_submit_refusals(local):
     base = {"filename": "x.zip", "description": "", "consent": False}
     _assert(local.post("/api/diagnostics/submit", json=base), 400, "report_consent_required")
     _assert(
         local.post("/api/diagnostics/submit", json={**base, "consent": True, "filename": "../x"}),
         400,
         "bundle_filename_invalid",
-    )
-    _assert(
-        local.get("/api/diagnostics/report-status", params={"url": "https://x.example/s"}),
-        404,
-        "report_not_found",
     )
 
 
@@ -443,11 +438,6 @@ def test_diagnostics_submit_relay_failures(local, tmp_path, monkeypatch):
     _assert(res, 400, "report_submit_invalid")
     monkeypatch.setattr(mod, "submit_bundle", fail(httpx.ConnectError("down")))
     _assert(local.post("/api/diagnostics/submit", json=body), 502, "report_relay_unavailable")
-
-    local.app.state.diagnostics_report_statuses = {"https://x.example/s"}
-    monkeypatch.setattr(mod, "get_report_status", fail(ValueError("bad")))
-    res = local.get("/api/diagnostics/report-status", params={"url": "https://x.example/s"})
-    _assert(res, 502, "report_status_unavailable")
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="needs a lone surrogate path")
