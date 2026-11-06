@@ -230,6 +230,55 @@ export const Groups: Story = {
   },
 };
 
+const HOME_COMMANDS: PaletteCommand[] = [
+  {
+    id: "mcp.connect",
+    label: "Connect agent…",
+    category: "ui",
+    shortcut: null,
+    disabledReason: null,
+  },
+  {
+    id: "help.diagnosticsBundle",
+    label: "Export diagnostics…",
+    category: "ui",
+    shortcut: null,
+    group: "help",
+    disabledReason: null,
+  },
+  {
+    id: "help.guides",
+    label: "Guides",
+    category: "ui",
+    shortcut: null,
+    group: "help",
+    disabledReason: null,
+  },
+  {
+    id: "models.open",
+    label: "Manage models…",
+    category: "ui",
+    shortcut: null,
+    disabledReason: null,
+  },
+];
+
+export const HomeHelp: Story = {
+  args: { commands: HOME_COMMANDS, leadGroup: "help" },
+  play: async ({ args, canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await openDialogViaLauncher(canvasElement, LAUNCHER, TITLE);
+    await waitFor(() =>
+      expect(within(dialog).getByRole("group", { name: "Help" })).toBeVisible(),
+    );
+    await expect(within(dialog).queryByText("Play / pause")).toBeNull();
+    await userEvent.click(
+      within(dialog).getByRole("option", { name: "Guides" }),
+    );
+    await expect(args.onRun).toHaveBeenCalledWith("help.guides");
+  },
+};
+
 export const Recent: Story = {
   args: { entries: ENTRIES, recent: ["chapter:62:Cold open", "view.fit"] },
   play: async ({ canvasElement, viewMode }) => {

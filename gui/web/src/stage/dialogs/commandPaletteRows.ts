@@ -48,9 +48,13 @@ function groupOf(id: string): PaletteCommandGroup | undefined {
 /**
  * Runnable catalog commands in category order. A palette click runs a command
  * the way a pointer does, so focus-only keyboard gates (timeline or transcript
- * focus) count as met; every other `when` gate gives the row its reason.
+ * focus) count as met; every other `when` gate gives the row its reason. On
+ * Home (`scope: "home"`) only the commands marked `home` in the catalog count.
  */
-export function paletteCommands(ctx: CommandContext): PaletteCommand[] {
+export function paletteCommands(
+  ctx: CommandContext,
+  scope?: "home",
+): PaletteCommand[] {
   const pointerCtx: CommandContext = {
     ...ctx,
     timelineFocused: true,
@@ -63,7 +67,8 @@ export function paletteCommands(ctx: CommandContext): PaletteCommand[] {
       (def) =>
         def != null &&
         def.paletteRunnable !== false &&
-        def.id !== "ui.toggleCommandPalette",
+        def.id !== "ui.toggleCommandPalette" &&
+        (scope !== "home" || def.home === true),
     )
     .map((def): PaletteCommand => {
       const keyed = keymapCommandById(def.id);

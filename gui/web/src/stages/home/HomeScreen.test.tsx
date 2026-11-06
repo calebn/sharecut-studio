@@ -12,6 +12,7 @@ import type { RecentProject } from "../../api";
 import * as api from "../../api";
 import * as ingest from "../../ingest/ingestFiles";
 import { ModelsContext } from "../../models/useModels";
+import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
 import {
   modelStatus,
@@ -930,7 +931,7 @@ describe("HomeScreen", () => {
       await waitFor(() => expect(pick).toHaveBeenCalledOnce());
       await user.keyboard("?");
       expect(
-        await screen.findByRole("dialog", { name: /Help/ }),
+        await screen.findByRole("dialog", { name: "Commands and shortcuts" }),
       ).toBeInTheDocument();
     });
 
@@ -1007,20 +1008,104 @@ describe("HomeScreen", () => {
     });
   });
 
-  it("makes home content inert while Help is open and restores it on close", async () => {
-    const user = userEvent.setup();
-    const { container } = render(<HomeScreen />);
-    await screen.findByRole("list", { name: "Recent episodes" });
-    const content = container.querySelector<HTMLElement>(
-      "[data-daw-app-chrome]",
-    );
-    expect(content).toBeTruthy();
-    const trigger = screen.getByRole("button", { name: /^Help$/ });
-    await user.click(trigger);
-    expect(content?.inert).toBe(true);
-    await user.keyboard("{Escape}");
-    expect(content?.inert).toBe(false);
-    expect(trigger).toHaveFocus();
+  describe("command palette on Home", () => {
+    beforeEach(() => {
+      useDawStore.getState().setCommandPaletteOpen(false);
+      useDawStore.getState().setHelpDialogOpen(false);
+      useDawStore.getState().setModelsDialogOpen(false);
+      useDawStore.getState().setHostMcpDialogOpen(false);
+    });
+
+    it("opens on ? with the Help group first and only the commands that fit Home", async () => {
+      const user = userEvent.setup();
+      render(<HomeScreen />);
+      await screen.findByRole("list", { name: "Recent episodes" });
+      await user.keyboard("?");
+      const palette = await screen.findByRole("dialog", {
+        name: "Commands and shortcuts",
+      });
+      const options = within(palette)
+        .getAllByRole("option")
+        .map((option) => option.textContent ?? "");
+      expect(options[0]).toContain("Export diagnostics");
+      expect(options.some((text) => text.includes("Guides"))).toBe(true);
+      expect(options.some((text) => text.includes("Gestures"))).toBe(true);
+      expect(options.some((text) => text.includes("Manage models"))).toBe(true);
+      expect(options.some((text) => text.includes("Connect agent"))).toBe(true);
+      expect(options.some((text) => text.includes("Play / pause"))).toBe(false);
+      expect(options.some((text) => text.includes("Go to Edit"))).toBe(false);
+      const first = within(palette).getAllByRole("option")[0];
+      expect(
+        within(palette).getByRole("combobox", { name: "Search commands" }),
+      ).toHaveAttribute("aria-activedescendant", first.id);
+    });
+
+    it("opens from the Help button and restores focus and inertness on close", async () => {
+      const user = userEvent.setup();
+      const { container } = render(<HomeScreen />);
+      await screen.findByRole("list", { name: "Recent episodes" });
+      const content = container.querySelector<HTMLElement>(
+        "[data-daw-app-chrome]",
+      );
+      const trigger = screen.getByRole("button", { name: /^Help$/ });
+      await user.click(trigger);
+      await screen.findByRole("dialog", { name: "Commands and shortcuts" });
+      expect(content?.inert).toBe(true);
+      await user.keyboard("{Escape}");
+      expect(content?.inert).toBe(false);
+      expect(trigger).toHaveFocus();
+    });
+
+    it("reports a problem from the Help group in the diagnostics dialog", async () => {
+      const user = userEvent.setup();
+      render(<HomeScreen />);
+      await screen.findByRole("list", { name: "Recent episodes" });
+      await user.keyboard("?");
+      await user.click(
+        await screen.findByRole("option", { name: /Export diagnostics/ }),
+      );
+      expect(
+        await screen.findByRole("dialog", { name: "Help" }),
+      ).toBeInTheDocument();
+    });
+
+    it("opens the guides in a new tab from the Help group", async () => {
+      const user = userEvent.setup();
+      const open = vi.spyOn(window, "open").mockReturnValue(null);
+      render(<HomeScreen />);
+      await screen.findByRole("list", { name: "Recent episodes" });
+      await user.keyboard("?");
+      await user.click(await screen.findByRole("option", { name: /Guides/ }));
+      await waitFor(() =>
+        expect(open).toHaveBeenCalledWith(
+          "https://docs.sharecut.studio/",
+          "_blank",
+          "noopener,noreferrer",
+        ),
+      );
+      open.mockRestore();
+    });
+
+    it("opens Models and Connect agent from the palette", async () => {
+      const user = userEvent.setup();
+      render(<HomeScreen />);
+      await screen.findByRole("list", { name: "Recent episodes" });
+      await user.keyboard("?");
+      await user.click(
+        await screen.findByRole("option", { name: /Manage models/ }),
+      );
+      await waitFor(() =>
+        expect(useDawStore.getState().chrome.modelsDialogOpen).toBe(true),
+      );
+      useDawStore.getState().setModelsDialogOpen(false);
+      await user.keyboard("?");
+      await user.click(
+        await screen.findByRole("option", { name: /Connect agent/ }),
+      );
+      await waitFor(() =>
+        expect(useDawStore.getState().chrome.hostMcpDialogOpen).toBe(true),
+      );
+    });
   });
 
   it("has no accessibility violations", async () => {
