@@ -229,7 +229,7 @@ export const Clip = memo(function Clip({
   const end = start + duration;
   const durationMs = duration * 1000;
   const editable = !readOnly && !ghost;
-  const bars = Number.isFinite(width) ? Math.max(1, Math.round(width)) : 1;
+  const bars = Math.max(1, Math.round(width));
 
   const stopWatching = useStableCallback(() => {
     document.removeEventListener("keydown", escapeDrag, true);

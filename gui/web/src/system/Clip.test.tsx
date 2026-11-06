@@ -542,7 +542,7 @@ describe("Clip body drag", () => {
     expect(onSelect).toHaveBeenCalledTimes(1);
   });
 
-  it("does not swallow a later Enter when a drag was cancelled with no click after it", () => {
+  it("does not swallow a later keyboard activation after a cancelled drag", () => {
     const { onSelect } = setup();
     fireEvent.pointerDown(body(), { pointerId: 1, clientX: 50 });
     fireEvent.pointerMove(body(), { pointerId: 1, clientX: 120 });
