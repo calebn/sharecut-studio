@@ -386,7 +386,7 @@ See [responsive inspector evidence](https://github.com/calebn/sharecut-studio/pu
 and owner acceptance limits.
 
 A volume-envelope point is edited in the Inspector, not in a workspace. Choose
-**Show volume envelope** in the track's sheet (or the Layers popover) first;
+**Show volume envelope** in the track's sheet (or the eye popover) first;
 points cannot change while the layer is hidden. The flat line can be dragged
 vertically to set a constant gain without placing a
 point. The shown empty line starts at unity and showing it saves nothing.
