@@ -6,19 +6,16 @@ import {
 } from "./types";
 import type { RecordUploadStatus } from "./upload/transport";
 
-/** The one take control each room state offers; Stop only exists while a take is open. */
+/** The one take control each room state offers. */
 export const TAKE_CONTROL = {
-  lobby: { commandId: "record.start", label: "Start", stop: false },
-  stopped: { commandId: "record.start", label: "Start", stop: false },
-  recording: { commandId: "record.pause", label: "Pause", stop: true },
-  paused: { commandId: "record.resume", label: "Resume", stop: true },
+  lobby: { commandId: "record.start", label: "Start" },
+  stopped: { commandId: "record.start", label: "Start" },
+  recording: { commandId: "record.pause", label: "Pause" },
+  paused: { commandId: "record.resume", label: "Resume" },
 } as const satisfies Record<
   RecordRoomState,
-  { commandId: string; label: string; stop: boolean }
+  { commandId: string; label: string }
 >;
-
-export const STOP_CONFIRM_COPY =
-  "Stop this take? Recording ends for everyone in the room.";
 
 /** A host Start blocker with its words. */
 export type StartBlockerItem = {
@@ -76,62 +73,21 @@ export function startBlockerItems(
   return items;
 }
 
-/** Whether Land can succeed now; when it cannot, the reason shown beside it. */
-export type LandGate =
-  | { enabled: true; label: "Land" | "Retry land" }
-  | { enabled: false; label: "Land"; reason: string };
+/** Whether `record.land` can run now; when it cannot, the reason. */
+export type LandGate = { enabled: true } | { enabled: false; reason: string };
 
-/**
- * `segments` is the host's upload status for every participant, or null when
- * the caller has not read it (keyboard and palette), which gates on room state
- * only and lets the server report an empty land.
- */
-export function landGate(
-  snapshot: RecordSnapshot,
-  segments: RecordUploadStatus["segments"] | null,
-): LandGate {
+/** Room state only: the server reports an empty land and lands each segment on its file ACK. */
+export function landGate(snapshot: RecordSnapshot): LandGate {
   if (snapshot.take_index < 0) {
-    return { enabled: false, label: "Land", reason: "Record a take first." };
+    return { enabled: false, reason: "Record a take first." };
   }
   if (snapshot.state === "recording" || snapshot.state === "paused") {
     return {
       enabled: false,
-      label: "Land",
       reason: "Stop the take to land it on the timeline.",
     };
   }
-  if (segments === null) {
-    return { enabled: true, label: "Land" };
-  }
-  if (segments.some((row) => row.land_failed)) {
-    return { enabled: true, label: "Retry land" };
-  }
-  const waiting = segments.some((row) => row.file_ack && !row.landed);
-  if (waiting) {
-    return { enabled: true, label: "Land" };
-  }
-  if (segments.some((row) => !row.file_ack)) {
-    return {
-      enabled: false,
-      label: "Land",
-      reason: "Recordings are still saving to the project.",
-    };
-  }
-  if ((snapshot.comments?.length ?? 0) > 0) {
-    return { enabled: true, label: "Land" };
-  }
-  if (segments.length === 0) {
-    return {
-      enabled: false,
-      label: "Land",
-      reason: "No recordings have reached the project yet.",
-    };
-  }
-  return {
-    enabled: false,
-    label: "Land",
-    reason: "Every take is on the timeline.",
-  };
+  return { enabled: true };
 }
 
 export type EndGate = { enabled: true } | { enabled: false; reason: string };
@@ -157,13 +113,15 @@ export function endGate(
   ) {
     return {
       enabled: false,
-      reason: "Land every take on the timeline before ending the session.",
+      reason:
+        "Wait for every take to reach the timeline before ending the session.",
     };
   }
   if ((snapshot.comments?.length ?? 0) > 0) {
     return {
       enabled: false,
-      reason: "Land the live notes before ending the session.",
+      reason:
+        "Wait for the live notes to reach the timeline before ending the session.",
     };
   }
   return { enabled: true };

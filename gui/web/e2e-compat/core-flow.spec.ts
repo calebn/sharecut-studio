@@ -7,18 +7,17 @@ import { keeperWavBytes, ONE_SECOND_KEEPER_WAV_BYTES } from "../e2e/keeperOpfs";
 import { expectPlaybackAdvancesThenHolds, playButton } from "../e2e/playback";
 import {
   clickHostTransport,
-  closeHostMore,
   createRecordRoom,
   HOST_PARTICIPANT_ID,
   joinAsGuest,
   landedTrackPeakOrPending,
-  landParticipant,
   markSharecutE2e,
   openHostRecordRoom,
   recordParticipantId,
   roomPill,
   stopHostTake,
   waitForSegmentsAcked,
+  waitForTakeLanded,
 } from "../e2e/recordRoom";
 import { withShareableProject } from "../e2e/shareableProject";
 import { createReviewShare, openGuestShare } from "../e2e/shareNavigation";
@@ -118,8 +117,7 @@ test.describe("core flow", () => {
               HOST_PARTICIPANT_ID,
             ]);
 
-            await landParticipant(roomDlg, "Ava");
-            await closeHostMore(host);
+            await waitForTakeLanded(host, projectPath);
             await expect(roomPill(guest)).toHaveText("Saved", {
               timeout: 30_000,
             });

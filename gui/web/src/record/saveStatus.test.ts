@@ -41,7 +41,7 @@ describe("segmentStatusText", () => {
   it("keeps a failed landing visible without calling the file unsaved", () => {
     expect(
       segmentStatusText({ ...saving, state: "saved", landFailed: true }),
-    ).toBe("Saved to project. Landing failed. Use Retry land.");
+    ).toBe("Saved to project. Landing failed. Use Retry on the take.");
   });
 });
 
