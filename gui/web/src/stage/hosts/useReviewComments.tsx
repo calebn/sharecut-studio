@@ -110,6 +110,7 @@ export function useReviewComments(guest: boolean) {
   const [nameKnown, setNameKnown] = useState(
     () => guest && capCommentName(savedGuestName()) !== "",
   );
+  const [postedRev, setPostedRev] = useState(0);
   const sent = useRef(new Set<string>());
   const [replyErrors, setReplyErrors] = useState<
     Readonly<Record<string, string | null>>
@@ -316,8 +317,12 @@ export function useReviewComments(guest: boolean) {
       if (!result.ok) return;
       if (guest && capCommentName(name)) {
         saveCommentAuthor(name, role);
-        setNameKnown(true);
+        setNameKnown(capCommentName(savedGuestName()) !== "");
       }
+      // A blanked field posted under the saved name: show that name again.
+      if (guest) setPostedRev((n) => n + 1);
+      if (guest)
+        setName((typed) => (capCommentName(typed) ? typed : savedGuestName()));
       droppedDraft.current = null;
       setBody("");
       setScope([]);
@@ -374,6 +379,7 @@ export function useReviewComments(guest: boolean) {
                 value: name,
                 onChange: (v) => setName(limitCommentName(v)),
                 saved: nameKnown,
+                postedRev,
               }
             : undefined
         }

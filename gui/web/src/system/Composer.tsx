@@ -49,6 +49,8 @@ export type ComposerProps = {
     placeholder?: string;
     /** This browser already knows the name: show "Posting as" with a Change button until it is pressed. */
     saved?: boolean;
+    /** Counts the posts that went through; each one folds the field back into the row. */
+    postedRev?: number;
   };
   /** Offline posts to the queue: the label is "Queue comment" and the offline status glyph shows. */
   state?: ComposerState;
@@ -116,6 +118,11 @@ export function Composer(props: ComposerProps) {
   useEffect(() => {
     if (renaming) nameRef.current?.focus();
   }, [renaming]);
+  // Each post that went through saved the name, so the row folds back.
+  const postedRev = name?.postedRev;
+  useEffect(() => {
+    if (postedRev) setRenaming(false);
+  }, [postedRev]);
   const setBodyRef = useCallback(
     (node: HTMLTextAreaElement | null) => {
       bodyRef.current = node;
@@ -181,7 +188,13 @@ export function Composer(props: ComposerProps) {
           <span className="sys-composer-as">
             Posting as <strong>{name.value.trim() || "Guest"}</strong>
           </span>
-          <Button onClick={() => setRenaming(true)}>Change name</Button>
+          <Button
+            aria-label={`Change name, posting as ${name.value.trim() || "Guest"}`}
+            className="sys-composer-change"
+            onClick={() => setRenaming(true)}
+          >
+            Change name
+          </Button>
         </div>
       ) : name ? (
         <div className="sys-composer-who">

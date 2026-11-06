@@ -469,14 +469,14 @@ describe("Review queue for a guest", () => {
     expect(localStorage.getItem(NAME_KEY)).toBeNull();
   });
 
-  it("shows the saved name when a blanked field posts under it", async () => {
+  it("posts under a saved name after Change name blanks it, and folds back", async () => {
     const user = userEvent.setup();
     localStorage.setItem(NAME_KEY, "Maya");
     join("comment");
     render(<ReviewHost guestShare />);
     expect(screen.queryByRole("textbox", { name: "Your name" })).toBeNull();
     expect(screen.getByText("Maya")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Change name" }));
+    await user.click(screen.getByRole("button", { name: /Change name/ }));
     await user.clear(name());
     await user.type(field(), "Hello");
     await user.click(post());
@@ -484,7 +484,8 @@ describe("Review queue for a guest", () => {
       "share:tok",
       expect.objectContaining({ body: "Hello", author: "Maya" }),
     );
-    expect(name()).toHaveValue("Maya");
+    expect(await screen.findByText("Maya")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Your name" })).toBeNull();
   });
 
   it("leaves a blank name blank after a failed post, and never saves it", async () => {

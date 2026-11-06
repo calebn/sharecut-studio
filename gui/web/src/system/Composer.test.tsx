@@ -110,11 +110,38 @@ describe("Composer", () => {
     render(<Harness name={{ value: "Maya", onChange: noop, saved: true }} />);
     expect(screen.queryByRole("textbox", { name: "Your name" })).toBeNull();
     expect(screen.getByText("Maya")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Change name" }));
+    await user.click(screen.getByRole("button", { name: /Change name/ }));
     const who = screen.getByRole("textbox", { name: "Your name" });
     expect(who).toHaveValue("Maya");
     expect(who).toHaveFocus();
-    expect(screen.queryByRole("button", { name: "Change name" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Change name/ })).toBeNull();
+  });
+
+  it("folds back to Posting as when a post goes through", async () => {
+    const user = userEvent.setup();
+    const props = { onBodyChange: noop, onSubmit: noop };
+    const { rerender } = render(
+      <Composer
+        body="Hi"
+        {...props}
+        name={{ value: "Dana", onChange: noop, saved: true, postedRev: 0 }}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /Change name/ }));
+    expect(
+      screen.getByRole("textbox", { name: "Your name" }),
+    ).toBeInTheDocument();
+    rerender(
+      <Composer
+        body=""
+        {...props}
+        name={{ value: "Dana", onChange: noop, saved: true, postedRev: 1 }}
+      />,
+    );
+    expect(screen.queryByRole("textbox", { name: "Your name" })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: /Change name/ }),
+    ).toBeInTheDocument();
   });
 
   it("asks for the name when none is saved", () => {
@@ -122,7 +149,7 @@ describe("Composer", () => {
     expect(
       screen.getByRole("textbox", { name: "Your name" }),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Change name" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Change name/ })).toBeNull();
   });
 
   it("does not report a composition that ends with text", () => {
