@@ -81,6 +81,27 @@ describe("eye popover", () => {
     expect(eye).toHaveAttribute("aria-expanded", "false");
   });
 
+  it("reverts a typed amplitude on Escape inside the field and keeps the popover open", async () => {
+    const user = userEvent.setup();
+    render(<EditCorner />);
+    const { dialog } = await openPopover(user);
+    await user.click(
+      within(dialog).getByRole("spinbutton", { name: "Waveform amplitude" }),
+    );
+    const input = within(dialog).getByRole("textbox", {
+      name: "Waveform amplitude",
+    });
+    await user.clear(input);
+    await user.type(input, "3");
+    await user.keyboard("{Escape}");
+    expect(
+      screen.getByRole("dialog", { name: "View options" }),
+    ).toBeInTheDocument();
+    expect(useDawStore.getState().waveformAmpZoom).toBe(1);
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "View options" })).toBeNull();
+  });
+
   it("closes on a press outside and on a second press of the eye", async () => {
     const user = userEvent.setup();
     render(
