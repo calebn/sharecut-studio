@@ -1,6 +1,6 @@
 import { composeStories } from "@storybook/react-vite";
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import { page } from "vitest/browser";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { cdp, page } from "vitest/browser";
 
 /**
  * Real-layout check that no text in Prepare or its System parts pushes the
@@ -47,6 +47,8 @@ const APP_COPY = [
   ".sys-adv-reason",
   ".ui-toast-message",
   ".ui-field-hint:not(.sys-source *)",
+  ".sys-scrub-value",
+  ".sys-scrub-unit",
 ].join(",");
 
 type ComposedStory = {
@@ -71,15 +73,44 @@ const stories: ComposedStory[] = Object.values(modules)
   .filter((story) => PREFIXES.some((prefix) => story.id.startsWith(prefix)));
 
 let host: HTMLElement | undefined;
+const originalMedia = {
+  reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
+  light: matchMedia("(prefers-color-scheme: light)").matches,
+};
+
+beforeEach(async () => {
+  await cdp().send("Emulation.setEmulatedMedia", {
+    features: [
+      { name: "prefers-reduced-motion", value: "reduce" },
+      { name: "prefers-color-scheme", value: "light" },
+    ],
+  });
+});
 
 beforeAll(async () => {
   await document.fonts.ready;
 });
 
-afterEach(() => {
+afterEach(async () => {
   host?.remove();
   host = undefined;
   document.documentElement.removeAttribute("data-theme");
+  await cdp().send("Emulation.setEmulatedMedia", {
+    features: [
+      {
+        name: "prefers-reduced-motion",
+        value: originalMedia.reducedMotion ? "reduce" : "no-preference",
+      },
+      {
+        name: "prefers-color-scheme",
+        value: originalMedia.light ? "light" : "dark",
+      },
+    ],
+  });
+  expect({
+    reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
+    light: matchMedia("(prefers-color-scheme: light)").matches,
+  }).toEqual(originalMedia);
 });
 
 function wideNodes(root: Element): string[] {
@@ -151,6 +182,23 @@ describe("Prepare text never scrolls the page sideways", () => {
     });
   }
 
+  it("detects forced nowrap overflow", async () => {
+    await page.viewport(320, 800);
+    host = document.createElement("div");
+    host.style.width = "6rem";
+    const value = document.createElement("span");
+    value.className = "overflow-probe";
+    value.style.overflowWrap = "anywhere";
+    value.style.whiteSpace = "nowrap";
+    value.textContent = "24";
+    host.appendChild(value);
+    document.body.appendChild(host);
+
+    expect(wideNodes(host)).toEqual(['span.overflow-probe "24"']);
+    value.style.whiteSpace = "normal";
+    expect(wideNodes(host)).toEqual([]);
+  });
+
   for (const width of [320, 360]) {
     it(`at ${width}`, { timeout: 240_000 }, async () => {
       await page.viewport(width, 800);
@@ -160,6 +208,14 @@ describe("Prepare text never scrolls the page sideways", () => {
         host.style.padding = "1rem";
         document.body.appendChild(host);
         await story.run({ canvasElement: host, globals: { theme: "light" } });
+        await expect.poll(() => host?.firstElementChild ?? null).not.toBeNull();
+        const storyRoot = host.firstElementChild;
+        if (!storyRoot) {
+          throw new Error(
+            `${story.id} at ${width}: missing rendered story root`,
+          );
+        }
+        await expect.element(page.elementLocator(storyRoot)).toBeVisible();
         await document.fonts.ready;
         expect.soft(wideNodes(host), `${story.id} at ${width}`).toEqual([]);
         host.remove();
