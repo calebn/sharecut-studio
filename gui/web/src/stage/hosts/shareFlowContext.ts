@@ -19,14 +19,16 @@ export type ShareFlow = {
   /** One action runs at a time; a second is dropped while this is true. */
   busy: boolean;
   recovery: ShareCreateRecovery;
+  /** The choices of the create that needs Refresh mix: the row that asked shows "Make a mix to share". */
+  refreshFor: { choices: ShareChoices; listen: boolean } | null;
   error: string | null;
   status: string | null;
   copiedKey: ShareCopiedKey | null;
   blockedKey: ShareCopiedKey | null;
   /** Lists the project's links again. Deliver calls it as it shows. */
   reload: () => void;
-  /** Makes the link the choices say and copies it. Call it from the click so the copy keeps its user gesture. */
-  create: () => void;
+  /** Makes the link the choices say (or `override`, for the listen link) and copies it. Call it from the click so the copy keeps its user gesture. */
+  create: (override?: ShareChoices) => void;
   /** Refreshes the mix after a refused create, then makes one more create with the choices now shown. */
   refreshMix: () => void;
   copy: (

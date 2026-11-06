@@ -1,4 +1,5 @@
 import {
+  createHostShare,
   hostLandRecord,
   jobFailure,
   listHostShares,
@@ -34,6 +35,7 @@ import { canManageProjects, canRefreshMix } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { type RoomKeyHandlers, roomKeys } from "../state/roomKeys";
 import { seedStudioJob } from "../state/seedStudioJob";
+import { LISTEN_LINK_BODY, listenRowOf } from "../types/shares";
 import { errorMessage } from "../utils/apiError";
 import { type CommandContext, evaluateWhen } from "./context";
 import { registerCommand } from "./execute";
@@ -244,15 +246,38 @@ export function registerHostCommands(): void {
     return { status: "ok" };
   });
 
-  registerCommand("share.manage", (_args, ctx) => {
-    const blocked = hostProjectGate(ctx) ?? shareFeatureGate("Share");
+  registerCommand("share.manage", (args, ctx) => {
+    const blocked = hostProjectGate(ctx) ?? shareFeatureGate("Invite");
+    if (blocked) {
+      return blocked;
+    }
+    const at = args.at;
+    useDawStore
+      .getState()
+      .openInvite(at === "record" || at === "listen" ? at : undefined);
+    return { status: "ok" };
+  });
+
+  registerCommand("share.copyListenLink", async (_args, ctx) => {
+    const blocked = hostProjectGate(ctx) ?? shareFeatureGate("Listen link");
     if (blocked) {
       return blocked;
     }
     const s = useDawStore.getState();
-    s.openStage("deliver");
-    s.setShareRequested(true);
-    return { status: "ok" };
+    try {
+      const { shares } = await listHostShares(s.projectPath);
+      const url =
+        listenRowOf(shares)?.url ??
+        (await createHostShare(s.projectPath, LISTEN_LINK_BODY)).url;
+      if (!url) throw new Error("The listen link has no address to copy yet.");
+      await copyText(url);
+      s.announceStatus("Listen link copied");
+      return { status: "ok" };
+    } catch (err) {
+      const reason = errorMessage(err);
+      s.announceStatus(reason, { tone: "error" });
+      return { status: "disabled", reason };
+    }
   });
 
   registerCommand("record.createRoom", (_args, ctx) => {

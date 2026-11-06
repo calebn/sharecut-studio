@@ -278,7 +278,7 @@ export function importsStorybook(text: string): boolean {
 }
 
 const STORY_TITLE_RE =
-  /^(?:(?:Atoms|Molecules|Organisms|Templates|System)|Stages\/(?:Home|Record|Prepare|Edit|Review|Deliver|Guest))\/[^/\s][^/]*$/;
+  /^(?:(?:Atoms|Molecules|Organisms|Templates|System)|Stages\/(?:Home|Record|Prepare|Edit|Review|Deliver|Guest|Frame))\/[^/\s][^/]*$/;
 
 /** Return a reason when the default-exported story metadata lacks a tier title. */
 export function storyTitleViolation(text: string): string | null {

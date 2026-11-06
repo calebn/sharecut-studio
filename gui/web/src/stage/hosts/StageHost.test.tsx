@@ -469,7 +469,7 @@ describe("Deliver host", () => {
     server = fakeExportServer();
   });
 
-  it("starts the export and bounce here, and the Share button brings Share into focus without the dialog", async () => {
+  it("starts the export and bounce here, and shows the Listen link row in place of a Share section", async () => {
     asHost("deliver");
     mount();
     const exportButton = await screen.findByRole("button", { name: "Export" });
@@ -478,20 +478,19 @@ describe("Deliver host", () => {
     await waitFor(() => expect(server.exportRequests).toHaveLength(1));
     await userEvent.click(screen.getByRole("button", { name: "Bounce" }));
     await waitFor(() => expect(server.bounceRequests).toHaveLength(1));
-    await userEvent.click(
-      screen.getByRole("button", { name: "Share a listen link" }),
-    );
-    await waitFor(() =>
-      expect(
-        screen.getByRole("button", { name: "Create review link" }),
-      ).toHaveFocus(),
-    );
+    expect(screen.getByRole("heading", { name: "Listen link" })).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Copy listen link" }),
+    ).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Share" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Share a listen link" }),
+    ).toBeNull();
     const { chrome } = useDawStore.getState();
-    expect([
-      chrome.exportRequested,
-      chrome.bounceRequested,
-      chrome.shareRequested,
-    ]).toEqual([false, false, false]);
+    expect([chrome.exportRequested, chrome.bounceRequested]).toEqual([
+      false,
+      false,
+    ]);
   });
 
   it("sends an open row to the stage that fixes it", async () => {

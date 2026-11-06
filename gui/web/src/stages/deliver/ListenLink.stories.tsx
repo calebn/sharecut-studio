@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { viewportStoryParameters } from "../../storybook/storyLayout";
 import { LINK, OPENED_BY } from "./deliverFixture";
 import { ListenLink } from "./ListenLink";
@@ -58,11 +58,15 @@ export const AfterExport: Story = { args: { link: null, highlight: true } };
 export const NetworkOnly: Story = {
   args: { link: LINK, reach: "network" },
   play: async ({ canvasElement }) => {
-    await expect(
-      within(canvasElement).getByText(
-        "Only people on this network can listen. Turn on online sharing to reach anyone.",
-      ),
-    ).toBeInTheDocument();
+    const view = within(canvasElement);
+    await userEvent.click(
+      view.getByRole("button", { name: "Only on this network" }),
+    );
+    await waitFor(() =>
+      expect(
+        view.getByText(/Only people on this network can open it/),
+      ).toBeVisible(),
+    );
   },
 };
 

@@ -150,7 +150,7 @@ can require all of its guests to reconnect.
 
 | Situation | Guest experience |
 |-----------|------------------|
-| Host / tunnel offline | Relay offline page — retry later. The host sees the same state in Share (“Reconnecting…” or “Not reachable online”) and in the `podcast tunnel` output |
+| Host / tunnel offline | Relay offline page — retry later. The host sees the same state in the Invite sheet (“Reconnecting…” or “Not reachable online”) and in the `podcast tunnel` output |
 | Host stopped sharing (or a date the host chose on the CLI passed) | Link fails to load project (treat as dead link; copy TBD). Links never expire on their own |
 | Host's review folder is not private to the host's account (another owner, or writable by group or others) | Guest request fails with "The host's review files need attention; ask the host to check them." No path, command or `internal error`. The host sees the folder and fix in the CLI or the owner tools |
 | Host's share registry is not private to the host's account (a loose file mode, a foreign owner, an ACL, or a symlink), or its file or directory identity changes during access | Guest request fails with "The host's sharing setup needs attention; ask the host to check it." No path, command or `internal error`. The host sees the exact path and fix in the CLI, Share, or the owner tools |

@@ -1,4 +1,4 @@
-## Host: Share (Deliver section)
+## Host: Invite sheet (every stage) and the Deliver Listen link
 
 | | |
 |--|--|
@@ -9,14 +9,14 @@
 | **Empty / error** | Quiet “No review links yet.” / “No record rooms yet.” text (no field-like box), with **Create record links** under the rooms. Create publishes a **Share mix** review version if none exists (needs premix/mastered). A project with no mix yet says “This project has no mix yet. Refresh the mix to create the link.” and a stale preview gets a friendly alert; both show **Refresh mix**, and after a successful render, Create retries once. A stale master explains that a new master is needed and does not offer preview refresh. |
 | **Out of scope** | Restricted ACL; expiry picker (links never expire until the host stops sharing; `expires_at` stays on the CLI and MCP); in-place review-role edit (rotate = new link + stop old); guest share-token MCP UI |
 
-The section sits in the Deliver page body. **Create review link**, a **Copy link** for the link just created and the status line (“Review link created and copied”) sit together at the top of the section, and the page scrolls to the **Record rooms** below. On phones it is part of the same page above the sticky Export bar.
+**Stop sharing** and **End room** confirm in place: the row swaps its actions for the consequence (“Stop sharing this Commenter link? Anyone using it loses access.” / “End this record room? Both guest and producer links will stop working.”) with **Keep link** / **Keep room** first and focused, and the danger action last. Escape keeps the link or room (the same as **Keep**), and focus returns to **More** (or **End room**).
 
-**Stop sharing** and **End room** trail their row, apart from the copy actions, and confirm in place: the row swaps its actions for the consequence (“Stop sharing this Commenter link? Anyone using it loses access.” / “End this record room? Both guest and producer links will stop working.”) with **Keep link** / **Keep room** first and focused, and the danger action last. Escape keeps the link or room (the same as **Keep**). Each record room has one room-level row: **Open Record stage**, then **End room**.
+**Deliver** keeps only the **Listen link** row, in the right column after the Episode file (phone: after the Episode file, before Chapters), with the same behavior as the sheet's Listen group. After an export finishes its **Copy** button is outlined as the follow-up; Export stays the only filled button. The palette command **Copy listen link** (`share.copyListenLink`) copies it from any stage; the design system drops the old ⌘⇧C chord, so it has no key.
 
 When a participant is removed, the Record stage directs the host to **Copy
-links…**. Share marks the affected role's invite closed to new guests, disables
+links…**. The Invite sheet marks the affected role's invite closed to new guests, disables
 copying its old link, and offers a same-room, same-role replacement. Existing
-leases remain valid. Guests never see this section (`canManageProjects` is false
+leases remain valid. Guests never see the sheet (`canManageProjects` is false
 on `share:{token}`).
 
 Storybook `Stages/Deliver/Share` previews the props-only `ShareSection` with fictional links. The section holds:

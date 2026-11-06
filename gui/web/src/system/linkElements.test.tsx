@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -496,33 +496,68 @@ describe("middleTruncate", () => {
   });
 });
 
-describe("LinkRow reach", () => {
+describe("LinkRow reach glyph", () => {
   const LINK = "https://share.example.app/l/7Hq2mXk9TnP4vLr8Za3w";
-  const SENTENCE =
-    "Only people on this network can listen. Turn on online sharing to reach anyone.";
 
-  it.each([
-    ["network", true],
-    ["anywhere", false],
-    [undefined, false],
-  ] as const)("reach %s says who can listen: %s", (reach, shown) => {
+  it("shows no glyph, and no paragraph about the network, without a reach", () => {
     const { container } = render(
-      <LinkRow access="viewer" link={LINK} reach={reach} onCopy={() => {}} />,
+      <LinkRow access="viewer" link={LINK} onCopy={() => {}} />,
     );
-    expect(screen.queryByText(SENTENCE) !== null).toBe(shown);
-    expect(container.querySelector(".sys-link-reach") !== null).toBe(shown);
-    expect(screen.getByRole("button", { name: "Copy" })).toBeInTheDocument();
+    expect(container.querySelector(".sys-link-reach")).toBeNull();
+    expect(screen.queryByText(/Only people on this network/)).toBeNull();
   });
 
-  it("keeps the link icon beside the sentence", () => {
-    const { container } = render(
+  it("shows a slashed globe for a link only this network reaches, with its sentence in a popover that Escape closes", async () => {
+    const user = userEvent.setup();
+    render(
       <LinkRow access="viewer" link={LINK} reach="network" onCopy={() => {}} />,
     );
-    expect(container.querySelector(".sys-link-reach svg")).not.toBeNull();
+    expect(screen.queryByText(/Only people on this network/)).toBeNull();
+    const glyph = screen.getByRole("button", { name: "Only on this network" });
+    expect(glyph.querySelector("svg")).toHaveClass("lucide-globe-off");
+    await user.click(glyph);
+    expect(glyph).toHaveAttribute("aria-expanded", "true");
+    expect(
+      screen.getByText(
+        "Only people on this network can open it. Turn on online sharing to reach anyone.",
+      ),
+    ).toBeVisible();
+    await user.keyboard("{Escape}");
+    expect(glyph).toHaveAttribute("aria-expanded", "false");
+    expect(glyph).toHaveFocus();
   });
 
-  it("says nothing about reach when there is no mix", () => {
+  it("shows a filled globe for a link that reaches anyone, and closes on an outside press", async () => {
+    const user = userEvent.setup();
     render(
+      <>
+        <LinkRow
+          access="viewer"
+          link={LINK}
+          reach="anywhere"
+          onCopy={() => {}}
+        />
+        <button type="button">elsewhere</button>
+      </>,
+    );
+    const glyph = screen.getByRole("button", {
+      name: "Reachable from anywhere",
+    });
+    expect(glyph.querySelector("svg")).toHaveClass("lucide-globe");
+    await user.click(glyph);
+    expect(screen.getByText(/from anywhere/)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "elsewhere" }));
+    expect(glyph).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("shows no glyph before the link is made, or when there is no mix", () => {
+    const { rerender } = render(
+      <LinkRow access="viewer" link={null} reach="network" onCopy={() => {}} />,
+    );
+    expect(
+      screen.queryByRole("button", { name: /network|anywhere/ }),
+    ).toBeNull();
+    rerender(
       <LinkRow
         access="viewer"
         link={null}
@@ -531,6 +566,172 @@ describe("LinkRow reach", () => {
         onCopy={() => {}}
       />,
     );
-    expect(screen.queryByText(SENTENCE)).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /network|anywhere/ }),
+    ).toBeNull();
+  });
+});
+
+describe("LinkRow pin, people count, More and role", () => {
+  const LINK = "https://share.example.app/l/7Hq2mXk9TnP4vLr8Za3w";
+
+  it("toggles the pin and reports the new state", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <LinkRow
+        access="commenter"
+        link={null}
+        pin={{ pressed: false, onChange }}
+        onCopy={() => {}}
+      />,
+    );
+    const pin = screen.getByRole("button", { name: "Pin to this version" });
+    expect(pin).toHaveAttribute("aria-pressed", "false");
+    await user.click(pin);
+    expect(onChange).toHaveBeenCalledWith(true);
+  });
+
+  it("shows a pin it cannot change as pressed, disabled, with the reason", () => {
+    render(
+      <LinkRow
+        access="viewer"
+        link={LINK}
+        pin={{ pressed: true, disabledReason: "Pinned when it was made." }}
+        onCopy={() => {}}
+      />,
+    );
+    const pin = screen.getByRole("button", { name: "Pin to this version" });
+    expect(pin).toHaveAttribute("aria-pressed", "true");
+    expect(pin).toBeDisabled();
+    expect(pin).toHaveAttribute("title", "Pinned when it was made.");
+  });
+
+  it("counts the people who opened it, from the avatars or a given number", () => {
+    const { rerender } = render(
+      <LinkRow
+        access="viewer"
+        link={LINK}
+        openedBy={[{ name: "Rosa" }, { name: "Jon" }]}
+        onCopy={() => {}}
+      />,
+    );
+    expect(
+      screen.getByRole("img", { name: "Opened by Rosa, Jon" }),
+    ).toBeVisible();
+    expect(screen.getByTestId("link-opened-count")).toHaveTextContent("2");
+    rerender(
+      <LinkRow access="viewer" link={LINK} openedCount={5} onCopy={() => {}} />,
+    );
+    expect(
+      screen.getByRole("img", { name: "Opened by 5 people" }),
+    ).toHaveTextContent("5");
+    rerender(
+      <LinkRow access="viewer" link={LINK} openedCount={1} onCopy={() => {}} />,
+    );
+    expect(
+      screen.getByRole("img", { name: "Opened by 1 person" }),
+    ).toBeVisible();
+  });
+
+  it("opens a More menu of what the row can do, closes it on a pick and runs the pick", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    render(
+      <LinkRow
+        access="viewer"
+        link={LINK}
+        linkName="Viewer link"
+        more={[
+          {
+            id: "mcp",
+            label: "Allow AI assistants",
+            checked: true,
+            onSelect: () => {},
+          },
+          { id: "stop", label: "Stop sharing", onSelect },
+          {
+            id: "qr",
+            label: "Locked",
+            disabledReason: "Not yet.",
+            onSelect: () => {},
+          },
+        ]}
+        onCopy={() => {}}
+      />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "More for Viewer link" }),
+    );
+    expect(
+      screen.getByRole("menuitemradio", { name: "Allow AI assistants" }),
+    ).toHaveAttribute("aria-checked", "true");
+    await user.click(screen.getByRole("menuitem", { name: "Stop sharing" }));
+    expect(onSelect).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("has no More button without items", () => {
+    render(<LinkRow access="viewer" link={LINK} onCopy={() => {}} />);
+    expect(screen.queryByRole("button", { name: "More" })).toBeNull();
+  });
+
+  it("replaces the role chip with a segmented choice while the link is not made", async () => {
+    const user = userEvent.setup();
+    const onRole = vi.fn();
+    const { rerender } = render(
+      <LinkRow
+        access="commenter"
+        link={null}
+        onRole={onRole}
+        onCopy={() => {}}
+      />,
+    );
+    const group = screen.getByRole("group", { name: "Who can open it" });
+    expect(
+      within(group).getByRole("button", { name: "Commenter: can comment" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await user.click(
+      within(group).getByRole("button", { name: "Editor: can edit" }),
+    );
+    expect(onRole).toHaveBeenCalledWith("editor");
+    rerender(
+      <LinkRow
+        access="commenter"
+        link={LINK}
+        onRole={onRole}
+        onCopy={() => {}}
+      />,
+    );
+    expect(screen.queryByRole("group", { name: "Who can open it" })).toBeNull();
+    expect(
+      screen.getByRole("img", { name: "Commenter: can comment" }),
+    ).toBeVisible();
+  });
+
+  it("shows a confirm in place and puts focus back on More when it goes", async () => {
+    const { rerender } = render(
+      <LinkRow
+        access="viewer"
+        link={LINK}
+        linkName="Viewer link"
+        more={[{ id: "stop", label: "Stop sharing", onSelect: () => {} }]}
+        confirming={<p>Stop sharing this link?</p>}
+        onCopy={() => {}}
+      />,
+    );
+    expect(screen.getByText("Stop sharing this link?")).toBeVisible();
+    rerender(
+      <LinkRow
+        access="viewer"
+        link={LINK}
+        linkName="Viewer link"
+        more={[{ id: "stop", label: "Stop sharing", onSelect: () => {} }]}
+        onCopy={() => {}}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "More for Viewer link" }),
+    ).toHaveFocus();
   });
 });
