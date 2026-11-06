@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FakeWebSocket } from "../test/fakeWebSocket";
+import { commentsQueueKey, postLiveComment } from "./liveCommentQueue";
 import { subscribeRecordSignal } from "./monitor/signalBus";
 import {
   isRecordAccessEnded,
@@ -38,6 +39,7 @@ describe("useRecordSync", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it("sends Join and caches the Echo lease", async () => {
@@ -104,6 +106,85 @@ describe("useRecordSync", () => {
     const frame = JSON.parse(ws.sent[ws.sent.length - 1] || "{}");
     expect(frame.command_type).toBe("SegmentReport");
     expect(frame.payload).toEqual({ take_index: 0, segments: 2, final: true });
+  });
+
+  it("propagates a still-bound CLOSING socket refusal through Notes", async () => {
+    const { result } = renderHook(() => useRecordSync("tok", "Ava"));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const ws = FakeWebSocket.instances[0];
+    const frameCount = ws.sent.length;
+    ws.readyState = FakeWebSocket.CLOSING;
+
+    expect(result.current.send("Comment", { body: "Still bound" })).toBe(false);
+    expect(ws.sent).toHaveLength(frameCount);
+
+    const key = commentsQueueKey("tok");
+    const originalSetItem = Storage.prototype.setItem;
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (
+      this: Storage,
+      storageKey: string,
+      value: string,
+    ) {
+      if (storageKey === key) {
+        throw new Error("synthetic comments queue refusal");
+      }
+      originalSetItem.call(this, storageKey, value);
+    });
+    expect(
+      postLiveComment(result.current.send, "tok", {
+        body: "Retain this note",
+        takeIndex: 2,
+        recordingMs: 1200,
+        author: "guest",
+      }),
+    ).toBeNull();
+    expect(ws.sent).toHaveLength(frameCount);
+  });
+
+  it("accepts Notes when either the queue or an open guest transport accepts", async () => {
+    const { result } = renderHook(() => useRecordSync("tok", "Ava"));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const ws = FakeWebSocket.instances[0];
+    const frameCount = ws.sent.length;
+    ws.readyState = FakeWebSocket.CLOSED;
+    expect(
+      postLiveComment(result.current.send, "tok-queued", {
+        body: "Queued note",
+        takeIndex: 2,
+        recordingMs: 1200,
+        author: "guest",
+      }),
+    ).not.toBeNull();
+    expect(ws.sent).toHaveLength(frameCount);
+
+    ws.readyState = FakeWebSocket.OPEN;
+    const key = commentsQueueKey("tok-transport");
+    const originalSetItem = Storage.prototype.setItem;
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (
+      this: Storage,
+      storageKey: string,
+      value: string,
+    ) {
+      if (storageKey === key) {
+        throw new Error("synthetic comments queue refusal");
+      }
+      originalSetItem.call(this, storageKey, value);
+    });
+    expect(
+      postLiveComment(result.current.send, "tok-transport", {
+        body: "Transport accepted note",
+        takeIndex: 2,
+        recordingMs: 1200,
+        author: "guest",
+      }),
+    ).not.toBeNull();
+    expect(ws.sent).toHaveLength(frameCount + 1);
   });
 
   it("resends cached participant ids on reconnect Join", async () => {
