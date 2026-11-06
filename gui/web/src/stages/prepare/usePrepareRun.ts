@@ -96,7 +96,7 @@ type KeepFixes = {
  * are in. Audio added beside transcribed tracks waits for Process new audio.
  * A missing model shows Get and the run continues after its download.
  * Re-transcribe and Re-time words ask before replacing hand fixes. Word timing
- * installed from a row waits for the Re-time words action.
+ * installed anywhere waits for the Re-time words action.
  */
 export function usePrepareRun(input: PrepareRunInput) {
   const { ingestBusy, canRun, mediaKey } = input;
