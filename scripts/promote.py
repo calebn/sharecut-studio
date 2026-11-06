@@ -85,10 +85,13 @@ class Gh(Protocol):
     def cancel(self, run_id: int) -> None: ...
 
 
+MIN_SECRET_LENGTH = 8
+
+
 def scrub(text: str) -> str:
-    for name in (PROMOTE_TOKEN_ENV, "GH_TOKEN", "GITHUB_TOKEN"):
-        value = os.environ.get(name)
-        if value:
+    values = {os.environ.get(name, "") for name in (PROMOTE_TOKEN_ENV, "GH_TOKEN", "GITHUB_TOKEN")}
+    for value in sorted(values, key=len, reverse=True):
+        if len(value.strip()) >= MIN_SECRET_LENGTH:
             text = text.replace(value, "***")
     return text
 
@@ -103,7 +106,7 @@ class GhCli:
                 ["gh", *args], check=True, capture_output=True, text=True, cwd=ROOT
             ).stdout
         except subprocess.CalledProcessError as exc:
-            print(f"gh {' '.join(args[:2])} failed: {scrub(str(exc.stderr or '')).strip()}")
+            print(f"gh {' '.join(args[:2])} failed: {scrub(exc.stderr or '').strip()}")
             raise
 
     def dispatch(self, workflow: str, ref: str, inputs: Mapping[str, str]) -> None:
@@ -270,8 +273,8 @@ def cancel_unfinished(gh: Gh, runs: Iterable[Run | None]) -> None:
         if run is not None and run.status != "completed":
             try:
                 gh.cancel(run.id)
-            except subprocess.CalledProcessError as exc:
-                print(f"could not cancel run {run.id}: {exc.stderr}")
+            except subprocess.CalledProcessError:
+                print(f"could not cancel run {run.id}")
 
 
 def wait_for_runs(
@@ -349,6 +352,7 @@ def promote(
     branch = temp_branch(source_sha, int(clock.epoch()), run_id, attempt)
     if not push_reported(git, source_sha, branch, token if use_token else None):
         return 1
+    dispatched: list[str] = []
     for workflow in CI_WORKFLOWS:
         inputs = (
             {
@@ -360,7 +364,15 @@ def promote(
         )
         try:
             gh.dispatch(workflow, branch, inputs)
+            dispatched.append(workflow)
         except subprocess.CalledProcessError:
+            cancel_unfinished(
+                gh,
+                (
+                    found[-1] if (found := gh.runs(name, branch, source_sha)) else None
+                    for name in dispatched
+                ),
+            )
             print(f"dispatching {workflow} on {branch} failed; leaving {branch} for cleanup")
             return 1
     problems = wait_for_runs(

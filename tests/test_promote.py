@@ -90,13 +90,15 @@ class FakeGh:
     jobs_by_workflow: Mapping[str, Mapping[str, str | None]] = field(default_factory=dict)
     missing: frozenset[str] = frozenset()
     fail_dispatch: frozenset[str] = frozenset()
+    fail_ci_dispatch: frozenset[str] = frozenset()
     on_poll: Callable[[], None] | None = None
     dispatched: list[tuple[str, str, dict[str, str]]] = field(default_factory=list)
     polls: list[tuple[str, str, str]] = field(default_factory=list)
     cancelled: list[int] = field(default_factory=list)
 
     def dispatch(self, workflow: str, ref: str, inputs: Mapping[str, str]) -> None:
-        if workflow in self.fail_dispatch and not ref.startswith("promote/"):
+        failing = self.fail_ci_dispatch if ref.startswith("promote/") else self.fail_dispatch
+        if workflow in failing:
             raise subprocess.CalledProcessError(1, "gh", stderr="boom")
         self.dispatched.append((workflow, ref, dict(inputs)))
 
@@ -788,17 +790,17 @@ def test_gh_cli_failure_prints_the_stderr_and_reraises(tmp_path: Path, monkeypat
 
 @pytest.mark.parametrize("name", ["PROMOTE_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"])
 def test_gh_cli_failure_scrubs_token_values(tmp_path: Path, monkeypatch, capsys, name: str) -> None:
-    write_failing_gh(tmp_path, "bad credentials tok-secret-123\n")
+    write_failing_gh(tmp_path, f"bad credentials {SCRUB_CLI_FAILURE}\n")
     monkeypatch.setenv("PATH", f"{tmp_path}:{os.environ['PATH']}")
     for other in ("PROMOTE_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"):
         monkeypatch.delenv(other, raising=False)
-    monkeypatch.setenv(name, "tok-secret-123")
+    monkeypatch.setenv(name, SCRUB_CLI_FAILURE)
 
     with pytest.raises(subprocess.CalledProcessError):
         promote.GhCli("o/r").dispatch("test.yml", "promote/x", {})
 
     out = capsys.readouterr().out
-    assert "tok-secret-123" not in out
+    assert SCRUB_CLI_FAILURE not in out
     assert out == "gh workflow run failed: bad credentials ***\n"
 
 
@@ -815,3 +817,66 @@ def test_a_failed_ci_dispatch_returns_1_and_leaves_the_temp_branch(repo: Repo, c
     assert "dispatching test.yml on promote/" in out
     assert any(b.startswith("promote/") for b in repo.remote_branches())
     assert repo.remote_sha("main") == main_before
+
+
+def test_a_failed_last_dispatch_cancels_the_earlier_runs_and_never_promotes(
+    repo: Repo, capsys
+) -> None:
+    running = {w: ("in_progress", None) for w in promote.CI_WORKFLOWS}
+    gh = FakeGh(outcomes=running, fail_ci_dispatch=frozenset({"storybook.yml"}))
+    main_before = repo.remote_sha("main")
+
+    assert go(repo, gh) == 1
+
+    assert gh.ci_dispatches() == list(promote.CI_WORKFLOWS[:4])
+    assert sorted(gh.cancelled) == [gh.run_id(w) for w in promote.CI_WORKFLOWS[:4]]
+    assert gh.deploys() == []
+    assert repo.remote_sha("main") == main_before
+    assert any(b.startswith("promote/") for b in repo.remote_branches())
+    assert "dispatching storybook.yml on promote/" in capsys.readouterr().out
+
+
+def fake_secret(*parts: str) -> str:
+    """Build a token-shaped test value at runtime so no source literal looks like a key."""
+    return "".join(parts)
+
+
+SCRUB_BASE = fake_secret("fake", "_", "long", "secret")
+SCRUB_LONGER = SCRUB_BASE + "_x"
+SCRUB_CLI = fake_secret("t", "ok", "-", "abc", "-", "1", "2345")
+SCRUB_CLI_FAILURE = fake_secret("t", "ok", "-", "sec", "ret", "-", "123")
+
+
+def set_tokens(monkeypatch, **tokens: str) -> None:
+    for name in ("PROMOTE_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"):
+        monkeypatch.delenv(name, raising=False)
+    for name, value in tokens.items():
+        monkeypatch.setenv(name, value)
+
+
+def test_scrub_replaces_the_longest_overlapping_value_first(monkeypatch) -> None:
+    set_tokens(monkeypatch, PROMOTE_TOKEN=SCRUB_BASE, GH_TOKEN=SCRUB_LONGER)
+
+    assert promote.scrub(f"{SCRUB_LONGER} and {SCRUB_BASE}") == "*** and ***"
+
+
+@pytest.mark.parametrize("value", ["", "   ", "1", "short", "  abc  "])
+def test_scrub_ignores_blank_and_short_values(monkeypatch, value: str) -> None:
+    set_tokens(monkeypatch, GH_TOKEN=value)
+
+    assert promote.scrub("bad credentials abc 1 2") == "bad credentials abc 1 2"
+
+
+def test_a_failed_cancel_prints_a_scrubbed_message_once(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    write_failing_gh(tmp_path, f"denied {SCRUB_CLI}\n")
+    monkeypatch.setenv("PATH", f"{tmp_path}:{os.environ['PATH']}")
+    set_tokens(monkeypatch, GH_TOKEN=SCRUB_CLI)
+
+    promote.cancel_unfinished(promote.GhCli("o/r"), [promote.Run(7, "in_progress", None)])
+
+    out = capsys.readouterr().out
+    assert SCRUB_CLI not in out
+    assert out.count("denied") == 1
+    assert "could not cancel run 7" in out
