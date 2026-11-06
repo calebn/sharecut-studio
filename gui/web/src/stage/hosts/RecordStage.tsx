@@ -98,7 +98,7 @@ function RecordStageBody({
   const toneAnnouncement = useRoomToneAnnouncement(room.roomTone.status);
   const endPending = room.endSession.ending;
   useEffect(() => {
-    if (endPending) announceStatus(END_SESSION_PENDING_COPY);
+    if (endPending) announceStatus(END_SESSION_PENDING_COPY, { toast: false });
   }, [endPending, announceStatus]);
   useEffect(() => {
     if (toneAnnouncement) {
