@@ -12,7 +12,14 @@ import { useSelectionAnchor } from "../edit/useSelectionAnchor";
  * and Suggest a cut, nothing else. A Viewer gets no bar; a link that may not
  * suggest gets Comment alone; an Editor's cut applies, so it reads Cut.
  */
-export function GuestSelectionBar({ root }: { root: HTMLElement | null }) {
+export function GuestSelectionBar({
+  root,
+  phone = false,
+}: {
+  root: HTMLElement | null;
+  /** The phone layout: the transcript block is short, so the bar may use the page. */
+  phone?: boolean;
+}) {
   const { selection, projectPath, shareCapabilities, guestMode } = useDawStore(
     useShallow((s) => ({
       selection: s.selection,
@@ -27,6 +34,9 @@ export function GuestSelectionBar({ root }: { root: HTMLElement | null }) {
     root,
     selection,
     selection?.kind === "transcriptRange",
+    // On a phone the transcript block is short: the bar may hang below a
+    // selection near its end, and stays clamped inside the viewport.
+    phone ? (root?.ownerDocument.documentElement ?? null) : root,
   );
   const onVerb = useCallback((id: BarId) => {
     const action = id === "cut" ? "cut" : id === "comment" ? "comment" : null;

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -25,5 +26,26 @@ describe("GuestLoadingScreen", () => {
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(onRetry).toHaveBeenCalledOnce();
     await expectNoA11yViolations(container);
+  });
+
+  it("gives Retry the touch-min target at every size and the status row the block gutter", () => {
+    render(<GuestLoadingScreen onRetry={() => {}} />);
+    act(() => void vi.advanceTimersByTime(4000));
+    const retry = screen.getByRole("button", { name: "Retry" });
+    expect(retry).toHaveClass("sys-skeleton-retry");
+    const css = readFileSync("src/styles/partials/system.css", "utf8");
+    const rule = (selector: string) =>
+      css.match(new RegExp(`${selector}\\s*\\{([^}]*)\\}`))?.[1] ?? "";
+    // Unconditional: the rule is not inside a pointer: coarse query.
+    expect(rule("\\.sys-skeleton-retry")).toContain(
+      "min-block-size: var(--touch-min)",
+    );
+    const row = rule("\\.sys-skeleton--guest > \\.sys-skeleton-slow");
+    expect(row).toContain("padding-inline: var(--space-5)");
+    expect(row).not.toMatch(/\d+px/);
+    // The header spans the columns; it no longer bleeds into the gutter.
+    expect(
+      rule("\\.sys-skeleton-blocks--guest \\.sys-skeleton-block--header"),
+    ).not.toContain("margin-inline");
   });
 });
