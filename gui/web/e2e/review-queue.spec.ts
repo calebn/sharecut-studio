@@ -31,6 +31,25 @@ function queueProject(prefix: string) {
   return copy;
 }
 
+const UNSURE_WORD = 15;
+
+function groupProject(prefix: string) {
+  const copy = createRelocatedE2eProject(prefix);
+  const data = JSON.parse(fs.readFileSync(copy.projectPath, "utf8"));
+  data.editorial.edit_decisions = [
+    { ...DECISION, id: "um-1", start: 3.6, end: 3.8, reason: "filler:um" },
+    { ...DECISION, id: "um-2", start: 6.25, end: 6.45, reason: "filler:um" },
+    { ...DECISION, id: "um-3", start: 8.0, end: 8.2, reason: "filler:um" },
+  ];
+  data.editorial.edit_log = [];
+  const track = data.transcripts.per_track.find(
+    (t: { track_id: string }) => t.track_id === "reference",
+  );
+  track.words[UNSURE_WORD].confidence = 0.4;
+  fs.writeFileSync(copy.projectPath, `${JSON.stringify(data, null, 2)}\n`);
+  return copy;
+}
+
 async function openQueue(page: Page, projectPath: string) {
   await openProject(page, projectPath, { stage: "review" });
   await openPanel(page, "queue");
@@ -89,5 +108,37 @@ test("Lower on a laugh writes a lowered span into the clip", async ({
     },
     undefined,
     queueProject,
+  );
+});
+
+test("Cut all cuts the group's sure cuts at once, leaves the unsure one, and one Undo restores them", async ({
+  page,
+}) => {
+  await withShareableProject(
+    async (projectPath) => {
+      await openQueue(page, projectPath);
+      const fillers = page.getByRole("region", { name: "Fillers" });
+      const rows = fillers.locator(".sys-queue-main");
+      await expect(rows).toHaveCount(3);
+      await fillers.getByRole("button", { name: "Cut all 2" }).click();
+      await page.getByRole("button", { name: "Cut anyway" }).click();
+
+      await expect(rows).toHaveCount(1);
+      await expect(rows).toContainText("0:08");
+      await expect(
+        fillers.getByRole("button", { name: /^Cut all/ }),
+      ).toHaveCount(0);
+
+      await page
+        .locator(".ui-toast-region--app")
+        .getByRole("button", { name: /undo/i })
+        .click();
+      await expect(rows).toHaveCount(3);
+      await expect(
+        fillers.getByRole("button", { name: "Cut all 2" }),
+      ).toBeVisible();
+    },
+    undefined,
+    groupProject,
   );
 });

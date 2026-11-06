@@ -134,3 +134,30 @@ def test_approving_several_cuts_at_once_leaves_one_history_entry(tmp_path, monke
 
     assert reply["count"] == 2
     assert len(load_project(ws.path).history.entries) == before + 1
+
+
+def test_approving_with_held_cuts_leaves_one_history_entry(tmp_path, monkeypatch):
+    result, asked = _with_plain_cut(tmp_path, monkeypatch)
+    for edit_id, start, end in (("plain2", 4.0, 4.2), ("baseline", 5.4, 5.7)):
+        append_remove_decision(
+            result,
+            "host",
+            start,
+            end,
+            decision_id=edit_id,
+            reason="nl:range",
+            defaults=load_defaults(),
+        )
+    ws = workspace(result)
+    approve_edits(ws, {"ids": ["baseline"]})
+    before = len(load_project(ws.path).history.entries)
+
+    reply = approve_edits(
+        ws, {"ids": ["plain", "plain2", asked.id], "hold_blocked": True, "skip_unsure": True}
+    )
+
+    assert reply["count"] == 2
+    assert reply["approved_ids"] == ["plain", "plain2"]
+    assert [row["id"] for row in reply["held"]] == [asked.id]
+    assert [e.id for e in load_project(ws.path).edit_decisions] == [asked.id]
+    assert len(load_project(ws.path).history.entries) == before + 1

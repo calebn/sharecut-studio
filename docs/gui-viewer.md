@@ -544,7 +544,7 @@ While any pipeline job runs, the Queue shows a top **Job row**: "Finding more su
 
 The Queue's **Sort** control switches between **By kind** (groups, riskiest first; the default) and **By time** (one list in episode order). By time has no group headers, so there is no **Cut all N** and `Shift+Enter` does nothing; J/K, the next item after a decision and the "N of M" count follow the order shown. The "saves N s" figure in the progress line, the batch rows and the verb bar is the timeline shortening, the union of the removed ranges: two edits over the same moment, such as the same cut on two tracks, count once, and a mute, track-scope or exact-range cut leaves the timeline length alone and counts none, and an item that carries no ranges counts its own seconds.
 
-A group's **Cut all N** hides the group at once, so the host owns the running state: the Queue shows "Cutting N…" in its place until the request ends. The host reports no count for this command, so the row is indeterminate (elapsed time after 2 s, no percent), and the decision ends with one Undo for the whole group.
+A group's **Cut all N** hides the group at once, so the host owns the running state: the Queue shows "Cutting N…" in its place until the request ends. The host reports no count for this command, so the row is indeterminate (elapsed time after 2 s, no percent), and the decision ends with one Undo for the whole group. Risky cuts join the group; unsure words, blocked cuts and Keep or Lower items stay out, and a cut the server holds at approve time (another speaker talking over it, or an audio check) returns to the queue as held ([daw-editing.md § Tighten review](daw-editing.md#tighten-review)).
 
 ## Prepare stage (orchestration)
 
