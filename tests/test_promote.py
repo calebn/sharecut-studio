@@ -90,13 +90,15 @@ class FakeGh:
     jobs_by_workflow: Mapping[str, Mapping[str, str | None]] = field(default_factory=dict)
     missing: frozenset[str] = frozenset()
     fail_dispatch: frozenset[str] = frozenset()
+    fail_ci_dispatch: frozenset[str] = frozenset()
     on_poll: Callable[[], None] | None = None
     dispatched: list[tuple[str, str, dict[str, str]]] = field(default_factory=list)
     polls: list[tuple[str, str, str]] = field(default_factory=list)
     cancelled: list[int] = field(default_factory=list)
 
     def dispatch(self, workflow: str, ref: str, inputs: Mapping[str, str]) -> None:
-        if workflow in self.fail_dispatch and not ref.startswith("promote/"):
+        failing = self.fail_ci_dispatch if ref.startswith("promote/") else self.fail_dispatch
+        if workflow in failing:
             raise subprocess.CalledProcessError(1, "gh", stderr="boom")
         self.dispatched.append((workflow, ref, dict(inputs)))
 
@@ -815,3 +817,55 @@ def test_a_failed_ci_dispatch_returns_1_and_leaves_the_temp_branch(repo: Repo, c
     assert "dispatching test.yml on promote/" in out
     assert any(b.startswith("promote/") for b in repo.remote_branches())
     assert repo.remote_sha("main") == main_before
+
+
+def test_a_failed_last_dispatch_cancels_the_earlier_runs_and_never_promotes(
+    repo: Repo, capsys
+) -> None:
+    running = {w: ("in_progress", None) for w in promote.CI_WORKFLOWS}
+    gh = FakeGh(outcomes=running, fail_ci_dispatch=frozenset({"storybook.yml"}))
+    main_before = repo.remote_sha("main")
+
+    assert go(repo, gh) == 1
+
+    assert gh.ci_dispatches() == list(promote.CI_WORKFLOWS[:4])
+    assert sorted(gh.cancelled) == [gh.run_id(w) for w in promote.CI_WORKFLOWS[:4]]
+    assert gh.deploys() == []
+    assert repo.remote_sha("main") == main_before
+    assert any(b.startswith("promote/") for b in repo.remote_branches())
+    assert "dispatching storybook.yml on promote/" in capsys.readouterr().out
+
+
+def set_tokens(monkeypatch, **tokens: str) -> None:
+    for name in ("PROMOTE_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"):
+        monkeypatch.delenv(name, raising=False)
+    for name, value in tokens.items():
+        monkeypatch.setenv(name, value)
+
+
+def test_scrub_replaces_the_longest_overlapping_value_first(monkeypatch) -> None:
+    set_tokens(monkeypatch, PROMOTE_TOKEN="ghp_longsecret", GH_TOKEN="ghp_longsecret_x")
+
+    assert promote.scrub("ghp_longsecret_x and ghp_longsecret") == "*** and ***"
+
+
+@pytest.mark.parametrize("value", ["", "   ", "1", "short", "  abc  "])
+def test_scrub_ignores_blank_and_short_values(monkeypatch, value: str) -> None:
+    set_tokens(monkeypatch, GH_TOKEN=value)
+
+    assert promote.scrub("bad credentials abc 1 2") == "bad credentials abc 1 2"
+
+
+def test_a_failed_cancel_prints_a_scrubbed_message_once(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    write_failing_gh(tmp_path, "denied tok-abc-12345\n")
+    monkeypatch.setenv("PATH", f"{tmp_path}:{os.environ['PATH']}")
+    set_tokens(monkeypatch, GH_TOKEN="tok-abc-12345")
+
+    promote.cancel_unfinished(promote.GhCli("o/r"), [promote.Run(7, "in_progress", None)])
+
+    out = capsys.readouterr().out
+    assert "tok-abc-12345" not in out
+    assert out.count("denied") == 1
+    assert "could not cancel run 7" in out
