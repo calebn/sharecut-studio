@@ -17,6 +17,7 @@ import { AskDialog } from "../feedback/AskDialog";
 import { askConfirm } from "../feedback/ask";
 import { useDawStore } from "../state/dawStore";
 import { trackEditSave } from "../state/documentSendOrder";
+import { setRoomKeys } from "../state/roomKeys";
 import { setChrome } from "../test/chrome";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import { BottomSheet } from "../ui/BottomSheet";
@@ -277,7 +278,7 @@ it("keeps native typing in a dialog's text field while the app shortcuts are hel
   expect(vi.mocked(execute)).not.toHaveBeenCalled();
 });
 
-it("lets through only the shortcuts the open modal hands on: M drops a marker", async () => {
+it("lets through only the shortcuts the open modal hands on: C drops a marker", async () => {
   vi.mocked(execute).mockImplementation(async () => ({ status: "ok" }));
   useDawStore.setState({ stage: "record" });
   const { rerender } = render(
@@ -294,7 +295,7 @@ it("lets through only the shortcuts the open modal hands on: M drops a marker", 
     </>,
   );
   const canvas = screen.getByTestId("canvas");
-  fireEvent.keyDown(canvas, { key: "m", code: "KeyM" });
+  fireEvent.keyDown(canvas, { key: "c", code: "KeyC" });
   await waitFor(() =>
     expect(vi.mocked(execute)).toHaveBeenCalledWith(
       "record.marker",
@@ -327,7 +328,7 @@ it("lets through only the shortcuts the open modal hands on: M drops a marker", 
     </>,
   );
   await act(async () => {
-    fireEvent.keyDown(canvas, { key: "m", code: "KeyM" });
+    fireEvent.keyDown(canvas, { key: "c", code: "KeyC" });
     fireEvent.keyDown(canvas, {
       key: "z",
       code: "KeyZ",
@@ -448,10 +449,10 @@ it("deletes the clip on Backspace on Edit and runs nothing on Review", async () 
   ]);
 });
 
-it("drops a marker on M on the Record stage and mutes the track on any other stage", async () => {
+it("drops a marker on C on the Record stage and mutes the track on M with no room open", async () => {
   render(<KeymapHost />);
   useDawStore.setState({ stage: "record" });
-  expect(await pressOnCanvas("m", "KeyM")).toEqual(["record.marker"]);
+  expect(await pressOnCanvas("c", "KeyC")).toEqual(["record.marker"]);
   useDawStore.setState({ stage: "edit" });
   expect(await pressOnCanvas("m", "KeyM")).toEqual(["edit.mute"]);
 });
@@ -815,4 +816,68 @@ it("Mod+E from a Deliver text field is left to the field", async () => {
   );
   await pressModE(screen.getByRole("textbox", { name: "Chapter title" }));
   expect(useDawStore.getState().chrome.exportRequested).toBe(false);
+});
+
+it("starts a take on R, stops it only on a 600 ms hold, and pauses on P", async () => {
+  const calls: string[] = [];
+  setRoomKeys({
+    take: "idle",
+    start: () => calls.push("start"),
+    stop: () => calls.push("stop"),
+    pause: () => calls.push("pause"),
+  });
+  render(<KeymapHost />);
+  const canvas = screen.getByTestId("canvas");
+  await act(async () => {
+    fireEvent.keyDown(canvas, { key: "r", code: "KeyR" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  expect(calls).toEqual(["start"]);
+
+  vi.useFakeTimers();
+  setRoomKeys({
+    take: "live",
+    start: () => calls.push("start"),
+    stop: () => calls.push("stop"),
+    pause: () => calls.push("pause"),
+  });
+  fireEvent.keyDown(canvas, { key: "r", code: "KeyR" });
+  await vi.advanceTimersByTimeAsync(300);
+  fireEvent.keyUp(canvas, { key: "r", code: "KeyR" });
+  await vi.advanceTimersByTimeAsync(600);
+  expect(calls).toEqual(["start"]);
+  fireEvent.keyDown(canvas, { key: "r", code: "KeyR" });
+  await vi.advanceTimersByTimeAsync(650);
+  expect(calls).toEqual(["start", "stop"]);
+  fireEvent.keyUp(canvas, { key: "r", code: "KeyR" });
+  fireEvent.keyDown(canvas, { key: "p", code: "KeyP" });
+  await vi.advanceTimersByTimeAsync(10);
+  vi.useRealTimers();
+  expect(calls).toEqual(["start", "stop", "pause"]);
+  setRoomKeys(null);
+});
+
+it("keeps the R hold through other keyups and drops it when the take ends mid-hold", async () => {
+  const calls: string[] = [];
+  const handlers = (take: "idle" | "live") => ({
+    take,
+    stop: () => calls.push("stop"),
+  });
+  setRoomKeys(handlers("live"));
+  render(<KeymapHost />);
+  const canvas = screen.getByTestId("canvas");
+  vi.useFakeTimers();
+  fireEvent.keyDown(canvas, { key: "r", code: "KeyR" });
+  await vi.advanceTimersByTimeAsync(300);
+  fireEvent.keyUp(canvas, { key: "Shift", code: "ShiftLeft" });
+  await vi.advanceTimersByTimeAsync(400);
+  expect(calls).toEqual(["stop"]);
+  fireEvent.keyUp(canvas, { key: "r", code: "KeyR" });
+  fireEvent.keyDown(canvas, { key: "r", code: "KeyR" });
+  await vi.advanceTimersByTimeAsync(300);
+  setRoomKeys(handlers("idle"));
+  await vi.advanceTimersByTimeAsync(400);
+  vi.useRealTimers();
+  expect(calls).toEqual(["stop"]);
+  setRoomKeys(null);
 });

@@ -1924,7 +1924,7 @@
         "gui": [
           "RecordStage"
         ],
-        "keyboard": "M",
+        "keyboard": "C",
         "mcp": [
           "record_marker_tool"
         ],
@@ -1935,6 +1935,106 @@
         "guest": true
       },
       "tooltip": "Record marker",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.room.mute",
+      "label": "Mute your mic in the room",
+      "effect": "view",
+      "tooltip": "Mute or unmute your mic in the room",
+      "service": "RecordStage room keys",
+      "industry_standard_key": false,
+      "gates": [
+        "roomKeysActive"
+      ],
+      "surfaces": {
+        "command": "room.mute",
+        "gui": [
+          "RecordStage"
+        ],
+        "keyboard": "M"
+      },
+      "omit": {
+        "guest": true
+      },
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.room.take",
+      "label": "Record",
+      "effect": "view",
+      "tooltip": "Start a take from the keyboard",
+      "service": "RecordStage room keys",
+      "industry_standard_key": false,
+      "gates": [
+        "roomTakeIdle"
+      ],
+      "surfaces": {
+        "command": "room.take",
+        "gui": [
+          "RecordStage"
+        ],
+        "keyboard": "R"
+      },
+      "omit": {
+        "guest": true
+      },
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.room.stop",
+      "label": "Stop take",
+      "effect": "view",
+      "tooltip": "Hold to stop the take",
+      "service": "RecordStage room keys",
+      "industry_standard_key": false,
+      "gates": [
+        "roomTakeLive"
+      ],
+      "surfaces": {
+        "command": "room.stop",
+        "gui": [
+          "RecordStage"
+        ],
+        "keyboard": "R"
+      },
+      "omit": {
+        "guest": true
+      },
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.room.pause",
+      "label": "Pause or resume take",
+      "effect": "view",
+      "tooltip": "Pause or resume the take",
+      "service": "RecordStage room keys",
+      "industry_standard_key": false,
+      "gates": [
+        "roomTakeLive"
+      ],
+      "surfaces": {
+        "command": "room.pause",
+        "gui": [
+          "RecordStage"
+        ],
+        "keyboard": "P"
+      },
+      "omit": {
+        "guest": true
+      },
       "presence": {
         "cursor": "none",
         "follow": "none"
