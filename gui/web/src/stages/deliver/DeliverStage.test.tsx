@@ -103,6 +103,45 @@ describe("Mod+E", () => {
   });
 });
 
+describe("Review hand-off", () => {
+  it("leads back to Review with the open count, and is not a filled button", async () => {
+    const { container, all } = setup({ facts: OPEN_FACTS });
+    const handoff = screen.getByRole("button", { name: "Review 3 open items" });
+    expect(handoff).not.toHaveClass("primary");
+    expect(container.querySelectorAll(".primary")).toHaveLength(1);
+    await userEvent.click(handoff);
+    expect(all.onFix).toHaveBeenCalledWith("review", "comments");
+    expect(all.onExport).not.toHaveBeenCalled();
+  });
+
+  it("is absent when nothing is open or only the mix is open", () => {
+    const view = setup();
+    expect(screen.queryByRole("button", { name: /^Review \d/ })).toBeNull();
+    view.rerender(
+      <DeliverStage
+        {...view.all}
+        facts={{ ...CLEAR_FACTS, mixUpToDate: false }}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: /^Review \d/ })).toBeNull();
+  });
+
+  it("is absent while loading and counts one item in the singular", () => {
+    const view = setup({ state: "loading", facts: OPEN_FACTS });
+    expect(screen.queryByRole("button", { name: /^Review \d/ })).toBeNull();
+    view.rerender(
+      <DeliverStage
+        {...view.all}
+        state="ready"
+        facts={{ ...CLEAR_FACTS, unsureWordsLeft: 1 }}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Review 1 open item" }),
+    ).toBeInTheDocument();
+  });
+});
+
 describe("Export button", () => {
   it("is one filled button and keeps working with items open", async () => {
     const { container, all } = setup({ facts: OPEN_FACTS });
@@ -2374,19 +2413,19 @@ describe("Episode file transcript note", () => {
     { kind: "allCut" },
     { kind: "none" },
   ] as const)(
-    "keeps the section-presence message for preview $kind",
+    "keeps the automatic-files note unchanged for preview $kind",
     (preview) => {
       setup({ transcript: transcriptOptions({ preview }) });
       const episode = screen.getByRole("region", { name: "Episode file" });
       expect(
         within(episode).getByText(
-          "Available captions and transcript are included with every audio export. Choose more files in Transcript below.",
+          "Available captions and transcript are included with every audio export.",
         ),
       ).toBeInTheDocument();
     },
   );
 
-  it("explains available automatic files without referring to an absent section", () => {
+  it("explains available automatic files without pointing at another section", () => {
     setup();
     const episode = screen.getByRole("region", { name: "Episode file" });
     expect(
@@ -4842,14 +4881,14 @@ describe("host export options", () => {
     expect(pressed()).toEqual(["MP3"]);
   });
 
-  it("says WAV is always written, and still exports with nothing else chosen", () => {
+  it("says WAV is written with every export, and still exports with nothing else chosen", () => {
     const { all } = setup({
       initialSettings: { ...SETTINGS, formats: [] },
       exportOptions: { wavAlwaysWritten: true, formats: [] },
     });
     expect(
       screen.getByText(
-        "WAV is the lossless master and is always written. Turn it off in the Pipeline tab.",
+        "WAV is the lossless master and is written with every export.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "WAV" })).toBeDisabled();
@@ -5019,9 +5058,10 @@ describe("host export options", () => {
     });
     expect(
       screen.getByText(
-        "Mastered to −16.0 LUFS, peaks under −1.5 dBTP. Change the target in the Pipeline tab.",
+        "Mastered to −16.0 LUFS, peaks under −1.5 dBTP. The target mirrors the loudness setting in Prepare.",
       ),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/Pipeline tab/)).toBeNull();
     expect(screen.queryByRole("group", { name: "Loudness" })).toBeNull();
   });
 

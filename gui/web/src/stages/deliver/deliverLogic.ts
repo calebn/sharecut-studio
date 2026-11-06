@@ -212,6 +212,25 @@ export function readinessSummary(rows: readonly ReadinessRow[]): string {
   return `${thingsLeft(open)}. You can still export.`;
 }
 
+export type ReviewHandoff = { label: string; target?: string };
+
+/** Open Review items (suggestions, comments, unsure words) the hand-off leads back to. */
+export function reviewHandoff(facts: ReadinessFacts): ReviewHandoff | null {
+  const first = readinessRows(facts).find(
+    (row) => row.state === "needs-you" && row.fix?.stage === "review",
+  );
+  if (!first) return null;
+  const open =
+    facts.suggestions.total -
+    facts.suggestions.decided +
+    (facts.comments.total - facts.comments.resolved) +
+    facts.unsureWordsLeft;
+  return {
+    label: `Review ${plural(open, "open item")}`,
+    target: first.fix?.target,
+  };
+}
+
 /** What an export was asked to write; `range` is null for the whole episode. */
 export type ExportRequest = {
   settings: EpisodeSettings;

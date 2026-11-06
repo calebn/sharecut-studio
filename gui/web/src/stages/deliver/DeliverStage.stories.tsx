@@ -147,6 +147,7 @@ export const Ready: Story = {
   play: playInCanvas(async ({ canvasElement, args }) => {
     const view = within(canvasElement);
     await expect(view.getByText("Ready to export")).toBeInTheDocument();
+    await expect(view.queryByRole("button", { name: /^Review \d/ })).toBeNull();
     canvasElement.querySelector<HTMLElement>(".dv-stage")?.focus();
     await userEvent.keyboard(MOD_E);
     await expect(args.onExport).not.toHaveBeenCalled();
@@ -169,6 +170,10 @@ export const ItemsOpen: Story = {
     await userEvent.click(view.getByRole("button", { name: "Resolve" }));
     await expect(args.onFix).toHaveBeenCalledWith("review", "comments");
     await expect(view.getByRole("button", { name: /^Export/ })).toBeEnabled();
+    await userEvent.click(
+      view.getByRole("button", { name: "Review 3 open items" }),
+    );
+    await expect(args.onFix).toHaveBeenLastCalledWith("review", "comments");
   }),
 };
 

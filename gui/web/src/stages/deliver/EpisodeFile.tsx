@@ -36,7 +36,6 @@ type Props = {
   /** The Export button lives in the phone dock instead of here. */
   dock?: boolean;
   options?: ExportOptions;
-  hasTranscriptSection: boolean;
   onSettings: (next: EpisodeSettings) => void;
   /** Without it the Saves to line is not shown. */
   onChangeFolder?: () => void;
@@ -54,7 +53,6 @@ export function EpisodeFile({
   state = "ready",
   dock = false,
   options = {},
-  hasTranscriptSection,
   onSettings,
   onChangeFolder,
   onExport,
@@ -62,8 +60,7 @@ export function EpisodeFile({
   onCancel,
 }: Props) {
   const note =
-    "Available captions and transcript are included with every audio export." +
-    (hasTranscriptSection ? " Choose more files in Transcript below." : "");
+    "Available captions and transcript are included with every audio export.";
   const wavNote = useId();
   const gatePanel = useRef<HTMLDivElement>(null);
   const runningBlock = useRef<HTMLDivElement>(null);
@@ -132,8 +129,7 @@ export function EpisodeFile({
       )}
       {options.wavAlwaysWritten && !options.loading ? (
         <p id={wavNote} className="dv-note">
-          WAV is the lossless master and is always written. Turn it off in the
-          Pipeline tab.
+          WAV is the lossless master and is written with every export.
         </p>
       ) : null}
       {options.settingsError ? (
@@ -145,7 +141,8 @@ export function EpisodeFile({
 
       {options.loudnessNote ? (
         <p className="dv-note">
-          {options.loudnessNote} Change the target in the Pipeline tab.
+          {options.loudnessNote} The target mirrors the loudness setting in
+          Prepare.
         </p>
       ) : options.loudness === false ? null : (
         <div className="dv-field">
