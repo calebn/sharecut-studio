@@ -640,7 +640,7 @@ to a one-hour session (`e2e/deepZoom.ts` `stretchProjectToSession`) and zooms to
 `effectiveMaxZoomPxPerSec(3600)` (about 15 M px of content). At the end it
 checks, within 1 px (the envelope window only must start at or before its point): `scrollWidth`, the reachable scroll end, the last ruler
 label, tick offsets (`t × zoom`), tile placement on the 512 px grid ending at
-the session end, and envelope point offsets and the window's left edge. The Vitest helper test
+the session end, and envelope point offsets and the window's left edge, and that the lane draws exactly one envelope dot. The Vitest helper test
 also validates the actual stretched project against
 `schemas/episode.project.schema.json` with strict draft 2020-12 Ajv, and checks
 that malformed clip timing and envelope values report their schema paths.
