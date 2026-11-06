@@ -1759,6 +1759,12 @@ html:not([data-shell="phone"])
   color: var(--color-text-primary);
 }
 
+.sys-status[data-state="failed"]
+  .sys-status-actions
+  > .modifier-action:not(.primary) {
+  color: var(--color-text-primary);
+}
+
 .sys-status-actions {
   display: flex;
   flex-wrap: wrap;
