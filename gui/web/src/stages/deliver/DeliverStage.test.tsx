@@ -25,6 +25,7 @@ import {
 } from "./deliverFixture";
 import type { ExportState } from "./deliverLogic";
 import { formatClock } from "./deliverLogic";
+import { type ListenFixture, listenOf } from "./listenFixture";
 import { SAMPLE_PREVIEW, transcriptOptions } from "./transcriptFixtures";
 
 const platform = vi.hoisted(() => ({ apple: false }));
@@ -55,7 +56,14 @@ function handlers() {
   };
 }
 
-function props(extra: Partial<DeliverStageProps> = {}): DeliverStageProps {
+/** The stage's props plus the plain fields the host's Listen link row is built from. */
+type Harness = DeliverStageProps & {
+  link?: ListenFixture;
+  onCopyLink?: () => void;
+  onRefreshMix?: () => void;
+};
+
+function props(extra: Partial<Harness> = {}): Harness {
   return {
     facts: CLEAR_FACTS,
     total: TOTAL,
@@ -67,16 +75,29 @@ function props(extra: Partial<DeliverStageProps> = {}): DeliverStageProps {
     clock: { time: "0:00", total: "52:00" },
     getPlayheadSec: () => 724,
     link: { url: null },
-    pinnedTo: "Rough cut",
     toastMs: 600_000,
     ...handlers(),
     ...extra,
   };
 }
 
-function setup(extra: Partial<DeliverStageProps> = {}) {
+function setup(extra: Partial<Harness> = {}) {
   const all = props(extra);
-  const view = render(<DeliverStage {...all} />);
+  const { link, onCopyLink, onRefreshMix, ...rest } = all;
+  const view = render(
+    <DeliverStage
+      {...rest}
+      listen={
+        rest.listen ??
+        listenOf({
+          ...link,
+          url: link?.url ?? null,
+          onCopy: onCopyLink,
+          onRefreshMix,
+        })
+      }
+    />,
+  );
   const stage = () => view.container.querySelector(".dv-stage") as HTMLElement;
   return { ...view, all, stage };
 }
@@ -739,10 +760,14 @@ describe("what each part of the page shows", () => {
 
   it("shows the listen link when ready and a skeleton while loading", () => {
     const ready = setup();
-    expect(screen.getByRole("button", { name: "Copy" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Copy listen link" }),
+    ).toBeInTheDocument();
     ready.unmount();
     setup({ state: "loading" });
-    expect(screen.queryByRole("button", { name: "Copy" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Copy listen link" }),
+    ).toBeNull();
   });
 
   it("marks the page busy only while loading", () => {
@@ -912,7 +937,9 @@ describe("host callbacks", () => {
     expect(running.all.onCancel).toHaveBeenCalledOnce();
     await userEvent.click(screen.getByRole("button", { name: "Change" }));
     expect(running.all.onChangeFolder).toHaveBeenCalledOnce();
-    await userEvent.click(screen.getByRole("button", { name: "Copy" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Copy listen link" }),
+    );
     expect(running.all.onCopyLink).toHaveBeenCalledOnce();
     await userEvent.click(
       screen.getByRole("button", { name: "Play from The old mill" }),
@@ -1319,15 +1346,15 @@ describe("files of an export", () => {
 });
 
 describe("the phone layout", () => {
-  it("shows chapters and clips once, and Share instead of Copy", () => {
+  it("shows chapters and clips once, and the Listen link row", () => {
     setup({ layout: "phone" });
     expect(screen.getAllByRole("heading", { name: "Chapters" })).toHaveLength(
       1,
     );
     expect(screen.getAllByRole("heading", { name: "Clips" })).toHaveLength(1);
-    expect(screen.getByRole("button", { name: "Share" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Copy" })).toBeNull();
-    expect(screen.queryByText("Viewer")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Copy listen link" }),
+    ).toBeInTheDocument();
   });
 
   it("shows chapters and clips once on desktop too, with the word Viewer", () => {
@@ -1337,7 +1364,9 @@ describe("the phone layout", () => {
     );
     expect(screen.getAllByRole("heading", { name: "Clips" })).toHaveLength(1);
     expect(screen.getByText("Viewer")).toBeInTheDocument();
-    expect(screen.getByText("Pinned to Rough cut")).toBeInTheDocument();
+    expect(
+      screen.getByText("Pinned to the version current when you copy it"),
+    ).toBeInTheDocument();
   });
 });
 
@@ -1401,7 +1430,6 @@ describe("rendering the whole page", () => {
         exportState: DONE,
         link: {
           url: "https://x.example/abc",
-          openedBy: [{ name: "Rosa" }, { name: "Jon" }],
         },
       });
       expect(error).not.toHaveBeenCalled();
@@ -1602,8 +1630,8 @@ describe.each(["desktop", "phone"] as const)(
       }
     });
 
-    it("Copy or Share reaches onCopyLink alone, in every phase", async () => {
-      const label = layout === "phone" ? "Share" : "Copy";
+    it("Copy reaches onCopyLink alone, in every phase", async () => {
+      const label = "Copy listen link";
       for (const exportState of [NEVER, DONE]) {
         const { all, unmount } = setup({
           layout,
@@ -2295,27 +2323,24 @@ describe("round three of the audit: In at the end of the episode", () => {
 
 describe("round three of the audit: the listen link through the stage", () => {
   const URL = "https://share.example.app/l/7Hq2mXk9TnP4vLr8Za3w";
-  const link = { url: URL, openedBy: [{ name: "Rosa" }, { name: "Jon" }] };
+  const link = { url: URL };
 
   it.each(["desktop", "phone"] as const)(
-    "passes the whole link and openers on %s",
+    "passes the whole link on %s",
     (layout) => {
       const { container } = setup({ layout, link });
       expect(container.querySelector(".sys-link-text")).toHaveAttribute(
         "title",
         URL,
       );
-      expect(
-        screen.getByRole("img", { name: "Opened by Rosa, Jon" }),
-      ).toBeInTheDocument();
     },
   );
 
   it.each([
-    ["desktop", "copied", "Copied"],
-    ["phone", "copied", "Copied"],
-    ["desktop", "blocked", "Press Ctrl C"],
-    ["phone", "blocked", "Share"],
+    ["desktop", "copied", /^Copied/],
+    ["phone", "copied", /^Copied/],
+    ["desktop", "blocked", /^Press Ctrl C/],
+    ["phone", "blocked", /^Press Ctrl C/],
   ] as const)("on %s a %s clipboard says %s", (layout, copyState, label) => {
     const { container } = setup({ layout, link: { ...link, copyState } });
     expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
@@ -2329,7 +2354,7 @@ describe("round three of the audit: the listen link through the stage", () => {
     platform.apple = true;
     setup({ link: { ...link, copyState: "blocked" } });
     expect(
-      screen.getByRole("button", { name: "Press ⌘ C" }),
+      screen.getByRole("button", { name: /^Press ⌘ C/ }),
     ).toBeInTheDocument();
   });
 });
@@ -2625,7 +2650,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
     url: "https://share.example.app/l/7Hq2mXk9TnP4vLr8Za3w",
     openedBy: [{ name: "Rosa" }],
   };
-  const STATES: [string, Partial<DeliverStageProps>][] = [
+  const STATES: [string, Partial<Harness>][] = [
     ["ready", {}],
     ["loading", { state: "loading" }],
     ["error", { state: "error" }],
@@ -2649,7 +2674,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
       },
     ],
     ["no mix", { link: { url: null, noMix: true } }],
-    ["no mix with a link", { link: { ...LINKED, noMix: true } }],
     ["with a link", { link: LINKED }],
     ["without a link", { link: { url: null } }],
     ["blocked clipboard", { link: { ...LINKED, copyState: "blocked" } }],
@@ -2720,7 +2744,8 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Play Cold open",
             "Unapprove Cold open",
             "More for Cold open",
-            "Copy",
+            "Pin to this version (disabled)",
+            "Copy listen link",
             "0:00 / 52:00. Expand player",
             "Back 15 seconds",
             "Play",
@@ -2746,7 +2771,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP3960 KBWAV11 MBFLAC6 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…InOutSaves to Field Notes/exportChangeExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to Rough cutCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP3960 KBWAV11 MBFLAC6 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…InOutSaves to Field Notes/exportChangeExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to the version current when you copy itCopy0:00 / 52:001515AB",
         },
         "desktop: an Edit selection": {
           "buttons": [
@@ -2779,7 +2804,8 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Play Cold open",
             "Unapprove Cold open",
             "More for Cold open",
-            "Copy",
+            "Pin to this version (disabled)",
+            "Copy listen link",
             "0:00 / 52:00. Expand player",
             "Back 15 seconds",
             "Play",
@@ -2805,7 +2831,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to Rough cutCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to the version current when you copy itCopy0:00 / 52:001515AB",
         },
         "desktop: blocked clipboard": {
           "buttons": [
@@ -2838,7 +2864,10 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Play Cold open",
             "Unapprove Cold open",
             "More for Cold open",
-            "Press Ctrl C",
+            "Reachable from anywhere",
+            "Pin to this version (disabled)",
+            "Press Ctrl C listen link",
+            "More for listen link",
             "0:00 / 52:00. Expand player",
             "Back 15 seconds",
             "Play",
@@ -2864,7 +2893,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.example.app/l/7Hq2mXk9TnP4vLr8Za3wPinned to Rough cutR1Press Ctrl C0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.example.app/l/7Hq2mXk9TnP4vLr8Za3wFrozen on Rough cutPress Ctrl C0:00 / 52:001515AB",
         },
         "desktop: done in the app": {
           "buttons": [
@@ -2900,7 +2929,10 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Play Cold open",
             "Unapprove Cold open",
             "More for Cold open",
-            "Copy",
+            "Reachable from anywhere",
+            "Pin to this version (disabled)",
+            "Copy listen link",
+            "More for listen link",
             "0:00 / 52:00. Expand player",
             "Back 15 seconds",
             "Play",
@@ -2927,7 +2959,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agoExportmp3field-notes.mp3Listening file50 MBRevealwavfield-notes.wavLossless master550 MBRevealwavcold-open.wavClip6 MBRevealChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutR1Copy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agoExportmp3field-notes.mp3Listening file50 MBRevealwavfield-notes.wavLossless master550 MBRevealwavcold-open.wavClip6 MBRevealChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.…k9TnP4vLr8Za3wFrozen on Rough cutCopy0:00 / 52:001515AB",
         },
         "desktop: done in the browser": {
           "buttons": [
@@ -2960,7 +2992,10 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Play Cold open",
             "Unapprove Cold open",
             "More for Cold open",
-            "Copy",
+            "Reachable from anywhere",
+            "Pin to this version (disabled)",
+            "Copy listen link",
+            "More for listen link",
             "0:00 / 52:00. Expand player",
             "Back 15 seconds",
             "Play",
@@ -2987,7 +3022,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agoExportmp3field-notes.mp3Listening file50 MBDownloadwavfield-notes.wavLossless master550 MBDownloadwavcold-open.wavClip6 MBDownloadThe master is large. Use Wi-Fi, or choose the listening file.ChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutR1Copy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agoExportmp3field-notes.mp3Listening file50 MBDownloadwavfield-notes.wavLossless master550 MBDownloadwavcold-open.wavClip6 MBDownloadThe master is large. Use Wi-Fi, or choose the listening file.ChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.…k9TnP4vLr8Za3wFrozen on Rough cutCopy0:00 / 52:001515AB",
         },
         "desktop: error": {
           "buttons": [],
@@ -3029,7 +3064,8 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Play Cold open",
             "Unapprove Cold open",
             "More for Cold open",
-            "Copy",
+            "Pin to this version (disabled)",
+            "Copy listen link",
             "0:00 / 52:00. Expand player",
             "Back 15 seconds",
             "Play",
@@ -3056,7 +3092,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "running",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeRunning: ExportingMixingCancelYou can leave this page. The export keeps going and the status bar shows its progress.ExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to Rough cutCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeRunning: ExportingMixingCancelYou can leave this page. The export keeps going and the status bar shows its progress.ExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to the version current when you copy itCopy0:00 / 52:001515AB",
         },
         "desktop: guest": {
           "buttons": [],
@@ -3086,65 +3122,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
           "text": "Episode fileChaptersClips0:00 / 52:001515AB",
         },
         "desktop: no mix": {
-          "buttons": [
-            "MP350 MB",
-            "WAV550 MB",
-            "FLAC303 MB",
-            "Podcast−16",
-            "Broadcast−23",
-            "Streaming−14",
-            "Whole episode",
-            "Part…",
-            "Change",
-            "Export",
-            "Play from Cold open",
-            "Remove Cold open",
-            "Play from The old mill",
-            "Remove The old mill",
-            "Play from What the river wanted",
-            "Remove What the river wanted",
-            "Play from Listener mail",
-            "Remove Listener mail",
-            "Add at playhead",
-            "Find clips",
-            "Play Nobody asked the river",
-            "Approve Nobody asked the river",
-            "More for Nobody asked the river",
-            "Play The boat was still there",
-            "Approve The boat was still there",
-            "More for The boat was still there",
-            "Play Cold open",
-            "Unapprove Cold open",
-            "More for Cold open",
-            "Refresh mix",
-            "0:00 / 52:00. Expand player",
-            "Back 15 seconds",
-            "Play",
-            "Forward 15 seconds",
-            "A",
-            "B",
-          ],
-          "regions": [
-            "Deliver",
-            "Ready to export",
-            "Episode file",
-            "Chapters",
-            "Clips",
-            "Listen link",
-          ],
-          "rows": [
-            "done",
-            "done",
-            "done",
-            "done",
-            "done",
-            "done",
-            "done",
-            "done",
-          ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkMake a mix to shareRefresh mix0:00 / 52:001515AB",
-        },
-        "desktop: no mix with a link": {
           "buttons": [
             "MP350 MB",
             "WAV550 MB",
@@ -3234,7 +3211,8 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Play Cold open",
             "Unapprove Cold open",
             "More for Cold open",
-            "Copy",
+            "Pin to this version (disabled)",
+            "Copy listen link",
             "0:00 / 52:00. Expand player",
             "Back 15 seconds",
             "Play",
@@ -3260,7 +3238,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to Rough cutCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to the version current when you copy itCopy0:00 / 52:001515AB",
         },
         "desktop: stale": {
           "buttons": [
@@ -3293,7 +3271,8 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Play Cold open",
             "Unapprove Cold open",
             "More for Cold open",
-            "Copy",
+            "Pin to this version (disabled)",
+            "Copy listen link",
             "0:00 / 52:00. Expand player",
             "Back 15 seconds",
             "Play",
@@ -3320,7 +3299,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "needs-you",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Edited since exportLast export 2 h agoExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to Rough cutCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Edited since exportLast export 2 h agoExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to the version current when you copy itCopy0:00 / 52:001515AB",
         },
         "desktop: the model missing": {
           "buttons": [
@@ -3354,7 +3333,8 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Play Cold open",
             "Unapprove Cold open",
             "More for Cold open",
-            "Copy",
+            "Pin to this version (disabled)",
+            "Copy listen link",
             "0:00 / 52:00. Expand player",
             "Back 15 seconds",
             "Play",
@@ -3381,7 +3361,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "needs-you",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Needs the transcription model1.6 GBGetExportNeeds the transcription model.ChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to Rough cutCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Needs the transcription model1.6 GBGetExportNeeds the transcription model.ChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to the version current when you copy itCopy0:00 / 52:001515AB",
         },
         "desktop: with a link": {
           "buttons": [
@@ -3414,7 +3394,10 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Play Cold open",
             "Unapprove Cold open",
             "More for Cold open",
-            "Copy",
+            "Reachable from anywhere",
+            "Pin to this version (disabled)",
+            "Copy listen link",
+            "More for listen link",
             "0:00 / 52:00. Expand player",
             "Back 15 seconds",
             "Play",
@@ -3440,7 +3423,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutR1Copy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.…k9TnP4vLr8Za3wFrozen on Rough cutCopy0:00 / 52:001515AB",
         },
         "desktop: without a link": {
           "buttons": [
@@ -3473,7 +3456,8 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Play Cold open",
             "Unapprove Cold open",
             "More for Cold open",
-            "Copy",
+            "Pin to this version (disabled)",
+            "Copy listen link",
             "0:00 / 52:00. Expand player",
             "Back 15 seconds",
             "Play",
@@ -3499,7 +3483,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to Rough cutCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to the version current when you copy itCopy0:00 / 52:001515AB",
         },
         "phone: a Part range": {
           "buttons": [
@@ -3512,7 +3496,8 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Whole episode",
             "Part…",
             "Change",
-            "Share",
+            "Pin to this version (disabled)",
+            "Copy listen link",
             "Play from Cold open",
             "Remove Cold open",
             "Play from The old mill",
@@ -3558,7 +3543,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP3960 KBWAV11 MBFLAC6 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…InOutSaves to Field Notes/exportChangeListen linkMade when you copy itPinned to Rough cutShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP3960 KBWAV11 MBFLAC6 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…InOutSaves to Field Notes/exportChangeListen linkMade when you copy itPinned to the version current when you copy itCopyChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
         "phone: an Edit selection": {
           "buttons": [
@@ -3571,7 +3556,8 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Whole episode",
             "Part…",
             "Change",
-            "Share",
+            "Pin to this version (disabled)",
+            "Copy listen link",
             "Play from Cold open",
             "Remove Cold open",
             "Play from The old mill",
@@ -3617,7 +3603,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkMade when you copy itPinned to Rough cutShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkMade when you copy itPinned to the version current when you copy itCopyChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
         "phone: blocked clipboard": {
           "buttons": [
@@ -3630,7 +3616,10 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Whole episode",
             "Part…",
             "Change",
-            "Share",
+            "Reachable from anywhere",
+            "Pin to this version (disabled)",
+            "Press Ctrl C listen link",
+            "More for listen link",
             "Play from Cold open",
             "Remove Cold open",
             "Play from The old mill",
@@ -3676,7 +3665,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkhttps://share.example.app/l/7Hq2mXk9TnP4vLr8Za3wPinned to Rough cutR1ShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkhttps://share.example.app/l/7Hq2mXk9TnP4vLr8Za3wFrozen on Rough cutPress Ctrl CChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
         "phone: done in the app": {
           "buttons": [
@@ -3692,7 +3681,10 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Reveal field-notes.mp3, 50 MB",
             "Reveal field-notes.wav, 550 MB",
             "Reveal cold-open.wav, 6 MB",
-            "Share",
+            "Reachable from anywhere",
+            "Pin to this version (disabled)",
+            "Copy listen link",
+            "More for listen link",
             "Play from Cold open",
             "Remove Cold open",
             "Play from The old mill",
@@ -3739,7 +3731,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agomp3field-notes.mp3Listening file50 MBRevealwavfield-notes.wavLossless master550 MBRevealwavcold-open.wavClip6 MBRevealListen linkhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutR1ShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agomp3field-notes.mp3Listening file50 MBRevealwavfield-notes.wavLossless master550 MBRevealwavcold-open.wavClip6 MBRevealListen linkhttps://share.…k9TnP4vLr8Za3wFrozen on Rough cutCopyChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
         "phone: done in the browser": {
           "buttons": [
@@ -3752,7 +3744,10 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Whole episode",
             "Part…",
             "Change",
-            "Share",
+            "Reachable from anywhere",
+            "Pin to this version (disabled)",
+            "Copy listen link",
+            "More for listen link",
             "Play from Cold open",
             "Remove Cold open",
             "Play from The old mill",
@@ -3799,7 +3794,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agomp3field-notes.mp3Listening file50 MBDownloadwavfield-notes.wavLossless master550 MBDownloadwavcold-open.wavClip6 MBDownloadThe master is large. Use Wi-Fi, or choose the listening file.Listen linkhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutR1ShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agomp3field-notes.mp3Listening file50 MBDownloadwavfield-notes.wavLossless master550 MBDownloadwavcold-open.wavClip6 MBDownloadThe master is large. Use Wi-Fi, or choose the listening file.Listen linkhttps://share.…k9TnP4vLr8Za3wFrozen on Rough cutCopyChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
         "phone: error": {
           "buttons": [],
@@ -3821,7 +3816,8 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Part…",
             "Change",
             "Cancel",
-            "Share",
+            "Pin to this version (disabled)",
+            "Copy listen link",
             "Play from Cold open",
             "Remove Cold open",
             "Play from The old mill",
@@ -3868,7 +3864,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "running",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeRunning: ExportingMixingCancelYou can leave this page. The export keeps going and the status bar shows its progress.Listen linkMade when you copy itPinned to Rough cutShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeRunning: ExportingMixingCancelYou can leave this page. The export keeps going and the status bar shows its progress.Listen linkMade when you copy itPinned to the version current when you copy itCopyChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
         "phone: guest": {
           "buttons": [],
@@ -3957,65 +3953,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
           ],
           "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkMake a mix to shareRefresh mixChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
-        "phone: no mix with a link": {
-          "buttons": [
-            "MP350 MB",
-            "WAV550 MB",
-            "FLAC303 MB",
-            "Podcast−16",
-            "Broadcast−23",
-            "Streaming−14",
-            "Whole episode",
-            "Part…",
-            "Change",
-            "Refresh mix",
-            "Play from Cold open",
-            "Remove Cold open",
-            "Play from The old mill",
-            "Remove The old mill",
-            "Play from What the river wanted",
-            "Remove What the river wanted",
-            "Play from Listener mail",
-            "Remove Listener mail",
-            "Add at playhead",
-            "Find clips",
-            "Play Nobody asked the river",
-            "Approve Nobody asked the river",
-            "More for Nobody asked the river",
-            "Play The boat was still there",
-            "Approve The boat was still there",
-            "More for The boat was still there",
-            "Play Cold open",
-            "Unapprove Cold open",
-            "More for Cold open",
-            "Export",
-            "0:00 / 52:00. Expand player",
-            "Back 15 seconds",
-            "Play",
-            "Forward 15 seconds",
-            "A",
-            "B",
-          ],
-          "regions": [
-            "Deliver",
-            "Ready to export",
-            "Episode file",
-            "Listen link",
-            "Chapters",
-            "Clips",
-          ],
-          "rows": [
-            "done",
-            "done",
-            "done",
-            "done",
-            "done",
-            "done",
-            "done",
-            "done",
-          ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkMake a mix to shareRefresh mixChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
-        },
         "phone: ready": {
           "buttons": [
             "MP350 MB",
@@ -4027,7 +3964,8 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Whole episode",
             "Part…",
             "Change",
-            "Share",
+            "Pin to this version (disabled)",
+            "Copy listen link",
             "Play from Cold open",
             "Remove Cold open",
             "Play from The old mill",
@@ -4073,7 +4011,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkMade when you copy itPinned to Rough cutShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkMade when you copy itPinned to the version current when you copy itCopyChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
         "phone: stale": {
           "buttons": [
@@ -4086,7 +4024,8 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Whole episode",
             "Part…",
             "Change",
-            "Share",
+            "Pin to this version (disabled)",
+            "Copy listen link",
             "Play from Cold open",
             "Remove Cold open",
             "Play from The old mill",
@@ -4133,7 +4072,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "needs-you",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Edited since exportLast export 2 h agoListen linkMade when you copy itPinned to Rough cutShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Edited since exportLast export 2 h agoListen linkMade when you copy itPinned to the version current when you copy itCopyChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
         "phone: the model missing": {
           "buttons": [
@@ -4147,7 +4086,8 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Part…",
             "Change",
             "Get",
-            "Share",
+            "Pin to this version (disabled)",
+            "Copy listen link",
             "Play from Cold open",
             "Remove Cold open",
             "Play from The old mill",
@@ -4194,7 +4134,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "needs-you",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Needs the transcription model1.6 GBGetListen linkMade when you copy itPinned to Rough cutShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExportNeeds the transcription model.0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Needs the transcription model1.6 GBGetListen linkMade when you copy itPinned to the version current when you copy itCopyChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExportNeeds the transcription model.0:00 / 52:001515AB",
         },
         "phone: with a link": {
           "buttons": [
@@ -4207,7 +4147,10 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Whole episode",
             "Part…",
             "Change",
-            "Share",
+            "Reachable from anywhere",
+            "Pin to this version (disabled)",
+            "Copy listen link",
+            "More for listen link",
             "Play from Cold open",
             "Remove Cold open",
             "Play from The old mill",
@@ -4253,7 +4196,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutR1ShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkhttps://share.…k9TnP4vLr8Za3wFrozen on Rough cutCopyChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
         "phone: without a link": {
           "buttons": [
@@ -4266,7 +4209,8 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Whole episode",
             "Part…",
             "Change",
-            "Share",
+            "Pin to this version (disabled)",
+            "Copy listen link",
             "Play from Cold open",
             "Remove Cold open",
             "Play from The old mill",
@@ -4312,7 +4256,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkMade when you copy itPinned to Rough cutShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkMade when you copy itPinned to the version current when you copy itCopyChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
       }
     `);
@@ -4331,19 +4275,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
       "data-state",
       "done",
     );
-  });
-
-  it("shows Make a mix to share instead of a link when both arrive", () => {
-    const { all } = setup({
-      link: { url: "https://share.example.app/l/abc", noMix: true },
-    });
-    expect(screen.getByText("Make a mix to share")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Refresh mix" }),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Copy" })).toBeNull();
-    expect(screen.queryByTitle("https://share.example.app/l/abc")).toBeNull();
-    expect(all.onCopyLink).not.toHaveBeenCalled();
   });
 
   it.each([

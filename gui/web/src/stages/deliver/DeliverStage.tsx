@@ -1,6 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Cover } from "../../system/Cover";
-import type { LinkCopyState } from "../../system/LinkRow";
 import { Player } from "../../system/Player";
 import { Skeleton } from "../../system/Skeleton";
 import { VERBS } from "../../system/verbs";
@@ -42,7 +41,6 @@ import {
 } from "./deliverLogic";
 import { EpisodeFile } from "./EpisodeFile";
 import { ExportButton } from "./ExportButton";
-import { ListenLink } from "./ListenLink";
 import { Readiness } from "./Readiness";
 import { TranscriptSection } from "./TranscriptSection";
 import type { TranscriptOptions } from "./transcriptLogic";
@@ -69,16 +67,6 @@ export type DeliverStageProps = {
   words?: readonly ClipWord[];
   /** Peaks spread evenly over the episode, 0 to 1, for the clip trim strip. */
   peaks?: readonly number[];
-  link?: {
-    url: string | null;
-    copyState?: LinkCopyState;
-    openedBy?: readonly { name: string; colorIndex?: number }[];
-    noMix?: boolean;
-    /** `network`: only people on this network can open the link. */
-    reach?: "anywhere" | "network";
-  };
-  /** The exported version the listen link is pinned to. */
-  pinnedTo?: string;
   layout?: "desktop" | "phone";
   state?: "ready" | "loading" | "error";
   /** Guests get Review only; Deliver shows a Cover instead of controls. */
@@ -87,7 +75,7 @@ export type DeliverStageProps = {
   /** Each change to the chapters or clips, after the first values. */
   onChapters?: (chapters: readonly Chapter[]) => void;
   onClips?: (clips: readonly Clip[]) => void;
-  /** Without it the Listen link section is not shown. */
+  /** False hides the Listen link section even when the host offers one. */
   showLink?: boolean;
   /** False when the app frame already carries the Player bar. */
   showPlayer?: boolean;
@@ -97,8 +85,8 @@ export type DeliverStageProps = {
   /** Without it the Transcript section is not shown. */
   transcript?: TranscriptOptions;
   /**
-   * The host's Listen link row, in the Listen link section instead of the one
-   * `link` describes. It gets `highlight` once an export is done, and `phone`.
+   * The host's Listen link row, in the Listen link section. It gets
+   * `highlight` once an export is done, and `phone`. Without it the section is not shown.
    */
   listen?: (state: { highlight: boolean; phone: boolean }) => ReactNode;
   /** The Podcast listing section, mounted after the Listen link. Without it the section is not shown. */
@@ -112,8 +100,6 @@ export type DeliverStageProps = {
   onCancel?: () => void;
   /** Without it the Saves to line is not shown. */
   onChangeFolder?: () => void;
-  onCopyLink?: () => void;
-  onRefreshMix?: () => void;
   onPlayFrom: (seconds: number) => void;
   onPlayClip: (id: string) => void;
   onFindClips: () => void;
@@ -129,7 +115,6 @@ const EXPORT_KEY = VERBS.find((verb) => verb.id === "export")?.keys[0];
 let nextChapter = 0;
 
 const NO_CLOCK = { time: "", total: "" };
-const NO_LINK = { url: null };
 
 const IN_FLIGHT_MS = 2000;
 
@@ -147,8 +132,6 @@ export function DeliverStage({
   selection = null,
   words,
   peaks,
-  link = NO_LINK,
-  pinnedTo = "",
   layout = "desktop",
   state = "ready",
   guest = false,
@@ -168,8 +151,6 @@ export function DeliverStage({
   onExport,
   onCancel,
   onChangeFolder,
-  onCopyLink,
-  onRefreshMix,
   onPlayFrom,
   onPlayClip,
   onFindClips,
@@ -458,30 +439,15 @@ export function DeliverStage({
             )}
           </div>
           <div className="dv-col">
-            {!showLink ? null : state === "loading" ? (
+            {!showLink || !listen ? null : state === "loading" ? (
               <Skeleton layout="list" rows={2} />
-            ) : listen ? (
+            ) : (
               <DeliverSection title="Listen link">
                 {listen({
                   highlight: shownState.phase === "done",
                   phone,
                 })}
               </DeliverSection>
-            ) : (
-              <ListenLink
-                pinnedTo={pinnedTo}
-                link={link.url}
-                copyState={link.copyState}
-                openedBy={link.openedBy}
-                reach={link.reach}
-                noMix={
-                  link.noMix ? { onRefresh: () => onRefreshMix?.() } : undefined
-                }
-                share={phone}
-                compact={phone}
-                highlight={shownState.phase === "done"}
-                onCopy={() => onCopyLink?.()}
-              />
             )}
             {feed}
           </div>

@@ -12,10 +12,7 @@ import {
 import { runPointerCommand } from "../../commands/pointer";
 import { seekTransport } from "../../commands/seek";
 import { useHasFeature } from "../../extensions/FeaturesContext";
-import {
-  FEATURE_SHARE_UI_MENU,
-  FEATURE_TUNNEL_STATUS,
-} from "../../extensions/features";
+import { FEATURE_SHARE_UI_MENU } from "../../extensions/features";
 import { useNowSec } from "../../hooks/useNowSec";
 import { useStaleRenderBreakdown } from "../../hooks/useStaleRenderBreakdown";
 import { useViewportClass } from "../../hooks/useViewportClass";
@@ -72,7 +69,6 @@ import { hostFileAccess, useDeliverFiles } from "./useDeliverFiles";
 import { useEpisodePeaks } from "./useEpisodePeaks";
 import { useStallAnnouncement } from "./useStallAnnouncement";
 import { useTranscriptFlow } from "./useTranscriptFlow";
-import { useTunnelStatus } from "./useTunnelStatus";
 
 export type DeliverStageProps = {
   loadFailure?: LoadFailure | null;
@@ -130,7 +126,6 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
   const {
     project,
     projectPath,
-    projectEpoch,
     exportRequested,
     setExportRequested,
     bounceRequested,
@@ -146,7 +141,6 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     useShallow((s) => ({
       project: s.project,
       projectPath: s.projectPath,
-      projectEpoch: s.projectEpoch,
       exportRequested: s.chrome.exportRequested,
       setExportRequested: s.setExportRequested,
       bounceRequested: s.chrome.bounceRequested,
@@ -164,11 +158,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
   const { reload: reloadExportSettings, start: startExport } = exportFlow;
   const bounceFlow = useBounceFlow();
   const shareFlow = useShareFlow();
-  const reloadShares = shareFlow.reload;
   const shareOffered = useHasFeature(FEATURE_SHARE_UI_MENU);
-  const tunnel = useTunnelStatus(
-    useHasFeature(FEATURE_TUNNEL_STATUS) && shareOffered,
-  );
   const nowSec = useNowSec(
     exportFlow.run.kind === "running" || bounceFlow.run.kind === "running",
   );
@@ -204,7 +194,6 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
   const bounceCmd = useCommand("export.bounce");
   const shareCmd = useCommand("share.manage");
   const shareOptions = shareOptionsOf(shareFlow, {
-    tunnel,
     blockedReason: shareCmd.whenReason,
   });
   const offline = useOfflineAttention(projectPath);
@@ -363,11 +352,6 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     currentRequest,
   ]);
   const [findingClips, setFindingClips] = useState(false);
-  // The listen link is listed as Deliver shows, and again for a reopened project.
-  useEffect(() => {
-    if (state !== "ready" || !shareOffered || !projectPath) return;
-    reloadShares();
-  }, [state, shareOffered, projectPath, projectEpoch, reloadShares]);
   const [focusBounce, setFocusBounce] = useState(false);
   const clearBounceFocus = useCallback(() => setFocusBounce(false), []);
   useEffect(() => {
