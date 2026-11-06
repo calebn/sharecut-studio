@@ -138,6 +138,9 @@ describe("TrackMix", () => {
       expect(
         screen.getByText(/Only the host and editors can change volume/),
       ).toBeVisible();
+      expect(slider).toHaveAccessibleDescription(
+        /Only the host and editors can change volume/,
+      );
       expect(
         screen.getByRole("button", { name: "Mute music" }),
       ).toHaveAttribute("aria-disabled", "true");

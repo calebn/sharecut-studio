@@ -247,4 +247,18 @@ describe("Seam pill rolling", () => {
     });
     expect(onCommit).toHaveBeenCalledWith(-1);
   });
+  it("a held Alt arrow rolls once, not once per key repeat", () => {
+    const onCommit = vi.fn();
+    render(
+      <Seam
+        {...pill}
+        roll={{ limits: () => ({ minMs: -500, maxMs: 500 }), onCommit }}
+      />,
+    );
+    const hit = screen.getByRole("button");
+    fireEvent.keyDown(hit, { key: "ArrowRight", altKey: true });
+    fireEvent.keyDown(hit, { key: "ArrowRight", altKey: true, repeat: true });
+    fireEvent.keyDown(hit, { key: "ArrowRight", altKey: true, repeat: true });
+    expect(onCommit).toHaveBeenCalledTimes(1);
+  });
 });

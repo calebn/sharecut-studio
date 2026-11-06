@@ -643,7 +643,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "timeline.clip.body": "daw.edit.moveClips",
   restoreClipBleed: "daw.edit.restoreClipBleed",
   "timeline.clip.joinDiamond": "daw.edit.rollClipJoin",
-  "transcript.editBoundary": "daw.edit.rollClipJoin",
+  "transcript.seam": "daw.edit.rollClipJoin",
   "timeline.clip.fadeHandle": "daw.edit.setClipFade",
   "inspector.clip.joinMode": "daw.edit.setClipJoin",
   "timeline.join.badge": "daw.edit.setClipJoin",

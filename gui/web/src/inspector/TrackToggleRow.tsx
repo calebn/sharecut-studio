@@ -1,6 +1,6 @@
 import { ToggleButton } from "../ui";
 
-export type ToggleTrack = { id: string; label: string };
+type ToggleTrack = { id: string; label: string };
 
 /**
  * Which tracks an edit covers, one toggle per track. At least one stays on:

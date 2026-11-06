@@ -22,6 +22,8 @@ export type TrackFaderViewProps = {
   savedDb: number;
   access: FaderAccess;
   presentation: FaderPresentation;
+  /** The id of the note that says why the fader is read-only. */
+  noteId?: string;
 };
 
 /** A track's saved volume as a level Scrub field: drag previews, release saves one undo step. */
@@ -30,6 +32,7 @@ export function TrackFaderView({
   savedDb,
   access,
   presentation,
+  noteId,
 }: TrackFaderViewProps) {
   const [draftDb, setDraftDb] = useState<number | null>(null);
   const { playsAt, stagingDb } = presentation;
@@ -46,6 +49,7 @@ export function TrackFaderView({
         value={savedDb}
         skipUnchanged
         readOnly={access.kind !== "edit"}
+        describedBy={access.kind !== "edit" ? noteId : undefined}
         onPreview={setDraftDb}
         onCancel={() => setDraftDb(null)}
         onCommit={(db) => {
