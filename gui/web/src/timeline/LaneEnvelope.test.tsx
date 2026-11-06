@@ -704,6 +704,30 @@ describe("LaneEnvelope leftovers", () => {
     expect(useDawStore.getState().statusAnnouncement).toContain("offline");
   });
 
+  it("says a second failed add inside the window once, never as the bare reason", async () => {
+    setEnvelope.mockRejectedValue(new Error("offline"));
+    const { container } = setup();
+    const announce = toasts();
+    const band = container.querySelector(".sys-env-band")!;
+    const add = async () => {
+      fireEvent.pointerDown(band, mouse(120, 30));
+      fireEvent.click(band, { clientX: 120, clientY: 30, detail: 1 });
+      await act(async () => {});
+    };
+    await add();
+    const seq = useDawStore.getState().statusAnnouncementSeq;
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Point not added: offline",
+    );
+    await add();
+    expect(setEnvelope).toHaveBeenCalledTimes(2);
+    expect(useDawStore.getState().statusAnnouncementSeq).toBe(seq);
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Point not added: offline",
+    );
+    expect(announce).not.toHaveBeenCalledWith("offline", { tone: "error" });
+  });
+
   it("says why an add waits while a nudge is held", async () => {
     const { container } = setup();
     nudge(2);
