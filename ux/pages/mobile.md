@@ -285,6 +285,6 @@ not change the episode or History. Phone uses the sheet's **Expand** and
 
 The marker row stays 24 px tall. An isolated marker has a 44 px horizontal touch target. Chapter titles shorten before taking that space from a comment, and a comment beside a +N chip uses the free space beyond the chip's actual touch area. Crowded targets still share available space and the +N list reaches each hidden comment. Choosing a hidden comment opens that exact comment in Review.
 
-A selected chapter or clip idea moves under one finger. Clip ideas keep their length at episode bounds, and resizing keeps at least 0.1 s. A source or zoom change cancels a held move. Turning Markers off also hides recording clipping flags; comments remain independently visible. Short screens may show just the clipping row.
+A selected chapter or clip idea moves under one finger. Clip ideas keep their length at episode bounds, and resizing keeps at least 0.1 s. A source or zoom change cancels a held move. Markers, comments and recording clipping flags are always shown. Short screens may show just the clipping row.
 
 Add chapter from the dock uses the same pending operation as inline naming and the playhead action. Another addition waits until it settles. A completed add from an earlier project cannot replace the current selection or feedback.
