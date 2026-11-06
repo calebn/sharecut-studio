@@ -1,4 +1,6 @@
 .track-mix {
+  --mix-volume-width: 7.5rem;
+
   padding: var(--space-3);
   container: track-mix / inline-size;
 }
@@ -83,6 +85,26 @@
   position: relative;
   display: block;
   min-inline-size: 0;
+}
+
+.track-mix .sys-scrub {
+  display: flex;
+}
+
+.track-mix .sys-scrub-box {
+  min-inline-size: 0;
+  min-block-size: var(--touch-min);
+  padding-inline: var(--space-1);
+}
+
+.track-mix .sys-scrub-box[data-readonly],
+.track-mix .sys-scrub-box[data-readonly] .sys-scrub-unit {
+  color: var(--color-text-primary);
+}
+
+.track-mix .sys-scrub-reset {
+  min-inline-size: var(--touch-min);
+  min-block-size: var(--touch-min);
 }
 
 .track-fader--compact .track-fader-plays-at {

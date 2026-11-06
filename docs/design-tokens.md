@@ -385,6 +385,11 @@ normal row, initials chip, and compact fader widths. M/S/range targets use
 `--touch-min`. The named `track-mix` container moves Volume below the controls
 when available width shrinks under text scaling. Rows grow rather than clip.
 
+The compact Volume field reserves room for its reset control inside the Mix
+column. Its number field and reset both keep the `--touch-min` target floor,
+including with a fine pointer. Read-only values and units use primary text so
+the level fill over a muted row retains at least 4.5:1 contrast in both themes.
+
 ### Save-state light
 
 `--save-dot-size` (the painted dot), `--save-dot-stroke` (ring and hollow
