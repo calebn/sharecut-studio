@@ -155,6 +155,61 @@ describe("ingestFiles", () => {
       );
     });
 
+    it("keeps same-track replacements in drop order when the later upload is ready first", async () => {
+      let finishFirst!: (
+        value: Awaited<ReturnType<typeof api.uploadMediaFile>>,
+      ) => void;
+      let finishSecond!: (
+        value: Awaited<ReturnType<typeof api.uploadMediaFile>>,
+      ) => void;
+      const firstUpload = new Promise<
+        Awaited<ReturnType<typeof api.uploadMediaFile>>
+      >((resolve) => {
+        finishFirst = resolve;
+      });
+      const secondUpload = new Promise<
+        Awaited<ReturnType<typeof api.uploadMediaFile>>
+      >((resolve) => {
+        finishSecond = resolve;
+      });
+      uploadMock
+        .mockImplementationOnce(() => firstUpload)
+        .mockImplementationOnce(() => secondUpload);
+      const applied: string[] = [];
+      vi.mocked(api.setTrackMediaCommand).mockImplementation(
+        async (_path, _id, media) => {
+          applied.push(media);
+          return {
+            history_head_id:
+              media === "media/earlier.wav" ? "e-earlier" : "e-later",
+          };
+        },
+      );
+      refreshMock.mockResolvedValue(minimalProject());
+      const first = ingestFiles([new File(["a"], "earlier.wav")], {
+        kind: "track",
+        id: "guest",
+      });
+      const second = ingestFiles([new File(["b"], "later.wav")], {
+        kind: "track",
+        id: "guest",
+      });
+      finishSecond({ complete: true, rel_path: "media/later.wav" });
+      await secondUpload;
+      await Promise.resolve();
+      const appliedBeforeFirstFinished = [...applied];
+      const busyWhileWaiting = useDawStore.getState().ingestBusy;
+      finishFirst({ complete: true, rel_path: "media/earlier.wav" });
+      await Promise.all([first, second]);
+      expect(appliedBeforeFirstFinished).toEqual([]);
+      expect(busyWhileWaiting).toBe(true);
+      expect(applied).toEqual(["media/earlier.wav", "media/later.wav"]);
+      expect(useDawStore.getState().feedbackToast).toMatchObject({
+        undo: "e-later",
+      });
+      expect(useDawStore.getState().ingestBusy).toBe(false);
+    });
+
     it("changes nothing when the project switched during the upload", async () => {
       vi.mocked(api.setTrackMediaCommand).mockClear();
       uploadMock.mockImplementation(async () => {
