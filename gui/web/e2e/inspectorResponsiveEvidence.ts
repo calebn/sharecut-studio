@@ -464,7 +464,7 @@ export async function nativeTabTo(
     }
     await page.keyboard.press(tabKey);
     const focusedField = page.locator(
-      ".bottom-sheet--compact :is(button, input, select, textarea):focus",
+      ".sys-inspector--phone :is(button, input, select, textarea):focus",
     );
     if (await focusedField.count()) {
       await visibleFocus(

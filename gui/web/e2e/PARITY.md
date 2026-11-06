@@ -23,7 +23,7 @@ Use with Playwright phone smoke (`e2e/sharecut.mobile.spec.ts`) and manual share
 
 ## Tablet
 
-- [ ] Timeline + track headers; selection opens peek sheet
+- [ ] Timeline + track headers; Inspect opens the compact drawer
 - [ ] Landscape can still scroll timeline; Fit works
 
 ## Desktop

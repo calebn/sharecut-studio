@@ -235,7 +235,7 @@ describe("useToastDock", () => {
     expect(bottom * 16).toBe(window.innerHeight - 655 + 8);
   });
 
-  it("docks above the phone Inspector sheet", () => {
+  it("docks above the phone Inspector sheet's grip, whose hit area rises above its edge", () => {
     document.documentElement.dataset.shell = "phone";
     const region = document.createElement("div");
     const card = document.createElement("div");
@@ -245,7 +245,19 @@ describe("useToastDock", () => {
     boxes.push(region);
     box("stage-frame-tabs", 792, 844);
     box("stage-frame-player", 732, 792);
-    box("sys-inspector sys-inspector--phone", 400, 732);
+    const sheet = box("sys-inspector sys-inspector--phone", 400, 732);
+    const grip = document.createElement("div");
+    grip.className = "sys-inspector-grip";
+    grip.getBoundingClientRect = () =>
+      ({
+        top: 372,
+        bottom: 416,
+        left: 173,
+        right: 217,
+        width: 44,
+        height: 44,
+      }) as DOMRect;
+    sheet.append(grip);
     box("stage-frame-header", 0, 52);
     const { unmount } = renderHook(() =>
       useToastDock({ current: region }, true),
@@ -254,7 +266,7 @@ describe("useToastDock", () => {
       region.style.getPropertyValue("--toast-dock-bottom"),
     );
     unmount();
-    expect(bottom * 16).toBe(window.innerHeight - 400 + 8);
+    expect(bottom * 16).toBe(window.innerHeight - 372 + 8);
   });
 
   it("docks above the Player so a toast leaves it free", () => {

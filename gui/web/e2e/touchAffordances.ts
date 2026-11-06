@@ -117,8 +117,10 @@ export async function exerciseTouchSheetAffordances(
     );
   });
   const close = sheet.getByRole("button", { name: "Close" });
-  const resize = sheet.getByRole("button", { name: "Expand to half height" });
-  const collapse = sheet.getByRole("button", { name: "Collapse to strip" });
+  const resize = sheet.getByRole("button", { name: "Expand to full height" });
+  const collapse = sheet.getByRole("button", {
+    name: "Collapse to half height",
+  });
   await expect(resize).toBeVisible();
   await expect(close).toBeFocused();
   const geometry = async (): Promise<SheetGeometry> => {
@@ -153,16 +155,16 @@ export async function exerciseTouchSheetAffordances(
     };
   };
   const before = await geometry();
-  await test.info().attach("sheet-strip.png", {
+  await test.info().attach("sheet-open.png", {
     body: await page.screenshot({ type: "png" }),
     contentType: "image/png",
   });
-  await test.info().attach("sheet-strip-geometry.json", {
+  await test.info().attach("sheet-open-geometry.json", {
     body: Buffer.from(JSON.stringify(before, null, 2)),
     contentType: "application/json",
   });
-  const stripBox = before.sheetBox;
-  if (stripBox === null) throw new Error("The visible sheet has no geometry");
+  const openBox = before.sheetBox;
+  if (openBox === null) throw new Error("The visible sheet has no geometry");
   const headerBox = before.headerBox;
   const bodyBox = before.bodyBox;
   const resizeBox = before.resizeBox;
@@ -204,7 +206,7 @@ export async function exerciseTouchSheetAffordances(
   expect(resizeBox.width).toBeGreaterThanOrEqual(44);
   expect(closeBox.height).toBeGreaterThanOrEqual(44);
   expect(closeBox.width).toBeGreaterThanOrEqual(44);
-  expectSheetClearsShellChrome(stripBox, before.shellChrome);
+  expectSheetClearsShellChrome(openBox, before.shellChrome);
   if (ownsStudioAxe(owner)) {
     await expectPageAxeClean(page, ".bottom-sheet-chrome");
   }
@@ -235,13 +237,13 @@ export async function exerciseTouchSheetAffordances(
   if (reopened === null) throw new Error("The reopened sheet has no geometry");
   await resize.click();
   await expect(collapse).toBeVisible();
-  await expect(sheet).toHaveClass(/bottom-sheet--half/);
+  await expect(sheet).toHaveClass(/bottom-sheet--full/);
   const expandedGeometry = await geometry();
-  await test.info().attach("sheet-half.png", {
+  await test.info().attach("sheet-full.png", {
     body: await page.screenshot({ type: "png" }),
     contentType: "image/png",
   });
-  await test.info().attach("sheet-half-geometry.json", {
+  await test.info().attach("sheet-full-geometry.json", {
     body: Buffer.from(
       JSON.stringify(
         {
@@ -256,8 +258,8 @@ export async function exerciseTouchSheetAffordances(
                 afterPx: rootFontSizeAfter,
               }
             : null,
-          strip: before,
-          half: expandedGeometry,
+          open: before,
+          full: expandedGeometry,
         },
         null,
         2,
@@ -268,18 +270,18 @@ export async function exerciseTouchSheetAffordances(
   if (ownsStudioAxe(owner)) {
     await expectPageAxeClean(page, ".bottom-sheet-chrome");
   }
-  const halfBox = await sheet.boundingBox();
-  if (halfBox === null)
-    throw new Error("The half-height sheet has no geometry");
+  const fullBox = await sheet.boundingBox();
+  if (fullBox === null)
+    throw new Error("The full-height sheet has no geometry");
   if (!viewport.requireBodyOverflow) {
     await collapse.click();
     await expect(resize).toBeVisible();
     await expect
       .poll(async () => (await sheet.boundingBox())?.height ?? 0)
-      .toBeLessThan(halfBox.height);
+      .toBeLessThan(fullBox.height);
     await expect
       .poll(async () => (await sheet.boundingBox())?.height ?? 0)
-      .toBeCloseTo(stripBox.height, 0);
+      .toBeCloseTo(openBox.height, 0);
   }
   const collapsedHeight = viewport.requireBodyOverflow
     ? null
@@ -316,7 +318,7 @@ export async function exerciseTouchSheetAffordances(
     await expect
       .poll(async () => (await sheet.boundingBox())?.height ?? 0)
       .toBeCloseTo(
-        viewport.requireBodyOverflow ? halfBox.height : stripBox.height,
+        viewport.requireBodyOverflow ? fullBox.height : openBox.height,
         0,
       );
   }
@@ -352,8 +354,8 @@ export async function exerciseTouchSheetAffordances(
             : null,
           focusAfterEscape,
           focusAfterClose,
-          strip: before,
-          half: expandedGeometry,
+          open: before,
+          full: expandedGeometry,
           collapsedHeight,
           nestedBodyOverflow: bodyOverflows,
           bodyScroll: scrollState,
@@ -364,11 +366,7 @@ export async function exerciseTouchSheetAffordances(
     ),
     contentType: "application/json",
   });
-  // Resizing the drawer remembers its detent, which is not a stray preference.
-  const detentPreference = /,\["sharecut\.compactInspector","[^"]*"\]/;
-  expect((await browserStorageState(page)).replace(detentPreference, "")).toBe(
-    localPreferences,
-  );
+  expect(await browserStorageState(page)).toBe(localPreferences);
   expect(documentCommands).toEqual([]);
   expect(fs.readFileSync(e2eProjectPath, "utf8")).toBe(savedProject);
   if (viewport.width <= 767) {

@@ -38,7 +38,7 @@ gap tolerance, ripple edge epsilon) sit in the `constants` block of
 A trim that newly moves a whole follower below timeline zero by more than 1 ns
 raises `ripple_before_zero` before any lane changes. This preserves the rendered
 source clock without cutting source audio or clamping one follower. Drag,
-keyboard, and strip nudge candidates validate through the same client draft
+keyboard, and nudge candidates validate through the same client draft
 operation before publication. Invalid input shows the existing error feedback
 and keeps the last valid draft and arrows. Release saves only that accepted
 value. `ripple-overlap-proof.spec.ts` checks the built GUI's large-overlap refusal,
@@ -305,8 +305,8 @@ Storybook browser tests cover these behaviors at desktop and phone widths.
 
 Pending edit review actions keep one state and command owner. On phones and
 sideways compact layouts, the selected action card portals into the compact
-inspector's pinned header, so Cut and Keep (Approve and Reject for a split, an exact range or a suggestion with no accept action) remain available while the
-inspector body scrolls. Timing stays in the peek strip or expanded inspector.
+inspector's body, above its fields, so Cut and Keep (Approve and Reject for a split, an exact range or a suggestion with no accept action) remain available while the
+inspector body scrolls. Timing is in the fields beneath it.
 Outside compact mode, the card floats beside the selected timeline region,
 between the sticky ruler and marker lane and the bottom panel. It re-places
 itself on scroll, window resize, and any size change of the region, the card,

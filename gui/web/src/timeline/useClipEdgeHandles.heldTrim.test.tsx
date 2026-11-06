@@ -2,7 +2,6 @@ import { act, fireEvent, render } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { setClipFade } from "../api";
 import { trimNeighborBounds } from "../edit/trimLimits";
-import { useNudgeRun } from "../inspector/useNudgeRun";
 import { useDawStore } from "../state/dawStore";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import type { ClipRow } from "../types/project";
@@ -12,28 +11,10 @@ vi.mock("../api", async (original) => ({
   ...(await original()),
   setClipFade: vi.fn(async () => undefined),
 }));
-vi.mock("../edit/nudge", async (original) => ({
-  ...(await original()),
-  saveNudge: vi.fn(async () => true),
-}));
 
 beforeEach(() => {
   vi.clearAllMocks();
 });
-function Nudge() {
-  const r = useNudgeRun();
-  return (
-    <button
-      {...r.buttonProps(
-        { kind: "trim", trackId: "host", clipId: "anchor", edge: "out" },
-        -0.01,
-        "Trim end",
-      )}
-    >
-      Nudge
-    </button>
-  );
-}
 function Harness({ clip }: { clip: ClipRow }) {
   const lane = useDawStore.getState().project!.clips.tracks.guest;
   const bounds = trimNeighborBounds(
@@ -61,7 +42,7 @@ function Harness({ clip }: { clip: ClipRow }) {
     </button>
   );
 }
-it("refuses preview-only tails and saves a fade on the original clip", async () => {
+it("saves a fade on the original clip", async () => {
   const origin = minimalProject({
     tracks: [sampleTrack({ id: "host" }), sampleTrack({ id: "guest" })],
     clips: {
@@ -88,30 +69,7 @@ it("refuses preview-only tails and saves a fade on the original clip", async () 
       clip_count: 2,
     },
   });
-  const s = useDawStore.getState();
-  s.hydrate("/tmp/one.json", origin);
-  const nudge = render(<Nudge />).getByRole("button");
-  fireEvent.keyDown(nudge, { key: "Enter" });
-  const tail = useDawStore
-    .getState()
-    .project!.clips.tracks.guest.find((c) => c.id === "wide:tail");
-  expect(tail).toBeDefined();
-  if (!tail) throw new Error("Missing preview tail");
-  expect(
-    s.projectEditBasis()!.clips.tracks.guest.some((c) => c.id === "wide:tail"),
-  ).toBe(false);
-  const tailHandle = render(<Harness clip={tail} />);
-  const button = tailHandle.getByRole("button", {
-    name: "Fade",
-  });
-  fireEvent.pointerDown(button, { pointerId: 3, clientX: 150 });
-  fireEvent.pointerMove(button, { pointerId: 3, clientX: 155 });
-  await act(async () =>
-    fireEvent.pointerUp(button, { pointerId: 3, clientX: 155 }),
-  );
-  expect(setClipFade).not.toHaveBeenCalled();
-  act(() => s.setProject(origin));
-  tailHandle.unmount();
+  useDawStore.getState().hydrate("/tmp/one.json", origin);
   const original = origin.clips.tracks.guest[0]!;
   const savedButton = render(<Harness clip={original} />).getByRole("button", {
     name: "Fade",

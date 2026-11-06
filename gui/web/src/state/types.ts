@@ -19,7 +19,6 @@ import type {
   SessionState,
   ViewerSessionSnapshot,
 } from "../types/session";
-import type { CompactInspectorView } from "../utils/compactInspectorPref";
 import type { LaneHeightMode } from "../utils/laneHeightPref";
 import type { WaveformScaleMode } from "../waveform/types";
 import type {
@@ -306,9 +305,6 @@ export interface DawState {
   remoteSelectionRevision: number;
   shellBreakpoint: ShellBreakpoint;
   pointerKind: PointerKind;
-  sheetExpanded: boolean;
-  /** Compact (phone) inspector: open as the peek strip or expanded; persisted. */
-  compactInspectorView: CompactInspectorView;
   /** The timeline target the last press went to (touch input grammar). */
   selectionHit: RoutedTarget | null;
   inspectorSelection: Selection;
@@ -495,8 +491,6 @@ export interface DawState {
   /** Also re-stores `timelineViewportWidth` from the live timeline or the new shell's estimate. */
   setShellBreakpoint: (bp: ShellBreakpoint) => void;
   setPointerKind: (kind: PointerKind) => void;
-  setSheetExpanded: (on: boolean) => void;
-  setCompactInspectorView: (view: CompactInspectorView) => void;
   setSelectionHit: (hit: RoutedTarget | null) => void;
   setTimelineDragging: (on: boolean) => void;
   setLaneHeightMode: (mode: LaneHeightMode) => void;

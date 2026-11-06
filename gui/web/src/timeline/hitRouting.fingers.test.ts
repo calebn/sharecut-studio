@@ -204,10 +204,10 @@ describe("a router that adopts a part of the timeline outside its root", () => {
   });
 });
 
-describe("a finger resting on the drawer", () => {
+describe("a finger resting on the Inspector sheet", () => {
   function drawer(): { sheet: HTMLDivElement; header: Element } {
     const sheet = document.createElement("div");
-    sheet.className = "bottom-sheet bottom-sheet--compact";
+    sheet.className = "sys-inspector--phone";
     const header = document.createElement("div");
     sheet.append(header);
     document.body.append(sheet);
@@ -236,7 +236,7 @@ describe("a finger resting on the drawer", () => {
     expect(restored).toBe(1);
   });
 
-  it("leaves its own lone finger to the drawer", () => {
+  it("leaves its own lone finger to the sheet", () => {
     const { sheet, header } = drawer();
     const own: string[] = [];
     for (const type of ["pointerdown", "pointermove", "pointerup"]) {

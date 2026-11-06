@@ -1,4 +1,4 @@
-import { memo, type RefCallback } from "react";
+import { memo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { runPointerCommand } from "../../commands/pointer";
 import { useViewportClass } from "../../hooks/useViewportClass";
@@ -17,7 +17,6 @@ import { ReviewHost } from "./ReviewHost";
 
 export type StageHostProps = {
   guestShare?: boolean;
-  feedbackHostRef?: RefCallback<HTMLDivElement>;
   loadFailure?: LoadFailure | null;
   /** The 4 s Retry of the loading skeleton: the same bootstrap retry as Try again. */
   onRetryLoad?: () => void;
@@ -25,7 +24,6 @@ export type StageHostProps = {
 
 function StageHostAdapter({
   guestShare = false,
-  feedbackHostRef,
   loadFailure,
   onRetryLoad,
 }: StageHostProps) {
@@ -78,11 +76,7 @@ function StageHostAdapter({
       return <PrepareStage loadFailure={loadFailure} />;
     case "edit":
       return (
-        <EditWorkspace
-          guestShare={guestShare}
-          feedbackHostRef={feedbackHostRef}
-          loadFailure={loadFailure}
-        />
+        <EditWorkspace guestShare={guestShare} loadFailure={loadFailure} />
       );
     case "review":
       return (
