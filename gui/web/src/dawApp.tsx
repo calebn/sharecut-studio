@@ -227,11 +227,16 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
             {engines}
             <div data-daw-app-chrome>
               <StageFrame guestShare={guestShare} sheets={EDIT_SHEETS}>
-                <StageHost
-                  guestShare={guestShare}
-                  loadFailure={loadFailure}
-                  onRetryLoad={retryBootstrap}
-                />
+                {(viewAnchor) => (
+                  <>
+                    <StageHost
+                      viewAnchor={viewAnchor}
+                      guestShare={guestShare}
+                      loadFailure={loadFailure}
+                      onRetryLoad={retryBootstrap}
+                    />
+                  </>
+                )}
               </StageFrame>
             </div>
             <CheatsheetDialogs />

@@ -30,18 +30,24 @@ import { useAudioDrop } from "./useAudioDrop";
 import { useInspectorOpen } from "./useInspectorOpen";
 import { useRevealEditedLane } from "./useRevealEditedLane";
 import { useScriptSize } from "./useScriptSize";
+import {
+  AVAILABLE_VIEW_ANCHOR,
+  type ViewAnchorAvailability,
+} from "./useViewAnchor";
 
 const SIDE_BY_SIDE_MQ = "(min-width: 62.5rem)";
 const subscribeSide = mediaQuerySubscription([SIDE_BY_SIDE_MQ]);
 const readSide = () => matchesMedia(SIDE_BY_SIDE_MQ, true);
 
 export type EditWorkspaceProps = {
+  viewAnchor?: ViewAnchorAvailability;
   guestShare?: boolean;
   /** The project failed to load: the stage body says so, with Try again. */
   loadFailure?: LoadFailure | null;
 };
 
 function EditWorkspaceAdapter({
+  viewAnchor = AVAILABLE_VIEW_ANCHOR,
   guestShare = false,
   loadFailure,
 }: EditWorkspaceProps) {
@@ -188,7 +194,26 @@ function EditWorkspaceAdapter({
   const actionBar = (
     <EditActionBar form={phone ? "dock" : "floating"} root={root} />
   );
-  const corner = <EditCorner showScript={!phone} />;
+  const corner = (
+    <EditCorner
+      showScript={!phone}
+      viewAnchor={
+        viewAnchor.kind === "unavailable"
+          ? viewAnchor
+          : !phone && scriptFocus
+            ? {
+                kind: "unavailable",
+                returnTarget: () =>
+                  root?.querySelector<HTMLButtonElement>(
+                    'button[aria-label="Find in transcript"]',
+                  ) ??
+                  root?.querySelector<HTMLElement>(".edit-script") ??
+                  null,
+              }
+            : AVAILABLE_VIEW_ANCHOR
+      }
+    />
+  );
 
   // The failure is the stage body, always in view (the Script pane may be
   // collapsed, the phone may be on its lanes), and a project without its

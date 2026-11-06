@@ -13,6 +13,10 @@ import { StageBar } from "../../system/StageBar";
 import { stageLabel } from "../../system/verbs";
 import type { StageSheet } from "../../types/stage";
 import { ToolsButton } from "../edit/ToolsButton";
+import {
+  AVAILABLE_VIEW_ANCHOR,
+  type ViewAnchorAvailability,
+} from "../edit/useViewAnchor";
 import { AvatarStack } from "./AvatarStack";
 import { BannerStack } from "./BannerStack";
 import { guestPlayerCardShown } from "./guestPlayerCardShown";
@@ -31,7 +35,7 @@ export type StageFrameProps = {
   /** Content for the View and Mix sheets; History is hosted by the frame. */
   sheets?: Partial<Record<StageSheet, ReactNode>>;
   /** The stage host for the open stage. */
-  children: ReactNode;
+  children: (viewAnchor: ViewAnchorAvailability) => ReactNode;
 };
 
 function StageFrameAdapter({
@@ -58,6 +62,7 @@ function StageFrameAdapter({
   const rootRef = useRef<HTMLDivElement>(null);
   usePresenceCursorSource(rootRef);
   const shortFrame = useShortFrame(rootRef);
+  const toolsRef = useRef<HTMLButtonElement | null>(null);
   const undoEnabled = useDawStore(
     (s) =>
       s.project != null &&
@@ -101,7 +106,11 @@ function StageFrameAdapter({
           menuPeople={<AvatarStack variant="menu" />}
           compact={shortFrame}
           stagesInMenu={shell === "phone"}
-          toolsSlot={shortFrame && stage === "edit" ? <ToolsButton /> : null}
+          toolsSlot={
+            shortFrame && stage === "edit" ? (
+              <ToolsButton ref={toolsRef} />
+            ) : null
+          }
         />
       }
       banners={<BannerStack guestShare={guestShare} />}
@@ -126,7 +135,11 @@ function StageFrameAdapter({
         player: playerRegion,
       }}
     >
-      {children}
+      {children(
+        shortFrame
+          ? { kind: "unavailable", returnTarget: () => toolsRef.current }
+          : AVAILABLE_VIEW_ANCHOR,
+      )}
     </StageFrameView>
   );
 }

@@ -112,7 +112,11 @@ describe("Edit view across stage switches", () => {
     const user = userEvent.setup();
     render(
       <StageFrame>
-        <Host />
+        {() => (
+          <>
+            <Host />
+          </>
+        )}
       </StageFrame>,
     );
     act(() => {
@@ -138,7 +142,11 @@ describe("Edit view across stage switches", () => {
     const user = userEvent.setup();
     render(
       <StageFrame>
-        <Host />
+        {() => (
+          <>
+            <Host />
+          </>
+        )}
       </StageFrame>,
     );
     await user.click(stageTab(/Review/));

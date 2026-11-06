@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { clearRegisteredCommands } from "../../commands/execute";
+import { clearRegisteredCommands, execute } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { useDawStore } from "../../state/dawStore";
 import { minimalProject, sampleTrack } from "../../test/fixtures";
@@ -36,6 +36,49 @@ afterEach(() => {
 });
 
 describe("EditWorkspace regions", () => {
+  it("dismisses View when Script focus hides its eye", async () => {
+    const user = userEvent.setup();
+    render(<EditWorkspace />);
+    await user.click(screen.getByRole("button", { name: "View options" }));
+    expect(screen.getByRole("dialog", { name: "View options" })).toBeVisible();
+    await act(async () => {
+      await execute("view.scriptFocus");
+    });
+    expect(document.querySelector(".edit-timeline-col")).toHaveAttribute(
+      "hidden",
+    );
+    expect(screen.queryByRole("dialog", { name: "View options" })).toBeNull();
+    expect(document.querySelector(".edit-script")).toHaveFocus();
+    await act(async () => {
+      await execute("view.scriptFocus");
+    });
+    expect(
+      screen.getByRole("button", { name: "View options" }),
+    ).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("dialog", { name: "View options" })).toBeNull();
+  });
+
+  it.each(["loading", "empty"])(
+    "returns focus to the visible %s Script region",
+    async (state) => {
+      if (state === "loading") useDawStore.setState({ project: null });
+      else
+        useDawStore
+          .getState()
+          .hydrate(PROJECT_PATH, minimalProject({ tracks: [] }));
+      const user = userEvent.setup();
+      render(<EditWorkspace />);
+      await user.click(screen.getByRole("button", { name: "View options" }));
+      await act(async () => {
+        // The shortcut is disabled while loading; exercise the retained loading surface directly.
+        if (state === "loading") useDawStore.setState({ scriptFocus: true });
+        else await execute("view.scriptFocus");
+      });
+      expect(screen.queryByRole("dialog", { name: "View options" })).toBeNull();
+      expect(document.querySelector(".edit-script")).toHaveFocus();
+    },
+  );
+
   it("hosts the timeline with its headers and the Script pane beside it", () => {
     render(<EditWorkspace />);
     expect(screen.getByRole("group", { name: "Tracks" })).toBeInTheDocument();

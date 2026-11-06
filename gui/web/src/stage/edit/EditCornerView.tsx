@@ -2,14 +2,21 @@ import { type ComponentType, type RefObject, useRef } from "react";
 import { commandLabel } from "../../commands/labels";
 import { SystemIcon } from "../../system/SystemIcon";
 import { Button, Icon, ToggleButton } from "../../ui";
+import {
+  AVAILABLE_VIEW_ANCHOR,
+  useViewAnchor,
+  type ViewAnchorAvailability,
+} from "./useViewAnchor";
 import type { ZoomAvailability } from "./useZoomControls";
 
 export interface ViewPopoverSlotProps {
   anchorRef: RefObject<HTMLElement | null>;
+  panelRef?: RefObject<HTMLDivElement | null>;
   onClose: () => void;
 }
 
 export interface EditCornerViewProps {
+  viewAnchor?: ViewAnchorAvailability;
   zoom: ZoomAvailability;
   onZoomIn: () => void;
   onZoomOut: () => void;
@@ -34,6 +41,7 @@ const ZOOM_REASON = { in: "Fully zoomed in", out: "Fully zoomed out" } as const;
 
 /** Fit, zoom, the eye (View popover), the Script toggle and, on touch, the range toggle, bottom-right of the lanes. */
 export function EditCornerView({
+  viewAnchor = AVAILABLE_VIEW_ANCHOR,
   zoom,
   onZoomIn,
   onZoomOut,
@@ -46,6 +54,8 @@ export function EditCornerView({
   range,
 }: EditCornerViewProps) {
   const eyeRef = useRef<HTMLButtonElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  useViewAnchor(viewOpen, viewAnchor, panelRef, onCloseView);
   return (
     <div className="edit-corner" role="group" aria-label="Timeline view">
       <Button
@@ -88,7 +98,11 @@ export function EditCornerView({
         <SystemIcon name="eye" size={20} />
       </ToggleButton>
       {viewOpen && ViewPopoverSlot ? (
-        <ViewPopoverSlot anchorRef={eyeRef} onClose={onCloseView} />
+        <ViewPopoverSlot
+          anchorRef={eyeRef}
+          panelRef={panelRef}
+          onClose={onCloseView}
+        />
       ) : null}
       {range ? (
         <ToggleButton

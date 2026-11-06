@@ -10,6 +10,7 @@ import type { SystemIconName } from "../../system/icons";
 import { ScrubField } from "../../system/ScrubField";
 import { SystemIcon } from "../../system/SystemIcon";
 import { SegmentedControl, ToggleButton } from "../../ui";
+import { isValidFocusTarget } from "../../ui/focusTarget";
 import { useAnchoredPanel } from "../../ui/useAnchoredPanel";
 import { usePopoverKeyboard } from "../../ui/useMenuKeyboard";
 import { useOutsidePointerDown } from "../../ui/useOutsidePointerDown";
@@ -44,6 +45,7 @@ const LAYER_CHIPS: {
 export interface ViewPopoverViewProps {
   /** The eye: the popover hangs off it and focus returns to it. */
   anchorRef: RefObject<HTMLElement | null>;
+  panelRef?: RefObject<HTMLDivElement | null>;
   onClose: () => void;
   layers: Record<ViewLayerKey, boolean>;
   onLayerChange: (key: ViewLayerKey, visible: boolean) => void;
@@ -91,6 +93,7 @@ function ScaleGlyph({ mode }: { mode: WaveformScaleMode }): ReactNode {
  */
 export function ViewPopoverView({
   anchorRef,
+  panelRef: ownerPanelRef,
   onClose,
   layers,
   onLayerChange,
@@ -102,24 +105,29 @@ export function ViewPopoverView({
   onAmpChange,
   hostLayers = true,
 }: ViewPopoverViewProps) {
-  const panelRef = useRef<HTMLDivElement | null>(null);
+  const localPanelRef = useRef<HTMLDivElement | null>(null);
+  const panelRef = ownerPanelRef ?? localPanelRef;
   const firstRef = useRef<HTMLButtonElement | null>(null);
   const { ref: topLayerRef, popover } = useTopLayerPanel();
   const attach = useCallback(
     (el: HTMLDivElement | null) => {
       panelRef.current = el;
-      return topLayerRef(el);
+      const detach = topLayerRef(el);
+      return () => {
+        panelRef.current = null;
+        detach?.();
+      };
     },
-    [topLayerRef],
+    [topLayerRef, panelRef],
   );
   useEffect(() => {
-    firstRef.current?.focus();
-  }, []);
+    if (isValidFocusTarget(anchorRef.current)) firstRef.current?.focus();
+  }, [anchorRef]);
   // Escape and Tab out of an end hand focus back to the eye. Every other close
   // (a press outside, another dialog taking focus) leaves focus where the
   // press or the dialog put it.
   const closeToEye = useCallback(() => {
-    anchorRef.current?.focus();
+    if (isValidFocusTarget(anchorRef.current)) anchorRef.current.focus();
     onClose();
   }, [anchorRef, onClose]);
   useAnchoredPanel(

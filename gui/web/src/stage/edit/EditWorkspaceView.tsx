@@ -105,7 +105,7 @@ export function EditWorkspaceView({
         </div>
       ) : null}
       {scriptShown ? (
-        <div ref={bindings?.script} className="edit-script">
+        <div ref={bindings?.script} className="edit-script" tabIndex={-1}>
           {script}
         </div>
       ) : null}

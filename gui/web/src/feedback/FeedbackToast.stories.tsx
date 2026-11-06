@@ -30,7 +30,11 @@ function ToastOverFrame() {
     <>
       <div data-daw-app-chrome>
         <StageFrame>
-          <div style={{ padding: "var(--space-5)" }}>Stage host</div>
+          {() => (
+            <>
+              <div style={{ padding: "var(--space-5)" }}>Stage host</div>
+            </>
+          )}
         </StageFrame>
       </div>
       <FeedbackToast />

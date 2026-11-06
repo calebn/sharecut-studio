@@ -135,7 +135,11 @@ function mountFrame() {
   asHost("edit");
   render(
     <StageFrame sheets={EDIT_SHEETS}>
-      <p>stage body</p>
+      {() => (
+        <>
+          <p>stage body</p>
+        </>
+      )}
     </StageFrame>,
   );
 }

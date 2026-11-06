@@ -270,7 +270,11 @@ function mount(shell: ShellBreakpoint) {
   return render(
     <DawProvider projectPath="/tmp/p.json" initialProject={project()}>
       <StageFrame sheets={EDIT_SHEETS}>
-        <EditWorkspace />
+        {(viewAnchor) => (
+          <>
+            <EditWorkspace viewAnchor={viewAnchor} />
+          </>
+        )}
       </StageFrame>
     </DawProvider>,
   );

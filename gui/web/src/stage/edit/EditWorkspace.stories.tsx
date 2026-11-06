@@ -31,7 +31,11 @@ const meta: Meta<Args> = {
   beforeEach: episodeBeforeEach,
   render: ({ guestShare, ...props }) => (
     <StageFrame guestShare={guestShare} sheets={EDIT_SHEETS}>
-      <Host guestShare={guestShare} {...props} />
+      {() => (
+        <>
+          <Host guestShare={guestShare} {...props} />
+        </>
+      )}
     </StageFrame>
   ),
   decorators: [

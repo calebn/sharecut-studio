@@ -7,6 +7,7 @@ import { stageRoleOf, stagesForRole } from "../../state/stageRoutes";
 import { Cover } from "../../system/Cover";
 import { stageLabel } from "../../system/verbs";
 import { EditWorkspace } from "../edit/EditWorkspace";
+import type { ViewAnchorAvailability } from "../edit/useViewAnchor";
 import { DeliverStage } from "./DeliverStage";
 import { GuestDeliver } from "./GuestDeliver";
 import { HostBody } from "./HostBody";
@@ -16,6 +17,7 @@ import { RecordStage } from "./RecordStage";
 import { ReviewHost } from "./ReviewHost";
 
 export type StageHostProps = {
+  viewAnchor?: ViewAnchorAvailability;
   guestShare?: boolean;
   loadFailure?: LoadFailure | null;
   /** The 4 s Retry of the loading skeleton: the same bootstrap retry as Try again. */
@@ -23,6 +25,7 @@ export type StageHostProps = {
 };
 
 function StageHostAdapter({
+  viewAnchor,
   guestShare = false,
   loadFailure,
   onRetryLoad,
@@ -76,7 +79,11 @@ function StageHostAdapter({
       return <PrepareStage loadFailure={loadFailure} />;
     case "edit":
       return (
-        <EditWorkspace guestShare={guestShare} loadFailure={loadFailure} />
+        <EditWorkspace
+          viewAnchor={viewAnchor}
+          guestShare={guestShare}
+          loadFailure={loadFailure}
+        />
       );
     case "review":
       return (

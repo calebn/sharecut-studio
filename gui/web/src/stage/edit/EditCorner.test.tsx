@@ -1,11 +1,13 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useLayoutEffect } from "react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { useDawStore } from "../../state/dawStore";
 import { minimalProject, sampleTrack } from "../../test/fixtures";
 import { EditCorner } from "./EditCorner";
+import { EditCornerView, type ViewPopoverSlotProps } from "./EditCornerView";
 
 beforeEach(() => {
   clearRegisteredCommands();
@@ -37,6 +39,72 @@ describe("EditCorner", () => {
     expect(eye).toHaveAttribute("aria-pressed", "true");
     await user.click(eye);
     expect(screen.queryByRole("dialog", { name: "View options" })).toBeNull();
+  });
+
+  it("closes on anchor loss without stealing focus from another control", async () => {
+    const user = userEvent.setup();
+    const fallback = document.createElement("button");
+    fallback.textContent = "Recovery";
+    document.body.append(fallback);
+    const { rerender } = render(<EditCorner />);
+    await user.click(screen.getByRole("button", { name: "View options" }));
+    fallback.focus();
+    rerender(
+      <EditCorner
+        viewAnchor={{ kind: "unavailable", returnTarget: () => fallback }}
+      />,
+    );
+    expect(screen.queryByRole("dialog", { name: "View options" })).toBeNull();
+    expect(fallback).toHaveFocus();
+    fallback.remove();
+  });
+
+  it("cancels recovery after newer focus moves away and back to body during removal", () => {
+    const elsewhere = document.createElement("button");
+    const destination = document.createElement("button");
+    document.body.append(elsewhere, destination);
+    function Slot({ panelRef }: ViewPopoverSlotProps) {
+      useLayoutEffect(() => {
+        panelRef?.current?.focus();
+        return () => {
+          elsewhere.focus();
+          elsewhere.blur();
+        };
+      }, [panelRef]);
+      return (
+        <div ref={panelRef} tabIndex={-1}>
+          View panel
+        </div>
+      );
+    }
+    const props = {
+      zoom: { canZoomIn: true, canZoomOut: true },
+      onZoomIn() {},
+      onZoomOut() {},
+      onFit() {},
+      onToggleView() {},
+      onCloseView() {},
+      viewPopover: Slot,
+    };
+    const { rerender } = render(<EditCornerView {...props} viewOpen />);
+    rerender(
+      <EditCornerView
+        {...props}
+        viewOpen
+        viewAnchor={{ kind: "unavailable", returnTarget: () => destination }}
+      />,
+    );
+    rerender(
+      <EditCornerView
+        {...props}
+        viewOpen={false}
+        viewAnchor={{ kind: "unavailable", returnTarget: () => destination }}
+      />,
+    );
+    expect(document.body).toHaveFocus();
+    expect(destination).not.toHaveFocus();
+    elsewhere.remove();
+    destination.remove();
   });
 
   it("zooms through view.zoomIn and view.zoomOut", async () => {
