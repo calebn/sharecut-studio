@@ -135,6 +135,22 @@ describe("reviewEntriesOf", () => {
     ]);
   });
 
+  it.each([
+    ["a mute", { type: "mute" }],
+    ["a track-scope cut", { scope: "track" }],
+    ["an exact-range cut", { exact_range: { start: 1, end: 2 } }],
+  ] as const)(
+    "saves nothing for %s, which leaves the timeline length alone",
+    (_n, patch) => {
+      const item = itemOf({
+        ...patch,
+        timeline_spans: [{ start: 1, end: 2 }],
+      } as never);
+      expect(item.savedSeconds).toBe(0);
+      expect(item.spans).toBeUndefined();
+    },
+  );
+
   it("sums every span for savedSeconds", () => {
     const item = itemOf({
       timeline_spans: [
