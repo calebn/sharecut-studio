@@ -116,7 +116,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     keywords: ["timeline", "script", "transcript"],
     when: "stageAllowed:edit",
     breaksFollow: true,
-    notes: "Mod+3: the Edit stage",
+    notes: "Mod+3: the Edit stage; again on Edit, scroll to the playhead",
   },
   "stage.review": {
     id: "stage.review",

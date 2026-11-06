@@ -1,5 +1,12 @@
 import { act, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { clearRegisteredCommands } from "../commands/execute";
+import { registerDawCommands } from "../commands/register";
+import { useStageBarProps } from "../stage/frame/useStageBarProps";
+import { useDawStore } from "../state/dawStore";
+import { playheadScrollRegistry } from "../state/playheadScrollRegistry";
+import { minimalProject } from "../test/fixtures";
 import { StageBar, type StageBarProps } from "./StageBar";
 
 const iconRenders = vi.hoisted(() => vi.fn());
@@ -30,6 +37,31 @@ it.each(["bar", "tabs"] as const)(
     }
   },
 );
+
+describe("clicking the active stage", () => {
+  function Wired() {
+    const props = useStageBarProps();
+    return props ? <StageBar {...props} /> : null;
+  }
+
+  it("scrolls Edit to the playhead and leaves the other tabs alone", async () => {
+    clearRegisteredCommands();
+    registerDawCommands();
+    useDawStore.getState().hydrate("/tmp/stage-bar.json", minimalProject());
+    useDawStore.setState({ stage: "edit" });
+    const scroll = vi.fn(() => true);
+    const off = playheadScrollRegistry.register("timeline", scroll);
+    render(<Wired />);
+    const edit = screen.getByRole("tab", { name: /^Edit/ });
+    await userEvent.click(edit);
+    expect(scroll).toHaveBeenCalledTimes(1);
+    await userEvent.click(screen.getByRole("tab", { name: /^Review/ }));
+    await userEvent.click(screen.getByRole("tab", { name: /^Review/ }));
+    expect(scroll).toHaveBeenCalledTimes(1);
+    expect(useDawStore.getState().stage).toBe("review");
+    off();
+  });
+});
 
 describe("the Record badge", () => {
   afterEach(() => {

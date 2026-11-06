@@ -1,6 +1,7 @@
 import { selectionSpan } from "../edit/editSelection";
 import { canApplyPass12, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { playheadScrollRegistry } from "../state/playheadScrollRegistry";
 import { stageRoleOf, stagesForRole } from "../state/stageRoutes";
 import {
   type EditSurface,
@@ -86,7 +87,15 @@ export function registerViewCommands(): void {
         ...(isReviewSection(section) ? { section } : {}),
         ...(isStageSheet(sheet) ? { sheet } : {}),
       };
+      const reselectEdit =
+        stage === "edit" &&
+        s.stage === "edit" &&
+        !isEditSurface(args.surface) &&
+        Object.keys(options).length === 0;
       s.openStage(stage, options);
+      if (reselectEdit && playheadScrollRegistry.scrollAllToPlayhead()) {
+        s.announceStatus("Scrolled to playhead");
+      }
       // The phone's Timeline or Script, which only Edit has.
       if (stage === "edit" && isEditSurface(args.surface)) {
         useDawStore.getState().setEditSurface(args.surface);
