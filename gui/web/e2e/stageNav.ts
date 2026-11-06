@@ -129,9 +129,9 @@ export async function openProject(
     `/?project=${encodeURIComponent(projectPath)}${options.query ?? ""}`,
   );
   await waitForFrame(page);
-  // The Save indicator shows once the project has loaded, which is also when
+  // The Save indicator mounts once the project has loaded, which is also when
   // the landing stage is picked; a stage chosen before that gets overruled.
-  await expect(saveStatus(page)).toBeVisible();
+  await expect(saveStatus(page)).toBeAttached();
   await goToStage(page, options.stage ?? "edit");
 }
 
@@ -147,7 +147,7 @@ export async function reloadProject(page: Page): Promise<void> {
 /** Wait for the frame to be up and the landing stage to have been picked. */
 export async function waitForLanding(page: Page): Promise<void> {
   await waitForFrame(page);
-  await expect(saveStatus(page)).toBeVisible();
+  await expect(saveStatus(page)).toBeAttached();
 }
 
 /**

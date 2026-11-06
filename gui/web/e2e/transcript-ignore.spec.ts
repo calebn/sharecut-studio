@@ -84,7 +84,18 @@ test.describe("Transcript ignore mutes the stem; restore brings it back (#633)",
         }
       });
 
-      await page.getByRole("button", { name: /^Ignore/ }).click();
+      const selectionActions = page.getByRole("group", {
+        name: "Selection actions",
+      });
+      const more = selectionActions.getByRole("button", {
+        name: "More",
+        exact: true,
+      });
+      const moreActions = page.getByRole("menu", { name: "More actions" });
+      await more.click();
+      await moreActions
+        .getByRole("menuitem", { name: "Mute", exact: true })
+        .click();
       await expect(async () => {
         expect(commands).toContain("SetTranscriptWordsIgnored");
       }).toPass();
@@ -97,7 +108,10 @@ test.describe("Transcript ignore mutes the stem; restore brings it back (#633)",
 
       await expectPageAxeClean(page, ".sys-script");
 
-      await page.getByRole("button", { name: /^Restore/ }).click();
+      await more.click();
+      await moreActions
+        .getByRole("menuitem", { name: "Restore ignored words", exact: true })
+        .click();
       restored = true;
 
       await expect(uncle).not.toHaveAttribute("data-state", "muted");

@@ -29,6 +29,11 @@ connecting view has no controls, then waits for **Allow microphone** before
 measuring control heights. This makes the assertion deterministic across room
 sync timing.
 
+`gui/web/e2e/transcript-ignore.spec.ts` uses the selected words' **More → Mute**
+and **More → Restore ignored words** actions. It checks `SetTranscriptWordsIgnored`,
+muted word states, the rendered stem and Script accessibility. This covers
+visible action reachability as well as the resulting audio.
+
 ### GUI surface regressions
 
 `gui/web/e2e-compat/phone-chrome.spec.ts` holds the real transcript-status
@@ -124,7 +129,7 @@ hear menu and expanded form.
 | Helper | Does |
 |--------|------|
 | `goToStage(page, stage)` | Clicks the Stage bar tab for `record`, `prepare`, `edit`, `review` or `deliver`. Browsers keep Mod+1 to Mod+9 for their own tabs, so helpers click rather than press the stage keys |
-| `openProject(page, { stage? })` | Opens a project, waits for the save indicator (when the landing stage is picked), then goes to `edit` unless told otherwise |
+| `openProject(page, { stage? })` | Opens a project, waits for the mounted semantic Save status (when the landing stage is picked), then goes to `edit` unless told otherwise |
 | `openPanel(page, panel)` | Opens `transcript` (Edit Script), `history` (Edit sheet), `queue`, `comments` (the Review queue) or `pipeline` (Prepare) |
 | `phone.show*`, `phone.openMix` | The phone's one-at-a-time Edit surfaces (Timeline, Script), Review in place of the old Listen mode, and the Mix sheet. `phone.openMore` opens the Project menu, the nearest thing to the removed More hub |
 | `openProjectMenu`, `openProjectMenuItem`, `openProjectDialog`, `openRecordRoom` | The Project menu and the dialogs specs open (Share, Record, palette, gestures), through the menu, header or palette as each lives |
@@ -135,8 +140,10 @@ hear menu and expanded form.
 
 Rules for specs: use these helpers instead of `.daw-shell`, `.transport-*`, dock
 tab or More hub selectors (none of them exist any more); wait on a condition
-(`saveStatus`, a dialog role, `aria-pressed`), never a fixed time; and add a
-helper here when a new spec needs chrome that has none.
+(`saveStatus` attachment, a dialog role, `aria-pressed`), never a fixed time; and
+add a helper here when a new spec needs chrome that has none. The quiet Saved
+state intentionally has no visible glyph after its brief check mark expires;
+the attached status remains the loaded-project readiness signal.
 
 ### Committed fixtures (Tier A)
 
