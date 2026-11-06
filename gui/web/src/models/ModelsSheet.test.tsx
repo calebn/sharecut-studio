@@ -71,14 +71,17 @@ describe("ModelsSheet", () => {
   it("offers Fast, Balanced and Best under Transcription and picks a size without a dialog", async () => {
     const { api } = mount();
     const size = screen.getByRole("group", { name: "Size" });
-    const labels = within(size)
-      .getAllByRole("button")
-      .map((b) => b.getAttribute("aria-label"));
-    expect(labels).toEqual([
-      "Fast (75 MB)",
-      "Balanced (500 MB)",
-      "Best (1.6 GB)",
+    const buttons = within(size).getAllByRole("button");
+    expect(buttons.map((b) => b.getAttribute("aria-label"))).toEqual([
+      "Fast 75 MB",
+      "Balanced 500 MB",
+      "Best 1.6 GB",
     ]);
+    for (const b of buttons) {
+      expect(b.getAttribute("aria-label")).toBe(
+        Array.from(b.children, (c) => c.textContent).join(" "),
+      );
+    }
     expect(within(size).getByRole("button", { name: /^Best/ })).toHaveAttribute(
       "aria-pressed",
       "true",
