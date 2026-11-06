@@ -1637,8 +1637,6 @@ html[data-frame-short] .sys-header-project .sys-header-title {
 .sys-skeleton-blocks--guest .sys-skeleton-block--header {
   grid-column: 1 / -1;
   block-size: var(--header-height, 3rem);
-  margin-inline: calc(var(--space-5) * -1);
-  border-radius: 0;
 }
 
 .sys-skeleton-blocks--guest .sys-skeleton-block--player {
@@ -1679,6 +1677,20 @@ html[data-frame-short] .sys-header-project .sys-header-title {
   margin: 0;
   color: var(--color-text-secondary);
   font-size: var(--font-size-body);
+}
+
+/* Retry is a tap target at every size, not only under a coarse pointer. */
+.sys-skeleton-retry {
+  min-block-size: var(--touch-min);
+  min-inline-size: var(--touch-min);
+}
+
+/* The guest status row sits in the same gutter and width as the blocks: the grid's two columns and gap, centered. */
+.sys-skeleton--guest > .sys-skeleton-slow {
+  box-sizing: border-box;
+  inline-size: min(100%, calc(70rem + var(--space-5) + 2 * var(--space-5)));
+  margin-inline: auto;
+  padding-inline: var(--space-5);
 }
 
 /* Status row */
@@ -4011,6 +4023,11 @@ button.sys-scope:hover {
 @media (pointer: coarse) {
   .sys-actions--floating {
     block-size: var(--action-bar-height-touch);
+  }
+
+  .sys-actions-primary--floating {
+    min-block-size: var(--touch-min);
+    min-inline-size: var(--touch-min);
   }
 
   button.sys-scope {
