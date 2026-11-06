@@ -17,9 +17,9 @@ required-job checks on the branch tip, with nothing pushed and no storybook disp
 Needs `GITHUB_REPOSITORY` and a `GITHUB_TOKEN` (or `GH_TOKEN`) the `gh` CLI can use.
 `GITHUB_TOKEN` cannot push changes to `.github/workflows/*`. When the fast-forward range touches them
 and `PROMOTE_TOKEN` (a PAT with contents and workflows write; the workflow passes the repository
-secret `PROMOTE_TOKEN`, else `RELEASE_PLEASE_TOKEN`) is set, only the final push to the target uses
-it for the temporary-branch push and the final push to the target; every other call keeps
-`GITHUB_TOKEN`.
+secret `PROMOTE_TOKEN`, else `RELEASE_PLEASE_TOKEN`) is set, it is used for the temporary-branch push
+and the final push to the target; every other call keeps `GITHUB_TOKEN`. A rejected PAT push is
+reported by branch name and exits 1.
 """
 
 from __future__ import annotations
@@ -290,6 +290,15 @@ def wait_for_runs(
         clock.sleep(interval)
 
 
+def push_reported(git: Git, sha: str, branch: str, token: str | None) -> bool:
+    try:
+        git.push(sha, branch, token)
+    except subprocess.CalledProcessError:
+        print(f"push of {branch} was rejected")
+        return False
+    return True
+
+
 def promote(
     git: Git,
     gh: Gh,
@@ -326,7 +335,8 @@ def promote(
     token = os.environ.get(PROMOTE_TOKEN_ENV) or None
     use_token = token is not None and git.touches_workflows(target_sha, source_sha)
     branch = temp_branch(source_sha, int(clock.epoch()), run_id, attempt)
-    git.push(source_sha, branch, token if use_token else None)
+    if not push_reported(git, source_sha, branch, token if use_token else None):
+        return 1
     for workflow in CI_WORKFLOWS:
         inputs = (
             {
@@ -360,7 +370,8 @@ def promote(
         how = f" with {PROMOTE_TOKEN_ENV}" if use_token else ""
         print(f"dry run: would push {source_sha}:refs/heads/{target}{how}")
     else:
-        git.push(source_sha, target, token if use_token else None)
+        if not push_reported(git, source_sha, target, token if use_token else None):
+            return 1
         print(f"fast-forwarded {target} to {source_sha[:12]}")
     return dispatch_storybook(gh, target, no_push)
 

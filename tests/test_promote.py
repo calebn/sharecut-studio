@@ -629,11 +629,11 @@ def test_base_env_override_selects_the_frozen_source(repo: Repo, monkeypatch) ->
 class SpyGit(promote.Git):
     def __init__(self, cwd: Path) -> None:
         super().__init__(cwd)
-        self.pushes: list[tuple[str, bool]] = []
+        self.pushes: list[tuple[str, Mapping[str, str] | None]] = []
 
     def _git(self, *args, check=True, env=None):
         if args[0] == "push" and "--delete" not in args:
-            self.pushes.append((args[2].split(":refs/heads/")[1], bool(env)))
+            self.pushes.append((args[2].split(":refs/heads/")[1], env))
         return super()._git(*args, check=check, env=env)
 
 
@@ -662,7 +662,7 @@ def test_promote_token_is_not_used_when_the_range_has_no_workflow_change(
 
     spy = run_with_spy(repo)
 
-    assert [used for _, used in spy.pushes] == [False, False]
+    assert [env for _, env in spy.pushes] == [None, None]
 
 
 def test_promote_token_pushes_both_the_temp_branch_and_the_final_fast_forward_when_workflows_change(
@@ -678,9 +678,10 @@ def test_promote_token_pushes_both_the_temp_branch_and_the_final_fast_forward_wh
 
     spy = run_with_spy(repo)
 
-    assert [(branch.split("-")[0].split("/")[0], used) for branch, used in spy.pushes] == [
-        ("promote", True),
-        ("main", True),
+    expected = promote.token_env("pat-secret")
+    assert [(branch.split("-")[0].split("/")[0], env) for branch, env in spy.pushes] == [
+        ("promote", expected),
+        ("main", expected),
     ]
     assert repo.remote_sha("main") == repo.remote_sha("develop")
 
@@ -692,3 +693,73 @@ def test_token_env_carries_the_token_only_in_git_config_environment() -> None:
     assert env["GIT_CONFIG_VALUE_0"] == ""
     assert env["GIT_CONFIG_VALUE_1"].startswith("AUTHORIZATION: basic ")
     assert "pat-secret" not in "".join(env.values())
+
+
+class RejectingGit(promote.Git):
+    def __init__(self, cwd: Path, reject: str) -> None:
+        super().__init__(cwd)
+        self.reject = reject
+
+    def push(self, sha: str, branch: str, token: str | None = None) -> None:
+        if branch.startswith(self.reject):
+            raise subprocess.CalledProcessError(
+                128, ["git", "push"], stderr="remote: Authorization: basic cGF0LXNlY3JldA=="
+            )
+        super().push(sha, branch, token)
+
+
+def add_workflow_change(repo: Repo) -> None:
+    sh(repo.other, "fetch", "-q", "origin")
+    sh(repo.other, "checkout", "-q", "-B", "develop", "origin/develop")
+    (repo.other / ".github" / "workflows").mkdir(parents=True)
+    commit(repo.other, ".github/workflows/x.yml")
+    sh(repo.other, "push", "-q", "origin", "develop")
+
+
+def run_rejecting(repo: Repo, reject: str, gh: FakeGh) -> int:
+    clock = FakeClock()
+    return promote.promote(
+        RejectingGit(repo.clone, reject),
+        gh,
+        target="main",
+        no_push=False,
+        run_id="77",
+        attempt="2",
+        timeout=600,
+        interval=60,
+        clock=promote.Clock(sleep=clock.sleep, now=clock.now, epoch=lambda: EPOCH),
+    )
+
+
+def test_a_rejected_temp_branch_push_names_the_branch_and_stops(
+    repo: Repo, monkeypatch, capsys
+) -> None:
+    monkeypatch.setenv("PROMOTE_TOKEN", "pat-secret")
+    add_workflow_change(repo)
+    main_before = repo.remote_sha("main")
+    gh = FakeGh()
+
+    assert run_rejecting(repo, "promote/", gh) == 1
+
+    out = capsys.readouterr().out
+    assert "push of promote/" in out and "was rejected" in out
+    assert "pat-secret" not in out and "cGF0LXNlY3JldA" not in out and "Authorization" not in out
+    assert gh.dispatched == []
+    assert repo.remote_sha("main") == main_before
+
+
+def test_a_rejected_final_push_names_main_and_does_not_dispatch_storybook(
+    repo: Repo, monkeypatch, capsys
+) -> None:
+    monkeypatch.setenv("PROMOTE_TOKEN", "pat-secret")
+    add_workflow_change(repo)
+    main_before = repo.remote_sha("main")
+    gh = FakeGh()
+
+    assert run_rejecting(repo, "main", gh) == 1
+
+    out = capsys.readouterr().out
+    assert "push of main was rejected" in out
+    assert "pat-secret" not in out and "cGF0LXNlY3JldA" not in out and "Authorization" not in out
+    assert all(w != "storybook.yml" for w, _, _ in gh.dispatched)
+    assert repo.remote_sha("main") == main_before
