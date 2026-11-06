@@ -9,12 +9,16 @@ import {
   type RecentProject,
   revealRecentProject,
 } from "../../api";
+import { registerDawCommands } from "../../commands/register";
 import { desktopCloseGuardArmed } from "../../desktop/useDesktopCloseGuard";
 import { HelpDialog } from "../../home/HelpDialog";
 import { useWindowFileDrop } from "../../hooks/useWindowFileDrop";
 import { ingestIntoNewProject, pickAudioFiles } from "../../ingest/ingestFiles";
 import { ModelsDialog, useModels } from "../../models";
+import { CheatsheetDialogs } from "../../stage/dialogs/CheatsheetDialogs";
 import { HostMcpDialog } from "../../stage/dialogs/HostMcpDialog";
+import { useDawStore } from "../../state/dawStore";
+import { useDaw } from "../../state/useDaw";
 import type { ProjectCardData } from "../../system/ProjectCard";
 import { ApiError, errorMessage } from "../../utils/apiError";
 import {
@@ -152,10 +156,19 @@ export function HomeScreen() {
   const [hintShown, setHintShown] = useState(() =>
     homeScreenHintDue(readHomeScreenEnv(), countHomeVisit()),
   );
-  const [mcpOpen, setMcpOpen] = useState(false);
-  const [helpOpen, setHelpOpen] = useState(false);
-  const [modelsOpen, setModelsOpen] = useState(false);
+  const { mcpOpen, helpOpen, modelsOpen } = useDaw((s) => ({
+    mcpOpen: s.chrome.hostMcpDialogOpen,
+    helpOpen: s.chrome.helpDialogOpen,
+    modelsOpen: s.chrome.modelsDialogOpen,
+  }));
+  const { setHostMcpDialogOpen, setHelpDialogOpen, setModelsDialogOpen } =
+    useDawStore.getState();
+  const openPalette = useDawStore.getState().setCommandPaletteOpen;
   const busy = useRef(false);
+
+  useEffect(() => {
+    registerDawCommands();
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -384,7 +397,7 @@ export function HomeScreen() {
     onImport,
     onRecord,
     onOpenOther: () => void pick(),
-    onHelp: () => setHelpOpen(true),
+    onHelp: () => openPalette(true),
   });
 
   const setup = setupOf(models);
@@ -450,7 +463,7 @@ export function HomeScreen() {
         onRecord={onRecord}
         onOpenOther={() => void pick()}
         onGetReady={getReady}
-        onChooseModels={() => setModelsOpen(true)}
+        onChooseModels={() => setModelsDialogOpen(true)}
         onCancelSetup={() => void models.cancel()}
         onRetrySetup={() =>
           setup?.state === "check-error" || setup?.state === "tools-missing"
@@ -462,17 +475,21 @@ export function HomeScreen() {
           dismissHomeScreenHint();
           setHintShown(false);
         }}
-        onHelp={() => setHelpOpen(true)}
-        onModels={() => setModelsOpen(true)}
-        onConnectAgent={() => setMcpOpen(true)}
+        onHelp={() => openPalette(true)}
+        onModels={() => setModelsDialogOpen(true)}
+        onConnectAgent={() => setHostMcpDialogOpen(true)}
       />
+      <CheatsheetDialogs scope="home" />
       <HostMcpDialog
         open={mcpOpen}
-        onClose={() => setMcpOpen(false)}
+        onClose={() => setHostMcpDialogOpen(false)}
         hasProject={false}
       />
-      <ModelsDialog open={modelsOpen} onClose={() => setModelsOpen(false)} />
-      <HelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
+      <ModelsDialog
+        open={modelsOpen}
+        onClose={() => setModelsDialogOpen(false)}
+      />
+      <HelpDialog open={helpOpen} onClose={() => setHelpDialogOpen(false)} />
     </>
   );
 }
