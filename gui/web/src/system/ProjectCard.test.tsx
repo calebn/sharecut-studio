@@ -211,15 +211,16 @@ describe("ProjectCardList actions", () => {
     expect(await screen.findByRole("menu")).toBeInTheDocument();
   });
 
-  it("names each swipe Remove button for its episode", () => {
+  it("names each swipe Remove button for its episode, starting with its visible label", () => {
     withActions(PROJECTS, "row");
     for (const project of PROJECTS) {
-      expect(
-        screen.getByRole("button", {
-          name: `Remove ${project.name} from list`,
-          hidden: true,
-        }),
-      ).toBeInTheDocument();
+      const button = screen.getByRole("button", {
+        name: `Remove from list, ${project.name}`,
+        hidden: true,
+      });
+      // WCAG 2.5.3 Label in Name: the accessible name begins with the visible text.
+      expect(button).toHaveTextContent("Remove from list");
+      expect(button.getAttribute("aria-label")).toMatch(/^Remove from list/);
     }
   });
 
