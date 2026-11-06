@@ -30,6 +30,8 @@ import {
   restoreChapter,
   restoreClip,
   retimeChapter,
+  sentenceStarts,
+  snapToSentenceStart,
   trimClip,
   unapproveClip,
   validSelection,
@@ -831,5 +833,41 @@ describe("trimClip on clips shorter than a second", () => {
       start: 6,
       end: 7,
     });
+  });
+});
+
+describe("sentence starts", () => {
+  const w = (text: string, start: number) => ({
+    text,
+    start,
+    end: start + 0.4,
+  });
+  const words = [
+    w("So", 1),
+    w("here", 1.5),
+    w("we", 2),
+    w("go.", 2.5),
+    w("Then", 4),
+    w("what?", 4.5),
+    w("\u201cOk,\u201d", 6),
+    w("said.\u201d", 6.5),
+    w("Last", 8),
+  ];
+
+  it("takes the first word and each word after a closing . ? or !", () => {
+    expect(sentenceStarts(words)).toEqual([1, 4, 6, 8]);
+  });
+
+  it("sorts the words first and gives nothing for no words", () => {
+    expect(sentenceStarts([...words].reverse())).toEqual([1, 4, 6, 8]);
+    expect(sentenceStarts(undefined)).toEqual([]);
+    expect(sentenceStarts([])).toEqual([]);
+  });
+
+  it("snaps to the nearest start and leaves the time alone without starts", () => {
+    expect(snapToSentenceStart([1, 4, 6, 8], 4.9)).toBe(4);
+    expect(snapToSentenceStart([1, 4, 6, 8], 5.1)).toBe(6);
+    expect(snapToSentenceStart([1, 4, 6, 8], 100)).toBe(8);
+    expect(snapToSentenceStart([], 5.1)).toBe(5.1);
   });
 });

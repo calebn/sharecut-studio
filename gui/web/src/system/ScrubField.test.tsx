@@ -76,6 +76,20 @@ describe("ScrubField drag", () => {
     expect(calls.onCommit).toHaveBeenCalledWith(125);
   });
 
+  it("snaps a drag, previews the snapped value and leaves arrow keys alone", () => {
+    const { calls, field } = setup({
+      value: 0,
+      step: 1,
+      snap: (v) => Math.round(v / 10) * 10,
+    });
+    dragBy(field(), 25);
+    fireEvent.pointerUp(field(), { pointerId: 1 });
+    expect(calls.onPreview).toHaveBeenLastCalledWith(30);
+    expect(calls.onCommit).toHaveBeenCalledExactlyOnceWith(30);
+    fireEvent.keyDown(field(), { key: "ArrowUp" });
+    expect(calls.onCommit).toHaveBeenLastCalledWith(31);
+  });
+
   it("moves ten times as fast with Shift", () => {
     const { calls, field } = setup();
     dragBy(field(), 5, { shiftKey: true });
@@ -443,5 +457,42 @@ describe("ScrubField states", () => {
     );
     expect(track.container.querySelector(".sys-scrub-rail")).not.toBeNull();
     expect(track.container.querySelector(".sys-scrub-fill")).toBeNull();
+  });
+});
+
+describe("ScrubField commitOnUnmount", () => {
+  const mount = (commitOnUnmount: boolean) => {
+    const onCommit = vi.fn();
+    const view = render(
+      <ScrubField
+        label="Offset"
+        value={5}
+        max={100}
+        commitOnUnmount={commitOnUnmount}
+        onCommit={onCommit}
+      />,
+    );
+    return { onCommit, view };
+  };
+
+  it("commits a valid typed value when the field goes away", async () => {
+    const { onCommit, view } = mount(true);
+    await userEvent.click(screen.getByRole("spinbutton", { name: "Offset" }));
+    await userEvent.keyboard("12");
+    view.unmount();
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith(12);
+  });
+
+  it("drops a rejected value, and does nothing unless asked", async () => {
+    const rejected = mount(true);
+    await userEvent.click(screen.getByRole("spinbutton", { name: "Offset" }));
+    await userEvent.keyboard("500");
+    rejected.view.unmount();
+    expect(rejected.onCommit).not.toHaveBeenCalled();
+    const off = mount(false);
+    await userEvent.click(screen.getByRole("spinbutton", { name: "Offset" }));
+    await userEvent.keyboard("12");
+    off.view.unmount();
+    expect(off.onCommit).not.toHaveBeenCalled();
   });
 });

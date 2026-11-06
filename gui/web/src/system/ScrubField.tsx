@@ -47,6 +47,10 @@ export type ScrubFieldProps = ScrubRange & {
   skipUnchanged?: boolean;
   /** Refuses a typed number with a fraction instead of rounding it. */
   integerOnly?: boolean;
+  /** Moves a dragged value to a nearby mark. Arrow keys and typed values are not snapped. */
+  snap?: (value: number) => number;
+  /** Commits a valid typed value still open when the field goes away, as Enter would. */
+  commitOnUnmount?: boolean;
   /** A drag ended where it began, or Escape: drop the preview. */
   onCancel?: () => void;
 };
@@ -77,6 +81,8 @@ export function ScrubField({
   onCancel,
   skipUnchanged = false,
   integerOnly = false,
+  snap,
+  commitOnUnmount = false,
   variant = "plain",
   min,
   max,
@@ -102,8 +108,26 @@ export function ScrubField({
     latestCancel.current = onCancel;
   });
 
+  const flushDraft = useRef(() => {});
+  useEffect(() => {
+    flushDraft.current = () => {
+      const text = draftRef.current;
+      if (!commitOnUnmount || text === null) return;
+      const parsed = parseScrub(text, unit);
+      if (
+        parsed === null ||
+        !inBounds(parsed, bounds) ||
+        (integerOnly && !Number.isInteger(parsed))
+      )
+        return;
+      const next = clamp(roundTo(parsed, decimals), bounds);
+      if (next !== value) onCommit(next);
+    };
+  });
+
   useEffect(
     () => () => {
+      flushDraft.current();
       if (drag.current?.active) latestCancel.current?.();
       drag.current = null;
     },
@@ -165,7 +189,8 @@ export function ScrubField({
       bounds,
     );
     gesture.lastX = event.clientX;
-    const next = roundTo(gesture.raw, decimals);
+    const rounded = roundTo(gesture.raw, decimals);
+    const next = snap ? snap(rounded) : rounded;
     if (next === gesture.current) return;
     gesture.current = next;
     onPreview?.(next);

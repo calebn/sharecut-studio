@@ -315,9 +315,9 @@ describe("Deliver host write-back through the command queue", () => {
 
   it("retimes a chapter", async () => {
     render(<DeliverStage />);
-    const time = screen.getByRole("textbox", { name: "Time of Middle" });
-    await userEvent.clear(time);
-    await userEvent.type(time, "3:00{Enter}");
+    const time = screen.getByRole("spinbutton", { name: "Time of Middle" });
+    await userEvent.click(time);
+    await userEvent.keyboard("3:00{Enter}");
     await waitFor(() =>
       expect(sent()).toEqual([
         [
@@ -623,10 +623,10 @@ describe("Deliver host time text typed but not yet entered", () => {
 
   it("sends a chapter time once when the document changes under it", async () => {
     render(<DeliverStage />);
-    await userEvent.type(
-      screen.getByRole("textbox", { name: "Time of Middle" }),
-      "{Control>}a{/Control}2:30",
+    await userEvent.click(
+      screen.getByRole("spinbutton", { name: "Time of Middle" }),
     );
+    await userEvent.keyboard("2:30");
     expect(wire.post).not.toHaveBeenCalled();
     setProject(projectAt("h2", renamed));
     await waitFor(() => expect(wire.post).toHaveBeenCalledOnce());

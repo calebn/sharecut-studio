@@ -90,10 +90,16 @@ export const Editing: Story = {
     await userEvent.type(title, "Welcome");
     await expect(title).toHaveValue("Welcome");
     const time = view.getByRole("textbox", { name: /^Time of The old mill/ });
-    await userEvent.clear(time);
-    await userEvent.type(time, "6:00{Enter}");
-    await expect(time).toHaveValue("6:00.0");
+    await userEvent.click(time);
+    await userEvent.keyboard("6:00{Enter}");
+    await expect(
+      view.getByRole("spinbutton", { name: /^Time of The old mill/ }),
+    ).toHaveAttribute("aria-valuetext", "360.00 s");
   },
+};
+
+export const SnapsToSentences: Story = {
+  args: { sentenceStarts: [60, 312.4, 640, 1200] },
 };
 
 export const Empty: Story = {
