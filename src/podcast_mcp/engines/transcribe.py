@@ -843,6 +843,7 @@ class TranscriptionEngine:
         """
 
         def decode(**extra: object) -> tuple[str, bool]:
+            raise_if_cancel_requested(current_cancel_check(), TRANSCRIBE_CANCELLED)
             segments, _ = self._get_model().transcribe(
                 samples.astype(np.float32, copy=False),
                 language=language,
@@ -854,6 +855,7 @@ class TranscriptionEngine:
                 **extra,
             )
             heard = list(segments)
+            raise_if_cancel_requested(current_cancel_check(), TRANSCRIBE_CANCELLED)
             looped = any(s.compression_ratio > _PROBE_LOOP_RATIO for s in heard)
             return " ".join(s.text.strip() for s in heard).strip(), looped
 
