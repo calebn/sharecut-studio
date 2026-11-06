@@ -7,7 +7,6 @@ import {
   type Ref,
   useEffect,
   useId,
-  useMemo,
   useRef,
 } from "react";
 import { HANDLE_DRAG_MIN_PX } from "../hooks/gestureConstants";
@@ -184,6 +183,10 @@ function pointerOf(
   };
 }
 
+/**
+ * Memoised on its props: a host passes stable `anchorProps` and `hitProps`
+ * objects, since a fresh literal each render defeats the memo.
+ */
 export const Clip = memo(function Clip({
   id,
   name,
@@ -226,7 +229,7 @@ export const Clip = memo(function Clip({
   const end = start + duration;
   const durationMs = duration * 1000;
   const editable = !readOnly && !ghost;
-  const bars = useMemo(() => Math.max(1, Math.round(width)), [width]);
+  const bars = Number.isFinite(width) ? Math.max(1, Math.round(width)) : 1;
 
   const stopWatching = useStableCallback(() => {
     document.removeEventListener("keydown", escapeDrag, true);
@@ -307,7 +310,7 @@ export const Clip = memo(function Clip({
       if (onDragStart?.(id, held.grip, pointerOf(event)) === false) {
         grab.current = null;
         stopWatching();
-        dragged.current = false;
+        dragged.current = held.grip === "move";
         return;
       }
     }
@@ -375,6 +378,7 @@ export const Clip = memo(function Clip({
     return true;
   };
   const bodyKey = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === "Enter" || event.key === " ") dragged.current = false;
     if (selected && editable && focusKey(event, "body")) return;
     if (laneStep(event)) return;
     onKeyDown?.(id, event);

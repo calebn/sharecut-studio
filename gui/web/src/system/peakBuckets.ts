@@ -7,7 +7,7 @@ export function bucketPeaks(
   peaks: readonly number[],
   limit: number,
 ): readonly number[] {
-  const buckets = Math.max(1, Math.floor(limit));
+  const buckets = Number.isNaN(limit) ? 1 : Math.max(1, Math.floor(limit));
   if (peaks.length <= buckets) return peaks;
   const folded: number[] = [];
   for (let bucket = 0; bucket < buckets; bucket++) {
