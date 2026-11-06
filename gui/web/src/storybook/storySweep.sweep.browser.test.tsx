@@ -23,7 +23,7 @@ type ComposedStory = {
   storyName: string;
 };
 
-const modules = import.meta.glob("../**/*.stories.tsx", {
+const modules = import.meta.glob("../**/*.stories.{ts,tsx}", {
   eager: true,
 }) as Record<string, Record<string, unknown>>;
 
@@ -85,9 +85,21 @@ afterEach(() => {
 });
 
 /** `VITE_STORY_SHARD=i/n` runs every n-th story starting at i, since vitest shards by file. */
-const shard = /^(\d+)\/(\d+)$/.exec(import.meta.env.VITE_STORY_SHARD ?? "1/1");
-const inShard = (index: number) =>
-  shard ? index % Number(shard[2]) === Number(shard[1]) - 1 : true;
+function parseShard(raw: string | undefined): { index: number; total: number } {
+  if (raw === undefined || raw === "") return { index: 1, total: 1 };
+  const match = /^(\d+)\/(\d+)$/.exec(raw);
+  const index = Number(match?.[1]);
+  const total = Number(match?.[2]);
+  if (!match || index < 1 || index > total) {
+    throw new Error(
+      `VITE_STORY_SHARD must be i/n with 1 <= i <= n, got "${raw}"`,
+    );
+  }
+  return { index, total };
+}
+const shard = parseShard(import.meta.env.VITE_STORY_SHARD);
+const inShard = (position: number) =>
+  position % shard.total === shard.index - 1;
 
 for (const theme of THEMES) {
   describe(`stories in ${theme}`, () => {
@@ -97,7 +109,10 @@ for (const theme of THEMES) {
       it(`${base.title} / ${base.storyName}`, async () => {
         const errors: string[] = [];
         const onError = (event: ErrorEvent) => errors.push(event.message);
+        const onRejection = (event: PromiseRejectionEvent) =>
+          errors.push(String(event.reason));
         window.addEventListener("error", onError);
+        window.addEventListener("unhandledrejection", onRejection);
         const consoleError = vi
           .spyOn(console, "error")
           .mockImplementation((...args) => {
@@ -119,6 +134,7 @@ for (const theme of THEMES) {
           }
           await document.fonts.ready;
           await settle();
+          expect(document.documentElement.dataset.theme).toBe(theme);
           for (const width of [first, ...rest]) {
             if (width !== first) {
               await page.viewport(width, HEIGHT);
@@ -139,6 +155,7 @@ for (const theme of THEMES) {
           }
         } finally {
           window.removeEventListener("error", onError);
+          window.removeEventListener("unhandledrejection", onRejection);
           consoleError.mockRestore();
         }
       });

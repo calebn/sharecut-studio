@@ -67,6 +67,11 @@ base("the geometry title sets name existing stories", () => {
   ).toEqual([]);
 });
 
+base("every storybook-only story id names a real story", () => {
+  const ids = new Set(stories.map((story) => story.id));
+  expect(STORYBOOK_ONLY.filter((id) => !ids.has(id))).toEqual([]);
+});
+
 base("no phone-named story is tagged wide-only", () => {
   expect(
     stories
