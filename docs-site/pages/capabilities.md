@@ -61,10 +61,10 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Toggle track solo | session | `track.soloToggle` | `Shift+S` | — | `trackHeader`, `trackInspector` | — | — | — | — | anchor · hear |
 | Clear solo | session | `track.clearSolo` | — (not industry-standard; the Solo on chip clears every solo) | — | `trackHeaders.soloChip`, `trackMix` | — | — | — | — | none · hear |
 | Set track volume | project | `track.setVolume` | — (slider: arrow keys step the focused fader) | — | `trackInspector` | `track_set_volume_tool` | `podcast episode set-track-volume` | — | — | none · none |
-| Zoom in | view | `view.zoomIn` | `=` | `pinch` | `editCorner`, `viewSheet` | — | — | — | — | none · look |
-| Zoom out | view | `view.zoomOut` | `-` | `pinch` | `editCorner`, `viewSheet` | — | — | — | — | none · look |
+| Zoom in | view | `view.zoomIn` | `=` | `pinch` | `editCorner` | — | — | — | — | none · look |
+| Zoom out | view | `view.zoomOut` | `-` | `pinch` | `editCorner` | — | — | — | — | none · look |
 | Zoom to selection | view | `view.zoomToSelection` | `Z` | — | — | — | — | — | — | none · look |
-| Fit session width | view | `view.fit` | `\` | — | `editCorner`, `viewSheet` | — | — | — | — | none · look |
+| Fit session width | view | `view.fit` | `\` | — | `editCorner` | — | — | — | — | none · look |
 | Go to Record | view | `stage.record` | `Mod+1` | — | `stageBar`, `editPlusMenu` | — | — | — | — | none · look |
 | Go to Prepare | view | `stage.prepare` | `Mod+2` | — | `stageBar` | — | — | — | — | none · look |
 | Go to Edit | view | `stage.edit` | `Mod+3` | — | `stageBar` | — | — | — | — | none · look |
@@ -73,11 +73,11 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Open history | view | `edit.history` | — (Reached from the palette and by right-click or long-press on Undo or Redo) | — | `historyPanel` | — | — | — | — | none · none |
 | Show or hide Script | view | `view.toggleScript` | `T` | — | `editCorner` | — | — | — | — | none · none |
 | Script focus | view | `view.scriptFocus` | `Shift+T` | — | — | — | — | — | — | none · none |
-| Waveform amplitude zoom in | view | `view.waveformZoomIn` | `Shift+ArrowUp` | — | `viewSheet` | — | — | — | — | time · look |
-| Waveform amplitude zoom out | view | `view.waveformZoomOut` | `Shift+ArrowDown` | — | `viewSheet` | — | — | — | — | time · look |
-| Fit tracks to window height | view | `view.fitTracksHeight` | — (toggle; View sheet checkbox) | — | `viewSheet` | — | — | — | — | none · none |
-| Increase track height | view | `view.trackHeightIncrease` | `Alt+=` | — | `viewSheet` | — | — | — | — | none · none |
-| Decrease track height | view | `view.trackHeightDecrease` | `Alt+-` | — | `viewSheet` | — | — | — | — | none · none |
+| Waveform amplitude zoom in | view | `view.waveformZoomIn` | `Shift+ArrowUp` | — | `viewPopover` | — | — | — | — | time · look |
+| Waveform amplitude zoom out | view | `view.waveformZoomOut` | `Shift+ArrowDown` | — | `viewPopover` | — | — | — | — | time · look |
+| Fit tracks to window height | view | `view.fitTracksHeight` | — (toggle; the palette and agents (Alt+= and Alt+- step the height)) | — | — | — | — | — | — | none · none |
+| Increase track height | view | `view.trackHeightIncrease` | `Alt+=` | — | — | — | — | — | — | none · none |
+| Decrease track height | view | `view.trackHeightDecrease` | `Alt+-` | — | — | — | — | — | — | none · none |
 | Undo | project | `history.undo` | `Mod+Z` | `two-finger-tap` | `historyPanel`, `transcript.findReplace`, `transcript.wordbar` | `history_undo` | `podcast undo` | `podcast-history` | — | none · none |
 | Redo | project | `history.redo` | `Mod+Shift+Z` | — | `historyPanel` | `history_redo` | `podcast redo` | `podcast-history` | — | none · none |
 | Commands and shortcuts | view | `ui.toggleCommandPalette` | `?` | — | `GesturesSheet` | — | — | — | — | none · none |

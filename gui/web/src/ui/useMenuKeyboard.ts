@@ -162,3 +162,80 @@ export function useMenuKeyboard({
     };
   }, [open, close, orientation, panelRef, fallbackTriggerRef]);
 }
+
+/**
+ * Keyboard contract of a non-modal popover that holds controls rather than
+ * menu items: while focus is inside `panelRef`, Escape closes it and Tab out of
+ * either end closes it (the caller returns focus to its trigger). Focus moving
+ * from the panel to an element outside it and its trigger (a dialog or the
+ * palette that a shortcut opened) closes it too, so no stale popover is left
+ * unreachable by keyboard. Unlike a
+ * menu it leaves the Daw shortcuts running. Both keys are taken in the capture
+ * phase and stopped, so a modal Dialog around the trigger (the Tools sheet on
+ * a short desktop frame) neither closes nor pulls focus back into itself
+ * behind the popover. Escape typed in a text field inside the panel is left to
+ * that field, which uses it to revert its edit.
+ * GOVERNANCE: window keydown — allowlisted via this module.
+ */
+export function usePopoverKeyboard({
+  panelRef,
+  anchorRef,
+  close,
+  closeAway,
+}: {
+  panelRef: RefObject<HTMLElement | null>;
+  /** The trigger: focus moving to it is not "away". */
+  anchorRef: RefObject<HTMLElement | null>;
+  /** Escape and Tab out of an end: the caller returns focus to its trigger. */
+  close: () => void;
+  /** Focus moved to another element (a dialog, the palette): close in place. */
+  closeAway: () => void;
+}): void {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const panel = panelRef.current;
+      const active = document.activeElement;
+      if (!panel || !active || !panel.contains(active)) {
+        return;
+      }
+      if (e.key === "Escape") {
+        if (e.target instanceof HTMLInputElement) {
+          return;
+        }
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        close();
+        return;
+      }
+      if (e.key !== "Tab") {
+        return;
+      }
+      e.stopImmediatePropagation();
+      const stops = listFocusable(panel);
+      const edge = e.shiftKey ? stops[0] : stops[stops.length - 1];
+      if (active === edge) {
+        e.preventDefault();
+        close();
+      }
+    };
+    const onFocusOut = (e: FocusEvent) => {
+      const panel = panelRef.current;
+      const next = e.relatedTarget;
+      if (
+        panel &&
+        next instanceof Node &&
+        !panel.contains(next) &&
+        !anchorRef.current?.contains(next)
+      ) {
+        closeAway();
+      }
+    };
+    const panel = panelRef.current;
+    window.addEventListener("keydown", onKey, true);
+    panel?.addEventListener("focusout", onFocusOut);
+    return () => {
+      window.removeEventListener("keydown", onKey, true);
+      panel?.removeEventListener("focusout", onFocusOut);
+    };
+  }, [panelRef, anchorRef, close, closeAway]);
+}

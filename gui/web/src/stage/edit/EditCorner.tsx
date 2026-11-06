@@ -1,22 +1,16 @@
+import { useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { runPointerCommand } from "../../commands/pointer";
 import { useDawStore } from "../../state/dawStore";
 import { EditCornerView } from "./EditCornerView";
 import { useZoomControls } from "./useZoomControls";
+import { ViewPopover } from "./ViewPopover";
 
 export function EditCorner({ showScript = true }: { showScript?: boolean }) {
   const { zoom, onZoomIn, onZoomOut } = useZoomControls();
-  const {
-    openSheet,
-    setOpenSheet,
-    scriptCollapsed,
-    touch,
-    rangeArmed,
-    hasProject,
-  } = useDawStore(
+  const [viewOpen, setViewOpen] = useState(false);
+  const { scriptCollapsed, touch, rangeArmed, hasProject } = useDawStore(
     useShallow((s) => ({
-      openSheet: s.openSheet,
-      setOpenSheet: s.setOpenSheet,
       scriptCollapsed: s.scriptCollapsed,
       touch: s.pointerKind === "coarse",
       rangeArmed: s.rangeArmed,
@@ -29,8 +23,10 @@ export function EditCorner({ showScript = true }: { showScript?: boolean }) {
       onZoomIn={onZoomIn}
       onZoomOut={onZoomOut}
       onFit={() => runPointerCommand("view.fit")}
-      viewOpen={openSheet === "view"}
-      onToggleView={() => setOpenSheet(openSheet === "view" ? null : "view")}
+      viewOpen={viewOpen}
+      onToggleView={() => setViewOpen((open) => !open)}
+      onCloseView={() => setViewOpen(false)}
+      viewPopover={ViewPopover}
       range={
         touch
           ? {

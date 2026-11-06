@@ -2574,15 +2574,13 @@ describe("ClipBlock snap points", () => {
     onMoveCancel: vi.fn(),
   } as const;
 
-  function setSnapStore(overrides: { showSnapPoints?: boolean } = {}) {
-    const { showSnapPoints = true } = overrides;
+  function setSnapStore() {
     useDawStore.setState({
       projectPath: "/tmp/p.json",
       guestMode: null,
       isPlaying: false,
       playheadSec: 1,
       splitHoverSec: null,
-      layers: { ...useDawStore.getState().layers, showSnapPoints },
     });
   }
 
@@ -2601,23 +2599,6 @@ describe("ClipBlock snap points", () => {
     await waitFor(() =>
       expect(container.querySelectorAll(".clip-waveform-snap").length).toBe(1),
     );
-  });
-
-  it("does not draw ticks under the Split guide when Snap points is off", async () => {
-    setSnapStore({ showSnapPoints: false });
-    useDawStore.setState({ splitHoverSec: 1 });
-    const { container } = render(<ClipBlock {...base} />);
-    const { loadWaveformSnap } = await import("../api");
-    await waitFor(() => expect(loadWaveformSnap).toHaveBeenCalled());
-    expect(container.querySelector(".clip-waveform-snap")).toBeNull();
-  });
-
-  it("still magnets a trim to hidden ticks when Snap points is off", async () => {
-    setSnapStore({ showSnapPoints: false });
-    const { container } = render(<ClipBlock {...base} />);
-    const { loadWaveformSnap } = await import("../api");
-    await waitFor(() => expect(loadWaveformSnap).toHaveBeenCalled());
-    expect(container.querySelector(".clip-waveform-snap")).toBeNull();
   });
 });
 

@@ -52,8 +52,6 @@ export interface MarkerLaneHostProps {
   chapters: readonly ChapterMarker[];
   socialClips: readonly SocialClipView[];
   comments: readonly TimelineComment[];
-  showMarkers: boolean;
-  showComments: boolean;
   selected: readonly string[];
   zoomPxPerSec: number;
   width: number;
@@ -81,8 +79,6 @@ export function MarkerLaneHost({
   chapters,
   socialClips,
   comments,
-  showMarkers,
-  showComments,
   selected,
   zoomPxPerSec,
   width,
@@ -122,10 +118,8 @@ export function MarkerLaneHost({
         chapters,
         socialClips,
         comments,
-        showMarkers,
-        showComments,
       }),
-    [chapters, socialClips, comments, showMarkers, showComments],
+    [chapters, socialClips, comments],
   );
   const markers = useMemo(
     () =>
@@ -300,8 +294,7 @@ export function MarkerLaneHost({
     },
     [begin],
   );
-  const visibleFlags = showMarkers ? clippingFlags : NO_FLAGS;
-  const quiet = markers.length === 0 && visibleFlags.length === 0;
+  const quiet = markers.length === 0 && clippingFlags.length === 0;
 
   return (
     <div
@@ -332,9 +325,9 @@ export function MarkerLaneHost({
           onAddCancel={addable ? onAddCancel : undefined}
         />
       )}
-      {visibleFlags.length > 0 && (
+      {clippingFlags.length > 0 && (
         <div className="marker-row clipping" {...CLIPPING_ANCHOR}>
-          {visibleFlags.map((flag) => {
+          {clippingFlags.map((flag) => {
             const note = flag.truncated ? "; later clipping not recorded" : "";
             return (
               <button

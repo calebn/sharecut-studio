@@ -644,12 +644,11 @@ export function ClipBlockLive({
     },
   };
 
-  const showSnapPoints = useDawStore((s) => s.layers.showSnapPoints);
   // Ticks still load for the paused playhead (a body move magnets to them),
   // but draw only where they explain an edit: trimming, or the Alt-click Split
   // guide resting on this clip.
   const splitting = useSplitGuideOnClip(clip);
-  const drawTicks = showSnapPoints && (trimPreview != null || splitting);
+  const drawTicks = trimPreview != null || splitting;
 
   return (
     <ClipBlockView

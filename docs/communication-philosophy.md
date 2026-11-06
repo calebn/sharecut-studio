@@ -459,7 +459,7 @@ audited finding.
 - [ ] Every pointer action has a keyboard path (real `<button>`s, not
   handler-spans; visible focus).
 - [ ] The feature is reachable in all three shells (phone / tablet /
-  desktop) — check the Project menu, the eye sheet, and the tool
+  desktop) — check the Project menu, the eye popover, and the tool
   strip, not just the desktop layout.
 - [ ] Mutations offer local undo or toast-with-undo; undo is reachable
   near the action, not only in History.

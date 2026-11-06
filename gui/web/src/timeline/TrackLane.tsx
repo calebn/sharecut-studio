@@ -84,7 +84,6 @@ interface TrackLaneProps {
   projectPath: string;
   selection: Selection;
   showLevels: boolean;
-  showEdits: boolean;
   envelopes: readonly AutomationEnvelope[];
   appliedRecords: readonly AppliedEditRecord[];
   pendingEdits: readonly PendingEditView[];
@@ -124,7 +123,6 @@ export function TrackLaneView({
   projectPath,
   selection,
   showLevels,
-  showEdits,
   envelopes,
   appliedRecords,
   pendingEdits,
@@ -533,25 +531,21 @@ export function TrackLaneView({
               width={width}
             />
           )}
-          {showEdits && (
-            <>
-              <AppliedEditOverlay
-                records={appliedRecords}
-                clips={clips}
-                trackId={track.id}
-                zoomPxPerSec={zoomPxPerSec}
-                selectedId={selection?.kind === "applied" ? selection.id : null}
-              />
-              <PendingEditOverlay
-                edits={pendingEdits}
-                trackId={track.id}
-                zoomPxPerSec={zoomPxPerSec}
-                selectedId={selection?.kind === "pending" ? selection.id : null}
-                timelineWidthPx={width}
-                onSelect={selectPending}
-              />
-            </>
-          )}
+          <AppliedEditOverlay
+            records={appliedRecords}
+            clips={clips}
+            trackId={track.id}
+            zoomPxPerSec={zoomPxPerSec}
+            selectedId={selection?.kind === "applied" ? selection.id : null}
+          />
+          <PendingEditOverlay
+            edits={pendingEdits}
+            trackId={track.id}
+            zoomPxPerSec={zoomPxPerSec}
+            selectedId={selection?.kind === "pending" ? selection.id : null}
+            timelineWidthPx={width}
+            onSelect={selectPending}
+          />
           {prosody ? (
             <ProsodyOverlay
               track={prosody}
