@@ -106,6 +106,28 @@ describe("edit.addChapter", () => {
     expect(useDawStore.getState().chapterAddPending).toBe(true);
   });
 
+  it("stays silent for a failed add whose project has since changed, still reporting it told", async () => {
+    useDawStore.setState({ selection: null, statusAnnouncement: "" });
+    const pending = deferred<HistoryEntryId | null>();
+    vi.mocked(api.addChapter).mockReturnValue(pending.promise);
+    const run = execute("edit.addChapter", {}, { skipWhen: true });
+    await vi.waitFor(() => expect(api.addChapter).toHaveBeenCalledOnce());
+
+    useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
+    useDawStore.getState().setChapterAddPending(true);
+    pending.reject(new Error("locked"));
+
+    expect(await run).toEqual({
+      status: "disabled",
+      reason: "locked",
+      told: true,
+    });
+    const said = useDawStore.getState().statusAnnouncement;
+    expect(said).not.toContain("Add chapter failed");
+    expect(said).not.toContain("locked");
+    expect(useDawStore.getState().chapterAddPending).toBe(true);
+  });
+
   it("builds the title from the current playhead time", async () => {
     vi.mocked(api.addChapter).mockResolvedValue(null);
     useDawStore.getState().setPlayheadSec(0);
