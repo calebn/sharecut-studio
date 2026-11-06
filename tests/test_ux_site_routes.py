@@ -29,4 +29,14 @@ def test_screen_inventory_index_links_every_per_page_file() -> None:
     assert files
     for stem in files:
         assert f"(#/screens/{stem})" in index
-        assert f"(screens/{stem}.md)" in index
+        assert f"`screens/{stem}.md`" in index
+
+
+def test_screen_inventory_index_has_no_dead_links() -> None:
+    pages = ROOT / "ux/pages"
+    index = (pages / "screen-inventory.md").read_text(encoding="utf-8")
+    script = (ROOT / "ux/assets/site.js").read_text(encoding="utf-8")
+
+    assert "screens\\/" in script
+    for stem in re.findall(r"\(#/screens/([\w-]+)\)", index):
+        assert (pages / "screens" / f"{stem}.md").is_file()

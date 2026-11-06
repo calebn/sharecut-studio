@@ -10,26 +10,26 @@ Per-surface **display schemas**: what regions exist, what data they show, empty/
 
 ## Pages
 
-One file per page under [`ux/pages/screens/`](screens/), so parallel UI changes edit different files.
+One file per page under `ux/pages/screens/`, so parallel UI changes edit different files.
 
 | Page | File |
 |--|--|
-| [Host home (no project)](#/screens/host-home) | [`screens/host-home.md`](screens/host-home.md) |
-| [Help report flow (Home and Studio host)](#/screens/help-report-flow) | [`screens/help-report-flow.md`](screens/help-report-flow.md) |
-| [Information architecture](#/screens/information-architecture) | [`screens/information-architecture.md`](screens/information-architecture.md) |
-| [Shared: App header, Stage bar and Player bar](#/screens/app-header-stage-bar-player-bar) | [`screens/app-header-stage-bar-player-bar.md`](screens/app-header-stage-bar-player-bar.md) |
-| [Podcast listing (Deliver section)](#/screens/podcast-listing) | [`screens/podcast-listing.md`](screens/podcast-listing.md) |
-| [Host: Share (Deliver section)](#/screens/host-share) | [`screens/host-share.md`](screens/host-share.md) |
-| [Host: Connect agent dialog](#/screens/host-connect-agent) | [`screens/host-connect-agent.md`](screens/host-connect-agent.md) |
-| [Shared: Selection → Inspector / Bottom sheet](#/screens/selection-inspector) | [`screens/selection-inspector.md`](screens/selection-inspector.md) |
-| [Phone — Review (the old Listen)](#/screens/phone-review) | [`screens/phone-review.md`](screens/phone-review.md) |
-| [Phone — Edit: Timeline](#/screens/phone-edit-timeline) | [`screens/phone-edit-timeline.md`](screens/phone-edit-timeline.md) |
-| [Phone — Edit: Script](#/screens/phone-edit-script) | [`screens/phone-edit-script.md`](screens/phone-edit-script.md) |
-| [Phone — Mix](#/screens/phone-mix) | [`screens/phone-mix.md`](screens/phone-mix.md) |
-| [Phone — where the More hub went](#/screens/phone-more-hub) | [`screens/phone-more-hub.md`](screens/phone-more-hub.md) |
-| [Tablet](#/screens/tablet) | [`screens/tablet.md`](screens/tablet.md) |
-| [Desktop — Edit stage](#/screens/desktop-edit-stage) | [`screens/desktop-edit-stage.md`](screens/desktop-edit-stage.md) |
-| [Guest / share (`/r/{token}`)](#/screens/guest-share) | [`screens/guest-share.md`](screens/guest-share.md) |
-| [Guest / record (`/rec/{token}`) (Join sheet + full-quality recording + mix-minus + landing + live comments shipped)](#/screens/guest-record) | [`screens/guest-record.md`](screens/guest-record.md) |
-| [Cross-cutting states](#/screens/cross-cutting-states) | [`screens/cross-cutting-states.md`](screens/cross-cutting-states.md) |
-| [Wireframe coverage checklist](#/screens/wireframe-coverage) | [`screens/wireframe-coverage.md`](screens/wireframe-coverage.md) |
+| [Host home (no project)](#/screens/host-home) | `screens/host-home.md` |
+| [Help report flow (Home and Studio host)](#/screens/help-report-flow) | `screens/help-report-flow.md` |
+| [Information architecture](#/screens/information-architecture) | `screens/information-architecture.md` |
+| [Shared: App header, Stage bar and Player bar](#/screens/app-header-stage-bar-player-bar) | `screens/app-header-stage-bar-player-bar.md` |
+| [Podcast listing (Deliver section)](#/screens/podcast-listing) | `screens/podcast-listing.md` |
+| [Host: Share (Deliver section)](#/screens/host-share) | `screens/host-share.md` |
+| [Host: Connect agent dialog](#/screens/host-connect-agent) | `screens/host-connect-agent.md` |
+| [Shared: Selection → Inspector / Bottom sheet](#/screens/selection-inspector) | `screens/selection-inspector.md` |
+| [Phone — Review (the old Listen)](#/screens/phone-review) | `screens/phone-review.md` |
+| [Phone — Edit: Timeline](#/screens/phone-edit-timeline) | `screens/phone-edit-timeline.md` |
+| [Phone — Edit: Script](#/screens/phone-edit-script) | `screens/phone-edit-script.md` |
+| [Phone — Mix](#/screens/phone-mix) | `screens/phone-mix.md` |
+| [Phone — where the More hub went](#/screens/phone-more-hub) | `screens/phone-more-hub.md` |
+| [Tablet](#/screens/tablet) | `screens/tablet.md` |
+| [Desktop — Edit stage](#/screens/desktop-edit-stage) | `screens/desktop-edit-stage.md` |
+| [Guest / share (`/r/{token}`)](#/screens/guest-share) | `screens/guest-share.md` |
+| [Guest / record (`/rec/{token}`) (Join sheet + full-quality recording + mix-minus + landing + live comments shipped)](#/screens/guest-record) | `screens/guest-record.md` |
+| [Cross-cutting states](#/screens/cross-cutting-states) | `screens/cross-cutting-states.md` |
+| [Wireframe coverage checklist](#/screens/wireframe-coverage) | `screens/wireframe-coverage.md` |
