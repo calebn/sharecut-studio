@@ -14,7 +14,8 @@ test("Fix text fallback fits wide text and stays within its row", async ({
   const input = script.getByRole("textbox", { name: "Fix text" });
   await expect(input).toBeFocused();
 
-  await page.evaluate(() => {
+  const removedFieldSizingRules = await page.evaluate(() => {
+    let removed = 0;
     for (const sheet of document.styleSheets) {
       try {
         for (let index = sheet.cssRules.length - 1; index >= 0; index -= 1) {
@@ -24,13 +25,23 @@ test("Fix text fallback fits wide text and stays within its row", async ({
             rule.conditionText.includes("field-sizing")
           ) {
             sheet.deleteRule(index);
+            removed += 1;
           }
         }
       } catch {
         continue;
       }
     }
+    return removed;
   });
+  expect(removedFieldSizingRules).toBeGreaterThan(0);
+  await expect
+    .poll(() =>
+      input.evaluate((element) =>
+        getComputedStyle(element).getPropertyValue("field-sizing"),
+      ),
+    )
+    .not.toBe("content");
 
   await input.fill("W".repeat(12));
   const wideText = await input.evaluate((element) => ({
@@ -57,6 +68,36 @@ test("Fix text fallback fits wide text and stays within its row", async ({
     (element) => element.getBoundingClientRect().width,
   );
   expect(deletedWidth).toBeLessThan(wideText.inputWidth);
+
+  await input.fill("W".repeat(80));
+  await expect(input).toBeVisible();
+  const scriptBounds = await script.boundingBox();
+  if (!scriptBounds) {
+    throw new Error("the script bounds are unavailable");
+  }
+  const overlongText = await input.evaluate(
+    (element, bounds) => {
+      const row = element.parentElement;
+      const inputBounds = element.getBoundingClientRect();
+      const rowBounds = row?.getBoundingClientRect();
+      return {
+        clipped: element.scrollWidth > element.clientWidth,
+        contained: Boolean(
+          inputBounds.left >= bounds.left &&
+            inputBounds.right <= bounds.right &&
+            rowBounds &&
+            rowBounds.left >= bounds.left &&
+            rowBounds.right <= bounds.right,
+        ),
+      };
+    },
+    {
+      left: scriptBounds.x,
+      right: scriptBounds.x + scriptBounds.width,
+    },
+  );
+  expect(overlongText.clipped).toBe(true);
+  expect(overlongText.contained).toBe(true);
 
   await input.fill("");
   await expect(input).toBeFocused();
