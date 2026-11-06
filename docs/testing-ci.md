@@ -43,20 +43,20 @@ Lane PRs merge into `develop` after the fast, path-filtered checks. Each night `
 
 The `always()` cleanup step deletes this run's branch and every `promote/*` branch whose name carries an epoch more than a day old (the branch's creation time, not its commit date, so a quiet `develop` never loses a live branch). A rerun picks S again and redispatches everything. The alert job opens or updates the `nightly-failure` issue on a red run and closes it on a green one. Dry runs never alert, and dry runs and non-`main` targets use a separate concurrency group so they cannot cancel the pending nightly. The job runs only from `main`.
 
-**Dry run.** Dispatch `promote` with `dry-run` set, or run `python scripts/promote.py run --no-push`. Everything through polling runs for real. The script then prints the push and the Storybook dispatch it would make and exits on the verdict. `--target` must be the release branch or start with `promote-canary`; anything else is refused. Dispatching with `target=promote-canary` rehearses the ruleset bypass against a throwaway branch.
+**Dry run.** Dispatch `promote` with `dry-run` set, or run `python scripts/promote.py run --no-push`. Everything through polling runs for real. The script then prints the push and the Storybook dispatch it would make and exits on the verdict. `--target` must be the release branch or start with `promote-canary`; anything else is refused. Dispatching with `target=promote-canary` rehearses the push against a throwaway branch; the `main` ruleset does not cover that branch, so it proves the mechanics, not the ruleset.
 
-**Cutover.** `config/branches.json` `base` is `develop`. Caleb skipped the canary at the cutover; the fallback is a `develop` to `main` PR. [Contributing § Cutover record](contributing.md#cutover-record) has the state. Setting `base` equal to `release` turns `promote.py run` back into a nightly on the `main` tip that pushes nothing.
+**Cutover.** `config/branches.json` `base` is `develop`. Caleb skipped the canary at the cutover; the fallback is a manual push of the verified commit to `main`. [Contributing § Cutover record](contributing.md#cutover-record) has the state. Setting `base` equal to `release` turns `promote.py run` back into a nightly on the `main` tip that pushes nothing.
 
 **PRs to other branches.** Workflows that filter `pull_request` to `develop` and `main` (`test.yml`, `registry-backup-windows.yml`) run no CI for a PR whose base is any other branch.
 
 **Known limits.**
 
 - Promotion runs S's own workflow files, so whoever can land a workflow change on `develop` can weaken the gate. Accepted: it is the same trust as merging to `develop`, and the gate is a CI check, not an access control.
-- `promote.yml`'s promote job runs only from `main`, so dispatching it needs write access and a run on `main`; a branch copy of the workflow is the accepted "any workflow can use the Actions bypass" residual.
+- `promote.yml`'s promote job runs only from `main`, so dispatching it needs write access and a run on `main`; a branch copy of the workflow cannot push to `main` past the ruleset, because it has no bypass either.
 - `deploy-config`, `release-wheel`, `extras-import` and `relay-ci` neither gate promotion nor run on the promoted `main`.
-- A `GITHUB_TOKEN` push cannot create or update `.github/workflows/*`, and a ruleset bypass does not lift that. The canary that would have tested this was skipped, so promotion across a workflow change may fail at the final push, after a full CI run, and every night until fixed. The fallback is a `develop` to `main` PR.
+- A `GITHUB_TOKEN` push cannot create or update `.github/workflows/*`. The canary that would have tested this was skipped, so promotion across a workflow change may fail at the final push, after a full CI run, and every night until fixed. The fallback is a manual push of the verified commit to `main` with Caleb's own credentials; a `develop` to `main` PR would rewrite SHAs and leave `main` ahead of `develop`.
 - `GITHUB_TOKEN` pushes trigger no `push: main` workflows. Never add a `push: main` trigger expecting it to fire after a promotion; `promote.py` dispatches Storybook explicitly.
-- Main-ahead cases that cannot be avoided (Dependabot security updates ignore `target-branch`) stop promotion at "merge main into develop". The back-merge needs a merge commit, the one exception to linear history on `develop`, made by an admin with ruleset bypass. Open decision for Caleb; no policy is set here.
+- Main-ahead cases that cannot be avoided (Dependabot security updates ignore `target-branch`) stop promotion at "merge main into develop". Neither ruleset has a bypass actor (GitHub rejects an Actions bypass on a personal repository), and `develop` accepts only rebase-merged PRs, so close or retarget such a PR before it merges. Release PRs are not such a case: release-please targets `develop`.
 
 **Red `develop`.** A red promotion never skips a night. Rerun once, bisect, and revert the culprit PR on `develop` before fixing forward. The owning lane re-lands it afterwards.
 
@@ -849,7 +849,8 @@ tests or protections.
 
 The shared `.github/actions/ci-plan` supplies the PR source ref, both repository
 identities, base ref, and exact diff SHAs to `scripts/ci_plan.py`. The release
-shortcut requires the same-repository release-please branch for main and exactly
+shortcut requires the same-repository release-please branch for the base branch
+(`release-please--branches--<base>--components--podcast-mcp`) and exactly
 ten modified regular files. The classifier compares immutable merge-base and
 head blobs. Only the known version literals and changelog can change. Dependency,
 hash, code, formatting, file-mode, malformed-data, and ambiguous-identity changes
@@ -869,13 +870,14 @@ secret scan runs on every PR.
 
 Lightweight green checks are not permission to cut a release. Before merging a
 release PR, the independent Shipping verifier must retain a full validation
-receipt for release head H atop current main B:
+receipt for release head H atop the current base branch tip B:
 
 1. Resolve H and B. Update the release branch only if needed so B is an ancestor
    of H, then keep H stable during validation.
-2. Dispatch `test.yml` on the release ref with `compatibility-base=B`. The
-   `pytest-quality` job checks that its checkout is H, B is the current remote main tip, and B is
-   an ancestor of H. It records the checkout and compatibility base. Dispatch
+2. Dispatch `test.yml` on the release ref with `compatibility-base=B` and
+   `compatibility-base-ref=refs/heads/<base>`. The
+   `pytest-quality` job checks that its checkout is H, B is the current remote tip
+   of that ref, and B is an ancestor of H. It records the checkout and compatibility base. Dispatch
    always requests full pytest with the 95% floor and both browser engines.
 3. Dispatch `desktop.yml`, `extras-import.yml`, `registry-backup-windows.yml`,
    `release-wheel.yml`, and `secret-scan.yml` on that same release ref. Retain
