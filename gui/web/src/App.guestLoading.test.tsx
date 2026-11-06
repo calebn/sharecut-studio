@@ -48,7 +48,7 @@ describe("guest loading never shows host chrome", () => {
     expectGuestSkeleton(container);
   });
 
-  it("shows a direct share-project query the guest skeleton while features load", () => {
+  it("shows a direct share-project query the guest skeleton while features load", async () => {
     vi.useFakeTimers();
     window.history.pushState({}, "", "/?project=share:direct-token");
     vi.stubGlobal(
@@ -56,11 +56,13 @@ describe("guest loading never shows host chrome", () => {
       vi.fn(() => new Promise<Response>(() => {})),
     );
     const { container } = render(<App />);
-    act(() => vi.advanceTimersByTime(350));
+    await act(async () => {
+      vi.advanceTimersByTime(350);
+    });
     expectGuestSkeleton(container);
   });
 
-  it("keeps host loading chrome for an ordinary project query", () => {
+  it("keeps host loading chrome for an ordinary project query", async () => {
     vi.useFakeTimers();
     window.history.pushState({}, "", "/?project=/tmp/host.sharecut");
     vi.stubGlobal(
@@ -68,7 +70,9 @@ describe("guest loading never shows host chrome", () => {
       vi.fn(() => new Promise<Response>(() => {})),
     );
     const { container } = render(<App />);
-    act(() => vi.advanceTimersByTime(350));
+    await act(async () => {
+      vi.advanceTimersByTime(350);
+    });
     expect(container.querySelector(".stage-loading-stages")).not.toBeNull();
     expect(container.querySelector("main.guest-loading")).toBeNull();
   });
