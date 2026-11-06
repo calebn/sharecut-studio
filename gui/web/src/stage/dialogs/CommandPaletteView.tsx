@@ -287,8 +287,10 @@ export function CommandPaletteView({
         onKeyDown={onSearchKeyDown}
       />
       <p className="command-palette-hint">
-        Press <kbd>?</kbd> anytime. Character keys only apply when the timeline
-        or transcript has focus.{" "}
+        Press <kbd>?</kbd> anytime.{" "}
+        {leadGroup === "help"
+          ? "On Home, R and Ctrl+I work unless you are typing in a field."
+          : "Character keys only apply when the timeline or transcript has focus."}{" "}
         <Button variant="link" onClick={onOpenGestures}>
           Gestures
         </Button>
