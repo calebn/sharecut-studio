@@ -150,7 +150,7 @@ export type ScriptPaneProps = {
   playheadWord?: number;
   selection?: ScriptSelection | null;
   carets?: readonly ScriptCaret[];
-  /** Find hits, by word span, and which one is current. */
+  /** Find hits, by their word indices, and which one is current. */
   matches?: readonly FindHit[];
   currentMatch?: number;
   /** What the pane's live region says about the search: the Find bar's count, for example "3 of 12" or "No matches". */

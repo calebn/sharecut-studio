@@ -12,6 +12,16 @@ import {
   replacementOk,
 } from "./findMatches";
 
+const side = (
+  key: string,
+  index: number,
+  text: string,
+  mark?: ScriptWord["mark"],
+): ScriptTurn => ({
+  ...SCRIPT_TURNS[0],
+  words: [{ index, key, text, ...(mark ? { mark } : {}) }],
+});
+
 describe("findMatches", () => {
   it("finds a word in every turn as a span of its index", () => {
     expect(findMatches(SCRIPT_TURNS, "room", false)).toEqual([
@@ -66,10 +76,6 @@ describe("findMatches", () => {
   });
 
   it("never matches a phrase across two transcripts", () => {
-    const side = (key: string, index: number, text: string): ScriptTurn => ({
-      ...SCRIPT_TURNS[0],
-      words: [{ index, key, text }],
-    });
     const turns = [side("host:a:7", 0, "one"), side("guest:b:0", 1, "thanks")];
     expect(findMatches(turns, "one thanks", false)).toEqual([]);
     const sources = [side("host:a:7", 0, "one"), side("host:b:0", 1, "thanks")];
@@ -81,15 +87,6 @@ describe("findMatches", () => {
   });
 
   describe("a phrase another transcript interrupts", () => {
-    const side = (
-      key: string,
-      index: number,
-      text: string,
-      mark?: ScriptWord["mark"],
-    ): ScriptTurn => ({
-      ...SCRIPT_TURNS[0],
-      words: [{ index, key, text, ...(mark ? { mark } : {}) }],
-    });
     const abaTurns = [
       side("host:a:0", 0, "one"),
       side("guest:b:0", 1, "yes"),
