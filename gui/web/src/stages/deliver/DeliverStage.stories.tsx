@@ -251,10 +251,10 @@ export const EditedAfterExport: Story = {
   },
   play: playInCanvas(async ({ canvasElement }) => {
     const view = within(canvasElement);
-    await expect(view.getByRole("button", { name: /^Export/ })).toBeEnabled();
+    await expect(view.getByRole("button", { name: /^Export$/ })).toBeEnabled();
     await userEvent.click(view.getByRole("button", { name: /^Streaming/ }));
     await expect(view.getByText("Edited since export")).toBeInTheDocument();
-    await expect(view.getByRole("button", { name: /^Export/ })).toBeEnabled();
+    await expect(view.getByRole("button", { name: /^Export$/ })).toBeEnabled();
     await expect(
       view.getByRole("button", { name: /^Reveal field-notes\.mp3/ }),
     ).toBeEnabled();
