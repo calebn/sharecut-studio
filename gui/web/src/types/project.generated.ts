@@ -4,7 +4,7 @@ export interface BootstrapCancelRequest {
   job_id?: string | null;
 }
 
-/** Studio model downloads for Whisper, optional RNNoise, and the opt-in word aligner. */
+/** Studio model downloads for Whisper, RNNoise, the word aligner and the speaker model. */
 export interface BootstrapRunRequest {
   components?: Array<string> | null;
   whisper_model?: string | null;
