@@ -272,7 +272,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
   - Tool toggle sits in the timeline corner box (above the track headers, 168 × 48 px): two icon buttons, Select (arrow) and Blade (blade), 32 px, segmented. V selects, B toggles Blade; holding B gives a spring-loaded Blade that returns to Select on release.
   - Comment mode removed: Comment is a verb on any selection and at the playhead (C).
   - Range tool removed on desktop: drag on empty lane area (or Shift-drag over clips) selects a range. Touch: long-press on a lane then drag selects a range; a range toggle (bracket icon) appears in the corner box on touch devices only.
-  - Undo/Redo move to the header. Zoom moves to the corner zoom cluster. Add track and Import move under the track headers ("+"). Cut at playhead is the Split verb at the playhead (Mod+K).
+  - Undo/Redo move to the header. Zoom moves to the corner zoom cluster. Add track and Import move under the track headers ("+"). Cut at playhead is the Split verb at the playhead (S or Mod+K).
   - CMP-RAIL-PEEK is replaced by the standard tooltip: name + key, 500 ms delay, shown on hover and keyboard focus, and once on first touch use as a NEW: Coach tip.
 - **Shared elements used:** Icon language, NEW: Coach tip.
 - **Story to build:** `Edit/ToolToggle` stories `Select`, `Blade`, `SpringBlade`, `TouchWithRange`.
@@ -473,7 +473,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 
 - **Today:** MENU-CREATE--desktop-light.png. Language: disabled "Add envelope point · Show the volume envelope before adding a point". Consistency: verbs here (Blade cut, Add comment) use different names than the toolbar.
 - **Fate:** restyle as the playhead/point variant of the verbs.
-- **Spec:** right-click, Shift+F10 or long-press on an empty point opens a 220 px menu headed by the time and track ("12:04.3 · Maya"): Split here (Mod+K), Comment here (C), Add chapter here (Shift+M), Add volume point, Paste (when the clipboard has audio). Same icons as the action bar. Rows that can't apply are absent.
+- **Spec:** right-click, Shift+F10 or long-press on an empty point opens a 220 px menu headed by the time and track ("12:04.3 · Maya"): Split here (S or Mod+K), Comment here (C), Add chapter here (Shift+M), Add volume point, Paste (when the clipboard has audio). Same icons as the action bar. Rows that can't apply are absent.
 - **Shared elements used:** Icon language, Action bar verbs.
 - **Story to build:** `Edit/CreateMenu` stories `Lane`, `WithPaste`, `Phone`.
 
@@ -849,7 +849,7 @@ Each interaction uses the object selection model above. Every edit is one undo s
 
 - **Today:** CMP-TOOLRAIL shots; touch blade asks for confirmation.
 - **Fate:** restyle.
-- **Spec:** Mod+K splits at the playhead on the targeted tracks (scope chip; default all); Blade tool (B, or hold B) click splits that lane, Shift-click splits all lanes. Phone: Split here in the playhead dock. No confirm. After a split, the right-hand piece is selected (anticipating trim, move or Cut).
+- **Spec:** S or Mod+K splits at the playhead on the targeted tracks (scope chip; default all); Blade tool (B, or hold B) click splits that lane, Shift-click splits all lanes. Phone: Split here in the playhead dock. No confirm. After a split, the right-hand piece is selected (anticipating trim, move or Cut).
 - **Story to build:** `Edit/ToolToggle` story `SpringBlade`; `Edit/PhoneEdit` story `WaveNothingSelected`.
 
 ### INT-DELETE and INT-RIPPLE · Delete and ripple
