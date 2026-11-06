@@ -195,7 +195,7 @@ function ProjectCard({
           type="button"
           className="sys-project-remove"
           tabIndex={swipe.revealed ? 0 : -1}
-          aria-label={`Remove ${project.name} from list`}
+          aria-label={`Remove from list, ${project.name}`}
           onClick={() => remove?.(project.id)}
         >
           Remove from list
