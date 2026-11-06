@@ -142,6 +142,39 @@ describe("clip content", () => {
     );
   });
 
+  it("converts End by the clip's timeline start and locks timed clips", async () => {
+    open([{ ...clip, timeline_start: 4, timeline_end: 6 }]);
+    await type("End", "5.5");
+    expect(saveClipEdge).toHaveBeenLastCalledWith(
+      "/tmp/ep.json",
+      expect.objectContaining({ id: clip.id }),
+      { kind: "trim", edge: "out", mode: TRIM_MODE, sourceSec: 2.5 },
+      expect.any(Function),
+    );
+  });
+
+  it("makes End and Length read-only for a clip with timing steps", () => {
+    open([
+      {
+        ...clip,
+        timeline_end: 2.5,
+        timing: {
+          steps: [{ at: 1, delta_sec: 0.5 }],
+          method: "silence",
+          micro_fade_ms: 5,
+        },
+      },
+    ]);
+    expect(screen.getByRole("spinbutton", { name: "End" })).toHaveAttribute(
+      "aria-readonly",
+      "true",
+    );
+    expect(screen.getByRole("spinbutton", { name: "Length" })).toHaveAttribute(
+      "aria-valuenow",
+      "2.5",
+    );
+  });
+
   it("saves nothing when a source edge is opened and left unchanged", async () => {
     open([{ ...clip, source_start: 1.2345 }]);
     await key("Source start", "Enter");
