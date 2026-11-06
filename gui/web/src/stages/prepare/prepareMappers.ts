@@ -1,4 +1,4 @@
-import { capabilityOf, type NeedTarget } from "../../models/capability";
+import { capabilityOf, type NeedTarget } from "../../models";
 import type { SourceCardProps } from "../../system/SourceCard";
 import type {
   PipelineConfigResponse,
