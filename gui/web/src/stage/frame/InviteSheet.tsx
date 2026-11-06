@@ -60,7 +60,6 @@ export function InviteSheet({
     <InviteSheetView
       options={shareOptionsOf(flow, {
         blockedReason: shareCmd.whenReason,
-        onOpenRecord: undefined,
       })}
       at={at}
       form={form}

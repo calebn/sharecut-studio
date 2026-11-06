@@ -26,7 +26,7 @@ export function ListenLinkRow({
   options: ShareOptions;
   /** Outlines Copy as the follow-up to an export. */
   highlight?: boolean;
-  /** Phone: Copy hands the link to the system share sheet. */
+  /** Phone: labels Copy as Share. It does not open the system share sheet. */
   share?: boolean;
   compact?: boolean;
   /** False inside the Invite sheet, whose dialog already keeps an open confirm on Escape. */
