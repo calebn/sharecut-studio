@@ -660,7 +660,7 @@ it("says why a refused edit did nothing, in the live region", async () => {
   );
 });
 
-async function pressSplitRefused(result: { told?: boolean }) {
+async function pressSplitRefused(result: { told?: true }) {
   render(<KeymapHost />);
   useDawStore.setState({ statusAnnouncement: "", feedbackToast: null });
   vi.mocked(execute).mockImplementation(async () => {
