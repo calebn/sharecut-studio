@@ -391,7 +391,10 @@ export function ScrubField({
             type="button"
             className="sys-scrub-reset"
             aria-label={`Reset ${label} to ${formatScrub(defaultValue, decimals)}${unitText}`}
-            onClick={() => onCommit(defaultValue)}
+            onClick={() => {
+              onCommit(defaultValue);
+              box.current?.focus();
+            }}
           />
         ) : null}
       </span>
