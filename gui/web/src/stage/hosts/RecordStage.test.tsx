@@ -1686,7 +1686,7 @@ describe("Record stage End session", () => {
     const dialog = await openMore();
     const end = within(dialog).getByRole("button", { name: "End session" });
     expect(end).toHaveAccessibleDescription(
-      "Land every take on the timeline before ending the session.",
+      "Wait for every take to reach the timeline before ending the session.",
     );
     await userEvent.click(end);
     expect(screen.queryByText(END_SESSION_PENDING_COPY)).toBeNull();
@@ -1777,36 +1777,6 @@ describe("Record stage take controls", () => {
     expect(postTransport).not.toHaveBeenCalled();
   });
 
-  it("stops a paused take from More after the question", async () => {
-    setRoom({ state: "paused", take_index: 0 });
-    mount();
-    const dialog = await openMore();
-    await userEvent.click(
-      within(dialog).getByRole("button", { name: "Stop take" }),
-    );
-    expect(exec).not.toHaveBeenCalled();
-    await userEvent.click(
-      within(dialog).getByRole("button", { name: "Stop take" }),
-    );
-    expect(exec).toHaveBeenCalledWith("record.stop", {}, { skipWhen: true });
-  });
-
-  it("keeps recording when the Stop question is declined", async () => {
-    setRoom({ state: "paused", take_index: 0 });
-    mount();
-    const dialog = await openMore();
-    await userEvent.click(
-      within(dialog).getByRole("button", { name: "Stop take" }),
-    );
-    await userEvent.click(
-      within(dialog).getByRole("button", { name: "Keep recording" }),
-    );
-    expect(exec).not.toHaveBeenCalled();
-    expect(
-      within(dialog).getByRole("button", { name: "Stop take" }),
-    ).toBeVisible();
-  });
-
   it("mutes the host from the dock", async () => {
     setRoom({ participants: [hostPerson()] });
     mount();
@@ -1851,129 +1821,6 @@ describe("Record stage take controls", () => {
       expect.objectContaining({ body: "Redo the intro", author: "p_host" }),
       undefined,
     );
-  });
-});
-
-describe("Record stage Land", () => {
-  it("disables Land mid-take with the reason beside it", async () => {
-    setRoom({ state: "recording", take_index: 1 });
-    mount();
-    const dialog = await openMore();
-    const land = within(dialog).getByRole("button", { name: "Land" });
-    expect(land).toBeDisabled();
-    expect(land).toHaveAccessibleDescription(
-      "Stop the take to land it on the timeline.",
-    );
-  });
-
-  it("holds Land while recordings are still saving", async () => {
-    uploadStatus.mockResolvedValue({
-      segments: [
-        {
-          take_index: 0,
-          participant_id: "p_g",
-          segment_index: 0,
-          acked_parts: [0],
-          file_ack: false,
-        },
-      ],
-    });
-    setRoom({
-      state: "stopped",
-      take_index: 0,
-      participants: [avaGuest()],
-    });
-    mount();
-    const dialog = await openMore();
-    const land = within(dialog).getByRole("button", { name: "Land" });
-    await waitFor(() =>
-      expect(land).toHaveAccessibleDescription(
-        "Recordings are still saving to the project.",
-      ),
-    );
-    expect(land).toBeDisabled();
-  });
-
-  it("holds Land while a take saves even with a live comment", async () => {
-    uploadStatus.mockResolvedValue({
-      segments: [
-        {
-          take_index: 0,
-          participant_id: "p_g",
-          segment_index: 0,
-          acked_parts: [0],
-          file_ack: false,
-        },
-      ],
-    });
-    setRoom({
-      state: "stopped",
-      take_index: 0,
-      participants: [avaGuest()],
-      comments: [
-        {
-          id: "c1",
-          take_index: 0,
-          recording_ms: 10,
-          pressed_wall_ms: 10,
-          author: "p_host",
-          body: "Marker",
-        },
-      ],
-    });
-    mount();
-    const dialog = await openMore();
-    const land = within(dialog).getByRole("button", { name: "Land" });
-    await waitFor(() =>
-      expect(land).toHaveAccessibleDescription(
-        "Recordings are still saving to the project.",
-      ),
-    );
-    expect(land).toBeDisabled();
-  });
-
-  it("lands once every recording is saved and keeps controls busy meanwhile", async () => {
-    let finish: ((value: { status: "ok" }) => void) | undefined;
-    exec.mockImplementationOnce(
-      () =>
-        new Promise<{ status: "ok" }>((resolve) => {
-          finish = resolve;
-        }),
-    );
-    uploadStatus.mockResolvedValue({
-      segments: [
-        {
-          take_index: 0,
-          participant_id: "p_g",
-          segment_index: 0,
-          acked_parts: [0],
-          file_ack: true,
-          land_failed: true,
-        },
-      ],
-    });
-    setRoom({
-      state: "stopped",
-      take_index: 0,
-      participants: [avaGuest()],
-    });
-    mount();
-    const dialog = await openMore();
-    const land = await within(dialog).findByRole("button", {
-      name: "Retry land",
-    });
-    await userEvent.click(land);
-    expect(land).toHaveAttribute("aria-disabled", "true");
-    await userEvent.click(land);
-    expect(
-      exec.mock.calls.filter(
-        (call) => (call as unknown[])[0] === "record.land",
-      ),
-    ).toHaveLength(1);
-    await act(async () => {
-      finish?.({ status: "ok" });
-    });
-    expect(land).not.toHaveAttribute("aria-disabled");
   });
 });
 
