@@ -1046,7 +1046,7 @@ invisible trim and fade targets never hide its body from a long press near
 its ends.
 
 `e2e-compat/touch-pinch.spec.ts` puts one finger on a fade corner, a trim
-handle or a clip body, drags it, lands a second finger and spreads both:
+handle, a clip body or the volume envelope line, drags it, lands a second finger and spreads both:
 Chromium with two real CDP touch points, WebKit (no touch input in
 Playwright) with touch-typed pointer events plus the touch events a pinch
 fires. On the round 3 build the same cases saved `TrimClipEdge`, `MoveClips`
