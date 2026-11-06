@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { activateDocumentScope } from "../document/authorityState";
 import { useDawStore } from "../state/dawStore";
 import { selectedClipIdsOf, tracksSelection } from "../state/selection";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
@@ -69,6 +70,14 @@ function reply(result: Record<string, unknown>, withHead = true) {
   };
 }
 
+function guestProposal() {
+  return {
+    history_head_id: "h-split",
+    split_proposed: true,
+    command: { type: "SplitAtTime" },
+  };
+}
+
 const toast = () => useDawStore.getState().feedbackToast;
 const selected = () => selectedClipIdsOf(useDawStore.getState().selection);
 const splitHere = () =>
@@ -111,6 +120,11 @@ describe("Split reply handling", () => {
     serverSplits(afterBoth, { affected_tracks: ["host", "guest"] });
     await splitHere();
     expect(selected()).toEqual(["c2", "g2"]);
+    expect(useDawStore.getState().selection).toMatchObject({
+      kind: "clip",
+      id: "c2",
+      trackId: "host",
+    });
   });
 
   it("does not select an old clip that already started at the split time on a skipped track", async () => {
@@ -147,28 +161,84 @@ describe("Split reply handling", () => {
     expect(toast()?.undo).toBe("h-split");
   });
 
-  it("says suggested, with no Undo, when the server only proposed the split", async () => {
-    vi.mocked(submitQueuedDocumentCommand).mockResolvedValue(
-      reply({ operation: "propose_split", edits: [{ id: "e1" }] }, false),
-    );
+  it("says suggested when the server only proposed the split", async () => {
+    vi.mocked(submitQueuedDocumentCommand).mockResolvedValue(guestProposal());
     await splitHere();
     expect(toast()?.message).toBe("Suggested split at 00:10.000");
-    expect(toast()?.undo ?? null).toBeNull();
   });
 
-  it("offers no Undo for a proposal even when the reply carries a history head", async () => {
-    vi.mocked(submitQueuedDocumentCommand).mockResolvedValue(
-      reply({ operation: "propose_split", edits: [{ id: "e1" }] }),
-    );
+  it("offers no Undo for a proposal even though the guest reply carries a history head", async () => {
+    vi.mocked(submitQueuedDocumentCommand).mockResolvedValue(guestProposal());
     await splitHere();
     expect(toast()?.undo ?? null).toBeNull();
   });
 
   it("leaves the selection as it was when the split was only suggested", async () => {
-    vi.mocked(submitQueuedDocumentCommand).mockResolvedValue(
-      reply({ operation: "propose_split", edits: [{ id: "e1" }] }),
-    );
+    vi.mocked(submitQueuedDocumentCommand).mockResolvedValue(guestProposal());
     await splitHere();
     expect(useDawStore.getState().selection).toEqual(tracksSelection(["host"]));
+  });
+
+  it("leaves the selection when the document changed during the request", async () => {
+    vi.mocked(submitQueuedDocumentCommand).mockImplementation(async () => {
+      useDawStore.setState({ project: afterHostOnly });
+      activateDocumentScope("/tmp/other");
+      return reply({ operation: "split_clips_at" });
+    });
+    const held = useDawStore.getState().selection;
+    await splitHere();
+    expect(useDawStore.getState().selection).toBe(held);
+  });
+
+  it("selects only the piece cut at the split time, not a new clip just after it", async () => {
+    const nearby = clipRow({
+      id: "c3",
+      track_id: "host",
+      timeline_start: 10.5,
+      timeline_end: 12,
+    });
+    serverSplits(
+      projectOf({
+        host: [leftPiece("c1", "host"), rightPiece("c2", "host"), nearby],
+        guest: [whole("g1", "guest")],
+      }),
+    );
+    await splitHere();
+    expect(selected()).toEqual(["c2"]);
+  });
+
+  it("selects the piece at the first edge of a two-edge range split", async () => {
+    const wide = projectOf({
+      host: [clipRow({ id: "c1", track_id: "host", timeline_end: 40 })],
+      guest: [whole("g1", "guest")],
+    });
+    useDawStore.setState({ project: wide });
+    serverSplits(
+      projectOf({
+        host: [
+          clipRow({ id: "c1", track_id: "host", timeline_end: 10 }),
+          clipRow({
+            id: "c2",
+            track_id: "host",
+            timeline_start: 10,
+            timeline_end: 30,
+          }),
+          clipRow({
+            id: "c3",
+            track_id: "host",
+            timeline_start: 30,
+            timeline_end: 40,
+          }),
+        ],
+        guest: [whole("g1", "guest")],
+      }),
+      { split_times: [10, 30] },
+    );
+    await execute(
+      "edit.bladeCut",
+      { atTime: 10, extraAtTimes: [30] },
+      { skipWhen: true },
+    );
+    expect(selected()).toEqual(["c2"]);
   });
 });
