@@ -152,7 +152,7 @@ const COVERED: Record<string, string[]> = {
   "SCR-HOME-OPEN": ["Stages/Home/OpenOther"],
   "SCR-HOME-ERROR": ["Stages/Home/OpenOther"],
   "DLG-RECORD": ["Stages/Record/Host"],
-  "DLG-MODELS": ["Stages/Settings/ModelsSheet"],
+  "DLG-MODELS": ["Stages/Home/ModelsSheet"],
   "DLG-MODEL-GATE": ["System/ModelNeedRow"],
   "POP-WORD-EDIT": ["Stages/Edit/ScriptPane", "Stages/Edit/ScriptHost"],
   "POP-SPEAKER": ["Stages/Edit/SpeakerPopover", "Stages/Edit/ScriptHost"],
