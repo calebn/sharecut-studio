@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { loadHostRecordState } from "./api";
 import { DawApp } from "./dawApp";
+import type { StageFrameProps } from "./stage/frame/StageFrame";
 import { useDawStore } from "./state/dawStore";
 
 vi.mock("./api", async (importOriginal) => ({
@@ -24,7 +25,8 @@ vi.mock("./stage/hosts/StageHost", () => ({
   },
 }));
 vi.mock("./stage/frame/StageFrame", () => ({
-  StageFrame: ({ children }: { children: ReactNode }) => children,
+  StageFrame: ({ children }: Pick<StageFrameProps, "children">) =>
+    children({ kind: "available" }),
 }));
 vi.mock("./stage/frame/useLandingStage", () => ({ useLandingStage: () => {} }));
 vi.mock("./stage/dialogs/CheatsheetDialogs", () => ({
