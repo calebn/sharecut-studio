@@ -247,6 +247,17 @@ jobs:
           union_tests="$(python3 scripts/ci_plan.py subset-tests web-docs)"
           pytest -n auto --no-cov -m "not e2e_slow and not e2e_real" --durations=100 --durations-min=0.1 --junitxml=test-results/pytest.xml $union_tests | tee test-results/pytest.log
 
+      - name: Run the tests the diff reaches
+        if: env.PYTEST_SCOPE == 'changed'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -o pipefail
+          changed_tests="$(python3 scripts/ci_plan.py changed-tests --base "$BASE_SHA" --head "$HEAD_SHA")"
+          test -n "$changed_tests" || { echo "the plan chose the changed scope but no test file is reached" >&2; exit 1; }
+          pytest -n auto --no-cov -m "not e2e_slow and not e2e_real" --durations=100 --durations-min=0.1 --junitxml=test-results/pytest.xml $changed_tests | tee test-results/pytest.log
+
       - name: Run release policy and planner tests
         if: env.PYTEST_SCOPE == 'release'
         run: |
@@ -288,7 +299,7 @@ jobs:
           SHARDS: ${{ needs.pytest-shard.result }}
         run: |
           case "$PLAN:$SCOPE:$QUALITY:$SHARDS" in
-            success:quick:success:skipped | success:full:success:success | success:web:success:success | success:docs:success:success | success:web-docs:success:success | success:release:success:success) exit 0 ;;
+            success:quick:success:skipped | success:full:success:success | success:web:success:success | success:docs:success:success | success:web-docs:success:success | success:changed:success:success | success:release:success:success) exit 0 ;;
             *)
               printf 'Invalid plan or pytest result: %s/%s/%s/%s\n' "$PLAN" "$SCOPE" "$QUALITY" "$SHARDS" >&2
               exit 1
@@ -471,9 +482,8 @@ jobs:
     strategy:
       # One red suite cancels the rest; a rerun repeats the whole set anyway.
       fail-fast: true
-      # scripts/ci_plan.py: four main shards everywhere, then complete Chromium
-      # and WebKit compat on develop pushes and dispatch, or every WebKit compat
-      # spec in shards on a PR.
+      # scripts/ci_plan.py: the smoke job on a PR; the four main shards, then complete
+      # Chromium and WebKit compat on dispatch (promotion); WebKit shards on a release PR.
       matrix: ${{ fromJSON(needs.changes.outputs.e2e-matrix) }}
     env:
       PLAYWRIGHT_JSON_OUTPUT_FILE: playwright-report/${{ matrix.name }}.json

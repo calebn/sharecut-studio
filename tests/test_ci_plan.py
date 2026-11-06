@@ -18,7 +18,8 @@ WORKFLOW = ROOT / ".github" / "workflows" / "test.yml"
 cp = load_script("ci_plan", register=True)
 
 MAIN = ["main-1of4", "main-2of4", "main-3of4", "main-4of4"]
-PR_E2E = [*MAIN, "compat-webkit-1of3", "compat-webkit-2of3", "compat-webkit-3of3"]
+PR_E2E = ["main-smoke"]
+RELEASE_E2E = [*MAIN, "compat-webkit-1of3", "compat-webkit-2of3", "compat-webkit-3of3"]
 FULL_E2E = [*MAIN, "compat-chromium", "compat-webkit"]
 
 # Every pattern whose changes run Vitest and the browser suites on a PR. Editing
@@ -101,7 +102,10 @@ def test_no_rule_is_shadowed_by_an_earlier_one() -> None:
     "path",
     ["brand-new-dir/x.py", "src/podcast_mcp/new_package/x.py", "gui/new_shell/main.ts"],
 )
-def test_an_unclassified_path_runs_the_browser_suites(path: str) -> None:
+def test_an_unclassified_path_runs_the_browser_suites(
+    path: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cp, "changed_tests", lambda changed, root=cp.ROOT: ["tests/test_x.py"])
     assert cp.rule_for(path) is None
     plan = cp.plan("pull_request", [path])
     assert plan.gui is True
@@ -114,14 +118,19 @@ def test_an_unclassified_path_runs_the_browser_suites(path: str) -> None:
         (["docs/setup.md", "README.md"], False, "docs", []),
         (["ux/pages/brand.md", "AGENTS.md", "ROADMAP.md"], False, "docs", []),
         (["docs-site/index.html", ".agents/skills/podcast-setup/SKILL.md"], False, "docs", []),
-        (["docs/setup.md", "src/podcast_mcp/edits/cuts.py"], False, "full", []),
-        ([".agents/defaults/pipeline.yaml"], True, "full", PR_E2E),
-        ([".agents/rules/gui-styling.md"], False, "full", []),
-        ([".cursor/rules/pstack-models.mdc"], False, "full", []),
-        (["config/distribution.dev.json"], True, "full", PR_E2E),
-        (["tests/fixtures/document_delta/insert.json"], True, "full", PR_E2E),
-        (["src/podcast_mcp/engines/bleed_gate.py", "tests/test_bleed_gate.py"], False, "full", []),
-        (["src/podcast_mcp/edits/cuts.py"], False, "full", []),
+        (["docs/setup.md", "src/podcast_mcp/edits/cuts.py"], False, "changed", []),
+        ([".agents/defaults/pipeline.yaml"], True, "changed", PR_E2E),
+        ([".agents/rules/gui-styling.md"], False, "changed", []),
+        ([".cursor/rules/pstack-models.mdc"], False, "changed", []),
+        (["config/distribution.dev.json"], True, "changed", PR_E2E),
+        (["tests/fixtures/document_delta/insert.json"], True, "changed", PR_E2E),
+        (
+            ["src/podcast_mcp/engines/bleed_gate.py", "tests/test_bleed_gate.py"],
+            False,
+            "changed",
+            [],
+        ),
+        (["src/podcast_mcp/edits/cuts.py"], False, "changed", []),
         (["gui/web/src/App.tsx", "gui/web/e2e/recordRoom.ts"], True, "web", PR_E2E),
         (["gui/web/src/App.tsx", "docs/gui-integration.md"], True, "web-docs", PR_E2E),
         (
@@ -130,37 +139,42 @@ def test_an_unclassified_path_runs_the_browser_suites(path: str) -> None:
             "web-docs",
             PR_E2E,
         ),
-        (["gui/web/src/App.tsx", "src/podcast_mcp/edits/cuts.py"], True, "full", PR_E2E),
+        (["gui/web/src/App.tsx", "src/podcast_mcp/edits/cuts.py"], True, "changed", PR_E2E),
         (
             ["docs/setup.md", "src/podcast_mcp/edits/cuts.py", "gui/web/src/App.tsx"],
             True,
-            "full",
+            "changed",
             PR_E2E,
         ),
-        (["gui/web/src/App.tsx", "contracts/timeline-zoom.json"], True, "full", PR_E2E),
+        (["gui/web/src/App.tsx", "contracts/timeline-zoom.json"], True, "changed", PR_E2E),
         (["gui/web/package-lock.json", "docs/setup.md"], True, "web-docs", PR_E2E),
         (["docs/daw-shortcuts.md"], True, "docs", PR_E2E),
-        (["src/podcast_mcp/services/play.py"], True, "full", PR_E2E),
-        (["src/podcast_mcp/project/io.py"], True, "full", PR_E2E),
-        (["src/podcast_mcp/config/defaults.py"], True, "full", PR_E2E),
-        (["contracts/test-wait-allowlist.json"], False, "full", []),
-        (["contracts/test-wait-allowlist.json", "tests/test_test_waits.py"], False, "full", []),
-        (["contracts/test-wait-allowlist.json", "gui/web/src/App.tsx"], True, "full", PR_E2E),
-        (["contracts/timeline-zoom.json"], True, "full", PR_E2E),
-        (["contracts/new-contract.json"], True, "full", PR_E2E),
-        (["new-area/file.py"], True, "full", PR_E2E),
-        (["scripts/ci_plan.py"], True, "full", PR_E2E),
-        (["tests/fixtures/aligned_dialogue/episode.sharecut"], True, "full", PR_E2E),
-        ([".github/workflows/test.yml"], True, "full", PR_E2E),
-        ([".github/workflows/desktop.yml"], False, "full", []),
-        (["gui/desktop/src-tauri/src/main.rs"], False, "full", []),
-        (["scripts/desktop/lib.sh", "scripts/desktop/pack_macos_dmg.sh"], False, "full", []),
+        (["src/podcast_mcp/services/play.py"], True, "changed", PR_E2E),
+        (["src/podcast_mcp/project/io.py"], True, "changed", PR_E2E),
+        (["src/podcast_mcp/config/defaults.py"], True, "changed", PR_E2E),
+        (["contracts/test-wait-allowlist.json"], False, "changed", []),
+        (["contracts/test-wait-allowlist.json", "tests/test_test_waits.py"], False, "changed", []),
+        (["contracts/test-wait-allowlist.json", "gui/web/src/App.tsx"], True, "changed", PR_E2E),
+        (["contracts/timeline-zoom.json"], True, "changed", PR_E2E),
+        (["contracts/new-contract.json"], True, "changed", PR_E2E),
+        (["new-area/file.py"], True, "changed", PR_E2E),
+        (["scripts/ci_plan.py"], True, "changed", PR_E2E),
+        (["tests/fixtures/aligned_dialogue/episode.sharecut"], True, "changed", PR_E2E),
+        ([".github/workflows/test.yml"], True, "changed", PR_E2E),
+        ([".github/workflows/desktop.yml"], False, "changed", []),
+        (["gui/desktop/src-tauri/src/main.rs"], False, "changed", []),
+        (["scripts/desktop/lib.sh", "scripts/desktop/pack_macos_dmg.sh"], False, "changed", []),
         ([], True, "full", PR_E2E),
     ],
 )
 def test_pull_request_plan(
-    changed: list[str], gui: bool, pytest_scope: str, e2e: list[str]
+    changed: list[str],
+    gui: bool,
+    pytest_scope: str,
+    e2e: list[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(cp, "changed_tests", lambda changed, root=cp.ROOT: ["tests/test_x.py"])
     plan = cp.plan("pull_request", changed)
     assert (plan.gui, plan.pytest, _names(plan)) == (gui, pytest_scope, e2e)
 
@@ -189,11 +203,25 @@ def test_matrix_output_is_the_workflow_include_list() -> None:
     outputs = cp.plan("pull_request", ["gui/web/src/App.tsx"]).outputs()
     assert outputs["gui"] == "true"
     assert outputs["pytest"] == "web"
-    assert json.loads(outputs["e2e-matrix"])["include"][-1] == {
-        "name": "compat-webkit-3of3",
-        "command": "npm run test:e2e:compat -- --project=webkit --shard=3/3",
-        "browser": "webkit",
-    }
+    (job,) = json.loads(outputs["e2e-matrix"])["include"]
+    assert (job["name"], job["browser"]) == ("main-smoke", "chromium")
+    assert job["command"] == "npm run test:e2e -- " + " ".join(
+        f"e2e/{name}" for name in cp.SMOKE_SPECS
+    )
+
+
+def test_a_release_pull_request_keeps_webkit_compat_in_shards() -> None:
+    plan = cp.plan(
+        "pull_request",
+        ["gui/web/src/App.tsx"],
+        head_ref="release-please--branches--main--components--podcast-mcp",
+    )
+    assert _names(plan) == RELEASE_E2E
+
+
+def test_a_pull_request_runs_no_compat_job() -> None:
+    plan = cp.plan("pull_request", ["gui/web/src/App.tsx"])
+    assert not [name for name in _names(plan) if name.startswith("compat")]
 
 
 def test_web_subset_selects_files_that_name_gui_web(tmp_path: Path) -> None:
@@ -263,11 +291,68 @@ def test_web_docs_subset_is_the_union_of_both_subsets() -> None:
 def test_every_planned_pytest_scope_reaches_the_pytest_aggregator() -> None:
     scopes = typing.get_args(typing.get_type_hints(cp.CiPlan)["pytest"])
     run = load_github_yaml(WORKFLOW)["jobs"]["pytest"]["steps"][0]["run"]
-    assert set(scopes) == {"full", "web", "docs", "web-docs", "quick", "release"}
+    assert set(scopes) == {"full", "web", "docs", "web-docs", "changed", "quick", "release"}
     for scope in scopes:
         shards = "skipped" if scope == "quick" else "success"
         assert f"success:{scope}:success:{shards}" in run
     assert "success:quick:success:success" not in run
+
+
+def _tests_tree(tmp_path: Path) -> Path:
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "tests" / "test_cuts.py").write_text("from podcast_mcp.edits import cuts\n")
+    (tmp_path / "tests" / "test_dotted.py").write_text("import podcast_mcp.edits.cuts\n")
+    (tmp_path / "tests" / "test_workflow.py").write_text(
+        'WORKFLOW = ".github/workflows/test.yml"\n'
+    )
+    (tmp_path / "tests" / "test_tool.py").write_text('tool = load_script("my_tool")\n')
+    (tmp_path / "tests" / "test_other.py").write_text("x = 1\n")
+    return tmp_path
+
+
+def test_changed_tests_selects_changed_test_files_and_their_references(tmp_path: Path) -> None:
+    root = _tests_tree(tmp_path)
+    assert cp.changed_tests(["src/podcast_mcp/edits/cuts.py"], root) == [
+        "tests/test_cuts.py",
+        "tests/test_dotted.py",
+    ]
+    assert cp.changed_tests(["tests/test_other.py"], root) == ["tests/test_other.py"]
+    assert cp.changed_tests([".github/workflows/test.yml"], root) == ["tests/test_workflow.py"]
+    assert cp.changed_tests(["scripts/my_tool.py"], root) == ["tests/test_tool.py"]
+    assert cp.changed_tests(["README.md", "docs/setup.md"], root) == []
+
+
+def test_changed_tests_ignores_a_deleted_test_file(tmp_path: Path) -> None:
+    root = _tests_tree(tmp_path)
+    assert cp.changed_tests(["tests/test_gone.py"], root) == []
+
+
+def test_a_diff_reaching_too_many_tests_is_not_a_smoke_set(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _tests_tree(tmp_path)
+    monkeypatch.setattr(cp, "MAX_CHANGED_TESTS", 1)
+    assert cp.changed_tests(["src/podcast_mcp/edits/cuts.py", "tests/test_other.py"], root) is None
+
+
+def test_a_pull_request_that_reaches_no_pytest_file_runs_the_full_suite(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(cp, "changed_tests", lambda changed, root=cp.ROOT: [])
+    assert cp.plan("pull_request", ["src/podcast_mcp/edits/cuts.py"]).pytest == "full"
+
+
+def test_a_pull_request_that_reaches_too_much_runs_the_full_suite(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(cp, "changed_tests", lambda changed, root=cp.ROOT: None)
+    assert cp.plan("pull_request", ["src/podcast_mcp/edits/cuts.py"]).pytest == "full"
+
+
+def test_every_smoke_spec_exists() -> None:
+    for name in cp.SMOKE_SPECS:
+        assert (ROOT / "gui" / "web" / "e2e" / name).is_file(), name
 
 
 def test_web_subset_includes_the_repo_gui_web_readers() -> None:
@@ -496,3 +581,65 @@ def test_every_required_check_is_a_job_in_its_workflow() -> None:
 def test_the_merge_gate_reads_the_same_required_checks() -> None:
     gate = load_script("poteto_issue_gate")
     assert tuple(check.name for check in cp.REQUIRED_CHECKS) == gate.REQUIRED_CHECKS
+
+
+def test_a_source_file_no_test_names_runs_the_whole_suite(tmp_path: Path) -> None:
+    root = _tests_tree(tmp_path)
+    assert cp.changed_tests(["src/podcast_mcp/edits/unnamed.py"], root) is None
+    assert cp.changed_tests(["tests/helper_nobody_imports.py"], root) is None
+
+
+def test_a_shared_test_helper_reaches_the_tests_that_import_it(tmp_path: Path) -> None:
+    root = _tests_tree(tmp_path)
+    (root / "tests" / "test_uses_helper.py").write_text("from bleed_helpers import make\n")
+    assert cp.changed_tests(["tests/bleed_helpers.py"], root) == ["tests/test_uses_helper.py"]
+
+
+def test_a_parenthesised_from_import_reaches_the_module(tmp_path: Path) -> None:
+    root = _tests_tree(tmp_path)
+    (root / "tests" / "test_multi.py").write_text(
+        "from podcast_mcp.gui.routes import (\n    other,\n    export_routes,\n)\n"
+    )
+    assert cp.changed_tests(["src/podcast_mcp/gui/routes/export_routes.py"], root) == [
+        "tests/test_multi.py"
+    ]
+
+
+def test_a_workflow_named_test_yml_reaches_the_tests_that_read_it(tmp_path: Path) -> None:
+    root = _tests_tree(tmp_path)
+    (root / "tests" / "test_reads.py").write_text('p = ".github" / "workflows" / "test.yml"\n')
+    assert "tests/test_reads.py" in (cp.changed_tests([".github/workflows/test.yml"], root) or [])
+
+
+def test_a_changed_test_module_reaches_the_tests_that_import_it(tmp_path: Path) -> None:
+    root = _tests_tree(tmp_path)
+    (root / "tests" / "test_base.py").write_text("x = 1\n")
+    (root / "tests" / "test_user.py").write_text("from test_base import x\n")
+    assert cp.changed_tests(["tests/test_base.py"], root) == [
+        "tests/test_base.py",
+        "tests/test_user.py",
+    ]
+
+
+def test_a_mixed_diff_keeps_the_docs_readers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _tests_tree(tmp_path)
+    monkeypatch.setattr(
+        cp, "subset_tests", lambda scope, root=cp.ROOT: ["tests/test_docs_reader.py"]
+    )
+    reached = cp.changed_tests(["docs/setup.md", "tests/test_other.py"], root)
+    assert reached == ["tests/test_docs_reader.py", "tests/test_other.py"]
+
+
+def test_a_non_python_file_no_test_names_runs_the_whole_suite(tmp_path: Path) -> None:
+    root = _tests_tree(tmp_path)
+    assert cp.changed_tests(["deploy/relay/Dockerfile"], root) is None
+
+
+def test_a_planner_meta_test_does_not_vouch_for_a_path(tmp_path: Path) -> None:
+    root = _tests_tree(tmp_path)
+    (root / "tests" / "test_meta.py").write_text(
+        'import ci_plan\nPATH = "deploy/relay/Dockerfile"\n'
+    )
+    assert cp.changed_tests(["deploy/relay/Dockerfile"], root) is None
