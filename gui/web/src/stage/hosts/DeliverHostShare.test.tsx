@@ -28,7 +28,10 @@ vi.mock("../../commands/execute", async (importOriginal) => {
   };
 });
 
-import { clearRegisteredCommands } from "../../commands/execute";
+import {
+  clearRegisteredCommands,
+  registerCommand,
+} from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { FeaturesContext } from "../../extensions/FeaturesContext";
 import {
@@ -561,7 +564,29 @@ describe("the Invite sheet over any stage", () => {
     );
   });
 
-  it("does not offer Open Record stage: the sheet is already over every stage", async () => {
+  it("offers Open Record stage on a room card when the sheet is over another stage", async () => {
+    const openRecord = vi.fn(() => ({ status: "ok" as const }));
+    registerCommand("stage.record", openRecord);
+    server.shares = [
+      hostShareRow({
+        token: "g1",
+        kind: "record",
+        docs_role: null,
+        record_role: "guest",
+        session_id: "room-1",
+      }),
+    ];
+    render(<Host />);
+    openInvite();
+    await screen.findByText("Record room");
+    await userEvent.click(
+      sheet().getByRole("button", { name: "Open Record stage" }),
+    );
+    expect(openRecord).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not offer Open Record stage when the sheet is already over Record", async () => {
+    useDawStore.setState({ stage: "record" });
     server.shares = [
       hostShareRow({
         token: "g1",
