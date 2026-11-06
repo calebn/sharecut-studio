@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { PHONE_MQ } from "../../hooks/useViewportClass";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { GuestLoadingScreen } from "./GuestLoadingScreen";
 
@@ -47,5 +48,20 @@ describe("GuestLoadingScreen", () => {
     expect(
       rule("\\.sys-skeleton-blocks--guest \\.sys-skeleton-block--header"),
     ).not.toContain("margin-inline");
+  });
+
+  it("collapses the guest skeleton at the phone shell breakpoint", () => {
+    const css = readFileSync("src/styles/partials/system.css", "utf8");
+    const at = css.indexOf(
+      ".sys-skeleton-blocks--guest {",
+      css.indexOf("@media"),
+    );
+    const queries = [
+      ...css.matchAll(
+        /@media (\([^)]*\)) \{\s*\.sys-skeleton-blocks--guest \{/g,
+      ),
+    ];
+    expect(queries.map((m) => m[1])).toContain(PHONE_MQ);
+    expect(at).toBeGreaterThan(-1);
   });
 });
