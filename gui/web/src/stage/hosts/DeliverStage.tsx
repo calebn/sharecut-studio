@@ -12,7 +12,10 @@ import {
 } from "../../api";
 import { runPointerCommand } from "../../commands/pointer";
 import { seekTransport } from "../../commands/seek";
-import { documentScope } from "../../document/authorityState";
+import {
+  type DocumentScope,
+  documentScope,
+} from "../../document/authorityState";
 import {
   useFeaturesReady,
   useHasFeature,
@@ -376,10 +379,9 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     chosenFormats,
     currentRequest,
   ]);
-  const removedAt = useRef(new Map<string, HistoryEntryId>());
-  const rememberRemoval = (id: string, head: HistoryEntryId | null) => {
-    if (head) removedAt.current.set(id, head);
-  };
+  const removedAt = useRef(
+    new Map<string, { head: HistoryEntryId; scope: DocumentScope }>(),
+  );
   const [findingClips, setFindingClips] = useState(false);
   const [focusShare, setFocusShare] = useState(false);
   const clearShareFocus = useCallback(() => setFocusShare(false), []);
@@ -432,6 +434,10 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     const ops = clipOps(page.clips, next);
     commit({ clips: next.map((c) => ({ ...c, title: shownTitle(c.title) })) });
     if (ops.length === 0) return;
+    const scope = documentScope();
+    const rememberRemoval = (id: string, head: HistoryEntryId | null) => {
+      if (head) removedAt.current.set(id, { head, scope });
+    };
     sendDeliverEdit(projectPath, async (path) => {
       for (const op of ops) await saveClipOp(path, op, rememberRemoval);
     });
@@ -439,10 +445,13 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
   const onClipRestore = (clip: Clip) => {
     if (!projectPath) return;
     sendDeliverEdit(projectPath, async (path) => {
-      const expectedHeadId = removedAt.current.get(clip.id);
+      const removal = removedAt.current.get(clip.id);
       removedAt.current.delete(clip.id);
-      if (!expectedHeadId) throw new Error("The removal has no history entry.");
-      await undoHistory(path, { expectedHeadId, scope: documentScope() });
+      if (!removal) throw new Error("The removal has no history entry.");
+      await undoHistory(path, {
+        expectedHeadId: removal.head,
+        scope: removal.scope,
+      });
     });
   };
 
