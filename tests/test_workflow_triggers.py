@@ -179,3 +179,16 @@ def test_promote_alerts_on_scheduled_and_real_runs_but_not_dry_runs() -> None:
     step = next(s for s in alert["steps"] if s.get("uses") == "./.github/actions/nightly-alert")
     assert step["with"]["workflow"] == "promote"
     assert step["with"]["results"] == "${{ join(needs.*.result, ' ') }}"
+
+
+def test_release_please_targets_the_base_branch_and_waits_for_promotion() -> None:
+    text = (WORKFLOWS / "release-please.yml").read_text(encoding="utf-8")
+    workflow = load_github_yaml(WORKFLOWS / "release-please.yml")
+    steps = workflow["jobs"]["release-please"]["steps"]
+
+    action = next(step for step in steps if "release-please-action" in step.get("uses", ""))
+    assert action["with"]["target-branch"] == "${{ steps.branches.outputs.base }}"
+    guard = next(step for step in steps if "not yet on" in step.get("run", ""))
+    assert "merge-base --is-ancestor" in guard["run"]
+    assert steps.index(guard) < steps.index(action)
+    assert "refs/heads/main" not in text

@@ -37,6 +37,7 @@ from typing import Any, Literal
 if str(Path(__file__).resolve().parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import branches
 from ci_native import NativeSelection, select_native
 from path_vocab import Glob
 from version_policy import problems
@@ -375,7 +376,11 @@ def pr_compat() -> list[E2eJob]:
     ]
 
 
-RELEASE_BRANCH = "release-please--branches--main--components--podcast-mcp"
+def release_branch() -> str:
+    """The head ref release-please uses for PRs that target the base branch."""
+    return f"release-please--branches--{branches.base()}--components--podcast-mcp"
+
+
 _RELEASE_FIELDS = {
     "pyproject.toml": (("project", "version"),),
     ".release-please-manifest.json": ((".",),),
@@ -522,7 +527,11 @@ def classify_release(
     """Prove the exact known release from immutable Git objects, or explain full fallback."""
     if not (base and head and head_repository and base_repository):
         return FullRelease("missing release identity")
-    if head_ref != RELEASE_BRANCH or base_ref != "main" or head_repository != base_repository:
+    if (
+        head_ref != release_branch()
+        or base_ref != branches.base()
+        or head_repository != base_repository
+    ):
         return FullRelease("unexpected release branch, target, or repository")
     try:
         head_sha = _git(
