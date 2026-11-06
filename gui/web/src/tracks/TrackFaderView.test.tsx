@@ -25,6 +25,18 @@ describe("TrackFaderView", () => {
     expect(onCommit.mock.calls[0]![0]).toBeGreaterThan(-3);
   });
 
+  it("the number follows a drag and returns to the saved level when it is cancelled", () => {
+    const onCommit = vi.fn();
+    render(<TrackFaderView {...props} access={{ kind: "edit", onCommit }} />);
+    fireEvent.pointerDown(field(), { pointerId: 1, button: 0, clientX: 100 });
+    fireEvent.pointerMove(field(), { pointerId: 1, clientX: 110 });
+    fireEvent.pointerMove(field(), { pointerId: 1, clientX: 150 });
+    expect(Number(field().getAttribute("aria-valuenow"))).toBeGreaterThan(-3);
+    expect(onCommit).not.toHaveBeenCalled();
+    fireEvent.keyDown(field(), { key: "Escape" });
+    expect(field()).toHaveAttribute("aria-valuenow", "-3");
+  });
+
   it("read-only access commits nothing", () => {
     const onCommit = vi.fn();
     render(<TrackFaderView {...props} />);

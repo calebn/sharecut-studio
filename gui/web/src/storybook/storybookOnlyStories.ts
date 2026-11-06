@@ -10,5 +10,4 @@ export const STORYBOOK_ONLY: readonly string[] = [
   "stages-review-host--unsure-words",
   "stages-review-host--unsure-words-phone",
   "stages-edit-speakerpopover--open",
-  "templates-editboundarymark--roll-drag-preview",
 ];
