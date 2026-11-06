@@ -333,7 +333,7 @@ export async function openProjectMenuItem(
 }
 
 /**
- * Open `dialog` from its entry point: Share (the Deliver section) from the header's Invite, the Record stage, the palette on the header's search.
+ * Open `dialog` from its entry point: Share (the Invite sheet) from the header's Invite, the Record stage, the palette on the header's search.
  */
 export async function openProjectDialog(
   page: Page,
