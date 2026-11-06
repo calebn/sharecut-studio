@@ -1653,8 +1653,8 @@ html[data-frame-short] .sys-header-project .sys-header-title {
   grid-column: 2;
 }
 
-/* The phone shell, from the data-shell attribute the shell sets. */
-:root[data-shell="phone"] .sys-skeleton-blocks--guest {
+/* The phone shell, read by the skeleton itself (the app shell is not mounted yet while a guest loads). */
+.sys-skeleton-blocks--guest[data-shell="phone"] {
   grid-template-columns: minmax(0, 1fr);
 }
 
