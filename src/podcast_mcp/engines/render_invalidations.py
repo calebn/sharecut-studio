@@ -39,6 +39,7 @@ _ENVELOPE_OPS = frozenset({"set_envelope"})
 _CLIP_OPS = frozenset(
     {
         "set_clip_fade",
+        "set_clips_fade",
         "set_clip_join_mode",
         "set_clip_join",
         "fade_joins",

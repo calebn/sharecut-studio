@@ -300,6 +300,14 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             mcp=named("set_clip_fade_tool"),
             cli=named(GENERIC_CLI),
         ),
+        "SetClipsFade": CommandSpec(
+            payload=p.SetClipsFadePayload,
+            handler=edits.set_clips_fade,
+            guest=ReviewRole.EDITOR,
+            gui=GUI_SENT,
+            mcp=named("set_clips_fade_tool"),
+            cli=named(GENERIC_CLI),
+        ),
         "TrimClipEdge": CommandSpec(
             payload=p.TrimClipEdgePayload,
             handler=edits.trim_clip_edge,

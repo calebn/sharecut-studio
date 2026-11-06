@@ -1039,6 +1039,30 @@ def set_clip_fade(
     return change_summary(project, operation="set_clip_fade", affected_tracks=[clip.track_id])
 
 
+def set_clips_fade(
+    project: EpisodeProject,
+    fades: Sequence[tuple[str, int, int]],
+    *,
+    defaults: EffectiveConfig,
+) -> dict:
+    """Clamp and set every ``(clip_id, fade_in_ms, fade_out_ms)``; an unknown clip changes none."""
+
+    by_id = {c.id: c for c in project.clips}
+    missing = next((cid for cid, _, _ in fades if cid not in by_id), None)
+    if missing is not None:
+        raise CodedValueError(f"unknown clip_id: {missing!r}", code="clip_not_found")
+    for cid, fade_in_ms, fade_out_ms in fades:
+        clip = by_id[cid]
+        clip.fade_in_ms, clip.fade_out_ms = clamp_clip_fades(
+            project, clip, int(fade_in_ms), int(fade_out_ms), defaults=defaults
+        )
+    return change_summary(
+        project,
+        operation="set_clips_fade",
+        affected_tracks=sorted({by_id[cid].track_id for cid, _, _ in fades}),
+    )
+
+
 def _write_trim_clip_edge(
     project: EpisodeProject,
     plan: TrimPlan,

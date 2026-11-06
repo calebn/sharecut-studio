@@ -209,6 +209,7 @@ from podcast_mcp.mcp.tools.timeline import (  # noqa: E402, F401
     ripple_delete_tool,
     set_clip_fade_tool,
     set_clip_join_tool,
+    set_clips_fade_tool,
     set_effect_bypass_tool,
     set_join_mode_tool,
     shorten_gaps_tool,

@@ -444,6 +444,26 @@ export async function setClipFade(
   );
 }
 
+/** Set several clips' fades in one undo step; each target carries its own saved baseline. */
+export async function setClipsFade(
+  projectPath: string,
+  fades: ReadonlyArray<{
+    clip_id: string;
+    fade_in_ms: number;
+    fade_out_ms: number;
+    expected: ClipFadeBaseline;
+  }>,
+): Promise<HistoryEntryId | null> {
+  return replyHistoryHead(
+    await submitDocumentCommand(projectPath, DocumentCommand.SetClipsFade, {
+      fades: fades.map((fade) => ({
+        ...fade,
+        expected: { ...fade.expected },
+      })),
+    }),
+  );
+}
+
 export async function trimClipEdge(
   projectPath: string,
   clipId: string,

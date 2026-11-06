@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import math
+from collections.abc import Callable
 from dataclasses import asdict
 from pathlib import Path
 from typing import Literal, TypeVar
@@ -56,6 +57,7 @@ from podcast_mcp.edits.timeline_ops import (
     plan_shorten_word_gaps,
     roll_clip_join,
     set_clip_fade,
+    set_clips_fade,
     split_clips_at,
 )
 from podcast_mcp.edits.transcript_cuts import (
@@ -344,6 +346,13 @@ class TimelineService(CutMutatingService):
     def restore_clip_bleed(self, target: BleedRestoreTarget) -> BleedRestoreResult:
         return restore_clip_bleed(self.ws, target)
 
+    def _mutate_fades(
+        self, label: str, apply: Callable[[EpisodeProject], dict], *, operation: str, params: dict
+    ) -> dict:
+        return self.ws.mutate(
+            f"before {label}", f"after {label}", apply, operation=operation, params=params
+        )
+
     def set_clip_fade(
         self,
         clip_id: str,
@@ -355,9 +364,8 @@ class TimelineService(CutMutatingService):
         with self.ws.transaction() as project:
             if expected is not None:
                 require_clip_fade_baseline(project, clip_id, expected)
-            return self.ws.mutate(
-                "before set clip fade",
-                "after set clip fade",
+            return self._mutate_fades(
+                "set clip fade",
                 lambda p: set_clip_fade(
                     p, clip_id, fade_in_ms, fade_out_ms, defaults=self.ws.effective_config()
                 ),
@@ -367,6 +375,31 @@ class TimelineService(CutMutatingService):
                     "fade_in_ms": fade_in_ms,
                     "fade_out_ms": fade_out_ms,
                     **({"expected": asdict(expected)} if expected is not None else {}),
+                },
+            )
+
+    def set_clips_fade(self, fades: list[tuple[str, int, int, ClipFadeBaseline]]) -> dict:
+        with self.ws.transaction() as project:
+            for clip_id, _, _, expected in fades:
+                require_clip_fade_baseline(project, clip_id, expected)
+            return self._mutate_fades(
+                "set clips fade",
+                lambda p: set_clips_fade(
+                    p,
+                    [(clip_id, fade_in, fade_out) for clip_id, fade_in, fade_out, _ in fades],
+                    defaults=self.ws.effective_config(),
+                ),
+                operation="set_clips_fade",
+                params={
+                    "fades": [
+                        {
+                            "clip_id": clip_id,
+                            "fade_in_ms": fade_in,
+                            "fade_out_ms": fade_out,
+                            "expected": asdict(expected),
+                        }
+                        for clip_id, fade_in, fade_out, expected in fades
+                    ]
                 },
             )
 

@@ -2216,6 +2216,34 @@
         "title": "ClipFadeBaseline",
         "type": "object"
       },
+      "ClipFadeTarget": {
+        "properties": {
+          "clip_id": {
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "expected": {
+            "$ref": "#/components/schemas/ClipFadeBaseline",
+            "description": "Both saved fades of this clip captured when the edit began."
+          },
+          "fade_in_ms": {
+            "title": "Fade In Ms",
+            "type": "integer"
+          },
+          "fade_out_ms": {
+            "title": "Fade Out Ms",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "clip_id",
+          "fade_in_ms",
+          "fade_out_ms",
+          "expected"
+        ],
+        "title": "ClipFadeTarget",
+        "type": "object"
+      },
       "ClipGeometry": {
         "properties": {
           "id": {
@@ -7911,6 +7939,114 @@
         "title": "SetClipJoinPayload",
         "type": "object"
       },
+      "SetClipsFadeCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Seq"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/SetClipsFadePayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "SetClipsFade",
+            "default": "SetClipsFade",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "payload"
+        ],
+        "title": "SetClipsFadeCommand",
+        "type": "object"
+      },
+      "SetClipsFadePayload": {
+        "properties": {
+          "fades": {
+            "description": "One target per clip, each clamped like SetClipFade. Any clip whose saved fades differ from its expected pair returns clip_fade_changed and nothing changes. One history entry covers every clip.",
+            "items": {
+              "$ref": "#/components/schemas/ClipFadeTarget"
+            },
+            "minItems": 1,
+            "title": "Fades",
+            "type": "array"
+          }
+        },
+        "required": [
+          "fades"
+        ],
+        "title": "SetClipsFadePayload",
+        "type": "object"
+      },
       "SetEdit": {
         "additionalProperties": false,
         "properties": {
@@ -13474,6 +13610,7 @@
                     "SetBleedAlignmentMode": "#/components/schemas/SetBleedAlignmentModeCommand",
                     "SetClipFade": "#/components/schemas/SetClipFadeCommand",
                     "SetClipJoin": "#/components/schemas/SetClipJoinCommand",
+                    "SetClipsFade": "#/components/schemas/SetClipsFadeCommand",
                     "SetEffectBypass": "#/components/schemas/SetEffectBypassCommand",
                     "SetEnvelope": "#/components/schemas/SetEnvelopeCommand",
                     "SetFeedField": "#/components/schemas/SetFeedFieldCommand",
@@ -13557,6 +13694,9 @@
                   },
                   {
                     "$ref": "#/components/schemas/SetClipFadeCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SetClipsFadeCommand"
                   },
                   {
                     "$ref": "#/components/schemas/TrimClipEdgeCommand"
