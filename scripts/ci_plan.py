@@ -744,6 +744,8 @@ def changed_tests(changed: Sequence[str], root: Path = ROOT) -> list[str] | None
             source, script_stems
         ):
             selected.add(test_path)
+    # The planner's own tests quote paths as fixtures, so they vouch for nothing.
+    witnesses = {name: src for name, src in sources.items() if "ci_plan" not in src}
     # A file that no test names and no docs or web subset owns cannot be vouched for by a
     # grep: run the whole suite rather than none.
     for path in others:
@@ -752,7 +754,7 @@ def changed_tests(changed: Sequence[str], root: Path = ROOT) -> list[str] | None
         named = any(
             any(pattern.search(source) for pattern in _needles(path))
             or _referenced_scripts(source, stem)
-            for source in sources.values()
+            for source in witnesses.values()
         )
         if not (owned or named):
             return None

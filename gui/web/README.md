@@ -318,8 +318,8 @@ specs should protect layout/native input/media/storage/network seams or complete
 user outcomes. Before pruning a browser case, name its remaining coverage owner.
 See [Browser test scope and runtime](../../docs/testing.md#browser-test-scope-and-runtime)
 for placement rules and the CI `playwright-reports-<name>` timing artifacts
-(`main-1of4` ... `main-4of4`, `compat-chromium`, `compat-webkit`; PRs run only
-`main-smoke`). Each suite's live project is shared, so Playwright requires one
+(`main-1of4` ... `main-4of4`, `compat-chromium`, `compat-webkit`; ordinary PRs run
+only `main-smoke`; release-please PRs run the main and WebKit shards). Each suite's live project is shared, so Playwright requires one
 worker. CI shards the main suite and, on the nightly schedule, runs the full
 compatibility suite once per engine on separate runners. Both suites retry a
 failed test once in CI. The required `frontend-e2e` check requires every

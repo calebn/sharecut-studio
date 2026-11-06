@@ -635,3 +635,11 @@ def test_a_mixed_diff_keeps_the_docs_readers(
 def test_a_non_python_file_no_test_names_runs_the_whole_suite(tmp_path: Path) -> None:
     root = _tests_tree(tmp_path)
     assert cp.changed_tests(["deploy/relay/Dockerfile"], root) is None
+
+
+def test_a_planner_meta_test_does_not_vouch_for_a_path(tmp_path: Path) -> None:
+    root = _tests_tree(tmp_path)
+    (root / "tests" / "test_meta.py").write_text(
+        'import ci_plan\nPATH = "deploy/relay/Dockerfile"\n'
+    )
+    assert cp.changed_tests(["deploy/relay/Dockerfile"], root) is None
