@@ -55,7 +55,12 @@ export type ContextPredicateId =
 
 export type ExecuteResult =
   | { status: "ok" }
-  | { status: "disabled"; reason: string }
+  | {
+      status: "disabled";
+      reason: string;
+      /** The command already announced this failure in its own words; callers must not repeat it. */
+      told?: true;
+    }
   | { status: "unknown" };
 
 export type CommandHandler = (

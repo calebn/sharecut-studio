@@ -235,6 +235,19 @@ describe("CommandPalette", () => {
     );
   });
 
+  it("keeps the words of a failure the command told itself", async () => {
+    await runFit(async () => {
+      useDawStore
+        .getState()
+        .announceStatus("Fit failed: no tracks", { tone: "error" });
+      return { status: "disabled", reason: "no tracks", told: true };
+    });
+    expect(useDawStore.getState().feedbackToast?.message).toBe(
+      "Fit failed: no tracks",
+    );
+    expect(useDawStore.getState().feedbackToast?.tone).toBe("error");
+  });
+
   it("shows the refusal of a silent command when an unrelated announcement lands meanwhile", async () => {
     await runFit(async () => {
       await Promise.resolve();

@@ -3,6 +3,7 @@ import { listRecentProjects, type RecentProject } from "../../api";
 import { buildCommandContext } from "../../commands/context";
 import { execute } from "../../commands/execute";
 import { executePointerCommand } from "../../commands/pointer";
+import { runAndAnnounceRefusal } from "../../commands/refusal";
 import { bareKeyConflict } from "../../keymap/registry";
 import { clearKeymapOverride, setKeymapOverride } from "../../keymap/remaps";
 import { disambiguatedNames } from "../../presence/colors";
@@ -112,11 +113,7 @@ export function CommandPalette() {
         setRecent(rememberPaletteRecent(entry.id));
         setCommandPaletteOpen(false);
         // Re-check the command's gate now: the row was built when the palette opened.
-        void execute(entry.commandId, entry.args).then((result) => {
-          if (result.status === "disabled") {
-            useDawStore.getState().announceStatus(result.reason);
-          }
-        });
+        void runAndAnnounceRefusal(() => execute(entry.commandId, entry.args));
       }}
       commands={
         commandPaletteOpen ? paletteCommands(buildCommandContext()) : []
@@ -130,11 +127,7 @@ export function CommandPalette() {
         setRecent(rememberPaletteRecent(id));
         // Close first: a command may open its own dialog, and dialogs never stack.
         setCommandPaletteOpen(false);
-        void executePointerCommand(id).then((result) => {
-          if (result.status === "disabled") {
-            useDawStore.getState().announceStatus(result.reason);
-          }
-        });
+        void runAndAnnounceRefusal(() => executePointerCommand(id));
       }}
       onRemap={(id, trimmedKey) => {
         if (!trimmedKey) {
