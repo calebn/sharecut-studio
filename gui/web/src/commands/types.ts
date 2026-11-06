@@ -55,7 +55,7 @@ export type ExecuteResult =
   | {
       status: "disabled";
       reason: string;
-      /** The command already announced this failure in its own words; callers must not repeat it. */
+      /** The command dealt with this outcome itself (it announced the failure in its own words, or the project changed under it); callers must not announce the reason again. */
       told?: true;
     }
   | { status: "unknown" };

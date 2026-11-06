@@ -83,6 +83,7 @@ export function useDawKeymapListener(): void {
           });
           if (
             result.status === "disabled" &&
+            !result.told &&
             (def.mutates || def.announcesRefusal)
           ) {
             useDawStore
