@@ -5160,6 +5160,12 @@ input.sys-edit-fix {
   pointer-events: none;
 }
 
+.sys-edit-fix-measure::after {
+  content: "";
+  display: inline-block;
+  inline-size: 0.125em;
+}
+
 input.sys-edit-fix {
   position: absolute;
   inset: 0;
@@ -5227,6 +5233,11 @@ input.sys-edit-fix {
   field-sizing: fixed;
   inline-size: 100%;
   box-sizing: border-box;
+  padding-block: var(--space-1);
+  font-size: var(--font-size-field);
+}
+
+.sys-picker-renaming .sys-edit-fix-measure {
   padding-block: var(--space-1);
   font-size: var(--font-size-field);
 }
