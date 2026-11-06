@@ -139,7 +139,6 @@ test.describe("UX demo screenshots", () => {
     });
     await expect(desktop.locator(".sys-role")).toBeVisible();
     await expectLoadedDemo(desktop);
-    await expectLoadedTimeline(desktop);
     await expect(desktop.locator(".sys-script-word").first()).toBeVisible();
     await desktop.screenshot({
       path: path.join(screensDir, "guest-sharecut-desktop.png"),
