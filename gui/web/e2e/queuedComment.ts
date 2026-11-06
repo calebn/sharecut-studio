@@ -40,8 +40,8 @@ export async function postHostComment(page: Page, body: string): Promise<void> {
   await openPanel(page, "comments");
   await page.keyboard.press("c");
   const compose = page.locator(".rv-compose");
-  await expect(compose.getByRole("textbox", { name: "Your name" })).toHaveValue(
-    "Host",
+  await expect(compose.getByRole("textbox", { name: "Your name" })).toHaveCount(
+    0,
   );
   await compose
     .getByRole("textbox", { name: "Comment", exact: true })

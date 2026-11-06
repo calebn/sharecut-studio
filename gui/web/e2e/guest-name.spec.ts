@@ -63,6 +63,7 @@ function fields(dock: Locator) {
   return {
     field: dock.getByRole("textbox", { name: "Comment", exact: true }),
     name: dock.getByRole("textbox", { name: "Your name" }),
+    known: dock.locator(".sys-composer-as"),
     post: dock.getByRole("button", POST),
   };
 }
@@ -122,7 +123,7 @@ async function withNamedGuest(
       await field.fill("First");
       await name.fill(who);
       await post.tap();
-      await expect(name).toHaveValue(who);
+      await expect(fields(dock).known).toContainText(who);
       await run(guest, dock);
     },
     colorScheme,
@@ -164,7 +165,7 @@ for (const theme of ["light", "dark"] as const) {
           await name.fill("Riley Okafor");
           await post.tap();
           await expect(field).toHaveValue("");
-          await expect(name).toHaveValue("Riley Okafor");
+          await expect(fields(dock).known).toContainText("Riley Okafor");
           await expectNoHorizontalScroll(guest, phone.width);
 
           const rows = await hostComments(host, 1);
@@ -172,12 +173,12 @@ for (const theme of ["light", "dark"] as const) {
           expect(rows[0]).not.toContain("Guest");
 
           await guest.reload();
-          await expect(name).toHaveValue("Riley Okafor");
+          await expect(fields(dock).known).toContainText("Riley Okafor");
           await field.tap();
           await field.fill("Second note");
           await post.tap();
           await expect(field).toHaveValue("");
-          await expect(name).toHaveValue("Riley Okafor");
+          await expect(fields(dock).known).toContainText("Riley Okafor");
         },
         theme,
       );
@@ -265,7 +266,7 @@ for (const size of DOCK_SIZES) {
         "composer scrolls sideways",
       ).toBe(true);
       const panel = await dock.boundingBox();
-      const input = await fields(dock).name.boundingBox();
+      const input = await fields(dock).known.boundingBox();
       expect(panel).not.toBeNull();
       expect(input).not.toBeNull();
       if (panel && input) {
