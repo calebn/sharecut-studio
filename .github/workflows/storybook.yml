@@ -53,7 +53,9 @@ jobs:
         working-directory: gui/web
 
       - name: Sweep every story for axe violations and overflow
-        run: npm run test:stories -- --shard=${{ matrix.shard }}/4
+        run: npm run test:stories
+        env:
+          VITE_STORY_SHARD: ${{ matrix.shard }}/4
         working-directory: gui/web
 
   build:

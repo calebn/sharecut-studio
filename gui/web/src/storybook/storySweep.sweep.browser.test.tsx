@@ -84,9 +84,15 @@ afterEach(() => {
   document.documentElement.removeAttribute("data-theme");
 });
 
+/** `VITE_STORY_SHARD=i/n` runs every n-th story starting at i, since vitest shards by file. */
+const shard = /^(\d+)\/(\d+)$/.exec(import.meta.env.VITE_STORY_SHARD ?? "1/1");
+const inShard = (index: number) =>
+  shard ? index % Number(shard[2]) === Number(shard[1]) - 1 : true;
+
 for (const theme of THEMES) {
   describe(`stories in ${theme}`, () => {
-    for (const base of stories) {
+    for (const [index, base] of stories.entries()) {
+      if (!inShard(index)) continue;
       if (STORYBOOK_ONLY.includes(base.id)) continue;
       it(`${base.title} / ${base.storyName}`, async () => {
         const errors: string[] = [];
