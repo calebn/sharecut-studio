@@ -1,0 +1,1 @@
+PR3332 Stop take button on the paused-take Record dock (spec amendment with Stage-Spec-Approved)
