@@ -1,9 +1,13 @@
-import { type RenderResult, render } from "@testing-library/react";
-import type { ReactElement, ReactNode } from "react";
+import { act, type RenderResult, render } from "@testing-library/react";
+import { type ReactElement, type ReactNode, useMemo, useState } from "react";
 import { vi } from "vitest";
 import type { BootstrapJobSnapshot, BootstrapStatus } from "../api";
 import { overlay, toolsOf } from "../models/controller";
-import type { DownloadOutcome, ModelFailure } from "../models/types";
+import type {
+  DownloadOutcome,
+  ModelFailure,
+  RemoveOutcome,
+} from "../models/types";
 import { type ModelsApi, ModelsContext } from "../models/useModels";
 
 export type ModelsFixture = {
@@ -31,6 +35,7 @@ export function modelsApi(fixture: ModelsFixture): ModelsApi {
       fixture.download ??
       vi.fn(async (): Promise<DownloadOutcome> => ({ kind: "ok" })),
     cancel: vi.fn(async () => undefined),
+    remove: vi.fn(async (): Promise<RemoveOutcome> => ({ kind: "ok" })),
     refresh: vi.fn(async () => undefined),
   };
 }
@@ -52,6 +57,38 @@ export function renderWithModels(
   const api = modelsApi(fixture);
   const result = render(ui, { wrapper: modelsWrapper(api) });
   return Object.assign(result, { api });
+}
+
+export function renderWithLanding(
+  ui: ReactElement,
+  fixture: ModelsFixture,
+): RenderResult & { api: ModelsApi; land: (id: string) => void } {
+  const base = modelsApi(fixture);
+  let mark: (id: string) => void = () => undefined;
+  function Landing({ children }: { children: ReactNode }) {
+    const [landed, setLanded] = useState<string[]>([]);
+    mark = (id) => setLanded((ids) => [...ids, id]);
+    const api = useMemo<ModelsApi>(
+      () => ({
+        ...base,
+        models:
+          base.models?.map((m) =>
+            landed.includes(m.id)
+              ? { ...m, state: { kind: "installed" } as const }
+              : m,
+          ) ?? null,
+      }),
+      [landed],
+    );
+    return (
+      <ModelsContext.Provider value={api}>{children}</ModelsContext.Provider>
+    );
+  }
+  const result = render(ui, { wrapper: Landing });
+  return Object.assign(result, {
+    api: base,
+    land: (id: string) => act(() => mark(id)),
+  });
 }
 
 export const WHISPER_CATALOG = [

@@ -43,8 +43,8 @@ export interface ChromeFlags {
   hostMcpDialogOpen: boolean;
   /** Host Help → diagnostics bundle dialog. */
   helpDialogOpen: boolean;
-  /** Models dialog: every model, its state and download. */
-  modelsDialogOpen: boolean;
+  /** Models sheet: every model, its state and download. */
+  modelsSheetOpen: boolean;
   /** Transcript find/replace panel open. */
   transcriptFindReplaceOpen: boolean;
 }
@@ -505,7 +505,7 @@ export interface DawState {
   setTranscriptRequested: (on: boolean) => void;
   setHostMcpDialogOpen: (on: boolean) => void;
   setHelpDialogOpen: (on: boolean) => void;
-  setModelsDialogOpen: (on: boolean) => void;
+  setModelsSheetOpen: (on: boolean) => void;
   setOpenJoinId: (id: string | null) => void;
   setJoinMutationInFlight: (on: boolean) => void;
   setJoinDraft: (draft: ClipRow | null) => void;

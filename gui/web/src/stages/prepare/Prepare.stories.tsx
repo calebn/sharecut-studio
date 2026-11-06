@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { viewportStoryParameters } from "../../storybook/storyLayout";
+import { withModels } from "../../test/modelsStory";
 import {
   type CleanupSettings,
   PrepareView,
@@ -229,16 +230,13 @@ export const NeedsModel: Story = {
     },
   },
   render: live,
-  play: async ({ args, canvasElement }) => {
+  decorators: [withModels],
+  play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await openReady(canvasElement);
-    await userEvent.click(
-      canvas.getByRole("button", { name: /^Get \(1.6 GB\)/ }),
-    );
-    await expect(args.onRowAction).toHaveBeenCalledWith(
-      "transcribe",
-      "download-model",
-    );
+    await expect(
+      canvas.getByRole("button", { name: "Get the transcription model" }),
+    ).toBeVisible();
   },
 };
 

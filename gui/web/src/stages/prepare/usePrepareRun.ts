@@ -5,7 +5,13 @@ import {
   startPipelineRun,
 } from "../../api";
 import type { PipelineWorkingSet } from "../../hooks/usePipelineWorkingSet";
-import { type ModelView, modelActivity, useModels } from "../../models";
+import {
+  type NeedTarget,
+  rowInstalled,
+  useModelResume,
+  useModels,
+  WORD_ALIGNER,
+} from "../../models";
 import { useDawStore } from "../../state/dawStore";
 import {
   currentMediaKey,
@@ -19,20 +25,16 @@ import type {
 import {
   errorMessage,
   isModelNeeded,
-  type ModelNeeded,
+  notDownloadedLine,
 } from "../../utils/apiError";
 import { takeAutoRun } from "../../utils/openIntent";
 import { isPipelineSlotBusy } from "../../utils/pipeline";
-import {
-  type ModelAsk,
-  OVERWRITE_REFUSED,
-  oneRunSkipSteps,
-} from "./prepareMappers";
+import { OVERWRITE_REFUSED, oneRunSkipSteps } from "./prepareMappers";
 import type { ReadyRowId } from "./ReadyList";
 
 const TRANSCRIBE_STEP = "transcribe_tracks";
-const WHISPER = "whisper";
-const WORD_ALIGNER = "word-aligner";
+const modelKey = (model: Pick<NeedTarget, "id" | "variant">) =>
+  `${model.id}:${model.variant ?? ""}`;
 const BUSY_CODE = "pipeline_busy";
 
 /** `update` redoes the transcripts whose audio changed, and only those. */
@@ -61,43 +63,6 @@ export function runOptions(
     retimeWords: mode === "retime",
     overwriteEdited: fromTranscribe && overwriteEdited,
   };
-}
-
-function whatIs(need: ModelNeeded): string {
-  return need.id === WHISPER
-    ? "the transcription model"
-    : need.id === WORD_ALIGNER
-      ? "word timing"
-      : need.label.toLowerCase();
-}
-
-function installed(row: ModelView | null, need: ModelNeeded): boolean {
-  return (
-    row?.state.kind === "installed" &&
-    (need.id !== WHISPER || !need.variant || row.variant === need.variant)
-  );
-}
-
-/** The model ask for the row, following the download once the person taps Get. */
-function modelAskOf(
-  need: ModelNeeded,
-  row: ModelView | null,
-  busy: boolean,
-): ModelAsk {
-  const { working, downloading, failure } = modelActivity(row, busy);
-  const size = need.size || row?.size || "";
-  const what = whatIs(need);
-  if (working) {
-    const known =
-      downloading && downloading.total
-        ? downloading.bytes / downloading.total
-        : undefined;
-    return { phase: "downloading", size, what, progress: known };
-  }
-  if (failure) {
-    return { phase: "failed", size, what, failure: failure.plain };
-  }
-  return { phase: "ask", size, what };
 }
 
 type PrepareRunInput = {
@@ -135,13 +100,11 @@ type KeepFixes = {
  */
 export function usePrepareRun(input: PrepareRunInput) {
   const { ingestBusy, canRun, mediaKey } = input;
-  const { models, busy: slotTaken, download } = useModels();
+  const { models } = useModels();
   const [starting, setStarting] = useState(false);
-  const [need, setNeed] = useState<ModelNeeded | null>(null);
   const [waiting, setWaiting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   const [keepFixes, setKeepFixes] = useState<KeepFixes | null>(null);
-  const [wantRetime, setWantRetime] = useState(false);
   const latest = useRef(input);
   latest.current = input;
   const startingRef = useRef(false);
@@ -152,8 +115,12 @@ export function usePrepareRun(input: PrepareRunInput) {
   const refusedRef = useRef<RunRequest | null>(null);
   /** The request that failed to start, replayed by Try again. */
   const failedRef = useRef<RunRequest | null>(null);
-  /** Set once the model was seen missing after the ask, so a stale row never loops the run. */
-  const sawMissing = useRef(false);
+  /** The model the stopped run already waited for once, so a second refusal says so instead of looping. */
+  const retried = useRef<string | null>(null);
+  const replay = useRef<(model: NeedTarget) => void>(() => undefined);
+  const { stop: need, stopFor } = useModelResume((model) =>
+    replay.current(model),
+  );
 
   /**
    * The slot is taken, so nothing started. A plain run waits and goes on when
@@ -214,16 +181,23 @@ export function usePrepareRun(input: PrepareRunInput) {
         try {
           job = await startPipelineRun(latest.current.projectPath, options);
         } catch (error) {
-          if (isModelNeeded(error)) {
+          if (
+            isModelNeeded(error) &&
+            retried.current !== modelKey(error.model)
+          ) {
             refusedRef.current = { mode, overwriteEdited, fromStep, skipped };
-            setNeed(error.model);
+            stopFor(error.model);
             return;
+          }
+          if (isModelNeeded(error)) {
+            retried.current = null;
+            throw new Error(notDownloadedLine(error.model));
           }
           throw error;
         }
         if (runIncludesTranscribe({ fromStep: options.fromStep }))
           recordJobMedia(job.id, keyAtRequest);
-        setNeed(null);
+        retried.current = null;
         refusedRef.current = null;
         failedRef.current = null;
         waitingRef.current = false;
@@ -251,7 +225,7 @@ export function usePrepareRun(input: PrepareRunInput) {
         setStarting(false);
       }
     },
-    [busyRefused],
+    [busyRefused, stopFor],
   );
 
   // Import is done when the busy flag drops with different audio on the
@@ -299,23 +273,17 @@ export function usePrepareRun(input: PrepareRunInput) {
   }, [canRun, mediaKey, ingestBusy, start]);
 
   // A run that stopped for a model goes on by itself once that model is in.
-  const row = need ? (models?.find((m) => m.id === need.id) ?? null) : null;
-  const here = need !== null && installed(row, need);
-  if (need && !here) sawMissing.current = true;
-  const arrived = here && sawMissing.current;
-  useEffect(() => {
-    if (!arrived) return;
-    sawMissing.current = false;
-    setNeed(null);
+  replay.current = (model) => {
     const refused = refusedRef.current;
     refusedRef.current = null;
+    retried.current = modelKey(model);
     void start(
       refused?.mode ?? "run",
       refused?.overwriteEdited ?? false,
       refused?.fromStep,
       refused?.skipped,
     );
-  }, [arrived, start]);
+  };
 
   /** Run from the transcribe step; ask first when hand fixes would be replaced. */
   const askToReplace = useCallback(
@@ -364,31 +332,23 @@ export function usePrepareRun(input: PrepareRunInput) {
   }, [refusal, askToReplace]);
 
   const alignerRow = models?.find((m) => m.id === WORD_ALIGNER) ?? null;
-  const alignerIn = alignerRow?.state.kind === "installed";
-  useEffect(() => {
-    if (!wantRetime || !alignerIn) return;
-    setWantRetime(false);
-    void askToReplace("retime");
-  }, [wantRetime, alignerIn, askToReplace]);
-
-  const ask = need ? modelAskOf(need, row, slotTaken) : null;
-  const approximate =
-    alignerRow && !alignerIn
-      ? {
-          size: alignerRow.size,
-          downloading:
-            modelActivity(alignerRow, slotTaken).working || wantRetime,
-        }
-      : null;
+  const alignerIn = rowInstalled(alignerRow, {
+    id: WORD_ALIGNER,
+    variant: null,
+  });
+  const retime = useModelResume<NeedTarget>(() => void askToReplace("retime"));
+  const approximate = alignerRow && !alignerIn ? alignerRow : null;
 
   return {
     starting,
     waiting,
     startError,
-    model: ask,
+    model: need,
     keepFixes,
     /** Word timing is missing; null when the model is in or unknown. */
     approximateTiming: approximate,
+    /** Get on the word timing row: the words are re-timed when it lands. */
+    awaitAligner: retime.stopFor,
     run: start,
     tryAgain: () => {
       if (refusal) return void askToReplace("update");
@@ -406,19 +366,6 @@ export function usePrepareRun(input: PrepareRunInput) {
       const pending = keepFixes;
       setKeepFixes(null);
       if (pending) void start(pending.mode, true);
-    },
-    getModel: () => {
-      if (!need) return;
-      void download(
-        [need.id],
-        need.variant ? { whisperModel: need.variant } : undefined,
-      );
-    },
-    getAligner: () => {
-      setWantRetime(true);
-      void download([WORD_ALIGNER]).then((outcome) => {
-        if (outcome.kind !== "ok") setWantRetime(false);
-      });
     },
     cancel: async () => {
       const store = useDawStore.getState();

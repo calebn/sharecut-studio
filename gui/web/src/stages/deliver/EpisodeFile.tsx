@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef } from "react";
-import { formatBytes, ModelGateHint, ModelGatePanel } from "../../models";
+import { formatBytes, ModelNeedRow } from "../../models";
 import { ScrubField } from "../../system/ScrubField";
 import { Skeleton } from "../../system/Skeleton";
 import { StatusRow } from "../../system/StatusRow";
@@ -39,7 +39,6 @@ type Props = {
   /** Without it the Saves to line is not shown. */
   onChangeFolder?: () => void;
   onExport: () => void;
-  onGetModel?: () => void;
   onCancel?: () => void;
 };
 
@@ -56,14 +55,13 @@ export function EpisodeFile({
   onSettings,
   onChangeFolder,
   onExport,
-  onGetModel,
   onCancel,
 }: Props) {
   const note =
     "Available captions and transcript are included with every audio export." +
     (hasTranscriptSection ? " Choose more files in Transcript below." : "");
   const wavNote = useId();
-  const gatePanel = useRef<HTMLDivElement>(null);
+  const needPanel = useRef<HTMLDivElement>(null);
   const runningBlock = useRef<HTMLDivElement>(null);
   const running = exportState.phase === "running";
   const wasRunning = useRef(running);
@@ -72,14 +70,15 @@ export function EpisodeFile({
       runningBlock.current?.scrollIntoView?.({ block: "center" });
     wasRunning.current = running;
   }, [running, dock]);
-  const askPhase =
-    exportState.phase === "needs-model" ? options.gate?.prompt?.phase : null;
+  const asking = exportState.phase === "needs-model";
   useEffect(() => {
-    if (!askPhase) return;
-    const first = gatePanel.current?.querySelector("button");
+    if (!asking) return;
+    const first = needPanel.current?.querySelector<HTMLButtonElement>(
+      'button:not([aria-label="Manage models"])',
+    );
     first?.scrollIntoView?.({ block: "center" });
     first?.focus();
-  }, [askPhase]);
+  }, [asking]);
   if (state === "loading") {
     return (
       <DeliverSection title="Episode file">
@@ -263,26 +262,10 @@ export function EpisodeFile({
         </p>
       ) : null}
 
-      {exportState.phase === "needs-model" && options.gate ? (
-        <div ref={gatePanel}>
-          <ModelGatePanel gate={options.gate} />
+      {exportState.phase === "needs-model" ? (
+        <div ref={needPanel}>
+          <ModelNeedRow model={exportState.model} />
         </div>
-      ) : null}
-      {exportState.phase === "needs-model" && !options.gate ? (
-        <StatusRow
-          state="needs-you"
-          title={`Needs the ${exportState.model}`}
-          detail={exportState.size}
-          action={
-            onGetModel
-              ? {
-                  label: "Get",
-                  icon: "cloud-download",
-                  onAction: onGetModel,
-                }
-              : undefined
-          }
-        />
       ) : null}
       {exportState.phase === "running" ? (
         <div ref={runningBlock} className="dv-section">
@@ -313,25 +296,20 @@ export function EpisodeFile({
         </div>
       ) : null}
       {exportState.phase === "failed" ? (
-        <>
-          <StatusRow
-            state="failed"
-            title="Export failed"
-            detail={exportState.cause}
-            action={
-              options.onExportAgain
-                ? {
-                    label: "Try again",
-                    onAction: options.onExportAgain,
-                    disabledReason: blocker,
-                  }
-                : undefined
-            }
-          />
-          {options.gate ? (
-            <ModelGateHint gate={options.gate} actionLabel="Export" />
-          ) : null}
-        </>
+        <StatusRow
+          state="failed"
+          title="Export failed"
+          detail={exportState.cause}
+          action={
+            options.onExportAgain
+              ? {
+                  label: "Try again",
+                  onAction: options.onExportAgain,
+                  disabledReason: blocker,
+                }
+              : undefined
+          }
+        />
       ) : null}
       {exportState.phase === "cancelled" ? (
         <StatusRow

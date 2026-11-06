@@ -1,7 +1,8 @@
-import type { ModelGate } from "../../models";
+import { capabilityOf } from "../../models";
 import type { StatusRowState } from "../../system/StatusRow";
 import { formatSeconds } from "../../system/seconds";
 import type { StageId } from "../../types/stage";
+import type { ModelNeeded } from "../../utils/apiError";
 import { type ClipWord, normaliseWords } from "./clipTrim";
 
 export type FormatId = string;
@@ -246,7 +247,7 @@ export type TimeSpan = { start: number; end: number };
 
 export type ExportState =
   | { phase: "never" }
-  | { phase: "needs-model"; model: string; size: string }
+  | { phase: "needs-model"; model: ModelNeeded }
   | {
       phase: "running";
       progress: number | null;
@@ -404,7 +405,10 @@ export function exportBlocker(
   > = {},
 ): string | undefined {
   if (host.blockedReason) return host.blockedReason;
-  if (state?.phase === "needs-model") return "Needs the transcription model.";
+  if (state?.phase === "needs-model") {
+    const { model } = state;
+    return `Needs ${capabilityOf(model.id, model.label).what}.`;
+  }
   if (host.loading) return "Wait for the settings to load.";
   if (
     settings.formats.length === 0 &&
@@ -585,6 +589,5 @@ export type ExportOptions = {
   edits?: string;
   target?: string;
   onFormats?: (keys: readonly FormatId[]) => void;
-  gate?: ModelGate;
   onExportAgain?: () => void;
 };

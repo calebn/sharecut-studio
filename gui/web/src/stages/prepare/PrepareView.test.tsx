@@ -587,9 +587,6 @@ describe("PrepareView live region", () => {
     expect(
       prepareAnnouncement({ phase: "keep-fixes", handoffLabel: "x" }),
     ).toBe("You fixed words by hand. Keep my fixes or replace them.");
-    expect(
-      prepareAnnouncement({ phase: "model-failed", handoffLabel: "x" }),
-    ).toBe("The download did not finish. Try again.");
     expect(prepareAnnouncement({ phase: "waiting", handoffLabel: "x" })).toBe(
       "Processing starts when the other job finishes.",
     );

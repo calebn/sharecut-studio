@@ -1,3 +1,4 @@
+import { ModelNeedRow } from "../../models";
 import { SessionGroup } from "../../system/SessionGroup";
 import { SourceCard } from "../../system/SourceCard";
 import type { PrepareSession, SourceActions } from "./prepareTypes";
@@ -42,6 +43,7 @@ export function SessionSources({
       {sources.length === 0
         ? undefined
         : sources.map((source, at) => {
+            const { model: needed, ...card } = source;
             const key = source.name.trim().toLowerCase();
             const sameNameAs =
               source.sameNameAs ??
@@ -49,7 +51,8 @@ export function SessionSources({
             return (
               <SourceCard
                 key={source.id}
-                {...source}
+                {...card}
+                modelAsk={needed ? <ModelNeedRow model={needed} /> : undefined}
                 sourceId={source.id}
                 sameNameAs={sameNameAs}
                 nameElsewhere={

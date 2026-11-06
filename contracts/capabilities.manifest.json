@@ -2105,7 +2105,7 @@
         "command": "models.open",
         "gui": [
           "home.models",
-          "ModelsDialog"
+          "ModelsSheet"
         ],
         "cli": "podcast setup",
         "mcp": [
@@ -2114,10 +2114,10 @@
         ]
       },
       "omit": {
-        "keyboard_reason": "dialog from Home / palette",
+        "keyboard_reason": "sheet from Home / palette",
         "guest": true
       },
-      "tooltip": "See every model and download the ones you want",
+      "tooltip": "See every model and get the ones you want",
       "presence": {
         "cursor": "none",
         "follow": "none"

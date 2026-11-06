@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { ModelNeedRow, type NeedTarget, WORD_ALIGNER } from "../../models";
 import type { SystemIconName } from "../../system/icons";
 import { StatusList } from "../../system/StatusList";
 import { StatusRow, type StatusRowState } from "../../system/StatusRow";
@@ -15,8 +16,8 @@ export type ReadyRowId =
   | "suggest";
 
 export type ReadyAction =
-  | "download-model"
-  | "download-aligner"
+  /** Get was pressed on the word timing ask; the words are re-timed when it lands. */
+  | "get-word-timing"
   | "try-again"
   | "hear"
   | "looks-right"
@@ -52,6 +53,8 @@ export type ReadyRowData = {
   /** The technical cause of a failure, behind the row's Details button. */
   details?: string;
   body?: ReadyBody;
+  /** The model this row waits on: its Model need row sits inside the row. */
+  model?: NeedTarget;
 };
 
 type ReadyListProps = {
@@ -60,7 +63,7 @@ type ReadyListProps = {
 };
 
 function defaultExpanded(row: ReadyRowData): boolean {
-  return row.state === "needs-you" && row.body !== undefined;
+  return row.state === "needs-you" && (row.body ?? row.model) !== undefined;
 }
 
 function BodyButtons({
@@ -128,7 +131,10 @@ function BodyButtons({
  */
 export function ReadyList({ rows, onAction }: ReadyListProps) {
   const shape = Object.fromEntries(
-    rows.map((row) => [row.id, `${row.state}:${row.body?.kind ?? ""}`]),
+    rows.map((row) => [
+      row.id,
+      `${row.state}:${row.body?.kind ?? ""}${row.model ? ":model" : ""}`,
+    ]),
   );
   const [toggled, setToggled] = useState<Partial<Record<ReadyRowId, boolean>>>(
     {},
@@ -172,6 +178,15 @@ export function ReadyList({ rows, onAction }: ReadyListProps) {
           >
             {row.body ? (
               <BodyButtons row={row} focusKeep={expanded} onAction={onAction} />
+            ) : row.model ? (
+              <ModelNeedRow
+                model={row.model}
+                onGet={
+                  row.model.id === WORD_ALIGNER
+                    ? () => onAction(row.id, "get-word-timing")
+                    : undefined
+                }
+              />
             ) : undefined}
           </StatusRow>
         );

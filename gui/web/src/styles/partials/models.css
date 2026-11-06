@@ -1,152 +1,114 @@
-/* Model rows: the Home Setup card and the Models dialog. Intrinsic stack and cluster layout, no tables. */
+.sys-need {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-body);
+}
 
-.model-list {
+.sys-need-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-block-size: 4rem;
+}
+
+.sys-need-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--color-text-secondary);
+}
+
+.sys-need-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.sys-need-name {
+  font-size: var(--font-size-body);
+  font-weight: 600;
+  line-height: 1.33;
+  overflow-wrap: anywhere;
+}
+
+.sys-need-meta {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+  overflow-wrap: anywhere;
+}
+
+.sys-need-meta[data-failed] {
+  color: var(--color-danger);
+}
+
+.sys-need-control {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+}
+
+.sys-need-control .ui-control {
+  min-block-size: var(--touch-min);
+  gap: var(--space-3);
+}
+
+.sys-need-cancel {
+  position: relative;
+  min-inline-size: var(--touch-min);
+  justify-content: center;
+}
+
+.sys-need-cancel > svg:last-child {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  translate: -50% -50%;
+}
+
+.sys-need-extra {
+  padding-inline-start: calc(1.25rem + var(--space-4));
+}
+
+.sys-need-extra .ui-segmented {
+  display: flex;
+  block-size: auto;
+}
+
+.sys-need-extra .ui-segmented > .ui-control {
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 0;
+  min-block-size: var(--touch-min);
+  min-inline-size: 0;
+  white-space: nowrap;
+}
+
+.sys-size-bytes {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+  font-weight: 400;
+}
+
+.models-sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.models-sheet-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.model-row {
-  container: model-row / inline-size;
-  color: var(--color-text-primary);
-  --stack-space: var(--space-3);
-}
-
-/* A select cannot wrap its option text, and touch devices keep fields at 1rem, so a phone-width row
-   gives the control the width instead: "Recommended (~1.6 GB)" must fit. */
-.box.model-row {
-  padding-inline: var(--space-4);
-}
-
-.model-row-head {
-  gap: var(--space-3) var(--space-4);
-}
-
-.model-row-name {
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
-.model-row-size,
-.model-row-state {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-body);
-}
-
-.model-row-state {
-  font-weight: 600;
-}
-
-.model-row-purpose,
-.model-row-note,
-.model-row-bytes {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-body);
-}
-
-.model-row-progress {
-  display: flex;
-  inline-size: 100%;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1) var(--space-4);
-}
-
-.model-row-progress progress {
-  flex: 1 1 12rem;
-  min-inline-size: 0;
-  block-size: var(--space-4);
-  accent-color: var(--color-accent-solid);
-}
-
-/* The fill is the solid accent: at least 3:1 against the sunken track in both themes (WCAG 1.4.11). */
-/* A calm track from the theme's own surfaces, not the browser's near-white one. */
-.model-row-progress progress {
-  appearance: none;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-bg-sunken);
-  overflow: hidden;
-}
-
-.model-row-progress progress::-webkit-progress-bar {
-  background: var(--color-bg-sunken);
-}
-
-.model-row-progress progress::-webkit-progress-value {
-  background: var(--color-accent-solid);
-}
-
-.model-row-progress progress::-moz-progress-bar {
-  background: var(--color-accent-solid);
-}
-
-.model-row-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.model-row-actions .ui-control {
-  min-block-size: var(--touch-min);
-}
-
-@container model-row (max-width: 30rem) {
-  .model-row-actions {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .model-row-actions .ui-control {
-    inline-size: 100%;
-  }
-}
-
-.model-tools {
-  color: var(--color-text-secondary);
-}
-
-.model-row-actions .model-row-note {
-  margin: 0;
-}
-
-.models-dialog-panel {
-  width: min(40rem, calc(100vw - 2rem));
-}
-
-.models-dialog-intro {
-  margin: 0 0 var(--space-4);
-  color: var(--color-text-secondary);
-}
-
-.model-row select {
-  min-block-size: var(--touch-min);
-  min-inline-size: 0;
-  inline-size: 100%;
-  max-inline-size: 100%;
-  padding-inline: var(--space-3) var(--space-1);
-  text-overflow: ellipsis;
-}
-
-/* The gate's choices wrap: on a phone each takes the row, so every one is a full thumb target. */
-.model-gate-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.model-gate-actions .ui-control {
-  min-block-size: var(--touch-min);
-}
-
-.model-gate-actions .ui-control:not(.linkish) {
-  flex: 1 1 10rem;
-}
-
-.model-gate-hint {
+.models-sheet-wait {
   margin: 0;
   color: var(--color-text-secondary);
-  font-size: var(--font-size-body);
 }

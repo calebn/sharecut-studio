@@ -188,6 +188,7 @@ export function usePrepareModel(): PrepareModel {
     chosenVoices: sourceState.chosenVoices,
     splitting: sourceState.splitting,
     splitFailed: sourceState.splitFailed,
+    splitNeeds: sourceState.splitNeeds,
     job,
     focusTrackId,
     newTrackIds: planShown ? new Set(newTracks.map((t) => t.id)) : undefined,
@@ -289,11 +290,8 @@ export function usePrepareModel(): PrepareModel {
           return next;
         });
         break;
-      case "download-model":
-        run.getModel();
-        break;
-      case "download-aligner":
-        run.getAligner();
+      case "get-word-timing":
+        if (run.approximateTiming) run.awaitAligner(run.approximateTiming);
         break;
       case "try-again":
         run.tryAgain();

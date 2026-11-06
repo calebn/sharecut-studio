@@ -1,9 +1,10 @@
-import { createContext, useContext, useMemo } from "react";
+import { createContext, useContext } from "react";
 import type { ModelInstallState } from "../types/pipeline";
 import type {
   DownloadOptions,
   DownloadOutcome,
   ModelView,
+  RemoveOutcome,
   WhisperChoice,
 } from "./types";
 
@@ -21,6 +22,8 @@ export type ModelsApi = {
     options?: DownloadOptions,
   ) => Promise<DownloadOutcome>;
   cancel: () => Promise<void>;
+  /** Deletes a downloaded model (for Whisper, the size `variant` names) and reads the status again. */
+  remove: (id: string, variant?: string | null) => Promise<RemoveOutcome>;
   refresh: () => Promise<void>;
 };
 
@@ -39,22 +42,10 @@ export const INERT_MODELS: ModelsApi = {
   whisper: { variant: "", variants: [], choose: () => undefined },
   download: () => Promise.resolve({ kind: "cancelled" }),
   cancel: () => Promise.resolve(),
+  remove: () => Promise.resolve({ kind: "busy" }),
   refresh: () => Promise.resolve(),
 };
 
 export function useModels(): ModelsApi {
   return useContext(ModelsContext) ?? INERT_MODELS;
-}
-
-export function useModel(id: string): {
-  row: ModelView | null;
-  busy: boolean;
-  download: (options?: DownloadOptions) => Promise<DownloadOutcome>;
-} {
-  const { models, busy, download } = useModels();
-  const row = models?.find((m) => m.id === id) ?? null;
-  return useMemo(
-    () => ({ row, busy, download: (options) => download([id], options) }),
-    [row, busy, download, id],
-  );
 }

@@ -47,7 +47,6 @@ export function exportOptionsOf(flow: ExportFlow): ExportOptions {
     loudness: false,
     target: settings ? masterTargetKey(settings.target) : undefined,
     range: false,
-    gate: flow.gate,
     onExportAgain:
       run.kind === "failed" || run.kind === "cancelled"
         ? flow.again
@@ -72,13 +71,9 @@ const CANCELLED_NOTHING =
   "Export cancelled. Files from an earlier export are unchanged.";
 
 export function exportStateOf(flow: ExportFlow, nowSec: number): ExportState {
-  const { run, job, gate } = flow;
-  if (gate.prompt) {
-    return {
-      phase: "needs-model",
-      model: gate.prompt.label,
-      size: gate.prompt.size,
-    };
+  const { run, job, needs } = flow;
+  if (needs) {
+    return { phase: "needs-model", model: needs };
   }
   switch (run.kind) {
     case "idle":

@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import { registerDawWebMcpTools } from "./agentic/webmcp";
 import { registerDawCommands } from "./commands/register";
 import { useDesktopCloseGuard } from "./desktop/useDesktopCloseGuard";
-import { AskDialog } from "./feedback/AskDialog";
 import { FeedbackToast } from "./feedback/FeedbackToast";
 import { HelpDialog } from "./home/HelpDialog";
 import { useAutoRefreshMix } from "./hooks/useAutoRefreshMix";
@@ -13,7 +12,7 @@ import { usePipelineJob } from "./hooks/usePipelineJob";
 import { usePointerType } from "./hooks/usePointerType";
 import { useProjectBootstrap } from "./hooks/useProjectBootstrap";
 import { useDawKeymapListener } from "./keymap/listener";
-import { ModelsDialog } from "./models";
+import { ModelsSheet } from "./models";
 import { HostRoomProvider } from "./record/hostRoomContext";
 import { useRecordHostStore } from "./record/hostStore";
 import { sendRecordHostCommand } from "./record/hostWire";
@@ -29,6 +28,7 @@ import { StageFrame } from "./stage/frame/StageFrame";
 import { useLandingStage } from "./stage/frame/useLandingStage";
 import { BounceFlowProvider } from "./stage/hosts/bounceFlow";
 import { ExportFlowProvider } from "./stage/hosts/exportFlow";
+import { FindMoreFlowProvider } from "./stage/hosts/findMoreFlow";
 import { StageHost } from "./stage/hosts/StageHost";
 import { ShareFlowProvider } from "./stage/hosts/shareFlow";
 import { useDawStore } from "./state/dawStore";
@@ -55,7 +55,7 @@ const selectDawAppFields = pickDaw(
   "setActivityRunningCount",
   "setHostMcpDialogOpen",
   "setHelpDialogOpen",
-  "setModelsDialogOpen",
+  "setModelsSheetOpen",
 );
 
 const selectDawAppDerived = (s: DawState) => ({
@@ -80,11 +80,11 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     setActivityRunningCount,
     setHostMcpDialogOpen,
     setHelpDialogOpen,
-    setModelsDialogOpen,
+    setModelsSheetOpen,
   } = useDaw(selectDawAppFields);
   const hostMcpDialogOpen = useDaw((s) => s.chrome.hostMcpDialogOpen);
   const helpDialogOpen = useDaw((s) => s.chrome.helpDialogOpen);
-  const modelsDialogOpen = useDaw((s) => s.chrome.modelsDialogOpen);
+  const modelsSheetOpen = useDaw((s) => s.chrome.modelsSheetOpen);
   const { hasProject, projectName, suppressPublish } =
     useDaw(selectDawAppDerived);
   const publishKey = useDawStore(selectPublishKey);
@@ -223,36 +223,37 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     <HostRoomProvider value={hostRoom}>
       <ExportFlowProvider>
         <BounceFlowProvider>
-          <ShareFlowProvider>
-            {engines}
-            <div data-daw-app-chrome>
-              <StageFrame guestShare={guestShare} sheets={EDIT_SHEETS}>
-                <StageHost
-                  guestShare={guestShare}
-                  loadFailure={loadFailure}
-                  onRetryLoad={retryBootstrap}
-                />
-              </StageFrame>
-            </div>
-            <CheatsheetDialogs />
-            <HostMcpDialog
-              open={hostMcpDialogOpen}
-              onClose={() => setHostMcpDialogOpen(false)}
-              hasProject={hasProject}
-            />
-            <HelpDialog
-              open={helpDialogOpen}
-              onClose={() => setHelpDialogOpen(false)}
-            />
-            {syncEnabled ? (
-              <ModelsDialog
-                open={modelsDialogOpen}
-                onClose={() => setModelsDialogOpen(false)}
+          <FindMoreFlowProvider>
+            <ShareFlowProvider>
+              {engines}
+              <div data-daw-app-chrome>
+                <StageFrame guestShare={guestShare} sheets={EDIT_SHEETS}>
+                  <StageHost
+                    guestShare={guestShare}
+                    loadFailure={loadFailure}
+                    onRetryLoad={retryBootstrap}
+                  />
+                </StageFrame>
+              </div>
+              <CheatsheetDialogs />
+              <HostMcpDialog
+                open={hostMcpDialogOpen}
+                onClose={() => setHostMcpDialogOpen(false)}
+                hasProject={hasProject}
               />
-            ) : null}
-            <AskDialog />
-            <FeedbackToast />
-          </ShareFlowProvider>
+              <HelpDialog
+                open={helpDialogOpen}
+                onClose={() => setHelpDialogOpen(false)}
+              />
+              {syncEnabled ? (
+                <ModelsSheet
+                  open={modelsSheetOpen}
+                  onClose={() => setModelsSheetOpen(false)}
+                />
+              ) : null}
+              <FeedbackToast />
+            </ShareFlowProvider>
+          </FindMoreFlowProvider>
         </BounceFlowProvider>
       </ExportFlowProvider>
     </HostRoomProvider>

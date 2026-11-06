@@ -16,7 +16,7 @@ import {
 import { openHostProject } from "./overlayReachability";
 
 /**
- * The first-run Setup card on Home and the Models dialog against a mocked `/api/bootstrap/*`: nothing here
+ * The first-run Setup card on Home and the Models sheet against a mocked `/api/bootstrap/*`: nothing here
  * downloads anything. Set MODELS_SHOTS_DIR to also save one screenshot per viewport, theme and case.
  */
 
@@ -41,27 +41,25 @@ for (const viewport of VIEWPORTS) {
         await expect(
           setup.getByRole("button", { name: "Get ready" }),
         ).toBeEnabled();
-        await expect(page.locator("li.model-row")).toHaveCount(0);
+        await expect(page.locator(".sys-need")).toHaveCount(0);
         await setup.getByRole("button", { name: "Choose…" }).click();
         const dialog = page.getByRole("dialog", { name: "Models" });
         await expect(dialog).toBeVisible();
         await expect(
           dialog
-            .locator("li.model-row")
-            .evaluateAll((els) =>
-              els.map((el) => el.getAttribute("data-model")),
-            ),
+            .locator(".sys-need-name")
+            .evaluateAll((els) => els.map((el) => el.textContent)),
         ).resolves.toEqual([
-          "whisper",
-          "rnnoise",
-          "word-aligner",
-          "speaker-ecapa",
+          "Transcription",
+          "Word timing",
+          "Speaker split",
+          "Noise reduction",
         ]);
         await expect(
-          row(dialog, "Whisper").getByRole("combobox", {
-            name: "Whisper size",
-          }),
-        ).toBeVisible();
+          dialog
+            .getByRole("group", { name: "Size" })
+            .getByRole("button", { name: /^Best/ }),
+        ).toHaveAttribute("aria-pressed", "true");
         await expectNoHorizontalScroll(page);
         await expectTouchTargets(dialog);
         await expectReadingSurfaceAxeClean(page);
@@ -138,31 +136,27 @@ for (const viewport of VIEWPORTS) {
         await chooseHomeMenuItem(page, "Models");
         const dialog = page.getByRole("dialog", { name: "Models" });
         await expect(dialog).toBeVisible();
-        await expect(row(dialog, "Whisper").getByRole("status")).toHaveText(
-          "Installed",
+        await expect(row(dialog, "Transcription")).toContainText(
+          "Installed · 1.6 GB",
+        );
+        await expect(row(dialog, "Noise reduction")).toContainText(
+          "Update available",
         );
         await expect(
-          row(dialog, "Noise reduction (RNNoise)").getByRole("status"),
-        ).toHaveText("Update available");
-        await expect(
-          row(dialog, "Noise reduction (RNNoise)").getByRole("button", {
-            name: "Update Noise reduction (RNNoise)",
+          row(dialog, "Noise reduction").getByRole("button", {
+            name: "Update Noise reduction",
           }),
         ).toBeEnabled();
-        await expect(
-          row(dialog, "Word aligner").getByRole("status"),
-        ).toHaveText("Not downloaded");
-        await row(dialog, "Speaker model")
-          .getByRole("button", { name: "Download Speaker model" })
+        await expect(row(dialog, "Word timing")).toContainText(
+          "Not installed · 360 MB",
+        );
+        await row(dialog, "Speaker split")
+          .getByRole("button", { name: "Get Speaker split" })
           .click();
-        const failed = row(dialog, "Speaker model");
-        await expect(failed.getByRole("alert")).toHaveText(failure.plain);
-        await expect(failed.getByRole("status")).toHaveText("Download failed");
+        const failed = row(dialog, "Speaker split");
+        await expect(failed).toContainText(failure.plain);
         await expect(
-          failed.getByText(/Try again in a few minutes/),
-        ).toBeVisible();
-        await expect(
-          failed.getByRole("button", { name: "Retry Speaker model" }),
+          failed.getByRole("button", { name: "Try again Speaker split" }),
         ).toBeEnabled();
         expect(mock.runs).toHaveLength(1);
         await expectNoHorizontalScroll(page);
@@ -197,7 +191,9 @@ for (const viewport of VIEWPORTS) {
         await expect(dialog).toBeVisible();
 
         // Short landscape: the sheet body scrolls and the first row's action stays reachable.
-        const body = dialog.locator(".command-palette-body");
+        const body = dialog
+          .locator(".command-palette-body, .bottom-sheet-body")
+          .first();
         const scrolls = await body.evaluate(
           (el) => el.scrollHeight > el.clientHeight,
         );
@@ -206,22 +202,24 @@ for (const viewport of VIEWPORTS) {
             true,
           );
         }
-        const whisperDownload = row(dialog, "Whisper").getByRole("button", {
-          name: "Download Whisper",
-        });
+        const whisperDownload = row(dialog, "Transcription").getByRole(
+          "button",
+          { name: "Get Transcription" },
+        );
         await whisperDownload.scrollIntoViewIfNeeded();
         await expect(whisperDownload).toBeInViewport();
 
-        await row(dialog, "Word aligner")
-          .getByRole("button", { name: "Download Word aligner" })
+        await row(dialog, "Word timing")
+          .getByRole("button", { name: "Get Word timing" })
           .click();
         await expect.poll(() => mock.runs.length).toBe(1);
-        const bar = row(dialog, "Whisper").getByRole("progressbar");
-        await expect(bar).toHaveAttribute("aria-valuetext", "420 MB of 1.6 GB");
+        await expect(row(dialog, "Transcription")).toContainText(
+          "420 MB of 1.6 GB",
+        );
         for (const [label, name] of [
-          ["Noise reduction (RNNoise)", "Download Noise reduction (RNNoise)"],
-          ["Word aligner", "Download Word aligner"],
-          ["Speaker model", "Download Speaker model"],
+          ["Noise reduction", "Get Noise reduction"],
+          ["Word timing", "Get Word timing"],
+          ["Speaker split", "Get Speaker split"],
         ] as const) {
           const button = row(dialog, label).getByRole("button", { name });
           await expect(button).toBeDisabled();
@@ -230,8 +228,8 @@ for (const viewport of VIEWPORTS) {
           );
         }
         await expect(
-          row(dialog, "Whisper").getByRole("button", {
-            name: "Cancel Whisper download",
+          row(dialog, "Transcription").getByRole("button", {
+            name: "Cancel Transcription download",
           }),
         ).toBeEnabled();
         expect(mock.runs).toHaveLength(1);
@@ -248,7 +246,7 @@ test.describe("models palette command 1440x900", () => {
   test.use({ viewport: { width: 1440, height: 900 } });
 
   for (const theme of THEMES) {
-    test(`Manage models… opens the dialog from a project (${theme})`, async ({
+    test(`Manage models… opens the sheet from a project (${theme})`, async ({
       page,
     }) => {
       await prepare(page, theme, true);
@@ -264,9 +262,9 @@ test.describe("models palette command 1440x900", () => {
       await page.getByRole("option", { name: /Manage models…/ }).click();
       const dialog = page.getByRole("dialog", { name: "Models" });
       await expect(dialog).toBeVisible();
-      await expect(dialog.locator("li.model-row")).toHaveCount(4);
+      await expect(dialog.locator(".sys-need")).toHaveCount(4);
       await expectSurfaceAxeClean(page, ".command-palette-panel");
-      await shot(page, "1440x900", theme, "palette-opens-dialog");
+      await shot(page, "1440x900", theme, "palette-opens-sheet");
       await page.keyboard.press("Escape");
       await expect(dialog).toBeHidden();
       expect(mock.runs).toEqual([]);
@@ -274,10 +272,12 @@ test.describe("models palette command 1440x900", () => {
   }
 });
 
-test.describe("models dialog in a project on a phone", () => {
+test.describe("models sheet in a project on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
-  test("rises as a bottom sheet with every row reachable", async ({ page }) => {
+  test("rises as a full-height bottom sheet with every row reachable", async ({
+    page,
+  }) => {
     await prepare(page, "light", true);
     const mock = await mockBootstrap(page);
     await openHostProject(page);
@@ -288,21 +288,22 @@ test.describe("models dialog in a project on a phone", () => {
     await page.getByRole("option", { name: /Manage models…/ }).click();
     const dialog = page.getByRole("dialog", { name: "Models" });
     await expect(dialog).toBeVisible();
-    const panel = dialog.locator(".command-palette-panel");
-    // The sheet rises into place; wait for it to settle on the bottom edge.
+    const panel = dialog;
+    const slot = page.locator(".bottom-sheet-root");
+    const bottomOf = async (target: typeof slot) => {
+      const box = await target.boundingBox();
+      return box && Math.round(box.y + box.height);
+    };
     await expect
-      .poll(async () => {
-        const box = await panel.boundingBox();
-        return box && Math.round(box.y + box.height);
-      })
-      .toBe(844);
-    const last = row(dialog, "Speaker model").getByRole("button", {
-      name: "Download Speaker model",
+      .poll(async () => (await bottomOf(panel)) === (await bottomOf(slot)))
+      .toBe(true);
+    const last = row(dialog, "Noise reduction").getByRole("button", {
+      name: "Get Noise reduction",
     });
     await last.scrollIntoViewIfNeeded();
     await expect(last).toBeInViewport();
     await expectNoHorizontalScroll(page);
-    await expectSurfaceAxeClean(page, ".command-palette-panel");
+    await expectSurfaceAxeClean(page, ".bottom-sheet");
     await shot(page, "390x844", "light", "palette-sheet");
     expect(mock.runs).toEqual([]);
   });

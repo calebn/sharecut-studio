@@ -1,5 +1,5 @@
-import type { ModelGate } from "../../models";
 import type { ExactRangeTarget } from "../../types/project";
+import type { ModelNeeded } from "../../utils/apiError";
 
 export type BounceSource = "entire" | "selected" | "soloed";
 
@@ -18,6 +18,7 @@ export const BOUNCE_DEFAULTS: BounceChoices = {
 
 export type BounceState =
   | { phase: "idle" }
+  | { phase: "needs-model"; model: ModelNeeded }
   | {
       phase: "running";
       /** 0 to 1; null when the job reports no total, so the bar is not drawn. */
@@ -46,8 +47,6 @@ export type BounceOptions = {
   /** The fixed range is the one the running bounce captured, not a later request. */
   rangeIsRunning?: boolean;
   onClearRange?: () => void;
-  /** A missing model: the gate's prompt and its download controls. */
-  gate?: ModelGate;
   /** Why Bounce is unavailable for reasons outside the page, such as a link that cannot bounce. */
   blockedReason?: string;
   onBounce: () => void;

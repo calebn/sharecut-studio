@@ -450,14 +450,14 @@ describe("Export on the Deliver stage", () => {
     expect(await screen.findByText("Exporting")).toBeInTheDocument();
   });
 
-  it("asks before downloading a missing model, in the page", async () => {
+  it("shows the Model need row in the page for a missing model", async () => {
     renderWithModels(<Host />, { status: modelStatus(registryRows()) });
     await pressExport();
     await act(async () => server.settle(EXPORT_MODEL_NEEDED));
+    expect(await screen.findByText("Needs noise reduction")).toBeVisible();
     expect(
-      await screen.findByText(/Noise reduction \(RNNoise\)/),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Download" })).toBeVisible();
+      screen.getByRole("button", { name: "Get noise reduction" }),
+    ).toBeVisible();
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 

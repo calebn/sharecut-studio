@@ -131,20 +131,41 @@ describe("ReadyList", () => {
     expect(bar).toHaveAttribute("aria-valuetext", "30 percent");
   });
 
-  it("says what to do in the model and word-timing rows", async () => {
+  it("holds the Model need row inside the Transcribe row, for the model and for word timing", () => {
+    const { rerender } = render(
+      <ReadyList rows={ROWS.needsModel} onAction={vi.fn()} />,
+    );
+    const item = screen.getAllByRole("listitem")[1];
+    expect(
+      within(item).getByText("Waiting for the transcription model"),
+    ).toBeVisible();
+    expect(
+      within(item).getByText("Needs the transcription model"),
+    ).toBeVisible();
+    expect(
+      within(item).getByRole("button", { name: "Get the transcription model" }),
+    ).toBeVisible();
+    rerender(<ReadyList rows={ROWS.approximateTiming} onAction={vi.fn()} />);
+    expect(screen.getByText(/Word timing is approximate/)).toBeVisible();
+    expect(screen.getByText("Needs word timing")).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Get word timing" }),
+    ).toBeVisible();
+  });
+
+  it("arms the word timing re-time only from the word timing ask, not from the transcription ask", async () => {
     const user = userEvent.setup();
     const onAction = vi.fn();
     const { rerender } = render(
       <ReadyList rows={ROWS.needsModel} onAction={onAction} />,
     );
-    await user.click(screen.getByRole("button", { name: /^Get \(1.6 GB\)/ }));
-    expect(onAction).toHaveBeenCalledWith("transcribe", "download-model");
-    rerender(<ReadyList rows={ROWS.approximateTiming} onAction={onAction} />);
-    expect(screen.getByText(/Word timing is approximate/)).toBeVisible();
     await user.click(
-      screen.getByRole("button", { name: /^Download word timing \(360 MB\)/ }),
+      screen.getByRole("button", { name: "Get the transcription model" }),
     );
-    expect(onAction).toHaveBeenCalledWith("transcribe", "download-aligner");
+    expect(onAction).not.toHaveBeenCalled();
+    rerender(<ReadyList rows={ROWS.approximateTiming} onAction={onAction} />);
+    await user.click(screen.getByRole("button", { name: "Get word timing" }));
+    expect(onAction).toHaveBeenCalledWith("transcribe", "get-word-timing");
   });
 
   it("reads the running bar in words", () => {
@@ -164,23 +185,6 @@ describe("ReadyList", () => {
     await user.keyboard("{Enter}");
     rerender(
       <ReadyList rows={settle(ROWS.failed, "running")} onAction={vi.fn()} />,
-    );
-    expect(document.activeElement).toBe(item);
-  });
-
-  it("keeps focus in the row when Download starts the work", async () => {
-    const user = userEvent.setup();
-    const { rerender } = render(
-      <ReadyList rows={ROWS.needsModel} onAction={vi.fn()} />,
-    );
-    const item = screen.getAllByRole("listitem")[1];
-    screen.getByRole("button", { name: /^Get \(1.6 GB\)/ }).focus();
-    await user.keyboard("{Enter}");
-    rerender(
-      <ReadyList
-        rows={settle(ROWS.needsModel, "running")}
-        onAction={vi.fn()}
-      />,
     );
     expect(document.activeElement).toBe(item);
   });

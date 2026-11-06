@@ -233,7 +233,7 @@ export class JobCancelledError extends Error {
 
 /**
  * The error a failed job raises: a `model_needed` ApiError when the snapshot
- * names the missing model, so a model gate can offer the download.
+ * names the missing model, so the Model need row can offer the download.
  */
 export function jobFailure(
   done: PipelineJobSnapshot,

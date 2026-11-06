@@ -135,8 +135,15 @@ export const DONE = exportedState(REQUEST);
 export const STALE = exportedState(REQUEST, "stale");
 export const NEEDS_MODEL: ExportState = {
   phase: "needs-model",
-  model: "transcription model",
-  size: "1.6 GB",
+  model: {
+    id: "whisper",
+    variant: "large-v3-turbo",
+    label: "Whisper speech model",
+    purpose: "transcription",
+    size: "~1.6 GB",
+    sizeBytes: 1_600_000_000,
+    state: "missing",
+  },
 };
 export const FAILED: ExportState = {
   phase: "failed",

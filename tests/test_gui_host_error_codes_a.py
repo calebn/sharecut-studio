@@ -310,6 +310,26 @@ def test_bootstrap_job_missing(bootstrap_client):
     )
 
 
+def test_bootstrap_remove_unknown_model(bootstrap_client):
+    _assert(
+        bootstrap_client.delete("/api/bootstrap/models/no-such-model"),
+        400,
+        "invalid_request",
+    )
+
+
+def test_bootstrap_remove_supplied_file_is_refused(bootstrap_client, tmp_path, monkeypatch):
+    supplied = tmp_path / "mine.rnnn"
+    supplied.write_bytes(b"x")
+    monkeypatch.setenv("PODCAST_MCP_RNNOISE_MODEL", str(supplied))
+    _assert(
+        bootstrap_client.delete("/api/bootstrap/models/rnnoise"),
+        409,
+        "model_not_removable",
+    )
+    assert supplied.exists()
+
+
 def test_bootstrap_status_bad_model(bootstrap_client):
     res = bootstrap_client.get("/api/bootstrap/status", params={"whisper_model": "no-such/model!"})
     assert res.status_code == 400

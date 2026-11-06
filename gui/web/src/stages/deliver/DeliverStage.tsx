@@ -103,7 +103,6 @@ export type DeliverStageProps = {
   /** True while Find clips runs; the button reads unavailable with the reason. */
   findingClips?: boolean;
   onOpenClipInEdit: (id: string) => void;
-  onGetModel?: () => void;
   onRetry?: () => void;
 };
 
@@ -150,7 +149,6 @@ export function DeliverStage({
   onFindClips,
   findingClips = false,
   onOpenClipInEdit,
-  onGetModel,
   onRetry,
 }: DeliverStageProps) {
   const [settings, setSettings] = useState(initialSettings);
@@ -387,7 +385,6 @@ export function DeliverStage({
               onSettings={changeSettings}
               onChangeFolder={onChangeFolder}
               onExport={() => startExport()}
-              onGetModel={onGetModel}
               onCancel={onCancel}
             />
             {bounce ? (

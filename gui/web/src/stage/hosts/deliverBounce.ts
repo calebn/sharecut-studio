@@ -24,7 +24,10 @@ export const BOUNCE_CANCELLED_NOTHING =
 
 /** The stage's bounce state for the flow, with `nowSec` for the stall notice. */
 export function bounceStateOf(flow: BounceFlow, nowSec: number): BounceState {
-  const { run, job } = flow;
+  const { run, job, needs } = flow;
+  if (needs) {
+    return { phase: "needs-model", model: needs };
+  }
   switch (run.kind) {
     case "idle":
       return { phase: "idle" };
@@ -100,7 +103,6 @@ export function bounceOptionsOf(
       project.range !== null &&
       run.range === project.range,
     onClearRange: project.range ? project.clearRange : undefined,
-    gate: flow.gate,
     blockedReason: project.blockedReason,
     onBounce: flow.start,
     onCancel: flow.cancel,

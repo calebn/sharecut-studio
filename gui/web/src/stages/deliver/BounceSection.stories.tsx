@@ -1,9 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
-import type { ModelGate } from "../../models";
 import { viewportStoryParameters } from "../../storybook/storyLayout";
-import { registryModels } from "../../test/modelsStory";
+import { registryModels, withModels } from "../../test/modelsStory";
 import { BounceSection } from "./BounceSection";
 import { BOUNCE_DEFAULTS, type BounceChoices } from "./bounceLogic";
 
@@ -276,51 +275,37 @@ export const Cancelled: Story = {
   },
 };
 
-function askGate(): ModelGate {
-  const view = registryModels({ "speaker-ecapa": { kind: "missing" } })[3];
-  return {
-    run: () => Promise.reject(new Error("The story does not run actions.")),
-    prompt: {
-      need: { id: view.id },
-      label: view.label,
-      purpose: view.purpose,
-      size: view.size,
-      phase: "ask",
-      view,
-      blockedReason: undefined,
-    },
-    declined: null,
-    accept: fn(),
-    decline: fn(),
-    cancelDownload: fn(),
-    openModels: fn(),
-    reset: fn(),
-  };
-}
-
-export const ModelGatePrompt: Story = {
-  args: { options: { ...meta.args!.options!, gate: askGate() } },
-  play: async ({ canvasElement, args }) => {
-    const view = within(canvasElement);
-    await expect(view.queryByRole("button", { name: "Bounce" })).toBeNull();
-    await expect(view.queryByRole("group", { name: "Source" })).toBeNull();
-    await userEvent.click(view.getByRole("button", { name: "Download" }));
-    await expect(args.options.gate?.accept).toHaveBeenCalledOnce();
-  },
-};
-
-export const FailedAfterDecline: Story = {
+export const NeedsModel: Story = {
   args: {
     options: {
       ...meta.args!.options!,
-      state: { phase: "failed", cause: "Speaker model is not downloaded." },
-      gate: {
-        ...askGate(),
-        prompt: null,
-        declined: { id: "speaker-ecapa", label: "Speaker model" },
+      state: {
+        phase: "needs-model",
+        model: {
+          id: "speaker-ecapa",
+          variant: null,
+          label: "Speaker model",
+          purpose: "speaker recognition and split",
+          size: "~25 MB",
+          sizeBytes: null,
+          state: "missing",
+        },
       },
-      onAgain: fn(),
     },
+  },
+  decorators: [withModels],
+  parameters: {
+    models: {
+      models: registryModels({ "speaker-ecapa": { kind: "missing" } }),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const view = within(canvasElement);
+    await expect(view.queryByRole("button", { name: "Bounce" })).toBeNull();
+    await expect(view.queryByRole("group", { name: "Source" })).toBeNull();
+    await expect(
+      view.getByRole("button", { name: "Get the speaker model" }),
+    ).toBeEnabled();
   },
 };
 

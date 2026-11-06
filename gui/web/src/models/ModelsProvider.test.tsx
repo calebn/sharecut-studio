@@ -1,10 +1,4 @@
-import {
-  act,
-  render,
-  renderHook,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { act, render, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
@@ -14,9 +8,9 @@ import type {
 } from "../api";
 import * as api from "../api";
 import { ApiError } from "../utils/apiError";
-import { ModelRow } from "./ModelRow";
+import { ModelNeedRowView } from "./ModelNeedRow";
 import { ModelsProvider } from "./ModelsProvider";
-import { useModel, useModels } from "./useModels";
+import { useModels } from "./useModels";
 
 vi.mock("../api", () => ({
   fetchBootstrapStatus: vi.fn(),
@@ -24,6 +18,7 @@ vi.mock("../api", () => ({
   runBootstrap: vi.fn(),
   waitForBootstrapJob: vi.fn(),
   cancelBootstrap: vi.fn(),
+  removeBootstrapModel: vi.fn(),
 }));
 
 const fetchStatus = vi.mocked(api.fetchBootstrapStatus);
@@ -31,6 +26,7 @@ const fetchJob = vi.mocked(api.fetchBootstrapJob);
 const run = vi.mocked(api.runBootstrap);
 const wait = vi.mocked(api.waitForBootstrapJob);
 const cancel = vi.mocked(api.cancelBootstrap);
+const removeModel = vi.mocked(api.removeBootstrapModel);
 
 function row(over: Partial<ModelStatus> & { id: string }): ModelStatus {
   return {
@@ -379,7 +375,7 @@ describe("ModelsProvider", () => {
     expect(result.current.busy).toBe(false);
   });
 
-  it("shows no environment name or absolute path in a failed row's alert", async () => {
+  it("shows no environment name or absolute path in a failed row's text", async () => {
     run.mockRejectedValue(
       new Error(
         "Could not reach PODCAST_BOOTSTRAP_CDN_BASE while writing /home/x/.cache/podcast/models/a.bin and C:\\Users\\x\\models\\a.bin",
@@ -389,13 +385,91 @@ describe("ModelsProvider", () => {
     await act(async () => {
       await result.current.download(["rnnoise"]);
     });
+    const failed = result.current.models![1]!;
     render(
-      <ModelRow model={result.current.models![1]!} action={{ kind: "none" }} />,
+      <ModelNeedRowView
+        placement="list"
+        model={failed}
+        state={failed.state}
+        onGet={vi.fn()}
+        onCancel={vi.fn()}
+      />,
     );
-    const alert = screen.getByRole("alert").textContent ?? "";
+    const alert = document.querySelector(".sys-need-meta")?.textContent ?? "";
     expect(alert).not.toBe("");
     expect(alert).not.toMatch(/PODCAST_/);
     expect(alert).not.toMatch(/\/home\/|C:\\/);
+  });
+
+  it("is busy from Get until the server answers, so the Size control cannot change under the start", async () => {
+    let answer: (value: { job: ReturnType<typeof job> }) => void = () =>
+      undefined;
+    run.mockImplementation(() => new Promise((resolve) => (answer = resolve)));
+    const { result } = await mounted();
+    expect(result.current.busy).toBe(false);
+    act(() => {
+      void result.current.download(["whisper"]);
+    });
+    expect(result.current.busy).toBe(true);
+    const states = Object.fromEntries(
+      (result.current.models ?? []).map((m) => [m.id, m.state.kind]),
+    );
+    expect(states).toMatchObject({ whisper: "queued", rnnoise: "missing" });
+    await act(async () => answer({ job: job() }));
+    await waitFor(() => expect(waiters).toHaveLength(1));
+    expect(result.current.busy).toBe(true);
+    await act(async () => {
+      waiters[0]!.finish(job({ status: "ok" }));
+    });
+    await waitFor(() => expect(result.current.busy).toBe(false));
+  });
+
+  it("is not busy after a start that failed", async () => {
+    run.mockRejectedValue(new Error("down"));
+    const { result } = await mounted();
+    await act(async () => {
+      await result.current.download(["whisper"]);
+    });
+    expect(result.current.busy).toBe(false);
+  });
+
+  it("removes a model, names the Whisper size, and reads status again", async () => {
+    removeModel.mockResolvedValue({ freed_bytes: 1, model: MISSING[0]! });
+    const { result } = await mounted();
+    fetchStatus.mockClear();
+    let outcome: unknown;
+    await act(async () => {
+      outcome = await result.current.remove("whisper", "small.en");
+    });
+    expect(outcome).toEqual({ kind: "ok" });
+    expect(removeModel).toHaveBeenCalledWith("whisper", "small.en");
+    expect(fetchStatus).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await result.current.remove("rnnoise", "ignored");
+    });
+    expect(removeModel).toHaveBeenLastCalledWith("rnnoise", null);
+  });
+
+  it("reports a busy server and a failed removal without reading status", async () => {
+    const { result } = await mounted();
+    fetchStatus.mockClear();
+    removeModel.mockRejectedValueOnce(
+      new ApiError("running", "bootstrap_job_running", 409),
+    );
+    let busy: unknown;
+    await act(async () => {
+      busy = await result.current.remove("rnnoise");
+    });
+    expect(busy).toEqual({ kind: "busy" });
+    removeModel.mockRejectedValueOnce(
+      new ApiError("Studio leaves it alone.", "model_not_removable", 409),
+    );
+    let failed: unknown;
+    await act(async () => {
+      failed = await result.current.remove("rnnoise");
+    });
+    expect(failed).toMatchObject({ kind: "failed" });
+    expect(fetchStatus).not.toHaveBeenCalled();
   });
 
   it("does not reject when cancel fails, and reads status again", async () => {
@@ -480,28 +554,6 @@ describe("ModelsProvider", () => {
   });
 });
 
-describe("useModel", () => {
-  it("returns one row and download bound to its id", async () => {
-    run.mockResolvedValue({ job: job({ components: ["rnnoise"] }) });
-    const hook = renderHook(() => useModel("rnnoise"), { wrapper });
-    await waitFor(() => expect(hook.result.current.row).not.toBeNull());
-    expect(hook.result.current.row!.id).toBe("rnnoise");
-    act(() => {
-      void hook.result.current.download();
-    });
-    await waitFor(() => expect(run).toHaveBeenCalledTimes(1));
-    expect(run.mock.calls[0]![0]).toMatchObject({ components: ["rnnoise"] });
-    await waitFor(() => expect(hook.result.current.busy).toBe(true));
-  });
-
-  it("is null for an id the server does not list", async () => {
-    const hook = renderHook(() => useModel("nope"), { wrapper });
-    await waitFor(() => expect(fetchStatus).toHaveBeenCalled());
-    await act(async () => {});
-    expect(hook.result.current.row).toBeNull();
-  });
-});
-
 describe("useModels outside a provider", () => {
   it("is inert: no rows, not busy, downloads do nothing", async () => {
     const { result } = renderHook(() => useModels());
@@ -513,12 +565,6 @@ describe("useModels outside a provider", () => {
     await result.current.refresh();
     expect(run).not.toHaveBeenCalled();
     expect(fetchStatus).not.toHaveBeenCalled();
-  });
-
-  it("gives useModel a null row and a no-op download", async () => {
-    const { result } = renderHook(() => useModel("speaker-ecapa"));
-    expect(result.current.row).toBeNull();
-    expect(await result.current.download()).toEqual({ kind: "cancelled" });
   });
 });
 

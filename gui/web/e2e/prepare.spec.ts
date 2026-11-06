@@ -438,7 +438,7 @@ for (const profile of [
         await expect(transcribeResult).not.toContainText("Transcribed");
         await expect(
           transcribeResult.getByRole("button", {
-            name: /Download word timing/,
+            name: /Get word timing/,
           }),
         ).toHaveCount(0);
         const alignResult = ready
@@ -484,7 +484,7 @@ for (const profile of [
           align: await alignResult.innerText(),
           process_new_audio_buttons: await processNew.count(),
           word_timing_buttons: await transcribeResult
-            .getByRole("button", { name: /Download word timing/ })
+            .getByRole("button", { name: /Get word timing/ })
             .count(),
         };
         await page.getByRole("button", { name: /^Advanced/ }).click();
