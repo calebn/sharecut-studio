@@ -21,7 +21,7 @@ import {
   tightenProposeRunOptions,
 } from "../../utils/tightenIntensity";
 
-import { NO_TIER, useFindMoreFlow } from "./findMoreFlow";
+import { NO_TIER, useFindMoreFlow } from "./findMoreFlowContext";
 
 /** Find more: reruns suggestion finding with the saved How tight, and reports the job. */
 export function useFindMore(enabled: boolean) {
