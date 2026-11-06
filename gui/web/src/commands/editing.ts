@@ -342,7 +342,7 @@ export function registerClipboardCommands(): void {
       useDawStore
         .getState()
         .announceStatus(`Paste failed: ${msg}`, { tone: "error" });
-      return { status: "disabled", reason: msg };
+      return { status: "disabled", reason: msg, told: true };
     }
   });
 }

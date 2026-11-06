@@ -123,7 +123,7 @@ export async function addEnvelopePointAt(
     useDawStore
       .getState()
       .announceStatus(`Point not added: ${reason}`, { tone: "error" });
-    return { status: "disabled", reason };
+    return { status: "disabled", reason, told: true };
   } finally {
     saving.delete(key);
   }
