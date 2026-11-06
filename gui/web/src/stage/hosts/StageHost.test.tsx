@@ -453,7 +453,7 @@ describe("Deliver host", () => {
     server = fakeExportServer();
   });
 
-  it("starts the export and bounce here, and shows the Listen link row in place of a Share section", async () => {
+  it("starts the export and bounce here, and shows the Listen link row and no Share section", async () => {
     asHost("deliver");
     mount();
     const exportButton = await screen.findByRole("button", { name: "Export" });

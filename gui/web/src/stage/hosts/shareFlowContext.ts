@@ -6,6 +6,7 @@ import type {
   ShareCreateRecovery,
 } from "../../stages/deliver/shareLogic";
 import type { HostShareRow } from "../../types/shares";
+import type { TunnelStatus } from "../../types/tunnel";
 
 export type ShareFlow = {
   /** Every host share row of the open project, as last listed. */
@@ -25,7 +26,9 @@ export type ShareFlow = {
   status: string | null;
   copiedKey: ShareCopiedKey | null;
   blockedKey: ShareCopiedKey | null;
-  /** Lists the project's links again. Deliver calls it as it shows. */
+  /** Online sharing state, polled while Deliver or the Invite sheet shows; null without the `tunnel.status` feature or when unreachable. */
+  tunnel: TunnelStatus | null;
+  /** Lists the project's links again. The flow calls it as Deliver or the Invite sheet shows. */
   reload: () => void;
   /** Makes the link the choices say (or `override`, for the listen link) and copies it. Call it from the click so the copy keeps its user gesture. */
   create: (override?: ShareChoices) => void;

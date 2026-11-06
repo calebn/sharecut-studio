@@ -72,13 +72,6 @@ export type MintedRecordRoom = HostRecordRoom & {
   linksStale: boolean;
 };
 
-/** The listen link: a Viewer link frozen on the version that was exported. */
-export const LISTEN_LINK_BODY = {
-  role: "viewer",
-  with_mcp: false,
-  freeze: true,
-} as const;
-
 /** The one usable Viewer link frozen on a version, if the host has made it. */
 export function listenRowOf(
   rows: readonly HostShareRow[],
