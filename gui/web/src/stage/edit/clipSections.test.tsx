@@ -124,6 +124,24 @@ describe("clip content", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("sets the clip's Length and End on the timeline by trimming the out edge", async () => {
+    open();
+    await type("Length", "1.5");
+    expect(saveClipEdge).toHaveBeenLastCalledWith(
+      "/tmp/ep.json",
+      clip,
+      { kind: "trim", edge: "out", mode: TRIM_MODE, sourceSec: 2.5 },
+      expect.any(Function),
+    );
+    await type("End", "1.25");
+    expect(saveClipEdge).toHaveBeenLastCalledWith(
+      "/tmp/ep.json",
+      clip,
+      { kind: "trim", edge: "out", mode: TRIM_MODE, sourceSec: 2.25 },
+      expect.any(Function),
+    );
+  });
+
   it("saves nothing when a source edge is opened and left unchanged", async () => {
     open([{ ...clip, source_start: 1.2345 }]);
     await key("Source start", "Enter");
