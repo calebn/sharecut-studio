@@ -3071,7 +3071,7 @@
         ]
       },
       "omit": {
-        "keyboard_reason": "Move clip inspector controls or pointer clip-body drag; arrow keys stay playhead nudge"
+        "keyboard_reason": "Clip inspector Start and Track fields or pointer clip-body drag; arrow keys stay playhead nudge"
       },
       "presence": {
         "cursor": "time",

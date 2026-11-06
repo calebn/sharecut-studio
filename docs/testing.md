@@ -701,7 +701,7 @@ whether a finger can use the touch surfaces. At the shell boundaries (360, 390,
 767, 768, 820, 1194, 1195 wide, a phone held sideways and an iPad held sideways)
 and at 16 px and 32 px root text it asserts, for every interactive control in
 the shell chrome, the track sheet or inspector, the clip sheet or inspector, the
-armed Select range controls and Listen, that the control
+Range fields and Listen, that the control
 
 - is at least 44 CSS px, measured as its layout box (`offsetWidth` and
   `offsetHeight`, or the label of a checkbox) so a transition or transform
