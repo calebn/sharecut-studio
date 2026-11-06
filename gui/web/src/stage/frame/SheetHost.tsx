@@ -9,14 +9,13 @@ import { useModalOpen } from "../../ui/useModalOpen";
 
 const TITLES: Record<StageSheet, string> = {
   history: "History",
-  view: "View",
   mix: "Mix",
   tools: "Tools",
 };
 
 /**
  * Renders the open Stage sheet: a bottom Sheet on a phone, a centered one
- * elsewhere. History is hosted here; the stage hosts hand in View and Mix. The
+ * elsewhere. History is hosted here; the stage hosts hand in Mix and Tools. The
  * phone's Mix sheet closes when a dialog opens over it.
  */
 export function SheetHost({

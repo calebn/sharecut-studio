@@ -18,7 +18,6 @@ describe("edit.addChapter", () => {
     registerDawCommands();
     vi.mocked(api.addChapter).mockReset();
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
-    useDawStore.getState().setLayerVisible("showMarkers", true);
   });
 
   it("is host-only: disabled with 'No project loaded' when no project is loaded", async () => {
@@ -46,13 +45,6 @@ describe("edit.addChapter", () => {
     expect(useDawStore.getState().statusAnnouncement).toBe(
       "Chapter added at 12.3s",
     );
-  });
-
-  it("turns the Markers layer on, even if it was off", async () => {
-    useDawStore.getState().setLayerVisible("showMarkers", false);
-    vi.mocked(api.addChapter).mockResolvedValue(null);
-    await execute("edit.addChapter", {}, { skipWhen: true });
-    expect(useDawStore.getState().layers.showMarkers).toBe(true);
   });
 
   it("is single-flight: a second call while one is in flight is disabled", async () => {
@@ -137,14 +129,12 @@ describe("edit.addChapter", () => {
   it.each(["", "   ", null, 7, undefined])(
     "rejects explicit invalid title %s before side effects",
     async (title) => {
-      useDawStore.getState().setLayerVisible("showMarkers", false);
       const before = useDawStore.getState().statusAnnouncement;
       expect(
         await execute("edit.addChapter", { title }, { skipWhen: true }),
       ).toEqual({ status: "disabled", reason: "Chapter name is required" });
       expect(api.addChapter).not.toHaveBeenCalled();
       expect(useDawStore.getState().chapterAddPending).toBe(false);
-      expect(useDawStore.getState().layers.showMarkers).toBe(false);
       expect(useDawStore.getState().statusAnnouncement).toBe(before);
     },
   );

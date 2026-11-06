@@ -133,9 +133,9 @@ preview modes with a blocked-skip reason, and a 360px footer. The live
 props and local callbacks.
 `Stages/Edit/Divider` shows the Script divider with keyboard resize; stories
 use local state only.
-`Templates/AvatarStack` and `Templates/OverlayLegend`
-show the production `AvatarStackView` and `OverlayLegendView`
-used by the live `AvatarStack` and `OverlayLegend` adapters,
+`Templates/AvatarStack` shows the production `AvatarStackView`
+used by the live `AvatarStack` adapter, and `Stages/Edit/Corner` shows the
+eye popover (`ViewPopoverView`, used by the live `ViewPopover`),
 including header-hosted and overflow states built from the same
 fixtures as the app.
 `Templates/EditBoundaryMark` previews the production `EditBoundaryMarkView`

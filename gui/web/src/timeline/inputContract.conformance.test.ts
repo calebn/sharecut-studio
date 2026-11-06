@@ -348,8 +348,6 @@ describe.each(HIT_KIND_NAMES)("%s", (kind) => {
               },
             ],
             comments: [],
-            showMarkers: true,
-            showComments: false,
             selected: [kind === "chapter" ? "2-Intro" : "social"],
             zoomPxPerSec: 10,
             width: 400,

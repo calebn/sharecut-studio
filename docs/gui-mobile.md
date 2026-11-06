@@ -106,7 +106,7 @@ held sideways) compact the editor:
   in `timeline/timelineMetrics.ts`), whatever the saved fixed height, so three
   or more fit. The lane does not follow the stage height, so the strip opening
   or closing never resizes lanes under a finger; **Fit tracks to window
-  height** still fills the stage. With large text the lane is 3.25rem
+  height** (palette) still fills the stage. With large text the lane is 3.25rem
   (`shortTouchFloorPx`), so the 2.75rem identity chip and its meter stay whole
   (104px at a 32px root). Track headers switch to the 56px avatar-only form,
   and a sideways pane at least 50rem wide keeps the full 10.5rem header so
@@ -273,7 +273,7 @@ native menus keep the toast ordering in
 |-------|---------|--------------|
 | **Record** | Launcher with live-take status; the host room state is held in `DawApp`, so a take survives stage switches | Capture |
 | **Prepare** | Import, pipeline jobs, vocabulary | Get audio ready |
-| **Edit** | Timeline surface (playhead that starts at 0 and holds the center once passed; Ferrite lane gutter; eye sheet) and Script surface (transcript), switched by an icon pair | Spatial edit, word fix, suggest cut |
+| **Edit** | Timeline surface (playhead that starts at 0 and holds the center once passed; Ferrite lane gutter; eye popover) and Script surface (transcript), switched by an icon pair | Spatial edit, word fix, suggest cut |
 | **Review** | Queue (guests: Comments) | Guest review and comments, approve or reject edits |
 | **Deliver** | Export, Bounce, Share for review | Hand off |
 
@@ -564,7 +564,7 @@ pending range proposals; Viewers keep the five actions visible with disabled rea
 | Mode nav (Listen, Timeline, Text, More) | Stage tab bar: Record, Prepare, Edit, Review, Deliver (`stage.*`, Mod+1 to Mod+5). Edit holds the Timeline and Script surfaces behind a waveform and text icon switch; selection and playhead carry across |
 | Comment / Fit | Comment at the playhead in the Player bar; Fit in the Edit corner |
 | Track headers (Mute, Solo) | Lane gutter tap (the whole 56px rail; the avatar is the affordance) → track sheet (**M**/**S** toggles and the saved **Volume** fader; drag the Volume envelope layer for envelopes). The mix sheet adjusts all tracks without changing selection. The phone rail shows the avatar only (its ring shows the playing level); there is no touch drag to reorder, so reorder with the track sheet's Move up and Move down. On a tablet with a coarse pointer the header's **M** and **S** are 44px touch targets like the track sheet's (#1028) |
-| Timeline overlays (layer chips) | Eye sheet in the Edit corner |
+| Timeline overlays (layer chips) | Eye popover in the Edit corner |
 | Inspector | Selection sheet |
 | Transcript tab | Edit → Script surface |
 | Comments | Review queue (comments are queue items), and the comment field in the Player |
@@ -617,7 +617,7 @@ Two-finger Undo is active only while a project is loaded and the shared Undo com
 
 ```
 ┌─ Play  12:34 / 58:39  [Fit] [⋯] ──┐
-│ Pending edits Volume envelope Markers Comments │  ← chips
+│ (layers and scale: the eye popover)            │
 │ ┌─ref│░░░░░░░░░░░░░░░░░░░░░░░░░░ │ │
 │ │gue│░░░░░░░░░░░░░░░░░░░▼░░░░░░ │ │  ← slim sticky gutter + CapCut ▼
 │ └────┴───────────────────────────┘ │
@@ -707,7 +707,7 @@ test any more.
 | App header | Top, 48px (phone: 44px under the safe area) | Project menu (Rename project, All projects, Settings, Connect agent, Help, Appearance), save indicator, Undo and Redo (right-click Undo opens History), people (`AvatarStack`; phone: one avatar plus a count), Invite for hosts, search; the Stage bar sits centered on desktop and tablet |
 | Stage bar | Header (desktop, tablet) or the bottom tab bar (phone, 56px plus safe area) | Record, Prepare, Edit, Review, Deliver with badges, on Mod+1 to Mod+5 |
 | Player bar | Above the tab bar, 56px, every stage | Play and Pause, time, edited length, **Hear original**, the mix ring, the Solo chip, comment-at-playhead |
-| Edit corner | Timeline corner (`EditCorner`) | Range arm (touch only, 44 px; the Select/Blade tools, Comment mode and Cut at playhead buttons are gone, #2294), Fit, Zoom out and Zoom in, the Script toggle, and the eye (View options), which opens the View sheet (layers, waveform scale, amplitude, track height, zoom) |
+| Edit corner | Timeline corner (`EditCorner`) | Range arm (touch only, 44 px; the Select/Blade tools, Comment mode and Cut at playhead buttons are gone, #2294), Fit, Zoom out and Zoom in, the Script toggle, and the eye (View options), which opens the View popover (a 240 px non-modal panel anchored to the eye on every shell, in the top layer, flipping above or below by room: chips for host-only Prosody, Silence shading, Volume envelope and Waveforms post-fader at 44 px on touch, the Waveform scale segments Auto, Linear and Log, and the Waveform amplitude scrub field, ×1 to ×16). Escape and an outside press close it; Escape inside the Tools sheet closes the popover alone |
 
 - **Hear menu.** Long-press (touch) or right-click the Hear original button for Full mix (default), Without mix processing and Original. Guests get the mix only. `render.refreshMix` is in the palette and Deliver.
 - **Zoom (#1028).** Zoom out and Zoom in (in the corner) run `view.zoomOut` and `view.zoomIn` on the command bus, the same steps as `-` and `=`. At a limit the button is `aria-disabled` with its reason, not `disabled`, so a finger can still tap it and focus stays. Zoom shows for everyone who can open the timeline.
@@ -743,7 +743,7 @@ touch targets for opening track details and clearing clipping. On a short
 screen the minimum is 72px, or 3.25rem with large text (#1077). The saved track
 height still applies when it is larger than that minimum.
 
-- Project menu Appearance row and eye sheet (theme, layers, zoom; add chapter at the playhead is `edit.addChapter` in the **+** menu)
+- Project menu Appearance row and eye popover (theme, layers, waveform scale; add chapter at the playhead is `edit.addChapter` in the **+** menu)
 - Script toggle (`T`, `view.toggleScript`) and Script focus (`Shift+T`, `view.scriptFocus`) instead of layout presets
 - Wider invisible hit targets for fades/envelopes
 - Status that opens its panel: the Player bar mix ring and Review/Prepare badges on the Stage bar

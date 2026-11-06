@@ -14,12 +14,13 @@ import {
 } from "./shareNavigation";
 import {
   altClickSplit,
+  closeViewPopover,
   deliverPage,
   goToStage,
   openProjectDialog,
   openProjectMenu,
   openProject as openStageProject,
-  openViewSheet,
+  openViewPopover,
   phone,
   type Stage,
   setAudition,
@@ -126,9 +127,9 @@ test.describe("Stage shell on desktop", () => {
     page,
   }) => {
     await openProject(page);
-    const sheet = await openViewSheet(page);
-    await expect(sheet).toBeVisible();
-    await page.keyboard.press("Escape");
+    const popover = await openViewPopover(page);
+    await expect(popover).toBeVisible();
+    await closeViewPopover(page, popover);
     await page.getByRole("button", { name: /^Zoom in/ }).click();
     const ruler = page.getByRole("slider", { name: /ime/ }).first();
     const before = await ruler.getAttribute("aria-valuemax");

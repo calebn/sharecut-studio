@@ -460,17 +460,8 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
         socialClips,
         comments,
         clippingFlags: clipFlags,
-        showMarkers: layers.showMarkers,
-        showComments: layers.showComments,
       }),
-    [
-      chapters,
-      socialClips,
-      comments,
-      clipFlags,
-      layers.showMarkers,
-      layers.showComments,
-    ],
+    [chapters, socialClips, comments, clipFlags],
   );
   const shortTouchScreen = useShortTouchScreen();
   const touchLanes = fixedPlayhead || pointerKind === "coarse";
@@ -932,8 +923,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                       chapters={chapters}
                       socialClips={socialClips}
                       comments={comments}
-                      showMarkers={layers.showMarkers}
-                      showComments={layers.showComments}
                       laneRow={markerLaneRow(rows, laneFit)}
                       selected={selectedMarkerIds}
                       zoomPxPerSec={zoomPxPerSec}
@@ -1024,7 +1013,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                         comments={comments}
                         zoomPxPerSec={zoomPxPerSec}
                         selectedCommentId={selectedCommentId}
-                        visible={layers.showComments && isPlaying}
+                        visible={isPlaying}
                         onSelect={(c) => {
                           setSelection({ kind: "comment", id: c.id });
                           void seekTransport(c.timeline_start);
@@ -1063,7 +1052,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                             projectPath={projectPath}
                             selection={selection}
                             showLevels={layers.showLevels}
-                            showEdits={layers.showEdits}
                             envelopes={envelopeSlices[track.id] ?? EMPTY_ARR}
                             appliedRecords={
                               appliedRecordSlices[track.id] ?? EMPTY_ARR

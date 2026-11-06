@@ -221,34 +221,6 @@
   text-align: center;
 }
 
-/* The View sheet. */
-.view-sheet {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  padding: var(--space-3) var(--space-4) var(--space-4);
-}
-
-.view-sheet-section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.view-sheet-heading {
-  margin: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-caption);
-  font-weight: 600;
-}
-
-.view-sheet-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
-}
-
 /* The phone's Edit: a bar with the surface switch, then lanes or Script. */
 .edit-workspace--phone {
   flex-direction: column;
@@ -375,11 +347,77 @@ html[data-frame-short] .edit-dock {
   }
 }
 
-.waveform-amp-readout {
-  align-self: center;
-  font-size: var(--font-size-caption);
-  font-variant-numeric: tabular-nums;
+/* The eye popover (stage/edit/ViewPopoverView, spec-edit MENU-VIEW): 240 px,
+   a non-modal panel in the top layer; useAnchoredPanel sets left/top. */
+.view-popover {
+  position: fixed;
+  z-index: var(--z-menu);
+  inset: auto;
+  margin: 0;
+  box-sizing: border-box;
+  inline-size: min(15rem, calc(100vw - var(--space-4)));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  overflow: auto;
+  background: var(--color-bg-overlay);
+  color: var(--color-text-on-overlay);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-floating);
+}
+
+.view-popover-chips {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.view-popover-chip {
+  flex: 1 1 0;
+  min-inline-size: var(--control-height);
+  min-block-size: var(--control-height);
+  padding: 0;
+  justify-content: center;
+}
+
+.view-popover-scales {
+  display: flex;
+  block-size: auto;
+}
+
+.view-popover-scales > .ui-control {
+  flex: 1 1 0;
+  min-block-size: var(--control-height);
+  padding: 0;
+  justify-content: center;
+}
+
+.view-popover-auto {
+  font-size: var(--font-size-body);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.view-popover-amp {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.view-popover-caption {
   color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+}
+
+/* The 44 px floor on touch, for the chips and the three scale segments. */
+@media (pointer: coarse) {
+  .view-popover-chip,
+  .view-popover-scales > .ui-control {
+    min-inline-size: var(--touch-min);
+    min-block-size: var(--touch-min);
+  }
 }
 
 /* Create here menu (Stages/Edit/CreateMenu, spec-edit MENU-CREATE): a 220 px

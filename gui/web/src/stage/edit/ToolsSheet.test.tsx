@@ -82,7 +82,9 @@ describe("ToolsSheet", () => {
     // The phone has no side-by-side Script pane, so no Script toggle.
     expect(screen.queryByRole("button", { name: /Script pane/ })).toBeNull();
     await user.click(screen.getByRole("button", { name: "View options" }));
-    expect(useDawStore.getState().openSheet).toBe("view");
+    expect(
+      screen.getByRole("dialog", { name: "View options" }),
+    ).toBeInTheDocument();
   });
 
   it("closes after a verb runs, not when More opens its menu", async () => {

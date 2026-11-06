@@ -591,12 +591,12 @@ width.
 
 ### Display scale
 
-View › **Waveform scale** is three-way: **Auto** (the default) draws
+The eye popover's **Waveform scale** is three-way (icon segments): **Auto** (the default) draws
 `role === "dialogue"` lanes in dB and every other role linear
 (`resolveWaveformScale`); **Linear** and **Log (dB)** force one scale on
-every lane. The amplitude ×N control (View › Waveform amplitude −/+, or
-`Shift+ArrowUp/Down`) is a pre-mapping gain under both scales: under log,
-×2 lifts the shape by 6 dB. **Show waveforms post-fader** (off by default)
+every lane. The amplitude ×N control (the popover's amplitude scrub field, ×1 to ×16 with a ×1.25 step,
+or `Shift+ArrowUp/Down`) is a pre-mapping gain under both scales: under log,
+×2 lifts the shape by 6 dB. The **Waveforms post-fader** chip in the same popover (off by default)
 multiplies the display gain by `dbToLinear(gain_db + fader_db)`
 (`utils/audio.ts` `trackOutputGainDb`), rounded to 0.5 dB
 (`postFaderDisplayGain`, `waveform/types.ts`) so a fader drag re-rasterizes

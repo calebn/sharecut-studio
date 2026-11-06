@@ -1,6 +1,37 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
-import { EditCornerView } from "./EditCornerView";
+import { EditCornerView, type ViewPopoverSlotProps } from "./EditCornerView";
+import { ViewPopoverView } from "./ViewPopoverView";
+
+const Popover = ({ anchorRef, onClose }: ViewPopoverSlotProps) => (
+  <ViewPopoverView
+    anchorRef={anchorRef}
+    onClose={onClose}
+    layers={{ showProsody: false, showSilence: true, showLevels: false }}
+    onLayerChange={fn()}
+    postFader={false}
+    onPostFaderChange={fn()}
+    scale="auto"
+    onScaleChange={fn()}
+    amp={1}
+    onAmpChange={fn()}
+  />
+);
+
+async function expectPopover() {
+  const dialog = await within(document.body).findByRole("dialog", {
+    name: "View options",
+  });
+  await expect(
+    within(dialog).getByRole("group", { name: "Waveform scale" }),
+  ).toBeVisible();
+  await expect(
+    within(dialog).getByRole("spinbutton", { name: "Waveform amplitude" }),
+  ).toBeVisible();
+  await expect(
+    within(dialog).getByRole("button", { name: "Prosody" }),
+  ).toBeVisible();
+}
 
 const meta: Meta<typeof EditCornerView> = {
   title: "Stages/Edit/Corner",
@@ -12,6 +43,7 @@ const meta: Meta<typeof EditCornerView> = {
     onFit: fn(),
     viewOpen: false,
     onToggleView: fn(),
+    onCloseView: fn(),
     script: { shown: true, onToggle: fn() },
   },
   decorators: [
@@ -25,7 +57,7 @@ const meta: Meta<typeof EditCornerView> = {
     docs: {
       description: {
         component:
-          "Fit, zoom out, zoom in, the eye (the View sheet) and the Script toggle, bottom-right of the lanes. On a phone it has no Script toggle and pinch stays. On a touch screen (coarse pointer) it also holds the range bracket toggle: a finger cannot drag across empty lane, so arming the toggle makes the next drag draw a range. A mouse or pen drags a range directly and never shows it.\n\n**Motion.** None; the eye's and the range toggle's pressed state show while their mode is on.",
+          "Fit, zoom out, zoom in, the eye (the View popover) and the Script toggle, bottom-right of the lanes. On a phone it has no Script toggle and pinch stays. On a touch screen (coarse pointer) it also holds the range bracket toggle: a finger cannot drag across empty lane, so arming the toggle makes the next drag draw a range. A mouse or pen drags a range directly and never shows it.\n\n**Motion.** None; the eye's and the range toggle's pressed state show while their mode is on.",
       },
     },
   },
@@ -44,12 +76,15 @@ export const Default: Story = {
   },
 };
 
-export const EyeSheetOpen: Story = {
-  args: { viewOpen: true },
+export const EyePopoverOpen: Story = {
+  args: { viewOpen: true, viewPopover: Popover },
   play: async ({ canvasElement }) => {
-    await expect(
-      within(canvasElement).getByRole("button", { name: "View options" }),
-    ).toHaveAttribute("aria-pressed", "true");
+    const eye = within(canvasElement).getByRole("button", {
+      name: "View options",
+    });
+    await expect(eye).toHaveAttribute("aria-pressed", "true");
+    await expect(eye).toHaveAttribute("aria-expanded", "true");
+    await expectPopover();
   },
 };
 
@@ -63,9 +98,10 @@ export const FullyZoomedIn: Story = {
 };
 
 export const Phone: Story = {
-  args: { script: undefined },
+  args: { script: undefined, viewOpen: true, viewPopover: Popover },
   globals: { viewport: { value: "mobile360", isRotated: false } },
   play: async ({ canvasElement }) => {
+    await expectPopover();
     await expect(
       within(canvasElement).queryByRole("button", {
         name: "Show or hide Script",

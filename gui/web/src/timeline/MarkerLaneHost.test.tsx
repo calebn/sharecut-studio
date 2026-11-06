@@ -46,8 +46,6 @@ function setup(over: Record<string, unknown> = {}) {
       chapters={chapters}
       socialClips={socialClips}
       comments={comments}
-      showMarkers
-      showComments
       selected={[]}
       zoomPxPerSec={10}
       width={400}
@@ -65,9 +63,7 @@ describe("laneMarkers", () => {
   const all = { chapters, socialClips, comments };
 
   it("maps chapters, social clips and comments onto lane markers", () => {
-    expect(
-      laneMarkers({ ...all, showMarkers: true, showComments: true }),
-    ).toEqual([
+    expect(laneMarkers(all)).toEqual([
       { kind: "chapter", id: "2-Intro", start: 2, title: "Intro" },
       {
         kind: "clip",
@@ -80,19 +76,6 @@ describe("laneMarkers", () => {
       { kind: "comment", id: "c1", start: 20, author: "Ada" },
       { kind: "comment", id: "c2", start: 24, end: 27, author: "Mira" },
     ]);
-  });
-
-  it("follows the layer toggles", () => {
-    expect(
-      laneMarkers({ ...all, showMarkers: false, showComments: true }).map(
-        (m) => m.kind,
-      ),
-    ).toEqual(["comment", "comment"]);
-    expect(
-      laneMarkers({ ...all, showMarkers: true, showComments: false }).map(
-        (m) => m.kind,
-      ),
-    ).toEqual(["chapter", "clip"]);
   });
 
   it("names a chapter by its time and title", () => {

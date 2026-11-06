@@ -76,7 +76,7 @@ organisms; domain screens are templates, colocated with their domain component
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, ClipLed, Pill, Timecode, EmptyState, SurfaceLadder (token reference), CloseButton |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl, Toast, FocusPull, InlineConfirm |
 | **Organisms** | Complex, generic, reusable components / sections | Dialog, AskDialog, BottomSheet, CoverScreen, LoadingScreen, ErrorScreen |
-| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy; a store-bound one hydrates the shared episode instead (see [Catalog boundary](#catalog-boundary-store-bound-components)) | UploadStatus, Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, AppliedEditOverlay, PendingEditOverlay, MarkerLaneHost, EditBoundaryMark, ClipBlock, CommentPlaybackBubble, TrackHeader, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, HostMcpDialog, GesturesSheet, AvatarStack, OverlayLegend, CommandPalette |
+| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy; a store-bound one hydrates the shared episode instead (see [Catalog boundary](#catalog-boundary-store-bound-components)) | UploadStatus, Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, AppliedEditOverlay, PendingEditOverlay, MarkerLaneHost, EditBoundaryMark, ClipBlock, CommentPlaybackBubble, TrackHeader, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, HostMcpDialog, GesturesSheet, AvatarStack, CommandPalette |
 
 **Organisms vs Templates:** an organism is generic and reusable anywhere in the
 app; a template is one specific domain screen or panel (record room, review
@@ -201,7 +201,7 @@ handles, mute and clipping regions, a
 selected crossfade join, a trim-out preview with its ghost and snap tick,
 a fade readout, a read-only clip and a 360px clip with its track name. The
 live `ClipBlock` (memo over `ClipBlockLive`) owns the drag gestures, snap
-ticks (drawn only with the Snap points layer on while trimming or in blade
+ticks (drawn only while trimming or in blade
 mode), metric hold and commits, and passes `clipBlockGeometry` plus
 post-fader `WaveformLayer` slots; the catalog omits the store-bound waveform
 and passes fixed geometry.
@@ -285,15 +285,15 @@ The view derives the blocked-Suggested reason id
 with `useId()`, so several footers on one autodocs page never share an
 `aria-describedby` target.
 
-`Templates/AvatarStack` and `Templates/OverlayLegend` follow the same
+`Templates/AvatarStack` and `Stages/Edit/Corner` (the eye popover) follow the same
 adapter/view split as
 `ScriptPane`: each live component is a thin adapter that reads the DAW
 store and renders a props-only `XView`. `AvatarStackView` and
-`OverlayLegendView` take the roster/layers and callbacks as props; their adapters
+`ViewPopoverView` take the roster/layers and callbacks as props; their adapters
 keep the store selectors, the presence-follow command dispatch, and the
 chapter-add side effect (its store-backed `chapterAddPending` flag reaches the
 view as `addChapterBusy`). The stage frame mounts `AvatarStack` in the header's
-people slot and `OverlayLegend` in the Edit eye sheet. Stories cover desktop,
+people slot and `ViewPopover` in the Edit corner's eye popover. Stories cover desktop,
 phone, menu-hosted, guest-share, chapter-adding, and loading/overflow/following
 states.
 
@@ -751,3 +751,7 @@ jsdom visibility checks.
   and the REC indicator (#174). Clipping is sample peak only.
 - 2026-09-26 — Added standalone transport Play/Stop and pipeline status chip
   stories with production chrome, fixture-only state, and interaction checks.
+- 2026-11-06 — Replaced the Edit eye's View sheet with the eye popover
+  (`ViewPopoverView`, stories `Stages/Edit/Corner` EyePopoverOpen and Phone)
+  and removed `Templates/OverlayLegend` with the Pending edits, Markers,
+  Comments and Snap points layer flags (#2294).

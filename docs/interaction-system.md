@@ -262,7 +262,7 @@ There are three overlay primitives.
    to it. The palette (`?` or `/`) reaches every command.
 2. **Phone stages** are Record, Prepare, Edit, Review and Deliver, in the
    bottom tab bar. Edit switches between a Timeline and a Script surface; a
-   tool or control that exists on one has a route on the other (the eye sheet
+   tool or control that exists on one has a route on the other (the eye popover
    or the Project menu).
 3. **Bottom zone for doing, top zone for context.** The Player bar, the tab bar,
    selection sheet and primary actions sit at the bottom on phone and tablet.
