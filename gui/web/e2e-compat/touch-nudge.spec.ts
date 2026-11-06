@@ -203,13 +203,14 @@ test("a held nudge repeats, saves once, and one Undo restores it", async ({
   await inspectSelection(page);
   const commands = watchCommands(page);
   const values: string[] = [];
-  const started = Date.now();
+  let pressedAt = 0;
   await hold(
     page,
     finger,
     page.getByRole("button", { name: "Envelope point 0.01 s later" }),
     10_000,
     async (n) => {
+      pressedAt ||= Date.now();
       values.push((await rowValue(page, "Time")) ?? "");
       save(
         info,
@@ -218,7 +219,7 @@ test("a held nudge repeats, saves once, and one Undo restores it", async ({
       );
     },
     120,
-    () => new Set(values).size > 3 && Date.now() - started >= 1500,
+    () => new Set(values).size > 3 && Date.now() - pressedAt >= 1500,
   );
   const after = await pointTime(page, "env-c");
   const types = commands.map((c) => c.type);
