@@ -73,6 +73,24 @@ export type EnvelopeHitProps = {
   line?: HitAttrs;
 };
 
+export type Verdict = boolean | void;
+
+function accepted(
+  verdict: Verdict | Promise<Verdict>,
+  then: () => void,
+  otherwise?: () => void,
+): void {
+  if (verdict instanceof Promise) {
+    void verdict.then((answer) => {
+      if (answer !== false) then();
+      else otherwise?.();
+    });
+    return;
+  }
+  if (verdict !== false) then();
+  else otherwise?.();
+}
+
 export type EnvelopeProps = {
   /** Keep the array and its objects stable between renders. */
   points: readonly EnvelopePointData[];
@@ -103,9 +121,10 @@ export type EnvelopeProps = {
   /** Plain `data-hit-*` attributes for the host's hit routing: on each point and on the line's band. Absent, the DOM is the same as without it. */
   hitProps?: EnvelopeHitProps;
   onSelect: (id: string) => void;
-  /** A click on the line, not on a point. The one callback without an id: the point is new. */
-  onAdd?: (timeSeconds: number, db: number) => void;
-  onRemove?: (id: string) => void;
+  /** A click on the line, not on a point. The one callback without an id: the point is new. Return false to refuse; a Promise may resolve to false. */
+  onAdd?: (timeSeconds: number, db: number) => Verdict | Promise<Verdict>;
+  /** Return false to refuse; a Promise may resolve to false. */
+  onRemove?: (id: string) => Verdict | Promise<Verdict>;
   /**
    * A drag calls it on each move and a nudge on each press; the host keeps the
    * point where it says. The envelope holds no nudge state: each press steps
@@ -114,13 +133,13 @@ export type EnvelopeProps = {
    * the preview if the commit is refused. Without that feedback every press
    * repeats the first step. While dragging the envelope draws the held point
    * itself; the host may fold the same calls in, replacing the point's axis
-   * (never adding to it).
+   * (never adding to it). Return false to refuse a nudge press.
    */
-  onMove?: (id: string, change: EnvelopeChange) => void;
+  onMove?: (id: string, change: EnvelopeChange) => Verdict;
   /** First movement of a drag, never a tap. Return `false` to refuse it. */
   onDragStart?: (id: string, pointer: GrabPointer) => boolean | undefined;
-  /** `committed` is false when Escape, a blur, the browser, a lost capture or unmounting ended it. The leaf never sends a revert: the host must put the point back to the snapshot it took at `onDragStart`. */
-  onDragEnd?: (id: string, committed: boolean) => void;
+  /** `committed` is false when Escape, a blur, the browser, a lost capture, a change of `start` or `pxPerSecond` or unmounting ended it. The leaf never sends a revert: the host must put the point back to the snapshot it took at `onDragStart`. Return false to refuse; a Promise may resolve to false. */
+  onDragEnd?: (id: string, committed: boolean) => Verdict | Promise<Verdict>;
   /** The arrow was released or focus left: close the undo step. */
   onNudgeEnd?: (id: string) => void;
 };
@@ -370,8 +389,10 @@ export const Envelope = memo(function Envelope({
       last.current = null;
       limits.current = null;
       setHeld(null);
-      onDragEnd?.(id, committed);
-      if (committed && now) announce("Envelope point", now);
+      const verdict = onDragEnd?.(id, committed);
+      if (committed && now) {
+        accepted(verdict, () => announce("Envelope point", now));
+      }
     },
   });
 
@@ -379,6 +400,9 @@ export const Envelope = memo(function Envelope({
   useEffect(() => {
     if (readOnly) abortGrab();
   }, [readOnly, abortGrab]);
+  useEffect(() => {
+    abortGrab();
+  }, [start, pxPerSecond, abortGrab]);
 
   const walk = (from: HTMLElement, direction: -1 | 1) => {
     const dots = root.current?.querySelectorAll<HTMLElement>(".sys-env-point");
@@ -422,8 +446,16 @@ export const Envelope = memo(function Envelope({
     );
     const at = list.indexOf(from);
     (list[at + 1] ?? list[at - 1])?.focus();
-    onRemove?.(id);
-    announce("Removed envelope point", point);
+    accepted(
+      onRemove?.(id),
+      () => announce("Removed envelope point", point),
+      () => from.focus(),
+    );
+  };
+
+  const nudgeTo = (id: string, change: EnvelopeChange) => {
+    if (onMove?.(id, change) === false) return;
+    nudging.current = id;
   };
 
   const nudge = (
@@ -440,16 +472,14 @@ export const Envelope = memo(function Envelope({
         within(pointBounds(sorted, index, duration), point.time + step),
       );
       if (timeSeconds === point.time) return;
-      nudging.current = id;
-      onMove?.(id, { timeSeconds });
+      nudgeTo(id, { timeSeconds });
       return;
     }
     const step =
       levelStep(event.shiftKey, event.altKey) * (key === "ArrowUp" ? 1 : -1);
     const db = round2(clampDb(point.db + step));
     if (db === point.db) return;
-    nudging.current = id;
-    onMove?.(id, { db });
+    nudgeTo(id, { db });
   };
 
   const keyDown = useStableCallback(
@@ -519,8 +549,9 @@ export const Envelope = memo(function Envelope({
       return;
     }
     const db = roundDb(yToDb(event.clientY - box.top, lane));
-    onAdd(timeSeconds, db);
-    announce("Added envelope point", { time: timeSeconds, db });
+    accepted(onAdd(timeSeconds, db), () =>
+      announce("Added envelope point", { time: timeSeconds, db }),
+    );
   };
 
   useEffect(() => {
