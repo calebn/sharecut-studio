@@ -21,6 +21,7 @@ import { trimEdgeLimits } from "../../edit/trimLimits";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
 import { canApplyPass12, canSuggestStructural } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
+import { selectedClipIdsOf } from "../../state/selection";
 import { useDaw } from "../../state/useDaw";
 import type { InspectorSection } from "../../system/InspectorSheet";
 import { ScrubField } from "../../system/ScrubField";
@@ -30,6 +31,7 @@ import { Button, InspectorSeekFooter } from "../../ui";
 import { BUSY_REASON } from "../../ui/disabledReason";
 import { JOIN_MODE_OPTIONS } from "../../utils/editMarkerRegistry";
 import { ClipStartField, ClipTrackRow } from "./clipPlacementFields";
+import { multiClipSections } from "./multiClipSections";
 import { note } from "./sheetNote";
 
 const FADE_LIMIT_LOADING = "The fade limit is still loading. Wait a moment.";
@@ -47,6 +49,7 @@ export function useClipSections(
     }));
   const { busy, error, setError, run } = useProjectMutation();
   const id = selection?.kind === "clip" ? selection.id : null;
+  const selectedIds = selectedClipIdsOf(selection);
   const clip =
     id === null
       ? undefined
@@ -60,6 +63,7 @@ export function useClipSections(
   }, [
     projectPath,
     projectEpoch,
+    selectedIds,
     clip?.id,
     clip?.track_id,
     clip?.source_start,
@@ -70,6 +74,16 @@ export function useClipSections(
     setError,
   ]);
   if (id === null) return null;
+  if (selectedIds.length > 1)
+    return multiClipSections({
+      project,
+      clipIds: selectedIds,
+      projectPath,
+      locked:
+        !canApplyPass12(projectPath, guestMode, shareCapabilities) || busy,
+      error,
+      run,
+    });
   if (!clip)
     return [
       { id: "gone", rows: [{ id: "gone", control: note("Clip not found") }] },

@@ -31,6 +31,8 @@ export type ScrubFieldProps = ScrubRange & {
   /** Null draws the empty state and the field starts from the default, the minimum or zero. */
   value: number | null;
   unit?: string;
+  /** What the empty state reads; "Mixed" for a field whose values differ across a selection. */
+  emptyText?: string;
   /** Value change per pixel of drag and per arrow press. */
   step?: number;
   /** Alt gives a tenth of the step, so a whole-number field that wants Alt needs one more place. */
@@ -73,6 +75,7 @@ export function ScrubField({
   label,
   value,
   unit,
+  emptyText = EMPTY_TEXT,
   step = 1,
   decimals = placesOf(step),
   defaultValue,
@@ -296,7 +299,7 @@ export function ScrubField({
     variant !== "plain" && value !== null
       ? fillRatio(value, { min: min ?? 0, max: max ?? 0 })
       : 0;
-  const shown = value === null ? EMPTY_TEXT : formatScrub(value, decimals);
+  const shown = value === null ? emptyText : formatScrub(value, decimals);
   const showReset =
     !readOnly &&
     value !== null &&
@@ -316,7 +319,7 @@ export function ScrubField({
             aria-valuenow={value ?? undefined}
             aria-valuemin={min}
             aria-valuemax={max}
-            aria-valuetext={value === null ? EMPTY_TEXT : `${shown}${unitText}`}
+            aria-valuetext={value === null ? emptyText : `${shown}${unitText}`}
             aria-readonly={readOnly || undefined}
             aria-invalid={error ? true : undefined}
             aria-describedby={

@@ -175,3 +175,26 @@ export const ClipTransitionPhone: Story = {
     episode: { project: joined, role: "editor", selection: joinedSelection },
   },
 };
+
+const multiSelection: Selection = {
+  kind: "clip",
+  id: "clip-mira-a",
+  trackId: MIRA,
+  ids: ["clip-mira-a", "clip-mira-b"],
+};
+
+export const MultiClip: Story = {
+  render: () => <ClipCard selection={multiSelection} />,
+  parameters: {
+    episode: { project: joined, role: "editor", selection: multiSelection },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByRole("spinbutton", { name: "Fade in" }),
+    ).toHaveAttribute("aria-valuetext", "Mixed");
+    await expect(
+      canvas.queryByRole("spinbutton", { name: "Start" }),
+    ).toBeNull();
+  },
+};
