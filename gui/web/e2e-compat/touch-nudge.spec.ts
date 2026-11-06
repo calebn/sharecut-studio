@@ -16,6 +16,7 @@ import {
   removeRelocatedE2eProject,
 } from "../e2e/liveProject";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
+import { settledBox } from "../e2e/settledBox";
 import { switchE2eProject } from "../e2e/shareableProject";
 import {
   inspectSelection,
@@ -131,43 +132,20 @@ async function open(page: Page, size: SizeName, theme: "dark" | "light") {
 }
 
 /**
- * The centre of `locator` once its box has held still for a few frames. A raw
- * touch skips Playwright's actionability check, and the inspector sheet is
- * still sliding in when its buttons first attach: a finger placed at that
- * moment's box lands on a neighbouring row's button once the sheet settles.
+ * The centre of `locator` once its box has stopped moving, and only if that
+ * point hits it. A raw touch skips Playwright's actionability check, and the
+ * inspector sheet is still sliding in when its buttons first attach: a finger
+ * placed at that moment's box lands on a neighbouring row's button.
  */
 async function centerOfBox(locator: Locator): Promise<Point> {
-  await locator.waitFor({ state: "visible", timeout: 5000 });
-  return locator.evaluate(
-    (el) =>
-      new Promise<Point>((resolve, reject) => {
-        const deadline = Date.now() + 3000;
-        let last = "";
-        let still = 0;
-        const look = () => {
-          const r = el.getBoundingClientRect();
-          const now = `${r.x},${r.y},${r.width},${r.height}`;
-          still = now === last ? still + 1 : 0;
-          last = now;
-          if (still >= 4) {
-            const on =
-              r.width > 0 &&
-              r.height > 0 &&
-              r.x >= 0 &&
-              r.y >= 0 &&
-              r.right <= window.innerWidth &&
-              r.bottom <= window.innerHeight;
-            if (on) resolve({ x: r.x + r.width / 2, y: r.y + r.height / 2 });
-            else reject(new Error(`box not on screen: ${now}`));
-          } else if (Date.now() > deadline) {
-            reject(new Error(`box never held still: ${now}`));
-          } else {
-            requestAnimationFrame(look);
-          }
-        };
-        look();
-      }),
-  );
+  const box = await settledBox(locator);
+  const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const hits = await locator.evaluate((el, { x, y }) => {
+    const top = document.elementFromPoint(x, y);
+    return top != null && el.contains(top);
+  }, at);
+  if (!hits) throw new Error(`another element covers ${JSON.stringify(at)}`);
+  return at;
 }
 
 async function tap(page: Page, finger: Finger, at: Point) {
@@ -293,6 +271,7 @@ test("a held nudge stops at a soft boundary with a cue; a fresh press goes past"
     saved: await pointTime(page, "env-near"),
     note: await announced(),
   });
+  await expect(later).not.toHaveAttribute("aria-disabled", "true");
   await tap(page, finger, await centerOfBox(later));
   rows.push({
     case: "fresh press crosses it",
@@ -322,6 +301,7 @@ test("a held nudge stops at a soft boundary with a cue; a fresh press goes past"
     saved: await start(),
     note: await announced(),
   });
+  await expect(earlier).not.toHaveAttribute("aria-disabled", "true");
   await tap(page, finger, await centerOfBox(earlier));
   rows.push({ case: "fresh press crosses it", saved: await start() });
   json(info, `boundary-stop-${browserName}`, rows);
