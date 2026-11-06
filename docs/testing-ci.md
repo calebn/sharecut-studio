@@ -403,6 +403,7 @@ with axe before the collected results are asserted.
 | --- | --- | --- | --- | --- | --- |
 | Bounce remains reachable through running-row insertion and late Transcript hydration | `gui/web/e2e-compat/bounce-deliver-hydration.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Deliver restores normal reading after departure from a starting Bounce | `gui/web/e2e-compat/bounce-deliver-hydration.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| Fix text fallback fits wide text and stays within its row | `gui/web/e2e-compat/fix-text-width.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | record: keeper capture, upload and landing | `gui/web/e2e-compat/core-flow.spec.ts` | getUserMedia | Pass | Pass | Not run |
 | transcribe: the episode transcript hydrates | `gui/web/e2e-compat/core-flow.spec.ts` | Core flow | Pass | Pass | Not run |
 | review: the queue opens with no suggestions to decide | `gui/web/e2e-compat/core-flow.spec.ts` | Core flow | Pass | Pass | Not run |
