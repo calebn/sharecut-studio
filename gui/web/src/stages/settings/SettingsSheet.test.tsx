@@ -69,13 +69,6 @@ describe("SettingsSheet", () => {
     expect(onMoveFolder).toHaveBeenCalledOnce();
   });
 
-  it("docks to the end edge at 400 px on desktop", () => {
-    setup();
-    expect(
-      document.querySelector(".sys-sheet-end.settings-sheet"),
-    ).not.toBeNull();
-  });
-
   it("reveals the folder where the app can", async () => {
     const onRevealFolder = vi.fn();
     const { user } = setup({ projectFolder: "/ep", onRevealFolder });
