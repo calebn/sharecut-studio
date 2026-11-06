@@ -15,11 +15,16 @@ required-job checks on the branch tip, with nothing pushed and no storybook disp
 `--target` must be the release branch or start with `promote-canary`.
 `cleanup` deletes this run's temporary branch and sweeps any created over a day ago, by the epoch in its name.
 Needs `GITHUB_REPOSITORY` and a `GITHUB_TOKEN` (or `GH_TOKEN`) the `gh` CLI can use.
+`GITHUB_TOKEN` cannot push changes to `.github/workflows/*`. When the fast-forward range touches them
+and `PROMOTE_TOKEN` (a PAT with contents and workflows write; the workflow passes the repository
+secret `PROMOTE_TOKEN`, else `RELEASE_PLEASE_TOKEN`) is set, only the final push to the target uses
+it; every other push and call keeps `GITHUB_TOKEN`.
 """
 
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 import re
@@ -127,14 +132,38 @@ class GhCli:
         self._gh("api", "-X", "POST", f"repos/{self.repo}/actions/runs/{run_id}/cancel")
 
 
+WORKFLOW_DIR = ".github/workflows"
+PROMOTE_TOKEN_ENV = "PROMOTE_TOKEN"
+AUTH_HEADER_KEY = "http.https://github.com/.extraheader"
+
+
+def token_env(token: str) -> dict[str, str]:
+    """Git config through the environment, so the token never appears in a command line or error."""
+    basic = base64.b64encode(f"x-access-token:{token}".encode()).decode()
+    return {
+        "GIT_CONFIG_COUNT": "2",
+        "GIT_CONFIG_KEY_0": AUTH_HEADER_KEY,
+        "GIT_CONFIG_VALUE_0": "",
+        "GIT_CONFIG_KEY_1": AUTH_HEADER_KEY,
+        "GIT_CONFIG_VALUE_1": f"AUTHORIZATION: basic {basic}",
+    }
+
+
 class Git:
     def __init__(self, cwd: Path = ROOT, remote: str = REMOTE) -> None:
         self.cwd = cwd
         self.remote = remote
 
-    def _git(self, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+    def _git(
+        self, *args: str, check: bool = True, env: Mapping[str, str] | None = None
+    ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            ["git", *args], check=check, capture_output=True, text=True, cwd=self.cwd
+            ["git", *args],
+            check=check,
+            capture_output=True,
+            text=True,
+            cwd=self.cwd,
+            env={**os.environ, **env} if env else None,
         )
 
     def fetch(self) -> None:
@@ -150,8 +179,17 @@ class Git:
             == 0
         )
 
-    def push(self, sha: str, branch: str) -> None:
-        self._git("push", self.remote, f"{sha}:refs/heads/{branch}")
+    def push(self, sha: str, branch: str, token: str | None = None) -> None:
+        self._git(
+            "push",
+            self.remote,
+            f"{sha}:refs/heads/{branch}",
+            env=token_env(token) if token else None,
+        )
+
+    def touches_workflows(self, old: str, new: str) -> bool:
+        out = self._git("diff", "--name-only", old, new, "--", WORKFLOW_DIR).stdout
+        return bool(out.strip())
 
     def delete(self, branch: str) -> None:
         self._git("push", self.remote, "--delete", branch)
@@ -315,10 +353,13 @@ def promote(
     if nightly:
         print(f"{base} {source_sha[:12]} is green; nothing to promote")
         return 0
+    token = os.environ.get(PROMOTE_TOKEN_ENV) or None
+    use_token = token is not None and git.touches_workflows(target_sha, source_sha)
     if no_push:
-        print(f"dry run: would push {source_sha}:refs/heads/{target}")
+        how = f" with {PROMOTE_TOKEN_ENV}" if use_token else ""
+        print(f"dry run: would push {source_sha}:refs/heads/{target}{how}")
     else:
-        git.push(source_sha, target)
+        git.push(source_sha, target, token if use_token else None)
         print(f"fast-forwarded {target} to {source_sha[:12]}")
     return dispatch_storybook(gh, target, no_push)
 

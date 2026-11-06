@@ -44,6 +44,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DRY_RUN: ${{ inputs.dry-run }}
           TARGET: ${{ inputs.target || 'main' }}
+          PROMOTE_TOKEN: ${{ secrets.PROMOTE_TOKEN || secrets.RELEASE_PLEASE_TOKEN }}
         run: |
           args=(--target "$TARGET")
           if [ "$DRY_RUN" = "true" ]; then args+=(--no-push); fi
