@@ -1884,6 +1884,50 @@ describe("TimelineView render isolation", () => {
       expect(guides(container)).toHaveLength(0);
     });
 
+    it("recomputes the guide time when the timeline scrolls under a held Alt and a resting pointer", () => {
+      const { container } = mount();
+      const lanes = lanesOf(container);
+      let laneLeft = 0;
+      Object.defineProperty(lanes, "getBoundingClientRect", {
+        configurable: true,
+        value: () => ({ left: laneLeft, top: 0, width: 800, height: 216 }),
+      });
+      fireEvent.pointerMove(lanes, { clientX: 100, altKey: true });
+      expect(useDawStore.getState().splitHoverSec).toBe(2.5);
+
+      // Scrolling 80 px moves the lanes under the resting pointer: 180 px at 40 px/s.
+      const scroller = container.querySelector(
+        ".timeline-scroll",
+      ) as HTMLElement;
+      laneLeft = -80;
+      scroller.scrollLeft = 80;
+      fireEvent.scroll(scroller);
+      expect(useDawStore.getState().scrollLeft).toBe(80);
+      expect(useDawStore.getState().splitHoverSec).toBe(4.5);
+    });
+
+    it("leaves the hover time cleared when the timeline scrolls after Alt is released", () => {
+      const { container } = mount();
+      const lanes = lanesOf(container);
+      fireEvent.pointerMove(lanes, { clientX: 100, altKey: true });
+      fireEvent.keyUp(window, { key: "Alt" });
+      expect(useDawStore.getState().splitHoverSec).toBeNull();
+      const scroller = container.querySelector(
+        ".timeline-scroll",
+      ) as HTMLElement;
+      scroller.scrollLeft = 80;
+      fireEvent.scroll(scroller);
+      expect(useDawStore.getState().splitHoverSec).toBeNull();
+    });
+
+    it("clears the hover time when the timeline unmounts mid-hover", () => {
+      const { container, unmount } = mount();
+      fireEvent.pointerMove(lanesOf(container), { clientX: 100, altKey: true });
+      expect(useDawStore.getState().splitHoverSec).toBe(2.5);
+      unmount();
+      expect(useDawStore.getState().splitHoverSec).toBeNull();
+    });
+
     it("shows no guide for a viewer who cannot suggest edits", () => {
       const { container } = mount();
       act(() =>
