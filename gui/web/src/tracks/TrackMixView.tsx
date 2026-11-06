@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import { type CSSProperties, type ReactNode, useId } from "react";
 import type { MuteState } from "../utils/audio";
 import { MUTE_STATE_ROW_CLASS } from "./muteRowClass";
 import { TrackFaderView } from "./TrackFaderView";
@@ -33,6 +33,7 @@ export type TrackMixViewProps =
     };
 
 export function TrackMixView(props: TrackMixViewProps) {
+  const noteId = useId();
   if (props.state === "loading") {
     return (
       <div className="track-mix" aria-busy="true" aria-label="Loading tracks">
@@ -45,7 +46,7 @@ export function TrackMixView(props: TrackMixViewProps) {
   return (
     <div className="track-mix" tabIndex={-1}>
       {soloStatus}
-      <p className="track-mix-note">
+      <p className="track-mix-note" id={noteId}>
         {access.kind === "edit"
           ? "Volume and M are saved in the mix. S is for your listening and never exports."
           : "Only the host and editors can change volume. M and S are for your listening and never exports. A saved mute cannot be overridden."}
@@ -67,6 +68,7 @@ export function TrackMixView(props: TrackMixViewProps) {
               key={row.id}
               row={row}
               access={access}
+              noteId={noteId}
               renderPlaysAt={renderPlaysAt}
               onMute={onMute}
               onSolo={onSolo}
@@ -81,12 +83,14 @@ export function TrackMixView(props: TrackMixViewProps) {
 function MixRow({
   row,
   access,
+  noteId,
   renderPlaysAt,
   onMute,
   onSolo,
 }: {
   row: MixTrack;
   access: MixAccess;
+  noteId: string;
   renderPlaysAt?: (trackId: string, baseDb: number) => ReactNode;
   onMute: (trackId: string) => void;
   onSolo: (trackId: string) => void;
@@ -113,6 +117,7 @@ function MixRow({
       />
       <TrackFaderView
         trackLabel={row.label}
+        noteId={noteId}
         savedDb={row.faderDb}
         presentation={{
           kind: "compact",

@@ -214,6 +214,8 @@ export function Seam(props: SeamProps) {
             (event.key === "ArrowLeft" || event.key === "ArrowRight")
           ) {
             event.preventDefault();
+            // A held key would otherwise save and undo once per repeat.
+            if (event.repeat) return;
             const limits = roll.limits();
             const ms = event.key === "ArrowLeft" ? -1 : 1;
             if (limits && ms >= limits.minMs && ms <= limits.maxMs)
