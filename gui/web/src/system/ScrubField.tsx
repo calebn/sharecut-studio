@@ -42,6 +42,8 @@ export type ScrubFieldProps = ScrubRange & {
    * eight pixels, as the zoom steps do; Shift covers three factors at once. Needs a positive `min`.
    */
   multiplicative?: boolean;
+  /** Pixels of drag per additive step, for a coarse whole-number field (default 1). */
+  pixelsPerStep?: number;
   /** Alt gives a tenth of the step, so a whole-number field that wants Alt needs one more place. */
   decimals?: number;
   /** Shows the reset dot while the value differs from it. */
@@ -87,6 +89,7 @@ export function ScrubField({
   emptyText = EMPTY_TEXT,
   step = 1,
   multiplicative = false,
+  pixelsPerStep = 1,
   decimals = multiplicative ? 2 : placesOf(step),
   defaultValue,
   readOnly = false,
@@ -209,7 +212,7 @@ export function ScrubField({
     gesture.raw = clamp(
       multiplicative
         ? gesture.raw * step ** ((dx * factorScale(event)) / DRAG_PX_PER_STEP)
-        : gesture.raw + dx * modifierScale(event) * step,
+        : gesture.raw + (dx * modifierScale(event) * step) / pixelsPerStep,
       bounds,
     );
     gesture.lastX = event.clientX;

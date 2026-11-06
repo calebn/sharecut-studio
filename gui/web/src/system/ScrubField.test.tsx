@@ -104,6 +104,14 @@ describe("ScrubField drag", () => {
     expect(calls.onCommit).toHaveBeenCalledExactlyOnceWith(1.98);
   });
 
+  it("takes several pixels of drag per step for a coarse field", () => {
+    const { calls, field } = setup({ pixelsPerStep: 10 });
+    dragBy(field(), 20);
+    expect(field()).toHaveAttribute("aria-valuenow", "102");
+    fireEvent.pointerUp(field(), { pointerId: 1 });
+    expect(calls.onCommit).toHaveBeenCalledWith(102);
+  });
+
   it("moves ten times as fast with Shift", () => {
     const { calls, field } = setup();
     dragBy(field(), 5, { shiftKey: true });

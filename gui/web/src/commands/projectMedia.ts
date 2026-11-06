@@ -327,16 +327,17 @@ export function registerProjectMediaCommands(): void {
     const { ingestFiles, pickAudioFiles } = await import(
       "../ingest/ingestFiles"
     );
-    const files = await pickAudioFiles(true);
-    if (!files.length) {
-      return { status: "disabled", reason: "No files selected" };
-    }
     const trackId =
       typeof args.trackId === "string"
         ? args.trackId
         : s.selection?.kind === "track"
           ? s.selection.trackId
           : null;
+    // A named track takes one file: its audio is replaced, nothing else added.
+    const files = await pickAudioFiles(typeof args.trackId !== "string");
+    if (!files.length) {
+      return { status: "disabled", reason: "No files selected" };
+    }
     await ingestFiles(
       files,
       trackId ? { kind: "track", id: trackId } : { kind: "new" },

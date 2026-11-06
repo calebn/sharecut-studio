@@ -1,7 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { viewportStoryParameters } from "../../storybook/storyLayout";
+import { fileDataTransfer, fireDrag } from "../../storybook/storyPlay";
 import {
   type CleanupSettings,
   PrepareView,
@@ -34,6 +35,8 @@ const sourceActions: SourceActions = {
   onReplace: fn(),
   onMerge: fn(),
   onMove: fn(),
+  onReorder: fn(),
+  onDropAudio: fn(),
 };
 
 const WAITING = {
@@ -159,6 +162,36 @@ export const DropHover: Story = {
   play: async ({ canvasElement }) => {
     await expect(stageStatus(canvasElement)).toHaveTextContent(
       "Drop to add 3 files.",
+    );
+  },
+};
+
+export const DropOnCard: Story = {
+  args: {
+    phase: "done",
+    sessions: [session({ status: "done" })],
+    rows: ROWS.done,
+    readySummary: "Getting ready: all done",
+    handoff: READY,
+    dropActive: true,
+    dropCount: 1,
+  },
+  render: live,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const card = canvas.getByRole("region", { name: "Voice 1, Maya" });
+    const label = () => canvasElement.querySelector(".sys-drop-label");
+    await expect(label()).toHaveTextContent("Drop to add 1 file");
+    const dataTransfer = fileDataTransfer([
+      new File(["RIFF"], "take2.wav", { type: "audio/wav" }),
+    ]);
+    fireDrag(card, "dragenter", dataTransfer);
+    await waitFor(() =>
+      expect(label()).toHaveTextContent("Replace Maya's audio"),
+    );
+    fireDrag(card, "dragleave", dataTransfer);
+    await waitFor(() =>
+      expect(label()).toHaveTextContent("Drop to add 1 file"),
     );
   },
 };

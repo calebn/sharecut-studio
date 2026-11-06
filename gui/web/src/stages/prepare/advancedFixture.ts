@@ -1,13 +1,6 @@
 import type { AdvancedGroup, AdvancedStep } from "./AdvancedSteps";
 
-const LANGUAGES = [
-  { value: "auto", label: "Detect automatically" },
-  { value: "en", label: "English" },
-  { value: "es", label: "Spanish" },
-  { value: "fr", label: "French" },
-  { value: "de", label: "German" },
-  { value: "nl", label: "Dutch" },
-] as const;
+import { LANGUAGES } from "./whisperLanguages";
 
 const TRANSCRIBE: AdvancedStep = {
   id: "transcribe",
