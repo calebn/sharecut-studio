@@ -5,7 +5,7 @@ import { expect, type Locator, type Page } from "@playwright/test";
  * (open the comment queue, open the palette) and none of them names the
  * chrome that gets there. It drives the stage frame: the Stage bar in
  * the App header (the tab bar on a phone), the Project menu, the Edit stage's
- * eye sheet, and the Player's hear menu.
+ * eye popover, and the Player's hear menu.
  *
  * Browsers keep Mod+1 to Mod+9 for their own tabs, so stages are switched by
  * clicking the Stage bar, never by key.
@@ -386,46 +386,51 @@ export async function openRecordRoom(page: Page): Promise<Locator> {
   return room;
 }
 
-/** Open the Edit stage's eye sheet (view options) and return it. */
-export async function openViewSheet(page: Page): Promise<Locator> {
+/** Open the Edit corner's eye popover (view options) and return it. */
+export async function openViewPopover(page: Page): Promise<Locator> {
   // The eye sits on the Timeline surface; the phone shows one surface at a time.
   await phone.showTimeline(page);
-  const sheet = page.getByRole("dialog", { name: "View" });
-  if (await sheet.isVisible()) return sheet;
+  const popover = page.getByRole("dialog", { name: "View options" });
+  if (await popover.isVisible()) return popover;
   // A folded frame moves the corner (zoom, the eye) into the Tools sheet.
   await openToolsIfFolded(page);
   await page.getByRole("button", { name: "View options" }).click();
-  await expect(sheet).toBeVisible();
-  return sheet;
+  await expect(popover).toBeVisible();
+  return popover;
 }
 
-/** Press the eye sheet's "Track height +" or "Track height −" once, then close it. */
+/** Escape closes the popover alone; the Tools sheet it was opened from stays, so close that too. */
+export async function closeViewPopover(
+  page: Page,
+  popover: Locator,
+): Promise<void> {
+  await page.keyboard.press("Escape");
+  await expect(popover).toBeHidden();
+  await closeTools(page);
+}
+
+/** Step the track height once, by Alt+= or Alt+- (the eye popover has no height control). */
 export async function stepTrackHeight(
   page: Page,
   direction: "increase" | "decrease",
 ): Promise<void> {
-  const sheet = await openViewSheet(page);
-  await sheet
-    .getByRole("button", {
-      name: direction === "increase" ? "Track height +" : "Track height −",
-    })
-    .click();
-  await page.keyboard.press("Escape");
-  await expect(sheet).toBeHidden();
+  await goToStage(page, "edit");
+  await page.keyboard.press(direction === "increase" ? "Alt+=" : "Alt+-");
 }
 
-/** Show or hide a timeline layer ("Volume envelope", "Markers"…) in the eye sheet. */
+/** Show or hide a timeline layer ("Volume envelope", "Silence shading"…) in the eye popover. */
 export async function setLayer(
   page: Page,
   label: string,
-  checked: boolean,
+  on: boolean,
 ): Promise<void> {
-  const sheet = await openViewSheet(page);
-  const toggle = sheet.getByRole("checkbox", { name: label, exact: true });
-  if (checked) await toggle.check();
-  else await toggle.uncheck();
-  await page.keyboard.press("Escape");
-  await expect(sheet).toBeHidden();
+  const popover = await openViewPopover(page);
+  const chip = popover.getByRole("button", { name: label, exact: true });
+  if ((await chip.getAttribute("aria-pressed")) !== String(on)) {
+    await chip.click();
+  }
+  await expect(chip).toHaveAttribute("aria-pressed", String(on));
+  await closeViewPopover(page, popover);
 }
 
 /** Alt-click `target` (a lane, a clip) at `position` in its own box. */

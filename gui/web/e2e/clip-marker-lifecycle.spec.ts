@@ -4,14 +4,13 @@ import {
   draw,
   hit,
   interrupt,
-  layer,
-  layerDuringDrag,
   read,
   record,
   runAudit,
   snapshot,
 } from "./lifecycleAudit";
 import { markerGestureProbe } from "./markerGestureProbe";
+import { goToStage } from "./stageNav";
 
 test.use({ viewport: { width: 1440, height: 900 }, reducedMotion: "reduce" });
 test("F01 native off-center cross-track move preserves source and Undo", async ({
@@ -120,10 +119,16 @@ for (const kind of ["chapter", "social"] as const)
           .poll(async () => (await draw(target)).x)
           .not.toBe(origin.x);
         if (terminal === "unmount") {
-          await layerDuringDrag(page, "Markers", false);
+          // Leaving Edit mid-drag unmounts the marker lane; a synthetic click
+          // leaves the held mouse button alone.
+          await page
+            .getByRole("tablist", { name: "Stages" })
+            .getByRole("tab", { name: /Review/ })
+            .dispatchEvent("click");
+          await expect(page.locator(".sys-markers-track")).toHaveCount(0);
           await page.mouse.move(point.x + 32, point.y);
           await page.mouse.up();
-          await layer(page, "Markers", true);
+          await goToStage(page, "edit");
         } else
           await interrupt(
             page,

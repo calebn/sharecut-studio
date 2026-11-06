@@ -7,10 +7,17 @@ type ScrubBounds = { readonly min?: number; readonly max?: number };
 
 const COARSE = 10;
 const FINE = 0.1;
+/** Steps a Shift press covers in a multiplicative field: ten factors would be a leap, three is about double at 1.25. */
+const COARSE_FACTORS = 3;
 const MINUS = "−";
 
 export function modifierScale({ shiftKey, altKey }: ScrubModifiers): number {
   return (shiftKey ? COARSE : 1) * (altKey ? FINE : 1);
+}
+
+/** The exponent of a multiplicative step: Shift takes three factors at once, Alt a tenth of one. */
+export function factorScale({ shiftKey, altKey }: ScrubModifiers): number {
+  return (shiftKey ? COARSE_FACTORS : 1) * (altKey ? FINE : 1);
 }
 
 export function clamp(value: number, { min, max }: ScrubBounds): number {
