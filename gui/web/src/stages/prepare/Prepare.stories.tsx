@@ -1,7 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, fireEvent, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { viewportStoryParameters } from "../../storybook/storyLayout";
+import { fileDataTransfer, fireDrag } from "../../storybook/storyPlay";
 import {
   type CleanupSettings,
   PrepareView,
@@ -181,10 +182,17 @@ export const DropOnCard: Story = {
     const card = canvas.getByRole("region", { name: "Voice 1, Maya" });
     const label = () => canvasElement.querySelector(".sys-drop-label");
     await expect(label()).toHaveTextContent("Drop to add 1 file");
-    await fireEvent.dragEnter(card, { dataTransfer: { types: ["Files"] } });
-    await expect(label()).toHaveTextContent("Replace Maya's audio");
-    await fireEvent.dragLeave(card, { dataTransfer: { types: ["Files"] } });
-    await expect(label()).toHaveTextContent("Drop to add 1 file");
+    const dataTransfer = fileDataTransfer([
+      new File(["RIFF"], "take2.wav", { type: "audio/wav" }),
+    ]);
+    fireDrag(card, "dragenter", dataTransfer);
+    await waitFor(() =>
+      expect(label()).toHaveTextContent("Replace Maya's audio"),
+    );
+    fireDrag(card, "dragleave", dataTransfer);
+    await waitFor(() =>
+      expect(label()).toHaveTextContent("Drop to add 1 file"),
+    );
   },
 };
 
