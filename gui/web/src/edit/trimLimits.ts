@@ -1,6 +1,6 @@
 /**
  * Where a clip's trim edge may go: the one client mirror of
- * `engines/clips_ops.trim_edge_limits`. A held strip nudge, a handle drag and the
+ * `engines/clips_ops.trim_edge_limits`. A held nudge, a handle drag and the
  * peer a ripple preview moves all clamp here, so none of them previews a place
  * the save would refuse. `contracts/trim-edge-limits.json` pins it to the server.
  */

@@ -1,6 +1,6 @@
 /**
  * One fade or trim change to a clip edge, and the save both the timeline
- * handles (`useClipEdgeHandles`) and the phone peek strip's nudges
+ * handles (`useClipEdgeHandles`) and the inspector sheet's nudges
  * (`edit/nudge.ts`) send.
  */
 import { setClipFade, trimClipEdge } from "../api";

@@ -40,7 +40,7 @@ for (const phone of PHONES) {
     await openSuggestedPendingEdit(page, e2eProjectPath);
     await page.setViewportSize(phone);
     await stagePhone.showTimeline(page);
-    const sheet = page.locator(".bottom-sheet--compact");
+    const sheet = page.locator(".sys-inspector--phone");
     await sheet
       .getByRole("button", { name: "Approve", exact: true })
       .first()

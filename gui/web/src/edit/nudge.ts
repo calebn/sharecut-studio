@@ -1,11 +1,11 @@
 /**
  * Nudges (#1051 round 4): small steps of one value of a timeline target, the
- * same steps the arrow keys take on a focused handle. Each field says what it
+ * same steps the arrow keys take on a focused handle and the precision pad takes. Each field says what it
  * moves, its hard limits, where its moving point sits on the timeline (for
  * soft boundaries), how a draft value shows in the project, and how it saves.
  *
- * A held nudge previews every step in the project and saves once on release,
- * so a whole run is one undoable edit (`inspector/useNudgeRun.ts`).
+ * A held step previews every value in the project and saves once on release,
+ * so a whole run is one undoable edit (`timeline/precision/precisionDrivers.ts`).
  */
 import { setClipFade, setEnvelope, updatePendingEdit } from "../api";
 import { pendingEditBaseline } from "../api/documentEdits";

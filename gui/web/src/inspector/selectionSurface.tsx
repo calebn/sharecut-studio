@@ -3,16 +3,8 @@ import type { CommandContext } from "../commands/context";
 import { EnvelopePointBody } from "../stage/edit/EnvelopePointBody";
 import { PendingEditBody } from "../stage/edit/PendingEditBody";
 import { SectionsBody } from "../stage/edit/SectionsBody";
-import type { RoutedTarget } from "../timeline/hitRouting";
 import { RangeFields } from "../timeline/RangeFields";
 import type { ProjectView, Selection } from "../types/project";
-import {
-  type PeekTarget,
-  peekChapter,
-  peekClip,
-  peekEnvelopePoint,
-  peekPending,
-} from "./peekBuilders";
 import {
   moreCutClip,
   moreMoveTrack,
@@ -43,18 +35,12 @@ const notFound = (what: string) => <aside className="inspector">{what}</aside>;
  * What one kind of selection puts on screen. `body` fills the inspector, and
  * the touch sheet, with the selection's fields and actions. `screens` are the
  * Edit surfaces, on the phone and the tablet alike, where the selection opens
- * the sheet: the lanes always, the Script only where the selection belongs. `peek` is the compact strip for a timeline target (null
- * opens the full body). `related` and `more` are the Related and More commands
- * under the body.
+ * the sheet: the lanes always, the Script only where the selection belongs.
+ * `related` and `more` are the Related and More commands under the body.
  */
 export interface SelectionSurface<K extends SelectionKind> {
   body: (selection: SelectionOf<K>, ctx: SurfaceContext) => ReactNode;
   screens: readonly SheetScreen[];
-  peek: (
-    selection: SelectionOf<K>,
-    project: ProjectView,
-    hit: RoutedTarget | null,
-  ) => PeekTarget | null;
   related: (selection: SelectionOf<K>) => readonly RelatedCommandDescriptor[];
   more: (
     selection: SelectionOf<K>,
@@ -66,11 +52,10 @@ export interface SelectionSurface<K extends SelectionKind> {
 const ANYWHERE: readonly SheetScreen[] = ["timeline"];
 const WITH_TEXT: readonly SheetScreen[] = ["timeline", "text"];
 
-const noPeek = () => null;
 const noRelated = () => [];
 const noMore = () => [];
-/** A kind with no peek strip and no Related or More commands. */
-const plain = { peek: noPeek, related: noRelated, more: noMore } as const;
+/** A kind with no Related or More commands. */
+const plain = { related: noRelated, more: noMore } as const;
 
 const rangeSurface = {
   ...plain,
@@ -84,7 +69,6 @@ export const SELECTION_SURFACES: {
   range: rangeSurface,
   transcriptRange: {
     screens: WITH_TEXT,
-    peek: noPeek,
     related: relatedCopyWord,
     more: noMore,
     body: (_sel, { placement }) => (
@@ -93,7 +77,6 @@ export const SELECTION_SURFACES: {
   },
   clip: {
     screens: ANYWHERE,
-    peek: peekClip,
     related: relatedCopy,
     more: moreCutClip,
     body: (_sel, { placement }) => (
@@ -108,7 +91,6 @@ export const SELECTION_SURFACES: {
   pending: {
     ...plain,
     screens: ANYWHERE,
-    peek: peekPending,
     body: (sel, { project }) => {
       const edit = project.pending_edits.find((e) => e.id === sel.id);
       return edit ? (
@@ -134,7 +116,6 @@ export const SELECTION_SURFACES: {
   chapter: {
     ...plain,
     screens: ANYWHERE,
-    peek: peekChapter,
     body: (_sel, { placement }) => (
       <SectionsBody withRange={placement === "sheet"} />
     ),
@@ -172,7 +153,6 @@ export const SELECTION_SURFACES: {
   envelopePoint: {
     ...plain,
     screens: ANYWHERE,
-    peek: peekEnvelopePoint,
     body: () => <EnvelopePointBody />,
   },
 };

@@ -423,8 +423,8 @@ everyone but an Editor.
 In ShareCut Studio an Editor link's Review queue lists the pending edits with **Cut** and **Keep** (the commands are `ApproveEdits` and `RejectEdits`). Unsure-word fixes stay host-only, and the transcript check has HTTP twins but no Editor control yet (below): a cut that covers an unsure word is shown held ("The host checks the unsure word first.") with no Cut, and while the transcript is unchecked the server refuses an Editor's Cut, which shows under Needs attention until the host, or an Editor through the check twins, checks or waives it. A Commenter or Viewer link's queue is comments only.
 
 An Editor also edits volume envelopes as the host does: `SetEnvelope` is in
-the Editor command set, and the Studio's envelope overlay, envelope inspector,
-peek strip and touch create menu read `canEditEnvelopes`. Commenter and
+the Editor command set, and the Studio's envelope overlay, envelope inspector
+and touch create menu read `canEditEnvelopes`. Commenter and
 Viewer links see envelopes view-only (owner, 2026-10-06; see
 [touch-editor-decisions.md](touch-editor-decisions.md#decision-one-touch-input-grammar-for-timeline-editing)).
 

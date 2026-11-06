@@ -717,8 +717,7 @@ included (#1433, #1445), and, on the tablet and desktop shells, the Review queue
 a copy of the fixture whose first track has a volume envelope and an effect chain, so
 the track surface shows the Bypass toggles and its first point opens in the Inspector with its
 Time and Level fields. A control inside a closed `<details>` is not measured until it opens.
-The sheet's hidden detent range is the keyboard route to the drawer height; a finger
-swipes the header or taps the resize buttons. Page zoom is not that 32 px root:
+The sheet's hidden detent range is the keyboard route to the sheet height; a finger drags or taps the grip. Page zoom is not that 32 px root:
 Safari Aa 200% shrinks the layout or visual viewport while rem stays 16 px, which
 the sweep never opens. The compact transport and Listen timer case (`phone-transport-zoom.spec.ts`, 197×329 and 430×932 at a 32 px root) was deleted with the transport bar and Listen hero (#2292); the stage frame's phone chrome is measured through `gui/web/e2e/compactChromeFixture.ts`. A WebKit case checks browser layout at that width; it does not reproduce native
 Safari's select painting or stand for a physical iPhone. `gui/web/e2e/reachability.ts` is the measuring helper. It
@@ -795,9 +794,6 @@ Retained scenarios keep all non-axe assertions. See [the ownership map](testing-
 `tests/test_browser_acceptance_matrix.py` rejects missing,
 duplicate or filtered engine selections, checks their disjoint coverage, and
 checks that the PR shards cover the whole WebKit project.
-The compact history reach test attaches each control's name, rectangle and
-center hit stack, plus a screenshot, before asserting ownership. These receipts
-preserve the covering element even when a later assertion fails.
 
 The required `frontend-e2e` check waits for every matrix job. It fails for any
 failed or cancelled one, for a skipped one the plan did not skip, and whenever
@@ -849,7 +845,7 @@ metadata from clean jobs.
 | Review roles (Viewer / Commenter / Editor) | `test_share_roles.py` (role → capabilities, CLI and MCP mint by role only, guest MCP allowlist per role), `test_guest_document_gate.py::test_each_role_runs_exactly_its_document_commands` (role × document command matrix) |
 | Document submit crash consistency (every store handoff, lock contention) | `test_document_submit_crash_recovery.py`, `test_project_commit_lock.py` (spawned children are reaped with `tests/process_helpers.py` `reap`, which kills a child that hangs) |
 | GUI / timeline inspector APIs | `test_gui_api.py`, `test_waveform_zoom.py` |
-| Ripple trim preview, saved geometry, and atomic timeline-zero refusal | `test_ripple_scope_contract.py`, `test_trim_clip_edge.py`, `gui/web/src/edit/ripplePreview.test.ts` (`contracts/ripple-scope.json`), `gui/web/src/timeline/ClipBlock.test.tsx`, `gui/web/src/inspector/useNudgeRun.test.tsx`, `gui/web/e2e/ripple-overlap-proof.spec.ts` |
+| Ripple trim preview, saved geometry, and atomic timeline-zero refusal | `test_ripple_scope_contract.py`, `test_trim_clip_edge.py`, `gui/web/src/edit/ripplePreview.test.ts` (`contracts/ripple-scope.json`), `gui/web/src/timeline/ClipBlock.test.tsx`, `gui/web/e2e/ripple-overlap-proof.spec.ts` |
 | Zoom-matched waveforms | `test_timeline_zoom.py`, `test_waveform_pyramid.py`, `test_waveform_service.py`, `test_waveform_routes.py`, `test_waveform_snap.py` (incl. guest snap ACL), `gui/web/src/waveform/*.test.ts` (tile geometry, envelope reduction vs brute force, shared CPU/GL shading, stores, worker), `gui/web/src/timeline/WaveformLayer.test.tsx`, Playwright `e2e/waveform.spec.ts` (host tiles, WebGL2 + raster parity on Chromium, guest tiles through the share route with no PCM) and the compat matrix (`webgl2` or `cpu-worker`; `deep-zoom.spec.ts` geometry at the 15 M px ceiling on Chromium and WebKit) |
 | Brand / public CSS | `test_brand_color_roles.py`, `test_public_sites.py`, `test_css_policy.py`, `test_css_no_important.py` |
 | Body / host security hardening | `test_security_hardening.py` (pure ASGI `MaxBodySizeMiddleware`, authz, served_project) |
@@ -952,9 +948,6 @@ half-sample window count and mute-origin checks. Envelope tests reject stems
 from render revisions 10, 13, and 14 under revision 15.
 `tests/test_render_precision.py` checks saved ordinary CUT boundaries and
 fractional requested-window extents against literal frames and PCM.
-`useNudgeRun.handoff.test.tsx` uses the real trim save with deferred boundary
-loading to check clean geometry, foreign comments, drafts, stale submission,
-synthetic roll refusal, and token-specific settlement.
 
 ## Render regression fingerprints
 
@@ -1106,41 +1099,19 @@ These signals prove rendered behavior, not owner listening acceptance.
 
 ### Compact feedback lifetime and discovery
 
-The compact history reach check asserts Undo, Redo, resize and Close before
-any scripted recovery, then repeats those assertions after body scrolling.
-Its pre-edit peek, half, and full traversal also taps unavailable Redo and checks
-its reason, accessible description, caption visibility, exact panel, header, body,
-and button rectangles, and absence of document commands. The blocked caption
-must disappear before the first saved edit. All four orientation and root-size
-cells retain the saved-history journey in both engines.
-Saved Time and Level edits compare literal whole arrays through exact
-`UndoHistory` and `RedoHistory` commands. Clipping receipts include every
-ancestor while the card is active. Ordinary wheel discovery exposes the whole
-card where it fits, or each feedback action where a long card cannot fit.
-Native Tab checks every intermediate compact field with its complete label.
-After Undo restores the saved envelope, the dependent Level nudge first checks
-that the compact Time output displays the restored point time; saved state and
-the client's displayed point are separate preconditions.
-The short-form refusal uses explicitly labeled HTTP `history_stale` fault
-injection after a real fade edit, whose successful save is silent.
+`compact-history-persistence.spec.ts` covers the App-header Undo and Redo
+against the phone Inspector sheet (four tests). The earlier compact reach
+check, the short-form `history_stale` refusal check and the clipped saved
+feedback check were deleted with the drawer header and the nudge buttons
+(#2294 W3c2b).
 
-The clipped saved feedback check measures a fully visible card, scrolls it
-outside its actual body clip, and waits nine seconds without card hover or
-focus. It then exposes Dismiss and verifies expiry within the remaining visible
-time. Unit tests cover portal continuity, focus, remaining time and guarded
+Unit tests cover portal continuity, focus, remaining time and guarded
 Undo through host movement. Run `npm run test:e2e:compat --
-compact-history-persistence.spec.ts compact-save-refusal.spec.ts compact-feedback-lifetime.spec.ts compact-feedback-focus.spec.ts compact-form-scroll.spec.ts` from `gui/web` after
+compact-history-persistence.spec.ts compact-feedback-detents.spec.ts compact-painted-focus.spec.ts` from `gui/web` after
 building the production app. These browser receipts do not establish physical
 device behavior or Linux CI results.
 
-`compact-feedback-focus.spec.ts` preserves each native Undo and Dismiss button
-through the phone-to-tablet shell switch, which remounts the sheet and
-Inspector. This focused
-compatibility regression needs Chromium and WebKit because their native focus
-fixup and portal movement differ. It uses one viewport transition per action,
-without duplicating the existing theme, text-size, or detent matrices. Component
-tests cover the smaller focus-request and current valid return-target contracts,
-including modal priority, refused or disabled actions, and host teardown.
+Component tests cover the smaller focus-request and current valid return-target contracts, including modal priority, refused or disabled actions, and host teardown.
 A second page in the same browser context stands in for the peer; its selection
 and mute are what a real second host tab sends, which the REST command route
 does not reproduce because it publishes no selection.
@@ -1156,7 +1127,7 @@ hidden detent range. The floating lifetime case removes a genuinely long named
 track through the production Undo toast, then closes a compact selection while
 that same guarded card remains clipped. Browser RED receipts precede repairs.
 
-Compact discovery retains its primary header proof at the selected detent. If canonical geometry shows that the target cannot fit that body's clip, the existing reveal helper admits the actual compact Expand control before requiring full card and action containment. Receipts distinguish the selected detent from the recovered presentation. Ruler proof uses canonical positive visible area and a real unforced `x300,y12` click because the ruler intentionally spans horizontal scroll content; its whole border box need not fit the viewport. Native horizontal wheel readiness waits for the intended local `x300,y12` coordinate to enter the canonical visible bounds before evaluating ruler permission. The original Pending ruler click assertions remain unchanged.
+Compact discovery retains its primary header proof at the selected detent. If canonical geometry shows that the target cannot fit that body's clip, the existing reveal helper raises the sheet with its grip before requiring full card and action containment. Receipts distinguish the selected detent from the recovered presentation. Ruler proof uses canonical positive visible area and a real unforced `x300,y12` click because the ruler intentionally spans horizontal scroll content; its whole border box need not fit the viewport. Native horizontal wheel readiness waits for the intended local `x300,y12` coordinate to enter the canonical visible bounds before evaluating ruler permission. The original Pending ruler click assertions remain unchanged.
 
 The phone navigation focus matrix traverses every Primary navigation button
 with native Tab at 16px and 32px root sizes, one theme per size. It runs

@@ -1,22 +1,14 @@
 import { useCallback } from "react";
 import { isRangeSelection } from "../../edit/rangeSelection";
-import type { PeekTarget } from "../../inspector/peekTarget";
 import { opensSheet, type SheetScreen } from "../../inspector/selectionSurface";
 import { useDawStore } from "../../state/dawStore";
 import { inspectorOpenFor } from "../../state/selection";
 import { useDaw } from "../../state/useDaw";
-import {
-  type CompactSheetProps,
-  compactSheetProps,
-  useCompactInspector,
-} from "./useCompactInspector";
 
 export type InspectorShell = "desktop" | "tablet" | "phone";
 
 export interface InspectorOpen {
   open: boolean;
-  /** The phone's peek strip, which stands in for the sheet on a timeline target. */
-  strip: { props: CompactSheetProps; peek: PeekTarget | null } | null;
   rangeActionsInSheet: boolean;
   close: () => void;
   /** The phone sheet dragged down past its dock: the selection goes too. */
@@ -33,7 +25,6 @@ export function useInspectorOpen(
   shell: InspectorShell,
   screen: SheetScreen,
 ): InspectorOpen {
-  const compact = useCompactInspector(shell === "phone", screen === "timeline");
   const { selection, rangeArmed, sessionRegion, inspectorKey } = useDaw(
     (s) => ({
       selection: s.selection,
@@ -52,24 +43,16 @@ export function useInspectorOpen(
     const s = useDawStore.getState();
     if (s.rangeArmed) s.setSelection(null);
     s.setRangeArmed(false);
-    s.setSheetExpanded(false);
     s.setInspectorOpen(false);
   }, []);
   const dismiss = useCallback(() => {
     const s = useDawStore.getState();
     s.setSelection(null);
     s.setRangeArmed(false);
-    s.setSheetExpanded(false);
     s.setInspectorOpen(false);
   }, []);
   return {
     open,
-    strip: compact
-      ? {
-          props: compactSheetProps(compact),
-          peek: compact.view === "peek" ? compact.peek : null,
-        }
-      : null,
     rangeActionsInSheet:
       open &&
       (touch

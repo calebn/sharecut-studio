@@ -26,7 +26,7 @@ const COVERED: Record<string, string[]> = {
   "PNL-PIPELINE": ["Stages/Prepare/AdvancedSteps", "Stages/Prepare/ReadyList"],
   "PNL-REVIEW-QUEUE": ["Stages/Review/Host"],
   "PNL-HISTORY": ["Templates/Editor · History panel"],
-  "INS-PEEK": ["Templates/Editor · Inspector · Peek"],
+  "INS-PEEK": ["System/ActionBar"],
   "INS-RANGE": ["Templates/Editor · Inspector · Range", "System/ScrubField"],
   "INS-WORD": ["System/InspectorSheet", "System/ScrubField"],
   "INS-COMMENT": ["System/InspectorSheet"],

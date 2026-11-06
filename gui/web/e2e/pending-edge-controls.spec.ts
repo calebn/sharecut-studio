@@ -218,9 +218,7 @@ test("phone pending controls stay clear of handles and dense labels follow layou
     })
     .toEqual({ start: payload.start, end: payload.end });
   expect(updateCommands).toHaveLength(1);
-  // Inspect opens the compact drawer; at half height it shows the pending inspector.
   await inspectSelection(page);
-  await page.getByRole("button", { name: "Expand to half height" }).click();
   await expect(
     page.getByRole("heading", { name: "Pending edit" }),
   ).toBeVisible();
@@ -261,10 +259,16 @@ test("phone pending controls stay clear of handles and dense labels follow layou
   const actionBox = await actionbar.boundingBox();
   expect(selectedBox).toBeTruthy();
   expect(actionBox).toBeTruthy();
-  expect(
-    actionBox!.y >= selectedBox!.y + selectedBox!.height ||
-      actionBox!.y + actionBox!.height <= selectedBox!.y,
-  ).toBe(true);
+  // The card sits in the drawer's body, so the selected cut must stay above the
+  // drawer, and so clear of the card.
+  const drawerBox = await page.locator(".sys-inspector--phone").boundingBox();
+  expect(drawerBox).toBeTruthy();
+  expect(selectedBox!.y + selectedBox!.height).toBeLessThanOrEqual(
+    drawerBox!.y + 1,
+  );
+  await expect(
+    page.locator(".sys-inspector--phone .pending-actionbar"),
+  ).toHaveCount(1);
   for (const name of ["Approve", "Reject"]) {
     const box = await actionbar.getByRole("button", { name }).boundingBox();
     expect(box?.height).toBeGreaterThanOrEqual(44);

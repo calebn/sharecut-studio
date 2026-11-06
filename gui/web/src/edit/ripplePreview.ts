@@ -2,7 +2,7 @@
  * Ripple during a trim (#1135, #1154). A ripple trim closes or opens time on
  * every track `rippleTrackIds` names, so speakers stay in sync. A drag draws
  * that on every one of those lanes (arrows to where later clips go, the span
- * a lane loses), and a held strip nudge previews it in the project
+ * a lane loses), and a held nudge previews it in the project
  * (`trimDraft`). A gap trim moves nothing else.
  *
  * This mirrors `edits/ripple.py` (`ripple_track_ids`, `plan_trim`,
@@ -274,7 +274,7 @@ function rippledLane(lane: readonly ClipRow[], ripple: LaneRipple): ClipRow[] {
 
 /**
  * `project` with `clipId`'s `edge` trimmed to `sourceSec` in `mode`, as the
- * saved trim will leave it: a held strip nudge previews this.
+ * saved trim will leave it: a held nudge previews this.
  */
 export function trimDraft(
   project: ProjectView,
