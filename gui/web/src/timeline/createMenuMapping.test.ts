@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { clearClipboard, setClipboard } from "../edit/clipboard";
 import { useDawStore } from "../state/dawStore";
-import { resetFeedbackRepeatForTests } from "../state/uiSlice";
 import { minimalProject, sampleTrack } from "../test/fixtures";
 import {
   CREATE_MENU_COMMANDS,
@@ -38,7 +37,6 @@ beforeEach(() => {
   clearClipboard();
   session();
   useDawStore.getState().setLayerVisible("showLevels", false);
-  resetFeedbackRepeatForTests();
   useDawStore.setState({
     statusAnnouncement: "",
     statusAnnouncementSeq: 0,
