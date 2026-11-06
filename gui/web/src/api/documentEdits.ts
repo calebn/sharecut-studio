@@ -444,7 +444,6 @@ export async function setClipFade(
   );
 }
 
-/** Set several clips' fades in one undo step; each target carries its own saved baseline. */
 export async function setClipsFade(
   projectPath: string,
   fades: ReadonlyArray<{
