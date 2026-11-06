@@ -426,6 +426,44 @@ describe("ScriptHost window", () => {
     expect(hasWord("a350")).toBe(false);
   });
 
+  async function jumpWithinCap() {
+    seedScript({ utterances: longTranscript(TURNS, [5, 100]) });
+    const view = render(<ScriptHost />);
+    const chip = screen.getByRole("button", { name: /unsure words, go to/ });
+    await userEvent.click(chip);
+    await userEvent.click(chip);
+    expect(hasWord("a100")).toBe(true);
+    return view;
+  }
+
+  it("draws a window around the start when the transcript shrinks to exactly the cap and regrows", async () => {
+    const view = await jumpWithinCap();
+    act(() => {
+      seedScript({ utterances: longTranscript(WINDOW_LIMIT, []) });
+    });
+    view.rerender(<ScriptHost />);
+    act(() => {
+      seedScript({ utterances: longTranscript(TURNS, []) });
+    });
+    view.rerender(<ScriptHost />);
+    expect(hasWord("a0")).toBe(true);
+    expect(hasWord("a100")).toBe(false);
+  });
+
+  it("keeps the reader's window when the transcript shrinks to one turn over the cap and regrows", async () => {
+    const view = await jumpWithinCap();
+    act(() => {
+      seedScript({ utterances: longTranscript(WINDOW_LIMIT + 1, []) });
+    });
+    view.rerender(<ScriptHost />);
+    act(() => {
+      seedScript({ utterances: longTranscript(TURNS, []) });
+    });
+    view.rerender(<ScriptHost />);
+    expect(hasWord("a100")).toBe(true);
+    expect(hasWord("a0")).toBe(false);
+  });
+
   it("keeps the reader's window when the transcript is replaced by one that still covers it", async () => {
     const view = await jumpToLastUnsure();
     act(() => {
