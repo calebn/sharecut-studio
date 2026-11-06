@@ -30,10 +30,12 @@ vi.mock("./stage/hosts/exportFlow", () => ({
 vi.mock("./stage/dialogs/HostMcpDialog", () => ({
   HostMcpDialog: () => null,
 }));
-vi.mock("./feedback/AskDialog", () => ({ AskDialog: () => null }));
 vi.mock("./feedback/FeedbackToast", () => ({ FeedbackToast: () => null }));
 vi.mock("./home/HelpDialog", () => ({ HelpDialog: () => null }));
-vi.mock("./models", () => ({ ModelsSheet: () => null }));
+vi.mock("./models", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./models")>()),
+  ModelsSheet: () => null,
+}));
 vi.mock("./agentic/webmcp", () => ({ registerDawWebMcpTools: () => () => {} }));
 vi.mock("./desktop/useDesktopCloseGuard", () => ({
   useDesktopCloseGuard: () => {},

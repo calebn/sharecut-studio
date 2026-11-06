@@ -1,3 +1,4 @@
+import { capabilityOf } from "../../models";
 import type { StatusRowState } from "../../system/StatusRow";
 import { formatSeconds } from "../../system/seconds";
 import type { StageId } from "../../types/stage";
@@ -384,7 +385,10 @@ export function exportBlocker(
   > = {},
 ): string | undefined {
   if (host.blockedReason) return host.blockedReason;
-  if (state?.phase === "needs-model") return "Needs the transcription model.";
+  if (state?.phase === "needs-model") {
+    const { model } = state;
+    return `Needs ${capabilityOf(model.id, model.label).what}.`;
+  }
   if (host.loading) return "Wait for the settings to load.";
   if (
     settings.formats.length === 0 &&

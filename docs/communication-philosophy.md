@@ -278,7 +278,8 @@ the empty state, not a separate discovery task.
   `Button variant="danger"` action — never `window.confirm()`.**
   Native confirms are unstyled, can't carry consequences, and bypass
   the announce pipeline. Code asks with `gui/web/src/feedback/ask.ts`:
-  `await askConfirm(...)` opens the app's `AskDialog` (the shared
+  `await askConfirm(...)` opens the app's `AskDialog` (mounted once in
+  `App`, so Home and a project both answer it; the shared
   `Dialog`, a bottom sheet on phones) with the consequence, Keep first
   and focused, and the action last, `danger` when it discards work. While
   it is open it holds every app shortcut, as the native `confirm()`
