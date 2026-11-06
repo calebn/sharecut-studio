@@ -136,6 +136,7 @@ describe("Prepare text never scrolls the page sideways", () => {
       for (const story of stories) {
         host = document.createElement("div");
         host.id = "storybook-root";
+        host.style.padding = "1rem";
         document.body.appendChild(host);
         await story.run({ canvasElement: host, globals: { theme: "light" } });
         await document.fonts.ready;
