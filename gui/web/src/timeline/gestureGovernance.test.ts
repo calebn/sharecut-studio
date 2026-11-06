@@ -231,6 +231,10 @@ const SURFACE_GESTURES: Record<string, string> = {
     "the Storybook host of the Edit target chooser: a press held on its surface opens the fan, a slide reports the chip under the finger as over, and a lift picks or cancels, with pointer capture on the surface; it is a story fixture that owns a stub press surface, and the app's hit router owns the real gesture",
   "stages/edit/timelineDemo.tsx":
     "the Storybook host of the Edit timeline parts: it passes the envelope's drag start and drag end intents to local state, so a cancelled drag puts the point back; it is a story fixture, not a surface",
+  "system/ProjectCard.tsx":
+    "the Home project card: a touch long press or a right click opens its actions menu, and a touch swipe left shows Remove from list (useSwipeReveal); Enter opens the card, Shift+F10 or the Menu key opens the same menu, and the menu's Remove from list is the key path; it edits no timeline target",
+  "system/useSwipeReveal.ts":
+    "a touch swipe left slides a row over to show the action behind it, and a swipe right or a tap elsewhere closes it; a mouse never swipes, and the row's actions menu holds the same action by key; it moves one row and owns no timeline target",
   "system/useGrab.ts":
     "the pointer lifecycle the ruler and the marker lane share for a dragged mark: one pointer has hold, the drag starts after the slop, and Escape, a blur, a cancel, a lost capture or the owner leaving end it as not committed; it reports intents and owns no timeline target",
   "system/TrackHeader.tsx":
