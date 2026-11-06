@@ -130,10 +130,33 @@ async function open(page: Page, size: SizeName, theme: "dark" | "light") {
   await setZoom(page, 3);
 }
 
+/**
+ * The centre of `locator` once its box has held still for a few frames. A raw
+ * touch skips Playwright's actionability check, and the inspector sheet is
+ * still sliding in when its buttons first attach: a finger placed at that
+ * moment's box lands on a neighbouring row's button once the sheet settles.
+ */
 async function centerOfBox(locator: Locator): Promise<Point> {
-  const box = await locator.boundingBox({ timeout: 5000 });
-  if (!box) throw new Error("no box");
-  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  await locator.waitFor({ state: "visible", timeout: 5000 });
+  return locator.evaluate(
+    (el) =>
+      new Promise<Point>((resolve) => {
+        let last = "";
+        let still = 0;
+        const look = () => {
+          const r = el.getBoundingClientRect();
+          const now = `${r.x},${r.y},${r.width},${r.height}`;
+          still = now === last ? still + 1 : 0;
+          last = now;
+          if (still >= 4) {
+            resolve({ x: r.x + r.width / 2, y: r.y + r.height / 2 });
+          } else {
+            requestAnimationFrame(look);
+          }
+        };
+        look();
+      }),
+  );
 }
 
 async function tap(page: Page, finger: Finger, at: Point) {
