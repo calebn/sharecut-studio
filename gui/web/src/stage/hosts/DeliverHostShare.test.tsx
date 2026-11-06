@@ -28,7 +28,10 @@ vi.mock("../../commands/execute", async (importOriginal) => {
   };
 });
 
-import { clearRegisteredCommands } from "../../commands/execute";
+import {
+  clearRegisteredCommands,
+  registerCommand,
+} from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { FeaturesContext } from "../../extensions/FeaturesContext";
 import {
@@ -561,22 +564,55 @@ describe("the Invite sheet over any stage", () => {
     );
   });
 
-  it("does not offer Open Record stage: the sheet is already over every stage", async () => {
-    server.shares = [
-      hostShareRow({
-        token: "g1",
-        kind: "record",
-        docs_role: null,
-        record_role: "guest",
-        session_id: "room-1",
-      }),
-    ];
-    render(<Host />);
-    openInvite();
-    await screen.findByText("Record room");
-    expect(
-      screen.queryByRole("button", { name: "Open Record stage" }),
-    ).toBeNull();
+  describe("Open Record stage", () => {
+    const record = () =>
+      (server.shares = [
+        hostShareRow({
+          token: "g1",
+          kind: "record",
+          docs_role: null,
+          record_role: "guest",
+          session_id: "room-1",
+        }),
+      ]);
+
+    it("is offered over Deliver and dispatches stage.record once", async () => {
+      const open = vi.fn(() => ({ status: "ok" as const }));
+      registerCommand("stage.record", open);
+      record();
+      render(<Host />);
+      openInvite();
+      await screen.findByText("Record room");
+      await userEvent.click(
+        screen.getByRole("button", { name: "Open Record stage" }),
+      );
+      expect(open).toHaveBeenCalledTimes(1);
+    });
+
+    it("switches to Record and closes the sheet", async () => {
+      record();
+      render(<Host />);
+      openInvite();
+      await screen.findByText("Record room");
+      await userEvent.click(
+        screen.getByRole("button", { name: "Open Record stage" }),
+      );
+      await waitFor(() => expect(useDawStore.getState().stage).toBe("record"));
+      expect(useDawStore.getState().openSheet).toBeNull();
+      expect(useDawStore.getState().inviteAt).toBeNull();
+      expect(screen.queryByRole("dialog", { name: "Invite" })).toBeNull();
+    });
+
+    it("is not offered when the stage is already Record", async () => {
+      useDawStore.setState({ stage: "record" });
+      record();
+      render(<Host />);
+      openInvite();
+      await screen.findByText("Record room");
+      expect(
+        screen.queryByRole("button", { name: "Open Record stage" }),
+      ).toBeNull();
+    });
   });
 
   it("lists nothing and shows no sheet for a guest link", () => {
