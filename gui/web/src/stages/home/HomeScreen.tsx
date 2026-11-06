@@ -389,7 +389,9 @@ export function HomeScreen() {
         onChooseModels={() => setModelsOpen(true)}
         onCancelSetup={() => void models.cancel()}
         onRetrySetup={() =>
-          setup?.state === "check-error" || setup?.state === "tools-missing"
+          setup?.state === "check-error" ||
+          setup?.state === "checking" ||
+          setup?.state === "tools-missing"
             ? void models.refresh()
             : getReady()
         }
