@@ -7,6 +7,7 @@ import {
   type Page,
 } from "@playwright/test";
 import { expectStoryAxeClean } from "../e2e/axe";
+import { STORYBOOK_ONLY } from "../src/storybook/storybookOnlyStories";
 import { expectRootFit, expectShellFit } from "./shellFit";
 import { type StoryTheme, storyUrl } from "./storyUrl";
 
@@ -64,6 +65,11 @@ base("the geometry title sets name existing stories", () => {
   expect(
     [...SHELL_TITLES, ...ROOT_FIT_TITLES].filter((title) => !titles.has(title)),
   ).toEqual([]);
+});
+
+base("every storybook-only story id names a real story", () => {
+  const ids = new Set(stories.map((story) => story.id));
+  expect(STORYBOOK_ONLY.filter((id) => !ids.has(id))).toEqual([]);
 });
 
 base("no phone-named story is tagged wide-only", () => {
@@ -142,6 +148,7 @@ async function settle(page: Page) {
 
 for (const theme of THEMES) {
   for (const story of stories) {
+    if (!STORYBOOK_ONLY.includes(story.id)) continue;
     test(`${story.title} / ${story.name} in ${theme}`, async ({
       storybook: page,
     }) => {

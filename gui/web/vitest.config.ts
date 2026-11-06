@@ -42,7 +42,11 @@ export default defineConfig({
           name: "jsdom",
           environment: "jsdom",
           include: ["src/**/*.test.{ts,tsx}", "e2e/**/*.test.ts"],
-          exclude: [...configDefaults.exclude, ...nodeTestFiles],
+          exclude: [
+            ...configDefaults.exclude,
+            ...nodeTestFiles,
+            "src/**/*.browser.test.tsx",
+          ],
           setupFiles: ["./src/test/setup.ts"],
         },
       },
