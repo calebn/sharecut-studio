@@ -52,16 +52,40 @@ describe("liveCommentQueue", () => {
   });
 
   it("enqueues before send", () => {
-    const send = vi.fn(() => true);
+    const send = vi.fn(
+      (_commandType: string, payload: Record<string, unknown>) => {
+        expect(loadCommentQueue("tok")).toEqual([payload]);
+        return true;
+      },
+    );
     const comment = postLiveComment(send, "tok", {
       body: MARKER_BODY,
       takeIndex: 0,
       recordingMs: 10,
       author: "p_g",
     });
-    expect(comment.id.startsWith("live-")).toBe(true);
+    expect(comment?.id.startsWith("live-")).toBe(true);
     expect(send).toHaveBeenCalledWith("Comment", comment);
+    expect(send.mock.calls[0]?.[1]).toBe(comment);
     expect(loadCommentQueue("tok")).toHaveLength(1);
+  });
+
+  it("preserves a sender exception after enqueue", () => {
+    expect(() =>
+      postLiveComment(
+        () => {
+          throw new Error("sender closed");
+        },
+        "tok",
+        {
+          body: "Keep queued",
+          takeIndex: 0,
+          recordingMs: 10,
+          author: "p_g",
+        },
+      ),
+    ).toThrow("sender closed");
+    expect(loadCommentQueue("tok")[0]?.body).toBe("Keep queued");
   });
 
   it("returns false when sessionStorage save fails", () => {

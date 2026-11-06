@@ -40,6 +40,9 @@ export function useRecordLiveComments(opts: {
         recordingMs: snapshot.recording_ms ?? 0,
         author: me.participant_id,
       });
+      if (comment === null) {
+        return false;
+      }
       flushedRef.current.add(comment.id);
       return true;
     },
