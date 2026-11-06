@@ -588,7 +588,6 @@ export function reuseNote(job: PipelineJobSnapshot | null): string | undefined {
   return `Done in ${spokenDuration(job.elapsed_sec)}. ${reused} of ${total} results were reused, so this run did less.`;
 }
 
-/** "about 1 min left" from how long the finished share of the work took. */
 export function timeLeft(elapsedSec: number, progress: number): string | null {
   if (progress <= 0 || progress >= 1 || elapsedSec < 8) return null;
   const left = (elapsedSec * (1 - progress)) / progress;
