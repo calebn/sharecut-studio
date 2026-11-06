@@ -97,6 +97,8 @@ export function useSelectionAnchor(
   root: HTMLElement | null,
   selection: Selection,
   enabled: boolean,
+  /** The box the bar may use when it must clear the header; the root by default. */
+  within: HTMLElement | null = root,
 ): SelectionAnchor {
   const ref = useRef<HTMLElement | null>(null);
   const excludeRef = useRef<HTMLElement | null>(null);
@@ -121,7 +123,7 @@ export function useSelectionAnchor(
               ?.querySelector<HTMLElement>(".sys-script-header") ?? null)
           : null;
       excludeRef.current = header;
-      withinRef.current = header ? root : null;
+      withinRef.current = header ? within : null;
       setExcluded(header);
       setNode(found);
     };
@@ -140,7 +142,7 @@ export function useSelectionAnchor(
       observer.disconnect();
       if (frame) cancelAnimationFrame(frame);
     };
-  }, [root, selection, enabled, project, zoomPxPerSec]);
+  }, [root, within, selection, enabled, project, zoomPxPerSec]);
 
   useLayoutEffect(() => {
     if (!node || !node.isConnected) {

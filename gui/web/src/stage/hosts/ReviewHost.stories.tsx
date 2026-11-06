@@ -382,31 +382,67 @@ export const GuestViewerPlayerCard: Story = {
   play: cardPlay(false),
 };
 
+const selectionBarPlay: Story["play"] = async ({ canvasElement }) => {
+  // The bar floats only while the selected word is on screen.
+  const word = await waitFor(() => {
+    const found = canvasElement.querySelector<HTMLElement>(
+      ".sys-script-word[data-selected]",
+    );
+    if (!found) throw new Error("No selected word yet");
+    return found;
+  });
+  if (typeof word.scrollIntoView === "function")
+    word.scrollIntoView({ block: "center" });
+  const bar = await within(canvasElement).findByRole("group", {
+    name: "Selection actions",
+  });
+  await expect(
+    within(bar).getByRole("button", { name: "Comment" }),
+  ).toBeVisible();
+  await expect(
+    within(bar).getByRole("button", { name: "Suggest a cut" }),
+  ).toBeVisible();
+  // Inside the viewport on both sides, and clear of the selected word.
+  await waitFor(() => {
+    const box = bar.getBoundingClientRect();
+    const sel = word.getBoundingClientRect();
+    expect(box.left).toBeGreaterThanOrEqual(0);
+    expect(box.right).toBeLessThanOrEqual(window.innerWidth);
+    expect(
+      box.bottom <= sel.top ||
+        box.top >= sel.bottom ||
+        box.right <= sel.left ||
+        box.left >= sel.right,
+    ).toBe(true);
+  });
+  // Under a coarse pointer every bar button is a 44 px target.
+  if (window.matchMedia("(pointer: coarse)").matches) {
+    const min = Number.parseFloat(
+      getComputedStyle(bar).getPropertyValue("--touch-min"),
+    );
+    const rem = Number.parseFloat(
+      getComputedStyle(document.documentElement).fontSize,
+    );
+    for (const button of within(bar).getAllByRole("button")) {
+      const rect = button.getBoundingClientRect();
+      expect(rect.width).toBeGreaterThanOrEqual(min * rem - 0.5);
+      expect(rect.height).toBeGreaterThanOrEqual(min * rem - 0.5);
+    }
+  }
+};
+
 /** A word selection in the guest transcript floats Comment and Suggest a cut. */
 export const GuestCommenterSelection: Story = {
   ...wideGuest("commenter", { selection: selections.range }),
   tags: ["wide-only"],
-  play: async ({ canvasElement }) => {
-    // The bar floats only while the selected word is on screen.
-    const word = await waitFor(() => {
-      const found = canvasElement.querySelector<HTMLElement>(
-        ".sys-script-word[data-selected]",
-      );
-      if (!found) throw new Error("No selected word yet");
-      return found;
-    });
-    if (typeof word.scrollIntoView === "function")
-      word.scrollIntoView({ block: "center" });
-    const bar = await within(canvasElement).findByRole("group", {
-      name: "Selection actions",
-    });
-    await expect(
-      within(bar).getByRole("button", { name: "Comment" }),
-    ).toBeVisible();
-    await expect(
-      within(bar).getByRole("button", { name: "Suggest a cut" }),
-    ).toBeVisible();
-  },
+  play: selectionBarPlay,
+};
+
+/** At 390 px the bar stays inside the viewport and off the selected words. */
+export const GuestCommenterSelectionPhone390: Story = {
+  ...phone390,
+  ...asGuest("commenter", { selection: selections.range }),
+  play: selectionBarPlay,
 };
 
 /** The transcript failed to load: its region says so; the queue, composer and Player stay usable. */
