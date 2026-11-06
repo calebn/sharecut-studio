@@ -860,6 +860,8 @@ export const COMMANDS: Record<string, CommandDef> = {
     keywords: ["search", "spelling"],
     when: "hostProjectLoaded",
     breaksFollow: true,
+    notes:
+      "Finds, counts and highlights a phrase even when another speaker's turn sits between its words; only the phrase's own words are highlighted, selected and replaced",
   },
   "transcript.extendRange": {
     id: "transcript.extendRange",
