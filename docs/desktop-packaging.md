@@ -704,9 +704,11 @@ tester can see.
 (`workflow_dispatch`: the Actions tab, or `gh workflow run release-please.yml --ref develop`), not on pushes
 to `main`, so the release PR does not re-run CI on every merge. A run opens or refreshes one
 "release" PR on the base branch (`develop`, from `config/branches.json`); it reaches `main` with
-the next nightly promotion. A run refuses to start while the last release commit on the base
-branch is not yet on `main`, so a tag is never cut from an unpromoted commit. Dispatch it from
-the base branch: the copy on `main` lags until the next promotion. The repository secret
+the next nightly promotion. A run refuses to start while the last manifest-touching commit (the last commit that changed
+`.release-please-manifest.json`) on the base branch is not yet on `main`. This guard applies only when
+the dispatched ref carries it: the `develop` copy of `release-please.yml` has it, `main`'s copy has none
+until the bootstrap promotion lands, and it does not tie the tag SHA itself to `main`. Dispatch it from
+the base branch. The repository secret
 `RELEASE_PLEASE_TOKEN` must exist, because with the fallback `GITHUB_TOKEN` the release PR gets
 no required checks and cannot merge. The run reads the Conventional Commit subjects merged since the last release
 (`feat`, `fix`, `perf`, `revert`, or a `!` breaking marker), proposes the next version and
