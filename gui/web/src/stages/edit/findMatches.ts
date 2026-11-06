@@ -32,17 +32,13 @@ const transcriptOf = (word: ScriptWord) =>
   word.key === undefined ? "" : word.key.slice(0, word.key.lastIndexOf(":"));
 
 /**
- * Where `query` occurs in the turns, as the word indices of each hit for the
- * Script pane's `matches`. It finds what the backend replaces: the query is
- * split on whitespace and each token is matched against a whole word, so "an"
- * does not match "banana" and "room." matches "room". The backend matches over
- * each transcript's whole word list, so a phrase can match across words, across
- * a turn boundary of one transcript and across another transcript's turn
- * (A, B, A), where the hit skips B's words. It never crosses two transcripts
- * (tracks or sources), and hits do not overlap. Muted and cut words, shown or
- * not, are skipped, so Cut all never cuts a cut again. The cost is the
- * transcript's words (a query of k tokens costs at most k comparisons per
- * word).
+ * Where `query` occurs in the turns, as the word indices of each hit. It must
+ * find what the backend replaces, which matches over each transcript's whole
+ * word list, so a phrase can span another transcript's turn (A, B, A) and the
+ * hit skips B's words. It never crosses two transcripts (tracks or sources),
+ * and hits do not overlap. Muted and cut words, shown or not, are skipped, so
+ * Cut all never cuts a cut again. The cost is the transcript's words (a query
+ * of k tokens costs at most k comparisons per word).
  */
 export function findMatches(
   turns: readonly ScriptTurn[],
