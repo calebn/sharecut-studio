@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { postDocumentCommand } from "./documentCommand";
 import { e2eProjectPath } from "./env";
+import { pinFixedLaneHeight } from "./laneHeight";
 import {
   createRelocatedE2eProject,
   removeRelocatedE2eProject,
@@ -36,6 +37,7 @@ test.afterEach(async ({ page }) => {
 test("phone pending controls stay clear of handles and dense labels follow layout", async ({
   page,
 }) => {
+  await pinFixedLaneHeight(page);
   await page.setViewportSize({ width: 1280, height: 720 });
   await openSuggestedPendingEdit(page, projectPath);
   const trackId = await page.evaluate(async (projectPath) => {
