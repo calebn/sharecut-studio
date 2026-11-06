@@ -38,6 +38,24 @@ describe("runAndAnnounceRefusal", () => {
     expect(told().text).toBe("Refresh failed: a track file is missing");
   });
 
+  it("keeps a command's own announcement that carries the reason, without a told flag", async () => {
+    await runAndAnnounceRefusal(async () => {
+      useDawStore
+        .getState()
+        .announceStatus("Delete failed: the clip is locked", { tone: "error" });
+      return { status: "disabled", reason: "the clip is locked" };
+    });
+    expect(told().text).toBe("Delete failed: the clip is locked");
+  });
+
+  it("does not let an unrelated announcement hide a refusal", async () => {
+    await runAndAnnounceRefusal(async () => {
+      useDawStore.getState().announceStatus("Mix preview refreshed");
+      return { status: "disabled", reason: "Nothing selected" };
+    });
+    expect(told()).toEqual({ text: "Nothing selected", tone: "error" });
+  });
+
   it("stays quiet for ok and unknown results", async () => {
     for (const result of [
       { status: "ok" },
