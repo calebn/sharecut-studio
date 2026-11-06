@@ -42,6 +42,7 @@ import {
   untitledEpisodeName,
 } from "./homeModel";
 import { NOT_AN_EPISODE, type OpenOtherProps } from "./OpenOther";
+import { useHeldTotals } from "./useHeldTotals";
 import { useSecondsLeft } from "./useSecondsLeft";
 
 export const SETUP_DISMISSED_KEY = "sharecut.setup.notNow";
@@ -321,12 +322,12 @@ export function HomeScreen() {
 
   const drop = useWindowFileDrop(true, (files) => void startFromFiles(files));
 
-  const transfer = downloadTotals(models.models);
+  const transfer = useHeldTotals(downloadTotals(models.models));
   const secondsLeft = useSecondsLeft(
     transfer?.bytes ?? null,
     transfer?.total ?? null,
   );
-  const setup = setupOf(models, secondsLeft);
+  const setup = setupOf(models, secondsLeft, transfer);
   const getReady = useCallback(
     () => void models.download(bundleToGet(models.models)),
     [models],

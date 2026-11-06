@@ -196,6 +196,25 @@ export function downloadTotals(
   return { bytes, total: known && total > 0 ? total : null };
 }
 
+/**
+ * `next` with nothing falling back from `held`, the totals of the same
+ * download a moment ago. Between two components, and after the last one until
+ * the job ends, no row is downloading and `next` reads as nothing done yet.
+ */
+export function holdTotals(
+  held: DownloadTotals | null,
+  next: DownloadTotals | null,
+): DownloadTotals | null {
+  if (held === null || next === null) return next;
+  return {
+    bytes: Math.max(held.bytes, next.bytes),
+    total:
+      held.total === null || next.total === null
+        ? next.total
+        : Math.max(held.total, next.total),
+  };
+}
+
 /** "about 3 min", "about 1 h 5 min", or "less than a minute" for the last stretch. */
 export function timeLeftText(seconds: number): string {
   const minutes = Math.ceil(seconds / 60);
@@ -211,7 +230,8 @@ export function timeLeftText(seconds: number): string {
  * needed. While the first status is on its way the state is `checking` (the
  * card draws nothing for its first 300 ms). Missing audio tools are their own
  * state with nothing to download. `secondsLeft` is the caller's estimate for a
- * running download, appended to the bytes line.
+ * running download, appended to the bytes line. `totals` is the download's
+ * progress; the caller passes it when it holds it steady across frames.
  */
 export function setupOf(
   api: Pick<
@@ -219,12 +239,12 @@ export function setupOf(
     "models" | "tools" | "ready" | "loadError"
   >,
   secondsLeft: number | null = null,
+  totals: DownloadTotals | null = downloadTotals(api.models),
 ): SetupData | null {
   const { models, ready, loadError } = api;
   if (models === null) {
     return { state: loadError ? "check-error" : "checking", sizeLabel: "" };
   }
-  const totals = downloadTotals(models);
   if (totals) {
     const { bytes, total } = totals;
     const left = secondsLeft === null ? "" : ` · ${timeLeftText(secondsLeft)}`;
