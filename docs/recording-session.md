@@ -1327,6 +1327,10 @@ cannot. Every button runs the same `record.*` command as the palette.
   **Keep recording** focused and **Stop take**). **More** has no Stop. A paused
   take shows its own **Stop take** button beside Resume; it asks the same
   question in a dialog. The palette's **Stop recording** runs without the question.
+- **End session.** **More** > End session shows the shared toast "Ending this
+  session in 10 seconds. Guest links stop working when it ends." with **Undo**
+  (`useEndSession`); the end waits out the 10 s client-side, so Undo touches nothing.
+  Leaving the stage inside the window still ends the room.
 - **Saving status.** After Stop, a list names each recorded participant (never
   a producer) with "Saving to project…" or "Saved to project", one line per
   segment when a participant has several (`saveStatus.ts`).
