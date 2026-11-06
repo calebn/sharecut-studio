@@ -112,7 +112,6 @@ export function ViewPopoverView({
     },
     [topLayerRef],
   );
-  // Focus goes to the first chip on open.
   useEffect(() => {
     firstRef.current?.focus();
   }, []);
