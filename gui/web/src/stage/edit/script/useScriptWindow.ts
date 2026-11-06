@@ -80,12 +80,12 @@ export function useScriptWindow(
   const liveWord = focus.following
     ? (focus.playing[0] ?? focus.playheadWord)
     : undefined;
-  const anchor = useRef(0);
-  if (liveWord !== undefined) anchor.current = liveWord;
-  const start = anchor.current;
+  const [lastLive, setLastLive] = useState(0);
+  if (liveWord !== undefined && liveWord !== lastLive) setLastLive(liveWord);
+  const start = liveWord ?? lastLive;
   const range = useMemo<Range>(() => {
     if (!windowed) return { lo: 0, hi: Math.max(total - 1, 0) };
-    // A view past the end belongs to a replaced or merged transcript: it slides back to end at the last turn, or is rebuilt around the start if none of it remains.
+    // A view past the end belongs to a replaced or merged transcript: it slides back to end at the last turn, or is rebuilt around the start if none of it remains, and the healed range is stored so a regrow does not revive the old one.
     if (!view || view.lo >= total) return around(turnOf(start), total);
     if (view.hi < total) return view;
     return {
@@ -93,8 +93,13 @@ export function useScriptWindow(
       hi: total - 1,
     };
   }, [windowed, total, view, turnOf, start]);
+  if (view && (!windowed || view.lo !== range.lo || view.hi !== range.hi)) {
+    setView(windowed ? range : null);
+  }
   const rangeRef = useRef(range);
-  rangeRef.current = range;
+  useLayoutEffect(() => {
+    rangeRef.current = range;
+  }, [range]);
   const turns = useMemo(
     () => (windowed ? model.turns.slice(range.lo, range.hi + 1) : model.turns),
     [windowed, model.turns, range],
