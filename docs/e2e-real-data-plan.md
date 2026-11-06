@@ -190,8 +190,8 @@ Add checklist rows for AMI bleed window and `test_fixture_5min` intro bleed (~20
 
 | Job | When | Command |
 |-----|------|---------|
-| `test` | every PR | `make test` (95% cov, `-n auto`) |
-| `e2e` | every PR | `make e2e` (Tier A, &lt;1 min) |
+| `test` | nightly promotion and release PRs | `make test` (95% cov, `-n auto`) |
+| `e2e` | nightly promotion and release PRs | `make e2e` (Tier A, &lt;1 min) |
 | `e2e-real` | nightly / main | `make e2e-real` (Tier B) |
 | `benchmark` | weekly | `benchmark_transcribe_backends.py` + commit thresholds |
 

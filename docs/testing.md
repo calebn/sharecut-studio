@@ -8,7 +8,7 @@ make test        # coverage gate + parallel; excludes e2e_slow / e2e_real
 .venv/bin/pytest -n auto -m "not e2e_slow and not e2e_real"
 ```
 
-The required `pytest` check aggregates `pytest-quality` and four `pytest-shard` jobs. Shards use Python 3.14 and coverage 7.16.2 with CTracer. `pyproject.toml` collects line and branch coverage for `podcast_mcp` and `podcast_relay` with a 95% floor. Each shard runs with `--cov-fail-under=0`, and the `pytest` job runs `coverage combine` and the independent `coverage report --fail-under=95` gate over the shard files. See [CI runtime](testing-ci.md#python-test-runtime).
+The required `pytest` check aggregates `pytest-quality` and the planned `pytest-shard` jobs (four on a full run). Shards use Python 3.14 and coverage 7.16.2 with CTracer. `pyproject.toml` collects line and branch coverage for `podcast_mcp` and `podcast_relay` with a 95% floor. Each shard runs with `--cov-fail-under=0`, and the `pytest` job runs `coverage combine` and the independent `coverage report --fail-under=95` gate over the shard files. See [CI runtime](testing-ci.md#python-test-runtime).
 
 Pause observation and finite-effect controls live in `tests/test_pause_observation_effects.py`. They use real native caches and source WAVs to distinguish a clean kept-word collar from attached breath, low-band activity and a placement-clipped sound. Saved-splice checks bind actual archive footprints and preserve whole kept sound PCM at `2/32768`. Disabled observation checks room-read state independently. These synthetic controls do not qualify real VAD or owner listening. Run them with `.venv/bin/python -m pytest -q --no-cov tests/test_pause_observation_effects.py` beside the frozen pause suites and prior source-placement controls.
 
@@ -79,8 +79,7 @@ entries, so phases below the 0.1-second cutoff and remaining phases beyond the
 100-entry limit are absent. A duration alone does not show a cause, attribute time to a
 subprocess, or prove that a change saves time. Inspect the relevant test and
 dependencies, then isolate a candidate with bounded runs before claiming a cause
-or savings.
-
+or savings. 
 Test jobs also add a per-area summary to the GitHub job summary. Python uses
 JUnit testcase records, Vitest uses its JSON reporter, and the main, compatibility,
 and Storybook browser jobs use Playwright JSON reports. Browser matrix jobs show
@@ -285,8 +284,8 @@ GitHub Actions runs the required checks on every pull request and the full suite
 
 | Run | `pytest` | Frontend workload (`frontend-suite`) | Browser suites (`frontend-e2e-suites`) |
 |---|---|---|---|
-| PR with no GUI-facing change | full suite, 95% floor | skipped | skipped |
-| PR with a GUI-facing change | full suite, 95% floor | runs | `main-1of4` … `main-4of4`, then every WebKit compat spec as `compat-webkit-1of3` through `compat-webkit-3of3` |
+| PR with no GUI-facing change | only the test files the diff reaches (`python3 scripts/ci_plan.py changed-tests`), `--no-cov`; the full suite (with the floor) when a changed file is named by no test or `conftest.py`, `pyproject.toml` or `uv.lock` changes; the full suite with the floor when it reaches more than `MAX_CHANGED_TESTS` | skipped | skipped |
+| PR with a GUI-facing change | as above | runs | one `main-smoke` job: the `SMOKE_SPECS` in `scripts/ci_plan.py` |
 | PR where every changed file is under `gui/web/` | only the test files that name `gui/web`, or run a `scripts/` file that does (`python3 scripts/ci_plan.py subset-tests web`), `--no-cov` | runs | as above |
 | PR where every changed file is docs (`docs/`, `docs-site/`, `ux/`, `.agents/skills/`, `README.md`, `ROADMAP.md`, `AGENTS.md`) | only the test files that name those paths, or run a `scripts/` file that does (`python3 scripts/ci_plan.py subset-tests docs`), `--no-cov`, then the docs-sync gate | skipped, unless the diff also touches a GUI-facing doc such as `docs/daw-shortcuts.md` | skipped, same exception |
 | PR whose changed files are all under `gui/web/` or the docs paths above (a UI change that updates its docs) | the union of the two subsets above (`python3 scripts/ci_plan.py subset-tests web-docs`), `--no-cov` | runs | as above |
@@ -294,16 +293,16 @@ GitHub Actions runs the required checks on every pull request and the full suite
 | Push to the base branch | lint, types, compat checks (`pytest-quality`) only; no shards, no coverage floor | runs (Vitest and build) | skipped |
 | Promotion dispatch (nightly 07:23 UTC), `workflow_dispatch` | full suite, 95% floor | runs | the four main shards, then complete `compat-chromium` and `compat-webkit`; a red promotion opens or updates a `nightly-failure` issue, and a green one closes it |
 
-A GUI-facing path is one the browser suites or the frontend job read or talk to. `PATH_RULES` in `scripts/ci_plan.py` lists them in order, and the first match wins. The table covers `gui/web/` and the Python behind the browser: `gui/`, `services/`, `models/`, `mcp/`, `extensions/`, `history/`, `cli/` and the top-level `src/podcast_mcp/*.py`. It also covers every `contracts/` file except `contracts/test-wait-allowlist.json`, plus `schemas/`, `deploy/brand/`, `.agents/defaults/` and `config/distribution.dev.json` (the runtime loads them), the e2e and document-delta fixture projects, the scripts that `gui/web` and the frontend job run, the two cheatsheet docs, `pyproject.toml`, `uv.lock`, `.nvmrc`, `test.yml` and `.github/actions/`. The wait allowlist still runs full pytest, but it does not schedule frontend or browser jobs because only the test-wait checker reads it. The audio and edit algorithms (`engines`, `edits`, `pipeline`, `effects`, `ingest`, `clips`, `export`, `util`) run under pytest on PRs, and under the browser suites on promotion dispatch and `workflow_dispatch`. A path that no rule matches counts as GUI-facing, so a new directory runs every browser suite. `tests/test_ci_plan.py` pins the GUI pattern list, requires a rule for every tracked file and every `src/podcast_mcp` package, checks that no rule is shadowed, and requires every repo path that code under `gui/web` names (`tests/fixtures/`, `scripts/`, `contracts/`, `schemas/`, `.agents/`, `config/`) to be classified GUI-facing. When you add a directory, classify it there. Both test subsets are computed by scanning `tests/test_*.py` for the scope's paths (and for the `scripts/` files whose source names them), never listed by hand. Promotion (the nightly) and dispatch run the whole suite either way; a push to the base branch runs only `pytest-quality` and `frontend-suite`.
+A GUI-facing path is one the browser suites or the frontend job read or talk to. `PATH_RULES` in `scripts/ci_plan.py` lists them in order, and the first match wins. The table covers `gui/web/` and the Python behind the browser: `gui/`, `services/`, `models/`, `mcp/`, `extensions/`, `history/`, `cli/` and the top-level `src/podcast_mcp/*.py`. It also covers every `contracts/` file except `contracts/test-wait-allowlist.json`, plus `schemas/`, `deploy/brand/`, `.agents/defaults/` and `config/distribution.dev.json` (the runtime loads them), the e2e and document-delta fixture projects, the scripts that `gui/web` and the frontend job run, the two cheatsheet docs, `pyproject.toml`, `uv.lock`, `.nvmrc`, `test.yml` and `.github/actions/`. A change to the wait allowlist runs the pytest files that name it, but it does not schedule frontend or browser jobs because only the test-wait checker reads it. The audio and edit algorithms (`engines`, `edits`, `pipeline`, `effects`, `ingest`, `clips`, `export`, `util`) run under pytest on PRs, and under the browser suites on promotion dispatch and `workflow_dispatch`. A path that no rule matches counts as GUI-facing, so a new directory runs every browser suite. `tests/test_ci_plan.py` pins the GUI pattern list, requires a rule for every tracked file and every `src/podcast_mcp` package, checks that no rule is shadowed, and requires every repo path that code under `gui/web` names (`tests/fixtures/`, `scripts/`, `contracts/`, `schemas/`, `.agents/`, `config/`) to be classified GUI-facing. When you add a directory, classify it there. Both test subsets are computed by scanning `tests/test_*.py` for the scope's paths (and for the `scripts/` files whose source names them), never listed by hand. Promotion (the nightly) and dispatch run the whole suite either way; a push to the base branch runs only `pytest-quality` and `frontend-suite`.
 
-A web-only, docs-only, web-and-docs-only, or strictly proven version-only release diff cannot move Python coverage. Every other PR still enforces the 95% floor. Promotion dispatch and `workflow_dispatch` enforce it on every run; a push to the base branch runs no shards. See [native selection](testing-ci.md#native-workload-selection) and [release validation](testing-ci.md#release-refreshes-and-final-validation).
+Pull requests whose plan is not `full` run `--no-cov`: promotion dispatch and `workflow_dispatch` enforce the 95% floor, and a release-please PR whose proof fails still runs the full suite with it; a push to the base branch runs no shards. See [native selection](testing-ci.md#native-workload-selection) and [release validation](testing-ci.md#release-refreshes-and-final-validation).
 
 The required checks, rendered from `REQUIRED_CHECKS` in `scripts/ci_plan.py` (`python3 scripts/ci_plan.py required-checks` rewrites the table; `tests/test_ci_plan.py` fails when it is stale, when `make ci-body` drifts from the Local mirror column, or when a workflow loses the job):
 
 <!-- ci-plan:required-checks -->
 | Required check | Workflow | What it covers | Local mirror |
 |---|---|---|---|
-| `pytest` | `test.yml` | Aggregates pytest-quality and 4 pytest-shard jobs; combines shard coverage for the 95% floor. Fails unless the plan and every planned job succeed. | `make lint-py` `make format-py-check` `make typecheck` `make generated-check` `make docs-sync` `make test` |
+| `pytest` | `test.yml` | Aggregates pytest-quality and the planned pytest-shard jobs (four on a full run); combines shard coverage for the 95% floor. Fails unless the plan and every planned job succeed. | `make lint-py` `make format-py-check` `make typecheck` `make generated-check` `make docs-sync` `make test` |
 | `frontend` | `test.yml` | Aggregate over the planner and `frontend-suite` (lint, format, types, Vitest with axe, build). Succeeds when the plan orders the workload and it passes, or the plan orders none and it skipped. | `make test-web` |
 | `frontend-e2e` | `test.yml` | Aggregate over the planner and the Playwright shards (`frontend-e2e-suites`), with the same fail-closed contract as `frontend`. | `make test-web-e2e` |
 | `gitleaks-history` | `secret-scan.yml` | Secret scan over the full git history. Runs on every PR. | none (CI only) |
@@ -765,11 +764,12 @@ server, project, share registry and output directory. Retries are failure
 recovery, not a runtime optimization. Both suites retry a failed test once in
 CI, so one flake does not force a job rerun.
 
-CI runs the main suite as four shards (`main-1of4` ... `main-4of4`, each
-`npm run test:e2e -- --shard=i/4`). On promotion dispatch and `workflow_dispatch` it runs the
+On a pull request CI runs only the `main-smoke` job (the critical-path specs named in
+`SMOKE_SPECS`). On promotion dispatch and `workflow_dispatch` it runs the main suite as four shards
+(`main-1of4` ... `main-4of4`, each `npm run test:e2e -- --shard=i/4`) and the
 compatibility suite as two complete engine jobs (`compat-chromium`,
 `compat-webkit`, each `npm run test:e2e:compat -- --project=<engine>`). On a
-pull request it runs every WebKit compat spec in three shards instead
+release-please pull request it runs every WebKit compat spec in three shards
 (`compat-webkit-1of3` through `compat-webkit-3of3`, each
 `--project=webkit --shard=i/3`) and no Chromium compat. All of them run
 concurrently in separate `frontend-e2e-suites` matrix jobs, and
@@ -794,7 +794,7 @@ Retained scenarios keep all non-axe assertions. See [the ownership map](testing-
 `.github/workflows/test.yml`.
 `tests/test_browser_acceptance_matrix.py` rejects missing,
 duplicate or filtered engine selections, checks their disjoint coverage, and
-checks that the PR shards cover the whole WebKit project.
+checks that the release PR shards cover the whole WebKit project.
 The compact history reach test attaches each control's name, rectangle and
 center hit stack, plus a screenshot, before asserting ownership. These receipts
 preserve the covering element even when a later assertion fails.
@@ -808,7 +808,7 @@ still run sequentially within one checkout.
 CI uploads one `playwright-reports-<name>` artifact per matrix job
 (`playwright-reports-main-1of4` ... `playwright-reports-main-4of4` and
 `playwright-reports-compat-chromium` and `playwright-reports-compat-webkit`, or
-`playwright-reports-compat-webkit-1of3` through `-3of3` on a PR) on successful and failed runs. Each holds
+`playwright-reports-main-smoke` on a PR) on successful and failed runs. Each holds
 `<name>.json` with per-test durations, retries and errors. The matrix sets
 `PLAYWRIGHT_JSON_OUTPUT_FILE` for each job. Download them all with
 `gh run download <run-id> --pattern 'playwright-reports-*'` and sum durations

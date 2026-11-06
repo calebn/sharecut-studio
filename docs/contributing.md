@@ -86,7 +86,7 @@ ShareCut Studio is in beta and has no users. Breaking changes are allowed. Prefe
 3. Add a thin CLI command in `cli/<area>.py` and an MCP handler in `mcp/tools/<area>.py`. If the DAW viewer needs it, add a thin route under `gui/routes/` (`project.py` / `session.py` / `pipeline.py`) that calls the same service method; keep `gui/server.py` as `create_app` wiring only. Gate owner routes with `require_host` from `gui/routes/deps.py` (host role); never copy a per-module `_auth` helper.
 4. Register the MCP tool in `mcp/tools/__init__.py` via `register_all`. A new `MCPServer.call_tool` wrapper (progress, busy errors, project injection, …) uses `util.mcp_call_tool.wrap_call_tool` instead of re-declaring the forwarding signature.
 5. Re-export the handler from `mcp/server.py` if tests call it directly.
-6. Add tests under `tests/`; run the affected tests locally with `--no-cov`, plus `make lint-py` / `make format-py-check` / `make typecheck` for Python changes. GitHub Actions runs the full `make test` suite and enforces **≥95%** coverage on the PR. For `gui/web/` changes, run focused Vitest tests and relevant static checks locally; CI runs the equivalent frontend checks (oxlint + Stylelint + Biome `format:check` + strict `typecheck` + Vitest + build). Use local `make test` / `make ci` for extensive changes or full-suite diagnosis.
+6. Add tests under `tests/`; run the affected tests locally with `--no-cov`, plus `make lint-py` / `make format-py-check` / `make typecheck` for Python changes. GitHub Actions runs the pytest files the diff reaches on the PR (the full suite when a changed file is named by no test); the nightly promotion run and release PRs run the full `make test` suite and enforce **≥95%** coverage. For `gui/web/` changes, run focused Vitest tests and relevant static checks locally; CI runs the equivalent frontend checks (oxlint + Stylelint + Biome `format:check` + strict `typecheck` + Vitest + build). Use local `make test` / `make ci` for extensive changes or full-suite diagnosis.
 7. Update docs in the same change — see [AGENTS.md § Docs in sync](../AGENTS.md#docs-in-sync) (`README.md`, `docs/architecture.md`, feature docs, skills as needed).
 
 ### Python quality
@@ -260,7 +260,7 @@ and decides:
 - A PR that touches only docs (`docs/`, `docs-site/`, `ux/`, `.agents/skills/`,
   `README.md`, `ROADMAP.md`, `AGENTS.md`) runs just the Python tests that read
   those paths, plus the docs-sync gate.
-- Browser compat runs on WebKit only.
+- Ordinary PRs run the `main-smoke` browser job only; the WebKit compat shards run on release-please PRs, and promotion runs both engines.
 
 `workflow_dispatch` runs everything, with the
 95% coverage floor and both compat engines, and the nightly promotion dispatches it. A push to `develop` runs only
@@ -273,7 +273,7 @@ checks to report `SUCCESS` on the exact head:
 <!-- ci-plan:required-checks -->
 | Required check | Workflow | What it covers | Local mirror |
 |---|---|---|---|
-| `pytest` | `test.yml` | Aggregates pytest-quality and 4 pytest-shard jobs; combines shard coverage for the 95% floor. Fails unless the plan and every planned job succeed. | `make lint-py` `make format-py-check` `make typecheck` `make generated-check` `make docs-sync` `make test` |
+| `pytest` | `test.yml` | Aggregates pytest-quality and the planned pytest-shard jobs (four on a full run); combines shard coverage for the 95% floor. Fails unless the plan and every planned job succeed. | `make lint-py` `make format-py-check` `make typecheck` `make generated-check` `make docs-sync` `make test` |
 | `frontend` | `test.yml` | Aggregate over the planner and `frontend-suite` (lint, format, types, Vitest with axe, build). Succeeds when the plan orders the workload and it passes, or the plan orders none and it skipped. | `make test-web` |
 | `frontend-e2e` | `test.yml` | Aggregate over the planner and the Playwright shards (`frontend-e2e-suites`), with the same fail-closed contract as `frontend`. | `make test-web-e2e` |
 | `gitleaks-history` | `secret-scan.yml` | Secret scan over the full git history. Runs on every PR. | none (CI only) |

@@ -230,10 +230,11 @@ def test_full_event_coverage_and_exact_desktop_exclusions() -> None:
     "path",
     [f"contracts/{name}" for name, consumers in native.NATIVE_CONTRACTS.items() if not consumers],
 )
-def test_excluded_contracts_keep_ordinary_ci_protections(path) -> None:
+def test_excluded_contracts_keep_ordinary_ci_protections(path, monkeypatch) -> None:
+    monkeypatch.setattr(cp, "changed_tests", lambda changed, root=cp.ROOT: ["tests/test_x.py"])
     result = cp.plan("pull_request", [path])
     gui = path != "contracts/test-wait-allowlist.json"
-    assert result.pytest == "full"
+    assert result.pytest == "changed"
     assert result.gui is gui
     assert bool(result.e2e) is gui
     assert not result.native.required
