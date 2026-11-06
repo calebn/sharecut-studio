@@ -2,6 +2,7 @@ import { expect, type Page, type TestInfo, test } from "@playwright/test";
 import { rulerWidthPx } from "../e2e/deepZoom";
 import { e2eProjectPath } from "../e2e/env";
 import { newFinger, type TwoFingers, twoFingers } from "../e2e/finger";
+import { layer } from "../e2e/lifecycleAudit";
 import {
   createRelocatedE2eProject,
   removeRelocatedE2eProject,
@@ -88,6 +89,37 @@ async function clipBody(page: Page, clip: Clip): Promise<Point> {
   return at;
 }
 
+async function envelopeLine(page: Page): Promise<Point> {
+  const at = await page.evaluate(() => {
+    const path = document.querySelector<SVGPathElement>(
+      `.lane-row[data-track-id="reference"] .sys-env-line`,
+    );
+    const scroller = document.querySelector(".timeline-scroll");
+    const headers = scroller?.querySelector(".track-headers");
+    const matrix = path?.getScreenCTM();
+    if (!path || !scroller || !matrix) return null;
+    const view = scroller.getBoundingClientRect();
+    const left = (headers?.getBoundingClientRect().right ?? view.left) + 40;
+    const right = view.left + scroller.clientWidth - 90;
+    const total = path.getTotalLength();
+    for (let at = 0; at <= total; at += 1) {
+      const p = path.getPointAtLength(at).matrixTransform(matrix);
+      if (
+        p.x >= left &&
+        p.x <= right &&
+        p.y >= view.top &&
+        p.y <= view.bottom &&
+        document.elementFromPoint(p.x, p.y)?.matches(".sys-env-band")
+      ) {
+        return { x: p.x, y: p.y };
+      }
+    }
+    return null;
+  });
+  if (!at) throw new Error("envelope line not in view");
+  return at;
+}
+
 /**
  * Where the first finger starts (on the clip that starts at `clipAt` s, which
  * is selected first when `select`), and how far it drags alone (px) before
@@ -99,6 +131,7 @@ const STARTS: Record<
   {
     clipAt: number;
     select: boolean;
+    envelope?: boolean;
     dragPx: number;
     locate: (page: Page, clip: Clip) => Promise<Point>;
   }
@@ -116,6 +149,13 @@ const STARTS: Record<
     dragPx: -30,
     locate: (page, clip) =>
       centerOf(page, `${lane} [data-clip-id="${clip.id}"] .trim-handle.out`),
+  },
+  "envelope line": {
+    clipAt: 10,
+    select: false,
+    envelope: true,
+    dragPx: 30,
+    locate: envelopeLine,
   },
   "clip body": {
     clipAt: 10,
@@ -184,15 +224,17 @@ async function secondFingerCancels(
   await openProject(page, projectPath);
   await buildFixture(page, projectPath, CLIENT_ID);
   const rows: Record<string, unknown>[] = [];
-  for (const [start, { clipAt, select, dragPx, locate }] of Object.entries(
-    STARTS,
-  )) {
+  for (const [
+    start,
+    { clipAt, select, envelope = false, dragPx, locate },
+  ] of Object.entries(STARTS)) {
     const p = await context.newPage();
     await p.setViewportSize(viewport);
     await openProject(p, projectPath);
     await expect(p.locator(".stage-frame")).toBeVisible();
     if (viewport.width < 768) await openPhoneTimeline(p);
     await setZoom(p, 4);
+    await layer(p, "Volume envelope", envelope);
     const fingers = await twoFingers(context, p, browserName);
     const clip = (await clips(p)).find((c) => c.timeline_start === clipAt);
     if (!clip) throw new Error(`clip at ${clipAt} s missing`);
