@@ -1,3 +1,4 @@
+import { runPointerCommand } from "../../commands/pointer";
 import type { ShareOptions } from "../../stages/deliver/shareLogic";
 import { useDawStore } from "../../state/dawStore";
 import { Sheet } from "../../system/Sheet";
@@ -56,10 +57,16 @@ export function InviteSheet({
   const flow = useShareFlow();
   const at = useDawStore((s) => s.inviteAt);
   const shareCmd = useCommand("share.manage");
+  const stage = useDawStore((s) => s.stage);
+  const recordCmd = useCommand("stage.record");
+  const canOpenRecord = stage !== "record" && recordCmd.enabled;
   return (
     <InviteSheetView
       options={shareOptionsOf(flow, {
         blockedReason: shareCmd.whenReason,
+        onOpenRecord: canOpenRecord
+          ? () => runPointerCommand("stage.record")
+          : undefined,
       })}
       at={at}
       form={form}
