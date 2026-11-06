@@ -195,6 +195,8 @@ const SURFACE_GESTURES: Record<string, string> = {
     "sheet drag: the grabber drags a bottom sheet between detents; a range input under it keeps the keyboard and screen reader path",
   "ui/BottomSheet.tsx":
     "the detent slider under the grabber is the keyboard and screen reader path to the same detents",
+  "stage/edit/useViewAnchor.ts":
+    "a new press cancels pending View focus recovery; it starts no gesture and intercepts no pointer action",
   "stage/edit/ScriptDivider.tsx":
     "divider: a drag resizes the Script pane beside the timeline; the arrow keys, Enter and double-click do the same by key",
   "system/Player.tsx":
