@@ -54,7 +54,12 @@ export function RecordLinks({
           Create record links
         </Button>
         {rooms.length > 0 && options.onOpenRecord ? (
-          <Button onClick={options.onOpenRecord}>Open Record stage</Button>
+          <Button
+            disabledReason={options.busy ? BUSY_REASON : undefined}
+            onClick={options.onOpenRecord}
+          >
+            Open Record stage
+          </Button>
         ) : null}
       </div>
     </>

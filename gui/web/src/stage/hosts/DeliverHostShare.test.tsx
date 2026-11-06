@@ -592,7 +592,7 @@ describe("the Invite sheet over any stage", () => {
     it("switches to Record and closes the sheet", async () => {
       record();
       render(<Host />);
-      openInvite();
+      openInvite("record");
       await screen.findByText("Record room");
       await userEvent.click(
         screen.getByRole("button", { name: "Open Record stage" }),
@@ -621,6 +621,16 @@ describe("the Invite sheet over any stage", () => {
       expect(
         screen.getAllByRole("button", { name: "Open Record stage" }),
       ).toHaveLength(1);
+    });
+
+    it("is not offered with no record rooms", async () => {
+      server.shares = [];
+      render(<Host />);
+      openInvite("record");
+      await screen.findByText("No record rooms yet.");
+      expect(
+        screen.queryByRole("button", { name: "Open Record stage" }),
+      ).toBeNull();
     });
 
     it("is not offered when the stage is already Record", async () => {
