@@ -42,7 +42,9 @@ it("speaks a failed job's message without its internals", () => {
   });
   return Promise.resolve().then(() => {
     expect(useDawStore.getState().statusAnnouncement).not.toMatch(/PODCAST/);
-    expect(useDawStore.getState().statusAnnouncement).toMatch(/Export/);
+    expect(useDawStore.getState().statusAnnouncement).toMatch(
+      /Report a problem/,
+    );
   });
 });
 
