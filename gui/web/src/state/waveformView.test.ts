@@ -5,10 +5,24 @@ import { useDawStore } from "./dawStore";
 
 beforeEach(() => {
   localStorage.clear();
+  useDawStore.setState({
+    followingClientId: null,
+    waveformAmpZoom: 1,
+    waveformScale: "auto",
+    waveformPostFader: false,
+  });
   useDawStore.getState().hydrate("/tmp/a.json", minimalProject());
 });
 
 describe("waveform view persistence", () => {
+  it("clamps and persists a direct amplitude write without stopping Follow", () => {
+    useDawStore.setState({ followingClientId: "leader" });
+    useDawStore.getState().setWaveformAmpZoom(20);
+    expect(useDawStore.getState().waveformAmpZoom).toBe(16);
+    expect(readWaveformViewPref("/tmp/a.json").amp).toBe(16);
+    expect(useDawStore.getState().followingClientId).toBe("leader");
+  });
+
   it("persists the scale, amplitude and post-fader setters", () => {
     const st = () => useDawStore.getState();
     st().setWaveformScale("linear");

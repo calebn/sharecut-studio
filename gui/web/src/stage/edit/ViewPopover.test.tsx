@@ -40,6 +40,7 @@ beforeEach(() => {
     waveformScale: "auto",
     waveformAmpZoom: 1,
     waveformPostFader: false,
+    followingClientId: null,
     layers: {
       showLevels: false,
       showSilence: true,
@@ -56,6 +57,50 @@ async function openPopover(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("eye popover", () => {
+  it.each(["step", "type", "reset"] as const)(
+    "stops following when the amplitude field commits by %s",
+    async (method) => {
+      const user = userEvent.setup();
+      useDawStore.setState({
+        followingClientId: "leader",
+        waveformAmpZoom: method === "reset" ? 2 : 1,
+      });
+      render(<EditCorner />);
+      const { dialog } = await openPopover(user);
+      const field = within(dialog).getByRole("spinbutton", {
+        name: "Waveform amplitude",
+      });
+      if (method === "step") {
+        field.focus();
+        await user.keyboard("{ArrowUp}");
+      } else if (method === "type") {
+        await user.click(field);
+        const input = within(dialog).getByRole("textbox", {
+          name: "Waveform amplitude",
+        });
+        await user.clear(input);
+        await user.type(input, "3{Enter}");
+      } else {
+        await user.click(
+          within(dialog).getByRole("button", {
+            name: "Reset Waveform amplitude to 1.00 ×",
+          }),
+        );
+      }
+      expect(useDawStore.getState().waveformAmpZoom).toBe(
+        method === "step" ? 1.25 : method === "type" ? 3 : 1,
+      );
+      expect(useDawStore.getState().followingClientId).toBeNull();
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        method === "step"
+          ? "Waveform amplitude ×1.25"
+          : method === "type"
+            ? "Waveform amplitude ×3"
+            : "Waveform amplitude ×1",
+      );
+    },
+  );
+
   it("opens a non-modal dialog, marks the eye expanded and is axe-clean", async () => {
     const user = userEvent.setup();
     const { container } = render(<EditCorner />);
@@ -83,6 +128,7 @@ describe("eye popover", () => {
 
   it("reverts a typed amplitude on Escape inside the field and keeps the popover open", async () => {
     const user = userEvent.setup();
+    useDawStore.setState({ followingClientId: "leader" });
     render(<EditCorner />);
     const { dialog } = await openPopover(user);
     await user.click(
@@ -98,6 +144,7 @@ describe("eye popover", () => {
       screen.getByRole("dialog", { name: "View options" }),
     ).toBeInTheDocument();
     expect(useDawStore.getState().waveformAmpZoom).toBe(1);
+    expect(useDawStore.getState().followingClientId).toBe("leader");
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog", { name: "View options" })).toBeNull();
   });

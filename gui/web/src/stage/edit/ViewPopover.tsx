@@ -15,9 +15,11 @@ export function ViewPopover({ anchorRef, onClose }: ViewPopoverSlotProps) {
     setWaveformScale: st.setWaveformScale,
     amp: st.waveformAmpZoom,
     setWaveformAmpZoom: st.setWaveformAmpZoom,
+    stopFollow: st.stopFollow,
     projectPath: st.projectPath,
   }));
   const onAmpChange = (amp: number) => {
+    s.stopFollow("local");
     s.setWaveformAmpZoom(amp);
     announceWaveformAmp();
   };
