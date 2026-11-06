@@ -264,7 +264,6 @@ export const createProjectSlice: StateCreator<
     const {
       bounceRequested,
       exportRequested,
-      shareRequested,
       transcriptRequested,
       transcriptFindReplaceOpen,
     } = chromeInitial();
@@ -297,7 +296,6 @@ export const createProjectSlice: StateCreator<
               ...get().chrome,
               bounceRequested,
               exportRequested,
-              shareRequested,
               transcriptRequested,
               transcriptFindReplaceOpen,
             },

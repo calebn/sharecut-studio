@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useRecordHostStore } from "../record/hostStore";
 import { useDawStore } from "../state/dawStore";
-import { setChrome } from "../test/chrome";
 import { minimalProject } from "../test/fixtures";
 import { clearRegisteredCommands, execute } from "./execute";
 import { registerDawCommands } from "./register";
@@ -33,7 +32,6 @@ describe("record transport command failures", () => {
     submit.mockReset();
     land.mockReset();
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
-    setChrome({ shareRequested: false });
     useDawStore.setState({ stage: "edit" });
     useDawStore.setState({
       statusAnnouncement: "",

@@ -7,11 +7,9 @@ export function shareOptionsOf(
   host: {
     /** Online sharing state; null without the `tunnel.status` feature. */
     tunnel: TunnelStatus | null;
-    /** Why Share is unavailable (the command's reason). */
+    /** Why sharing is unavailable (the command's reason). */
     blockedReason?: string;
-    onOpenRecord: () => void;
-    focusRequested: boolean;
-    onFocused: () => void;
+    onOpenRecord?: () => void;
   },
 ): ShareOptions {
   return {
@@ -22,6 +20,7 @@ export function shareOptionsOf(
     onChoices: flow.setChoices,
     busy: flow.busy,
     recovery: flow.recovery,
+    refreshFor: flow.refreshFor,
     error: flow.error,
     status: flow.status,
     copiedKey: flow.copiedKey,
@@ -36,7 +35,5 @@ export function shareOptionsOf(
     onReplaceInvite: flow.replaceInvite,
     onEndRoom: flow.endRoom,
     onOpenRecord: host.onOpenRecord,
-    focusRequested: host.focusRequested,
-    onFocused: host.onFocused,
   };
 }

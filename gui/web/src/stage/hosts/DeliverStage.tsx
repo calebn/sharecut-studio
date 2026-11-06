@@ -16,15 +16,11 @@ import {
   type DocumentScope,
   documentScope,
 } from "../../document/authorityState";
-import {
-  useFeaturesReady,
-  useHasFeature,
-} from "../../extensions/FeaturesContext";
+import { useHasFeature } from "../../extensions/FeaturesContext";
 import {
   FEATURE_SHARE_UI_MENU,
   FEATURE_TUNNEL_STATUS,
 } from "../../extensions/features";
-import { Slot } from "../../extensions/Slot";
 import { useNowSec } from "../../hooks/useNowSec";
 import { useStaleRenderBreakdown } from "../../hooks/useStaleRenderBreakdown";
 import { useViewportClass } from "../../hooks/useViewportClass";
@@ -43,9 +39,9 @@ import { selectedTrackIdsOf } from "../../state/selection";
 import { StatusRow } from "../../system/StatusRow";
 import { lowConfidenceStops } from "../../transcript/lowConfidence";
 import type { HistoryEntryId } from "../../types/project";
-import { Button } from "../../ui";
 import { useCommand } from "../../ui/useCommand";
 import { mediaSignature } from "../../waveform/mediaRef";
+import { ListenLinkRow } from "../frame/invite/ListenLinkRow";
 import { useStageScroll } from "../useStageScroll";
 import { useBounceFlow } from "./bounceFlowContext";
 import { bounceOptionsOf } from "./deliverBounce";
@@ -152,8 +148,6 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     setBounceRequested,
     transcriptRequested,
     setTranscriptRequested,
-    shareRequested,
-    setShareRequested,
     bounceRange,
     setBounceRange,
     selection,
@@ -170,8 +164,6 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
       setBounceRequested: s.setBounceRequested,
       transcriptRequested: s.chrome.transcriptRequested,
       setTranscriptRequested: s.setTranscriptRequested,
-      shareRequested: s.chrome.shareRequested,
-      setShareRequested: s.setShareRequested,
       bounceRange: s.bounceRangeTarget,
       setBounceRange: s.setBounceRangeTarget,
       selection: s.selection,
@@ -185,7 +177,6 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
   const shareFlow = useShareFlow();
   const reloadShares = shareFlow.reload;
   const shareOffered = useHasFeature(FEATURE_SHARE_UI_MENU);
-  const featuresReady = useFeaturesReady();
   const tunnel = useTunnelStatus(
     useHasFeature(FEATURE_TUNNEL_STATUS) && shareOffered,
   );
@@ -223,6 +214,10 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
   const breakdown = useStaleRenderBreakdown(project);
   const bounceCmd = useCommand("export.bounce");
   const shareCmd = useCommand("share.manage");
+  const shareOptions = shareOptionsOf(shareFlow, {
+    tunnel,
+    blockedReason: shareCmd.whenReason,
+  });
   const offline = useOfflineAttention(projectPath);
   const state = hostStateOf(project, loadFailure);
 
@@ -345,7 +340,6 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
         if (liveHosts > 0) return;
         useDawStore.getState().setExportRequested(false);
         useDawStore.getState().setBounceRequested(false);
-        useDawStore.getState().setShareRequested(false);
         useDawStore.getState().setTranscriptRequested(false);
       }, 0);
     };
@@ -383,14 +377,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     new Map<string, { head: HistoryEntryId; scope: DocumentScope }>(),
   );
   const [findingClips, setFindingClips] = useState(false);
-  const [focusShare, setFocusShare] = useState(false);
-  const clearShareFocus = useCallback(() => setFocusShare(false), []);
-  useEffect(() => {
-    if (!shareRequested || state !== "ready" || !featuresReady) return;
-    setShareRequested(false);
-    if (shareOffered) setFocusShare(true);
-  }, [shareRequested, state, featuresReady, shareOffered, setShareRequested]);
-  // The links are listed as Deliver shows, and again for a reopened project.
+  // The listen link is listed as Deliver shows, and again for a reopened project.
   useEffect(() => {
     if (state !== "ready" || !shareOffered || !projectPath) return;
     reloadShares();
@@ -596,15 +583,15 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
             focusRequested: focusTranscript,
             onFocused: clearTranscriptFocus,
           }}
-          share={
+          listen={
             shareOffered
-              ? shareOptionsOf(shareFlow, {
-                  tunnel,
-                  blockedReason: shareCmd.whenReason,
-                  onOpenRecord: () => runPointerCommand("stage.record"),
-                  focusRequested: focusShare,
-                  onFocused: clearShareFocus,
-                })
+              ? ({ highlight, phone }) => (
+                  <ListenLinkRow
+                    options={shareOptions}
+                    highlight={highlight}
+                    compact={phone}
+                  />
+                )
               : undefined
           }
           files={files}
@@ -612,7 +599,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
           words={clipWords}
           peaks={peaks}
           layout={shell === "phone" ? "phone" : "desktop"}
-          showLink={false}
+          showLink={shareOffered}
           showPlayer={false}
           onClipRestore={onClipRestore}
           clipTitleCommit
@@ -632,16 +619,6 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
             runPointerCommand("stage.edit");
           }}
         />
-        <div className="stage-host-actions">
-          <Slot id={FEATURE_SHARE_UI_MENU}>
-            <Button
-              disabledReason={shareCmd.whenReason}
-              onClick={() => setFocusShare(true)}
-            >
-              Share a listen link
-            </Button>
-          </Slot>
-        </div>
       </div>
     </HostBody>
   );
@@ -650,6 +627,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
 /**
  * The Deliver stage host: the Deliver stage on the open project, with chapter
  * and clip edits written back to the document, and the export run by the
- * flows in `DawApp`. Share is a section here; the header Invite opens it. Host only.
+ * flows in `DawApp`. The Listen link row sits in the right column; the header
+ * Invite opens the sheet with every link. Host only.
  */
 export const DeliverStage = memo(DeliverStageAdapter);
