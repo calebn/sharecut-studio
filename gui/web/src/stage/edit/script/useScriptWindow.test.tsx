@@ -68,10 +68,9 @@ beforeEach(() => seedScript({ utterances: longTranscript(400) }));
 describe("useScriptWindow", () => {
   it("keeps the window on the committed playhead word when React discards a transition render", () => {
     render(<Probe />);
-    const first = drawn.turns[0];
+    expect(drawn.turns[0]).toBe("a0");
     act(() => setLive(780));
     act(() => setFollowing(false));
-    expect(first).toBe("a0");
     expect(drawn.turns).toContain("a0");
   });
 });
