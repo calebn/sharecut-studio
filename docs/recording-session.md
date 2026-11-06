@@ -263,7 +263,7 @@ and registers clips. Live comments land in the same mutate as keepers (or on
 their own if no new clips).
 
 A crash after the guest mint and before the producer mint can leave a one-token
-room. `revoke_room` / End room / `podcast review revoke-share --session-id`
+room. `revoke_room` / End session / `podcast review revoke-share --session-id`
 still clear it.
 
 Capture, ingest, host lobby, mix-minus graph: FOSS core. Public `/rec/` guest

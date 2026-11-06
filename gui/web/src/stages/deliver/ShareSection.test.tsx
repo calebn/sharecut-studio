@@ -25,7 +25,6 @@ function options(over: Partial<ShareOptions> = {}): ShareOptions {
     onStop: vi.fn(),
     onCreateRecord: vi.fn(),
     onReplaceInvite: vi.fn(),
-    onEndRoom: vi.fn(),
     onOpenRecord: vi.fn(),
     ...over,
   };
@@ -603,7 +602,9 @@ describe("ShareSection record rooms", () => {
   it("names a producer link that is missing", () => {
     render(<ShareSection options={options({ rows: [guest] })} />);
     expect(
-      screen.getByText("Missing. End this room and create new record links."),
+      screen.getByText(
+        "Missing. End the session from the Record stage and create new record links.",
+      ),
     ).toBeTruthy();
     expect(button("Copy producer link")).toBeDisabled();
   });
@@ -616,30 +617,12 @@ describe("ShareSection record rooms", () => {
     expect(o.onOpenRecord).toHaveBeenCalledOnce();
   });
 
-  it("ends a room only after the in-place confirm, with Keep room as the default", async () => {
-    const user = userEvent.setup();
-    const o = options({ rows: [guest, producer] });
-    render(<ShareSection options={o} />);
-    await user.click(button("End room"));
-    expect(o.onEndRoom).not.toHaveBeenCalled();
-    const group = screen.getByRole("group", {
-      name: "End this record room? Both guest and producer links will stop working.",
-    });
+  it("has no End room button: a room ends from the Record stage", () => {
+    render(<ShareSection options={options({ rows: [guest, producer] })} />);
+    expect(screen.queryByRole("button", { name: "End room" })).toBeNull();
     expect(
-      within(group).getByRole("button", { name: "Keep room" }),
-    ).toHaveFocus();
-    await user.click(within(group).getByRole("button", { name: "Keep room" }));
-    expect(button("End room")).toHaveFocus();
-    await user.click(button("End room"));
-    await user.click(
-      within(
-        screen.getByRole("group", { name: /End this record room/ }),
-      ).getByRole("button", {
-        name: "End room",
-      }),
-    );
-    expect(o.onEndRoom).toHaveBeenCalledWith("room-1");
-    expect(screen.getByRole("heading", { name: "Record rooms" })).toHaveFocus();
+      screen.getByText(/End the session from the Record stage's More menu/),
+    ).toBeTruthy();
   });
 });
 

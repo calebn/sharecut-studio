@@ -183,7 +183,7 @@ All use `ui/Dialog.tsx` (phone renders as a bottom sheet) unless noted. Stories 
 | DLG-RECORD | "Record room" (host): create room, Start/Pause/Resume/Stop, Land on timeline, mute, markers, roster, upload status, live comments, room tone, mic notices | Menu > Project > Record room…; record chip | `record/RecordPanel.tsx`, `record/StopTakeControl.tsx`, `record/RecordTransportChip.tsx` | Parts only (see section 10). Panel itself NONE | Store + Hook | Host recording control |
 | DLG-ASK-CONFIRM | Confirm dialogs via `askConfirm`: "Remove the X track?" (Keep track / Remove track), "Cut at 0:12?" (phone and tablet blade; Don't cut / Cut), "Replace audio on X?", hand-edited transcript replace (Keep my edits / Replace transcript), bulk Approve/Reject all, Apply suggested tighten | Remove track; blade on touch; import onto a track with audio; pipeline steps that replace transcripts; Impact bulk buttons; Tighten apply suggested | `feedback/AskDialog.tsx`, `feedback/AskDialogView.tsx`, `feedback/ask.ts`, `panels/confirmReplaceEdited.ts`, `utils/pendingReviewPass.ts` | `feedback/AskDialogView.stories.tsx` (Confirm, TextPrompt) | View | Safety check before a risky action |
 | DLG-ASK-TEXT | "Open project": Path to episode.sharecut (when there is no OS file picker) | Menu > Project > Open project… | `feedback/AskDialogView.tsx`, `commands/projectMedia.ts` | `feedback/AskDialogView.stories.tsx` TextPrompt | View | Text answer prompt |
-| CMP-INLINE-CONFIRM | Inline confirm (Keep first and focused, then action) inside Share and Record stop | Stop sharing; End room; Stop take | `ui/InlineConfirm.tsx` | `ui/InlineConfirm.stories.tsx` (Default, Busy) | Props | Cheap confirm inside a dialog |
+| CMP-INLINE-CONFIRM | Inline confirm (Keep first and focused, then action) inside Share and Record stop | Stop sharing; Stop take | `ui/InlineConfirm.tsx` | `ui/InlineConfirm.stories.tsx` (Default, Busy) | Props | Cheap confirm inside a dialog |
 
 Modal primitives: `ui/Dialog.tsx` (`ui/Dialog.stories.tsx` Default, Danger), `ui/BottomSheet.tsx`, `ui/Field.tsx`, `ui/Menu.tsx`.
 
@@ -371,7 +371,7 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 | INS-* | Click the object: clip (`.clip-block`), pending region, track header, chapter marker, comment pin, word, envelope point. Tablet: `.bottom-sheet[role=dialog]`; phone: compact inspector at the remembered detent. |
 | DLG-EXPORT | Menu > `Export deliverables…`; dialog name "Export deliverables". |
 | DLG-BOUNCE | Menu > `Bounce…`; dialog "Bounce…". Needs a selected range for the Ready state. |
-| DLG-SHARE | Menu > `Share…`; dialog name "Share" (exact). Button `Create review link`, copy buttons, `Stop sharing`, `End room` confirm (`e2e/share-dialog.spec.ts`). |
+| DLG-SHARE | Menu > `Share…`; dialog name "Share" (exact). Button `Create review link`, copy buttons, `Stop sharing` confirm (`e2e/share-dialog.spec.ts`). |
 | DLG-MCP | Home or Menu > `Connect agent…`; dialog "Connect agent". |
 | DLG-HELP | Home > `Help`, or Menu > Help > `Export diagnostics…`; dialog "Help"; button `Create diagnostics bundle`. |
 | DLG-MODELS | Home > `Models`, or command palette "Manage models…"; dialog "Models" (mock `/api/bootstrap/*`). |
