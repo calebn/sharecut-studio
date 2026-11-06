@@ -15,6 +15,7 @@ import { RecordDock } from "./RecordDock";
 import { RoomAlert } from "./RoomAlert";
 import { RoomStatusPill } from "./RoomStatusPill";
 import { ListenerAvatar, ListenerRow, RoomTile } from "./RoomTile";
+import { RoomTileMenu } from "./RoomTileMenu";
 import type { RoomAlertInput } from "./roomAlertModel";
 import { clockText, type RoomPhase } from "./roomPhase";
 import {
@@ -62,6 +63,8 @@ export type RoomViewProps = {
   onLeave?: () => void;
   /** The viewer's own tile is pressable and opens the Device sheet. */
   onSelfPress?: () => void;
+  /** The host can take another person out of the room; their tile gets a menu. */
+  onRemovePerson?: (id: string, name: string) => void;
   /**
    * The viewer declined to be recorded: the room dims behind a peek bar with
    * Join recording, and the rest of the room goes inert.
@@ -155,6 +158,7 @@ export function RoomView({
   onMore,
   onLeave,
   onSelfPress,
+  onRemovePerson,
   declined,
   embedded = false,
   recordDisabledReason,
@@ -297,7 +301,18 @@ export function RoomView({
                   presence="placeholder"
                   onInvite={onInvite}
                 />
-              ) : tile.kind === "invite" ? null : (
+              ) : tile.kind === "invite" ? null : onRemovePerson &&
+                tile.props.presence !== "placeholder" &&
+                !(tile.props.presence === "live" && tile.props.isMe) ? (
+                <div key={tile.key} className="sys-room-slot">
+                  <RoomTile {...tile.props} />
+                  <RoomTileMenu
+                    id={tile.key}
+                    name={tile.props.person.name}
+                    onRemove={onRemovePerson}
+                  />
+                </div>
+              ) : (
                 <RoomTile
                   key={tile.key}
                   {...(tile.props.presence === "live" && tile.props.isMe
