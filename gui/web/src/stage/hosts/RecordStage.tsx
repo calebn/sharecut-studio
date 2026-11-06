@@ -448,7 +448,7 @@ function RecordStageBody({
         noteVisibility: false,
         selfName: host?.display_name ?? "Host",
         onSendNote: (note) => room.liveComments.postNote(note.text),
-        onInvite: () => runPointerCommand("share.manage"),
+        onInvite: () => runPointerCommand("share.manage", { at: "record" }),
         muted: host?.muted ?? false,
         onStartTake: canRecord
           ? () => room.runCommand(paused ? "record.resume" : "record.start")
@@ -550,7 +550,7 @@ function RecordStageBody({
       removedInvite={room.hasRemovedParticipant}
       onInvite={() => {
         setMoreOpen(false);
-        runPointerCommand("share.manage");
+        runPointerCommand("share.manage", { at: "record" });
       }}
       guestsSeeNotes={snapshot.guests_see_notes === true}
       onGuestsSeeNotesChange={room.setGuestsSeeNotes}

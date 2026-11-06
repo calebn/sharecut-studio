@@ -6,10 +6,10 @@ Phone- and tablet-first shells for ShareCut Studio, plus desktop polish shared w
 
 Canonical strategy and feature map for agents/contributors. Implementation lives under `gui/web/`.
 
-Reading-room actions and Share section actions/checkbox labels use the shared
-`--touch-min` target floor. On phones the Share section is part of the Deliver
-page: Create review link, its status line and the links sit in the page body
-above the sticky Export bar. Stop sharing and
+Reading-room actions and Invite sheet actions/checkbox labels use the shared
+`--touch-min` target floor. On phones the Invite sheet is a bottom sheet over
+any stage, and the Deliver page carries only the Listen link row, after the
+Episode file and above the sticky Export bar. Stop sharing and
 End room confirm in place (`ui/InlineConfirm`) rather than stacking a second
 sheet. Dialog and sheet close buttons use the same square
 target. Reading form labels, hints, and errors use `--font-size-body`, while

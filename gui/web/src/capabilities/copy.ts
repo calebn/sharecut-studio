@@ -233,6 +233,10 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Share…",
     tooltip: "Share…",
   },
+  "daw.share.copyListenLink": {
+    label: "Copy listen link",
+    tooltip: "Copy listen link",
+  },
   "daw.record.createRoom": {
     label: "Create record room",
     tooltip: "Create record room",
@@ -621,7 +625,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "transcript.findReplace": "daw.transcript.findReplace",
   "transcript.wordbar": "daw.transcript.adjustTiming",
   GesturesSheet: "daw.ui.toggleCommandPalette",
-  deliverShare: "daw.share.manage",
+  inviteSheet: "daw.share.manage",
   deliverBounce: "daw.export.bounce",
   RecordStage: "daw.room.pause",
   HostMcpDialog: "daw.mcp.connect",

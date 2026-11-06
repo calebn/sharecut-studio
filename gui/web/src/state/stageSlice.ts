@@ -1,6 +1,7 @@
 import type { StateCreator } from "zustand";
 import type {
   EditSurface,
+  InviteGroup,
   ReviewSection,
   StageId,
   StageSheet,
@@ -55,6 +56,8 @@ export interface StageSliceState {
   reviewSection: ReviewSection;
   editSurface: EditSurface;
   openSheet: StageSheet | null;
+  /** Which Invite sheet group to open at: the Record links, from the empty Person tile. Cleared when the sheet closes. */
+  inviteAt: InviteGroup | null;
   scriptCollapsed: boolean;
   scriptFocus: boolean;
   /** The landing stage has been chosen for this project, by rule or by the person. */
@@ -91,6 +94,8 @@ export interface StageSliceState {
   setReviewSection: (section: ReviewSection) => void;
   setEditSurface: (surface: EditSurface) => void;
   setOpenSheet: (sheet: StageSheet | null) => void;
+  /** Opens the Invite sheet, at a group when asked. */
+  openInvite: (at?: InviteGroup) => void;
   setScriptCollapsed: (on: boolean) => void;
   setScriptFocus: (on: boolean) => void;
   setPanelScroll: (stage: StageId, key: string, top: number) => void;
@@ -105,6 +110,7 @@ export function stageProjectInitial(guestMode: string | null = null) {
       : stagesForRole(stageRoleOf(guestMode))[0]) as StageId,
     stageViews: {} as Partial<Record<StageId, StageView>>,
     openSheet: null as StageSheet | null,
+    inviteAt: null as InviteGroup | null,
     landingSettled: false,
     pendingRecordTarget: null as PendingRecordTarget | null,
     pendingReviewItem: null as string | null,
@@ -124,7 +130,7 @@ export const createStageSlice: StateCreator<
       const sheet = options.sheet ?? null;
       const section = options.section ?? s.reviewSection;
       if (next === prev) {
-        return { reviewSection: section, openSheet: sheet };
+        return { reviewSection: section, openSheet: sheet, inviteAt: null };
       }
       const saved = s.stageViews[next];
       return {
@@ -139,6 +145,7 @@ export const createStageSlice: StateCreator<
         stage: next,
         reviewSection: section,
         openSheet: sheet,
+        inviteAt: null,
         timelineFocused: next === "edit",
         stageViews: {
           ...s.stageViews,
@@ -177,7 +184,8 @@ export const createStageSlice: StateCreator<
     setRecordScript: (recordScript) => set({ recordScript }),
     setReviewSection: (reviewSection) => set({ reviewSection }),
     setEditSurface: (editSurface) => set({ editSurface }),
-    setOpenSheet: (openSheet) => set({ openSheet }),
+    setOpenSheet: (openSheet) => set({ openSheet, inviteAt: null }),
+    openInvite: (at) => set({ openSheet: "invite", inviteAt: at ?? null }),
     setScriptCollapsed: (scriptCollapsed) => {
       set({ scriptCollapsed });
       writeScriptCollapsed(scriptCollapsed);
