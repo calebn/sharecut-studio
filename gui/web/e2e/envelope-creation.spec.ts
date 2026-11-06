@@ -425,7 +425,9 @@ for (const profile of profiles) {
             for (const control of [
               dialog.getByRole("spinbutton", { name: "Time", exact: true }),
               dialog.getByRole("spinbutton", { name: "Level", exact: true }),
-              dialog.getByRole("button", { name: /^Remove/ }),
+              dialog.getByRole("button", {
+                name: /^Remove (point|volume envelope)$/,
+              }),
             ]) {
               await control.scrollIntoViewIfNeeded();
               await expect(control).toBeVisible();
@@ -446,7 +448,9 @@ for (const profile of profiles) {
               for (const control of [
                 dialog.getByRole("spinbutton", { name: "Time", exact: true }),
                 dialog.getByRole("spinbutton", { name: "Level", exact: true }),
-                dialog.getByRole("button", { name: /^Remove/ }),
+                dialog.getByRole("button", {
+                  name: /^Remove (point|volume envelope)$/,
+                }),
                 dialog.getByRole("button", { name: "Close", exact: true }),
               ]) {
                 await control.scrollIntoViewIfNeeded();

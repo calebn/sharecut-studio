@@ -259,7 +259,9 @@ for (const {
             for (const control of [
               time,
               level,
-              dialog.getByRole("button", { name: /^Remove/ }),
+              dialog.getByRole("button", {
+                name: /^Remove (point|volume envelope)$/,
+              }),
             ]) {
               await exposeControl(page, control, receipts);
             }
@@ -404,7 +406,9 @@ test.describe("root32 phone many points and request recovery", () => {
             name: "Level",
             exact: true,
           });
-          const remove = dialog.getByRole("button", { name: /^Remove/ });
+          const remove = dialog.getByRole("button", {
+            name: /^Remove (point|volume envelope)$/,
+          });
           await exposeControl(page, time, receipts);
           await exposeControl(page, remove, receipts);
           const gate = new Promise<void>((resolve) => {
