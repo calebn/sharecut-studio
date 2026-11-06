@@ -9,8 +9,10 @@ import { useSelectionAnchor } from "../edit/useSelectionAnchor";
 
 /**
  * The floating Action bar over a guest's word selection in Review: Comment
- * and Suggest a cut, nothing else. A Viewer gets no bar; a link that may not
- * suggest gets Comment alone; an Editor's cut applies, so it reads Cut.
+ * and Suggest a cut, nothing else. A Viewer gets no bar (the host mounts this
+ * only when the link may select a range). A link that may not suggest gets
+ * Comment alone, a branch reachable only when `mayRange` holds; an Editor's cut
+ * applies, so it reads Cut.
  */
 export function GuestSelectionBar({
   root,

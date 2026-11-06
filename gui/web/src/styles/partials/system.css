@@ -1653,7 +1653,8 @@ html[data-frame-short] .sys-header-project .sys-header-title {
   grid-column: 2;
 }
 
-@media (max-width: 40rem) {
+/* The phone shell's width (PHONE_MQ in hooks/useViewportClass.ts; a test keeps them equal). */
+@media (max-width: 767px) {
   .sys-skeleton-blocks--guest {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -4026,6 +4027,7 @@ button.sys-scope:hover {
   }
 
   .sys-actions-primary--floating {
+    block-size: auto;
     min-block-size: var(--touch-min);
     min-inline-size: var(--touch-min);
   }
