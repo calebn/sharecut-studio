@@ -7,7 +7,7 @@ export default defineConfig({
   test: {
     name: "stories",
     globals: true,
-    include: ["src/**/*.sweep.browser.test.tsx"],
+    include: ["src/**/*.browser.test.tsx"],
     setupFiles: ["./.storybook/vitest.setup.ts"],
     browser: {
       enabled: true,
