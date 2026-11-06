@@ -55,12 +55,8 @@ export type { AuditionMode } from "../types/session";
 export type { LaneHeightMode } from "../utils/laneHeightPref";
 
 export interface LayerVisibility {
-  showEdits: boolean;
   showLevels: boolean;
-  showMarkers: boolean;
-  showComments: boolean;
   showSilence: boolean;
-  showSnapPoints: boolean;
   /** Prosody overlay + transcript emphasis (host only, opt-in, #719). */
   showProsody: boolean;
 }

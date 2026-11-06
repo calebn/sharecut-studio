@@ -44,7 +44,6 @@ const FILE_SURFACES: Record<string, string[]> = {
   "stage/edit/trackSections.tsx": ["trackInspector"],
   "stage/edit/EditCornerView.tsx": ["editCorner"],
   "stage/edit/PlusMenu.tsx": ["editPlusMenu"],
-  "stage/edit/ViewSheet.tsx": ["viewSheet"],
   "tracks/SoloChip.tsx": ["trackHeaders.soloChip"],
   "transcript/TranscriptWordbar.tsx": ["transcript.wordbar"],
   "transcript/WordRangeControls.tsx": ["rangeActions.words"],

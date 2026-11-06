@@ -59,7 +59,6 @@ const baseProps = {
   projectPath: "/tmp/p.json",
   selection: null,
   showLevels: false,
-  showEdits: false,
   envelopes: [],
   appliedRecords: [],
   pendingEdits: [],

@@ -166,8 +166,6 @@ describe("marker rows", () => {
     chapters: [],
     socialClips: [],
     comments: [],
-    showMarkers: true,
-    showComments: true,
   };
 
   it("collapses to one quiet row when nothing is marked", () => {
@@ -190,18 +188,16 @@ describe("marker rows", () => {
     );
   });
 
-  it("draws chapters and comments on one lane, honoring layer toggles", () => {
+  it("draws chapters and comments on one lane", () => {
     const chapters = [{ time: 1, title: "Intro" }] as never[];
     const comments = [{ id: "c1" }] as never[];
     expect(markerLaneHeight(markerRows({ ...base, chapters, comments }))).toBe(
       MARKER_ROW_HEIGHT,
     );
-    expect(
-      markerRows({ ...base, chapters, comments, showComments: false }),
-    ).toEqual({
+    expect(markerRows({ ...base, chapters, comments })).toEqual({
       chapters: true,
       social: false,
-      comments: false,
+      comments: true,
       clipping: false,
     });
   });
@@ -217,13 +213,9 @@ describe("marker rows", () => {
     ).toBe(MARKER_ROW_HEIGHT);
   });
 
-  it("adds a clipping row when recording flags exist and Markers is on", () => {
+  it("adds a clipping row when recording flags exist", () => {
     const flags = [{ id: "a:0", trackId: "t", label: "T", start: 1, end: 2 }];
     expect(markerRows({ ...base, clippingFlags: flags }).clipping).toBe(true);
-    expect(
-      markerRows({ ...base, clippingFlags: flags, showMarkers: false })
-        .clipping,
-    ).toBe(false);
     expect(
       markerLaneHeight({
         chapters: true,

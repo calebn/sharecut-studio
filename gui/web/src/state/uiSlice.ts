@@ -23,8 +23,7 @@ import {
   clampZoomPxPerSec,
   discreteZoomFactor,
   fitZoomPxPerSec,
-  MAX_WAVEFORM_AMP,
-  MIN_WAVEFORM_AMP,
+  roundWaveformAmp,
   sessionSecOf,
   visiblePlayheadClientX,
 } from "../utils/zoom";
@@ -434,12 +433,8 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     requestMore: () => set((s) => ({ moreRequest: s.moreRequest + 1 })),
     userZoomed: false,
     layers: {
-      showEdits: true,
       showLevels: false,
-      showMarkers: true,
-      showComments: true,
       showSilence: true,
-      showSnapPoints: true,
       showProsody: false,
     } satisfies LayerVisibility,
     commentDraft: null as CommentDraft | null,
@@ -472,9 +467,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
           ? cur * discreteZoomFactor("in")
           : cur * discreteZoomFactor("out");
       set({
-        waveformAmpZoom: clampWaveformAmp(
-          Math.min(MAX_WAVEFORM_AMP, Math.max(MIN_WAVEFORM_AMP, next)),
-        ),
+        waveformAmpZoom: clampWaveformAmp(roundWaveformAmp(next)),
       });
       persistWaveformView(get());
     },

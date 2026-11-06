@@ -22,12 +22,13 @@ async function playheadSec(page: Page): Promise<number> {
 
 async function volumeLayerOn(page: Page): Promise<boolean> {
   await page.getByRole("button", { name: "View options" }).click();
-  const sheet = page.getByRole("dialog", { name: "View" });
-  const on = await sheet
-    .getByRole("checkbox", { name: "Volume envelope", exact: true })
-    .isChecked();
+  const popover = page.getByRole("dialog", { name: "View options" });
+  const on =
+    (await popover
+      .getByRole("button", { name: "Volume envelope", exact: true })
+      .getAttribute("aria-pressed")) === "true";
   await page.keyboard.press("Escape");
-  await expect(sheet).toBeHidden();
+  await expect(popover).toBeHidden();
   return on;
 }
 

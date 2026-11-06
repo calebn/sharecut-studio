@@ -1,7 +1,13 @@
+import { type ComponentType, type RefObject, useRef } from "react";
 import { commandLabel } from "../../commands/labels";
 import { SystemIcon } from "../../system/SystemIcon";
 import { Button, Icon, ToggleButton } from "../../ui";
 import type { ZoomAvailability } from "./useZoomControls";
+
+export interface ViewPopoverSlotProps {
+  anchorRef: RefObject<HTMLElement | null>;
+  onClose: () => void;
+}
 
 export interface EditCornerViewProps {
   zoom: ZoomAvailability;
@@ -10,6 +16,10 @@ export interface EditCornerViewProps {
   onFit: () => void;
   viewOpen: boolean;
   onToggleView: () => void;
+  /** Closes the popover (a setter, never a toggle). */
+  onCloseView: () => void;
+  /** The eye popover, mounted while `viewOpen`; it hangs off the eye and closes through `onCloseView`. */
+  viewPopover?: ComponentType<ViewPopoverSlotProps>;
   /** Phone has no side-by-side Script pane, so no toggle. */
   script?: { shown: boolean; onToggle: () => void };
   /**
@@ -22,7 +32,7 @@ export interface EditCornerViewProps {
 
 const ZOOM_REASON = { in: "Fully zoomed in", out: "Fully zoomed out" } as const;
 
-/** Fit, zoom, the eye (View sheet), the Script toggle and, on touch, the range toggle, bottom-right of the lanes. */
+/** Fit, zoom, the eye (View popover), the Script toggle and, on touch, the range toggle, bottom-right of the lanes. */
 export function EditCornerView({
   zoom,
   onZoomIn,
@@ -30,9 +40,12 @@ export function EditCornerView({
   onFit,
   viewOpen,
   onToggleView,
+  onCloseView,
+  viewPopover: ViewPopoverSlot,
   script,
   range,
 }: EditCornerViewProps) {
+  const eyeRef = useRef<HTMLButtonElement | null>(null);
   return (
     <div className="edit-corner" role="group" aria-label="Timeline view">
       <Button
@@ -62,16 +75,21 @@ export function EditCornerView({
         <Icon name="zoomIn" />
       </Button>
       <ToggleButton
+        ref={eyeRef}
         quiet
         pressed={viewOpen}
         className="edit-corner-btn edit-corner-eye"
         title="View options"
         aria-label="View options"
         aria-haspopup="dialog"
+        aria-expanded={viewOpen}
         onClick={onToggleView}
       >
         <SystemIcon name="eye" size={20} />
       </ToggleButton>
+      {viewOpen && ViewPopoverSlot ? (
+        <ViewPopoverSlot anchorRef={eyeRef} onClose={onCloseView} />
+      ) : null}
       {range ? (
         <ToggleButton
           quiet

@@ -90,7 +90,6 @@ function renderLane(hostClips: ClipRow[] = [first, later]) {
           projectPath="/tmp/ripple.project.json"
           selection={{ kind: "clip", id: "c1", trackId: "host" }}
           showLevels={false}
-          showEdits={false}
           envelopes={[]}
           appliedRecords={[]}
           pendingEdits={[]}

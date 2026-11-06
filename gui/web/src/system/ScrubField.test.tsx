@@ -480,6 +480,45 @@ describe("ScrubField states", () => {
     expect(track.container.querySelector(".sys-scrub-rail")).not.toBeNull();
     expect(track.container.querySelector(".sys-scrub-fill")).toBeNull();
   });
+
+  describe("multiplicative", () => {
+    const factor = { multiplicative: true, step: 2, min: 1, max: 16, value: 4 };
+
+    it("multiplies and divides by the step per arrow press, inside its bounds", async () => {
+      const { calls, field } = setup(factor);
+      field().focus();
+      await userEvent.keyboard("{ArrowUp}");
+      expect(calls.onCommit).toHaveBeenLastCalledWith(8);
+      await userEvent.keyboard("{ArrowUp}{ArrowUp}");
+      expect(calls.onCommit).toHaveBeenLastCalledWith(16);
+      await userEvent.keyboard("{ArrowDown}");
+      expect(calls.onCommit).toHaveBeenLastCalledWith(8);
+      await userEvent.keyboard("{Home}{ArrowDown}");
+      expect(calls.onCommit).toHaveBeenLastCalledWith(1);
+      expect(calls.onCommit).toHaveBeenCalledTimes(4);
+    });
+
+    it("drags by one factor per eight pixels", () => {
+      const { calls, field } = setup(factor);
+      dragBy(field(), 8);
+      fireEvent.pointerUp(field(), { pointerId: 1 });
+      expect(calls.onCommit).toHaveBeenCalledWith(8);
+    });
+
+    it("takes three factors per key with Shift, not ten", async () => {
+      const { calls, field } = setup({ ...factor, value: 1 });
+      field().focus();
+      await userEvent.keyboard("{Shift>}{ArrowUp}{/Shift}");
+      expect(calls.onCommit).toHaveBeenLastCalledWith(8);
+    });
+
+    it("takes three factors per eight pixels of drag with Shift", () => {
+      const { calls, field } = setup({ ...factor, value: 1 });
+      dragBy(field(), 8, { shiftKey: true });
+      fireEvent.pointerUp(field(), { pointerId: 1 });
+      expect(calls.onCommit).toHaveBeenCalledWith(8);
+    });
+  });
 });
 
 describe("ScrubField commitOnUnmount", () => {

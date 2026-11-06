@@ -30,7 +30,6 @@ export function registerChapterCommands(): void {
         return { status: "disabled", reason: "Add already in progress" };
       }
       store.setChapterAddPending(true);
-      store.setLayerVisible("showMarkers", true);
       const {
         playheadSec: playhead,
         projectEpoch,

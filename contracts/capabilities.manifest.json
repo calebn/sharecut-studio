@@ -831,8 +831,7 @@
       "surfaces": {
         "command": "view.zoomIn",
         "gui": [
-          "editCorner",
-          "viewSheet"
+          "editCorner"
         ],
         "keyboard": "=",
         "touch": [
@@ -858,8 +857,7 @@
       "surfaces": {
         "command": "view.zoomOut",
         "gui": [
-          "editCorner",
-          "viewSheet"
+          "editCorner"
         ],
         "keyboard": "-",
         "touch": [
@@ -906,8 +904,7 @@
         "command": "view.fit",
         "gui": [
           "transport.fit",
-          "editCorner",
-          "viewSheet"
+          "editCorner"
         ],
         "keyboard": "\\"
       },
@@ -1114,7 +1111,7 @@
         "command": "view.waveformZoomIn",
         "gui": [
           "timeline.waveform",
-          "viewSheet"
+          "viewPopover"
         ],
         "keyboard": "Shift+ArrowUp"
       },
@@ -1138,7 +1135,7 @@
         "command": "view.waveformZoomOut",
         "gui": [
           "timeline.waveform",
-          "viewSheet"
+          "viewPopover"
         ],
         "keyboard": "Shift+ArrowDown"
       },
@@ -1168,7 +1165,7 @@
         ]
       },
       "omit": {
-        "keyboard_reason": "toggle; View menu checkbox and transport icon"
+        "keyboard_reason": "toggle; the transport icon, the palette and agents (Alt+= and Alt+- step the height)"
       },
       "presence": {
         "cursor": "none",
@@ -1187,9 +1184,6 @@
       ],
       "surfaces": {
         "command": "view.trackHeightIncrease",
-        "gui": [
-          "viewSheet"
-        ],
         "keyboard": "Alt+="
       },
       "omit": {},
@@ -1210,9 +1204,6 @@
       ],
       "surfaces": {
         "command": "view.trackHeightDecrease",
-        "gui": [
-          "viewSheet"
-        ],
         "keyboard": "Alt+-"
       },
       "omit": {},

@@ -189,14 +189,12 @@ export function markerRows(input: {
   socialClips: readonly SocialClipView[];
   comments: readonly TimelineComment[];
   clippingFlags?: readonly ClippingFlag[];
-  showMarkers: boolean;
-  showComments: boolean;
 }): MarkerRows {
   return {
-    chapters: input.showMarkers && input.chapters.length > 0,
-    social: input.showMarkers && input.socialClips.length > 0,
-    comments: input.showComments && input.comments.length > 0,
-    clipping: input.showMarkers && (input.clippingFlags?.length ?? 0) > 0,
+    chapters: input.chapters.length > 0,
+    social: input.socialClips.length > 0,
+    comments: input.comments.length > 0,
+    clipping: (input.clippingFlags?.length ?? 0) > 0,
   };
 }
 

@@ -97,7 +97,7 @@ describe("useFollowUi", () => {
   it("opens the leader's stage on the first tick", () => {
     useDawStore.setState({
       stage: "review",
-      openSheet: "view",
+      openSheet: "mix",
       sessionClients: sessionRoster([leader({ tab: "comments" })]),
     });
     renderHook(() => useFollowUi());
@@ -109,21 +109,21 @@ describe("useFollowUi", () => {
   it("keeps a follower's sheet until the leader changes stage", () => {
     const { rerender } = renderHook(() => useFollowUi());
     expect(shownTab()).toBe("impact");
-    useDawStore.setState({ openSheet: "view" });
+    useDawStore.setState({ openSheet: "mix" });
     useDawStore.setState({
       sessionClients: sessionRoster([
         leader({ tab: "comments", audition: "fx" }),
       ]),
     });
     rerender();
-    expect(useDawStore.getState().openSheet).toBe("view");
+    expect(useDawStore.getState().openSheet).toBe("mix");
     useDawStore.setState({
       sessionClients: sessionRoster([
         leader({ tab: "comments", transcript_anchor: "transcript:turn:0" }),
       ]),
     });
     rerender();
-    expect(useDawStore.getState().openSheet).toBe("view");
+    expect(useDawStore.getState().openSheet).toBe("mix");
     useDawStore.setState({
       sessionClients: sessionRoster([leader({ tab: "transcript" })]),
     });

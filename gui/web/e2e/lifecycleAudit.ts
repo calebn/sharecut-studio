@@ -240,14 +240,14 @@ export async function layerDuringDrag(
   await page
     .getByRole("button", { name: "View options" })
     .dispatchEvent("click");
-  const sheet = page.getByRole("dialog", { name: "View" });
-  const toggle = sheet.getByRole("checkbox", { name: label, exact: true });
+  const popover = page.getByRole("dialog", { name: "View options" });
+  const toggle = popover.getByRole("button", { name: label, exact: true });
   await expect(toggle).toBeVisible();
-  if ((await toggle.isChecked()) !== checked)
+  if ((await toggle.getAttribute("aria-pressed")) !== String(checked))
     await toggle.dispatchEvent("click");
-  await sheet.press("Escape").catch(() => {});
+  await popover.press("Escape").catch(() => {});
   await page.keyboard.press("Escape");
-  await expect(sheet).toBeHidden();
+  await expect(popover).toBeHidden();
 }
 export async function record(
   page: Page,

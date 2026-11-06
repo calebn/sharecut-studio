@@ -50,7 +50,7 @@ const meta: Meta<Args> = {
     docs: {
       description: {
         component:
-          "The Edit stage host: the timeline with its track headers, the Script pane, the Inspector and the sheets that hang off them. The corner holds fit, zoom and the Script toggle; the eye opens the View sheet and the + row under the last track adds audio, a track or a chapter.\n\n**Motion.** Nothing in the workspace animates: the Script pane and the divider change width in one frame, and the Inspector card floats over the lanes without moving them. The View and Mix sheets use the system Sheet's own motion (`--motion-hover`, the phone detents).\n\n**Per-stage view.** Zoom and scroll belong to the stage: leaving Edit saves them, coming back restores them. The Script pane's scroll position is saved when the pane unmounts.",
+          "The Edit stage host: the timeline with its track headers, the Script pane, the Inspector and the sheets that hang off them. The corner holds fit, zoom and the Script toggle; the eye opens the View popover and the + row under the last track adds audio, a track or a chapter.\n\n**Motion.** Nothing in the workspace animates: the Script pane and the divider change width in one frame, and the Inspector card floats over the lanes without moving them. The Mix sheet uses the system Sheet's own motion (`--motion-hover`, the phone detents); the View popover appears in place.\n\n**Per-stage view.** Zoom and scroll belong to the stage: leaving Edit saves them, coming back restores them. The Script pane's scroll position is saved when the pane unmounts.",
       },
     },
   },
@@ -108,7 +108,7 @@ export const SwitchAndReturn: Story = {
   },
 };
 
-export const EyeSheet: Story = {
+export const EyePopover: Story = {
   tags: ["wide-only"],
   parameters: { wideOnlyReason: WIDE_ONLY_REASON },
   play: async ({ canvasElement }) => {
@@ -116,19 +116,18 @@ export const EyeSheet: Story = {
     await userEvent.click(
       await canvas.findByRole("button", { name: "View options" }),
     );
-    await waitFor(() => expect(useDawStore.getState().openSheet).toBe("view"));
-    const sheet = await within(document.body).findByRole("dialog", {
-      name: "View",
+    const popover = await within(document.body).findByRole("dialog", {
+      name: "View options",
     });
-    // The sheet fades in; wait out the entry animation before asserting.
+    await expect(useDawStore.getState().openSheet).toBeNull();
     await waitFor(() =>
       expect(
-        within(sheet).getByRole("region", { name: "Layers" }),
+        within(popover).getByRole("group", { name: "Display options" }),
       ).toBeVisible(),
     );
     await waitFor(() =>
       expect(
-        within(sheet).getByRole("region", { name: "Waveform scale" }),
+        within(popover).getByRole("group", { name: "Waveform scale" }),
       ).toBeVisible(),
     );
   },

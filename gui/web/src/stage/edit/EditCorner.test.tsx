@@ -24,16 +24,19 @@ beforeEach(() => {
 });
 
 describe("EditCorner", () => {
-  it("opens and closes the eye sheet", async () => {
+  it("opens and closes the eye popover without a sheet", async () => {
     const user = userEvent.setup();
     render(<EditCorner />);
     const eye = screen.getByRole("button", { name: "View options" });
     expect(eye).toHaveAttribute("aria-pressed", "false");
     await user.click(eye);
-    expect(useDawStore.getState().openSheet).toBe("view");
+    expect(
+      screen.getByRole("dialog", { name: "View options" }),
+    ).toBeInTheDocument();
+    expect(useDawStore.getState().openSheet).toBeNull();
     expect(eye).toHaveAttribute("aria-pressed", "true");
     await user.click(eye);
-    expect(useDawStore.getState().openSheet).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "View options" })).toBeNull();
   });
 
   it("zooms through view.zoomIn and view.zoomOut", async () => {

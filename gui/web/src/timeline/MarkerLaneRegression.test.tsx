@@ -41,8 +41,6 @@ const base = {
   chapters: [],
   socialClips: [clip],
   comments: [],
-  showMarkers: true,
-  showComments: false,
   selected: ["social"],
   zoomPxPerSec: 10,
   width: 400,
@@ -69,34 +67,6 @@ describe("marker lane regression contracts", () => {
     vi.mocked(api.addChapter).mockReset();
     useDawStore.getState().hydrate("/tmp/marker-reset.json", minimalProject());
     useDawStore.getState().hydrate("/tmp/marker-a.json", minimalProject());
-  });
-
-  it("hides clipping with Markers off and agrees with short-screen height accounting", () => {
-    const input = {
-      ...base,
-      showMarkers: false,
-      clippingFlags: [
-        { id: "flag", trackId: "host", label: "Host", start: 5, end: 5.2 },
-      ],
-    };
-    const rows = markerRows(input);
-    const fit = { kind: "touchShort", floorPx: 48 } as const;
-    const view = render(
-      <MarkerLaneHost
-        {...input}
-        laneRow={markerLaneRow(rows, fit)}
-        readOnly={false}
-      />,
-    );
-    expect(markerLaneHeight(rows, fit)).toBe(0);
-    expect(
-      screen.queryByRole("button", { name: /Clipping on Host/ }),
-    ).toBeNull();
-    expect(view.container.querySelector(".marker-lane.empty")).not.toBeNull();
-    view.rerender(<MarkerLaneHost {...input} showMarkers readOnly={false} />);
-    expect(
-      screen.getByRole("button", { name: /Clipping on Host/ }),
-    ).toBeVisible();
   });
 
   it("preserves the whole clip span when repeated keyboard nudges reach the episode end", () => {
@@ -566,28 +536,19 @@ describe("marker lane regression contracts", () => {
 
   it.each([
     {
-      showMarkers: true,
-      showComments: false,
-      socialClips: [],
+      socialClips: [clip],
       comments: [],
-      flags: true,
     },
     {
-      showMarkers: false,
-      showComments: true,
       socialClips: [],
       comments: [sampleComment({ id: "comment", timeline_start: 2 })],
-      flags: true,
     },
     {
-      showMarkers: false,
-      showComments: false,
       socialClips: [],
       comments: [],
-      flags: true,
     },
   ])(
-    "draws exactly the rows reserved by short-screen metrics $showMarkers/$showComments",
+    "draws exactly the rows reserved by short-screen metrics with $socialClips.length clips and $comments.length comments",
     (input) => {
       const props = {
         ...base,

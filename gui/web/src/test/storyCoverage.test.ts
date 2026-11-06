@@ -88,7 +88,7 @@ const COVERED: Record<string, string[]> = {
     "Stages/Edit/TrackColumn",
   ],
   "CMP-TRACK-FADER": ["Templates/TrackFader", "System/ScrubField"],
-  "CMP-LEGEND": ["Templates/OverlayLegend"],
+  "CMP-LEGEND": ["Stages/Edit/Corner"],
   "CMP-TRACK-MIX": ["Templates/TrackMix"],
   "CMP-TURN": ["System/ScriptPane"],
   "CMP-GHOST": ["Templates/GhostWordChips"],
@@ -200,7 +200,7 @@ const COVERED: Record<string, string[]> = {
     "Stages/Prepare/Host",
     "Stages/Edit/Workspace",
   ],
-  "MENU-VIEW": ["Templates/OverlayLegend"],
+  "MENU-VIEW": ["Stages/Edit/Corner"],
   "CMP-TIMELINE": [
     "Templates/TimelineRange",
     "Templates/Timeline",

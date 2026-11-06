@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
 import { type DisabledReasonProps, disabledAttrs } from "./disabledReason";
 
 type Props = Omit<
@@ -7,6 +7,7 @@ type Props = Omit<
 > &
   DisabledReasonProps & {
     pressed: boolean;
+    ref?: Ref<HTMLButtonElement>;
     /** Quieter chrome (tabs, segmented tools). */
     quiet?: boolean;
     children: ReactNode;

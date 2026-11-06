@@ -10,6 +10,7 @@ import {
 import { isHandleDrag } from "../edit/dragThreshold";
 import {
   clamp,
+  factorScale,
   fillRatio,
   formatScrub,
   inBounds,
@@ -33,6 +34,12 @@ export type ScrubFieldProps = ScrubRange & {
   unit?: string;
   /** Value change per pixel of drag and per arrow press. */
   step?: number;
+  /**
+   * `step` is a factor, not an increment: an arrow press multiplies (or
+   * divides) by it and a drag changes the value by a factor of `step` per
+   * eight pixels, as the zoom steps do; Shift covers three factors at once. Needs a positive `min`.
+   */
+  multiplicative?: boolean;
   /** Alt gives a tenth of the step, so a whole-number field that wants Alt needs one more place. */
   decimals?: number;
   /** Shows the reset dot while the value differs from it. */
@@ -66,13 +73,16 @@ type Drag = {
 };
 
 const EMPTY_TEXT = "Not set";
+/** Pixels of drag that make one multiplicative step. */
+const DRAG_PX_PER_STEP = 8;
 
 export function ScrubField({
   label,
   value,
   unit,
   step = 1,
-  decimals = placesOf(step),
+  multiplicative = false,
+  decimals = multiplicative ? 2 : placesOf(step),
   defaultValue,
   readOnly = false,
   error,
@@ -189,9 +199,11 @@ export function ScrubField({
       gesture.lastX = event.clientX;
       return;
     }
+    const dx = event.clientX - gesture.lastX;
     gesture.raw = clamp(
-      gesture.raw +
-        (event.clientX - gesture.lastX) * step * modifierScale(event),
+      multiplicative
+        ? gesture.raw * step ** ((dx * factorScale(event)) / DRAG_PX_PER_STEP)
+        : gesture.raw + dx * modifierScale(event) * step,
       bounds,
     );
     gesture.lastX = event.clientX;
@@ -242,7 +254,17 @@ export function ScrubField({
       event.stopPropagation();
       // A held key would otherwise save and undo once per repeat.
       if (event.repeat) return;
-      commitStep(steppedValue(base, direction, step, event, decimals, bounds));
+      commitStep(
+        multiplicative
+          ? clamp(
+              roundTo(
+                base * step ** (direction * factorScale(event)),
+                decimals,
+              ),
+              bounds,
+            )
+          : steppedValue(base, direction, step, event, decimals, bounds),
+      );
     } else if (event.key === "Home" && min !== undefined) {
       event.preventDefault();
       event.stopPropagation();
