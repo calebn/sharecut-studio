@@ -85,7 +85,7 @@ export function useScriptWindow(
   const start = liveWord ?? lastLive;
   const range = useMemo<Range>(() => {
     if (!windowed) return { lo: 0, hi: Math.max(total - 1, 0) };
-    // A view past the end belongs to a replaced or merged transcript: it slides back to end at the last turn, or is rebuilt around the start if none of it remains, and the healed range is stored so a regrow does not revive the old one.
+    // A view past the end belongs to a replaced or merged transcript: it slides back to end at the last turn, or is rebuilt around the start if none of it remains.
     if (!view || view.lo >= total) return around(turnOf(start), total);
     if (view.hi < total) return view;
     return {
