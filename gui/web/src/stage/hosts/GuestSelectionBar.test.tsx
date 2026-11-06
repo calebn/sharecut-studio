@@ -1,6 +1,6 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { submitDocumentCommand } from "../../api/documentEdits";
 import { useDawStore } from "../../state/dawStore";
 import {
@@ -62,6 +62,11 @@ const bar = () => screen.queryByRole("group", { name: "Selection actions" });
 beforeEach(() => {
   vi.mocked(submitDocumentCommand).mockReset();
   stubViewportShell("desktop");
+  act(() => useDawStore.getState().setSelection(null));
+});
+
+afterEach(() => {
+  act(() => useDawStore.getState().setSelection(null));
 });
 
 describe("the guest selection bar", () => {
