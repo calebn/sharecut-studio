@@ -1,9 +1,9 @@
-import { readFileSync } from "node:fs";
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PHONE_MQ } from "../../hooks/useViewportClass";
 import { expectNoA11yViolations } from "../../test/a11y";
+import { systemCss } from "../../test/systemCss";
 import { GuestLoadingScreen } from "./GuestLoadingScreen";
 
 describe("GuestLoadingScreen", () => {
@@ -34,7 +34,7 @@ describe("GuestLoadingScreen", () => {
     act(() => void vi.advanceTimersByTime(4000));
     const retry = screen.getByRole("button", { name: "Retry" });
     expect(retry).toHaveClass("sys-skeleton-retry");
-    const css = readFileSync("src/styles/partials/system.css", "utf8");
+    const css = systemCss();
     const rule = (selector: string) =>
       css.match(new RegExp(`${selector}\\s*\\{([^}]*)\\}`))?.[1] ?? "";
     // Unconditional: the rule is not inside a pointer: coarse query.
@@ -51,17 +51,36 @@ describe("GuestLoadingScreen", () => {
   });
 
   it("collapses the guest skeleton at the phone shell breakpoint", () => {
-    const css = readFileSync("src/styles/partials/system.css", "utf8");
-    const at = css.indexOf(
-      ".sys-skeleton-blocks--guest {",
-      css.indexOf("@media"),
-    );
-    const queries = [
+    const css = systemCss();
+    const collapses = [
       ...css.matchAll(
-        /@media (\([^)]*\)) \{\s*\.sys-skeleton-blocks--guest \{/g,
+        /@media (\([^)]*\)) \{\s*\.sys-skeleton-blocks--guest \{([^}]*)\}/g,
       ),
     ];
-    expect(queries.map((m) => m[1])).toContain(PHONE_MQ);
-    expect(at).toBeGreaterThan(-1);
+    // Exactly one collapse, at the shell's own query, to a single column.
+    expect(collapses).toHaveLength(1);
+    expect(collapses[0]?.[1]).toBe(PHONE_MQ);
+    expect(collapses[0]?.[2]).toContain(
+      "grid-template-columns: minmax(0, 1fr)",
+    );
+    // No second, drifting breakpoint for the guest skeleton.
+    expect(css).not.toMatch(/@media \(max-width: 40rem\)/);
+  });
+
+  it("gives the floating primary the touch-min size on coarse pointers", () => {
+    const css = systemCss();
+    const coarse = [...css.matchAll(/@media \(pointer: coarse\) \{/g)].map(
+      (m) => m.index ?? 0,
+    );
+    const rule = css.match(
+      /\.sys-actions-primary--floating \{[^}]*block-size: auto;[^}]*\}/,
+    );
+    expect(rule?.[0]).toContain("min-block-size: var(--touch-min)");
+    expect(rule?.[0]).toContain("min-inline-size: var(--touch-min)");
+    // It sits inside a coarse-pointer query, not in the base rule.
+    expect(coarse.some((at) => at < (rule?.index ?? 0))).toBe(true);
+    expect(rule?.index).toBeGreaterThan(
+      css.indexOf(".sys-actions-primary--floating {"),
+    );
   });
 });

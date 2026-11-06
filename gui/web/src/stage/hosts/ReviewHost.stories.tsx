@@ -415,7 +415,6 @@ const selectionBarPlay: Story["play"] = async ({ canvasElement }) => {
         box.left >= sel.right,
     ).toBe(true);
   });
-  // Under a coarse pointer every bar button is a 44 px target.
   if (window.matchMedia("(pointer: coarse)").matches) {
     const min = Number.parseFloat(
       getComputedStyle(bar).getPropertyValue("--touch-min"),
