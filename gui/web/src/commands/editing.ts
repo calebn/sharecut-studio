@@ -62,18 +62,15 @@ function selectRightPieces(
   trackIds: readonly string[],
 ): void {
   const now = useDawStore.getState();
-  if (
-    !isCurrentDocumentScope(scope) ||
-    now.selection !== held ||
-    !now.project
-  ) {
+  const after = now.project;
+  if (!isCurrentDocumentScope(scope) || now.selection !== held || !after) {
     return;
   }
   const known = new Set(
     Object.values(before.clips.tracks).flatMap((list) => list.map((c) => c.id)),
   );
   const pieces = trackIds.flatMap((trackId) =>
-    (now.project?.clips.tracks[trackId] ?? [])
+    (after.clips.tracks[trackId] ?? [])
       .filter(
         (c) =>
           !known.has(c.id) &&
