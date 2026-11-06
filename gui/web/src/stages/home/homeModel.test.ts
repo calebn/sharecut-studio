@@ -5,6 +5,7 @@ import {
   bundleToGet,
   cardOf,
   dayMonth,
+  downloadTotals,
   episodeNameFromFiles,
   formatDuration,
   formatEdited,
@@ -258,6 +259,73 @@ describe("setupOf", () => {
       ],
     });
     expect(data?.state).toBe("failed");
+  });
+});
+
+describe("downloadTotals across the bundle", () => {
+  const sizes = [1_600_000_000, 40_000_000, 378_000_000, 83_000_000];
+  const bundle = (current: number, bytes: number, total: number | null) =>
+    sizes.map((sizeBytes, i) =>
+      model({
+        id: `c${i}`,
+        sizeBytes,
+        state:
+          i === current
+            ? { kind: "downloading", bytes, total }
+            : { kind: "queued" },
+      }),
+    );
+  const sum = sizes.reduce((a, b) => a + b, 0);
+
+  it("replays four components without the bytes or progress ever falling back", () => {
+    const events: [number, number, number][] = [
+      [0, 0, sizes[0]!],
+      [0, 800_000_000, sizes[0]!],
+      [0, sizes[0]!, sizes[0]!],
+      [1, 0, sizes[1]!],
+      [1, 2_048, sizes[1]!],
+      [1, sizes[1]!, sizes[1]!],
+      [2, 0, sizes[2]!],
+      [2, 12_000_000, sizes[2]!],
+      [2, sizes[2]!, sizes[2]!],
+      [3, 0, sizes[3]!],
+      [3, sizes[3]!, sizes[3]!],
+    ];
+    let previous = -1;
+    for (const [current, bytes, total] of events) {
+      const totals = downloadTotals(bundle(current, bytes, total))!;
+      expect(totals.total).not.toBeNull();
+      expect(totals.bytes).toBeGreaterThanOrEqual(previous);
+      previous = totals.bytes;
+      const data = setupOf(
+        {
+          ready: false,
+          loadError: null,
+          tools: { ffmpeg: "installed", hint: null },
+          models: bundle(current, bytes, total),
+        },
+        null,
+      );
+      expect(data?.progress).toBeGreaterThanOrEqual(0);
+      expect(data?.progress).toBeLessThanOrEqual(1);
+    }
+    expect(previous).toBe(sum);
+  });
+
+  it("counts the finished components in the numerator at a boundary", () => {
+    expect(downloadTotals(bundle(1, 0, sizes[1]!))).toEqual({
+      bytes: sizes[0],
+      total: sizes[0]! + sizes[1]! + sizes[2]! + sizes[3]!,
+    });
+    expect(downloadTotals(bundle(3, 0, sizes[3]!))?.bytes).toBe(
+      sizes[0]! + sizes[1]! + sizes[2]!,
+    );
+  });
+
+  it("leaves the total open while a queued size is unknown", () => {
+    const models = bundle(0, 5, sizes[0]!);
+    models[2] = { ...models[2]!, sizeBytes: null };
+    expect(downloadTotals(models)?.total).toBeNull();
   });
 });
 
