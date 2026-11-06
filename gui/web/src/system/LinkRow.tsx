@@ -27,7 +27,7 @@ export type LinkRowProps = {
   link: string | null;
   openedBy?: readonly { name: string; colorIndex?: number }[];
   copyState?: LinkCopyState;
-  /** Phone: Copy hands the link to the system share sheet. */
+  /** Phone: labels Copy as Share. It does not open the system share sheet. */
   share?: boolean;
   /** No mix exists: the row offers Refresh mix instead of a link. */
   noMix?: { onRefresh: () => void };
