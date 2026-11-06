@@ -16,6 +16,7 @@ import { withShareableProject } from "../e2e/shareableProject";
 import { openHostShare } from "../e2e/shareNavigation";
 import {
   armRange,
+  disarmRange,
   inspectSelection,
   openPanel,
   phone as stagePhone,
@@ -253,10 +254,8 @@ async function sweepCell(
       dense: DENSE,
       sizeExempt: SIZE_EXEMPT,
     });
-    await page
-      .getByRole("button", { name: "Select range", exact: true })
-      .first()
-      .tap();
+    // Nothing waits in a sheet once armed; the same toggle disarms.
+    await disarmRange(page);
   }
 
   if (phone) {

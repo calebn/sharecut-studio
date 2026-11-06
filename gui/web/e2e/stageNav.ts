@@ -480,6 +480,22 @@ export async function armRange(page: Page): Promise<void> {
   await expect(page.locator("[data-range-armed]").first()).toBeAttached();
 }
 
+/** Disarm range selection the way armRange armed it: the same toggle or palette command. */
+export async function disarmRange(page: Page): Promise<void> {
+  const folded = await openToolsIfFolded(page);
+  const toggle = page
+    .getByRole("group", { name: "Timeline view" })
+    .getByRole("button", { name: "Select range", exact: true });
+  if (await toggle.isVisible()) {
+    await toggle.tap();
+    if (folded) await closeTools(page);
+  } else {
+    if (folded) await closeTools(page);
+    await runPaletteCommand(page, "Select a range");
+  }
+  await expect(page.locator("[data-range-armed]")).toHaveCount(0);
+}
+
 /** Type a value into a Scrub field: Enter opens its text input, Enter commits. */
 export async function setScrub(
   page: Page,
@@ -495,7 +511,8 @@ export async function setScrub(
 
 /**
  * Arm, drag a short range across the reference lane, then set its exact In
- * and Out (seconds) in the Range fields. Out goes first so In stays below it.
+ * and Out (seconds) in the Range fields. The edge that is free to move goes
+ * first, since a field refuses to cross the other.
  */
 export async function selectRangeSec(
   page: Page,
@@ -512,17 +529,19 @@ export async function selectRangeSec(
   await page.mouse.move(box.x + box.width * 0.5, y, { steps: 6 });
   await page.mouse.up();
   const fields = page.getByRole("region", { name: "Range fields" });
+  if (!(await fields.isVisible())) await inspectSelectionByKey(page);
   await expect(fields).toBeVisible();
-  await setScrub(
-    page,
-    fields.getByRole("spinbutton", { name: "Out", exact: true }),
-    to,
-  );
-  await setScrub(
-    page,
-    fields.getByRole("spinbutton", { name: "In", exact: true }),
-    from,
-  );
+  const out = fields.getByRole("spinbutton", { name: "Out", exact: true });
+  const inn = fields.getByRole("spinbutton", { name: "In", exact: true });
+  const dragOut = Number(await out.getAttribute("aria-valuenow"));
+  // Each field refuses to cross the other, so move whichever edge is free first.
+  if (Number(from) < dragOut) {
+    await setScrub(page, inn, from);
+    await setScrub(page, out, to);
+  } else {
+    await setScrub(page, out, to);
+    await setScrub(page, inn, from);
+  }
   return fields;
 }
 
