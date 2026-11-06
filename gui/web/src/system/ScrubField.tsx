@@ -87,7 +87,13 @@ export function ScrubField({
   min,
   max,
 }: ScrubFieldProps) {
-  const bounds = { min, max };
+  const grid = 10 ** decimals;
+  const bounds = {
+    min:
+      min === undefined ? undefined : Math.ceil(min * grid - 1e-9) / grid || 0,
+    max:
+      max === undefined ? undefined : Math.floor(max * grid + 1e-9) / grid || 0,
+  };
   const errorId = useId();
   const box = useRef<HTMLSpanElement>(null);
   const drag = useRef<Drag | null>(null);
@@ -190,7 +196,9 @@ export function ScrubField({
     );
     gesture.lastX = event.clientX;
     const rounded = roundTo(gesture.raw, decimals);
-    const next = snap ? snap(rounded) : rounded;
+    const next = snap
+      ? clamp(roundTo(snap(rounded), decimals), bounds)
+      : rounded;
     if (next === gesture.current) return;
     gesture.current = next;
     onPreview?.(next);
@@ -238,11 +246,11 @@ export function ScrubField({
     } else if (event.key === "Home" && min !== undefined) {
       event.preventDefault();
       event.stopPropagation();
-      commitStep(min);
+      commitStep(bounds.min ?? min);
     } else if (event.key === "End" && max !== undefined) {
       event.preventDefault();
       event.stopPropagation();
-      commitStep(max);
+      commitStep(bounds.max ?? max);
     } else if (event.key === "Enter" || event.key === "F2") {
       event.preventDefault();
       event.stopPropagation();
