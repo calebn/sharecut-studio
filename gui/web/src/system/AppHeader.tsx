@@ -165,7 +165,6 @@ function GuestAppearanceMenu(
 
 export type AppMenuCommand = "settings" | "agent" | "help";
 
-/** The app-level rows of the Project menu, which Home's own menu holds too. */
 export function AppMenuRows({
   onSelect,
 }: {

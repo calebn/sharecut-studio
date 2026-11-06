@@ -12,7 +12,6 @@ type Props = {
   | { href: string; onSelect?: undefined }
 );
 
-/** A 56 px sheet row: icon, label and a chevron. A link opens in a new tab. */
 export function MenuRow({ icon, label, detail, onSelect, href }: Props) {
   const body: ReactNode = (
     <>

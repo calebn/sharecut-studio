@@ -32,7 +32,6 @@ export type ConnectAgentSheetProps = {
   onOpenRecent: () => void;
 };
 
-/** Connect agent: pick the client, copy what it needs, watch for it to join. */
 export function ConnectAgentSheet(props: ConnectAgentSheetProps) {
   return props.open ? <OpenSheet {...props} /> : null;
 }

@@ -8,7 +8,6 @@ export const AGENT_CLIENTS: readonly { id: AgentClient; label: string }[] = [
   { id: "other", label: "Other" },
 ];
 
-/** What to paste for each client: the URL for Claude and Other, the JSON config for Cursor. */
 export function pasteBlock(client: AgentClient, url: string) {
   if (client === "cursor") {
     return { label: "Cursor config", text: mcpClientSnippet(url), rows: 8 };
