@@ -315,7 +315,12 @@ test.describe("Cut", () => {
     await openEdit(page);
     await selectRange(page, "10", "20");
     const before = await clipCount(page);
-    await page.locator("body").press("Backspace");
+    // The last typed Range field keeps focus, and Backspace there edits the field.
+    await page.evaluate(() => {
+      if (document.activeElement instanceof HTMLElement)
+        document.activeElement.blur();
+    });
+    await page.keyboard.press("Backspace");
     await expect.poll(() => clipCount(page)).not.toBe(before);
   });
 

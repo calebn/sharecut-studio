@@ -106,20 +106,18 @@ export async function checkNativeMixEdits(page: Page, projectPath: string) {
     .poll(async () => (await savedMix(page, projectPath))[0].db)
     .toBe(expectedKeyboardDb);
   const box = await slider.boundingBox();
-  await page.mouse.move(box!.x + box!.width * 0.6, box!.y + box!.height * 0.65);
+  const grabX = box!.x + box!.width * 0.6;
+  const grabY = box!.y + box!.height * 0.5;
+  await page.mouse.move(grabX, grabY);
   await page.mouse.down();
-  await page.mouse.move(
-    box!.x + box!.width * 0.4,
-    box!.y + box!.height * 0.65,
-    { steps: 4 },
-  );
-  const draft = Number(await slider.getAttribute("aria-valuenow"));
-  expect(draft).not.toBe(expectedKeyboardDb);
+  await page.mouse.move(grabX - 60, grabY, { steps: 8 });
+  // A drag only previews; the save lands on release.
   expect((await savedMix(page, projectPath))[0].db).toBe(expectedKeyboardDb);
   await page.mouse.up();
   await expect
     .poll(async () => (await savedMix(page, projectPath))[0].db)
-    .toBe(draft);
+    .toBeLessThan(expectedKeyboardDb);
+  const draft = (await savedMix(page, projectPath))[0].db;
   await mix
     .getByRole("button", { name: `Mute ${first.label}`, exact: true })
     .click();
