@@ -576,7 +576,7 @@ export const VERBS = [
     iconAlt: "eye-off",
     keys: [],
     touch: "tap",
-    surfaces: ["view-sheet", "script-cut-text"],
+    surfaces: ["view-popover", "script-cut-text"],
     status: "new",
   },
   {

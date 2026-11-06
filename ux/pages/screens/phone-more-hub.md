@@ -11,7 +11,7 @@ The More hub was removed. Its destinations:
 | Pipeline | Prepare: Sources · Getting ready · Help the transcriber · Cleanup; Advanced steps behind a button | working-set config + live job |
 | Commands and shortcuts | Header search | command catalog |
 | Gestures | Commands and shortcuts → Gestures | static |
-| Overlay legend | Eye sheet | static |
+| View options | Eye popover | static |
 
 In Commands and shortcuts, each option's accessible name starts with the command
 label, followed by its visible category during search, shortcut, and collision
@@ -28,6 +28,6 @@ links). Searching lists matches in one ranked list; "stages" and "help" find
 those rows. Commands with a verb icon, and every stage, show a small decorative
 icon before the label; it adds nothing to the option's accessible name.
 
-**Guest** (Commenter): Review alone, with Comments and the Overlay legend. History / Pipeline and the host queue stay host-only.
+**Guest** (Commenter): Review alone, with Comments and the eye popover. History / Pipeline and the host queue stay host-only.
 
 Long-lived panels are stages or sections; do not stack sheets to reach them.

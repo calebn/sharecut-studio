@@ -34,7 +34,6 @@ import { paletteCommands } from "../dialogs/commandPaletteRows";
 import { EditCorner } from "../edit/EditCorner";
 import { EDIT_SHEETS } from "../edit/editSheets";
 import { PlusMenu } from "../edit/PlusMenu";
-import { ViewSheet } from "../edit/ViewSheet";
 import { PlayerBar } from "../frame/PlayerBar";
 import { StageFrame } from "../frame/StageFrame";
 import { BounceFlowProvider } from "./bounceFlow";
@@ -357,34 +356,21 @@ const touchRangeToggle: Probe = async (user) => {
   useDawStore.setState({ pointerKind: "fine" });
 };
 
-const viewLayers: Probe = async () => {
+/** The eye opens the View popover: layer chips and the amplitude scrub field. */
+const eyePopover: Probe = async (user) => {
   asHost("edit");
-  render(<ViewSheet />);
-  const layers = screen.getByRole("region", { name: "Layers" });
+  render(<EditCorner />);
+  await user.click(button("View options"));
+  const popover = screen.getByRole("dialog", { name: "View options" });
+  const layers = within(popover).getByRole("group", {
+    name: "Display options",
+  });
   expect(
-    within(layers).getByRole("checkbox", { name: /Markers/ }),
+    within(layers).getByRole("button", { name: "Volume envelope" }),
   ).toBeInTheDocument();
-};
-
-/** A ViewSheet section's `index`th button runs `id`. */
-const viewSheetButton =
-  (region: string, index: number, id: string): Probe =>
-  async (user) => {
-    asHost("edit");
-    render(<ViewSheet />);
-    const section = screen.getByRole("region", { name: region });
-    await runs(id, () =>
-      user.click(within(section).getAllByRole("button")[index]),
-    );
-  };
-
-const fitTracksHeight: Probe = async (user) => {
-  asHost("edit");
-  render(<ViewSheet />);
-  const section = screen.getByRole("region", { name: "Track height" });
-  await runs("view.fitTracksHeight", () =>
-    user.click(within(section).getByRole("checkbox")),
-  );
+  expect(
+    within(popover).getByRole("spinbutton", { name: "Waveform amplitude" }),
+  ).toBeInTheDocument();
 };
 
 const REMOVED_SURFACES: Entry[] = [
@@ -422,13 +408,10 @@ const REMOVED_SURFACES: Entry[] = [
   component("transport Menu", "People and Follow", [peopleSlot]),
   component("transport Menu", "Theme", [themeRow]),
 
-  component("View menu", "Layers", [viewLayers]),
-  entry("View menu", "Waveform zoom in", "view.waveformZoomIn", [
-    viewSheetButton("Waveform amplitude", 1, "view.waveformZoomIn"),
-  ]),
-  entry("View menu", "Waveform zoom out", "view.waveformZoomOut", [
-    viewSheetButton("Waveform amplitude", 0, "view.waveformZoomOut"),
-  ]),
+  component("View menu", "Layers and Waveform amplitude", [eyePopover]),
+  // Amplitude is the popover's scrub field, Shift+Up and Shift+Down.
+  entry("View menu", "Waveform zoom in", "view.waveformZoomIn"),
+  entry("View menu", "Waveform zoom out", "view.waveformZoomOut"),
   entry("View menu", "Zoom in", "view.zoomIn", [
     cornerButton("Zoom in", "view.zoomIn"),
   ]),
@@ -438,15 +421,10 @@ const REMOVED_SURFACES: Entry[] = [
   entry("View menu", "Fit", "view.fit", [
     cornerButton("Fit session width", "view.fit"),
   ]),
-  entry("View menu", "Track height smaller", "view.trackHeightDecrease", [
-    viewSheetButton("Track height", 0, "view.trackHeightDecrease"),
-  ]),
-  entry("View menu", "Track height larger", "view.trackHeightIncrease", [
-    viewSheetButton("Track height", 1, "view.trackHeightIncrease"),
-  ]),
-  entry("View menu", "Fit tracks to window", "view.fitTracksHeight", [
-    fitTracksHeight,
-  ]),
+  // Track height is Alt+= and Alt+-; Fit is the default (fit tracks: palette).
+  entry("View menu", "Track height smaller", "view.trackHeightDecrease"),
+  entry("View menu", "Track height larger", "view.trackHeightIncrease"),
+  entry("View menu", "Fit tracks to window", "view.fitTracksHeight"),
 
   // Layout presets: Default, Timeline, Text, Review become Script toggles.
   entry(

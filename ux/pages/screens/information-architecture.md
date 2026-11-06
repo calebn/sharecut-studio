@@ -12,7 +12,7 @@ flowchart TB
 
   subgraph edit [Edit stage]
     TH[Track headers] --> TIM[Timeline]
-    CORNER[Corner: range toggle + eye sheet] --> TIM
+    CORNER[Corner: range toggle + eye popover] --> TIM
     SC[Script pane: T shows or hides, Shift+T focuses]
     INS[Inspector: column or sheet]
   end

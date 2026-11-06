@@ -118,7 +118,7 @@ describe("stageSlice", () => {
   });
 
   it("closes sheets on a switch", () => {
-    useDawStore.setState({ openSheet: "view" });
+    useDawStore.setState({ openSheet: "mix", sheetExpanded: true });
     st().openStage("review");
     expect(st().openSheet).toBeNull();
 

@@ -43,6 +43,15 @@ export function wheelZoomFactor(deltaY: number): number {
 export const MIN_WAVEFORM_AMP = 1;
 export const MAX_WAVEFORM_AMP = 16;
 
+/** Decimal places the amplitude is kept to, by every path that sets it. */
+export const WAVEFORM_AMP_DECIMALS = 2;
+
+/** Round an amplitude to `WAVEFORM_AMP_DECIMALS`, so the popover field and the keyboard land on the same values. */
+export function roundWaveformAmp(amp: number): number {
+  const grid = 10 ** WAVEFORM_AMP_DECIMALS;
+  return Math.round(amp * grid) / grid;
+}
+
 export function clampWaveformAmp(amp: number): number {
   if (!Number.isFinite(amp)) {
     return MIN_WAVEFORM_AMP;

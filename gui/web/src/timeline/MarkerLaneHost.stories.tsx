@@ -65,8 +65,6 @@ const meta: Meta<typeof MarkerLaneHost> = {
     ],
     zoomPxPerSec: 40,
     width: 640,
-    showMarkers: true,
-    showComments: true,
     readOnly: false,
     selected: [],
     duration: 30,
