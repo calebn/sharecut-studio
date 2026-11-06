@@ -84,7 +84,9 @@ export function Skeleton({
       {phase === "slow" ? (
         <p className="sys-skeleton-slow" role="status">
           <span>Still loading…</span>
-          <Button onClick={onRetry}>Retry</Button>
+          <Button className="sys-skeleton-retry" onClick={onRetry}>
+            Retry
+          </Button>
         </p>
       ) : null}
     </div>

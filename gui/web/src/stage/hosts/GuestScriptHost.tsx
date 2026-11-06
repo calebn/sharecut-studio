@@ -78,7 +78,9 @@ function GuestScriptHostAdapter() {
         onSelect={range.onSelect}
         onClearSelection={mayRange ? range.onClearSelection : undefined}
       />
-      {mayRange ? <GuestSelectionBar root={root} /> : null}
+      {mayRange ? (
+        <GuestSelectionBar root={root} phone={shell === "phone"} />
+      ) : null}
     </div>
   );
 }
