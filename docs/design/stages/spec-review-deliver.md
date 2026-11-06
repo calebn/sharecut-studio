@@ -189,7 +189,7 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 
 - **Today:** `SCR-LOADING--desktop-light.png`, `SCR-LOADING--phone-light.png`. Centered "Loading project…" text on a blank page.
 - **Fate:** replace with the destination's skeleton.
-- **Spec:** nothing for 300 ms; then the Stage bar renders for real (name known from the URL or Home card) and the stage body shows static grey placeholders in its real layout. After 4 s add one line under the body: "Still loading. Try again" (button). No spinner.
+- **Spec:** nothing for 300 ms; then the Stage bar renders for real (name known from the URL or Home card) and the stage body shows static grey placeholders in its real layout. After 4 s add one line under the body: "Still loading…" with a Retry button. No spinner.
 - **Shared elements used:** Stage bar, Status cover (for the 4 s loading hint).
 - **Story to build:** `Stages/Frame/Loading` stories `Prepare`, `Review`, `Slow`.
 
