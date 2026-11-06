@@ -693,7 +693,7 @@ with `scripts/desktop/sign_updater_bundle.sh <file>`.
 
 ## Version bumps
 
-Routine version-only release refreshes use a narrow CI plan. Before merging the release PR, complete the [full final-head validation procedure](testing-ci.md#release-refreshes-and-final-validation), including current-main integration and every existing Shipping gate. A lightweight green release PR is not release-ready by itself.
+Routine version-only release refreshes use a narrow CI plan. Before merging the release PR, complete the [full final-head validation procedure](testing-ci.md#release-refreshes-and-final-validation), including current base-branch integration and every existing Shipping gate. A lightweight green release PR is not release-ready by itself.
 
 The version changes once per tester build, not per merge. The updater offers an update
 only when the feed's version is higher than the installed one, so each published feed
@@ -701,9 +701,14 @@ needs a new number, and per-merge bumps would conflict across parallel PRs for n
 tester can see.
 
 [release-please](../.github/workflows/release-please.yml) runs only when started by hand
-(`workflow_dispatch`: the Actions tab, or `gh workflow run release-please.yml`), not on pushes
+(`workflow_dispatch`: the Actions tab, or `gh workflow run release-please.yml --ref develop`), not on pushes
 to `main`, so the release PR does not re-run CI on every merge. A run opens or refreshes one
-"release" PR on `main`. It reads the Conventional Commit subjects merged since the last release
+"release" PR on the base branch (`develop`, from `config/branches.json`); it reaches `main` with
+the next nightly promotion. A run refuses to start while the last release commit on the base
+branch is not yet on `main`, so a tag is never cut from an unpromoted commit. Dispatch it from
+the base branch: the copy on `main` lags until the next promotion. The repository secret
+`RELEASE_PLEASE_TOKEN` must exist, because with the fallback `GITHUB_TOKEN` the release PR gets
+no required checks and cannot merge. The run reads the Conventional Commit subjects merged since the last release
 (`feat`, `fix`, `perf`, `revert`, or a `!` breaking marker), proposes the next version and
 the changelog, and bumps `pyproject.toml`, `src/podcast_mcp/__init__.py`,
 `gui/desktop/package.json` and its lock, `tauri.conf.json`, `Cargo.toml` and `Cargo.lock`
