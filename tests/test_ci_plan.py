@@ -313,7 +313,10 @@ def _tests_tree(tmp_path: Path) -> Path:
 
 def test_changed_tests_selects_changed_test_files_and_their_references(tmp_path: Path) -> None:
     root = _tests_tree(tmp_path)
-    assert cp.changed_tests(["src/podcast_mcp/edits/cuts.py"], root) == ["tests/test_dotted.py"]
+    assert cp.changed_tests(["src/podcast_mcp/edits/cuts.py"], root) == [
+        "tests/test_cuts.py",
+        "tests/test_dotted.py",
+    ]
     assert cp.changed_tests(["tests/test_other.py"], root) == ["tests/test_other.py"]
     assert cp.changed_tests([".github/workflows/test.yml"], root) == ["tests/test_workflow.py"]
     assert cp.changed_tests(["scripts/my_tool.py"], root) == ["tests/test_tool.py"]

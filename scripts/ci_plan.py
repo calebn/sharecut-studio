@@ -74,6 +74,12 @@ SMOKE_SPECS = (
 )
 # A diff that selects more pytest files than this touched a core module: run the whole suite.
 MAX_CHANGED_TESTS = 120
+# Files every test depends on: a change to one runs the whole suite.
+SUITE_WIDE_PATHS = ("pyproject.toml", "uv.lock")
+SUITE_WIDE_NAMES = ("conftest.py",)
+# A workflow, contract or config file is also named by its basename in tests that read it.
+DISTINCT_NAME_DIRS = (".github/workflows/", "contracts/", "config/")
+MIN_BASENAME_LENGTH = 8
 
 
 def owned_by(owns: Iterable[Glob], changed: Sequence[str]) -> bool:
@@ -240,7 +246,7 @@ REQUIRED_CHECKS: tuple[RequiredCheck, ...] = (
         "pytest",
         "test.yml",
         "pytest",
-        "Aggregates pytest-quality and 4 pytest-shard jobs; combines shard coverage for the 95% floor. "
+        "Aggregates pytest-quality and the planned pytest-shard jobs (four on a full run); combines shard coverage for the 95% floor. "
         "Fails unless the plan and every planned job succeed.",
         ("lint-py", "format-py-check", "typecheck", "generated-check", "docs-sync", "test"),
     ),
@@ -345,9 +351,9 @@ def main_shards() -> list[E2eJob]:
     ]
 
 
-def smoke_jobs() -> list[E2eJob]:
+def smoke_job() -> E2eJob:
     specs = " ".join(f"e2e/{name}" for name in SMOKE_SPECS)
-    return [E2eJob("main-smoke", f"npm run test:e2e -- {specs}", "chromium")]
+    return E2eJob("main-smoke", f"npm run test:e2e -- {specs}", "chromium")
 
 
 def full_compat() -> list[E2eJob]:
@@ -638,11 +644,14 @@ def plan(
     )
     if scope == "changed":
         reached = changed_tests(changed)
-        scope = "full" if reached is None or not changed else "changed" if reached else "quick"
+        if reached is None or not changed:
+            scope = "full"
+        elif not reached:
+            scope = "quick"
     return CiPlan(
         gui=gui,
         pytest=scope,
-        e2e=tuple(smoke_jobs()) if gui else (),
+        e2e=(smoke_job(),) if gui else (),
         native=select_native(changed),
     )
 
@@ -685,16 +694,19 @@ def subset_tests(
     return sorted(selected)
 
 
-def _needles(path: str) -> list[str]:
-    """Strings a pytest file contains when it exercises the file at *path*."""
-    needles = [path]
-    stem = Path(path).name
+def _needles(path: str) -> list[re.Pattern[str]]:
+    """Patterns a pytest file matches when it exercises the file at *path*."""
+    needles = [re.escape(path)]
+    name = Path(path).name
     if path.startswith("src/") and path.endswith(".py"):
         dotted = path.removeprefix("src/").removesuffix(".py").removesuffix("/__init__")
-        needles.append(dotted.replace("/", "."))
-    elif path.startswith((".github/workflows/", "contracts/", "config/")) and len(stem) > 8:
-        needles.append(stem)
-    return needles
+        package, _, module = dotted.replace("/", ".").rpartition(".")
+        needles.append(re.escape(dotted.replace("/", ".")))
+        if package:
+            needles.append(rf"from\s+{re.escape(package)}\s+import\s[^\n]*\b{re.escape(module)}\b")
+    elif path.startswith(DISTINCT_NAME_DIRS) and len(name) > MIN_BASENAME_LENGTH:
+        needles.append(re.escape(name))
+    return [re.compile(needle) for needle in needles]
 
 
 def changed_tests(changed: Sequence[str], root: Path = ROOT) -> list[str] | None:
@@ -704,6 +716,8 @@ def changed_tests(changed: Sequence[str], root: Path = ROOT) -> list[str] | None
     module of a changed source file, or a changed script it loads or imports. The
     promotion run keeps the full suite, so a missed link costs a night, not a release.
     """
+    if any(path in SUITE_WIDE_PATHS or Path(path).name in SUITE_WIDE_NAMES for path in changed):
+        return None
     tests = {
         path
         for path in changed
@@ -718,7 +732,9 @@ def changed_tests(changed: Sequence[str], root: Path = ROOT) -> list[str] | None
     selected = set(existing)
     for path in (root / "tests").rglob("test_*.py"):
         source = path.read_text(encoding="utf-8")
-        if any(needle in source for needle in needles) or _referenced_scripts(source, script_stems):
+        if any(needle.search(source) for needle in needles) or _referenced_scripts(
+            source, script_stems
+        ):
             selected.add(path.relative_to(root).as_posix())
     return None if len(selected) > MAX_CHANGED_TESTS else sorted(selected)
 
@@ -769,7 +785,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1 if stale and args.check else 0
 
     if args.command == "changed-tests":
-        _print_lines(changed_tests(changed_files(args.base, args.head)) or [])
+        _print_lines(changed_tests(changed_files(args.base, args.head)) or ())
         return 0
 
     if args.command == "subset-tests":

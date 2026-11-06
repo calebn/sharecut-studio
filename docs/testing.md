@@ -8,7 +8,7 @@ make test        # coverage gate + parallel; excludes e2e_slow / e2e_real
 .venv/bin/pytest -n auto -m "not e2e_slow and not e2e_real"
 ```
 
-The required `pytest` check aggregates `pytest-quality` and four `pytest-shard` jobs. Shards use Python 3.14 and coverage 7.16.2 with CTracer. `pyproject.toml` collects line and branch coverage for `podcast_mcp` and `podcast_relay` with a 95% floor. Each shard runs with `--cov-fail-under=0`, and the `pytest` job runs `coverage combine` and the independent `coverage report --fail-under=95` gate over the shard files. See [CI runtime](testing-ci.md#python-test-runtime).
+The required `pytest` check aggregates `pytest-quality` and the planned `pytest-shard` jobs (four on a full run). Shards use Python 3.14 and coverage 7.16.2 with CTracer. `pyproject.toml` collects line and branch coverage for `podcast_mcp` and `podcast_relay` with a 95% floor. Each shard runs with `--cov-fail-under=0`, and the `pytest` job runs `coverage combine` and the independent `coverage report --fail-under=95` gate over the shard files. See [CI runtime](testing-ci.md#python-test-runtime).
 
 Pause observation and finite-effect controls live in `tests/test_pause_observation_effects.py`. They use real native caches and source WAVs to distinguish a clean kept-word collar from attached breath, low-band activity and a placement-clipped sound. Saved-splice checks bind actual archive footprints and preserve whole kept sound PCM at `2/32768`. Disabled observation checks room-read state independently. These synthetic controls do not qualify real VAD or owner listening. Run them with `.venv/bin/python -m pytest -q --no-cov tests/test_pause_observation_effects.py` beside the frozen pause suites and prior source-placement controls.
 
@@ -303,7 +303,7 @@ The required checks, rendered from `REQUIRED_CHECKS` in `scripts/ci_plan.py` (`p
 <!-- ci-plan:required-checks -->
 | Required check | Workflow | What it covers | Local mirror |
 |---|---|---|---|
-| `pytest` | `test.yml` | Aggregates pytest-quality and 4 pytest-shard jobs; combines shard coverage for the 95% floor. Fails unless the plan and every planned job succeed. | `make lint-py` `make format-py-check` `make typecheck` `make generated-check` `make docs-sync` `make test` |
+| `pytest` | `test.yml` | Aggregates pytest-quality and the planned pytest-shard jobs (four on a full run); combines shard coverage for the 95% floor. Fails unless the plan and every planned job succeed. | `make lint-py` `make format-py-check` `make typecheck` `make generated-check` `make docs-sync` `make test` |
 | `frontend` | `test.yml` | Aggregate over the planner and `frontend-suite` (lint, format, types, Vitest with axe, build). Succeeds when the plan orders the workload and it passes, or the plan orders none and it skipped. | `make test-web` |
 | `frontend-e2e` | `test.yml` | Aggregate over the planner and the Playwright shards (`frontend-e2e-suites`), with the same fail-closed contract as `frontend`. | `make test-web-e2e` |
 | `gitleaks-history` | `secret-scan.yml` | Secret scan over the full git history. Runs on every PR. | none (CI only) |

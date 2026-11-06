@@ -71,7 +71,7 @@ and `frontend-suite` (the planner's `quick` scope). On pull requests the
 `changes` job runs only the tests the diff reaches and a browser smoke job (promotion runs the rest) (see
 [§ Which jobs a run needs](testing.md#which-jobs-a-run-needs)). **All required checks must pass** (including Playwright axe) for a green build:
 
-**Runner minutes.** The four `pytest-shard` jobs and `pytest-quality` each install the project, so a full run uses about five Python jobs at once against the Actions concurrency quota.
+**Runner minutes.** On a full run the four `pytest-shard` jobs and `pytest-quality` each install the project, so a full run uses about five Python jobs at once against the Actions concurrency quota.
 
 | Job | What |
 |-----|------|
