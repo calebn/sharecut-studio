@@ -946,7 +946,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     keywords: ["marker", "chapters", "section"],
     when: "hostProjectLoaded",
     notes:
-      "Args: { atTime?: number, title?: string } → chapter at that time, else the playhead. An explicit title is trimmed and must be nonempty; absent titles are generated from the time. Inline naming and menus share one pending add and project lifetime. Turns the Markers layer on. Host only.",
+      "Args: { atTime?: number, title?: string } → chapter at that time, else the playhead. An explicit title is trimmed and must be nonempty; absent titles are generated from the time. Inline naming and menus share one pending add and project lifetime. Host only.",
   },
   "envelope.addPoint": {
     id: "envelope.addPoint",
