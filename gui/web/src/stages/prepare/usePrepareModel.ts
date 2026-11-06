@@ -292,7 +292,7 @@ export function usePrepareModel(): PrepareModel {
           return next;
         });
         break;
-      case "get-model":
+      case "get-word-timing":
         if (run.approximateTiming) run.awaitAligner(run.approximateTiming);
         break;
       case "try-again":

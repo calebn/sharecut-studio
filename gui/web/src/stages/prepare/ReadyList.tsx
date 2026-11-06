@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { ModelNeedRow, type NeedTarget } from "../../models";
+import { ModelNeedRow, type NeedTarget, WORD_ALIGNER } from "../../models";
 import type { SystemIconName } from "../../system/icons";
 import { StatusList } from "../../system/StatusList";
 import { StatusRow, type StatusRowState } from "../../system/StatusRow";
@@ -16,8 +16,8 @@ export type ReadyRowId =
   | "suggest";
 
 export type ReadyAction =
-  /** Get was pressed on the row's Model need row. */
-  | "get-model"
+  /** Get was pressed on the word timing ask; the words are re-timed when it lands. */
+  | "get-word-timing"
   | "try-again"
   | "hear"
   | "looks-right"
@@ -181,7 +181,11 @@ export function ReadyList({ rows, onAction }: ReadyListProps) {
             ) : row.model ? (
               <ModelNeedRow
                 model={row.model}
-                onGet={() => onAction(row.id, "get-model")}
+                onGet={
+                  row.model.id === WORD_ALIGNER
+                    ? () => onAction(row.id, "get-word-timing")
+                    : undefined
+                }
               />
             ) : undefined}
           </StatusRow>

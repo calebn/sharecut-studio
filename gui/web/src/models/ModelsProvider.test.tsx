@@ -411,6 +411,10 @@ describe("ModelsProvider", () => {
       void result.current.download(["whisper"]);
     });
     expect(result.current.busy).toBe(true);
+    const states = Object.fromEntries(
+      (result.current.models ?? []).map((m) => [m.id, m.state.kind]),
+    );
+    expect(states).toMatchObject({ whisper: "queued", rnnoise: "missing" });
     await act(async () => answer({ job: job() }));
     await waitFor(() => expect(waiters).toHaveLength(1));
     expect(result.current.busy).toBe(true);
