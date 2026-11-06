@@ -764,3 +764,54 @@ def test_a_rejected_final_push_names_main_and_does_not_dispatch_storybook(
     assert gh.deploys() == []
     assert all(not (w == "storybook.yml" and ref == "main") for w, ref, _ in gh.dispatched)
     assert repo.remote_sha("main") == main_before
+
+
+def write_failing_gh(directory: Path, stderr: str) -> None:
+    script = directory / "gh"
+    script.write_text(
+        f"#!/usr/bin/env python3\nimport sys\nsys.stderr.write({stderr!r})\nsys.exit(1)\n"
+    )
+    script.chmod(0o755)
+
+
+def test_gh_cli_failure_prints_the_stderr_and_reraises(tmp_path: Path, monkeypatch, capsys) -> None:
+    write_failing_gh(tmp_path, "HTTP 422: Workflow does not have 'workflow_dispatch' trigger\n")
+    monkeypatch.setenv("PATH", f"{tmp_path}:{os.environ['PATH']}")
+
+    with pytest.raises(subprocess.CalledProcessError):
+        promote.GhCli("o/r").dispatch("storybook.yml", "promote/x", {})
+
+    assert capsys.readouterr().out == (
+        "gh workflow run failed: HTTP 422: Workflow does not have 'workflow_dispatch' trigger\n"
+    )
+
+
+@pytest.mark.parametrize("name", ["PROMOTE_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"])
+def test_gh_cli_failure_scrubs_token_values(tmp_path: Path, monkeypatch, capsys, name: str) -> None:
+    write_failing_gh(tmp_path, "bad credentials tok-secret-123\n")
+    monkeypatch.setenv("PATH", f"{tmp_path}:{os.environ['PATH']}")
+    for other in ("PROMOTE_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"):
+        monkeypatch.delenv(other, raising=False)
+    monkeypatch.setenv(name, "tok-secret-123")
+
+    with pytest.raises(subprocess.CalledProcessError):
+        promote.GhCli("o/r").dispatch("test.yml", "promote/x", {})
+
+    out = capsys.readouterr().out
+    assert "tok-secret-123" not in out
+    assert out == "gh workflow run failed: bad credentials ***\n"
+
+
+def test_a_failed_ci_dispatch_returns_1_and_leaves_the_temp_branch(repo: Repo, capsys) -> None:
+    class FailingGh(FakeGh):
+        def dispatch(self, workflow: str, ref: str, inputs: Mapping[str, str]) -> None:
+            raise subprocess.CalledProcessError(1, "gh", stderr="boom")
+
+    main_before = repo.remote_sha("main")
+
+    assert go(repo, FailingGh()) == 1
+
+    out = capsys.readouterr().out
+    assert "dispatching test.yml on promote/" in out
+    assert any(b.startswith("promote/") for b in repo.remote_branches())
+    assert repo.remote_sha("main") == main_before
