@@ -1658,22 +1658,14 @@ html[data-frame-short] .sys-header-project .sys-header-title {
   grid-template-columns: minmax(0, 1fr);
 }
 
-:root[data-shell="phone"]
-  .sys-skeleton-blocks--guest
-  .sys-skeleton-block--player,
-:root[data-shell="phone"]
-  .sys-skeleton-blocks--guest
-  .sys-skeleton-block--queue,
-:root[data-shell="phone"]
-  .sys-skeleton-blocks--guest
-  .sys-skeleton-block--center {
+.sys-skeleton-blocks--guest[data-shell="phone"] .sys-skeleton-block--player,
+.sys-skeleton-blocks--guest[data-shell="phone"] .sys-skeleton-block--queue,
+.sys-skeleton-blocks--guest[data-shell="phone"] .sys-skeleton-block--center {
   grid-column: 1;
   grid-row: auto;
 }
 
-:root[data-shell="phone"]
-  .sys-skeleton-blocks--guest
-  .sys-skeleton-block--queue {
+.sys-skeleton-blocks--guest[data-shell="phone"] .sys-skeleton-block--queue {
   display: none;
 }
 
