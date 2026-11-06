@@ -148,6 +148,7 @@ export async function ingestFiles(
     if (target.kind === "track") {
       const first = list[0]!;
       const uploaded = await uploadMediaFile(projectPath, first);
+      if (useDawStore.getState().projectPath !== projectPath) return;
       focusId = target.id;
       for (const extra of list.slice(1)) {
         focusId = await createTrackWithMedia(projectPath, extra, taken);
