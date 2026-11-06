@@ -511,6 +511,15 @@ function RecordStageBody({
       }
     : null;
 
+  // Failures live in the Alert slot (roomAlerts); the two always-on lines
+  // are for screen readers only, as on the guest page.
+  const srNotes: string[] = [];
+  if (cap.recordingLocally && !cap.keeperError && !room.noAudioNeedsAttention) {
+    srNotes.push(LOCAL_KEEPER_COPY);
+  }
+  if (cap.hearing) {
+    srNotes.push(HEARING_COPY);
+  }
   const notices: RecordNotice[] = [];
   const note = (text: string) => notices.push({ text });
   if (room.offline) {
@@ -518,21 +527,6 @@ function RecordStageBody({
   }
   if (room.reconnectCopy) {
     note(room.reconnectCopy);
-  }
-  if (cap.recordingLocally && !cap.keeperError && !room.noAudioNeedsAttention) {
-    note(LOCAL_KEEPER_COPY);
-  }
-  if (cap.hearing) {
-    note(HEARING_COPY);
-  }
-  if (cap.keeperError) {
-    note(`Full-quality recording stopped: ${cap.keeperError}`);
-  }
-  if (room.sinkError) {
-    note(room.sinkError);
-  }
-  if (room.upload.error) {
-    note(room.upload.error);
   }
   if (room.micCopy) {
     notices.push({
@@ -545,9 +539,6 @@ function RecordStageBody({
   }
   if (cap.micError && cap.micStatus === "error") {
     note(cap.micError);
-  }
-  if (cap.monitorError) {
-    note(cap.monitorError);
   }
   if (room.doneNotice) {
     note(room.doneNotice);
@@ -651,6 +642,7 @@ function RecordStageBody({
         />
       }
       notices={notices}
+      srNotes={srNotes}
       toast={
         <Toast
           className="sys-toast-dock"

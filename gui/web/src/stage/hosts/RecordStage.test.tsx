@@ -1119,9 +1119,9 @@ describe("Record stage capture and storage", () => {
     vi.mocked(createOpfsSink).mockRejectedValueOnce(new Error("quota"));
     setRoom({ participants: [avaGuest()] });
     mount();
-    const message =
-      "This device can't store your full-quality recording. Check that this browser or app allows local storage, then retry.";
-    expect(await screen.findAllByText(message)).not.toHaveLength(0);
+    expect(
+      await screen.findByText("This device couldn't save the recording."),
+    ).toBeVisible();
     expect(record()).toBeDisabled();
     await userEvent.click(
       screen.getByRole("button", { name: "Retry recording" }),
@@ -1152,12 +1152,9 @@ describe("Record stage capture and storage", () => {
     setRoom({ participants: [avaGuest()] });
     mount();
     expect(
-      (
-        await screen.findAllByText(
-          "This device can't store your full-quality recording because this browser or app does not support private file storage. Use a compatible browser, then retry.",
-        )
-      ).length,
-    ).toBeGreaterThan(0);
+      await screen.findByText("This device couldn't save the recording."),
+    ).toBeVisible();
+    expect(screen.queryByText(/private file storage/)).toBeNull();
   });
 
   it("warns about low storage without disabling Record", async () => {
@@ -1441,8 +1438,11 @@ describe("Record stage capture and storage", () => {
     expect(
       screen.queryByText("Recording in full quality on this device."),
     ).toBeNull();
-    expect(screen.getByText("Hearing the room.")).toBeInTheDocument();
-    expect(screen.getByText(/OPFS unavailable/)).toBeInTheDocument();
+    expect(screen.getByText("Hearing the room.")).toHaveClass("sr-only");
+    expect(
+      screen.getByText("This device couldn't save the recording."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/OPFS unavailable/)).toBeNull();
     await userEvent.click(
       screen.getByRole("button", { name: "Retry recording" }),
     );
@@ -1468,9 +1468,10 @@ describe("Record stage capture and storage", () => {
       ],
     });
     mount({ micStatus: "denied" });
+    expect(await screen.findByText("Saving stopped.")).toBeVisible();
     expect(
-      await screen.findByText(/No full-quality recording was captured/),
-    ).toBeVisible();
+      screen.queryByText(/full-quality recording was captured/),
+    ).toBeNull();
   });
 
   it("does not expect a local keeper when the host did not join the capture stream", async () => {

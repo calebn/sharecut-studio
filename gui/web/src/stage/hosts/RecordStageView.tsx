@@ -38,6 +38,7 @@ export type RecordStageViewProps = {
   onRename?: EndedSessionCardProps["onRename"];
   hasClips?: boolean;
   notices: readonly RecordNotice[];
+  srNotes: readonly string[];
   storage?: ReactNode;
   toast?: ReactNode;
   more?: ReactNode;
@@ -193,6 +194,7 @@ export function RecordStageView({
   onRename,
   hasClips,
   notices,
+  srNotes,
   storage,
   toast,
   more,
@@ -217,6 +219,11 @@ export function RecordStageView({
                 {action ? (
                   <Button onClick={action.onClick}>{action.label}</Button>
                 ) : null}
+              </p>
+            ))}
+            {srNotes.map((text) => (
+              <p key={text} className="sr-only">
+                {text}
               </p>
             ))}
             {storage}
