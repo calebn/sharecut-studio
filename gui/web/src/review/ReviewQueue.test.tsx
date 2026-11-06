@@ -786,4 +786,33 @@ describe("ReviewQueue", () => {
       expect(onRetry).toHaveBeenCalledOnce();
     });
   });
+
+  it("keys groups by label: two groups of one kind render without a key warning", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { container } = render(
+      <ReviewQueue
+        items={[
+          { id: "s1", kind: "suggestion", at: 1, savedSeconds: 1 },
+          { id: "s2", kind: "suggestion", at: 2, savedSeconds: 1, mine: true },
+        ]}
+        content={reviewContent}
+        selectedId={null}
+        filter="all"
+        guest
+        canDecide
+        onFilter={vi.fn()}
+        onSelect={vi.fn()}
+        onVerb={vi.fn()}
+      />,
+    );
+    const names = [...container.querySelectorAll(".rv-group-name")].map(
+      (n) => n.textContent,
+    );
+    expect(names).toHaveLength(2);
+    expect(new Set(names).size).toBe(2);
+    expect(
+      error.mock.calls.filter((call) => String(call[0]).includes("key")),
+    ).toEqual([]);
+    error.mockRestore();
+  });
 });

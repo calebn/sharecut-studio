@@ -372,3 +372,36 @@ describe("App review route", () => {
     expect(offline.clear).not.toHaveBeenCalled();
   });
 });
+
+describe("App loading screens before the features answer", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    window.history.pushState({}, "", "/");
+    resetFeaturesCache();
+  });
+
+  const stall = () => {
+    resetFeaturesCache();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise<Response>(() => {})),
+    );
+  };
+
+  it("shows a review-link guest the guest skeleton screen", () => {
+    window.history.pushState({}, "", "/r/pending");
+    stall();
+    const { container } = render(<App />);
+    expect(container.querySelector("main.guest-loading")).not.toBeNull();
+    expect(screen.getByRole("status")).toHaveTextContent("Loading project…");
+    expect(container.querySelector(".loading-screen")).toBeNull();
+  });
+
+  it("shows the host the plain loading screen", () => {
+    window.history.pushState({}, "", "/");
+    stall();
+    const { container } = render(<App />);
+    expect(container.querySelector("main.guest-loading")).toBeNull();
+    expect(container.querySelector(".loading-screen")).not.toBeNull();
+  });
+});

@@ -13,7 +13,19 @@ vi.mock("./TransportEngine", () => ({
   TransportEngine: () => null,
   FollowEngine: () => null,
 }));
-vi.mock("./stage/frame/StageFrame", () => ({ StageFrame: () => null }));
+const stageHost = vi.hoisted(() => ({
+  props: [] as Array<Record<string, unknown>>,
+}));
+const retryBootstrap = vi.hoisted(() => vi.fn());
+vi.mock("./stage/hosts/StageHost", () => ({
+  StageHost: (props: Record<string, unknown>) => {
+    stageHost.props.push(props);
+    return null;
+  },
+}));
+vi.mock("./stage/frame/StageFrame", () => ({
+  StageFrame: ({ children }: { children: ReactNode }) => children,
+}));
 vi.mock("./stage/frame/useLandingStage", () => ({ useLandingStage: () => {} }));
 vi.mock("./stage/dialogs/CheatsheetDialogs", () => ({
   CheatsheetDialogs: () => null,
@@ -49,7 +61,7 @@ vi.mock("./hooks/useProjectBootstrap", () => ({
   useProjectBootstrap: () => ({
     error: null,
     retrying: false,
-    retry: () => {},
+    retry: retryBootstrap,
   }),
 }));
 vi.mock("./keymap/listener", () => ({ useDawKeymapListener: () => {} }));
@@ -97,5 +109,13 @@ describe("DawApp host room", () => {
     render(<DawApp guestShare />);
     await act(async () => undefined);
     expect(loadHostRecordState).not.toHaveBeenCalled();
+  });
+
+  it("hands StageHost the bootstrap retry for the loading skeleton's Retry", async () => {
+    stageHost.props.length = 0;
+    render(<DawApp guestShare />);
+    await act(async () => undefined);
+    const last = stageHost.props.at(-1);
+    expect(last?.onRetryLoad).toBe(retryBootstrap);
   });
 });
