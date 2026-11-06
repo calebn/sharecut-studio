@@ -242,6 +242,14 @@ def _restore_conflicts(command: DocumentCommand, result: Mapping[str, Any]) -> R
     return {}
 
 
+def _split_proposal(command_type: str, result: Mapping[str, Any]) -> dict[str, bool]:
+    """Whether a Split was only proposed, at the top of the reply, which a guest's
+    sanitized ``command`` no longer carries."""
+    if command_type == "SplitAtTime" and result.get("operation") == "propose_split":
+        return {"split_proposed": True}
+    return {}
+
+
 def _journal_server_seq(store: SyncStore) -> int:
     return int((store.get_snapshot() or {}).get("server_seq") or 0)
 
@@ -670,6 +678,9 @@ class DocumentSyncService:
                     "server_seq": existing["server_seq"],
                     "idempotent": True,
                     **_stored_asks(existing),
+                    **_split_proposal(
+                        str(existing["type"]), (existing.get("payload") or {}).get("result") or {}
+                    ),
                 }
                 if audience == "guest":
                     from podcast_mcp.services.collaboration import sanitize_guest_document_event
@@ -745,6 +756,7 @@ class DocumentSyncService:
         confirmation = result_payload.get("needs_confirmation")
         asks = {"needs_confirmation": confirmation} if confirmation is not None else {}
         asks.update(_restore_conflicts(command, result_payload))
+        asks.update(_split_proposal(command.type, result_payload))
         # The entry this command left at the head, read under the same lock as the apply:
         # a toast offers Undo for exactly this change, and the client's next own history
         # move expects it. Null when history did not move. The id is opaque, so guests

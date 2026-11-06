@@ -836,12 +836,12 @@ function splitOutcome(
   reply: Record<string, unknown>,
   requested: number[],
 ): SplitOutcome {
+  if (reply.split_proposed === true) {
+    return { kind: "suggested", times: requested };
+  }
   const command = reply.command;
   const payload = isSuggestionRecord(command) ? command.payload : null;
   const result = isSuggestionRecord(payload) ? payload.result : null;
-  if (isSuggestionRecord(result) && result.operation === "propose_split") {
-    return { kind: "suggested", times: requested };
-  }
   const reported = isSuggestionRecord(result) ? result.split_times : null;
   const times = Array.isArray(reported)
     ? reported.filter((t): t is number => typeof t === "number")
