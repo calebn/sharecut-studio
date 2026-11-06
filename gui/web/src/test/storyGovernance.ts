@@ -279,7 +279,7 @@ export function importsStorybook(text: string): boolean {
 
 /** Stage list: docs/design/stages/design-system.md line 92 ("where Stage is Frame, Home, Record, ..."). */
 const STORY_TITLE_RE =
-  /^(?:(?:Atoms|Molecules|Organisms|Templates|System)|Stages\/(?:Home|Record|Prepare|Edit|Review|Deliver|Guest|Frame))\/[^/\s][^/]*$/;
+  /^(?:(?:Atoms|Molecules|Organisms|Templates|System)|Stages\/(?:Home|Record|Prepare|Edit|Review|Deliver|Guest|Frame|Settings))\/[^/\s][^/]*$/;
 
 /** Return a reason when the default-exported story metadata lacks a tier title. */
 export function storyTitleViolation(text: string): string | null {

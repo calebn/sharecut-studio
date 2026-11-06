@@ -13,7 +13,7 @@ const openSheet = (canvasElement: HTMLElement) =>
   });
 
 const meta: Meta<typeof ModelsSheet> = {
-  title: "Stages/Home/ModelsSheet",
+  title: "Stages/Settings/ModelsSheet",
   component: ModelsSheet,
   tags: ["autodocs"],
   decorators: [withModels],
