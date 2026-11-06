@@ -79,6 +79,10 @@ jobs:
         run: npx playwright install --with-deps chromium
         working-directory: gui/web
 
+      - name: Verify Prepare text layout (Vitest browser)
+        run: npm run test:layout
+        working-directory: gui/web
+
       - name: Build Storybook and verify browser geometry
         run: npm run test:e2e:storybook
         working-directory: gui/web
