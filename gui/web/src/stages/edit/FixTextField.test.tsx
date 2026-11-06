@@ -116,12 +116,16 @@ describe("FixTextField", () => {
     expect(onDone).not.toHaveBeenCalled();
   });
 
-  it("sizes itself to what is typed", async () => {
+  it("keeps an aria-hidden sizing copy in step with the draft", async () => {
     const user = userEvent.setup();
     const { field } = setup("a");
-    expect(field.style.getPropertyValue("--sys-fix-chars")).toBe("1");
+    const measure = field.parentElement?.firstElementChild;
+    expect(measure).toHaveAttribute("aria-hidden", "true");
+    expect(measure).toHaveTextContent("a");
     await user.keyboard("bcdef");
-    expect(field.style.getPropertyValue("--sys-fix-chars")).toBe("5");
+    expect(measure).toHaveTextContent("bcdef");
+    await user.clear(field);
+    expect(measure?.textContent).toBe(" ");
   });
 
   it("hands the host the words it opened with, even after the value prop moves on", async () => {
