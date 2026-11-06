@@ -428,6 +428,7 @@ export function ReviewStage({
         attention={attention}
         state={state}
         onFilter={onFilter}
+        onSort={onSort}
         onSpeaker={
           onSpeaker &&
           ((next) => {
