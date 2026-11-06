@@ -29,7 +29,7 @@ import {
   savingStatus,
   tookPart,
 } from "./guestRoomModel";
-import { liveTakeOpen } from "./liveCommentQueue";
+import { liveTakeOpen, NOTES_CLOSED_REASON } from "./liveCommentQueue";
 import {
   copyForMicStatus,
   MIC_SAVED_DEVICE_MISSING_COPY,
@@ -59,7 +59,6 @@ const subscribeLandscape = mediaQuerySubscription(["(orientation: landscape)"]);
 const readLandscape = () => matchesMedia("(orientation: landscape)");
 const notLandscape = () => false;
 
-const NOTES_CLOSED_REASON = "Notes open while a take is running.";
 const LEAVE_HELD_REASON = "Keep this tab open until your recording is saved.";
 const SPEAKING_FRACTION = 0.2;
 

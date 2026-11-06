@@ -47,7 +47,8 @@ export type RoomViewProps = {
   notes: NoteItem[];
   /** The viewer's own name, so a guest keeps their own notes. */
   selfName: string;
-  onSendNote: (note: NoteDraft) => void;
+  /** `false` keeps the draft: the note could not be sent (say, the take just ended). */
+  onSendNote: (note: NoteDraft) => boolean | void;
   unreadNotes?: number;
   onInvite?: () => void;
   muted?: boolean;
@@ -217,7 +218,7 @@ export function RoomView({
       onEveryoneChange={showEveryone ? setEveryone : undefined}
       disabledReason={notesDisabledReason}
       onSend={(note) => {
-        onSendNote(note);
+        if (onSendNote(note) === false) return;
         setDraft("");
         setTimeCleared(null);
       }}

@@ -30,9 +30,9 @@ export function useRecordLiveComments(opts: {
   sendRef.current = send;
 
   const post = useCallback(
-    (body: string) => {
+    (body: string): boolean => {
       if (!snapshot || !me || !liveTakeOpen(snapshot.state)) {
-        return;
+        return false;
       }
       const comment = postLiveComment(sendRef.current, token, {
         body,
@@ -41,6 +41,7 @@ export function useRecordLiveComments(opts: {
         author: me.participant_id,
       });
       flushedRef.current.add(comment.id);
+      return true;
     },
     [me, snapshot, token],
   );
@@ -50,11 +51,9 @@ export function useRecordLiveComments(opts: {
   }, [post]);
 
   const postNote = useCallback(
-    (text: string) => {
+    (text: string): boolean => {
       const body = text.trim();
-      if (body) {
-        post(body);
-      }
+      return body ? post(body) : false;
     },
     [post],
   );
