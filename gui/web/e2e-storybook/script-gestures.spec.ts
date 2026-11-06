@@ -176,6 +176,9 @@ test("the Fix text field fits every word without clipping at either end", async 
   await page.goto(
     storyUrl("stages-edit-scriptpane--fix-text-open", { theme: "light" }),
   );
+  await expect(
+    page.getByRole("button", { name: "smaller (selected)" }),
+  ).toBeFocused();
   await page.getByRole("button", { name: "Fix text" }).click();
   const field = page.getByRole("textbox", { name: "Fix text" });
   await expect(field).toBeVisible();
