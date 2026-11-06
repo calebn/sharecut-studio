@@ -424,8 +424,8 @@ const selectionBarPlay: Story["play"] = async ({ canvasElement }) => {
     );
     for (const button of within(bar).getAllByRole("button")) {
       const rect = button.getBoundingClientRect();
-      expect(rect.width).toBeGreaterThanOrEqual(min * rem - 0.5);
-      expect(rect.height).toBeGreaterThanOrEqual(min * rem - 0.5);
+      await expect(rect.width).toBeGreaterThanOrEqual(min * rem - 0.5);
+      await expect(rect.height).toBeGreaterThanOrEqual(min * rem - 0.5);
     }
   }
 };
