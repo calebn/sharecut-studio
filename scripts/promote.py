@@ -85,14 +85,26 @@ class Gh(Protocol):
     def cancel(self, run_id: int) -> None: ...
 
 
+def scrub(text: str) -> str:
+    for name in (PROMOTE_TOKEN_ENV, "GH_TOKEN", "GITHUB_TOKEN"):
+        value = os.environ.get(name)
+        if value:
+            text = text.replace(value, "***")
+    return text
+
+
 class GhCli:
     def __init__(self, repo: str) -> None:
         self.repo = repo
 
     def _gh(self, *args: str) -> str:
-        return subprocess.run(
-            ["gh", *args], check=True, capture_output=True, text=True, cwd=ROOT
-        ).stdout
+        try:
+            return subprocess.run(
+                ["gh", *args], check=True, capture_output=True, text=True, cwd=ROOT
+            ).stdout
+        except subprocess.CalledProcessError as exc:
+            print(f"gh {' '.join(args[:2])} failed: {scrub(str(exc.stderr or '')).strip()}")
+            raise
 
     def dispatch(self, workflow: str, ref: str, inputs: Mapping[str, str]) -> None:
         fields = [arg for key, value in inputs.items() for arg in ("-f", f"{key}={value}")]
@@ -346,7 +358,11 @@ def promote(
             if workflow == TEST_WORKFLOW
             else {}
         )
-        gh.dispatch(workflow, branch, inputs)
+        try:
+            gh.dispatch(workflow, branch, inputs)
+        except subprocess.CalledProcessError:
+            print(f"dispatching {workflow} on {branch} failed; leaving {branch} for cleanup")
+            return 1
     problems = wait_for_runs(
         gh,
         branch,
@@ -382,8 +398,8 @@ def dispatch_storybook(gh: Gh, target: str, no_push: bool) -> int:
         return 0
     try:
         gh.dispatch(STORYBOOK_WORKFLOW, target, {})
-    except subprocess.CalledProcessError as exc:
-        print(f"{target} is promoted but dispatching {STORYBOOK_WORKFLOW} failed: {exc.stderr}")
+    except subprocess.CalledProcessError:
+        print(f"{target} is promoted but dispatching {STORYBOOK_WORKFLOW} failed")
         return 1
     return 0
 
