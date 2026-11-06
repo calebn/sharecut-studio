@@ -78,7 +78,7 @@ const OK: ExecuteResult = { status: "ok" };
 
 type DawState = ReturnType<typeof useDawStore.getState>;
 
-export function editRoleOf(
+function editRoleOf(
   s: Pick<DawState, "projectPath" | "shareCapabilities">,
 ): EditRole {
   if (canManageProjects(s.projectPath)) return "host";
