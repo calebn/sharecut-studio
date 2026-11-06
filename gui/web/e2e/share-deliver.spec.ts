@@ -212,7 +212,7 @@ test.describe("Invite sheet", () => {
       const globe = sheet.getByRole("button", { name: "Only on this network" });
       await globe.click();
       await expect(
-        sheet.getByText(/Only people on this network can listen/),
+        sheet.getByText(/Only people on this network can open it/),
       ).toBeVisible();
       await page.keyboard.press("Escape");
       await expect(sheet).toBeVisible();
@@ -303,7 +303,9 @@ test.describe("Invite sheet", () => {
         refuse = false;
         await sheet.getByRole("button", { name: "Refresh mix" }).click();
         await expect(
-          sheet.getByRole("button", { name: /Commenter link$/ }).first(),
+          sheet
+            .getByRole("button", { name: "Copy Commenter link" })
+            .or(sheet.getByRole("button", { name: "Copied Commenter link" })),
         ).toBeVisible({ timeout: 60_000 });
         expect(await rows(page, projectPath)).toHaveLength(1);
         await expect(
