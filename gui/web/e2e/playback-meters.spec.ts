@@ -3,6 +3,7 @@ import path from "node:path";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { pcmWavHeader } from "../src/audio/wavHeader";
 import { expectPageAxeClean } from "./axe";
+import { pinFixedLaneHeight } from "./laneHeight";
 import { createRelocatedE2eProject } from "./liveProject";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
@@ -173,6 +174,7 @@ test("real premix exposes per-track peaks, clipping, and responsive controls", a
     viewport: { width: 1440, height: 900 },
   });
   const host = await hostContext.newPage();
+  await pinFixedLaneHeight(host);
   try {
     await withShareableProject(
       async (projectPath) => {
