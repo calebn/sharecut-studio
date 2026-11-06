@@ -53,7 +53,7 @@
 
 .sys-need-control .ui-control {
   min-block-size: var(--touch-min);
-  gap: var(--space-2);
+  gap: var(--space-3);
 }
 
 .sys-need-cancel {
@@ -102,7 +102,7 @@
 .models-sheet-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-3);
   margin: 0;
   padding: 0;
   list-style: none;
