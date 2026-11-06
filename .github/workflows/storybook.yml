@@ -28,8 +28,9 @@ concurrency:
 
 jobs:
   sweep:
-    # Per-story axe and fit sweep (Vitest browser mode), sharded.
-    if: github.event.pull_request.draft != true
+    # Per-story axe and fit sweep (Vitest browser mode), sharded. Pull requests skip it;
+    # the nightly promotion and manual dispatch run it.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -60,6 +61,8 @@ jobs:
         working-directory: gui/web
 
   build:
+    # Pull requests build Storybook and run the render smoke; pushes, dispatch and the
+    # nightly promotion run every Playwright spec.
     if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     steps:
@@ -79,7 +82,13 @@ jobs:
         run: npx playwright install --with-deps chromium
         working-directory: gui/web
 
+      - name: Build Storybook and run the render smoke
+        if: github.event_name == 'pull_request'
+        run: npm run test:e2e:storybook -- coverage.spec.ts docs-theme.spec.ts
+        working-directory: gui/web
+
       - name: Build Storybook and verify browser geometry
+        if: github.event_name != 'pull_request'
         run: npm run test:e2e:storybook
         working-directory: gui/web
 

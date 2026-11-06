@@ -37,3 +37,15 @@ def test_storybook_pr_build_cannot_deploy_pages() -> None:
         "pages": "write",
         "id-token": "write",
     }
+
+
+def test_storybook_pull_requests_run_only_the_render_smoke() -> None:
+    workflow = load_github_yaml(WORKFLOW)
+    assert workflow["jobs"]["sweep"]["if"] == "github.event_name != 'pull_request'"
+    steps = {step["name"]: step for step in workflow["jobs"]["build"]["steps"] if "name" in step}
+    smoke = steps["Build Storybook and run the render smoke"]
+    full = steps["Build Storybook and verify browser geometry"]
+    assert smoke["if"] == "github.event_name == 'pull_request'"
+    assert smoke["run"] == "npm run test:e2e:storybook -- coverage.spec.ts docs-theme.spec.ts"
+    assert full["if"] == "github.event_name != 'pull_request'"
+    assert full["run"] == "npm run test:e2e:storybook"
