@@ -159,7 +159,7 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 - **Fate:** restyle as a sheet ("Models" in Settings) built from Model need rows.
 - **Spec:** right side sheet 420 px (desktop), full-height sheet (phone, large detent). One row per capability, worded by what it does: "Transcription", "Word timing", "Speaker split", "Noise reduction". Row anatomy (64 px): icon, capability name 15/20, size and state in meta ("Installed · 1.6 GB", "Not installed · 360 MB"), a trailing control: Get (cloud icon + word) or a progress ring with cancel, or a more menu (Update, Remove). Transcription has a "Size" segmented control under it: Fast (75 MB) / Balanced (500 MB) / Best (1.6 GB), default Best on desktop. No Apply button.
 - **Shared elements used:** Model need row (NEW), Job row, segmented control.
-- **Story to build:** `Stages/Home/ModelsSheet` stories `FreshInstall`, `Mixed`, `Downloading`, `Failed`, `Phone`.
+- **Story to build:** `Stages/Settings/ModelsSheet` stories `FreshInstall`, `Mixed`, `Downloading`, `Failed`, `Phone`.
 
 ### DLG-MODEL-GATE · Download model? (+ DOWNLOADING) and DLG-WHISPER · Download Whisper model?
 
