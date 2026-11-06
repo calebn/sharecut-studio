@@ -143,6 +143,20 @@ describe("edit.copy/cut/paste", () => {
     expect(api.pasteSegment).not.toHaveBeenCalled();
   });
 
+  it("tells a failed cut in its own words and marks it told", async () => {
+    vi.mocked(api.rippleDeleteClips).mockRejectedValueOnce(
+      new Error("offline"),
+    );
+    expect(await execute("edit.cut")).toEqual({
+      status: "disabled",
+      reason: "offline",
+      told: true,
+    });
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Cut failed: offline",
+    );
+  });
+
   it("does not cut a different clip after a selection-sheet action goes stale", async () => {
     expect((await execute("edit.cut", { clipId: "another" })).status).toBe(
       "disabled",
@@ -178,6 +192,20 @@ describe("phase-2 P0 edit/view/track commands", () => {
     });
     expect((await execute("edit.rippleDelete")).status).toBe("ok");
     expect(api.rippleDeleteClips).toHaveBeenCalledWith("/tmp/ep", ["c1"]);
+  });
+
+  it("tells a failed ripple delete in its own words and marks it told", async () => {
+    vi.mocked(api.rippleDeleteClips).mockRejectedValueOnce(
+      new Error("offline"),
+    );
+    expect(await execute("edit.rippleDelete", { clipId: "c1" })).toEqual({
+      status: "disabled",
+      reason: "offline",
+      told: true,
+    });
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Delete failed: offline",
+    );
   });
 
   it("saves the host's mute and keeps solo listen-only", async () => {
