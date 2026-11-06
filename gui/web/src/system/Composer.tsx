@@ -124,6 +124,11 @@ export function Composer(props: ComposerProps) {
     setSeenRev(postedRev);
     setRenaming(false);
   }
+  // Posting from the name field unmounts it, which would drop focus to the page.
+  useEffect(() => {
+    if (postedRev && document.activeElement === document.body)
+      bodyRef.current?.focus();
+  }, [postedRev]);
   const setBodyRef = useCallback(
     (node: HTMLTextAreaElement | null) => {
       bodyRef.current = node;
