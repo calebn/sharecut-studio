@@ -14,7 +14,9 @@ export type AppSheetsProps = {
   onCloseHelp: () => void;
   onCloseAgent: () => void;
   onCloseSettings: () => void;
-  /** Help's first row: the Palette in a project, the gestures card on Home. */
+  /** The step Help opens on; Report a problem when a command asks for it. */
+  helpStart?: HelpStep;
+  /** Help's and Settings' shortcuts row: opens the Palette. Absent where there is no Palette, so the row is too. */
   onShortcuts?: () => void;
   onModels: () => void;
   /** Goes to the Recent list. */
@@ -24,6 +26,8 @@ export type AppSheetsProps = {
   projectFolder?: string;
   /** Shows that folder in the file manager; absent where the app is not on that computer. */
   onRevealFolder?: () => void;
+  /** Moves that folder; absent where the app is not on that computer. */
+  onMoveFolder?: () => void;
   /** The agent that joined this episode, by name. */
   agentName: string | null;
 };
@@ -36,27 +40,33 @@ export function AppSheets({
   onCloseHelp,
   onCloseAgent,
   onCloseSettings,
+  helpStart,
   onShortcuts,
   onModels,
   onOpenRecent,
   hasProject,
   projectFolder,
   onRevealFolder,
+  onMoveFolder,
   agentName,
 }: AppSheetsProps) {
-  const form = useViewportClass() === "phone" ? "bottom" : "centered";
+  const phone = useViewportClass() === "phone";
+  const form = phone ? "bottom" : "centered";
   const [step, setStep] = useState<HelpStep>("menu");
+  const [wasOpen, setWasOpen] = useState(false);
+  // Help always opens fresh, whichever way it was closed (Back, Done, or
+  // another sheet opening over it).
+  if (helpOpen !== wasOpen) {
+    setWasOpen(helpOpen);
+    setStep(helpOpen ? (helpStart ?? "menu") : "menu");
+  }
   const report = useHelpReport(helpOpen);
-  const closeHelp = () => {
-    setStep("menu");
-    onCloseHelp();
-  };
   return (
     <>
       <HelpSheet
         form={form}
         open={helpOpen}
-        onClose={closeHelp}
+        onClose={onCloseHelp}
         step={step}
         onStepChange={setStep}
         onShortcuts={onShortcuts}
@@ -80,13 +90,14 @@ export function AppSheets({
         onOpenRecent={onOpenRecent}
       />
       <SettingsSheet
-        form={form}
+        form={phone ? "bottom" : "end"}
         open={settingsOpen}
         onClose={onCloseSettings}
         onModels={onModels}
         onShortcuts={onShortcuts}
         projectFolder={projectFolder}
         onRevealFolder={onRevealFolder}
+        onMoveFolder={onMoveFolder}
       />
     </>
   );

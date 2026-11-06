@@ -46,6 +46,8 @@ export interface ChromeFlags {
   agentSheetOpen: boolean;
   /** Help sheet: shortcuts, Report a problem, Guides. */
   helpSheetOpen: boolean;
+  /** The step Help opens on: its three rows, or Report a problem. */
+  helpSheetStep: "menu" | "report";
   /** Settings sheet: Appearance, Saved in, Models and Keyboard shortcuts. */
   settingsSheetOpen: boolean;
   /** Models dialog: every model, its state and download. */
@@ -515,7 +517,7 @@ export interface DawState {
   setShareRequested: (on: boolean) => void;
   setTranscriptRequested: (on: boolean) => void;
   setAgentSheetOpen: (on: boolean) => void;
-  setHelpSheetOpen: (on: boolean) => void;
+  setHelpSheetOpen: (on: boolean, step?: "menu" | "report") => void;
   setSettingsSheetOpen: (on: boolean) => void;
   setModelsSheetOpen: (on: boolean) => void;
   setOpenJoinId: (id: string | null) => void;

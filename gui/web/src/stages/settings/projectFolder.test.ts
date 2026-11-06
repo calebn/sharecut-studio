@@ -14,3 +14,9 @@ describe("projectFolderOf", () => {
     );
   });
 });
+
+describe("projectFolderOf on a share link", () => {
+  it("has no folder to show", () => {
+    expect(projectFolderOf("share:fantastic-acoustic-whale")).toBeUndefined();
+  });
+});

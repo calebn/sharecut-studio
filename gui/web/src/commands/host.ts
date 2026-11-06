@@ -214,15 +214,19 @@ export function registerHostCommands(): void {
     if (!canManageProjects(s.projectPath)) {
       return {
         status: "disabled",
-        reason: "Export diagnostics is host-only",
+        reason: "Report a problem is host-only",
       };
     }
-    s.setHelpSheetOpen(true);
+    s.setHelpSheetOpen(true, "report");
     return { status: "ok" };
   });
 
   registerCommand("help.settings", () => {
-    useDawStore.getState().setSettingsSheetOpen(true);
+    const s = useDawStore.getState();
+    if (!canManageProjects(s.projectPath)) {
+      return { status: "disabled", reason: "Settings is host-only" };
+    }
+    s.setSettingsSheetOpen(true);
     return { status: "ok" };
   });
 

@@ -18,7 +18,7 @@ const SHELLS: readonly Shell[] = [
 
 /** Dialogs that were centered cards on a phone, and the primary each pins. */
 const DIALOGS = [
-  { item: "Connect agent…", name: "Connect agent", primary: "Copy URL" },
+  { item: "Connect agent…", name: "Connect agent", primary: "Copy" },
 ] as const;
 
 for (const shell of SHELLS) {

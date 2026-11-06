@@ -21,6 +21,7 @@ const reloadPage = () => window.location.reload();
 /** The Project menu rows the header reports, and the command each one runs. */
 const MENU_COMMANDS: Record<string, string> = {
   projects: "project.home",
+  settings: "help.settings",
   agent: "mcp.connect",
   help: "help.diagnosticsBundle",
 };
@@ -70,10 +71,6 @@ export function useHeaderProps(): Omit<
           },
         };
   const onMenuCommand = useCallback((command: string) => {
-    if (command === "settings") {
-      useDawStore.getState().setSettingsSheetOpen(true);
-      return;
-    }
     const id = MENU_COMMANDS[command];
     if (id) runPointerCommand(id);
   }, []);

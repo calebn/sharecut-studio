@@ -34,6 +34,7 @@ import { ShareFlowProvider } from "./stage/hosts/shareFlow";
 import { AppSheets } from "./stages/settings/AppSheets";
 import { projectFolderOf } from "./stages/settings/projectFolder";
 import { useAgentName } from "./stages/settings/useAgentName";
+import { useMoveProjectFolder } from "./stages/settings/useMoveProjectFolder";
 import { useRevealProjectFolder } from "./stages/settings/useRevealProjectFolder";
 import { useDawStore } from "./state/dawStore";
 import { selectPublishKey } from "./state/publishKey";
@@ -92,6 +93,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
   } = useDaw(selectDawAppFields);
   const agentSheetOpen = useDaw((s) => s.chrome.agentSheetOpen);
   const helpSheetOpen = useDaw((s) => s.chrome.helpSheetOpen);
+  const helpSheetStep = useDaw((s) => s.chrome.helpSheetStep);
   const settingsSheetOpen = useDaw((s) => s.chrome.settingsSheetOpen);
   const agentName = useAgentName();
   const modelsSheetOpen = useDaw((s) => s.chrome.modelsSheetOpen);
@@ -101,6 +103,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
   const revealFolder = useRevealProjectFolder(
     hasProject ? projectPath : undefined,
   );
+  const moveFolder = useMoveProjectFolder(hasProject ? projectPath : undefined);
   const openSettings = useCallback(
     () => setSettingsSheetOpen(true),
     [setSettingsSheetOpen],
@@ -254,15 +257,13 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
               <CheatsheetDialogs />
               <AppSheets
                 helpOpen={helpSheetOpen}
+                helpStart={helpSheetStep}
                 agentOpen={agentSheetOpen}
                 settingsOpen={settingsSheetOpen}
                 onCloseHelp={() => setHelpSheetOpen(false)}
                 onCloseAgent={() => setAgentSheetOpen(false)}
                 onCloseSettings={() => setSettingsSheetOpen(false)}
-                onShortcuts={() => {
-                  setHelpSheetOpen(false);
-                  setCommandPaletteOpen(true);
-                }}
+                onShortcuts={() => setCommandPaletteOpen(true)}
                 onModels={() => {
                   setSettingsSheetOpen(false);
                   setModelsSheetOpen(true);
@@ -274,6 +275,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
                 hasProject={hasProject}
                 projectFolder={projectFolder}
                 onRevealFolder={revealFolder}
+                onMoveFolder={moveFolder}
                 agentName={agentName}
               />
               {syncEnabled ? (

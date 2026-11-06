@@ -713,19 +713,20 @@ export const COMMANDS: Record<string, CommandDef> = {
   "help.diagnosticsBundle": {
     id: "help.diagnosticsBundle",
     category: "ui",
-    label: "Export diagnostics…",
-    keywords: ["logs", "bug report", "support", "debug"],
+    label: "Report a problem…",
+    keywords: ["logs", "bug report", "support", "debug", "diagnostics"],
     when: "canManageProjects",
-    notes: "Host-only sanitized diagnostics zip for bug reports",
+    notes:
+      "Host-only. Opens Help on its Report a problem step, which makes the sanitized diagnostics bundle",
   },
   "help.settings": {
     id: "help.settings",
     category: "ui",
     label: "Settings",
     keywords: ["preferences", "options", "appearance", "theme", "models"],
-    when: "always",
+    when: "canManageProjects",
     notes:
-      "Opens the Settings sheet, the same one the app menu opens; no default key because browsers reserve Mod+,",
+      "Host-only. Opens the Settings sheet, the same one the app menu opens; no default key because browsers reserve Mod+,",
   },
   "models.open": {
     id: "models.open",

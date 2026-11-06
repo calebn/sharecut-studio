@@ -367,7 +367,7 @@ With Search empty, Commands and shortcuts lists Recent, then the commands by
 category, then a **Stages** group (Go to Record, Prepare, Edit, Review and
 Deliver; a stage the link cannot enter shows its reason), then Projects, People
 and Chapters, a **Gestures** row that opens the Gestures sheet, and a **Help**
-group (Export diagnostics…, shown disabled with its reason on guest and review
+group (Report a problem…, shown disabled with its reason on guest and review
 links). Searching lists matches in one ranked list; "stages" and "help" find
 those rows. Commands with a verb icon, and every stage, show a small decorative
 icon before the label; it adds nothing to the option's accessible name.

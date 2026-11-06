@@ -20,7 +20,6 @@ if TYPE_CHECKING:
         run_doctor_checks,
     )
     from podcast_mcp.services.support.report_submission import (
-        get_report_status,
         preview_bundle,
         report_relay_url,
         submit_bundle,
@@ -35,7 +34,6 @@ __all__ = [
     "bundle_filename",
     "default_bundle_dir",
     "echo_doctor_report",
-    "get_report_status",
     "is_allowed_bundle_name",
     "preview_bundle",
     "report_relay_url",
@@ -58,7 +56,6 @@ _MODULE_BY_NAME = {
     "DoctorReport": "doctor",
     "echo_doctor_report": "doctor",
     "run_doctor_checks": "doctor",
-    "get_report_status": "report_submission",
     "preview_bundle": "report_submission",
     "report_relay_url": "report_submission",
     "submit_bundle": "report_submission",

@@ -23,7 +23,7 @@ def _argv(path: Path, system: str) -> list[str] | None:
 def reveal_in_file_manager(path: Path, *, system: str | None = None) -> bool:
     """Open the file manager on *path*; False when this platform has no way to do it.
 
-    *path* must already be a listed export file. The argv is never a shell string.
+    *path* is a listed export file or an episode file. The argv is never a shell string.
     """
     name = (system or platform.system()).strip()
     argv = _argv(path, name)

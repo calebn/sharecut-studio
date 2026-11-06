@@ -18,7 +18,7 @@ describe("announceStatus repeats", () => {
     const first = toast();
     const seq = useDawStore.getState().statusAnnouncementSeq;
     say(
-      "Reorder failed. Export diagnostics from the command palette and try again.",
+      "Reorder failed. Report a problem from the command palette and try again.",
     );
     expect(toast()).toBe(first);
     expect(toast()?.tone).toBe("error");

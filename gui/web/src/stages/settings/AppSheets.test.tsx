@@ -51,6 +51,38 @@ describe("AppSheets", () => {
     expect(onCloseHelp).toHaveBeenCalledOnce();
   });
 
+  it("opens Help on Report a problem when asked, and on its menu again after a close", () => {
+    const { rerender, ...rest } = setup({
+      helpOpen: true,
+      helpStart: "report",
+    });
+    expect(
+      screen.getByRole("dialog", { name: "Report a problem" }),
+    ).toBeInTheDocument();
+    const props = {
+      agentOpen: false,
+      settingsOpen: false,
+      hasProject: true,
+      agentName: null,
+      onCloseHelp: rest.onCloseHelp,
+      onCloseAgent: rest.onCloseAgent,
+      onCloseSettings: rest.onCloseSettings,
+      onModels: rest.onModels,
+      onOpenRecent: rest.onOpenRecent,
+    };
+    // Another sheet opening closes Help without Back or Done.
+    rerender(<AppSheets {...props} helpOpen={false} settingsOpen />);
+    rerender(<AppSheets {...props} helpOpen />);
+    expect(screen.getByRole("dialog", { name: "Help" })).toBeInTheDocument();
+  });
+
+  it("docks Settings to the end edge on desktop", () => {
+    setup({ settingsOpen: true });
+    expect(
+      document.querySelector(".sys-sheet-end.settings-sheet"),
+    ).not.toBeNull();
+  });
+
   it("opens Connect agent with the host's loopback URL", () => {
     setup({ agentOpen: true, agentName: "Claude" });
     expect(screen.getByRole("dialog", { name: "Connect agent" })).toBeVisible();

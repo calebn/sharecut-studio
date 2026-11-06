@@ -16,10 +16,11 @@ describe("help.diagnosticsBundle", () => {
     clearRegisteredCommands();
   });
 
-  it("opens Help for a host project", async () => {
+  it("opens Help on its Report a problem step for a host project", async () => {
     const result = await execute("help.diagnosticsBundle");
     expect(result).toEqual({ status: "ok" });
     expect(useDawStore.getState().chrome.helpSheetOpen).toBe(true);
+    expect(useDawStore.getState().chrome.helpSheetStep).toBe("report");
   });
 
   it("disables for share guests", async () => {
@@ -38,7 +39,7 @@ describe("help.diagnosticsBundle", () => {
     );
     expect(result).toEqual({
       status: "disabled",
-      reason: "Export diagnostics is host-only",
+      reason: "Report a problem is host-only",
     });
     expect(useDawStore.getState().chrome.helpSheetOpen).toBe(false);
   });

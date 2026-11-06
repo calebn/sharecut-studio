@@ -141,7 +141,9 @@
   min-block-size: var(--target-primary-phone);
 }
 
-.set-fact-action {
-  align-self: flex-start;
+.set-fact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
   margin-block-start: var(--space-2);
 }

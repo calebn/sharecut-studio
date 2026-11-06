@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { plainError } from "./plainError";
 
-const NEXT = "Export diagnostics from the command palette and try again.";
+const NEXT = "Report a problem from the command palette and try again.";
 
 it.each([
   // Internals go; the first sentence's lead stays, with the next step.

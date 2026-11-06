@@ -88,7 +88,7 @@ const COMMANDS: PaletteCommand[] = [
   },
   {
     id: "help.diagnosticsBundle",
-    label: "Export diagnostics…",
+    label: "Report a problem…",
     category: "ui",
     shortcut: null,
     group: "help",
@@ -187,7 +187,7 @@ export const Browse: Story = {
     );
     await expect(
       within(dialog).getByRole("option", {
-        name: "Export diagnostics… Project create/open is host-only",
+        name: "Report a problem… Project create/open is host-only",
       }),
     ).toHaveAttribute("aria-disabled", "true");
     await userEvent.click(
@@ -256,7 +256,7 @@ export const Search: Story = {
       "export",
     );
     await expect(within(dialog).getByRole("status")).toHaveTextContent(
-      "2 commands. Enter runs Export deliverables…",
+      "1 command. Enter runs Export deliverables…",
     );
     await expect(within(dialog).queryByText("Split at playhead")).toBeNull();
     await userEvent.keyboard("{Enter}");

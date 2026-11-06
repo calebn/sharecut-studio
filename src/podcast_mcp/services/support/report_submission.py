@@ -79,23 +79,3 @@ def submit_bundle(path: Path, *, description: str) -> dict[str, str]:
             "report relay returned an invalid status URL", code="report_relay_status_url_invalid"
         )
     return {"status": "queued", "status_url": status_url}
-
-
-def get_report_status(status_url: str) -> dict[str, str | None]:
-    url = report_relay_url()
-    if not status_url.startswith(f"{url}/api/reports/"):
-        raise CodedValueError("invalid report status URL", code="report_status_url_invalid")
-    with httpx.Client(timeout=10.0, follow_redirects=False) as client:
-        response = client.get(status_url)
-    response.raise_for_status()
-    result = response.json()
-    status = result.get("status")
-    issue_url = result.get("issue_url")
-    if status not in {"queued", "published", "publish_uncertain", "failed"} or (
-        issue_url is not None
-        and (not isinstance(issue_url, str) or not issue_url.startswith("https://github.com/"))
-    ):
-        raise CodedValueError(
-            "report relay returned an invalid status", code="report_relay_status_invalid"
-        )
-    return {"status": status, "issue_url": issue_url}

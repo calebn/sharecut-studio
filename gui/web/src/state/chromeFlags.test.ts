@@ -128,6 +128,20 @@ describe("dawStore chrome flags", () => {
     expect(read("settingsSheetOpen")).toBe(false);
   });
 
+  it("closes the app sheets when the Palette opens, whichever way it opens", () => {
+    const s = () => useDawStore.getState();
+    s().setSettingsSheetOpen(true);
+    s().setCommandPaletteOpen(true);
+    expect(read("settingsSheetOpen")).toBe(false);
+    expect(read("commandPaletteOpen")).toBe(true);
+    s().setCommandPaletteOpen(false);
+    s().setHelpSheetOpen(true, "report");
+    expect(useDawStore.getState().chrome.helpSheetStep).toBe("report");
+    s().toggleCommandPalette();
+    expect(read("helpSheetOpen")).toBe(false);
+    expect(read("commandPaletteOpen")).toBe(true);
+  });
+
   describe("hydrate", () => {
     const OTHER = [
       "commandPaletteOpen",

@@ -8,7 +8,7 @@ const meta: Meta<typeof SettingsSheet> = {
   component: SettingsSheet,
   tags: ["autodocs"],
   args: {
-    form: "centered",
+    form: "end",
     open: true,
     onClose: fn(),
     onModels: fn(),
@@ -19,7 +19,7 @@ const meta: Meta<typeof SettingsSheet> = {
       ...isolatedStoryParameters.docs,
       description: {
         component:
-          "Settings: Appearance (System, Light, Dark), Saved in with Reveal in folder while an episode is open, Models, and Keyboard shortcuts where the app has a reference. Choices apply as they are made. Reveal in folder shows only in the desktop app, which runs on the computer that holds the folder. The native Settings… menu item (Cmd+, on macOS, Ctrl+, elsewhere) opens this same sheet. Loudness lives in Deliver and vocabulary in Prepare, so they are not repeated here. A centred card on desktop, a bottom sheet on a phone.",
+          "Settings: Appearance (System, Light, Dark), Saved in with Move… and Reveal in folder while an episode is open, Models, and Keyboard shortcuts where the app has a reference. Choices apply as they are made. Move… and Reveal in folder show only in the desktop app, which runs on the computer that holds the folder. The native Settings… menu item (Cmd+, on macOS, Ctrl+, elsewhere) opens this same sheet. Loudness lives in Deliver and vocabulary in Prepare, so they are not repeated here. The 400 px side panel on desktop, a bottom sheet on a phone.",
       },
     },
   },
@@ -47,6 +47,7 @@ export const InProject: Story = {
   args: {
     projectFolder: "/Users/maya/ShareCut/Episode 14",
     onRevealFolder: fn(),
+    onMoveFolder: fn(),
     onShortcuts: fn(),
   },
   play: async ({ args, viewMode }) => {
@@ -61,6 +62,8 @@ export const InProject: Story = {
       sheet.getByRole("button", { name: "Reveal in folder" }),
     );
     await expect(args.onRevealFolder).toHaveBeenCalled();
+    await userEvent.click(sheet.getByRole("button", { name: "Move…" }));
+    await expect(args.onMoveFolder).toHaveBeenCalled();
     await userEvent.click(
       sheet.getByRole("button", { name: /Keyboard shortcuts/ }),
     );

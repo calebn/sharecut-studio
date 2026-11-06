@@ -336,16 +336,16 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     tooltip: "Connect agent…",
   },
   "daw.help.diagnosticsBundle": {
-    label: "Export diagnostics…",
-    tooltip: "Create a sanitized diagnostics bundle",
-  },
-  "daw.help.settings": {
-    label: "Settings",
-    tooltip: "Open Settings",
+    label: "Report a problem…",
+    tooltip: "Report a problem with a sanitized diagnostics bundle",
   },
   "daw.models.open": {
     label: "Manage models…",
     tooltip: "See every model and get the ones you want",
+  },
+  "daw.help.settings": {
+    label: "Settings",
+    tooltip: "Open Settings",
   },
   "daw.export.deliverables": {
     label: "Export deliverables…",

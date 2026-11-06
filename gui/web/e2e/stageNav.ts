@@ -301,9 +301,6 @@ export async function startBounce(page: Page): Promise<void> {
     .click();
 }
 
-/** Rows with no menu item; the palette runs them. */
-const PALETTE_ONLY_ITEMS = new Set(["Export diagnostics…"]);
-
 /**
  * Open the Project menu and choose the entry named `item`. A name the old
  * transport Menu carried (Share…) goes to where it
@@ -317,13 +314,6 @@ export async function openProjectMenuItem(
   const moved = MOVED_MENU_ITEMS[item];
   if (moved) {
     await openProjectDialog(page, moved);
-    return;
-  }
-  if (PALETTE_ONLY_ITEMS.has(item)) {
-    await openProjectDialog(page, "palette");
-    const search = page.getByRole("combobox", { name: "Search commands" });
-    await search.fill(item);
-    await search.press("Enter");
     return;
   }
   const menu = await openProjectMenu(page);
