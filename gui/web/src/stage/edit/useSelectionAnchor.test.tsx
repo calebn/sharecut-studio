@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { placeAnchoredExcluding } from "../../ui/anchoredPlacement";
 import { useSelectionAnchor } from "./useSelectionAnchor";
 
+const MARGIN = 8;
+
 describe("comment selection anchor", () => {
   it("anchors to the comment's pin, not the whole timeline", () => {
     const root = document.createElement("div");
@@ -178,7 +180,7 @@ describe("the box the header exclusion is judged within", () => {
       viewport,
       box(8, 53, 374, 45),
       box(0, 0, 390, 844),
-      { margin: 8, gap: 8, align: "center", prefer: "above" },
+      { margin: MARGIN, gap: MARGIN, align: "center", prefer: "above" },
     );
     expect(placed.left).toBeGreaterThanOrEqual(8);
     expect(placed.left + bar.width).toBeLessThanOrEqual(390 - 8);

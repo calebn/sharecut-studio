@@ -1,7 +1,6 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PHONE_MQ } from "../../hooks/useViewportClass";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { systemCss } from "../../test/systemCss";
 import { GuestLoadingScreen } from "./GuestLoadingScreen";
@@ -50,21 +49,18 @@ describe("GuestLoadingScreen", () => {
     ).not.toContain("margin-inline");
   });
 
-  it("collapses the guest skeleton at the phone shell breakpoint", () => {
+  it("collapses the guest skeleton under the phone shell attribute", () => {
     const css = systemCss();
     const collapses = [
       ...css.matchAll(
-        /@media (\([^)]*\)) \{\s*\.sys-skeleton-blocks--guest \{([^}]*)\}/g,
+        /:root\[data-shell="phone"\] \.sys-skeleton-blocks--guest \{([^}]*)\}/g,
       ),
     ];
-    // Exactly one collapse, at the shell's own query, to a single column.
     expect(collapses).toHaveLength(1);
-    expect(collapses[0]?.[1]).toBe(PHONE_MQ);
-    expect(collapses[0]?.[2]).toContain(
+    expect(collapses[0]?.[1]).toContain(
       "grid-template-columns: minmax(0, 1fr)",
     );
-    // No second, drifting breakpoint for the guest skeleton.
-    expect(css).not.toMatch(/@media \(max-width: 40rem\)/);
+    expect(css).not.toMatch(/@media \(max-width: (40rem|767px)\)/);
   });
 
   it("gives the floating primary the touch-min size on coarse pointers", () => {
