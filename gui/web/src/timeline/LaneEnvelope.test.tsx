@@ -13,6 +13,7 @@ import type { AutomationPoint, ClipRow } from "../types/project";
 import { ApiError } from "../utils/apiError";
 import { LaneEnvelope } from "./LaneEnvelope";
 import { TimelineGestureProvider } from "./timelineMetrics";
+import { useEnvelopeEdits } from "./useEnvelopeEdits";
 import { useRulerWindow } from "./useRulerWindow";
 
 const setEnvelope = vi.fn();
@@ -49,9 +50,11 @@ const hostSaves = () =>
 function Harness({
   canvas = 360,
   clips = [],
+  zoom = 24,
 }: {
   canvas?: number;
   clips?: ClipRow[];
+  zoom?: number;
 }) {
   const envelopes = useDawStore((s) => s.project?.envelopes ?? []);
   return (
@@ -61,7 +64,7 @@ function Harness({
       colorIndex={0}
       envelopes={envelopes}
       clips={clips}
-      zoomPxPerSec={24}
+      zoomPxPerSec={zoom}
       width={canvas}
     />
   );
@@ -813,5 +816,288 @@ describe("LaneEnvelope dips", () => {
     setup(undefined, [clip]);
     const dip = screen.getByTestId("clip-gain-dip").querySelector("polyline")!;
     expect(dip.getAttribute("points")).not.toContain("NaN");
+  });
+});
+
+describe("LaneEnvelope honesty about refusals", () => {
+  const leafStatus = () => screen.getByRole("status");
+  const select = (pointId: string) =>
+    act(() =>
+      useDawStore
+        .getState()
+        .setSelection({ kind: "envelopePoint", trackId: "host", pointId }),
+    );
+  const clickLine = (container: HTMLElement) => {
+    const band = container.querySelector(".sys-env-band")!;
+    fireEvent.pointerDown(band, mouse(120, 30));
+    fireEvent.click(band, { clientX: 120, clientY: 30, detail: 1 });
+  };
+  const switchProject = () =>
+    act(() =>
+      useDawStore.setState({ projectPath: "/tmp/q.json", projectEpoch: 9 }),
+    );
+
+  it("announces no nudge for a key pressed while a save settles", async () => {
+    setEnvelope.mockImplementationOnce(async () => null);
+    setup();
+    const { el } = dragPoint(2, 48, 0);
+    fireEvent.pointerUp(el, mouse(0, 0));
+    await act(async () => {});
+    const before = leafStatus().textContent;
+    point(1).focus();
+    fireEvent.keyDown(point(1), { key: "ArrowRight" });
+    fireEvent.keyUp(point(1), { key: "ArrowRight" });
+    await act(async () => {});
+    expect(setEnvelope).toHaveBeenCalledTimes(1);
+    expect(point(1).getAttribute("aria-valuetext")).toContain("0:01.00");
+    expect(leafStatus().textContent).toBe(before);
+  });
+
+  it("announces no removal the host refused, and tells why once", async () => {
+    setEnvelope.mockRejectedValueOnce(new Error("offline"));
+    select("b");
+    setup();
+    const seq = useDawStore.getState().statusAnnouncementSeq;
+    point(2).focus();
+    fireEvent.keyDown(point(2), { key: "Delete" });
+    await act(async () => {});
+    expect(leafStatus()).toBeEmptyDOMElement();
+    expect(useDawStore.getState().statusAnnouncement).toContain("offline");
+    expect(useDawStore.getState().statusAnnouncementSeq).toBe(seq + 1);
+  });
+
+  it("announces no removal while a save is in flight", async () => {
+    let finish: () => void = () => {};
+    setEnvelope.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = () => resolve(null);
+        }),
+    );
+    select("b");
+    setup();
+    const { el } = dragPoint(2, 48, 0);
+    fireEvent.pointerUp(el, mouse(0, 0));
+    await act(async () => {});
+    expect(setEnvelope).toHaveBeenCalledTimes(1);
+    const seq = useDawStore.getState().statusAnnouncementSeq;
+    point(2).focus();
+    fireEvent.keyDown(point(2), { key: "Delete" });
+    await act(async () => {});
+    expect(setEnvelope).toHaveBeenCalledTimes(1);
+    expect(useDawStore.getState().statusAnnouncementSeq).toBe(seq + 1);
+    expect(leafStatus().textContent).not.toContain("Removed");
+    await act(async () => finish());
+  });
+
+  it("answers a removal or an add during a save with a plain false, not a promise", async () => {
+    let finish: () => void = () => {};
+    setEnvelope.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = () => resolve(null);
+        }),
+    );
+    const { result } = renderHook(() =>
+      useEnvelopeEdits("host", POINTS, false, 0),
+    );
+    act(() => {
+      result.current.onMove("b", { timeSeconds: 4.5 });
+    });
+    act(() => result.current.onNudgeEnd("b"));
+    await act(async () => {});
+    expect(setEnvelope).toHaveBeenCalledTimes(1);
+    expect(result.current.onRemove("b")).toBe(false);
+    expect(result.current.onAdd(20, 0)).toBe(false);
+    expect(setEnvelope).toHaveBeenCalledTimes(1);
+    await act(async () => finish());
+  });
+
+  it.each([
+    [
+      "removal",
+      (edits: ReturnType<typeof useEnvelopeEdits>) => edits.onRemove("b"),
+    ],
+    ["add", (edits: ReturnType<typeof useEnvelopeEdits>) => edits.onAdd(20, 0)],
+  ])(
+    "answers false for a %s that landed in the project that was replaced",
+    async (_name, ask) => {
+      let finish: () => void = () => {};
+      setEnvelope.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = () => resolve(null);
+          }),
+      );
+      const { result } = renderHook(() =>
+        useEnvelopeEdits("host", POINTS, false, 0),
+      );
+      const answer = ask(result.current) as Promise<boolean>;
+      await act(async () => {});
+      expect(setEnvelope).toHaveBeenCalledTimes(1);
+      switchProject();
+      await act(async () => finish());
+      expect(await answer).toBe(false);
+    },
+  );
+
+  it("answers true for a removal that landed in the project it was for", async () => {
+    const { result } = renderHook(() =>
+      useEnvelopeEdits("host", POINTS, false, 0),
+    );
+    let answer: unknown;
+    await act(async () => {
+      answer = await result.current.onRemove("b");
+    });
+    expect(answer).toBe(true);
+  });
+
+  it("announces no drag when a remote edit removed the point before it ended", async () => {
+    setup();
+    dragPoint(2, 48, 0);
+    putPoints(POINTS.filter((p) => p.id !== "b"));
+    fireEvent.pointerUp(
+      screen.getByRole("group", { name: "Volume envelope, Maya" }),
+      mouse(0, 0),
+    );
+    await act(async () => {});
+    expect(setEnvelope).not.toHaveBeenCalled();
+    expect(leafStatus()).toBeEmptyDOMElement();
+  });
+
+  it("announces the removal the host accepted", async () => {
+    select("b");
+    setup();
+    point(2).focus();
+    fireEvent.keyDown(point(2), { key: "Delete" });
+    await act(async () => {});
+    expect(leafStatus()).toHaveTextContent("Removed envelope point at 0:04.00");
+  });
+
+  it("announces no add the host refused", async () => {
+    setEnvelope.mockRejectedValueOnce(new Error("offline"));
+    const { container } = setup();
+    clickLine(container);
+    await act(async () => {});
+    expect(leafStatus()).toBeEmptyDOMElement();
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Point not added: offline",
+    );
+  });
+
+  it("announces no add while a nudge is held", async () => {
+    const { container } = setup();
+    point(2).focus();
+    fireEvent.keyDown(point(2), { key: "ArrowRight" });
+    clickLine(container);
+    await act(async () => {});
+    expect(setEnvelope).not.toHaveBeenCalled();
+    expect(leafStatus().textContent).not.toContain("Added");
+  });
+
+  it("announces the add the host accepted", async () => {
+    const { container } = setup();
+    clickLine(container);
+    await act(async () => {});
+    expect(leafStatus()).toHaveTextContent("Added envelope point at 0:05.00");
+  });
+
+  it("announces no drag whose save was refused", async () => {
+    setEnvelope.mockRejectedValueOnce(new Error("offline"));
+    setup();
+    const { el } = dragPoint(2, 48, 0);
+    fireEvent.pointerUp(el, mouse(0, 0));
+    await act(async () => {});
+    expect(leafStatus()).toBeEmptyDOMElement();
+  });
+
+  it("announces the drag whose save succeeded", async () => {
+    setup();
+    const { el } = dragPoint(2, 48, 0);
+    fireEvent.pointerUp(el, mouse(0, 0));
+    await act(async () => {});
+    expect(leafStatus()).toHaveTextContent("Envelope point at 0:06.0");
+  });
+
+  it("does not tell a save's conflict in the project that replaced the one it was for", async () => {
+    let fail: (error: Error) => void = () => {};
+    setEnvelope.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          fail = reject;
+        }),
+    );
+    const announce = toasts();
+    setup();
+    const { el } = dragPoint(2, 48, 0);
+    fireEvent.pointerUp(el, mouse(0, 0));
+    await act(async () => {});
+    switchProject();
+    await act(async () =>
+      fail(new ApiError("Points changed", "conflict", 409)),
+    );
+    expect(announce).not.toHaveBeenCalledWith("Points changed", {
+      tone: "error",
+    });
+  });
+
+  it("does not tell a removal's conflict in the project that replaced the one it was for", async () => {
+    let fail: (error: Error) => void = () => {};
+    setEnvelope.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          fail = reject;
+        }),
+    );
+    const announce = toasts();
+    select("b");
+    setup();
+    point(2).focus();
+    fireEvent.keyDown(point(2), { key: "Delete" });
+    await act(async () => {});
+    switchProject();
+    await act(async () =>
+      fail(new ApiError("Points changed", "conflict", 409)),
+    );
+    expect(announce).not.toHaveBeenCalledWith("Points changed", {
+      tone: "error",
+    });
+  });
+
+  it("does not tell an add's failure in the project that replaced the one it was for", async () => {
+    let fail: (error: Error) => void = () => {};
+    setEnvelope.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          fail = reject;
+        }),
+    );
+    const announce = toasts();
+    const { container } = setup();
+    clickLine(container);
+    await act(async () => {});
+    switchProject();
+    await act(async () => fail(new Error("offline")));
+    expect(announce).not.toHaveBeenCalledWith(
+      expect.stringContaining("Point not added"),
+      expect.anything(),
+    );
+  });
+
+  it("puts a dragged point back, saves nothing and releases once when the lane zooms mid-drag", async () => {
+    const view = setup();
+    const { el } = dragPoint(2, 48, 0);
+    expect(point(2).getAttribute("aria-valuetext")).toContain("0:06");
+    view.rerender(
+      <TimelineGestureProvider value={hold}>
+        <Harness zoom={48} />
+      </TimelineGestureProvider>,
+    );
+    fireEvent.pointerMove(el, mouse(200, 20));
+    fireEvent.pointerUp(el, mouse(200, 20));
+    await act(async () => {});
+    expect(setEnvelope).not.toHaveBeenCalled();
+    expect(point(2).getAttribute("aria-valuetext")).toContain("0:04");
+    expect(release).toHaveBeenCalledTimes(1);
   });
 });

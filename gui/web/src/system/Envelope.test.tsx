@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
@@ -801,4 +801,145 @@ describe("Envelope hitProps", () => {
       );
     }
   });
+});
+
+describe("Envelope host verdicts", () => {
+  const status = () => screen.getByRole("status");
+
+  it("announces nothing and starts no nudge for a press the host refuses", () => {
+    const { onMove, onNudgeEnd } = setup();
+    onMove.mockReturnValue(false);
+    fireEvent.keyDown(point(2), { key: "ArrowRight" });
+    fireEvent.keyUp(point(2), { key: "ArrowRight" });
+    expect(onMove).toHaveBeenCalledWith("b", { timeSeconds: 4.01 });
+    expect(onNudgeEnd).not.toHaveBeenCalled();
+    expect(status()).toBeEmptyDOMElement();
+  });
+
+  it("starts the nudge at the first press the host accepts after a refused one", () => {
+    const { onMove, onNudgeEnd } = setup();
+    onMove.mockReturnValueOnce(false);
+    fireEvent.keyDown(point(2), { key: "ArrowRight" });
+    fireEvent.keyDown(point(2), { key: "ArrowRight" });
+    fireEvent.keyUp(point(2), { key: "ArrowRight" });
+    expect(onNudgeEnd).toHaveBeenCalledTimes(1);
+    expect(onNudgeEnd).toHaveBeenCalledWith("b");
+  });
+
+  it("announces no removal the host refuses, with a flag or a promise", async () => {
+    const { onRemove } = setup({ selected: "b" });
+    point(2).focus();
+    onRemove.mockReturnValueOnce(false);
+    fireEvent.keyDown(point(2), { key: "Delete" });
+    expect(status()).toBeEmptyDOMElement();
+    onRemove.mockReturnValueOnce(Promise.resolve(false));
+    fireEvent.keyDown(point(2), { key: "Delete" });
+    await act(async () => {});
+    expect(onRemove).toHaveBeenCalledTimes(2);
+    expect(status()).toBeEmptyDOMElement();
+  });
+
+  it("announces a removal once the host's promise accepts it", async () => {
+    const { onRemove } = setup({ selected: "b" });
+    onRemove.mockReturnValue(Promise.resolve(true));
+    point(2).focus();
+    fireEvent.keyDown(point(2), { key: "Delete" });
+    expect(status()).toBeEmptyDOMElement();
+    await act(async () => {});
+    expect(status()).toHaveTextContent("Removed envelope point at 0:04.00");
+  });
+
+  it("announces no add the host refuses, with a flag or a promise", async () => {
+    const { container, onAdd } = setup();
+    onAdd.mockReturnValueOnce(false);
+    fireEvent.click(band(container), { clientX: 120, clientY: 10, detail: 1 });
+    expect(status()).toBeEmptyDOMElement();
+    onAdd.mockReturnValueOnce(Promise.resolve(false));
+    fireEvent.click(band(container), { clientX: 120, clientY: 10, detail: 1 });
+    await act(async () => {});
+    expect(onAdd).toHaveBeenCalledTimes(2);
+    expect(status()).toBeEmptyDOMElement();
+  });
+
+  it("announces an add once the host's promise accepts it", async () => {
+    const { container, onAdd } = setup();
+    onAdd.mockReturnValue(Promise.resolve(true));
+    fireEvent.click(band(container), { clientX: 120, clientY: 10, detail: 1 });
+    expect(status()).toBeEmptyDOMElement();
+    await act(async () => {});
+    expect(status()).toHaveTextContent(
+      "Added envelope point at 0:05.00, −2.4 dB",
+    );
+  });
+
+  it("announces no drag the host's commit refuses, and one it accepts", async () => {
+    const { onDragEnd } = setup();
+    onDragEnd.mockReturnValueOnce(Promise.resolve(false));
+    fireEvent.pointerDown(point(2), mouse(96, 20));
+    fireEvent.pointerMove(point(2), mouse(120, 20));
+    fireEvent.pointerUp(point(2), mouse(120, 20));
+    expect(onDragEnd).toHaveBeenCalledWith("b", true);
+    await act(async () => {});
+    expect(status()).toBeEmptyDOMElement();
+    onDragEnd.mockReturnValueOnce(false);
+    fireEvent.pointerDown(point(2), mouse(96, 20, 2));
+    fireEvent.pointerMove(point(2), mouse(120, 20, 2));
+    fireEvent.pointerUp(point(2), mouse(120, 20, 2));
+    expect(status()).toBeEmptyDOMElement();
+    onDragEnd.mockReturnValueOnce(Promise.resolve(true));
+    fireEvent.pointerDown(point(2), mouse(96, 20, 3));
+    fireEvent.pointerMove(point(2), mouse(120, 20, 3));
+    fireEvent.pointerUp(point(2), mouse(120, 20, 3));
+    await act(async () => {});
+    expect(status()).toHaveTextContent("Envelope point at 0:05.0");
+  });
+});
+
+describe("Envelope focus after a refused removal", () => {
+  it.each([
+    ["a flag", () => false],
+    ["a promise", () => Promise.resolve(false)],
+  ])(
+    "puts focus back on the point when the host refuses with %s",
+    async (_name, answer) => {
+      const { onRemove } = setup({ selected: "b" });
+      onRemove.mockImplementation(answer);
+      point(2).focus();
+      fireEvent.keyDown(point(2), { key: "Delete" });
+      await act(async () => {});
+      expect(point(2)).toHaveFocus();
+    },
+  );
+
+  it("leaves focus on the neighbour when the host accepts", async () => {
+    const { onRemove } = setup({ selected: "b" });
+    onRemove.mockReturnValue(Promise.resolve(true));
+    point(2).focus();
+    fireEvent.keyDown(point(2), { key: "Delete" });
+    await act(async () => {});
+    expect(point(3)).toHaveFocus();
+  });
+});
+
+describe("Envelope when the scale changes mid-drag", () => {
+  it.each([
+    ["zoom", { pxPerSecond: 48 }],
+    ["scroll", { start: 2 }],
+  ])(
+    "ends the drag uncommitted on a %s change and ignores later moves",
+    (_name, change) => {
+      const { onMove, onDragEnd, again } = setup();
+      fireEvent.pointerDown(point(2), mouse(96, 20));
+      fireEvent.pointerMove(point(2), mouse(120, 20));
+      expect(onMove).toHaveBeenCalledTimes(1);
+      again(change);
+      expect(onDragEnd).toHaveBeenCalledTimes(1);
+      expect(onDragEnd).toHaveBeenCalledWith("b", false);
+      fireEvent.pointerMove(point(2), mouse(150, 20));
+      fireEvent.pointerUp(point(2), mouse(150, 20));
+      expect(onMove).toHaveBeenCalledTimes(1);
+      expect(onDragEnd).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    },
+  );
 });

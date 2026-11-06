@@ -4,6 +4,9 @@ import {
   ENVELOPE_UPDATING,
   envelopeSaveInFlight,
   holdEnvelopeSettling,
+  inProject,
+  type ProjectScope,
+  projectScope,
   removeEnvelopePoint,
   setEnvelopePoint,
 } from "../commands/envelopes";
@@ -25,8 +28,12 @@ const liveStored = (trackId: string, id: string): AutomationPoint | undefined =>
     trackId,
   )?.points.find((p) => p.id === id);
 
-function refuse(result: { status: string; reason?: string; told?: true }) {
+function refuse(
+  result: { status: string; reason?: string; told?: true },
+  origin: ProjectScope,
+) {
   if (result.status !== "disabled" || !result.reason || result.told) return;
+  if (!inProject(origin)) return;
   useDawStore.getState().announceStatus(result.reason, { tone: "error" });
 }
 
@@ -126,20 +133,21 @@ export function useEnvelopeEdits(
       edit: { time?: number; value?: number },
       held: (() => void) | null,
     ) => {
+      const origin = projectScope();
       const record = { stored: storedRef.current, settled: false };
       saved.current = record;
       if (held) release.current = held;
       const result = await setEnvelopePoint(trackId, id, edit);
       // A refusal is told even when the lane went away meanwhile (a 409 after an unmount).
-      refuse(result);
-      if (!alive.current) return;
+      refuse(result, origin);
+      if (!alive.current) return false;
       // The record of this save: a project switch may have dropped it and a
       // newer gesture started its own, which this response must not settle.
       const pending = record;
-      if (saved.current !== pending) return;
+      if (saved.current !== pending) return false;
       if (result.status !== "ok") {
         drop();
-        return;
+        return false;
       }
       // The store may already hold the saved point or only get it a moment
       // later: settle now, and drop the preview once the points have changed
@@ -149,12 +157,13 @@ export function useEnvelopeEdits(
       letGo();
       if (pending.stored !== storedRef.current) {
         drop();
-        return;
+        return true;
       }
       clearTimeout(idle.current);
       idle.current = setTimeout(() => {
         if (saved.current === pending) drop();
       }, SETTLE_MS);
+      return true;
     },
     [trackId, drop, letGo],
   );
@@ -192,12 +201,12 @@ export function useEnvelopeEdits(
       }
       // Nothing starts from a saved point until the store holds it: a save
       // sends the store's points as its baseline, and a stale one is a 409.
-      if (envelopeSaveInFlight(trackId) || saved.current) return;
+      if (envelopeSaveInFlight(trackId) || saved.current) return false;
       const from =
         previewRef.current?.id === id
           ? previewRef.current
           : startOf(trackId, id);
-      if (!from) return;
+      if (!from) return false;
       setPreview({
         id,
         time: change.timeSeconds ?? from.time,
@@ -214,7 +223,11 @@ export function useEnvelopeEdits(
       last.current = null;
       const point = liveStored(trackId, id);
       const edit = committed && change && point ? editFor(change, point) : null;
-      if (!edit || !point) {
+      if (!point) {
+        drop();
+        return false;
+      }
+      if (!edit) {
         drop();
         return;
       }
@@ -226,7 +239,7 @@ export function useEnvelopeEdits(
       });
       const held = release.current;
       release.current = null;
-      void commit(id, edit, held);
+      return commit(id, edit, held);
     },
     [trackId, drop, setPreview, commit],
   );
@@ -253,11 +266,13 @@ export function useEnvelopeEdits(
       if (saved.current || envelopeSaveInFlight(trackId)) {
         // In flight, the save is running; in the window after it, the store has yet to hold the saved point.
         wait(trackId);
-        return;
+        return false;
       }
-      void removeEnvelopePoint(trackId, id).then((result) => {
-        refuse(result);
+      const origin = projectScope();
+      return removeEnvelopePoint(trackId, id).then((result) => {
+        refuse(result, origin);
         if (result.status === "ok" && previewRef.current?.id === id) drop();
+        return result.status === "ok" && inProject(origin);
       });
     },
     [trackId, drop],
@@ -265,12 +280,16 @@ export function useEnvelopeEdits(
 
   const onAdd = useCallback(
     (time: number, db: number) => {
-      if (dragging.current) return;
+      if (dragging.current) return false;
       if (previewRef.current || saved.current) {
         wait(trackId);
-        return;
+        return false;
       }
-      void addEnvelopePointAt(trackId, time, dbToGain(db)).then(refuse);
+      const origin = projectScope();
+      return addEnvelopePointAt(trackId, time, dbToGain(db)).then((result) => {
+        refuse(result, origin);
+        return result.status === "ok" && inProject(origin);
+      });
     },
     [trackId],
   );

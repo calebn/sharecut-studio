@@ -26,6 +26,21 @@ export const ENVELOPE_UPDATING = "Wait for the volume envelope to update";
 /** Tracks whose lane has a saved gesture the store has yet to follow. */
 const settling = new Set<string>();
 
+export type ProjectScope = { projectPath: string | null; projectEpoch: number };
+
+export const projectScope = (): ProjectScope => {
+  const { projectPath, projectEpoch } = useDawStore.getState();
+  return { projectPath, projectEpoch };
+};
+
+export const inProject = (origin: ProjectScope): boolean => {
+  const live = projectScope();
+  return (
+    live.projectPath === origin.projectPath &&
+    live.projectEpoch === origin.projectEpoch
+  );
+};
+
 const savingKey = (trackId: string): string => {
   const { projectPath, projectEpoch } = useDawStore.getState();
   return `${projectPath}:${projectEpoch}:${trackId}`;
@@ -125,9 +140,11 @@ export async function addEnvelopePointAt(
     undo = await setEnvelope(projectPath, trackId, next, origin);
   } catch (error) {
     const reason = errorMessage(error, "Could not add the point");
-    useDawStore
-      .getState()
-      .announceStatus(`Point not added: ${reason}`, { tone: "error" });
+    if (inProject({ projectPath, projectEpoch })) {
+      useDawStore
+        .getState()
+        .announceStatus(`Point not added: ${reason}`, { tone: "error" });
+    }
     return { status: "disabled", reason, told: true };
   } finally {
     saving.delete(key);
