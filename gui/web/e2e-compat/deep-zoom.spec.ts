@@ -67,6 +67,7 @@ async function laneGeometry(page: Page, trackId: string) {
       const points = lane.querySelectorAll(
         '[role="slider"][aria-label="Envelope point 2"]',
       );
+      const laneDots = lane.querySelectorAll(".sys-env-point").length;
       const pr =
         points.length === 1 ? points[0].getBoundingClientRect() : undefined;
       const overlay = lane
@@ -80,6 +81,7 @@ async function laneGeometry(page: Page, trackId: string) {
         ticks,
         tiles,
         pointCount: points.length,
+        laneDots,
         pointX: pr ? pr.left + pr.width / 2 - origin : null,
         overlayX: overlay ? overlay.left - origin : null,
       };
@@ -173,6 +175,7 @@ test.describe("deep zoom at the content ceiling", () => {
 
           // Levels envelope: the point sits at t x zoom, inside the lane's visible window.
           expect(g.pointCount).toBe(1);
+          expect(g.laneDots).toBe(1);
           expect(
             Math.abs(g.pointX! - stretched.endPointSec * zoom),
           ).toBeLessThanOrEqual(DEEP_ZOOM_TOLERANCE_PX);

@@ -34,6 +34,7 @@ import {
   save,
   setZoom,
   TRACK,
+  visiblePoint,
   watchCommands,
 } from "../e2e/touchTimeline";
 import { CHOOSER_EDGE_PX } from "../src/stages/edit/chooserMath";
@@ -1220,3 +1221,27 @@ async function centerOfLocator(locator: Locator): Promise<Point> {
   if (!box) throw new Error("no box");
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
+
+test("an armed drag holds at a soft boundary, and saves there", async ({
+  page,
+  context,
+  browserName,
+}) => {
+  await open(page);
+  const finger = await newFinger(context, page, browserName);
+  const from = await centerOf(page, envC);
+  const pending = await visiblePoint(page, `${lane} [data-pending-id]`, 0, 0.5);
+  if (!pending) throw new Error("pending cut not in view");
+  await hold(page, finger, from);
+  await finger.slide({ x: pending.x + 6, y: from.y }, 12, 24);
+  await expect(page.locator(".detent-mark")).toBeVisible();
+  await expect(page.locator(".detent-mark-caption")).toHaveText(
+    "At the pending remove",
+  );
+  await finger.up();
+  await expect
+    .poll(async () => (await points(page)).find((p) => p.id === "env-c")?.time)
+    .toBeGreaterThan(19);
+  const held = (await points(page)).find((p) => p.id === "env-c");
+  expect(held?.time).toBeLessThanOrEqual(20.01);
+});
