@@ -429,6 +429,15 @@ describe("ScrubField states", () => {
     expect(screen.queryByRole("button", { name: /Reset/ })).toBeNull();
   });
 
+  it("keeps focus on the field after the reset dot is used", async () => {
+    const user = userEvent.setup();
+    setup({ defaultValue: 0 });
+    await user.click(
+      screen.getByRole("button", { name: "Reset Offset to 0 ms" }),
+    );
+    expect(screen.getByRole("spinbutton")).toHaveFocus();
+  });
+
   it("draws the empty state and steps from the default", async () => {
     const user = userEvent.setup();
     const { calls, field } = setup({ value: null, defaultValue: 20 });
