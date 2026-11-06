@@ -309,7 +309,10 @@ export function HomeScreen() {
           untitledEpisodeName(new Date()),
         );
         await applySoundScanStart(created.project_path);
-        writeOpenIntent(created.project_path, { stage: "record" });
+        writeOpenIntent(created.project_path, {
+          stage: "record",
+          autoRoom: true,
+        });
         return navigateToProject(created.project_path);
       },
       () => setNotice(NOT_STARTED),

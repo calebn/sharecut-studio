@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { takeAutoRun, takeOpenStage, writeOpenIntent } from "./openIntent";
+import {
+  takeAutoRoom,
+  takeAutoRun,
+  takeOpenStage,
+  writeOpenIntent,
+} from "./openIntent";
 
 const PATH = "/ep/episode.sharecut";
 
@@ -18,6 +23,13 @@ describe("open intent", () => {
     writeOpenIntent(PATH, { stage: "record", autoRun: true });
     expect(takeAutoRun(PATH)).toBe(true);
     expect(takeOpenStage(PATH)).toBe("record");
+  });
+
+  it("hands the first-room request over once and survives the stage being taken", () => {
+    writeOpenIntent(PATH, { stage: "record", autoRoom: true });
+    expect(takeOpenStage(PATH)).toBe("record");
+    expect(takeAutoRoom(PATH)).toBe(true);
+    expect(takeAutoRoom(PATH)).toBe(false);
   });
 
   it("is keyed by project", () => {

@@ -46,6 +46,7 @@ import type { RoomViewProps } from "../../system/RoomView";
 import { TakesTray } from "../../system/TakesTray";
 import { Toast } from "../../ui";
 import { dbToFraction } from "../../ui/metering";
+import { takeAutoRoom } from "../../utils/openIntent";
 import { hostStateOf, type LoadFailure } from "./hostModels";
 import { RecordMoreSheet } from "./RecordMoreSheet";
 import {
@@ -110,6 +111,23 @@ function RecordStageBody({
   const [deviceOpen, setDeviceOpen] = useState(false);
   const { snapshot, state, host, capture: cap } = room;
   const lookup = lookupOf(room);
+  const autoRoomChecked = useRef(false);
+  useEffect(() => {
+    if (autoRoomChecked.current || !projectPath || lookup === "checking") {
+      return;
+    }
+    autoRoomChecked.current = true;
+    // Home's Record sends the host here to make the first room: create it and
+    // open Invite so the link is one tap away (INT-REC-OPEN).
+    if (!takeAutoRoom(projectPath) || lookup !== "none") {
+      return;
+    }
+    void executePointerCommand("record.createRoom").then((result) => {
+      if (result.status === "ok") {
+        runPointerCommand("share.manage", { at: "record" });
+      }
+    });
+  }, [lookup, projectPath]);
   const { session: lastSession, refresh: refreshLastSession } =
     useLastEndedSession(projectPath, lookup === "none");
   const sessionName = useOpenSessionName(
