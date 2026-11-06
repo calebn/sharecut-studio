@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { SCRIPT_TURNS } from "../../system/scriptFixtures";
-import type { ScriptTurn } from "../../system/scriptPieces";
+import type { ScriptTurn, ScriptWord } from "../../system/scriptPieces";
 import {
   findCountText,
   findMatches,
@@ -74,6 +74,90 @@ describe("findMatches", () => {
     expect(findMatches(same, "one thanks", false)).toEqual([
       { start: 0, end: 1 },
     ]);
+  });
+
+  describe("a phrase another transcript interrupts", () => {
+    const side = (
+      key: string,
+      index: number,
+      text: string,
+      mark?: ScriptWord["mark"],
+    ): ScriptTurn => ({
+      ...SCRIPT_TURNS[0],
+      words: [{ index, key, text, ...(mark ? { mark } : {}) }],
+    });
+    const abaTurns = [
+      side("host:a:0", 0, "one"),
+      side("guest:b:0", 1, "yes"),
+      side("host:a:1", 2, "thanks"),
+    ];
+
+    it("finds A, B, A as the hit of A's own words", () => {
+      expect(findMatches(abaTurns, "one thanks", false)).toEqual([
+        { indices: [0, 2] },
+      ]);
+    });
+
+    it("does not find a phrase through the interrupting word", () => {
+      expect(findMatches(abaTurns, "one yes", false)).toEqual([]);
+      expect(findMatches(abaTurns, "yes", false)).toEqual([{ indices: [1] }]);
+    });
+
+    it("finds each interrupted phrase of A, B, A, B, A, B, A in order", () => {
+      const turns = [
+        side("host:a:0", 0, "one"),
+        side("guest:b:0", 1, "x"),
+        side("host:a:1", 2, "thanks"),
+        side("guest:b:1", 3, "x"),
+        side("host:a:2", 4, "one"),
+        side("guest:b:2", 5, "x"),
+        side("host:a:3", 6, "thanks"),
+      ];
+      expect(findMatches(turns, "one thanks", false)).toEqual([
+        { indices: [0, 2] },
+        { indices: [4, 6] },
+      ]);
+    });
+
+    it("finds a phrase in each of two interleaved transcripts", () => {
+      const turns = [
+        side("host:a:0", 0, "one"),
+        side("guest:b:0", 1, "one"),
+        side("host:a:1", 2, "thanks"),
+        side("guest:b:1", 3, "thanks"),
+      ];
+      expect(findMatches(turns, "one thanks", false)).toEqual([
+        { indices: [0, 2] },
+        { indices: [1, 3] },
+      ]);
+    });
+
+    it("breaks a phrase on its own transcript's muted word, not on another's", () => {
+      const muted = { kind: "muted" } as ScriptWord["mark"];
+      expect(
+        findMatches(
+          [
+            side("host:a:0", 0, "one"),
+            side("guest:b:0", 1, "x"),
+            side("host:a:1", 2, "thanks", muted),
+            side("host:a:2", 3, "thanks"),
+          ],
+          "one thanks",
+          false,
+        ),
+      ).toEqual([]);
+      expect(
+        findMatches(
+          [
+            side("host:a:0", 0, "one"),
+            side("guest:b:0", 1, "x", muted),
+            side("host:a:1", 2, "thanks"),
+          ],
+          "one thanks",
+          false,
+        ),
+      ).toEqual([{ indices: [0, 2] }]);
+    });
   });
 
   it("matches case only when asked", () => {
