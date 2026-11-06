@@ -44,8 +44,8 @@ make them feel the software is fragile.
   - Don't: "Operation completed successfully."
 - Name the consequence, not the mechanism.
   - Do: "End this record room? Both guest and producer links will
-    stop working." (Share section end-room copy — good words, wrong
-    mechanism; see Errors and confirmations)
+    stop working." (the end-room confirm copy, now shown on the Record
+    stage's End session; see Errors and confirmations)
   - Don't: "Stop sharing coolname-xyz?" — tokens and IDs are
     addresses for machines, never labels for people. (Surface 2)
 - Pair every problem statement with its fix.

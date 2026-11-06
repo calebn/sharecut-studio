@@ -326,7 +326,7 @@ test.describe("Share on Deliver", () => {
     });
   });
 
-  test("record rooms: create, copy the guest link, and end the room after the confirm", async ({
+  test("record rooms: create, copy the guest link, and see the room link, with no End room control", async ({
     page,
   }) => {
     await withShareableProject(async (projectPath) => {

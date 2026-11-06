@@ -327,7 +327,7 @@ Alerts are a priority-ordered list derived from this state, not separate notice 
 | INT-REC-MUTE | Mute self | Checkbox | Dock button | Cmd/Ctrl+D | Tap |
 | INT-REC-DEVICE | Change mic | Lobby only | Tap own tile, Device sheet | none | Tap own tile |
 | INT-REC-HOSTMIC | Record my mic | Host, lobby or stopped | ⋯ **Record my mic** toggle above Devices, on by default; off sends the host's own Consent decline (the host runs the session without recording their own mic; Start needs a guest to have accepted) | none | ⋯ |
-| INT-REC-END | End the session | End room confirm in Share | ⋯ End session, undoable for 10 s as a toast ("Session ended · Undo" reopens the same links) | none | ⋯ |
+| INT-REC-END | End the session | Record stage, More menu | ⋯ End session, undoable for 10 s as a toast ("Session ended · Undo" reopens the same links) | none | ⋯ |
 | INT-REC-RETURN | Return from another stage | Record chip | Stage bar Record (Live badge) | Stage bar key | Stage switcher |
 | INT-REC-REMOVE | Remove a person | Share dialog | Tile menu (right-click or long-press) Remove, InlineConfirm since it can't be undone | none | Long-press tile |
 

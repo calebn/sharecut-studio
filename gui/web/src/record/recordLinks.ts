@@ -29,7 +29,7 @@ export function activeGuestLink(
 
 /** What to tell a host whose new room is ready but earlier rooms' links may still work. */
 export const STALE_ROOM_LINKS_WARNING =
-  "Your new room is ready. Links to an earlier room may still work. End the earlier room in Share to turn them off.";
+  "Your new room is ready. Links to an earlier room may still work. End it from More on the Record stage to turn them off.";
 
 export type CreatedRecordRoom = {
   room: MintedRecordRoom;
