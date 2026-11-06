@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { clearClipboard, setClipboard } from "../edit/clipboard";
 import { useDawStore } from "../state/dawStore";
+import { resetFeedbackRepeatForTests } from "../state/uiSlice";
 import { minimalProject, sampleTrack } from "../test/fixtures";
 import {
   CREATE_MENU_COMMANDS,
@@ -37,7 +38,12 @@ beforeEach(() => {
   clearClipboard();
   session();
   useDawStore.getState().setLayerVisible("showLevels", false);
-  useDawStore.setState({ statusAnnouncement: "", feedbackToast: null });
+  resetFeedbackRepeatForTests();
+  useDawStore.setState({
+    statusAnnouncement: "",
+    statusAnnouncementSeq: 0,
+    feedbackToast: null,
+  });
 });
 
 describe("createMenuRowsFor", () => {
@@ -270,15 +276,61 @@ describe("runCreatePick", () => {
           .announceStatus("Paste failed: Server unreachable", {
             tone: "error",
           });
-        return { status: "disabled", reason: "Server unreachable" };
+        return { status: "disabled", reason: "Server unreachable", told: true };
       });
       await runCreatePick("paste", lane);
       const first = useDawStore.getState().feedbackToast;
       await runCreatePick("paste", lane);
       expect(useDawStore.getState().feedbackToast).toBe(first);
-      expect(useDawStore.getState().feedbackToast?.message).toBe(
-        "Paste failed: Server unreachable",
-      );
+      expect(useDawStore.getState().statusAnnouncementSeq).toBe(1);
+      await vi.advanceTimersByTimeAsync(5000);
+      await runCreatePick("paste", lane);
+      expect(useDawStore.getState().statusAnnouncementSeq).toBe(2);
+      expect(useDawStore.getState().feedbackToast).toMatchObject({
+        id: 2,
+        message: "Paste failed: Server unreachable",
+        tone: "error",
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("tells a refusal that recurs after the toast window again", async () => {
+    vi.useFakeTimers();
+    try {
+      executePointerCommand.mockResolvedValue({
+        status: "disabled",
+        reason: "A point is already there",
+      });
+      await runCreatePick("addVolumePoint", lane);
+      expect(useDawStore.getState().statusAnnouncementSeq).toBe(1);
+      await vi.advanceTimersByTimeAsync(5000);
+      await runCreatePick("addVolumePoint", lane);
+      expect(useDawStore.getState().statusAnnouncementSeq).toBe(2);
+      expect(useDawStore.getState().feedbackToast).toMatchObject({
+        id: 2,
+        message: "A point is already there",
+        tone: "error",
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("absorbs an immediate repeat of the same refusal", async () => {
+    vi.useFakeTimers();
+    try {
+      executePointerCommand.mockResolvedValue({
+        status: "disabled",
+        reason: "A point is already there",
+      });
+      await runCreatePick("addVolumePoint", lane);
+      const first = useDawStore.getState().feedbackToast;
+      await vi.advanceTimersByTimeAsync(200);
+      await runCreatePick("addVolumePoint", lane);
+      expect(useDawStore.getState().statusAnnouncementSeq).toBe(1);
+      expect(useDawStore.getState().feedbackToast).toBe(first);
     } finally {
       vi.useRealTimers();
     }

@@ -116,6 +116,24 @@ describe("edit.copy/cut/paste", () => {
     expect(api.duplicateSegment).toHaveBeenCalledWith("/tmp/ep", 0, 5, 3);
   });
 
+  it("tells a failed paste in its own words and says so in the result", async () => {
+    vi.mocked(api.duplicateSegment).mockRejectedValueOnce(new Error("offline"));
+    setClipboard({
+      timelineStart: 0,
+      timelineEnd: 5,
+      mode: "copy",
+      extracts: [],
+    });
+    expect(await execute("edit.paste", { atTime: 3 })).toEqual({
+      status: "disabled",
+      reason: "offline",
+      told: true,
+    });
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Paste failed: offline",
+    );
+  });
+
   it("refuses a paste time that is not a number, changing nothing", async () => {
     expect((await execute("edit.cut")).status).toBe("ok");
     expect(await execute("edit.paste", { atTime: "soon" })).toEqual({

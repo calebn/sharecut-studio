@@ -179,8 +179,10 @@ describe("addEnvelopePointAt", () => {
 
   it("frees the track when the save fails", async () => {
     vi.mocked(api.setEnvelope).mockRejectedValueOnce(new Error("offline"));
-    expect(await addEnvelopePointAt("host", 2)).toMatchObject({
+    expect(await addEnvelopePointAt("host", 2)).toEqual({
       status: "disabled",
+      reason: "offline",
+      told: true,
     });
     expect(envelopeSaveInFlight("host")).toBe(false);
   });
