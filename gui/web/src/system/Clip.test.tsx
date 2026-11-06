@@ -518,13 +518,28 @@ describe("Clip body drag", () => {
     expect(onDragEnd).not.toHaveBeenCalled();
   });
 
-  it("leaves the click alone after the host refuses the start", () => {
+  it("does not select on the click that follows a move the host refused", () => {
     const { onSelect } = setup({ onDragStart: vi.fn(() => false) });
     fireEvent.pointerDown(body(), { pointerId: 1, clientX: 50 });
     fireEvent.pointerMove(body(), { pointerId: 1, clientX: 120 });
     fireEvent.pointerUp(body(), { pointerId: 1, clientX: 120 });
     fireEvent.click(body());
     expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("selects on a later tap even when the refused move left no click behind", () => {
+    const { onSelect } = setup({ onDragStart: vi.fn(() => false) });
+    fireEvent.pointerDown(body(), { pointerId: 1, clientX: 50 });
+    fireEvent.pointerMove(body(), { pointerId: 1, clientX: 120 });
+    fireEvent.pointerUp(body(), { pointerId: 1, clientX: 120 });
+    fireEvent.pointerDown(body(), {
+      pointerId: 2,
+      pointerType: "touch",
+      clientX: 50,
+    });
+    fireEvent.pointerUp(body(), { pointerId: 2, pointerType: "touch" });
+    fireEvent.click(body());
+    expect(onSelect).toHaveBeenCalledTimes(1);
   });
 
   it("does not swallow a later Enter when a drag was cancelled with no click after it", () => {
