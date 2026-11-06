@@ -1,5 +1,5 @@
 import type {
-  ScriptSpan,
+  ScriptHit,
   ScriptTurn,
   ScriptWord,
 } from "../../system/scriptPieces";
@@ -37,48 +37,50 @@ const transcriptOf = (word: ScriptWord) =>
  * whitespace and each token is matched against a whole word, so "an" does not
  * match "banana" and "room." matches "room". The backend matches over each
  * transcript's whole word list, so a phrase can match across words and across
- * a turn boundary of one transcript. Here it must also be contiguous in the
- * Script's order, so a phrase split by another transcript's turn (A, B, A) is
- * found by the backend and not by the bar. It never crosses two transcripts
- * (tracks or sources), and hits do not overlap. Muted and cut words, shown or
- * not,
- * are skipped, so Cut all never cuts a cut again. The cost is the transcript's
+ * a turn boundary of one transcript, even when another transcript's turn sits
+ * between them (A, B, A): the hit then lists only its own words. It never
+ * crosses two transcripts (tracks or sources), and hits do not overlap. Muted
+ * and cut words, shown or not, are skipped, so Cut all never cuts a cut again. The cost is the transcript's
  * words (a query of k tokens costs at most k comparisons per word).
  */
 export function findMatches(
   turns: readonly ScriptTurn[],
   query: string,
   caseSensitive: boolean,
-): ScriptSpan[] {
+): ScriptHit[] {
   const needle = query
     .split(/\s+/)
     .filter((token) => token !== "")
     .map((token) => matchKey(token, caseSensitive));
   if (needle.length === 0 || needle.some((token) => token === "")) return [];
-  const words = turns.flatMap((turn) => turn.words);
-  const keys = words.map((word) =>
-    unfindable(word) ? null : matchKey(word.text, caseSensitive),
-  );
-  const owners = words.map(transcriptOf);
-  const spans: ScriptSpan[] = [];
-  let at = 0;
-  while (at + needle.length <= words.length) {
-    if (
-      needle.every(
-        (token, offset) =>
-          keys[at + offset] === token && owners[at + offset] === owners[at],
-      )
-    ) {
-      spans.push({
-        start: words[at].index,
-        end: words[at + needle.length - 1].index,
-      });
-      at += needle.length;
-    } else {
-      at += 1;
+  const groups = new Map<string, ScriptWord[]>();
+  for (const word of turns.flatMap((turn) => turn.words)) {
+    const owner = transcriptOf(word);
+    const group = groups.get(owner);
+    if (group) group.push(word);
+    else groups.set(owner, [word]);
+  }
+  const hits: ScriptHit[] = [];
+  for (const words of groups.values()) {
+    const keys = words.map((word) =>
+      unfindable(word) ? null : matchKey(word.text, caseSensitive),
+    );
+    let at = 0;
+    while (at + needle.length <= words.length) {
+      if (needle.every((token, offset) => keys[at + offset] === token)) {
+        const picked = words.slice(at, at + needle.length).map((w) => w.index);
+        hits.push({
+          start: Math.min(...picked),
+          end: Math.max(...picked),
+          words: picked,
+        });
+        at += needle.length;
+      } else {
+        at += 1;
+      }
     }
   }
-  return spans;
+  return hits.sort((a, b) => a.start - b.start);
 }
 
 /**
@@ -116,9 +118,9 @@ export function replacementOk(text: string): boolean {
  */
 export function replacementChanges(
   turns: readonly ScriptTurn[],
-  hits: readonly ScriptSpan[],
+  hits: readonly ScriptHit[],
   replacement: string,
-): ScriptSpan[] {
+): ScriptHit[] {
   if (!replacementOk(replacement)) return [];
   const next = replacement.split(/\s+/).filter((token) => token !== "");
   const words = new Map<number, ScriptWord>();
@@ -126,10 +128,7 @@ export function replacementChanges(
     for (const word of turn.words) words.set(word.index, word);
   }
   return hits.filter((hit) => {
-    const old = Array.from(
-      { length: hit.end - hit.start + 1 },
-      (_, at) => words.get(hit.start + at)?.text ?? "",
-    );
+    const old = hit.words.map((index) => words.get(index)?.text ?? "");
     const parts = old.map(edges);
     const made =
       old.length === next.length

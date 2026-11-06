@@ -45,6 +45,9 @@ export type ScriptTurn = {
 /** Words `start` to `end`, both included. */
 export type ScriptSpan = { start: number; end: number };
 
+/** A Find hit: the words it covers, by index. `start` and `end` bound them; another transcript's words may sit between. */
+export type ScriptHit = ScriptSpan & { words: readonly number[] };
+
 /**
  * What is selected. One thing at a time: a run of words, one cut or one
  * suggestion. `anchor` stays put and `head` moves, so Shift+Left after

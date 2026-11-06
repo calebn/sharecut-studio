@@ -146,8 +146,8 @@ describe("ScriptPane words", () => {
           showCutText: true,
           playing: 7,
           matches: [
-            { start: 0, end: 0 },
-            { start: 1, end: 1 },
+            { start: 0, end: 0, words: [0] },
+            { start: 1, end: 1, words: [1] },
           ],
           currentMatch: 1,
           turns: patchWords(MARKED, {

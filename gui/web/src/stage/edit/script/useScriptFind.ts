@@ -11,7 +11,7 @@ import {
   replacementChanges,
 } from "../../../stages/edit/findMatches";
 import { useDawStore } from "../../../state/dawStore";
-import type { ScriptSpan } from "../../../system/scriptPieces";
+import type { ScriptHit } from "../../../system/scriptPieces";
 import { useStableCallback } from "../../../utils/useStableCallback";
 import type { ScriptModel } from "./scriptModel";
 
@@ -25,7 +25,7 @@ export type ScriptFindState = {
 export type ScriptFind = ScriptFindState & {
   /** Whether the bar shows: the store's find flag, which `transcript.findReplace` toggles. */
   open: boolean;
-  matches: readonly ScriptSpan[];
+  matches: readonly ScriptHit[];
   /** The current hit, or -1 when there is none. */
   current: number;
   /** What the pane's live region says about the search; undefined while the bar is closed. */
@@ -73,7 +73,7 @@ export function useScriptFind(
   );
   const current = matches.length === 0 ? -1 : Math.min(at, matches.length - 1);
 
-  const go = (list: readonly ScriptSpan[], to: number) => {
+  const go = (list: readonly ScriptHit[], to: number) => {
     setAt(to);
     const hit = list[to];
     if (hit) scrollTo(hit.start, "center");
@@ -104,7 +104,7 @@ export function useScriptFind(
     const spans: { start: number; end: number }[] = [];
     const trackIds = new Set<string>();
     for (const hit of matches) {
-      for (let index = hit.start; index <= hit.end; index++) {
+      for (const index of hit.words) {
         const time = model.timeOf(index);
         if (time) spans.push(time);
         const ref = model.refs[index];

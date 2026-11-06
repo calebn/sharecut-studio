@@ -39,6 +39,7 @@ import {
   pieceStart,
   piecesOf,
   type ScriptCaret,
+  type ScriptHit,
   type ScriptPiece,
   type ScriptSelection,
   type ScriptSpan,
@@ -150,7 +151,7 @@ export type ScriptPaneProps = {
   selection?: ScriptSelection | null;
   carets?: readonly ScriptCaret[];
   /** Find hits, by word span, and which one is current. */
-  matches?: readonly ScriptSpan[];
+  matches?: readonly ScriptHit[];
   currentMatch?: number;
   /** What the pane's live region says about the search: the Find bar's count, for example "3 of 12" or "No matches". */
   findStatus?: string;
@@ -250,7 +251,7 @@ export type ScriptPaneProps = {
   onUserScroll?: () => void;
 };
 
-type FoundSpan = ScriptSpan & { current: boolean };
+type FoundSpan = ScriptHit & { current: boolean };
 
 /** A turn's margin controls in reading order, the stop its words begin at and the stop before it. */
 type TurnMargin = {
@@ -315,7 +316,7 @@ type Actions = {
 const NO_CARETS: readonly ScriptCaret[] = [];
 const NO_NUMBERS: readonly number[] = [];
 const NO_FOUND: readonly FoundSpan[] = [];
-const NO_MATCHES: readonly ScriptSpan[] = [];
+const NO_MATCHES: readonly ScriptHit[] = [];
 const READY: ScriptStatus = { kind: "ready" };
 
 const firstName = (name: string) => name.split(/\s+/)[0] ?? name;
@@ -1397,7 +1398,7 @@ const TurnView = memo(function TurnView({
   const foundWords = useMemo(() => {
     const byWord = new Map<number, WordFound>();
     for (const hit of found) {
-      for (let index = hit.start; index <= hit.end; index += 1) {
+      for (const index of hit.words) {
         if (!byWord.has(index))
           byWord.set(index, hit.current ? "current" : "match");
       }

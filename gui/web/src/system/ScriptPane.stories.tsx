@@ -266,9 +266,9 @@ export const FindMatches: Story = {
   ...live,
   args: {
     matches: [
-      { start: 15, end: 15 },
-      { start: 44, end: 44 },
-      { start: 12, end: 14 },
+      { start: 15, end: 15, words: [15] },
+      { start: 44, end: 44, words: [44] },
+      { start: 12, end: 14, words: [12, 13, 14] },
     ],
     currentMatch: 2,
   },
