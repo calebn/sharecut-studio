@@ -142,5 +142,4 @@ export function liveTakeOpen(state: string | undefined): boolean {
   return state === "recording" || state === "paused";
 }
 
-/** Why the Notes field is held outside a running take (both pages). */
 export const NOTES_CLOSED_REASON = "Notes open while a take is running.";
