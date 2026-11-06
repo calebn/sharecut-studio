@@ -22,7 +22,7 @@ Each keeper reports how many segments it opened (`SegmentReport`), and a take st
 report is judged by the last count it sent; a guest that never reported, by the Pause/Resume inference.
 After that the host copies each segment into `raw/` and registers one clip at
 `take_offset_s + join_offset_ms / 1000` (2 s gap between takes). During REC or
-PAUSED, everyone can add a live comment (`M` → `body` `"Marker"`; typed notes
+PAUSED, everyone can add a live comment (`C` for the host, `M` for a guest → `body` `"Marker"`; typed notes
 use the same path). Comments land as ordinary `review.comments[]` at
 `take_offset_s + recording_ms / 1000`. Producers never capture, send, or save a recording.
 
@@ -111,7 +111,7 @@ podcast record assign-track --project episode.sharecut --participant p_ab12cd34 
    the take (Stopped) and keeps a **blocking saving state**
    ("Saving to project… N of M chunks", then "Saved to project") until the
    file ACK; the host Record stage lists the same status per participant. Mute writes zeros (file stays continuous) and stops that
-   person's send. **M** (or the Marker button) posts a live comment with body
+   person's send. **C** on the host, **M** for a guest (or the Marker button) posts a live comment with body
    `"Marker"`; typed notes use the same path. Guests see their own comments and every
    marker in the room, and other notes only while the host's `guests_see_notes` setting is on. Host DAW `daw.record.marker`
    is `omit.guest` because guests use `GuestRoomApp`, not the host catalog. Host and

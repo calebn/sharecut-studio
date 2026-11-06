@@ -32,6 +32,7 @@ import {
 } from "../record";
 import { canManageProjects, canRefreshMix } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { type RoomKeyHandlers, roomKeys } from "../state/roomKeys";
 import { seedStudioJob } from "../state/seedStudioJob";
 import { errorMessage } from "../utils/apiError";
 import { type CommandContext, evaluateWhen } from "./context";
@@ -348,6 +349,32 @@ export function registerHostCommands(): void {
     useDawStore.getState().announceStatus("Marker");
     return { status: "ok" };
   });
+
+  const roomKey =
+    (pick: (k: RoomKeyHandlers) => (() => void) | undefined) =>
+    (): ExecuteResult => {
+      const k = roomKeys();
+      const run = k ? pick(k) : undefined;
+      if (!run) return { status: "disabled", reason: "Not available here" };
+      run();
+      return { status: "ok" };
+    };
+  registerCommand(
+    "room.mute",
+    roomKey((k) => k.mute),
+  );
+  registerCommand(
+    "room.take",
+    roomKey((k) => k.start),
+  );
+  registerCommand(
+    "room.stop",
+    roomKey((k) => k.stop),
+  );
+  registerCommand(
+    "room.pause",
+    roomKey((k) => k.pause),
+  );
 
   registerCommand("export.deliverables", (_args, ctx) => {
     const blocked = hostProjectGate(ctx);

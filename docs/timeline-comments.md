@@ -246,7 +246,7 @@ The Review queue card has its own resolve toast with Undo, owned by the Review h
 ## Live comments during recording
 
 Host, guests, and producers can add live marker comments during a record
-session (`M` → `body` `"Marker"`; typed notes use the same path). Anchors are
+session (C on the host or M for a guest → `body` `"Marker"`; typed notes use the same path). Anchors are
 the **recording clock**; at landing they become ordinary `review.comments[]`
 entries via `add_comment` under
 `ProjectWorkspace.mutate()`. Spec:
