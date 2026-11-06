@@ -64,14 +64,15 @@ function shareFeatureGate(what: string): ExecuteResult | null {
  * slot shows it, so it is not announced again. Elsewhere it is announced and
  * stored for the stage.
  */
-function revealRecordFailure(reason: string): void {
+function revealRecordFailure(reason: string): boolean {
   const daw = useDawStore.getState();
   if (daw.stage === "record") {
     useRecordHostStore.getState().setTransportError(reason);
-    return;
+    return false;
   }
   daw.announceStatus(reason, { tone: "error" });
   useRecordHostStore.getState().setTransportError(reason);
+  return true;
 }
 
 /** One error path for every record command: clear, run, reveal a failure. */
@@ -83,8 +84,8 @@ async function runRecordCommand(
     return await run();
   } catch (err) {
     const reason = errorMessage(err);
-    revealRecordFailure(reason);
-    return { status: "disabled", reason };
+    const told = revealRecordFailure(reason);
+    return { status: "disabled", reason, ...(told ? { told: true } : {}) };
   }
 }
 

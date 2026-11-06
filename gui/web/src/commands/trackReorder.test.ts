@@ -16,6 +16,7 @@ import {
   TRACK_REORDER_TEXT_MIME,
 } from "../tracks/trackReorder";
 import { clearRegisteredCommands, execute } from "./execute";
+import { runAndAnnounceRefusal } from "./refusal";
 import {
   _resetTrackMutateChainForTests,
   registerDawCommands,
@@ -160,6 +161,31 @@ describe("track.reorder / moveUp / moveDown", () => {
       ).status,
     ).toBe("ok");
     expect(api.reorderTrackCommand).toHaveBeenCalledWith("/tmp/ep", "c", 0);
+  });
+
+  it("preserves its announced failure through the refusal wrapper", async () => {
+    vi.mocked(api.reorderTrackCommand).mockRejectedValueOnce(
+      new Error("Server unreachable"),
+    );
+    const announce = vi.spyOn(useDawStore.getState(), "announceStatus");
+
+    const result = await runAndAnnounceRefusal(() => execute("track.moveUp"));
+
+    expect(result).toEqual({
+      status: "disabled",
+      reason: "Server unreachable",
+      told: true,
+    });
+    expect(announce).toHaveBeenCalledTimes(1);
+    expect(announce).toHaveBeenCalledWith(
+      "Reorder failed: Server unreachable",
+      {
+        tone: "error",
+      },
+    );
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Reorder failed: Server unreachable",
+    );
   });
 
   it("moves inspector track up and down", async () => {

@@ -64,6 +64,7 @@ import {
   rangeActionDescriptors,
   runRangeAction,
 } from "./rangeActions";
+import { announceRefusal } from "./refusal";
 import { seekTransport } from "./seek";
 import { ignoreWouldRestore } from "./transcriptIgnore";
 import { requestInlineEdit } from "./transcriptWord";
@@ -266,7 +267,7 @@ async function decidePending(
   } catch (error) {
     const reason = errorMessage(error);
     useDawStore.getState().announceStatus(reason, { tone: "error" });
-    return disabled(reason);
+    return { status: "disabled", reason, told: true };
   }
 }
 
@@ -382,11 +383,11 @@ async function removeMarker(
     );
     if (written.status === "ok") return OK;
     useDawStore.getState().announceStatus(written.reason, { tone: "error" });
-    return disabled(written.reason);
+    return { status: "disabled", reason: written.reason, told: true };
   } catch (error) {
     const reason = errorMessage(error);
     useDawStore.getState().announceStatus(reason, { tone: "error" });
-    return disabled(reason);
+    return { status: "disabled", reason, told: true };
   }
 }
 
@@ -538,12 +539,6 @@ export async function runEditVerb(
   if (!live || live.kind !== facts.kind)
     return announceRefusal(disabled("The selection changed. Try again."));
   return announceRefusal(await dispatch(id, live, arg));
-}
-
-function announceRefusal(result: ExecuteResult): ExecuteResult {
-  if (result.status === "disabled")
-    useDawStore.getState().announceStatus(result.reason, { tone: "error" });
-  return result;
 }
 
 async function dispatch(

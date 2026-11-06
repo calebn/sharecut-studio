@@ -203,7 +203,7 @@ describe("CommandPalette", () => {
     const raw = "Reorder failed: set PODCAST_MCP_FFMPEG to its bin executable.";
     registerCommand("view.fit", async () => {
       useDawStore.getState().announceStatus(raw, { tone: "error" });
-      return { status: "disabled", reason: raw };
+      return { status: "disabled", reason: raw, told: true };
     });
     const before = useDawStore.getState().statusAnnouncementSeq;
     renderPalette();
@@ -281,7 +281,11 @@ describe("CommandPalette", () => {
         toast: false,
         tone: "error",
       });
-      return { status: "disabled", reason: "Can't undo: it changed." };
+      return {
+        status: "disabled",
+        reason: "Can't undo: it changed.",
+        told: true,
+      };
     });
     expect(useDawStore.getState().statusAnnouncementSeq).toBe(before + 1);
     expect(useDawStore.getState().feedbackToast).toBe(standing);
