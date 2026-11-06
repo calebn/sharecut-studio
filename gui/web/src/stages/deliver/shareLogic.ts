@@ -31,15 +31,6 @@ export const SHARE_DEFAULTS: ShareChoices = {
   freeze: false,
 };
 
-export const MCP_HELP =
-  "Paste into an MCP client such as Claude or ChatGPT. The assistant gets this link's permissions.";
-
-export const FREEZE_HELP =
-  "Guests keep hearing this version even after you publish a newer one. Off, the link follows the latest.";
-
-export const PRESENCE_NOTE =
-  "Everyone with the link sees your cursor, selection, playhead, and viewport while they are in the session.";
-
 export function formatWhen(iso: string | null | undefined): string {
   if (!iso) return "";
   const d = new Date(iso);

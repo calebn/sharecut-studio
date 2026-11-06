@@ -1297,7 +1297,7 @@ cannot. Every button runs the same `record.*` command as the palette.
   drops any stale snapshot and shows "No record room yet. Creating one copies a
   guest link you can send." with **Create record room** (`record.createRoom`).
   It mints the guest and producer links in place, copies the guest link and
-  loads the room; the same mint as Share's **Create record links**, CLI
+  loads the room; the same mint as the Invite sheet's **Create record links**, CLI
   `podcast review share --kind record` and MCP `create_record_room_tool`.
 - **One Record button.** The dock's Record button starts a take, shows **Stop take**
   while one is open (hold it to stop) and **Resume recording** while paused;

@@ -131,7 +131,7 @@ export function FeedSection({
           size="region"
           glyph="octagon-alert"
           title="Could not load the listing"
-          primary={
+          secondary={
             onRetry ? { label: "Try again", onClick: onRetry } : undefined
           }
         >

@@ -122,6 +122,7 @@ export function LinkRow({
           access={access}
           compact={compact}
           onChange={link ? undefined : onRole}
+          disabledReason={link ? undefined : disabledReason}
         />
         <span
           className="sys-link-text sys-mono"
