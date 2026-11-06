@@ -153,6 +153,21 @@ describe("ReadyList", () => {
     ).toBeVisible();
   });
 
+  it("arms the word timing re-time only from the word timing ask, not from the transcription ask", async () => {
+    const user = userEvent.setup();
+    const onAction = vi.fn();
+    const { rerender } = render(
+      <ReadyList rows={ROWS.needsModel} onAction={onAction} />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Get the transcription model" }),
+    );
+    expect(onAction).not.toHaveBeenCalled();
+    rerender(<ReadyList rows={ROWS.approximateTiming} onAction={onAction} />);
+    await user.click(screen.getByRole("button", { name: "Get word timing" }));
+    expect(onAction).toHaveBeenCalledWith("transcribe", "get-word-timing");
+  });
+
   it("reads the running bar in words", () => {
     render(<ReadyList rows={ROWS.running} onAction={vi.fn()} />);
     expect(

@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import { registerDawWebMcpTools } from "./agentic/webmcp";
 import { registerDawCommands } from "./commands/register";
 import { useDesktopCloseGuard } from "./desktop/useDesktopCloseGuard";
-import { AskDialog } from "./feedback/AskDialog";
 import { FeedbackToast } from "./feedback/FeedbackToast";
 import { HelpDialog } from "./home/HelpDialog";
 import { useAutoRefreshMix } from "./hooks/useAutoRefreshMix";
@@ -257,7 +256,6 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
                   onClose={() => setModelsSheetOpen(false)}
                 />
               ) : null}
-              <AskDialog />
               <FeedbackToast />
             </ShareFlowProvider>
           </FindMoreFlowProvider>

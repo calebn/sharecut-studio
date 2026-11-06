@@ -143,6 +143,16 @@ describe("overlay", () => {
     ]);
   });
 
+  it("shows the rows Get was pressed on as queued before the server answers", () => {
+    const views = overlay(status(), null, {}, undefined, ["rnnoise"]);
+    expect(views.find((v) => v.id === "rnnoise")!.state).toEqual({
+      kind: "queued",
+    });
+    expect(views.find((v) => v.id === "whisper")!.state).not.toEqual({
+      kind: "queued",
+    });
+  });
+
   it("shows a failure on its row and not once the row is installed", () => {
     const failure: ModelFailure = { kind: "http", plain: "Not found." };
     expect(overlay(status(), null, { rnnoise: failure })[1]!.state).toEqual({

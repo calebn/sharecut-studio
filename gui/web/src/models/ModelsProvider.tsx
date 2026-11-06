@@ -38,6 +38,8 @@ import { type ModelsApi, ModelsContext } from "./useModels";
 
 const BUSY_CODE = "bootstrap_job_running";
 
+const NONE: readonly string[] = [];
+
 /**
  * The one owner of model status and of the server's single download slot. It reads status at mount
  * and again when a job ends (never on a progress frame), adopts a job it finds running, and starts a
@@ -45,8 +47,8 @@ const BUSY_CODE = "bootstrap_job_running";
  */
 export function ModelsProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reduce, initialState);
-  /** True from Get until the server answers, so no other Get or size change slips into that window. */
-  const [starting, setStarting] = useState(false);
+  /** The ids from Get until the server answers, so no other Get or size change slips into that window. */
+  const [starting, setStarting] = useState<readonly string[]>([]);
   const stateRef = useRef(state);
   useEffect(() => {
     stateRef.current = state;
@@ -166,7 +168,7 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
         }
       }
       dispatch({ type: "downloadStarted", ids });
-      setStarting(true);
+      setStarting(ids);
       const rows = stateRef.current.status?.models ?? [];
       const force = ids.some(
         (id) => rows.find((m) => m.id === id)?.state === "update_needed",
@@ -181,10 +183,10 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
           force,
         });
         const outcome = track(started.job, ids);
-        setStarting(false);
+        setStarting(NONE);
         return await outcome;
       } catch (e: unknown) {
-        setStarting(false);
+        setStarting(NONE);
         running.current = null;
         if (e instanceof ApiError && e.code === BUSY_CODE) {
           await adoptRunning();
@@ -249,11 +251,17 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
   const api = useMemo<ModelsApi>(
     () => ({
       models: state.status
-        ? overlay(state.status, state.job, state.failures, state.variant)
+        ? overlay(
+            state.status,
+            state.job,
+            state.failures,
+            state.variant,
+            starting,
+          )
         : null,
       tools: toolsOf(state.status),
       ready: state.status?.ready ?? false,
-      busy: state.job !== null || starting,
+      busy: state.job !== null || starting.length > 0,
       loadError: state.loadError,
       whisper: {
         variant: state.variant,
