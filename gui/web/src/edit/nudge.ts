@@ -9,6 +9,7 @@
  */
 import { setClipFade, setEnvelope, updatePendingEdit } from "../api";
 import { pendingEditBaseline } from "../api/documentEdits";
+import { ENVELOPE_UPDATING, envelopeSettling } from "../commands/envelopes";
 import {
   pendingEdgePlacement,
   pendingEdgePreview,
@@ -492,6 +493,7 @@ export async function saveNudge(
     }
     case "envelope-time":
     case "envelope-level": {
+      if (envelopeSettling(field.trackId)) throw new Error(ENVELOPE_UPDATING);
       const expectedPoints =
         findVolumeEnvelope(origin.envelopes, field.trackId)?.points ?? [];
       const point = expectedPoints.find((p) => p.id === field.pointId);

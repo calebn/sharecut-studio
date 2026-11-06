@@ -1,4 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  ENVELOPE_UPDATING,
+  holdEnvelopeSettling,
+} from "../../commands/envelopes";
 import { refreshDocumentDisplay } from "../../document/applyDocumentUpdate";
 import {
   documentAuthority,
@@ -113,6 +117,29 @@ describe("precision drag of an envelope level (a draft preview)", () => {
     await drag.commit();
     expect(api.setEnvelope).not.toHaveBeenCalled();
     for (const id of ids) finishDocumentDraft(id);
+  });
+
+  it("refuses a save while the envelope is settling, and saves once it is released", async () => {
+    const release = holdEnvelopeSettling("host");
+    try {
+      const held = driver();
+      held.begin();
+      held.show(1.5);
+      await held.commit();
+      expect(api.setEnvelope).not.toHaveBeenCalled();
+      expect(level()).toBe(1);
+      expect(useDawStore.getState().statusAnnouncement).toContain(
+        ENVELOPE_UPDATING,
+      );
+    } finally {
+      release();
+    }
+    const freed = driver();
+    freed.begin();
+    freed.show(1.5);
+    api.setEnvelope.mockResolvedValueOnce(parseHistoryEntryId("h1"));
+    await freed.commit();
+    expect(api.setEnvelope).toHaveBeenCalledTimes(1);
   });
 
   describe("after newer data arrives", () => {
