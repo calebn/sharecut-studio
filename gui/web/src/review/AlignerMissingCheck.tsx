@@ -1,6 +1,6 @@
 import { ModelNeedRow, type NeedTarget } from "../models";
 
-export const ALIGNER_CHECK_TITLE =
+const ALIGNER_CHECK_TITLE =
   "Cuts may clip word edges until word timing is installed";
 
 /**

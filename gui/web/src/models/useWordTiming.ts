@@ -23,7 +23,7 @@ export function clearRetimeOffer(projectPath: string): void {
     change(() => timedWithout.delete(projectPath));
 }
 
-export type WordTiming = {
+type WordTiming = {
   /** The aligner's row; null until the status arrives. */
   row: ModelView | null;
   /** The aligner is known and not installed. */
