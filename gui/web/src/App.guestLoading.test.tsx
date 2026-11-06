@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import { resetFeaturesCache } from "./extensions/features";
@@ -31,6 +31,7 @@ describe("guest loading never shows host chrome", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     window.history.pushState({}, "", "/");
@@ -45,6 +46,31 @@ describe("guest loading never shows host chrome", () => {
     );
     const { container } = render(<App />);
     expectGuestSkeleton(container);
+  });
+
+  it("shows a direct share-project query the guest skeleton while features load", () => {
+    vi.useFakeTimers();
+    window.history.pushState({}, "", "/?project=share:direct-token");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise<Response>(() => {})),
+    );
+    const { container } = render(<App />);
+    act(() => vi.advanceTimersByTime(350));
+    expectGuestSkeleton(container);
+  });
+
+  it("keeps host loading chrome for an ordinary project query", () => {
+    vi.useFakeTimers();
+    window.history.pushState({}, "", "/?project=/tmp/host.sharecut");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise<Response>(() => {})),
+    );
+    const { container } = render(<App />);
+    act(() => vi.advanceTimersByTime(350));
+    expect(container.querySelector(".stage-loading-stages")).not.toBeNull();
+    expect(container.querySelector("main.guest-loading")).toBeNull();
   });
 
   it("shows a cached-snapshot guest the guest skeleton while the studio loads", async () => {
