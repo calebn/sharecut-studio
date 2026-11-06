@@ -257,12 +257,8 @@ export function layerVisibility(
   overrides: Partial<LayerVisibility> = {},
 ): LayerVisibility {
   return {
-    showEdits: true,
     showLevels: true,
-    showMarkers: true,
-    showComments: true,
     showSilence: true,
-    showSnapPoints: true,
     showProsody: false,
     ...overrides,
   };

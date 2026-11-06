@@ -6,7 +6,7 @@ import {
   goToStage,
   openPanel,
   openProject,
-  openViewSheet,
+  openViewPopover,
   phone,
   saveStatus,
 } from "./stageNav";
@@ -124,10 +124,10 @@ for (const size of SIZES) {
         ...(await undersized(page, exceptions)).map((row) => `[Script] ${row}`),
       );
     }
-    // The eye sheet holds the overlay layers: its rows hold the floor and the
-    // last one is reachable in a short window.
-    const sheet = await openViewSheet(page);
-    const layers = sheet.locator(".overlay-legend-item");
+    // The eye popover holds the layer chips and the scale segments: they hold
+    // the floor and the last one is reachable in a short window.
+    const sheet = await openViewPopover(page);
+    const layers = sheet.getByRole("button");
     expect(await layers.count()).toBeGreaterThan(0);
     found.push(
       ...(await undersized(page, exceptions)).map((row) => `[View] ${row}`),

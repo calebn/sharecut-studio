@@ -118,7 +118,7 @@ Specs reach the app's chrome only through `gui/web/e2e/stageNav.ts`, so a
 chrome change touches one file instead of fifty specs (#2292). Each helper says
 what the spec wants and none of them names the chrome that gets there. They
 drive the stage frame: the Stage bar in the App header (the tab bar on a phone),
-the Project menu, the Edit stage's eye sheet and corner, and the Player's
+the Project menu, the Edit stage's eye popover and corner, and the Player's
 hear menu and expanded form.
 
 | Helper | Does |
@@ -128,7 +128,7 @@ hear menu and expanded form.
 | `openPanel(page, panel)` | Opens `transcript` (Edit Script), `history` (Edit sheet), `queue`, `comments` (the Review queue) or `pipeline` (Prepare) |
 | `phone.show*`, `phone.openMix` | The phone's one-at-a-time Edit surfaces (Timeline, Script), Review in place of the old Listen mode, and the Mix sheet. `phone.openMore` opens the Project menu, the nearest thing to the removed More hub |
 | `openProjectMenu`, `openProjectMenuItem`, `openProjectDialog`, `openRecordRoom` | The Project menu and the dialogs specs open (Share, Record, palette, gestures), through the menu, header or palette as each lives |
-| `openViewSheet`, `setLayer`, `stepTrackHeight` | The Edit corner's eye sheet (layers, track height) |
+| `openViewPopover`, `closeViewPopover`, `setLayer`, `stepTrackHeight` | The Edit corner's eye popover (layer chips: Escape closes it alone, so a popover opened from the Tools sheet also needs `closeTools`) and the Alt+= / Alt+- track height keys |
 | `altClickSplit`, `runPaletteCommand`, `armRange`, `addTrack` | Alt-click on a lane, the command palette, the touch corner's Select range toggle and the "+" menu |
 | `setAudition(page, mode)` | The Player hear menu: Full mix, Without mix processing, Original |
 | `expandPlayer`, `collapsePlayer` | The phone Player's expanded form with skip buttons |

@@ -29,6 +29,14 @@ const isStageSheet = (v: unknown): v is StageSheet =>
 const isEditSurface = (v: unknown): v is EditSurface =>
   v === "lanes" || v === "text";
 
+/** The status line of every amplitude change: the zoom commands and the View popover's field. */
+export function announceWaveformAmp(): void {
+  const s = useDawStore.getState();
+  s.announceStatus(
+    `Waveform amplitude ×${formatWaveformAmp(s.waveformAmpZoom)}`,
+  );
+}
+
 export function registerViewCommands(): void {
   registerCommand("view.zoomIn", () => {
     const s = useDawStore.getState();
@@ -136,8 +144,7 @@ export function registerViewCommands(): void {
     const s = useDawStore.getState();
     if (!s.project) return NO_PROJECT;
     s.nudgeWaveformAmp("in");
-    const amp = useDawStore.getState().waveformAmpZoom;
-    s.announceStatus(`Waveform amplitude ×${formatWaveformAmp(amp)}`);
+    announceWaveformAmp();
     return { status: "ok" };
   });
 
@@ -145,8 +152,7 @@ export function registerViewCommands(): void {
     const s = useDawStore.getState();
     if (!s.project) return NO_PROJECT;
     s.nudgeWaveformAmp("out");
-    const amp = useDawStore.getState().waveformAmpZoom;
-    s.announceStatus(`Waveform amplitude ×${formatWaveformAmp(amp)}`);
+    announceWaveformAmp();
     return { status: "ok" };
   });
 
