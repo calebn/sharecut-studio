@@ -145,10 +145,7 @@ describe("ScriptPane words", () => {
         {...props({
           showCutText: true,
           playing: 7,
-          matches: [
-            { start: 0, end: 0 },
-            { start: 1, end: 1 },
-          ],
+          matches: [{ indices: [0] }, { indices: [1] }],
           currentMatch: 1,
           turns: patchWords(MARKED, {
             26: { lowConfidence: true },
@@ -170,6 +167,36 @@ describe("ScriptPane words", () => {
       "aria-current",
       "true",
     );
+  });
+
+  it("marks only the hit's own words when another speaker's turn interrupts it", () => {
+    const turn = (
+      id: string,
+      speakerId: string,
+      index: number,
+      text: string,
+    ) => ({
+      ...SCRIPT_TURNS[0],
+      id,
+      speakerId,
+      words: [{ index, text }],
+    });
+    render(
+      <ScriptPane
+        {...props({
+          turns: [
+            turn("a1", "maya", 0, "one"),
+            turn("b1", "anneke", 1, "yes"),
+            turn("a2", "maya", 2, "thanks"),
+          ],
+          matches: [{ indices: [0, 2] }],
+          currentMatch: 0,
+        })}
+      />,
+    );
+    expect(word("one (current match)")).toHaveAttribute("data-found");
+    expect(word("thanks (current match)")).toHaveAttribute("data-found");
+    expect(word("yes")).not.toHaveAttribute("data-found");
   });
 
   it("draws your caret hidden and another person's with their name, once even inside a muted run", () => {

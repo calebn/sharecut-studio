@@ -1,5 +1,5 @@
 import type {
-  ScriptSpan,
+  FindHit,
   ScriptTurn,
   ScriptWord,
 } from "../../system/scriptPieces";
@@ -32,53 +32,55 @@ const transcriptOf = (word: ScriptWord) =>
   word.key === undefined ? "" : word.key.slice(0, word.key.lastIndexOf(":"));
 
 /**
- * Where `query` occurs in the turns, as spans of word indices for the Script
- * pane's `matches`. It finds what the backend replaces: the query is split on
- * whitespace and each token is matched against a whole word, so "an" does not
- * match "banana" and "room." matches "room". The backend matches over each
- * transcript's whole word list, so a phrase can match across words and across
- * a turn boundary of one transcript. Here it must also be contiguous in the
- * Script's order, so a phrase split by another transcript's turn (A, B, A) is
- * found by the backend and not by the bar. It never crosses two transcripts
+ * Where `query` occurs in the turns, as the word indices of each hit for the
+ * Script pane's `matches`. It finds what the backend replaces: the query is
+ * split on whitespace and each token is matched against a whole word, so "an"
+ * does not match "banana" and "room." matches "room". The backend matches over
+ * each transcript's whole word list, so a phrase can match across words, across
+ * a turn boundary of one transcript and across another transcript's turn
+ * (A, B, A), where the hit skips B's words. It never crosses two transcripts
  * (tracks or sources), and hits do not overlap. Muted and cut words, shown or
- * not,
- * are skipped, so Cut all never cuts a cut again. The cost is the transcript's
- * words (a query of k tokens costs at most k comparisons per word).
+ * not, are skipped, so Cut all never cuts a cut again. The cost is the
+ * transcript's words (a query of k tokens costs at most k comparisons per
+ * word).
  */
 export function findMatches(
   turns: readonly ScriptTurn[],
   query: string,
   caseSensitive: boolean,
-): ScriptSpan[] {
+): FindHit[] {
   const needle = query
     .split(/\s+/)
     .filter((token) => token !== "")
     .map((token) => matchKey(token, caseSensitive));
   if (needle.length === 0 || needle.some((token) => token === "")) return [];
-  const words = turns.flatMap((turn) => turn.words);
-  const keys = words.map((word) =>
-    unfindable(word) ? null : matchKey(word.text, caseSensitive),
-  );
-  const owners = words.map(transcriptOf);
-  const spans: ScriptSpan[] = [];
-  let at = 0;
-  while (at + needle.length <= words.length) {
-    if (
-      needle.every(
-        (token, offset) =>
-          keys[at + offset] === token && owners[at + offset] === owners[at],
-      )
-    ) {
-      spans.push({
-        start: words[at].index,
-        end: words[at + needle.length - 1].index,
-      });
-      at += needle.length;
-    } else {
-      at += 1;
+  const byTranscript = new Map<
+    string,
+    { index: number; key: string | null }[]
+  >();
+  for (const word of turns.flatMap((turn) => turn.words)) {
+    const owner = transcriptOf(word);
+    const key = unfindable(word) ? null : matchKey(word.text, caseSensitive);
+    const group = byTranscript.get(owner) ?? [];
+    group.push({ index: word.index, key });
+    byTranscript.set(owner, group);
+  }
+  const hits: FindHit[] = [];
+  for (const group of byTranscript.values()) {
+    let at = 0;
+    while (at + needle.length <= group.length) {
+      if (needle.every((token, offset) => group[at + offset].key === token)) {
+        const [first, ...rest] = group
+          .slice(at, at + needle.length)
+          .map((word) => word.index);
+        hits.push({ indices: [first, ...rest] });
+        at += needle.length;
+      } else {
+        at += 1;
+      }
     }
   }
-  return spans;
+  return hits.sort((a, b) => a.indices[0] - b.indices[0]);
 }
 
 /**
@@ -116,9 +118,9 @@ export function replacementOk(text: string): boolean {
  */
 export function replacementChanges(
   turns: readonly ScriptTurn[],
-  hits: readonly ScriptSpan[],
+  hits: readonly FindHit[],
   replacement: string,
-): ScriptSpan[] {
+): FindHit[] {
   if (!replacementOk(replacement)) return [];
   const next = replacement.split(/\s+/).filter((token) => token !== "");
   const words = new Map<number, ScriptWord>();
@@ -126,10 +128,7 @@ export function replacementChanges(
     for (const word of turn.words) words.set(word.index, word);
   }
   return hits.filter((hit) => {
-    const old = Array.from(
-      { length: hit.end - hit.start + 1 },
-      (_, at) => words.get(hit.start + at)?.text ?? "",
-    );
+    const old = hit.indices.map((index) => words.get(index)?.text ?? "");
     const parts = old.map(edges);
     const made =
       old.length === next.length
