@@ -400,11 +400,12 @@ describe("App loading screens before the features answer", () => {
     expect(container.querySelector(".loading-screen")).toBeNull();
   });
 
-  it("shows the host the plain loading screen", () => {
+  it("shows the host the Loading cover, not the plain loading screen", () => {
     window.history.pushState({}, "", "/");
     stall();
     const { container } = render(<App />);
     expect(container.querySelector("main.guest-loading")).toBeNull();
-    expect(container.querySelector(".loading-screen")).not.toBeNull();
+    expect(container.querySelector(".loading-screen")).toBeNull();
+    expect(container.querySelector(".stage-loading-blank")).not.toBeNull();
   });
 });
