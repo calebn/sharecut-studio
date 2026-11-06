@@ -133,7 +133,7 @@ export async function runDeleteClips(
     useDawStore
       .getState()
       .announceStatus(`Delete failed: ${msg}`, { tone: "error" });
-    return { status: "disabled", reason: msg };
+    return { status: "disabled", reason: msg, told: true };
   }
 }
 export function registerPrimaryEditingCommands(): void {
