@@ -44,8 +44,9 @@ make them feel the software is fragile.
   - Don't: "Operation completed successfully."
 - Name the consequence, not the mechanism.
   - Do: "End this record room? Both guest and producer links will
-    stop working." (the end-room confirm copy, now shown on the Record
-    stage's End session; see Errors and confirmations)
+    stop working." (wording kept as the model for a consequence line; the
+    Record stage's End session says "Ending this session in 10 seconds.
+    Guest links stop working when it ends.")
   - Don't: "Stop sharing coolname-xyz?" — tokens and IDs are
     addresses for machines, never labels for people. (Surface 2)
 - Pair every problem statement with its fix.
@@ -603,6 +604,8 @@ item lives in `docs/contributing.md`. `Dialog` has no `danger` variant;
 shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
 
 ## Changelog
+
+- 2026-11-06 Deliver's Share no longer ends a record room: a room ends from More on the Record stage (End session, undoable for 10 s). The stale-room warning no longer names a control and says earlier links work "until that room ends".
 
 - 2026-10-30 Unavailable controls say what is missing (#1686): the clip and pending-edit nudges, Find's Replace and All, the track inspector's Clear clip light and a read-only boundary mark in the Script stay focusable, show their reason in text and describe themselves with it, instead of a native `disabled` with a hover title. Two reasons were rewritten to say how to fix: room tone ("Room tone starts once this device has joined the session and can store audio. Wait a moment, then try again; if it stays like this, reload the page.") and the guest audition lock ("Guest links play the Full mix only. Ask the host to play a track on its own.").
 
