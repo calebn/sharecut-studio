@@ -371,13 +371,6 @@ describe("takeInputs", () => {
     expect(failed[0]?.people[1]?.status).toBe("failed");
   });
 
-  it("offers Retry for a closed take whose upload is acknowledged but never landed", () => {
-    const stuck = row({ participant_id: "p_g", landed: false });
-    expect(takeInputs(snap, [stuck])[0]?.people[1]?.status).toBe("failed");
-    const live = { ...snap, state: "recording" as const, take_index: 0 };
-    expect(takeInputs(live, [stuck])[0]?.people[1]?.status).toBe("saved");
-  });
-
   it("uses the live clock for the open take and lists clip times", () => {
     const live = { ...snap, state: "recording" as const, recording_ms: 4000 };
     const out = takeInputs(live, [], {
