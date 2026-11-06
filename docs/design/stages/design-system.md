@@ -671,7 +671,7 @@ Every place the specs disagreed or collided with each other or with themselves. 
 | K9 | R: D has reply, R has record start, D has Home ⌘R | R is Record everywhere. Reply is C | Recording is the higher-consequence verb and owns its letter |
 | K10 | ⌘⇧C copy listen link (D) | Dropped (palette only) | Shift+C is Add chapter. The action is rare |
 | K11 | ⌘N new, ⌘O open (E); ⌘N import, ⌘R record, ⌘O open other, ⌘⇧O Home (D) | Mod+O goes to Home from anywhere (and on Home it opens Open other…). Mod+I imports. R records on Home. Enter opens the focused card. No Mod+N | Browsers reserve Mod+N and Mod+R. Mod+I is already Import in D's Prepare |
-| K12 | Mod+Shift+E (E) versus ⌘E (D) for export | Mod+E | One key. With one range selected it opens Deliver with Bounce focused and that range filled in; otherwise it exports the deliverables |
+| K12 | Mod+Shift+E (E) versus ⌘E (D) for export | Mod+E | One key. With one range selected it opens Deliver with Bounce focused and that range filled in (a selection that is not exactly one range is refused with a reason); with nothing selected it exports the deliverables |
 | K13 | ? as Help on Home (D) versus the palette (E) | ? opens the Palette, which holds a Help group | One discovery surface |
 | K14 | G R chords (R) | Dropped | No other spec uses chords |
 | K15 | Mod+B force mix refresh (E) | Palette only | The mix refreshes on its own |

@@ -190,7 +190,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 |---|---|---|
 | New project…, Open project… | Project menu (title dropdown): "Recent" list (5) + "Open…" + "New project"; Mod+N, Mod+O | Project switching is project-level |
 | Bounce… | Range action bar ⋯ "Export selection…"; Deliver | Bounce is always of a selection |
-| Export deliverables… | Deliver stage (Mod+5; Mod+E exports, or with one range selected opens Deliver with Bounce focused) | Stage C |
+| Export deliverables… | Deliver stage (Mod+5; Mod+E exports, or with one range selected opens Deliver with Bounce focused; a selection that is not exactly one range is refused with a reason) | Stage C |
 | Share… | Header invite button (person-plus) for review links; Deliver "Share for review" card | Inviting happens mid-edit too |
 | Record room… | Record stage (Mod+2) | Stage C |
 | Connect agent… | Project menu "Connect agent" | Rare, project-level |
@@ -473,7 +473,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 
 - **Today:** MENU-CREATE--desktop-light.png. Language: disabled "Add envelope point · Show the volume envelope before adding a point". Consistency: verbs here (Blade cut, Add comment) use different names than the toolbar.
 - **Fate:** restyle as the playhead/point variant of the verbs.
-- **Spec:** right-click, Shift+F10 or long-press on an empty point opens a 220 px menu headed by the time and track ("12:04.3 · Maya"): Split here (S or Mod+K), Comment here (C), Add chapter here (Shift+M), Add volume point, Paste (when the clipboard has audio). Same icons as the action bar. Rows that can't apply are absent.
+- **Spec:** right-click, Shift+F10 or long-press on an empty point opens a 220 px menu headed by the time and track ("12:04.3 · Maya"): Split here (S or Mod+K), Comment here (C), Add chapter here (Shift+C), Add volume point, Paste (when the clipboard has audio). Same icons as the action bar. Rows that can't apply are absent.
 - **Shared elements used:** Icon language, Action bar verbs.
 - **Story to build:** `Edit/CreateMenu` stories `Lane`, `WithPaste`, `Phone`.
 
