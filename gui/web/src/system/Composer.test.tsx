@@ -144,6 +144,28 @@ describe("Composer", () => {
     ).toBeInTheDocument();
   });
 
+  it("puts focus back on the comment field when a post from the name field folds the row", async () => {
+    const user = userEvent.setup();
+    const props = { onBodyChange: noop, onSubmit: noop };
+    const { rerender } = render(
+      <Composer
+        body="Hi"
+        {...props}
+        name={{ value: "Dana", onChange: noop, saved: true, postedRev: 0 }}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /Change name/ }));
+    expect(screen.getByRole("textbox", { name: "Your name" })).toHaveFocus();
+    rerender(
+      <Composer
+        body=""
+        {...props}
+        name={{ value: "Dana", onChange: noop, saved: true, postedRev: 1 }}
+      />,
+    );
+    expect(field()).toHaveFocus();
+  });
+
   it("asks for the name when none is saved", () => {
     render(<Harness name={{ value: "", onChange: noop }} />);
     expect(
