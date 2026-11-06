@@ -93,8 +93,7 @@ function wideNodes(root: Element): string[] {
     for (const control of closed) control.click();
   }
   const overflows = () =>
-    document.documentElement.scrollWidth >
-    document.documentElement.clientWidth;
+    document.documentElement.scrollWidth > document.documentElement.clientWidth;
   const nodes: Text[] = [];
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   while (walker.nextNode()) {
@@ -126,9 +125,31 @@ function wideNodes(root: Element): string[] {
 }
 
 describe("Prepare text never scrolls the page sideways", () => {
+  it("uses reduced motion and a light color scheme", () => {
+    expect({
+      reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
+      light: matchMedia("(prefers-color-scheme: light)").matches,
+    }).toEqual({ reducedMotion: true, light: true });
+  });
+
   it("covers more than 40 stories", () => {
     expect(stories.length).toBeGreaterThan(40);
   });
+
+  for (const className of ["sys-scrub-value", "sys-scrub-unit"]) {
+    it(`leaves app-generated ${className} text out of the mutation`, () => {
+      host = document.createElement("div");
+      const value = document.createElement("span");
+      value.className = className;
+      value.style.whiteSpace = "nowrap";
+      value.textContent = "24";
+      host.appendChild(value);
+      document.body.appendChild(host);
+
+      expect(wideNodes(host)).toEqual([]);
+      expect(value.textContent).toBe("24");
+    });
+  }
 
   for (const width of [320, 360]) {
     it(`at ${width}`, { timeout: 240_000 }, async () => {
