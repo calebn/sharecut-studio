@@ -707,7 +707,7 @@ to `main`, so the release PR does not re-run CI on every merge. A run opens or r
 the next nightly promotion. A run refuses to start while the last manifest-touching commit (the last commit that changed
 `.release-please-manifest.json`) on the base branch is not yet on `main`. This guard applies only when
 the dispatched ref carries it: the `develop` copy of `release-please.yml` has it, `main`'s copy has none
-until the bootstrap promotion lands, and it does not tie the tag SHA itself to `main`. Dispatch it from
+until the first promotion carrying this change lands. The guard checks the last manifest-touching commit, and the tag is cut at the merged release commit, which is normally that commit, so the tag is tied to `main` unless that commit touched no manifest. Dispatch it from
 the base branch. The repository secret
 `RELEASE_PLEASE_TOKEN` must exist, because with the fallback `GITHUB_TOKEN` the release PR gets
 no required checks and cannot merge. The run reads the Conventional Commit subjects merged since the last release
