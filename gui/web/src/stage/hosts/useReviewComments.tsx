@@ -106,7 +106,7 @@ export function useReviewComments(guest: boolean) {
     guest ? savedGuestName() : sessionDisplayName(role),
   );
   // Only a guest names themselves, and a browser that already knows the name
-  // asks nothing: the composer says who posts and offers Change name.
+  // has nothing left to ask.
   const [nameKnown, setNameKnown] = useState(
     () => guest && capCommentName(savedGuestName()) !== "",
   );
@@ -319,10 +319,11 @@ export function useReviewComments(guest: boolean) {
         saveCommentAuthor(name, role);
         setNameKnown(capCommentName(savedGuestName()) !== "");
       }
-      // A blanked field posted under the saved name: show that name again.
-      if (guest) setPostedRev((n) => n + 1);
-      if (guest)
+      if (guest) {
+        setPostedRev((n) => n + 1);
+        // A blanked field posted under the saved name: show that name again.
         setName((typed) => (capCommentName(typed) ? typed : savedGuestName()));
+      }
       droppedDraft.current = null;
       setBody("");
       setScope([]);
