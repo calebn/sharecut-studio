@@ -603,6 +603,26 @@ describe("the Invite sheet over any stage", () => {
       expect(screen.queryByRole("dialog", { name: "Invite" })).toBeNull();
     });
 
+    it("appears once with two rooms", async () => {
+      server.shares = ["room-1", "room-2"].map((session_id) =>
+        hostShareRow({
+          token: session_id,
+          kind: "record",
+          docs_role: null,
+          record_role: "guest",
+          session_id,
+        }),
+      );
+      render(<Host />);
+      openInvite();
+      await waitFor(() =>
+        expect(screen.getAllByText("Record room")).toHaveLength(2),
+      );
+      expect(
+        screen.getAllByRole("button", { name: "Open Record stage" }),
+      ).toHaveLength(1);
+    });
+
     it("is not offered when the stage is already Record", async () => {
       useDawStore.setState({ stage: "record" });
       record();
