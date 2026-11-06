@@ -1,0 +1,34 @@
+name: token-probe
+on:
+  push:
+    branches: [promote-test/token-check]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      PROBE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+    steps:
+      - name: Is the secret set
+        run: |
+          if [ -z "$PROBE_TOKEN" ]; then echo "RESULT: secret RELEASE_PLEASE_TOKEN is NOT set"; exit 1; fi
+          echo "RESULT: secret RELEASE_PLEASE_TOKEN is set (length ${#PROBE_TOKEN})"
+      - uses: actions/checkout@v7
+        with:
+          ref: promote-test/token-check
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+      - name: Push a workflow-file change to a scratch branch
+        run: |
+          git config user.name probe
+          git config user.email probe@example.com
+          git checkout -b promote-test/token-target
+          echo "# probe $(date -u +%s)" >> .github/workflows/token-probe.yml
+          git commit -qam "probe: touch a workflow file"
+          if git push origin promote-test/token-target 2>push.err; then
+            echo "RESULT: PASS - RELEASE_PLEASE_TOKEN pushed a .github/workflows change"
+          else
+            echo "RESULT: FAIL - $(tr '\n' ' ' < push.err)"
+            exit 1
+          fi
