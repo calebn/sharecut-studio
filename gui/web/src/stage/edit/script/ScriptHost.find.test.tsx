@@ -113,6 +113,28 @@ describe("ScriptHost Find", () => {
     expect(useDawStore.getState().selection?.kind).toBe("range");
   });
 
+  it("finds a phrase another speaker interrupts and selects only its own words", async () => {
+    seedScript({
+      utterances: [
+        scriptUtterance("host", "Maya", [scriptWord("one", 0, 10)]),
+        scriptUtterance("guest", "Anneke", [scriptWord("yes", 0, 12)]),
+        scriptUtterance("host", "Maya", [scriptWord("thanks", 1, 14)]),
+      ],
+    });
+    await openFind();
+    await userEvent.type(findField(), "one thanks");
+    expect(bar()).toHaveTextContent("1 of 1");
+    await userEvent.click(screen.getByRole("button", { name: /Select all 1/ }));
+    const selection = useDawStore.getState().selection;
+    expect(selection?.kind).toBe("range");
+    if (selection?.kind !== "range") return;
+    expect(selection.target.track_ids).toEqual(["host"]);
+    expect(selection.target.intervals).toEqual([
+      { start: 10, end: 10.4 },
+      { start: 14, end: 14.4 },
+    ]);
+  });
+
   it("replaces all through the preview token and toasts without a count", async () => {
     await openFind();
     await userEvent.type(findField(), "maya");

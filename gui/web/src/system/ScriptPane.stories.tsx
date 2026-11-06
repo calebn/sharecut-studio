@@ -265,11 +265,7 @@ export const LowConfidence: Story = {
 export const FindMatches: Story = {
   ...live,
   args: {
-    matches: [
-      { start: 15, end: 15 },
-      { start: 44, end: 44 },
-      { start: 12, end: 14 },
-    ],
+    matches: [{ indices: [15] }, { indices: [44] }, { indices: [12, 13, 14] }],
     currentMatch: 2,
   },
   play: async ({ canvasElement }) => {

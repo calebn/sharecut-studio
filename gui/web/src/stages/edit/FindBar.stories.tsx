@@ -13,7 +13,7 @@ import {
   SCRIPT_TURNS,
   spanPatch,
 } from "../../system/scriptFixtures";
-import type { ScriptTurn } from "../../system/scriptPieces";
+import type { FindHit, ScriptTurn } from "../../system/scriptPieces";
 import { FindBar, type FindBarHandle } from "./FindBar";
 import { findCountText, findMatches, replacementChanges } from "./findMatches";
 import { scriptFrame, useLiveScript } from "./scriptDemo";
@@ -25,6 +25,12 @@ type SurfaceProps = {
   phone?: boolean;
   guest?: boolean;
 };
+
+/** These fixtures are one transcript, so a hit's words are contiguous and replaceSpan can take its range. */
+const spanOf = (hit: FindHit) => ({
+  start: hit.indices[0],
+  end: hit.indices[hit.indices.length - 1],
+});
 
 const meta: Meta<SurfaceProps> = {
   title: "Stages/Edit/FindBar",
@@ -81,7 +87,7 @@ function Surface({
     if (matches.length === 0) return;
     const next = (to + matches.length) % matches.length;
     setCurrent(next);
-    pane.current?.scrollToWord(matches[next].start, "center");
+    pane.current?.scrollToWord(matches[next].indices[0], "center");
   };
   const cutAll = () => {
     setTurns((now) =>
@@ -89,8 +95,10 @@ function Surface({
         now,
         Object.assign(
           {},
-          ...matches.map((m, i) =>
-            spanPatch(m.start, m.end, { mark: cutMark(`find-${i}`, 0.4) }),
+          ...matches.flatMap((m, i) =>
+            m.indices.map((index) =>
+              spanPatch(index, index, { mark: cutMark(`find-${i}`, 0.4) }),
+            ),
           ),
         ),
       ),
@@ -103,7 +111,7 @@ function Surface({
     setTurns((now) =>
       [...changed]
         .reverse()
-        .reduce((all, m) => replaceSpan(all, m, replaceText), [...now]),
+        .reduce((all, m) => replaceSpan(all, spanOf(m), replaceText), [...now]),
     );
     setNotice(`Replaced ${count} · Undo`);
     return count;
@@ -142,8 +150,8 @@ function Surface({
                 if (first) {
                   live.onSelect?.({
                     kind: "words",
-                    anchor: first.start,
-                    head: (rest.at(-1) ?? first).end,
+                    anchor: first.indices[0],
+                    head: spanOf(rest.at(-1) ?? first).end,
                   });
                 }
               }}
@@ -157,7 +165,10 @@ function Surface({
                       onTextChange: setReplaceText,
                       onReplace: () => {
                         const hit = matches[at];
-                        if (hit) setTurns(replaceSpan(turns, hit, replaceText));
+                        if (hit)
+                          setTurns(
+                            replaceSpan(turns, spanOf(hit), replaceText),
+                          );
                       },
                       onReplaceAll: replaceAll,
                     }

@@ -34,6 +34,7 @@ import {
 } from "./scriptGesture";
 import {
   continuesSpeaker,
+  type FindHit,
   linkCuts,
   pieceEnd,
   pieceStart,
@@ -150,7 +151,7 @@ export type ScriptPaneProps = {
   selection?: ScriptSelection | null;
   carets?: readonly ScriptCaret[];
   /** Find hits, by word span, and which one is current. */
-  matches?: readonly ScriptSpan[];
+  matches?: readonly FindHit[];
   currentMatch?: number;
   /** What the pane's live region says about the search: the Find bar's count, for example "3 of 12" or "No matches". */
   findStatus?: string;
@@ -250,7 +251,7 @@ export type ScriptPaneProps = {
   onUserScroll?: () => void;
 };
 
-type FoundSpan = ScriptSpan & { current: boolean };
+type FoundHit = FindHit & { current: boolean };
 
 /** A turn's margin controls in reading order, the stop its words begin at and the stop before it. */
 type TurnMargin = {
@@ -314,8 +315,8 @@ type Actions = {
 
 const NO_CARETS: readonly ScriptCaret[] = [];
 const NO_NUMBERS: readonly number[] = [];
-const NO_FOUND: readonly FoundSpan[] = [];
-const NO_MATCHES: readonly ScriptSpan[] = [];
+const NO_FOUND: readonly FoundHit[] = [];
+const NO_MATCHES: readonly FindHit[] = [];
 const READY: ScriptStatus = { kind: "ready" };
 
 const firstName = (name: string) => name.split(/\s+/)[0] ?? name;
@@ -616,7 +617,8 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
             current: at === currentMatch,
           })),
           ranges,
-          (match, lo, hi) => match.start <= hi && match.end >= lo,
+          (match, lo, hi) =>
+            match.indices.some((index) => index >= lo && index <= hi),
           NO_FOUND,
         ),
       [matches, currentMatch, ranges],
@@ -1366,7 +1368,7 @@ type TurnProps = {
   selectedCut: string | undefined;
   selectedSuggestion: string | undefined;
   carets: readonly ScriptCaret[];
-  found: readonly FoundSpan[];
+  found: readonly FoundHit[];
   tabStop: number;
   renderEditor: ((span: ScriptSpan) => ReactNode) | undefined;
   renderJoin: ((id: string) => ReactNode) | undefined;
@@ -1397,7 +1399,7 @@ const TurnView = memo(function TurnView({
   const foundWords = useMemo(() => {
     const byWord = new Map<number, WordFound>();
     for (const hit of found) {
-      for (let index = hit.start; index <= hit.end; index += 1) {
+      for (const index of hit.indices) {
         if (!byWord.has(index))
           byWord.set(index, hit.current ? "current" : "match");
       }
