@@ -3,6 +3,7 @@ import { Cover } from "../../system/Cover";
 import type { LinkCopyState } from "../../system/LinkRow";
 import { Player } from "../../system/Player";
 import { Skeleton } from "../../system/Skeleton";
+import { StageHandoff } from "../../system/StageHandoff";
 import type { StageId } from "../../types/stage";
 import { Toast, type ToastState } from "../../ui";
 import { BounceSection } from "./BounceSection";
@@ -32,6 +33,7 @@ import {
   retimeChapter,
   retitleChapter,
   retitleClip,
+  reviewHandoff,
   trimClip,
   unapproveClip,
 } from "./deliverLogic";
@@ -267,6 +269,7 @@ export function DeliverStage({
   }
 
   const rows = readinessRows(facts);
+  const handoff = reviewHandoff(facts);
   const notify = (message: string, onUndo?: () => void) => {
     setToast({ id: Date.now(), message });
     setUndo(
@@ -390,7 +393,6 @@ export function DeliverStage({
               files={files}
               state={sharedState}
               dock={phone}
-              hasTranscriptSection={Boolean(transcript)}
               options={
                 exportOptions && {
                   ...exportOptions,
@@ -453,6 +455,17 @@ export function DeliverStage({
             blocker={blocker}
             onExport={() => startExport()}
           />
+        ) : null}
+        {handoff && !loading ? (
+          <div className="dv-handoff">
+            <StageHandoff
+              stage="review"
+              label={handoff.label}
+              size={phone ? 48 : 40}
+              keyHint={false}
+              onActivate={() => onFix("review", handoff.target)}
+            />
+          </div>
         ) : null}
         <Toast
           className="sys-toast-dock"
