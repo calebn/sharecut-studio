@@ -322,6 +322,16 @@ describe("RoomView", () => {
     expect(screen.queryByRole("button", { name: "Invite" })).toBeNull();
   });
 
+  it("keeps the draft when the note could not be sent", async () => {
+    const onSendNote = vi.fn(() => false);
+    renderRoom({ seat: "producer", people: [HOST, ROSA], onSendNote });
+    const field = screen.getByLabelText("Add a note");
+    await userEvent.type(field, "Do not lose me");
+    await userEvent.click(screen.getByRole("button", { name: "Send note" }));
+    expect(onSendNote).toHaveBeenCalledOnce();
+    expect(field).toHaveValue("Do not lose me");
+  });
+
   it("the cleared time chip stays cleared until the phase changes", async () => {
     const { rerender, onSendNote } = renderRoom({
       seat: "producer",

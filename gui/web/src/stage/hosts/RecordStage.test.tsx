@@ -1912,6 +1912,22 @@ describe("Record stage take controls", () => {
       undefined,
     );
   });
+
+  it("holds the Notes field with a reason outside a running take and keeps what was typed", async () => {
+    send.mockReturnValue(true);
+    setRoom({ state: "lobby", participants: [hostPerson()] });
+    mount();
+    const field = await screen.findByLabelText("Add a note");
+    expect(field).toBeDisabled();
+    expect(
+      screen.getAllByText("Notes open while a take is running.").length,
+    ).toBeGreaterThan(0);
+    expect(send).not.toHaveBeenCalledWith(
+      "Comment",
+      expect.anything(),
+      expect.anything(),
+    );
+  });
 });
 
 describe("Record stage takes", () => {

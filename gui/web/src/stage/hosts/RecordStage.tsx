@@ -19,8 +19,10 @@ import {
   hostMicStatus,
   hostRoomPhase,
   LOCAL_KEEPER_COPY,
+  liveTakeOpen,
   MIC_RETRY_LABEL,
   MIC_SAVED_DEVICE_MISSING_COPY,
+  NOTES_CLOSED_REASON,
   noteItems,
   RECORD_ROOM_RECONNECTING_COPY,
   roomAlerts,
@@ -473,6 +475,9 @@ function RecordStageBody({
         defaultNotesOpen: true,
         notes: noteItems(snapshot),
         noteVisibility: false,
+        notesDisabledReason: liveTakeOpen(state)
+          ? undefined
+          : NOTES_CLOSED_REASON,
         selfName: host?.display_name ?? "Host",
         onSendNote: (note) => room.liveComments.postNote(note.text),
         onInvite: () => runPointerCommand("share.manage", { at: "record" }),

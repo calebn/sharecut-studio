@@ -20,6 +20,7 @@ export {
   HOST_COMMENT_QUEUE_TOKEN,
   liveTakeOpen,
   MARKER_BODY,
+  NOTES_CLOSED_REASON,
   postLiveComment,
 } from "./liveCommentQueue";
 export {
