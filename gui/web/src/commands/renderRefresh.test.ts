@@ -118,6 +118,7 @@ describe("render.refreshMix project ownership", () => {
     expect(res).toEqual({
       status: "disabled",
       reason: "RNNoise is not downloaded.",
+      told: true,
     });
     expect(document.querySelector("[role=dialog]")).toBeNull();
     expect(useDawStore.getState().activityJob?.error_model).toEqual(

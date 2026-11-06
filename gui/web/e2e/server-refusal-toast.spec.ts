@@ -22,7 +22,7 @@ test("a server refusal reaches the toast as the host message with a next step", 
     await expect(page.locator(".lane-row").first()).toBeVisible();
     await runPaletteCommand(page, "Refresh mix");
     const toast = page.locator(".ui-toast-region--app");
-    await expectFeedback(page, HOST_MESSAGE);
+    await expectFeedback(page, `Refresh failed: ${HOST_MESSAGE}`);
     await expect(toast).not.toContainText(/PODCAST_[A-Z_]+|Traceback|\.py\b/);
   });
 });
