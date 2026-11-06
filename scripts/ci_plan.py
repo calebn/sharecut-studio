@@ -213,6 +213,7 @@ PATH_RULES: tuple[tuple[Glob, Scope], ...] = tuple(
         (".editorconfig", Scope.OTHER),
         (".gitignore", Scope.OTHER),
         (".gitleaks.toml", Scope.OTHER),
+        (".gitleaksignore", Scope.OTHER),
         (".pre-commit-config.yaml", Scope.OTHER),
         (".release-please-manifest.json", Scope.OTHER),
         ("AGENTS.md", Scope.OTHER),
