@@ -83,6 +83,7 @@ const MUTE_TIPS: Record<MuteState, string> = {
 const MUTE_GUEST_TIP =
   "Muted in the mix. Only the host and editors can unmute it";
 
+/** Memoised on its props: pass a stable `anchorProps` object, not a fresh literal. */
 export const TrackHeader = memo(function TrackHeader({
   id,
   name,
