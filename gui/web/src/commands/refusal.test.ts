@@ -56,6 +56,33 @@ describe("runAndAnnounceRefusal", () => {
     expect(told()).toEqual({ text: "Nothing selected", tone: "error" });
   });
 
+  it("announces a repeated refusal again after an earlier identical one", async () => {
+    const refuse = async (): Promise<ExecuteResult> => ({
+      status: "disabled",
+      reason: "Nothing selected",
+    });
+    await runAndAnnounceRefusal(refuse);
+    const seq = useDawStore.getState().statusAnnouncementSeq;
+    const toast = useDawStore.getState().feedbackToast;
+    if (toast) useDawStore.getState().dismissFeedbackToast(toast.id);
+    await runAndAnnounceRefusal(refuse);
+    expect(useDawStore.getState().statusAnnouncement).toBe("Nothing selected");
+    expect(useDawStore.getState().statusAnnouncementSeq).toBeGreaterThan(seq);
+  });
+
+  it("keeps an own announcement that error tone rewrote", async () => {
+    const reason = "write failed at /home/u/proj/a/b.wav";
+    const before = useDawStore.getState().statusAnnouncementSeq;
+    await runAndAnnounceRefusal(async () => {
+      useDawStore.getState().announceStatus(`Delete failed: ${reason}`, {
+        tone: "error",
+      });
+      return { status: "disabled", reason };
+    });
+    expect(useDawStore.getState().statusAnnouncementSeq).toBe(before + 1);
+    expect(told().text).not.toContain("/home/u");
+  });
+
   it("stays quiet for ok and unknown results", async () => {
     for (const result of [
       { status: "ok" },
