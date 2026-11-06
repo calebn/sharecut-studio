@@ -604,3 +604,71 @@ def test_base_env_override_selects_the_frozen_source(repo: Repo, monkeypatch) ->
     assert go(repo, gh) == 0
 
     assert repo.remote_sha("main") == commit_sha
+
+
+class SpyGit(promote.Git):
+    def __init__(self, cwd: Path) -> None:
+        super().__init__(cwd)
+        self.pushes: list[tuple[str, bool]] = []
+
+    def _git(self, *args, check=True, env=None):
+        if args[0] == "push" and "--delete" not in args:
+            self.pushes.append((args[2].split(":refs/heads/")[1], bool(env)))
+        return super()._git(*args, check=check, env=env)
+
+
+def run_with_spy(repo: Repo) -> SpyGit:
+    spy = SpyGit(repo.clone)
+    clock = FakeClock()
+    code = promote.promote(
+        spy,
+        FakeGh(),
+        target="main",
+        no_push=False,
+        run_id="77",
+        attempt="2",
+        timeout=600,
+        interval=60,
+        clock=promote.Clock(sleep=clock.sleep, now=clock.now, epoch=lambda: EPOCH),
+    )
+    assert code == 0
+    return spy
+
+
+def test_promote_token_is_not_used_when_the_range_has_no_workflow_change(
+    repo: Repo, monkeypatch
+) -> None:
+    monkeypatch.setenv("PROMOTE_TOKEN", "pat-secret")
+
+    spy = run_with_spy(repo)
+
+    assert [used for _, used in spy.pushes] == [False, False]
+
+
+def test_promote_token_pushes_only_the_final_fast_forward_when_workflows_change(
+    repo: Repo, monkeypatch
+) -> None:
+    monkeypatch.setenv("PROMOTE_TOKEN", "pat-secret")
+    sh(repo.other, "fetch", "-q", "origin")
+    sh(repo.other, "checkout", "-q", "-B", "develop", "origin/develop")
+    workflow = repo.other / ".github" / "workflows" / "x.yml"
+    workflow.parent.mkdir(parents=True)
+    commit(repo.other, ".github/workflows/x.yml")
+    sh(repo.other, "push", "-q", "origin", "develop")
+
+    spy = run_with_spy(repo)
+
+    assert [(branch.split("-")[0].split("/")[0], used) for branch, used in spy.pushes] == [
+        ("promote", False),
+        ("main", True),
+    ]
+    assert repo.remote_sha("main") == repo.remote_sha("develop")
+
+
+def test_token_env_carries_the_token_only_in_git_config_environment() -> None:
+    env = promote.token_env("pat-secret")
+
+    assert env["GIT_CONFIG_COUNT"] == "2"
+    assert env["GIT_CONFIG_VALUE_0"] == ""
+    assert env["GIT_CONFIG_VALUE_1"].startswith("AUTHORIZATION: basic ")
+    assert "pat-secret" not in "".join(env.values())
