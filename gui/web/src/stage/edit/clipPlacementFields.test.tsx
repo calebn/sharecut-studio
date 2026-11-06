@@ -75,6 +75,7 @@ it("moves the clip by its Start field: a drag previews, a release saves once, an
     placements: [{ clip_id: "a", track_id: "host" }],
   });
   expect(moveClips).not.toHaveBeenCalled();
+  expect(Number(start().getAttribute("aria-valuenow"))).toBeGreaterThan(5);
   await act(async () => {
     fireEvent.pointerUp(start(), { pointerId: 1 });
   });
