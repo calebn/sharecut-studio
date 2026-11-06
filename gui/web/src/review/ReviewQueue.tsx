@@ -646,7 +646,7 @@ export function ReviewQueue({
           bulkRunning?.kind === group.kind ? bulkRunning : undefined;
         return (
           <section
-            key={group.kind}
+            key={group.label}
             className="rv-group"
             aria-label={group.label}
             aria-busy={running ? true : undefined}
