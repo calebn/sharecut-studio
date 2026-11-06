@@ -16,6 +16,8 @@ import { TimelineGestureProvider } from "./timelineMetrics";
 import { useEnvelopeEdits } from "./useEnvelopeEdits";
 import { useRulerWindow } from "./useRulerWindow";
 
+type Edits = ReturnType<typeof useEnvelopeEdits>;
+
 const setEnvelope = vi.fn();
 
 vi.mock("../api", () => ({
@@ -99,6 +101,12 @@ const lastSave = () =>
     setEnvelope.mock.calls.length - 1
   ]![2] as AutomationPoint[];
 const toasts = () => vi.spyOn(useDawStore.getState(), "announceStatus");
+
+const clickLine = (container: HTMLElement, x: number, y: number) => {
+  const band = container.querySelector(".sys-env-band")!;
+  fireEvent.pointerDown(band, mouse(x, y));
+  fireEvent.click(band, { clientX: x, clientY: y, detail: 1 });
+};
 
 /** Pointer down on point `place`, `dx` px right and `dy` px down, held. */
 function dragPoint(place: number, dx: number, dy: number) {
@@ -424,12 +432,6 @@ describe("LaneEnvelope keys", () => {
 });
 
 describe("LaneEnvelope adding", () => {
-  const clickLine = (container: HTMLElement, x: number, y: number) => {
-    const band = container.querySelector(".sys-env-band")!;
-    fireEvent.pointerDown(band, mouse(x, y));
-    fireEvent.click(band, { clientX: x, clientY: y, detail: 1 });
-  };
-
   it("adds a point at the click's time and level, selects it, one save", async () => {
     const { container } = setup();
     clickLine(container, 120, 30);
@@ -821,17 +823,6 @@ describe("LaneEnvelope dips", () => {
 
 describe("LaneEnvelope honesty about refusals", () => {
   const leafStatus = () => screen.getByRole("status");
-  const select = (pointId: string) =>
-    act(() =>
-      useDawStore
-        .getState()
-        .setSelection({ kind: "envelopePoint", trackId: "host", pointId }),
-    );
-  const clickLine = (container: HTMLElement) => {
-    const band = container.querySelector(".sys-env-band")!;
-    fireEvent.pointerDown(band, mouse(120, 30));
-    fireEvent.click(band, { clientX: 120, clientY: 30, detail: 1 });
-  };
   const switchProject = () =>
     act(() =>
       useDawStore.setState({ projectPath: "/tmp/q.json", projectEpoch: 9 }),
@@ -855,7 +846,11 @@ describe("LaneEnvelope honesty about refusals", () => {
 
   it("announces no removal the host refused, and tells why once", async () => {
     setEnvelope.mockRejectedValueOnce(new Error("offline"));
-    select("b");
+    act(() =>
+      useDawStore
+        .getState()
+        .setSelection({ kind: "envelopePoint", trackId: "host", pointId: "b" }),
+    );
     setup();
     const seq = useDawStore.getState().statusAnnouncementSeq;
     point(2).focus();
@@ -874,7 +869,11 @@ describe("LaneEnvelope honesty about refusals", () => {
           finish = () => resolve(null);
         }),
     );
-    select("b");
+    act(() =>
+      useDawStore
+        .getState()
+        .setSelection({ kind: "envelopePoint", trackId: "host", pointId: "b" }),
+    );
     setup();
     const { el } = dragPoint(2, 48, 0);
     fireEvent.pointerUp(el, mouse(0, 0));
@@ -914,11 +913,8 @@ describe("LaneEnvelope honesty about refusals", () => {
   });
 
   it.each([
-    [
-      "removal",
-      (edits: ReturnType<typeof useEnvelopeEdits>) => edits.onRemove("b"),
-    ],
-    ["add", (edits: ReturnType<typeof useEnvelopeEdits>) => edits.onAdd(20, 0)],
+    ["removal", (edits: Edits) => edits.onRemove("b")],
+    ["add", (edits: Edits) => edits.onAdd(20, 0)],
   ])(
     "answers false for a %s that landed in the project that was replaced",
     async (_name, ask) => {
@@ -932,7 +928,7 @@ describe("LaneEnvelope honesty about refusals", () => {
       const { result } = renderHook(() =>
         useEnvelopeEdits("host", POINTS, false, 0),
       );
-      const answer = ask(result.current) as Promise<boolean>;
+      const answer = ask(result.current);
       await act(async () => {});
       expect(setEnvelope).toHaveBeenCalledTimes(1);
       switchProject();
@@ -966,7 +962,11 @@ describe("LaneEnvelope honesty about refusals", () => {
   });
 
   it("announces the removal the host accepted", async () => {
-    select("b");
+    act(() =>
+      useDawStore
+        .getState()
+        .setSelection({ kind: "envelopePoint", trackId: "host", pointId: "b" }),
+    );
     setup();
     point(2).focus();
     fireEvent.keyDown(point(2), { key: "Delete" });
@@ -977,7 +977,7 @@ describe("LaneEnvelope honesty about refusals", () => {
   it("announces no add the host refused", async () => {
     setEnvelope.mockRejectedValueOnce(new Error("offline"));
     const { container } = setup();
-    clickLine(container);
+    clickLine(container, 120, 30);
     await act(async () => {});
     expect(leafStatus()).toBeEmptyDOMElement();
     expect(useDawStore.getState().statusAnnouncement).toBe(
@@ -989,7 +989,7 @@ describe("LaneEnvelope honesty about refusals", () => {
     const { container } = setup();
     point(2).focus();
     fireEvent.keyDown(point(2), { key: "ArrowRight" });
-    clickLine(container);
+    clickLine(container, 120, 30);
     await act(async () => {});
     expect(setEnvelope).not.toHaveBeenCalled();
     expect(leafStatus().textContent).not.toContain("Added");
@@ -997,7 +997,7 @@ describe("LaneEnvelope honesty about refusals", () => {
 
   it("announces the add the host accepted", async () => {
     const { container } = setup();
-    clickLine(container);
+    clickLine(container, 120, 30);
     await act(async () => {});
     expect(leafStatus()).toHaveTextContent("Added envelope point at 0:05.00");
   });
@@ -1050,7 +1050,11 @@ describe("LaneEnvelope honesty about refusals", () => {
         }),
     );
     const announce = toasts();
-    select("b");
+    act(() =>
+      useDawStore
+        .getState()
+        .setSelection({ kind: "envelopePoint", trackId: "host", pointId: "b" }),
+    );
     setup();
     point(2).focus();
     fireEvent.keyDown(point(2), { key: "Delete" });
@@ -1074,7 +1078,7 @@ describe("LaneEnvelope honesty about refusals", () => {
     );
     const announce = toasts();
     const { container } = setup();
-    clickLine(container);
+    clickLine(container, 120, 30);
     await act(async () => {});
     switchProject();
     await act(async () => fail(new Error("offline")));
