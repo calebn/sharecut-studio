@@ -8,6 +8,7 @@ import {
 } from "../api";
 import { redisplayDrafts } from "../document/applyDocumentUpdate";
 import {
+  type DocumentScope,
   documentScope,
   isCurrentDocumentScope,
 } from "../document/authorityState";
@@ -19,6 +20,7 @@ import { payloadFromSelection } from "../edit/selectionClipboard";
 import { canApplyPass12, canSuggestStructuralOnProject } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import {
+  clipsSelection,
   inspectorOpenFor,
   selectedClipIdsOf,
   selectedTrackIdsOf,
@@ -49,6 +51,39 @@ function canSuggestStructuralFor(s: DawState): boolean {
     s.project != null,
   );
 }
+/** The server's own tolerance for "a clip starts at this time" (timeline_ops.py). */
+const SPLIT_TIME_TOLERANCE = 1e-6;
+
+function selectRightPieces(
+  scope: DocumentScope,
+  held: DawState["selection"],
+  before: NonNullable<DawState["project"]>,
+  at: number,
+  trackIds: readonly string[],
+): void {
+  const now = useDawStore.getState();
+  if (
+    !isCurrentDocumentScope(scope) ||
+    now.selection !== held ||
+    !now.project
+  ) {
+    return;
+  }
+  const known = new Set(
+    Object.values(before.clips.tracks).flatMap((list) => list.map((c) => c.id)),
+  );
+  const pieces = trackIds.flatMap((trackId) =>
+    (now.project?.clips.tracks[trackId] ?? [])
+      .filter(
+        (c) =>
+          !known.has(c.id) &&
+          Math.abs(c.timeline_start - at) <= SPLIT_TIME_TOLERANCE,
+      )
+      .map((c) => ({ id: c.id, trackId })),
+  );
+  if (pieces.length > 0) now.setSelection(clipsSelection(pieces));
+}
+
 async function runSplitAt(
   atTime: number,
   extraAtTimes: readonly number[],
@@ -64,18 +99,24 @@ async function runSplitAt(
         selectedTrackIdsOf(s.selection),
         dialogueTrackIds(s.project.tracks ?? []),
       );
+  const scope = documentScope();
+  const held = s.selection;
   try {
-    const undo = await splitAtTime(
+    const outcome = await splitAtTime(
       s.projectPath,
       atTime,
       tids,
       null,
       extraAtTimes,
     );
-    const where = [atTime, ...extraAtTimes].map((t) => formatTime(t));
-    useDawStore
-      .getState()
-      .announceStatus(`Split at ${where.join(" and ")}`, { undo });
+    const where = outcome.times.map((t) => formatTime(t)).join(" and ");
+    const announce = useDawStore.getState().announceStatus;
+    if (outcome.kind === "suggested") {
+      announce(`Suggested split at ${where}`);
+    } else {
+      announce(`Split at ${where}`, { undo: outcome.undo });
+      selectRightPieces(scope, held, s.project, outcome.times[0]!, tids);
+    }
     return { status: "ok" };
   } catch (e) {
     const code = e instanceof ApiError ? e.code : undefined;

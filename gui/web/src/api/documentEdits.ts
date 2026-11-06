@@ -828,21 +828,53 @@ export async function deleteSocialClip(
   return reply ? replyHistoryHead(reply) : null;
 }
 
+/**
+ * What Split did. The server splits at the times it found a clip for, or only
+ * proposes the cut when the caller may suggest but not apply.
+ */
+export type SplitOutcome =
+  | { kind: "split"; times: number[]; undo: HistoryEntryId | null }
+  | { kind: "suggested"; times: number[] };
+
+function splitOutcome(
+  reply: Record<string, unknown>,
+  requested: number[],
+): SplitOutcome {
+  const command = reply.command;
+  const payload = isSuggestionRecord(command) ? command.payload : null;
+  const result = isSuggestionRecord(payload) ? payload.result : null;
+  if (isSuggestionRecord(result) && result.operation === "propose_split") {
+    return { kind: "suggested", times: requested };
+  }
+  const reported = isSuggestionRecord(result) ? result.split_times : null;
+  const times = Array.isArray(reported)
+    ? reported.filter((t): t is number => typeof t === "number")
+    : [];
+  return {
+    kind: "split",
+    times: times.length ? times : requested,
+    undo: replyHistoryHead(reply),
+  };
+}
+
 export async function splitAtTime(
   projectPath: string,
   atTime: number,
   trackIds?: string[] | null,
   reason?: string | null,
   extraAtTimes?: readonly number[],
-): Promise<HistoryEntryId | null> {
-  return replyHistoryHead(
-    await submitDocumentCommand(projectPath, DocumentCommand.SplitAtTime, {
+): Promise<SplitOutcome> {
+  const reply = await submitDocumentCommand(
+    projectPath,
+    DocumentCommand.SplitAtTime,
+    {
       at_time: atTime,
       track_ids: trackIds ?? null,
       reason: reason ?? null,
       ...(extraAtTimes?.length ? { extra_at_times: [...extraAtTimes] } : {}),
-    }),
+    },
   );
+  return splitOutcome(reply, [atTime, ...(extraAtTimes ?? [])]);
 }
 
 export async function deleteClips(
