@@ -10,8 +10,11 @@ from pathlib import Path
 import pytest
 import yaml
 
+from script_loader import load_script
+
 ROOT = Path(__file__).resolve().parents[1]
 DOCS_SYNC = ROOT / "scripts" / "docs_sync.py"
+BASE = load_script("branches", register=True).base()
 
 
 def test_precommit_config_has_no_formatter_rewrite_hook() -> None:
@@ -63,7 +66,7 @@ def _run_check_staged(repo: Path) -> subprocess.CompletedProcess[str]:
 
 @pytest.fixture
 def ux_pack_repo(tmp_path: Path) -> Path:
-    """A one-rule contract standing in for the ux-pack row, in its own repo so `main` (the
+    """A one-rule contract standing in for the ux-pack row, in its own repo so the base branch (the
     docs-sync `--staged` fallback base) stays fixed while `work` moves ahead of it."""
     contract = {
         "api_version": 1,
@@ -77,7 +80,7 @@ def ux_pack_repo(tmp_path: Path) -> Path:
             }
         ],
     }
-    _git(tmp_path, "init", "-q", "-b", "main")
+    _git(tmp_path, "init", "-q", "-b", BASE)
     _write(tmp_path, "contracts/docs-sync.json", json.dumps(contract))
     _write(tmp_path, "docs/ui-philosophy.md", "base\n")
     _git(tmp_path, "add", ".")

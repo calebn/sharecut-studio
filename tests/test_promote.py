@@ -381,6 +381,16 @@ def test_diverged_main_fails_before_anything_is_pushed_or_dispatched(repo: Repo,
     assert "merge main into develop" in capsys.readouterr().out
 
 
+def test_a_missing_base_branch_fails_with_a_clear_message(repo: Repo, capsys) -> None:
+    sh(repo.origin, "branch", "-D", "develop")
+    gh = FakeGh()
+
+    assert go(repo, gh) == 1
+
+    assert gh.dispatched == []
+    assert "develop does not exist on origin" in capsys.readouterr().out
+
+
 def test_main_moving_during_the_run_blocks_the_push(repo: Repo, capsys) -> None:
     moved: list[str] = []
 
@@ -518,9 +528,9 @@ def test_no_git_command_forces_a_push(repo: Repo, monkeypatch) -> None:
 def test_cleanup_deletes_this_runs_branch_and_sweeps_by_creation_epoch(repo: Repo) -> None:
     develop = repo.remote_sha("develop")
     names = (
-        f"promote/aaa-{EPOCH}-5-1",
-        f"promote/bbb-{EPOCH + 7200}-77-2",
-        f"promote/ccc-{EPOCH + 7200}-77-1",
+        f"promote/{'a' * 12}-{EPOCH}-5-1",
+        f"promote/{'b' * 12}-{EPOCH + 7200}-77-2",
+        f"promote/{'c' * 12}-{EPOCH + 7200}-77-1",
     )
     for name in names:
         sh(repo.other, "push", "-q", "origin", f"{develop}:refs/heads/{name}")
@@ -535,10 +545,21 @@ def test_cleanup_deletes_this_runs_branch_and_sweeps_by_creation_epoch(repo: Rep
     assert sorted(repo.remote_branches()) == ["develop", "main"]
 
 
+def test_cleanup_keeps_promote_branches_outside_the_generated_name_shape(repo: Repo) -> None:
+    develop = repo.remote_sha("develop")
+    names = ("promote/hand-made", "promote/aaa-1-5-1", f"promote/{'a' * 12}-1-5")
+    for name in names:
+        sh(repo.other, "push", "-q", "origin", f"{develop}:refs/heads/{name}")
+
+    promote.cleanup(promote.Git(repo.clone), run_id="5", attempt="1", now=10 * 86400)
+
+    assert set(names) <= set(repo.remote_branches())
+
+
 def test_cleanup_ignores_the_commit_date_of_the_branch_tip(repo: Repo) -> None:
     develop = repo.remote_sha("develop")
     commit_time = int(sh(repo.clone, "log", "-1", "--format=%ct", develop))
-    name = f"promote/aaa-{commit_time + 2 * 86400}-5-1"
+    name = f"promote/{'a' * 12}-{commit_time + 2 * 86400}-5-1"
     sh(repo.other, "push", "-q", "origin", f"{develop}:refs/heads/{name}")
 
     promote.cleanup(promote.Git(repo.clone), run_id="9", attempt="1", now=commit_time + 2 * 86400)
@@ -548,13 +569,13 @@ def test_cleanup_ignores_the_commit_date_of_the_branch_tip(repo: Repo) -> None:
 
 def test_cli_cleanup_uses_the_env_run_identity(repo: Repo, monkeypatch) -> None:
     develop = repo.remote_sha("develop")
-    sh(repo.other, "push", "-q", "origin", f"{develop}:refs/heads/promote/abc-1-9-3")
+    sh(repo.other, "push", "-q", "origin", f"{develop}:refs/heads/promote/abcabcabcabc-1-9-3")
     monkeypatch.setenv("GITHUB_RUN_ID", "9")
     monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "3")
 
     assert promote.main(["cleanup"], git=promote.Git(repo.clone)) == 0
 
-    assert "promote/abc-1-9-3" not in repo.remote_branches()
+    assert "promote/abcabcabcabc-1-9-3" not in repo.remote_branches()
 
 
 def test_cli_run_passes_flags_through(repo: Repo, monkeypatch) -> None:

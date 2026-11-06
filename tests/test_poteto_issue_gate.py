@@ -247,7 +247,7 @@ def _rest_pr(*, sha: str = SHA, mergeable_state: str = "clean") -> dict[str, Any
         "state": "open",
         "body": "Fixes #251",
         "head": {"sha": sha},
-        "base": {"ref": "main"},
+        "base": {"ref": BASE},
         "labels": [{"name": "pipeline:merging"}],
         "mergeable_state": mergeable_state,
     }
@@ -495,7 +495,7 @@ def _eligible_run(
             {
                 "number": 252,
                 "head": {"sha": SHA, "repo": {"id": 1}},
-                "base": {"ref": "main", "repo": {"id": 1}},
+                "base": {"ref": BASE, "repo": {"id": 1}},
             }
         ],
     }

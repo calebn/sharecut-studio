@@ -26,10 +26,13 @@ def run_action(tmp_path: Path, results: str, legacy: str) -> list[list[str]]:
         "    log.write(json.dumps(args) + '\\n')\n"
         "if args[:2] == ['issue', 'list']:\n"
         "    search = args[args.index('--search') + 1]\n"
-        "    numbers = {'Nightly promote run failed': '5', 'Nightly test run failed': '11'}\n"
-        "    for title, number in numbers.items():\n"
-        "        if title in search:\n"
-        "            print(number)\n"
+        "    numbers = {'Nightly promote run failed': 5, 'Nightly test run failed': 11}\n"
+        "    rows = [{'number': n, 'title': t} for t, n in numbers.items() if t in search]\n"
+        "    rows.append({'number': 99, 'title': search.strip('\"').removesuffix(' in:title') + ' again'})\n"
+        "    if '--jq' in args:\n"
+        "        print(*[r['number'] for r in rows if r['title'] in numbers][:1])\n"
+        "    else:\n"
+        "        print(json.dumps(rows))\n"
     )
     fake.chmod(0o755)
     log = tmp_path / "gh.log"
