@@ -2538,6 +2538,13 @@ html[data-frame-short] .sys-header-project .sys-header-title {
   min-block-size: 2.5rem;
 }
 
+@media (pointer: coarse) {
+  .sys-setup-cancel {
+    min-inline-size: var(--touch-min);
+    min-block-size: var(--touch-min);
+  }
+}
+
 .sys-setup .sys-card {
   min-block-size: 7.5rem;
 }
