@@ -1174,6 +1174,22 @@ html[data-frame-short] .sys-header-project .sys-header-title {
   min-block-size: var(--touch-min);
 }
 
+.header-tools-button {
+  position: relative;
+}
+
+.header-tools-button[data-range-armed]::after {
+  content: "";
+  position: absolute;
+  inset-block-start: 0.375rem;
+  inset-inline-end: 0.375rem;
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  border-radius: 50%;
+  background: var(--color-accent);
+  pointer-events: none;
+}
+
 .sys-player--expanded {
   display: flex;
   flex-direction: column;
@@ -3751,6 +3767,11 @@ button.sys-picker-option:focus-visible {
     border-width: 0.25rem;
     border-style: solid;
     border-color: var(--color-accent);
+  }
+
+  .header-tools-button[data-range-armed]::after {
+    box-sizing: border-box;
+    border: 0.25rem solid var(--color-accent);
   }
 
   .sys-adv-switch::before {
