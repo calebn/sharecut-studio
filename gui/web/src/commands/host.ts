@@ -263,7 +263,8 @@ export function registerHostCommands(): void {
     if (useRecordHostStore.getState().snapshot) {
       return {
         status: "disabled",
-        reason: "A record room is already open. End it in Share first.",
+        reason:
+          "A record room is already open. End it from More on the Record stage first.",
       };
     }
     const s = useDawStore.getState();

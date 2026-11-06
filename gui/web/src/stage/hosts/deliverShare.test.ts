@@ -25,7 +25,6 @@ function flow(over: Partial<ShareFlow> = {}): ShareFlow {
     stop: vi.fn(),
     createRecord: vi.fn(),
     replaceInvite: vi.fn(),
-    endRoom: vi.fn(),
     ...over,
   };
 }
@@ -67,7 +66,6 @@ describe("shareOptionsOf", () => {
     expect(o.onStop).toBe(f.stop);
     expect(o.onCreateRecord).toBe(f.createRecord);
     expect(o.onReplaceInvite).toBe(f.replaceInvite);
-    expect(o.onEndRoom).toBe(f.endRoom);
   });
 
   it("adds what only the host knows: online sharing, why Share is blocked, the Record stage and focus", () => {

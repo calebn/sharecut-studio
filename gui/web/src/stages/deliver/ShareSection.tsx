@@ -59,14 +59,12 @@ export function ShareSection({ options, state: pageState = "ready" }: Props) {
     onCreate,
     onRefreshMix,
     onCreateRecord,
-    onEndRoom,
     onStop,
     focusRequested = false,
     onFocused,
   } = options;
   const create = useRef<HTMLButtonElement>(null);
   const reviewHeading = useRef<HTMLHeadingElement>(null);
-  const roomsHeading = useRef<HTMLHeadingElement>(null);
   const reviewHeadingId = useId();
   const roomsHeadingId = useId();
   const mcpHelpId = useId();
@@ -132,13 +130,8 @@ export function ShareSection({ options, state: pageState = "ready" }: Props) {
   const confirm = () => {
     if (!pending) return;
     setPending(null);
-    if (pending.kind === "link") {
-      onStop(pending.token);
-      reviewHeading.current?.focus();
-    } else {
-      onEndRoom(pending.sessionId);
-      roomsHeading.current?.focus();
-    }
+    onStop(pending.token);
+    reviewHeading.current?.focus();
   };
   const busyReason = busy ? BUSY_REASON : undefined;
   const createReason = busyReason ?? blockedReason;
@@ -267,18 +260,14 @@ export function ShareSection({ options, state: pageState = "ready" }: Props) {
         </ul>
       )}
 
-      <h3
-        ref={roomsHeading}
-        id={roomsHeadingId}
-        className="dv-share-heading"
-        tabIndex={-1}
-      >
+      <h3 id={roomsHeadingId} className="dv-share-heading">
         Record rooms
       </h3>
       <p className="dv-note">
         A guest link records the person who joins. A producer link lets your
         producer listen and comment without being recorded. Record links don't
-        expire. End room turns them off.
+        expire. End the session from the Record stage's More menu to turn them
+        off.
       </p>
       {rooms.length === 0 ? (
         <EmptyState>
@@ -290,27 +279,9 @@ export function ShareSection({ options, state: pageState = "ready" }: Props) {
         </EmptyState>
       ) : (
         <ul className="dv-share-list" aria-labelledby={roomsHeadingId}>
-          {rooms.map((room) => {
-            const target: ShareEnd = {
-              kind: "room",
-              sessionId: room.sessionId,
-            };
-            return (
-              <RoomCard
-                key={room.sessionId}
-                room={room}
-                options={options}
-                confirming={
-                  pending?.kind === "room" &&
-                  pending.sessionId === room.sessionId
-                }
-                onAskEnd={() => setPending(target)}
-                endRef={trigger(target)}
-                onKeep={keep}
-                onConfirm={confirm}
-              />
-            );
-          })}
+          {rooms.map((room) => (
+            <RoomCard key={room.sessionId} room={room} options={options} />
+          ))}
         </ul>
       )}
       <div className="dv-primary">
@@ -410,15 +381,9 @@ function ReviewRow({
 function RoomCard({
   room,
   options,
-  confirming,
-  onAskEnd,
-  endRef,
-  onKeep,
-  onConfirm,
-}: ConfirmProps & {
+}: {
   room: RecordRoomGroup;
-  onAskEnd: () => void;
-  endRef: RefCallback<HTMLButtonElement>;
+  options: ShareOptions;
 }) {
   const { busy, onOpenRecord } = options;
   const labelId = useId();
@@ -454,36 +419,15 @@ function RoomCard({
           />
         ),
       )}
-      {confirming ? (
-        <InlineConfirm
-          prompt="End this record room? Both guest and producer links will stop working."
-          keepLabel="Keep room"
-          actionLabel="End room"
+      <div className="dv-share-actions">
+        <Button
           disabledReason={busyReason}
-          onKeep={onKeep}
-          onConfirm={onConfirm}
-        />
-      ) : (
-        <div className="dv-share-actions">
-          <Button
-            disabledReason={busyReason}
-            aria-describedby={labelId}
-            onClick={onOpenRecord}
-          >
-            Open Record stage
-          </Button>
-          <Button
-            ref={endRef}
-            variant="danger"
-            className="dv-share-danger"
-            disabledReason={busyReason}
-            aria-describedby={labelId}
-            onClick={onAskEnd}
-          >
-            End room
-          </Button>
-        </div>
-      )}
+          aria-describedby={labelId}
+          onClick={onOpenRecord}
+        >
+          Open Record stage
+        </Button>
+      </div>
     </li>
   );
 }
@@ -520,7 +464,7 @@ function RoomLink({
         <span className="dv-share-address sys-mono">
           {link
             ? link.token
-            : "Missing. End this room and create new record links."}
+            : "Missing. End the session from the Record stage and create new record links."}
         </span>
       </div>
       <div className="dv-share-actions">

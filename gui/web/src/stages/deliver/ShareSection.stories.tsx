@@ -81,10 +81,6 @@ function Live({ options, ...rest }: Args) {
       options.onStop(token);
       setRows((now) => now.filter((row) => row.token !== token));
     },
-    onEndRoom: (sessionId) => {
-      options.onEndRoom(sessionId);
-      setRows((now) => now.filter((row) => row.session_id !== sessionId));
-    },
   };
   return <ShareSection {...rest} options={live} />;
 }
@@ -122,7 +118,6 @@ const meta: Meta<typeof ShareSection> = {
       onStop: fn(),
       onCreateRecord: fn(),
       onReplaceInvite: fn(),
-      onEndRoom: fn(),
       onOpenRecord: fn(),
     },
   },
@@ -497,13 +492,9 @@ export const RecordRoom: Story = {
       view.getByRole("button", { name: "Open Record stage" }),
     );
     await expect(args.options.onOpenRecord).toHaveBeenCalledOnce();
-    await userEvent.click(view.getByRole("button", { name: "End room" }));
-    await userEvent.click(
-      within(
-        view.getByRole("group", { name: /^End this record room/ }),
-      ).getByRole("button", { name: "End room" }),
-    );
-    await expect(view.getByText("No record rooms yet.")).toBeVisible();
+    await expect(
+      view.queryByRole("button", { name: "End room" }),
+    ).not.toBeInTheDocument();
   },
 };
 

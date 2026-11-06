@@ -102,8 +102,8 @@ expire and calls revoking **Stop sharing**
 ([communication philosophy](communication-philosophy.md#terminology)). The
 Share section has no expiry control (owner decision in #1027): `expires_at` stays
 opt-in on the CLI and MCP, and the section shows a date only on a link that has
-one. Its copy says links don't expire, and Stop sharing or End room turns them
-off.
+one. Its copy says links don't expire, and Stop sharing (review links) or End
+session on the Record stage (record links) turns them off.
 
 ## Host registry (sqlite)
 

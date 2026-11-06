@@ -12,7 +12,6 @@ import {
   createHostShare,
   listHostShares,
   replaceHostRecordInvite,
-  revokeHostRoom,
   revokeHostShare,
 } from "../../api";
 import { execute } from "../../commands/execute";
@@ -564,17 +563,6 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
     [act, announce, isCurrent, load],
   );
 
-  const endRoom = useCallback(
-    (sessionId: string) =>
-      act(async (scope) => {
-        await revokeHostRoom(scope.projectPath, sessionId);
-        if (!isCurrent(scope)) return;
-        announce("Record room ended");
-        await load(scope);
-      }),
-    [act, announce, isCurrent, load],
-  );
-
   const value = useMemo<ShareFlow>(
     () => ({
       rows,
@@ -595,7 +583,6 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
       stop,
       createRecord,
       replaceInvite,
-      endRoom,
     }),
     [
       rows,
@@ -615,7 +602,6 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
       stop,
       createRecord,
       replaceInvite,
-      endRoom,
     ],
   );
   return <Flow.Provider value={value}>{children}</Flow.Provider>;

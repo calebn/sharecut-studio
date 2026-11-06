@@ -109,7 +109,8 @@ describe("record room commands", () => {
     useRecordHostStore.getState().setSnapshot(room);
     expect(await execute("record.createRoom")).toEqual({
       status: "disabled",
-      reason: "A record room is already open. End it in Share first.",
+      reason:
+        "A record room is already open. End it from More on the Record stage first.",
     });
     expect(api.createRoom).not.toHaveBeenCalled();
   });

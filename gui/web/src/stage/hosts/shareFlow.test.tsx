@@ -12,7 +12,6 @@ const listHostShares = vi.fn();
 const createHostShare = vi.fn();
 const revokeHostShare = vi.fn();
 const createHostRecordRoom = vi.fn();
-const revokeHostRoom = vi.fn();
 const replaceHostRecordInvite = vi.fn();
 const execute = vi.fn();
 
@@ -33,7 +32,6 @@ vi.mock("../../api", () => ({
   createHostShare: (...args: unknown[]) => createHostShare(...args),
   revokeHostShare: (...args: unknown[]) => revokeHostShare(...args),
   createHostRecordRoom: (...args: unknown[]) => createHostRecordRoom(...args),
-  revokeHostRoom: (...args: unknown[]) => revokeHostRoom(...args),
   replaceHostRecordInvite: (...args: unknown[]) =>
     replaceHostRecordInvite(...args),
 }));
@@ -127,7 +125,6 @@ beforeEach(() => {
   createHostShare.mockReset();
   revokeHostShare.mockReset();
   createHostRecordRoom.mockReset();
-  revokeHostRoom.mockReset();
   replaceHostRecordInvite.mockReset();
   execute.mockReset().mockResolvedValue({ status: "ok" });
   setClipboard({ writeText: vi.fn().mockResolvedValue(undefined) });
@@ -855,22 +852,6 @@ describe("record rooms", () => {
     mount();
     act(() => flow.createRecord());
     await waitFor(() => expect(flow.error).toBe("No room"));
-  });
-
-  it("ends the room and lists again", async () => {
-    listHostShares
-      .mockResolvedValueOnce(listed([guestRow, producerRow]))
-      .mockResolvedValue(listed([]));
-    revokeHostRoom.mockResolvedValue({ session_id: "sess1", revoked: [] });
-    mount();
-    act(() => flow.reload());
-    await waitFor(() => expect(flow.rows).toHaveLength(2));
-    act(() => flow.endRoom("sess1"));
-    await waitFor(() =>
-      expect(revokeHostRoom).toHaveBeenCalledWith(PATH, "sess1"),
-    );
-    await waitFor(() => expect(flow.rows).toEqual([]));
-    expect(announcement()).toBe("Record room ended");
   });
 
   it("releases a stale record operation after a same-path project reopen", async () => {

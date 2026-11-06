@@ -34,7 +34,6 @@ export function shareOptionsOf(
     onStop: flow.stop,
     onCreateRecord: flow.createRecord,
     onReplaceInvite: flow.replaceInvite,
-    onEndRoom: flow.endRoom,
     onOpenRecord: host.onOpenRecord,
     focusRequested: host.focusRequested,
     onFocused: host.onFocused,

@@ -133,7 +133,7 @@ to UX partners; for UI copy, this table wins.
 | Bounce | Render the current mix | "export mix" |
 | Deliverables | Mastered export set | "final export" |
 | Stop sharing | Revoke a review link. Links don't expire, so this is how a review link ends (a date set on the CLI or MCP is the one exception) | "delete link" |
-| End room | Shut down a record room (kills guest + producer links) | "close room" |
+| End session | Shut down a record room from More on the Record stage (kills guest + producer links) | "close room" |
 | Online sharing | Making this computer's review and record links reachable from the internet while it runs. Share's status line says what guests can do now, with any fix behind "How to fix" and the online sharing guide | "tunnel", "relay", "host token", "relay URL", a CLI command in UI copy |
 | Guests can open your links | Online sharing is connected | "Online", "Connected" as a bare label |
 | Reconnecting… | Online sharing lost its connection and is retrying; the line adds "Trying again in N s" (a still clock time under reduced motion). Guests may see a brief interruption | "Tunnel reconnecting", "Guests see Host offline" |
@@ -292,7 +292,7 @@ the empty state, not a separate discovery task.
   stacking a second dialog: the row swaps its actions for the
   consequence, Keep first and focused, the danger action last. Escape
   keeps (cancels) the open confirm before it closes the dialog. The
-  Share section's Stop sharing and End room are the reference.
+  Share section's Stop sharing is the reference.
   (Surfaces 2, 5, 6.)
 - **Confirm copy names the target and the consequence** in human
   terms: "Stop sharing this Viewer link? Anyone using it loses access.
@@ -396,7 +396,7 @@ the empty state, not a separate discovery task.
 ## Copy patterns for buttons and links
 
 - **Verb-first labels.** "Create link", "Copy guest link", "Stop
-  sharing", "End room", "Open Record stage", "Import audio". Never
+  sharing", "End session", "Open Record stage", "Import audio". Never
   "Click here", never a bare noun that hides the action.
 - **Decision actions first.** In action rows, the actual decisions
   lead: Apply / Skip before Preview / Go to. Most-likely-first in

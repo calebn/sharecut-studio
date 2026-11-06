@@ -9,8 +9,8 @@ Canonical strategy and feature map for agents/contributors. Implementation lives
 Reading-room actions and Share section actions/checkbox labels use the shared
 `--touch-min` target floor. On phones the Share section is part of the Deliver
 page: Create review link, its status line and the links sit in the page body
-above the sticky Export bar. Stop sharing and
-End room confirm in place (`ui/InlineConfirm`) rather than stacking a second
+above the sticky Export bar. Stop sharing
+confirms in place (`ui/InlineConfirm`) rather than stacking a second
 sheet. Dialog and sheet close buttons use the same square
 target. Reading form labels, hints, and errors use `--font-size-body`, while
 actions use reading-body type. Compact timeline/inspector controls retain their

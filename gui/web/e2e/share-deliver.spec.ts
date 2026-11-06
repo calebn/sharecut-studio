@@ -349,18 +349,9 @@ test.describe("Share on Deliver", () => {
       );
       expect(room).toBeTruthy();
 
-      await section.getByRole("button", { name: "End room" }).click();
-      const confirm = section.getByRole("group", {
-        name: "End this record room? Both guest and producer links will stop working.",
-      });
       await expect(
-        confirm.getByRole("button", { name: "Keep room" }),
-      ).toBeFocused();
-      await confirm.getByRole("button", { name: "End room" }).click();
-      await expect(section.getByText("No record rooms yet.")).toBeVisible();
-      expect((await rows(page, projectPath)).filter((r) => r.usable)).toEqual(
-        [],
-      );
+        section.getByRole("button", { name: "End room" }),
+      ).toHaveCount(0);
     });
   });
 

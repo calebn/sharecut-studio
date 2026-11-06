@@ -204,13 +204,11 @@ export const ROOM_LINK_COPY = {
   },
 } as const;
 
-/** The one link or room whose end the person is confirming. */
-export type ShareEnd =
-  | { kind: "link"; token: string }
-  | { kind: "room"; sessionId: string };
+/** The one link whose end the person is confirming. */
+export type ShareEnd = { kind: "link"; token: string };
 
 export function shareEndKey(end: ShareEnd): string {
-  return end.kind === "link" ? `link:${end.token}` : `room:${end.sessionId}`;
+  return `link:${end.token}`;
 }
 
 /** What the Share section shows and does, from the host's flow. */
@@ -248,7 +246,6 @@ export type ShareOptions = {
   onStop: (token: string) => void;
   onCreateRecord: () => void;
   onReplaceInvite: (sourceToken: string) => void;
-  onEndRoom: (sessionId: string) => void;
   onOpenRecord: () => void;
   /** Something asked to bring Share into view: focus Create review link (or the first enabled button), then call `onFocused`. */
   focusRequested?: boolean;

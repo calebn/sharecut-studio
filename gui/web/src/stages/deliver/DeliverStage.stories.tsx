@@ -333,7 +333,6 @@ export const WithShare: Story = {
       onStop: fn(),
       onCreateRecord: fn(),
       onReplaceInvite: fn(),
-      onEndRoom: fn(),
       onOpenRecord: fn(),
     },
   },

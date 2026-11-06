@@ -5342,7 +5342,6 @@ describe("Share section", () => {
     onStop: vi.fn(),
     onCreateRecord: vi.fn(),
     onReplaceInvite: vi.fn(),
-    onEndRoom: vi.fn(),
     onOpenRecord: vi.fn(),
   };
 
