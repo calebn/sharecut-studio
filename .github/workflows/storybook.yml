@@ -28,8 +28,7 @@ concurrency:
 
 jobs:
   sweep:
-    # Per-story axe and fit sweep (Vitest browser mode), sharded. Pull requests skip it;
-    # the nightly promotion and manual dispatch run it.
+    # Per-story axe and fit sweep (Vitest browser mode), sharded.
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -61,8 +60,6 @@ jobs:
         working-directory: gui/web
 
   build:
-    # Pull requests build Storybook and run the render smoke; pushes, dispatch and the
-    # nightly promotion run every Playwright spec.
     if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     steps:
