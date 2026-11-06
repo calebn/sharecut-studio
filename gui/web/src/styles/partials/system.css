@@ -3631,28 +3631,19 @@ button.sys-picker-option:focus-visible {
   font-weight: 600;
 }
 
-/* One line of help: always read with the field, shown while it has focus. */
+/* One line of help: always read with the field, shown while it has focus.
+   It is always laid out, so focusing never moves the page under the pointer
+   (a mousedown that shifts the field loses its click). */
 .sys-adv-help {
-  position: absolute;
-  inline-size: 1px;
-  block-size: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
+  margin: 0;
+  color: transparent;
+  font-size: var(--font-size-ui);
+  user-select: none;
 }
 
 .sys-adv-field:focus-within .sys-adv-help {
-  position: static;
-  inline-size: auto;
-  block-size: auto;
-  margin: 0;
-  overflow: visible;
-  clip-path: none;
-  white-space: normal;
   color: var(--color-text-secondary);
-  font-size: var(--font-size-ui);
+  user-select: auto;
 }
 
 @media (prefers-reduced-motion: no-preference) {
