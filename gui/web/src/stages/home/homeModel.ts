@@ -167,6 +167,7 @@ function isRunning(model: ModelView): boolean {
 }
 
 export type DownloadTotals = {
+  /** Whole bundle: the models already finished (listed before the current one) plus the current one's bytes. */
   bytes: number;
   /** Null while any running model's size is unknown. */
   total: number | null;
@@ -177,17 +178,21 @@ export function downloadTotals(
 ): DownloadTotals | null {
   const running = (models ?? []).filter(isRunning);
   if (running.length === 0) return null;
+  const current = running.findIndex((m) => m.state.kind === "downloading");
   let bytes = 0;
   let total = 0;
   let known = true;
-  for (const m of running) {
+  running.forEach((m, i) => {
     if (m.state.kind === "downloading") {
       bytes += m.state.bytes;
       if (m.state.total === null) known = false;
       else total += m.state.total;
     } else if (m.sizeBytes === null) known = false;
-    else total += m.sizeBytes;
-  }
+    else {
+      total += m.sizeBytes;
+      if (i < current) bytes += m.sizeBytes;
+    }
+  });
   return { bytes, total: known && total > 0 ? total : null };
 }
 

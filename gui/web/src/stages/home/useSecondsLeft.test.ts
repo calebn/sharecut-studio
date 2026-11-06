@@ -12,6 +12,15 @@ describe("estimateSecondsLeft", () => {
       ),
     ).toBe(90);
   });
+  it("names nothing when the rate says hours", () => {
+    expect(
+      estimateSecondsLeft(
+        { at: 0, bytes: 0 },
+        { at: 4_000, bytes: 2_048 },
+        2_100_000_000,
+      ),
+    ).toBeNull();
+  });
   it("names nothing before a few seconds or when nothing moved", () => {
     expect(
       estimateSecondsLeft({ at: 0, bytes: 0 }, { at: 1_000, bytes: 50 }, 1000),

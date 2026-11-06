@@ -5,11 +5,14 @@ const MIN_WATCH_SECONDS = 3;
 /** Seconds without a new byte before the estimate is dropped: a stalled download names no time. */
 const STALL_SECONDS = 10;
 
+/** An estimate longer than this is a guess from a rate that has not settled, so it is not shown. */
+const MAX_SECONDS_LEFT = 6 * 3600;
+
 type Mark = { at: number; bytes: number };
 
 /**
  * Time left at the average rate since `first`, or null until enough has been
- * seen (or when nothing moved, which would say forever).
+ * seen (when nothing moved, or when the rate says hours).
  */
 export function estimateSecondsLeft(
   first: Mark,
@@ -19,7 +22,8 @@ export function estimateSecondsLeft(
   const seconds = (now.at - first.at) / 1000;
   const moved = now.bytes - first.bytes;
   if (seconds < MIN_WATCH_SECONDS || moved <= 0) return null;
-  return Math.max(0, (total - now.bytes) / (moved / seconds));
+  const left = Math.max(0, (total - now.bytes) / (moved / seconds));
+  return left > MAX_SECONDS_LEFT ? null : left;
 }
 
 /**
