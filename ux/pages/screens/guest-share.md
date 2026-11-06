@@ -6,7 +6,7 @@ Every review role (Viewer, Commenter, Editor) holds `view`, so every role opens 
 flowchart LR
   shareLink["Review link /r/token"] --> hasView{Has view?}
   hasView -->|yes, every role| dawGuest[ShareCut Studio guest]
-  hasView -->|no, API-only share| noPage[Cover: link does not open the project]
+  hasView -->|no, API-only share| noPage["Cover: This link doesn't open anything"]
 ```
 
 ### Which surface?
