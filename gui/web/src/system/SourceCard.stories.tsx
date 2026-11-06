@@ -1,7 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, fireEvent, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { viewportStoryParameters } from "../storybook/storyLayout";
+import { fileDataTransfer, fireDrag } from "../storybook/storyPlay";
 import { VOICE_PEAKS } from "./prepareFixtures";
 import { SourceCard, type SourceCardProps } from "./SourceCard";
 
@@ -151,12 +152,12 @@ export const ReplaceByDrop: Story = {
       name: "Voice 2, Maya",
     });
     const file = new File(["RIFF"], "take2.wav", { type: "audio/wav" });
-    const dataTransfer = { types: ["Files"], files: [file] };
-    await fireEvent.dragEnter(card, { dataTransfer });
-    await expect(card).toHaveAttribute("data-drop-over", "true");
-    await fireEvent.drop(card, { dataTransfer });
-    await expect(args.onDropAudio).toHaveBeenCalledWith([file]);
-    await expect(card).not.toHaveAttribute("data-drop-over");
+    const dataTransfer = fileDataTransfer([file]);
+    fireDrag(card, "dragenter", dataTransfer);
+    await waitFor(() => expect(card).toHaveAttribute("data-drop-over", "true"));
+    fireDrag(card, "drop", dataTransfer);
+    await waitFor(() => expect(args.onDropAudio).toHaveBeenCalledWith([file]));
+    await waitFor(() => expect(card).not.toHaveAttribute("data-drop-over"));
   },
 };
 
