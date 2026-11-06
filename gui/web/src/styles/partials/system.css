@@ -1618,6 +1618,60 @@ html[data-frame-short] .sys-header-project .sys-header-title {
   block-size: 7rem;
 }
 
+.sys-skeleton--guest {
+  min-block-size: 100dvh;
+  padding: 0;
+  gap: 0;
+}
+
+/* Guest frame: 48 px header, then the Queue column (360 px) beside the center column (Player card, then rows). */
+.sys-skeleton-blocks--guest {
+  display: grid;
+  grid-template-columns: minmax(0, 22.5rem) minmax(0, 47.5rem);
+  grid-auto-rows: auto;
+  justify-content: center;
+  gap: var(--space-4) var(--space-5);
+  padding: 0 var(--space-5) var(--space-5);
+}
+
+.sys-skeleton-blocks--guest .sys-skeleton-block--header {
+  grid-column: 1 / -1;
+  block-size: var(--header-height, 3rem);
+  margin-inline: calc(var(--space-5) * -1);
+  border-radius: 0;
+}
+
+.sys-skeleton-blocks--guest .sys-skeleton-block--player {
+  grid-column: 2;
+  grid-row: 2;
+  block-size: 15rem;
+}
+
+.sys-skeleton-blocks--guest .sys-skeleton-block--queue {
+  grid-column: 1;
+}
+
+.sys-skeleton-blocks--guest .sys-skeleton-block--center {
+  grid-column: 2;
+}
+
+@media (max-width: 40rem) {
+  .sys-skeleton-blocks--guest {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sys-skeleton-blocks--guest .sys-skeleton-block--player,
+  .sys-skeleton-blocks--guest .sys-skeleton-block--queue,
+  .sys-skeleton-blocks--guest .sys-skeleton-block--center {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .sys-skeleton-blocks--guest .sys-skeleton-block--queue {
+    display: none;
+  }
+}
+
 .sys-skeleton-slow {
   display: flex;
   align-items: center;
