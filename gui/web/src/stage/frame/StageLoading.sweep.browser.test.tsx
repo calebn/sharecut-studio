@@ -59,8 +59,8 @@ const cases = [
 ] as const;
 
 const themes = [
-  { name: "light", background: "rgb(238, 241, 240)" },
-  { name: "dark", background: "rgb(19, 18, 17)" },
+  { name: "light", expectedFill: "rgb(238, 241, 240)" },
+  { name: "dark", expectedFill: "rgb(19, 18, 17)" },
 ] as const;
 
 let host: HTMLElement | undefined;
@@ -116,7 +116,7 @@ describe("Edit loading geometry in Chromium", () => {
             expect(rect.width).toBeCloseTo(rects[0].width, 0);
           }
           const style = getComputedStyle(timeline[index]);
-          expect(style.backgroundColor).toBe(theme.background);
+          expect(style.backgroundColor).toBe(theme.expectedFill);
           expect(style.backgroundImage).toBe("none");
           expect(style.animationName).toBe("none");
         }
@@ -133,7 +133,7 @@ describe("Edit loading geometry in Chromium", () => {
         }
 
         const scriptStyle = getComputedStyle(script);
-        expect(scriptStyle.backgroundColor).toBe(theme.background);
+        expect(scriptStyle.backgroundColor).toBe(theme.expectedFill);
         expect(scriptStyle.backgroundImage).toBe("none");
         expect(scriptStyle.animationName).toBe("none");
         expect(frame.scrollWidth).toBeLessThanOrEqual(frame.clientWidth);
