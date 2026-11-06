@@ -17,6 +17,11 @@ import {
 } from "../../api";
 import { execute } from "../../commands/execute";
 import type { ExecuteResult } from "../../commands/types";
+import { useHasFeature } from "../../extensions/FeaturesContext";
+import {
+  FEATURE_SHARE_UI_MENU,
+  FEATURE_TUNNEL_STATUS,
+} from "../../extensions/features";
 import { copyText, STALE_ROOM_LINKS_WARNING } from "../../record";
 import {
   corsWarning,
@@ -33,6 +38,7 @@ import { type HostShareRow, REVIEW_ROLES } from "../../types/shares";
 import { errorMessage } from "../../utils/apiError";
 import { copyWhenReady } from "./copyWhenReady";
 import { Flow, type ShareFlow } from "./shareFlowContext";
+import { useTunnelStatus } from "./useTunnelStatus";
 
 const COPIED_MS = 2000;
 
@@ -263,6 +269,16 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
   }, [clearCopiedTimer]);
 
   const reload = useCallback(() => void load(scopeNow()), [load, scopeNow]);
+
+  // One poller and one list for every surface: the links are listed again, and
+  // online sharing is polled, while Deliver or the Invite sheet shows them.
+  const shareOffered = useHasFeature(FEATURE_SHARE_UI_MENU);
+  const tunnelOffered = useHasFeature(FEATURE_TUNNEL_STATUS);
+  const tunnel = useTunnelStatus(shareOffered && tunnelOffered && onDeliver);
+  useEffect(() => {
+    if (!onDeliver || !shareOffered || !projectPath) return;
+    reload();
+  }, [onDeliver, shareOffered, projectPath, projectEpoch, reload]);
 
   /**
    * Mints and copies. `minted` is already running and the copy starts with it,
@@ -616,6 +632,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
       status,
       copiedKey,
       blockedKey,
+      tunnel,
       reload,
       create,
       refreshMix,
@@ -637,6 +654,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
       status,
       copiedKey,
       blockedKey,
+      tunnel,
       reload,
       create,
       refreshMix,

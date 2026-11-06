@@ -24,7 +24,7 @@ type Props = {
  */
 export function InviteBody({ options, at = null }: Props) {
   const { error, status, recovery, tunnel, blockedKey, rows } = options;
-  const end = useShareEnd(options);
+  const end = useShareEnd(options, false);
   const reviewId = useId();
   const recordId = useId();
   const listenId = useId();
@@ -162,7 +162,7 @@ export function InviteBody({ options, at = null }: Props) {
           For the finished episode: listeners hear the version current when you
           first copy the link.
         </p>
-        <ListenLinkRow options={options} />
+        <ListenLinkRow options={options} escapeKeeps={false} />
       </section>
     </div>
   );

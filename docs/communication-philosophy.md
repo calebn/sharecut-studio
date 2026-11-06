@@ -44,7 +44,7 @@ make them feel the software is fragile.
   - Don't: "Operation completed successfully."
 - Name the consequence, not the mechanism.
   - Do: "End this record room? Both guest and producer links will
-    stop working." (Share section end-room copy — good words, wrong
+    stop working." (Invite sheet end-room copy — good words, wrong
     mechanism; see Errors and confirmations)
   - Don't: "Stop sharing coolname-xyz?" — tokens and IDs are
     addresses for machines, never labels for people. (Surface 2)
@@ -292,7 +292,7 @@ the empty state, not a separate discovery task.
   stacking a second dialog: the row swaps its actions for the
   consequence, Keep first and focused, the danger action last. Escape
   keeps (cancels) the open confirm before it closes the dialog. The
-  Share section's Stop sharing and End room are the reference.
+  Invite sheet's Stop sharing and End room are the reference.
   (Surfaces 2, 5, 6.)
 - **Confirm copy names the target and the consequence** in human
   terms: "Stop sharing this Viewer link? Anyone using it loses access.

@@ -21,6 +21,7 @@ export function ListenLinkRow({
   highlight = false,
   share = false,
   compact = false,
+  escapeKeeps = true,
 }: {
   options: ShareOptions;
   /** Outlines Copy as the follow-up to an export. */
@@ -28,8 +29,10 @@ export function ListenLinkRow({
   /** Phone: Copy hands the link to the system share sheet. */
   share?: boolean;
   compact?: boolean;
+  /** False inside the Invite sheet, whose dialog already keeps an open confirm on Escape. */
+  escapeKeeps?: boolean;
 }) {
-  const end = useShareEnd(options);
+  const end = useShareEnd(options, escapeKeeps);
   const { listen } = shareRowsOf(options.rows);
   if (listen) {
     return (

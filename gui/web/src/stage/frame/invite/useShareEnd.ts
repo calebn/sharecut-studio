@@ -12,10 +12,12 @@ import { cancelInlineConfirm } from "../../../ui/inlineConfirmGate";
  */
 export function useShareEnd(
   options: Pick<ShareOptions, "onStop" | "onEndRoom">,
+  /** False inside a dialog: it already keeps an open confirm on Escape. */
+  escapeKeeps = true,
 ) {
   const [pending, setPending] = useState<ShareEnd | null>(null);
   const refocusKey = useRef<string | null>(null);
-  const asking = pending !== null;
+  const asking = pending !== null && escapeKeeps;
   useEffect(() => {
     if (!asking) return;
     const onKey = (event: KeyboardEvent) => {
