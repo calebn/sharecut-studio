@@ -560,8 +560,7 @@ Numeric In/Out and lane checkboxes select the same target without dragging.
 Selection does not seek or change follow mode.
 The Action bar and Range fields have one home per shell. The desktop shell shows the verbs in the floating Action bar beside the selection. The phone and tablet shells show them as the body of the
 selection sheet (`Inspector` renders them for a timeline or transcript range;
-`SheetInspector` adds the In and Out fields above any other selection while
-Select range is armed), so the bar never sits under the sheet's scrim and the
+the Range fields sit above any other selection once a range exists), so the bar never sits under the sheet's scrim and the
 sheet is never empty.
 
 Timeline and transcript ranges share **Play, Cut, Mute, Comment, Bounce**.

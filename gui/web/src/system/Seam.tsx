@@ -140,7 +140,7 @@ function RollEdges({
     if (!d || d.id !== event.pointerId) return;
     end();
     if (!d.moved) onSelect();
-    else if (Math.abs(d.ms) >= 1) roll.onCommit(d.ms);
+    else if (Math.round(d.ms) !== 0) roll.onCommit(Math.round(d.ms));
   };
   return (
     <>

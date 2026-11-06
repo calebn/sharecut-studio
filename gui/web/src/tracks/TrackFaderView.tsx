@@ -46,7 +46,7 @@ export function TrackFaderView({
         max={FADER_MAX_DB}
         step={FADER_STEP_DB}
         defaultValue={0}
-        value={savedDb}
+        value={draftDb ?? savedDb}
         skipUnchanged
         readOnly={access.kind !== "edit"}
         describedBy={access.kind !== "edit" ? noteId : undefined}

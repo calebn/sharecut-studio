@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   applyClipPlacement,
   beginClipPlacement,
@@ -77,19 +77,29 @@ export function ClipStartField({
 }) {
   const allowed = useDawStore(canPlaceClips);
   const move = useClipMove(clip);
+  const [draft, setDraft] = useState<number | null>(null);
   return (
     <ScrubField
       label="Start"
-      value={clip.timeline_start}
+      value={draft ?? clip.timeline_start}
       unit="s"
       step={0.01}
       decimals={3}
       min={0}
       skipUnchanged
       readOnly={disabled || !allowed}
-      onPreview={(start) => move.preview(start, clip.track_id)}
-      onCancel={move.cancel}
-      onCommit={(start) => void move.commit(start, clip.track_id)}
+      onPreview={(start) => {
+        setDraft(start);
+        move.preview(start, clip.track_id);
+      }}
+      onCancel={() => {
+        setDraft(null);
+        move.cancel();
+      }}
+      onCommit={(start) => {
+        setDraft(null);
+        void move.commit(start, clip.track_id);
+      }}
     />
   );
 }
