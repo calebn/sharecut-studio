@@ -329,8 +329,10 @@ reason (#1690), and does not replace a toast that still offers Undo for a newer 
 logical approval recorded across two commands keeps one Undo on the pass toast.
 There is no per-command
 "writes history" flag: every document command moves the head, so the client cannot tell
-which sends leave a toast's entry current. A refusal is announced once
-(the command returns `announced: true`, so the two-finger tap does not repeat it). Undo and Redo are refused offline and never replay. Ordinary refused edits
+which sends leave a toast's entry current. A refusal is announced once.
+The command returns `told: true`, so generic callers retain its feedback rather
+than announce the bare reason again. A refusal spoken only in the live region
+also carries `told`, preserving a newer toast whose Undo remains available. Undo and Redo are refused offline and never replay. Ordinary refused edits
 remain listed in **Needs attention** under their existing recovery policy.
 An unconfirmed history response reports an unknown outcome. Check History before
 trying again.
