@@ -17,16 +17,13 @@ function subscribe(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
-/** A run that redoes the timing, or the transcript, settles the offer. */
 export function clearRetimeOffer(projectPath: string): void {
   if (timedWithout.has(projectPath))
     change(() => timedWithout.delete(projectPath));
 }
 
 type WordTiming = {
-  /** The aligner's row; null until the status arrives. */
   row: ModelView | null;
-  /** The aligner is known and not installed. */
   missing: boolean;
   /** A transcript exists and its words were timed without the aligner. */
   approximate: boolean;

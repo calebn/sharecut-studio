@@ -341,7 +341,6 @@ export function usePrepareRun(input: PrepareRunInput) {
     keepFixes,
     /** Word timing is missing; null when the model is in or unknown. */
     approximateTiming: missing ? alignerRow : null,
-    /** Word timing arrived after a transcript without it: offer to redo the timing. */
     retimeWords: retime,
     run: start,
     tryAgain: () => {

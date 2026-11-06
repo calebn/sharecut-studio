@@ -484,7 +484,6 @@ describe("usePrepareRun word timing", () => {
         api.current = row("installed");
         view.rerender();
       },
-      /** The aligner arrives while this hook is not mounted, as from Review's Check. */
       installElsewhere: () => {
         view.unmount();
         api.current = row("installed");
