@@ -26,7 +26,7 @@ const meta: Meta<typeof ListenLink> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "The listen link for the final: a Viewer link pinned to the exported version. There is no Create button; the link is made when it is first copied. After an export, Copy is the filled follow-up.\n\n**Motion.** Animations come later: the Copied label holds for 2 s and then eases back.",
+          "The listen link for the final: a Viewer link pinned to the version current when it is first copied. There is no Create button; the link is made when it is first copied. After an export, Copy is the filled follow-up.\n\n**Motion.** Animations come later: the Copied label holds for 2 s and then eases back.",
       },
     },
   },

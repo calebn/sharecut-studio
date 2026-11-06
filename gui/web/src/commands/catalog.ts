@@ -610,7 +610,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     keywords: ["share", "listen", "viewer", "podcast"],
     when: "hostProjectLoaded",
     notes:
-      "Copy the listen link: a Viewer link frozen on the exported version, made on first use. Palette only",
+      "Copy the listen link: a Viewer link frozen on the version current when first copied, made on first use. Palette only",
   },
   "record.createRoom": {
     id: "record.createRoom",

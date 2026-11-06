@@ -104,7 +104,7 @@ function groupRecordRooms(rows: readonly HostShareRow[]): RecordRoomGroup[] {
   return [...map.values()];
 }
 
-/** What the next listen link is: a Viewer link frozen on the exported version. */
+/** What the next listen link is: a Viewer link frozen on the version current when first copied. */
 export const LISTEN_CHOICES: ShareChoices = {
   role: "viewer",
   withMcp: false,

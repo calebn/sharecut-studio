@@ -143,7 +143,7 @@ describe("Listen link on the Deliver stage", () => {
     await expectNoA11yViolations(container);
   });
 
-  it("makes a Viewer link frozen on the exported version on first Copy, and copies it", async () => {
+  it("makes a Viewer link frozen on the version current when first copied on first Copy, and copies it", async () => {
     const writeText = installClipboard();
     render(<Host />);
     const copy = listen().getByRole("button", { name: "Copy listen link" });
