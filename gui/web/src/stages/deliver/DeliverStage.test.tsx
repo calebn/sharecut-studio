@@ -4807,22 +4807,6 @@ describe("a clip removed in a host that restores it", () => {
   });
 });
 
-describe("a clip removed in a host that cannot restore it", () => {
-  it("offers no Undo", async () => {
-    setup({ clipUndo: false });
-    await userEvent.click(
-      screen.getByRole("button", { name: "More for Nobody asked the river" }),
-    );
-    await userEvent.click(
-      await screen.findByRole("menuitem", { name: "Remove" }),
-    );
-    expect(
-      screen.getByText("Removed Nobody asked the river"),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
-  });
-});
-
 describe("the parts a host may leave out", () => {
   it("leaves out the Loudness row without a loudness", () => {
     setup({ facts: { ...CLEAR_FACTS, loudness: undefined } });

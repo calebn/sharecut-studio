@@ -97,8 +97,6 @@ export type DeliverStageProps = {
   share?: ShareOptions;
   /** The Podcast listing section, mounted after Share. Without it the section is not shown. */
   feed?: ReactNode;
-  /** False when the host cannot put a removed clip back into the project. */
-  clipUndo?: boolean;
   /** Called when Undo brings a removed clip back, so a host can take the removal back too. */
   onClipRestore?: (clip: Clip) => void;
   /** True when each clip title is saved as it is finished (Enter or leaving the field), not on every keystroke. */
@@ -153,7 +151,6 @@ export function DeliverStage({
   transcript,
   share,
   feed,
-  clipUndo = true,
   onClipRestore,
   clipTitleCommit = false,
   onChapters,
@@ -297,15 +294,10 @@ export function DeliverStage({
     const gone = clips[index];
     if (!gone) return;
     setClips((now) => removeClip(now, id));
-    notify(
-      `Removed ${gone.title}`,
-      clipUndo
-        ? () => {
-            setClips((now) => restoreClip(now, gone, index));
-            onClipRestore?.(gone);
-          }
-        : undefined,
-    );
+    notify(`Removed ${gone.title}`, () => {
+      setClips((now) => restoreClip(now, gone, index));
+      onClipRestore?.(gone);
+    });
   };
   const sharedState = loading ? "loading" : "ready";
   const transcriptPart = transcript ? (
