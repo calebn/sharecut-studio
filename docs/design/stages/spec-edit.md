@@ -190,7 +190,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 |---|---|---|
 | New project…, Open project… | Project menu (title dropdown): "Recent" list (5) + "Open…" + "New project"; Mod+N, Mod+O | Project switching is project-level |
 | Bounce… | Range action bar ⋯ "Export selection…"; Deliver | Bounce is always of a selection |
-| Export deliverables… | Deliver stage (Mod+5; Mod+E exports) | Stage C |
+| Export deliverables… | Deliver stage (Mod+5; Mod+E exports, or with one range selected opens Deliver with Bounce focused) | Stage C |
 | Share… | Header invite button (person-plus) for review links; Deliver "Share for review" card | Inviting happens mid-edit too |
 | Record room… | Record stage (Mod+2) | Stage C |
 | Connect agent… | Project menu "Connect agent" | Rare, project-level |
@@ -729,7 +729,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 
 - **Today:** no shot of my own; Toast stories exist. Feedback: toasts dock above sheets and rails in different places per device.
 - **Fate:** restyle.
-- **Spec:** one position: centered, 12 px above the player bar (phone: above the action dock if open). Max 480 px, 44 px tall, one line: icon + past-tense result + up to one action ("Undo" for every edit, or the next step such as "Review"). 5 s, paused on hover. A new toast replaces the old one; consecutive same-kind edits merge ("3 cuts · Undo all").
+- **Spec:** one position: centered, 12 px above the player bar (phone: above the action dock if open). Max 480 px, 44 px tall, one line: icon + past-tense result + up to one action ("Undo" for every edit, or the next step such as "Review"). 6 s, paused on hover. A new toast replaces the old one; consecutive same-kind edits merge ("3 cuts · Undo all").
 - **Shared elements used:** TOAST.
 - **Story to build:** `Shell/Toast` stories `Cut`, `MergedCuts`, `NextStep`, `Error`, `Phone`, `AboveDock`.
 
@@ -849,7 +849,7 @@ Each interaction uses the object selection model above. Every edit is one undo s
 
 - **Today:** CMP-TOOLRAIL shots; touch blade asks for confirmation.
 - **Fate:** restyle.
-- **Spec:** S or Mod+K splits at the playhead on the targeted tracks (scope chip; default all); Blade tool (B, or hold B) click splits that lane, Shift-click splits all lanes. Phone: Split here in the playhead dock. No confirm. After a split, the right-hand piece is selected (anticipating trim, move or Cut).
+- **Spec:** S or Mod+K splits at the playhead on the targeted tracks (scope chip; default all); Alt-click at the pointer splits that lane. Phone: Split here in the playhead dock. No confirm. After a split, the right-hand piece is selected (anticipating trim, move or Cut).
 - **Story to build:** `Edit/ToolToggle` story `SpringBlade`; `Edit/PhoneEdit` story `WaveNothingSelected`.
 
 ### INT-DELETE and INT-RIPPLE · Delete and ripple
