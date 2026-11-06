@@ -17,6 +17,34 @@ vi.mock("../../../api", async (original) => ({
   replaceTranscriptMatches: replace,
 }));
 vi.mock("../../../commands/seek", () => ({ seekTransport: vi.fn() }));
+const scrolled = vi.hoisted(() => ({ to: [] as number[] }));
+vi.mock("../../../system/ScriptPane", async (original) => {
+  const actual = await original<typeof import("../../../system/ScriptPane")>();
+  const { forwardRef, useImperativeHandle, useRef } = await import("react");
+  return {
+    ...actual,
+    ScriptPane: forwardRef<
+      import("../../../system/ScriptPane").ScriptPaneHandle,
+      import("../../../system/ScriptPane").ScriptPaneProps
+    >((props, ref) => {
+      const inner =
+        useRef<import("../../../system/ScriptPane").ScriptPaneHandle>(null);
+      useImperativeHandle(
+        ref,
+        () => ({
+          focusFind: () => inner.current?.focusFind() ?? false,
+          focusWord: (index) => inner.current?.focusWord(index) ?? false,
+          scrollToWord: (index, block) => {
+            scrolled.to.push(index);
+            return inner.current?.scrollToWord(index, block) ?? false;
+          },
+        }),
+        [],
+      );
+      return <actual.ScriptPane {...props} ref={inner} />;
+    }),
+  };
+});
 
 const bar = () => screen.getByRole("search", { name: "Find in transcript" });
 const findField = () => screen.getByRole("searchbox", { name: "Find" });
@@ -124,6 +152,9 @@ describe("ScriptHost Find", () => {
     await openFind();
     await userEvent.type(findField(), "one thanks");
     expect(bar()).toHaveTextContent("1 of 1");
+    expect(
+      screen.getAllByRole("status").map((region) => region.textContent),
+    ).toContain("1 of 1");
     await userEvent.click(screen.getByRole("button", { name: /Select all 1/ }));
     const selection = useDawStore.getState().selection;
     expect(selection?.kind).toBe("range");
@@ -133,6 +164,34 @@ describe("ScriptHost Find", () => {
       { start: 10, end: 10.4 },
       { start: 14, end: 14.4 },
     ]);
+  });
+
+  it("scrolls to the first word of each interrupted hit as Next and Previous step", async () => {
+    seedScript({
+      utterances: [
+        scriptUtterance("host", "Maya", [scriptWord("one", 0, 10)]),
+        scriptUtterance("guest", "Anneke", [scriptWord("yes", 0, 12)]),
+        scriptUtterance("host", "Maya", [scriptWord("thanks", 1, 14)]),
+        scriptUtterance("host", "Maya", [scriptWord("one", 2, 20)]),
+        scriptUtterance("guest", "Anneke", [scriptWord("yes", 1, 22)]),
+        scriptUtterance("host", "Maya", [scriptWord("thanks", 3, 24)]),
+      ],
+    });
+    await openFind();
+    await userEvent.type(findField(), "one thanks");
+    expect(bar()).toHaveTextContent("1 of 2");
+    expect(scrolled.to.at(-1)).toBe(0);
+    await userEvent.click(screen.getByRole("button", { name: "Next match" }));
+    expect(bar()).toHaveTextContent("2 of 2");
+    expect(scrolled.to.at(-1)).toBe(3);
+    await userEvent.click(screen.getByRole("button", { name: "Next match" }));
+    expect(bar()).toHaveTextContent("1 of 2");
+    expect(scrolled.to.at(-1)).toBe(0);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Previous match" }),
+    );
+    expect(bar()).toHaveTextContent("2 of 2");
+    expect(scrolled.to.at(-1)).toBe(3);
   });
 
   it("replaces all through the preview token and toasts without a count", async () => {
