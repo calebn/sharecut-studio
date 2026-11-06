@@ -159,7 +159,8 @@ export function InviteBody({ options, at = null }: Props) {
           Listen link
         </h3>
         <p className="inv-note">
-          For the finished episode: listeners hear the version you exported.
+          For the finished episode: listeners hear the version current when you
+          first copy the link.
         </p>
         <ListenLinkRow options={options} />
       </section>
