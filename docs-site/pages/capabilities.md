@@ -31,7 +31,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | ----- | ------ | ------- | -------- | ----- | --- | --- | --- | ----- | --------- | -------- |
 | Play / pause | session | `transport.togglePlay` | `Space` | — | `transport.play` | `set_session_playing_tool`, `play_audio_tool` | — | `podcast-play-audition` | — | anchor · look |
 | Seek playhead | session | `transport.seek` | — (not industry-standard; menu/toolbar or unkeyed) | — | — | `seek_session_tool` | — | — | — | — |
-| Pause and return | session | `transport.stop` | `K` | — | `transport.stop` | `stop_session_tool` | — | — | — | anchor · look |
+| Pause and return | session | `transport.stop` | `K` | — | — | `stop_session_tool` | — | — | — | anchor · look |
 | Jump back | session | `transport.shuttleBack` | `J` | — | — | `seek_session_tool` | `podcast session seek` | — | — | anchor · look |
 | Speed up (1×/2×/4×) | session | `transport.shuttleForward` | `L` | — | — | `set_session_playing_tool` | — | — | — | anchor · look |
 | Audition Full mix / Edited stems / Original | session | `transport.audition` | — (not industry-standard; Full mix/Edited stems/Original toggle) | — | `transport.audition` | — | — | `podcast-play-audition` | — | anchor · hear |
@@ -64,7 +64,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Zoom in | view | `view.zoomIn` | `=` | `pinch` | `editCorner`, `viewSheet` | — | — | — | — | none · look |
 | Zoom out | view | `view.zoomOut` | `-` | `pinch` | `editCorner`, `viewSheet` | — | — | — | — | none · look |
 | Zoom to selection | view | `view.zoomToSelection` | `Z` | — | — | — | — | — | — | none · look |
-| Fit session width | view | `view.fit` | `\` | — | `transport.fit`, `editCorner`, `viewSheet` | — | — | — | — | none · look |
+| Fit session width | view | `view.fit` | `\` | — | `editCorner`, `viewSheet` | — | — | — | — | none · look |
 | Go to Record | view | `stage.record` | `Mod+1` | — | `stageBar`, `editPlusMenu` | — | — | — | — | none · look |
 | Go to Prepare | view | `stage.prepare` | `Mod+2` | — | `stageBar` | — | — | — | — | none · look |
 | Go to Edit | view | `stage.edit` | `Mod+3` | — | `stageBar` | — | — | — | — | none · look |
@@ -73,12 +73,12 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Open history | view | `edit.history` | — (Reached from the palette and by right-click or long-press on Undo or Redo) | — | `historyPanel` | — | — | — | — | none · none |
 | Show or hide Script | view | `view.toggleScript` | `T` | — | `editCorner` | — | — | — | — | none · none |
 | Script focus | view | `view.scriptFocus` | `Shift+T` | — | — | — | — | — | — | none · none |
-| Waveform amplitude zoom in | view | `view.waveformZoomIn` | `Shift+ArrowUp` | — | `timeline.waveform`, `viewSheet` | — | — | — | — | time · look |
-| Waveform amplitude zoom out | view | `view.waveformZoomOut` | `Shift+ArrowDown` | — | `timeline.waveform`, `viewSheet` | — | — | — | — | time · look |
-| Fit tracks to window height | view | `view.fitTracksHeight` | — (toggle; View menu checkbox and transport icon) | — | `transport.fitTracksHeight` | — | — | — | — | none · none |
+| Waveform amplitude zoom in | view | `view.waveformZoomIn` | `Shift+ArrowUp` | — | `viewSheet` | — | — | — | — | time · look |
+| Waveform amplitude zoom out | view | `view.waveformZoomOut` | `Shift+ArrowDown` | — | `viewSheet` | — | — | — | — | time · look |
+| Fit tracks to window height | view | `view.fitTracksHeight` | — (toggle; View sheet checkbox) | — | `viewSheet` | — | — | — | — | none · none |
 | Increase track height | view | `view.trackHeightIncrease` | `Alt+=` | — | `viewSheet` | — | — | — | — | none · none |
 | Decrease track height | view | `view.trackHeightDecrease` | `Alt+-` | — | `viewSheet` | — | — | — | — | none · none |
-| Undo | project | `history.undo` | `Mod+Z` | `two-finger-tap` | `historyPanel`, `mobileShell.gesture.twoFingerTap`, `transcript.findReplace`, `transcript.wordbar` | `history_undo` | `podcast undo` | `podcast-history` | — | none · none |
+| Undo | project | `history.undo` | `Mod+Z` | `two-finger-tap` | `historyPanel`, `transcript.findReplace`, `transcript.wordbar` | `history_undo` | `podcast undo` | `podcast-history` | — | none · none |
 | Redo | project | `history.redo` | `Mod+Shift+Z` | — | `historyPanel` | `history_redo` | `podcast redo` | `podcast-history` | — | none · none |
 | Commands and shortcuts | view | `ui.toggleCommandPalette` | `?` | — | `GesturesSheet` | — | — | — | — | none · none |
 | Refresh mix | project | `render.refreshMix` | — (Mod+B belongs to the browser (bookmarks, bold); Refresh mix is in the palette and the mix ring) | — | `deliverShare` | `render_preview` | `podcast render-preview` | `podcast-play-audition` | — | none · none |
@@ -111,7 +111,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Adjust word timing | project | `transcript.adjustTiming` | — (Native range controls and numeric fields in the word inspector) | — | `transcript.wordbar` | `set_word_timing_tool` | `podcast transcript set-word-timing` | — | — | anchor · none |
 | Edit focused transcript word | project | `transcript.editWordInline` | `F2` | `double-tap` | — | `correct_transcript_tool` | `podcast transcript correct` | — | — | anchor · none |
 | Extend transcript range | view | `transcript.extendRange` | — (Range action buttons are keyboard operable; no industry-standard key) | `long-press-arm-drag` | `rangeActions.words` | — | — | — | — | anchor · look |
-| Ignore / restore transcript words | project | `transcript.ignoreWords` | — (no industry-standard key (#649)) | — | `transcript.ignore`, `transcript.restoreIgnored`, `inspector.word.ignore`, `rangeActions.words` | `set_words_ignored_tool` | `podcast doc submit` | — | — | anchor · look |
+| Ignore / restore transcript words | project | `transcript.ignoreWords` | — (no industry-standard key (#649)) | — | `transcript.ignore`, `inspector.word.ignore`, `rangeActions.words` | `set_words_ignored_tool` | `podcast doc submit` | — | — | anchor · look |
 | Show cut away | view | `view.showCutAway` | — (toolbar toggle; no industry-standard key) | — | `transcript.showCutAway` | — | — | — | — | none · none |
 | Trim clip edge | project | `edit.trimClipEdge` | `ArrowLeft` | `long-press-arm-drag`, `hold-nudge` | `timeline.clip.trimHandle` | `trim_clip_edge_tool` | `podcast edit trim-clip` | — | — | time · none |
 | Move clips | project | `edit.moveClips` | — (Move clip inspector controls or pointer clip-body drag; arrow keys stay playhead nudge) | `long-press-arm-drag` | `timeline.clip.body`, `clipInspector` | `move_clips_tool` | `podcast edit move-clips` | — | — | time · none |

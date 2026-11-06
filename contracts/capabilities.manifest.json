@@ -83,9 +83,6 @@
       ],
       "surfaces": {
         "command": "transport.stop",
-        "gui": [
-          "transport.stop"
-        ],
         "keyboard": "K",
         "mcp": [
           "stop_session_tool"
@@ -905,7 +902,6 @@
       "surfaces": {
         "command": "view.fit",
         "gui": [
-          "transport.fit",
           "editCorner",
           "viewSheet"
         ],
@@ -1113,7 +1109,6 @@
       "surfaces": {
         "command": "view.waveformZoomIn",
         "gui": [
-          "timeline.waveform",
           "viewSheet"
         ],
         "keyboard": "Shift+ArrowUp"
@@ -1137,7 +1132,6 @@
       "surfaces": {
         "command": "view.waveformZoomOut",
         "gui": [
-          "timeline.waveform",
           "viewSheet"
         ],
         "keyboard": "Shift+ArrowDown"
@@ -1164,11 +1158,11 @@
       "surfaces": {
         "command": "view.fitTracksHeight",
         "gui": [
-          "transport.fitTracksHeight"
+          "viewSheet"
         ]
       },
       "omit": {
-        "keyboard_reason": "toggle; View menu checkbox and transport icon"
+        "keyboard_reason": "toggle; View sheet checkbox"
       },
       "presence": {
         "cursor": "none",
@@ -1234,7 +1228,6 @@
         "command": "history.undo",
         "gui": [
           "historyPanel",
-          "mobileShell.gesture.twoFingerTap",
           "transcript.findReplace",
           "transcript.wordbar"
         ],
@@ -2975,7 +2968,6 @@
         "command": "transcript.ignoreWords",
         "gui": [
           "transcript.ignore",
-          "transcript.restoreIgnored",
           "inspector.word.ignore",
           "rangeActions.words"
         ],
