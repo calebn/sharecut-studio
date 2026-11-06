@@ -209,8 +209,8 @@ const SURFACE_GESTURES: Record<string, string> = {
     "the transcript edit-boundary mark drags a cut's gap with pointer capture, the same roll as edit.rollClipJoin",
   "transcript/TranscriptWordbar.tsx":
     "the word-boundary sliders preview a word's timing and save one adjustment on release",
-  "stages/prepare/AdvancedSteps.tsx":
-    "a step's seconds setting is a native range input beside its value; it is a setting, not a timeline target",
+  "system/useSourceReorder.ts":
+    "source reorder: a pointer drag on a Source card's grip, with pointer capture, moves the card among the session's cards and saves one new order on release; Escape, a cancel or a lost capture put it back; the card menu moves a source by key; it is a list reorder, not a timeline target",
   "system/wavePointer.ts":
     "the pointer helpers shared by the suggestion and clip trim handles: a pointer position as a ratio of a strip, and a safe pointer capture; no gesture of its own",
   "system/useScriptGestures.ts":
