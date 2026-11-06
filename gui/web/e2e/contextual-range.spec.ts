@@ -420,7 +420,7 @@ test.describe("a phone with a touch screen", () => {
   });
 });
 
-test("a word picked in the Script and inspected on the desktop shows one Range fields region", async ({
+test("a word picked in the Script and inspected on the desktop shows Word timing, not Range fields", async ({
   page,
 }) => {
   await withShareableProject(async (projectPath) => {
@@ -432,8 +432,11 @@ test("a word picked in the Script and inspected on the desktop shows one Range f
     await expect(
       page.getByRole("dialog", { name: "Inspector", exact: true }),
     ).toBeVisible();
+    await expect(page.getByRole("region", { name: "Word timing" })).toHaveCount(
+      1,
+    );
     await expect(
       page.getByRole("region", { name: "Range fields" }),
-    ).toHaveCount(1);
+    ).toHaveCount(0);
   });
 });
