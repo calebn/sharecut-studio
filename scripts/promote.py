@@ -18,7 +18,8 @@ Needs `GITHUB_REPOSITORY` and a `GITHUB_TOKEN` (or `GH_TOKEN`) the `gh` CLI can 
 `GITHUB_TOKEN` cannot push changes to `.github/workflows/*`. When the fast-forward range touches them
 and `PROMOTE_TOKEN` (a PAT with contents and workflows write; the workflow passes the repository
 secret `PROMOTE_TOKEN`, else `RELEASE_PLEASE_TOKEN`) is set, only the final push to the target uses
-it; every other push and call keeps `GITHUB_TOKEN`.
+it for the temporary-branch push and the final push to the target; every other call keeps
+`GITHUB_TOKEN`.
 """
 
 from __future__ import annotations
@@ -322,8 +323,10 @@ def promote(
     if not git.is_ancestor(target_sha, source_sha):
         print(f"{target} is not an ancestor of {base}: merge {target} into {base}")
         return 1
+    token = os.environ.get(PROMOTE_TOKEN_ENV) or None
+    use_token = token is not None and git.touches_workflows(target_sha, source_sha)
     branch = temp_branch(source_sha, int(clock.epoch()), run_id, attempt)
-    git.push(source_sha, branch)
+    git.push(source_sha, branch, token if use_token else None)
     for workflow in CI_WORKFLOWS:
         inputs = (
             {
@@ -353,8 +356,6 @@ def promote(
     if nightly:
         print(f"{base} {source_sha[:12]} is green; nothing to promote")
         return 0
-    token = os.environ.get(PROMOTE_TOKEN_ENV) or None
-    use_token = token is not None and git.touches_workflows(target_sha, source_sha)
     if no_push:
         how = f" with {PROMOTE_TOKEN_ENV}" if use_token else ""
         print(f"dry run: would push {source_sha}:refs/heads/{target}{how}")
