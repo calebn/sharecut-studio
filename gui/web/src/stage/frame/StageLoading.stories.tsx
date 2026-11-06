@@ -156,5 +156,5 @@ export const Slow: Story = {
 
 export const Phone: Story = {
   args: { shell: "phone", stage: "review" },
-  globals: { viewport: { value: "phone", isRotated: false } },
+  globals: { viewport: { value: "mobile390", isRotated: false } },
 };
