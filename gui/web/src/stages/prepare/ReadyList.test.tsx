@@ -1,6 +1,12 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { ModelsContext } from "../../models/useModels";
+import {
+  modelStatus,
+  modelsApi,
+  registryRows,
+} from "../../test/renderWithModels";
 import { ROWS } from "./prepareFixture";
 import { ReadyList, type ReadyRowData } from "./ReadyList";
 
@@ -323,5 +329,40 @@ describe("ReadyList", () => {
     const items = screen.getAllByRole("listitem");
     expect(items[1]).toHaveTextContent("1 new · 3 reused");
     expect(items[3]).toHaveTextContent("1 new · 3 reused");
+  });
+
+  it("shows the word timing download as progress with Cancel inside the Transcribe row", async () => {
+    const api = modelsApi({ status: modelStatus(registryRows()) });
+    const cancel = vi.fn(async () => undefined);
+    const downloading = {
+      ...api,
+      cancel,
+      busy: true,
+      models:
+        api.models?.map((row) =>
+          row.id === "word-aligner"
+            ? {
+                ...row,
+                state: {
+                  kind: "downloading" as const,
+                  bytes: 90_000_000,
+                  total: 360_000_000,
+                },
+              }
+            : row,
+        ) ?? null,
+    };
+    render(
+      <ModelsContext.Provider value={downloading}>
+        <ReadyList rows={ROWS.approximateTiming} onAction={vi.fn()} />
+      </ModelsContext.Provider>,
+    );
+    const item = screen.getAllByRole("listitem")[1];
+    expect(within(item).getByText("Getting word timing")).toBeVisible();
+    expect(within(item).getByRole("progressbar")).toBeInTheDocument();
+    await userEvent.click(
+      within(item).getByRole("button", { name: "Cancel word timing download" }),
+    );
+    expect(cancel).toHaveBeenCalledOnce();
   });
 });
