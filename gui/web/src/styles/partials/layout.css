@@ -372,7 +372,6 @@ html[data-shell] body {
   pointer-events: none;
 }
 
-
 /* Landing places for focus after Clear solo when no S button survives; a
    region ring would only be noise. */
 :is(.track-headers, .track-mix):focus {
