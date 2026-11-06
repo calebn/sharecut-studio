@@ -8,9 +8,7 @@
  * The scan reads JSX: a `CommandButton` or `CommandMenuItem` with a literal
  * `commandId`, and a literal `commandLabel("id")` written on a control. A file
  * that renders a command must be declared in `FILE_SURFACES`, which names the
- * manifest `gui` ids the file hosts. A shared control group mounted by more
- * than one parent is declared per mount in `WRAPPER_MOUNTS`, so a surface
- * cannot hide behind a sibling that is listed.
+ * manifest `gui` ids the file hosts.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
