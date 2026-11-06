@@ -581,3 +581,31 @@ def test_every_required_check_is_a_job_in_its_workflow() -> None:
 def test_the_merge_gate_reads_the_same_required_checks() -> None:
     gate = load_script("poteto_issue_gate")
     assert tuple(check.name for check in cp.REQUIRED_CHECKS) == gate.REQUIRED_CHECKS
+
+
+def test_a_source_file_no_test_names_runs_the_whole_suite(tmp_path: Path) -> None:
+    root = _tests_tree(tmp_path)
+    assert cp.changed_tests(["src/podcast_mcp/edits/unnamed.py"], root) is None
+    assert cp.changed_tests(["tests/helper_nobody_imports.py"], root) is None
+
+
+def test_a_shared_test_helper_reaches_the_tests_that_import_it(tmp_path: Path) -> None:
+    root = _tests_tree(tmp_path)
+    (root / "tests" / "test_uses_helper.py").write_text("from bleed_helpers import make\n")
+    assert cp.changed_tests(["tests/bleed_helpers.py"], root) == ["tests/test_uses_helper.py"]
+
+
+def test_a_parenthesised_from_import_reaches_the_module(tmp_path: Path) -> None:
+    root = _tests_tree(tmp_path)
+    (root / "tests" / "test_multi.py").write_text(
+        "from podcast_mcp.gui.routes import (\n    other,\n    export_routes,\n)\n"
+    )
+    assert cp.changed_tests(["src/podcast_mcp/gui/routes/export_routes.py"], root) == [
+        "tests/test_multi.py"
+    ]
+
+
+def test_a_workflow_named_test_yml_reaches_the_tests_that_read_it(tmp_path: Path) -> None:
+    root = _tests_tree(tmp_path)
+    (root / "tests" / "test_reads.py").write_text('p = ".github" / "workflows" / "test.yml"\n')
+    assert "tests/test_reads.py" in (cp.changed_tests([".github/workflows/test.yml"], root) or [])

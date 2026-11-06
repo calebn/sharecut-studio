@@ -80,6 +80,8 @@ SUITE_WIDE_NAMES = ("conftest.py",)
 # A workflow, contract or config file is also named by its basename in tests that read it.
 DISTINCT_NAME_DIRS = (".github/workflows/", "contracts/", "config/")
 MIN_BASENAME_LENGTH = 8
+# Changes here must reach a test by name, or the whole suite runs.
+FAIL_CLOSED_DIRS = ("src/", "tests/")
 
 
 def owned_by(owns: Iterable[Glob], changed: Sequence[str]) -> bool:
@@ -703,8 +705,12 @@ def _needles(path: str) -> list[re.Pattern[str]]:
         package, _, module = dotted.replace("/", ".").rpartition(".")
         needles.append(re.escape(dotted.replace("/", ".")))
         if package:
-            needles.append(rf"from\s+{re.escape(package)}\s+import\s[^\n]*\b{re.escape(module)}\b")
-    elif path.startswith(DISTINCT_NAME_DIRS) and len(name) > MIN_BASENAME_LENGTH:
+            needles.append(
+                rf"from\s+{re.escape(package)}\s+import\s+(?:\([^)]*|[^\n(]*)\b{re.escape(module)}\b"
+            )
+    elif path.startswith("tests/") and path.endswith(".py"):
+        needles.append(rf"\b(?:import|from)\s+(?:tests\.)?{re.escape(Path(path).stem)}\b")
+    elif path.startswith(DISTINCT_NAME_DIRS) and len(name) >= MIN_BASENAME_LENGTH:
         needles.append(re.escape(name))
     return [re.compile(needle) for needle in needles]
 
@@ -730,12 +736,22 @@ def changed_tests(changed: Sequence[str], root: Path = ROOT) -> list[str] | None
     script_stems = {Path(p).stem for p in others if p.startswith("scripts/") and p.endswith(".py")}
     needles = [needle for path in others for needle in _needles(path)]
     selected = set(existing)
-    for path in (root / "tests").rglob("test_*.py"):
-        source = path.read_text(encoding="utf-8")
+    sources = {
+        path.relative_to(root).as_posix(): path.read_text(encoding="utf-8")
+        for path in (root / "tests").rglob("test_*.py")
+    }
+    for name, source in sources.items():
         if any(needle.search(source) for needle in needles) or _referenced_scripts(
             source, script_stems
         ):
-            selected.add(path.relative_to(root).as_posix())
+            selected.add(name)
+    # A source or test-support file that no test names cannot be vouched for by a
+    # grep: run the whole suite rather than none.
+    for path in others:
+        if path.startswith(FAIL_CLOSED_DIRS) and not any(
+            pattern.search(source) for pattern in _needles(path) for source in sources.values()
+        ):
+            return None
     return None if len(selected) > MAX_CHANGED_TESTS else sorted(selected)
 
 

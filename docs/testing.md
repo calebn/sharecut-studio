@@ -285,7 +285,7 @@ GitHub Actions runs the required checks on every pull request and the full suite
 
 | Run | `pytest` | Frontend workload (`frontend-suite`) | Browser suites (`frontend-e2e-suites`) |
 |---|---|---|---|
-| PR with no GUI-facing change | only the test files the diff reaches (`python3 scripts/ci_plan.py changed-tests`), `--no-cov`; none when it reaches none (`quick`); the full suite with the floor when it reaches more than `MAX_CHANGED_TESTS` | skipped | skipped |
+| PR with no GUI-facing change | only the test files the diff reaches (`python3 scripts/ci_plan.py changed-tests`), `--no-cov`; none when only non-code files reach none (`quick`); a `src/` or `tests/` file no test names runs the full suite; the full suite with the floor when it reaches more than `MAX_CHANGED_TESTS` | skipped | skipped |
 | PR with a GUI-facing change | as above | runs | one `main-smoke` job: the `SMOKE_SPECS` in `scripts/ci_plan.py` |
 | PR where every changed file is under `gui/web/` | only the test files that name `gui/web`, or run a `scripts/` file that does (`python3 scripts/ci_plan.py subset-tests web`), `--no-cov` | runs | as above |
 | PR where every changed file is docs (`docs/`, `docs-site/`, `ux/`, `.agents/skills/`, `README.md`, `ROADMAP.md`, `AGENTS.md`) | only the test files that name those paths, or run a `scripts/` file that does (`python3 scripts/ci_plan.py subset-tests docs`), `--no-cov`, then the docs-sync gate | skipped, unless the diff also touches a GUI-facing doc such as `docs/daw-shortcuts.md` | skipped, same exception |
@@ -795,7 +795,7 @@ Retained scenarios keep all non-axe assertions. See [the ownership map](testing-
 `.github/workflows/test.yml`.
 `tests/test_browser_acceptance_matrix.py` rejects missing,
 duplicate or filtered engine selections, checks their disjoint coverage, and
-checks that the PR shards cover the whole WebKit project.
+checks that the release PR shards cover the whole WebKit project.
 The compact history reach test attaches each control's name, rectangle and
 center hit stack, plus a screenshot, before asserting ownership. These receipts
 preserve the covering element even when a later assertion fails.

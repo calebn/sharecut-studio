@@ -270,7 +270,7 @@ and decides:
 - A PR that touches only docs (`docs/`, `docs-site/`, `ux/`, `.agents/skills/`,
   `README.md`, `ROADMAP.md`, `AGENTS.md`) runs just the Python tests that read
   those paths, plus the docs-sync gate.
-- Browser compat runs on WebKit only.
+- Ordinary PRs run the `main-smoke` browser job only; the WebKit compat shards run on release-please PRs, and promotion runs both engines.
 
 `workflow_dispatch` runs everything, with the
 95% coverage floor and both compat engines, and the nightly promotion dispatches it. A push to `develop` runs only
