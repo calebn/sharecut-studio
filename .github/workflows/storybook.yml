@@ -84,6 +84,11 @@ jobs:
         run: npm run test:e2e:storybook -- coverage.spec.ts docs-theme.spec.ts
         working-directory: gui/web
 
+      - name: Verify Prepare text layout (Vitest browser)
+        if: github.event_name != 'pull_request'
+        run: npm run test:layout
+        working-directory: gui/web
+
       - name: Build Storybook and verify browser geometry
         if: github.event_name != 'pull_request'
         run: npm run test:e2e:storybook
