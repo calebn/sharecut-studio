@@ -4,7 +4,7 @@ import type { RecordSegmentAck } from "./types";
 /**
  * Where one segment of a participant's full-quality recording stands. A
  * segment is saved once the project holds the verified file (file ACK); landing
- * it on the timeline is a separate step the Land control reports.
+ * it on the timeline is a separate step the take row reports (Retry on failure).
  */
 export type SaveState = "saving" | "saved";
 
