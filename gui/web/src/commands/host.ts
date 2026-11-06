@@ -40,6 +40,8 @@ import { registerCommand } from "./execute";
 import { runRangeAction } from "./rangeActions";
 import type { ExecuteResult } from "./types";
 
+const GUIDES_URL = "https://docs.sharecut.studio/";
+
 /** Same rule and reason as the `hostProjectLoaded` when-clause (handlers run with skipWhen). */
 export function hostProjectGate(ctx: CommandContext): ExecuteResult | null {
   const gate = evaluateWhen("hostProjectLoaded", ctx);
@@ -218,6 +220,11 @@ export function registerHostCommands(): void {
       };
     }
     s.setHelpDialogOpen(true);
+    return { status: "ok" };
+  });
+
+  registerCommand("help.guides", () => {
+    window.open(GUIDES_URL, "_blank", "noopener,noreferrer");
     return { status: "ok" };
   });
 

@@ -1318,6 +1318,7 @@
       "surfaces": {
         "command": "ui.toggleCommandPalette",
         "gui": [
+          "home.help",
           "GesturesSheet"
         ],
         "keyboard": "?"
@@ -2100,7 +2101,6 @@
       "surfaces": {
         "command": "help.diagnosticsBundle",
         "gui": [
-          "home.help",
           "HelpDialog"
         ],
         "cli": "podcast doctor --bundle"
@@ -2110,6 +2110,28 @@
         "guest": true
       },
       "tooltip": "Create a sanitized diagnostics bundle",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.help.guides",
+      "label": "Guides",
+      "effect": "view",
+      "service": "ShareCut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "always"
+      ],
+      "surfaces": {
+        "command": "help.guides",
+        "gui": []
+      },
+      "omit": {
+        "keyboard_reason": "palette Help group"
+      },
+      "tooltip": "Open the documentation site",
       "presence": {
         "cursor": "none",
         "follow": "none"

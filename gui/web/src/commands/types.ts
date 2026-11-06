@@ -93,6 +93,8 @@ export type CommandDef = {
    * its result needs no toast.
    */
   mutates?: true;
+  /** Also listed in the command palette on Home, where no project is open. */
+  home?: true;
   /** False for commands that require context-specific arguments from a caller. */
   paletteRunnable?: false;
   /** Strong local navigation: stop following after a successful run. */
