@@ -3,7 +3,7 @@
 Join sheet, consent, people tiles, status pill (live, paused, saving), full-quality recording on each
 participant's device, mix-minus monitor, saving to the project, timeline
 landing, and live comments ship.
-Spec: [recording-session.md](../../../docs/recording-session.md).
+Spec: [recording-session.md](https://github.com/calebn/sharecut-studio/blob/main/docs/recording-session.md).
 Journeys: [Guest journeys § 6–7](#/journeys).
 
 | Surface | Who | What they see |

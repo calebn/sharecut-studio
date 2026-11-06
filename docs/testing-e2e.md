@@ -8,7 +8,7 @@ End-to-end fixture tests, beta user-story coverage, lab verification and browser
 
 ### Beta user stories (US-1 … US-9)
 
-The beta user stories come from `ux/pages/brief.md`, `ux/pages/screen-inventory.md`, `ux/pages/guest-journeys.md`, and `ROADMAP.md`. Each story's issue holds its Given/When/Then, steps, and run log; bugs found while working a story get their own issues. "Still manual" lists every step that has no automated check yet, including hardware-only steps (Tauri recording) and listening by ear.
+The beta user stories come from `ux/pages/brief.md`, `ux/pages/screens/`, `ux/pages/guest-journeys.md`, and `ROADMAP.md`. Each story's issue holds its Given/When/Then, steps, and run log; bugs found while working a story get their own issues. "Still manual" lists every step that has no automated check yet, including hardware-only steps (Tauri recording) and listening by ear.
 
 "Automated" means every step except Tauri recording and listening by ear has an automated check. "Partial" means some other step still needs a manual run, and that step is named under "Still manual". Cite each coverage file by its full repo-relative path. Update a story's row in the same change that automates one of its steps. `tests/test_beta_story_matrix.py` guards this table: every cited path must exist, an "Automated" row may list only Tauri recording or listening by ear under "Still manual", and a "Partial" row must list at least one other step.
 
