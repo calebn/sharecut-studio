@@ -62,7 +62,7 @@ flowchart TB
   ST --> review
   ST --> PREP[Prepare: sources, getting ready, cleanup]
   ST --> REC[Record: launcher and live take]
-  ST --> DEL[Deliver: export, bounce, share]
+  ST --> DEL[Deliver: export, bounce, Listen link]
   SEL[Selection] --> BS[Bottom sheet: inspector + related commands]
 ```
 
@@ -158,7 +158,7 @@ copying its old link, and offers a same-room, same-role replacement. Existing
 leases remain valid. Guests never see the sheet (`canManageProjects` is false
 on `share:{token}`).
 
-Storybook `Stages/Frame/InviteSheet` previews the sheet with fictional links and `System/LinkRow` the row states; `Stages/Deliver/ListenLink` the row in Deliver.
+Storybook `Stages/Frame/InviteSheet` previews the sheet with fictional links and `System/LinkRow` the row states; `Stages/Deliver/Deliver` the Listen link row in Deliver.
 
 ---
 
@@ -173,7 +173,7 @@ Storybook `Stages/Frame/InviteSheet` previews the sheet with fictional links and
 | **Empty / error** | No episode open: URL still copies, tools error until a project is open |
 | **Out of scope** | Writing `~/.cursor/mcp.json`; PATH-installing `podcast-mcp`; guest share-token MCP (that stays on Share…) |
 
-Not the Share section. Guest share agents use `{base}/mcp/{token}/mcp`.
+Guest share agents use `{base}/mcp/{token}/mcp`.
 
 ---
 
@@ -464,7 +464,7 @@ Step flows: [Guest journeys](#/journeys).
 | `action` | Check off comment action items |
 | `suggest` | Commenter and Editor. Propose structural cuts (pending); nudge its own suggestions; **not** hard-apply |
 | `edit` | Editor only. Approve/reject pending, fades/joins, FX bypass, apply structural cuts |
-| `mcp` | Connect an **external** agent at `{base}/mcp/{token}/mcp` (host Share section copies the MCP URL when the host allowed AI assistants; **no guest in-app MCP connect UI**) |
+| `mcp` | Connect an **external** agent at `{base}/mcp/{token}/mcp` (the host Invite sheet copies the MCP URL when the host allowed AI assistants; **no guest in-app MCP connect UI**) |
 
 ### ShareCut Studio guest chrome (when `view` is granted)
 

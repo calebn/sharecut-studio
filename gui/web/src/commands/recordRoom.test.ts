@@ -99,7 +99,7 @@ describe("record room commands", () => {
     expect(await execute("record.createRoom")).toEqual({ status: "ok" });
     expect(useRecordHostStore.getState().snapshot?.session_id).toBe("room1");
     expect(useDawStore.getState().statusAnnouncement).toBe(
-      "Record room created and guest link copied. Your new room is ready. Links to an earlier room may still work. End the earlier room in Share to turn them off.",
+      "Record room created and guest link copied. Your new room is ready. Links to an earlier room may still work. End the earlier room in Invite to turn them off.",
     );
   });
 
@@ -107,7 +107,7 @@ describe("record room commands", () => {
     useRecordHostStore.getState().setSnapshot(room);
     expect(await execute("record.createRoom")).toEqual({
       status: "disabled",
-      reason: "A record room is already open. End it in Share first.",
+      reason: "A record room is already open. End it in Invite first.",
     });
     expect(api.createRoom).not.toHaveBeenCalled();
   });
@@ -138,7 +138,7 @@ describe("record room commands", () => {
     expect(result.status).toBe("disabled");
     expect(writeText).not.toHaveBeenCalled();
     expect(useRecordHostStore.getState().transportError).toBe(
-      "This room's guest link is closed. Replace the guest invite in Share.",
+      "This room's guest link is closed. Replace the guest invite in Invite.",
     );
   });
 

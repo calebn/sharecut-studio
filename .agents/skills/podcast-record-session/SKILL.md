@@ -83,7 +83,7 @@ podcast record assign-track --project episode.sharecut --participant p_ab12cd34 
    Minting ends the previous room: its links show the dead-link cover.
    Send the **guest** `/rec/` URL to talent and the **producer** URL only to the
    silent listener.
-2. Open the **Record** stage in the Stage bar (or Share → **Open Record stage**). The host browser will ask for a mic; that dry tap is
+2. Open the **Record** stage in the Stage bar (or Invite → **Open Record stage**). The host browser will ask for a mic; that dry tap is
    the host's full-quality recording (`p_host`).
 3. Guests enter a name, check headphones and click **Allow microphone**, then
    **Join and record**, which is their consent. It stays disabled until every

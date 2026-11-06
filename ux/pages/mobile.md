@@ -159,7 +159,7 @@ Escape closes that popover first, even if the inspector sheet remounts
 behind it. A compact-to-regular inspector remount keeps the Cut anyway button
 focused.
 
-Tap outside a confirmation sheet to dismiss it. Hear original sits in the player on every stage; press and hold it to choose Full mix, Without mix processing or Original. Export, Bounce and Share are in Deliver, and project actions such as All projects, Settings and Connect agent are in the Project menu (the project title at the top). Timeline selection, track order, waveform and zoom controls stay in the Edit stage. Phone menu rows are at least 44 CSS px tall and hide keyboard hints.
+Tap outside a confirmation sheet to dismiss it. Hear original sits in the player on every stage; press and hold it to choose Full mix, Without mix processing or Original. Export and Bounce are in Deliver, and project actions such as All projects, Settings and Connect agent are in the Project menu (the project title at the top). Timeline selection, track order, waveform and zoom controls stay in the Edit stage. Phone menu rows are at least 44 CSS px tall and hide keyboard hints.
 
 ## Gestures
 
