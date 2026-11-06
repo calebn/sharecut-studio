@@ -417,7 +417,7 @@
     },
     {
       "id": "deliver-share-section",
-      "when": "Share section on Deliver (review links, record rooms, online sharing status)",
+      "when": "Invite sheet (review, record and listen links, online sharing status) and the Deliver Listen link",
       "update": "`docs/host-online-relay.md` when the tunnel states or their copy change (the stage specs are the design and stay as written)",
       "docs": [
         "docs/host-online-relay.md"
@@ -428,7 +428,8 @@
           "gui/web/src/stage/hosts/deliverShare.ts",
           "gui/web/src/stage/hosts/copyWhenReady.ts",
           "gui/web/src/stage/hosts/useTunnelStatus.ts",
-          "gui/web/src/stages/deliver/Share*",
+          "gui/web/src/stage/frame/InviteSheet*",
+        "gui/web/src/stage/frame/invite/*",
           "gui/web/src/stages/deliver/shareLogic.ts",
           "gui/web/src/stages/deliver/TunnelStatusLine.tsx",
           "gui/web/src/stages/deliver/tunnelStatusCopy.ts"
