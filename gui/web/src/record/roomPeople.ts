@@ -13,6 +13,8 @@ type RoomPeopleOptions = {
   saving?: Record<string, RoomSaving | null | undefined>;
   /** Other people's levels, 0 to 1, from the mix-minus analysers. */
   peerLevels?: Record<string, number>;
+  /** Other people's clip counts in the take, from their uploaded segments. */
+  peerClipped?: Record<string, number>;
 };
 
 const SPEAKING_FRACTION = 0.2;
@@ -66,6 +68,10 @@ export function roomPeople(
       if (level !== undefined && entry.presence === "live") {
         entry.level = level;
         entry.speaking = level > SPEAKING_FRACTION && !participant.muted;
+      }
+      const clipped = options.peerClipped?.[participant.participant_id];
+      if (clipped) {
+        entry.clipped = clipped;
       }
     }
     people.push(entry);

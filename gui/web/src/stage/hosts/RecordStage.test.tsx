@@ -223,6 +223,7 @@ beforeEach(() => {
   store.setKeeperStorage(null, null);
   store.resetConnection();
   store.setTakeClipping(null);
+  store.setPeerLevels({});
 });
 
 afterEach(() => {
@@ -2159,6 +2160,45 @@ describe("Record stage takes", () => {
     expect(ids.indexOf("stage.edit")).toBeLessThan(
       ids.indexOf("transport.seek"),
     );
+  });
+
+  it("shows a guest's clip count from their uploaded segments on their tile", async () => {
+    uploadStatus.mockResolvedValue({
+      segments: [
+        {
+          take_index: 0,
+          participant_id: "p_g",
+          segment_index: 0,
+          acked_parts: [0],
+          file_ack: true,
+          clipping_regions: [
+            [1000, 2000],
+            [5000, 6000],
+          ],
+        },
+        {
+          take_index: 0,
+          participant_id: "p_host",
+          segment_index: 0,
+          acked_parts: [0],
+          file_ack: true,
+          clipping_regions: [[1, 2]],
+        },
+      ],
+    });
+    act(() => {
+      setRoom({
+        state: "recording",
+        take_index: 0,
+        participants: [hostPerson(), avaGuest()],
+      });
+      useRecordHostStore.getState().setPeerLevels({ p_g: 0.6 });
+    });
+    const { container } = mount();
+    await waitFor(() => {
+      const badges = container.querySelectorAll(".sys-room-clip");
+      expect([...badges].map((b) => b.textContent)).toEqual(["2"]);
+    });
   });
 
   describe("post-take clipping summary", () => {
