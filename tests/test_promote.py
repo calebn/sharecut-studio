@@ -645,7 +645,7 @@ def test_promote_token_is_not_used_when_the_range_has_no_workflow_change(
     assert [used for _, used in spy.pushes] == [False, False]
 
 
-def test_promote_token_pushes_only_the_final_fast_forward_when_workflows_change(
+def test_promote_token_pushes_both_the_temp_branch_and_the_final_fast_forward_when_workflows_change(
     repo: Repo, monkeypatch
 ) -> None:
     monkeypatch.setenv("PROMOTE_TOKEN", "pat-secret")
@@ -659,7 +659,7 @@ def test_promote_token_pushes_only_the_final_fast_forward_when_workflows_change(
     spy = run_with_spy(repo)
 
     assert [(branch.split("-")[0].split("/")[0], used) for branch, used in spy.pushes] == [
-        ("promote", False),
+        ("promote", True),
         ("main", True),
     ]
     assert repo.remote_sha("main") == repo.remote_sha("develop")
