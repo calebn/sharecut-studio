@@ -1,8 +1,6 @@
 import {
-  createContext,
   type ReactNode,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -21,46 +19,15 @@ import {
   currentTightenIntensity,
   tightenProposeRunOptions,
 } from "../../utils/tightenIntensity";
+import {
+  type FindMoreFlow,
+  type FindMoreRun,
+  Flow,
+  NO_TIER,
+} from "./findMoreFlowContext";
 
 const modelKey = (model: Pick<ModelNeeded, "id" | "variant">) =>
   `${model.id}:${model.variant ?? ""}`;
-
-export const NO_TIER = "Set How tight in Prepare Cleanup first.";
-
-/** The run Find more started, scoped to the project it ran on. */
-export type FindMoreRun = {
-  path: string;
-  jobId: string | null;
-  error: string | null;
-};
-
-export type FindMoreFlow = {
-  run: FindMoreRun | null;
-  setRun: (run: FindMoreRun | null) => void;
-  /** The model Find more waits on in the open project; the Review queue shows its Get. */
-  needs: ModelNeeded | null;
-  /**
-   * Waits for the model, then runs Find more again by itself, wherever the person is by then.
-   * False when this model already ran Find more once since the last press, so the caller reports it.
-   */
-  stopFor: (need: ModelNeeded) => boolean;
-  /** A new press by the person: the next refusal waits again. */
-  fresh: () => void;
-};
-
-const INERT: FindMoreFlow = {
-  run: null,
-  setRun: () => undefined,
-  needs: null,
-  stopFor: () => false,
-  fresh: () => undefined,
-};
-
-const Flow = createContext<FindMoreFlow>(INERT);
-
-export function useFindMoreFlow(): FindMoreFlow {
-  return useContext(Flow);
-}
 
 export function FindMoreFlowProvider({ children }: { children: ReactNode }) {
   const projectPath = useDawStore((s) => s.projectPath);
