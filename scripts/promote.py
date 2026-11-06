@@ -45,6 +45,7 @@ CI_WORKFLOWS = (
     "secret-scan.yml",
     "desktop.yml",
     "registry-backup-windows.yml",
+    "storybook.yml",
 )
 STORYBOOK_WORKFLOW = "storybook.yml"
 STALE_SECONDS = 24 * 60 * 60

@@ -96,7 +96,7 @@ class FakeGh:
     cancelled: list[int] = field(default_factory=list)
 
     def dispatch(self, workflow: str, ref: str, inputs: Mapping[str, str]) -> None:
-        if workflow in self.fail_dispatch:
+        if workflow in self.fail_dispatch and not ref.startswith("promote/"):
             raise subprocess.CalledProcessError(1, "gh", stderr="boom")
         self.dispatched.append((workflow, ref, dict(inputs)))
 
@@ -125,8 +125,19 @@ class FakeGh:
     def cancel(self, run_id: int) -> None:
         self.cancelled.append(run_id)
 
+    def deploys(self) -> list[tuple[str, str, dict]]:
+        return [
+            d
+            for d in self.dispatched
+            if d[0] == "storybook.yml" and not d[1].startswith("promote/")
+        ]
+
     def ci_dispatches(self) -> list[str]:
-        return [w for w, _, _ in self.dispatched if w in promote.CI_WORKFLOWS]
+        return [
+            w
+            for w, ref, _ in self.dispatched
+            if w in promote.CI_WORKFLOWS and ref.startswith("promote/")
+        ]
 
 
 @dataclass
@@ -170,7 +181,11 @@ def test_green_run_fast_forwards_main_and_dispatches_storybook(repo: Repo) -> No
     assert repo.remote_sha("main") == develop
     branch = f"promote/{develop[:12]}-{EPOCH}-77-2"
     assert gh.ci_dispatches() == list(promote.CI_WORKFLOWS)
-    assert {ref for w, ref, _ in gh.dispatched if w in promote.CI_WORKFLOWS} == {branch}
+    assert {
+        ref
+        for w, ref, _ in gh.dispatched
+        if w in promote.CI_WORKFLOWS and ref.startswith("promote/")
+    } == {branch}
     assert dict((w, i) for w, _, i in gh.dispatched)["test.yml"] == {
         "compatibility-base": main_before,
         "compatibility-base-ref": "refs/heads/main",
@@ -189,7 +204,7 @@ def test_no_push_runs_everything_but_leaves_main_alone(repo: Repo, capsys) -> No
 
     assert repo.remote_sha("main") == main_before
     assert gh.ci_dispatches() == list(promote.CI_WORKFLOWS)
-    assert all(w != "storybook.yml" for w, _, _ in gh.dispatched)
+    assert gh.deploys() == []
     out = capsys.readouterr().out
     assert f"dry run: would push {repo.remote_sha('develop')}:refs/heads/main" in out
     assert "dry run: would dispatch storybook.yml on main" in out
@@ -412,7 +427,7 @@ def test_when_main_equals_develop_only_storybook_is_dispatched(repo: Repo) -> No
 
     assert go(repo, gh) == 0
 
-    assert gh.dispatched == [("storybook.yml", "main", {})]
+    assert gh.deploys() == [("storybook.yml", "main", {})]
     assert repo.remote_branches() == ["develop", "main"]
 
 
@@ -446,8 +461,12 @@ def test_base_equal_to_release_runs_the_full_ci_and_pushes_nothing(
 
     branch = f"promote/{main[:12]}-{EPOCH}-77-2"
     assert gh.ci_dispatches() == list(promote.CI_WORKFLOWS)
-    assert {ref for w, ref, _ in gh.dispatched if w in promote.CI_WORKFLOWS} == {branch}
-    assert all(w != "storybook.yml" for w, _, _ in gh.dispatched)
+    assert {
+        ref
+        for w, ref, _ in gh.dispatched
+        if w in promote.CI_WORKFLOWS and ref.startswith("promote/")
+    } == {branch}
+    assert gh.deploys() == []
     assert dict((w, i) for w, _, i in gh.dispatched)["test.yml"] == {
         "compatibility-base": main,
         "compatibility-base-ref": "refs/heads/main",
@@ -475,7 +494,7 @@ def test_a_red_nightly_on_the_release_branch_exits_non_zero(
     assert go(repo, gh) == 1
 
     assert repo.remote_sha("main") == main
-    assert all(w != "storybook.yml" for w, _, _ in gh.dispatched)
+    assert gh.deploys() == []
 
 
 def test_a_canary_target_still_pushes_while_base_equals_release(repo: Repo, monkeypatch) -> None:

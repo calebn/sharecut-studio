@@ -36,10 +36,10 @@ Lane PRs merge into `develop` after the fast, path-filtered checks. Each night `
 
 1. Stops with "merge main into develop" when M is not an ancestor of S, and only redispatches Storybook when S equals M.
 2. Pushes the temporary branch `promote/<S12>-<epoch>-<run_id>-<attempt>` at S, where `<epoch>` is the creation time in seconds.
-3. Dispatches `test.yml` (with `compatibility-base=M` and `compatibility-base-ref=refs/heads/<target>`), `secret-scan.yml`, `desktop.yml` and `registry-backup-windows.yml` on that branch, then polls each run by branch, `head_sha=S` and `workflow_dispatch`.
+3. Dispatches `test.yml` (with `compatibility-base=M` and `compatibility-base-ref=refs/heads/<target>`), `secret-scan.yml`, `desktop.yml`, `registry-backup-windows.yml` and `storybook.yml` (the build and the story sweep; its deploy job runs only on `main`) on that branch, then polls each run by branch, `head_sha=S` and `workflow_dispatch`.
 4. Counts a missing, cancelled, timed-out or skipped run as red, and requires each of `pytest`, `frontend`, `frontend-e2e` and `gitleaks-history` (`config/branches.json` `required_jobs`) to have succeeded. A timeout cancels the runs still going.
 5. Re-checks that `main` is still M, then runs a plain `git push origin S:refs/heads/main`. It never forces, so the push fails unless it is a fast-forward.
-6. Dispatches `storybook.yml` on `main`, because a `GITHUB_TOKEN` push triggers no workflow. A failure there alerts and never rolls `main` back.
+6. Dispatches `storybook.yml` on `main` to deploy the catalog, because a `GITHUB_TOKEN` push triggers no workflow. A failure there alerts and never rolls `main` back.
 
 The `always()` cleanup step deletes this run's branch and every `promote/*` branch whose name carries an epoch more than a day old (the branch's creation time, not its commit date, so a quiet `develop` never loses a live branch). A rerun picks S again and redispatches everything. The alert job opens or updates the `nightly-failure` issue on a red run and closes it on a green one. Dry runs never alert, and dry runs and non-`main` targets use a separate concurrency group so they cannot cancel the pending nightly. The job runs only from `main`.
 
