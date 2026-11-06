@@ -20,7 +20,11 @@ const PROJECT_PATH = "/tmp/stage-frame/episode.sharecut";
 function mount() {
   return render(
     <StageFrame>
-      <p>stage body</p>
+      {() => (
+        <>
+          <p>stage body</p>
+        </>
+      )}
     </StageFrame>,
   );
 }

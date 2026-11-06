@@ -3,10 +3,17 @@ import { useShallow } from "zustand/react/shallow";
 import { runPointerCommand } from "../../commands/pointer";
 import { useDawStore } from "../../state/dawStore";
 import { EditCornerView } from "./EditCornerView";
+import type { ViewAnchorAvailability } from "./useViewAnchor";
 import { useZoomControls } from "./useZoomControls";
 import { ViewPopover } from "./ViewPopover";
 
-export function EditCorner({ showScript = true }: { showScript?: boolean }) {
+export function EditCorner({
+  showScript = true,
+  viewAnchor,
+}: {
+  showScript?: boolean;
+  viewAnchor?: ViewAnchorAvailability;
+}) {
   const { zoom, onZoomIn, onZoomOut } = useZoomControls();
   const [viewOpen, setViewOpen] = useState(false);
   const { scriptCollapsed, touch, rangeArmed, hasProject } = useDawStore(
@@ -19,6 +26,7 @@ export function EditCorner({ showScript = true }: { showScript?: boolean }) {
   );
   return (
     <EditCornerView
+      viewAnchor={viewAnchor}
       zoom={zoom}
       onZoomIn={onZoomIn}
       onZoomOut={onZoomOut}

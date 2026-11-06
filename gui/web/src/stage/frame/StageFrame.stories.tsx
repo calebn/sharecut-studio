@@ -19,7 +19,7 @@ const meta: Meta<typeof StageFrame> = {
   component: StageFrame,
   beforeEach: episodeBeforeEach,
   args: {
-    children: (
+    children: () => (
       <div style={{ padding: "var(--space-5)" }}>The stage host goes here.</div>
     ),
   },

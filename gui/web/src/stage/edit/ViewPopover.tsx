@@ -5,7 +5,11 @@ import type { ViewPopoverSlotProps } from "./EditCornerView";
 import { ViewPopoverView } from "./ViewPopoverView";
 
 /** The eye popover wired to the layer, waveform scale and amplitude state. */
-export function ViewPopover({ anchorRef, onClose }: ViewPopoverSlotProps) {
+export function ViewPopover({
+  anchorRef,
+  panelRef,
+  onClose,
+}: ViewPopoverSlotProps) {
   const s = useDaw((st) => ({
     layers: st.layers,
     setLayerVisible: st.setLayerVisible,
@@ -26,6 +30,7 @@ export function ViewPopover({ anchorRef, onClose }: ViewPopoverSlotProps) {
   return (
     <ViewPopoverView
       anchorRef={anchorRef}
+      panelRef={panelRef}
       onClose={onClose}
       layers={s.layers}
       onLayerChange={s.setLayerVisible}

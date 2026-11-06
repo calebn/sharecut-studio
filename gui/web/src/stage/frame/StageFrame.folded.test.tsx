@@ -47,7 +47,11 @@ function mountGuest(guestMode: "view" | "comment") {
   useDawStore.setState({ guestMode });
   render(
     <StageFrame guestShare>
-      <p>stage body</p>
+      {() => (
+        <>
+          <p>stage body</p>
+        </>
+      )}
     </StageFrame>,
   );
 }

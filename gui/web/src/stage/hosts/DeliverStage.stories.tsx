@@ -30,7 +30,15 @@ const meta: Meta<StageHostProps> = {
   beforeEach: episodeBeforeEach,
   render: ({ guestShare, loadFailure }) => (
     <StageFrame guestShare={guestShare}>
-      <StageHost guestShare={guestShare} loadFailure={loadFailure} />
+      {(viewAnchor) => (
+        <>
+          <StageHost
+            viewAnchor={viewAnchor}
+            guestShare={guestShare}
+            loadFailure={loadFailure}
+          />
+        </>
+      )}
     </StageFrame>
   ),
   decorators: [

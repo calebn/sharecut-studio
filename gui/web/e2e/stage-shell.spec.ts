@@ -75,6 +75,87 @@ async function expectNoHorizontalScroll(page: Page): Promise<void> {
 test.describe("Stage shell on desktop", () => {
   test.use({ viewport: { width: 1280, height: 800 } });
 
+  for (const actor of ["Script focus", "frame folding"] as const) {
+    test(`dismisses View when ${actor} hides its eye`, async ({ page }) => {
+      await openProject(page);
+      const timeline = page.locator(".edit-timeline-main");
+      const retained = await timeline.elementHandle();
+      const popover = await openViewPopover(page);
+      await popover
+        .getByRole("button", { name: "Prosody", exact: true })
+        .focus();
+      const eye = page.getByRole("button", {
+        name: "View options",
+        exact: true,
+      });
+      if (actor === "Script focus") {
+        await page.keyboard.press("Shift+T");
+        await expect(page.locator(".edit-timeline-col")).toBeHidden();
+        await expect(
+          page.getByRole("button", { name: "Find in transcript", exact: true }),
+        ).toBeFocused();
+      } else {
+        await page.setViewportSize({ width: 1280, height: 220 });
+        await expect(page.locator("html")).toHaveAttribute(
+          "data-frame-short",
+          "",
+        );
+        await expect(
+          page.getByRole("button", { name: "Tools", exact: true }),
+        ).toBeFocused();
+      }
+      await expect(eye).toBeHidden();
+      await expect(popover).toHaveCount(0);
+      expect(await retained?.evaluate((el) => el.isConnected)).toBe(true);
+      if (actor === "Script focus") await page.keyboard.press("Shift+T");
+      else await page.setViewportSize({ width: 1280, height: 800 });
+      await expect(eye).toBeVisible();
+      await expect(eye).toHaveAttribute("aria-expanded", "false");
+      await expect(
+        page.getByRole("dialog", { name: "View options" }),
+      ).toHaveCount(0);
+      await eye.click();
+      await expect(
+        page.getByRole("dialog", { name: "View options" }),
+      ).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(eye).toBeFocused();
+    });
+  }
+
+  test("keeps the Tools corner independent when folding and Script focus overlap", async ({
+    page,
+  }) => {
+    await openProject(page);
+    const popover = await openViewPopover(page);
+    await popover.getByRole("button", { name: "Prosody", exact: true }).focus();
+    await page.keyboard.press("Shift+T");
+    await expect(popover).toHaveCount(0);
+    await page.setViewportSize({ width: 1280, height: 220 });
+    const tools = page.getByRole("button", { name: "Tools", exact: true });
+    await expect(tools).toBeVisible();
+    await tools.click();
+    const sheet = page.getByRole("dialog", { name: "Tools", exact: true });
+    await expect(sheet).toBeVisible();
+    const eye = sheet.getByRole("button", {
+      name: "View options",
+      exact: true,
+    });
+    await eye.click();
+    await expect(
+      page.getByRole("dialog", { name: "View options" }),
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(
+      page.getByRole("dialog", { name: "View options" }),
+    ).toHaveCount(0);
+    await expect(sheet).toBeVisible();
+    await expect(eye).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(sheet).toHaveCount(0);
+    await expect(tools).toBeFocused();
+  });
+
   test("opens a project into Edit and is axe-clean", async ({ page }) => {
     await openProject(page);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
