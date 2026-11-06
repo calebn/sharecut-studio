@@ -167,7 +167,7 @@ def _eligible_runs(
         base = association.get("base") or {}
         if (
             head.get("sha") != sha
-            or base.get("ref") != "main"
+            or base.get("ref") != branches.base()
             or not _positive_int(repository.get("id"))
             or not _positive_int(head_repository.get("id"))
             or (base.get("repo") or {}).get("id") != repository.get("id")

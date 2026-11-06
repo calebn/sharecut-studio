@@ -46,7 +46,8 @@ runs:
             fi
             while IFS= read -r legacy; do
               [ -n "$legacy" ] || continue
-              gh issue list --repo "$REPO" --label "$label" --state open --search "\"$legacy\" in:title" --json number,title --jq ".[] | select(.title == \"$legacy\") | .number" |
+              gh issue list --repo "$REPO" --label "$label" --state open --search "\"$legacy\" in:title" --json number,title |
+                jq -r --arg legacy "$legacy" '.[] | select(.title == $legacy) | .number' |
                 while IFS= read -r number; do
                   gh issue close "$number" --repo "$REPO" --comment "Superseded by the nightly ${WORKFLOW} run, which passed at ${SHA}: ${RUN_URL}"
                 done

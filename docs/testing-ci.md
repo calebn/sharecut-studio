@@ -30,7 +30,7 @@ checks an event plans.
 
 ## Promotion
 
-`.github/workflows/promote.yml` is the only nightly schedule (`23 7 * * *`) that gates a branch. Until the cutover it is the nightly on `main`: it runs the full CI on the `main` tip and pushes nothing. `test.yml`, `desktop.yml` and `registry-backup-windows.yml` have no `schedule` and no alert job of their own. `secret-scan.yml` and `extras-import.yml` keep their weekly drift runs.
+`.github/workflows/promote.yml` is the only nightly schedule (`23 7 * * *`) that gates a branch. It runs the full CI on the `develop` tip and fast-forwards `main`. `test.yml`, `desktop.yml` and `registry-backup-windows.yml` have no `schedule` and no alert job of their own. `secret-scan.yml` and `extras-import.yml` keep their weekly drift runs.
 
 Lane PRs merge into `develop` after the fast, path-filtered checks. Each night `scripts/promote.py run` freezes the `develop` tip S and the `main` tip M, then:
 
@@ -45,7 +45,7 @@ The `always()` cleanup step deletes this run's branch and every `promote/*` bran
 
 **Dry run.** Dispatch `promote` with `dry-run` set, or run `python scripts/promote.py run --no-push`. Everything through polling runs for real. The script then prints the push and the Storybook dispatch it would make and exits on the verdict. `--target` must be the release branch or start with `promote-canary`; anything else is refused. Dispatching with `target=promote-canary` rehearses the ruleset bypass against a throwaway branch.
 
-**Cutover.** `config/branches.json` `base` is `main` until the cutover PR flips it to `develop`. While base equals release, `promote.py run` is the pre-cutover nightly: it pushes the `main` tip to a temporary branch, dispatches and waits for the same runs and required jobs as a promotion, pushes nothing, dispatches no Storybook and exits non-zero when anything is red, so the alert fires. [Contributing § Cutover checklist](contributing.md#cutover-checklist) orders the steps; the canary diff must include a workflow-file change (see below).
+**Cutover.** `config/branches.json` `base` is `develop`. Caleb skipped the canary at the cutover; the fallback is a `develop` to `main` PR. [Contributing § Cutover record](contributing.md#cutover-record) has the state. Setting `base` equal to `release` turns `promote.py run` back into a nightly on the `main` tip that pushes nothing.
 
 **PRs to other branches.** Workflows that filter `pull_request` to `develop` and `main` (`test.yml`, `registry-backup-windows.yml`) run no CI for a PR whose base is any other branch.
 
@@ -54,13 +54,13 @@ The `always()` cleanup step deletes this run's branch and every `promote/*` bran
 - Promotion runs S's own workflow files, so whoever can land a workflow change on `develop` can weaken the gate. Accepted: it is the same trust as merging to `develop`, and the gate is a CI check, not an access control.
 - `promote.yml`'s promote job runs only from `main`, so dispatching it needs write access and a run on `main`; a branch copy of the workflow is the accepted "any workflow can use the Actions bypass" residual.
 - `deploy-config`, `release-wheel`, `extras-import` and `relay-ci` neither gate promotion nor run on the promoted `main`.
-- A `GITHUB_TOKEN` push cannot create or update `.github/workflows/*`, and a ruleset bypass does not lift that. Unless the canary proves otherwise, promotion across a workflow change fails at the final push, after a full CI run, and every night until fixed. That is why the canary runs first, against a pre-created `promote-canary` branch under the same ruleset as `main`, over a range that contains a workflow-file change.
+- A `GITHUB_TOKEN` push cannot create or update `.github/workflows/*`, and a ruleset bypass does not lift that. The canary that would have tested this was skipped, so promotion across a workflow change may fail at the final push, after a full CI run, and every night until fixed. The fallback is a `develop` to `main` PR.
 - `GITHUB_TOKEN` pushes trigger no `push: main` workflows. Never add a `push: main` trigger expecting it to fire after a promotion; `promote.py` dispatches Storybook explicitly.
-- Main-ahead cases that cannot be avoided (the release-please PR merges to `main`; Dependabot security updates ignore `target-branch`) stop promotion at "merge main into develop". The back-merge needs a merge commit, the one exception to linear history on `develop`, made by an admin with ruleset bypass. Open decision for Caleb; no policy is set here.
+- Main-ahead cases that cannot be avoided (Dependabot security updates ignore `target-branch`) stop promotion at "merge main into develop". The back-merge needs a merge commit, the one exception to linear history on `develop`, made by an admin with ruleset bypass. Open decision for Caleb; no policy is set here.
 
-**Red `develop`** (after the cutover). A red promotion never skips a night. Rerun once, bisect, and revert the culprit PR on `develop` before fixing forward. The owning lane re-lands it afterwards.
+**Red `develop`.** A red promotion never skips a night. Rerun once, bisect, and revert the culprit PR on `develop` before fixing forward. The owning lane re-lands it afterwards.
 
-**Hotfix** (after the cutover). A hotfix PR targets `develop` and runs the same checks. After it merges, dispatch `promote` by hand to promote it.
+**Hotfix.** A hotfix PR targets `develop` and runs the same checks. After it merges, dispatch `promote` by hand to promote it.
 
 ## CI
 

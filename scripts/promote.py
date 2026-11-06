@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -174,9 +175,12 @@ def temp_branch(sha: str, epoch: int, run_id: str, attempt: str) -> str:
     return f"{BRANCH_PREFIX}{sha[:12]}-{epoch}-{run_id}-{attempt}"
 
 
+TEMP_BRANCH_SHAPE = re.compile(r"[0-9a-f]{12}-(\d+)-\d+-\d+")
+
+
 def created_at(name: str) -> int | None:
-    parts = name.removeprefix(BRANCH_PREFIX).split("-")
-    return int(parts[1]) if len(parts) == 4 and parts[1].isdecimal() else None
+    match = TEMP_BRANCH_SHAPE.fullmatch(name.removeprefix(BRANCH_PREFIX))
+    return int(match[1]) if match else None
 
 
 def valid_target(target: str, release: str) -> bool:
@@ -265,7 +269,11 @@ def promote(
         print(f"refusing target {target}: use {cfg.release} or a {CANARY_PREFIX}* branch")
         return 1
     git.fetch()
-    source_sha = git.rev_parse(base)
+    try:
+        source_sha = git.rev_parse(base)
+    except subprocess.CalledProcessError:
+        print(f"{base} does not exist on origin: create it from {cfg.release} before promoting")
+        return 1
     target_sha = git.rev_parse(target)
     print(f"{base} {source_sha[:12]} -> {target} {target_sha[:12]}")
     nightly = base == cfg.release and target == cfg.release
@@ -331,7 +339,7 @@ def cleanup(git: Git, *, run_id: str, attempt: str, now: float) -> None:
     suffix = f"-{run_id}-{attempt}"
     for name in git.promote_branches():
         stamp = created_at(name)
-        if name.endswith(suffix) or (stamp is not None and now - stamp > STALE_SECONDS):
+        if stamp is not None and (name.endswith(suffix) or now - stamp > STALE_SECONDS):
             git.delete(name)
 
 
