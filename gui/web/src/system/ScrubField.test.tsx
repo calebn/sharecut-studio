@@ -90,6 +90,20 @@ describe("ScrubField drag", () => {
     expect(calls.onCommit).toHaveBeenLastCalledWith(31);
   });
 
+  it("rounds a snapped drag to the field's decimals and keeps it in bounds", () => {
+    const { calls, field } = setup({
+      value: 0,
+      step: 1,
+      decimals: 2,
+      min: 0,
+      max: 50,
+      snap: () => 1.97525,
+    });
+    dragBy(field(), 5);
+    fireEvent.pointerUp(field(), { pointerId: 1 });
+    expect(calls.onCommit).toHaveBeenCalledExactlyOnceWith(1.98);
+  });
+
   it("moves ten times as fast with Shift", () => {
     const { calls, field } = setup();
     dragBy(field(), 5, { shiftKey: true });
@@ -220,6 +234,14 @@ describe("ScrubField keyboard", () => {
     field().focus();
     await user.keyboard("{End}{Home}");
     expect(calls.onCommit.mock.calls).toEqual([[500], [0]]);
+  });
+
+  it("ends at the value its own display shows when the maximum has more places", async () => {
+    const user = userEvent.setup();
+    const { calls, field } = setup({ min: 0, max: 3120.4567, decimals: 2 });
+    field().focus();
+    await user.keyboard("{End}");
+    expect(calls.onCommit).toHaveBeenCalledExactlyOnceWith(3120.45);
   });
 
   it("does nothing on a read-only field", async () => {
