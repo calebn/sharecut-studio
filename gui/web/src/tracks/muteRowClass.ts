@@ -1,7 +1,8 @@
 import type { MuteState } from "../utils/audio";
 
 /**
- * Row and lane classes per mute state. `muted` and `mute-implied` dim what
+ * Track-mix row classes per mute state (lanes read `data-mute` instead, so the
+ * state reaches the lane's own element). `muted` and `mute-implied` dim what
  * this listener doesn't hear; `mute-listen` and `mute-implied` draw dashed,
  * because only this listener hears it that way. A saved mute stays solid.
  */

@@ -35,6 +35,21 @@
   outline-offset: calc(-1 * var(--focus-ring-offset));
 }
 
+/* The lane's opaque background is a positioned child that paints over the wrapper's own outline, so the ring is drawn above it. */
+.lane-row.lane-drop-target {
+  outline: none;
+}
+
+.lane-row.lane-drop-target::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-status-overlay);
+  pointer-events: none;
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: calc(-1 * var(--focus-ring-offset));
+}
+
 .lane-drop-label {
   position: absolute;
   z-index: var(--z-status-overlay);
