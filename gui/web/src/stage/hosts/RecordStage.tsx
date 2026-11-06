@@ -44,6 +44,7 @@ import { DeviceSheet } from "../../system/DeviceSheet";
 import { STOP_DETAIL, STOP_TITLE } from "../../system/RecordButton";
 import type { RoomViewProps } from "../../system/RoomView";
 import { TakesTray } from "../../system/TakesTray";
+import { Toast } from "../../ui";
 import { dbToFraction } from "../../ui/metering";
 import { hostStateOf, type LoadFailure } from "./hostModels";
 import { RecordMoreSheet } from "./RecordMoreSheet";
@@ -82,6 +83,9 @@ function lookupOf(room: HostRoom): RecordLookup {
   return room.roomLookup;
 }
 
+/** The pending end clears itself (Undo, or the window running out); the toast just follows it. */
+function keepEndToast() {}
+
 function RecordStageBody({
   room,
   loadFailure,
@@ -92,6 +96,10 @@ function RecordStageBody({
   const receivedAtMs = useRecordHostStore((s) => s.receivedAtMs);
   const captureHealth = useRecordHostStore((s) => s.captureHealth);
   const toneAnnouncement = useRoomToneAnnouncement(room.roomTone.status);
+  const endPending = room.endSession.ending;
+  useEffect(() => {
+    if (endPending) announceStatus(END_SESSION_PENDING_COPY);
+  }, [endPending, announceStatus]);
   useEffect(() => {
     if (toneAnnouncement) {
       announceStatus(toneAnnouncement.text);
@@ -544,12 +552,6 @@ function RecordStageBody({
   if (room.doneNotice) {
     note(room.doneNotice);
   }
-  if (room.endSession.ending) {
-    notices.push({
-      text: END_SESSION_PENDING_COPY,
-      action: { label: "Undo", onClick: room.endSession.undo },
-    });
-  }
 
   const toneAvailable = state === "lobby" || state === "stopped";
   const more = snapshot ? (
@@ -649,6 +651,18 @@ function RecordStageBody({
         />
       }
       notices={notices}
+      toast={
+        <Toast
+          className="sys-toast-dock"
+          toast={
+            room.endSession.ending
+              ? { id: 1, message: END_SESSION_PENDING_COPY }
+              : null
+          }
+          onUndo={room.endSession.undo}
+          onDismiss={keepEndToast}
+        />
+      }
       more={
         <>
           {more}

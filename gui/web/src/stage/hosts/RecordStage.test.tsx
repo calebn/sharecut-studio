@@ -1703,7 +1703,7 @@ describe("Record stage End session", () => {
     );
     const pending = await screen.findByText(END_SESSION_PENDING_COPY);
     expect(pending).toBeVisible();
-    expect(pending.closest("[aria-live='polite']")).not.toBeNull();
+    expect(pending.closest(".ui-toast")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Undo" })).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Undo" }));
     await waitFor(() =>
