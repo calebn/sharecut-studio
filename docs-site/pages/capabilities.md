@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**145** capabilities · **111** ShareCut Studio commands · **62** keyed · **212** MCP tools · **17** skills on rows (+ **19** hub skills).
+**146** capabilities · **112** ShareCut Studio commands · **62** keyed · **212** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -98,9 +98,10 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Record | view | `room.take` | `R` | — | `RecordStage` | — | — | — | yes | none · none |
 | Stop take | view | `room.stop` | `R` | — | `RecordStage` | — | — | — | yes | none · none |
 | Pause or resume take | view | `room.pause` | `P` | — | `RecordStage` | — | — | — | yes | none · none |
-| Connect agent… | view | `mcp.connect` | — (dialog from Menu) | — | `HostMcpDialog` | — | — | — | yes | none · none |
-| Export diagnostics… | view | `help.diagnosticsBundle` | — (dialog from Home / Menu) | — | `home.help`, `HelpDialog` | — | `podcast doctor --bundle` | — | yes | none · none |
+| Connect agent… | view | `mcp.connect` | — (dialog from Menu) | — | `ConnectAgentSheet` | — | — | — | yes | none · none |
+| Report a problem… | view | `help.diagnosticsBundle` | — (Report a problem step in Help, from Home / Menu / palette) | — | `HelpSheet` | — | `podcast doctor --bundle` | — | yes | none · none |
 | Manage models… | view | `models.open` | — (sheet from Home / palette) | — | `home.models`, `ModelsSheet` | `model_download`, `model_download_status` | `podcast setup` | — | yes | none · none |
+| Settings | view | `help.settings` | — (dialog from Menu / palette; browsers reserve Mod+,) | — | `SettingsSheet` | — | — | — | yes | none · none |
 | Export deliverables… | project | `export.deliverables` | `Mod+E` | — | `deliverStage` | `export_audio_tool`, `bounce_audio_tool` | `podcast pipeline export-audio` | `podcast-master-export` | yes | none · none |
 | Export transcript… | project | `export.transcript` | — (Deliver page action, reached from the command palette) | — | `deliverTranscript` | `export_transcript`, `list_exported_transcripts` | `podcast transcript export` | `podcast-transcript-workflow` | yes | none · none |
 | New project… | project | `project.new` | — (Mod+N opens a browser window; New project is in the palette and on Home) | — | — | `episode_create` | `podcast episode init` | — | yes | none · none |
