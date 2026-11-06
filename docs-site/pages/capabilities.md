@@ -85,7 +85,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Bounce… | project | `export.bounce` | — (Mod+E opens Deliver with Bounce focused and the selected range filled in; Bounce is also in the palette and on Deliver) | — | `deliverBounce` | `bounce_audio_tool` | `podcast pipeline bounce` | `podcast-bounce-export` | yes | none · none |
 | Share… | project | `share.manage` | — (Invite, or Menu) | — | `deliverShare` | — | `podcast review share` | — | yes | none · none |
 | Create record room | project | `record.createRoom` | — (empty-state action on the Record stage) | — | `RecordStage` | `create_record_room_tool` | `podcast review share --kind record` | `podcast-record-session` | yes | none · none |
-| Copy guest link | session | `record.copyGuestLink` | — (Palette command; Share also has a Copy guest link button) | — | — | — | — | — | yes | none · none |
+| Copy guest link | session | `record.copyGuestLink` | — (Palette command; the Invite sheet also has a Copy guest link button) | — | — | — | — | — | yes | none · none |
 | Start recording | project | `record.start` | — (chords in a later PR) | — | `RecordStage` | `record_start_tool` | `podcast record start` | `podcast-record-session` | yes | none · none |
 | Capture room tone | project | `record.roomTone` | — (chords in a later PR) | — | `RecordStage` | `record_room_tone_tool` | `podcast record room-tone` | `podcast-record-session` | yes | none · none |
 | Set session target | project | `record.setTarget` | — (Reached from the command palette and the session target chip in the Record room) | — | — | `record_target_tool` | `podcast record target` | `podcast-record-session` | yes | none · none |

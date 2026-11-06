@@ -275,7 +275,7 @@ native menus keep the toast ordering in
 | **Prepare** | Import, pipeline jobs, vocabulary | Get audio ready |
 | **Edit** | Timeline surface (playhead that starts at 0 and holds the center once passed; Ferrite lane gutter; eye sheet) and Script surface (transcript), switched by an icon pair | Spatial edit, word fix, suggest cut |
 | **Review** | Queue (guests: Comments) | Guest review and comments, approve or reject edits |
-| **Deliver** | Export, Bounce, Share for review | Hand off |
+| **Deliver** | Export, Bounce, Listen link | Hand off |
 
 Guests see only the stages their role allows (`stagesForRole`): a Commenter link is Review alone and has no Stage bar.
 

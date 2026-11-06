@@ -264,7 +264,7 @@ export function registerHostCommands(): void {
     if (useRecordHostStore.getState().snapshot) {
       return {
         status: "disabled",
-        reason: "A record room is already open. End it in Share first.",
+        reason: "A record room is already open. End it in Invite first.",
       };
     }
     const s = useDawStore.getState();
@@ -305,7 +305,7 @@ export function registerHostCommands(): void {
       const url = activeGuestLink(shares, snap.session_id);
       if (!url) {
         throw new Error(
-          "This room's guest link is closed. Replace the guest invite in Share.",
+          "This room's guest link is closed. Replace the guest invite in Invite.",
         );
       }
       await copyText(url);
