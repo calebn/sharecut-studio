@@ -3,7 +3,9 @@ import {
   type Ref,
   type RefObject,
   useCallback,
+  useEffect,
   useRef,
+  useState,
 } from "react";
 import { Button, Field } from "../ui";
 import { useDisabledReasonNote } from "../ui/disabledReason";
@@ -45,6 +47,8 @@ export type ComposerProps = {
     value: string;
     onChange: (value: string) => void;
     placeholder?: string;
+    /** This browser already knows the name: show "Posting as" with a Change button until it is pressed. */
+    saved?: boolean;
   };
   /** Offline posts to the queue: the label is "Queue comment" and the offline status glyph shows. */
   state?: ComposerState;
@@ -106,6 +110,12 @@ export function Composer(props: ComposerProps) {
     explainEmpty = false,
   } = props;
   const bodyRef = useRef<HTMLTextAreaElement | null>(null);
+  const nameRef = useRef<HTMLInputElement | null>(null);
+  const [renaming, setRenaming] = useState(false);
+  const knownName = name?.saved === true && !renaming;
+  useEffect(() => {
+    if (renaming) nameRef.current?.focus();
+  }, [renaming]);
   const setBodyRef = useCallback(
     (node: HTMLTextAreaElement | null) => {
       bodyRef.current = node;
@@ -163,7 +173,17 @@ export function Composer(props: ComposerProps) {
       data-state={state}
       data-compact={compact || undefined}
     >
-      {name ? (
+      {name && knownName ? (
+        <div className="sys-composer-who sys-composer-known">
+          <span className="sys-composer-avatar" aria-hidden="true">
+            <SystemIcon name="user" size={16} />
+          </span>
+          <span className="sys-composer-as">
+            Posting as <strong>{name.value.trim() || "Guest"}</strong>
+          </span>
+          <Button onClick={() => setRenaming(true)}>Change name</Button>
+        </div>
+      ) : name ? (
         <div className="sys-composer-who">
           <span className="sys-composer-avatar" aria-hidden="true">
             <SystemIcon name="user" size={16} />
@@ -172,6 +192,7 @@ export function Composer(props: ComposerProps) {
             {(control) => (
               <input
                 {...control}
+                ref={nameRef}
                 className="sys-composer-input"
                 value={name.value}
                 placeholder={

@@ -105,6 +105,26 @@ describe("Composer", () => {
     ).toBeVisible();
   });
 
+  it("says who posts when the name is saved, and Change name brings the field back focused", async () => {
+    const user = userEvent.setup();
+    render(<Harness name={{ value: "Maya", onChange: noop, saved: true }} />);
+    expect(screen.queryByRole("textbox", { name: "Your name" })).toBeNull();
+    expect(screen.getByText("Maya")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Change name" }));
+    const who = screen.getByRole("textbox", { name: "Your name" });
+    expect(who).toHaveValue("Maya");
+    expect(who).toHaveFocus();
+    expect(screen.queryByRole("button", { name: "Change name" })).toBeNull();
+  });
+
+  it("asks for the name when none is saved", () => {
+    render(<Harness name={{ value: "", onChange: noop }} />);
+    expect(
+      screen.getByRole("textbox", { name: "Your name" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Change name" })).toBeNull();
+  });
+
   it("does not report a composition that ends with text", () => {
     const onBodyChange = vi.fn();
     render(<Harness onBodyChange={onBodyChange} />);

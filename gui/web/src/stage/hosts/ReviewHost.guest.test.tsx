@@ -474,6 +474,9 @@ describe("Review queue for a guest", () => {
     localStorage.setItem(NAME_KEY, "Maya");
     join("comment");
     render(<ReviewHost guestShare />);
+    expect(screen.queryByRole("textbox", { name: "Your name" })).toBeNull();
+    expect(screen.getByText("Maya")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Change name" }));
     await user.clear(name());
     await user.type(field(), "Hello");
     await user.click(post());

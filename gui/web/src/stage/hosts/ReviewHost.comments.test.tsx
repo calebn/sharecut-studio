@@ -896,17 +896,13 @@ describe("Review host comments", () => {
       ).toBeNull();
     });
 
-    it("posts under a changed name", async () => {
+    it("never asks the host for a name", async () => {
       mount();
       act(() => {
         press("c");
       });
-      const who = screen.getByRole("textbox", { name: "Your name" });
-      await userEvent.clear(who);
-      await userEvent.type(who, "Dana");
-      await userEvent.type(field(), "Hi{Enter}");
-      await waitFor(() => expect(sent("AddComment")).toHaveLength(1));
-      expect(sent("AddComment")[0].payload).toMatchObject({ author: "Dana" });
+      await screen.findByRole("textbox", { name: "Comment" });
+      expect(screen.queryByRole("textbox", { name: "Your name" })).toBeNull();
     });
 
     it("lands on the composer when Edit opens a draft", async () => {
