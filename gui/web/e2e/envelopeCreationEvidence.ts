@@ -78,7 +78,7 @@ export async function openEnvelopeTrackDetails(
 
 /**
  * Where the open point's fields are: the Inspector card or sheet, or the phone's
- * peek drawer. Editing Time swaps its spinbutton for a textbox, so either marks it.
+ * compact drawer. Editing Time swaps its spinbutton for a textbox, so either marks it.
  */
 export const pointSheet = (page: Page) =>
   page.getByRole("dialog").filter({
@@ -173,7 +173,7 @@ export async function dismissToast(page: Page, message?: string | RegExp) {
   await expect(card).toBeHidden();
 }
 
-/** Opens the selected point in the Inspector; the phone shows its peek strip until Inspect. */
+/** Opens the selected point in the Inspector; the phone's drawer opens at half on Inspect. */
 export async function inspectEnvelopePoint(page: Page) {
   const time = pointSheet(page).getByRole("spinbutton", {
     name: "Time",

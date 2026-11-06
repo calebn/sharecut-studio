@@ -125,14 +125,13 @@ const DENSE = [
   // button holds the floor.
   ".sys-script-word",
   ".sys-script-time",
-  // The drawer's detent range is the keyboard route; a finger swipes the header or
-  // taps the resize buttons.
-  ".bottom-sheet-detent",
+  // The Inspector sheet's grip is a 44 px hit; its bar is a 36 x 5 px pill.
+  ".sys-inspector-grip-bar",
 ];
 
-/** The peek strip is a BottomSheet; every other selection surface is the Inspector sheet. */
-const SHEET = ".bottom-sheet, .sys-inspector";
-const SHEET_BODY = ".bottom-sheet-body, .sys-inspector-scroll";
+/** Every selection surface on the phone is the Inspector sheet. */
+const SHEET = ".sys-inspector";
+const SHEET_BODY = ".sys-inspector-scroll";
 
 const SIZE_EXEMPT = [".sys-marker-hit"];
 
@@ -189,12 +188,12 @@ async function clipSurface(page: Page, sheet: boolean): Promise<Reach[]> {
     name: "Source start",
     exact: true,
   });
-  // A phone selection opens the drawer at its strip; the body shows from half height.
-  const expand = page.getByRole("button", { name: /^Expand to/ });
-  while (await expand.isVisible()) {
-    await expand.click();
+  // A phone selection opens the sheet at half height; the rest of its body shows at full.
+  const grip = page.getByRole("slider", { name: "Sheet height" });
+  if (!(await sourceStart.isVisible()) && (await grip.count())) {
+    await grip.focus();
+    await page.keyboard.press("End");
     await settle(page);
-    if (await sourceStart.isVisible()) break;
   }
   await expect(sourceStart).toBeVisible();
   const surface = SHEET;
@@ -497,16 +496,6 @@ test("pending-edit and transcript-word Inspector bodies keep every control reach
         }
         const body = page.locator(surface);
         await expect(body).toBeVisible();
-        // A phone selection opens the drawer at its strip; the body shows from
-        // half height, and the rest of it from full height.
-        const expand = page.getByRole("button", { name: /^Expand to/ });
-        while (
-          !((await body.textContent()) ?? "").includes(label) &&
-          (await expand.isVisible())
-        ) {
-          await expand.click();
-          await settle(page);
-        }
         await expect(body, `${cell.name} ${label} body`).toContainText(label);
         await settle(page);
         const failures = await reachFailures(page, {

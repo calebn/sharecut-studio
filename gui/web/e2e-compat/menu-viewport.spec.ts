@@ -138,12 +138,8 @@ for (const mode of ["native", "fallback"] as const) {
       expect(hit, where).toEqual({ inToast: true, label: "Undo" });
     }
 
-    async function reorderFirstTrack(
-      page: Page,
-      projectPath: string,
-      detent: "peek" | "half" = "peek",
-    ) {
-      await rememberInspectorDetent(page, detent);
+    async function reorderFirstTrack(page: Page, projectPath: string) {
+      await rememberInspectorDetent(page, "half");
       await openProject(page, projectPath);
       await openPhoneTimeline(page);
       await page.locator(".sys-track-main").first().tap();
@@ -159,40 +155,36 @@ for (const mode of ["native", "fallback"] as const) {
     test("an app toast stays topmost and tappable over the Project menu opened after it", async ({
       page,
     }) => {
-      for (const detent of ["peek", "half"] as const) {
-        await withShareableProject(async (projectPath) => {
-          await reorderFirstTrack(page, projectPath, detent);
-          await expect(toastCard(page)).toContainText("Reordered track");
+      await withShareableProject(async (projectPath) => {
+        await reorderFirstTrack(page, projectPath);
+        await expect(toastCard(page)).toContainText("Reordered track");
 
-          await projectMenuButton(page).tap();
-          await expect(transportMenu(page)).toBeVisible();
-          await expectToastUndoTopmost(page, `toast first, ${detent} detent`);
-        });
-      }
+        await projectMenuButton(page).tap();
+        await expect(transportMenu(page)).toBeVisible();
+        await expectToastUndoTopmost(page, "toast first");
+      });
     });
 
     test("an app toast stays topmost and tappable over the Project menu that was open before it", async ({
       page,
     }) => {
-      for (const detent of ["peek", "half"] as const) {
-        await withShareableProject(async (projectPath) => {
-          await page.route("**/api/document/command*", async (route) => {
-            if ((route.request().postData() ?? "").includes("ReorderTrack")) {
-              await new Promise((done) => setTimeout(done, 1500));
-            }
-            await route.continue();
-          });
-          await reorderFirstTrack(page, projectPath, detent);
-          await projectMenuButton(page).tap();
-          await expect(transportMenu(page)).toBeVisible();
-          await expect(toastCard(page)).toHaveCount(0);
-
-          await expect(toastCard(page)).toContainText("Reordered track");
-          await expect(transportMenu(page)).toBeVisible();
-          await expectToastUndoTopmost(page, `menu first, ${detent} detent`);
-          await page.unroute("**/api/document/command*");
+      await withShareableProject(async (projectPath) => {
+        await page.route("**/api/document/command*", async (route) => {
+          if ((route.request().postData() ?? "").includes("ReorderTrack")) {
+            await new Promise((done) => setTimeout(done, 1500));
+          }
+          await route.continue();
         });
-      }
+        await reorderFirstTrack(page, projectPath);
+        await projectMenuButton(page).tap();
+        await expect(transportMenu(page)).toBeVisible();
+        await expect(toastCard(page)).toHaveCount(0);
+
+        await expect(toastCard(page)).toContainText("Reordered track");
+        await expect(transportMenu(page)).toBeVisible();
+        await expectToastUndoTopmost(page, "menu first");
+        await page.unroute("**/api/document/command*");
+      });
     });
   });
 }

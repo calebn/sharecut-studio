@@ -115,17 +115,6 @@ describe("clip content", () => {
     await expectNoA11yViolations(container);
   });
 
-  it("draws fine and coarse nudges beside each source edge and fade", () => {
-    open();
-    for (const name of [
-      "Nudge trim start",
-      "Nudge trim end",
-      "Nudge fade in",
-      "Nudge fade out",
-    ])
-      expect(screen.getByRole("group", { name })).toBeVisible();
-  });
-
   it("saves nothing when a source edge is opened and left unchanged", async () => {
     open([{ ...clip, source_start: 1.2345 }]);
     await key("Source start", "Enter");

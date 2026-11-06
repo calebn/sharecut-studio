@@ -2,7 +2,7 @@
  * Conformance (#1096): every hit kind in `HIT_KINDS` behaves as its contract
  * says, for every input. The cases are generated from the table, so a new
  * kind gets them all without a new test, and a kind whose row changes fails
- * here until the router, strip and keys agree. A scan of the timeline's
+ * here until the router, the sheet and keys agree. A scan of the timeline's
  * components checks that every kind with an axis is marked on an element
  * that owns its drag, and that no drag hides behind a plain surface, so a
  * mouse drag cannot lose its touch path unnoticed (the clip move did once).
@@ -15,7 +15,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { nudgeAxis, nudgeStep } from "../edit/nudge";
 import { softBoundaries } from "../edit/nudgeBoundaries";
 import { TOUCH_SLOP_PX } from "../hooks/gestureConstants";
-import { peekTarget } from "../inspector/peekTarget";
 import { argsFromKeyEvent, KEYMAP_COMMANDS } from "../keymap/registry";
 import {
   clipRow,
@@ -31,7 +30,6 @@ import {
   ownsPointerDown,
 } from "../test/jsxElements";
 import { SRC_ROOT, sourceFiles } from "../test/sourceFiles";
-import type { Selection } from "../types/project";
 import {
   ARMED_ATTR,
   type ArmedTarget,
@@ -109,17 +107,6 @@ const TARGET: Record<HitKind, { id: string; sec: number }> = {
   "social-clip": { id: "s1", sec: 50 },
   clip: { id: "c2", sec: 10 },
 };
-
-/** The selection the strip shows each kind's rows for. */
-function selectionFor(kind: HitKind): Selection {
-  if (kind.startsWith("pending")) {
-    return { kind: "pending", id: "p1", trackId: "host" };
-  }
-  if (kind === "envelope-point") {
-    return { kind: "envelopePoint", trackId: "host", pointId: "e1" };
-  }
-  return { kind: "clip", id: "c2", trackId: "host" };
-}
 
 let root: HTMLDivElement;
 let router: HitRouter;
@@ -522,17 +509,6 @@ describe.each(HIT_KIND_NAMES)("%s", (kind) => {
     }
   });
 
-  it(`its strip rows are: ${contract.nudges.join(", ") || "none"}`, () => {
-    if (contract.nudges.length === 0) return;
-    const peek = peekTarget(project, selectionFor(kind), {
-      kind,
-      id: TARGET[kind].id,
-    });
-    expect([...new Set(peek?.nudges.map((row) => row.field.kind))]).toEqual(
-      contract.nudges,
-    );
-  });
-
   it(`soft boundaries ${contract.soft ? "apply" : "do not apply"}`, () => {
     const mover = softMover(project, kind, TARGET[kind].id, TARGET[kind].sec);
     if (!contract.soft) {
@@ -561,7 +537,7 @@ describe.each(HIT_KIND_NAMES)("%s", (kind) => {
         contract.command!,
       ),
     ).toMatchObject({ phase: "nudge", held: true });
-    // A held arrow steps the same field as the strip's first row, and stops
+    // A held arrow steps the same field as the sheet's first nudge, and stops
     // where a held nudge does.
     const field =
       contract.nudges[0] === "fade" || contract.nudges[0] === "trim"

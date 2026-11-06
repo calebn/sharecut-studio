@@ -299,16 +299,6 @@ describe("PendingEditBody", () => {
     expect(useDawStore.getState().sourcePreview).toBeNull();
   });
 
-  it("draws nudge buttons beside Source start and Source end", async () => {
-    render(<PendingEditBody edit={sessionCut} />);
-    expect(
-      await screen.findByRole("group", { name: /^Nudge pending .* start$/ }),
-    ).toBeVisible();
-    expect(
-      screen.getByRole("group", { name: /^Nudge pending .* end$/ }),
-    ).toBeVisible();
-  });
-
   it("adds timing steps and disables both while a source draft is dirty", async () => {
     render(<PendingEditBody edit={sessionCut} />);
     expect(screen.queryByRole("group", { name: /Nudge source/ })).toBeNull();
@@ -422,33 +412,6 @@ describe("PendingEditBody", () => {
     render(<PendingEditBody edit={sessionCut} />);
     await commitField(user, "Source end", "0:12.500");
     expect((updatePendingEdit.mock.calls[0] as unknown[])[3]).toBe(12.5);
-  });
-
-  it("hides the nudge buttons while a Cut from the bar is in flight", async () => {
-    let finish: (value: unknown) => void = () => {};
-    approveEdits.mockReturnValueOnce(
-      new Promise((resolve) => {
-        finish = resolve;
-      }),
-    );
-    render(<PendingEditBody edit={sessionCut} />);
-    await waitFor(() =>
-      expect(screen.queryByText("Checking queued timing…")).toBeNull(),
-    );
-    expect(
-      screen.getByRole("group", { name: /^Nudge pending .* start$/ }),
-    ).toBeVisible();
-    const pending = executePointerCommand("edit.delete");
-    await waitFor(() =>
-      expect(
-        screen.queryByRole("group", { name: /^Nudge pending/ }),
-      ).toBeNull(),
-    );
-    act(() => useDawStore.getState().setSelection(null));
-    finish({ queued: false, count: 1, historyHead: "h1" });
-    await act(async () => {
-      await pending;
-    });
   });
 
   it("announces nothing when the selection changes during a Cut from the bar, as main's bar path did", async () => {

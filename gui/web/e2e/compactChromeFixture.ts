@@ -90,10 +90,6 @@ export async function receipt(info: TestInfo, name: string, value: unknown) {
 
 /** The Undo and Redo buttons in the App header, the resting history controls. */
 export const railHistory = (page: Page) => page.locator(".sys-app-header-host");
-export const compactHistory = (page: Page) =>
-  page.locator(".bottom-sheet--compact").getByRole("group", {
-    name: "Undo and redo",
-  });
 
 export async function savedEnvelope(page: Page) {
   const res = await page.request.get(

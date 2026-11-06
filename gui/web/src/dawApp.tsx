@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { registerDawWebMcpTools } from "./agentic/webmcp";
 import { registerDawCommands } from "./commands/register";
 import { useDesktopCloseGuard } from "./desktop/useDesktopCloseGuard";
@@ -87,7 +87,6 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
   const modelsDialogOpen = useDaw((s) => s.chrome.modelsDialogOpen);
   const { hasProject, projectName, suppressPublish } =
     useDaw(selectDawAppDerived);
-  const [feedbackHost, setFeedbackHost] = useState<HTMLDivElement | null>(null);
   const publishKey = useDawStore(selectPublishKey);
 
   const {
@@ -228,11 +227,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
             {engines}
             <div data-daw-app-chrome>
               <StageFrame guestShare={guestShare} sheets={EDIT_SHEETS}>
-                <StageHost
-                  guestShare={guestShare}
-                  loadFailure={loadFailure}
-                  feedbackHostRef={setFeedbackHost}
-                />
+                <StageHost guestShare={guestShare} loadFailure={loadFailure} />
               </StageFrame>
             </div>
             <CheatsheetDialogs />
@@ -252,7 +247,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
               />
             ) : null}
             <AskDialog />
-            <FeedbackToast host={feedbackHost} />
+            <FeedbackToast />
           </ShareFlowProvider>
         </BounceFlowProvider>
       </ExportFlowProvider>

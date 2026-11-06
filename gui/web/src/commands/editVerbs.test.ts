@@ -1053,6 +1053,16 @@ describe("Inspect and More", () => {
     expect(useDawStore.getState().inspectorKey).toBeNull();
   });
 
+  it.each(["adjustBounds", "fade", "moveToTrack"] as const)(
+    "%s keeps an open Inspector open",
+    async (id) => {
+      host(EDIT_SELECTIONS.clip);
+      await execute("edit.inspect");
+      await runEditVerb(id, factsOf()!);
+      expect(useDawStore.getState().inspectorKey).toBe("clip:a");
+    },
+  );
+
   it("needs a selection to inspect", async () => {
     host(null);
     expect(await execute("edit.inspect")).toEqual({

@@ -13,10 +13,10 @@ function mountSheetAndLane(): HTMLElement {
       <div class="lane-row" data-track-id="host"></div>
     </div>
     <div class="bottom-sheet-root">
-      <div class="bottom-sheet bottom-sheet--inspector"></div>
+      <div class="sys-inspector--phone"></div>
     </div>`;
   return document.querySelector<HTMLElement>(
-    ".bottom-sheet--inspector",
+    ".sys-inspector--phone",
   ) as HTMLElement;
 }
 

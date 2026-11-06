@@ -6,7 +6,7 @@
  */
 import { useLayoutEffect, useRef } from "react";
 import { useResizeObserver } from "../../ui/useResizeObserver";
-import { pinnedChromeBottom } from "./useCompactInspector";
+import { pinnedChromeBottom } from "./keepTargetClear";
 import { laneSelector } from "./useKeepEditedLaneClear";
 
 function revealLane(trackId: string): void {
