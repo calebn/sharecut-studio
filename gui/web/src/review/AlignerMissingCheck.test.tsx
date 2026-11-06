@@ -1,6 +1,6 @@
 import { act, render, renderHook, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { type ModelState, useWordTiming } from "../models";
 import { ModelsContext } from "../models/useModels";
@@ -71,10 +71,14 @@ describe("AlignerMissingCheck", () => {
   });
 
   it("hands focus to Cancel when Get starts the download, and back to Try again when it fails", async () => {
-    let set: (state: ModelState) => void = () => undefined;
+    const control: { set: (state: ModelState) => void } = {
+      set: () => undefined,
+    };
     function Machine() {
       const [state, setState] = useState<ModelState>({ kind: "missing" });
-      set = setState;
+      useEffect(() => {
+        control.set = setState;
+      }, []);
       const api = withAligner(state, {
         download: vi.fn(async () => {
           setState(DOWNLOADING);
@@ -96,7 +100,7 @@ describe("AlignerMissingCheck", () => {
     });
     expect(cancel).toHaveFocus();
     await userEvent.click(cancel);
-    act(() => set(FAILED));
+    act(() => control.set(FAILED));
     expect(
       await screen.findByRole("button", {
         name: "Try getting word timing again",
@@ -222,7 +226,7 @@ describe("the aligner Check in the Review queue", () => {
     expect(screen.queryByText(TITLE)).toBeNull();
   });
 
-  it("leaves Prepare the Re-time offer when the aligner lands from the Check", async () => {
+  it("leaves Prepare the Re-time offer when the aligner lands from the Check", () => {
     const queueProps = {
       items: QUEUE_WITHOUT_CHECKS,
       content: reviewContent,
@@ -236,7 +240,7 @@ describe("the aligner Check in the Review queue", () => {
       status: modelStatus(registryRows()),
     });
     expect(screen.getByText(TITLE)).toBeVisible();
-    await view.land("word-aligner");
+    view.land("word-aligner");
     expect(screen.queryByText(TITLE)).toBeNull();
     view.unmount();
     const { result } = renderHook(() => useWordTiming(), {
