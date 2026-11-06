@@ -38,9 +38,9 @@ from podcast_mcp.project.io import (
     RETIRED_PROJECT_FILENAME,
     copy_relocated_workspace,
     ensure_utf8_path,
+    open_project,
     require_episode_project_file,
 )
-from podcast_mcp.project.store import ProjectStore
 from podcast_mcp.util.atomic_file import atomic_write
 from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.fingerprint import file_stamp
@@ -432,7 +432,7 @@ def duplicate_project(project_path: Path | str) -> tuple[Path, str]:
     """
     source = require_episode_project_file(project_path)
     suffix = " copy"
-    base = ProjectStore(source).load().name[: PROJECT_NAME_MAX_CHARS - len(suffix)]
+    base = open_project(source)[1].name[: PROJECT_NAME_MAX_CHARS - len(suffix)]
     name = f"{base.strip()}{suffix}"
     reserved = default_workspace_dir(name)
     try:
