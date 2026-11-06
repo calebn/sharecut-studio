@@ -13,12 +13,6 @@ type Edge = "in" | "out";
 const fadeOf = (clip: ClipRow, edge: Edge) =>
   edge === "in" ? clip.fade_in_ms : clip.fade_out_ms;
 
-/**
- * The Inspector body for several selected clips: Fade in and Fade out, relative.
- * A field shows the common value, or Mixed; a scrub sends the delta to every clip
- * as one `SetClipsFade`, so it is one undo step. Gain joins when Clip Gain
- * (#3369) lands.
- */
 export function multiClipSections({
   project,
   clipIds,
