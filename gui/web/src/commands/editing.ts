@@ -291,7 +291,7 @@ export function registerClipboardCommands(): void {
       useDawStore
         .getState()
         .announceStatus(`Cut failed: ${msg}`, { tone: "error" });
-      return { status: "disabled", reason: msg };
+      return { status: "disabled", reason: msg, told: true };
     }
   });
 
