@@ -4,6 +4,7 @@ import {
   executePointerCommand,
   runPointerCommand,
 } from "../../commands/pointer";
+import { askConfirm } from "../../feedback/ask";
 import { useElapsedSince } from "../../hooks/useElapsedSince";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import { slugText, uniqueTrackId } from "../../ingest/ingestFiles";
@@ -26,6 +27,7 @@ import {
   roomPeople,
   type SessionTarget,
   StorageHeadroomWarning,
+  sendRecordHostCommand,
   takeInputs,
   useHostRoomContext,
   useInputPeakDb,
@@ -465,6 +467,23 @@ function RecordStageBody({
           room.runCommand(paused ? "record.resume" : "record.pause"),
         onMore: () => setMoreOpen(true),
         onSelfPress: () => setDeviceOpen(true),
+        onRemovePerson: canRecord
+          ? (id: string, name: string) => {
+              void askConfirm({
+                title: `Remove ${name} from the room?`,
+                message:
+                  "They leave the room and their link stops working. Anything they have not finished uploading will not reach the project.",
+                keepLabel: "Keep in room",
+                actionLabel: "Remove",
+                danger: true,
+              }).then((remove) => {
+                if (remove)
+                  void sendRecordHostCommand("RemoveParticipant", {
+                    participant_id: id,
+                  });
+              });
+            }
+          : undefined,
         takes,
         target: targetChip,
       }

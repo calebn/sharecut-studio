@@ -759,6 +759,17 @@
   inline-size: 100%;
 }
 
+.sys-room-slot {
+  position: relative;
+  min-inline-size: 0;
+}
+
+.sys-room-tile-menu {
+  position: absolute;
+  inset-block-start: var(--space-3);
+  inset-inline-start: var(--space-3);
+}
+
 .sys-room-view-rail {
   display: flex;
   flex: none;
