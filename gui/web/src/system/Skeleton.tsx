@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useViewportClass } from "../hooks/useViewportClass";
 import { Button } from "../ui";
 
 type Phase = "blank" | "blocks" | "slow";
@@ -56,6 +57,7 @@ export function Skeleton({
     };
   }, [controlled, blankMs, retryMs]);
   const phase = controlled ? phaseOf(elapsedMs, blankMs, retryMs) : timed;
+  const shell = useViewportClass();
   return (
     <div
       className={`sys-skeleton${layout === "guest" ? " sys-skeleton--guest" : ""}`}
@@ -65,6 +67,7 @@ export function Skeleton({
       {phase === "blank" ? null : (
         <div
           className={`sys-skeleton-blocks sys-skeleton-blocks--${layout}`}
+          data-shell={layout === "guest" ? shell : undefined}
           aria-hidden="true"
         >
           {layout === "guest"

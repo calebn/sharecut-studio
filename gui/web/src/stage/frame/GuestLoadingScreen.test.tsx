@@ -49,11 +49,11 @@ describe("GuestLoadingScreen", () => {
     ).not.toContain("margin-inline");
   });
 
-  it("collapses the guest skeleton under the phone shell attribute", () => {
+  it("collapses the guest skeleton when the skeleton reads the phone shell", () => {
     const css = systemCss();
     const collapses = [
       ...css.matchAll(
-        /:root\[data-shell="phone"\] \.sys-skeleton-blocks--guest \{([^}]*)\}/g,
+        /\.sys-skeleton-blocks--guest\[data-shell="phone"\] \{([^}]*)\}/g,
       ),
     ];
     expect(collapses).toHaveLength(1);
