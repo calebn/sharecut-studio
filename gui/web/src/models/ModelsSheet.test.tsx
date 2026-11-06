@@ -73,14 +73,21 @@ describe("ModelsSheet", () => {
     const size = screen.getByRole("group", { name: "Size" });
     const buttons = within(size).getAllByRole("button");
     expect(buttons.map((b) => b.getAttribute("aria-label"))).toEqual([
+      null,
+      null,
+      null,
+    ]);
+    expect(buttons.map((b) => b.textContent)).toEqual([
       "Fast 75 MB",
       "Balanced 500 MB",
       "Best 1.6 GB",
     ]);
-    for (const b of buttons) {
-      expect(b.getAttribute("aria-label")).toBe(
-        Array.from(b.children, (c) => c.textContent).join(" "),
-      );
+    for (const [name, b] of [
+      ["Fast 75 MB", buttons[0]],
+      ["Balanced 500 MB", buttons[1]],
+      ["Best 1.6 GB", buttons[2]],
+    ] as const) {
+      expect(within(size).getByRole("button", { name })).toBe(b);
     }
     expect(within(size).getByRole("button", { name: /^Best/ })).toHaveAttribute(
       "aria-pressed",
