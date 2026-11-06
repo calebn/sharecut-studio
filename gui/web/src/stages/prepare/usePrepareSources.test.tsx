@@ -225,6 +225,17 @@ describe("track commands", () => {
     expect(ingestFiles).not.toHaveBeenCalled();
   });
 
+  it("rejects a mixed audio and non-audio drop before replacing anything", () => {
+    const { result } = setup();
+    const wav = new File(["x"], "take.wav", { type: "audio/wav" });
+    const notes = new File(["notes"], "notes.txt", { type: "text/plain" });
+    act(() => result.current.actions.onDropAudio?.("maya", [wav, notes]));
+    expect(ingestFiles).not.toHaveBeenCalled();
+    expect(useDawStore.getState().statusAnnouncement).toMatch(
+      /^Drop one file on a card/,
+    );
+  });
+
   it("offers no card drop when the viewer may not add audio", () => {
     const { result } = setup({ canIngest: false });
     expect(result.current.actions.onDropAudio).toBeUndefined();

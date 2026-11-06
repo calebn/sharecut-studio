@@ -142,6 +142,36 @@ describe("dragging a card to reorder", () => {
     expect(cards[0]!.style.getPropertyValue("--sys-source-shift")).toBe("");
   });
 
+  it("moves a taller first card after the final shorter card", () => {
+    const tops = [0, 260, 360];
+    const heights = [240, 80, 80];
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      function (this: HTMLElement) {
+        const at = Number(this.dataset.at ?? "-1");
+        const top = tops[at] ?? 0;
+        const height = heights[at] ?? 0;
+        return {
+          top,
+          bottom: top + height,
+          height,
+          left: 0,
+          right: 300,
+          width: 300,
+          x: 0,
+          y: top,
+          toJSON: () => ({}),
+        };
+      },
+    );
+    const handlers = actions();
+    const { container } = renderThree(handlers);
+    const grip = grips(container)[0]!;
+    fireEvent.pointerDown(grip, { pointerId: 9, clientY: 20, button: 0 });
+    fireEvent.pointerMove(grip, { pointerId: 9, clientY: 1000 });
+    fireEvent.pointerUp(grip, { pointerId: 9, clientY: 1000 });
+    expect(handlers.onReorder).toHaveBeenCalledExactlyOnceWith("a", "c");
+  });
+
   it("moves the last card to the top", () => {
     layout();
     const handlers = actions();
