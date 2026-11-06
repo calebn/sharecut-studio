@@ -41,6 +41,7 @@ import { sessionItemId } from "../../review/reviewItems";
 import { useDawStore } from "../../state/dawStore";
 import { setRoomKeys } from "../../state/roomKeys";
 import { DeviceSheet } from "../../system/DeviceSheet";
+import { STOP_DETAIL, STOP_TITLE } from "../../system/RecordButton";
 import type { RoomViewProps } from "../../system/RoomView";
 import { TakesTray } from "../../system/TakesTray";
 import { dbToFraction } from "../../ui/metering";
@@ -468,8 +469,8 @@ function RecordStageBody({
         onStopPaused: canRecord
           ? () => {
               void askConfirm({
-                title: "Stop this take?",
-                message: "Recording ends for everyone in the room.",
+                title: STOP_TITLE,
+                message: STOP_DETAIL,
                 keepLabel: "Keep recording",
                 actionLabel: "Stop take",
                 danger: true,
