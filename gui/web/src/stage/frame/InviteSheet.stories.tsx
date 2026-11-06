@@ -25,7 +25,7 @@ const meta: Meta<typeof InviteSheetView> = {
       ...isolatedStoryParameters.docs,
       description: {
         component:
-          "One sharing object, opened from the header Invite on every stage: a Sheet of Link rows grouped Review links, Record links and Listen link. There is no Create button. Each group opens with a ready row at its default (Review: Commenter, following the latest; Listen: Viewer, pinned to the exported version), and the link is made on its first Copy. The Record empty Person tile opens the sheet at Record links. Deliver embeds the Listen link row in place. On a phone it is a bottom sheet.",
+          "One sharing object, opened from the header Invite on every stage: a Sheet of Link rows grouped Review links, Record links and Listen link. There is no Create button. Each group opens with a ready row at its default (Review: Commenter, following the latest; Listen: Viewer, pinned to the version current when you copy it), and the link is made on its first Copy. The Record empty Person tile opens the sheet at Record links. Deliver embeds the Listen link row in place. On a phone it is a bottom sheet.",
       },
     },
   },
