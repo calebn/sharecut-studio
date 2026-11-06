@@ -140,6 +140,12 @@ describe("precision drag of an envelope level (a draft preview)", () => {
     api.setEnvelope.mockResolvedValueOnce(parseHistoryEntryId("h1"));
     await freed.commit();
     expect(api.setEnvelope).toHaveBeenCalledTimes(1);
+    expect(api.setEnvelope).toHaveBeenCalledWith(
+      PATH,
+      "host",
+      [{ id: "e1", time: 5, value: 1.5 }],
+      [{ id: "e1", time: 5, value: 1 }],
+    );
   });
 
   describe("after newer data arrives", () => {
