@@ -39,6 +39,7 @@ export type RecordStageViewProps = {
   hasClips?: boolean;
   notices: readonly RecordNotice[];
   storage?: ReactNode;
+  toast?: ReactNode;
   more?: ReactNode;
   scrollRef?: Ref<HTMLDivElement>;
   onCreateRoom: () => void;
@@ -193,6 +194,7 @@ export function RecordStageView({
   hasClips,
   notices,
   storage,
+  toast,
   more,
   scrollRef,
   onCreateRoom,
@@ -221,6 +223,7 @@ export function RecordStageView({
           </div>
           <RoomView {...room} embedded />
           {more}
+          {toast}
         </>
       ) : (
         <EmptyRoom
