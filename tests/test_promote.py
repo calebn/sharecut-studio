@@ -480,6 +480,7 @@ def test_base_equal_to_release_runs_the_full_ci_and_pushes_nothing(
     ("outcomes", "jobs"),
     [
         ({"desktop.yml": ("completed", "failure")}, None),
+        ({"storybook.yml": ("completed", "failure")}, None),
         ({"test.yml": ("completed", "skipped")}, None),
         ({}, {"test.yml": {"pytest": "failure", "frontend": "success", "frontend-e2e": "success"}}),
     ],
