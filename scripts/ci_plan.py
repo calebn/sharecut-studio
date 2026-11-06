@@ -80,8 +80,6 @@ SUITE_WIDE_NAMES = ("conftest.py",)
 # A workflow, contract or config file is also named by its basename in tests that read it.
 DISTINCT_NAME_DIRS = (".github/workflows/", "contracts/", "config/")
 MIN_BASENAME_LENGTH = 8
-# Changes here must reach a test by name, or the whole suite runs.
-FAIL_CLOSED_DIRS = ("src/", "tests/")
 
 
 def owned_by(owns: Iterable[Glob], changed: Sequence[str]) -> bool:
@@ -646,10 +644,8 @@ def plan(
     )
     if scope == "changed":
         reached = changed_tests(changed)
-        if reached is None or not changed:
+        if not changed or not reached:
             scope = "full"
-        elif not reached:
-            scope = "quick"
     return CiPlan(
         gui=gui,
         pytest=scope,
@@ -734,23 +730,31 @@ def changed_tests(changed: Sequence[str], root: Path = ROOT) -> list[str] | None
     existing = {path for path in tests if (root / path).is_file()}
     others = [path for path in changed if path not in tests]
     script_stems = {Path(p).stem for p in others if p.startswith("scripts/") and p.endswith(".py")}
-    needles = [needle for path in others for needle in _needles(path)]
+    needles = [needle for path in changed for needle in _needles(path)]
     selected = set(existing)
+    for name, subset in SUBSETS.items():
+        if any(subset.covers([path]) for path in others):
+            selected.update(subset_tests(name, root))
     sources = {
         path.relative_to(root).as_posix(): path.read_text(encoding="utf-8")
         for path in (root / "tests").rglob("test_*.py")
     }
-    for name, source in sources.items():
+    for test_path, source in sources.items():
         if any(needle.search(source) for needle in needles) or _referenced_scripts(
             source, script_stems
         ):
-            selected.add(name)
-    # A source or test-support file that no test names cannot be vouched for by a
+            selected.add(test_path)
+    # A file that no test names and no docs or web subset owns cannot be vouched for by a
     # grep: run the whole suite rather than none.
     for path in others:
-        if path.startswith(FAIL_CLOSED_DIRS) and not any(
-            pattern.search(source) for pattern in _needles(path) for source in sources.values()
-        ):
+        owned = any(subset.covers([path]) for subset in SUBSETS.values())
+        stem = {Path(path).stem} if path.startswith("scripts/") and path.endswith(".py") else set()
+        named = any(
+            any(pattern.search(source) for pattern in _needles(path))
+            or _referenced_scripts(source, stem)
+            for source in sources.values()
+        )
+        if not (owned or named):
             return None
     return None if len(selected) > MAX_CHANGED_TESTS else sorted(selected)
 

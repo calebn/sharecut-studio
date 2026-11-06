@@ -336,11 +336,11 @@ def test_a_diff_reaching_too_many_tests_is_not_a_smoke_set(
     assert cp.changed_tests(["src/podcast_mcp/edits/cuts.py", "tests/test_other.py"], root) is None
 
 
-def test_a_pull_request_that_reaches_no_pytest_file_plans_the_quick_scope(
+def test_a_pull_request_that_reaches_no_pytest_file_runs_the_full_suite(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(cp, "changed_tests", lambda changed, root=cp.ROOT: [])
-    assert cp.plan("pull_request", ["src/podcast_mcp/edits/cuts.py"]).pytest == "quick"
+    assert cp.plan("pull_request", ["src/podcast_mcp/edits/cuts.py"]).pytest == "full"
 
 
 def test_a_pull_request_that_reaches_too_much_runs_the_full_suite(
@@ -609,3 +609,29 @@ def test_a_workflow_named_test_yml_reaches_the_tests_that_read_it(tmp_path: Path
     root = _tests_tree(tmp_path)
     (root / "tests" / "test_reads.py").write_text('p = ".github" / "workflows" / "test.yml"\n')
     assert "tests/test_reads.py" in (cp.changed_tests([".github/workflows/test.yml"], root) or [])
+
+
+def test_a_changed_test_module_reaches_the_tests_that_import_it(tmp_path: Path) -> None:
+    root = _tests_tree(tmp_path)
+    (root / "tests" / "test_base.py").write_text("x = 1\n")
+    (root / "tests" / "test_user.py").write_text("from test_base import x\n")
+    assert cp.changed_tests(["tests/test_base.py"], root) == [
+        "tests/test_base.py",
+        "tests/test_user.py",
+    ]
+
+
+def test_a_mixed_diff_keeps_the_docs_readers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _tests_tree(tmp_path)
+    monkeypatch.setattr(
+        cp, "subset_tests", lambda scope, root=cp.ROOT: ["tests/test_docs_reader.py"]
+    )
+    reached = cp.changed_tests(["docs/setup.md", "tests/test_other.py"], root)
+    assert reached == ["tests/test_docs_reader.py", "tests/test_other.py"]
+
+
+def test_a_non_python_file_no_test_names_runs_the_whole_suite(tmp_path: Path) -> None:
+    root = _tests_tree(tmp_path)
+    assert cp.changed_tests(["deploy/relay/Dockerfile"], root) is None
