@@ -14,7 +14,9 @@ from script_loader import load_script
 
 cp = load_script("ci_plan", register=True)
 ROOT = Path(__file__).resolve().parents[1]
-BRANCH = "release-please--branches--main--components--podcast-mcp"
+branches = load_script("branches", register=True)
+BASE = branches.base()
+BRANCH = f"release-please--branches--{BASE}--components--podcast-mcp"
 REPOSITORY = "calebn/sharecut-studio"
 FILES = {
     "pyproject.toml": '[project]\nname = "podcast-mcp"\nversion = "0.1.1"\n',
@@ -71,7 +73,7 @@ def classify(root: Path, **overrides):
         "head_ref": BRANCH,
         "head_repository": REPOSITORY,
         "base_repository": REPOSITORY,
-        "base_ref": "main",
+        "base_ref": BASE,
         "root": root,
     }
     return cp.classify_release(**(metadata | overrides))
@@ -126,11 +128,13 @@ def test_base_movement_uses_merge_base(release_repo: Path) -> None:
     [
         ("head_ref", None),
         ("head_ref", "release-please--other"),
+        ("head_ref", "release-please--branches--release-line--components--podcast-mcp"),
         ("head_repository", None),
         ("base_repository", None),
         ("head_repository", "fork/sharecut-studio"),
         ("base_ref", None),
         ("base_ref", "other"),
+        ("base_ref", branches.release()),
         ("base", None),
         ("head", None),
     ],
@@ -372,7 +376,7 @@ def test_cli_proves_release_with_all_identity_inputs(
                 "--base-repository",
                 REPOSITORY,
                 "--base-ref",
-                "main",
+                BASE,
             ]
         )
         == 0

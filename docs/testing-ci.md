@@ -56,7 +56,7 @@ The `always()` cleanup step deletes this run's branch and every `promote/*` bran
 - `deploy-config`, `release-wheel`, `extras-import` and `relay-ci` neither gate promotion nor run on the promoted `main`.
 - A `GITHUB_TOKEN` push cannot create or update `.github/workflows/*`. The canary that would have tested this was skipped, so promotion across a workflow change may fail at the final push, after a full CI run, and every night until fixed. The fallback is a `develop` to `main` PR.
 - `GITHUB_TOKEN` pushes trigger no `push: main` workflows. Never add a `push: main` trigger expecting it to fire after a promotion; `promote.py` dispatches Storybook explicitly.
-- Main-ahead cases that cannot be avoided (Dependabot security updates ignore `target-branch`) stop promotion at "merge main into develop". Neither ruleset has a bypass actor (GitHub rejects an Actions bypass on a personal repository), and `develop` accepts only rebase-merged PRs, so a back-merge needs Caleb to set the `develop` ruleset to disabled, run `git push origin main:develop` (valid while `develop` is an ancestor of `main`), and re-enable it. Automating this is open.
+- Main-ahead cases that cannot be avoided (Dependabot security updates ignore `target-branch`) stop promotion at "merge main into develop". Neither ruleset has a bypass actor (GitHub rejects an Actions bypass on a personal repository), and `develop` accepts only rebase-merged PRs, so close or retarget such a PR before it merges. Release PRs are not such a case: release-please targets `develop`.
 
 **Red `develop`.** A red promotion never skips a night. Rerun once, bisect, and revert the culprit PR on `develop` before fixing forward. The owning lane re-lands it afterwards.
 
@@ -849,7 +849,7 @@ tests or protections.
 
 The shared `.github/actions/ci-plan` supplies the PR source ref, both repository
 identities, base ref, and exact diff SHAs to `scripts/ci_plan.py`. The release
-shortcut requires the same-repository release-please branch for main and exactly
+shortcut requires the same-repository release-please branch for the base branch (`release-please--branches--<base>--components--podcast-mcp`) and exactly
 ten modified regular files. The classifier compares immutable merge-base and
 head blobs. Only the known version literals and changelog can change. Dependency,
 hash, code, formatting, file-mode, malformed-data, and ambiguous-identity changes
@@ -869,12 +869,13 @@ secret scan runs on every PR.
 
 Lightweight green checks are not permission to cut a release. Before merging a
 release PR, the independent Shipping verifier must retain a full validation
-receipt for release head H atop current main B:
+receipt for release head H atop the current base branch tip B:
 
 1. Resolve H and B. Update the release branch only if needed so B is an ancestor
    of H, then keep H stable during validation.
-2. Dispatch `test.yml` on the release ref with `compatibility-base=B`. The
-   `pytest-quality` job checks that its checkout is H, B is the current remote main tip, and B is
+2. Dispatch `test.yml` on the release ref with `compatibility-base=B` and
+   `compatibility-base-ref=refs/heads/<base>`. The
+   `pytest-quality` job checks that its checkout is H, B is the current remote tip of that ref, and B is
    an ancestor of H. It records the checkout and compatibility base. Dispatch
    always requests full pytest with the 95% floor and both browser engines.
 3. Dispatch `desktop.yml`, `extras-import.yml`, `registry-backup-windows.yml`,

@@ -34,8 +34,35 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Read the base and release branches
+        id: branches
+        run: |
+          echo "base=$(python3 scripts/branches.py base)" >> "$GITHUB_OUTPUT"
+          echo "release=$(python3 scripts/branches.py release)" >> "$GITHUB_OUTPUT"
+
+      - name: Refuse to continue while a release commit is not on the release branch
+        # The release PR lands on the base branch and reaches the release branch with the
+        # nightly promotion. Tagging or refreshing before that would build a release from
+        # a commit that has not passed the full suite.
+        env:
+          BASE: ${{ steps.branches.outputs.base }}
+          RELEASE: ${{ steps.branches.outputs.release }}
+        run: |
+          git fetch --quiet origin "$BASE" "$RELEASE"
+          last="$(git log -1 --format=%H "origin/$BASE" -- .release-please-manifest.json)"
+          if ! git merge-base --is-ancestor "$last" "origin/$RELEASE"; then
+            echo "::error::release commit $last is on $BASE but not yet on $RELEASE; rerun after the nightly promotion"
+            exit 1
+          fi
+
       - uses: googleapis/release-please-action@v5
         with:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          target-branch: ${{ steps.branches.outputs.base }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
