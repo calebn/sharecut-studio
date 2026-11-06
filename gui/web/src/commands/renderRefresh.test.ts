@@ -82,6 +82,33 @@ describe("render.refreshMix project ownership", () => {
     expect(useDawStore.getState().renderPreviewBusy).toBe(false);
   });
 
+  it("tells a thrown failure in its own words and marks it told", async () => {
+    vi.mocked(api.startRenderPreview).mockRejectedValue(new Error("disk full"));
+
+    const res = await execute("render.refreshMix", {}, { skipWhen: true });
+
+    expect(res).toEqual({
+      status: "disabled",
+      reason: "disk full",
+      told: true,
+    });
+    const s = useDawStore.getState();
+    expect(s.statusAnnouncement).toContain("Refresh failed: disk full");
+    expect(s.feedbackToast?.tone).toBe("error");
+  });
+
+  it("leaves a refusal it did not announce for the caller to say", async () => {
+    useDawStore.getState().setRenderPreviewBusy(true);
+
+    const res = await execute("render.refreshMix", {}, { skipWhen: true });
+
+    expect(res).toEqual({
+      status: "disabled",
+      reason: "Refresh already running",
+    });
+    useDawStore.getState().setRenderPreviewBusy(false);
+  });
+
   it("names the missing model, opens no dialog and seeds the failed job", async () => {
     const failedJob = {
       id: "r1",
