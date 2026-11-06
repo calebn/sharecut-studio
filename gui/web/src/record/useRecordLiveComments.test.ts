@@ -60,6 +60,70 @@ describe("useRecordLiveComments", () => {
     ).toBe(true);
   });
 
+  it("refuses a note when neither storage nor transport accepts it", () => {
+    const send = vi.fn(() => false);
+    const { result } = renderHook(() =>
+      useRecordLiveComments({
+        token: "tok",
+        snapshot: recording,
+        me,
+        connected: true,
+        send,
+      }),
+    );
+    const setItem = vi
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(() => {
+        throw new Error("quota");
+      });
+    try {
+      expect(result.current.postNote("Keep this draft")).toBe(false);
+      expect(loadCommentQueue("tok")).toEqual([]);
+      expect(send).toHaveBeenCalledWith(
+        "Comment",
+        expect.objectContaining({ body: "Keep this draft" }),
+      );
+    } finally {
+      setItem.mockRestore();
+    }
+  });
+
+  it.each([
+    { queued: true, sent: false, label: "durable offline queue" },
+    { queued: false, sent: true, label: "transport without storage" },
+    {
+      queued: false,
+      sent: undefined,
+      label: "legacy void sender without storage",
+    },
+  ])("accepts a note through $label", ({ queued, sent }) => {
+    const send = vi.fn(() => sent);
+    const { result } = renderHook(() =>
+      useRecordLiveComments({
+        token: "tok",
+        snapshot: recording,
+        me,
+        connected: true,
+        send,
+      }),
+    );
+    const setItem = queued
+      ? null
+      : vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+          throw new Error("quota");
+        });
+    try {
+      expect(result.current.postNote("Keep this note")).toBe(true);
+      expect(loadCommentQueue("tok")).toHaveLength(queued ? 1 : 0);
+      expect(send).toHaveBeenCalledWith(
+        "Comment",
+        expect.objectContaining({ body: "Keep this note" }),
+      );
+    } finally {
+      setItem?.mockRestore();
+    }
+  });
+
   it("flushes the reconnect queue once the snapshot acks the id", () => {
     const send = vi.fn(() => true);
     enqueueComment("tok", {

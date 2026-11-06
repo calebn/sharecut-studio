@@ -1912,6 +1912,51 @@ describe("Record stage take controls", () => {
       undefined,
     );
   });
+
+  it("keeps the typed note when storage and transport both refuse it", async () => {
+    send.mockReturnValue(false);
+    setRoom({
+      state: "recording",
+      take_index: 0,
+      recording_ms: 4000,
+      participants: [hostPerson()],
+    });
+    mount();
+    const field = screen.getByRole("textbox");
+    await userEvent.type(field, "Keep this draft");
+    const setItem = vi
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(() => {
+        throw new Error("quota");
+      });
+    try {
+      await userEvent.click(screen.getByRole("button", { name: "Send note" }));
+      expect(send).toHaveBeenCalledWith(
+        "Comment",
+        expect.objectContaining({ body: "Keep this draft" }),
+        undefined,
+      );
+      expect(field).toHaveValue("Keep this draft");
+    } finally {
+      setItem.mockRestore();
+    }
+  });
+
+  it("holds the Notes field with a reason outside a running take", async () => {
+    send.mockReturnValue(true);
+    setRoom({ state: "lobby", participants: [hostPerson()] });
+    mount();
+    const field = await screen.findByLabelText("Add a note");
+    expect(field).toBeDisabled();
+    expect(
+      screen.getAllByText("Notes open while a take is running.").length,
+    ).toBeGreaterThan(0);
+    expect(send).not.toHaveBeenCalledWith(
+      "Comment",
+      expect.anything(),
+      expect.anything(),
+    );
+  });
 });
 
 describe("Record stage takes", () => {

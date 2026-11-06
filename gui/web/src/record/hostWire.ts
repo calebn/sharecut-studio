@@ -1,12 +1,13 @@
 const SEQ_KEY = "daw_record_client_seq";
 
-let sender:
-  | ((
-      commandType: string,
-      payload: Record<string, unknown>,
-      commandId?: string,
-    ) => void)
-  | null = null;
+type HostFrameSender = (frame: Record<string, unknown>) => unknown;
+type HostCommandSender = (
+  commandType: string,
+  payload: Record<string, unknown>,
+  commandId?: string,
+) => boolean;
+
+let sender: HostCommandSender | null = null;
 
 export function nextHostRecordClientSeq(): number {
   try {
@@ -20,9 +21,7 @@ export function nextHostRecordClientSeq(): number {
   }
 }
 
-export function bindRecordHostSend(
-  send: ((frame: Record<string, unknown>) => void) | null,
-): void {
+export function bindRecordHostSend(send: HostFrameSender | null): void {
   sender = send
     ? (commandType, payload, commandId) => {
         const frame: Record<string, unknown> = {
@@ -34,7 +33,7 @@ export function bindRecordHostSend(
         if (commandId) {
           frame.command_id = commandId;
         }
-        send(frame);
+        return send(frame) !== false;
       }
     : null;
 }
@@ -47,6 +46,5 @@ export function sendRecordHostCommand(
   if (!sender) {
     return false;
   }
-  sender(commandType, payload, commandId);
-  return true;
+  return sender(commandType, payload, commandId);
 }

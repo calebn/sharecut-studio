@@ -131,13 +131,15 @@ export function postLiveComment(
     recordingMs: number;
     author: string;
   },
-): LiveComment {
+): LiveComment | null {
   const comment = buildLiveComment(opts);
-  enqueueComment(token, comment);
-  send("Comment", comment);
-  return comment;
+  const queued = enqueueComment(token, comment);
+  const sent = send("Comment", comment);
+  return queued || sent !== false ? comment : null;
 }
 
 export function liveTakeOpen(state: string | undefined): boolean {
   return state === "recording" || state === "paused";
 }
+
+export const NOTES_CLOSED_REASON = "Notes open while a take is running.";
