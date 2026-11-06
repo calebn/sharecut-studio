@@ -347,8 +347,6 @@ html[data-frame-short] .edit-dock {
   }
 }
 
-/* The eye popover (stage/edit/ViewPopoverView, spec-edit MENU-VIEW): 240 px,
-   a non-modal panel in the top layer; useAnchoredPanel sets left/top. */
 .view-popover {
   position: fixed;
   z-index: var(--z-menu);
@@ -411,7 +409,6 @@ html[data-frame-short] .edit-dock {
   font-size: var(--font-size-caption);
 }
 
-/* The 44 px floor on touch, for the chips and the three scale segments. */
 @media (pointer: coarse) {
   .view-popover-chip,
   .view-popover-scales > .ui-control {
