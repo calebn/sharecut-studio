@@ -69,6 +69,24 @@ def test_gitleaksignore_holds_only_exact_fingerprints() -> None:
     lines = (ROOT / ".gitleaksignore").read_text(encoding="utf-8").splitlines()
     entries = [ln for ln in lines if ln.strip() and not ln.startswith("#")]
     assert len(entries) == 14
+    assert frozenset(entries) == frozenset(
+        {
+            "0c5d8a26d75ad65cf4485665431a5f4104715a56:tests/test_promote.py:generic-api-key:864",
+            "2afe4ec4cc58829c05b223b7354debad6309848d:gui/web/src/stage/hosts/DeliverHostPeaks.test.tsx:generic-api-key:20",
+            "2afe4ec4cc58829c05b223b7354debad6309848d:gui/web/src/stage/hosts/useEpisodePeaks.test.tsx:generic-api-key:7",
+            "b9b714106ce3e0a42778584837fbf64dde587a51:gui/web/src/edit/clipBleedSession.test.ts:generic-api-key:41",
+            "11dadef6150dda3e602070d55aa0ccc402de716f:proof/2149/clock-failure-detail/sha256.json:generic-api-key:2",
+            "64bb6b727f4e2c59b49e5e00498541fc5cab0b2b:proof/2149/preinput-chronology/sha256.json:generic-api-key:2",
+            "4e589b6071dbc85fb7ecf46ae8083dbe4f3cc6cb:tests/test_list_clips_recording.py:generic-api-key:79",
+            "4e589b6071dbc85fb7ecf46ae8083dbe4f3cc6cb:tests/test_list_clips_recording.py:generic-api-key:80",
+            "76e977546698cbbe5628c1c9279919610a31bf20:src/podcast_mcp/whisper_models.py:generic-api-key:105",
+            "76e977546698cbbe5628c1c9279919610a31bf20:src/podcast_mcp/whisper_models.py:generic-api-key:109",
+            "76e977546698cbbe5628c1c9279919610a31bf20:src/podcast_mcp/whisper_models.py:generic-api-key:110",
+            "23c03edcc985ba980dc9e94ed085129f4d76b58c:src/podcast_mcp/whisper_models.py:generic-api-key:95",
+            "23c03edcc985ba980dc9e94ed085129f4d76b58c:src/podcast_mcp/whisper_models.py:generic-api-key:152",
+            "23c03edcc985ba980dc9e94ed085129f4d76b58c:src/podcast_mcp/whisper_models.py:generic-api-key:163",
+        }
+    )
     for entry in entries:
         assert re.fullmatch(r"[0-9a-f]{40}:[^:\s]+:generic-api-key:\d+", entry), entry
 
