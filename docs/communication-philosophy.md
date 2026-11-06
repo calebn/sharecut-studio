@@ -362,13 +362,8 @@ the empty state, not a separate discovery task.
   Clip Inspector fades announce it the same way ("Fade in not saved: ..."; trim, join and Ripple delete errors show in the sheet). Repeat the gesture against current values.
 - A server that never answers says what happened to the work. A save
   waiting on it says "The server didn't answer. Nothing was saved." The
-  Adjust boundary dialog saves nothing while it loads, so a hung load says
-  "The server didn't answer. Try again." and offers **Try again**, which loads
-  the controls in place with the same "Preparing boundary controls…" progress.
-  A network failure says "The boundary couldn't load. Check your connection and
-  try again." and also offers **Try again**. A stale load keeps **Reload boundary**;
-  an error a second attempt cannot fix offers neither. Both recovery actions move
-  focus to progress, then to the boundary control when it is ready. While a project's load has failed, the stage body (on every stage, with or without a
+  Seam pill rolls a join with a pointer drag and saves on release, so a hung
+  save says the same and leaves the join where it was. While a project's load has failed, the stage body (on every stage, with or without a
   project already open) says "Could not load the project" and the
   reason, for example "The server didn't answer.", with a **Try again** button, announced as an alert (Review says "The transcript didn't load").
   Pressing **Try again** keeps the button in place, busy, so focus stays on it.

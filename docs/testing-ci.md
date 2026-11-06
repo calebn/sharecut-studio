@@ -195,7 +195,7 @@ Storybook UI.
 ### Shared live project in Playwright
 
 `e2e/transcript-inline-edit.spec.ts` includes one 320×568 touch correction case.
-It measures Corrected text and Apply before either control receives focus or
+It measures the inline word-edit controls before either receives focus or
 scrolling, checks the 44px floor and inline validation, then saves and undoes a
 word correction against the copied live project. Browser geometry is necessary
 for this regression; component tests cannot detect a control below the sheet.
