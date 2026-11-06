@@ -4,6 +4,7 @@ import { getClipboard, setClipboard } from "../edit/clipboard";
 import { makeRangeTarget } from "../edit/rangeSelection";
 import { useDawStore } from "../state/dawStore";
 import { setChrome } from "../test/chrome";
+import { deferred } from "../test/deferred";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import { ApiError } from "../utils/apiError";
 import { clearRegisteredCommands, execute } from "./execute";
@@ -12,6 +13,7 @@ import {
   registerRangeCommands,
   runRangeAction,
 } from "./rangeActions";
+import { runAndAnnounceRefusal } from "./refusal";
 
 vi.mock("../api/documentEdits", async (orig) => ({
   ...(await orig<typeof import("../api/documentEdits")>()),
@@ -223,6 +225,7 @@ describe("shared range action policy and commands", () => {
     expect(await first).toEqual({
       status: "disabled",
       reason: "Select the range again",
+      told: true,
     });
     expect(useDawStore.getState().selection).toEqual({ kind: "range", target });
     expect(useDawStore.getState().rangeBusy).toBe(false);
@@ -273,6 +276,83 @@ describe("shared range action policy and commands", () => {
       startSec: 0,
       endSec: 1,
     });
+    vi.unstubAllGlobals();
+  });
+
+  it("marks a current-epoch range playback failure as already announced", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("range transport failed");
+      }),
+    );
+    const announced = vi.spyOn(useDawStore.getState(), "announceStatus");
+    const result = await runAndAnnounceRefusal(() => execute("range.play"));
+    expect(result).toEqual({
+      status: "disabled",
+      reason: "range transport failed",
+      told: true,
+    });
+    expect(announced).toHaveBeenCalledTimes(1);
+    expect(announced).toHaveBeenCalledWith("range transport failed", {
+      tone: "error",
+    });
+    vi.unstubAllGlobals();
+  });
+
+  it("marks a current-epoch selection change as already announced", async () => {
+    const response = deferred<Response>();
+    const fetch = vi.fn(() => response.promise);
+    vi.stubGlobal("fetch", fetch);
+    const announced = vi.spyOn(useDawStore.getState(), "announceStatus");
+    const pending = runAndAnnounceRefusal(() => execute("range.play"));
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    useDawStore.setState({ selection: null });
+    response.resolve(new Response(new Blob(["audio"]), { status: 200 }));
+    expect(await pending).toEqual({
+      status: "disabled",
+      reason: "Selection changed while audio was prepared",
+      told: true,
+    });
+    expect(announced).toHaveBeenCalledTimes(1);
+    expect(announced).toHaveBeenCalledWith(
+      "Selection changed while audio was prepared",
+      { tone: "error" },
+    );
+    vi.unstubAllGlobals();
+  });
+
+  it("does not claim acknowledgement for stale-epoch playback", async () => {
+    const response = deferred<Response>();
+    const fetch = vi.fn(() => response.promise);
+    vi.stubGlobal("fetch", fetch);
+    const announced = vi.spyOn(useDawStore.getState(), "announceStatus");
+    const pending = execute("range.play");
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    useDawStore.setState({ projectEpoch: 2 });
+    response.resolve(new Response(new Blob(["audio"]), { status: 200 }));
+    expect(await pending).toEqual({
+      status: "disabled",
+      reason: "Selection changed while audio was prepared",
+    });
+    expect(announced).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it("does not claim acknowledgement for stale-epoch transport errors", async () => {
+    const response = deferred<Response>();
+    const fetch = vi.fn(() => response.promise);
+    vi.stubGlobal("fetch", fetch);
+    const announced = vi.spyOn(useDawStore.getState(), "announceStatus");
+    const pending = execute("range.play");
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    useDawStore.setState({ projectEpoch: 2 });
+    response.reject(new Error("stale range transport failed"));
+    expect(await pending).toEqual({
+      status: "disabled",
+      reason: "stale range transport failed",
+    });
+    expect(announced).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
   });
 });
@@ -366,11 +446,20 @@ describe("fill range with room tone", () => {
         400,
       ),
     );
-    const result = await execute("range.fillRoomTone");
+    const announced = vi.spyOn(useDawStore.getState(), "announceStatus");
+    const result = await runAndAnnounceRefusal(() =>
+      execute("range.fillRoomTone"),
+    );
     expect(result).toEqual({
       status: "disabled",
       reason: "No usable room tone on this track to fill with",
+      told: true,
     });
+    expect(announced).toHaveBeenCalledTimes(1);
+    expect(announced).toHaveBeenCalledWith(
+      "No usable room tone on this track to fill with",
+      { tone: "error" },
+    );
   });
 
   it("sends one command per interval that has a gap and names a stop", async () => {
@@ -395,6 +484,7 @@ describe("fill range with room tone", () => {
     expect(await execute("range.fillRoomTone")).toEqual({
       status: "disabled",
       reason: "offline",
+      told: true,
     });
   });
 });

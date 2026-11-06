@@ -171,7 +171,7 @@ async function sendLatest(key: string, lane: MixLane): Promise<void> {
     } catch (e) {
       lane.inFlight = undefined;
       const reason = errorMessage(e);
-      result = { status: "disabled", reason };
+      result = { status: "disabled", reason, told: true };
       // Put back the saved value, unless a newer change is on its way or
       // someone else's change has replaced ours.
       if (lane.latest === undefined) {
@@ -331,7 +331,11 @@ export function registerTrackMixCommands(): void {
     if (!evaluateWhen("canEditMix", ctx).ok) {
       if (track?.muted) {
         s.announceStatus(SAVED_MUTE_READ_ONLY, { tone: "error" });
-        return { status: "disabled", reason: SAVED_MUTE_READ_ONLY };
+        return {
+          status: "disabled",
+          reason: SAVED_MUTE_READ_ONLY,
+          told: true,
+        };
       }
       s.toggleViewerMute(trackId);
       return { status: "ok" };

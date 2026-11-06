@@ -207,8 +207,12 @@ The keymap listener evaluates keyboard gates before dispatch. DAW WebMCP play
 returns the original `execute` result through its agent adapter. The `play_pause`
 reply is `{ status: "ok" }` on success, `{ status: "disabled", reason }` on refusal,
 or `{ status: "unknown" }` when the command is unavailable. Disabled replies
-preserve command metadata such as `announced`, and command errors reject the
-tool promise unchanged. DAW transport seeking uses
+preserve command metadata such as `told`. A command sets `told: true` when it
+has already handled the refusal, including an intentional quiet result. Generic
+refusal callers announce only untold, nonblank reasons at error tone and keep
+the original result object unchanged. Treat those callers as terminal feedback
+boundaries because generic announcements do not stamp a result for another
+consumer. Command errors reject the tool promise unchanged. DAW transport seeking uses
 `src/commands/seek.ts`, which returns the pointer command result for callers
 that need to await it. Listen skip math stays in `src/stage/frame/listenSeek.ts`;
 timeline callers keep their selection and blade actions after the seek
