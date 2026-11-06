@@ -415,7 +415,7 @@ const selectionBarPlay: Story["play"] = async ({ canvasElement }) => {
         box.left >= sel.right,
     ).toBe(true);
   });
-  if (window.matchMedia("(pointer: coarse)").matches) {
+  if (window.matchMedia?.("(pointer: coarse)")?.matches) {
     const min = Number.parseFloat(
       getComputedStyle(bar).getPropertyValue("--touch-min"),
     );
