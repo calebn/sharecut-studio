@@ -89,7 +89,7 @@ export const Editing: Story = {
     await userEvent.clear(title);
     await userEvent.type(title, "Welcome");
     await expect(title).toHaveValue("Welcome");
-    const time = view.getByRole("textbox", { name: /^Time of The old mill/ });
+    const time = view.getByRole("spinbutton", { name: /^Time of The old mill/ });
     await userEvent.click(time);
     await userEvent.keyboard("6:00{Enter}");
     await expect(
