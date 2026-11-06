@@ -11,7 +11,7 @@
 
 **Stop sharing** and **End room** confirm in place: the row swaps its actions for the consequence (“Stop sharing this Commenter link? Anyone using it loses access.” / “End this record room? Both guest and producer links will stop working.”) with **Keep link** / **Keep room** first and focused, and the danger action last. Escape keeps the link or room (the same as **Keep**), and focus returns to **More** (or **End room**).
 
-**Deliver** keeps only the **Listen link** row, in the right column after the Episode file (phone: after the Episode file, before Chapters), with the same behavior as the sheet's Listen group. After an export finishes its **Copy** button is outlined as the follow-up; Export stays the only filled button. The palette command **Copy listen link** (`share.copyListenLink`) copies it from any stage; the design system drops the old ⌘⇧C chord, so it has no key.
+**Deliver** keeps only the **Listen link** row, in the right column after the Episode file (phone: after the Episode file, before Chapters), with the same behavior as the sheet's Listen group. After an export finishes its **Copy** button is outlined as the follow-up; Export stays the only filled button. The design system drops the old ⌘⇧C chord, so Copy listen link has no key and no palette command; the row's **Copy** is the way.
 
 When a participant is removed, the Record stage directs the host to **Copy
 links…**. The Invite sheet marks the affected role's invite closed to new guests, disables

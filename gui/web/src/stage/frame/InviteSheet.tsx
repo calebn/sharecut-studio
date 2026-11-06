@@ -1,10 +1,3 @@
-import { useEffect } from "react";
-import { useShallow } from "zustand/react/shallow";
-import { useHasFeature } from "../../extensions/FeaturesContext";
-import {
-  FEATURE_SHARE_UI_MENU,
-  FEATURE_TUNNEL_STATUS,
-} from "../../extensions/features";
 import type { ShareOptions } from "../../stages/deliver/shareLogic";
 import { useDawStore } from "../../state/dawStore";
 import { Sheet } from "../../system/Sheet";
@@ -13,7 +6,6 @@ import type { DrawerDetent } from "../../ui/BottomSheet";
 import { useCommand } from "../../ui/useCommand";
 import { shareOptionsOf } from "../hosts/deliverShare";
 import { useShareFlow } from "../hosts/shareFlowContext";
-import { useTunnelStatus } from "../hosts/useTunnelStatus";
 import { InviteBody } from "./invite/InviteBody";
 
 export const INVITE_TITLE = "Invite";
@@ -62,21 +54,11 @@ export function InviteSheet({
   onDetentChange,
 }: Pick<ViewProps, "form" | "onClose" | "detent" | "onDetentChange">) {
   const flow = useShareFlow();
-  const reload = flow.reload;
-  const { at, projectPath } = useDawStore(
-    useShallow((s) => ({ at: s.inviteAt, projectPath: s.projectPath })),
-  );
-  const tunnelFeature = useHasFeature(FEATURE_TUNNEL_STATUS);
-  const shareOffered = useHasFeature(FEATURE_SHARE_UI_MENU);
-  const tunnel = useTunnelStatus(tunnelFeature && shareOffered);
+  const at = useDawStore((s) => s.inviteAt);
   const shareCmd = useCommand("share.manage");
-  useEffect(() => {
-    if (projectPath) reload();
-  }, [projectPath, reload]);
   return (
     <InviteSheetView
       options={shareOptionsOf(flow, {
-        tunnel,
         blockedReason: shareCmd.whenReason,
         onOpenRecord: undefined,
       })}
