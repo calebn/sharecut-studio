@@ -96,6 +96,8 @@
       const res = await fetch(base, { cache: "no-cache" });
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       currentMarkdown = await res.text();
+      const heading = screenPage && currentMarkdown.match(/^## (.+)$/m);
+      if (heading) document.title = `${heading[1]} · Podcast MCP UX`;
       const { md, blocks } = extractMermaid(currentMarkdown);
       const html = rewriteInternalLinks(marked.parse(md, { gfm: true, breaks: false }));
       contentEl.innerHTML = html;
