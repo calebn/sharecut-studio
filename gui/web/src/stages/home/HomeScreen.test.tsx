@@ -725,6 +725,29 @@ describe("HomeScreen", () => {
       ).toBeInTheDocument();
     });
 
+    it("re-reads the status on Try again after the check gave up, without a download", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      try {
+        const models = {
+          ...modelsApi({ status: modelStatus(registryRows()) }),
+          models: null,
+        };
+        rtlRender(
+          <ModelsContext.Provider value={models}>
+            <HomeScreen />
+          </ModelsContext.Provider>,
+        );
+        await act(() => vi.advanceTimersByTimeAsync(8100));
+        await userEvent
+          .setup({ advanceTimers: vi.advanceTimersByTime })
+          .click(await screen.findByRole("button", { name: "Try again" }));
+        expect(models.refresh).toHaveBeenCalledTimes(1);
+        expect(models.download).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     describe("with no audio tools", () => {
       const noTools = () =>
         modelsApi({
