@@ -19,3 +19,14 @@ def test_ux_navigation_routes_resolve_to_existing_pages() -> None:
         assert route == nav
         assert route in routes
         assert (ROOT / "ux/pages" / routes[route]).is_file()
+
+
+def test_screen_inventory_index_links_every_per_page_file() -> None:
+    pages = ROOT / "ux/pages"
+    index = (pages / "screen-inventory.md").read_text(encoding="utf-8")
+    files = sorted(path.stem for path in (pages / "screens").glob("*.md"))
+
+    assert files
+    for stem in files:
+        assert f"(#/screens/{stem})" in index
+        assert f"(screens/{stem}.md)" in index

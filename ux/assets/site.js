@@ -73,7 +73,10 @@
 
   async function renderPage() {
     const key = routeKey();
-    const route = ROUTES[key] || ROUTES[""];
+    const screenPage = key.match(/^screens\/([\w-]+)$/);
+    const route = screenPage
+      ? { file: `screens/${screenPage[1]}.md`, title: `Screen inventory · ${screenPage[1]}`, nav: "screens" }
+      : ROUTES[key] || ROUTES[""];
     currentFile = route.file;
     document.title = `${route.title} · Podcast MCP UX`;
 

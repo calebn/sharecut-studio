@@ -1,0 +1,23 @@
+## Guest / record (`/rec/{token}`) (Join sheet + full-quality recording + mix-minus + landing + live comments shipped)
+
+Join sheet, consent, people tiles, status pill (live, paused, saving), full-quality recording on each
+participant's device, mix-minus monitor, saving to the project, timeline
+landing, and live comments ship.
+Spec: [recording-session.md](../../../docs/recording-session.md).
+Journeys: [Guest journeys § 6–7](#/journeys).
+
+| Surface | Who | What they see |
+|---------|-----|----------------|
+| **Join sheet** | Guest (recorded) | Over the shared room: name, microphone (Allow microphone, device picker, own level), storage check, headphones toggle, then **Join and record** (joining is consent; **Details** carries the notice). Wait for host Start. **Shipped (no screenshot yet).** |
+| **Device sheet** | Recorded guest and host | Opens from your own tile or More ▸ Devices: input menu with level meter, headphones toggle (guests), **Speaker** menu, **Record room tone**. The Speaker menu appears only where the browser can pick where the room plays (where `AudioContext.setSinkId` exists); elsewhere it is absent, not disabled. A pick applies at once, is remembered in this browser, and the room plays on Default, with a note, while the speaker is missing or will not open; the pick returns when it does. **Shipped (no screenshot yet).** |
+| **Join sheet** | Producer | Name and **Join to listen**; listed as listening and not recorded; no mic, no consent. **Shipped (no screenshot yet).** |
+| **Join sheet / room / Record stage** | Recorded guest and host | **Own** peak meter (sample peak only) with a clip indicator; a clipping badge on the own tile (the host's room tiles also show each guest's live level and, once their segments upload, their clip count for the take) and the alert "You're clipping. Move back a little." during a take; the host's Takes tray jumps to the first clipped span once the take lands. Producers and the Full room Cover have none. |
+| **Record room** | Guest | Status pill (`m:ss · Take N`, `Paused · m:ss`, `Saving · N%`, `Saved`); mute (silence in the full-quality recording + send stops); a tile per person; notes rail (their own notes and every marker; other people's notes too when the host turns on Guests see notes); "Recording in full quality on this device." and **Hearing the room.** as screen-reader lines; then host timeline clips. **Shipped (no screenshot yet).** |
+| **Record stage** | Host | Start / Pause / Resume / Stop / **Land**; a status line per recorded participant and segment ("Saving to project…", then "Saved to project"). A saved file auto-lands its clips; Land retries. **Shipped (no screenshot yet).** |
+| **Record room** | Producer | Same pill and tiles, listed as not recorded; mix-minus of recorded peers; no full-quality recording, no saving status. **Shipped (no screenshot yet).** |
+| **Full room** | 5th recorded or 3rd producer | Cover "The room is full" with **Try again**; never `getUserMedia`. **Shipped (no screenshot yet).** |
+| **Declined** | Guest who chose Not now | The room dims under "You're not being recorded." with **Join recording** (works while the room waits for a take); host may re-invite as producer. **Shipped (no screenshot yet).** |
+| **Host offline** | Recorded guest | Alert "{Host} dropped. You're still recording on this device." The full-quality recording stays open. **Shipped with full-quality recording.** |
+| **Native close confirmation** | Host or recorded guest in the desktop app | During REC, PAUSED, or finalizing, closing the native window asks for confirmation. Host copy warns that the session stops for everyone; guest copy warns about the guest's full-quality recording. This is local desktop protection and sends no remote close command. The macOS app menu and **Cmd+Q** use the confirmation path; Dock **Quit** and OS shutdown remain best-effort. |
+
+Prefix `/rec/` with a review token opens the recording invalid-link cover: “This recording link is invalid or has ended. Ask the host for a new link.” A record token on `/r/` opens the review cover: “This link is invalid or has ended. Ask the host for a new link.”
