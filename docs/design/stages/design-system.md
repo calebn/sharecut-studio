@@ -472,7 +472,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 
 ### Dropped as redundant
 
-- The Blade tool and the Select/Blade tool toggle (CMP-TOOLRAIL). Modes are gone. Split is Mod+K at the playhead or Alt-click at the pointer, with a blade cursor while Alt is held over a clip.
+- The Blade tool and the Select/Blade tool toggle (CMP-TOOLRAIL). Modes are gone. Split is S or Mod+K at the playhead, or Alt-click at the pointer, with a blade cursor while Alt is held over a clip.
 - The Edit surface switch as its own element. It is a Segmented control instance: lanes (`chart-gantt`) and text (`text`).
 - The Home New sheet (record FLOW-REC-NEW). Start tiles sit on Home directly, and name and folder default.
 - The Re-record verb. It is the Record verb with a Replace target.
@@ -507,7 +507,7 @@ Decision (owner): `SystemIcon` stroke 2.1. Lucide draws on a 24 grid, so the 1.7
 | Later | `chevron-down` | Tab or ↓ (moves on without deciding) | Swipe up | Decision card, Review dock |
 | Next / Previous of the same kind | none | Tab / Shift+Tab (↓/↑ in the queue) | Swipe up / down on the card | Review queue, Edit after a cut (next occurrence), Fix text (next unsure word) |
 | Apply to all like this | the verb's icon with a count | Shift+Enter | Group header button | Queue group bulk, Find "Cut all", toast "Cut all" |
-| Split | `square-split-horizontal` | Mod+K at playhead; Alt-click at pointer | Dock "Split" with nothing selected | Action bar (range, clip), playhead menu, phone dock |
+| Split | `square-split-horizontal` | S or Mod+K at playhead; Alt-click at pointer | Dock "Split" with nothing selected | Action bar (range, clip), playhead menu, phone dock |
 | Comment (also marker, reply) | `message-square` | C | Tap Comment; long-press = compose with time pinned | Player (all stages), Action bar, Record dock, Decision card (reply), Marker, Review queue |
 | Fix text (also rename) | `text-cursor-input` | F2, or start typing on a selection | Double-tap | Script, Decision card unsure word, marker titles, speaker, project title, session name |
 | Remove (non-audio) | `trash-2` | Backspace or Delete on a non-audio object | Swipe left on list rows | Markers, comments, tracks, envelope points, chapter rows, clip ideas, Home Recent ("Remove from list"), person in room (Confirm in place) |
@@ -671,7 +671,7 @@ Every place the specs disagreed or collided with each other or with themselves. 
 | K9 | R: D has reply, R has record start, D has Home ⌘R | R is Record everywhere. Reply is C | Recording is the higher-consequence verb and owns its letter |
 | K10 | ⌘⇧C copy listen link (D) | Dropped (palette only) | Shift+C is Add chapter. The action is rare |
 | K11 | ⌘N new, ⌘O open (E); ⌘N import, ⌘R record, ⌘O open other, ⌘⇧O Home (D) | Mod+O goes to Home from anywhere (and on Home it opens Open other…). Mod+I imports. R records on Home. Enter opens the focused card. No Mod+N | Browsers reserve Mod+N and Mod+R. Mod+I is already Import in D's Prepare |
-| K12 | Mod+Shift+E (E) versus ⌘E (D) for export | Mod+E | One key. On a selected range it exports the range |
+| K12 | Mod+Shift+E (E) versus ⌘E (D) for export | Mod+E | One key. With one range selected it opens Deliver with Bounce focused and that range filled in; otherwise it exports the deliverables |
 | K13 | ? as Help on Home (D) versus the palette (E) | ? opens the Palette, which holds a Help group | One discovery surface |
 | K14 | G R chords (R) | Dropped | No other spec uses chords |
 | K15 | Mod+B force mix refresh (E) | Palette only | The mix refreshes on its own |
