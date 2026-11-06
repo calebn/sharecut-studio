@@ -680,7 +680,7 @@ verify native permission prompts or hardware capture; keeper audio and upload
 are covered on both engines by the core-flow spec above.
 Record rooms and E2E flags come from shared helpers: `gui/web/e2e/recordRoom.ts`
 (`openHostRecordRoom`, `ensureHostRecordCommand`, `clickHostTransport`,
-`landParticipant`, `joinAsGuest`, which names the guest only after its socket
+`joinAsGuest`, which names the guest only after its socket
 has joined (`fillGuestDisplayName`) and returns once the room's roster lists
 that name (#764), `joinAsProducer`, whose socket opens only on Join so it
 registers the typed name; both type the name through `fillDisplayNameField`),
