@@ -19,12 +19,15 @@ export type StageHostProps = {
   guestShare?: boolean;
   feedbackHostRef?: RefCallback<HTMLDivElement>;
   loadFailure?: LoadFailure | null;
+  /** The 4 s Retry of the loading skeleton: the same bootstrap retry as Try again. */
+  onRetryLoad?: () => void;
 };
 
 function StageHostAdapter({
   guestShare = false,
   feedbackHostRef,
   loadFailure,
+  onRetryLoad,
 }: StageHostProps) {
   const { stage, guestMode, loaded, projectPath, projectEpoch } = useDawStore(
     useShallow((s) => ({
@@ -45,6 +48,7 @@ function StageHostAdapter({
         shell={shell}
         state={loadFailure ? "error" : "loading"}
         failure={loadFailure}
+        onRetry={onRetryLoad}
       >
         {null}
       </HostBody>
