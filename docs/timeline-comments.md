@@ -2,7 +2,7 @@
 
 Review feedback anchored to the **session/timeline clock** (what listeners hear on premix/review), stored in `review.comments[]` on `episode.sharecut`.
 
-Inspired by SoundCloud pins, Frame.io range comments + “mark complete”, and Descript’s hideable markers + comments panel.
+Inspired by SoundCloud pins, Frame.io range comments + “mark complete”, and Descript’s markers + comments panel.
 
 Agents treat comments as a **first-class work queue** via MCP (preferred) or CLI. Skill: `.agents/skills/podcast-timeline-comments/`.
 
@@ -106,7 +106,7 @@ Agent workflow: `list_comments_tool(..., include_resolved=false)` (or `podcast c
 - There is no comment mode and the ruler does not pin a comment (removed in #2294): the ruler seeks. A comment starts from the Comment field, which takes the selected range or the playhead and lets the time chip change it; the Comment verb on the selection and at the playhead arrives with the action bar in W1b.
 - A focused ruler handles Arrow Left/Right by its visible major tick interval and Home/End by the existing start/session-end route, once per key event; ordinary global arrow shortcuts remain available outside the ruler.
 - **Comments** in the Review queue: one item per comment (open ones undecided, resolved ones under Decided); the card shows the thread, replies and action items. Resolve is the card's button (host only; an **Undo** toast follows for the most recent resolve only — resolving another comment replaces it, and earlier ones stay reopenable with **Reopen**).
-- Playback bubble when the playhead overlaps a comment (capped to one; toggled with Comments layer)
+- Playback bubble when the playhead overlaps a comment (capped to one)
 - Inspector when a comment is selected
 - Mutations: `POST /api/comments`, `PATCH /api/comments/{id}`, `POST .../replies`, `POST .../actions/{id}/done`
 
