@@ -465,7 +465,7 @@ with axe before the collected results are asserted.
 | Keep decides one queue item at a thumb-sized target, then one Undo brings it back | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a long press then a drag selects a word range, and the sheet clears it with no step buttons | `gui/web/e2e-compat/transcript-touch-range.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a finger that moves before the hold scrolls and selects nothing | `gui/web/e2e-compat/transcript-touch-range.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| the phone timeline shows Undo and Redo; a Safari tab offers the Home Screen once | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| the phone timeline shows Undo and Redo | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | native Tab keeps every Stage bar indicator inside its clip | `gui/web/e2e-compat/phone-navigation-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Smooth all joins in the track sheet stays inside a 390 and a 393 wide phone viewport in both detents and works | `gui/web/e2e-compat/menu-viewport.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | an app toast stays topmost and tappable over the Project menu opened after it | `gui/web/e2e-compat/menu-viewport.spec.ts` | CSS / layout | Pass | Pass | Not run |
