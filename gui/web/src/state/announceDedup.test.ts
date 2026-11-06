@@ -88,4 +88,20 @@ describe("announceStatus repeats", () => {
     say("Needs attention");
     expect(toast()?.message).toBe("Needs attention");
   });
+
+  it("escalates matching status feedback to an error", () => {
+    say("Nothing selected");
+    const statusToast = toast();
+    const statusSeq = useDawStore.getState().statusAnnouncementSeq;
+
+    say("Nothing selected", { tone: "error" });
+
+    expect(useDawStore.getState().statusAnnouncementSeq).toBe(statusSeq + 1);
+    expect(useDawStore.getState().statusAnnouncement).toBe("Nothing selected");
+    expect(toast()).not.toBe(statusToast);
+    expect(toast()).toMatchObject({
+      message: "Nothing selected",
+      tone: "error",
+    });
+  });
 });
