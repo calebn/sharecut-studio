@@ -323,7 +323,7 @@ const refreshMixRow: Probe = async (user) => {
 const importAudio: Probe = async (user) => {
   mountStage("prepare");
   vi.mocked(pickAudioFiles).mockClear();
-  await user.click(button(/Import audio/));
+  await user.click(button(/Add audio/));
   await waitFor(() => expect(pickAudioFiles).toHaveBeenCalled());
 };
 
