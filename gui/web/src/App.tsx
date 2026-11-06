@@ -89,7 +89,7 @@ function AppInner() {
   >(null);
   const [attempt, setAttempt] = useState(0);
   const projectLoading = () =>
-    guestToken || shareKey ? (
+    guestToken || shareKey || isShareProjectKey(projectPath ?? "") ? (
       <GuestLoadingScreen
         label="Loading project…"
         onRetry={() => setAttempt((n) => n + 1)}
