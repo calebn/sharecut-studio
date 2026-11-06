@@ -6,7 +6,6 @@ import {
   viewportStoryParameters,
 } from "../../storybook/storyLayout";
 import { playInCanvas } from "../../storybook/storyPlay";
-import type { LinkCopyState } from "../../system/LinkRow";
 import { isApplePlatform } from "../../utils/platform";
 import { BOUNCE_DEFAULTS, type BounceState } from "./bounceLogic";
 import { DeliverStage, type DeliverStageProps } from "./DeliverStage";
@@ -23,42 +22,52 @@ import {
   NEEDS_MODEL,
   NEVER,
   OPEN_FACTS,
-  OPENED_BY,
   REQUEST,
   RUNNING,
   SETTINGS,
   STALE,
   TOTAL,
 } from "./deliverFixture";
+import { type ListenFixture, listenOf } from "./listenFixture";
 
 const MOD_E = isApplePlatform() ? "{Meta>}e{/Meta}" : "{Control>}e{/Control}";
 
-function Live(props: DeliverStageProps) {
+/** The stage's props, and the plain fields the host's Listen link row is built from. */
+type StoryArgs = DeliverStageProps & {
+  link?: ListenFixture;
+  onRefreshMix?: () => void;
+};
+
+function Live({ link, onRefreshMix, ...props }: StoryArgs) {
   const [exportState, setExportState] = useState(props.exportState);
   const [files, setFiles] = useState(props.files);
-  const [copy, setCopy] = useState<LinkCopyState>("idle");
-  const [url, setUrl] = useState(props.link?.url ?? null);
+  const [copy, setCopy] = useState<"idle" | "copied">("idle");
+  const [url, setUrl] = useState(link?.url ?? null);
   return (
     <DeliverStage
       {...props}
       exportState={exportState}
       files={files}
-      link={{ ...props.link, url, copyState: copy }}
+      listen={listenOf({
+        ...link,
+        url,
+        copyState: copy,
+        onRefreshMix,
+        onCopy: () => {
+          setUrl(LINK);
+          setCopy("copied");
+        },
+      })}
       onExport={(request) => {
         props.onExport(request);
         setExportState(exportedState(request));
         setFiles(exportedFilesOf(request, props.files?.access ?? "reveal"));
       }}
-      onCopyLink={() => {
-        props.onCopyLink?.();
-        setUrl(LINK);
-        setCopy("copied");
-      }}
     />
   );
 }
 
-function LiveBounce(props: DeliverStageProps) {
+function LiveBounce(props: StoryArgs) {
   const [state, setState] = useState<BounceState>({ phase: "idle" });
   const bounce = props.bounce!;
   return (
@@ -88,7 +97,7 @@ function LiveBounce(props: DeliverStageProps) {
   );
 }
 
-const meta: Meta<typeof DeliverStage> = {
+const meta: Meta<StoryArgs> = {
   title: "Stages/Deliver/Deliver",
   component: DeliverStage,
   tags: ["autodocs"],
@@ -112,13 +121,11 @@ const meta: Meta<typeof DeliverStage> = {
     clock: { time: "12:04", total: "52:00" },
     getPlayheadSec: () => 724,
     link: { url: null },
-    pinnedTo: "Rough cut",
     toastMs: 600_000,
     onFix: fn(),
     onExport: fn(),
     onCancel: fn(),
     onChangeFolder: fn(),
-    onCopyLink: fn(),
     onRefreshMix: fn(),
     onPlayFrom: fn(),
     onPlayClip: fn(),
@@ -140,7 +147,7 @@ const meta: Meta<typeof DeliverStage> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof DeliverStage>;
+type Story = StoryObj<StoryArgs>;
 
 export const Ready: Story = {
   play: playInCanvas(async ({ canvasElement, args }) => {
@@ -199,11 +206,12 @@ export const Exported: Story = {
       view.getByRole("button", { name: /^Reveal field-notes\.mp3/ }),
     );
     await expect(args.files?.onReveal).toHaveBeenCalledOnce();
-    await userEvent.click(view.getByRole("button", { name: "Copy" }));
+    await userEvent.click(
+      view.getByRole("button", { name: "Copy listen link" }),
+    );
     await expect(
-      await view.findByRole("button", { name: "Copied" }),
+      await view.findByRole("button", { name: "Copied listen link" }),
     ).toBeInTheDocument();
-    await expect(args.onCopyLink).toHaveBeenCalledOnce();
   }),
 };
 
@@ -223,7 +231,7 @@ export const ExportedInBrowser: Story = {
 };
 
 export const Stale: Story = {
-  args: { exportState: STALE, link: { url: LINK, openedBy: OPENED_BY } },
+  args: { exportState: STALE, link: { url: LINK } },
   play: playInCanvas(async ({ canvasElement, args }) => {
     const view = within(canvasElement);
     await expect(view.getByText("Edited since export")).toBeInTheDocument();
@@ -353,7 +361,7 @@ export const PhoneExported: Story = {
     exportState: DONE,
     files: exportedFilesOf(REQUEST, "download"),
     facts: MEASURED_FACTS,
-    link: { url: LINK, openedBy: OPENED_BY },
+    link: { url: LINK },
   },
   parameters: isolatedStoryParameters,
 };
