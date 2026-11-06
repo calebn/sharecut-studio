@@ -30,7 +30,12 @@ test("new project stays fresh without an audio error on desktop and phone", asyn
     await expect(page.getByRole("heading", { name: "Fresh QA" })).toBeVisible();
     await expect(audioError).toHaveCount(0);
 
-    // The Record tile lands on the Record stage; the player lives on Edit.
+    // The Record tile lands on the Record stage, makes the first room and opens
+    // Invite at Record links; close it, the player lives on Edit.
+    const invite = page.getByRole("dialog", { name: "Invite" });
+    await expect(invite).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(invite).toHaveCount(0);
     await goToStage(page, "edit");
     const play = page.getByRole("button", { name: "Play", exact: true });
     await expect(play).toBeVisible();
