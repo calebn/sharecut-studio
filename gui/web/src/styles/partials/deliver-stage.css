@@ -101,6 +101,17 @@
   font-size: var(--font-size-ui);
 }
 
+.dv-part-field {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.dv-part-label {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+}
+
 .dv-note,
 .dv-save {
   margin: 0;

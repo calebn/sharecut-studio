@@ -277,12 +277,14 @@ describe("stale after an export", () => {
     await userEvent.type(chapterTitle("The old mill!"), "{Backspace}{Enter}");
     expect(stale()).toBe(false);
 
-    const time = screen.getByRole("textbox", { name: "Time of The old mill" });
-    await userEvent.clear(time);
-    await userEvent.type(time, "6:00{Enter}");
+    const time = screen.getByRole("spinbutton", {
+      name: "Time of The old mill",
+    });
+    await userEvent.click(time);
+    await userEvent.keyboard("6:00{Enter}");
     expect(stale()).toBe(true);
-    await userEvent.clear(time);
-    await userEvent.type(time, "5:12.4{Enter}");
+    await userEvent.click(time);
+    await userEvent.keyboard("5:12.4{Enter}");
     expect(stale()).toBe(false);
 
     await userEvent.click(
@@ -317,11 +319,14 @@ describe("stale after an export", () => {
   it("keeps a chosen In and Out when Part… is clicked again", async () => {
     setup();
     await userEvent.click(screen.getByRole("button", { name: "Part…" }));
-    const out = screen.getByRole("textbox", { name: "Out" });
-    await userEvent.clear(out);
-    await userEvent.type(out, "0:30{Enter}");
+    const out = screen.getByRole("spinbutton", { name: "Out" });
+    await userEvent.click(out);
+    await userEvent.keyboard("0:30{Enter}");
     await userEvent.click(screen.getByRole("button", { name: "Part…" }));
-    expect(screen.getByRole("textbox", { name: "Out" })).toHaveValue("0:30.0");
+    expect(screen.getByRole("spinbutton", { name: "Out" })).toHaveAttribute(
+      "aria-valuetext",
+      "30.00 s",
+    );
   });
 
   it("goes stale when an approved clip's In moves", async () => {
@@ -386,9 +391,9 @@ describe("chapters", () => {
       screen.getByRole("button", { name: "Add at playhead" }),
     );
     const times = screen
-      .getAllByRole("textbox", { name: /^Time of/ })
-      .map((t) => (t as HTMLInputElement).value);
-    expect(times).toContain("12:04.0");
+      .getAllByRole("spinbutton", { name: /^Time of/ })
+      .map((t) => t.getAttribute("aria-valuetext"));
+    expect(times).toContain("724.00 s");
   });
 
   it("puts focus on the next chapter after a remove", async () => {
@@ -410,9 +415,9 @@ describe("the Add at playhead position", () => {
       screen.getByRole("button", { name: "Add at playhead" }),
     );
     const times = screen
-      .getAllByRole("textbox", { name: /^Time of/ })
-      .map((t) => (t as HTMLInputElement).value);
-    expect(times.at(-1)).toBe("52:00.0");
+      .getAllByRole("spinbutton", { name: /^Time of/ })
+      .map((t) => t.getAttribute("aria-valuetext"));
+    expect(times.at(-1)).toBe("3120.00 s");
   });
 });
 
@@ -810,37 +815,38 @@ describe("empty lists", () => {
 });
 
 describe("Part range", () => {
-  const field = (name: string) =>
-    screen.getByRole("textbox", { name }) as HTMLInputElement;
+  const field = (name: string) => screen.getByRole("spinbutton", { name });
   const type = async (name: string, text: string) => {
-    await userEvent.clear(field(name));
-    await userEvent.type(field(name), `${text}{Enter}`);
+    await userEvent.click(field(name));
+    await userEvent.keyboard(`${text}{Enter}`);
   };
+  const shown = (name: string, text: string) =>
+    expect(field(name)).toHaveAttribute("aria-valuetext", text);
 
   it("starts at the beginning and runs a minute", async () => {
     setup();
     await userEvent.click(screen.getByRole("button", { name: "Part…" }));
-    expect(field("In")).toHaveValue("0:00.0");
-    expect(field("Out")).toHaveValue("1:00.0");
+    shown("In", "0.00 s");
+    shown("Out", "60.00 s");
   });
 
   it("never starts past the end of a short episode", async () => {
     setup({ total: 45 });
     await userEvent.click(screen.getByRole("button", { name: "Part…" }));
-    expect(field("Out")).toHaveValue("0:45.0");
+    shown("Out", "45.00 s");
   });
 
   it("moves In and Out independently and keeps them apart", async () => {
     setup();
     await userEvent.click(screen.getByRole("button", { name: "Part…" }));
     await type("Out", "0:30");
-    expect(field("In")).toHaveValue("0:00.0");
-    expect(field("Out")).toHaveValue("0:30.0");
+    shown("In", "0.00 s");
+    shown("Out", "30.00 s");
     await type("In", "0:10");
-    expect(field("In")).toHaveValue("0:10.0");
-    expect(field("Out")).toHaveValue("0:30.0");
+    shown("In", "10.00 s");
+    shown("Out", "30.00 s");
     await type("In", "0:45");
-    expect(field("Out")).toHaveValue("0:46.0");
+    shown("Out", "46.00 s");
   });
 
   it("sizes each format chip from the part, not the episode", async () => {
@@ -1026,9 +1032,11 @@ describe("state edits build on each other", () => {
   it("keeps every chapter and clip edit made one after the other", async () => {
     setup();
     await userEvent.type(chapterTitle("Cold open"), "!");
-    const time = screen.getByRole("textbox", { name: "Time of The old mill" });
-    await userEvent.clear(time);
-    await userEvent.type(time, "6:00{Enter}");
+    const time = screen.getByRole("spinbutton", {
+      name: "Time of The old mill",
+    });
+    await userEvent.click(time);
+    await userEvent.keyboard("6:00{Enter}");
     await userEvent.click(
       screen.getByRole("button", { name: "Add at playhead" }),
     );
@@ -1074,12 +1082,17 @@ describe("state edits build on each other", () => {
 
   it("holds a chapter time at the end of the episode", async () => {
     setup();
-    const time = screen.getByRole("textbox", { name: "Time of The old mill" });
-    await userEvent.clear(time);
-    await userEvent.type(time, "99:00{Enter}");
+    const time = screen.getByRole("spinbutton", {
+      name: "Time of The old mill",
+    });
+    await userEvent.click(time);
+    await userEvent.keyboard("99:00{Enter}");
+    expect(screen.getByRole("alert")).toHaveTextContent("3120");
+    await userEvent.keyboard("{Escape}");
+    await userEvent.keyboard("{End}");
     expect(
-      screen.getByRole("textbox", { name: "Time of The old mill" }),
-    ).toHaveValue("52:00.0");
+      screen.getByRole("spinbutton", { name: "Time of The old mill" }),
+    ).toHaveAttribute("aria-valuetext", "3120.00 s");
   });
 });
 
@@ -1104,21 +1117,27 @@ describe("export settings reach the stage", () => {
 
   it("shows In and Out only for a Part", () => {
     setup();
-    expect(screen.queryByRole("textbox", { name: "In" })).toBeNull();
-    expect(screen.queryByRole("textbox", { name: "Out" })).toBeNull();
+    expect(screen.queryByRole("spinbutton", { name: "In" })).toBeNull();
+    expect(screen.queryByRole("spinbutton", { name: "Out" })).toBeNull();
   });
 
   it("lets In and Out reach the end of the episode, not just the part length", async () => {
     setup();
     await userEvent.click(screen.getByRole("button", { name: "Part…" }));
-    const start = screen.getByRole("textbox", { name: "In" });
-    await userEvent.clear(start);
-    await userEvent.type(start, "10:00{Enter}");
-    expect(screen.getByRole("textbox", { name: "In" })).toHaveValue("10:00.0");
-    const out = screen.getByRole("textbox", { name: "Out" });
-    await userEvent.clear(out);
-    await userEvent.type(out, "99:00{Enter}");
-    expect(screen.getByRole("textbox", { name: "Out" })).toHaveValue("52:00.0");
+    const start = screen.getByRole("spinbutton", { name: "In" });
+    await userEvent.click(start);
+    await userEvent.keyboard("10:00{Enter}");
+    expect(screen.getByRole("spinbutton", { name: "In" })).toHaveAttribute(
+      "aria-valuetext",
+      "600.00 s",
+    );
+    const out = screen.getByRole("spinbutton", { name: "Out" });
+    await userEvent.click(out);
+    await userEvent.keyboard("99:00{Enter}{Escape}{End}");
+    expect(screen.getByRole("spinbutton", { name: "Out" })).toHaveAttribute(
+      "aria-valuetext",
+      "3120.00 s",
+    );
   });
 });
 
@@ -1317,7 +1336,7 @@ describe("chapters added at the playhead keep their own ids", () => {
   const title = (name: string) =>
     screen.getByRole("textbox", { name: `Title of ${name}` });
   const time = (name: string) =>
-    screen.getByRole("textbox", { name: `Time of ${name}` });
+    screen.getByRole("spinbutton", { name: `Time of ${name}` });
 
   it("retitles, retimes and removes one of two added chapters without touching the other", async () => {
     setup();
@@ -1328,11 +1347,11 @@ describe("chapters added at the playhead keep their own ids", () => {
     await userEvent.clear(secondTitle);
     await userEvent.type(secondTitle, "Second");
     expect(title("Chapter 5")).toHaveValue("Chapter 5");
-    expect(time("Chapter 5")).toHaveValue("12:04.0");
-    await userEvent.clear(secondTime);
-    await userEvent.type(secondTime, "1:40{Enter}");
-    expect(time("Second")).toHaveValue("1:40.0");
-    expect(time("Chapter 5")).toHaveValue("12:04.0");
+    expect(time("Chapter 5")).toHaveAttribute("aria-valuetext", "724.00 s");
+    await userEvent.click(secondTime);
+    await userEvent.keyboard("1:40{Enter}");
+    expect(time("Second")).toHaveAttribute("aria-valuetext", "100.00 s");
+    expect(time("Chapter 5")).toHaveAttribute("aria-valuetext", "724.00 s");
     await userEvent.click(
       screen.getByRole("button", { name: "Remove Second" }),
     );
@@ -1833,14 +1852,20 @@ describe("what the last audit found unguarded", () => {
   it("keeps Out above In when Out is typed below it", async () => {
     setup();
     await userEvent.click(screen.getByRole("button", { name: "Part…" }));
-    const start = screen.getByRole("textbox", { name: "In" });
-    await userEvent.clear(start);
-    await userEvent.type(start, "10:00{Enter}");
-    const out = screen.getByRole("textbox", { name: "Out" });
-    await userEvent.clear(out);
-    await userEvent.type(out, "5:00{Enter}");
-    expect(screen.getByRole("textbox", { name: "In" })).toHaveValue("10:00.0");
-    expect(screen.getByRole("textbox", { name: "Out" })).toHaveValue("10:01.0");
+    const start = screen.getByRole("spinbutton", { name: "In" });
+    await userEvent.click(start);
+    await userEvent.keyboard("10:00{Enter}");
+    const out = screen.getByRole("spinbutton", { name: "Out" });
+    await userEvent.click(out);
+    await userEvent.keyboard("5:00{Enter}");
+    expect(screen.getByRole("spinbutton", { name: "In" })).toHaveAttribute(
+      "aria-valuetext",
+      "600.00 s",
+    );
+    expect(screen.getByRole("spinbutton", { name: "Out" })).toHaveAttribute(
+      "aria-valuetext",
+      "601.00 s",
+    );
   });
 
   it("holds a clip's Out at the episode end even when its In sits at the end", async () => {
@@ -2046,7 +2071,7 @@ describe("round three of the audit: names that tell items apart", () => {
         screen.getByRole("textbox", { name: `Title of ${name}` }),
       ).toBeInTheDocument();
       expect(
-        screen.getByRole("textbox", { name: `Time of ${name}` }),
+        screen.getByRole("spinbutton", { name: `Time of ${name}` }),
       ).toBeInTheDocument();
       expect(
         screen.getByRole("button", { name: `Remove ${name}` }),
@@ -2058,14 +2083,14 @@ describe("round three of the audit: names that tell items apart", () => {
 describe("round three of the audit: chapters", () => {
   it("never lets a chapter go below zero by arrow, Shift-arrow or drag", () => {
     const { all } = setup();
-    const time = screen.getByRole("textbox", { name: "Time of Cold open" });
+    const time = screen.getByRole("spinbutton", { name: "Time of Cold open" });
     time.focus();
     fireEvent.keyDown(time, { key: "ArrowDown" });
     fireEvent.keyDown(time, { key: "ArrowDown", shiftKey: true });
-    const grip = screen.getByText("Time of Cold open");
-    fireEvent.pointerDown(grip, { clientX: 100, pointerId: 1 });
-    fireEvent.pointerMove(grip, { clientX: 20, pointerId: 1 });
-    fireEvent.pointerUp(grip, { pointerId: 1 });
+    fireEvent.pointerDown(time, { clientX: 100, pointerId: 1, button: 0 });
+    fireEvent.pointerMove(time, { clientX: 90, pointerId: 1 });
+    fireEvent.pointerMove(time, { clientX: 20, pointerId: 1 });
+    fireEvent.pointerUp(time, { pointerId: 1 });
     pressExport();
     const sent = vi.mocked(all.onExport).mock.calls[0]?.[0].chapters ?? [];
     expect(sent.length).toBeGreaterThan(0);
@@ -2121,11 +2146,17 @@ describe("round three of the audit: In at the end of the episode", () => {
   it("keeps Out inside the episode", async () => {
     setup();
     await userEvent.click(screen.getByRole("button", { name: "Part…" }));
-    const start = screen.getByRole("textbox", { name: "In" });
-    await userEvent.clear(start);
-    await userEvent.type(start, "52:00{Enter}");
-    expect(screen.getByRole("textbox", { name: "In" })).toHaveValue("51:59.0");
-    expect(screen.getByRole("textbox", { name: "Out" })).toHaveValue("52:00.0");
+    const start = screen.getByRole("spinbutton", { name: "In" });
+    await userEvent.click(start);
+    await userEvent.keyboard("52:00{Enter}");
+    expect(screen.getByRole("spinbutton", { name: "In" })).toHaveAttribute(
+      "aria-valuetext",
+      "3119.00 s",
+    );
+    expect(screen.getByRole("spinbutton", { name: "Out" })).toHaveAttribute(
+      "aria-valuetext",
+      "3120.00 s",
+    );
   });
 });
 
@@ -2273,32 +2304,32 @@ describe("round four of the audit", () => {
   );
 
   it.each([
-    [312.4, "5:12.4"],
-    [0.1, "0:00.1"],
-    [59.9, "0:59.9"],
-    [83.5, "1:23.5"],
-    [1180, "19:40.0"],
-    [3119.9, "51:59.9"],
+    [312.4, "312.40 s"],
+    [0.1, "0.10 s"],
+    [59.9, "59.90 s"],
+    [83.5, "83.50 s"],
+    [1180, "1180.00 s"],
+    [3119.9, "3119.90 s"],
   ])("shows a chapter at %f s as %s", (at, shown) => {
     setup({ initialChapters: [{ id: "only", at, title: "Only" }] });
-    expect(screen.getByRole("textbox", { name: "Time of Only" })).toHaveValue(
-      shown,
-    );
+    expect(
+      screen.getByRole("spinbutton", { name: "Time of Only" }),
+    ).toHaveAttribute("aria-valuetext", shown);
   });
 
   it.each([
-    [0, "ArrowUp", "0:00.1"],
-    [312.4, "ArrowUp", "5:12.5"],
-    [312.4, "ArrowDown", "5:12.3"],
-    [59.9, "ArrowUp", "1:00.0"],
+    [0, "ArrowUp", "0.10 s"],
+    [312.4, "ArrowUp", "312.50 s"],
+    [312.4, "ArrowDown", "312.30 s"],
+    [59.9, "ArrowUp", "60.00 s"],
   ])("nudges a chapter at %f s with %s to %s", (at, key, shown) => {
     setup({ initialChapters: [{ id: "only", at, title: "Only" }] });
-    const time = screen.getByRole("textbox", { name: "Time of Only" });
+    const time = screen.getByRole("spinbutton", { name: "Time of Only" });
     time.focus();
     fireEvent.keyDown(time, { key });
-    expect(screen.getByRole("textbox", { name: "Time of Only" })).toHaveValue(
-      shown,
-    );
+    expect(
+      screen.getByRole("spinbutton", { name: "Time of Only" }),
+    ).toHaveAttribute("aria-valuetext", shown);
   });
 
   it("titles the disabled Export button Exporting now. while it runs", () => {
@@ -2581,7 +2612,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP3960 KBWAV11 MBFLAC6 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…InOutSaves to Field Notes/exportChangeExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to Rough cutCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP3960 KBWAV11 MBFLAC6 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…In30.00sOut90.00sSaves to Field Notes/exportChangeExportChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to Rough cutCopy0:00 / 52:001515AB",
         },
         "desktop: blocked clipboard": {
           "buttons": [
@@ -2640,7 +2671,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.example.app/l/7Hq2mXk9TnP4vLr8Za3wPinned to Rough cutRPress Ctrl C0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.example.app/l/7Hq2mXk9TnP4vLr8Za3wPinned to Rough cutRPress Ctrl C0:00 / 52:001515AB",
         },
         "desktop: done in the app": {
           "buttons": [
@@ -2703,7 +2734,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agoExportmp3field-notes.mp3Listening file50 MBRevealwavfield-notes.wavLossless master550 MBRevealwavcold-open.wavClip6 MBRevealChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutRCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agoExportmp3field-notes.mp3Listening file50 MBRevealwavfield-notes.wavLossless master550 MBRevealwavcold-open.wavClip6 MBRevealChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutRCopy0:00 / 52:001515AB",
         },
         "desktop: done in the browser": {
           "buttons": [
@@ -2763,7 +2794,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agoExportmp3field-notes.mp3Listening file50 MBDownloadwavfield-notes.wavLossless master550 MBDownloadwavcold-open.wavClip6 MBDownloadThe master is large. Use Wi-Fi, or choose the listening file.ChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutRCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agoExportmp3field-notes.mp3Listening file50 MBDownloadwavfield-notes.wavLossless master550 MBDownloadwavcold-open.wavClip6 MBDownloadThe master is large. Use Wi-Fi, or choose the listening file.Chapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutRCopy0:00 / 52:001515AB",
         },
         "desktop: error": {
           "buttons": [],
@@ -2832,7 +2863,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "running",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeRunning: ExportingMixingCancelYou can leave this page. The export keeps going and the status bar shows its progress.ExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to Rough cutCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeRunning: ExportingMixingCancelYou can leave this page. The export keeps going and the status bar shows its progress.ExportChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to Rough cutCopy0:00 / 52:001515AB",
         },
         "desktop: guest": {
           "buttons": [],
@@ -2918,7 +2949,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkMake a mix to shareRefresh mix0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkMake a mix to shareRefresh mix0:00 / 52:001515AB",
         },
         "desktop: no mix with a link": {
           "buttons": [
@@ -2977,7 +3008,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkMake a mix to shareRefresh mix0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkMake a mix to shareRefresh mix0:00 / 52:001515AB",
         },
         "desktop: ready": {
           "buttons": [
@@ -3036,7 +3067,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to Rough cutCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to Rough cutCopy0:00 / 52:001515AB",
         },
         "desktop: stale": {
           "buttons": [
@@ -3097,7 +3128,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "needs-you",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Edited since exportLast export 2 h agoExport againExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to Rough cutCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Edited since exportLast export 2 h agoExport againExportChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to Rough cutCopy0:00 / 52:001515AB",
         },
         "desktop: the model missing": {
           "buttons": [
@@ -3158,7 +3189,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "needs-you",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Needs the transcription model1.6 GBGetExportNeeds the transcription model.ChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to Rough cutCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Needs the transcription model1.6 GBGetExportNeeds the transcription model.Chapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to Rough cutCopy0:00 / 52:001515AB",
         },
         "desktop: with a link": {
           "buttons": [
@@ -3217,7 +3248,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutRCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutRCopy0:00 / 52:001515AB",
         },
         "desktop: without a link": {
           "buttons": [
@@ -3276,7 +3307,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to Rough cutCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeExportChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to Rough cutCopy0:00 / 52:001515AB",
         },
         "phone: a Part range": {
           "buttons": [
@@ -3335,7 +3366,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP3960 KBWAV11 MBFLAC6 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…InOutSaves to Field Notes/exportChangeListen linkMade when you copy itPinned to Rough cutShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP3960 KBWAV11 MBFLAC6 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…In30.00sOut90.00sSaves to Field Notes/exportChangeListen linkMade when you copy itPinned to Rough cutShareChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
         "phone: blocked clipboard": {
           "buttons": [
@@ -3394,7 +3425,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkhttps://share.example.app/l/7Hq2mXk9TnP4vLr8Za3wPinned to Rough cutRShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkhttps://share.example.app/l/7Hq2mXk9TnP4vLr8Za3wPinned to Rough cutRShareChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
         "phone: done in the app": {
           "buttons": [
@@ -3457,7 +3488,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agomp3field-notes.mp3Listening file50 MBRevealwavfield-notes.wavLossless master550 MBRevealwavcold-open.wavClip6 MBRevealListen linkhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutRShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agomp3field-notes.mp3Listening file50 MBRevealwavfield-notes.wavLossless master550 MBRevealwavcold-open.wavClip6 MBRevealListen linkhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutRShareChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
         "phone: done in the browser": {
           "buttons": [
@@ -3517,7 +3548,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agomp3field-notes.mp3Listening file50 MBDownloadwavfield-notes.wavLossless master550 MBDownloadwavcold-open.wavClip6 MBDownloadThe master is large. Use Wi-Fi, or choose the listening file.Listen linkhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutRShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agomp3field-notes.mp3Listening file50 MBDownloadwavfield-notes.wavLossless master550 MBDownloadwavcold-open.wavClip6 MBDownloadThe master is large. Use Wi-Fi, or choose the listening file.Listen linkhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutRShareChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
         "phone: error": {
           "buttons": [],
@@ -3586,7 +3617,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "running",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeRunning: ExportingMixingCancelYou can leave this page. The export keeps going and the status bar shows its progress.Listen linkMade when you copy itPinned to Rough cutShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeRunning: ExportingMixingCancelYou can leave this page. The export keeps going and the status bar shows its progress.Listen linkMade when you copy itPinned to Rough cutShareChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
         "phone: guest": {
           "buttons": [],
@@ -3673,7 +3704,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkMake a mix to shareRefresh mixChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkMake a mix to shareRefresh mixChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
         "phone: no mix with a link": {
           "buttons": [
@@ -3732,7 +3763,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkMake a mix to shareRefresh mixChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkMake a mix to shareRefresh mixChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
         "phone: ready": {
           "buttons": [
@@ -3791,7 +3822,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkMade when you copy itPinned to Rough cutShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkMade when you copy itPinned to Rough cutShareChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
         "phone: stale": {
           "buttons": [
@@ -3852,7 +3883,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "needs-you",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Edited since exportLast export 2 h agoExport againListen linkMade when you copy itPinned to Rough cutShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Edited since exportLast export 2 h agoExport againListen linkMade when you copy itPinned to Rough cutShareChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
         "phone: the model missing": {
           "buttons": [
@@ -3913,7 +3944,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "needs-you",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Needs the transcription model1.6 GBGetListen linkMade when you copy itPinned to Rough cutShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExportNeeds the transcription model.0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Needs the transcription model1.6 GBGetListen linkMade when you copy itPinned to Rough cutShareChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExportNeeds the transcription model.0:00 / 52:001515AB",
         },
         "phone: with a link": {
           "buttons": [
@@ -3972,7 +4003,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutRShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutRShareChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
         "phone: without a link": {
           "buttons": [
@@ -4031,7 +4062,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkMade when you copy itPinned to Rough cutShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeListen linkMade when you copy itPinned to Rough cutShareChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
       }
     `);
@@ -4141,24 +4172,49 @@ describe("round six of the audit", () => {
 
   it("keeps two-decimal times typed into the chapter, In and Out fields", async () => {
     const { all } = setup();
-    const time = screen.getByRole("textbox", { name: "Time of The old mill" });
-    await userEvent.clear(time);
-    await userEvent.type(time, "1:23.26{Enter}");
+    const time = screen.getByRole("spinbutton", {
+      name: "Time of The old mill",
+    });
+    await userEvent.click(time);
+    await userEvent.keyboard("1:23.26{Enter}");
     expect(
-      screen.getByRole("textbox", { name: "Time of The old mill" }),
-    ).toHaveValue("1:23.3");
+      screen.getByRole("spinbutton", { name: "Time of The old mill" }),
+    ).toHaveAttribute("aria-valuetext", "83.26 s");
     await userEvent.click(screen.getByRole("button", { name: "Part…" }));
-    const start = screen.getByRole("textbox", { name: "In" });
-    await userEvent.clear(start);
-    await userEvent.type(start, "1:23.26{Enter}");
-    const out = screen.getByRole("textbox", { name: "Out" });
-    await userEvent.clear(out);
-    await userEvent.type(out, "2:00.74{Enter}");
+    const start = screen.getByRole("spinbutton", { name: "In" });
+    await userEvent.click(start);
+    await userEvent.keyboard("1:23.26{Enter}");
+    const out = screen.getByRole("spinbutton", { name: "Out" });
+    await userEvent.click(out);
+    await userEvent.keyboard("2:00.74{Enter}");
     pressExport();
     const sent = vi.mocked(all.onExport).mock.calls[0]?.[0];
     expect(sent?.range?.start).toBeCloseTo(83.26, 5);
     expect(sent?.range?.end).toBeCloseTo(120.74, 5);
     expect(sent?.chapters.find((c) => c.id === "c2")?.at).toBeCloseTo(83.26, 5);
+  });
+
+  it("snaps a dragged chapter time to the sentence start from the episode words and sends one retime", () => {
+    const words = [
+      { text: "Well", start: 300, end: 300.4 },
+      { text: "then.", start: 300.5, end: 301 },
+      { text: "The", start: 305, end: 305.3 },
+      { text: "mill.", start: 305.4, end: 306 },
+      { text: "Next", start: 330, end: 330.4 },
+    ];
+    const { all } = setup({ words });
+    const time = screen.getByRole("spinbutton", {
+      name: "Time of The old mill",
+    });
+    fireEvent.pointerDown(time, { clientX: 100, pointerId: 1, button: 0 });
+    fireEvent.pointerMove(time, { clientX: 110, pointerId: 1 });
+    fireEvent.pointerMove(time, { clientX: 20, pointerId: 1 });
+    fireEvent.pointerUp(time, { pointerId: 1 });
+    pressExport();
+    const at = vi
+      .mocked(all.onExport)
+      .mock.calls[0]?.[0].chapters.find((c) => c.id === "c2")?.at;
+    expect(at).toBe(305);
   });
 
   it("lists formats in the order they were switched on", async () => {
@@ -4175,28 +4231,36 @@ describe("round six of the audit", () => {
 
 describe("round seven of the audit", () => {
   it.each([
-    ["Time of The old mill", "125", "2:05.0"],
-    ["Time of The old mill", "999.9", "16:39.9"],
-    ["Time of The old mill", "3000", "50:00.0"],
+    ["Time of The old mill", "125", "125.00 s"],
+    ["Time of The old mill", "999.9", "999.90 s"],
+    ["Time of The old mill", "3000", "3000.00 s"],
   ])("commits %s typed as %s", async (label, typed, shown) => {
     setup();
-    const input = screen.getByRole("textbox", { name: label });
-    await userEvent.clear(input);
-    await userEvent.type(input, `${typed}{Enter}`);
-    expect(screen.getByRole("textbox", { name: label })).toHaveValue(shown);
+    await userEvent.click(screen.getByRole("spinbutton", { name: label }));
+    await userEvent.keyboard(`${typed}{Enter}`);
+    expect(screen.getByRole("spinbutton", { name: label })).toHaveAttribute(
+      "aria-valuetext",
+      shown,
+    );
   });
 
   it("commits three-digit seconds in the In and Out fields", async () => {
     setup();
     await userEvent.click(screen.getByRole("button", { name: "Part…" }));
-    const start = screen.getByRole("textbox", { name: "In" });
-    await userEvent.clear(start);
-    await userEvent.type(start, "125{Enter}");
-    const out = screen.getByRole("textbox", { name: "Out" });
-    await userEvent.clear(out);
-    await userEvent.type(out, "300{Enter}");
-    expect(screen.getByRole("textbox", { name: "In" })).toHaveValue("2:05.0");
-    expect(screen.getByRole("textbox", { name: "Out" })).toHaveValue("5:00.0");
+    const start = screen.getByRole("spinbutton", { name: "In" });
+    await userEvent.click(start);
+    await userEvent.keyboard("125{Enter}");
+    const out = screen.getByRole("spinbutton", { name: "Out" });
+    await userEvent.click(out);
+    await userEvent.keyboard("300{Enter}");
+    expect(screen.getByRole("spinbutton", { name: "In" })).toHaveAttribute(
+      "aria-valuetext",
+      "125.00 s",
+    );
+    expect(screen.getByRole("spinbutton", { name: "Out" })).toHaveAttribute(
+      "aria-valuetext",
+      "300.00 s",
+    );
   });
 
   it("commits three-digit seconds in a clip's In and Out fields", async () => {
@@ -4362,7 +4426,7 @@ describe("round eight of the audit", () => {
     "%s+ArrowUp moves a chapter time by %f steps of 0.1 s",
     (_n, init, steps) => {
       const { all } = setup();
-      const time = screen.getByRole("textbox", {
+      const time = screen.getByRole("spinbutton", {
         name: "Time of The old mill",
       });
       time.focus();
@@ -4381,7 +4445,7 @@ describe("round eight of the audit", () => {
       for (const which of ["In", "Out"] as const) {
         const { all, unmount } = setup();
         await userEvent.click(screen.getByRole("button", { name: "Part…" }));
-        const field = screen.getByRole("textbox", { name: which });
+        const field = screen.getByRole("spinbutton", { name: which });
         field.focus();
         fireEvent.keyDown(field, keys(init));
         pressExport();
@@ -4459,30 +4523,25 @@ describe("round eight of the audit", () => {
     ).toEqual(["a", "b", "c", "d"]);
   });
 
-  it.each([
-    "83,5",
-    "1:23,4",
-    "1;23",
-    "1e3",
-    "0x10",
-    "+5",
-    "Infinity",
-    "NaN",
-    "1:23:45",
-  ])("keeps the old chapter time when %j is committed", async (typed) => {
-    const { all } = setup();
-    const time = screen.getByRole("textbox", { name: "Time of The old mill" });
-    await userEvent.clear(time);
-    await userEvent.type(time, `${typed}{Enter}`);
-    expect(
-      screen.getByRole("textbox", { name: "Time of The old mill" }),
-    ).toHaveValue("5:12.4");
-    pressExport();
-    const at = vi
-      .mocked(all.onExport)
-      .mock.calls[0]?.[0].chapters.find((c) => c.id === "c2")?.at;
-    expect(at).toBe(312.4);
-  });
+  it.each(["1:23,4", "1;23", "1e3", "0x10", "Infinity", "NaN", "1:23:45"])(
+    "keeps the old chapter time when %j is committed",
+    async (typed) => {
+      const { all } = setup();
+      const time = screen.getByRole("spinbutton", {
+        name: "Time of The old mill",
+      });
+      await userEvent.click(time);
+      await userEvent.keyboard(`${typed}{Enter}{Escape}`);
+      expect(
+        screen.getByRole("spinbutton", { name: "Time of The old mill" }),
+      ).toHaveAttribute("aria-valuetext", "312.40 s");
+      pressExport();
+      const at = vi
+        .mocked(all.onExport)
+        .mock.calls[0]?.[0].chapters.find((c) => c.id === "c2")?.at;
+      expect(at).toBe(312.4);
+    },
+  );
 });
 
 describe("clip trim handles in the stage", () => {
