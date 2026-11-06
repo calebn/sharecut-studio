@@ -2,7 +2,7 @@
 # `gh workflow run release-please.yml --ref develop`) when you want a release. Run 1 opens or
 # refreshes the "release" PR on the base branch (config/branches.json); it reaches main with the
 # nightly promotion. Run 2 creates the vX.Y.Z tag and GitHub release, and the guard step refuses
-# to run until the release commit is on main. It no longer runs on every
+# to run until the manifest-touching commit is on main. It no longer runs on every
 # push to main, because each run refreshed the release PR and re-ran its CI.
 #
 # Opens or refreshes a "release" PR that bumps the Sharecut Studio version everywhere and writes
@@ -47,7 +47,7 @@ jobs:
           echo "base=$(python3 scripts/branches.py base)" >> "$GITHUB_OUTPUT"
           echo "release=$(python3 scripts/branches.py release)" >> "$GITHUB_OUTPUT"
 
-      - name: Refuse to continue while a release commit is not on the release branch
+      - name: Refuse to continue while a manifest-touching commit is not on the release branch
         # The release PR lands on the base branch and reaches the release branch with the
         # nightly promotion. Tagging or refreshing before that would build a release from
         # a commit that has not passed the full suite.
