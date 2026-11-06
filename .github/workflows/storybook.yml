@@ -31,6 +31,7 @@ jobs:
     # Per-story axe and fit sweep (Vitest browser mode), sharded.
     if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:

@@ -56,9 +56,13 @@ const settle = async () => {
   await new Promise<void>((resolve) =>
     requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
   );
-  await Promise.allSettled(
-    document.getAnimations().map((animation) => animation.finished),
-  );
+  const running = document.getAnimations();
+  for (const animation of running) {
+    if (animation.effect?.getComputedTiming().iterations === Infinity) {
+      animation.cancel();
+    }
+  }
+  await Promise.allSettled(running.map((animation) => animation.finished));
 };
 
 const stories: ComposedStory[] = [];
@@ -84,7 +88,6 @@ afterEach(() => {
   document.documentElement.removeAttribute("data-theme");
 });
 
-/** `VITE_STORY_SHARD=i/n` runs every n-th story starting at i, since vitest shards by file. */
 function parseShard(raw: string | undefined): { index: number; total: number } {
   if (raw === undefined || raw === "") return { index: 1, total: 1 };
   const match = /^(\d+)\/(\d+)$/.exec(raw);
@@ -101,6 +104,12 @@ const shard = parseShard(import.meta.env.VITE_STORY_SHARD);
 const inShard = (position: number) =>
   position % shard.total === shard.index - 1;
 
+it("sweeps a non-empty set of stories in this shard", () => {
+  expect(
+    stories.filter((_, position) => inShard(position)).length,
+  ).toBeGreaterThan(0);
+});
+
 for (const theme of THEMES) {
   describe(`stories in ${theme}`, () => {
     for (const [index, base] of stories.entries()) {
@@ -111,6 +120,14 @@ for (const theme of THEMES) {
         const onError = (event: ErrorEvent) => errors.push(event.message);
         const onRejection = (event: PromiseRejectionEvent) =>
           errors.push(String(event.reason));
+        const onResourceError = (event: Event) => {
+          if (event.target instanceof Element) {
+            errors.push(
+              `failed to load ${event.target.outerHTML.slice(0, 120)}`,
+            );
+          }
+        };
+        window.addEventListener("error", onResourceError, true);
         window.addEventListener("error", onError);
         window.addEventListener("unhandledrejection", onRejection);
         const consoleError = vi
@@ -119,8 +136,8 @@ for (const theme of THEMES) {
             errors.push(args.map(String).join(" "));
           });
         try {
-          const [first, ...rest] = widthsFor(base);
-          await page.viewport(first, HEIGHT);
+          const widths = widthsFor(base);
+          await page.viewport(widths[0], HEIGHT);
           host = document.createElement("div");
           host.id = "storybook-root";
           document.body.appendChild(host);
@@ -135,8 +152,8 @@ for (const theme of THEMES) {
           await document.fonts.ready;
           await settle();
           expect(document.documentElement.dataset.theme).toBe(theme);
-          for (const width of [first, ...rest]) {
-            if (width !== first) {
+          for (const width of widths) {
+            if (width !== widths[0]) {
               await page.viewport(width, HEIGHT);
               await settle();
             }
@@ -154,6 +171,7 @@ for (const theme of THEMES) {
             expect(errors).toEqual([]);
           }
         } finally {
+          window.removeEventListener("error", onResourceError, true);
           window.removeEventListener("error", onError);
           window.removeEventListener("unhandledrejection", onRejection);
           consoleError.mockRestore();
