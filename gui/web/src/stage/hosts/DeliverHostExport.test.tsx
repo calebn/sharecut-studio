@@ -92,7 +92,7 @@ afterEach(() => {
 });
 
 describe("Export on the Deliver stage", () => {
-  it("offers the project's formats and says WAV is always written", async () => {
+  it("offers the project's formats and says WAV is written with every export", async () => {
     render(<Host />);
     const formats = await screen.findByRole("group", { name: "Formats" });
     await waitFor(() =>
@@ -105,7 +105,7 @@ describe("Export on the Deliver stage", () => {
     expect(
       within(formats).getByRole("button", { name: /^FLAC/ }),
     ).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getByText(/always written/)).toBeInTheDocument();
+    expect(screen.getByText(/written with every export/)).toBeInTheDocument();
   });
 
   it("leaves Loudness, Range and Saves to out and says the loudness target", async () => {

@@ -424,6 +424,17 @@
   padding: var(--space-3) var(--space-5);
 }
 
+.dv-handoff {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.dv-stage[data-layout="phone"] .dv-handoff .sys-handoff-wrap,
+.dv-stage[data-layout="phone"] .dv-handoff .sys-handoff {
+  flex: 1 1 100%;
+  justify-content: center;
+}
+
 .dv-stage[data-layout="phone"] .dv-page {
   padding: var(--space-4);
 }
