@@ -36,6 +36,11 @@ export function envelopeSaveInFlight(trackId: string): boolean {
   return saving.has(savingKey(trackId));
 }
 
+/** Whether `trackId`'s envelope is settling: a lane save the store has yet to follow. */
+export function envelopeSettling(trackId: string): boolean {
+  return settling.has(savingKey(trackId));
+}
+
 /**
  * Marks `trackId`'s envelope as settling: the lane saved a gesture and the
  * store has yet to hold it, so a save from anywhere (the Create menu, the
@@ -102,7 +107,7 @@ export async function addEnvelopePointAt(
       reason: "Wait for the volume envelope to finish saving",
     };
   }
-  if (settling.has(key)) {
+  if (envelopeSettling(trackId)) {
     return { status: "disabled", reason: ENVELOPE_UPDATING };
   }
   const point = {
@@ -188,7 +193,7 @@ async function saveEnvelope(
       status: "disabled",
       reason: "Wait for the volume envelope to finish saving",
     };
-  if (settling.has(key))
+  if (envelopeSettling(trackId))
     return { status: "disabled", reason: ENVELOPE_UPDATING };
   const origin = pointsOf(trackId);
   const next = plan(origin);
