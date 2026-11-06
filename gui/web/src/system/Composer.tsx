@@ -125,8 +125,11 @@ export function Composer(props: ComposerProps) {
     setRenaming(false);
   }
   // Posting from the name field unmounts it, which would drop focus to the page.
+  const lastRev = useRef(postedRev);
   useEffect(() => {
-    if (postedRev && document.activeElement === document.body)
+    const posted = postedRev !== lastRev.current;
+    lastRev.current = postedRev;
+    if (posted && document.activeElement === document.body)
       bodyRef.current?.focus();
   }, [postedRev]);
   const setBodyRef = useCallback(

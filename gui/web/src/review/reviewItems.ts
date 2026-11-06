@@ -15,6 +15,7 @@ import type {
 import { formatTimeShort } from "../utils/time";
 import { wordSeekSec, wordsForUtterance } from "../utils/transcript";
 import type { ReviewContent } from "./ReviewQueue";
+import { unionSeconds } from "./rangeUnion";
 import type { ReviewItem } from "./reviewQueueModel";
 
 export type ReviewEntry = {
@@ -246,10 +247,7 @@ function entryOf(
       : (edit.timeline_spans ?? [])
           .filter((s) => Number.isFinite(s.end - s.start) && s.end > s.start)
           .map((s) => [s.start, s.end] as const);
-  const savedSeconds = spans.reduce(
-    (sum, [start, end]) => sum + (end - start),
-    0,
-  );
+  const savedSeconds = unionSeconds(spans);
   const title = edit.label ?? "Suggestion";
   const time = Number.isFinite(at) ? formatTimeShort(at) : "Unplaced";
   const words = edit.unsure_words ?? [];
