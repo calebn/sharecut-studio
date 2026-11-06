@@ -315,7 +315,7 @@ describe("Prepare host", () => {
     asHost("prepare");
     mount();
     expect(
-      screen.getByRole("button", { name: /Import audio/ }),
+      screen.getByRole("button", { name: /Add audio/ }),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Record/ })).toBeInTheDocument();
     expect(
