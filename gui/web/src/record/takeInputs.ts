@@ -35,11 +35,18 @@ function lengthOf(take: TakeState, snapshot: RecordSnapshot): number {
   return Math.max(0, (end - take.session_start_wall_ms - paused) / 1000);
 }
 
-function statusOf(rows: readonly SegmentAckRow[]): TakePersonStatus {
+function statusOf(
+  rows: readonly SegmentAckRow[],
+  open: boolean,
+): TakePersonStatus {
   if (rows.length === 0) {
     return "waiting";
   }
-  if (rows.some((row) => row.land_failed)) {
+  if (
+    rows.some(
+      (row) => row.land_failed || (!open && row.file_ack && !row.landed),
+    )
+  ) {
     return "failed";
   }
   return rows.every((row) => row.file_ack) ? "saved" : "saving";
@@ -77,7 +84,7 @@ export function takeInputs(
       return {
         id,
         name: names.get(id) ?? id,
-        status: statusOf(rows),
+        status: statusOf(rows, open),
         ...(found ? { clipping: found } : {}),
       };
     });
