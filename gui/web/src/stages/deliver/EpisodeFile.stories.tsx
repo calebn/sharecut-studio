@@ -30,6 +30,7 @@ const meta: Meta<typeof EpisodeFile> = {
   render: (args) => <Controlled {...args} />,
   args: {
     settings: SETTINGS,
+    hasTranscriptSection: false,
     total: TOTAL,
     saveTo: "Field Notes/export",
     exportState: NEVER,

@@ -36,6 +36,7 @@ type Props = {
   /** The Export button lives in the phone dock instead of here. */
   dock?: boolean;
   options?: ExportOptions;
+  hasTranscriptSection: boolean;
   onSettings: (next: EpisodeSettings) => void;
   /** Without it the Saves to line is not shown. */
   onChangeFolder?: () => void;
@@ -53,6 +54,7 @@ export function EpisodeFile({
   state = "ready",
   dock = false,
   options = {},
+  hasTranscriptSection,
   onSettings,
   onChangeFolder,
   onExport,
@@ -60,7 +62,8 @@ export function EpisodeFile({
   onCancel,
 }: Props) {
   const note =
-    "Available captions and transcript are included with every audio export.";
+    "Available captions and transcript are included with every audio export." +
+    (hasTranscriptSection ? " Choose more files in Transcript below." : "");
   const wavNote = useId();
   const gatePanel = useRef<HTMLDivElement>(null);
   const runningBlock = useRef<HTMLDivElement>(null);
@@ -338,6 +341,11 @@ export function EpisodeFile({
           state="needs-you"
           title="Edited since export"
           detail={`Last export ${exportState.when}`}
+          action={{
+            label: "Export again",
+            onAction: onExport,
+            disabledReason: blocker,
+          }}
         />
       ) : null}
       {exportState.phase === "done" ? (
