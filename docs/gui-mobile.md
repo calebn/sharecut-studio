@@ -703,7 +703,7 @@ touch targets for opening track details and clearing clipping. On a short
 screen the minimum is 72px, or 3.25rem with large text (#1077). The saved track
 height still applies when it is larger than that minimum.
 
-- Project menu Appearance row and eye popover (theme, layers, waveform scale; add chapter at the playhead is `edit.addChapter` in the **+** menu)
+- Project menu Appearance row (theme) and eye popover (prosody, silence, levels, waveform scale and amplitude; add chapter at the playhead is `edit.addChapter` in the **+** menu)
 - Script toggle (`T`, `view.toggleScript`) and Script focus (`Shift+T`, `view.scriptFocus`) instead of layout presets
 - Wider invisible hit targets for fades/envelopes
 - Status that opens its panel: the Player bar mix ring and Review/Prepare badges on the Stage bar
