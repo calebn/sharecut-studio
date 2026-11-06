@@ -40,6 +40,7 @@ import {
 import { seedPendingKeeper } from "../../test/keepers";
 import { stubViewportShell } from "../../test/viewportShell";
 import { BUSY_REASON } from "../../ui/disabledReason";
+import { takeAutoRoom, writeOpenIntent } from "../../utils/openIntent";
 import { RecordStage } from "./RecordStage";
 
 const { exec, roomTone } = vi.hoisted(() => ({
@@ -314,6 +315,36 @@ describe("Record stage", () => {
       expect(record()).toHaveAccessibleDescription(
         "Waiting for Ava to accept recording.",
       ),
+    );
+  });
+
+  it("makes the first room and opens Invite when Home sent the host here", async () => {
+    writeOpenIntent("/tmp/p.json", { autoRoom: true });
+    mount();
+    await waitFor(() =>
+      expect(exec).toHaveBeenCalledWith(
+        "record.createRoom",
+        {},
+        { skipWhen: true },
+      ),
+    );
+    await waitFor(() =>
+      expect(exec).toHaveBeenCalledWith(
+        "share.manage",
+        { at: "record" },
+        { skipWhen: true },
+      ),
+    );
+    expect(takeAutoRoom("/tmp/p.json")).toBe(false);
+  });
+
+  it("does not make a room on its own without Home's intent", async () => {
+    mount();
+    await screen.findByRole("button", { name: "Create record room" });
+    expect(exec).not.toHaveBeenCalledWith(
+      "record.createRoom",
+      expect.anything(),
+      expect.anything(),
     );
   });
 

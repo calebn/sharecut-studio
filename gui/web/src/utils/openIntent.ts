@@ -9,17 +9,22 @@ import { STAGE_IDS, type StageId } from "../types/stage";
 
 const PREFIX = "sharecut.openIntent:";
 
-export type OpenIntent = { stage?: StageId; autoRun?: boolean };
+export type OpenIntent = {
+  stage?: StageId;
+  autoRun?: boolean;
+  autoRoom?: boolean;
+};
 
 function read(projectPath: string): OpenIntent {
   try {
     const raw = globalThis.sessionStorage?.getItem(PREFIX + projectPath);
     const parsed: unknown = raw ? JSON.parse(raw) : null;
     if (!parsed || typeof parsed !== "object") return {};
-    const { stage, autoRun } = parsed as Record<string, unknown>;
+    const { stage, autoRun, autoRoom } = parsed as Record<string, unknown>;
     return {
       stage: STAGE_IDS.find((id) => id === stage),
       autoRun: autoRun === true ? true : undefined,
+      autoRoom: autoRoom === true ? true : undefined,
     };
   } catch {
     return {};
@@ -28,7 +33,8 @@ function read(projectPath: string): OpenIntent {
 
 function write(projectPath: string, intent: OpenIntent): void {
   try {
-    const empty = intent.stage === undefined && !intent.autoRun;
+    const empty =
+      intent.stage === undefined && !intent.autoRun && !intent.autoRoom;
     if (empty) globalThis.sessionStorage?.removeItem(PREFIX + projectPath);
     else
       globalThis.sessionStorage?.setItem(
@@ -48,7 +54,10 @@ export function writeOpenIntent(projectPath: string, intent: OpenIntent): void {
 export function takeOpenStage(projectPath: string): StageId | null {
   const intent = read(projectPath);
   if (intent.stage === undefined) return null;
-  write(projectPath, { autoRun: intent.autoRun });
+  write(projectPath, {
+    autoRun: intent.autoRun,
+    autoRoom: intent.autoRoom,
+  });
   return intent.stage;
 }
 
@@ -56,6 +65,14 @@ export function takeOpenStage(projectPath: string): StageId | null {
 export function takeAutoRun(projectPath: string): boolean {
   const intent = read(projectPath);
   if (!intent.autoRun) return false;
-  write(projectPath, { stage: intent.stage });
+  write(projectPath, { stage: intent.stage, autoRoom: intent.autoRoom });
+  return true;
+}
+
+/** True once when Home sent the host to Record to make its first room. */
+export function takeAutoRoom(projectPath: string): boolean {
+  const intent = read(projectPath);
+  if (!intent.autoRoom) return false;
+  write(projectPath, { stage: intent.stage, autoRun: intent.autoRun });
   return true;
 }
