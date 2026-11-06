@@ -27,6 +27,8 @@ export type RecordDockProps = {
   onMute?: () => void;
   onComment?: () => void;
   onPause?: () => void;
+  /** Host only: Stop beside Resume while a take is paused. */
+  onStop?: () => void;
   onNotes?: () => void;
   onMore?: () => void;
   onLeave?: () => void;
@@ -51,6 +53,7 @@ export function RecordDock({
   onMute,
   onComment,
   onPause,
+  onStop,
   onNotes,
   onMore,
   onLeave,
@@ -118,6 +121,14 @@ export function RecordDock({
             size={20}
             aria-pressed={record.face === "paused"}
             onClick={onPause}
+          />
+        ) : null}
+        {record?.face === "paused" ? (
+          <VerbButton
+            verb="stopTake"
+            className="sys-dock-btn"
+            size={20}
+            onClick={onStop}
           />
         ) : null}
         {notes}

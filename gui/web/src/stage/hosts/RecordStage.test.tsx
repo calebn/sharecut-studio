@@ -1816,6 +1816,26 @@ describe("Record stage take controls", () => {
     expect(postTransport).not.toHaveBeenCalled();
   });
 
+  it("stops a paused take from the dock after the question", async () => {
+    setRoom({ state: "paused", take_index: 0 });
+    mount();
+    await userEvent.click(screen.getByRole("button", { name: "Stop take" }));
+    const asked = useAskStore.getState().pending;
+    expect(asked?.question.title).toBe("Stop this take?");
+    answerQuestion(asked?.id as number, false);
+    await waitFor(() => expect(useAskStore.getState().pending).toBeNull());
+    expect(exec).not.toHaveBeenCalledWith(
+      "record.stop",
+      {},
+      { skipWhen: true },
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Stop take" }));
+    answerQuestion(useAskStore.getState().pending?.id as number, true);
+    await waitFor(() =>
+      expect(exec).toHaveBeenCalledWith("record.stop", {}, { skipWhen: true }),
+    );
+  });
+
   it("mutes the host from the dock", async () => {
     setRoom({ participants: [hostPerson()] });
     mount();
