@@ -579,8 +579,8 @@ width.
   still washes when a deep zoom shows only milliseconds of it. Columns are
   one CSS px, but never finer than a level-0 bin. It is memoized, and
   recomputed only when the range, the geometry, the loaded pyramid tiles or
-  the Silence-shading layer flag changes. Hidden when View › Layers ›
-  Silence shading is off.
+  the Silence shading chip changes. Hidden when the eye popover's Silence
+  shading chip is off.
 - **Move ghosts.** Ghosts carry `origin_track_id` and always draw raw media.
 - **Lane hint.** `laneWaveformStatus` returns generating when any ref of the
   lane is generating. It returns unavailable only when every ref is known
