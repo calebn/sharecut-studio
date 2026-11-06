@@ -542,7 +542,7 @@ The Queue header's **Find more** button (host only) reruns suggestion finding th
 
 While any pipeline job runs, the Queue shows a top **Job row**: "Finding more suggestions" for the job Find more started, "Finding suggestions" for another pipeline run such as Prepare's, with a percent only when the job reports a total. A failed Find more run (or a failed start) replaces it with "Could not find more suggestions", its cause behind Details and a Try again button.
 
-The Queue's **Sort** control switches between **By kind** (groups, riskiest first; the default) and **By time** (one list in episode order). By time has no group headers, so there is no **Cut all N** and `Shift+Enter` does nothing; J/K, the next item after a decision and the "N of M" count follow the order shown.
+The Queue's **Sort** control switches between **By kind** (groups, riskiest first; the default) and **By time** (one list in episode order). By time has no group headers, so there is no **Cut all N** and `Shift+Enter` does nothing; J/K, the next item after a decision and the "N of M" count follow the order shown. The "saves N s" figure in the progress line, the batch rows and the verb bar is the timeline shortening, the union of the removed ranges: two edits over the same moment, such as the same cut on two tracks, count once, and an item that carries no ranges counts its own seconds.
 
 A group's **Cut all N** hides the group at once, so the host owns the running state: the Queue shows "Cutting N…" in its place until the request ends. The host reports no count for this command, so the row is indeterminate (elapsed time after 2 s, no percent), and the decision ends with one Undo for the whole group.
 

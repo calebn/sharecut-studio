@@ -111,6 +111,20 @@ describe("reviewEntriesOf", () => {
     expect(reviewCountOf(pending, true)).toBe(1);
   });
 
+  it("keeps the removed ranges so overlapping edits can be counted once", () => {
+    const item = itemOf({
+      timeline_spans: [
+        { start: 4, end: 5 },
+        { start: 7, end: 7.5 },
+        { start: 9, end: 9 },
+      ],
+    });
+    expect(item.spans).toEqual([
+      [4, 5],
+      [7, 7.5],
+    ]);
+  });
+
   it("sums every span for savedSeconds", () => {
     const item = itemOf({
       timeline_spans: [
@@ -182,6 +196,7 @@ describe("reviewEntriesOf", () => {
       kind: "filler",
       at: 2,
       savedSeconds: 1,
+      spans: [[2, 3]],
       suggested: undefined,
       speaker: { id: "mira-voice", label: "mira-voice" },
     });
