@@ -1,0 +1,24 @@
+# Known false positives in the full-history scan (gitleaks detect over all refs).
+# Exact commit:file:rule:line fingerprints only; no rules or paths are allowlisted.
+
+# Test fixture keys: key-shaped strings in test files.
+0c5d8a26d75ad65cf4485665431a5f4104715a56:tests/test_promote.py:generic-api-key:864
+2afe4ec4cc58829c05b223b7354debad6309848d:gui/web/src/stage/hosts/DeliverHostPeaks.test.tsx:generic-api-key:20
+2afe4ec4cc58829c05b223b7354debad6309848d:gui/web/src/stage/hosts/useEpisodePeaks.test.tsx:generic-api-key:7
+b9b714106ce3e0a42778584837fbf64dde587a51:gui/web/src/edit/clipBleedSession.test.ts:generic-api-key:41
+
+# Proof hashes: sha256 digests recorded in proof/2149 artifacts.
+11dadef6150dda3e602070d55aa0ccc402de716f:proof/2149/clock-failure-detail/sha256.json:generic-api-key:2
+64bb6b727f4e2c59b49e5e00498541fc5cab0b2b:proof/2149/preinput-chronology/sha256.json:generic-api-key:2
+
+# Fixture token in an abandoned PR branch (tests/test_list_clips_recording.py).
+4e589b6071dbc85fb7ecf46ae8083dbe4f3cc6cb:tests/test_list_clips_recording.py:generic-api-key:79
+4e589b6071dbc85fb7ecf46ae8083dbe4f3cc6cb:tests/test_list_clips_recording.py:generic-api-key:80
+
+# Pinned model digests: sha256 pins in the old src/podcast_mcp/whisper_models.py.
+76e977546698cbbe5628c1c9279919610a31bf20:src/podcast_mcp/whisper_models.py:generic-api-key:105
+76e977546698cbbe5628c1c9279919610a31bf20:src/podcast_mcp/whisper_models.py:generic-api-key:109
+76e977546698cbbe5628c1c9279919610a31bf20:src/podcast_mcp/whisper_models.py:generic-api-key:110
+23c03edcc985ba980dc9e94ed085129f4d76b58c:src/podcast_mcp/whisper_models.py:generic-api-key:95
+23c03edcc985ba980dc9e94ed085129f4d76b58c:src/podcast_mcp/whisper_models.py:generic-api-key:152
+23c03edcc985ba980dc9e94ed085129f4d76b58c:src/podcast_mcp/whisper_models.py:generic-api-key:163

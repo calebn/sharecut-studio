@@ -65,8 +65,12 @@ def test_secret_scan_covers_changes_and_scheduled_history() -> None:
     assert scan["env"]["GITLEAKS_ENABLE_UPLOAD_ARTIFACT"] == "false"
 
 
-def test_gitleaks_has_no_committed_ignore_baseline() -> None:
-    assert not (ROOT / ".gitleaksignore").exists()
+def test_gitleaksignore_holds_only_exact_fingerprints() -> None:
+    lines = (ROOT / ".gitleaksignore").read_text(encoding="utf-8").splitlines()
+    entries = [ln for ln in lines if ln.strip() and not ln.startswith("#")]
+    assert len(entries) == 14
+    for entry in entries:
+        assert re.fullmatch(r"[0-9a-f]{40}:[^:\s]+:generic-api-key:\d+", entry), entry
 
 
 def test_gitleaks_config_extends_defaults_with_scoped_digest_allowlists() -> None:
