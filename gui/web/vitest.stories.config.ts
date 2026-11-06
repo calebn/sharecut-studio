@@ -6,12 +6,17 @@ export default defineConfig({
   plugins: [react()],
   test: {
     name: "stories",
+    globals: true,
     include: ["src/**/*.sweep.browser.test.tsx"],
     setupFiles: ["./.storybook/vitest.setup.ts"],
     browser: {
       enabled: true,
       headless: true,
-      provider: playwright({ launchOptions: process.env.PW_CHROME ? { executablePath: process.env.PW_CHROME } : {} }),
+      provider: playwright({
+        launchOptions: process.env.PW_CHROME
+          ? { executablePath: process.env.PW_CHROME }
+          : {},
+      }),
       instances: [{ browser: "chromium" }],
     },
   },

@@ -27,6 +27,35 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.run_attempt == 1 }}
 
 jobs:
+  sweep:
+    # Per-story axe and fit sweep (Vitest browser mode), sharded.
+    if: github.event.pull_request.draft != true
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: gui/web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: gui/web
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+        working-directory: gui/web
+
+      - name: Sweep every story for axe violations and overflow
+        run: npm run test:stories -- --shard=${{ matrix.shard }}/4
+        working-directory: gui/web
+
   build:
     if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest

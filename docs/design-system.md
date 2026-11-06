@@ -355,7 +355,7 @@ Stories compose fictional factory data with `ScriptPane`. Callbacks forward to `
 and update local state. The fullscreen fixture frame has a definite block size
 and sets document shell metadata for portaled sheets; cleanup restores the
 previous document metadata. Phone stories use a 360 CSS-pixel frame.
-`e2e-storybook/coverage.spec.ts` (`SHELL_TITLES`) and `shellFit.ts` verify usable
+`src/storybook/storySweep.sweep.browser.test.tsx` (`SHELL_TITLES`) and `shellFit.ts` verify usable
 body height and horizontal fit in both themes. `src/stage/` holds the app-wired
 adapter and View pairs; `src/system/` stays presentational.
 
@@ -650,7 +650,7 @@ jsdom visibility checks.
 
 - 2026-10-26 — Every screen, dialog, panel and inspector variant in the UI
   inventory now has a story or a recorded reason it has none (#2279). The
-  coverage manifest has no pending state, and `e2e-storybook/coverage.spec.ts`
+  coverage manifest has no pending state, and `src/storybook/storySweep.sweep.browser.test.tsx`
   checks every story, Atoms to Templates, in both themes at 360 and 1280 px for
   console errors, horizontal overflow and axe violations including
   color-contrast, on one page per Playwright worker that moves between stories.

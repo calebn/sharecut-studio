@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.stories.tsbuildinfo",
+    "types": ["vite/client", "@vitest/browser-playwright"]
+  },
+  "include": ["src/**/*.browser.test.tsx", "src/**/*.d.ts"],
+  "exclude": []
+}

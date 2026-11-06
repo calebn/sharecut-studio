@@ -7,6 +7,7 @@ import {
   type Page,
 } from "@playwright/test";
 import { expectStoryAxeClean } from "../e2e/axe";
+import { STORYBOOK_ONLY } from "../src/storybook/storybookOnlyStories";
 import { expectRootFit, expectShellFit } from "./shellFit";
 import { type StoryTheme, storyUrl } from "./storyUrl";
 
@@ -142,6 +143,7 @@ async function settle(page: Page) {
 
 for (const theme of THEMES) {
   for (const story of stories) {
+    if (!STORYBOOK_ONLY.includes(story.id)) continue;
     test(`${story.title} / ${story.name} in ${theme}`, async ({
       storybook: page,
     }) => {

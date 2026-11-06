@@ -10,7 +10,8 @@ npm run dev         # Vite on :5173 (proxy /api → :8765)
 npm run build
 npm run storybook  # component catalog on :6006
 npm run build-storybook  # static catalog under storybook-static/
-npm run test:e2e:storybook  # build catalog, then check Chromium geometry on :6010
+npm run test:e2e:storybook  # build catalog, then smoke-check Storybook itself on :6010
+npm run test:stories        # Vitest browser mode: axe + fit sweep of every story
 npm run typecheck   # tsc -b (strict; includes e2e/, e2e-compat/, and e2e-storybook/)
 npm test            # vitest run (unit + component a11y)
 npm run test:watch  # vitest watch mode
@@ -188,7 +189,7 @@ for how store-bound components get hydrated stories.
 `Stages/Edit/Frame` composes the app-wired `StageFrame`: header, banners,
 the stage body slot, the Player and, on a phone, the tab bar. Its stories
 cover desktop, tablet, phone, guest, loading, empty and error states, and
-Chromium checks in `e2e-storybook/coverage.spec.ts` cover fit at 360 and 1280
+the Vitest browser sweep (`npm run test:stories`) checks fit at 360 and 1280
 in both themes.
 
 Full-viewport loading, error, and record entry screens share `ui/CoverScreen`.

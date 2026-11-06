@@ -2,6 +2,7 @@ import { composeStories } from "@storybook/react-vite";
 import axe from "axe-core";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
+import { STORYBOOK_ONLY } from "./storybookOnlyStories";
 
 const PHONE = 360;
 const WIDE = 1280;
@@ -10,11 +11,14 @@ const THEMES = ["light", "dark"] as const;
 const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];
 const SHELL_TITLES = ["Stages/Edit/Frame"];
 
-type ComposedStory = ReturnType<
-  typeof composeStories<Record<string, never>>
->[string] & {
+type ComposedStory = {
+  run: (options: {
+    canvasElement: HTMLElement;
+    globals: Record<string, unknown>;
+  }) => Promise<void>;
   tags: string[];
   parameters: { wideOnlyReason?: unknown };
+  id: string;
   title: string;
   storyName: string;
 };
@@ -43,7 +47,9 @@ function expectShellFit(width: number) {
   expect(rect.height).toBe(HEIGHT);
   expect(main.getBoundingClientRect().height).toBeGreaterThan(200);
   expect(document.querySelectorAll("main, [role=main]")).toHaveLength(1);
-  expect(document.querySelectorAll("h1, [role=heading][aria-level='1']")).toHaveLength(1);
+  expect(
+    document.querySelectorAll("h1, [role=heading][aria-level='1']"),
+  ).toHaveLength(1);
 }
 
 const settle = async () => {
@@ -59,8 +65,8 @@ const stories: ComposedStory[] = [];
 for (const mod of Object.values(modules)) {
   const title = (mod.default as { title: string }).title;
   for (const story of Object.values(
-    composeStories(mod as never),
-  ) as ComposedStory[]) {
+    composeStories(mod as never) as Record<string, unknown>,
+  ) as unknown as ComposedStory[]) {
     story.title = title;
     stories.push(story);
   }
@@ -81,6 +87,7 @@ afterEach(() => {
 for (const theme of THEMES) {
   describe(`stories in ${theme}`, () => {
     for (const base of stories) {
+      if (STORYBOOK_ONLY.includes(base.id)) continue;
       it(`${base.title} / ${base.storyName}`, async () => {
         const errors: string[] = [];
         const onError = (event: ErrorEvent) => errors.push(event.message);
