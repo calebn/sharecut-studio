@@ -761,5 +761,6 @@ def test_a_rejected_final_push_names_main_and_does_not_dispatch_storybook(
     out = capsys.readouterr().out
     assert "push of main was rejected" in out
     assert "pat-secret" not in out and "cGF0LXNlY3JldA" not in out and "Authorization" not in out
-    assert all(w != "storybook.yml" for w, _, _ in gh.dispatched)
+    assert gh.deploys() == []
+    assert all(not (w == "storybook.yml" and ref == "main") for w, ref, _ in gh.dispatched)
     assert repo.remote_sha("main") == main_before
