@@ -766,8 +766,8 @@
 
 .sys-room-tile-menu {
   position: absolute;
-  inset-block-start: var(--space-2);
-  inset-inline-end: var(--space-2);
+  inset-block-start: var(--space-3);
+  inset-inline-start: var(--space-3);
 }
 
 .sys-room-view-rail {
