@@ -465,6 +465,19 @@ function RecordStageBody({
         onComment: room.liveComments.postMarker,
         onPause: () =>
           room.runCommand(paused ? "record.resume" : "record.pause"),
+        onStopPaused: canRecord
+          ? () => {
+              void askConfirm({
+                title: "Stop this take?",
+                message: "Recording ends for everyone in the room.",
+                keepLabel: "Keep recording",
+                actionLabel: "Stop take",
+                danger: true,
+              }).then((stop) => {
+                if (stop) room.runCommand("record.stop");
+              });
+            }
+          : undefined,
         onMore: () => setMoreOpen(true),
         onSelfPress: () => setDeviceOpen(true),
         onRemovePerson: canRecord

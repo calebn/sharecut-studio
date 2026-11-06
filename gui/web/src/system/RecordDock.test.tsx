@@ -22,6 +22,28 @@ describe("RecordDock", () => {
     ]);
   });
 
+  it("host: a paused take shows Stop beside Resume and Pause", async () => {
+    const onStop = vi.fn();
+    render(
+      <RecordDock
+        seat="host"
+        record={{ ...record, face: "paused" }}
+        onStop={onStop}
+      />,
+    );
+    expect(names()).toEqual([
+      "Mute",
+      "Comment",
+      "Resume recording",
+      "Pause take",
+      "Stop take",
+      "Notes",
+      "More",
+    ]);
+    await userEvent.click(screen.getByRole("button", { name: "Stop take" }));
+    expect(onStop).toHaveBeenCalledOnce();
+  });
+
   it("guest: Mute is the 64 px primary, then Comment, Notes, Leave", () => {
     render(<RecordDock seat="guest" />);
     expect(names()).toEqual(["Mute", "Comment", "Notes", "Leave room"]);

@@ -1310,7 +1310,8 @@ cannot. Every button runs the same `record.*` command as the palette.
   `podcast review share --kind record` and MCP `create_record_room_tool`.
 - **One Record button.** The dock's Record button starts a take, shows **Stop take**
   while one is open (hold it to stop) and **Resume recording** while paused;
-  **Pause** (and Resume while paused) sits beside it while a take runs. The
+  **Pause** (and Resume while paused) sits beside it while a take runs, and a
+  paused take also shows **Stop take** beside Resume. The
   Record button and Pause run `record.start`, `pause` or `resume` (`TAKE_CONTROL`
   in `record/hostControls.ts`); a held or confirmed Stop runs `record.stop`.
 - **Start blockers.** A disabled Record button gives its reasons as one sentence
@@ -1322,9 +1323,9 @@ cannot. Every button runs the same `record.*` command as the palette.
   recording**.
 - **Stop.** Holding the Record button while live stops the take; Enter or Space
   asks first ("Stop this take? Recording ends for everyone in the room.", with
-  **Keep recording** focused and **Stop take**). **More** has no Stop, and the
-  Record button only stops a live take, so a paused take is resumed first or
-  stopped with the palette's **Stop recording**, which runs without the question.
+  **Keep recording** focused and **Stop take**). **More** has no Stop. A paused
+  take shows its own **Stop take** button beside Resume; it asks the same
+  question in a dialog. The palette's **Stop recording** runs without the question.
 - **Saving status.** After Stop, a list names each recorded participant (never
   a producer) with "Saving to project…" or "Saved to project", one line per
   segment when a participant has several (`saveStatus.ts`).

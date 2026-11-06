@@ -517,6 +517,7 @@ Decision (owner): `SystemIcon` stroke 2.1. Lucide draws on a 24 grid, so the 1.7
 | More | `ellipsis` | . (period) | Long-press or right-click | Action bar, rows, cards |
 | Record | filled circle | R: in Record, start or resume, and hold R 600 ms to stop. In Edit, opens Record with a Replace target (selection) or Insert target (playhead) | Tap; hold the Record button to stop | Stage bar, Start tile, Record button, Action bar (Edit, host only), "+" menu |
 | Pause take | `pause` | P | Tap | Record dock (host) |
+| Stop take | `square` | none (hold R stops a live take) | Tap | Record dock (host, paused take) |
 | Invite | `user-plus` | none (palette) | Tap | App header (every stage), empty Person tile, Deliver |
 | Copy link | `copy` (phone: share sheet) | none | Tap | Link row |
 | Export | `download` | Mod+E (with one range selected: opens Deliver with Bounce focused and the range filled in) | Tap | Deliver primary, Action bar on a range |

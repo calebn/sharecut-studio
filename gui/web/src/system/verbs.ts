@@ -390,6 +390,17 @@ export const VERBS = [
     commandId: "room.pause",
   },
   {
+    id: "stopTake",
+    label: "Stop take",
+    icon: "square",
+    keys: [],
+    touch: "tap",
+    surfaces: ["record-dock"],
+    status: "new",
+    commandId: "room.stop",
+    note: "Beside Resume on a paused take. Hold R stops a live take.",
+  },
+  {
     id: "invite",
     label: "Invite",
     icon: "user-plus",

@@ -59,6 +59,8 @@ export type RoomViewProps = {
   onMute?: () => void;
   onComment?: () => void;
   onPause?: () => void;
+  /** Stop on the paused dock: a tap, so it asks first (the held Record button already confirmed). */
+  onStopPaused?: () => void;
   onMore?: () => void;
   onLeave?: () => void;
   /** The viewer's own tile is pressable and opens the Device sheet. */
@@ -155,6 +157,7 @@ export function RoomView({
   onMute,
   onComment,
   onPause,
+  onStopPaused,
   onMore,
   onLeave,
   onSelfPress,
@@ -387,6 +390,7 @@ export function RoomView({
           onMute={onMute}
           onComment={onComment}
           onPause={onPause}
+          onStop={onStopPaused}
           onNotes={() => setNotesChoice(!model.notesOpen)}
           onMore={onMore}
           onLeave={onLeave}

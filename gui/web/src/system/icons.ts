@@ -64,6 +64,7 @@ import {
   SlidersHorizontal,
   Spline,
   Split,
+  Square,
   SquareSplitHorizontal,
   SunMoon,
   TextCursorInput,
@@ -87,6 +88,7 @@ import {
 export const LUCIDE_ICONS = {
   play: Play,
   pause: Pause,
+  square: Square,
   pin: Pin,
   globe: Globe,
   "globe-off": GlobeOff,
