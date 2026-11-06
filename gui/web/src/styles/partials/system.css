@@ -5132,25 +5132,48 @@ button.sys-script-speaker {
 
 /* Fix text, Find bar and speaker rename (Stages/Edit) */
 
-input.sys-edit-fix {
-  box-sizing: content-box;
-  inline-size: calc(var(--sys-fix-chars) * 1ch);
+.sys-edit-fix-field {
+  position: relative;
+  display: inline-grid;
   min-inline-size: 3rem;
   max-inline-size: 100%;
-  min-block-size: 0;
+  vertical-align: middle;
+}
+
+.sys-edit-fix-measure,
+input.sys-edit-fix {
+  grid-area: 1 / 1;
+  box-sizing: content-box;
+  min-inline-size: 0;
+  max-inline-size: 100%;
   padding: 0 var(--space-1);
-  border: 1px solid var(--color-accent);
-  border-radius: var(--radius-xs);
-  background: var(--color-bg-base);
-  color: inherit;
+  border: 1px solid transparent;
   font: inherit;
   font-size: var(--font-size-field-current);
   line-height: inherit;
 }
+
+.sys-edit-fix-measure {
+  visibility: hidden;
+  overflow: hidden;
+  white-space: pre;
+  pointer-events: none;
+}
+
+input.sys-edit-fix {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-block-size: 0;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-xs);
+  background: var(--color-bg-base);
+  color: inherit;
+}
 @supports (field-sizing: content) {
   input.sys-edit-fix {
     field-sizing: content;
-    inline-size: auto;
   }
 }
 
@@ -5201,11 +5224,16 @@ input.sys-edit-fix {
 }
 
 .sys-picker-renaming input.sys-edit-fix {
-  flex: 1;
   field-sizing: fixed;
-  inline-size: auto;
+  inline-size: 100%;
+  box-sizing: border-box;
   padding-block: var(--space-1);
   font-size: var(--font-size-field);
+}
+
+.sys-picker-renaming .sys-edit-fix-field {
+  flex: 1;
+  min-inline-size: 0;
 }
 
 .sys-edit-find {

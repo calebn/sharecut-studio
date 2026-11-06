@@ -1,5 +1,4 @@
 import {
-  type CSSProperties,
   type KeyboardEvent,
   useEffect,
   useId,
@@ -168,27 +167,29 @@ export function FixTextField({
 
   return (
     <>
-      <input
-        ref={input}
-        className="sys-edit-fix"
-        type="text"
-        aria-label={label}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={error ? errorId : undefined}
-        autoComplete="off"
-        spellCheck
-        readOnly={busy}
-        value={draft}
-        style={
-          { "--sys-fix-chars": Math.max(draft.length, 1) } as CSSProperties
-        }
-        onChange={(event) => {
-          setDraft(event.target.value);
-          onDraftChange?.(event.target.value);
-          setError(null);
-        }}
-        onKeyDown={onKeyDown}
-      />
+      <span className="sys-edit-fix-field">
+        <span className="sys-edit-fix-measure" aria-hidden="true">
+          {draft || " "}
+        </span>
+        <input
+          ref={input}
+          className="sys-edit-fix"
+          type="text"
+          aria-label={label}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? errorId : undefined}
+          autoComplete="off"
+          spellCheck
+          readOnly={busy}
+          value={draft}
+          onChange={(event) => {
+            setDraft(event.target.value);
+            onDraftChange?.(event.target.value);
+            setError(null);
+          }}
+          onKeyDown={onKeyDown}
+        />
+      </span>
       <InlineError message={error} id={errorId} inline />
     </>
   );
