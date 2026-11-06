@@ -243,6 +243,11 @@ export async function exerciseBounceHydration(
           .getByRole("button", { name: "Bounce", exact: true })
           .elementHandle();
         expect(original).toBeTruthy();
+        // The Bounce button sits near the fold now the Share section is gone;
+        // centre it so the running row and Cancel have room to land in view.
+        await original!.evaluate((el) =>
+          el.scrollIntoView({ block: "center" }),
+        );
         const initial = await geometry(page);
         phases.push({ phase: "before-start", geometry: initial });
         await deliver
