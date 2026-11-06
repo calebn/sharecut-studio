@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import logging
 import math
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import asdict
 from pathlib import Path
-from typing import Literal, TypeVar
+from typing import Any, Literal, TypeVar
 
 from podcast_mcp.edits import (
     cut_safety,
@@ -348,7 +348,7 @@ class TimelineService(CutMutatingService):
 
     def _mutate_fades(
         self, label: str, apply: Callable[[EpisodeProject], dict], *, operation: str, params: dict
-    ) -> dict:
+    ) -> Mapping[str, Any]:
         return self.ws.mutate(
             f"before {label}", f"after {label}", apply, operation=operation, params=params
         )
@@ -364,21 +364,25 @@ class TimelineService(CutMutatingService):
         with self.ws.transaction() as project:
             if expected is not None:
                 require_clip_fade_baseline(project, clip_id, expected)
-            return self._mutate_fades(
-                "set clip fade",
-                lambda p: set_clip_fade(
-                    p, clip_id, fade_in_ms, fade_out_ms, defaults=self.ws.effective_config()
-                ),
-                operation="set_clip_fade",
-                params={
-                    "clip_id": clip_id,
-                    "fade_in_ms": fade_in_ms,
-                    "fade_out_ms": fade_out_ms,
-                    **({"expected": asdict(expected)} if expected is not None else {}),
-                },
+            return dict(
+                self._mutate_fades(
+                    "set clip fade",
+                    lambda p: set_clip_fade(
+                        p, clip_id, fade_in_ms, fade_out_ms, defaults=self.ws.effective_config()
+                    ),
+                    operation="set_clip_fade",
+                    params={
+                        "clip_id": clip_id,
+                        "fade_in_ms": fade_in_ms,
+                        "fade_out_ms": fade_out_ms,
+                        **({"expected": asdict(expected)} if expected is not None else {}),
+                    },
+                )
             )
 
-    def set_clips_fade(self, fades: list[tuple[str, int, int, ClipFadeBaseline]]) -> dict:
+    def set_clips_fade(
+        self, fades: list[tuple[str, int, int, ClipFadeBaseline]]
+    ) -> Mapping[str, Any]:
         with self.ws.transaction() as project:
             for clip_id, _, _, expected in fades:
                 require_clip_fade_baseline(project, clip_id, expected)

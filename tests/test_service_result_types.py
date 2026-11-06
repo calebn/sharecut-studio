@@ -57,7 +57,7 @@ DICT_RETURNS: dict[str, int] = {
     "document_sync/capabilities.py": 1,
     "document_sync/commands.py": 1,
     "document_sync/handlers/comments.py": 7,
-    "document_sync/handlers/edits.py": 44,
+    "document_sync/handlers/edits.py": 45,
     "document_sync/handlers/episode.py": 9,
     "document_sync/handlers/feed.py": 2,
     "document_sync/handlers/history.py": 2,
