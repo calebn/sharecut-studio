@@ -132,7 +132,7 @@ describe("Transcript on the Deliver stage", () => {
     asHost(true);
     render(<Host />);
     const note = await screen.findByText(
-      "Available captions and transcript are included with every audio export.",
+      "Available captions and transcript are included with every audio export. Choose more files in Transcript below.",
     );
     expect(note).toBeVisible();
     const originalNote = note.textContent!;
@@ -151,7 +151,7 @@ describe("Transcript on the Deliver stage", () => {
     await screen.findByText("Transcribe first");
     expect(
       screen.getByText(
-        "Available captions and transcript are included with every audio export.",
+        "Available captions and transcript are included with every audio export. Choose more files in Transcript below.",
       ),
     ).toBeVisible();
     const transcript = screen.getByRole("region", { name: "Transcript" });

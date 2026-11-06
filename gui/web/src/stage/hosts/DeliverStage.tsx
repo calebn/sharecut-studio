@@ -5,12 +5,14 @@ import {
   deleteChapter,
   deleteSocialClip,
   proposeSocialClips,
+  undoHistory,
   updateChapter,
   updateSocialClip,
   updateSocialClipDetails,
 } from "../../api";
 import { runPointerCommand } from "../../commands/pointer";
 import { seekTransport } from "../../commands/seek";
+import { documentScope } from "../../document/authorityState";
 import {
   useFeaturesReady,
   useHasFeature,
@@ -37,6 +39,7 @@ import { useDawStore } from "../../state/dawStore";
 import { selectedTrackIdsOf } from "../../state/selection";
 import { StatusRow } from "../../system/StatusRow";
 import { lowConfidenceStops } from "../../transcript/lowConfidence";
+import type { HistoryEntryId } from "../../types/project";
 import { Button } from "../../ui";
 import { useCommand } from "../../ui/useCommand";
 import { mediaSignature } from "../../waveform/mediaRef";
@@ -99,8 +102,13 @@ async function saveChapterOp(path: string, op: ChapterOp) {
   else await updateChapter(path, op.from.at, op.from.title, op.at, op.title);
 }
 
-async function saveClipOp(path: string, op: ClipOp) {
-  if (op.kind === "delete") await deleteSocialClip(path, op.id);
+async function saveClipOp(
+  path: string,
+  op: ClipOp,
+  onRemoved: (id: string, head: HistoryEntryId | null) => void,
+) {
+  if (op.kind === "delete")
+    onRemoved(op.id, await deleteSocialClip(path, op.id));
   else if (op.kind === "details")
     await updateSocialClipDetails(path, op.id, {
       ...(op.title !== undefined && { title: op.title }),
@@ -368,6 +376,10 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     chosenFormats,
     currentRequest,
   ]);
+  const removedAt = useRef(new Map<string, HistoryEntryId>());
+  const rememberRemoval = (id: string, head: HistoryEntryId | null) => {
+    if (head) removedAt.current.set(id, head);
+  };
   const [findingClips, setFindingClips] = useState(false);
   const [focusShare, setFocusShare] = useState(false);
   const clearShareFocus = useCallback(() => setFocusShare(false), []);
@@ -421,7 +433,16 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     commit({ clips: next.map((c) => ({ ...c, title: shownTitle(c.title) })) });
     if (ops.length === 0) return;
     sendDeliverEdit(projectPath, async (path) => {
-      for (const op of ops) await saveClipOp(path, op);
+      for (const op of ops) await saveClipOp(path, op, rememberRemoval);
+    });
+  };
+  const onClipRestore = (clip: Clip) => {
+    if (!projectPath) return;
+    sendDeliverEdit(projectPath, async (path) => {
+      const expectedHeadId = removedAt.current.get(clip.id);
+      removedAt.current.delete(clip.id);
+      if (!expectedHeadId) throw new Error("The removal has no history entry.");
+      await undoHistory(path, { expectedHeadId, scope: documentScope() });
     });
   };
 
@@ -584,7 +605,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
           layout={shell === "phone" ? "phone" : "desktop"}
           showLink={false}
           showPlayer={false}
-          clipUndo={false}
+          onClipRestore={onClipRestore}
           clipTitleCommit
           onChapters={onChapters}
           onClips={onClips}

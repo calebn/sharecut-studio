@@ -228,7 +228,7 @@ export const Stale: Story = {
   play: playInCanvas(async ({ canvasElement, args }) => {
     const view = within(canvasElement);
     await expect(view.getByText("Edited since export")).toBeInTheDocument();
-    await userEvent.click(view.getByRole("button", { name: /^Export/ }));
+    await userEvent.click(view.getByRole("button", { name: "Export again" }));
     await expect(args.onExport).toHaveBeenCalledOnce();
   }),
 };
