@@ -58,13 +58,15 @@ export function InviteSheet({
   const at = useDawStore((s) => s.inviteAt);
   const onRecord = useDawStore((s) => s.stage === "record");
   const shareCmd = useCommand("share.manage");
+  const recordCmd = useCommand("stage.record");
   return (
     <InviteSheetView
       options={shareOptionsOf(flow, {
         blockedReason: shareCmd.whenReason,
-        onOpenRecord: onRecord
-          ? undefined
-          : () => runPointerCommand("stage.record"),
+        onOpenRecord:
+          onRecord || !recordCmd.enabled
+            ? undefined
+            : () => runPointerCommand("stage.record"),
       })}
       at={at}
       form={form}

@@ -170,6 +170,21 @@ export const AtRecordLinks: Story = {
   }),
 };
 
+export const RecordRoomOpenRecord: Story = {
+  args: {
+    options: shareOptionsFixture({
+      rows: [GUEST, PRODUCER],
+      onOpenRecord: fn(),
+    }),
+  },
+  ...launched(openInvite, async (dialog, args) => {
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "Open Record stage" }),
+    );
+    await expect(args?.options?.onOpenRecord).toHaveBeenCalledOnce();
+  }),
+};
+
 export const StopSharing: Story = {
   args: { options: shareOptionsFixture({ rows: [REVIEW], onStop: fn() }) },
   ...launched(openInvite, async (dialog, args) => {
