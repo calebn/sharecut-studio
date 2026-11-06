@@ -79,8 +79,7 @@ entries, so phases below the 0.1-second cutoff and remaining phases beyond the
 100-entry limit are absent. A duration alone does not show a cause, attribute time to a
 subprocess, or prove that a change saves time. Inspect the relevant test and
 dependencies, then isolate a candidate with bounded runs before claiming a cause
-or savings.
-
+or savings. 
 Test jobs also add a per-area summary to the GitHub job summary. Python uses
 JUnit testcase records, Vitest uses its JSON reporter, and the main, compatibility,
 and Storybook browser jobs use Playwright JSON reports. Browser matrix jobs show
