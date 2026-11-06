@@ -6,6 +6,7 @@ import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { useDawStore } from "../../state/dawStore";
 import { minimalProject, sampleTrack } from "../../test/fixtures";
+import { closeOverlay, openOverlay } from "../../ui/modalGate";
 import { EditCorner } from "./EditCorner";
 import { EditCornerView, type ViewPopoverSlotProps } from "./EditCornerView";
 
@@ -59,53 +60,65 @@ describe("EditCorner", () => {
     fallback.remove();
   });
 
-  it("cancels recovery after newer focus moves away and back to body during removal", () => {
-    const elsewhere = document.createElement("button");
-    const destination = document.createElement("button");
-    document.body.append(elsewhere, destination);
-    function Slot({ panelRef }: ViewPopoverSlotProps) {
-      useLayoutEffect(() => {
-        panelRef?.current?.focus();
-        return () => {
-          elsewhere.focus();
-          elsewhere.blur();
-        };
-      }, [panelRef]);
-      return (
-        <div ref={panelRef} tabIndex={-1}>
-          View panel
-        </div>
+  it.each(["focus", "pointer", "modal"])(
+    "cancels recovery after newer %s ownership during removal",
+    (actor) => {
+      const elsewhere = document.createElement("button");
+      const destination = document.createElement("button");
+      document.body.append(elsewhere, destination);
+      function Slot({ panelRef }: ViewPopoverSlotProps) {
+        useLayoutEffect(() => {
+          panelRef?.current?.focus();
+          return () => {
+            if (actor === "focus") {
+              elsewhere.focus();
+              elsewhere.blur();
+            } else if (actor === "pointer")
+              document.dispatchEvent(
+                new Event("pointerdown", { bubbles: true }),
+              );
+            else {
+              const modal = openOverlay(true);
+              closeOverlay(modal);
+            }
+          };
+        }, [panelRef]);
+        return (
+          <div ref={panelRef} tabIndex={-1}>
+            View panel
+          </div>
+        );
+      }
+      const props = {
+        zoom: { canZoomIn: true, canZoomOut: true },
+        onZoomIn() {},
+        onZoomOut() {},
+        onFit() {},
+        onToggleView() {},
+        onCloseView() {},
+        viewPopover: Slot,
+      };
+      const { rerender } = render(<EditCornerView {...props} viewOpen />);
+      rerender(
+        <EditCornerView
+          {...props}
+          viewOpen
+          viewAnchor={{ kind: "unavailable", returnTarget: () => destination }}
+        />,
       );
-    }
-    const props = {
-      zoom: { canZoomIn: true, canZoomOut: true },
-      onZoomIn() {},
-      onZoomOut() {},
-      onFit() {},
-      onToggleView() {},
-      onCloseView() {},
-      viewPopover: Slot,
-    };
-    const { rerender } = render(<EditCornerView {...props} viewOpen />);
-    rerender(
-      <EditCornerView
-        {...props}
-        viewOpen
-        viewAnchor={{ kind: "unavailable", returnTarget: () => destination }}
-      />,
-    );
-    rerender(
-      <EditCornerView
-        {...props}
-        viewOpen={false}
-        viewAnchor={{ kind: "unavailable", returnTarget: () => destination }}
-      />,
-    );
-    expect(document.body).toHaveFocus();
-    expect(destination).not.toHaveFocus();
-    elsewhere.remove();
-    destination.remove();
-  });
+      rerender(
+        <EditCornerView
+          {...props}
+          viewOpen={false}
+          viewAnchor={{ kind: "unavailable", returnTarget: () => destination }}
+        />,
+      );
+      expect(document.body).toHaveFocus();
+      expect(destination).not.toHaveFocus();
+      elsewhere.remove();
+      destination.remove();
+    },
+  );
 
   it("zooms through view.zoomIn and view.zoomOut", async () => {
     const user = userEvent.setup();
