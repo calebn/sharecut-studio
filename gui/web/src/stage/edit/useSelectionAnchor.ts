@@ -33,9 +33,14 @@ function findSelectionAnchor(
   switch (selection.kind) {
     case "transcriptRange": {
       const first = Math.min(selection.startWordIndex, selection.endWordIndex);
+      // The Edit Script keys a word `track:source:index`; the guest transcript
+      // puts its turn's ordinal in front.
+      const key = esc(
+        `${selection.trackId}:${selection.sourceId ?? ""}:${first}`,
+      );
       return (
         root.querySelector<HTMLElement>(
-          `.sys-script-word[data-word-key="${esc(`${selection.trackId}:${selection.sourceId ?? ""}:${first}`)}"]`,
+          `.sys-script-word[data-word-key="${key}"], .sys-script-word[data-word-key$=":${key}"]`,
         ) ?? laneOf(root, selection.trackId)
       );
     }

@@ -6,7 +6,7 @@ import {
   studioViewports,
   viewportStoryParameters,
 } from "../../storybook/storyLayout";
-import { episode } from "../../test/episodeFixture";
+import { episode, selections } from "../../test/episodeFixture";
 import { pipelineJobSnapshot } from "../../test/fixtures";
 import { episodeBeforeEach, withEpisode } from "../../test/withEpisode";
 import { StageFrame } from "../frame/StageFrame";
@@ -304,8 +304,10 @@ export const GuestCommenterEmpty: Story = {
   ...asGuest("commenter", { project: NO_COMMENTS }),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    // The queue's empty line, the phone's count button, or the progress line
+    // when a saved-edits notice has taken the empty line's place.
     await expect(
-      (await canvas.findAllByText("No comments yet"))[0],
+      (await canvas.findAllByText(/^(No comments( yet)?|0 of 0 resolved)$/))[0],
     ).toBeVisible();
     await expect(canvas.queryByRole("button", { name: /Deliver/ })).toBeNull();
     await expect(
@@ -330,4 +332,103 @@ export const GuestViewerPhone: Story = {
   ...phone,
   ...asGuest("viewer"),
   play: viewerPlay,
+};
+
+const WIDE_ONLY_REASON =
+  "The Player card and the guest column exist on a tablet or desktop; a 360 px viewport selects the phone layout.";
+
+const wideGuest = (role: "commenter" | "viewer", episodeState: object = {}) => {
+  const base = asGuest(role, episodeState);
+  return {
+    ...base,
+    parameters: { ...base.parameters, wideOnlyReason: WIDE_ONLY_REASON },
+  };
+};
+
+const cardPlay =
+  (commenter: boolean): Story["play"] =>
+  async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await waitFor(() =>
+      expect(
+        canvasElement.querySelectorAll(".sys-player--expanded"),
+      ).toHaveLength(1),
+    );
+    // One Player: the bar is not mounted beside the card.
+    await expect(canvas.queryByRole("group", { name: "Player" })).toBeNull();
+    await expect(canvas.getByRole("button", { name: "Play" })).toBeVisible();
+    await expect(canvas.getByLabelText(/^Episode overview/)).toBeVisible();
+    const script = canvasElement.querySelector(".stage-host-guest-script");
+    await expect(script).not.toBeNull();
+    if (commenter) {
+      const field = await canvas.findByRole("textbox", { name: "Comment" });
+      await expect(
+        field.compareDocumentPosition(script as Element) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    }
+  };
+
+/** Wide guest Review: the one expanded Player first in the center column, then the composer, then the transcript. */
+export const GuestCommenterPlayerCard: Story = {
+  ...wideGuest("commenter"),
+  tags: ["wide-only"],
+  play: cardPlay(true),
+};
+
+export const GuestViewerPlayerCard: Story = {
+  ...wideGuest("viewer"),
+  tags: ["wide-only"],
+  play: cardPlay(false),
+};
+
+/** A word selection in the guest transcript floats Comment and Suggest a cut. */
+export const GuestCommenterSelection: Story = {
+  ...wideGuest("commenter", { selection: selections.range }),
+  tags: ["wide-only"],
+  play: async ({ canvasElement }) => {
+    // The bar floats only while the selected word is on screen.
+    const word = await waitFor(() => {
+      const found = canvasElement.querySelector<HTMLElement>(
+        ".sys-script-word[data-selected]",
+      );
+      if (!found) throw new Error("No selected word yet");
+      return found;
+    });
+    if (typeof word.scrollIntoView === "function")
+      word.scrollIntoView({ block: "center" });
+    const bar = await within(canvasElement).findByRole("group", {
+      name: "Selection actions",
+    });
+    await expect(
+      within(bar).getByRole("button", { name: "Comment" }),
+    ).toBeVisible();
+    await expect(
+      within(bar).getByRole("button", { name: "Suggest a cut" }),
+    ).toBeVisible();
+  },
+};
+
+/** The transcript failed to load: its region says so; the queue, composer and Player stay usable. */
+export const GuestRegionFailure: Story = {
+  ...wideGuest("commenter"),
+  tags: ["wide-only"],
+  args: { guestShare: true, loadFailure: FAILURE },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByRole("heading", {
+        name: "The transcript didn't load",
+      }),
+    ).toBeVisible();
+    await expect(canvas.getByRole("region", { name: "Queue" })).toBeVisible();
+    await expect(
+      canvas.getByRole("textbox", { name: "Comment" }),
+    ).toBeEnabled();
+    await expect(
+      canvasElement.querySelector(".sys-player--expanded"),
+    ).not.toBeNull();
+    await userEvent.click(canvas.getByRole("button", { name: "Try again" }));
+    await expect(args.loadFailure?.onRetry).toHaveBeenCalledOnce();
+  },
 };

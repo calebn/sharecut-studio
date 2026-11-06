@@ -15,6 +15,40 @@ type HostBodyProps = {
   children: ReactNode;
 };
 
+/** The load failure at region size: the Cover and its Try again. */
+export function LoadFailureCover({
+  stage,
+  failure,
+}: {
+  stage: StageId;
+  failure?: LoadFailure | null;
+}) {
+  return (
+    <div role="alert">
+      <Cover
+        size="region"
+        glyph="triangle-alert"
+        title={
+          stage === "review"
+            ? "The transcript didn't load"
+            : "Could not load the project"
+        }
+        primary={
+          failure
+            ? {
+                label: "Try again",
+                onClick: failure.onRetry,
+                busy: failure.recovering,
+              }
+            : undefined
+        }
+      >
+        {failure?.message ?? "Try again in a moment."}
+      </Cover>
+    </div>
+  );
+}
+
 /**
  * A stage host's scroller: the loading skeleton and the load failure Cover share it.
  * The failure Cover stays mounted while Try again runs (`failure.recovering`), so
@@ -38,28 +72,7 @@ export function HostBody({
       {state === "loading" ? (
         <Skeleton layout="list" />
       ) : state === "error" ? (
-        <div role="alert">
-          <Cover
-            size="region"
-            glyph="triangle-alert"
-            title={
-              stage === "review"
-                ? "The transcript didn't load"
-                : "Could not load the project"
-            }
-            primary={
-              failure
-                ? {
-                    label: "Try again",
-                    onClick: failure.onRetry,
-                    busy: failure.recovering,
-                  }
-                : undefined
-            }
-          >
-            {failure?.message ?? "Try again in a moment."}
-          </Cover>
-        </div>
+        <LoadFailureCover stage={stage} failure={failure} />
       ) : (
         children
       )}
