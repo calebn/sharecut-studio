@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { SCRIPT_TURNS } from "../../system/scriptFixtures";
-import type { ScriptTurn, ScriptWord } from "../../system/scriptPieces";
+import type {
+  FindHit,
+  ScriptTurn,
+  ScriptWord,
+} from "../../system/scriptPieces";
 import {
   findCountText,
   findMatches,
@@ -11,17 +15,17 @@ import {
 describe("findMatches", () => {
   it("finds a word in every turn as a span of its index", () => {
     expect(findMatches(SCRIPT_TURNS, "room", false)).toEqual([
-      { start: 13, end: 13 },
-      { start: 32, end: 32 },
+      { indices: [13] },
+      { indices: [32] },
     ]);
   });
 
   it("covers every word a phrase touches", () => {
     expect(findMatches(SCRIPT_TURNS, "small room", false)).toEqual([
-      { start: 12, end: 13 },
+      { indices: [12, 13] },
     ]);
     expect(findMatches(SCRIPT_TURNS, "found the microphones", false)).toEqual([
-      { start: 37, end: 39 },
+      { indices: [37, 38, 39] },
     ]);
   });
 
@@ -29,23 +33,23 @@ describe("findMatches", () => {
     expect(findMatches(SCRIPT_TURNS, "icroph", false)).toEqual([]);
     expect(findMatches(SCRIPT_TURNS, "micro", false)).toEqual([]);
     expect(findMatches(SCRIPT_TURNS, "the", false)).toEqual([
-      { start: 3, end: 3 },
-      { start: 24, end: 24 },
-      { start: 31, end: 31 },
-      { start: 38, end: 38 },
+      { indices: [3] },
+      { indices: [24] },
+      { indices: [31] },
+      { indices: [38] },
     ]);
   });
 
   it("strips punctuation at the edges of the query and of each word", () => {
     expect(findMatches(SCRIPT_TURNS, "show", false)).toEqual([
-      { start: 4, end: 4 },
+      { indices: [4] },
     ]);
     expect(findMatches(SCRIPT_TURNS, "(show!)", false)).toEqual([
-      { start: 4, end: 4 },
+      { indices: [4] },
     ]);
     expect(findMatches(SCRIPT_TURNS, "...", false)).toEqual([]);
     expect(findMatches(SCRIPT_TURNS, "so um", false)).toEqual([
-      { start: 45, end: 46 },
+      { indices: [45, 46] },
     ]);
     expect(findMatches(SCRIPT_TURNS, "so you", false)).toEqual([]);
   });
@@ -53,12 +57,12 @@ describe("findMatches", () => {
   it("matches a phrase that ends one turn and starts the next, as the backend does", () => {
     const hits = findMatches(SCRIPT_TURNS, "one. Thanks", false);
     expect(hits).toHaveLength(1);
-    expect(hits[0].end).toBe(hits[0].start + 1);
+    expect(hits[0].indices).toHaveLength(2);
     const turnOf = (index: number) =>
       SCRIPT_TURNS.findIndex((turn) =>
         turn.words.some((word) => word.index === index),
       );
-    expect(turnOf(hits[0].end)).toBe(turnOf(hits[0].start) + 1);
+    expect(turnOf(hits[0].indices[1])).toBe(turnOf(hits[0].indices[0]) + 1);
   });
 
   it("never matches a phrase across two transcripts", () => {
@@ -72,7 +76,7 @@ describe("findMatches", () => {
     expect(findMatches(sources, "one thanks", false)).toEqual([]);
     const same = [side("host:a:7", 0, "one"), side("host:a:8", 1, "thanks")];
     expect(findMatches(same, "one thanks", false)).toEqual([
-      { start: 0, end: 1 },
+      { indices: [0, 1] },
     ]);
   });
 
@@ -158,15 +162,21 @@ describe("findMatches", () => {
         ),
       ).toEqual([{ indices: [0, 2] }]);
     });
+
+    it("replaces an interrupted hit by its own words only", () => {
+      const hit: FindHit[] = [{ indices: [0, 2] }];
+      expect(replacementChanges(abaTurns, hit, "one thanks")).toEqual([]);
+      expect(replacementChanges(abaTurns, hit, "two thanks")).toEqual(hit);
+    });
   });
 
   it("matches case only when asked", () => {
     expect(findMatches(SCRIPT_TURNS, "WELCOME", false)).toEqual([
-      { start: 0, end: 0 },
+      { indices: [0] },
     ]);
     expect(findMatches(SCRIPT_TURNS, "WELCOME", true)).toEqual([]);
     expect(findMatches(SCRIPT_TURNS, "Welcome", true)).toEqual([
-      { start: 0, end: 0 },
+      { indices: [0] },
     ]);
   });
 
@@ -177,7 +187,7 @@ describe("findMatches", () => {
 
   it("ignores spaces around the query and between its words", () => {
     expect(findMatches(SCRIPT_TURNS, "  small   room ", false)).toEqual([
-      { start: 12, end: 13 },
+      { indices: [12, 13] },
     ]);
   });
 
@@ -192,15 +202,13 @@ describe("findMatches", () => {
         { index: 4, text: "Stra\u00dfe" },
       ],
     };
-    expect(findMatches([turn], "a", false)).toEqual([{ start: 2, end: 2 }]);
-    expect(findMatches([turn], "a b", false)).toEqual([{ start: 2, end: 3 }]);
-    expect(findMatches([turn], "STRASSE", false)).toEqual([
-      { start: 4, end: 4 },
-    ]);
+    expect(findMatches([turn], "a", false)).toEqual([{ indices: [2] }]);
+    expect(findMatches([turn], "a b", false)).toEqual([{ indices: [2, 3] }]);
+    expect(findMatches([turn], "STRASSE", false)).toEqual([{ indices: [4] }]);
     expect(findMatches([turn], "STRASSE", true)).toEqual([]);
     expect(findMatches([turn], "\u0130", false)).toEqual([
-      { start: 0, end: 0 },
-      { start: 1, end: 1 },
+      { indices: [0] },
+      { indices: [1] },
     ]);
   });
 
@@ -217,10 +225,10 @@ describe("findMatches", () => {
       ],
     };
     expect(findMatches([turn], "um", false)).toEqual([
-      { start: 3, end: 3 },
-      { start: 5, end: 5 },
+      { indices: [3] },
+      { indices: [5] },
     ]);
-    expect(findMatches([turn], "so um", false)).toEqual([{ start: 4, end: 5 }]);
+    expect(findMatches([turn], "so um", false)).toEqual([{ indices: [4, 5] }]);
   });
 
   it("finds hits on a long turn in well under a second", () => {
@@ -272,19 +280,19 @@ describe("replacementChanges", () => {
     const turns = [turn(["Room", "room.", "ROOM", "a", "room,"])];
     const all = hits(turns, "room");
     expect(all).toEqual([
-      { start: 0, end: 0 },
-      { start: 1, end: 1 },
-      { start: 2, end: 2 },
-      { start: 4, end: 4 },
+      { indices: [0] },
+      { indices: [1] },
+      { indices: [2] },
+      { indices: [4] },
     ]);
     expect(replacementChanges(turns, all, "Room")).toEqual([
-      { start: 1, end: 1 },
-      { start: 2, end: 2 },
-      { start: 4, end: 4 },
+      { indices: [1] },
+      { indices: [2] },
+      { indices: [4] },
     ]);
     expect(replacementChanges(turns, all, "room")).toEqual([
-      { start: 0, end: 0 },
-      { start: 2, end: 2 },
+      { indices: [0] },
+      { indices: [2] },
     ]);
     expect(replacementChanges(turns, all, "space")).toEqual(all);
   });
@@ -301,15 +309,12 @@ describe("replacementChanges", () => {
   it("compares phrases word by word, and a different number of words is a change", () => {
     const turns = [turn(["small", "room", "Small", "room."])];
     const all = hits(turns, "small room");
-    expect(all).toEqual([
-      { start: 0, end: 1 },
-      { start: 2, end: 3 },
-    ]);
+    expect(all).toEqual([{ indices: [0, 1] }, { indices: [2, 3] }]);
     expect(replacementChanges(turns, all, "small room")).toEqual([
-      { start: 2, end: 3 },
+      { indices: [2, 3] },
     ]);
     expect(replacementChanges(turns, all, "Small room")).toEqual([
-      { start: 0, end: 1 },
+      { indices: [0, 1] },
     ]);
     expect(replacementChanges(turns, all, "small")).toEqual(all);
   });
