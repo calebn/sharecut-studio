@@ -185,14 +185,11 @@ Run the same check locally (needs a Docker daemon) with `./scripts/check_deploy_
 
 ### Credential history scanning
 
-`.github/workflows/secret-scan.yml` runs Gitleaks with complete checkout history on every
-pull request, every push to the base branch, a weekly schedule, and manual dispatch. The workflow has
-read-only repository permission, does not comment, and does not upload a finding artifact.
-Manual dispatch and the schedule scan every ref, so the promotion's `gitleaks-history` job also sees
-abandoned PR branches. The root `.gitleaksignore` lists the 14 known false positives as exact
-`commit:file:rule:line` fingerprints, since history cannot be rewritten. Build new key-shaped test
-fixtures at runtime instead of committing them. Test credentials use obvious placeholders; public state
-certificates retain their real digest format.
+`.github/workflows/secret-scan.yml` runs Gitleaks with complete checkout history on every pull request, push to the base branch, weekly schedule, and manual dispatch;
+it has read-only permission, does not comment, and uploads no finding artifact. Dispatch and the schedule scan every ref, so the promotion's `gitleaks-history` job also
+sees abandoned PR branches. The root `.gitleaksignore` is read from the checked-out ref, so it must be in the promoted SHA; it holds the 14 known false positives as exact
+`commit:file:rule:line` fingerprints (no rule or path allowlist), since history cannot be rewritten. Build new key-shaped fixtures at runtime. Test credentials use
+obvious placeholders; public state certificates retain their real digest format.
 `.gitleaks.toml` extends the default rules with scoped allowlists on `generic-api-key`.
 The first matches lines in
 `src/podcast_mcp/engines/models/whisper.py` / `engines/models/word_aligner.py` that pin a model file by sha256
