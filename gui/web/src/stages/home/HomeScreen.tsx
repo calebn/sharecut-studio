@@ -48,6 +48,7 @@ import {
   untitledEpisodeName,
 } from "./homeModel";
 import { NOT_AN_EPISODE, type OpenOtherProps } from "./OpenOther";
+import { useHeldTotals } from "./useHeldTotals";
 import { useHomeKeys } from "./useHomeKeys";
 import { useSecondsLeft } from "./useSecondsLeft";
 
@@ -405,12 +406,12 @@ export function HomeScreen() {
     onHelp: () => openPalette(true),
   });
 
-  const transfer = downloadTotals(models.models);
+  const transfer = useHeldTotals(downloadTotals(models.models));
   const secondsLeft = useSecondsLeft(
     transfer?.bytes ?? null,
     transfer?.total ?? null,
   );
-  const setup = setupOf(models, secondsLeft);
+  const setup = setupOf(models, secondsLeft, transfer);
   const getReady = useCallback(
     () => void models.download(bundleToGet(models.models)),
     [models],

@@ -9,6 +9,7 @@ import {
   episodeNameFromFiles,
   formatDuration,
   formatEdited,
+  holdTotals,
   importingLine,
   importStoppedLine,
   setupOf,
@@ -326,6 +327,59 @@ describe("downloadTotals across the bundle", () => {
     const models = bundle(0, 5, sizes[0]!);
     models[2] = { ...models[2]!, sizeBytes: null };
     expect(downloadTotals(models)?.total).toBeNull();
+  });
+});
+
+describe("holdTotals across the in-between frames", () => {
+  const sizes = [1_600_000_000, 40_000_000, 378_000_000, 83_000_000];
+  const sum = sizes.reduce((a, b) => a + b, 0);
+  const frame = (current: number | null, bytes = 0) =>
+    sizes.map((sizeBytes, i) =>
+      model({
+        id: `c${i}`,
+        sizeBytes,
+        state:
+          i === current
+            ? { kind: "downloading", bytes, total: sizeBytes }
+            : { kind: "queued" },
+      }),
+    );
+
+  it("never reads less than it did, through gaps and the last frame", () => {
+    const frames = [
+      frame(0, 0),
+      frame(0, sizes[0]),
+      frame(null),
+      frame(1, 0),
+      frame(1, sizes[1]),
+      frame(null),
+      frame(2, 100),
+      frame(2, sizes[2]),
+      frame(null),
+      frame(3, sizes[3]),
+      frame(null),
+      frame(null),
+    ];
+    let held: ReturnType<typeof holdTotals> = null;
+    let previous = 0;
+    for (const models of frames) {
+      held = holdTotals(held, downloadTotals(models));
+      expect(held!.bytes).toBeGreaterThanOrEqual(previous);
+      expect(held!.total).toBe(sum);
+      previous = held!.bytes;
+    }
+    expect(held).toEqual({ bytes: sum, total: sum });
+  });
+
+  it("starts over once the download is over", () => {
+    const held = holdTotals(null, downloadTotals(frame(3, sizes[3])));
+    expect(holdTotals(held, null)).toBeNull();
+    expect(holdTotals(null, downloadTotals(frame(0, 5)))?.bytes).toBe(5);
+  });
+
+  it("keeps the total open while a size is unknown", () => {
+    const open = { bytes: 5, total: null };
+    expect(holdTotals({ bytes: 3, total: 10 }, open)).toEqual(open);
   });
 });
 
