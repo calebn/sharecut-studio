@@ -1636,7 +1636,7 @@ html[data-frame-short] .sys-header-project .sys-header-title {
 
 .sys-skeleton-blocks--guest .sys-skeleton-block--header {
   grid-column: 1 / -1;
-  block-size: var(--header-height, 3rem);
+  block-size: var(--app-header-height);
 }
 
 .sys-skeleton-blocks--guest .sys-skeleton-block--player {
@@ -1653,22 +1653,28 @@ html[data-frame-short] .sys-header-project .sys-header-title {
   grid-column: 2;
 }
 
-/* The phone shell's width (PHONE_MQ in hooks/useViewportClass.ts; a test keeps them equal). */
-@media (max-width: 767px) {
-  .sys-skeleton-blocks--guest {
-    grid-template-columns: minmax(0, 1fr);
-  }
+/* The phone shell, from the data-shell attribute the shell sets. */
+:root[data-shell="phone"] .sys-skeleton-blocks--guest {
+  grid-template-columns: minmax(0, 1fr);
+}
 
-  .sys-skeleton-blocks--guest .sys-skeleton-block--player,
-  .sys-skeleton-blocks--guest .sys-skeleton-block--queue,
-  .sys-skeleton-blocks--guest .sys-skeleton-block--center {
-    grid-column: 1;
-    grid-row: auto;
-  }
+:root[data-shell="phone"]
+  .sys-skeleton-blocks--guest
+  .sys-skeleton-block--player,
+:root[data-shell="phone"]
+  .sys-skeleton-blocks--guest
+  .sys-skeleton-block--queue,
+:root[data-shell="phone"]
+  .sys-skeleton-blocks--guest
+  .sys-skeleton-block--center {
+  grid-column: 1;
+  grid-row: auto;
+}
 
-  .sys-skeleton-blocks--guest .sys-skeleton-block--queue {
-    display: none;
-  }
+:root[data-shell="phone"]
+  .sys-skeleton-blocks--guest
+  .sys-skeleton-block--queue {
+  display: none;
 }
 
 .sys-skeleton-slow {
