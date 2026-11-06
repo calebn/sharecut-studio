@@ -2,8 +2,8 @@
 
 Each row says how ready the model is (``problem``, never a download) and how to install it
 (``install``, the only network path). ``setup`` is the tier: ``required`` gates first-run
-readiness, ``recommended`` is installed by a bare ``podcast bootstrap``, ``offered`` only when
-named or with ``--component all``.
+readiness and ``recommended`` is installed by a bare ``podcast bootstrap``. Studio's Get ready card
+downloads every model that is not installed, so a ``recommended`` row is in that bundle.
 """
 
 from __future__ import annotations
@@ -18,6 +18,7 @@ from podcast_mcp.engines.models.speaker_ecapa import (
     SPEAKER_ECAPA_BOOTSTRAP,
     SPEAKER_ECAPA_LABEL,
     SPEAKER_ECAPA_SIZE,
+    SPEAKER_ECAPA_SIZE_BYTES,
     bootstrap_speaker_ecapa,
     speaker_ecapa_path,
     speaker_ecapa_problem,
@@ -47,7 +48,7 @@ from podcast_mcp.util.model_assets import (
 )
 from podcast_mcp.util.model_missing import ModelMissing
 
-SetupTier = Literal["required", "recommended", "offered"]
+SetupTier = Literal["required", "recommended"]
 
 
 @dataclass(frozen=True)
@@ -193,6 +194,16 @@ def _rnnoise_sizes(variant: str | None) -> tuple[str | None, int | None]:
 
 _WORD_ALIGNER = word_aligner_model(DEFAULT_WORD_ALIGNER)
 
+
+def _word_aligner_sizes(variant: str | None) -> tuple[str | None, int | None]:
+    model = word_aligner_model(variant or DEFAULT_WORD_ALIGNER)
+    return model.size, model.size_bytes
+
+
+def _speaker_ecapa_sizes(variant: str | None) -> tuple[str | None, int | None]:
+    return None, SPEAKER_ECAPA_SIZE_BYTES
+
+
 MODELS: tuple[ModelSpec, ...] = (
     ModelSpec(
         id="whisper",
@@ -222,21 +233,23 @@ MODELS: tuple[ModelSpec, ...] = (
         label=_WORD_ALIGNER.label,
         purpose="precise word boundaries",
         size=_WORD_ALIGNER.size,
-        setup="offered",
+        setup="recommended",
         problem=_word_aligner_problem,
         install=_word_aligner_install,
         location=word_aligner_cache_dir,
         default_variant=DEFAULT_WORD_ALIGNER,
+        variant_sizes=_word_aligner_sizes,
     ),
     ModelSpec(
         id="speaker-ecapa",
         label=SPEAKER_ECAPA_LABEL,
         purpose="speaker recognition and split",
         size=SPEAKER_ECAPA_SIZE,
-        setup="offered",
+        setup="recommended",
         problem=_speaker_ecapa_problem,
         install=_speaker_ecapa_install,
         location=speaker_ecapa_path,
+        variant_sizes=_speaker_ecapa_sizes,
     ),
 )
 

@@ -52,7 +52,7 @@ def test_explicit_flag_with_the_model_missing_names_the_download() -> None:
         "label": caught.value.label,
         "purpose": "precise word boundaries",
         "size": "~360 MB",
-        "size_bytes": None,
+        "size_bytes": 360_000_000,
         "command": ALIGNER,
         "state": "missing",
     }

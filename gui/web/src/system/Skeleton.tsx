@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useAfter } from "../hooks/useAfter";
 import { useViewportClass } from "../hooks/useViewportClass";
 import { Button } from "../ui";
 
@@ -45,18 +45,16 @@ export function Skeleton({
   rows = 4,
   onRetry,
 }: SkeletonProps) {
-  const [timed, setTimed] = useState<Phase>("blank");
   const controlled = elapsedMs !== undefined;
-  useEffect(() => {
-    if (controlled) return;
-    const blocks = window.setTimeout(() => setTimed("blocks"), blankMs);
-    const slow = window.setTimeout(() => setTimed("slow"), retryMs);
-    return () => {
-      window.clearTimeout(blocks);
-      window.clearTimeout(slow);
-    };
-  }, [controlled, blankMs, retryMs]);
-  const phase = controlled ? phaseOf(elapsedMs, blankMs, retryMs) : timed;
+  const blocks = useAfter(controlled ? null : blankMs);
+  const slow = useAfter(controlled ? null : retryMs);
+  const phase: Phase = controlled
+    ? phaseOf(elapsedMs, blankMs, retryMs)
+    : slow
+      ? "slow"
+      : blocks
+        ? "blocks"
+        : "blank";
   const shell = useViewportClass();
   return (
     <div

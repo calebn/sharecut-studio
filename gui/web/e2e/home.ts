@@ -5,13 +5,13 @@ import { expect, type Page } from "@playwright/test";
  * chrome is one edit here. Home is `/?home=1` (it never unpins a project).
  */
 
-/** The browser flag that keeps the first-run Setup card away ("Not now" sticks). */
-export const SETUP_DISMISSED_KEY = "sharecut.bootstrap.skip";
+/** The tab flag that keeps the first-run Setup card away ("Not now" lasts for the tab). */
+export const SETUP_DISMISSED_KEY = "sharecut.setup.notNow";
 
 /** Dismiss the Setup card before the page loads, so Home shows only episodes and tiles. */
 export async function dismissSetupCard(page: Page): Promise<void> {
   await page.addInitScript((key) => {
-    window.localStorage.setItem(key, "1");
+    window.sessionStorage.setItem(key, "1");
   }, SETUP_DISMISSED_KEY);
 }
 

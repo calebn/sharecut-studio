@@ -65,13 +65,13 @@ describe("App review route", () => {
     vi.stubGlobal("fetch", fetchMock);
     render(<App />);
     expect(
-      await screen.findByText("This link does not open the project."),
+      await screen.findByText("This link doesn't open anything"),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("region", {
-        name: "This link does not open the project.",
+        name: "This link doesn't open anything",
       }),
-    ).toHaveTextContent("Ask the person who shared it for a new link.");
+    ).toHaveTextContent("Ask the person who sent it for a new link.");
     expect(
       fetchMock.mock.calls.some((call) =>
         urlOf(call[0] as RequestInfo | URL).endsWith("/audio"),
@@ -105,13 +105,13 @@ describe("App review route", () => {
     );
     render(<App />);
     expect(
-      await screen.findByText("This link is invalid or has ended."),
+      await screen.findByText("This link doesn't open anything"),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("region", {
-        name: "This link is invalid or has ended.",
+        name: "This link doesn't open anything",
       }),
-    ).toHaveTextContent("Ask the host for a new link.");
+    ).toHaveTextContent("Ask the person who sent it for a new link.");
   });
 
   it("drops a cached snapshot and shows the cover for a revoked link", async () => {
@@ -143,7 +143,7 @@ describe("App review route", () => {
     );
     render(<App />);
     expect(
-      await screen.findByText("This link is invalid or has ended."),
+      await screen.findByText("This link doesn't open anything"),
     ).toBeInTheDocument();
     expect(offline.clear).toHaveBeenCalledWith("revoked");
     expect(screen.queryByText("Stale episode")).not.toBeInTheDocument();
@@ -184,7 +184,7 @@ describe("App review route", () => {
     );
     render(<App />);
     expect(
-      await screen.findByText("This link is invalid or has ended."),
+      await screen.findByText("This link doesn't open anything"),
     ).toBeInTheDocument();
     expect(offline.clear).not.toHaveBeenCalled();
   });
@@ -201,7 +201,7 @@ describe("App review route", () => {
     );
     render(<App />);
     expect(
-      await screen.findByText("This link is invalid or has ended."),
+      await screen.findByText("This link doesn't open anything"),
     ).toBeInTheDocument();
   });
 
@@ -217,7 +217,7 @@ describe("App review route", () => {
     );
     render(<App />);
     expect(
-      await screen.findByText("This link is invalid or has ended."),
+      await screen.findByText("This link doesn't open anything"),
     ).toBeInTheDocument();
   });
 
@@ -233,7 +233,7 @@ describe("App review route", () => {
     render(<App />);
     expect(await screen.findByText("Cached guest studio")).toBeInTheDocument();
     expect(
-      screen.queryByText("This link is invalid or has ended."),
+      screen.queryByText("This link doesn't open anything"),
     ).not.toBeInTheDocument();
     expect(offline.clear).not.toHaveBeenCalled();
   });
@@ -400,11 +400,12 @@ describe("App loading screens before the features answer", () => {
     expect(container.querySelector(".loading-screen")).toBeNull();
   });
 
-  it("shows the host the plain loading screen", () => {
+  it("shows the host the Loading cover, not the plain loading screen", () => {
     window.history.pushState({}, "", "/");
     stall();
     const { container } = render(<App />);
     expect(container.querySelector("main.guest-loading")).toBeNull();
-    expect(container.querySelector(".loading-screen")).not.toBeNull();
+    expect(container.querySelector(".loading-screen")).toBeNull();
+    expect(container.querySelector(".stage-loading-blank")).not.toBeNull();
   });
 });

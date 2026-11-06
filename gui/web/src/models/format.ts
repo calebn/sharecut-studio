@@ -55,12 +55,8 @@ export function stateText(state: ModelState): string {
   }
 }
 
-export function tierText(tier: "required" | "recommended" | "offered") {
-  return tier === "offered"
-    ? "Optional"
-    : tier === "required"
-      ? "Required"
-      : "Recommended";
+export function tierText(tier: "required" | "recommended") {
+  return tier === "required" ? "Required" : "Recommended";
 }
 
 export function capitalize(text: string): string {

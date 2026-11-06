@@ -1548,6 +1548,14 @@ html[data-frame-short] .sys-header-project .sys-header-title {
   margin-block: auto;
 }
 
+.sys-cover--page .sys-cover-body {
+  margin-block: auto 0;
+}
+
+.sys-cover--page .sys-cover-actions {
+  margin-block-end: auto;
+}
+
 .sys-cover-glyph {
   color: var(--color-text-secondary);
 }
@@ -1578,6 +1586,7 @@ html[data-frame-short] .sys-header-project .sys-header-title {
 
   .sys-cover--page .sys-cover-actions {
     align-self: stretch;
+    margin-block-end: 0;
     padding-block-end: calc(var(--space-5) + env(safe-area-inset-bottom));
   }
 
@@ -2511,6 +2520,54 @@ html[data-frame-short] .sys-header-project .sys-header-title {
 
 .sys-setup-more {
   margin-inline-start: auto;
+}
+
+.sys-setup-job {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.sys-setup-job .sys-status {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.sys-setup-cancel {
+  min-inline-size: 2.5rem;
+  min-block-size: 2.5rem;
+}
+
+@media (pointer: coarse) {
+  .sys-setup-cancel {
+    min-inline-size: var(--touch-min);
+    min-block-size: var(--touch-min);
+  }
+}
+
+.sys-setup .sys-card {
+  min-block-size: 7.5rem;
+}
+
+.sys-setup-checking {
+  min-block-size: 7.5rem;
+}
+
+.sys-setup-checking .sys-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+}
+
+.sys-setup-skeleton-title {
+  inline-size: 40%;
+  block-size: 1.5rem;
+}
+
+.sys-setup-skeleton-line {
+  inline-size: 70%;
+  block-size: 1.25rem;
 }
 
 /* Open other */

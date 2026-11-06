@@ -7,7 +7,7 @@ export type ModelRow = {
   id: string;
   label: string;
   purpose: string;
-  tier: "required" | "recommended" | "offered";
+  tier: "required" | "recommended";
   model: string;
   size: string;
   size_bytes: number | null;
@@ -39,20 +39,20 @@ export const ROWS: ModelRow[] = [
     id: "word-aligner",
     label: "Word aligner",
     purpose: "precise word boundaries",
-    tier: "offered",
+    tier: "recommended",
     model: "wav2vec2",
     size: "~360 MB",
-    size_bytes: null,
+    size_bytes: 360_000_000,
     state: "missing",
   },
   {
     id: "speaker-ecapa",
     label: "Speaker model",
     purpose: "speaker recognition and split",
-    tier: "offered",
+    tier: "recommended",
     model: "speaker-ecapa",
-    size: "~25 MB",
-    size_bytes: null,
+    size: "~80 MB",
+    size_bytes: 80_000_000,
     state: "missing",
   },
 ];
@@ -295,7 +295,7 @@ export async function prepare(
     ({ theme, skip }) => {
       window.localStorage.setItem("daw_theme", theme);
       if (skip) {
-        window.localStorage.setItem("sharecut.bootstrap.skip", "1");
+        window.sessionStorage.setItem("sharecut.setup.notNow", "1");
       }
     },
     { theme, skip },

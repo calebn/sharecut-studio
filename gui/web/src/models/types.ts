@@ -19,7 +19,7 @@ export type ModelView = {
   id: string;
   label: string;
   purpose: string;
-  tier: "required" | "recommended" | "offered";
+  tier: "required" | "recommended";
   size: string;
   sizeBytes: number | null;
   /** The model variant (a Whisper size, the aligner model); null when the model has one only. */

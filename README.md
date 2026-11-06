@@ -29,13 +29,13 @@ Codex UI edits have project-local [Impeccable design hooks](docs/setup.md#impecc
 
 ## Maximal install (all extras)
 
-Every pip extra, plus the models `podcast bootstrap --component all` fetches: about 360 MB for the word aligner and about 80 MB for the speaker model. No extra pulls torch. Prefer the Quick start above for everyday CLI/MCP/GUI work.
+Every pip extra, plus the models `podcast bootstrap` fetches: about 360 MB for the word aligner and about 80 MB for the speaker model. No extra pulls torch. Prefer the Quick start above for everyday CLI/MCP/GUI work.
 
 ```bash
 git clone <repo-url> && cd sharecut-studio
 uv sync --all-extras
 source .venv/bin/activate   # or: uv run …
-podcast bootstrap --component all
+podcast bootstrap
 podcast doctor
 # Optional ShareCut Studio UI (needs Node 24+):
 cd gui/web && npm ci && npm run build && cd ../..
@@ -44,7 +44,7 @@ cd gui/web && npm ci && npm run build && cd ../..
 Notes (verified in a disposable Linux Docker image):
 
 - `uv sync --all-extras` installs every pip extra (`dev`, `gui`, `relay`, `object-store`, `prosody`).
-- A bare `podcast bootstrap` installs Whisper and RNNoise; `--component all` also installs the word aligner and the speaker model. `podcast bootstrap --component word-aligner` installs just the aligner; once downloaded, precise word boundaries (`transcribe.forced_alignment.enabled`, English) turn on by default; until then they stay unavailable and the pipeline reports word times as Whisper-only (Studio: download it next to the Pipeline tab's Precise word boundaries field).
+- A bare `podcast bootstrap` installs Whisper, RNNoise, the word aligner and the speaker model, and so does Studio's Get ready card. `podcast bootstrap --component word-aligner` installs just the aligner; once downloaded, precise word boundaries (`transcribe.forced_alignment.enabled`, English) turn on by default; until then they stay unavailable and the pipeline reports word times as Whisper-only (Studio: download it next to the Pipeline tab's Precise word boundaries field).
 - Without `uv`: `python3 -m venv .venv && .venv/bin/pip install -e ".[all]"` then the same bootstrap/doctor steps.
 
 Detail: [docs/setup.md § Maximal install](docs/setup.md#maximal-install-all-extras). Operators can use the [read-only public mirror check](docs/setup.md#check-a-public-bootstrap-mirror) to verify bootstrap object availability without downloading payloads.

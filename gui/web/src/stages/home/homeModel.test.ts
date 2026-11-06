@@ -5,12 +5,15 @@ import {
   bundleToGet,
   cardOf,
   dayMonth,
+  downloadTotals,
   episodeNameFromFiles,
   formatDuration,
   formatEdited,
+  holdTotals,
   importingLine,
   importStoppedLine,
   setupOf,
+  timeLeftText,
   toolsMissing,
   untitledEpisodeName,
 } from "./homeModel";
@@ -147,8 +150,11 @@ describe("setupOf", () => {
     loadError: null,
     tools: { ffmpeg: "installed" as const, hint: null },
   };
-  it("shows nothing while the first status is on its way", () => {
-    expect(setupOf({ ...base, models: null })).toBeNull();
+  it("is checking while the first status is on its way", () => {
+    expect(setupOf({ ...base, models: null })).toEqual({
+      state: "checking",
+      sizeLabel: "",
+    });
   });
   it("offers a check again when the status never came", () => {
     expect(setupOf({ ...base, models: null, loadError: "x" })?.state).toBe(
@@ -169,8 +175,8 @@ describe("setupOf", () => {
       ...base,
       models: [
         model(),
-        model({ id: "ecapa", tier: "recommended", sizeBytes: 400_000_000 }),
-        model({ id: "extra", tier: "offered", sizeBytes: 9_000_000_000 }),
+        model({ id: "aligner", tier: "recommended", sizeBytes: 360_000_000 }),
+        model({ id: "ecapa", tier: "recommended", sizeBytes: 80_000_000 }),
       ],
     });
     expect(data).toEqual({ state: "needed", sizeLabel: "about 2 GB" });
@@ -201,6 +207,21 @@ describe("setupOf", () => {
       detail: "800 MB of 1.6 GB",
     });
   });
+  it("adds the time left to a download that has a rate", () => {
+    const models = [
+      model({
+        state: {
+          kind: "downloading",
+          bytes: 1_100_000_000,
+          total: 2_000_000_000,
+        },
+      }),
+    ];
+    expect(setupOf({ ...base, models }, 180)?.detail).toBe(
+      "1.1 GB of 2.0 GB · about 3 min",
+    );
+    expect(setupOf({ ...base, models }, null)?.detail).toBe("1.1 GB of 2.0 GB");
+  });
   it("leaves progress open when a total is unknown", () => {
     const data = setupOf({
       ...base,
@@ -214,10 +235,7 @@ describe("setupOf", () => {
     expect(data?.detail).toBe("5 MB downloaded");
   });
   it("names missing audio tools with nothing to download", () => {
-    const models = [
-      model({ state: { kind: "installed" } }),
-      model({ id: "opt", tier: "offered" }),
-    ];
+    const models = [model({ state: { kind: "installed" } })];
     const tools = { ffmpeg: "missing" as const, hint: "Cannot run ffprobe" };
     expect(setupOf({ ...base, tools, models })).toEqual({
       state: "tools-missing",
@@ -245,20 +263,150 @@ describe("setupOf", () => {
   });
 });
 
+describe("downloadTotals across the bundle", () => {
+  const sizes = [1_600_000_000, 40_000_000, 378_000_000, 83_000_000];
+  const bundle = (current: number, bytes: number, total: number | null) =>
+    sizes.map((sizeBytes, i) =>
+      model({
+        id: `c${i}`,
+        sizeBytes,
+        state:
+          i === current
+            ? { kind: "downloading", bytes, total }
+            : { kind: "queued" },
+      }),
+    );
+  const sum = sizes.reduce((a, b) => a + b, 0);
+
+  it("replays four components without the bytes or progress ever falling back", () => {
+    const events: [number, number, number][] = [
+      [0, 0, sizes[0]!],
+      [0, 800_000_000, sizes[0]!],
+      [0, sizes[0]!, sizes[0]!],
+      [1, 0, sizes[1]!],
+      [1, 2_048, sizes[1]!],
+      [1, sizes[1]!, sizes[1]!],
+      [2, 0, sizes[2]!],
+      [2, 12_000_000, sizes[2]!],
+      [2, sizes[2]!, sizes[2]!],
+      [3, 0, sizes[3]!],
+      [3, sizes[3]!, sizes[3]!],
+    ];
+    let previous = -1;
+    for (const [current, bytes, total] of events) {
+      const totals = downloadTotals(bundle(current, bytes, total))!;
+      expect(totals.total).not.toBeNull();
+      expect(totals.bytes).toBeGreaterThanOrEqual(previous);
+      previous = totals.bytes;
+      const data = setupOf(
+        {
+          ready: false,
+          loadError: null,
+          tools: { ffmpeg: "installed", hint: null },
+          models: bundle(current, bytes, total),
+        },
+        null,
+      );
+      expect(data?.progress).toBeGreaterThanOrEqual(0);
+      expect(data?.progress).toBeLessThanOrEqual(1);
+    }
+    expect(previous).toBe(sum);
+  });
+
+  it("counts the finished components in the numerator at a boundary", () => {
+    expect(downloadTotals(bundle(1, 0, sizes[1]!))).toEqual({
+      bytes: sizes[0],
+      total: sizes[0]! + sizes[1]! + sizes[2]! + sizes[3]!,
+    });
+    expect(downloadTotals(bundle(3, 0, sizes[3]!))?.bytes).toBe(
+      sizes[0]! + sizes[1]! + sizes[2]!,
+    );
+  });
+
+  it("leaves the total open while a queued size is unknown", () => {
+    const models = bundle(0, 5, sizes[0]!);
+    models[2] = { ...models[2]!, sizeBytes: null };
+    expect(downloadTotals(models)?.total).toBeNull();
+  });
+});
+
+describe("holdTotals across the in-between frames", () => {
+  const sizes = [1_600_000_000, 40_000_000, 378_000_000, 83_000_000];
+  const sum = sizes.reduce((a, b) => a + b, 0);
+  const frame = (current: number | null, bytes = 0) =>
+    sizes.map((sizeBytes, i) =>
+      model({
+        id: `c${i}`,
+        sizeBytes,
+        state:
+          i === current
+            ? { kind: "downloading", bytes, total: sizeBytes }
+            : { kind: "queued" },
+      }),
+    );
+
+  it("never reads less than it did, through gaps and the last frame", () => {
+    const frames = [
+      frame(0, 0),
+      frame(0, sizes[0]),
+      frame(null),
+      frame(1, 0),
+      frame(1, sizes[1]),
+      frame(null),
+      frame(2, 100),
+      frame(2, sizes[2]),
+      frame(null),
+      frame(3, sizes[3]),
+      frame(null),
+      frame(null),
+    ];
+    let held: ReturnType<typeof holdTotals> = null;
+    let previous = 0;
+    for (const models of frames) {
+      held = holdTotals(held, downloadTotals(models));
+      expect(held!.bytes).toBeGreaterThanOrEqual(previous);
+      expect(held!.total).toBe(sum);
+      previous = held!.bytes;
+    }
+    expect(held).toEqual({ bytes: sum, total: sum });
+  });
+
+  it("starts over once the download is over", () => {
+    const held = holdTotals(null, downloadTotals(frame(3, sizes[3])));
+    expect(holdTotals(held, null)).toBeNull();
+    expect(holdTotals(null, downloadTotals(frame(0, 5)))?.bytes).toBe(5);
+  });
+
+  it("keeps the total open while a size is unknown", () => {
+    const open = { bytes: 5, total: null };
+    expect(holdTotals({ bytes: 3, total: 10 }, open)).toEqual(open);
+  });
+});
+
+describe("timeLeftText", () => {
+  it("words the time left", () => {
+    expect(timeLeftText(20)).toBe("less than a minute");
+    expect(timeLeftText(170)).toBe("about 3 min");
+    expect(timeLeftText(3600)).toBe("about 1 h");
+    expect(timeLeftText(3900)).toBe("about 1 h 5 min");
+  });
+});
+
 describe("bundleToGet", () => {
-  it("lists the required and recommended models still to fetch", () => {
+  it("lists every model still to fetch, the word aligner and speaker model included", () => {
     expect(
       bundleToGet([
         model(),
         model({ id: "done", state: { kind: "installed" } }),
-        model({ id: "opt", tier: "offered" }),
+        model({ id: "word-aligner", tier: "recommended" }),
+        model({ id: "speaker-ecapa", tier: "recommended" }),
         model({
           id: "fix",
           tier: "recommended",
           state: { kind: "update_needed" },
         }),
       ]),
-    ).toEqual(["whisper", "fix"]);
+    ).toEqual(["whisper", "word-aligner", "speaker-ecapa", "fix"]);
     expect(bundleToGet(null)).toEqual([]);
   });
 });

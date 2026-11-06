@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useAfter } from "../../hooks/useAfter";
 import { Card } from "../../system/Card";
 import { StatusRow } from "../../system/StatusRow";
 import { SystemIcon } from "../../system/SystemIcon";
 import { Button, Menu, MenuItem } from "../../ui";
 
 export type SetupState =
+  | "checking"
   | "needed"
   | "downloading"
   | "failed"
@@ -29,6 +31,44 @@ export type SetupCardProps = {
 const TITLE = "Get ShareCut ready";
 const TOOLS_GUIDE =
   "https://github.com/calebn/sharecut-studio/blob/main/docs/setup.md#acquire-the-pinned-ffmpeg-pair";
+
+/** The first status read has not come back: nothing for 300 ms, then static grey blocks. */
+const CHECKING_BLANK_MS = 300;
+/** A status read this late is a failed check: say so and offer Try again. */
+const CHECKING_GIVE_UP_MS = 8000;
+
+function CheckFailedCard({ onRetry }: Pick<SetupCardProps, "onRetry">) {
+  return (
+    <Card title={TITLE}>
+      <StatusRow
+        state="failed"
+        title="Couldn't check what's installed."
+        action={{ label: "Try again", onAction: onRetry }}
+      />
+    </Card>
+  );
+}
+
+function CheckingSkeleton({ onRetry }: Pick<SetupCardProps, "onRetry">) {
+  const shown = useAfter(CHECKING_BLANK_MS);
+  const gaveUp = useAfter(CHECKING_GIVE_UP_MS);
+  if (gaveUp) return <CheckFailedCard onRetry={onRetry} />;
+  return (
+    <div className="sys-setup-checking">
+      {shown ? (
+        <>
+          <p className="sr-only" role="status">
+            Reading the setup status
+          </p>
+          <div className="sys-card" aria-hidden="true">
+            <span className="sys-skeleton-block sys-setup-skeleton-title" />
+            <span className="sys-skeleton-block sys-setup-skeleton-line" />
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
 
 function NotNowMenu({ onNotNow }: Pick<SetupCardProps, "onNotNow">) {
   const [open, setOpen] = useState(false);
@@ -79,6 +119,7 @@ function SetupBody({
   onRetry,
   onNotNow,
 }: SetupCardProps) {
+  if (state === "checking") return <CheckingSkeleton onRetry={onRetry} />;
   if (state === "needed") {
     return (
       <Card title={TITLE}>
@@ -108,13 +149,23 @@ function SetupBody({
   if (state === "downloading") {
     return (
       <Card title="Getting ShareCut ready">
-        <StatusRow
-          state="running"
-          title="Downloading"
-          detail={detail}
-          progress={progress}
-          action={{ label: "Cancel", onAction: onCancel }}
-        />
+        <div className="sys-setup-job">
+          <StatusRow
+            state="running"
+            title="Downloading"
+            detail={detail}
+            progress={progress}
+          />
+          <button
+            type="button"
+            className="sys-icon-btn sys-setup-cancel"
+            aria-label="Cancel the download"
+            title="Cancel"
+            onClick={onCancel}
+          >
+            <SystemIcon name="x" size={16} />
+          </button>
+        </div>
       </Card>
     );
   }
@@ -140,26 +191,52 @@ function SetupBody({
       </Card>
     );
   }
-  const checking = state === "check-error";
+  if (state === "check-error") return <CheckFailedCard onRetry={onRetry} />;
   return (
     <Card title={TITLE}>
       <StatusRow
         state="failed"
-        title={
-          checking
-            ? "Couldn't check what's installed."
-            : "The download didn't finish."
-        }
+        title="The download didn't finish."
         action={{ label: "Try again", onAction: onRetry }}
       />
     </Card>
   );
 }
 
+/** A card that changes later for another reason is not the Cancel the person pressed. */
+const CANCEL_FOCUS_MS = 5000;
+
+function focusAfterCancel(root: HTMLElement) {
+  const next =
+    root.querySelector<HTMLElement>(".sys-setup-actions button") ??
+    root.querySelector<HTMLElement>("h1, h2, h3, h4, [role='heading']");
+  if (next) {
+    if (!next.matches("button")) next.tabIndex = -1;
+    next.focus();
+  }
+}
+
 export function SetupCard(props: SetupCardProps) {
+  const root = useRef<HTMLDivElement>(null);
+  const cancelledAt = useRef<number | null>(null);
+  const { state, onCancel } = props;
+  useEffect(() => {
+    const at = cancelledAt.current;
+    if (at === null || state === "downloading") return;
+    cancelledAt.current = null;
+    if (Date.now() - at < CANCEL_FOCUS_MS && root.current) {
+      focusAfterCancel(root.current);
+    }
+  }, [state]);
   return (
-    <div className="sys-setup">
-      <SetupBody {...props} />
+    <div className="sys-setup" ref={root}>
+      <SetupBody
+        {...props}
+        onCancel={() => {
+          cancelledAt.current = Date.now();
+          onCancel();
+        }}
+      />
     </div>
   );
 }
