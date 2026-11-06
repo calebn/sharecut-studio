@@ -199,6 +199,42 @@ describe("ScriptPane words", () => {
     expect(word("yes")).not.toHaveAttribute("data-found");
   });
 
+  it("labels an interrupted hit's words as a plain match when the current match is another hit", () => {
+    const turn = (
+      id: string,
+      speakerId: string,
+      index: number,
+      text: string,
+    ) => ({
+      ...SCRIPT_TURNS[0],
+      id,
+      speakerId,
+      words: [{ index, text }],
+    });
+    render(
+      <ScriptPane
+        {...props({
+          turns: [
+            turn("a1", "maya", 0, "one"),
+            turn("b1", "anneke", 1, "yes"),
+            turn("a2", "maya", 2, "thanks"),
+            turn("a3", "maya", 3, "one"),
+            turn("a4", "maya", 4, "thanks"),
+          ],
+          matches: [{ indices: [0, 2] }, { indices: [3, 4] }],
+          currentMatch: 1,
+        })}
+      />,
+    );
+    expect(word("one (match)")).toHaveAttribute("data-found", "match");
+    expect(word("thanks (match)")).toHaveAttribute("data-found", "match");
+    expect(word("one (current match)")).toHaveAttribute(
+      "data-found",
+      "current",
+    );
+    expect(word("yes")).not.toHaveAttribute("data-found");
+  });
+
   it("draws your caret hidden and another person's with their name, once even inside a muted run", () => {
     const { container } = render(
       <ScriptPane

@@ -134,7 +134,7 @@ describe("findMatches", () => {
     });
 
     it("breaks a phrase on its own transcript's muted word, not on another's", () => {
-      const muted = { kind: "muted" } as ScriptWord["mark"];
+      const muted: NonNullable<ScriptWord["mark"]> = { kind: "muted" };
       expect(
         findMatches(
           [
@@ -163,7 +163,9 @@ describe("findMatches", () => {
     it("replaces an interrupted hit by its own words only", () => {
       const hit: FindHit[] = [{ indices: [0, 2] }];
       expect(replacementChanges(abaTurns, hit, "one thanks")).toEqual([]);
-      expect(replacementChanges(abaTurns, hit, "two thanks")).toEqual(hit);
+      expect(replacementChanges(abaTurns, hit, "two thanks")).toEqual([
+        { indices: [0, 2] },
+      ]);
     });
   });
 
