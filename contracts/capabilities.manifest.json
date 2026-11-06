@@ -3235,7 +3235,7 @@
         "command": "edit.rollClipJoin",
         "gui": [
           "timeline.clip.joinDiamond",
-          "transcript.editBoundary"
+          "transcript.seam"
         ],
         "mcp": [
           "roll_clip_join_tool"
@@ -3246,7 +3246,7 @@
         ]
       },
       "omit": {
-        "keyboard_reason": "pointer join diamond; no industry-standard key"
+        "keyboard_reason": "pointer join diamond or Seam pill; Alt+Arrow on the focused pill, no industry-standard key"
       },
       "presence": {
         "cursor": "time",

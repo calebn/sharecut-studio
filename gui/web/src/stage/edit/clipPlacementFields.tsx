@@ -4,6 +4,7 @@ import {
   beginClipPlacement,
   cancelClipPlacement,
   canPlaceClips,
+  getClipPlacement,
   updateClipPlacement,
 } from "../../edit/clipPlacement";
 import { useDawStore } from "../../state/dawStore";
@@ -53,6 +54,15 @@ function useClipMove(clip: ClipRow) {
       updateClipPlacement(at, String(start), trackId);
       await applyClipPlacement(at);
       token.current = null;
+      const settled = getClipPlacement();
+      if (settled.kind !== "idle" && settled.capture.token === at) {
+        // A refused move has no form to show its error: say it and drop the ghost.
+        if (settled.error)
+          useDawStore
+            .getState()
+            .announceStatus(settled.error, { tone: "error" });
+        cancelClipPlacement(at);
+      }
     },
     cancel: drop,
   };

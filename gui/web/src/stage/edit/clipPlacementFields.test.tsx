@@ -150,3 +150,18 @@ it("permission loss makes the field read-only and the toggles inert", async () =
   await user.click(screen.getByRole("button", { name: "Guest" }));
   expect(moveClips).not.toHaveBeenCalled();
 });
+
+it("a refused move says why and leaves no ghost preview", async () => {
+  vi.mocked(moveClips).mockRejectedValue(new Error("Save refused"));
+  render(<ClipStartField clip={clip} disabled={false} />);
+  fireEvent.pointerDown(start(), { clientX: 100, pointerId: 1, button: 0 });
+  fireEvent.pointerMove(start(), { clientX: 110, pointerId: 1 });
+  fireEvent.pointerMove(start(), { clientX: 150, pointerId: 1 });
+  await act(async () => {
+    fireEvent.pointerUp(start(), { pointerId: 1 });
+  });
+  expect(getClipPlacement().kind).toBe("idle");
+  expect(useDawStore.getState().feedbackToast).toMatchObject({
+    tone: "error",
+  });
+});
