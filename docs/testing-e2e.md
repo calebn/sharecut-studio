@@ -101,12 +101,28 @@ See [the baseline and result record](https://github.com/calebn/sharecut-studio/p
 selected pixels, and a separate genuine Chromium 200% browser-zoom check. That
 check uses `chrome.tabs.setZoom` with a 16px root and measured halved CSS layout
 on an Xvfb display. It is distinct from this suite's root32 simulation.
-Touch and pending-inspector layout regressions now measure the actual
-`.bottom-sheet` scroll owner and use `wheelInspector`/`exposeControl` to reach
-complete controls by native wheel input. The inner `.modifier-body` no longer
-owns scrolling; desktop modifier inspectors use their outer aside. This updates
-layout expectations while retaining command, focus, permission, and persistence
-assertions. The responsive suite does not replace the owner recovery/CAS tests.
+`gui/web/e2e/touch-affordances.spec.ts` runs separate Invite and clip Inspector
+journeys over the phone, short-landscape, tablet, desktop, and 200% root-text
+cells. Invite checks its generic Sheet detents and `.sys-sheet-scroll` owner.
+Clip Inspect checks its system Inspector card or phone dock/half/full sheet and
+`.sys-inspector-scroll` owner. Both journeys check dismissal focus, browser
+storage, project bytes, document-command requests, and axe where the suite owns
+that check. The matching compat spec runs both journeys at 390×844 in Chromium
+and WebKit. The specs enable Playwright touch emulation so coarse-pointer
+targets use their touch sizing; this does not prove behavior on a physical
+device. These cases do not replace the owner recovery/CAS tests.
+
+`gui/web/e2e/sheet-header-clearance.spec.ts` independently measures the real
+Invite sheet against the rendered header and hit-tests the header controls.
+It covers normal and doubled CSS root text, fine and coarse pointers, repeated
+opening, and phone-to-wide transitions. Its pan and keyboard checks set synthetic
+viewport metadata; they do not validate a physical keyboard or Safari device.
+
+Touch and pending-inspector layout regressions measure the actual scroll owner
+and use native wheel input to reach complete controls. The inner
+`.modifier-body` no longer owns scrolling; desktop modifier inspectors use
+their outer aside. This updates layout expectations while retaining command,
+focus, permission, and persistence assertions.
 `gui/web/e2e/desktop-splash.spec.ts` renders native startup HTML with long errors
 at 360px and 820px, one theme each, so axe checks both themes across the pair.
 These browser checks do not validate packaged WebViews

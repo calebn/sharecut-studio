@@ -30,7 +30,22 @@ html[data-shell="phone"] {
 }
 
 html[data-shell="phone"] .bottom-sheet-root {
-  top: calc(var(--app-header-height-phone) + env(safe-area-inset-top));
+  top: var(
+    --frame-header-end,
+    calc(var(--app-header-height-phone) + env(safe-area-inset-top))
+  );
+}
+
+@media (pointer: coarse) {
+  html[data-viewport-pan][data-shell="phone"] .bottom-sheet-root {
+    top: calc(
+      var(
+        --frame-header-end,
+        calc(var(--app-header-height-phone) + env(safe-area-inset-top))
+      ) +
+      var(--viewport-pan-top)
+    );
+  }
 }
 
 .bottom-sheet-scrim {
