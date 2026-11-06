@@ -19,6 +19,7 @@ import {
   PEAKS,
   REQUEST,
   SETTINGS,
+  STALE,
   TOTAL,
   WORDS,
 } from "./deliverFixture";
@@ -197,11 +198,20 @@ const clipTitle = (value: string) => field(value, "dv-clip-title");
 const chapterTitle = (value: string) => field(value, "dv-chapter-title");
 
 describe("stale after an export", () => {
+  it("offers Export again beside the stale row, and it exports what the page shows", async () => {
+    const { all, container } = setup({ exportState: STALE });
+    const again = screen.getByRole("button", { name: "Export again" });
+    expect(again).not.toHaveClass("primary");
+    expect(container.querySelectorAll(".primary")).toHaveLength(1);
+    await userEvent.click(again);
+    expect(all.onExport).toHaveBeenCalledOnce();
+  });
+
   it("brings Export back when the loudness changes", async () => {
     setup({ exportState: DONE });
     await userEvent.click(screen.getByRole("button", { name: /^Streaming/ }));
     expect(screen.getByText("Edited since export")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^Export/ })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /^Export$/ })).toBeEnabled();
   });
 
   it("goes stale when a format or the range changes", async () => {
@@ -727,7 +737,7 @@ describe("the primary button after an export", () => {
           exportState: { ...DONE, phase: "stale" } as ExportState,
           files: exportedFilesOf(REQUEST, access),
         });
-        await userEvent.click(screen.getByRole("button", { name: /^Export/ }));
+        await userEvent.click(screen.getByRole("button", { name: /^Export$/ }));
         expect(all.onExport).toHaveBeenCalledOnce();
         for (const gone of [
           "Download all",
@@ -1088,7 +1098,7 @@ describe("export settings reach the stage", () => {
   it("brings Export back in the phone foot when the export goes stale", async () => {
     setup({ exportState: DONE, layout: "phone" });
     await userEvent.click(screen.getByRole("button", { name: /^Streaming/ }));
-    expect(screen.getByRole("button", { name: /^Export/ })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /^Export$/ })).toBeEnabled();
     expect(screen.getByText("Edited since export")).toBeInTheDocument();
   });
 
@@ -1385,7 +1395,7 @@ describe.each(["desktop", "phone"] as const)(
         layout,
         exportState: { ...DONE, phase: "stale" } as ExportState,
       });
-      await userEvent.click(screen.getByRole("button", { name: /^Export/ }));
+      await userEvent.click(screen.getByRole("button", { name: /^Export$/ }));
       expect(stale.all.onExport).toHaveBeenCalledOnce();
     });
 
@@ -2413,19 +2423,19 @@ describe("Episode file transcript note", () => {
     { kind: "allCut" },
     { kind: "none" },
   ] as const)(
-    "keeps the automatic-files note unchanged for preview $kind",
+    "keeps the section-presence message for preview $kind",
     (preview) => {
       setup({ transcript: transcriptOptions({ preview }) });
       const episode = screen.getByRole("region", { name: "Episode file" });
       expect(
         within(episode).getByText(
-          "Available captions and transcript are included with every audio export.",
+          "Available captions and transcript are included with every audio export. Choose more files in Transcript below.",
         ),
       ).toBeInTheDocument();
     },
   );
 
-  it("explains available automatic files without pointing at another section", () => {
+  it("explains available automatic files without referring to an absent section", () => {
     setup();
     const episode = screen.getByRole("region", { name: "Episode file" });
     expect(
@@ -3039,6 +3049,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Whole episode",
             "Part…",
             "Change",
+            "Export again",
             "Export",
             "Play from Cold open",
             "Remove Cold open",
@@ -3086,7 +3097,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "needs-you",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Edited since exportLast export 2 h agoExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to Rough cutCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Edited since exportLast export 2 h agoExport againExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerMade when you copy itPinned to Rough cutCopy0:00 / 52:001515AB",
         },
         "desktop: the model missing": {
           "buttons": [
@@ -3793,6 +3804,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Whole episode",
             "Part…",
             "Change",
+            "Export again",
             "Share",
             "Play from Cold open",
             "Remove Cold open",
@@ -3840,7 +3852,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "needs-you",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Edited since exportLast export 2 h agoListen linkMade when you copy itPinned to Rough cutShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Edited since exportLast export 2 h agoExport againListen linkMade when you copy itPinned to Rough cutShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveExport0:00 / 52:001515AB",
         },
         "phone: the model missing": {
           "buttons": [
@@ -4773,6 +4785,25 @@ describe("a clip trim gesture", () => {
     expect(onClips).not.toHaveBeenCalled();
     await userEvent.tab();
     expect(onClips).toHaveBeenCalledOnce();
+  });
+});
+
+describe("a clip removed in a host that restores it", () => {
+  it("tells the host which clip Undo brought back", async () => {
+    const onClipRestore = vi.fn();
+    setup({ onClipRestore });
+    await userEvent.click(
+      screen.getByRole("button", { name: "More for Nobody asked the river" }),
+    );
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Remove" }),
+    );
+    expect(onClipRestore).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(onClipRestore).toHaveBeenCalledOnce();
+    expect(onClipRestore.mock.calls[0]?.[0]).toMatchObject({
+      title: "Nobody asked the river",
+    });
   });
 });
 
