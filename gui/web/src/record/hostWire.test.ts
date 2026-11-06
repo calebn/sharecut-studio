@@ -53,10 +53,10 @@ describe("hostWire", () => {
   it("propagates a bound socket refusal through Notes", () => {
     const transportWrites: string[] = [];
     const socket = {
-      readyState: WebSocket.OPEN,
+      readyState: WebSocket.OPEN as number,
       send: (frame: string) => transportWrites.push(frame),
-    } as unknown as WebSocket;
-    bindRecordHostSend(bindWsSender(socket));
+    };
+    bindRecordHostSend(bindWsSender(socket as unknown as WebSocket));
     socket.readyState = WebSocket.CLOSING;
 
     expect(sendRecordHostCommand("Comment", { body: "Still bound" })).toBe(
@@ -65,7 +65,7 @@ describe("hostWire", () => {
     expect(transportWrites).toEqual([]);
 
     const key = commentsQueueKey("host-refusal");
-    const originalSetItem = Storage.prototype.setItem;
+    const originalSetItem = sessionStorage.setItem.bind(sessionStorage);
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (
       this: Storage,
       storageKey: string,
@@ -74,7 +74,7 @@ describe("hostWire", () => {
       if (storageKey === key) {
         throw new Error("synthetic comments queue refusal");
       }
-      originalSetItem.call(this, storageKey, value);
+      originalSetItem(storageKey, value);
     });
     expect(
       postLiveComment(sendRecordHostCommand, "host-refusal", {
@@ -110,7 +110,7 @@ describe("hostWire", () => {
     } as unknown as WebSocket;
     bindRecordHostSend(bindWsSender(openSocket));
     const key = commentsQueueKey("host-transport");
-    const originalSetItem = Storage.prototype.setItem;
+    const originalSetItem = sessionStorage.setItem.bind(sessionStorage);
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (
       this: Storage,
       storageKey: string,
@@ -119,7 +119,7 @@ describe("hostWire", () => {
       if (storageKey === key) {
         throw new Error("synthetic comments queue refusal");
       }
-      originalSetItem.call(this, storageKey, value);
+      originalSetItem(storageKey, value);
     });
     expect(
       postLiveComment(sendRecordHostCommand, "host-transport", {

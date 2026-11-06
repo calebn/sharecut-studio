@@ -122,7 +122,7 @@ describe("useRecordSync", () => {
     expect(ws.sent).toHaveLength(frameCount);
 
     const key = commentsQueueKey("tok");
-    const originalSetItem = Storage.prototype.setItem;
+    const originalSetItem = sessionStorage.setItem.bind(sessionStorage);
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (
       this: Storage,
       storageKey: string,
@@ -131,7 +131,7 @@ describe("useRecordSync", () => {
       if (storageKey === key) {
         throw new Error("synthetic comments queue refusal");
       }
-      originalSetItem.call(this, storageKey, value);
+      originalSetItem(storageKey, value);
     });
     expect(
       postLiveComment(result.current.send, "tok", {
@@ -165,7 +165,7 @@ describe("useRecordSync", () => {
 
     ws.readyState = FakeWebSocket.OPEN;
     const key = commentsQueueKey("tok-transport");
-    const originalSetItem = Storage.prototype.setItem;
+    const originalSetItem = sessionStorage.setItem.bind(sessionStorage);
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (
       this: Storage,
       storageKey: string,
@@ -174,7 +174,7 @@ describe("useRecordSync", () => {
       if (storageKey === key) {
         throw new Error("synthetic comments queue refusal");
       }
-      originalSetItem.call(this, storageKey, value);
+      originalSetItem(storageKey, value);
     });
     expect(
       postLiveComment(result.current.send, "tok-transport", {
