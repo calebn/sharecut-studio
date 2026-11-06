@@ -105,6 +105,11 @@ export function useReviewComments(guest: boolean) {
   const [name, setName] = useState(() =>
     guest ? savedGuestName() : sessionDisplayName(role),
   );
+  // Only a guest names themselves, and a browser that already knows the name
+  // asks nothing: the composer says who posts and offers Change name.
+  const [nameKnown, setNameKnown] = useState(
+    () => guest && capCommentName(savedGuestName()) !== "",
+  );
   const sent = useRef(new Set<string>());
   const [replyErrors, setReplyErrors] = useState<
     Readonly<Record<string, string | null>>
@@ -309,7 +314,10 @@ export function useReviewComments(guest: boolean) {
         return;
       }
       if (!result.ok) return;
-      if (guest && capCommentName(name)) saveCommentAuthor(name, role);
+      if (guest && capCommentName(name)) {
+        saveCommentAuthor(name, role);
+        setNameKnown(true);
+      }
       droppedDraft.current = null;
       setBody("");
       setScope([]);
@@ -360,10 +368,15 @@ export function useReviewComments(guest: boolean) {
         body={body}
         onBodyChange={type}
         onSubmit={() => void post()}
-        name={{
-          value: name,
-          onChange: (v) => setName(limitCommentName(v)),
-        }}
+        name={
+          guest
+            ? {
+                value: name,
+                onChange: (v) => setName(limitCommentName(v)),
+                saved: nameKnown,
+              }
+            : undefined
+        }
         state={postComment.busy ? "posting" : "idle"}
         inputRef={composeRef}
       />
