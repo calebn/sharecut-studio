@@ -68,7 +68,7 @@ export function registerChapterCommands(): void {
             .getState()
             .announceStatus(`Add chapter failed: ${reason}`, { tone: "error" });
         }
-        return { status: "disabled", reason };
+        return { status: "disabled", reason, told: true };
       } finally {
         if (sameProject()) {
           useDawStore.getState().setChapterAddPending(false);

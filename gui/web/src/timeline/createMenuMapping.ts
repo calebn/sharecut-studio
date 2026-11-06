@@ -1,6 +1,7 @@
 import { COMMANDS } from "../commands/catalog";
 import { buildCommandContext, evaluateWhen } from "../commands/context";
 import { executePointerCommand } from "../commands/pointer";
+import { runAndAnnounceRefusal } from "../commands/refusal";
 import { getClipboard } from "../edit/clipboard";
 import {
   type CreateRow,
@@ -134,7 +135,8 @@ export function createAnnouncement(
  * here, since the session can change while the menu is open (a share link
  * loses edit rights); a shut gate tells its reason and runs nothing. The volume
  * layer is turned on first when it is hidden, and stays on if the command then
- * refuses. A refusal is told, since the menu is gone by then.
+ * refuses. A refusal is told, since the menu is gone by then; a command that
+ * told its own failure says so with `told` and is not told again.
  */
 export async function runCreatePick(
   id: CreateRowId,
@@ -147,29 +149,13 @@ export async function runCreatePick(
     store.announceStatus(gate.reason, { tone: "error" });
     return;
   }
-  const toldBefore = store.statusAnnouncementSeq;
   if (id === "addVolumePoint" && !store.layers.showLevels) {
     store.setLayerVisible("showLevels", true);
   }
   try {
-    const result = await executePointerCommand(
-      command,
-      createPickArgs(id, place),
+    const result = await runAndAnnounceRefusal(() =>
+      executePointerCommand(command, createPickArgs(id, place)),
     );
-    // A command that told its own refusal (a failed paste or envelope save
-    // does) has already toasted, in words that carry the reason. The same
-    // words told twice in a row are absorbed by the toast, which leaves the
-    // sequence where it was, so the standing text is checked as well; a second
-    // toast with other words would flip it.
-    const live = useDawStore.getState();
-    const told =
-      live.statusAnnouncementSeq !== toldBefore ||
-      live.statusAnnouncement.includes(
-        result.status === "disabled" ? result.reason : "",
-      );
-    if (result.status === "disabled" && !told) {
-      live.announceStatus(result.reason, { tone: "error" });
-    }
     if (id === "paste" && result.status === "ok") {
       const trackId = place.trackId;
       if (trackId) {

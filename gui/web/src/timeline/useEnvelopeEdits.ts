@@ -25,20 +25,9 @@ const liveStored = (trackId: string, id: string): AutomationPoint | undefined =>
     trackId,
   )?.points.find((p) => p.id === id);
 
-function refuse(
-  result: { status: string; reason?: string },
-  /** The announcement count before the command ran: a command that already told the refusal is not told again. */
-  toldBefore?: number,
-) {
-  if (result.status !== "disabled" || !result.reason) return;
-  const live = useDawStore.getState();
-  if (
-    toldBefore !== undefined &&
-    live.statusAnnouncementSeq !== toldBefore &&
-    live.statusAnnouncement.includes(result.reason)
-  )
-    return;
-  live.announceStatus(result.reason, { tone: "error" });
+function refuse(result: { status: string; reason?: string; told?: true }) {
+  if (result.status !== "disabled" || !result.reason || result.told) return;
+  useDawStore.getState().announceStatus(result.reason, { tone: "error" });
 }
 
 /** Tells why a save cannot start: it is running, or the store has yet to follow the last one. */
@@ -281,10 +270,7 @@ export function useEnvelopeEdits(
         wait(trackId);
         return;
       }
-      const toldBefore = useDawStore.getState().statusAnnouncementSeq;
-      void addEnvelopePointAt(trackId, time, dbToGain(db)).then((result) =>
-        refuse(result, toldBefore),
-      );
+      void addEnvelopePointAt(trackId, time, dbToGain(db)).then(refuse);
     },
     [trackId],
   );
