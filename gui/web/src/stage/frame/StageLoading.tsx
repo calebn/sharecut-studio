@@ -22,12 +22,37 @@ const phaseOf = (elapsed: number): Phase =>
       ? "bar"
       : "blank";
 
-const BODY: Record<StageId, readonly string[]> = {
-  record: ["wide", "strip", "strip"],
-  prepare: ["row", "row", "row", "side"],
-  edit: ["ruler", "lane", "lane", "lane", "side"],
-  review: ["row", "row", "row", "row", "row"],
-  deliver: ["card", "card", "card"],
+const BODY: Record<StageId, readonly { id: string; kind: string }[]> = {
+  record: [
+    { id: "record-wide", kind: "wide" },
+    { id: "record-strip-primary", kind: "strip" },
+    { id: "record-strip-secondary", kind: "strip" },
+  ],
+  prepare: [
+    { id: "prepare-row-track", kind: "row" },
+    { id: "prepare-row-tools", kind: "row" },
+    { id: "prepare-row-options", kind: "row" },
+    { id: "prepare-side-panel", kind: "side" },
+  ],
+  edit: [
+    { id: "edit-ruler", kind: "ruler" },
+    { id: "edit-lane-primary", kind: "lane" },
+    { id: "edit-lane-secondary", kind: "lane" },
+    { id: "edit-lane-tertiary", kind: "lane" },
+    { id: "edit-side-panel", kind: "side" },
+  ],
+  review: [
+    { id: "review-row-overview", kind: "row" },
+    { id: "review-row-comments", kind: "row" },
+    { id: "review-row-timeline", kind: "row" },
+    { id: "review-row-actions", kind: "row" },
+    { id: "review-row-notes", kind: "row" },
+  ],
+  deliver: [
+    { id: "deliver-card-export", kind: "card" },
+    { id: "deliver-card-feed", kind: "card" },
+    { id: "deliver-card-share", kind: "card" },
+  ],
 };
 
 export type StageLoadingProps = {
@@ -96,10 +121,9 @@ export function StageLoading({
           {LOADING_STATUS}
         </p>
         <div className="stage-loading-blocks" aria-hidden="true">
-          {BODY[stage].map((kind, index) => (
+          {BODY[stage].map(({ id, kind }) => (
             <span
-              // biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
-              key={index}
+              key={id}
               className={`sys-skeleton-block stage-loading-block stage-loading-block--${kind}`}
             />
           ))}
