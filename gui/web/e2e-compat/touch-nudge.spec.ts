@@ -140,7 +140,8 @@ async function centerOfBox(locator: Locator): Promise<Point> {
   await locator.waitFor({ state: "visible", timeout: 5000 });
   return locator.evaluate(
     (el) =>
-      new Promise<Point>((resolve) => {
+      new Promise<Point>((resolve, reject) => {
+        const deadline = Date.now() + 3000;
         let last = "";
         let still = 0;
         const look = () => {
@@ -149,7 +150,17 @@ async function centerOfBox(locator: Locator): Promise<Point> {
           still = now === last ? still + 1 : 0;
           last = now;
           if (still >= 4) {
-            resolve({ x: r.x + r.width / 2, y: r.y + r.height / 2 });
+            const on =
+              r.width > 0 &&
+              r.height > 0 &&
+              r.x >= 0 &&
+              r.y >= 0 &&
+              r.right <= window.innerWidth &&
+              r.bottom <= window.innerHeight;
+            if (on) resolve({ x: r.x + r.width / 2, y: r.y + r.height / 2 });
+            else reject(new Error(`box not on screen: ${now}`));
+          } else if (Date.now() > deadline) {
+            reject(new Error(`box never held still: ${now}`));
           } else {
             requestAnimationFrame(look);
           }
