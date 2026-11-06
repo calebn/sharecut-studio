@@ -659,6 +659,38 @@ it("says why a refused edit did nothing, in the live region", async () => {
   );
 });
 
+async function pressSplitRefused(result: { told?: boolean }) {
+  render(<KeymapHost />);
+  useDawStore.setState({ statusAnnouncement: "", feedbackToast: null });
+  vi.mocked(execute).mockImplementation(async () => {
+    useDawStore.getState().announceStatus("Own message", { tone: "error" });
+    return {
+      status: "disabled",
+      reason: "Generic reason",
+      ...result,
+    };
+  });
+  await act(async () => {
+    fireEvent.keyDown(screen.getByTestId("canvas"), {
+      key: "s",
+      code: "KeyS",
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+}
+
+it("leaves a handler's own message standing when its disabled result is told", async () => {
+  await pressSplitRefused({ told: true });
+  expect(useDawStore.getState().statusAnnouncement).toBe("Own message");
+});
+
+it("announces the reason at error tone when a disabled result was not told", async () => {
+  await pressSplitRefused({});
+  const s = useDawStore.getState();
+  expect(s.statusAnnouncement).toBe("Generic reason");
+  expect(s.feedbackToast?.tone).toBe("error");
+});
+
 it("leaves Split, Undo, Backspace and the playhead keys to a focused Scrub field, but not Escape", async () => {
   render(
     <>
