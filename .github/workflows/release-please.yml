@@ -1,6 +1,8 @@
-# Manual only (workflow_dispatch). Run it from the Actions tab (or `gh workflow run
-# release-please.yml`) when you want a release. Run 1 opens or refreshes the "release" PR; after
-# that PR merges, run 2 creates the vX.Y.Z tag and GitHub release. It no longer runs on every
+# Manual only (workflow_dispatch). Run it from the Actions tab with the base branch selected (or
+# `gh workflow run release-please.yml --ref develop`) when you want a release. Run 1 opens or
+# refreshes the "release" PR on the base branch (config/branches.json); it reaches main with the
+# nightly promotion. Run 2 creates the vX.Y.Z tag and GitHub release, and the guard step refuses
+# to run until the release commit is on main. It no longer runs on every
 # push to main, because each run refreshed the release PR and re-ran its CI.
 #
 # Opens or refreshes a "release" PR that bumps the Sharecut Studio version everywhere and writes
@@ -53,10 +55,9 @@ jobs:
           BASE: ${{ steps.branches.outputs.base }}
           RELEASE: ${{ steps.branches.outputs.release }}
         run: |
-          git fetch --quiet origin "$BASE" "$RELEASE"
           last="$(git log -1 --format=%H "origin/$BASE" -- .release-please-manifest.json)"
-          if ! git merge-base --is-ancestor "$last" "origin/$RELEASE"; then
-            echo "::error::release commit $last is on $BASE but not yet on $RELEASE; rerun after the nightly promotion"
+          if [ -n "$last" ] && ! git merge-base --is-ancestor "$last" "origin/$RELEASE"; then
+            echo "::error::manifest change $last is on $BASE but not yet on $RELEASE; rerun after the nightly promotion"
             exit 1
           fi
 

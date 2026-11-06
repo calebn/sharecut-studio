@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       compatibility-base:
-        description: Current main SHA for final release validation; it must be an ancestor of this head
+        description: Current SHA of the compatibility-base-ref branch for final release validation; it must be an ancestor of this head
         required: false
         type: string
       compatibility-base-ref:
