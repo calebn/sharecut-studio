@@ -77,7 +77,11 @@ describe("render.refreshMix project ownership", () => {
       }),
     });
 
-    expect((await oldRun).status).toBe("disabled");
+    expect(await oldRun).toEqual({
+      status: "disabled",
+      reason: "Project changed during refresh",
+      told: true,
+    });
     expect(useDawStore.getState().project).toBe(projectB);
     expect(useDawStore.getState().renderPreviewBusy).toBe(false);
   });
