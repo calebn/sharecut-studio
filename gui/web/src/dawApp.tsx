@@ -227,6 +227,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
                 <StageHost
                   guestShare={guestShare}
                   loadFailure={loadFailure}
+                  onRetryLoad={retryBootstrap}
                   feedbackHostRef={setFeedbackHost}
                 />
               </StageFrame>

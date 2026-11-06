@@ -10,6 +10,8 @@ type HostBodyProps = {
   shell: ShellBreakpoint;
   state: HostState;
   failure?: LoadFailure | null;
+  /** What the loading skeleton's Retry runs. */
+  onRetry?: () => void;
   /** The pane that scrolls, for the saved offset. */
   scrollRef?: Ref<HTMLDivElement>;
   children: ReactNode;
@@ -59,6 +61,7 @@ export function HostBody({
   shell,
   state,
   failure,
+  onRetry,
   scrollRef,
   children,
 }: HostBodyProps) {
@@ -70,7 +73,7 @@ export function HostBody({
       aria-busy={state === "loading" ? true : undefined}
     >
       {state === "loading" ? (
-        <Skeleton layout="list" />
+        <Skeleton layout="list" onRetry={onRetry} />
       ) : state === "error" ? (
         <LoadFailureCover stage={stage} failure={failure} />
       ) : (

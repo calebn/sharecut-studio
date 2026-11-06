@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -393,6 +393,22 @@ describe("Prepare host", () => {
     const { container } = mount();
     expect(container.querySelector("[aria-busy='true']")).not.toBeNull();
     expect(screen.queryByRole("list", { name: "Getting ready" })).toBeNull();
+  });
+
+  it("runs the bootstrap retry from the loading skeleton's Retry", async () => {
+    vi.useFakeTimers();
+    try {
+      asHost("prepare");
+      useDawStore.setState({ project: null });
+      const onRetryLoad = vi.fn();
+      render(<StageHost guestShare onRetryLoad={onRetryLoad} />);
+      act(() => void vi.advanceTimersByTime(4000));
+      vi.useRealTimers();
+      await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+      expect(onRetryLoad).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("says the project could not load and retries", async () => {
