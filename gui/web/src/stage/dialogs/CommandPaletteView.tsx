@@ -31,6 +31,12 @@ const GESTURES_ROW: Row = { key: "gestures:open", gestures: true };
 
 type Section = { key: string; label: string | null; rows: Row[] };
 
+const GESTURES_SECTION: Section = {
+  key: "gestures",
+  label: PALETTE_GESTURES_LABEL,
+  rows: [GESTURES_ROW],
+};
+
 export interface CommandPaletteViewProps {
   open: boolean;
   /** Runnable catalog commands in category order (see `paletteCommands`). */
@@ -44,6 +50,8 @@ export interface CommandPaletteViewProps {
   /** Ids (command ids or entry ids) last run, newest first; shown as Recent when Search is empty. */
   recent?: readonly string[];
   onRunEntry?: (entry: PaletteEntry) => void;
+  /** Group listed first, with its first runnable row active, while Search is empty (Home opens on Help). */
+  leadGroup?: "help";
 }
 
 /**
@@ -71,6 +79,7 @@ export function CommandPaletteView({
   entries = [],
   recent = [],
   onRunEntry,
+  leadGroup,
 }: CommandPaletteViewProps) {
   const [query, setQuery] = useState("");
   const [showRemap, setShowRemap] = useState(false);
@@ -109,6 +118,12 @@ export function CommandPaletteView({
 
   const sections: Section[] = [];
   if (!searching) {
+    if (leadGroup) {
+      sections.push(...grouped(leadGroup));
+      if (gesturesShown) {
+        sections.push(GESTURES_SECTION);
+      }
+    }
     const recentRows: Row[] = [];
     for (const id of recent) {
       const command = commands.find((c) => c.id === id);
@@ -151,14 +166,10 @@ export function CommandPaletteView({
       rows: rows.map((entry) => ({ key: entry.id, entry })),
     });
   }
-  if (gesturesShown) {
-    sections.push({
-      key: "gestures",
-      label: PALETTE_GESTURES_LABEL,
-      rows: [GESTURES_ROW],
-    });
+  if (gesturesShown && !(leadGroup && !searching)) {
+    sections.push(GESTURES_SECTION);
   }
-  if (!searching) {
+  if (!searching && !leadGroup) {
     sections.push(...grouped("help"));
   }
   const rows = sections.flatMap((section) => section.rows);
@@ -170,7 +181,9 @@ export function CommandPaletteView({
   const rowDisabled = (row: Row) => row.command?.disabledReason != null;
   const active = listed
     ? (rows.find((r) => r.key === picked) ??
-      (searching ? rows.find((r) => !rowDisabled(r)) : undefined) ??
+      (searching || leadGroup
+        ? rows.find((r) => !rowDisabled(r))
+        : undefined) ??
       null)
     : null;
   const activeDomId = active ? optionId(active.key) : undefined;

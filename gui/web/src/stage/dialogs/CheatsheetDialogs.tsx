@@ -3,7 +3,7 @@ import { GesturesSheet } from "../../ui";
 import { CommandPalette } from "./CommandPalette";
 
 /** App-level cheatsheets stay beside app chrome so modal inertness is valid. */
-export function CheatsheetDialogs() {
+export function CheatsheetDialogs({ scope }: { scope?: "home" }) {
   const { gesturesSheetOpen, setCommandPaletteOpen, setGesturesSheetOpen } =
     useDaw((s) => ({
       gesturesSheetOpen: s.chrome.gesturesSheetOpen,
@@ -13,7 +13,7 @@ export function CheatsheetDialogs() {
 
   return (
     <>
-      <CommandPalette />
+      <CommandPalette scope={scope} />
       <GesturesSheet
         open={gesturesSheetOpen}
         onClose={() => setGesturesSheetOpen(false)}

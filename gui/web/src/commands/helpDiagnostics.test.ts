@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
 import { clearRegisteredCommands, execute } from "./execute";
@@ -41,5 +41,28 @@ describe("help.diagnosticsBundle", () => {
       reason: "Export diagnostics is host-only",
     });
     expect(useDawStore.getState().chrome.helpDialogOpen).toBe(false);
+  });
+});
+
+describe("help.guides", () => {
+  beforeEach(() => {
+    clearRegisteredCommands();
+    registerDawCommands();
+  });
+
+  afterEach(() => {
+    clearRegisteredCommands();
+    vi.restoreAllMocks();
+  });
+
+  it("opens the documentation site in a new tab for a host and for a guest link", async () => {
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    useDawStore.setState({ projectPath: "share:fantastic-acoustic-whale" });
+    expect(await execute("help.guides")).toEqual({ status: "ok" });
+    expect(open).toHaveBeenCalledWith(
+      "https://docs.sharecut.studio/",
+      "_blank",
+      "noopener,noreferrer",
+    );
   });
 });

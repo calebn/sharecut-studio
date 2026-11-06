@@ -23,8 +23,10 @@ const NO_CLIENTS: SessionClient[] = [];
  * Command palette (Commands and shortcuts): every runnable catalog command,
  * searchable, with its keys. Open via ?, Transport Menu → Help, or the phone
  * More hub. Rows are rebuilt each time it opens so their reasons match now.
+ * On Home (`scope="home"`) it lists only the commands that make sense with no
+ * project open, and opens on its Help group.
  */
-export function CommandPalette() {
+export function CommandPalette({ scope }: { scope?: "home" }) {
   const { commandPaletteOpen, setCommandPaletteOpen, setGesturesSheetOpen } =
     useDaw((s) => ({
       commandPaletteOpen: s.chrome.commandPaletteOpen,
@@ -116,8 +118,9 @@ export function CommandPalette() {
         void runAndAnnounceRefusal(() => execute(entry.commandId, entry.args));
       }}
       commands={
-        commandPaletteOpen ? paletteCommands(buildCommandContext()) : []
+        commandPaletteOpen ? paletteCommands(buildCommandContext(), scope) : []
       }
+      leadGroup={scope === "home" ? "help" : undefined}
       onClose={() => setCommandPaletteOpen(false)}
       onOpenGestures={() => {
         setCommandPaletteOpen(false);

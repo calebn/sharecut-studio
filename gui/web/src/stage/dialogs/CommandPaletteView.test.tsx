@@ -528,6 +528,21 @@ describe("CommandPaletteView", () => {
       expect(ids.every((id, i) => id.endsWith(`-opt-${i}`))).toBe(true);
     });
 
+    it("with leadGroup lists Help then Gestures first and makes the first Help row active; searching lists flat", async () => {
+      const user = userEvent.setup();
+      renderPalette({ commands: GROUPED, leadGroup: "help" });
+      expect(groupNames()).toEqual(["Help", "Gestures", "Transport", "Stages"]);
+      const search = screen.getByRole("combobox", { name: "Search commands" });
+      expect(search).toHaveAttribute(
+        "aria-activedescendant",
+        screen.getAllByRole("option")[0].id,
+      );
+      await user.type(search, "export");
+      expect(
+        screen.getByRole("option", { name: "Export diagnostics… Help" }),
+      ).toBeTruthy();
+    });
+
     it("runs a stage command through onRun and refuses a gated one", async () => {
       const user = userEvent.setup();
       const { props } = renderPalette({ commands: GROUPED });

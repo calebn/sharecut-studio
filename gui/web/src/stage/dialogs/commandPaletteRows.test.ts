@@ -13,6 +13,31 @@ import { searchPaletteCommands } from "./paletteSearch";
 
 const rowsNow = () => paletteCommands(buildCommandContext());
 
+describe("paletteCommands on Home", () => {
+  beforeEach(() => {
+    registerDawCommands();
+    useDawStore.setState({ project: null, projectPath: "" });
+  });
+
+  it("lists only the catalog commands marked for Home, all runnable with no project", () => {
+    const rows = paletteCommands(buildCommandContext(), "home");
+    expect(rows.map((r) => r.id).sort()).toEqual(
+      [
+        "help.diagnosticsBundle",
+        "help.guides",
+        "mcp.connect",
+        "models.open",
+        "project.open",
+      ].sort(),
+    );
+    expect(rows.filter((r) => r.disabledReason != null)).toEqual([]);
+    expect(rows.filter((r) => r.group === "help").map((r) => r.id)).toEqual([
+      "help.diagnosticsBundle",
+      "help.guides",
+    ]);
+  });
+});
+
 describe("paletteCommands", () => {
   beforeEach(() => {
     registerDawCommands();
@@ -112,6 +137,7 @@ describe("paletteCommands", () => {
     expect(stages.find((r) => r.id === "stage.record")?.icon).toBe("record");
     expect(rows.filter((r) => r.group === "help").map((r) => r.id)).toEqual([
       "help.diagnosticsBundle",
+      "help.guides",
     ]);
     expect(rows.find((r) => r.id === "edit.bladeCut")?.group).toBeUndefined();
   });

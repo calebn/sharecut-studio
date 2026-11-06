@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**146** capabilities · **112** ShareCut Studio commands · **63** keyed · **212** MCP tools · **17** skills on rows (+ **19** hub skills).
+**147** capabilities · **113** ShareCut Studio commands · **63** keyed · **212** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -81,7 +81,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Decrease track height | view | `view.trackHeightDecrease` | `Alt+-` | — | `viewSheet` | — | — | — | — | none · none |
 | Undo | project | `history.undo` | `Mod+Z` | `two-finger-tap` | `historyPanel`, `mobileShell.gesture.twoFingerTap`, `transcript.findReplace`, `transcript.wordbar` | `history_undo` | `podcast undo` | `podcast-history` | — | none · none |
 | Redo | project | `history.redo` | `Mod+Shift+Z` | — | `historyPanel` | `history_redo` | `podcast redo` | `podcast-history` | — | none · none |
-| Commands and shortcuts | view | `ui.toggleCommandPalette` | `?` | — | `GesturesSheet` | — | — | — | — | none · none |
+| Commands and shortcuts | view | `ui.toggleCommandPalette` | `?` | — | `home.help`, `GesturesSheet` | — | — | — | — | none · none |
 | Refresh mix | project | `render.refreshMix` | — (Mod+B belongs to the browser (bookmarks, bold); Refresh mix is in the palette and the mix ring) | — | `deliverShare` | `render_preview` | `podcast render-preview` | `podcast-play-audition` | — | none · none |
 | Bounce… | project | `export.bounce` | — (Mod+E opens Deliver with Bounce focused and the selected range filled in; Bounce is also in the palette and on Deliver) | — | `deliverBounce` | `bounce_audio_tool` | `podcast pipeline bounce` | `podcast-bounce-export` | yes | none · none |
 | Share… | project | `share.manage` | — (Invite, or Menu) | — | `deliverShare` | — | `podcast review share` | — | yes | none · none |
@@ -100,7 +100,8 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Stop take | view | `room.stop` | `R` | — | `RecordStage` | — | — | — | yes | none · none |
 | Pause or resume take | view | `room.pause` | `P` | — | `RecordStage` | — | — | — | yes | none · none |
 | Connect agent… | view | `mcp.connect` | — (dialog from Menu) | — | `HostMcpDialog` | — | — | — | yes | none · none |
-| Export diagnostics… | view | `help.diagnosticsBundle` | — (dialog from Home / Menu) | — | `home.help`, `HelpDialog` | — | `podcast doctor --bundle` | — | yes | none · none |
+| Export diagnostics… | view | `help.diagnosticsBundle` | — (dialog from Home / Menu) | — | `HelpDialog` | — | `podcast doctor --bundle` | — | yes | none · none |
+| Guides | view | `help.guides` | — (palette Help group) | — | — | — | — | — | — | none · none |
 | Manage models… | view | `models.open` | — (dialog from Home / palette) | — | `home.models`, `ModelsDialog` | `model_download`, `model_download_status` | `podcast setup` | — | yes | none · none |
 | Export deliverables… | project | `export.deliverables` | `Mod+E` | — | `deliverStage` | `export_audio_tool`, `bounce_audio_tool` | `podcast pipeline export-audio` | `podcast-master-export` | yes | none · none |
 | Export transcript… | project | `export.transcript` | — (Deliver page action, reached from the command palette) | — | `deliverTranscript` | `export_transcript`, `list_exported_transcripts` | `podcast transcript export` | `podcast-transcript-workflow` | yes | none · none |

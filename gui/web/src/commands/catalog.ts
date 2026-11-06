@@ -716,6 +716,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "ui",
     label: "Connect agent…",
     keywords: ["mcp", "ai", "assistant", "automation"],
+    home: true,
     when: "canManageProjects",
     notes: "Copy local Streamable HTTP MCP URL for Cursor/Claude",
   },
@@ -724,8 +725,18 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "ui",
     label: "Export diagnostics…",
     keywords: ["logs", "bug report", "support", "debug"],
+    home: true,
     when: "canManageProjects",
     notes: "Host-only sanitized diagnostics zip for bug reports",
+  },
+  "help.guides": {
+    id: "help.guides",
+    category: "ui",
+    label: "Guides",
+    keywords: ["docs", "documentation", "help", "manual", "learn"],
+    home: true,
+    when: "always",
+    notes: "Opens the documentation site in a new tab",
   },
   "models.open": {
     id: "models.open",
@@ -740,6 +751,7 @@ export const COMMANDS: Record<string, CommandDef> = {
       "aligner",
       "speaker",
     ],
+    home: true,
     when: "canManageProjects",
     notes:
       "Host-only dialog listing every model with its state, size and a download",
@@ -777,6 +789,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "ui",
     label: "Open project…",
     keywords: ["load", "switch", "episode"],
+    home: true,
     when: "canManageProjects",
     notes:
       "No key (Mod+O is project.home); OS dialog via local engine; Home's Open other… path field when there is none. Args: { path?: string } opens that episode without the picker (the palette's Projects group)",

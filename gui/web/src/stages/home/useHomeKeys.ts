@@ -27,7 +27,7 @@ export function homeKeyAction(
 }
 
 /**
- * Home's keys: Mod+I Import, R Record, Mod+O Open other, ? Help. Home is not
+ * Home's keys: Mod+I Import, R Record, Mod+O Open other, ? the command palette. Home is not
  * a project, so the project keymap is not mounted; these hold back for a field,
  * a focused button's own activation and any open menu or dialog.
  */
