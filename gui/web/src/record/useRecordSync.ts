@@ -138,8 +138,7 @@ export function useRecordSync(
       if (commandId) {
         frame.command_id = commandId;
       }
-      sender(frame);
-      return true;
+      return sender(frame);
     },
     [token],
   );
