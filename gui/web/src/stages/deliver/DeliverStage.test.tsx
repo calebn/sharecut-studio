@@ -25,6 +25,7 @@ import {
 } from "./deliverFixture";
 import type { ExportState } from "./deliverLogic";
 import { formatClock } from "./deliverLogic";
+import { type ListenFixture, listenOf } from "./listenFixture";
 import { SAMPLE_PREVIEW, transcriptOptions } from "./transcriptFixtures";
 
 const platform = vi.hoisted(() => ({ apple: false }));
@@ -55,7 +56,14 @@ function handlers() {
   };
 }
 
-function props(extra: Partial<DeliverStageProps> = {}): DeliverStageProps {
+/** The stage's props plus the plain fields the host's Listen link row is built from. */
+type Harness = DeliverStageProps & {
+  link?: ListenFixture;
+  onCopyLink?: () => void;
+  onRefreshMix?: () => void;
+};
+
+function props(extra: Partial<Harness> = {}): Harness {
   return {
     facts: CLEAR_FACTS,
     total: TOTAL,
@@ -67,16 +75,29 @@ function props(extra: Partial<DeliverStageProps> = {}): DeliverStageProps {
     clock: { time: "0:00", total: "52:00" },
     getPlayheadSec: () => 724,
     link: { url: null },
-    pinnedTo: "Rough cut",
     toastMs: 600_000,
     ...handlers(),
     ...extra,
   };
 }
 
-function setup(extra: Partial<DeliverStageProps> = {}) {
+function setup(extra: Partial<Harness> = {}) {
   const all = props(extra);
-  const view = render(<DeliverStage {...all} />);
+  const { link, onCopyLink, onRefreshMix, ...rest } = all;
+  const view = render(
+    <DeliverStage
+      {...rest}
+      listen={
+        rest.listen ??
+        listenOf({
+          ...link,
+          url: link?.url ?? null,
+          onCopy: onCopyLink,
+          onRefreshMix,
+        })
+      }
+    />,
+  );
   const stage = () => view.container.querySelector(".dv-stage") as HTMLElement;
   return { ...view, all, stage };
 }
@@ -646,10 +667,14 @@ describe("what each part of the page shows", () => {
 
   it("shows the listen link when ready and a skeleton while loading", () => {
     const ready = setup();
-    expect(screen.getByRole("button", { name: "Copy" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Copy listen link" }),
+    ).toBeInTheDocument();
     ready.unmount();
     setup({ state: "loading" });
-    expect(screen.queryByRole("button", { name: "Copy" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Copy listen link" }),
+    ).toBeNull();
   });
 
   it("marks the page busy only while loading", () => {
@@ -773,7 +798,9 @@ describe("host callbacks", () => {
     expect(running.all.onCancel).toHaveBeenCalledOnce();
     await userEvent.click(screen.getByRole("button", { name: "Change" }));
     expect(running.all.onChangeFolder).toHaveBeenCalledOnce();
-    await userEvent.click(screen.getByRole("button", { name: "Copy" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Copy listen link" }),
+    );
     expect(running.all.onCopyLink).toHaveBeenCalledOnce();
     await userEvent.click(
       screen.getByRole("button", { name: "Play from The old mill" }),
@@ -1186,15 +1213,15 @@ describe("files of an export", () => {
 });
 
 describe("the phone layout", () => {
-  it("shows chapters and clips once, and Share instead of Copy", () => {
+  it("shows chapters and clips once, and the Listen link row", () => {
     setup({ layout: "phone" });
     expect(screen.getAllByRole("heading", { name: "Chapters" })).toHaveLength(
       1,
     );
     expect(screen.getAllByRole("heading", { name: "Clips" })).toHaveLength(1);
-    expect(screen.getByRole("button", { name: "Share" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Copy" })).toBeNull();
-    expect(screen.queryByText("Viewer")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Copy listen link" }),
+    ).toBeInTheDocument();
   });
 
   it("shows chapters and clips once on desktop too, with the word Viewer", () => {
@@ -1204,7 +1231,9 @@ describe("the phone layout", () => {
     );
     expect(screen.getAllByRole("heading", { name: "Clips" })).toHaveLength(1);
     expect(screen.getByText("Viewer")).toBeInTheDocument();
-    expect(screen.getByText("Pinned to Rough cut")).toBeInTheDocument();
+    expect(
+      screen.getByText("Pinned to the version current when you copy it"),
+    ).toBeInTheDocument();
   });
 });
 
@@ -1268,7 +1297,6 @@ describe("rendering the whole page", () => {
         exportState: DONE,
         link: {
           url: "https://x.example/abc",
-          openedBy: [{ name: "Rosa" }, { name: "Jon" }],
         },
       });
       expect(error).not.toHaveBeenCalled();
@@ -1469,8 +1497,8 @@ describe.each(["desktop", "phone"] as const)(
       }
     });
 
-    it("Copy or Share reaches onCopyLink alone, in every phase", async () => {
-      const label = layout === "phone" ? "Share" : "Copy";
+    it("Copy reaches onCopyLink alone, in every phase", async () => {
+      const label = "Copy listen link";
       for (const exportState of [NEVER, DONE]) {
         const { all, unmount } = setup({
           layout,
@@ -2161,27 +2189,24 @@ describe("round three of the audit: In at the end of the episode", () => {
 
 describe("round three of the audit: the listen link through the stage", () => {
   const URL = "https://share.example.app/l/7Hq2mXk9TnP4vLr8Za3w";
-  const link = { url: URL, openedBy: [{ name: "Rosa" }, { name: "Jon" }] };
+  const link = { url: URL };
 
   it.each(["desktop", "phone"] as const)(
-    "passes the whole link and openers on %s",
+    "passes the whole link on %s",
     (layout) => {
       const { container } = setup({ layout, link });
       expect(container.querySelector(".sys-link-text")).toHaveAttribute(
         "title",
         URL,
       );
-      expect(
-        screen.getByRole("img", { name: "Opened by Rosa, Jon" }),
-      ).toBeInTheDocument();
     },
   );
 
   it.each([
-    ["desktop", "copied", "Copied"],
-    ["phone", "copied", "Copied"],
-    ["desktop", "blocked", "Press Ctrl C"],
-    ["phone", "blocked", "Share"],
+    ["desktop", "copied", /^Copied/],
+    ["phone", "copied", /^Copied/],
+    ["desktop", "blocked", /^Press Ctrl C/],
+    ["phone", "blocked", /^Press Ctrl C/],
   ] as const)("on %s a %s clipboard says %s", (layout, copyState, label) => {
     const { container } = setup({ layout, link: { ...link, copyState } });
     expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
@@ -2195,7 +2220,7 @@ describe("round three of the audit: the listen link through the stage", () => {
     platform.apple = true;
     setup({ link: { ...link, copyState: "blocked" } });
     expect(
-      screen.getByRole("button", { name: "Press ⌘ C" }),
+      screen.getByRole("button", { name: /^Press ⌘ C/ }),
     ).toBeInTheDocument();
   });
 });
@@ -2491,7 +2516,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
     url: "https://share.example.app/l/7Hq2mXk9TnP4vLr8Za3w",
     openedBy: [{ name: "Rosa" }],
   };
-  const STATES: [string, Partial<DeliverStageProps>][] = [
+  const STATES: [string, Partial<Harness>][] = [
     ["ready", {}],
     ["loading", { state: "loading" }],
     ["error", { state: "error" }],
@@ -2515,7 +2540,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
       },
     ],
     ["no mix", { link: { url: null, noMix: true } }],
-    ["no mix with a link", { link: { ...LINKED, noMix: true } }],
     ["with a link", { link: LINKED }],
     ["without a link", { link: { url: null } }],
     ["blocked clipboard", { link: { ...LINKED, copyState: "blocked" } }],
@@ -2585,7 +2609,8 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Play Cold open",
             "Unapprove Cold open",
             "More for Cold open",
-            "Copy",
+            "Pin to this version (disabled)",
+            "Copy listen link",
             "0:00 / 52:00. Expand player",
             "Back 15 seconds",
             "Play",
@@ -2644,7 +2669,10 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Play Cold open",
             "Unapprove Cold open",
             "More for Cold open",
-            "Press Ctrl C",
+            "Reachable from anywhere",
+            "Pin to this version (disabled)",
+            "Press Ctrl C listen link",
+            "More for listen link",
             "0:00 / 52:00. Expand player",
             "Back 15 seconds",
             "Play",
@@ -2706,7 +2734,10 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Play Cold open",
             "Unapprove Cold open",
             "More for Cold open",
-            "Copy",
+            "Reachable from anywhere",
+            "Pin to this version (disabled)",
+            "Copy listen link",
+            "More for listen link",
             "0:00 / 52:00. Expand player",
             "Back 15 seconds",
             "Play",
@@ -2766,7 +2797,10 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Play Cold open",
             "Unapprove Cold open",
             "More for Cold open",
-            "Copy",
+            "Reachable from anywhere",
+            "Pin to this version (disabled)",
+            "Copy listen link",
+            "More for listen link",
             "0:00 / 52:00. Expand player",
             "Back 15 seconds",
             "Play",
@@ -2835,7 +2869,8 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Play Cold open",
             "Unapprove Cold open",
             "More for Cold open",
-            "Copy",
+            "Pin to this version (disabled)",
+            "Copy listen link",
             "0:00 / 52:00. Expand player",
             "Back 15 seconds",
             "Play",
@@ -3040,7 +3075,8 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Play Cold open",
             "Unapprove Cold open",
             "More for Cold open",
-            "Copy",
+            "Pin to this version (disabled)",
+            "Copy listen link",
             "0:00 / 52:00. Expand player",
             "Back 15 seconds",
             "Play",
@@ -3100,7 +3136,8 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Play Cold open",
             "Unapprove Cold open",
             "More for Cold open",
-            "Copy",
+            "Pin to this version (disabled)",
+            "Copy listen link",
             "0:00 / 52:00. Expand player",
             "Back 15 seconds",
             "Play",
@@ -3161,7 +3198,8 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Play Cold open",
             "Unapprove Cold open",
             "More for Cold open",
-            "Copy",
+            "Pin to this version (disabled)",
+            "Copy listen link",
             "0:00 / 52:00. Expand player",
             "Back 15 seconds",
             "Play",
@@ -3221,7 +3259,10 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Play Cold open",
             "Unapprove Cold open",
             "More for Cold open",
-            "Copy",
+            "Reachable from anywhere",
+            "Pin to this version (disabled)",
+            "Copy listen link",
+            "More for listen link",
             "0:00 / 52:00. Expand player",
             "Back 15 seconds",
             "Play",
@@ -3280,7 +3321,8 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Play Cold open",
             "Unapprove Cold open",
             "More for Cold open",
-            "Copy",
+            "Pin to this version (disabled)",
+            "Copy listen link",
             "0:00 / 52:00. Expand player",
             "Back 15 seconds",
             "Play",
@@ -3319,7 +3361,8 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Whole episode",
             "Part…",
             "Change",
-            "Share",
+            "Pin to this version (disabled)",
+            "Copy listen link",
             "Play from Cold open",
             "Remove Cold open",
             "Play from The old mill",
@@ -3378,7 +3421,10 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Whole episode",
             "Part…",
             "Change",
-            "Share",
+            "Reachable from anywhere",
+            "Pin to this version (disabled)",
+            "Press Ctrl C listen link",
+            "More for listen link",
             "Play from Cold open",
             "Remove Cold open",
             "Play from The old mill",
@@ -3440,7 +3486,10 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Reveal field-notes.mp3, 50 MB",
             "Reveal field-notes.wav, 550 MB",
             "Reveal cold-open.wav, 6 MB",
-            "Share",
+            "Reachable from anywhere",
+            "Pin to this version (disabled)",
+            "Copy listen link",
+            "More for listen link",
             "Play from Cold open",
             "Remove Cold open",
             "Play from The old mill",
@@ -3500,7 +3549,10 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Whole episode",
             "Part…",
             "Change",
-            "Share",
+            "Reachable from anywhere",
+            "Pin to this version (disabled)",
+            "Copy listen link",
+            "More for listen link",
             "Play from Cold open",
             "Remove Cold open",
             "Play from The old mill",
@@ -3569,7 +3621,8 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Part…",
             "Change",
             "Cancel",
-            "Share",
+            "Pin to this version (disabled)",
+            "Copy listen link",
             "Play from Cold open",
             "Remove Cold open",
             "Play from The old mill",
@@ -3775,7 +3828,8 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Whole episode",
             "Part…",
             "Change",
-            "Share",
+            "Pin to this version (disabled)",
+            "Copy listen link",
             "Play from Cold open",
             "Remove Cold open",
             "Play from The old mill",
@@ -3835,7 +3889,8 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Part…",
             "Change",
             "Export again",
-            "Share",
+            "Pin to this version (disabled)",
+            "Copy listen link",
             "Play from Cold open",
             "Remove Cold open",
             "Play from The old mill",
@@ -3896,7 +3951,8 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Part…",
             "Change",
             "Get",
-            "Share",
+            "Pin to this version (disabled)",
+            "Copy listen link",
             "Play from Cold open",
             "Remove Cold open",
             "Play from The old mill",
@@ -3956,7 +4012,10 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Whole episode",
             "Part…",
             "Change",
-            "Share",
+            "Reachable from anywhere",
+            "Pin to this version (disabled)",
+            "Copy listen link",
+            "More for listen link",
             "Play from Cold open",
             "Remove Cold open",
             "Play from The old mill",
@@ -4015,7 +4074,8 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Whole episode",
             "Part…",
             "Change",
-            "Share",
+            "Pin to this version (disabled)",
+            "Copy listen link",
             "Play from Cold open",
             "Remove Cold open",
             "Play from The old mill",
@@ -4080,19 +4140,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
       "data-state",
       "done",
     );
-  });
-
-  it("shows Make a mix to share instead of a link when both arrive", () => {
-    const { all } = setup({
-      link: { url: "https://share.example.app/l/abc", noMix: true },
-    });
-    expect(screen.getByText("Make a mix to share")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Refresh mix" }),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Copy" })).toBeNull();
-    expect(screen.queryByTitle("https://share.example.app/l/abc")).toBeNull();
-    expect(all.onCopyLink).not.toHaveBeenCalled();
   });
 
   it.each([

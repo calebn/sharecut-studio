@@ -1,12 +1,9 @@
 import type { ShareOptions } from "../../stages/deliver/shareLogic";
-import type { TunnelStatus } from "../../types/tunnel";
 import type { ShareFlow } from "./shareFlowContext";
 
 export function shareOptionsOf(
   flow: ShareFlow,
   host: {
-    /** Online sharing state; null without the `tunnel.status` feature. */
-    tunnel: TunnelStatus | null;
     /** Why sharing is unavailable (the command's reason). */
     blockedReason?: string;
     onOpenRecord?: () => void;
@@ -25,7 +22,7 @@ export function shareOptionsOf(
     status: flow.status,
     copiedKey: flow.copiedKey,
     blockedKey: flow.blockedKey,
-    tunnel: host.tunnel,
+    tunnel: flow.tunnel,
     blockedReason: host.blockedReason,
     onCreate: flow.create,
     onRefreshMix: flow.refreshMix,

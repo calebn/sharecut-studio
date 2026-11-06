@@ -603,15 +603,6 @@ export const COMMANDS: Record<string, CommandDef> = {
     notes:
       "Open the Invite sheet on any stage: review, record and listen links. Args: at = record to open at the Record links",
   },
-  "share.copyListenLink": {
-    id: "share.copyListenLink",
-    category: "ui",
-    label: "Copy listen link",
-    keywords: ["share", "listen", "viewer", "podcast"],
-    when: "hostProjectLoaded",
-    notes:
-      "Copy the listen link: a Viewer link frozen on the version current when first copied, made on first use. Palette only",
-  },
   "record.createRoom": {
     id: "record.createRoom",
     category: "ui",
