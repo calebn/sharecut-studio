@@ -166,6 +166,18 @@ describe("Composer", () => {
     expect(field()).toHaveFocus();
   });
 
+  it("does not take focus when it mounts after an earlier post", () => {
+    render(
+      <Composer
+        body=""
+        onBodyChange={noop}
+        onSubmit={noop}
+        name={{ value: "Dana", onChange: noop, saved: true, postedRev: 3 }}
+      />,
+    );
+    expect(field()).not.toHaveFocus();
+  });
+
   it("asks for the name when none is saved", () => {
     render(<Harness name={{ value: "", onChange: noop }} />);
     expect(

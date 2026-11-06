@@ -111,6 +111,16 @@ describe("reviewEntriesOf", () => {
     expect(reviewCountOf(pending, true)).toBe(1);
   });
 
+  it("counts overlapping spans inside one edit once", () => {
+    const item = itemOf({
+      timeline_spans: [
+        { start: 1, end: 3 },
+        { start: 2, end: 4 },
+      ],
+    });
+    expect(item.savedSeconds).toBe(3);
+  });
+
   it("keeps the removed ranges so overlapping edits can be counted once", () => {
     const item = itemOf({
       timeline_spans: [

@@ -613,6 +613,15 @@ describe("what a set of edits saves", () => {
     ).toBeCloseTo(3.5);
   });
 
+  it("falls back to an item's seconds when its only ranges are empty, and skips a NaN figure", () => {
+    expect(
+      sumSaved([
+        item({ id: "a", savedSeconds: 2, spans: [[5, 5]] }),
+        item({ id: "b", savedSeconds: Number.NaN }),
+      ]),
+    ).toBe(2);
+  });
+
   it("ignores empty and non-finite ranges", () => {
     expect(
       sumSaved([

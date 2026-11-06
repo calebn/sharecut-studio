@@ -10,6 +10,7 @@ import { verbOf } from "../system/verbDisplay";
 import type { VerbId } from "../system/verbs";
 import { TRANSCRIPT_REFINE_REFUSAL } from "../utils/apiError";
 import { plural } from "../utils/format";
+import { unionSeconds } from "./rangeUnion";
 
 export type ReviewResult = "applied" | "kept";
 
@@ -138,32 +139,21 @@ const byRisk = (a: ReviewItem, b: ReviewItem) =>
   (b.risk?.rank ?? 0) - (a.risk?.rank ?? 0) || byTime(a, b);
 
 /**
- * What the timeline actually shortens by: the union of the removed ranges, so two edits over
- * the same moment save it once. An item with no ranges counts its own seconds.
+ * Overlapping cuts on two tracks remove one moment, so ranges are merged rather than summed.
+ * An item with no usable range falls back to its own seconds.
  */
 export function sumSaved(items: readonly ReviewItem[]): number {
-  const ranges: [number, number][] = [];
+  const ranges: (readonly [number, number])[] = [];
   let loose = 0;
   for (const item of items) {
-    if (item.spans?.length) {
-      for (const [start, end] of item.spans) {
-        if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
-          ranges.push([start, end]);
-        }
-      }
-    } else {
-      loose += item.savedSeconds;
-    }
+    const usable = (item.spans ?? []).filter(
+      ([start, end]) =>
+        Number.isFinite(start) && Number.isFinite(end) && end > start,
+    );
+    if (usable.length) ranges.push(...usable);
+    else if (Number.isFinite(item.savedSeconds)) loose += item.savedSeconds;
   }
-  ranges.sort((a, b) => a[0] - b[0]);
-  let covered = 0;
-  let edge = Number.NEGATIVE_INFINITY;
-  for (const [start, end] of ranges) {
-    const from = Math.max(start, edge);
-    if (end > from) covered += end - from;
-    edge = Math.max(edge, end);
-  }
-  return loose + covered;
+  return loose + unionSeconds(ranges);
 }
 
 /** Groups of undecided items in queue order: kind order, then time. */
