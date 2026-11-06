@@ -31,7 +31,7 @@ Step flows: [Guest journeys](#/journeys).
 | `action` | Check off comment action items |
 | `suggest` | Commenter and Editor. Propose structural cuts (pending); nudge its own suggestions; **not** hard-apply |
 | `edit` | Editor only. Approve/reject pending, fades/joins, FX bypass, apply structural cuts |
-| `mcp` | Connect an **external** agent at `{base}/mcp/{token}/mcp` (host Share section copies the MCP URL when the host allowed AI assistants; **no guest in-app MCP connect UI**) |
+| `mcp` | Connect an **external** agent at `{base}/mcp/{token}/mcp` (the host Invite sheet copies the MCP URL when the host allowed AI assistants; **no guest in-app MCP connect UI**) |
 
 ### ShareCut Studio guest chrome (when `view` is granted)
 
