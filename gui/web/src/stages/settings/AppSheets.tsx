@@ -32,7 +32,6 @@ export type AppSheetsProps = {
   agentName: string | null;
 };
 
-/** Help, Connect agent and Settings: three sheets that share one place and never stack. */
 export function AppSheets({
   helpOpen,
   agentOpen,

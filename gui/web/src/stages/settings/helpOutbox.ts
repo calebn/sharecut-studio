@@ -2,10 +2,6 @@ import { useSyncExternalStore } from "react";
 import { submitDiagnosticsReport } from "../../api";
 import { referenceOf } from "./helpReport";
 
-/**
- * The report waiting for a connection. It lives outside the sheet so closing
- * the sheet does not drop a report that was promised to send when online.
- */
 export type Outbox =
   | { kind: "empty" }
   | { kind: "waiting"; filename: string; description: string }
@@ -61,7 +57,6 @@ export function queueReport(filename: string, description: string): void {
   set({ kind: "waiting", filename, description });
 }
 
-/** Forgets a finished report; one still waiting or sending is kept. */
 export function clearOutbox(): void {
   if (state.kind !== "waiting" && state.kind !== "sending") set(EMPTY);
 }

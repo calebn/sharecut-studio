@@ -1,7 +1,6 @@
 export const MIN_DESCRIPTION = 10;
 export const MAX_DESCRIPTION = 4000;
 
-/** The id characters kept in the reference a person can read out. */
 const REFERENCE_CHARS = 8;
 
 export type BundlePreview = {
@@ -12,7 +11,6 @@ export type BundlePreview = {
   appVersion: string;
 };
 
-/** Where a report is, after the person pressed Send report. */
 export type ReportPhase =
   | { kind: "editing" }
   | { kind: "sending" }
@@ -35,7 +33,6 @@ export const PUBLIC_LINE =
 export const SAVED_LOCALLY = "Saved on this computer.";
 export const QUEUED_DETAIL = "It sends when you're online.";
 
-/** The last path segment of the relay's status URL, shortened so it reads aloud. */
 export function referenceOf(statusUrl: string): string {
   const id =
     statusUrl.split("?")[0]?.split("/").filter(Boolean).at(-1) ?? statusUrl;
@@ -54,7 +51,6 @@ export function sizeLabel(bytes: number): string {
   return kib < 1024 ? `${kib.toFixed(1)} KB` : `${(kib / 1024).toFixed(1)} MB`;
 }
 
-/** The support page, pre-filled when it is the project's GitHub issue tracker. */
 export function supportLink(
   base: string | null,
   description: string,

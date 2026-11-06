@@ -39,11 +39,6 @@ async function makeBundle(): Promise<BundlePreview> {
   };
 }
 
-/**
- * Report a problem over the diagnostics API: the bundle is made on this
- * computer, shown on request, and uploaded only when the person sends it.
- * Offline, the bundle stays here and the outbox sends it on reconnect.
- */
 export function useHelpReport(open: boolean): HelpReport {
   const [description, setDescriptionState] = useState("");
   const [preview, setPreview] = useState<PreviewState>({ kind: "closed" });
@@ -199,7 +194,6 @@ export function useHelpReport(open: boolean): HelpReport {
   };
 }
 
-/** A report that went to the outbox shows what the outbox did with it. */
 function phaseOf(
   local: ReportPhase,
   outbox: ReturnType<typeof useHelpOutbox>,

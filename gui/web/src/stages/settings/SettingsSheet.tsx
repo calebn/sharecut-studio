@@ -20,11 +20,6 @@ export type SettingsSheetProps = {
   onMoveFolder?: () => void;
 };
 
-/**
- * Settings: how the app looks, where the open episode lives, and the models.
- * Every other setting lives where it is used (loudness in Deliver, vocabulary
- * in Prepare). Choices apply as they are made; there is no Apply.
- */
 export function SettingsSheet({
   form,
   open,

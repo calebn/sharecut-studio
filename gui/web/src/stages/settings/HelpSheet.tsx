@@ -167,10 +167,6 @@ function Result({
   );
 }
 
-/**
- * Help: three rows, and Report a problem as a step inside the same sheet.
- * Presentational: the report's state comes in as props.
- */
 export function HelpSheet({
   form,
   open,
