@@ -99,6 +99,7 @@ export function useShortFrame(frame: RefObject<HTMLElement | null>): boolean {
   const [short, setShort] = useState(false);
   const header = () => frame.current?.querySelector(".stage-frame-header");
   const player = () => frame.current?.querySelector(".stage-frame-player");
+  const dock = () => frame.current?.querySelector(".edit-dock");
   // What a stage shows changes the fit (the Edit rows exist only on Edit) with
   // no resize of the frame, the header or the Player to report it.
   const shown = useDawStore((s) => `${s.stage}:${s.editSurface}`);
@@ -111,7 +112,7 @@ export function useShortFrame(frame: RefObject<HTMLElement | null>): boolean {
     if (folds) root.dataset[FOLD_ATTRIBUTE] = "";
     else delete root.dataset[FOLD_ATTRIBUTE];
   };
-  useResizeObserver([frame, header, player], update);
+  useResizeObserver([frame, header, player, dock], update);
   // biome-ignore lint/correctness/useExhaustiveDependencies: `shown` is the trigger.
   useLayoutEffect(update, [frame, shown]);
   useEffect(
