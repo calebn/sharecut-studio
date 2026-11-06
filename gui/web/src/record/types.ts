@@ -221,7 +221,7 @@ export function storageLowCopy(minutes: number): string {
 export const UPLOAD_WAITING_TO_LAND_COPY =
   "Saved to project. This device keeps its copy until the host lands it on the timeline.";
 export const UPLOAD_LAND_FAILED_COPY =
-  "Saved to project, but not on the timeline yet. This device keeps its copy; ask the host to Retry land.";
+  "Saved to project, but not on the timeline yet. This device keeps its copy; ask the host to retry landing.";
 export const UPLOAD_SINK_ERROR_COPY =
   "This device can't store your full-quality recording. Check that this browser or app allows local storage, then retry.";
 export const OPFS_UNAVAILABLE_COPY =

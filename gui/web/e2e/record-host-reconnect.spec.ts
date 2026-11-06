@@ -26,7 +26,6 @@ import {
   hostRecordConnected,
   hostRecordSnapshot,
   joinAsGuest,
-  landParticipant,
   markSharecutE2e,
   openHostRecordRoom,
   readSavedProject,
@@ -34,6 +33,7 @@ import {
   roomPill,
   stopHostTake,
   waitForSegmentsAcked,
+  waitForTakeLanded,
 } from "./recordRoom";
 import { withShareableProject } from "./shareableProject";
 import { withBrowserPages } from "./twoBrowserPages";
@@ -341,7 +341,7 @@ test.describe("record host reconnect", () => {
             expect(uploadPath).toBe(expectedUploadPath);
           }
 
-          await landParticipant(roomDlg, "Ava");
+          await waitForTakeLanded(host, projectPath);
           await expect(roomPill(guest)).toHaveText("Saved", {
             timeout: 30_000,
           });

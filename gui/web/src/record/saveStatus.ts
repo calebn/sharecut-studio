@@ -56,7 +56,7 @@ export function segmentLabel(
 export function segmentStatusText(save: SegmentSave): string {
   if (save.state === "saved") {
     return save.landFailed
-      ? `${SAVE_STATE_COPY.saved}. Landing failed. Use Retry land.`
+      ? `${SAVE_STATE_COPY.saved}. Landing failed. Use Retry on the take.`
       : SAVE_STATE_COPY.saved;
   }
   return save.chunks

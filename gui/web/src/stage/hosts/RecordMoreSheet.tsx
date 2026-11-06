@@ -1,17 +1,13 @@
-import { type ComponentProps, useId, useState } from "react";
-import { type LandGate, STOP_CONFIRM_COPY, UploadStatus } from "../../record";
+import { type ComponentProps, useId } from "react";
+import { UploadStatus } from "../../record";
 import { Sheet } from "../../system/Sheet";
-import { Button, InlineConfirm, ToggleButton } from "../../ui";
+import { Button, ToggleButton } from "../../ui";
 import { BUSY_REASON } from "../../ui/disabledReason";
 
 export type RecordMoreSheetProps = {
   open: boolean;
   onClose: () => void;
   busy: boolean;
-  land: LandGate | null;
-  onLand: () => void;
-  canStop: boolean;
-  onStop: () => void;
   upload: ComponentProps<typeof UploadStatus>["progress"];
   keeperActions: ComponentProps<typeof UploadStatus>["actions"];
   stopped: boolean;
@@ -37,10 +33,6 @@ export function RecordMoreSheet({
   open,
   onClose,
   busy,
-  land,
-  onLand,
-  canStop,
-  onStop,
   upload,
   keeperActions,
   stopped,
@@ -57,49 +49,11 @@ export function RecordMoreSheet({
   onEndSession,
   endReason,
 }: RecordMoreSheetProps) {
-  const [confirming, setConfirming] = useState(false);
   const helpId = useId();
   const micHelpId = useId();
   return (
-    <Sheet
-      form="centered"
-      title="More"
-      open={open}
-      onClose={() => {
-        setConfirming(false);
-        onClose();
-      }}
-    >
+    <Sheet form="centered" title="More" open={open} onClose={onClose}>
       <div className="stack">
-        {canStop ? (
-          confirming ? (
-            <InlineConfirm
-              prompt={STOP_CONFIRM_COPY}
-              keepLabel="Keep recording"
-              actionLabel="Stop take"
-              disabledReason={busy ? BUSY_REASON : undefined}
-              onKeep={() => setConfirming(false)}
-              onConfirm={() => {
-                setConfirming(false);
-                onClose();
-                onStop();
-              }}
-            />
-          ) : (
-            <Button variant="danger" onClick={() => setConfirming(true)}>
-              Stop take
-            </Button>
-          )
-        ) : null}
-        {land ? (
-          <Button
-            disabledReason={land.enabled ? undefined : land.reason}
-            aria-disabled={busy || undefined}
-            onClick={onLand}
-          >
-            {land.label}
-          </Button>
-        ) : null}
         <UploadStatus
           progress={upload}
           stopped={stopped}

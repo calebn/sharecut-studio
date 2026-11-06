@@ -6,12 +6,7 @@ import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import { errorMessage } from "../utils/apiError";
 import { sourceIdPointToTimeline } from "../utils/timebase";
-import {
-  endGate,
-  landGate,
-  startBlockerItems,
-  TAKE_CONTROL,
-} from "./hostControls";
+import { endGate, startBlockerItems, TAKE_CONTROL } from "./hostControls";
 import {
   prepareHostKeeperStorage,
   retryHostKeeperStorage,
@@ -217,10 +212,6 @@ export function useHostRoom(
     : [];
   const startBlocked =
     control?.commandId === "record.start" && blockers.length > 0;
-  const land =
-    snapshot && snapshot.take_index >= 0
-      ? landGate(snapshot, hostSegments)
-      : null;
   const retryStorage = useCallback(() => {
     void retryHostKeeperStorage().catch(() => undefined);
   }, []);
@@ -426,7 +417,6 @@ export function useHostRoom(
     control,
     blockers,
     startBlocked,
-    land,
     retryStorage,
     resumeUpload,
     liveComments,

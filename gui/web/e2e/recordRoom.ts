@@ -527,30 +527,25 @@ export async function openHostDevices(scope: Page | Locator): Promise<Locator> {
   return dialog;
 }
 
-export async function closeHostMore(scope: Page | Locator): Promise<void> {
-  const dialog = hostMoreDialog(scope);
-  if (await dialog.isVisible()) {
-    await dialog.getByRole("button", { name: "Close", exact: true }).click();
-    await expect(dialog).toBeHidden();
-  }
-}
-
-/** Stop asks once in the More sheet; answer it and wait for the room to stop. */
+/** Stop with the dock's Record button: Enter asks once, then the confirm stops the take. */
 export async function stopHostTake(
   host: Page,
   room: Locator,
   projectPath: string,
 ): Promise<void> {
-  const more = await openHostMore(room);
-  await more.getByRole("button", { name: "Stop take", exact: true }).click();
+  await room
+    .getByRole("button", { name: "Stop take", exact: true })
+    .press("Enter");
   await clickHostTransport(
     host,
-    more.getByRole("button", { name: "Stop take", exact: true }),
+    room
+      .locator(".sys-record-confirm")
+      .getByRole("button", { name: "Stop take", exact: true }),
     projectPath,
     "Stop",
     "stopped",
   );
-  await expect(more).toBeHidden();
+  await expect(room.locator(".sys-record-confirm")).toBeHidden();
 }
 
 /** Open the host's Record stage and return its root. */
@@ -559,32 +554,40 @@ export async function openHostRecordRoom(host: Page): Promise<Locator> {
 }
 
 /**
- * Wait for the take to land on the timeline from the More sheet: click Land
- * when it is enabled, or accept that auto-land already finished it (the
- * disabled Land button then carries "Every take is on the timeline.").
+ * Wait for every segment of take 0 to land on the timeline. The server lands
+ * each segment on its file ACK, so this only polls and fails fast on a failed land.
  */
-export async function landParticipant(
-  room: Locator,
-  _name: string,
+export async function waitForTakeLanded(
+  host: Page,
+  projectPath: string,
 ): Promise<void> {
-  const more = await openHostMore(room);
-  const landButton = more.getByRole("button", { name: /^(Retry )?Land$/ });
-  const landedTitle = "Every take is on the timeline.";
-  const state = async () => {
-    if ((await landButton.getAttribute("title")) === landedTitle) {
-      return "landed";
-    }
-    return (await landButton.isEnabled()) ? "land" : "waiting";
-  };
-  await expect.poll(state, { timeout: 60_000 }).not.toBe("waiting");
-  if ((await state()) === "land") {
-    await landButton.click({ timeout: 5_000 }).catch(async (error: unknown) => {
-      if ((await state()) !== "landed") throw error;
-    });
-  }
-  await expect(landButton).toHaveAttribute("title", landedTitle, {
-    timeout: 60_000,
-  });
+  await expect
+    .poll(
+      async () => {
+        const res = await host.request.get("/api/record/upload", {
+          params: { path: projectPath },
+        });
+        if (!res.ok()) return `upload status ${res.status()}`;
+        const body = (await res.json()) as {
+          segments?: Array<{
+            take_index?: number;
+            landed?: boolean;
+            land_failed?: boolean;
+          }>;
+        };
+        const rows = (body.segments ?? []).filter(
+          (seg) => seg.take_index === 0,
+        );
+        if (rows.some((seg) => seg.land_failed)) {
+          throw new Error(`a segment failed to land: ${JSON.stringify(rows)}`);
+        }
+        return rows.length > 0 && rows.every((seg) => seg.landed)
+          ? "landed"
+          : `waiting on ${rows.filter((seg) => !seg.landed).length} of ${rows.length} segments`;
+      },
+      { timeout: 60_000 },
+    )
+    .toBe("landed");
 }
 
 /**
