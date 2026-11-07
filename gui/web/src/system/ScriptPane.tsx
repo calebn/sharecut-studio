@@ -1131,7 +1131,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
 
     const bodyShown = status.kind !== "empty" && status.kind !== "loading";
     const restoreReadingPosition = useCallback(() => {
-      if (selectionViewport.current !== "idle") {
+      if (selectionViewport.current !== "idle" || grabbed.current !== null) {
         captureReadingPosition();
         return;
       }
@@ -1147,12 +1147,19 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       ) {
         const anchor = registry.current.get(position.index);
         if (anchor && body.contains(anchor)) {
-          const paneTop = body.getBoundingClientRect().top;
-          target =
-            body.scrollTop +
-            anchor.getBoundingClientRect().top -
-            paneTop -
-            position.offset;
+          const pane = body.getBoundingClientRect();
+          const word = anchor.getBoundingClientRect();
+          let offset = position.offset;
+          if (anchor.contains(document.activeElement)) {
+            const top = Math.max(0, -pane.top);
+            const bottom = Math.min(
+              body.clientHeight,
+              pane.height,
+              window.innerHeight - pane.top,
+            );
+            offset = Math.max(top, Math.min(offset, bottom - word.height));
+          }
+          target = body.scrollTop + word.top - pane.top - offset;
         }
       }
       const maximum = Math.max(0, body.scrollHeight - body.clientHeight);
@@ -1299,9 +1306,16 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       bodyShown &&
       !selecting;
     // The grips can go while one is held (the selection is lost), and then no release comes.
+    const gripsPresent = handlesShown && places !== null;
     useEffect(() => {
-      if (!handlesShown) setDragging(false);
-    }, [handlesShown]);
+      if (!gripsPresent) {
+        grabbed.current = null;
+        setDragging(false);
+      }
+      return () => {
+        grabbed.current = null;
+      };
+    }, [gripsPresent]);
     const startStop = span ? stopContaining(stops, span.start) : undefined;
     const endStop = span ? stopContaining(stops, span.end) : undefined;
     const startAt = startStop?.start;
@@ -1588,7 +1602,10 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
                       : null;
                   setDragging(true);
                 }}
-                onRelease={() => setDragging(false)}
+                onRelease={() => {
+                  grabbed.current = null;
+                  setDragging(false);
+                }}
               />
             ) : null}
           </div>
