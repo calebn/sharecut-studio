@@ -7,6 +7,7 @@ import type {
   ModelStatus,
 } from "../api";
 import * as api from "../api";
+import { setupOf } from "../stages/home/homeModel";
 import { ApiError } from "../utils/apiError";
 import { ModelNeedRowView } from "./ModelNeedRow";
 import { ModelsProvider } from "./ModelsProvider";
@@ -121,6 +122,19 @@ async function mounted() {
 }
 
 describe("ModelsProvider", () => {
+  it("keeps Home status retry available when a read fails after an installed snapshot", async () => {
+    fetchStatus.mockResolvedValue(
+      status(
+        MISSING.map((m) => ({ ...m, state: "installed" })),
+        { ready: true },
+      ),
+    );
+    const { result } = await mounted();
+    expect(setupOf(result.current)).toBeNull();
+    fetchStatus.mockRejectedValueOnce(new Error("Status offline"));
+    await act(() => result.current.refresh());
+    expect(setupOf(result.current)?.state).toBe("check-error");
+  });
   it("loads status and the current job once at mount and posts nothing", async () => {
     const { result } = await mounted();
     expect(fetchStatus).toHaveBeenCalledTimes(1);
@@ -505,8 +519,20 @@ describe("ModelsProvider", () => {
       await outcome;
     });
     expect(result.current.models![0]!.state.kind).toBe("failed");
+    fetchStatus.mockResolvedValue(
+      status(
+        [
+          row({ id: "whisper", model: "small.en", tier: "required" }),
+          MISSING[1]!,
+        ],
+        { whisper_model: "small.en" },
+      ),
+    );
     act(() => result.current.whisper.choose("small.en"));
-    expect(result.current.models![0]!.state.kind).toBe("missing");
+    expect(result.current.models![0]!.state.kind).toBe("checking");
+    await waitFor(() =>
+      expect(result.current.models![0]!.state.kind).toBe("missing"),
+    );
   });
 
   it("refetches status for a chosen variant and drops a stale response", async () => {

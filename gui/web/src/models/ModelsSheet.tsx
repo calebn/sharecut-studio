@@ -14,7 +14,7 @@ type Props = {
 
 export function ModelsSheet({ open, onClose }: Props) {
   const phone = useViewportClass() === "phone";
-  const { models, tools, busy, loadError } = useModels();
+  const { models, tools, busy, loadError, refresh, observation } = useModels();
   return (
     <Sheet
       form={phone ? "bottom" : "end"}
@@ -25,7 +25,9 @@ export function ModelsSheet({ open, onClose }: Props) {
       panelClassName="models-sheet"
     >
       <div className="models-sheet-body">
-        {models !== null && tools.ffmpeg !== "installed" ? (
+        {observation.kind === "current" &&
+        models !== null &&
+        tools.ffmpeg !== "installed" ? (
           <StatusRow
             state="failed"
             title="Audio tools are unavailable"
@@ -33,6 +35,17 @@ export function ModelsSheet({ open, onClose }: Props) {
           />
         ) : null}
         <InlineError message={loadError} origin="state" />
+        {models === null && loadError ? (
+          <StatusRow
+            state="failed"
+            title="Couldn't check what is installed"
+            action={{
+              label: "Try again",
+              name: "Check model status",
+              onAction: () => void refresh(),
+            }}
+          />
+        ) : null}
         {models === null ? (
           loadError ? null : (
             <p className="models-sheet-wait" role="status">

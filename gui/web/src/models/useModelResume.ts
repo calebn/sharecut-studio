@@ -3,7 +3,7 @@ import type { ModelNeeded } from "../utils/apiError";
 import { type NeedTarget, rowInstalled } from "./capability";
 import { useModels } from "./useModels";
 
-type Stop<N> = { need: N; seenMissing: boolean; checked: boolean };
+type Stop<N> = { need: N; afterGeneration: number };
 
 /**
  * A step that stopped for a missing model waits here. `stopFor` records the model; the Model need
@@ -13,8 +13,9 @@ type Stop<N> = { need: N; seenMissing: boolean; checked: boolean };
 export function useModelResume<N extends NeedTarget = ModelNeeded>(
   resume: (need: N) => void,
 ) {
-  const { models, refresh } = useModels();
+  const { models, observation, refresh } = useModels();
   const [stop, setStop] = useState<Stop<N> | null>(null);
+  const pending = useRef<Stop<N> | null>(null);
   const resumeRef = useRef(resume);
   useEffect(() => {
     resumeRef.current = resume;
@@ -22,28 +23,33 @@ export function useModelResume<N extends NeedTarget = ModelNeeded>(
 
   const stopFor = useCallback(
     (need: N) => {
-      setStop({ need, seenMissing: false, checked: false });
-      void refresh().then(() =>
-        setStop((s) => (s && s.need === need ? { ...s, checked: true } : s)),
-      );
+      const next = { need, afterGeneration: observation.generation };
+      pending.current = next;
+      setStop(next);
+      void refresh();
     },
-    [refresh],
+    [refresh, observation.generation],
   );
-  const clear = useCallback(() => setStop(null), []);
+  const clear = useCallback(() => {
+    pending.current = null;
+    setStop(null);
+  }, []);
 
   const need = stop?.need ?? null;
   const row = need ? (models?.find((m) => m.id === need.id) ?? null) : null;
   const here = need !== null && rowInstalled(row, need);
-  const ready = stop !== null && here && (stop.seenMissing || stop.checked);
-  const missing = stop !== null && !here && !stop.seenMissing;
+  const ready =
+    stop !== null &&
+    observation.kind === "current" &&
+    observation.generation > stop.afterGeneration &&
+    here;
   useEffect(() => {
-    if (missing) {
-      setStop((s) => (s ? { ...s, seenMissing: true } : s));
-    } else if (ready && stop) {
+    if (ready && stop && pending.current === stop) {
+      pending.current = null;
       setStop(null);
       resumeRef.current(stop.need);
     }
-  }, [missing, ready, stop]);
+  }, [ready, stop]);
 
   return { stop: need, stopFor, clear };
 }

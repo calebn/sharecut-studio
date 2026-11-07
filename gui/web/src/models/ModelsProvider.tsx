@@ -62,12 +62,14 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
 
   const reload = useCallback(async () => {
     const token = latest.begin();
+    dispatch({ type: "loadStarted" });
     try {
       const next = await fetchBootstrapStatus(requested.current);
       if (latest.isCurrent(token)) {
         dispatch({ type: "statusLoaded", status: next });
+        return next;
       }
-      return next;
+      return null;
     } catch (e: unknown) {
       if (latest.isCurrent(token)) {
         dispatch({ type: "loadFailed", message: errorMessage(e) });
@@ -258,10 +260,15 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
             state.failures,
             state.variant,
             startingModelIds,
+            state.observation.kind,
           )
         : null,
       tools: toolsOf(state.status),
-      ready: state.status?.ready ?? false,
+      ready:
+        state.observation.kind === "current" &&
+        state.status?.whisper_model === state.variant &&
+        (state.status?.ready ?? false),
+      observation: state.observation,
       busy: state.job !== null || startingModelIds.length > 0,
       loadError: state.loadError,
       whisper: {

@@ -33,6 +33,7 @@ export type ModelNeedRowViewProps = {
   blockedReason?: string;
   onGet: () => void;
   onCancel: () => void;
+  onCheck?: () => void;
   /** The Manage link to the Models sheet; absent inside the sheet itself. */
   onManage?: () => void;
   /** Sheet rows only: Remove in the more menu of an installed or out-of-date model. */
@@ -62,14 +63,37 @@ function NeedRow({
   onGet,
   onCancel,
   onManage,
+  onCheck,
 }: Omit<ModelNeedRowViewProps, "placement" | "children">) {
-  const { what } = capabilityOf(model.id, model.label);
+  const { what, name } = capabilityOf(model.id, model.label);
   const size = plainSize(model.size);
   const working = state.kind === "downloading" || state.kind === "queued";
   const failure = failureOf(state);
   const manage = onManage
     ? { label: "Manage", name: "Manage models", onAction: onManage }
     : undefined;
+  if (state.kind === "checking" || state.kind === "unavailable") {
+    return (
+      <StatusRow
+        state={state.kind === "checking" ? "running" : "failed"}
+        title={
+          state.kind === "checking"
+            ? `Checking ${what}`
+            : `Couldn't check ${what}`
+        }
+        action={
+          state.kind === "unavailable" && onCheck
+            ? {
+                label: "Try again",
+                name: `Check ${name} status`,
+                onAction: onCheck,
+              }
+            : undefined
+        }
+        secondaryAction={manage}
+      />
+    );
+  }
   if (working) {
     return (
       <StatusRow
@@ -125,6 +149,8 @@ function NeedRow({
 }
 
 const META: Record<ModelState["kind"], string> = {
+  checking: "Checking status",
+  unavailable: "Status unavailable",
   installed: "Installed",
   missing: "Not installed",
   update_needed: "Update available",
@@ -150,6 +176,7 @@ function ListRow({
   onGet,
   onCancel,
   onRemove,
+  onCheck,
   children,
 }: Omit<ModelNeedRowViewProps, "placement" | "onManage">) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -223,7 +250,11 @@ function ListRow({
             : ""}
         </span>
         <div className="sys-need-control">
-          {working ? (
+          {state.kind === "unavailable" && onCheck ? (
+            <Button aria-label={`Check ${name} status`} onClick={onCheck}>
+              Try again
+            </Button>
+          ) : working ? (
             <Button
               className="sys-need-cancel"
               aria-label={`Cancel ${name} download`}
@@ -331,7 +362,7 @@ export function ModelNeedRow({
   onManage,
   children,
 }: ModelNeedRowProps) {
-  const { models, busy, download, cancel, remove } = useModels();
+  const { models, busy, download, cancel, remove, refresh } = useModels();
   const mayManage = useDawStore((s) => canManageProjects(s.projectPath));
   const manage =
     placement === "need" && mayManage
@@ -360,6 +391,7 @@ export function ModelNeedRow({
         );
       }}
       onCancel={() => void cancel()}
+      onCheck={() => void refresh()}
       onManage={manage}
       onRemove={
         placement === "list"
