@@ -578,6 +578,99 @@ describe("BounceFlowProvider", () => {
       expect(api.download).not.toHaveBeenCalled();
     });
 
+    it.each(["range", "selected", "soloed", "region"] as const)(
+      "ends a stopped %s bounce when leaving Deliver",
+      async (target) => {
+        vi.mocked(followJobToOk)
+          .mockRejectedValueOnce(needed())
+          .mockResolvedValue(finished);
+        useDawStore.setState({
+          bounceRangeTarget: target === "range" ? RANGE : null,
+          selection:
+            target === "selected"
+              ? { kind: "track", trackId: "a", trackIds: ["a", "b"] }
+              : null,
+          soloTracks: target === "soloed" ? { a: true, b: false } : {},
+          sessionRegion:
+            target === "region" ? { start_sec: 3, end_sec: 6 } : null,
+        });
+        const { land } = mountNeeding();
+        act(() =>
+          flow.setChoices({
+            ...BOUNCE_DEFAULTS,
+            source:
+              target === "selected" || target === "soloed"
+                ? target
+                : BOUNCE_DEFAULTS.source,
+            limitToRegion: target === "region",
+          }),
+        );
+        act(() => flow.start());
+        await waitFor(() => expect(flow.needs?.id).toBe("rnnoise"));
+        expect(startBounceJob).toHaveBeenCalledTimes(1);
+
+        act(() => useDawStore.setState({ stage: "edit" }));
+        expect(useDawStore.getState().bounceRangeTarget).toBeNull();
+        expect(flow.choices).toEqual(BOUNCE_DEFAULTS);
+        land("rnnoise");
+        await act(async () => undefined);
+        expect(startBounceJob).toHaveBeenCalledTimes(1);
+        expect(flow.needs).toBeNull();
+        expect(flow.run).toEqual({ kind: "idle" });
+
+        act(() => useDawStore.setState({ stage: "deliver" }));
+        await act(async () => undefined);
+        expect(startBounceJob).toHaveBeenCalledTimes(1);
+      },
+    );
+
+    it("does not restart when model arrival and leaving Deliver coincide", async () => {
+      vi.mocked(followJobToOk)
+        .mockRejectedValueOnce(needed())
+        .mockResolvedValue(finished);
+      useDawStore.setState({ bounceRangeTarget: RANGE });
+      const { land } = mountNeeding();
+      act(() => flow.start());
+      await waitFor(() => expect(flow.needs?.id).toBe("rnnoise"));
+
+      act(() => {
+        useDawStore.setState({ stage: "edit" });
+        land("rnnoise");
+      });
+      await act(async () => undefined);
+      expect(startBounceJob).toHaveBeenCalledTimes(1);
+      expect(flow.needs).toBeNull();
+      expect(flow.run).toEqual({ kind: "idle" });
+    });
+
+    it.each(["different", "reopened"] as const)(
+      "does not restart into a %s project when model arrival coincides",
+      async (project) => {
+        vi.mocked(followJobToOk)
+          .mockRejectedValueOnce(needed())
+          .mockResolvedValue(finished);
+        useDawStore.setState({ bounceRangeTarget: RANGE });
+        const { land } = mountNeeding();
+        act(() => flow.start());
+        await waitFor(() => expect(flow.needs?.id).toBe("rnnoise"));
+
+        act(() => {
+          useDawStore
+            .getState()
+            .hydrate("/tmp/other.project.json", minimalProject());
+          if (project === "reopened") {
+            useDawStore.getState().hydrate(PATH, minimalProject());
+          }
+          useDawStore.setState({ stage: "deliver" });
+          land("rnnoise");
+        });
+        await act(async () => undefined);
+        expect(startBounceJob).toHaveBeenCalledTimes(1);
+        expect(flow.needs).toBeNull();
+        expect(flow.run).toEqual({ kind: "idle" });
+      },
+    );
+
     it("keeps waiting while the model is still missing", async () => {
       vi.mocked(followJobToOk).mockRejectedValue(needed());
       mountNeeding();
