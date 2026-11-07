@@ -513,3 +513,31 @@ def test_split_clips_at_none_raises(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     with pytest.raises(ValueError, match="no tracks"):
         split_clips_at(ws.project, 1.0, [], defaults=load_defaults())
+
+
+@pytest.mark.parametrize("guest", [False, True])
+@pytest.mark.parametrize("retry", [False, True])
+def test_two_edge_split_reports_the_surviving_first_right_piece(
+    minimal_project, dialogue_wav, guest, retry
+):
+    _seed_dialogue_clips(minimal_project, dialogue_wav)
+    svc = DocumentSyncService.open(minimal_project)
+    command = DocumentCommand(
+        type="SplitAtTime",
+        payload={"at_time": 5.0, "extra_at_times": [10.0], "track_ids": ["host"]},
+        client_id="editor" if guest else "host",
+        role="guest" if guest else "viewer",
+        client_seq=1,
+    )
+    caps = capabilities_for_role("editor") if guest else None
+    audience = "guest" if guest else "host"
+    reply = svc.submit(command, capabilities=caps, audience=audience)
+    if retry:
+        reply = svc.submit(command, capabilities=caps, audience=audience)
+    piece = next(
+        c for c in svc.ws.project.clips if c.track_id == "host" and c.timeline_start == 5.0
+    )
+    assert piece.timeline_end == 10.0
+    assert reply["split_outcome"]["pieces"] == [{"track_id": "host", "clip_id": piece.id}]
+    if guest:
+        assert reply["command"] == {"type": "SplitAtTime"}
