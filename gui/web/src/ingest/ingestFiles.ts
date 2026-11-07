@@ -161,14 +161,6 @@ export async function ingestFiles(
       ? { kind: "track", id: target.id }
       : { kind: "new" };
   const taken = new Set((s.project?.tracks ?? []).map((t) => t.id));
-  let replaced = false;
-  if (ingestTarget.kind === "track") {
-    const track = s.project?.tracks.find((t) => t.id === ingestTarget.id);
-    replaced = trackHasMedia({
-      mediaPath: track?.media_path,
-      clipCount: s.project?.clips?.tracks?.[ingestTarget.id]?.length ?? 0,
-    });
-  }
   imports += 1;
   filesInFlight += list.length;
   s.setIngestBusy(true, filesInFlight);
@@ -176,9 +168,20 @@ export async function ingestFiles(
     let focusId: string | null = null;
     let undoHead: HistoryEntryId | null = null;
     try {
-      useDawStore
-        .getState()
-        .announceStatus(`Importing ${list.length} file(s)…`);
+      const current = useDawStore.getState();
+      if (current.projectPath !== projectPath) return;
+      const track =
+        ingestTarget.kind === "track"
+          ? current.project?.tracks.find((one) => one.id === ingestTarget.id)
+          : undefined;
+      const replaced =
+        ingestTarget.kind === "track" &&
+        trackHasMedia({
+          mediaPath: track?.media_path,
+          clipCount:
+            current.project?.clips?.tracks?.[ingestTarget.id]?.length ?? 0,
+        });
+      current.announceStatus(`Importing ${list.length} file(s)…`);
       if (ingestTarget.kind === "track") {
         const first = list[0]!;
         const uploaded = await uploadMediaFile(projectPath, first);
@@ -199,6 +202,7 @@ export async function ingestFiles(
         }
       }
       await refreshDocumentProject(projectPath);
+      if (useDawStore.getState().projectPath !== projectPath) return;
       if (focusId) {
         focusImportedTrack(focusId);
         if (replaced && ingestTarget.kind === "track") {

@@ -9,6 +9,7 @@ type Gesture = {
   from: number;
   to: number;
   cards: HTMLElement[];
+  list: HTMLElement;
   tops: number[];
   heights: number[];
   stride: number;
@@ -20,6 +21,7 @@ export type SourceGrip = {
   onPointerMove: (event: PointerEvent<HTMLElement>) => void;
   onPointerUp: (event: PointerEvent<HTMLElement>) => void;
   onPointerCancel: (event: PointerEvent<HTMLElement>) => void;
+  onLostPointerCapture: (event: PointerEvent<HTMLElement>) => void;
 };
 
 function clearShifts(cards: readonly HTMLElement[]): void {
@@ -28,6 +30,14 @@ function clearShifts(cards: readonly HTMLElement[]): void {
     card.removeAttribute("data-reordering");
     card.removeAttribute("data-making-room");
   }
+}
+
+function sameCards(current: Gesture): boolean {
+  const cards = current.list.querySelectorAll(":scope > * > [data-source-id]");
+  return (
+    cards.length === current.cards.length &&
+    current.cards.every((card, at) => cards[at] === card)
+  );
 }
 
 /**
@@ -41,9 +51,6 @@ export function useSourceReorder(
 ): (id: string) => SourceGrip {
   const gesture = useRef<Gesture | null>(null);
   const latest = useRef(onReorder);
-  useEffect(() => {
-    latest.current = onReorder;
-  });
 
   const end = (commit: boolean) => {
     const current = gesture.current;
@@ -51,9 +58,14 @@ export function useSourceReorder(
     gesture.current = null;
     current.release();
     clearShifts(current.cards);
-    if (commit && current.to !== current.from)
+    if (commit && sameCards(current) && current.to !== current.from)
       latest.current(current.id, current.to);
   };
+
+  useEffect(() => {
+    latest.current = onReorder;
+    if (gesture.current && !sameCards(gesture.current)) end(false);
+  });
 
   useEffect(
     () => () => {
@@ -79,7 +91,7 @@ export function useSourceReorder(
           ]
         : [];
       const from = card ? cards.indexOf(card) : -1;
-      if (from < 0 || cards.length < 2) return;
+      if (!list || from < 0 || cards.length < 2) return;
       event.preventDefault();
       const grip = event.currentTarget;
       grip.setPointerCapture?.(event.pointerId);
@@ -96,6 +108,7 @@ export function useSourceReorder(
         from,
         to: from,
         cards,
+        list,
         tops: rects.map((rect) => rect.top),
         heights: rects.map((rect) => rect.height),
         stride: rects[from]!.height + Math.max(0, gap),
@@ -110,6 +123,10 @@ export function useSourceReorder(
     onPointerMove: (event) => {
       const current = gesture.current;
       if (!current || event.pointerId !== current.pointerId) return;
+      if (!sameCards(current)) {
+        end(false);
+        return;
+      }
       const { cards, tops, heights, from, stride } = current;
       const first = tops[0]!;
       const last = tops[cards.length - 1]! + heights[cards.length - 1]!;
@@ -160,6 +177,9 @@ export function useSourceReorder(
       if (gesture.current?.pointerId === event.pointerId) end(true);
     },
     onPointerCancel: (event) => {
+      if (gesture.current?.pointerId === event.pointerId) end(false);
+    },
+    onLostPointerCapture: (event) => {
       if (gesture.current?.pointerId === event.pointerId) end(false);
     },
   });
