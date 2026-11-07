@@ -112,6 +112,147 @@ describe("the Inspector card on the desktop and the tablet", () => {
     from.remove();
   });
 
+  it.each(["desktop", "phone"] as const)(
+    "returns focus to the opener after pointer Close moves focus to the stage on the %s shell",
+    async (shell) => {
+      stubViewportShell(shell);
+      render(
+        <main className="stage-frame-body" aria-label="Edit" tabIndex={-1}>
+          <EditWorkspace />
+        </main>,
+      );
+      const from = opener();
+      await inspect();
+      const close = screen.getByRole("button", { name: "Close" });
+      const stage = screen.getByRole("main", { name: "Edit" });
+
+      fireEvent.pointerDown(close, { button: 0, pointerId: 1 });
+      fireEvent.mouseDown(close, { button: 0 });
+      stage.focus();
+      expect(stage).toHaveFocus();
+      fireEvent.click(close);
+
+      expect(screen.queryByRole("dialog", { name: "Inspector" })).toBeNull();
+      expect(from).toHaveFocus();
+      from.remove();
+    },
+  );
+
+  it("keeps intentional outside focus from before a pointer close", async () => {
+    stubViewportShell("desktop");
+    render(<EditWorkspace />);
+    const from = opener();
+    const outside = document.createElement("button");
+    outside.textContent = "Outside";
+    document.body.append(outside);
+    await inspect();
+    outside.focus();
+
+    const close = screen.getByRole("button", { name: "Close" });
+    fireEvent.pointerDown(close, { button: 0, pointerId: 1 });
+    fireEvent.mouseDown(close, { button: 0 });
+    fireEvent.click(close);
+
+    expect(outside).toHaveFocus();
+    expect(from).not.toHaveFocus();
+    outside.remove();
+    from.remove();
+  });
+
+  it("keeps a different outside control focused after the close gesture starts", async () => {
+    stubViewportShell("desktop");
+    render(<EditWorkspace />);
+    const from = opener();
+    const outside = document.createElement("button");
+    outside.textContent = "Outside";
+    document.body.append(outside);
+    await inspect();
+    const close = screen.getByRole("button", { name: "Close" });
+
+    fireEvent.pointerDown(close, { button: 0, pointerId: 1 });
+    fireEvent.mouseDown(close, { button: 0 });
+    outside.focus();
+    fireEvent.click(close);
+
+    expect(outside).toHaveFocus();
+    expect(from).not.toHaveFocus();
+    outside.remove();
+    from.remove();
+  });
+
+  it("discards a canceled pointer close before the next keyboard closure", async () => {
+    stubViewportShell("desktop");
+    render(
+      <main className="stage-frame-body" aria-label="Edit" tabIndex={-1}>
+        <EditWorkspace />
+      </main>,
+    );
+    const from = opener();
+    await inspect();
+    const close = screen.getByRole("button", { name: "Close" });
+    const stage = screen.getByRole("main", { name: "Edit" });
+
+    fireEvent.pointerDown(close, { button: 0, pointerId: 1 });
+    fireEvent.mouseDown(close, { button: 0 });
+    stage.focus();
+    fireEvent.pointerCancel(close, { pointerId: 1 });
+    expect(screen.getByRole("dialog", { name: "Inspector" })).toBeVisible();
+    const anchor = screen
+      .getByRole("dialog", { name: "Inspector" })
+      .querySelector<HTMLElement>("[data-inspector-anchor]")!;
+    anchor.focus();
+    fireEvent.keyDown(anchor, { key: "Escape" });
+
+    expect(screen.queryByRole("dialog", { name: "Inspector" })).toBeNull();
+    expect(from).toHaveFocus();
+    from.remove();
+  });
+
+  it("does not restore focus to a removed opener after pointer Close", async () => {
+    stubViewportShell("desktop");
+    render(
+      <main className="stage-frame-body" aria-label="Edit" tabIndex={-1}>
+        <EditWorkspace />
+      </main>,
+    );
+    const from = opener();
+    await inspect();
+    from.remove();
+    const close = screen.getByRole("button", { name: "Close" });
+    const stage = screen.getByRole("main", { name: "Edit" });
+
+    fireEvent.pointerDown(close, { button: 0, pointerId: 1 });
+    fireEvent.mouseDown(close, { button: 0 });
+    stage.focus();
+    fireEvent.click(close);
+
+    expect(screen.queryByRole("dialog", { name: "Inspector" })).toBeNull();
+    expect(stage).toHaveFocus();
+  });
+
+  it("keeps outside focus when selection replacement closes the Inspector", async () => {
+    stubViewportShell("desktop");
+    render(<EditWorkspace />);
+    const from = opener();
+    const outside = document.createElement("button");
+    outside.textContent = "Outside";
+    document.body.append(outside);
+    await inspect();
+    outside.focus();
+
+    act(() =>
+      useDawStore
+        .getState()
+        .setSelection({ kind: "clip", id: "c1", trackId: "host" }),
+    );
+
+    expect(screen.queryByRole("dialog", { name: "Inspector" })).toBeNull();
+    expect(outside).toHaveFocus();
+    expect(from).not.toHaveFocus();
+    outside.remove();
+    from.remove();
+  });
+
   it("hides the card while its anchor is out of view and keeps the Inspector open", async () => {
     let report = (_visible: boolean) => {};
     vi.stubGlobal(
