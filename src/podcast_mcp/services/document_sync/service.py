@@ -252,7 +252,6 @@ class _SplitReplyFacts(TypedDict, total=False):
 
 
 def _split_reply_facts(command_type: str, result: object) -> _SplitReplyFacts:
-    """Guests lose the command payload; expose only the operation kind and times."""
     if command_type != "SplitAtTime" or not isinstance(result, Mapping):
         return {}
     operation = result.get("operation")
