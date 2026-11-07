@@ -526,6 +526,27 @@ describe("ingestFiles", () => {
       expect(useDawStore.getState().ingestBusy).toBe(false);
     });
 
+    it("does not report an old import failure in a newly opened project", async () => {
+      uploadMock.mockResolvedValue({
+        complete: true,
+        rel_path: "media/take2.wav",
+      });
+      vi.mocked(api.setTrackMediaCommand).mockResolvedValue({});
+      refreshMock.mockImplementationOnce(async () => {
+        useDawStore.setState({
+          projectPath: "/tmp/other/episode.sharecut",
+          statusAnnouncement: "Other project ready",
+        });
+        throw new Error("project changed");
+      });
+      await ingestFiles([file], { kind: "track", id: "guest" });
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "Other project ready",
+      );
+      expect(refreshMock).toHaveBeenCalledOnce();
+      expect(useDawStore.getState().ingestBusy).toBe(false);
+    });
+
     it("changes nothing when the project switched during the upload", async () => {
       vi.mocked(api.setTrackMediaCommand).mockClear();
       uploadMock.mockImplementation(async () => {
