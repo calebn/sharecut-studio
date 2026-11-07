@@ -1925,6 +1925,16 @@ describe("TimelineView render isolation", () => {
       expect(useDawStore.getState().splitHoverSec).toBe(4.5);
     });
 
+    it("refreshes a resting Alt guide after zoom changes without scrolling", () => {
+      const { container } = mount();
+      const lanes = lanesOf(container);
+      fireEvent.pointerMove(lanes, { clientX: 100, altKey: true });
+      expect(useDawStore.getState().splitHoverSec).toBe(2.5);
+      act(() => useDawStore.setState({ zoomPxPerSec: 80 }));
+      expect(useDawStore.getState().scrollLeft).toBe(0);
+      expect(useDawStore.getState().splitHoverSec).toBe(1.25);
+    });
+
     it("leaves the hover time cleared when the timeline scrolls after Alt is released", () => {
       const { container } = mount();
       const lanes = lanesOf(container);
