@@ -35,6 +35,13 @@ import {
   selectedFormats,
 } from "./exportSettings";
 
+type ExportModelNeed = ModelNeeded & {
+  projectPath: string;
+  projectEpoch: number;
+  keys: readonly string[];
+  asked: ExportRequest;
+};
+
 function sameSettings(a: ExportSettings | null, b: ExportSettings): boolean {
   return a !== null && JSON.stringify(a) === JSON.stringify(b);
 }
@@ -49,6 +56,7 @@ function withEditHead(head: string) {
 export function ExportFlowProvider({ children }: { children: ReactNode }) {
   const projectPath = useDawStore((s) => s.projectPath);
   const activityJob = useDawStore((s) => s.activityJob);
+  const projectEpoch = useDawStore((s) => s.projectEpoch);
   const [run, setRun] = useState<ExportRun>({ kind: "idle" });
   const [settings, setSettings] = useState<ExportSettings | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
@@ -57,17 +65,13 @@ export function ExportFlowProvider({ children }: { children: ReactNode }) {
   const [loadedGeneration, setLoadedGeneration] = useState(0);
   const generation = useRef(0);
   const [request, setRequest] = useState<ExportRequest | null>(null);
-  const stopped = useRef<{
-    keys: readonly string[];
-    asked: ExportRequest;
-  } | null>(null);
-  const restart = useRef<(need: ModelNeeded) => void>(() => undefined);
+  const restart = useRef<(need: ExportModelNeed) => void>(() => undefined);
   const retried = useRef<string | null>(null);
   const {
     stop: needs,
     stopFor,
     clear,
-  } = useModelResume((need) => restart.current(need));
+  } = useModelResume<ExportModelNeed>((need) => restart.current(need));
   const runRef = useRef(run);
   runRef.current = run;
   const settingsRef = useRef(settings);
@@ -83,7 +87,7 @@ export function ExportFlowProvider({ children }: { children: ReactNode }) {
     setRequest(null);
     setLoadedGeneration(0);
     clear();
-  }, [projectPath, clear]);
+  }, [projectPath, projectEpoch, clear]);
 
   useEffect(() => {
     if (!projectPath) return;
@@ -107,11 +111,11 @@ export function ExportFlowProvider({ children }: { children: ReactNode }) {
     return () => {
       live = false;
     };
-  }, [projectPath, reloads]);
+  }, [projectPath, projectEpoch, reloads]);
 
   const start = useCallback(
     async (keys: readonly string[], asked: ExportRequest) => {
-      const path = useDawStore.getState().projectPath;
+      const { projectPath: path, projectEpoch: epoch } = useDawStore.getState();
       if (!path || runRef.current.kind === "running") return;
       const running: ExportRun = {
         kind: "running",
@@ -162,10 +166,15 @@ export function ExportFlowProvider({ children }: { children: ReactNode }) {
           useDawStore.getState().stage === "deliver" &&
           retried.current !== err.model.id
         ) {
-          stopped.current = { keys, asked };
           runRef.current = { kind: "idle" };
           setRun({ kind: "idle" });
-          stopFor(err.model);
+          stopFor({
+            ...err.model,
+            projectPath: path,
+            projectEpoch: epoch,
+            keys,
+            asked,
+          });
         } else if (isModelNeeded(err)) {
           setRun({ kind: "failed", reason: notDownloadedLine(err.model) });
         } else if (err instanceof JobCancelledError) {
@@ -188,10 +197,14 @@ export function ExportFlowProvider({ children }: { children: ReactNode }) {
   );
 
   restart.current = (need) => {
-    const last = stopped.current;
-    if (!last) return;
+    const store = useDawStore.getState();
+    if (
+      store.projectPath !== need.projectPath ||
+      store.projectEpoch !== need.projectEpoch
+    )
+      return;
     retried.current = need.id;
-    void start(last.keys, last.asked);
+    void start(need.keys, need.asked);
   };
 
   const cancel = useCallback(async () => {
@@ -239,6 +252,7 @@ export function ExportFlowProvider({ children }: { children: ReactNode }) {
       needs,
       request,
       start: (keys, asked) => {
+        clear();
         retried.current = null;
         void start(keys, asked);
       },
@@ -257,6 +271,7 @@ export function ExportFlowProvider({ children }: { children: ReactNode }) {
       needs,
       request,
       start,
+      clear,
       cancel,
       again,
       reload,

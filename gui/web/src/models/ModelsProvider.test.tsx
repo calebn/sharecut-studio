@@ -8,6 +8,7 @@ import type {
 } from "../api";
 import * as api from "../api";
 import { setupOf } from "../stages/home/homeModel";
+import { deferred } from "../test/deferred";
 import { ApiError } from "../utils/apiError";
 import { ModelNeedRowView } from "./ModelNeedRow";
 import { ModelsProvider } from "./ModelsProvider";
@@ -354,6 +355,137 @@ describe("ModelsProvider", () => {
     await waitFor(() =>
       expect(result.current.models![1]!.state.kind).toBe("queued"),
     );
+  });
+
+  it.each([1, 3])(
+    "retains %i cancellation request(s) made before download admission",
+    async (clicks) => {
+      const pending = deferred<Awaited<ReturnType<typeof api.runBootstrap>>>();
+      run.mockReturnValueOnce(pending.promise);
+      cancel.mockResolvedValue(job({ id: "requested" }));
+      const { result } = await mounted();
+      let outcome: Promise<unknown> = Promise.resolve();
+      act(() => {
+        outcome = result.current.download(["whisper"]);
+      });
+      await act(async () => {
+        for (let index = 0; index < clicks; index++)
+          await result.current.cancel();
+      });
+      expect(cancel).not.toHaveBeenCalled();
+      await act(async () => pending.resolve({ job: job({ id: "requested" }) }));
+      await waitFor(() => expect(waiters).toHaveLength(1));
+      try {
+        await waitFor(() =>
+          expect(cancel).toHaveBeenCalledExactlyOnceWith("requested"),
+        );
+      } finally {
+        await act(async () => {
+          waiters[0]!.finish(job({ id: "requested", status: "cancelled" }));
+          await outcome;
+        });
+      }
+      await expect(outcome).resolves.toEqual({ kind: "cancelled" });
+      expect(result.current.busy).toBe(false);
+    },
+  );
+
+  it("reports the terminal job without waiting for a late cancellation response", async () => {
+    const pending = deferred<Awaited<ReturnType<typeof api.runBootstrap>>>();
+    const cancellation = deferred<BootstrapJobSnapshot>();
+    run.mockReturnValueOnce(pending.promise);
+    cancel.mockReturnValueOnce(cancellation.promise);
+    const { result } = await mounted();
+    let outcome: Promise<unknown> = Promise.resolve();
+    const finished = vi.fn();
+    act(() => {
+      outcome = result.current.download(["whisper"]);
+      void outcome.then(finished);
+    });
+    await act(async () => result.current.cancel());
+    await act(async () => pending.resolve({ job: job() }));
+    await waitFor(() => expect(cancel).toHaveBeenCalledExactlyOnceWith("j1"));
+    await act(async () => {
+      waiters[0]!.finish(job({ status: "cancelled" }));
+    });
+    try {
+      await waitFor(() =>
+        expect(finished).toHaveBeenCalledExactlyOnceWith({ kind: "cancelled" }),
+      );
+      expect(result.current.busy).toBe(false);
+    } finally {
+      await act(async () => {
+        cancellation.resolve(job({ status: "cancelled" }));
+        await outcome;
+      });
+    }
+  });
+
+  it("retires pending cancellation after a start failure before the next download", async () => {
+    const pending = deferred<Awaited<ReturnType<typeof api.runBootstrap>>>();
+    run.mockReturnValueOnce(pending.promise);
+    const { result } = await mounted();
+    let failed: Promise<unknown> = Promise.resolve();
+    act(() => {
+      failed = result.current.download(["whisper"]);
+    });
+    await act(async () => result.current.cancel());
+    await act(async () => {
+      pending.reject(new Error("Start failed"));
+      await failed;
+    });
+    await expect(failed).resolves.toEqual({
+      kind: "failed",
+      failed: ["whisper"],
+    });
+    run.mockResolvedValueOnce({ job: job({ id: "next" }) });
+    let next: Promise<unknown> = Promise.resolve();
+    act(() => {
+      next = result.current.download(["whisper"]);
+    });
+    await waitFor(() => expect(waiters).toHaveLength(1));
+    expect(cancel).not.toHaveBeenCalled();
+    fetchStatus.mockResolvedValue(
+      status(MISSING.map((model) => ({ ...model, state: "installed" }))),
+    );
+    await act(async () => {
+      waiters[0]!.finish(job({ id: "next", status: "ok" }));
+      await next;
+    });
+    await expect(next).resolves.toEqual({ kind: "ok" });
+    expect(cancel).not.toHaveBeenCalled();
+  });
+
+  it("does not apply a refused start's pending cancellation to an unrelated adopted download", async () => {
+    const pending = deferred<Awaited<ReturnType<typeof api.runBootstrap>>>();
+    run.mockReturnValueOnce(pending.promise);
+    const { result } = await mounted();
+    let outcome: Promise<unknown> = Promise.resolve();
+    act(() => {
+      outcome = result.current.download(["whisper"]);
+    });
+    await act(async () => result.current.cancel());
+    fetchJob.mockResolvedValue(job({ id: "other", components: ["rnnoise"] }));
+    await act(async () => {
+      pending.reject(
+        new ApiError(
+          "Another download is running",
+          "bootstrap_job_running",
+          409,
+        ),
+      );
+      await outcome;
+    });
+    await expect(outcome).resolves.toEqual({ kind: "busy" });
+    await waitFor(() => expect(waiters).toHaveLength(1));
+    expect(cancel).not.toHaveBeenCalled();
+    await act(async () => {
+      waiters[0]!.finish(
+        job({ id: "other", components: ["rnnoise"], status: "ok" }),
+      );
+    });
+    await waitFor(() => expect(result.current.busy).toBe(false));
+    expect(cancel).not.toHaveBeenCalled();
   });
 
   it("reports a cancelled job as cancelled and posts the cancel", async () => {
