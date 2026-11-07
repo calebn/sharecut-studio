@@ -156,6 +156,17 @@ export function trackClickSelection(
   return trackSelection(ids, ids.includes(trackId) ? trackId : ids.at(-1)!);
 }
 
+export function clipsSelection(
+  clips: readonly { id: string; trackId: string }[],
+): Selection {
+  return clips.length === 0
+    ? null
+    : clipSelection(
+        clips.map((c) => c.id),
+        clips[0]!,
+      );
+}
+
 /** The selection naming exactly `trackIds`, the first as primary; none clears it. */
 export function tracksSelection(trackIds: readonly string[]): Selection {
   return trackIds.length === 0 ? null : trackSelection(trackIds, trackIds[0]!);

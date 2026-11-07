@@ -8,7 +8,6 @@ import numpy as np
 import pytest
 
 from pause_policy_public_helpers import RATE, write_wav
-from sqlite_helpers import FailingConnection
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.timeline_ops import split_clips_at
 from podcast_mcp.models import (
@@ -30,6 +29,7 @@ from podcast_mcp.services.document_sync.policy import (
     StructuralMutationMode,
     resolve_structural_mode,
 )
+from sqlite_helpers import FailingConnection
 
 
 @pytest.fixture(scope="session")
@@ -240,12 +240,28 @@ def test_guest_split_proposal_reply_flags_the_proposal_at_the_top(minimal_projec
     assert len(svc.ws.project.clips) == before_clips
 
 
-def test_host_split_apply_reply_does_not_flag_a_proposal(minimal_project, dialogue_wav):
+@pytest.mark.parametrize("guest", [False, True])
+@pytest.mark.parametrize("retry", [False, True])
+def test_applied_single_split_reports_its_actual_boundary(
+    minimal_project, dialogue_wav, guest, retry
+):
     _seed_dialogue_clips(minimal_project, dialogue_wav)
     svc = DocumentSyncService.open(minimal_project)
-    reply = svc.submit(_split_command("host", "viewer"), capabilities=None)
+    command = _split_command("editor" if guest else "host", "guest" if guest else "viewer")
+    caps = capabilities_for_role("editor") if guest else None
+    audience = "guest" if guest else "host"
+    reply = svc.submit(command, capabilities=caps, audience=audience)
+    seq = reply["server_seq"]
+    clips = len(svc.ws.project.clips)
+    if retry:
+        reply = svc.submit(command, capabilities=caps, audience=audience)
+        assert reply["idempotent"] is True
+        assert reply["server_seq"] == seq
+        assert len(svc.ws.project.clips) == clips
     assert reply["ok"]
-    assert reply["split_outcome"]["kind"] == "split"
+    assert reply["split_outcome"] == {"kind": "split", "times": [5.0]}
+    if guest:
+        assert reply["command"] == {"type": "SplitAtTime"}
 
 
 @pytest.mark.parametrize("retry", [False, True])
@@ -257,7 +273,7 @@ def test_split_reply_reports_only_applied_times(minimal_project, dialogue_wav, r
         type="SplitAtTime",
         payload={"at_time": 30.0, "extra_at_times": [5.0], "track_ids": ["host"]},
         client_id="editor",
-        role="guest",
+        role="guest" if guest else "viewer",
         client_seq=1,
     )
     caps = capabilities_for_role("editor") if guest else None
