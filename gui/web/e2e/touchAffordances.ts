@@ -109,6 +109,7 @@ export async function exerciseInviteAffordances(run: TouchRun): Promise<void> {
       await openProjectDialog(page, "share");
       await expect(dialog).toBeVisible();
       await settle(sheet);
+      await expect(close).toBeFocused();
       await expect(height).toHaveValue("1");
       await height.focus();
       await expect(height).toBeFocused();
