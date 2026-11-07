@@ -10,9 +10,11 @@ import * as api from "../api";
 import { registerChapterCommands } from "../commands/chapters";
 import { clearRegisteredCommands, execute } from "../commands/execute";
 import { useDawStore } from "../state/dawStore";
+import { useDaw } from "../state/useDaw";
 import { deferred } from "../test/deferred";
 import { minimalProject, sampleComment } from "../test/fixtures";
 import type { HistoryEntryId, SocialClipView } from "../types/project";
+import { StatusLiveRegion } from "../ui/StatusLiveRegion";
 import { movedMarker } from "./laneMarkers";
 import { LiveMarkerLane, MarkerLaneHost } from "./MarkerLaneHost";
 import { markerLaneHeight, markerLaneRow, markerRows } from "./timelineMetrics";
@@ -58,6 +60,19 @@ function nameChapter(container: HTMLElement, title: string) {
   const field = screen.getByRole("textbox", { name: "Chapter name" });
   fireEvent.change(field, { target: { value: title } });
   fireEvent.keyDown(field, { key: "Enter" });
+}
+
+function MarkerLaneWithStatus() {
+  const { message, seq } = useDaw((s) => ({
+    message: s.statusAnnouncement,
+    seq: s.statusAnnouncementSeq,
+  }));
+  return (
+    <>
+      <LiveMarkerLane {...base} />
+      <StatusLiveRegion message={message} seq={seq} />
+    </>
+  );
 }
 
 describe("marker lane regression contracts", () => {
@@ -302,6 +317,94 @@ describe("marker lane regression contracts", () => {
     expect(api.addChapter).toHaveBeenCalledOnce();
     await act(async () => pending.resolve(null));
     await command;
+  });
+
+  it("announces an inline add refused during the pending-render race", async () => {
+    const pending = deferred<HistoryEntryId | null>();
+    vi.mocked(api.addChapter).mockReturnValue(pending.promise);
+    const view = render(<MarkerLaneWithStatus />);
+    fireEvent.doubleClick(view.container.querySelector(".sys-markers-track")!, {
+      clientX: 100,
+    });
+    const field = screen.getByRole("textbox", { name: "Chapter name" });
+    fireEvent.change(field, { target: { value: "Second" } });
+    const before = useDawStore.getState().statusAnnouncementSeq;
+
+    let firstAdd: ReturnType<typeof execute> | undefined;
+    act(() => {
+      firstAdd = execute("edit.addChapter", { atTime: 10, title: "First" });
+      fireEvent.keyDown(field, { key: "Enter" });
+    });
+
+    expect(api.addChapter).toHaveBeenCalledExactlyOnceWith(
+      "/tmp/marker-a.json",
+      10,
+      "First",
+    );
+    try {
+      await waitFor(() =>
+        expect(useDawStore.getState().statusAnnouncement).toBe(
+          "Add already in progress",
+        ),
+      );
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Add already in progress",
+      );
+      expect(useDawStore.getState().feedbackToast).toMatchObject({
+        message: "Add already in progress",
+        tone: "error",
+      });
+      expect(useDawStore.getState().statusAnnouncementSeq).toBe(before + 2);
+    } finally {
+      await act(async () => {
+        pending.resolve(null);
+        await firstAdd;
+      });
+    }
+  });
+
+  it("keeps the inline add success announcement", async () => {
+    const pending = deferred<HistoryEntryId | null>();
+    vi.mocked(api.addChapter).mockReturnValue(pending.promise);
+    const view = render(<MarkerLaneWithStatus />);
+    nameChapter(view.container, "Opening");
+    await waitFor(() => expect(api.addChapter).toHaveBeenCalledOnce());
+    const before = useDawStore.getState().statusAnnouncementSeq;
+
+    await act(async () => pending.resolve(null));
+
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Chapter added at 10.0s",
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Chapter added at 10.0s",
+    );
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      message: "Chapter added at 10.0s",
+      tone: "status",
+    });
+    expect(useDawStore.getState().statusAnnouncementSeq).toBe(before + 1);
+  });
+
+  it("keeps the inline add failure announcement after the API reports it", async () => {
+    vi.mocked(api.addChapter).mockRejectedValue(new Error("disk full"));
+    const view = render(<MarkerLaneWithStatus />);
+    const before = useDawStore.getState().statusAnnouncementSeq;
+    nameChapter(view.container, "Opening");
+    await waitFor(() =>
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "Add chapter failed: disk full",
+      ),
+    );
+
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      message: "Add chapter failed: disk full",
+      tone: "error",
+    });
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Add chapter failed: disk full",
+    );
+    expect(useDawStore.getState().statusAnnouncementSeq).toBe(before + 2);
   });
 
   it.each(["resolve", "reject"])(
