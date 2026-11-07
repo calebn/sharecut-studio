@@ -877,12 +877,13 @@ def test_remove_model_is_refused_while_a_download_runs(monkeypatch) -> None:
 
 
 def test_remove_model_is_refused_while_a_pipeline_runs(monkeypatch) -> None:
-    from types import SimpleNamespace
     from unittest.mock import Mock
 
     from podcast_mcp.gui.routes import bootstrap
+    from podcast_mcp.services.jobs import Job, JobManager
 
-    manager = SimpleNamespace(get_bootstrap_job=lambda: None, status=lambda: {"running": True})
+    manager = JobManager()
+    manager._job = Job(id="busy-pipeline")
     remove = Mock(side_effect=AssertionError("A busy pipeline must not uninstall a model"))
     monkeypatch.setattr(bootstrap, "_jobs", lambda _request: manager)
     monkeypatch.setattr(bootstrap, "uninstall_model", remove)
@@ -898,13 +899,13 @@ def test_remove_model_is_refused_while_a_pipeline_runs(monkeypatch) -> None:
 def test_remove_whisper_rejects_an_invalid_variant_before_accessing_models(
     tmp_path: Path, monkeypatch
 ) -> None:
-    from types import SimpleNamespace
     from unittest.mock import Mock
 
     from podcast_mcp.engines.models import registry
     from podcast_mcp.gui.routes import bootstrap
+    from podcast_mcp.services.jobs import JobManager
 
-    manager = SimpleNamespace(get_bootstrap_job=lambda: None, status=lambda: {"running": False})
+    manager = JobManager()
     cache = tmp_path / "whisper-cache"
     cache.mkdir()
     sentinel = cache / "keep.bin"
@@ -925,3 +926,125 @@ def test_remove_whisper_rejects_an_invalid_variant_before_accessing_models(
     locate.assert_not_called()
     remove.assert_not_called()
     assert sentinel.read_bytes() == b"unchanged"
+
+
+@pytest.mark.parametrize("admission", ["bootstrap", "pipeline", "agent"])
+@pytest.mark.parametrize("removal_fails", [False, True])
+def test_remove_model_excludes_admission_without_blocking_status_or_cancel(
+    tmp_path: Path, monkeypatch, admission: str, removal_fails: bool
+) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event, Lock
+    from unittest.mock import Mock
+
+    from podcast_mcp.gui.routes import bootstrap
+    from podcast_mcp.services.jobs import JobManager
+
+    manager = JobManager()
+    removing = Event()
+    release = Event()
+    removal_finished = Event()
+    admission_attempted = Event()
+    worker_finished = Event()
+    real_io = Mock(side_effect=AssertionError("This test must not access model files"))
+
+    class AdmissionProbe:
+        def __init__(self):
+            self.lock = Lock()
+
+        def __enter__(self):
+            if removing.is_set():
+                admission_attempted.set()
+            self.lock.acquire()
+
+        def __exit__(self, *_args):
+            self.lock.release()
+
+    def fake_uninstall(model_id, variant):
+        removing.set()
+        try:
+            assert release.wait(5)
+            if removal_fails:
+                raise RuntimeError("Test uninstall failed")
+            return {"ok": True, "freed_bytes": 0, "model": {"id": model_id, "state": "missing"}}
+        finally:
+            removal_finished.set()
+
+    def fake_worker(job):
+        try:
+            assert removal_finished.is_set()
+        finally:
+            worker_finished.set()
+
+    def admit():
+        if admission == "bootstrap":
+            job, adopted = manager.start_bootstrap(components=["rnnoise"])
+            assert not adopted
+        elif admission == "pipeline":
+            job = manager.start_render_preview(tmp_path / "unused.sharecut")
+        else:
+            job = manager.adopt_agent_job(tool_id="test", label="Test", claim="test-claim")
+            worker_finished.set()
+        assert removal_finished.is_set()
+        return job
+
+    def read_and_cancel():
+        return (
+            manager.status()["running"],
+            manager.get_bootstrap_job(),
+            manager.cancel(),
+            manager.cancel_bootstrap(),
+        )
+
+    monkeypatch.setattr(bootstrap, "_jobs", lambda _request: manager)
+    monkeypatch.setattr(manager, "_model_removal_lock", AdmissionProbe())
+    monkeypatch.setattr(manager, "_run_bootstrap_job", fake_worker)
+    monkeypatch.setattr(manager, "_run_job", fake_worker)
+    monkeypatch.setattr(bootstrap, "uninstall_model", fake_uninstall)
+    monkeypatch.setattr("podcast_mcp.services.jobs.manager.run_bootstrap", real_io)
+    monkeypatch.setattr("podcast_mcp.services.pipeline.bootstrap.remove_model", real_io)
+
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        request = pool.submit(_client().delete, "/api/bootstrap/models/rnnoise")
+        try:
+            assert removing.wait(5)
+            admitted = pool.submit(admit)
+            assert admission_attempted.wait(5)
+            assert pool.submit(read_and_cancel).result(timeout=5) == (False, None, None, None)
+            assert not admitted.done()
+        finally:
+            release.set()
+        if removal_fails:
+            with pytest.raises(RuntimeError, match="Test uninstall failed"):
+                request.result(timeout=5)
+        else:
+            assert request.result(timeout=5).status_code == 200
+        assert admitted.result(timeout=5).kind == (
+            "bootstrap"
+            if admission == "bootstrap"
+            else "render_preview"
+            if admission == "pipeline"
+            else "agent"
+        )
+        assert worker_finished.wait(5)
+
+    real_io.assert_not_called()
+
+
+def test_remove_model_is_refused_while_an_agent_job_runs(monkeypatch) -> None:
+    from unittest.mock import Mock
+
+    from podcast_mcp.gui.routes import bootstrap
+    from podcast_mcp.services.jobs import JobManager
+
+    manager = JobManager()
+    manager.adopt_agent_job(tool_id="test", label="Test", claim="active-agent")
+    remove = Mock(side_effect=AssertionError("A live agent must prevent model removal"))
+    monkeypatch.setattr(bootstrap, "_jobs", lambda _request: manager)
+    monkeypatch.setattr(bootstrap, "uninstall_model", remove)
+
+    res = _client().delete("/api/bootstrap/models/rnnoise")
+
+    assert res.status_code == 409
+    assert res.headers["X-Sharecut-Error-Code"] == "pipeline_busy"
+    remove.assert_not_called()
