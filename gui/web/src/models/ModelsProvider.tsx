@@ -47,8 +47,9 @@ const NONE: readonly string[] = [];
  */
 export function ModelsProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reduce, initialState);
-  /** The ids from Get until the server answers, so no other Get or size change slips into that window. */
-  const [starting, setStarting] = useState<readonly string[]>([]);
+  const [startingModelIds, setStartingModelIds] = useState<readonly string[]>(
+    [],
+  );
   const stateRef = useRef(state);
   useEffect(() => {
     stateRef.current = state;
@@ -168,7 +169,7 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
         }
       }
       dispatch({ type: "downloadStarted", ids });
-      setStarting(ids);
+      setStartingModelIds(ids);
       const rows = stateRef.current.status?.models ?? [];
       const force = ids.some(
         (id) => rows.find((m) => m.id === id)?.state === "update_needed",
@@ -183,10 +184,10 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
           force,
         });
         const outcome = track(started.job, ids);
-        setStarting(NONE);
+        setStartingModelIds(NONE);
         return await outcome;
       } catch (e: unknown) {
-        setStarting(NONE);
+        setStartingModelIds(NONE);
         running.current = null;
         if (e instanceof ApiError && e.code === BUSY_CODE) {
           await adoptRunning();
@@ -256,12 +257,12 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
             state.job,
             state.failures,
             state.variant,
-            starting,
+            startingModelIds,
           )
         : null,
       tools: toolsOf(state.status),
       ready: state.status?.ready ?? false,
-      busy: state.job !== null || starting.length > 0,
+      busy: state.job !== null || startingModelIds.length > 0,
       loadError: state.loadError,
       whisper: {
         variant: state.variant,
@@ -273,7 +274,7 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
       remove,
       refresh,
     }),
-    [state, starting, choose, download, cancel, remove, refresh],
+    [state, startingModelIds, choose, download, cancel, remove, refresh],
   );
 
   return (
