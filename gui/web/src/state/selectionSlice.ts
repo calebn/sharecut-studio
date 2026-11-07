@@ -9,6 +9,25 @@ import {
 } from "./selection";
 import type { DawStore } from "./types";
 
+const localWrites = new WeakMap<() => DawStore, AbortController>();
+
+export function localSelectionWriteSignal(
+  getState: () => DawStore,
+): AbortSignal {
+  let writes = localWrites.get(getState);
+  if (!writes) {
+    writes = new AbortController();
+    localWrites.set(getState, writes);
+  }
+  return writes.signal;
+}
+
+function invalidateLocalSelection(getState: () => DawStore): void {
+  const writes = localWrites.get(getState);
+  localWrites.delete(getState);
+  writes?.abort();
+}
+
 type SelectionSlice = Pick<
   DawStore,
   | "selection"
@@ -68,24 +87,32 @@ export const createSelectionSlice: StateCreator<
   [],
   [],
   SelectionSlice
-> = (set) => ({
+> = (set, get) => ({
   selection: null as Selection,
-  setSelection: (selection) =>
-    set((s) => selectionPatch(s.selection, selection, s.inspectorKey)),
-  selectClip: (clipId, trackId, mods) =>
+  setSelection: (selection) => {
+    invalidateLocalSelection(get);
+    set((s) => selectionPatch(s.selection, selection, s.inspectorKey));
+  },
+  selectClip: (clipId, trackId, mods) => {
+    invalidateLocalSelection(get);
     set((s) =>
       exactSelection(
         clipClickSelection(s.selection, s.project, clipId, trackId, mods),
         s.inspectorKey,
       ),
-    ),
-  toggleTrackSelected: (trackId, additive) =>
+    );
+  },
+  toggleTrackSelected: (trackId, additive) => {
+    invalidateLocalSelection(get);
     set((s) =>
       exactSelection(
         trackClickSelection(s.selection, trackId, additive),
         s.inspectorKey,
       ),
-    ),
-  selectTracks: (trackIds) =>
-    set((s) => exactSelection(tracksSelection(trackIds), s.inspectorKey)),
+    );
+  },
+  selectTracks: (trackIds) => {
+    invalidateLocalSelection(get);
+    set((s) => exactSelection(tracksSelection(trackIds), s.inspectorKey));
+  },
 });

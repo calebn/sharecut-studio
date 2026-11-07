@@ -9,10 +9,15 @@ import { MAX_CONTENT_PX } from "../utils/timelineZoom.generated";
 import {
   applyDocumentResult,
   applyDocumentSnapshot,
+  pendingDocumentRecovery,
   recoverDocument,
   refreshDocumentDisplay,
 } from "./applyDocumentUpdate";
-import { documentAuthority } from "./authorityState";
+import {
+  documentAuthority,
+  documentScope,
+  resetDocumentAuthority,
+} from "./authorityState";
 import {
   noteDocumentFile,
   pollSnapshotAlreadyApplied,
@@ -249,4 +254,50 @@ describe("applyDocumentResult", () => {
     expect(order).toEqual(["queued-peer-frame", "own-result-applied"]);
     expect(pendingInboundCount()).toBe(0);
   });
+});
+
+it("observes only the matching recovery attempt without starting another request", async () => {
+  const path = "/tmp/recovery-observer.sharecut";
+  useDawStore.getState().hydrate(path, minimalProject());
+  const scope = documentScope();
+  let finish!: (value: {
+    server_seq: number;
+    project: ReturnType<typeof minimalProject>;
+  }) => void;
+  const snapshot = new Promise<{
+    server_seq: number;
+    project: ReturnType<typeof minimalProject>;
+  }>((resolve) => {
+    finish = resolve;
+  });
+  vi.mocked(loadDocumentState).mockClear();
+  vi.mocked(loadDocumentState).mockReturnValueOnce(snapshot);
+  expect(pendingDocumentRecovery(scope)).toBeNull();
+  expect(loadDocumentState).not.toHaveBeenCalled();
+  const attempt = recoverDocument(2, scope);
+  expect(pendingDocumentRecovery(scope)).toBe(attempt);
+  expect(loadDocumentState).toHaveBeenCalledTimes(1);
+  resetDocumentAuthority(path);
+  expect(pendingDocumentRecovery(scope)).toBeNull();
+  expect(pendingDocumentRecovery(documentScope())).toBeNull();
+  finish({ server_seq: 2, project: minimalProject() });
+  expect(await attempt).toBeNull();
+  expect(loadDocumentState).toHaveBeenCalledTimes(1);
+});
+
+it("does not restart a failed attempt when its recovery phase remains active", async () => {
+  useDawStore
+    .getState()
+    .hydrate("/tmp/failed-recovery-observer.sharecut", minimalProject());
+  const scope = documentScope();
+  vi.mocked(loadDocumentState).mockClear();
+  vi.mocked(loadDocumentState).mockRejectedValueOnce(
+    new Error("Recovery unavailable"),
+  );
+  const attempt = recoverDocument(2, scope);
+  expect(pendingDocumentRecovery(scope)).toBe(attempt);
+  await expect(attempt).rejects.toThrow("Recovery unavailable");
+  await vi.waitFor(() => expect(pendingDocumentRecovery(scope)).toBeNull());
+  expect(documentAuthority.phase.kind).toBe("recovering");
+  expect(loadDocumentState).toHaveBeenCalledTimes(1);
 });

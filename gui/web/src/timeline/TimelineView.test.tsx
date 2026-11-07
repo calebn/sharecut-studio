@@ -1926,6 +1926,7 @@ describe("TimelineView render isolation", () => {
     });
 
     it("refreshes a resting Alt guide after zoom changes without scrolling", () => {
+      useDawStore.setState({ scrollLeft: 0 });
       const { container } = mount();
       const lanes = lanesOf(container);
       fireEvent.pointerMove(lanes, { clientX: 100, altKey: true });
