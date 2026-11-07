@@ -6,7 +6,6 @@ import {
   rippleDeleteClips,
   splitAtTime,
 } from "../api";
-import type { SplitPiece } from "../api/documentEdits";
 import {
   pendingDocumentRecovery,
   redisplayDrafts,
@@ -48,6 +47,7 @@ import { enqueueTrackMutate } from "./trackMutation";
 import type { ExecuteResult } from "./types";
 
 type DawState = ReturnType<typeof useDawStore.getState>;
+type SplitPieces = Parameters<typeof clipsSelection>[0];
 
 function canSuggestStructuralFor(s: DawState): boolean {
   return canSuggestStructuralOnProject(
@@ -66,7 +66,7 @@ function splitSelectionIntent(
 ) {
   cancelPendingSplitSelection?.();
   let active = true;
-  let target: { pieces: readonly SplitPiece[]; minimum: number } | null = null;
+  let target: { pieces: SplitPieces; minimum: number } | null = null;
   const signal = documentAuthority.abort.signal;
   const localWrite = localSelectionWriteSignal(useDawStore.getState);
   const cancel = () => {
@@ -101,7 +101,7 @@ function splitSelectionIntent(
   cancelPendingSplitSelection = cancel;
   return {
     cancel,
-    apply(pieces: readonly SplitPiece[]) {
+    apply(pieces: SplitPieces) {
       if (!active) return;
       target = {
         pieces,
@@ -126,7 +126,7 @@ function splitSelectionIntent(
 function selectRightPieces(
   scope: DocumentScope,
   held: DawState["selection"],
-  pieces: readonly SplitPiece[],
+  pieces: SplitPieces,
 ): void {
   const now = useDawStore.getState();
   if (
