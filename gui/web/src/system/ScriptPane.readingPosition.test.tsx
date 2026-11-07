@@ -520,7 +520,9 @@ describe("ScriptPane reading position", () => {
     ).toBeVisible();
 
     geometry.setLineHeight(24);
-    act(() => fonts.dispatchEvent(new Event("loadingdone")));
+    act(() => {
+      fonts.dispatchEvent(new Event("loadingdone"));
+    });
     for (const observer of FakeResizeObserver.all) observer.fire(body);
 
     expect(document.activeElement).toBe(lastWord);

@@ -489,6 +489,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       null,
     );
     const readingPositionRef = useRef(readingPosition);
+    const selectionScrolled = useRef(false);
     useLayoutEffect(() => {
       readingPositionRef.current = readingPosition;
       if (!readingPosition) {
@@ -731,10 +732,81 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       return rects;
     }, []);
 
-    const focusStop = useCallback((start: number, preventScroll = false) => {
-      setFocused(start);
-      focusable(registry.current.get(start))?.focus({ preventScroll });
+    const captureReadingPosition = useCallback((preferredIndex?: number) => {
+      const body = bodyRef.current;
+      const binding = readingPositionRef.current;
+      if (!body || !binding || !body.isConnected) return;
+      const bounds = body.getBoundingClientRect();
+      readingBounds.current = bounds;
+      const preferred =
+        preferredIndex === undefined
+          ? undefined
+          : {
+              index: preferredIndex,
+              element: registry.current.get(preferredIndex),
+            };
+      const preferredRect = preferred?.element?.getBoundingClientRect();
+      if (
+        preferred?.element &&
+        body.contains(preferred.element) &&
+        preferredRect &&
+        preferredRect.top < bounds.bottom &&
+        preferredRect.bottom > bounds.top
+      ) {
+        const position: ScriptPaneReadingPosition = {
+          kind: "word",
+          index: preferred.index,
+          offset: preferredRect.top - bounds.top,
+          fallbackTop: body.scrollTop,
+          turns: live.current.turns,
+        };
+        binding.capture(position);
+        return;
+      }
+      const stops = live.current.stops;
+      let low = 0;
+      let high = stops.length;
+      while (low < high) {
+        const middle = (low + high) >>> 1;
+        const word = registry.current.get(stops[middle].start);
+        if (!word || !body.contains(word)) {
+          low = middle + 1;
+          continue;
+        }
+        if (word.getBoundingClientRect().bottom <= bounds.top) low = middle + 1;
+        else high = middle;
+      }
+      const stop = stops[low];
+      const word = stop ? registry.current.get(stop.start) : undefined;
+      const rect = word?.getBoundingClientRect();
+      if (stop && rect && rect.top < bounds.bottom) {
+        const position: ScriptPaneReadingPosition = {
+          kind: "word",
+          index: stop.start,
+          offset: rect.top - bounds.top,
+          fallbackTop: body.scrollTop,
+          turns: live.current.turns,
+        };
+        binding.capture(position);
+        return;
+      }
+      const position: ScriptPaneReadingPosition = {
+        kind: "scroll",
+        top: body.scrollTop,
+      };
+      binding.capture(position);
     }, []);
+
+    const focusStop = useCallback(
+      (start: number, preventScroll = false) => {
+        setFocused(start);
+        const word = focusable(registry.current.get(start));
+        word?.focus({ preventScroll });
+        if (!preventScroll && readingPositionRef.current?.restore)
+          captureReadingPosition(start);
+      },
+      [captureReadingPosition],
+    );
 
     const control = useMemo<GestureControl>(
       () => ({
@@ -773,8 +845,12 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
             ? now.selection.anchor
             : (now.ownCaret ?? caretRef.current ?? index);
         },
-        start: (anchor, gesture) =>
-          live.current.props.onSelectionStart?.(anchor, gesture) !== false,
+        start: (anchor, gesture) => {
+          selectionScrolled.current = false;
+          return (
+            live.current.props.onSelectionStart?.(anchor, gesture) !== false
+          );
+        },
         draft: (next) =>
           setDraft((prev) =>
             prev?.anchor === next?.anchor && prev?.head === next?.head
@@ -786,6 +862,10 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
         end: (anchor, head, gesture, committed) => {
           setDraft(null);
           const now = live.current;
+          if (selectionScrolled.current) {
+            captureReadingPosition();
+            selectionScrolled.current = false;
+          }
           now.props.onSelectionEnd?.(anchor, head, { ...gesture, committed });
           if (!committed) return;
           goalX.current = null;
@@ -794,9 +874,12 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
           if (reached) focusStop(reached.start, true);
           now.props.onSelect?.({ kind: "words", anchor, head });
         },
-        scrolled: () => live.current.props.onUserScroll?.(),
+        scrolled: () => {
+          selectionScrolled.current = true;
+          live.current.props.onUserScroll?.();
+        },
       }),
-      [measure, focusStop],
+      [captureReadingPosition, measure, focusStop],
     );
     const gestures = useScriptGestures(
       bodyRef,
@@ -1078,41 +1161,6 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
           restoreReadingPosition,
         );
     }, [readingPosition?.restore, restoreReadingPosition]);
-
-    const captureReadingPosition = useCallback(() => {
-      const body = bodyRef.current;
-      const binding = readingPositionRef.current;
-      if (!body || !binding || !body.isConnected) return;
-      const bounds = body.getBoundingClientRect();
-      readingBounds.current = bounds;
-      const stops = live.current.stops;
-      let low = 0;
-      let high = stops.length;
-      while (low < high) {
-        const middle = (low + high) >>> 1;
-        const word = registry.current.get(stops[middle].start);
-        if (!word || !body.contains(word)) {
-          low = middle + 1;
-          continue;
-        }
-        if (word.getBoundingClientRect().bottom <= bounds.top) low = middle + 1;
-        else high = middle;
-      }
-      const stop = stops[low];
-      const word = stop ? registry.current.get(stop.start) : undefined;
-      const rect = word?.getBoundingClientRect();
-      if (stop && rect && rect.top < bounds.bottom) {
-        binding.capture({
-          kind: "word",
-          index: stop.start,
-          offset: rect.top - bounds.top,
-          fallbackTop: body.scrollTop,
-          turns: live.current.turns,
-        });
-        return;
-      }
-      binding.capture({ kind: "scroll", top: body.scrollTop });
-    }, []);
 
     useEffect(() => {
       const body = bodyRef.current;

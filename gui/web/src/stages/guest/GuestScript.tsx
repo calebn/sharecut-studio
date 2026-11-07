@@ -30,12 +30,41 @@ export type GuestScriptProps = {
   reading?: GuestReading;
 };
 
-function wordKeyAt(turns: readonly ScriptTurn[], index: number) {
-  for (const turn of turns) {
-    const word = turn.words.find((word) => word.index === index);
-    if (word) return word.key;
+function sameVisibleWords(
+  previous: readonly ScriptTurn[],
+  current: readonly ScriptTurn[],
+) {
+  let previousTurn = 0;
+  let currentTurn = 0;
+  let previousWord = 0;
+  let currentWord = 0;
+  while (true) {
+    while (
+      previousTurn < previous.length &&
+      previousWord === previous[previousTurn].words.length
+    ) {
+      previousTurn += 1;
+      previousWord = 0;
+    }
+    while (
+      currentTurn < current.length &&
+      currentWord === current[currentTurn].words.length
+    ) {
+      currentTurn += 1;
+      currentWord = 0;
+    }
+    const previousItem = previous[previousTurn]?.words[previousWord];
+    const currentItem = current[currentTurn]?.words[currentWord];
+    if (!previousItem || !currentItem) return previousItem === currentItem;
+    if (
+      previousItem.key !== currentItem.key ||
+      previousItem.index !== currentItem.index ||
+      previousItem.text !== currentItem.text
+    )
+      return false;
+    previousWord += 1;
+    currentWord += 1;
   }
-  return undefined;
 }
 
 export function GuestScript({
@@ -65,8 +94,7 @@ export function GuestScript({
           position.turns === turns
         )
           return position;
-        const key = wordKeyAt(position.turns, position.index);
-        return key !== undefined && key === wordKeyAt(turns, position.index)
+        return sameVisibleWords(position.turns, turns)
           ? { ...position, turns }
           : position;
       },
