@@ -85,9 +85,11 @@ export function justAnnounced(message: string): boolean {
  */
 function repeatsStanding(
   message: string,
+  tone: ToastTone,
   standing: FeedbackToast | null,
 ): boolean {
   if (!lastSpoken || !justAnnounced(message)) return false;
+  if (tone === "error" && lastSpoken.tone !== "error") return false;
   return lastSpoken.toastId != null
     ? standing?.id === lastSpoken.toastId
     : lastSpoken.tone === "error";
@@ -305,7 +307,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
           !options.undo &&
           !options.reverse &&
           !options.gesture &&
-          repeatsStanding(message, s.feedbackToast)
+          repeatsStanding(message, tone, s.feedbackToast)
         )
           return {};
         if (message !== "")
