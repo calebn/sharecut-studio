@@ -45,6 +45,11 @@ export function JobModelBanner({ guestShare }: { guestShare: boolean }) {
     guestShare || !job || !RESUMABLE.has(job.kind ?? "")
       ? null
       : modelNeededOfJob(job);
+  const retryFinished =
+    !job ||
+    job.status === "ok" ||
+    job.status === "cancelled" ||
+    (job.status === "error" && !need);
   const needRef = useRef(need);
   needRef.current = need;
   const failed = useRef<Stopped | null>(null);
@@ -57,6 +62,7 @@ export function JobModelBanner({ guestShare }: { guestShare: boolean }) {
   useEffect(() => {
     const model = needRef.current;
     if (needKey === null || !model) {
+      if (retryFinished) retried.current = null;
       clear();
       return;
     }
@@ -73,7 +79,7 @@ export function JobModelBanner({ guestShare }: { guestShare: boolean }) {
       epoch: useDawStore.getState().projectEpoch,
     };
     stopFor(model);
-  }, [needKey, stopFor, clear]);
+  }, [needKey, retryFinished, stopFor, clear]);
   if (!stop) {
     return null;
   }
