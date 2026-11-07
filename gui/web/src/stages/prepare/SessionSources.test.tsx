@@ -172,6 +172,127 @@ describe("dragging a card to reorder", () => {
     expect(handlers.onReorder).toHaveBeenCalledExactlyOnceWith("a", "c");
   });
 
+  it("uses bounded tall-card thresholds and reverses from the final slot", () => {
+    const tops = [0, 260, 360];
+    const heights = [240, 80, 80];
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      function (this: HTMLElement) {
+        const at = Number(this.dataset.at ?? "-1");
+        const top = tops[at] ?? 0;
+        const height = heights[at] ?? 0;
+        return {
+          top,
+          bottom: top + height,
+          height,
+          left: 0,
+          right: 300,
+          width: 300,
+          x: 0,
+          y: top,
+          toJSON: () => ({}),
+        };
+      },
+    );
+    const handlers = actions();
+    const { container } = renderThree(handlers);
+    const grip = grips(container)[0]!;
+    fireEvent.pointerDown(grip, { pointerId: 10, clientY: 20, button: 0 });
+    fireEvent.pointerMove(grip, { pointerId: 10, clientY: 119 });
+    expect(
+      container
+        .querySelectorAll<HTMLElement>("[data-source-id]")[1]!
+        .style.getPropertyValue("--sys-source-shift"),
+    ).toBe("0px");
+    fireEvent.pointerMove(grip, { pointerId: 10, clientY: 120 });
+    expect(
+      container
+        .querySelectorAll<HTMLElement>("[data-source-id]")[1]!
+        .style.getPropertyValue("--sys-source-shift"),
+    ).toBe("-260px");
+    fireEvent.pointerMove(grip, { pointerId: 10, clientY: 220 });
+    expect(
+      container
+        .querySelectorAll<HTMLElement>("[data-source-id]")[2]!
+        .style.getPropertyValue("--sys-source-shift"),
+    ).toBe("-260px");
+    fireEvent.pointerMove(grip, { pointerId: 10, clientY: 119 });
+    fireEvent.pointerUp(grip, { pointerId: 10, clientY: 119 });
+    expect(handlers.onReorder).not.toHaveBeenCalled();
+
+    fireEvent.pointerDown(grip, { pointerId: 11, clientY: 20, button: 0 });
+    fireEvent.pointerMove(grip, { pointerId: 11, clientY: 220 });
+    fireEvent.pointerUp(grip, { pointerId: 11, clientY: 220 });
+    expect(handlers.onReorder).toHaveBeenCalledExactlyOnceWith("a", "c");
+  });
+
+  it("lets a tall last card reach the first short card and reverse", () => {
+    const tops = [0, 100, 200];
+    const heights = [80, 80, 240];
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      function (this: HTMLElement) {
+        const at = Number(this.dataset.at ?? "-1");
+        const top = tops[at] ?? 0;
+        const height = heights[at] ?? 0;
+        return {
+          top,
+          bottom: top + height,
+          height,
+          left: 0,
+          right: 300,
+          width: 300,
+          x: 0,
+          y: top,
+          toJSON: () => ({}),
+        };
+      },
+    );
+    const handlers = actions();
+    const { container } = renderThree(handlers);
+    const grip = grips(container)[2]!;
+    fireEvent.pointerDown(grip, { pointerId: 14, clientY: 220, button: 0 });
+    fireEvent.pointerMove(grip, { pointerId: 14, clientY: 20 });
+    const cards = container.querySelectorAll<HTMLElement>("[data-source-id]");
+    expect(cards[0]!.style.getPropertyValue("--sys-source-shift")).toBe(
+      "260px",
+    );
+    fireEvent.pointerMove(grip, { pointerId: 14, clientY: 220 });
+    fireEvent.pointerUp(grip, { pointerId: 14, clientY: 220 });
+    expect(handlers.onReorder).not.toHaveBeenCalled();
+
+    fireEvent.pointerDown(grip, { pointerId: 15, clientY: 220, button: 0 });
+    fireEvent.pointerMove(grip, { pointerId: 15, clientY: 20 });
+    fireEvent.pointerUp(grip, { pointerId: 15, clientY: 20 });
+    expect(handlers.onReorder).toHaveBeenCalledExactlyOnceWith("c", "a");
+  });
+
+  it("keeps equal-height interior ties strict and includes the visible bottom endpoint", () => {
+    layout();
+    const handlers = actions();
+    const { container } = renderThree(handlers);
+    const grip = grips(container)[0]!;
+    const cards = container.querySelectorAll<HTMLElement>("[data-source-id]");
+
+    fireEvent.pointerDown(grip, { pointerId: 12, clientY: 40, button: 0 });
+    fireEvent.pointerMove(grip, { pointerId: 12, clientY: 140 });
+    expect(cards[0]!.style.getPropertyValue("--sys-source-shift")).toBe(
+      "100px",
+    );
+    expect(cards[1]!.style.getPropertyValue("--sys-source-shift")).toBe("0px");
+    fireEvent.pointerUp(grip, { pointerId: 12, clientY: 140 });
+    expect(handlers.onReorder).not.toHaveBeenCalled();
+
+    fireEvent.pointerDown(grip, { pointerId: 13, clientY: 40, button: 0 });
+    fireEvent.pointerMove(grip, { pointerId: 13, clientY: 240 });
+    expect(cards[0]!.style.getPropertyValue("--sys-source-shift")).toBe(
+      "200px",
+    );
+    expect(cards[1]!.style.getPropertyValue("--sys-source-shift")).toBe(
+      "-100px",
+    );
+    fireEvent.pointerUp(grip, { pointerId: 13, clientY: 240 });
+    expect(handlers.onReorder).toHaveBeenCalledExactlyOnceWith("a", "c");
+  });
+
   it("moves the last card to the top", () => {
     layout();
     const handlers = actions();
