@@ -40,7 +40,7 @@ const meta: Meta<typeof SourceCard> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          'One uploaded voice track, as a section. Its controls are separate tab stops in reading order: the speaker name, Hear, Remove and More. A card that sounds like several people asks "One recording of several people?" and adds the voice count (a scrub field, 2 to 8, with a reset dot off 2) and Split (`canSplit`, on by default only for that state). Remove, Split, Number of voices, Speaker name, Try again, Details, Cancel splitting, Replace audio and Move carry the card name for assistive tech ("Remove Maya"). More holds Replace audio, Merge, and Move up and Move down, the keyboard way to reorder tracks. Dropping an audio file on a ready card replaces its audio at once (`onDropAudio`), with an Undo toast and no question; the stage labels the drop \"Replace Maya\'s audio\" (`onDropHover`). A grip at the start of the actions row drags the card to reorder it within its session (pointer only; `grip`). While `splitting` the card shows progress with Cancel splitting. Hear reads "Hear voice 2" until the voice is named, then "Hear Maya". Time reads "5:11 of audio", never a share. The status line says what is happening in words: Uploading, Checking file, Ready, Needs a name, or the plain cause of a failure.\n\n**Motion.** None.',
+          'One uploaded voice track, as a section. Its controls are separate tab stops in reading order: the speaker name, Hear, Remove and More. A card that sounds like several people asks "One recording of several people?" and adds the voice count (a stepper, 2 to 8, with 44px buttons) and Split (`canSplit`, on by default only for that state). Remove, Split, Number of voices, Speaker name, Try again, Details, Cancel splitting, Replace audio and Move carry the card name for assistive tech ("Remove Maya"). More holds Replace audio, Merge, and Move up and Move down, the keyboard way to reorder tracks. Dropping an audio file on a ready card replaces its audio at once (`onDropAudio`), with an Undo toast and no question; the stage labels the drop \"Replace Maya\'s audio\" (`onDropHover`). A grip at the start of the actions row drags the card to reorder it within its session (pointer only; `grip`). While `splitting` the card shows progress with Cancel splitting. Hear reads "Hear voice 2" until the voice is named, then "Hear Maya". Time reads "5:11 of audio", never a share. The status line says what is happening in words: Uploading, Checking file, Ready, Needs a name, or the plain cause of a failure.\n\n**Motion.** None.',
       },
     },
   },
@@ -128,19 +128,21 @@ export const SplitPrompt: Story = {
   render: (args) => <Live {...args} />,
 };
 
-export const VoicesScrub: Story = {
+export const VoicesStepper: Story = {
   args: { state: "split-prompt", name: "Maya", voices: 8 },
   render: (args) => <Live {...args} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const voices = canvas.getByRole("spinbutton", {
-      name: "Number of voices for Maya",
-    });
-    await expect(voices).toHaveAttribute("aria-valuemax", "8");
+    const more = canvas.getByRole("button", { name: "More voices for Maya" });
+    await expect(more).toHaveAttribute("aria-disabled", "true");
     await userEvent.click(
-      canvas.getByRole("button", { name: /^Reset Number of voices/ }),
+      canvas.getByRole("button", { name: "Fewer voices for Maya" }),
     );
-    await expect(voices).toHaveAttribute("aria-valuetext", "2 voices");
+    await expect(
+      within(canvas.getByRole("group", { name: "Number of voices" })).getByText(
+        "7",
+      ),
+    ).toBeVisible();
   },
 };
 
