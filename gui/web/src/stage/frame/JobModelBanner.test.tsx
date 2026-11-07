@@ -186,6 +186,51 @@ describe("JobModelBanner", () => {
     expect(runBootstrap).not.toHaveBeenCalled();
   });
 
+  it.each(
+    ["pipeline", "render_preview"].flatMap((kind) =>
+      ["ok", "cancelled", "error"].map((status) => ({ kind, status })),
+    ),
+  )(
+    "offers a fresh need after recovered $kind ends with $status and the model is removed",
+    async ({ kind, status }) => {
+      vi.mocked(startPipelineRun).mockResolvedValue(
+        failedJob({ id: "retry", kind, status: "running", error_code: null }),
+      );
+      const { requests, onLimit } = mountReal();
+      await act(async () => requests[0]!.resolve(modelStatus(registryRows())));
+      fail(failedJob({ kind }));
+      await act(async () => requests[1]!.resolve(installedNoise()));
+      const resumed =
+        kind === "pipeline" ? startPipelineRun : runPointerCommand;
+      await waitFor(() => expect(resumed).toHaveBeenCalledTimes(1));
+      fail(
+        failedJob({
+          id: "retry",
+          kind,
+          status,
+          error: null,
+          error_code: null,
+          error_model: null,
+        }),
+      );
+      await userEvent.click(
+        screen.getByRole("button", { name: "Refresh model status" }),
+      );
+      await act(async () => requests[2]!.resolve(modelStatus(registryRows())));
+      fail(failedJob({ id: "independent", kind }));
+      expect(requests).toHaveLength(4);
+      await act(async () => requests[3]!.resolve(modelStatus(registryRows())));
+      expect(screen.getByText("Needs noise reduction")).toBeVisible();
+      expect(
+        screen.getByRole("button", { name: "Get noise reduction" }),
+      ).toBeVisible();
+      expect(requests).toHaveLength(4);
+      expect(resumed).toHaveBeenCalledTimes(1);
+      expect(runBootstrap).not.toHaveBeenCalled();
+      expect(onLimit).not.toHaveBeenCalled();
+    },
+  );
+
   it("shows the Model need row in place of the raw failure when the latest job failed for a model", () => {
     mount();
     fail(failedJob());
@@ -267,19 +312,33 @@ describe("JobModelBanner", () => {
     expect(runPointerCommand).not.toHaveBeenCalled();
   });
 
-  it("reports the failure instead of looping when the model is refused again after it landed", async () => {
-    const { land } = mount();
-    useDawStore.setState({ statusAnnouncement: "" });
-    fail(failedJob());
-    land("rnnoise");
-    await waitFor(() => expect(runPointerCommand).toHaveBeenCalledTimes(1));
-    fail(failedJob({ id: "job-2" }));
-    await waitFor(() =>
-      expect(useDawStore.getState().statusAnnouncement).toBe(
-        "Noise reduction (RNNoise) is not downloaded.",
-      ),
-    );
-    expect(screen.queryByText("Needs noise reduction")).toBeNull();
-    expect(runPointerCommand).toHaveBeenCalledTimes(1);
-  });
+  it.each(["pipeline", "render_preview"])(
+    "reports a repeated %s refusal after its retry starts instead of looping",
+    async (kind) => {
+      const running = failedJob({
+        id: "retry",
+        kind,
+        status: "running",
+        error_code: null,
+        error_model: null,
+      });
+      vi.mocked(startPipelineRun).mockResolvedValue(running);
+      const { land } = mount();
+      useDawStore.setState({ statusAnnouncement: "" });
+      fail(failedJob({ kind }));
+      land("rnnoise");
+      const resumed =
+        kind === "pipeline" ? startPipelineRun : runPointerCommand;
+      await waitFor(() => expect(resumed).toHaveBeenCalledTimes(1));
+      fail(running);
+      fail(failedJob({ id: "job-2", kind }));
+      await waitFor(() =>
+        expect(useDawStore.getState().statusAnnouncement).toBe(
+          "Noise reduction (RNNoise) is not downloaded.",
+        ),
+      );
+      expect(screen.queryByText("Needs noise reduction")).toBeNull();
+      expect(resumed).toHaveBeenCalledTimes(1);
+    },
+  );
 });
