@@ -66,6 +66,13 @@ function opener() {
   return button;
 }
 
+function pointerEvent(type: string, pointerId: number) {
+  const event = new Event(type, { bubbles: true });
+  Object.defineProperty(event, "pointerId", { value: pointerId });
+  Object.defineProperty(event, "button", { value: 0 });
+  return event as PointerEvent;
+}
+
 describe("the Inspector card on the desktop and the tablet", () => {
   it.each(["desktop", "tablet"] as const)(
     "opens on Inspect and not on selection on the %s shell",
@@ -130,6 +137,34 @@ describe("the Inspector card on the desktop and the tablet", () => {
       fireEvent.mouseDown(close, { button: 0 });
       stage.focus();
       expect(stage).toHaveFocus();
+      fireEvent.click(close, { detail: 1 });
+
+      expect(screen.queryByRole("dialog", { name: "Inspector" })).toBeNull();
+      expect(from).toHaveFocus();
+      from.remove();
+    },
+  );
+
+  it.each(["desktop", "phone"] as const)(
+    "keeps the Close receipt when another pointer is canceled on the %s shell",
+    async (shell) => {
+      stubViewportShell(shell);
+      render(
+        <main className="stage-frame-body" aria-label="Edit" tabIndex={-1}>
+          <EditWorkspace />
+        </main>,
+      );
+      const from = opener();
+      await inspect();
+      const close = screen.getByRole("button", { name: "Close" });
+      const stage = screen.getByRole("main", { name: "Edit" });
+      const closePress = pointerEvent("pointerdown", 1);
+      const unrelatedCancel = pointerEvent("pointercancel", 2);
+
+      fireEvent(close, closePress);
+      fireEvent.mouseDown(close, { button: 0 });
+      stage.focus();
+      fireEvent(close, unrelatedCancel);
       fireEvent.click(close, { detail: 1 });
 
       expect(screen.queryByRole("dialog", { name: "Inspector" })).toBeNull();
