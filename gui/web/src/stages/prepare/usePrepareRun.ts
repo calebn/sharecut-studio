@@ -409,7 +409,6 @@ export function usePrepareRun(input: PrepareRunInput) {
     [execute, offerReplace],
   );
 
-  /** Run from the transcribe step; ask first when hand fixes would be replaced. */
   const askToReplace = useCallback(
     async (mode: Exclude<RunMode, "run">) => {
       const scope = {
@@ -501,7 +500,6 @@ export function usePrepareRun(input: PrepareRunInput) {
     keepFixes,
     /** Word timing is missing; null when the model is in or unknown. */
     approximateTiming: approximate,
-    /** Get on the word timing row: the words are re-timed when it lands. */
     awaitAligner: (model: NeedTarget, outcome: Promise<DownloadOutcome>) => {
       const intent = {
         projectPath: latest.current.projectPath,
