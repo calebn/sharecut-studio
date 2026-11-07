@@ -102,6 +102,32 @@ async function stopped(resume: () => void, startInstalled: boolean) {
 }
 
 describe("useModelResume", () => {
+  it("uses the latest resume callback after a pending real-provider check", async () => {
+    const checked = deferredStatus();
+    vi.mocked(api.fetchBootstrapStatus)
+      .mockReset()
+      .mockResolvedValueOnce(modelStatus(rows(true)))
+      .mockReturnValueOnce(checked.promise);
+    const first = vi.fn();
+    const latest = vi.fn();
+    const view = render(
+      <ModelsProvider>
+        <ProviderHarness resume={first} />
+      </ModelsProvider>,
+    );
+    await waitFor(() => expect(screen.getByText("Refuse")).toBeEnabled());
+    await act(async () => screen.getByText("Refuse").click());
+    view.rerender(
+      <ModelsProvider>
+        <ProviderHarness resume={latest} />
+      </ModelsProvider>,
+    );
+    expect(api.fetchBootstrapStatus).toHaveBeenCalledTimes(2);
+    await act(async () => checked.resolve(modelStatus(rows(true))));
+    expect(first).not.toHaveBeenCalled();
+    expect(latest).toHaveBeenCalledExactlyOnceWith(RNNOISE);
+    expect(screen.getByLabelText("Resume state")).toHaveTextContent("idle");
+  });
   it("waits for a fresh missing observation and resumes once after a later installed observation", async () => {
     const checked = deferredStatus();
     const installed = modelStatus(rows(true));
