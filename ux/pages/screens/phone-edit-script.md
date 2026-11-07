@@ -8,6 +8,8 @@
 | **Empty / loading** | No transcript yet · low-confidence chips when present |
 | **Out of scope** | The Review queue and Prepare (their own stages) |
 
+An applied cut seam shares the Timeline selection and highlight. Tapping it again closes the join and keeps the applied selection.
+
 Follow playhead keeps overlapping speakers highlighted in transcript order.
 Backward seeks update the active words through the same time-indexed lookup.
 
