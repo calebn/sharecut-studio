@@ -149,6 +149,8 @@ held sideways) compact the editor:
   half height with the Action bar as its dock (the peek strip and the compact
   drawer are gone, #2294 W3c2b). `BottomSheet`'s generic `placement="column"` and its frame rule remain
   until the legacy bodies go (W3c).
+  At the full detent, the grip hit area starts at the sheet edge and the
+  scrolling surface reserves that same target height for it.
 - **A volume-envelope point leaves its lane in view (#1694, #1714).** An
   `envelopePoint` selection opens its **Time** and **Level** in the Inspector:
   the card beside the point on the tablet and desktop shells, which does not

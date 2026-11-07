@@ -6795,6 +6795,24 @@ input.sys-edit-fix {
   background: var(--color-text-secondary);
 }
 
+.edit-inspector-slot
+  .sys-inspector--phone[data-detent="full"]
+  .sys-inspector-grip {
+  inset-block-start: 0;
+}
+
+.edit-inspector-slot
+  .sys-inspector--phone[data-detent="full"]
+  .sys-inspector-grip-bar {
+  translate: 0 calc(var(--sys-inspector-strip) - var(--sys-inspector-grip-hit));
+}
+
+.edit-inspector-slot
+  .sys-inspector--phone[data-detent="full"]
+  .sys-inspector-surface {
+  padding-block-start: var(--sys-inspector-grip-hit);
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .sys-inspector--phone:not([data-dragging]) {
     transition: block-size var(--motion-panel) var(--motion-ease-out);
