@@ -1,8 +1,7 @@
-import { type DragEvent, useRef, useState } from "react";
+import { type DragEvent, useId, useRef, useState } from "react";
 import { Button, Field, Menu, MenuItem } from "../ui";
 import { OverviewStrip } from "./OverviewStrip";
 import { percentOf } from "./progress";
-import { ScrubField } from "./ScrubField";
 import { StatusRow } from "./StatusRow";
 import { SystemIcon } from "./SystemIcon";
 import { useFocusRescue } from "./useFocusRescue";
@@ -20,8 +19,6 @@ type SourceCardState =
 
 const MIN_VOICES = 2;
 const MAX_VOICES = 8;
-const VOICES_PIXELS = 24;
-const VOICES_UNIT = "voices";
 const MAX_NAME = 80;
 
 export type SourceCardProps = {
@@ -132,6 +129,7 @@ export function SourceCard({
   useFocusRescue(card, () => () => card.current);
   const dragDepth = useRef(0);
   const [dropOver, setDropOver] = useState(false);
+  const reasonId = useId();
   const named = name.trim();
   const who = !named
     ? `voice ${index}`
@@ -139,6 +137,13 @@ export function SourceCard({
       ? `${named}, voice ${index}`
       : named;
   const splittable = canSplit ?? state === "split-prompt";
+  const atFewest = voices <= MIN_VOICES;
+  const atMost = voices >= MAX_VOICES;
+  const reason = atFewest
+    ? "Two is the fewest"
+    : atMost
+      ? "Eight is the most"
+      : null;
   const accepting =
     onDropAudio !== undefined && hasAudio(state) && state !== "splitting";
   const setOver = (over: boolean) => {
@@ -305,18 +310,43 @@ export function SourceCard({
                 </Button>
                 {splittable ? (
                   <>
-                    <ScrubField
-                      label={`Number of voices for ${who}`}
-                      value={voices}
-                      unit={VOICES_UNIT}
-                      min={MIN_VOICES}
-                      max={MAX_VOICES}
-                      step={1}
-                      pixelsPerStep={VOICES_PIXELS}
-                      integerOnly
-                      defaultValue={MIN_VOICES}
-                      onCommit={(next) => onVoices?.(next)}
-                    />
+                    <div
+                      className="sys-stepper"
+                      role="group"
+                      aria-label="Number of voices"
+                      aria-describedby={reason ? reasonId : undefined}
+                    >
+                      <Button
+                        className="sys-stepper-button"
+                        aria-label={`Fewer voices for ${who}`}
+                        aria-disabled={atFewest || undefined}
+                        aria-describedby={atFewest ? reasonId : undefined}
+                        onClick={
+                          atFewest ? undefined : () => onVoices?.(voices - 1)
+                        }
+                      >
+                        <SystemIcon name="minus" size={16} />
+                      </Button>
+                      <output className="sys-stepper-value" aria-live="polite">
+                        {voices}
+                      </output>
+                      <Button
+                        className="sys-stepper-button"
+                        aria-label={`More voices for ${who}`}
+                        aria-disabled={atMost || undefined}
+                        aria-describedby={atMost ? reasonId : undefined}
+                        onClick={
+                          atMost ? undefined : () => onVoices?.(voices + 1)
+                        }
+                      >
+                        <SystemIcon name="plus" size={16} />
+                      </Button>
+                    </div>
+                    {reason ? (
+                      <span id={reasonId} className="sys-stepper-reason">
+                        {reason}
+                      </span>
+                    ) : null}
                     <Button onClick={onSplit} aria-label={`Split ${who}`}>
                       <SystemIcon name="split" size={14} />
                       Split
