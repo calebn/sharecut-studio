@@ -7,7 +7,9 @@ import { minimalProject, sampleTrack } from "../test/fixtures";
 import { clearRegisteredCommands, execute } from "./execute";
 import { registerDawCommands } from "./register";
 
-vi.mock("../api", () => ({ splitAtTime: vi.fn(async () => undefined) }));
+vi.mock("../api", () => ({
+  splitAtTime: vi.fn(async () => ({ kind: "split", times: [0], undo: null })),
+}));
 
 describe("edit.bladeCut", () => {
   beforeEach(() => {

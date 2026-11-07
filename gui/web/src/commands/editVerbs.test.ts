@@ -32,7 +32,15 @@ vi.mock("../api", async (importOriginal) => ({
   approveEdits: vi.fn(),
   rejectEdits: vi.fn(),
   applySuggestedActions: vi.fn(),
-  splitAtTime: vi.fn(async () => "h-split"),
+  splitAtTime: vi.fn(
+    async (
+      _path: string,
+      at: number,
+      _tracks?: string[] | null,
+      _reason?: string | null,
+      extra: readonly number[] = [],
+    ) => ({ kind: "split" as const, times: [at, ...extra], undo: "h-split" }),
+  ),
   setTranscriptWordsIgnored: vi.fn(async () => "h-ignore"),
 }));
 

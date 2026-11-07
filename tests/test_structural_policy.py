@@ -212,6 +212,39 @@ def test_split_at_time_suggest_proposes(minimal_project, dialogue_wav):
     assert not any(e.type == EditDecisionType.SPLIT for e in svc.ws.project.edit_decisions)
 
 
+def _split_command(client_id: str, role: str) -> DocumentCommand:
+    return DocumentCommand(
+        type="SplitAtTime",
+        payload={"at_time": 5.0, "track_ids": ["host"]},
+        client_id=client_id,
+        role=role,
+        client_seq=1,
+    )
+
+
+def test_guest_split_proposal_reply_flags_the_proposal_at_the_top(minimal_project, dialogue_wav):
+    _seed_dialogue_clips(minimal_project, dialogue_wav)
+    svc = DocumentSyncService.open(minimal_project)
+    before_clips = len(svc.ws.project.clips)
+    reply = svc.submit(
+        _split_command("guest", "guest"),
+        capabilities=capabilities_for_role("commenter"),
+        audience="guest",
+    )
+    assert reply["ok"]
+    assert reply["split_proposed"] is True
+    assert reply["command"] == {"type": "SplitAtTime"}
+    assert len(svc.ws.project.clips) == before_clips
+
+
+def test_host_split_apply_reply_does_not_flag_a_proposal(minimal_project, dialogue_wav):
+    _seed_dialogue_clips(minimal_project, dialogue_wav)
+    svc = DocumentSyncService.open(minimal_project)
+    reply = svc.submit(_split_command("host", "viewer"), capabilities=None)
+    assert reply["ok"]
+    assert "split_proposed" not in reply
+
+
 def test_delete_clip_apply_and_suggest(minimal_project, dialogue_wav):
     _seed_dialogue_clips(minimal_project, dialogue_wav)
     svc = DocumentSyncService.open(minimal_project)
