@@ -30,6 +30,14 @@ export type GuestScriptProps = {
   reading?: GuestReading;
 };
 
+function wordKeyAt(turns: readonly ScriptTurn[], index: number) {
+  for (const turn of turns) {
+    const word = turn.words.find((word) => word.index === index);
+    if (word) return word.key;
+  }
+  return undefined;
+}
+
 export function GuestScript({
   guest,
   layout,
@@ -49,11 +57,23 @@ export function GuestScript({
   const pane = useRef<ScriptPaneHandle>(null);
   const readingPosition = useMemo(
     () => ({
-      getPosition: reading.getPosition,
+      getPosition: () => {
+        const position = reading.getPosition();
+        if (
+          position?.kind !== "word" ||
+          !position.turns ||
+          position.turns === turns
+        )
+          return position;
+        const key = wordKeyAt(position.turns, position.index);
+        return key !== undefined && key === wordKeyAt(turns, position.index)
+          ? { ...position, turns }
+          : position;
+      },
       capture: reading.capture,
       restore: !reading.following,
     }),
-    [reading.following, reading.getPosition, reading.capture],
+    [reading, turns],
   );
   const first =
     (typeof playing === "number" ? playing : playing?.[0]) ?? playheadWord;
