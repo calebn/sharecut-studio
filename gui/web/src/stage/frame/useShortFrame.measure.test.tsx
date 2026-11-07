@@ -47,7 +47,9 @@ function EditFrame() {
 function Dock() {
   const filled = useDawStore((s) => s.project != null);
   return (
-    <div className="edit-dock">{filled ? <button type="button" /> : null}</div>
+    <div className="edit-dock">
+      {filled ? <button type="button" aria-label="Loaded action" /> : null}
+    </div>
   );
 }
 
