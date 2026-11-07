@@ -15,6 +15,8 @@ import type { CombinedUtterance } from "../../types/project";
 import { ReviewHost } from "./ReviewHost";
 import { StageHost } from "./StageHost";
 
+let wordSpacing = 1000;
+
 const fontsDescriptor = Object.getOwnPropertyDescriptor(document, "fonts");
 
 function project() {
@@ -105,6 +107,7 @@ function readAway() {
 
 describe("guest Review transcript follow lifetime", () => {
   beforeEach(() => {
+    wordSpacing = 1000;
     vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(200);
     const original = Element.prototype.getBoundingClientRect;
     vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
@@ -116,7 +119,7 @@ describe("guest Review transcript follow lifetime", () => {
           const index = Number(this.getAttribute("data-stop"));
           return new DOMRect(
             0,
-            (index + 1) * 1000 - (reader?.scrollTop ?? 0),
+            (index + 1) * wordSpacing - (reader?.scrollTop ?? 0),
             100,
             20,
           );
@@ -246,6 +249,64 @@ describe("guest Review transcript follow lifetime", () => {
 
     expect(back()).toBeVisible();
     expect(body().scrollTop).toBe(1820);
+  });
+
+  it("keeps a captured word offset when a shell move rebuilds the guest transcript", () => {
+    const size = viewport("phone");
+    join();
+    render(<ReviewHost guestShare />);
+    const reader = body();
+    fireEvent.wheel(reader);
+    reader.scrollTop = 1990;
+    fireEvent.scroll(reader);
+    expect(back()).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "two" }).getBoundingClientRect().top,
+    ).toBe(10);
+
+    wordSpacing = 500;
+    size.shell("desktop");
+
+    expect(body()).not.toBe(reader);
+    expect(body().scrollTop).toBe(990);
+    expect(
+      screen.getByRole("button", { name: "two" }).getBoundingClientRect().top,
+    ).toBe(10);
+    expect(back()).toBeVisible();
+  });
+
+  it("uses the captured pixel fallback after same-project hydration reassigns an ordinal", () => {
+    const size = viewport("phone");
+    join();
+    render(<ReviewHost guestShare />);
+    const reader = body();
+    fireEvent.wheel(reader);
+    reader.scrollTop = 1990;
+    fireEvent.scroll(reader);
+    expect(
+      screen.getByRole("button", { name: "two" }).getBoundingClientRect().top,
+    ).toBe(10);
+    size.short("layout", true);
+    const changed = project();
+    const firstWord = changed.transcript?.utterances[0].words?.[0];
+    if (!firstWord) throw new Error("Expected the first transcript word");
+    firstWord.suppressed = true;
+    wordSpacing = 500;
+    act(() => {
+      useDawStore
+        .getState()
+        .hydrate("share:follow", changed, "view", ["view", "play"]);
+    });
+    size.short("layout", false);
+    expect(screen.queryByRole("button", { name: "one" })).toBeNull();
+    expect(screen.getByRole("button", { name: "three" })).toHaveAttribute(
+      "data-stop",
+      "1",
+    );
+    expect(body().scrollTop).toBe(1990);
+    moveTo(11.1);
+    expect(body().scrollTop).toBe(1990);
+    expect(back()).toBeVisible();
   });
 
   it("retains a same-project hydration pause but starts following on a project replacement through StageHost", () => {
