@@ -9,6 +9,7 @@ import {
 import { redisplayDrafts } from "../document/applyDocumentUpdate";
 import {
   type DocumentScope,
+  documentAuthority,
   documentScope,
   isCurrentDocumentScope,
 } from "../document/authorityState";
@@ -52,6 +53,62 @@ function canSuggestStructuralFor(s: DawState): boolean {
   );
 }
 const SPLIT_TIME_TOLERANCE = 1e-6;
+
+function splitSelectionIntent(
+  scope: DocumentScope,
+  held: DawState["selection"],
+  before: NonNullable<DawState["project"]>,
+) {
+  let phase:
+    | { kind: "reply" }
+    | {
+        kind: "display";
+        at: number;
+        tracks: readonly string[];
+        minimum: number | null;
+      }
+    | { kind: "done" } = { kind: "reply" };
+  const signal = documentAuthority.abort.signal;
+  const cancel = () => {
+    phase = { kind: "done" };
+    unsubscribe();
+    signal.removeEventListener("abort", cancel);
+  };
+  const check = () => {
+    if (phase.kind !== "display") return;
+    if (
+      phase.minimum !== null &&
+      (documentAuthority.phase.kind !== "ready" ||
+        currentDocumentSeq() < phase.minimum)
+    )
+      return;
+    const { at, tracks } = phase;
+    cancel();
+    selectRightPieces(scope, held, before, at, tracks);
+  };
+  const unsubscribe = useDawStore.subscribe((now, previous) => {
+    if (now.selection !== previous.selection || !isCurrentDocumentScope(scope))
+      cancel();
+    else check();
+  });
+  signal.addEventListener("abort", cancel, { once: true });
+  return {
+    cancel,
+    apply(at: number, tracks: readonly string[]) {
+      if (phase.kind === "done") return;
+      phase = {
+        kind: "display",
+        at,
+        tracks,
+        minimum:
+          documentAuthority.phase.kind === "recovering"
+            ? documentAuthority.phase.minimum
+            : null,
+      };
+      check();
+    },
+  };
+}
 
 function selectRightPieces(
   scope: DocumentScope,
@@ -97,6 +154,8 @@ async function runSplitAt(
       );
   const scope = documentScope();
   const held = s.selection;
+  const selection = splitSelectionIntent(scope, held, s.project);
+  let waitingForDisplay = false;
   try {
     const outcome = await splitAtTime(
       s.projectPath,
@@ -118,7 +177,8 @@ async function runSplitAt(
       announce(`Suggested split at ${where}`);
     } else {
       announce(`Split at ${where}`, { undo: outcome.undo });
-      selectRightPieces(scope, held, s.project, outcome.times[0], tids);
+      selection.apply(outcome.times[0], tids);
+      waitingForDisplay = true;
     }
     return { status: "ok" };
   } catch (e) {
@@ -128,6 +188,8 @@ async function runSplitAt(
         ? "There is no clip at that time to split"
         : errorMessage(e);
     return { status: "disabled", reason };
+  } finally {
+    if (!waitingForDisplay) selection.cancel();
   }
 }
 
