@@ -455,6 +455,9 @@ describe("ScriptPane reading position", () => {
 
   it("keeps a paused End-focused word visible after font restoration", () => {
     const geometry = scriptGeometry();
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(
+      1600,
+    );
     stubResizeObserver();
     const fonts = new EventTarget();
     Object.defineProperty(document, "fonts", {
@@ -477,7 +480,7 @@ describe("ScriptPane reading position", () => {
         body.scrollTop += rect.bottom - pane.bottom;
       else if (rect.top < pane.top) body.scrollTop -= pane.top - rect.top;
     });
-    const position: ScriptPaneReadingPosition = {
+    let position: ScriptPaneReadingPosition = {
       kind: "word",
       index: 5,
       offset: 0,
@@ -485,7 +488,9 @@ describe("ScriptPane reading position", () => {
     };
     const readingPosition: ScriptPaneReadingPositionBinding = {
       getPosition: () => position,
-      capture: () => undefined,
+      capture: (next) => {
+        position = next;
+      },
       restore: true,
     };
     const { container } = render(
