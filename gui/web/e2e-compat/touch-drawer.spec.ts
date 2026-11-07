@@ -224,7 +224,6 @@ async function tapTarget(
   await page.waitForTimeout(60);
   await finger.up();
   await page.waitForTimeout(700);
-  await ensureInspected(page);
 }
 
 /**
@@ -620,6 +619,7 @@ test("the half sheet leaves the selection in view; the dock detent keeps its ver
       };
       await open(page, size);
       await tapTarget(page, finger, locate);
+      await ensureInspected(page);
       // A lane area too short for half and the dock opens the sheet full-only.
       const opened = await sheet(page).getAttribute("data-detent");
       rows.push({ size, target, opened });
