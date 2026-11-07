@@ -85,7 +85,8 @@ describe("ModelsSheet", () => {
     await waitFor(() =>
       expect(screen.getByText("Audio tools are unavailable")).toBeTruthy(),
     );
-    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByText("Checking what is installed")).toBeNull();
+    expect(names()).toHaveLength(4);
   });
 
   it("keeps an initial status failure truthful and recovers when status is retried", async () => {
