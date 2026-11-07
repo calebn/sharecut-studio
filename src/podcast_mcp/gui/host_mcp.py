@@ -17,7 +17,9 @@ from starlette.routing import Route
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from podcast_mcp.mcp.server import mcp
+from podcast_mcp.services.jobs import JobSlotBusyError
 from podcast_mcp.util.mcp_call_tool import CallNext, wrap_call_tool
+from podcast_mcp.util.tool_refusal import ToolRefusal, refusal_tool_result
 
 HOST_MCP_PATH = "/mcp"
 
@@ -60,6 +62,11 @@ def install_host_project_injection() -> None:
                 return _no_open_project_result()
             if _tool_accepts_project_path(name):
                 arguments["project_path"] = str(served)
+            try:
+                with app.state.jobs.model_operation():
+                    return await call_next(arguments)
+            except JobSlotBusyError as exc:
+                return refusal_tool_result(ToolRefusal(str(exc), exc.code))
         return await call_next(arguments)
 
     wrap_call_tool(mcp, inject_project)

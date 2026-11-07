@@ -52,6 +52,9 @@ class JobManager:
         self._catalog = JobCatalog()
         self._lock = self._catalog._lock
         self._model_removal_lock = threading.Lock()
+        self._model_operation_lock = threading.Lock()
+        self._model_operations: set[object] = set()
+        self._removing_model = False
 
     @property
     def _job(self) -> Job | None:
@@ -305,19 +308,41 @@ class JobManager:
             return job
 
     @contextmanager
+    def model_operation(self) -> Iterator[None]:
+        """Retain host work independently of its delayed, bounded progress row."""
+        operation = object()
+        with self._model_operation_lock:
+            if self._removing_model:
+                raise JobSlotBusyError("A model is being removed. Try again when it finishes.")
+            self._model_operations.add(operation)
+        try:
+            yield
+        finally:
+            with self._model_operation_lock:
+                self._model_operations.remove(operation)
+
+    @contextmanager
     def model_removal(self) -> Iterator[None]:
         """Exclude job admission through removal, without blocking status or cancellation."""
         with self._model_removal_lock:
-            live = self.get_bootstrap_job()
-            if live is not None and live.status in LIVE_JOB_STATUSES:
-                raise BootstrapSlotBusyError(
-                    "A download is running; remove the model when it finishes",
-                    running=list(live.components),
-                    cancelling=live.cancel_requested,
-                )
-            if self.status()["running"]:
-                raise JobSlotBusyError("A job is running; remove the model when it finishes")
-            yield
+            with self._model_operation_lock:
+                if self._model_operations:
+                    raise JobSlotBusyError("A job is running; remove the model when it finishes")
+                self._removing_model = True
+            try:
+                live = self.get_bootstrap_job()
+                if live is not None and live.status in LIVE_JOB_STATUSES:
+                    raise BootstrapSlotBusyError(
+                        "A download is running; remove the model when it finishes",
+                        running=list(live.components),
+                        cancelling=live.cancel_requested,
+                    )
+                if self.status()["running"]:
+                    raise JobSlotBusyError("A job is running; remove the model when it finishes")
+                yield
+            finally:
+                with self._model_operation_lock:
+                    self._removing_model = False
 
     def start_bootstrap(
         self,
