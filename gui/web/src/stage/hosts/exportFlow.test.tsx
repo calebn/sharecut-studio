@@ -519,6 +519,48 @@ describe("the export flow over the server's routes", () => {
       expect(flow.run).toEqual({ kind: "idle" });
     });
 
+    it.each(["other-project", "reopened-project"])(
+      "retires an old export when model arrival coincides with %s hydration",
+      async (replacement) => {
+        const { land } = await startAndNeedModel();
+        await waitFor(() => expect(flow.needs).not.toBeNull());
+        server.reopen();
+        try {
+          act(() => {
+            const store = useDawStore.getState();
+            store.hydrate("/tmp/other.project.json", minimalProject());
+            if (replacement === "reopened-project") {
+              useDawStore.getState().hydrate(EXPORT_PATH, minimalProject());
+            }
+            useDawStore.setState({ stage: "deliver" });
+            land("rnnoise");
+          });
+          await act(async () => {});
+          expect(server.exportRequests.map((request) => request.path)).toEqual([
+            EXPORT_PATH,
+          ]);
+          expect(flow.needs).toBeNull();
+          expect(flow.run).toEqual({ kind: "idle" });
+        } finally {
+          await act(async () => server.settle(EXPORT_FINISHED));
+        }
+      },
+    );
+
+    it("retires the waiting export when the same path is reopened before model arrival", async () => {
+      await startAndNeedModel();
+      await waitFor(() => expect(flow.needs).not.toBeNull());
+      act(() => {
+        useDawStore
+          .getState()
+          .hydrate("/tmp/other.project.json", minimalProject());
+        useDawStore.getState().hydrate(EXPORT_PATH, minimalProject());
+        useDawStore.setState({ stage: "deliver" });
+      });
+      await waitFor(() => expect(flow.needs).toBeNull());
+      expect(server.exportRequests).toHaveLength(1);
+    });
+
     it("drops the wait, not into a failure, when the project changes", async () => {
       const { land } = await startAndNeedModel();
       await waitFor(() => expect(flow.needs).not.toBeNull());

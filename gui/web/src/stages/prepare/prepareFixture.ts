@@ -308,6 +308,7 @@ export const ROWS = {
       detail:
         "Transcribed. Word timing is approximate, so cuts may clip word edges.",
       model: ALIGNER_NEED,
+      modelGetAction: "get-word-timing",
     },
     ALIGN,
     { id: "clean", state: "done", title: "Clean and level" },

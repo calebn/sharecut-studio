@@ -768,6 +768,7 @@ export function readyRows(input: ReadyInput): ReadyRowData[] {
               ? { runDisposition: "omitted" as const }
               : {}),
             model: input.approximateTiming,
+            modelGetAction: "get-word-timing",
           }
         : {
             id: "transcribe",

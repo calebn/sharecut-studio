@@ -1,6 +1,11 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import {
+  modelStatus,
+  registryRows,
+  renderWithModels,
+} from "../../test/renderWithModels";
 import { ROWS } from "./prepareFixture";
 import { ReadyList, type ReadyRowData } from "./ReadyList";
 
@@ -151,6 +156,32 @@ describe("ReadyList", () => {
     expect(
       screen.getByRole("button", { name: "Get word timing" }),
     ).toBeVisible();
+  });
+
+  it("downloads an aligner refused by a run without starting a separate re-time", async () => {
+    const onAction = vi.fn();
+    const { api } = renderWithModels(
+      <ReadyList
+        rows={[
+          {
+            id: "transcribe",
+            state: "needs-you",
+            title: "Transcribe",
+            model: ROWS.approximateTiming[1].model,
+          },
+        ]}
+        onAction={onAction}
+      />,
+      { status: modelStatus(registryRows()) },
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Get word timing" }),
+    );
+    expect(api.download).toHaveBeenCalledExactlyOnceWith(
+      ["word-aligner"],
+      undefined,
+    );
+    expect(onAction).not.toHaveBeenCalled();
   });
 
   it("arms the word timing re-time only from the word timing ask, not from the transcription ask", async () => {

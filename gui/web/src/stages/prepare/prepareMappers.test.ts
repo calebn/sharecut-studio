@@ -686,6 +686,21 @@ describe("preparePhase", () => {
     ).toBe("done");
   });
 
+  it("distinguishes a refused aligner run from a requested re-time", () => {
+    const blocked = readyRows({ ...base, model: ALIGNER_NEED })[1];
+    const retime = readyRows({
+      ...base,
+      transcribed: true,
+      approximateTiming: ALIGNER_NEED,
+    })[1];
+    expect(blocked).toMatchObject({ model: ALIGNER_NEED });
+    expect(blocked).not.toHaveProperty("modelGetAction");
+    expect(retime).toMatchObject({
+      model: ALIGNER_NEED,
+      modelGetAction: "get-word-timing",
+    });
+  });
+
   it("is done, not transcribing, while only word timing waits to be downloaded", () => {
     expect(
       preparePhase({

@@ -40,6 +40,10 @@ const BUSY_CODE = "bootstrap_job_running";
 
 const NONE: readonly string[] = [];
 
+type DownloadSlot =
+  | { kind: "starting"; cancelRequested: boolean }
+  | { kind: "running"; id: string };
+
 /**
  * The one owner of model status and of the server's single download slot. It reads status at mount
  * and again when a job ends (never on a progress frame), adopts a job it finds running, and starts a
@@ -57,7 +61,7 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
   const latest = useLatestRequest();
   const mounted = useMountedRef();
   const controller = useRef<AbortController | null>(null);
-  const running = useRef<string | null>(null);
+  const running = useRef<DownloadSlot | null>(null);
   const requested = useRef<string | undefined>(undefined);
 
   const reload = useCallback(async () => {
@@ -83,7 +87,8 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
       job: BootstrapJobSnapshot,
       ids: string[],
     ): Promise<DownloadOutcome> => {
-      running.current = job.id;
+      const slot: DownloadSlot = { kind: "running", id: job.id };
+      running.current = slot;
       dispatch({ type: "jobSeen", job });
       const signal = controller.current?.signal;
       try {
@@ -128,7 +133,7 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
           failed: ids.filter((id) => job.components.includes(id)),
         };
       } finally {
-        running.current = null;
+        if (running.current === slot) running.current = null;
       }
     },
     [reload, mounted],
@@ -154,6 +159,17 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
     return () => ctrl.abort();
   }, [reload, adoptRunning]);
 
+  const cancelJob = useCallback(
+    async (id: string) => {
+      try {
+        await cancelBootstrap(id);
+      } catch {
+        await reload();
+      }
+    },
+    [reload],
+  );
+
   const download = useCallback(
     async (
       ids: string[],
@@ -162,7 +178,11 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
       if (running.current !== null) {
         return { kind: "busy" };
       }
-      running.current = "starting";
+      const pending: DownloadSlot = {
+        kind: "starting",
+        cancelRequested: false,
+      };
+      running.current = pending;
       if (options?.whisperModel && ids.includes("whisper")) {
         dispatch({ type: "variantChosen", variant: options.whisperModel });
         requested.current = options.whisperModel;
@@ -187,10 +207,11 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
         });
         const outcome = track(started.job, ids);
         setStartingModelIds(NONE);
+        if (pending.cancelRequested) void cancelJob(started.job.id);
         return await outcome;
       } catch (e: unknown) {
         setStartingModelIds(NONE);
-        running.current = null;
+        if (running.current === pending) running.current = null;
         if (e instanceof ApiError && e.code === BUSY_CODE) {
           await adoptRunning();
           return { kind: "busy" };
@@ -204,20 +225,17 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
         return { kind: "failed", failed: ids };
       }
     },
-    [adoptRunning, track, reload],
+    [adoptRunning, track, reload, cancelJob],
   );
 
   const cancel = useCallback(async () => {
-    const id = stateRef.current.job?.id;
-    if (!id) {
+    const slot = running.current;
+    if (slot?.kind === "starting") {
+      slot.cancelRequested = true;
       return;
     }
-    try {
-      await cancelBootstrap(id);
-    } catch {
-      await reload();
-    }
-  }, [reload]);
+    if (slot) await cancelJob(slot.id);
+  }, [cancelJob]);
 
   const remove = useCallback(
     async (id: string, variant?: string | null): Promise<RemoveOutcome> => {
