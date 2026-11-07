@@ -12,6 +12,12 @@ import { expectNoA11yViolations } from "../test/a11y";
 import { BottomSheet } from "./BottomSheet";
 import { Menu, MenuItem } from "./Menu";
 import { menuOpen } from "./modalGate";
+import { usePressedControl } from "./pressedControl";
+
+function PressedControlCapture() {
+  usePressedControl();
+  return null;
+}
 
 function Fixture() {
   const [open, setOpen] = useState(false);
@@ -69,6 +75,24 @@ describe("Menu", () => {
     if (typeof HTMLElement.prototype.scrollIntoView !== "function") {
       HTMLElement.prototype.scrollIntoView = () => undefined;
     }
+  });
+
+  it("restores focus to a clicked trigger when the browser leaves focus on body", async () => {
+    render(
+      <>
+        <PressedControlCapture />
+        <Fixture />
+      </>,
+    );
+    const trigger = screen.getByRole("button", { name: "Open" });
+    fireEvent.click(trigger);
+    expect(document.activeElement).toBe(document.body);
+    await waitFor(() => {
+      expect(screen.getByRole("menuitem", { name: "One" })).toHaveFocus();
+    });
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+    expect(trigger).toHaveFocus();
   });
 
   it("opens, traps arrows among menuitems, closes on Escape", async () => {

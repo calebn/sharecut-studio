@@ -25,6 +25,7 @@ import { SheetHost } from "./SheetHost";
 import { STAGE_BODY_ID, StageFrameView } from "./StageFrameView";
 import { StatusLive } from "./StatusLive";
 import { useAnnounceStageSwitch } from "./useAnnounceStageSwitch";
+import { useFrameHeaderBoundary } from "./useFrameHeaderBoundary";
 import { useHeaderProps } from "./useHeaderProps";
 import { useShellAttributes } from "./useShellAttributes";
 import { useShortFrame } from "./useShortFrame";
@@ -62,6 +63,7 @@ function StageFrameAdapter({
   const rootRef = useRef<HTMLDivElement>(null);
   usePresenceCursorSource(rootRef);
   const shortFrame = useShortFrame(rootRef);
+  useFrameHeaderBoundary(rootRef, shell);
   const toolsRef = useRef<HTMLButtonElement | null>(null);
   const undoEnabled = useDawStore(
     (s) =>

@@ -1,5 +1,6 @@
 import { type RefObject, useEffect } from "react";
 import { noteMenuOpen } from "./modalGate";
+import { openerControl } from "./pressedControl";
 import { listFocusable } from "./useDialogModal";
 
 function menuItems(panel: HTMLElement): HTMLElement[] {
@@ -50,10 +51,7 @@ export function useMenuKeyboard({
     if (!open) {
       return;
     }
-    const restore =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
+    const restore = openerControl();
     const [prevKey, nextKey] =
       orientation === "vertical"
         ? ["ArrowUp", "ArrowDown"]

@@ -1,15 +1,35 @@
 import { test } from "@playwright/test";
-import { exerciseTouchSheetAffordances } from "../e2e/touchAffordances";
+import {
+  exerciseClipInspectorAffordances,
+  exerciseInviteAffordances,
+} from "../e2e/touchAffordances";
 
-test("actual sheet controls and help copy work in the compatibility browser", async ({
+test.use({ hasTouch: true });
+
+const viewport = { width: 390, height: 844 } as const;
+
+test("Invite touch affordances work in the compatibility browser", async ({
   page,
   browserName,
 }) => {
-  await exerciseTouchSheetAffordances(
+  await exerciseInviteAffordances({
     page,
-    { width: 390, height: 844, sheetExpected: true },
-    "dark",
-    true,
-    { suite: "compat", engine: browserName },
-  );
+    viewport,
+    theme: "dark",
+    reducedMotion: true,
+    owner: { suite: "compat", engine: browserName },
+  });
+});
+
+test("clip Inspector touch affordances work in the compatibility browser", async ({
+  page,
+  browserName,
+}) => {
+  await exerciseClipInspectorAffordances({
+    page,
+    viewport,
+    theme: "dark",
+    reducedMotion: true,
+    owner: { suite: "compat", engine: browserName },
+  });
 });
