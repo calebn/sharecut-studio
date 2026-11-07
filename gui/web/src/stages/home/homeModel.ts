@@ -236,10 +236,10 @@ export function timeLeftText(seconds: number): string {
 export function setupOf(
   api: Pick<
     ReturnType<typeof useModels>,
-    "models" | "tools" | "ready" | "loadError"
+    "models" | "downloads" | "tools" | "ready" | "loadError"
   >,
   secondsLeft: number | null = null,
-  totals: DownloadTotals | null = downloadTotals(api.models),
+  totals: DownloadTotals | null = downloadTotals(api.downloads),
 ): SetupData | null {
   const { models, ready, loadError } = api;
   if (models === null) {
@@ -250,7 +250,7 @@ export function setupOf(
     const left = secondsLeft === null ? "" : ` · ${timeLeftText(secondsLeft)}`;
     return {
       state: "downloading",
-      sizeLabel: sizeLabelOf(models.filter(isRunning)),
+      sizeLabel: sizeLabelOf(api.downloads.filter(isRunning)),
       progress: total === null ? undefined : Math.min(1, bytes / total),
       detail:
         total === null

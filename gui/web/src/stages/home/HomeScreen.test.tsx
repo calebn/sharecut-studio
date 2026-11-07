@@ -8,12 +8,14 @@ import {
 import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { RecentProject } from "../../api";
+import type { BootstrapJobSnapshot, RecentProject } from "../../api";
 import * as api from "../../api";
 import * as ingest from "../../ingest/ingestFiles";
+import { ModelsProvider } from "../../models/ModelsProvider";
 import { ModelsContext } from "../../models/useModels";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
+import { deferred } from "../../test/deferred";
 import {
   modelStatus,
   modelsApi,
@@ -31,6 +33,11 @@ import { HomeScreen, SETUP_DISMISSED_KEY } from "./HomeScreen";
 
 vi.mock("../../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../api")>()),
+  fetchBootstrapStatus: vi.fn(),
+  fetchBootstrapJob: vi.fn(),
+  waitForBootstrapJob: vi.fn(),
+  cancelBootstrap: vi.fn(),
+  runBootstrap: vi.fn(),
   listRecentProjects: vi.fn(),
   forgetRecentProject: vi.fn(),
   revealRecentProject: vi.fn(),
@@ -657,6 +664,56 @@ describe("HomeScreen", () => {
   });
 
   describe("Setup", () => {
+    it("shows an adopted Fast job's bytes and cancels that job while Best is selected", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(() => Promise.reject(new Error("Unexpected live fetch"))),
+      );
+      const fast: BootstrapJobSnapshot = {
+        id: "home-fast",
+        kind: "bootstrap",
+        status: "running",
+        components: ["whisper"],
+        whisper_model: "tiny.en",
+        download: {
+          component: "whisper",
+          bytes: 25_000_000,
+          total: 75_000_000,
+        },
+      };
+      vi.mocked(api.fetchBootstrapStatus).mockResolvedValue(
+        modelStatus(registryRows()),
+      );
+      vi.mocked(api.fetchBootstrapJob).mockResolvedValue(fast);
+      const done = deferred<BootstrapJobSnapshot>();
+      vi.mocked(api.waitForBootstrapJob).mockReturnValue(done.promise);
+      vi.mocked(api.cancelBootstrap).mockResolvedValue({
+        ...fast,
+        status: "cancelled",
+      });
+      rtlRender(
+        <ModelsProvider>
+          <HomeScreen />
+        </ModelsProvider>,
+      );
+      expect(await screen.findByText("25 MB of 75 MB")).toBeVisible();
+      expect(screen.getByText("Getting ShareCut ready")).toBeVisible();
+      await userEvent.click(screen.getByRole("button", { name: /cancel/i }));
+      await waitFor(() =>
+        expect(api.cancelBootstrap).toHaveBeenCalledExactlyOnceWith(
+          "home-fast",
+        ),
+      );
+      expect(api.runBootstrap).not.toHaveBeenCalled();
+      await act(async () => done.resolve({ ...fast, status: "cancelled" }));
+      await waitFor(() =>
+        expect(screen.queryByText("Getting ShareCut ready")).toBeNull(),
+      );
+      expect(
+        await screen.findByRole("button", { name: "Get ready" }),
+      ).toBeVisible();
+    });
+
     it("offers the bundle, starts the download and remembers Not now", async () => {
       const user = userEvent.setup();
       const models = modelsApi({
@@ -690,7 +747,7 @@ describe("HomeScreen", () => {
       window.sessionStorage.setItem(SETUP_DISMISSED_KEY, "1");
       const failed = modelsApi({
         status: modelStatus(registryRows(), { ready: false }),
-        failures: { whisper: { kind: "network", plain: "x" } },
+        failures: { "whisper/large-v3-turbo": { kind: "network", plain: "x" } },
       });
       const { unmount } = rtlRender(
         <ModelsContext.Provider value={failed}>
@@ -715,6 +772,7 @@ describe("HomeScreen", () => {
             : m,
         ),
       };
+      running.downloads = running.models;
       rtlRender(
         <ModelsContext.Provider value={running}>
           <HomeScreen />

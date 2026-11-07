@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { retryPipelineJob } from "../../api";
 import { runPointerCommand } from "../../commands/pointer";
 import { ModelNeedRow, useModelResume } from "../../models";
@@ -18,6 +18,10 @@ import {
 const RESUMABLE = new Set(["pipeline", "render_preview"]);
 type Stopped = { job: PipelineJobSnapshot; epoch: number; path: string };
 type ModelWait = ModelNeeded & { origin: Stopped; tried: readonly string[] };
+type Recovery =
+  | { kind: "waiting"; wait: ModelWait }
+  | { kind: "pending"; wait: ModelWait }
+  | { kind: "refused"; wait: ModelWait; message: string };
 type Attempt = {
   models: readonly string[];
   result:
@@ -26,31 +30,32 @@ type Attempt = {
     | { kind: "accepted"; jobId: string };
   epoch: number;
   path: string;
+  observed: boolean;
 };
-type Refused = { wait: ModelWait; message: string };
 
 const modelKey = (model: ModelNeeded) => `${model.id}:${model.variant}`;
 
 export function JobModelBanner({ guestShare }: { guestShare: boolean }) {
   const job = useDaw((s) => s.activityJob);
-  const need =
-    guestShare || !job || !RESUMABLE.has(job.kind ?? "")
-      ? null
-      : modelNeededOfJob(job);
-  const retryFinished =
-    !job ||
-    job.status === "ok" ||
-    job.status === "cancelled" ||
-    (job.status === "error" && !need);
-  const needRef = useRef(need);
-  needRef.current = need;
+  const path = useDaw((s) => s.projectPath);
+  const epoch = useDaw((s) => s.projectEpoch);
   const attempts = useRef(new Map<string, Attempt>());
+  const recoveries = useRef(new Map<string, Recovery>());
+  const seen = useRef(new Set<string>());
+  const identity = useRef({ path, epoch, job });
+  const retiredJobs = useRef(new Set<string>());
   const previewRetried = useRef<{
     model: string;
     epoch: number;
     path: string;
   } | null>(null);
-  const [refused, setRefused] = useState<Refused | null>(null);
+  const [, update] = useState(0);
+
+  const put = useCallback((id: string, recovery: Recovery | null) => {
+    if (recovery) recoveries.current.set(id, recovery);
+    else recoveries.current.delete(id);
+    update((n) => n + 1);
+  }, []);
 
   function resume(wait: ModelWait) {
     const last = wait.origin;
@@ -58,13 +63,13 @@ export function JobModelBanner({ guestShare }: { guestShare: boolean }) {
     if (
       guestShare ||
       current.projectEpoch !== last.epoch ||
-      current.projectPath !== last.path ||
-      current.activityJob?.id !== last.job.id
+      current.projectPath !== last.path
     )
       return;
-    setRefused(null);
+    if (recoveries.current.get(last.job.id)?.kind === "pending") return;
     const key = modelKey(wait);
     if (last.job.kind === "render_preview") {
+      put(last.job.id, null);
       previewRetried.current = {
         model: key,
         epoch: last.epoch,
@@ -73,14 +78,15 @@ export function JobModelBanner({ guestShare }: { guestShare: boolean }) {
       runPointerCommand("render.refreshMix");
       return;
     }
-    if (attempts.current.get(last.job.id)?.result.kind === "pending") return;
     const attempt: Attempt = {
       models: [...wait.tried, key],
       result: { kind: "pending" },
       epoch: last.epoch,
       path: last.path,
+      observed: false,
     };
     attempts.current.set(last.job.id, attempt);
+    put(last.job.id, { kind: "pending", wait });
     void retryPipelineJob(last.path, last.job.id).then(
       (successor) => {
         const store = useDawStore.getState();
@@ -90,6 +96,8 @@ export function JobModelBanner({ guestShare }: { guestShare: boolean }) {
         )
           return;
         attempt.result = { kind: "accepted", jobId: successor.id };
+        if (recoveries.current.get(last.job.id)?.kind === "pending")
+          put(last.job.id, null);
         if (store.activityJob?.id === last.job.id)
           store.setActivityJob(successor);
       },
@@ -100,6 +108,13 @@ export function JobModelBanner({ guestShare }: { guestShare: boolean }) {
           store.projectPath !== last.path
         )
           return;
+        if (attempt.observed || attempts.current.get(last.job.id) !== attempt) {
+          store.announceStatus(
+            errorMessage(error, "The run could not resume."),
+            { tone: "error" },
+          );
+          return;
+        }
         const refusedBeforeAdmission =
           isModelNeeded(error) ||
           (error instanceof ApiError &&
@@ -112,14 +127,17 @@ export function JobModelBanner({ guestShare }: { guestShare: boolean }) {
         } else {
           attempt.result = { kind: "uncertain" };
         }
-        if (store.activityJob?.id !== last.job.id) return;
         if (isModelNeeded(error)) {
           if (attempt.models.includes(modelKey(error.model))) {
+            put(last.job.id, null);
             store.announceStatus(notDownloadedLine(error.model), {
               tone: "error",
             });
           } else {
-            stopFor({ ...error.model, origin: last, tried: attempt.models });
+            put(last.job.id, {
+              kind: "waiting",
+              wait: { ...error.model, origin: last, tried: attempt.models },
+            });
           }
           return;
         }
@@ -129,91 +147,135 @@ export function JobModelBanner({ guestShare }: { guestShare: boolean }) {
           (error.code === "pipeline_retry_stale" ||
             error.code === "pipeline_retry_unavailable")
         ) {
+          put(last.job.id, null);
           store.announceStatus(message, { tone: "error" });
           return;
         }
         store.announceStatus(message, { tone: "error", toast: false });
-        setRefused({ wait, message });
+        put(last.job.id, { kind: "refused", wait, message });
       },
     );
   }
 
   const { stop, stopFor, clear } = useModelResume<ModelWait>(resume);
-  const needKey = need && job ? `${job.id}:${need.id}:${need.variant}` : null;
   useEffect(() => {
-    const model = needRef.current;
-    setRefused(null);
-    if (needKey === null || !model) {
-      if (retryFinished) {
-        previewRetried.current = null;
-        for (const [id, attempt] of attempts.current) {
-          if (
-            (attempt.result.kind === "accepted" &&
-              attempt.result.jobId === job?.id) ||
-            id === job?.retry_of
-          )
-            attempts.current.delete(id);
-        }
+    if (identity.current.path !== path || identity.current.epoch !== epoch) {
+      const previous = identity.current;
+      if (previous.job?.project_path === previous.path)
+        retiredJobs.current.add(previous.job.id);
+      for (const id of recoveries.current.keys()) retiredJobs.current.add(id);
+      for (const [id, attempt] of attempts.current) {
+        retiredJobs.current.add(id);
+        if (attempt.result.kind === "accepted")
+          retiredJobs.current.add(attempt.result.jobId);
       }
+      attempts.current.clear();
+      recoveries.current.clear();
+      seen.current.clear();
+      previewRetried.current = null;
       clear();
-      return;
+      update((n) => n + 1);
     }
-    const attempt = job?.retry_of
+    identity.current = { path, epoch, job };
+  }, [path, epoch, job, clear]);
+
+  const need = useMemo(
+    () =>
+      guestShare ||
+      !job ||
+      !RESUMABLE.has(job.kind ?? "") ||
+      (job.project_path && job.project_path !== path)
+        ? null
+        : modelNeededOfJob(job),
+    [guestShare, job, path],
+  );
+  const needKey = need && job ? `${job.id}:${modelKey(need)}` : null;
+  useEffect(() => {
+    if (!job) return;
+    if (job.project_path && job.project_path !== path) return;
+    if (retiredJobs.current.has(job.id)) return;
+    const parent = job.retry_of
       ? attempts.current.get(job.retry_of)
       : [...attempts.current.values()].find(
           (entry) =>
-            entry.result.kind === "accepted" && entry.result.jobId === job?.id,
+            entry.result.kind === "accepted" && entry.result.jobId === job.id,
         );
-    const current = useDawStore.getState();
+    if (parent) {
+      parent.observed = true;
+      for (const [id, attempt] of attempts.current) {
+        if (attempt === parent) recoveries.current.delete(id);
+      }
+    }
+    if (!need || !needKey) {
+      if (
+        job.status === "ok" ||
+        job.status === "cancelled" ||
+        job.status === "error"
+      ) {
+        recoveries.current.delete(job.id);
+        if (parent) {
+          for (const [id, attempt] of attempts.current)
+            if (attempt === parent) attempts.current.delete(id);
+        }
+        if (job.kind === "render_preview") previewRetried.current = null;
+      }
+      update((n) => n + 1);
+      return;
+    }
+    if (seen.current.has(needKey)) return;
+    seen.current.add(needKey);
     const preview = previewRetried.current;
     if (
-      (preview?.model === modelKey(model) &&
-        preview.epoch === current.projectEpoch &&
-        preview.path === current.projectPath) ||
-      (attempt?.epoch === current.projectEpoch &&
-        attempt.path === current.projectPath &&
-        attempt.models.includes(modelKey(model)))
+      (preview?.model === modelKey(need) &&
+        preview.epoch === epoch &&
+        preview.path === path) ||
+      (parent?.epoch === epoch &&
+        parent.path === path &&
+        parent.models.includes(modelKey(need)))
     ) {
       previewRetried.current = null;
       useDawStore
         .getState()
-        .announceStatus(notDownloadedLine(model), { tone: "error" });
-      clear();
+        .announceStatus(notDownloadedLine(need), { tone: "error" });
+      update((n) => n + 1);
       return;
     }
-    const store = useDawStore.getState();
-    const active = store.activityJob;
-    if (!active || active.id !== job?.id) {
-      clear();
-      return;
-    }
-    stopFor({
-      ...model,
-      origin: {
-        job: active,
-        epoch: store.projectEpoch,
-        path: store.projectPath,
+    put(job.id, {
+      kind: "waiting",
+      wait: {
+        ...need,
+        origin: { job, epoch, path },
+        tried: parent?.models ?? [],
       },
-      tried: [],
     });
-  }, [needKey, retryFinished, job?.id, job?.retry_of, clear, stopFor]);
+  }, [needKey, job, need, path, epoch, guestShare, put]);
+
+  const selected =
+    (job && need ? recoveries.current.get(job.id) : undefined) ??
+    [...recoveries.current.values()].find((entry) => entry.kind !== "pending");
+  const selectedWait = selected?.kind === "waiting" ? selected.wait : null;
+  useEffect(() => {
+    if (selectedWait) stopFor(selectedWait);
+    else clear();
+  }, [selectedWait, stopFor, clear]);
+
   if (guestShare) return null;
-  if (refused) {
+  if (selected?.kind === "refused") {
     return (
       <div className="guest-banner">
         <StatusRow
           state="failed"
-          title={refused.message}
+          title={selected.message}
           action={{
             label: "Try again",
             name: "Resume the stopped run",
-            onAction: () => resume(refused.wait),
+            onAction: () => resume(selected.wait),
           }}
         />
       </div>
     );
   }
-  if (!stop) return null;
+  if (!stop || stop !== selectedWait) return null;
   return (
     <div className="guest-banner" role="status">
       <ModelNeedRow model={stop} />

@@ -411,7 +411,7 @@ export function HomeScreen() {
     onHelp: () => openPalette(true),
   });
 
-  const transfer = useHeldTotals(downloadTotals(models.models));
+  const transfer = useHeldTotals(downloadTotals(models.downloads));
   const secondsLeft = useSecondsLeft(
     transfer?.bytes ?? null,
     transfer?.total ?? null,

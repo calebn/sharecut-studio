@@ -63,12 +63,12 @@ describe("statusLoaded for another size", () => {
   it("does not clear a Whisper failure with the installed row of a different size", () => {
     const failure: ModelFailure = { kind: null, plain: "Lost." };
     const chosen = reduce(
-      { ...initialState, failures: { whisper: failure } },
+      { ...initialState, failures: { "whisper/large-v3": failure } },
       { type: "variantChosen", variant: "large-v3" },
     );
     const failed = reduce(chosen, {
       type: "failed",
-      failures: { whisper: failure },
+      failures: { "whisper/large-v3": failure },
     });
     const small = status({
       whisper_model: "small.en",
@@ -76,7 +76,7 @@ describe("statusLoaded for another size", () => {
     });
     expect(
       reduce(failed, { type: "statusLoaded", status: small }).failures,
-    ).toEqual({ whisper: failure });
+    ).toEqual({ "whisper/large-v3": failure });
   });
 });
 
@@ -178,16 +178,18 @@ describe("overlay", () => {
 
   it("shows a failure on its row and not once the row is installed", () => {
     const failure: ModelFailure = { kind: "http", plain: "Not found." };
-    expect(overlay(status(), null, { rnnoise: failure })[1]!.state).toEqual({
+    expect(overlay(status(), null, { "rnnoise/": failure })[1]!.state).toEqual({
       kind: "failed",
       failure,
     });
     const installed = status({
       models: [row({ id: "rnnoise", state: "installed" })],
     });
-    expect(overlay(installed, null, { rnnoise: failure })[0]!.state).toEqual({
-      kind: "installed",
-    });
+    expect(overlay(installed, null, { "rnnoise/": failure })[0]!.state).toEqual(
+      {
+        kind: "installed",
+      },
+    );
   });
 
   it("shows a Whisper failure for the size asked for while the status describes another", () => {
@@ -197,13 +199,15 @@ describe("overlay", () => {
       models: [row({ id: "whisper", model: "small.en", state: "installed" })],
     });
     expect(
-      overlay(small, null, { whisper: failure }, "large-v3")[0]!.state,
+      overlay(small, null, { "whisper/large-v3": failure }, "large-v3")[0]!
+        .state,
     ).toEqual({
       kind: "failed",
       failure,
     });
     expect(
-      overlay(small, null, { whisper: failure }, "small.en")[0]!.state,
+      overlay(small, null, { "whisper/large-v3": failure }, "small.en")[0]!
+        .state,
     ).toEqual({
       kind: "installed",
     });
@@ -214,7 +218,7 @@ describe("overlay", () => {
     const views = overlay(
       status(),
       job({ download: { component: "rnnoise", bytes: 1, total: 2 } }),
-      { rnnoise: failure },
+      { "rnnoise/": failure },
     );
     expect(views[1]!.state.kind).toBe("downloading");
   });
@@ -256,7 +260,7 @@ describe("jobFailures", () => {
       ["whisper", "rnnoise"],
     );
     expect(failures).toEqual({
-      rnnoise: { kind: "http", plain: typed.plain },
+      "rnnoise/": { kind: "http", plain: typed.plain },
     });
   });
 
@@ -273,7 +277,10 @@ describe("jobFailures", () => {
       ["whisper"],
     );
     expect(failures).toEqual({
-      whisper: { kind: null, plain: "Whisper could not be installed." },
+      "whisper/large-v3-turbo": {
+        kind: null,
+        plain: "Whisper could not be installed.",
+      },
     });
   });
 
@@ -287,8 +294,8 @@ describe("jobFailures", () => {
       ["whisper", "rnnoise"],
     );
     expect(failures).toEqual({
-      whisper: { kind: "network", plain: "No connection." },
-      rnnoise: { kind: "network", plain: "No connection." },
+      "whisper/large-v3-turbo": { kind: "network", plain: "No connection." },
+      "rnnoise/": { kind: "network", plain: "No connection." },
     });
   });
 
@@ -298,7 +305,10 @@ describe("jobFailures", () => {
       ["whisper"],
     );
     expect(failures).toEqual({
-      whisper: { kind: null, plain: "The download could not be completed." },
+      "whisper/large-v3-turbo": {
+        kind: null,
+        plain: "The download could not be completed.",
+      },
     });
   });
 
@@ -315,17 +325,23 @@ describe("reduce", () => {
 
   it("clears a failure when a new download of that row starts", () => {
     const state = reduce(
-      { ...initialState, failures: { whisper: failure, rnnoise: failure } },
-      { type: "downloadStarted", ids: ["rnnoise"] },
+      {
+        ...initialState,
+        failures: { "whisper/large-v3-turbo": failure, "rnnoise/": failure },
+      },
+      { type: "downloadStarted", ids: ["rnnoise"], variant: "large-v3-turbo" },
     );
-    expect(state.failures).toEqual({ whisper: failure });
+    expect(state.failures).toEqual({ "whisper/large-v3-turbo": failure });
   });
 
   it("clears a failure when refetched status says installed", () => {
     const state = reduce(
       {
         ...initialState,
-        failures: { "speaker-ecapa": failure, whisper: failure },
+        failures: {
+          "speaker-ecapa/": failure,
+          "whisper/large-v3-turbo": failure,
+        },
       },
       {
         type: "statusLoaded",
@@ -337,7 +353,7 @@ describe("reduce", () => {
         }),
       },
     );
-    expect(state.failures).toEqual({ "speaker-ecapa": failure });
+    expect(state.failures).toEqual({ "speaker-ecapa/": failure });
     expect(state.status?.models).toHaveLength(2);
   });
 
@@ -354,9 +370,9 @@ describe("reduce", () => {
   it("adds terminal failures", () => {
     const state = reduce(initialState, {
       type: "failed",
-      failures: { whisper: failure },
+      failures: { "whisper/large-v3-turbo": failure },
     });
-    expect(state.failures).toEqual({ whisper: failure });
+    expect(state.failures).toEqual({ "whisper/large-v3-turbo": failure });
   });
 
   it("records a load error and clears it on the next status", () => {
@@ -386,5 +402,37 @@ describe("reduce", () => {
       status: status({ whisper_model: "small.en" }),
     });
     expect(reloaded.variant).toBe("small.en");
+  });
+});
+
+describe("failure ownership", () => {
+  it("keeps both variants and clears only the variant observed installed", () => {
+    const fast = { kind: null, plain: "Fast failed." };
+    const best = { kind: null, plain: "Best failed." };
+    const failed = {
+      ...initialState,
+      failures: {
+        "whisper/tiny.en": fast,
+        "whisper/large-v3-turbo": best,
+      },
+    };
+    const loaded = reduce(failed, {
+      type: "statusLoaded",
+      status: status({
+        models: [
+          row({ id: "whisper", model: "large-v3-turbo", state: "installed" }),
+        ],
+      }),
+    });
+    expect(loaded.failures).toEqual({ "whisper/tiny.en": fast });
+    const starting = reduce(failed, {
+      type: "downloadStarted",
+      ids: ["whisper"],
+      variant: "tiny.en",
+    });
+    expect(starting.failures).toEqual({ "whisper/large-v3-turbo": best });
+    expect(
+      reduce(failed, { type: "variantChosen", variant: "small.en" }).failures,
+    ).toEqual(failed.failures);
   });
 });

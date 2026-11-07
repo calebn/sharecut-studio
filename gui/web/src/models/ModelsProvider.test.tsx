@@ -5,6 +5,7 @@ import {
   renderHook,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -854,12 +855,23 @@ describe("an adopted Whisper job", () => {
       expect(observed.at(-1)?.whisper.variant).toBe("large-v3-turbo");
       expect(observed.at(-1)?.ready).toBe(false);
       expect(observed.at(-1)?.busy).toBe(true);
+      const fastRow = screen.getByRole("group", { name: "Transcription Fast" });
       expect(
-        screen.queryByRole("button", {
-          name: /cancel .*download/i,
-          hidden: true,
+        within(fastRow).getByRole("button", {
+          name: "Cancel Transcription download",
         }),
-      ).toBeNull();
+      ).toBeEnabled();
+      const bestRow = screen
+        .getByRole("button", { name: "Get Transcription" })
+        .closest("li");
+      expect(bestRow).not.toBeNull();
+      expect(bestRow?.querySelector(".sys-need-cancel")).toBeNull();
+      if (phase === "downloading") {
+        expect(within(fastRow).getByRole("progressbar")).toHaveAttribute(
+          "aria-valuenow",
+          "50",
+        );
+      }
       expect(
         screen.getByRole("button", { name: "Get Transcription" }),
       ).toBeDisabled();
@@ -900,5 +912,264 @@ describe("an adopted Whisper job", () => {
       }),
     );
     await waitFor(() => expect(cancel).toHaveBeenCalledWith("other"));
+  });
+});
+
+describe("variant ownership regressions", () => {
+  it.each(["missing", "installed", "update_needed"] as const)(
+    "keeps Best %s while Fast progresses and cancels its exact job",
+    async (state) => {
+      fetchStatus.mockResolvedValue(
+        status([row({ id: "whisper", model: "large-v3-turbo", state })]),
+      );
+      const fast = job({ id: "fast-owned", whisper_model: "tiny.en" });
+      fetchJob.mockResolvedValue(fast);
+      cancel.mockResolvedValue(fast);
+      stubViewportShell("desktop");
+      let current: ReturnType<typeof useModels> | undefined;
+      function Observe() {
+        current = useModels();
+        return null;
+      }
+      render(
+        <ModelsProvider>
+          <Observe />
+          <ModelsSheet open onClose={vi.fn()} />
+        </ModelsProvider>,
+      );
+      await waitFor(() => expect(waiters).toHaveLength(1));
+      act(() =>
+        waiters[0]!.onUpdate({
+          ...fast,
+          download: {
+            component: "whisper",
+            bytes: 25_000_000,
+            total: 75_000_000,
+          },
+        }),
+      );
+      await waitFor(() =>
+        expect(current?.models?.[0]?.state).toEqual({ kind: state }),
+      );
+      expect(current?.whisper.variant).toBe("large-v3-turbo");
+      const active = screen.getByRole("group", { name: "Transcription Fast" });
+      expect(
+        within(screen.getByRole("list")).getAllByRole("listitem"),
+      ).toHaveLength(1);
+      expect(within(active).getByRole("progressbar")).toHaveAttribute(
+        "aria-valuetext",
+        "25 MB of 75 MB",
+      );
+      fireEvent.click(
+        within(active).getByRole("button", {
+          name: "Cancel Transcription download",
+        }),
+      );
+      await waitFor(() =>
+        expect(cancel).toHaveBeenCalledExactlyOnceWith("fast-owned"),
+      );
+      await act(async () =>
+        waiters[0]!.finish({ ...fast, status: "cancelled" }),
+      );
+      await waitFor(() => expect(current?.busy).toBe(false));
+      expect(current?.models?.[0]?.state).toEqual({ kind: state });
+      expect(current?.whisper.variant).toBe("large-v3-turbo");
+      expect(
+        screen.queryByRole("group", { name: "Transcription Fast" }),
+      ).toBeNull();
+    },
+  );
+
+  it.each([true, false])(
+    "keeps a Fast terminal failure and retry off Best, results=%s",
+    async (withResults) => {
+      const fast = job({ id: "fast-error", whisper_model: "tiny.en" });
+      fetchJob.mockResolvedValue(fast);
+      stubViewportShell("desktop");
+      let current: ReturnType<typeof useModels> | undefined;
+      function Observe() {
+        current = useModels();
+        return null;
+      }
+      render(
+        <ModelsProvider>
+          <Observe />
+          <ModelsSheet open onClose={vi.fn()} />
+        </ModelsProvider>,
+      );
+      await waitFor(() => expect(waiters).toHaveLength(1));
+      await act(async () =>
+        waiters[0]!.finish({
+          ...fast,
+          status: "error",
+          error: "Fast failed.",
+          failure: { kind: "network", status: null, plain: "Fast failed." },
+          result: withResults
+            ? {
+                results: {
+                  whisper: {
+                    ok: false,
+                    failure: { kind: "network", plain: "Fast failed." },
+                  },
+                },
+              }
+            : null,
+        }),
+      );
+      await waitFor(() => expect(current?.busy).toBe(false));
+      expect(current?.models?.[0]?.state).toEqual({ kind: "missing" });
+      expect(current?.whisper.variant).toBe("large-v3-turbo");
+      const failed = screen.getByRole("group", { name: "Transcription Fast" });
+      expect(within(failed).getByText("Fast failed.")).toBeVisible();
+      run.mockResolvedValue({ job: { ...fast, id: "retry-fast" } });
+      fireEvent.click(
+        within(failed).getByRole("button", { name: "Try again Transcription" }),
+      );
+      await waitFor(() =>
+        expect(run).toHaveBeenCalledExactlyOnceWith({
+          components: ["whisper"],
+          whisper_model: "tiny.en",
+          force: false,
+        }),
+      );
+    },
+  );
+
+  it.each([true, false])(
+    "retains Fast failure when terminal status is superseded, results=%s",
+    async (withResults) => {
+      const fast = job({ whisper_model: "tiny.en" });
+      fetchJob.mockResolvedValue(fast);
+      const { result } = await mounted();
+      await waitFor(() => expect(waiters).toHaveLength(1));
+      const stale = deferred<BootstrapStatus>();
+      fetchStatus.mockReturnValueOnce(stale.promise);
+      await act(async () =>
+        waiters[0]!.finish({
+          ...fast,
+          status: "error",
+          error: "Fast failed.",
+          result: withResults
+            ? { results: { whisper: { ok: false, error: "Fast failed." } } }
+            : null,
+        }),
+      );
+      await waitFor(() => expect(fetchStatus).toHaveBeenCalledTimes(2));
+      await act(() => result.current.refresh());
+      await act(async () =>
+        stale.resolve(
+          status(
+            [row({ id: "whisper", model: "tiny.en", state: "installed" })],
+            { whisper_model: "tiny.en" },
+          ),
+        ),
+      );
+      await waitFor(() => expect(result.current.busy).toBe(false));
+      expect(result.current.models?.[0]?.state).toEqual({ kind: "missing" });
+      expect(result.current.downloads).toEqual([
+        expect.objectContaining({
+          id: "whisper",
+          variant: "tiny.en",
+          state: {
+            kind: "failed",
+            failure: { kind: null, plain: "Fast failed." },
+          },
+        }),
+      ]);
+    },
+  );
+
+  it.each(["small.en", "large-v3-turbo"])(
+    "scopes force to the requested %s observation",
+    async (variant) => {
+      fetchStatus.mockResolvedValueOnce(
+        status([
+          row({
+            id: "whisper",
+            model: "large-v3-turbo",
+            state: "update_needed",
+          }),
+        ]),
+      );
+      const next = deferred<BootstrapStatus>();
+      fetchStatus.mockReturnValue(next.promise);
+      run.mockResolvedValue({ job: job({ whisper_model: variant }) });
+      const { result } = await mounted();
+      act(() => {
+        void result.current.download(["whisper"], { whisperModel: variant });
+      });
+      await waitFor(() =>
+        expect(run).toHaveBeenCalledExactlyOnceWith({
+          components: ["whisper"],
+          whisper_model: variant,
+          force: variant === "large-v3-turbo",
+        }),
+      );
+      await act(async () =>
+        next.resolve(
+          status([row({ id: "whisper", model: variant, state: "installed" })], {
+            whisper_model: variant,
+          }),
+        ),
+      );
+    },
+  );
+});
+
+describe("exception ownership", () => {
+  it("keeps a failed Fast start attributed to Fast after selection changes", async () => {
+    const start = deferred<Awaited<ReturnType<typeof api.runBootstrap>>>();
+    run.mockReturnValue(start.promise);
+    const { result } = await mounted();
+    let outcome: Promise<unknown> = Promise.resolve();
+    act(() => {
+      outcome = result.current.download(["whisper"], {
+        whisperModel: "tiny.en",
+      });
+    });
+    await act(async () => result.current.whisper.choose("large-v3-turbo"));
+    await act(async () => {
+      start.reject(new Error("Start failed."));
+      await outcome;
+    });
+    expect(result.current.models?.[0]?.state).toEqual({ kind: "missing" });
+    expect(result.current.downloads).toEqual([
+      expect.objectContaining({
+        variant: "tiny.en",
+        state: {
+          kind: "failed",
+          failure: { kind: null, plain: "Start failed." },
+        },
+      }),
+    ]);
+    await expect(outcome).resolves.toEqual({
+      kind: "failed",
+      failed: ["whisper"],
+    });
+  });
+
+  it("keeps connection loss attributed to the adopted Fast job", async () => {
+    const connection = deferred<BootstrapJobSnapshot>();
+    fetchJob.mockResolvedValue(
+      job({ id: "lost-fast", whisper_model: "tiny.en" }),
+    );
+    wait.mockReturnValue(connection.promise);
+    const { result } = await mounted();
+    await waitFor(() => expect(result.current.busy).toBe(true));
+    await act(async () => connection.reject(new Error("Connection lost.")));
+    await waitFor(() => expect(result.current.busy).toBe(false));
+    expect(result.current.models?.[0]?.state).toEqual({ kind: "missing" });
+    expect(result.current.downloads).toEqual([
+      expect.objectContaining({
+        variant: "tiny.en",
+        state: {
+          kind: "failed",
+          failure: {
+            kind: null,
+            plain: "Lost the connection to the download. Retry it in a moment.",
+          },
+        },
+      }),
+    ]);
   });
 });

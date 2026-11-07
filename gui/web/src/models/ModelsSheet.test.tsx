@@ -408,7 +408,7 @@ describe("ModelsSheet", () => {
     });
     const { api } = mount(rows, {
       failures: {
-        "speaker-ecapa": {
+        "speaker-ecapa/": {
           kind: "network",
           plain: "Couldn't reach the server.",
         },

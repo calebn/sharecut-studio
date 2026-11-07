@@ -144,6 +144,10 @@ describe("new episode names", () => {
   });
 });
 
+function setupApi(api: Omit<Parameters<typeof setupOf>[0], "downloads">) {
+  return { ...api, downloads: api.models ?? [] };
+}
+
 describe("setupOf", () => {
   const base = {
     ready: false,
@@ -151,56 +155,64 @@ describe("setupOf", () => {
     tools: { ffmpeg: "installed" as const, hint: null },
   };
   it("is checking while the first status is on its way", () => {
-    expect(setupOf({ ...base, models: null })).toEqual({
+    expect(setupOf(setupApi({ ...base, models: null }))).toEqual({
       state: "checking",
       sizeLabel: "",
     });
   });
   it("offers a check again when the status never came", () => {
-    expect(setupOf({ ...base, models: null, loadError: "x" })?.state).toBe(
-      "check-error",
-    );
+    expect(
+      setupOf(setupApi({ ...base, models: null, loadError: "x" }))?.state,
+    ).toBe("check-error");
   });
   it("shows nothing once the required models are in", () => {
     expect(
-      setupOf({
-        ...base,
-        ready: true,
-        models: [model({ state: { kind: "installed" } })],
-      }),
+      setupOf(
+        setupApi({
+          ...base,
+          ready: true,
+          models: [model({ state: { kind: "installed" } })],
+        }),
+      ),
     ).toBeNull();
   });
   it("asks for the bundle and sizes it in words", () => {
-    const data = setupOf({
-      ...base,
-      models: [
-        model(),
-        model({ id: "aligner", tier: "recommended", sizeBytes: 360_000_000 }),
-        model({ id: "ecapa", tier: "recommended", sizeBytes: 80_000_000 }),
-      ],
-    });
+    const data = setupOf(
+      setupApi({
+        ...base,
+        models: [
+          model(),
+          model({ id: "aligner", tier: "recommended", sizeBytes: 360_000_000 }),
+          model({ id: "ecapa", tier: "recommended", sizeBytes: 80_000_000 }),
+        ],
+      }),
+    );
     expect(data).toEqual({ state: "needed", sizeLabel: "about 2 GB" });
   });
   it("does not guess a size it does not have", () => {
-    const data = setupOf({
-      ...base,
-      models: [model({ sizeBytes: null })],
-    });
+    const data = setupOf(
+      setupApi({
+        ...base,
+        models: [model({ sizeBytes: null })],
+      }),
+    );
     expect(data?.sizeLabel).toBe("a few gigabytes");
   });
   it("reports a running download with its bytes", () => {
-    const data = setupOf({
-      ...base,
-      models: [
-        model({
-          state: {
-            kind: "downloading",
-            bytes: 800_000_000,
-            total: 1_600_000_000,
-          },
-        }),
-      ],
-    });
+    const data = setupOf(
+      setupApi({
+        ...base,
+        models: [
+          model({
+            state: {
+              kind: "downloading",
+              bytes: 800_000_000,
+              total: 1_600_000_000,
+            },
+          }),
+        ],
+      }),
+    );
     expect(data).toMatchObject({
       state: "downloading",
       progress: 0.5,
@@ -217,27 +229,31 @@ describe("setupOf", () => {
         },
       }),
     ];
-    expect(setupOf({ ...base, models }, 180)?.detail).toBe(
+    expect(setupOf(setupApi({ ...base, models }), 180)?.detail).toBe(
       "1.1 GB of 2.0 GB · about 3 min",
     );
-    expect(setupOf({ ...base, models }, null)?.detail).toBe("1.1 GB of 2.0 GB");
+    expect(setupOf(setupApi({ ...base, models }), null)?.detail).toBe(
+      "1.1 GB of 2.0 GB",
+    );
   });
   it("leaves progress open when a total is unknown", () => {
-    const data = setupOf({
-      ...base,
-      models: [
-        model({
-          state: { kind: "downloading", bytes: 5_000_000, total: null },
-        }),
-      ],
-    });
+    const data = setupOf(
+      setupApi({
+        ...base,
+        models: [
+          model({
+            state: { kind: "downloading", bytes: 5_000_000, total: null },
+          }),
+        ],
+      }),
+    );
     expect(data?.progress).toBeUndefined();
     expect(data?.detail).toBe("5 MB downloaded");
   });
   it("names missing audio tools with nothing to download", () => {
     const models = [model({ state: { kind: "installed" } })];
     const tools = { ffmpeg: "missing" as const, hint: "Cannot run ffprobe" };
-    expect(setupOf({ ...base, tools, models })).toEqual({
+    expect(setupOf(setupApi({ ...base, tools, models }))).toEqual({
       state: "tools-missing",
       sizeLabel: "",
     });
@@ -248,17 +264,21 @@ describe("setupOf", () => {
   it("puts a running download ahead of missing audio tools", () => {
     const tools = { ffmpeg: "missing" as const, hint: null };
     const models = [model({ state: { kind: "queued" } })];
-    expect(setupOf({ ...base, tools, models })?.state).toBe("downloading");
+    expect(setupOf(setupApi({ ...base, tools, models }))?.state).toBe(
+      "downloading",
+    );
   });
   it("reports a failed model", () => {
-    const data = setupOf({
-      ...base,
-      models: [
-        model({
-          state: { kind: "failed", failure: { kind: "network", plain: "x" } },
-        }),
-      ],
-    });
+    const data = setupOf(
+      setupApi({
+        ...base,
+        models: [
+          model({
+            state: { kind: "failed", failure: { kind: "network", plain: "x" } },
+          }),
+        ],
+      }),
+    );
     expect(data?.state).toBe("failed");
   });
 });
@@ -299,12 +319,12 @@ describe("downloadTotals across the bundle", () => {
       expect(totals.bytes).toBeGreaterThanOrEqual(previous);
       previous = totals.bytes;
       const data = setupOf(
-        {
+        setupApi({
           ready: false,
           loadError: null,
           tools: { ffmpeg: "installed", hint: null },
           models: bundle(current, bytes, total),
-        },
+        }),
         null,
       );
       expect(data?.progress).toBeGreaterThanOrEqual(0);

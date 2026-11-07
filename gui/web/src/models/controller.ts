@@ -4,10 +4,16 @@ import { isTerminalJobStatus } from "../utils/pipeline";
 import { WHISPER_SIZES } from "./capability";
 import type {
   ModelFailure,
+  ModelFailureKey,
+  ModelFailures,
   ModelObservation,
   ModelState,
   ModelView,
 } from "./types";
+
+export function failureKey(id: string, variant: string): ModelFailureKey {
+  return `${id}/${id === "whisper" ? variant : ""}`;
+}
 
 export type ControllerState = {
   status: BootstrapStatus | null;
@@ -15,7 +21,7 @@ export type ControllerState = {
   /** The live (non-terminal) bootstrap job, ours or adopted. */
   job: BootstrapJobSnapshot | null;
   /** Per-row failure from the last terminal job; session memory only. */
-  failures: Record<string, ModelFailure>;
+  failures: ModelFailures;
   /** The Whisper size the person picked; the server's until they pick. */
   variant: string;
   /** True once the person (or their download) picked a size; a reload then keeps it. */
@@ -28,8 +34,8 @@ export type ControllerAction =
   | { type: "statusLoaded"; status: BootstrapStatus }
   | { type: "loadFailed"; message: string }
   | { type: "jobSeen"; job: BootstrapJobSnapshot | null }
-  | { type: "downloadStarted"; ids: string[] }
-  | { type: "failed"; failures: Record<string, ModelFailure> }
+  | { type: "downloadStarted"; ids: string[]; variant: string }
+  | { type: "failed"; failures: ModelFailures }
   | { type: "variantChosen"; variant: string };
 
 export const initialState: ControllerState = {
@@ -43,9 +49,9 @@ export const initialState: ControllerState = {
 };
 
 function without(
-  failures: Record<string, ModelFailure>,
-  drop: (id: string) => boolean,
-): Record<string, ModelFailure> {
+  failures: ModelFailures,
+  drop: (key: string) => boolean,
+): ModelFailures {
   return Object.fromEntries(
     Object.entries(failures).filter(([id]) => !drop(id)),
   );
@@ -71,14 +77,14 @@ export function reduce(
         : action.status.whisper_model;
       // A row says "installed" for the size the status was read for; only that size's row
       // may clear a failure.
-      const installed = new Set(
+      const installed = new Set<string>(
         action.status.models
           .filter(
             (m) =>
               m.state === "installed" &&
               (m.id !== "whisper" || action.status.whisper_model === variant),
           )
-          .map((m) => m.id),
+          .map((m) => failureKey(m.id, action.status.whisper_model)),
       );
       return {
         ...state,
@@ -86,7 +92,7 @@ export function reduce(
         loadError: null,
         variant,
         observation: { ...state.observation, kind: "current" },
-        failures: without(state.failures, (id) => installed.has(id)),
+        failures: without(state.failures, (key) => installed.has(key)),
       };
     }
     case "loadFailed":
@@ -106,7 +112,9 @@ export function reduce(
     case "downloadStarted":
       return {
         ...state,
-        failures: without(state.failures, (id) => action.ids.includes(id)),
+        failures: without(state.failures, (key) =>
+          action.ids.some((id) => failureKey(id, action.variant) === key),
+        ),
       };
     case "failed":
       return { ...state, failures: { ...state.failures, ...action.failures } };
@@ -115,7 +123,6 @@ export function reduce(
         ...state,
         variant: action.variant,
         picked: true,
-        failures: without(state.failures, (id) => id === "whisper"),
       };
   }
 }
@@ -123,7 +130,7 @@ export function reduce(
 export function overlay(
   status: BootstrapStatus,
   job: BootstrapJobSnapshot | null,
-  failures: Record<string, ModelFailure>,
+  failures: ModelFailures,
   variant: string = status.whisper_model,
   startingModelIds: readonly string[] = [],
   readState: ModelObservation["kind"] = "current",
@@ -131,6 +138,7 @@ export function overlay(
   const live = job && !isTerminalJobStatus(job.status) ? job : null;
   return status.models.map((row) => {
     const foreign = row.id === "whisper" && status.whisper_model !== variant;
+    const failure = failures[failureKey(row.id, variant)];
     let state: ModelState = { kind: row.state };
     if (
       live?.components.includes(row.id) &&
@@ -149,11 +157,11 @@ export function overlay(
     } else if (readState !== "current") {
       state = { kind: readState === "checking" ? "checking" : "unavailable" };
     } else if (
-      failures[row.id] &&
+      failure &&
       (row.state !== "installed" ||
         (row.id === "whisper" && status.whisper_model !== variant))
     ) {
-      state = { kind: "failed", failure: failures[row.id]! };
+      state = { kind: "failed", failure };
     } else if (foreign) {
       state = { kind: "unavailable" };
     }
@@ -197,7 +205,7 @@ type ComponentResult = {
 export function jobFailures(
   job: BootstrapJobSnapshot,
   ids: string[],
-): Record<string, ModelFailure> {
+): ModelFailures {
   if (job.status !== "error") {
     return {};
   }
@@ -211,18 +219,54 @@ export function jobFailures(
           kind: null,
           plain: job.error ?? job.message ?? "The download failed.",
         };
-    return Object.fromEntries(ids.map((id) => [id, failure]));
+    return Object.fromEntries(
+      ids.map((id) => [failureKey(id, job.whisper_model), failure]),
+    );
   }
-  const out: Record<string, ModelFailure> = {};
+  const out: ModelFailures = {};
   for (const [id, result] of Object.entries(results)) {
     if (result.failure?.plain) {
-      out[id] = {
+      out[failureKey(id, job.whisper_model)] = {
         kind: result.failure.kind ?? null,
         plain: result.failure.plain,
       };
     } else if (result.ok === false) {
-      out[id] = { kind: null, plain: result.error ?? "The download failed." };
+      out[failureKey(id, job.whisper_model)] = {
+        kind: null,
+        plain: result.error ?? "The download failed.",
+      };
     }
   }
   return out;
+}
+
+export function downloadRows(
+  status: BootstrapStatus,
+  job: BootstrapJobSnapshot | null,
+  failures: ModelFailures,
+  selected: readonly ModelView[],
+): ModelView[] {
+  const relevant = (row: ModelView) =>
+    row.state.kind === "queued" ||
+    row.state.kind === "downloading" ||
+    row.state.kind === "failed";
+  const variants = new Set(
+    Object.keys(failures)
+      .filter((key) => key.startsWith("whisper/"))
+      .map((key) => key.slice("whisper/".length)),
+  );
+  if (job?.components.includes("whisper")) variants.add(job.whisper_model);
+  const rows = selected.filter(relevant);
+  for (const variant of variants) {
+    if (
+      selected.some((row) => row.id === "whisper" && row.variant === variant)
+    ) {
+      continue;
+    }
+    const row = overlay(status, job, failures, variant).find(
+      (row) => row.id === "whisper",
+    );
+    if (row && relevant(row)) rows.push(row);
+  }
+  return rows;
 }

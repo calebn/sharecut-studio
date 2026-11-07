@@ -141,7 +141,14 @@ for (const viewport of VIEWPORTS) {
           row(dialog, "Noise reduction").getByRole("button", {
             name: "Update Noise reduction",
           }),
+        ).toHaveCount(0);
+        await row(dialog, "Noise reduction")
+          .getByRole("button", { name: "More for Noise reduction" })
+          .click();
+        await expect(
+          page.getByRole("menuitem", { name: "Update Noise reduction" }),
         ).toBeEnabled();
+        await page.keyboard.press("Escape");
         await expect(row(dialog, "Word timing")).toContainText(
           "Not installed · 360 MB",
         );
