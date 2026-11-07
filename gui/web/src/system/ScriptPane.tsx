@@ -802,8 +802,10 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
         setFocused(start);
         const word = focusable(registry.current.get(start));
         word?.focus({ preventScroll });
-        if (!preventScroll && readingPositionRef.current?.restore)
+        if (!preventScroll && readingPositionRef.current?.restore) {
           captureReadingPosition(start);
+          programmaticScrollTop.current = bodyRef.current?.scrollTop ?? null;
+        }
       },
       [captureReadingPosition],
     );
