@@ -258,6 +258,12 @@ export function setupOf(
           : `${formatBytes(bytes)} of ${formatBytes(total)}${left}`,
     };
   }
+  if (models.some((model) => model.state.kind === "unavailable")) {
+    return { state: "check-error", sizeLabel: "" };
+  }
+  if (models.some((model) => model.state.kind === "checking")) {
+    return { state: "checking", sizeLabel: "" };
+  }
   if (toolsMissing(api)) return { state: "tools-missing", sizeLabel: "" };
   if (ready) return null;
   const toGet = modelsToGet(models);

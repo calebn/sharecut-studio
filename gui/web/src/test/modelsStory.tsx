@@ -69,6 +69,10 @@ function storyModelsApi(over: Partial<ModelsApi> = {}): ModelsApi {
   const models = over.models === undefined ? registryModels() : over.models;
   return {
     models,
+    observation: {
+      kind: models === null ? "checking" : "current",
+      generation: 1,
+    },
     tools: { ffmpeg: "installed", hint: null },
     ready: models?.every((m) => m.state.kind === "installed") ?? false,
     busy: false,
