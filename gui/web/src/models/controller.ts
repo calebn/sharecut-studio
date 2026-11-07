@@ -120,17 +120,13 @@ export function reduce(
   }
 }
 
-/**
- * Status rows with live work and failures applied. Non-current reads and foreign Whisper sizes
- * supply metadata, not installation evidence. Live progress remains visible independently.
- */
 export function overlay(
   status: BootstrapStatus,
   job: BootstrapJobSnapshot | null,
   failures: Record<string, ModelFailure>,
   variant: string = status.whisper_model,
   startingModelIds: readonly string[] = [],
-  knowledge: ModelObservation["kind"] = "current",
+  readState: ModelObservation["kind"] = "current",
 ): ModelView[] {
   const live = job && !isTerminalJobStatus(job.status) ? job : null;
   return status.models.map((row) => {
@@ -147,8 +143,8 @@ export function overlay(
           : { kind: "queued" };
     } else if (startingModelIds.includes(row.id)) {
       state = { kind: "queued" };
-    } else if (knowledge !== "current") {
-      state = { kind: knowledge === "checking" ? "checking" : "unavailable" };
+    } else if (readState !== "current") {
+      state = { kind: readState === "checking" ? "checking" : "unavailable" };
     } else if (
       failures[row.id] &&
       (row.state !== "installed" ||
