@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from podcast_mcp.config.defaults import load_defaults
+from podcast_mcp.edits.timeline_ops import split_clips_at
 from podcast_mcp.engines.clips_ops import (
     punch_timeline_range_from_clips,
     remove_timeline_range_from_clips,
@@ -275,3 +276,17 @@ def test_trim_limits_in_gap_mode_still_stop_at_the_steps() -> None:
     project = _project([clip])
     assert trim_edge_limits(project, clip, "in", EditMode.GAP)[1] < 20
     assert trim_edge_limits(project, clip, "out", EditMode.GAP)[0] > 31
+
+
+def test_timing_hole_split_reports_the_mutation_owned_right_piece() -> None:
+    project = _project([_clip(_STEPS)])
+    result = split_clips_at(project, 111.0, ["host"], record_log=False, defaults=_DEFAULTS)
+    right = next(c for c in project.clips if c.timeline_start == 112.0)
+    assert result["split_pieces"] == [
+        {
+            "track_id": "host",
+            "original_clip_id": "a",
+            "left_clip_id": next(c.id for c in project.clips if c.timeline_end == 110.0),
+            "right_clip_id": right.id,
+        }
+    ]
