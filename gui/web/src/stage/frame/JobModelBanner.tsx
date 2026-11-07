@@ -1,42 +1,23 @@
 import { useEffect, useRef } from "react";
-import { startPipelineRun } from "../../api";
 import { runPointerCommand } from "../../commands/pointer";
 import { ModelNeedRow, useModelResume } from "../../models";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
 import type { PipelineJobSnapshot } from "../../types/pipeline";
-import {
-  errorMessage,
-  modelNeededOfJob,
-  notDownloadedLine,
-} from "../../utils/apiError";
+import { modelNeededOfJob, notDownloadedLine } from "../../utils/apiError";
 
 const RESUMABLE = new Set(["pipeline", "render_preview"]);
 
 type Stopped = { job: PipelineJobSnapshot; epoch: number };
 
-async function resumeJob({ job, epoch }: Stopped) {
+function resumeJob({ job, epoch }: Stopped) {
   const store = useDawStore.getState();
-  if (store.projectEpoch !== epoch) {
-    return;
-  }
+  if (store.projectEpoch !== epoch) return;
   if (job.kind === "render_preview") {
     runPointerCommand("render.refreshMix");
     return;
   }
-  try {
-    const started = await startPipelineRun(job.project_path, {
-      fromStep: job.from_step ?? undefined,
-      onlyStep: job.only_step ?? undefined,
-      skipSteps: job.skip_steps,
-      unattended: job.unattended,
-    });
-    if (useDawStore.getState().projectEpoch === epoch) {
-      useDawStore.getState().setPipelineJob(started);
-    }
-  } catch (error) {
-    store.announceStatus(errorMessage(error), { tone: "error" });
-  }
+  store.announceStatus("The model is ready. Start the run again.");
 }
 
 export function JobModelBanner({ guestShare }: { guestShare: boolean }) {
@@ -55,8 +36,10 @@ export function JobModelBanner({ guestShare }: { guestShare: boolean }) {
   const failed = useRef<Stopped | null>(null);
   const retried = useRef<string | null>(null);
   const { stop, stopFor, clear } = useModelResume((model) => {
-    retried.current = model.id;
-    if (failed.current) void resumeJob(failed.current);
+    const last = failed.current;
+    if (!last) return;
+    if (last.job.kind === "render_preview") retried.current = model.id;
+    resumeJob(last);
   });
   const needKey = need && job ? `${job.id}:${need.id}:${need.variant}` : null;
   useEffect(() => {

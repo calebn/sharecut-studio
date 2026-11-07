@@ -202,7 +202,16 @@ describe("JobModelBanner", () => {
       await act(async () => requests[1]!.resolve(installedNoise()));
       const resumed =
         kind === "pipeline" ? startPipelineRun : runPointerCommand;
-      await waitFor(() => expect(resumed).toHaveBeenCalledTimes(1));
+      if (kind === "pipeline") {
+        await waitFor(() =>
+          expect(useDawStore.getState().statusAnnouncement).toBe(
+            "The model is ready. Start the run again.",
+          ),
+        );
+        expect(resumed).not.toHaveBeenCalled();
+      } else {
+        await waitFor(() => expect(resumed).toHaveBeenCalledTimes(1));
+      }
       fail(
         failedJob({
           id: "retry",
@@ -225,7 +234,7 @@ describe("JobModelBanner", () => {
         screen.getByRole("button", { name: "Get noise reduction" }),
       ).toBeVisible();
       expect(requests).toHaveLength(4);
-      expect(resumed).toHaveBeenCalledTimes(1);
+      expect(resumed).toHaveBeenCalledTimes(kind === "pipeline" ? 0 : 1);
       expect(runBootstrap).not.toHaveBeenCalled();
       expect(onLimit).not.toHaveBeenCalled();
     },
@@ -270,33 +279,26 @@ describe("JobModelBanner", () => {
     expect(screen.queryByText("Needs noise reduction")).toBeNull();
   });
 
-  it("runs a failed pipeline job again from where it stopped when the model lands", async () => {
-    const started = { ...failedJob(), id: "next", status: "running" };
-    vi.mocked(startPipelineRun).mockResolvedValue(
-      started as unknown as PipelineJobSnapshot,
-    );
+  it("recovers a late pipeline model failure without inventing the original run options", async () => {
     const { land } = mount();
+    useDawStore.setState({ statusAnnouncement: "" });
     fail(
       failedJob({
         kind: "pipeline",
         from_step: "transcribe_tracks",
-        only_step: null,
         skip_steps: ["tighten"],
         unattended: false,
       }),
     );
     land("rnnoise");
     await waitFor(() =>
-      expect(startPipelineRun).toHaveBeenCalledWith("/tmp/p.json", {
-        fromStep: "transcribe_tracks",
-        onlyStep: undefined,
-        skipSteps: ["tighten"],
-        unattended: false,
-      }),
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "The model is ready. Start the run again.",
+      ),
     );
-    await waitFor(() =>
-      expect(useDawStore.getState().pipelineJob).toMatchObject({ id: "next" }),
-    );
+    expect(startPipelineRun).not.toHaveBeenCalled();
+    expect(runPointerCommand).not.toHaveBeenCalled();
+    expect(screen.queryByText("Needs noise reduction")).toBeNull();
   });
 
   it("does not run a job of a project that has been closed since", async () => {
@@ -312,7 +314,7 @@ describe("JobModelBanner", () => {
     expect(runPointerCommand).not.toHaveBeenCalled();
   });
 
-  it.each(["pipeline", "render_preview"])(
+  it.each(["render_preview"])(
     "reports a repeated %s refusal after its retry starts instead of looping",
     async (kind) => {
       const running = failedJob({
