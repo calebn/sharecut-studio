@@ -69,8 +69,12 @@ function Machine({
   startInstalled: boolean;
 }) {
   const [installed, set] = useState(startInstalled);
+  const [, refreshStatus] = useState(0);
   setInstalled = set;
   const api = modelsApi({ status: modelStatus(rows(installed)) });
+  api.refresh = vi.fn(async () =>
+    refreshStatus((generation) => generation + 1),
+  );
   return (
     <ModelsContext.Provider value={api}>{children}</ModelsContext.Provider>
   );
@@ -98,6 +102,55 @@ async function stopped(resume: () => void, startInstalled: boolean) {
 }
 
 describe("useModelResume", () => {
+  it("waits for a fresh missing observation and resumes once after a later installed observation", async () => {
+    const checked = deferredStatus();
+    const installed = modelStatus(rows(true));
+    vi.mocked(api.fetchBootstrapStatus)
+      .mockReset()
+      .mockResolvedValueOnce(installed)
+      .mockReturnValueOnce(checked.promise)
+      .mockResolvedValue(installed);
+    const resume = vi.fn();
+    render(
+      <ModelsProvider>
+        <ProviderHarness resume={resume} />
+      </ModelsProvider>,
+    );
+    await waitFor(() => expect(screen.getByText("Refuse")).toBeEnabled());
+    await act(async () => screen.getByText("Refuse").click());
+    await act(async () => checked.resolve(modelStatus(rows(false))));
+    expect(screen.getByLabelText("Resume state")).toHaveTextContent("waiting");
+    expect(resume).not.toHaveBeenCalled();
+    await act(async () => screen.getByText("Retry status").click());
+    expect(screen.getByLabelText("Resume state")).toHaveTextContent("idle");
+    expect(resume).toHaveBeenCalledExactlyOnceWith(RNNOISE);
+    await act(async () => screen.getByText("Retry status").click());
+    expect(resume).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not replay a cleared refusal when its in-flight read finishes", async () => {
+    const checked = deferredStatus();
+    const installed = modelStatus(rows(true));
+    vi.mocked(api.fetchBootstrapStatus)
+      .mockReset()
+      .mockResolvedValueOnce(installed)
+      .mockReturnValueOnce(checked.promise)
+      .mockResolvedValue(installed);
+    const resume = vi.fn();
+    render(
+      <ModelsProvider>
+        <ProviderHarness resume={resume} />
+      </ModelsProvider>,
+    );
+    await waitFor(() => expect(screen.getByText("Refuse")).toBeEnabled());
+    await act(async () => screen.getByText("Refuse").click());
+    await act(async () => screen.getByText("Clear").click());
+    await act(async () => checked.resolve(installed));
+    expect(screen.getByLabelText("Resume state")).toHaveTextContent("idle");
+    expect(resume).not.toHaveBeenCalled();
+    await act(async () => screen.getByText("Refuse").click());
+    expect(resume).toHaveBeenCalledExactlyOnceWith(RNNOISE);
+  });
   it("keeps the refusal after a failed real-provider read, then recovers once from fresh evidence", async () => {
     const failed = deferredStatus();
     const retry = deferredStatus();

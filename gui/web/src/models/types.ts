@@ -8,12 +8,19 @@ export type ModelFailure = {
 };
 
 export type ModelState =
+  | { kind: "checking" }
+  | { kind: "unavailable" }
   | { kind: "installed" }
   | { kind: "missing" }
   | { kind: "update_needed" }
   | { kind: "queued" }
   | { kind: "downloading"; bytes: number; total: number | null }
   | { kind: "failed"; failure: ModelFailure };
+
+export type ModelObservation = {
+  kind: "checking" | "current" | "unavailable";
+  generation: number;
+};
 
 export type ModelView = {
   id: string;

@@ -1,7 +1,13 @@
 import type { BootstrapJobSnapshot, BootstrapStatus } from "../api";
 import type { ModelInstallState } from "../types/pipeline";
 import { isTerminalJobStatus } from "../utils/pipeline";
-import type { ModelFailure, ModelState, ModelView } from "./types";
+import { WHISPER_SIZES } from "./capability";
+import type {
+  ModelFailure,
+  ModelObservation,
+  ModelState,
+  ModelView,
+} from "./types";
 
 export type ControllerState = {
   status: BootstrapStatus | null;
@@ -14,9 +20,11 @@ export type ControllerState = {
   variant: string;
   /** True once the person (or their download) picked a size; a reload then keeps it. */
   picked: boolean;
+  observation: ModelObservation;
 };
 
 export type ControllerAction =
+  | { type: "loadStarted" }
   | { type: "statusLoaded"; status: BootstrapStatus }
   | { type: "loadFailed"; message: string }
   | { type: "jobSeen"; job: BootstrapJobSnapshot | null }
@@ -31,6 +39,7 @@ export const initialState: ControllerState = {
   failures: {},
   variant: "",
   picked: false,
+  observation: { kind: "checking", generation: 0 },
 };
 
 function without(
@@ -47,6 +56,15 @@ export function reduce(
   action: ControllerAction,
 ): ControllerState {
   switch (action.type) {
+    case "loadStarted":
+      return {
+        ...state,
+        loadError: null,
+        observation: {
+          kind: "checking",
+          generation: state.observation.generation + 1,
+        },
+      };
     case "statusLoaded": {
       const variant = state.picked
         ? state.variant
@@ -67,11 +85,16 @@ export function reduce(
         status: action.status,
         loadError: null,
         variant,
+        observation: { ...state.observation, kind: "current" },
         failures: without(state.failures, (id) => installed.has(id)),
       };
     }
     case "loadFailed":
-      return { ...state, loadError: action.message };
+      return {
+        ...state,
+        loadError: action.message,
+        observation: { ...state.observation, kind: "unavailable" },
+      };
     case "jobSeen":
       return {
         ...state,
@@ -98,9 +121,8 @@ export function reduce(
 }
 
 /**
- * The server's rows with the live job and the session's failures laid over them. `variant` is the
- * Whisper size asked for: while the status still describes another size, the Whisper row's
- * "installed" is not about the size asked for, so its failure is shown.
+ * Status rows with live work and failures applied. Non-current reads and foreign Whisper sizes
+ * supply metadata, not installation evidence. Live progress remains visible independently.
  */
 export function overlay(
   status: BootstrapStatus,
@@ -108,9 +130,11 @@ export function overlay(
   failures: Record<string, ModelFailure>,
   variant: string = status.whisper_model,
   startingModelIds: readonly string[] = [],
+  knowledge: ModelObservation["kind"] = "current",
 ): ModelView[] {
   const live = job && !isTerminalJobStatus(job.status) ? job : null;
   return status.models.map((row) => {
+    const foreign = row.id === "whisper" && status.whisper_model !== variant;
     let state: ModelState = { kind: row.state };
     if (live?.components.includes(row.id)) {
       state =
@@ -123,21 +147,30 @@ export function overlay(
           : { kind: "queued" };
     } else if (startingModelIds.includes(row.id)) {
       state = { kind: "queued" };
+    } else if (knowledge !== "current") {
+      state = { kind: knowledge === "checking" ? "checking" : "unavailable" };
     } else if (
       failures[row.id] &&
       (row.state !== "installed" ||
         (row.id === "whisper" && status.whisper_model !== variant))
     ) {
       state = { kind: "failed", failure: failures[row.id]! };
+    } else if (foreign) {
+      state = { kind: "unavailable" };
     }
     return {
       id: row.id,
       label: row.label,
       purpose: row.purpose,
       tier: row.tier,
-      size: row.size,
-      sizeBytes: row.size_bytes,
-      variant: row.model !== row.id ? row.model : null,
+      size: foreign
+        ? (status.whisper_models.find((choice) => choice.id === variant)
+            ?.size ??
+          WHISPER_SIZES.find((choice) => choice.id === variant)?.size ??
+          "")
+        : row.size,
+      sizeBytes: foreign ? null : row.size_bytes,
+      variant: foreign ? variant : row.model !== row.id ? row.model : null,
       state,
     };
   });

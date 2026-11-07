@@ -50,6 +50,116 @@ const names = () =>
   [...document.querySelectorAll(".sys-need-name")].map((el) => el.textContent);
 
 describe("ModelsSheet", () => {
+  it("does not reuse the previous size's Get while another size is being checked", async () => {
+    let finish!: (status: BootstrapStatus) => void;
+    fetchStatus
+      .mockResolvedValueOnce(modelStatus(registryRows()))
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
+    stubViewportShell("desktop");
+    render(
+      <ModelsProvider>
+        <ModelsSheet open onClose={vi.fn()} />
+      </ModelsProvider>,
+    );
+    expect(
+      await screen.findByRole("button", { name: "Get Transcription" }),
+    ).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: /^Balanced/ }));
+    expect(
+      screen.queryByRole("button", { name: "Get Transcription" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "More for Transcription" }),
+    ).toBeNull();
+    await act(async () =>
+      finish(
+        modelStatus(
+          registryRows().map((r) =>
+            r.id === "whisper" ? modelRow({ ...r, model: "small.en" }) : r,
+          ),
+          { whisper_model: "small.en" },
+        ),
+      ),
+    );
+    expect(
+      await screen.findByRole("button", { name: "Get Transcription" }),
+    ).toBeVisible();
+  });
+
+  it("ignores an installed response for a superseded size", async () => {
+    let balanced!: (status: BootstrapStatus) => void;
+    let fast!: (status: BootstrapStatus) => void;
+    const rows = registryRows().map((r) =>
+      r.id === "whisper" ? modelRow({ ...r, state: "installed" }) : r,
+    );
+    fetchStatus
+      .mockResolvedValueOnce(modelStatus(rows))
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            balanced = resolve;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            fast = resolve;
+          }),
+      );
+    stubViewportShell("desktop");
+    render(
+      <ModelsProvider>
+        <ModelsSheet open onClose={vi.fn()} />
+      </ModelsProvider>,
+    );
+    await screen.findByRole("button", { name: "More for Transcription" });
+    await userEvent.click(screen.getByRole("button", { name: /^Balanced/ }));
+    await userEvent.click(screen.getByRole("button", { name: /^Fast/ }));
+    await act(async () =>
+      balanced(
+        modelStatus(
+          rows.map((r) =>
+            r.id === "whisper" ? modelRow({ ...r, model: "small.en" }) : r,
+          ),
+          { whisper_model: "small.en" },
+        ),
+      ),
+    );
+    expect(screen.getByRole("button", { name: /^Fast/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(
+      screen.queryByRole("button", { name: "More for Transcription" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Get Transcription" }),
+    ).toBeNull();
+    await act(async () =>
+      fast(
+        modelStatus(
+          rows.map((r) =>
+            r.id === "whisper"
+              ? modelRow({ ...r, model: "tiny.en", state: "missing" })
+              : r,
+          ),
+          { whisper_model: "tiny.en" },
+        ),
+      ),
+    );
+    expect(
+      await screen.findByRole("button", { name: "Get Transcription" }),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: /^Fast/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
   it.each(["missing", "installed"] as const)(
     "does not borrow another Whisper size's actions while checking or failed; retries to %s",
     async (state) => {
@@ -93,12 +203,14 @@ describe("ModelsSheet", () => {
       expect(
         screen.queryByRole("button", { name: "Get Transcription" }),
       ).toBeNull();
+      expect(screen.getByText("Checking status · 500 MB")).toBeVisible();
       await act(async () =>
         rejectStatus(new Error("Selected status unavailable")),
       );
       expect(
         await screen.findByText("Selected status unavailable"),
       ).toBeVisible();
+      expect(screen.getByText("Status unavailable · 500 MB")).toBeVisible();
       expect(
         screen.queryByRole("button", { name: "More for Transcription" }),
       ).toBeNull();

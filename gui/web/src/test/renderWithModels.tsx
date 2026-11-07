@@ -17,11 +17,14 @@ export type ModelsFixture = {
   download?: ModelsApi["download"];
 };
 
+let observationGeneration = 0;
+
 /** A static ModelsApi for consumer tests: the real overlay over a status fixture, spy actions. */
 export function modelsApi(fixture: ModelsFixture): ModelsApi {
   const { status, job = null, failures = {} } = fixture;
   return {
     models: overlay(status, job, failures),
+    observation: { kind: "current", generation: ++observationGeneration },
     tools: toolsOf(status),
     ready: status.ready,
     busy: job !== null,
@@ -71,6 +74,7 @@ export function renderWithLanding(
     const api = useMemo<ModelsApi>(
       () => ({
         ...base,
+        observation: { kind: "current", generation: ++observationGeneration },
         models:
           base.models?.map((m) =>
             landed.includes(m.id)

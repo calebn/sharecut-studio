@@ -3,6 +3,7 @@ import type { ModelInstallState } from "../types/pipeline";
 import type {
   DownloadOptions,
   DownloadOutcome,
+  ModelObservation,
   ModelView,
   RemoveOutcome,
   WhisperChoice,
@@ -11,6 +12,7 @@ import type {
 export type ModelsApi = {
   /** Registry order; null until the first status arrives. */
   models: ModelView[] | null;
+  observation: ModelObservation;
   tools: { ffmpeg: ModelInstallState; hint: string | null };
   ready: boolean;
   /** True while any bootstrap download runs, ours or another tab's. */
@@ -35,6 +37,7 @@ export const ModelsContext = createContext<ModelsApi | null>(null);
  */
 export const INERT_MODELS: ModelsApi = {
   models: null,
+  observation: { kind: "checking", generation: 0 },
   tools: { ffmpeg: "missing", hint: null },
   ready: false,
   busy: false,
