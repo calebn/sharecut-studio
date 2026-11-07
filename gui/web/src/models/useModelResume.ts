@@ -17,18 +17,22 @@ export function useModelResume<N extends NeedTarget = ModelNeeded>(
   const [stop, setStop] = useState<Stop<N> | null>(null);
   const pending = useRef<Stop<N> | null>(null);
   const resumeRef = useRef(resume);
+  const generationRef = useRef(observation.generation);
   useEffect(() => {
     resumeRef.current = resume;
   }, [resume]);
+  useEffect(() => {
+    generationRef.current = observation.generation;
+  }, [observation.generation]);
 
   const stopFor = useCallback(
     (need: N) => {
-      const next = { need, afterGeneration: observation.generation };
+      const next = { need, afterGeneration: generationRef.current };
       pending.current = next;
       setStop(next);
       void refresh();
     },
-    [refresh, observation.generation],
+    [refresh],
   );
   const clear = useCallback(() => {
     pending.current = null;
