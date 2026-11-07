@@ -6,7 +6,16 @@ import type {
   ScriptSelection,
   WordsSelection,
 } from "../../../system/scriptPieces";
-import type { EditBoundaryView } from "../../../types/project";
+import {
+  appliedEditTicks,
+  seamTickAtJoin,
+} from "../../../timeline/appliedEditTicks";
+import type {
+  AppliedEditRecord,
+  ClipRow,
+  EditBoundaryView,
+  Selection,
+} from "../../../types/project";
 import { useStableCallback } from "../../../utils/useStableCallback";
 import {
   type ScriptModel,
@@ -16,6 +25,39 @@ import {
 
 const NO_CARETS: readonly ScriptCaret[] = [];
 const NO_BOUNDARIES: readonly EditBoundaryView[] = [];
+
+type AppliedSeamSelection = Extract<Selection, { kind: "applied" }>;
+
+function appliedSelectionAtBoundary(
+  boundary: EditBoundaryView,
+  clipsByTrack: Record<string, ClipRow[]>,
+  records: readonly AppliedEditRecord[],
+): AppliedSeamSelection | null {
+  const trackId = boundary.track_id;
+  const clips = clipsByTrack[trackId] ?? [];
+  const tick = seamTickAtJoin(appliedEditTicks(records, trackId, clips), {
+    sec: boundary.timeline_join_sec,
+  });
+  return tick ? { kind: "applied", id: tick.recordId, trackId } : null;
+}
+
+function appliedSelectionForOpenBoundary(
+  selection: Selection,
+  boundaries: readonly EditBoundaryView[],
+  openJoinId: string | null,
+  clipsByTrack: Record<string, ClipRow[]>,
+  records: readonly AppliedEditRecord[],
+): AppliedSeamSelection | null {
+  if (selection?.kind !== "applied" || openJoinId === null) return null;
+  for (const boundary of boundaries) {
+    if (boundary.right_clip_id !== openJoinId) continue;
+    const applied = appliedSelectionAtBoundary(boundary, clipsByTrack, records);
+    if (applied?.id === selection.id && applied.trackId === selection.trackId) {
+      return applied;
+    }
+  }
+  return null;
+}
 
 export type ScriptSelectionProps = {
   selection: ScriptSelection | null;
@@ -44,17 +86,25 @@ export function useScriptSelection(
   const stored = useDawStore((s) => s.selection);
   const [caret, setCaret] = useState<number | undefined>(undefined);
   const boundaries = useDawStore((s) => s.project?.edit_boundaries);
+  const clipsByTrack = useDawStore((s) => s.project?.clips.tracks);
+  const appliedRecords = useDawStore((s) => s.project?.applied_edits.records);
   const openJoinId = useDawStore((s) => s.openJoinId);
-  const selection = useMemo(
-    () =>
-      scriptReviewSelectionOf(
-        model,
-        stored,
-        boundaries ?? NO_BOUNDARIES,
-        openJoinId,
-      ),
-    [model, stored, boundaries, openJoinId],
-  );
+  const selection = useMemo(() => {
+    const currentBoundaries = boundaries ?? NO_BOUNDARIES;
+    const projectedApplied = appliedSelectionForOpenBoundary(
+      stored,
+      currentBoundaries,
+      openJoinId,
+      clipsByTrack ?? {},
+      appliedRecords ?? [],
+    );
+    return scriptReviewSelectionOf(
+      model,
+      projectedApplied ? null : stored,
+      currentBoundaries,
+      openJoinId,
+    );
+  }, [model, stored, boundaries, openJoinId, clipsByTrack, appliedRecords]);
   const carets = useMemo(
     () => (caret === undefined || selection ? NO_CARETS : [{ before: caret }]),
     [caret, selection],
@@ -101,11 +151,15 @@ export function useScriptSelection(
   // popover), and a suggestion is the pending edit the timeline selects.
   const onSeamSelect = useStableCallback((id: string) => {
     const state = useDawStore.getState();
-    const clipId = state.project?.edit_boundaries?.find(
-      (b) => b.id === id,
-    )?.right_clip_id;
-    if (!clipId || state.joinMutationInFlight) return;
-    state.setSelection(null);
+    const boundary = state.project?.edit_boundaries?.find((b) => b.id === id);
+    const clipId = boundary?.right_clip_id;
+    if (!boundary || !clipId || state.joinMutationInFlight) return;
+    const applied = appliedSelectionAtBoundary(
+      boundary,
+      state.project?.clips.tracks ?? {},
+      state.project?.applied_edits.records ?? [],
+    );
+    state.setSelection(applied);
     state.setOpenJoinId(state.openJoinId === clipId ? null : clipId);
   });
   const onSuggestionSelect = useStableCallback((id: string) => {
