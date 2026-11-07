@@ -15,11 +15,6 @@ import {
 } from "./modelsMock";
 import { openHostProject } from "./overlayReachability";
 
-/**
- * The first-run Setup card on Home and the Models sheet against a mocked `/api/bootstrap/*`: nothing here
- * downloads anything. Set MODELS_SHOTS_DIR to also save one screenshot per viewport, theme and case.
- */
-
 for (const viewport of VIEWPORTS) {
   for (const theme of THEMES) {
     test.describe(`models ${viewport.name} ${theme}`, () => {

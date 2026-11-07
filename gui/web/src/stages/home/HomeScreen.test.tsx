@@ -96,7 +96,7 @@ describe("HomeScreen", () => {
     vi.clearAllMocks();
     useDawStore.getState().setCommandPaletteOpen(false);
     useDawStore.getState().setHelpDialogOpen(false);
-    useDawStore.getState().setModelsDialogOpen(false);
+    useDawStore.getState().setModelsSheetOpen(false);
     useDawStore.getState().setHostMcpDialogOpen(false);
     window.sessionStorage.clear();
     window.localStorage.clear();
@@ -1120,9 +1120,9 @@ describe("HomeScreen", () => {
         await screen.findByRole("option", { name: /Manage models/ }),
       );
       await waitFor(() =>
-        expect(useDawStore.getState().chrome.modelsDialogOpen).toBe(true),
+        expect(useDawStore.getState().chrome.modelsSheetOpen).toBe(true),
       );
-      useDawStore.getState().setModelsDialogOpen(false);
+      useDawStore.getState().setModelsSheetOpen(false);
       await user.keyboard("?");
       await user.click(
         await screen.findByRole("option", { name: /Connect agent/ }),

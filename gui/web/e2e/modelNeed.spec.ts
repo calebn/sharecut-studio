@@ -24,12 +24,6 @@ import {
 } from "./stageNav";
 import { trackHeaderButtons } from "./trackHeader";
 
-/**
- * The Model need row against a mocked `/api/bootstrap/*` and a mocked 409 `model_needed` on the Run
- * and Split speakers routes: nothing here downloads anything. Set MODELS_SHOTS_DIR to also save one
- * screenshot per viewport, theme and case.
- */
-
 const GATE_RETRY_MS = 300;
 
 function modelNeededBody(id: string) {

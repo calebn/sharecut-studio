@@ -317,7 +317,6 @@ export default function App() {
   return (
     <FeatureProvider>
       {isGuestLocation() ? inner : <ModelsProvider>{inner}</ModelsProvider>}
-      {/* The one host for askConfirm questions, on Home and in a project alike. */}
       <AskDialog />
     </FeatureProvider>
   );

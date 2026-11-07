@@ -325,7 +325,6 @@ export async function expectNoHorizontalScroll(page: Page): Promise<void> {
   expect(overflow).toBeLessThanOrEqual(0);
 }
 
-/** A Model need row of the Models sheet, found by the capability it names ("Transcription"). */
 export function row(scope: Page | Locator, capability: string): Locator {
   return scope.locator(".sys-need").filter({ hasText: capability });
 }

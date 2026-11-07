@@ -275,7 +275,6 @@ function ListRow({
   );
 }
 
-/** One model's need, shown in place: the answer to "this step needs a model". Presentational. */
 export function ModelNeedRowView(props: ModelNeedRowViewProps) {
   const { placement, children, ...row } = props;
   return placement === "list" ? (
