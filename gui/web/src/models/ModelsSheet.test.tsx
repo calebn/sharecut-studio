@@ -22,6 +22,7 @@ vi.mock("../api", async (importOriginal) => {
     ...actual,
     fetchBootstrapJob: vi.fn().mockResolvedValue(null),
     fetchBootstrapStatus: vi.fn(),
+    runBootstrap: vi.fn(),
   };
 });
 
@@ -49,6 +50,97 @@ const names = () =>
   [...document.querySelectorAll(".sys-need-name")].map((el) => el.textContent);
 
 describe("ModelsSheet", () => {
+  it.each(["missing", "installed"] as const)(
+    "does not borrow another Whisper size's actions while checking or failed; retries to %s",
+    async (state) => {
+      let rejectStatus!: (error: Error) => void;
+      let resolveRetry!: (status: BootstrapStatus) => void;
+      const initial = registryRows().map((r) =>
+        r.id === "whisper" ? modelRow({ ...r, state: "installed" }) : r,
+      );
+      fetchStatus
+        .mockResolvedValueOnce(modelStatus(initial))
+        .mockImplementationOnce(
+          () =>
+            new Promise((_, reject) => {
+              rejectStatus = reject;
+            }),
+        )
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              resolveRetry = resolve;
+            }),
+        );
+      vi.mocked(api.runBootstrap).mockClear();
+      stubViewportShell("desktop");
+      render(
+        <ModelsProvider>
+          <ModelsSheet open onClose={vi.fn()} />
+        </ModelsProvider>,
+      );
+      expect(
+        await screen.findByRole("button", { name: "More for Transcription" }),
+      ).toBeVisible();
+      await userEvent.click(screen.getByRole("button", { name: /^Balanced/ }));
+      expect(screen.getByRole("button", { name: /^Balanced/ })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      expect(
+        screen.queryByRole("button", { name: "More for Transcription" }),
+      ).toBeNull();
+      expect(
+        screen.queryByRole("button", { name: "Get Transcription" }),
+      ).toBeNull();
+      await act(async () =>
+        rejectStatus(new Error("Selected status unavailable")),
+      );
+      expect(
+        await screen.findByText("Selected status unavailable"),
+      ).toBeVisible();
+      expect(
+        screen.queryByRole("button", { name: "More for Transcription" }),
+      ).toBeNull();
+      expect(
+        screen.queryByRole("button", { name: "Get Transcription" }),
+      ).toBeNull();
+      await userEvent.click(
+        screen.getByRole("button", { name: "Check Transcription status" }),
+      );
+      await act(async () =>
+        resolveRetry(
+          modelStatus(
+            initial.map((r) =>
+              r.id === "whisper"
+                ? modelRow({
+                    ...r,
+                    model: "small.en",
+                    state,
+                    size: "~500 MB",
+                    size_bytes: 500_000_000,
+                  })
+                : r,
+            ),
+            { whisper_model: "small.en" },
+          ),
+        ),
+      );
+      expect(
+        await screen.findByRole("button", {
+          name:
+            state === "installed"
+              ? "More for Transcription"
+              : "Get Transcription",
+        }),
+      ).toBeVisible();
+      expect(screen.getByRole("button", { name: /^Balanced/ })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      expect(api.runBootstrap).not.toHaveBeenCalled();
+    },
+  );
   it("does not call unknown audio-tool status unavailable while the initial status is loading", async () => {
     let resolveStatus: (status: BootstrapStatus) => void = () => undefined;
     fetchStatus.mockImplementation(
