@@ -99,11 +99,8 @@ async function open(
 const chooser = (page: Page) => page.locator(".edit-target-chooser");
 const sheet = (page: Page) => page.locator(".sys-inspector--phone");
 
-/** A tap that selects shuts the sheet it found; wait for that, if it happens. */
 async function settleSheetShut(page: Page): Promise<void> {
-  await expect(sheet(page))
-    .toHaveCount(0, { timeout: 3000 })
-    .catch(() => undefined);
+  await expect(sheet(page)).toHaveCount(0, { timeout: 3000 });
 }
 
 /**
