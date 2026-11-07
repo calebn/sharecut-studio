@@ -31,6 +31,7 @@ export type {
   RemoveOutcome,
   WhisperChoice,
 } from "./types";
+export { useModelNeedFocus } from "./useModelNeedFocus";
 export { useModelResume } from "./useModelResume";
 export { useModels } from "./useModels";
 export { WhisperSize } from "./WhisperSize";

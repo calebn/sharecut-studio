@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { ModelNeedRow } from "../../models";
+import { ModelNeedRow, useModelNeedFocus } from "../../models";
 import { Skeleton } from "../../system/Skeleton";
 import { StatusRow } from "../../system/StatusRow";
 import { Button, InlineError, SegmentedControl, ToggleButton } from "../../ui";
@@ -43,7 +43,6 @@ export function BounceSection({ options, state: pageState = "ready" }: Props) {
     onFocused,
   } = options;
   const button = useRef<HTMLButtonElement>(null);
-  const needPanel = useRef<HTMLDivElement>(null);
   const clearRange = useRef<HTMLButtonElement>(null);
   const state = run;
   const asking = state.phase === "needs-model";
@@ -56,14 +55,7 @@ export function BounceSection({ options, state: pageState = "ready" }: Props) {
   const unavailable = blockedReason ?? blocker;
   const reason = useDisabledReasonNote(running ? undefined : unavailable);
 
-  useEffect(() => {
-    if (!asking) return;
-    const first = needPanel.current?.querySelector<HTMLButtonElement>(
-      'button:not([aria-label="Manage models"])',
-    );
-    first?.scrollIntoView?.({ block: "center" });
-    first?.focus();
-  }, [asking]);
+  const needPanel = useModelNeedFocus(asking);
 
   useEffect(() => {
     if (!focusRequested) return;

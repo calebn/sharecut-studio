@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef } from "react";
-import { formatBytes, ModelNeedRow } from "../../models";
+import { formatBytes, ModelNeedRow, useModelNeedFocus } from "../../models";
 import { ScrubField } from "../../system/ScrubField";
 import { Skeleton } from "../../system/Skeleton";
 import { StatusRow } from "../../system/StatusRow";
@@ -61,7 +61,6 @@ export function EpisodeFile({
     "Available captions and transcript are included with every audio export." +
     (hasTranscriptSection ? " Choose more files in Transcript below." : "");
   const wavNote = useId();
-  const needPanel = useRef<HTMLDivElement>(null);
   const runningBlock = useRef<HTMLDivElement>(null);
   const running = exportState.phase === "running";
   const wasRunning = useRef(running);
@@ -71,14 +70,7 @@ export function EpisodeFile({
     wasRunning.current = running;
   }, [running, dock]);
   const asking = exportState.phase === "needs-model";
-  useEffect(() => {
-    if (!asking) return;
-    const first = needPanel.current?.querySelector<HTMLButtonElement>(
-      'button:not([aria-label="Manage models"])',
-    );
-    first?.scrollIntoView?.({ block: "center" });
-    first?.focus();
-  }, [asking]);
+  const needPanel = useModelNeedFocus(asking);
   if (state === "loading") {
     return (
       <DeliverSection title="Episode file">
