@@ -126,7 +126,7 @@ const edgePoint = (page: Page) =>
   );
 
 /** A quick tap low on the body of the clip that starts at 10 s, near its start. */
-async function tapClipBody(page: Page, finger: Finger): Promise<void> {
+async function tapClipBody(page: Page, finger: Finger): Promise<string> {
   const project = (await projectJson(page, projectPath)) as unknown as {
     clips: { tracks: Record<string, { id: string; timeline_start: number }[]> };
   };
@@ -136,7 +136,7 @@ async function tapClipBody(page: Page, finger: Finger): Promise<void> {
   const box = await page
     .locator(`${lane} .clip-block[data-clip-id="${id}"]`)
     .boundingBox({ timeout: 5000 });
-  if (!box) throw new Error("clip 10-40 s has no box");
+  if (!box || !id) throw new Error("clip 10-40 s has no box");
   await finger.down(
     await uncoveredPoint(page, {
       x: box.x + box.width * 0.1,
@@ -147,6 +147,7 @@ async function tapClipBody(page: Page, finger: Finger): Promise<void> {
   await page.waitForTimeout(60);
   await finger.up();
   await page.waitForTimeout(600);
+  return id;
 }
 
 /** WebKit's overlay scrollbars hit-test as the scroller this far in (px). */
@@ -875,7 +876,12 @@ test("a timeline tap while a track's sheet is open selects, and Inspect opens th
   await openTrackSheet(page, finger);
   const track = await sheetState(page);
   await frame(page, info, `tap-while-track-sheet-1-track-${browserName}`);
-  await tapClipBody(page, finger);
+  const intendedClip = await tapClipBody(page, finger);
+  await expect(
+    page.locator(
+      `${lane} .clip-block[data-clip-id="${intendedClip}"] .clip-hit`,
+    ),
+  ).toHaveAttribute("aria-pressed", "true");
   await settleSheetShut(page);
   await ensureInspected(page);
   await expect(sheet(page)).toBeVisible();
@@ -884,6 +890,7 @@ test("a timeline tap while a track's sheet is open selects, and Inspect opens th
   json(info, `tap-while-track-sheet-${browserName}`, { track, clip });
   expect(clip).toMatchObject({ open: true, size: "half" });
   await tapTarget(page, finger, envC);
+  await expect(page.locator(envC)).toHaveAttribute("data-selected", "true");
   await settleSheetShut(page);
   await ensureInspected(page);
   await expect(sheet(page)).toBeVisible();
