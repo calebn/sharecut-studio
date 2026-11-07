@@ -66,6 +66,7 @@ function splitSelectionIntent(
 ) {
   cancelPendingSplitSelection?.();
   let active = true;
+  let target: { pieces: readonly SplitPiece[]; minimum: number } | null = null;
   const signal = documentAuthority.abort.signal;
   const localWrite = localSelectionWriteSignal(useDawStore.getState);
   const cancel = () => {
@@ -76,9 +77,24 @@ function splitSelectionIntent(
     if (cancelPendingSplitSelection === cancel)
       cancelPendingSplitSelection = null;
   };
+  const selectWhenReady = () => {
+    if (
+      !active ||
+      !target ||
+      !isCurrentDocumentScope(scope) ||
+      localWrite.aborted ||
+      documentAuthority.phase.kind !== "ready" ||
+      currentDocumentSeq() < target.minimum
+    )
+      return;
+    const { pieces } = target;
+    cancel();
+    selectRightPieces(scope, held, pieces);
+  };
   const unsubscribe = useDawStore.subscribe((now, previous) => {
     if (now.selection !== previous.selection || !isCurrentDocumentScope(scope))
       cancel();
+    else selectWhenReady();
   });
   signal.addEventListener("abort", cancel, { once: true });
   localWrite.addEventListener("abort", cancel, { once: true });
@@ -87,27 +103,22 @@ function splitSelectionIntent(
     cancel,
     apply(pieces: readonly SplitPiece[]) {
       if (!active) return;
-      const minimum =
-        documentAuthority.phase.kind === "recovering"
-          ? documentAuthority.phase.minimum
-          : currentDocumentSeq();
-      const select = () => {
-        if (!active) return;
-        const ready =
-          isCurrentDocumentScope(scope) &&
-          !localWrite.aborted &&
-          documentAuthority.phase.kind === "ready" &&
-          currentDocumentSeq() >= minimum;
-        cancel();
-        if (ready) selectRightPieces(scope, held, pieces);
+      target = {
+        pieces,
+        minimum:
+          documentAuthority.phase.kind === "recovering"
+            ? documentAuthority.phase.minimum
+            : currentDocumentSeq(),
       };
+      selectWhenReady();
+      if (!active) return;
       const recovery = pendingDocumentRecovery(scope);
       if (recovery)
-        void recovery.then((project) => {
-          if (project) select();
-          else cancel();
+        void recovery.then(() => {
+          selectWhenReady();
+          cancel();
         }, cancel);
-      else select();
+      else cancel();
     },
   };
 }
