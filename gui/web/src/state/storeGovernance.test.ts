@@ -522,6 +522,11 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
     reason: "leaf that reads the live playhead itself",
   },
   {
+    file: "timeline/useSplitAtPointer.ts",
+    reason:
+      "moves the Alt split guide when the timeline scrolls, in a store subscription, not in render",
+  },
+  {
     file: "timeline/TimelinePresence.tsx",
     reason: "leaf that reads the presence roster itself",
   },
