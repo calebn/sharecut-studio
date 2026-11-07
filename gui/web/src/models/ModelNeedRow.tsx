@@ -16,7 +16,7 @@ import {
   rowInstalled,
 } from "./capability";
 import { progressText } from "./format";
-import type { ModelFailure, ModelState } from "./types";
+import type { DownloadOutcome, ModelFailure, ModelState } from "./types";
 import { useModels } from "./useModels";
 
 export type ModelNeedPlacement =
@@ -350,7 +350,7 @@ export type ModelNeedRowProps = {
   model: NeedTarget;
   placement?: ModelNeedPlacement;
   /** Called when the person presses Get, Update or Try again, as the download starts. */
-  onGet?: () => void;
+  onGet?: (outcome: Promise<DownloadOutcome>) => void;
   onManage?: () => void;
   children?: ReactNode;
 };
@@ -384,11 +384,11 @@ export function ModelNeedRow({
       state={state}
       blockedReason={activity.blockedReason}
       onGet={() => {
-        onGet?.();
-        void download(
+        const outcome = download(
           [model.id],
           sizeAsked ? { whisperModel: model.variant ?? undefined } : undefined,
         );
+        onGet?.(outcome);
       }}
       onCancel={() => void cancel()}
       onCheck={() => void refresh()}

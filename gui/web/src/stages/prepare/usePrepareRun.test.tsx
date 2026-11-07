@@ -1,4 +1,10 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  renderHook,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -7,6 +13,8 @@ import {
   startPipelineRun,
 } from "../../api";
 import type { PipelineWorkingSet } from "../../hooks/usePipelineWorkingSet";
+import { ModelNeedRow } from "../../models/ModelNeedRow";
+import type { DownloadOutcome } from "../../models/types";
 import { ModelsContext } from "../../models/useModels";
 import { useDawStore } from "../../state/dawStore";
 import { jobMediaKey, mediaKeyOf } from "../../state/jobMedia";
@@ -70,6 +78,7 @@ type Props = {
   ingestBusy: boolean;
   mediaKey: string;
   canRun?: boolean;
+  projectPath?: string;
 };
 
 function setup(models = modelsFor("missing")) {
@@ -82,9 +91,14 @@ function setup(models = modelsFor("missing")) {
     </ModelsContext.Provider>
   );
   const view = renderHook(
-    ({ ingestBusy, mediaKey, canRun = true }: Props) =>
+    ({
+      ingestBusy,
+      mediaKey,
+      canRun = true,
+      projectPath = "/tmp/p/episode.sharecut",
+    }: Props) =>
       usePrepareRun({
-        projectPath: "/tmp/p/episode.sharecut",
+        projectPath,
         workingSet: ws,
         transcribed: 0,
         untranscribed: 1,
@@ -501,7 +515,12 @@ describe("usePrepareRun word timing", () => {
     expect(result.current.approximateTiming).toMatchObject({
       id: "word-aligner",
     });
-    act(() => result.current.awaitAligner(result.current.approximateTiming!));
+    await act(async () =>
+      result.current.awaitAligner(
+        result.current.approximateTiming!,
+        Promise.resolve({ kind: "ok" }),
+      ),
+    );
     expect(start).not.toHaveBeenCalled();
     land();
     await waitFor(() => expect(start).toHaveBeenCalledOnce());
@@ -828,4 +847,381 @@ describe("usePrepareRun with audio added after a run", () => {
       skipSteps: expect.arrayContaining(["align_tracks"]),
     });
   });
+});
+
+describe("Prepare request lifetime", () => {
+  it("replays the original config, selection and skip list after preflight refusal", async () => {
+    start.mockRejectedValueOnce(WHISPER_NEEDED);
+    const { result, ws, modelContext, rerender } = setup();
+    const skipped = new Set<"align">(["align"]);
+    ws.cfg = pipelineConfig({
+      step_names: FULL_STEPS,
+      enabled_steps: FULL_STEPS,
+      config: { transcribe: { model: "small.en" } },
+    });
+    await act(async () =>
+      result.current.run("run", false, "transcribe_tracks", skipped),
+    );
+    const original = structuredClone(start.mock.calls[0]);
+    skipped.clear();
+    ws.cfg.config.transcribe = { model: "large-v3-turbo" };
+    ws.cfg = pipelineConfig({
+      enabled_steps: ["clean_audio"],
+      unattended: false,
+    });
+    modelContext.current = modelsFor("installed");
+    rerender({ ingestBusy: false, mediaKey: "" });
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(2));
+    expect(start.mock.calls[1]).toEqual([
+      original[0],
+      { ...original[1], useWorkingSet: false },
+    ]);
+  });
+
+  it.each(["path", "epoch"] as const)(
+    "drops a model replay on a simultaneous %s switch",
+    async (change) => {
+      start.mockRejectedValueOnce(WHISPER_NEEDED);
+      const { result, modelContext, rerender } = setup();
+      await act(async () => result.current.run("run"));
+      await act(async () => {
+        const store = useDawStore.getState();
+        const projectPath =
+          change === "path" ? "/tmp/other/episode.sharecut" : store.projectPath;
+        useDawStore.setState({
+          projectPath,
+          projectEpoch: store.projectEpoch + 1,
+        });
+        modelContext.current = modelsFor("installed");
+        rerender({ ingestBusy: false, mediaKey: "", projectPath });
+      });
+      expect(start).toHaveBeenCalledOnce();
+      expect(result.current.model).toBeNull();
+    },
+  );
+
+  it("retains Run from here while waiting for the slot", async () => {
+    useDawStore.setState({
+      pipelineJob: pipelineJobSnapshot({ status: "running" }),
+    });
+    const { result, ws } = setup();
+    const original = ws.cfg;
+    await act(async () => result.current.run("run", false, "tighten_tracks"));
+    ws.cfg = pipelineConfig({ enabled_steps: ["clean_audio"] });
+    act(() => useDawStore.setState({ pipelineJob: null }));
+    await waitFor(() => expect(start).toHaveBeenCalledOnce());
+    expect(start.mock.calls[0][1]).toMatchObject({
+      fromStep: "tighten_tracks",
+      config: original?.config,
+      enabledSteps: original?.enabled_steps,
+    });
+  });
+
+  it("asks again when the edited targets change after Replace and model refusal", async () => {
+    const base = await vocabulary("/tmp/p/episode.sharecut");
+    vocabulary.mockResolvedValue({ ...base, edited_tracks: ["maya"] });
+    start.mockRejectedValueOnce(WHISPER_NEEDED);
+    const { result, modelContext, rerender } = setup();
+    await act(async () => result.current.retranscribe());
+    await act(async () => result.current.replaceFixes());
+    expect(start).toHaveBeenCalledOnce();
+    vocabulary.mockResolvedValue({ ...base, edited_tracks: ["maya", "joss"] });
+    modelContext.current = modelsFor("installed");
+    rerender({ ingestBusy: false, mediaKey: "" });
+    await waitFor(() =>
+      expect(result.current.keepFixes?.names).toEqual(["MAYA", "JOSS"]),
+    );
+    expect(start).toHaveBeenCalledOnce();
+    await act(async () => result.current.replaceFixes());
+    expect(start).toHaveBeenCalledTimes(2);
+    expect(start.mock.calls[1][1]).toMatchObject({
+      forceTranscribe: true,
+      overwriteEdited: true,
+    });
+  });
+
+  it("does not use a confirmation response after the project epoch changes", async () => {
+    let finish: (
+      value: Awaited<ReturnType<typeof loadTranscriptVocabulary>>,
+    ) => void = () => undefined;
+    vocabulary.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const { result } = setup();
+    act(() => result.current.retranscribe());
+    const store = useDawStore.getState();
+    act(() => useDawStore.setState({ projectEpoch: store.projectEpoch + 1 }));
+    await act(async () =>
+      finish({
+        show_title: null,
+        prompt_limit: null,
+        prompt_primer: "",
+        terms: [],
+        guest_names: [],
+        revision: "r1",
+        needs_retranscription: false,
+        edited_tracks: [],
+      }),
+    );
+    expect(start).not.toHaveBeenCalled();
+    expect(result.current.keepFixes).toBeNull();
+  });
+});
+
+describe("approximate timing download intent", () => {
+  it("retires a cancelled Get before an unrelated aligner install", async () => {
+    let finish: (outcome: DownloadOutcome) => void = () => undefined;
+    const downloading = new Promise<DownloadOutcome>((resolve) => {
+      finish = resolve;
+    });
+    const download = vi.fn(() => downloading);
+    const cancel = vi.fn(async () => {
+      finish({ kind: "cancelled" });
+    });
+    const makeApi = (state: "missing" | "installed") => ({
+      ...modelsApi({
+        status: modelStatus(
+          registryRows().map((row) =>
+            row.id === "word-aligner" ? modelRow({ ...row, state }) : row,
+          ),
+        ),
+        download,
+      }),
+      cancel,
+    });
+    const context = { current: makeApi("missing") };
+    const target = {
+      id: "word-aligner",
+      variant: null,
+      label: "Word timing",
+      size: "~360 MB",
+    };
+    let onGet: (outcome: Promise<DownloadOutcome>) => void = () => undefined;
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <ModelsContext.Provider value={context.current}>
+        {children}
+        <ModelNeedRow model={target} onGet={(outcome) => onGet(outcome)} />
+      </ModelsContext.Provider>
+    );
+    const { result, rerender } = renderHook(
+      () =>
+        usePrepareRun({
+          projectPath: "/tmp/p/episode.sharecut",
+          workingSet: workingSet(),
+          transcribed: 1,
+          untranscribed: 0,
+          mediaKey: "a:/a.wav",
+          ingestBusy: false,
+          canRun: true,
+          nameOf: (id) => id,
+        }),
+      { wrapper },
+    );
+    onGet = (outcome) => result.current.awaitAligner(target, outcome);
+    fireEvent.click(screen.getByRole("button", { name: /^Get / }));
+    expect(download).toHaveBeenCalledOnce();
+    context.current = {
+      ...context.current,
+      busy: true,
+      models:
+        context.current.models?.map((row) =>
+          row.id === "word-aligner"
+            ? { ...row, state: { kind: "downloading", bytes: 1, total: 10 } }
+            : row,
+        ) ?? null,
+    };
+    rerender();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /^Cancel / }));
+    });
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(await downloading).toEqual({ kind: "cancelled" });
+    context.current = makeApi("missing");
+    rerender();
+    context.current = makeApi("installed");
+    rerender();
+    await act(async () => undefined);
+    expect(vocabulary).not.toHaveBeenCalled();
+    expect(start).not.toHaveBeenCalled();
+  });
+});
+
+describe("Prepare operation ownership", () => {
+  it("asks again after a model wait even when edited IDs, media and vocabulary revision stay the same", async () => {
+    const base = await vocabulary("/tmp/p/episode.sharecut");
+    vocabulary.mockResolvedValue({ ...base, edited_tracks: ["maya"] });
+    start.mockRejectedValueOnce(WHISPER_NEEDED);
+    const { result, ws, modelContext, rerender } = setup();
+    await act(async () => result.current.retranscribe());
+    expect(result.current.keepFixes?.names).toEqual(["MAYA"]);
+    expect(start).not.toHaveBeenCalled();
+    await act(async () => result.current.replaceFixes());
+    const original = structuredClone(start.mock.calls[0]);
+    expect(original[1]).toMatchObject({
+      overwriteEdited: true,
+      forceTranscribe: true,
+    });
+    ws.cfg = pipelineConfig({
+      enabled_steps: ["clean_audio"],
+      unattended: false,
+    });
+    modelContext.current = modelsFor("installed");
+    rerender({ ingestBusy: false, mediaKey: "" });
+    await waitFor(() =>
+      expect(result.current.keepFixes?.names).toEqual(["MAYA"]),
+    );
+    expect(start).toHaveBeenCalledOnce();
+    await act(async () => result.current.replaceFixes());
+    expect(start).toHaveBeenCalledTimes(2);
+    expect(start.mock.calls[1]).toEqual([
+      original[0],
+      { ...original[1], useWorkingSet: false },
+    ]);
+  });
+
+  it.each(["path", "epoch"] as const)(
+    "a late old start cannot clear a newer start after a %s change",
+    async (change) => {
+      let finishOld: (
+        job: Awaited<ReturnType<typeof startPipelineRun>>,
+      ) => void = () => undefined;
+      let finishNew: (
+        job: Awaited<ReturnType<typeof startPipelineRun>>,
+      ) => void = () => undefined;
+      start.mockReturnValueOnce(
+        new Promise((resolve) => {
+          finishOld = resolve;
+        }),
+      );
+      start.mockReturnValueOnce(
+        new Promise((resolve) => {
+          finishNew = resolve;
+        }),
+      );
+      const { result, rerender } = setup();
+      await act(async () => {
+        void result.current.run("run");
+      });
+      expect(result.current.starting).toBe(true);
+      const path =
+        change === "path"
+          ? "/tmp/new/episode.sharecut"
+          : "/tmp/p/episode.sharecut";
+      act(() => {
+        useDawStore.setState({
+          projectPath: path,
+          projectEpoch: useDawStore.getState().projectEpoch + 1,
+        });
+        rerender({ projectPath: path, ingestBusy: false, mediaKey: "" });
+      });
+      expect(result.current.starting).toBe(false);
+      await act(async () => {
+        void result.current.run("run", false, "clean_audio");
+      });
+      expect(start).toHaveBeenCalledTimes(2);
+      expect(start.mock.calls[1]).toEqual([
+        path,
+        expect.objectContaining({ fromStep: "clean_audio" }),
+      ]);
+      expect(result.current.starting).toBe(true);
+      await act(async () =>
+        finishOld(pipelineJobSnapshot({ id: "old", status: "running" })),
+      );
+      expect(result.current.starting).toBe(true);
+      expect(useDawStore.getState().pipelineJob).toBeNull();
+      await act(async () => {
+        void result.current.run("run");
+      });
+      expect(start).toHaveBeenCalledTimes(2);
+      await act(async () =>
+        finishNew(pipelineJobSnapshot({ id: "new", status: "running" })),
+      );
+      expect(result.current.starting).toBe(false);
+      expect(useDawStore.getState().pipelineJob?.id).toBe("new");
+    },
+  );
+});
+
+describe("captured word timing settings", () => {
+  it("uses the Get-time settings after its successful download and fresh model observation", async () => {
+    let finish: (outcome: DownloadOutcome) => void = () => undefined;
+    const outcome = new Promise<DownloadOutcome>((resolve) => {
+      finish = resolve;
+    });
+    const { result, ws, modelContext, rerender } = setup();
+    ws.cfg = pipelineConfig({
+      enabled_steps: ["clean_audio"],
+      unattended: false,
+      config: { transcribe: { model: "small.en" } },
+    });
+    act(() =>
+      result.current.awaitAligner(
+        {
+          id: "word-aligner",
+          variant: null,
+          label: "Word timing",
+          size: "~360 MB",
+        },
+        outcome,
+      ),
+    );
+    ws.cfg = pipelineConfig({
+      enabled_steps: ["tighten_tracks"],
+      unattended: true,
+    });
+    await act(async () => finish({ kind: "ok" }));
+    modelContext.current = modelsApi({
+      status: modelStatus(
+        registryRows().map((row) =>
+          row.id === "word-aligner"
+            ? modelRow({ ...row, state: "installed" })
+            : row,
+        ),
+      ),
+    });
+    rerender({ ingestBusy: false, mediaKey: "" });
+    await waitFor(() =>
+      expect(start).toHaveBeenCalledExactlyOnceWith(
+        "/tmp/p/episode.sharecut",
+        expect.objectContaining({
+          retimeWords: true,
+          fromStep: "transcribe_tracks",
+          unattended: false,
+          enabledSteps: ["clean_audio", "transcribe_tracks"],
+          config: { transcribe: { model: "small.en" } },
+        }),
+      ),
+    );
+  });
+});
+
+it("does not resave old working settings when a stopped request resumes", async () => {
+  start.mockRejectedValueOnce(WHISPER_NEEDED);
+  const { result, ws, modelContext, rerender } = setup();
+  ws.cfg = pipelineConfig({
+    enabled_steps: ["transcribe_tracks"],
+    unattended: true,
+    config: { transcribe: { model: "small.en" } },
+  });
+  await act(async () => result.current.run("run"));
+  expect(start.mock.calls[0][1]).toMatchObject({ useWorkingSet: true });
+  ws.cfg = pipelineConfig({
+    enabled_steps: ["clean_audio"],
+    unattended: false,
+    config: { transcribe: { model: "large-v3-turbo" } },
+  });
+  modelContext.current = modelsFor("installed");
+  rerender({ ingestBusy: false, mediaKey: "" });
+  await waitFor(() => expect(start).toHaveBeenCalledTimes(2));
+  expect(start.mock.calls[1]).toEqual([
+    "/tmp/p/episode.sharecut",
+    expect.objectContaining({
+      useWorkingSet: false,
+      enabledSteps: ["transcribe_tracks"],
+      unattended: true,
+      config: { transcribe: { model: "small.en" } },
+    }),
+  ]);
 });

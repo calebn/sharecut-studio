@@ -132,7 +132,10 @@ export function overlay(
   return status.models.map((row) => {
     const foreign = row.id === "whisper" && status.whisper_model !== variant;
     let state: ModelState = { kind: row.state };
-    if (live?.components.includes(row.id)) {
+    if (
+      live?.components.includes(row.id) &&
+      (row.id !== "whisper" || live.whisper_model === variant)
+    ) {
       state =
         live.download?.component === row.id
           ? {

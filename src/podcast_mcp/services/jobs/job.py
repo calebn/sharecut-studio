@@ -146,6 +146,7 @@ class Job:
     only_step: str | None = None
     status: str = "queued"  # queued | running | ok | error | cancelled
     kind: JobKind = "pipeline"
+    retry_of: str | None = None
     label: str | None = None
     tool_id: str | None = None
     result: dict[str, Any] | None = None
@@ -234,6 +235,7 @@ class Job:
                 }
             return {
                 "id": self.id,
+                **({"retry_of": self.retry_of} if self.retry_of is not None else {}),
                 "project_path": "" if self.kind == "agent" else self.project_path,
                 "from_step": self.from_step,
                 "only_step": self.only_step,

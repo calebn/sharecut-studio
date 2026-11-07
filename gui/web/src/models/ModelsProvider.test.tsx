@@ -1,4 +1,11 @@
-import { act, render, renderHook, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
@@ -9,9 +16,11 @@ import type {
 import * as api from "../api";
 import { setupOf } from "../stages/home/homeModel";
 import { deferred } from "../test/deferred";
+import { stubViewportShell } from "../test/viewportShell";
 import { ApiError } from "../utils/apiError";
-import { ModelNeedRowView } from "./ModelNeedRow";
+import { ModelNeedRow, ModelNeedRowView } from "./ModelNeedRow";
 import { ModelsProvider } from "./ModelsProvider";
+import { ModelsSheet } from "./ModelsSheet";
 import { useModels } from "./useModels";
 
 vi.mock("../api", () => ({
@@ -784,13 +793,16 @@ describe("every status read is for the picked Whisper size", () => {
 
   it("keeps the picked size's state when another tab's job of a different size ends", async () => {
     fetchStatus.mockImplementation(byVariant);
-    fetchJob.mockResolvedValue(job({ id: "other" }));
+    const found = deferred<BootstrapJobSnapshot | null>();
+    fetchJob.mockReturnValue(found.promise);
     const { result } = await mounted();
-    await waitFor(() => expect(waiters).toHaveLength(1));
     act(() => result.current.whisper.choose("small.en"));
     await waitFor(() =>
-      expect(result.current.models![0]!.state.kind).toBe("queued"),
+      expect(result.current.models![0]!.state.kind).toBe("missing"),
     );
+    await act(async () => found.resolve(job({ id: "other" })));
+    await waitFor(() => expect(waiters).toHaveLength(1));
+    expect(result.current.models![0]!.state.kind).toBe("missing");
     await act(async () => {
       waiters[0]!.finish(job({ id: "other", status: "ok" }));
     });
@@ -799,5 +811,94 @@ describe("every status read is for the picked Whisper size", () => {
     );
     expect(fetchStatus).toHaveBeenLastCalledWith("small.en");
     expect(result.current.whisper.variant).toBe("small.en");
+  });
+});
+
+describe("an adopted Whisper job", () => {
+  it.each(["queued", "downloading"] as const)(
+    "does not attribute a Fast %s job to a Best sheet row or inline need",
+    async (phase) => {
+      const fast = job({
+        id: "other",
+        whisper_model: "tiny.en",
+        ...(phase === "downloading"
+          ? { download: { component: "whisper", bytes: 5, total: 10 } }
+          : {}),
+      });
+      fetchJob.mockResolvedValue(fast);
+      stubViewportShell("desktop");
+      const best = {
+        id: "whisper",
+        variant: "large-v3-turbo",
+        label: "Whisper",
+        size: "1.6 GB",
+      };
+      const observed: Array<ReturnType<typeof useModels>> = [];
+      function Observer() {
+        observed.push(useModels());
+        return null;
+      }
+      render(
+        <ModelsProvider>
+          <Observer />
+          <ModelsSheet open onClose={vi.fn()} />
+          <ModelNeedRow model={best} />
+        </ModelsProvider>,
+      );
+      await waitFor(() => expect(waiters).toHaveLength(1));
+      await waitFor(() =>
+        expect(observed.at(-1)?.models?.[0]?.state).toEqual({
+          kind: "missing",
+        }),
+      );
+      expect(observed.at(-1)?.whisper.variant).toBe("large-v3-turbo");
+      expect(observed.at(-1)?.ready).toBe(false);
+      expect(observed.at(-1)?.busy).toBe(true);
+      expect(
+        screen.queryByRole("button", {
+          name: /cancel .*download/i,
+          hidden: true,
+        }),
+      ).toBeNull();
+      expect(
+        screen.getByRole("button", { name: "Get Transcription" }),
+      ).toBeDisabled();
+      expect(
+        screen.getByRole("button", {
+          name: "Get the transcription model",
+          hidden: true,
+        }),
+      ).toBeDisabled();
+      await act(async () => waiters[0]!.finish({ ...fast, status: "ok" }));
+      await waitFor(() => expect(observed.at(-1)?.busy).toBe(false));
+      expect(fetchStatus).toHaveBeenLastCalledWith(undefined);
+      expect(observed.at(-1)?.models?.[0]?.state).toEqual({ kind: "missing" });
+    },
+  );
+
+  it("lets the actual Fast row cancel the adopted job", async () => {
+    fetchStatus.mockResolvedValue(
+      status(
+        [
+          row({ id: "whisper", tier: "required", model: "tiny.en" }),
+          MISSING[1]!,
+        ],
+        { whisper_model: "tiny.en" },
+      ),
+    );
+    fetchJob.mockResolvedValue(job({ id: "other", whisper_model: "tiny.en" }));
+    cancel.mockResolvedValue(job({ id: "other", whisper_model: "tiny.en" }));
+    stubViewportShell("desktop");
+    render(
+      <ModelsProvider>
+        <ModelsSheet open onClose={vi.fn()} />
+      </ModelsProvider>,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Cancel Transcription download",
+      }),
+    );
+    await waitFor(() => expect(cancel).toHaveBeenCalledWith("other"));
   });
 });

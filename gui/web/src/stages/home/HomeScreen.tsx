@@ -11,6 +11,7 @@ import {
 } from "../../api";
 import { registerDawCommands } from "../../commands/register";
 import { desktopCloseGuardArmed } from "../../desktop/useDesktopCloseGuard";
+import { FeedbackToast } from "../../feedback/FeedbackToast";
 import { HelpDialog } from "../../home/HelpDialog";
 import { useWindowFileDrop } from "../../hooks/useWindowFileDrop";
 import { ingestIntoNewProject, pickAudioFiles } from "../../ingest/ingestFiles";
@@ -20,6 +21,7 @@ import { HostMcpDialog } from "../../stage/dialogs/HostMcpDialog";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
 import type { ProjectCardData } from "../../system/ProjectCard";
+import { StatusLiveRegion } from "../../ui/StatusLiveRegion";
 import { ApiError, errorMessage } from "../../utils/apiError";
 import {
   countHomeVisit,
@@ -159,11 +161,14 @@ export function HomeScreen() {
   const [hintShown, setHintShown] = useState(() =>
     homeScreenHintDue(readHomeScreenEnv(), countHomeVisit()),
   );
-  const { mcpOpen, helpOpen, modelsOpen } = useDaw((s) => ({
-    mcpOpen: s.chrome.hostMcpDialogOpen,
-    helpOpen: s.chrome.helpDialogOpen,
-    modelsOpen: s.chrome.modelsSheetOpen,
-  }));
+  const { mcpOpen, helpOpen, modelsOpen, announcement, announcementSeq } =
+    useDaw((s) => ({
+      mcpOpen: s.chrome.hostMcpDialogOpen,
+      helpOpen: s.chrome.helpDialogOpen,
+      modelsOpen: s.chrome.modelsSheetOpen,
+      announcement: s.statusAnnouncement,
+      announcementSeq: s.statusAnnouncementSeq,
+    }));
   const { setHostMcpDialogOpen, setHelpDialogOpen, setModelsSheetOpen } =
     useDawStore.getState();
   const openPalette = useDawStore.getState().setCommandPaletteOpen;
@@ -503,6 +508,8 @@ export function HomeScreen() {
         onClose={() => setModelsSheetOpen(false)}
       />
       <HelpDialog open={helpOpen} onClose={() => setHelpDialogOpen(false)} />
+      <FeedbackToast />
+      <StatusLiveRegion message={announcement} seq={announcementSeq} />
     </>
   );
 }

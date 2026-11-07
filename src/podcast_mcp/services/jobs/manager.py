@@ -549,6 +549,7 @@ class JobManager:
                 skip_steps=list(state.skip_steps),
                 unattended=state.unattended,
                 retry_source=state,
+                retry_of=original.id,
                 validate=validate,
             )
             with original._lock:
@@ -568,6 +569,7 @@ class JobManager:
         label: str | None = None,
         validate: Callable[[], None] | None = None,
         retry_source: PipelineRunIntent | None = None,
+        retry_of: str | None = None,
     ) -> Job:
         with self._catalog._lock:
             if self._catalog._job is not None and self._catalog._job.status in LIVE_JOB_STATUSES:
@@ -591,6 +593,7 @@ class JobManager:
                 unattended=unattended,
                 config=copy.deepcopy(config),
                 _retry_source=retry_source,
+                retry_of=retry_of,
             )
             self._catalog._job = job
 

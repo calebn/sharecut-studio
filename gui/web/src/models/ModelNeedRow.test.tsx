@@ -12,7 +12,7 @@ import {
   registryRows,
 } from "../test/renderWithModels";
 import { ModelNeedRow, ModelNeedRowView } from "./ModelNeedRow";
-import type { ModelState } from "./types";
+import type { DownloadOutcome, ModelState } from "./types";
 
 vi.mock("../commands/pointer", () => ({ runPointerCommand: vi.fn() }));
 
@@ -380,17 +380,21 @@ describe("ModelNeedRow with a models provider", () => {
     expect(api.remove).not.toHaveBeenCalled();
   });
 
-  it("calls onGet as the download starts", async () => {
+  it("hands onGet the exact promise from one download", async () => {
     const onGet = vi.fn();
-    const api = modelsApi({ status: modelStatus(registryRows()) });
+    const outcome = Promise.resolve<DownloadOutcome>({ kind: "ok" });
+    const download = vi.fn(() => outcome);
+    const api = modelsApi({ status: modelStatus(registryRows()), download });
     render(<ModelNeedRow model={WHISPER} onGet={onGet} />, {
       wrapper: modelsWrapper(api),
     });
     await userEvent.click(
       screen.getByRole("button", { name: "Get the transcription model" }),
     );
-    expect(onGet).toHaveBeenCalledOnce();
-    expect(api.download).toHaveBeenCalledOnce();
+    expect(onGet).toHaveBeenCalledExactlyOnceWith(outcome);
+    expect(api.download).toHaveBeenCalledExactlyOnceWith(["whisper"], {
+      whisperModel: "large-v3-turbo",
+    });
   });
 
   it("renders nothing once the model is installed", () => {

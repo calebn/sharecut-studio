@@ -77,9 +77,10 @@ function setup(
     (props: {
       activityJob: ReturnType<typeof pipelineJobSnapshot> | null;
       isPlaying?: boolean;
+      projectPath?: string;
     }) =>
       usePrepareSources({
-        projectPath: PATH,
+        projectPath: props.projectPath ?? PATH,
         tracks,
         isPlaying: props.isPlaying ?? false,
         activityJob: props.activityJob,
@@ -90,6 +91,7 @@ function setup(
       initialProps: {
         activityJob: over.activityJob ?? null,
         isPlaying: false,
+        projectPath: PATH,
       },
     },
   );
@@ -268,14 +270,14 @@ describe("hear", () => {
     const { result, rerender } = setup();
     act(() => {
       result.current.actions.onHear("maya");
-      rerender({ activityJob: null, isPlaying: true });
+      rerender({ projectPath: PATH, activityJob: null, isPlaying: true });
     });
     expect(result.current.playingId).toBe("maya");
     expect(useDawStore.getState().soloTracks).toEqual({ maya: true });
     expect(useDawStore.getState().isPlaying).toBe(true);
     expect(useDawStore.getState().playUntilSec).toBe(4);
     useDawStore.setState({ isPlaying: false });
-    rerender({ activityJob: null, isPlaying: false });
+    rerender({ projectPath: PATH, activityJob: null, isPlaying: false });
     expect(result.current.playingId).toBeNull();
     expect(useDawStore.getState().soloTracks).toEqual({ joss: true });
   });
@@ -403,6 +405,7 @@ describe("split", () => {
     });
     await waitFor(() => expect(result.current.splitting.maya).toBeDefined());
     rerender({
+      projectPath: PATH,
       isPlaying: false,
       activityJob: pipelineJobSnapshot({
         id: "split-1",
@@ -477,7 +480,7 @@ describe("split", () => {
     expect(result.current.splitFailed).toEqual({});
     expect(startSplitSpeakersJob).toHaveBeenCalledOnce();
     api.current = SPEAKER_IN;
-    rerender({ activityJob: null, isPlaying: false });
+    rerender({ projectPath: PATH, activityJob: null, isPlaying: false });
     await waitFor(() => expect(startSplitSpeakersJob).toHaveBeenCalledTimes(2));
     expect(result.current.splitNeeds).toEqual({});
   });
@@ -489,7 +492,7 @@ describe("split", () => {
     const { result, rerender } = setup();
     await act(async () => result.current.actions.onSplit("maya"));
     api.current = SPEAKER_IN;
-    rerender({ activityJob: null, isPlaying: false });
+    rerender({ projectPath: PATH, activityJob: null, isPlaying: false });
     await waitFor(() => expect(startSplitSpeakersJob).toHaveBeenCalledTimes(2));
     await waitFor(() =>
       expect(result.current.splitFailed.maya).toBe(
@@ -500,4 +503,203 @@ describe("split", () => {
     await act(async () => undefined);
     expect(startSplitSpeakersJob).toHaveBeenCalledTimes(2);
   });
+});
+
+describe("split recovery queue", () => {
+  const needed = new ApiError("model needed", "model_needed", 409, {
+    id: "speaker-ecapa",
+    variant: null,
+    label: "Speaker model",
+    purpose: "speaker recognition and split",
+    size: "~25 MB",
+    sizeBytes: null,
+    state: "missing",
+  });
+
+  it("serializes waiting cards and retains each original voice count", async () => {
+    const split = vi.mocked(startSplitSpeakersJob);
+    split.mockRejectedValueOnce(needed).mockRejectedValueOnce(needed);
+    let finish: (value: Awaited<ReturnType<typeof followJobToOk>>) => void =
+      () => undefined;
+    vi.mocked(followJobToOk).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const { result, rerender } = setup();
+    act(() => result.current.actions.onVoices("maya", 3));
+    await act(async () => result.current.actions.onSplit("maya"));
+    act(() => result.current.actions.onVoices("joss", 4));
+    await act(async () => result.current.actions.onSplit("joss"));
+    act(() => {
+      result.current.actions.onVoices("maya", 5);
+      result.current.actions.onVoices("joss", 6);
+    });
+    api.current = SPEAKER_IN;
+    rerender({ projectPath: PATH, activityJob: null, isPlaying: false });
+    await waitFor(() => expect(split).toHaveBeenCalledTimes(3));
+    expect(split.mock.calls[2]).toEqual([
+      PATH,
+      {
+        trackId: "maya",
+        speakerCount: 3,
+        names: null,
+        enrollment: null,
+      },
+    ]);
+    expect(result.current.splitting.joss).toEqual({
+      detail: "Waiting for another split",
+    });
+    await act(async () =>
+      finish(
+        pipelineJobSnapshot({
+          id: "split-1",
+          kind: "split_speakers",
+          status: "ok",
+          result: RESULT,
+        }),
+      ),
+    );
+    await waitFor(() => expect(split).toHaveBeenCalledTimes(4));
+    expect(split.mock.calls[3]).toEqual([
+      PATH,
+      {
+        trackId: "joss",
+        speakerCount: 4,
+        names: null,
+        enrollment: null,
+      },
+    ]);
+  });
+
+  it.each(["path", "epoch"] as const)(
+    "drops old cards when project %s and model arrival change together",
+    async (change) => {
+      vi.mocked(startSplitSpeakersJob).mockRejectedValueOnce(needed);
+      const { result, rerender } = setup();
+      await act(async () => result.current.actions.onSplit("maya"));
+      await act(async () => {
+        const projectPath =
+          change === "path" ? "/tmp/other/episode.sharecut" : PATH;
+        useDawStore.setState({
+          projectPath,
+          projectEpoch: useDawStore.getState().projectEpoch + 1,
+        });
+        api.current = SPEAKER_IN;
+        rerender({ activityJob: null, isPlaying: false, projectPath });
+      });
+      expect(startSplitSpeakersJob).toHaveBeenCalledOnce();
+      expect(result.current.splitNeeds).toEqual({});
+    },
+  );
+});
+
+describe("split drain ownership", () => {
+  it.each(["path", "epoch"] as const)(
+    "retires the old drain without stopping the new drain on a %s change",
+    async (change) => {
+      const needed = new ApiError("model needed", "model_needed", 409, {
+        id: "speaker-ecapa",
+        variant: null,
+        label: "Speaker model",
+        purpose: "speaker recognition and split",
+        size: "~25 MB",
+        sizeBytes: null,
+        state: "missing",
+      });
+      const split = vi.mocked(startSplitSpeakersJob);
+      const follow = vi.mocked(followJobToOk);
+      let finishOld: (job: Awaited<ReturnType<typeof followJobToOk>>) => void =
+        () => undefined;
+      let finishNew: (job: Awaited<ReturnType<typeof followJobToOk>>) => void =
+        () => undefined;
+      follow.mockReturnValueOnce(
+        new Promise((resolve) => {
+          finishOld = resolve;
+        }),
+      );
+      follow.mockReturnValueOnce(
+        new Promise((resolve) => {
+          finishNew = resolve;
+        }),
+      );
+      split.mockRejectedValueOnce(needed);
+      const { result, rerender } = setup();
+      await act(async () => result.current.actions.onSplit("maya"));
+      api.current = SPEAKER_IN;
+      rerender({ projectPath: PATH, activityJob: null, isPlaying: false });
+      await waitFor(() => expect(follow).toHaveBeenCalledTimes(1));
+      const path = change === "path" ? "/tmp/new/episode.sharecut" : PATH;
+      act(() => {
+        useDawStore.setState({
+          projectPath: path,
+          projectEpoch: useDawStore.getState().projectEpoch + 1,
+        });
+        api.current = modelsApi({ status: modelStatus(registryRows()) });
+        rerender({ projectPath: path, activityJob: null, isPlaying: false });
+      });
+      split.mockRejectedValueOnce(needed).mockRejectedValueOnce(needed);
+      act(() => result.current.actions.onVoices("maya", 3));
+      await act(async () => result.current.actions.onSplit("maya"));
+      act(() => result.current.actions.onVoices("joss", 4));
+      await act(async () => result.current.actions.onSplit("joss"));
+      api.current = modelsApi({
+        status: modelStatus(
+          registryRows().map((row) =>
+            row.id === "speaker-ecapa"
+              ? modelRow({ ...row, state: "installed" })
+              : row,
+          ),
+        ),
+      });
+      rerender({ projectPath: path, activityJob: null, isPlaying: false });
+      await waitFor(() => expect(follow).toHaveBeenCalledTimes(2));
+      expect(split.mock.calls[4]).toEqual([
+        path,
+        {
+          trackId: "maya",
+          speakerCount: 3,
+          names: null,
+          enrollment: null,
+        },
+      ]);
+      await act(async () =>
+        finishOld(
+          pipelineJobSnapshot({
+            id: "old",
+            kind: "split_speakers",
+            status: "ok",
+            result: RESULT,
+          }),
+        ),
+      );
+      expect(result.current.splitting.joss).toEqual({
+        detail: "Waiting for another split",
+      });
+      expect(result.current.splitFailed).toEqual({});
+      expect(split).toHaveBeenCalledTimes(5);
+      await act(async () =>
+        finishNew(
+          pipelineJobSnapshot({
+            id: "new",
+            kind: "split_speakers",
+            status: "ok",
+            result: RESULT,
+          }),
+        ),
+      );
+      await waitFor(() => expect(split).toHaveBeenCalledTimes(6));
+      expect(split.mock.calls[5]).toEqual([
+        path,
+        {
+          trackId: "joss",
+          speakerCount: 4,
+          names: null,
+          enrollment: null,
+        },
+      ]);
+      expect(refreshDocumentProject).toHaveBeenCalledWith(path);
+      expect(refreshDocumentProject).toHaveBeenCalledTimes(2);
+    },
+  );
 });
