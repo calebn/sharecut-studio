@@ -1,7 +1,16 @@
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useEffect, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { startPipelineRun } from "../../api";
+import type { BootstrapStatus } from "../../api";
+import {
+  fetchBootstrapJob,
+  fetchBootstrapStatus,
+  runBootstrap,
+  startPipelineRun,
+} from "../../api";
+import { ModelsProvider } from "../../models/ModelsProvider";
+import { useModels } from "../../models/useModels";
 import { useDawStore } from "../../state/dawStore";
 import { DawProvider } from "../../state/store";
 import { minimalProject } from "../../test/fixtures";
@@ -18,7 +27,66 @@ vi.mock("../../commands/pointer", () => ({ runPointerCommand }));
 vi.mock("../../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../api")>()),
   startPipelineRun: vi.fn(),
+  fetchBootstrapStatus: vi.fn(),
+  fetchBootstrapJob: vi.fn(),
+  runBootstrap: vi.fn(),
 }));
+
+function deferredStatus() {
+  let resolve!: (status: BootstrapStatus) => void;
+  let reject!: (error: Error) => void;
+  const promise = new Promise<BootstrapStatus>((yes, no) => {
+    resolve = yes;
+    reject = no;
+  });
+  return { promise, resolve, reject };
+}
+
+function BoundedRealBanner({ onLimit }: { onLimit: () => void }) {
+  const { observation, refresh } = useModels();
+  const [show, setShow] = useState(true);
+  useEffect(() => {
+    if (observation.generation >= 8) {
+      onLimit();
+      setShow(false);
+    }
+  }, [observation.generation, onLimit]);
+  return (
+    <>
+      <button onClick={() => void refresh()}>Refresh model status</button>
+      {show ? (
+        <JobModelBanner guestShare={false} />
+      ) : (
+        <p>Safety limit reached</p>
+      )}
+    </>
+  );
+}
+
+function mountReal() {
+  const requests: ReturnType<typeof deferredStatus>[] = [];
+  vi.mocked(fetchBootstrapStatus).mockImplementation(() => {
+    const request = deferredStatus();
+    requests.push(request);
+    return request.promise;
+  });
+  const onLimit = vi.fn();
+  render(
+    <ModelsProvider>
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <BoundedRealBanner onLimit={onLimit} />
+      </DawProvider>
+    </ModelsProvider>,
+  );
+  return { requests, onLimit };
+}
+
+const installedNoise = () =>
+  modelStatus(
+    registryRows().map((row) =>
+      row.id === "rnnoise" ? { ...row, state: "installed" as const } : row,
+    ),
+  );
 
 function failedJob(overrides: Partial<PipelineJobSnapshot> = {}) {
   return {
@@ -58,6 +126,62 @@ describe("JobModelBanner", () => {
     useDawStore.setState({ activityJob: null });
     runPointerCommand.mockReset();
     vi.mocked(startPipelineRun).mockReset();
+    vi.mocked(fetchBootstrapStatus).mockReset();
+    vi.mocked(fetchBootstrapJob).mockReset().mockResolvedValue(null);
+    vi.mocked(runBootstrap).mockReset();
+  });
+
+  it.each(["pipeline", "render_preview"])(
+    "arms one read for an unchanged failed %s job while status responses stay pending",
+    async (kind) => {
+      const { requests, onLimit } = mountReal();
+      expect(requests).toHaveLength(1);
+      fail(failedJob({ kind }));
+      expect(requests).toHaveLength(2);
+      expect(onLimit).not.toHaveBeenCalled();
+      expect(screen.getByText("Needs noise reduction")).toBeVisible();
+      fail(failedJob({ kind }));
+      await act(async () => requests[0]!.resolve(installedNoise()));
+      expect(requests).toHaveLength(2);
+      expect(startPipelineRun).not.toHaveBeenCalled();
+      expect(runPointerCommand).not.toHaveBeenCalled();
+      expect(runBootstrap).not.toHaveBeenCalled();
+    },
+  );
+
+  it("keeps a failed read actionable, retries with fresh evidence once, and does not re-arm the same job", async () => {
+    const { requests, onLimit } = mountReal();
+    await act(async () => requests[0]!.resolve(installedNoise()));
+    fail(failedJob());
+    expect(requests).toHaveLength(2);
+    await act(async () => requests[1]!.reject(new Error("Status offline")));
+    expect(runPointerCommand).not.toHaveBeenCalled();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Check Noise reduction status" }),
+    );
+    expect(requests).toHaveLength(3);
+    await act(async () => requests[2]!.resolve(installedNoise()));
+    await waitFor(() =>
+      expect(runPointerCommand).toHaveBeenCalledExactlyOnceWith(
+        "render.refreshMix",
+      ),
+    );
+    expect(screen.queryByText("Needs noise reduction")).toBeNull();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Refresh model status" }),
+    );
+    expect(requests).toHaveLength(4);
+    await act(async () => requests[3]!.resolve(installedNoise()));
+    expect(runPointerCommand).toHaveBeenCalledTimes(1);
+    expect(requests).toHaveLength(4);
+    useDawStore.setState({ statusAnnouncement: "" });
+    fail(failedJob({ id: "job-2" }));
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Noise reduction (RNNoise) is not downloaded.",
+    );
+    expect(requests).toHaveLength(4);
+    expect(onLimit).not.toHaveBeenCalled();
+    expect(runBootstrap).not.toHaveBeenCalled();
   });
 
   it("shows the Model need row in place of the raw failure when the latest job failed for a model", () => {
