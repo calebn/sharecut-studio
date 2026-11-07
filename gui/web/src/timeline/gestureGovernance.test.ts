@@ -295,12 +295,15 @@ const SRC_ARROW_ALLOWLIST: Record<string, string> = {
 };
 
 function srcSources() {
-  return [...sourceFiles()].filter(
-    ({ rel }) =>
-      !/\.(test|stories)\./.test(rel) &&
-      !rel.startsWith("test/") &&
-      !rel.startsWith("timeline/"),
-  );
+  return walkTsFiles(SRC_ROOT)
+    .map((file) => ({ file, rel: srcRelative(file) }))
+    .filter(
+      ({ rel }) =>
+        !/\.(test|stories)\./.test(rel) &&
+        !rel.startsWith("test/") &&
+        !rel.startsWith("timeline/"),
+    )
+    .map(({ file, rel }) => ({ rel, text: readFileSync(file, "utf8") }));
 }
 
 describe("gesture governance across src", () => {
@@ -319,14 +322,15 @@ describe("gesture governance across src", () => {
   });
 
   it("keeps arrow-key edits out of src files that are not widgets or the keymap", () => {
-    const offenders = srcSources()
+    const sources = srcSources();
+    const offenders = sources
       .filter(({ text }) => /["']Arrow(Left|Right)["']/.test(text))
       .map(({ rel }) => rel)
       .filter((rel) => !(rel in SRC_ARROW_ALLOWLIST));
     expect(offenders).toEqual([]);
     const stale = Object.keys(SRC_ARROW_ALLOWLIST).filter(
       (rel) =>
-        !srcSources().some(
+        !sources.some(
           ({ rel: found, text }) =>
             found === rel && /["']Arrow(Left|Right)["']/.test(text),
         ),
