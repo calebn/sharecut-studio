@@ -261,7 +261,7 @@
     {
       "module": "services/pipeline/service.py",
       "primitive": "ws.save_merged",
-      "count": 5,
+      "count": 3,
       "reason": "Pipeline stage lands results without a document command"
     },
     {

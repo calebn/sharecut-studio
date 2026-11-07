@@ -203,8 +203,11 @@ class ProjectWorkspace:
         history_label: str | None = None,
         *,
         advice: ConflictAdvice = RERUN_ADVICE,
-    ) -> None:
+    ) -> FileRevision | None:
         """Commit this workspace's changes since ``checkpoint`` on top of the saved file.
+
+        Returns the committed file revision under the same lock, or ``None`` if its
+        stamp cannot be read. This receipt does not certify a later reload cache.
 
         ``history_label`` first records this job's state as an undo entry (a pipeline
         step's ``after <step>``) in the same locked commit. Another writer's change since
@@ -260,6 +263,10 @@ class ProjectWorkspace:
                 finally:
                     self._loaded_file_signature = None
                 self._adopt_saved(to_save)
+                try:
+                    return file_revision(self.path)
+                except OSError:
+                    return None
 
     def _merged_with(
         self,

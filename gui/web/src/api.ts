@@ -132,6 +132,7 @@ export {
   loadTranscriptVocabulary,
   pipelineEventsUrl,
   putPipelineConfig,
+  retryPipelineJob,
   saveTranscriptVocabulary,
   startPipelineRun,
   startRenderPreview,

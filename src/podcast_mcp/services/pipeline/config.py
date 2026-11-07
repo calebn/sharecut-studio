@@ -232,7 +232,7 @@ def skip_steps_from_enabled(enabled: list[str] | set[str]) -> list[str]:
     return [n for n in unique if n not in enabled_set]
 
 
-def _selected_whisper_model(config: dict[str, Any] | None) -> str:
+def _selected_whisper_model(config: dict[str, Any] | None, *, resolved: bool = False) -> str:
     """Model id the runner would use for this config (merged defaults).
 
     Matches ``PipelineRunner`` / ``load_defaults``: YAML ``transcribe.model``
@@ -243,7 +243,7 @@ def _selected_whisper_model(config: dict[str, Any] | None) -> str:
         validate_whisper_model,
     )
 
-    merged = merge_pipeline_config(config)
+    merged = config if resolved and config is not None else merge_pipeline_config(config)
     section = merged.get("transcribe")
     raw = section.get("model") if isinstance(section, dict) else None
     if raw is not None and str(raw).strip():
@@ -261,6 +261,7 @@ def ensure_whisper_cached_for_run(
     only_step: str | None = None,
     skip_steps: list[str] | None = None,
     memoize: bool = False,
+    resolved: bool = False,
 ) -> None:
     """Raise ``ModelMissing`` when selected steps include transcription without weights.
 
@@ -271,7 +272,9 @@ def ensure_whisper_cached_for_run(
     from podcast_mcp.engines.models.registry import require_model
 
     if _transcribes(from_step, only_step, skip_steps):
-        require_model("whisper", _selected_whisper_model(config), memoize=memoize)
+        require_model(
+            "whisper", _selected_whisper_model(config, resolved=resolved), memoize=memoize
+        )
 
 
 def ensure_word_aligner_for_run(
@@ -280,6 +283,7 @@ def ensure_word_aligner_for_run(
     from_step: str | None = None,
     only_step: str | None = None,
     skip_steps: list[str] | None = None,
+    resolved: bool = False,
 ) -> None:
     """Raise ``ModelMissing`` when the run transcribes with forced alignment explicitly on.
 
@@ -287,7 +291,9 @@ def ensure_word_aligner_for_run(
     ``transcribe_tracks`` is not among the steps that would run.
     """
     if _transcribes(from_step, only_step, skip_steps):
-        AsrOptions.from_defaults(merge_pipeline_config(config)).forced_alignment.require()
+        AsrOptions.from_defaults(
+            config if resolved and config is not None else merge_pipeline_config(config)
+        ).forced_alignment.require()
 
 
 def _transcribes(

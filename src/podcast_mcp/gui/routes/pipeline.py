@@ -24,16 +24,18 @@ from podcast_mcp.gui.schemas import (
     PipelineAnalyzeRequest,
     PipelineCancelRequest,
     PipelineConfigPutRequest,
+    PipelineRetryRequest,
     PipelineRunRequest,
     RenderPreviewRequest,
 )
 from podcast_mcp.pipeline import STEP_NAMES
-from podcast_mcp.services.jobs import JobManager
+from podcast_mcp.services.jobs import JobManager, JobSlotBusyError
 from podcast_mcp.services.pipeline import (
     build_config_payload,
     config_store,
     merge_pipeline_config,
 )
+from podcast_mcp.util.coded_error import CodedValueError
 
 router = APIRouter()
 
@@ -107,6 +109,25 @@ def pipeline_status(
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     served = getattr(request.app.state, "served_project", None)
     return _jobs(request).status(project_path=str(served) if served is not None else None)
+
+
+@router.post("/api/pipeline/retry")
+def pipeline_retry(
+    req: PipelineRetryRequest,
+    request: Request,
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> dict[str, Any]:
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    project_path = resolve_project(req.path, request)
+    try:
+        job = _jobs(request).retry_pipeline(project_path, req.job_id)
+    except CodedValueError as exc:
+        status = 404 if exc.code == "pipeline_retry_unavailable" else 409
+        raise coded_exception_error(status, exc, code="pipeline_retry_unavailable") from exc
+    except JobSlotBusyError as exc:
+        raise owner_busy_error(exc) from exc
+    return {"job": job.snapshot()}
 
 
 @router.post("/api/pipeline/run")

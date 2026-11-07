@@ -156,6 +156,26 @@ export async function startPipelineRun(
   return data.job;
 }
 
+export async function retryPipelineJob(
+  projectPath: string,
+  jobId: string,
+): Promise<PipelineJobSnapshot> {
+  if (isShareProjectKey(projectPath)) {
+    throw new Error("Pipeline is not available for shared guests");
+  }
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: "/api/pipeline/retry" },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: projectPath, job_id: jobId }),
+    },
+  );
+  const data = (await res.json()) as { job: PipelineJobSnapshot };
+  return data.job;
+}
+
 export async function cancelPipelineRun(
   jobId?: string | null,
 ): Promise<PipelineJobSnapshot> {

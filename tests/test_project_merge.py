@@ -306,3 +306,66 @@ def test_merged_project_rejects_an_invalid_merge(tmp_path, monkeypatch):
     )
     with pytest.raises(ProjectMergeConflict, match="merged project is invalid"):
         merged_project(base, copy.deepcopy(base), copy.deepcopy(base))
+
+
+@pytest.fixture
+def merged_write_scope():
+    from podcast_mcp.project.store import WriteGrantKind, write_grant
+
+    with write_grant(WriteGrantKind.DISPATCHER):
+        yield
+
+
+@pytest.mark.parametrize("concurrent", [False, True])
+def test_merged_workspace_save_certifies_its_persisted_revision(
+    tmp_path, concurrent, merged_write_scope
+):
+    from podcast_mcp.models import load_project, save_project
+    from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.util.project_state import file_revision
+
+    project = EpisodeProject.create("revision", str(tmp_path))
+    project.tracks = [
+        Track(
+            id="host", label="Host", role=TrackRole.DIALOGUE, media=MediaAsset(path="raw/host.wav")
+        )
+    ]
+    project.ensure_dirs()
+    path = save_project(project)
+    workspace = ProjectWorkspace.open(path)
+    workspace.checkpoint()
+    if concurrent:
+        other = ProjectWorkspace.open(path)
+        with other.transaction():
+            other.project.tracks[0].fader_db = -6
+            other.save()
+    workspace.project.tracks[0].gain_db = 2
+    revision = workspace.save_merged()
+    assert revision == file_revision(path)
+    assert workspace.loaded_file_revision is None
+    assert load_project(path).tracks[0].gain_db == 2
+    assert workspace.project.tracks[0].fader_db == (-6 if concurrent else 0)
+
+
+@pytest.mark.parametrize("landed", [False, True])
+def test_failed_merged_workspace_save_does_not_certify_a_revision(
+    tmp_path, monkeypatch, landed, merged_write_scope
+):
+    from podcast_mcp.models import save_project
+    from podcast_mcp.project.store import ProjectStore
+    from podcast_mcp.services.app import ProjectWorkspace
+
+    project = EpisodeProject.create("revision", str(tmp_path))
+    project.ensure_dirs()
+    path = save_project(project)
+    workspace = ProjectWorkspace.open(path)
+    workspace.checkpoint()
+
+    def fail_phase(_store, _updated):
+        raise RuntimeError("controlled commit failure")
+
+    phase = "_mirror_transcript_cache" if landed else "_sync_history_index_to_project"
+    monkeypatch.setattr(ProjectStore, phase, fail_phase)
+    with pytest.raises(RuntimeError, match="controlled commit failure"):
+        workspace.save_merged()
+    assert workspace.loaded_file_revision is None

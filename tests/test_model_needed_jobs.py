@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
+import threading
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 
@@ -13,15 +15,19 @@ from model_pin_helpers import isolate_model_env
 from podcast_mcp.engines.speaker_id import SpeakerModelMissing
 from podcast_mcp.gui.job_events import stream_job_events
 from podcast_mcp.models import (
+    EpisodeProject,
     MediaAsset,
     ProcessingChain,
     ProcessingEffect,
     Track,
     TrackRole,
+    Transcript,
+    TranscriptWord,
     load_project,
     save_project,
 )
 from podcast_mcp.pipeline import runner
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.jobs import (
     GUEST_RENDER_KINDS,
     AgentJobFanInReporter,
@@ -369,3 +375,570 @@ def test_an_agent_job_failing_with_a_model_refusal_is_plain() -> None:
     assert snap["status"] == "error"
     assert "bootstrap" not in repr([snap["message"], snap["error"]])
     assert snap["error"].endswith("RNNoise is not downloaded.")
+
+
+@pytest.fixture
+def empty_project(tmp_path: Path) -> Path:
+    """Create a real project with no media dependency and an empty transcript."""
+    project = EpisodeProject.create("retry-contract", str(tmp_path))
+    project.ensure_dirs()
+    project.transcript_data.per_track = [
+        Transcript(track_id="voice", words=[TranscriptWord(text="source", start=0, end=1)])
+    ]
+    return save_project(project)
+
+
+def _missing_model() -> ModelMissing:
+    return ModelMissing(
+        id="fixture-model",
+        model="fixture/model",
+        label="fixture model",
+        purpose="pipeline",
+        size="1 MB",
+        size_bytes=1,
+        command="download-model fixture/model",
+        state="missing",
+    )
+
+
+def _wait_terminal(manager: JobManager, job: Any) -> Any:
+    return manager.wait(job, timeout=5)
+
+
+def _transcript_text(path: Path) -> str:
+    project = ProjectWorkspace.open(path).project
+    return project.transcripts[0].words[0].text
+
+
+def test_retry_replays_captured_options_without_exposing_them(empty_project, pipeline_worker):
+    """A staged-config change after admission cannot rewrite the accepted run."""
+    manager, runner_calls, entered = pipeline_worker
+    supplied = {
+        "transcribe": {"overwrite": True, "overwrite_edited": True},
+    }
+    original = manager.start(
+        empty_project,
+        from_step="transcribe_tracks",
+        only_step="transcribe_tracks",
+        skip_steps=["export_deliverables"],
+        unattended=True,
+        config=supplied,
+    )
+    supplied["transcribe"]["overwrite_edited"] = False
+    assert entered.wait(5), manager.status()
+    _wait_terminal(manager, original)
+    assert original.status == "error"
+    assert original.error_code == "model_needed"
+
+    original_snapshot = original.snapshot()
+    assert "config" not in original_snapshot
+    assert "retry_intent" not in original_snapshot
+    assert "loaded_file_revision" not in original_snapshot
+
+    successor = manager.retry_pipeline(Path(empty_project), original.id)
+    _wait_terminal(manager, successor)
+    assert successor.status == "ok", successor.snapshot()
+    assert successor.project_path == original.project_path
+    assert runner_calls[0]["options"] == runner_calls[1]["options"]
+    assert runner_calls[1]["options"]["from_step"] == "transcribe_tracks"
+    assert runner_calls[1]["options"]["only_step"] == "transcribe_tracks"
+    assert runner_calls[1]["options"]["skip_steps"] == ["export_deliverables"]
+    assert runner_calls[1]["options"]["unattended"] is True
+    assert runner_calls[1]["options"]["config"]["transcribe"]["overwrite"] is True
+    assert runner_calls[1]["options"]["config"]["transcribe"]["overwrite_edited"] is True
+    assert "config" not in successor.snapshot()
+
+
+def test_retry_of_config_none_uses_captured_effective_config(
+    empty_project, pipeline_worker, monkeypatch
+):
+    from podcast_mcp.services.pipeline import service as service_module
+
+    manager, runner_calls, entered = pipeline_worker
+    staged = {"transcribe": {"model": "tiny"}}
+    later = {"transcribe": {"model": "base"}}
+    monkeypatch.setattr(
+        service_module.PipelineService, "_run_defaults", lambda self: copy.deepcopy(staged)
+    )
+    original = manager.start(empty_project, config=None)
+    assert entered.wait(5), manager.status()
+    _wait_terminal(manager, original)
+    staged.clear()
+    staged.update(later)
+
+    successor = manager.retry_pipeline(Path(empty_project), original.id)
+    _wait_terminal(manager, successor)
+    assert successor.status == "ok", successor.snapshot()
+    assert runner_calls[0]["options"]["config"]["transcribe"]["model"] == "tiny"
+    assert runner_calls[1]["options"]["config"]["transcribe"]["model"] == "tiny"
+
+
+def test_retry_preserves_retime_consent(empty_project, pipeline_worker):
+    manager, runner_calls, entered = pipeline_worker
+    options = {"transcribe": {"retime_words": True, "overwrite_edited": True}}
+    original = manager.start(empty_project, config=options)
+    assert entered.wait(5), manager.status()
+    _wait_terminal(manager, original)
+
+    successor = manager.retry_pipeline(Path(empty_project), original.id)
+    _wait_terminal(manager, successor)
+    assert successor.status == "ok", successor.snapshot()
+    assert runner_calls[1]["options"]["config"]["transcribe"]["retime_words"] is True
+    assert runner_calls[1]["options"]["config"]["transcribe"]["overwrite_edited"] is True
+
+
+def test_normal_progress_save_does_not_expire_retry_intent(empty_project, pipeline_worker):
+    manager, runner_calls, entered = pipeline_worker
+    _FakeRunner.before_first_failure = lambda persist: persist()
+    original = manager.start(empty_project, from_step="clean_audio", only_step="clean_audio")
+    assert entered.wait(5), manager.status()
+    _wait_terminal(manager, original)
+    assert original.error_code == "model_needed"
+
+    successor = manager.retry_pipeline(Path(empty_project), original.id)
+    _wait_terminal(manager, successor)
+    assert successor.status == "ok", successor.snapshot()
+    assert len(runner_calls) == 2
+    assert runner_calls[0]["options"] == runner_calls[1]["options"]
+
+
+@pytest.mark.parametrize("mode", ["overwrite", "retime_words"])
+def test_retry_rejects_foreign_saved_transcript_change_without_overwriting(
+    empty_project, pipeline_worker, mode
+):
+    manager, _, entered = pipeline_worker
+    _FakeRunner.own_progress = True
+    editor = ProjectWorkspace.open(empty_project)
+
+    def accept_hand_edit(persist):
+        with editor.transaction():
+            editor.project.transcripts[0].words[0].text = "hand corrected"
+            editor.checkpoint()
+            editor.save_merged(history_label="human correction")
+        # This real merge accepts the foreign correction into the worker workspace
+        # before the model failure, so plain file-revision comparison cannot catch it.
+        persist()
+
+    _FakeRunner.before_first_failure = accept_hand_edit
+    original = manager.start(
+        empty_project, config={"transcribe": {mode: True, "overwrite_edited": True}}
+    )
+    assert entered.wait(5), manager.status()
+    _wait_terminal(manager, original)
+    assert _transcript_text(empty_project) == "hand corrected"
+
+    with pytest.raises(Exception) as refusal:
+        manager.retry_pipeline(Path(empty_project), original.id)
+    assert getattr(refusal.value, "code", None) == "pipeline_retry_stale"
+    assert _transcript_text(empty_project) == "hand corrected"
+
+
+def test_retry_duplicate_returns_same_successor_after_fast_completion(
+    empty_project, pipeline_worker
+):
+    manager, runner_calls, entered = pipeline_worker
+    original = manager.start(empty_project)
+    assert entered.wait(5), manager.status()
+    _wait_terminal(manager, original)
+    accepted = manager.retry_pipeline(Path(empty_project), original.id)
+    _wait_terminal(manager, accepted)
+
+    repeated = manager.retry_pipeline(Path(empty_project), original.id)
+    assert repeated.id == accepted.id
+    assert len(runner_calls) == 2
+
+
+def test_concurrent_retry_requests_publish_one_successor(empty_project, pipeline_worker):
+    manager, runner_calls, entered = pipeline_worker
+    original = manager.start(empty_project)
+    assert entered.wait(5), manager.status()
+    _wait_terminal(manager, original)
+    barrier = threading.Barrier(3)
+    results: list[Any] = []
+    errors: list[BaseException] = []
+
+    def retry() -> None:
+        try:
+            barrier.wait(timeout=5)
+            results.append(manager.retry_pipeline(Path(empty_project), original.id))
+        except BaseException as exc:  # preserve thread failures for the assertion below
+            errors.append(exc)
+
+    threads = [threading.Thread(target=retry), threading.Thread(target=retry)]
+    for thread in threads:
+        thread.start()
+    barrier.wait(timeout=5)
+    for thread in threads:
+        thread.join(timeout=5)
+        assert not thread.is_alive()
+    assert errors == []
+    assert len({job.id for job in results}) == 1
+    _wait_terminal(manager, results[0])
+    assert len(runner_calls) == 2
+
+
+def test_busy_refusal_does_not_consume_original_retry(empty_project, pipeline_worker):
+    manager, _, entered = pipeline_worker
+    original = manager.start(empty_project)
+    assert entered.wait(5), manager.status()
+    _wait_terminal(manager, original)
+    other_project = empty_project.parent / "other"
+    other_project.mkdir()
+    other_path = save_project(EpisodeProject.create("other", str(other_project)))
+    release_blocker = threading.Event()
+    _FakeRunner.block_next = release_blocker
+    blocker = manager.start(other_path)
+    assert _FakeRunner.blocker_entered.wait(5)
+    with pytest.raises(Exception) as busy:
+        manager.retry_pipeline(Path(empty_project), original.id)
+    assert getattr(busy.value, "code", None) == "job_running"
+
+    # Once the occupied slot is released, the same original remains eligible.
+    release_blocker.set()
+    _wait_terminal(manager, blocker)
+    successor = manager.retry_pipeline(Path(empty_project), original.id)
+    assert successor.project_path == str(Path(empty_project).resolve())
+
+
+def test_retry_rejects_wrong_project_and_non_pipeline_jobs(empty_project, pipeline_worker):
+    manager, _, entered = pipeline_worker
+    original = manager.start(empty_project)
+    assert entered.wait(5), manager.status()
+    _wait_terminal(manager, original)
+    wrong_path = empty_project.parent / "different.project"
+    with pytest.raises(Exception) as wrong_scope:
+        manager.retry_pipeline(wrong_path, original.id)
+    assert getattr(wrong_scope.value, "code", None) == "pipeline_retry_unavailable"
+
+    from podcast_mcp.services.jobs.job import Job
+
+    render = Job(
+        id="render-job", project_path=str(Path(empty_project).resolve()), kind="render_preview"
+    )
+    render.status = "error"
+    manager._job = render
+    with pytest.raises(Exception) as wrong_kind:
+        manager.retry_pipeline(Path(empty_project), render.id)
+    assert getattr(wrong_kind.value, "code", None) == "pipeline_retry_unavailable"
+
+
+def test_retry_requires_model_needed_terminal_failure(empty_project, pipeline_worker):
+    manager, _, entered = pipeline_worker
+    job = manager.start(empty_project)
+    assert entered.wait(5), manager.status()
+    _wait_terminal(manager, job)
+    assert job.status == "error"
+    assert job.error_code == "model_needed"
+    successor = manager.retry_pipeline(Path(empty_project), job.id)
+    _wait_terminal(manager, successor)
+    assert successor.status == "ok", successor.snapshot()
+
+
+@pytest.fixture
+def pipeline_worker(monkeypatch):
+    """Keep manager/service/workspace real; replace only expensive runner/model boundaries."""
+
+    monkeypatch.setattr("podcast_mcp.services.pipeline.service.PipelineRunner", _FakeRunner)
+    monkeypatch.setattr(
+        "podcast_mcp.engines.models.registry.require_model", lambda *args, **kwargs: None
+    )
+    manager = JobManager()
+    _FakeRunner.calls = []
+    _FakeRunner.fail_first = True
+    _FakeRunner.entered = threading.Event()
+    _FakeRunner.blocker_entered = threading.Event()
+    _FakeRunner.block_next = None
+    _FakeRunner.before_first_failure = None
+    _FakeRunner.own_progress = False
+    yield manager, _FakeRunner.calls, _FakeRunner.entered
+
+
+class _FakeRunner:
+    calls: ClassVar[list[dict[str, Any]]] = []
+    fail_first = True
+    own_progress = False
+    entered = threading.Event()
+    blocker_entered = threading.Event()
+    block_next: threading.Event | None = None
+    before_first_failure: Any = None
+
+    def __init__(self, *, defaults: dict[str, Any]) -> None:
+        self.defaults = copy.deepcopy(defaults)
+
+    def run(self, project, **kwargs):
+        options = {
+            "from_step": kwargs.get("from_step"),
+            "only_step": kwargs.get("only_step"),
+            "skip_steps": kwargs.get("skip_steps"),
+            "unattended": kwargs.get("unattended"),
+            "config": copy.deepcopy(self.defaults),
+        }
+        type(self).calls.append({"options": options})
+        type(self).entered.set()
+        if type(self).block_next is not None:
+            type(self).blocker_entered.set()
+            assert type(self).block_next.wait(5), "blocked fake runner was not released"
+            type(self).block_next = None
+        if type(self).fail_first:
+            type(self).fail_first = False
+            if type(self).own_progress:
+                project.transcripts[0].words[0].text = "machine progress"
+                kwargs["persist"]()
+            if type(self).before_first_failure is not None:
+                type(self).before_first_failure(kwargs["persist"])
+                type(self).before_first_failure = None
+            raise _missing_model()
+        kwargs["persist"]()
+        return type("RunResult", (), {"last_step": "transcribe_tracks", "steps": []})()
+
+
+def test_retry_worker_rechecks_revision_before_its_first_write(
+    empty_project, pipeline_worker, monkeypatch
+):
+    manager, calls, entered = pipeline_worker
+    original = manager.start(empty_project)
+    assert entered.wait(5), manager.status()
+    manager.wait(original, timeout=5)
+    open_workspace = ProjectWorkspace.open.__func__
+    armed = True
+
+    def open_then_edit(cls, path, **kwargs):
+        nonlocal armed
+        workspace = open_workspace(cls, path, **kwargs)
+        if armed:
+            armed = False
+            editor = open_workspace(cls, path)
+            with editor.transaction():
+                editor.project.transcripts[0].words[0].text = "changed after admission"
+                editor.save()
+        return workspace
+
+    monkeypatch.setattr(ProjectWorkspace, "open", classmethod(open_then_edit))
+    successor = manager.retry_pipeline(empty_project, original.id)
+    manager.wait(successor, timeout=5)
+    assert successor.status == "error"
+    assert successor.error_code == "pipeline_retry_stale"
+    assert len(calls) == 1
+    assert _transcript_text(empty_project) == "changed after admission"
+
+
+def test_retry_does_not_resolve_defaults_again(empty_project, pipeline_worker, monkeypatch):
+    manager, calls, entered = pipeline_worker
+    original = manager.start(empty_project, config={"transcribe": {"overwrite": True}})
+    assert entered.wait(5), manager.status()
+    manager.wait(original, timeout=5)
+
+    def unexpected_resolution(*args, **kwargs):
+        pytest.fail("retry re-resolved the original effective configuration")
+
+    monkeypatch.setattr(
+        "podcast_mcp.services.pipeline.config.merge_pipeline_config", unexpected_resolution
+    )
+    successor = manager.retry_pipeline(empty_project, original.id)
+    manager.wait(successor, timeout=5)
+    assert successor.status == "ok", successor.snapshot()
+    assert calls[0]["options"] == calls[1]["options"]
+
+
+@pytest.mark.parametrize(
+    "code,status", [("pipeline_retry_unavailable", 404), ("pipeline_retry_stale", 409)]
+)
+def test_host_retry_route_preserves_refusal_code(empty_project, monkeypatch, code, status):
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+    from podcast_mcp.util.coded_error import CodedValueError
+
+    app = create_app(served_project=empty_project)
+
+    def refused(path, job_id):
+        assert path == empty_project
+        assert job_id == "original"
+        raise CodedValueError("Review the run before trying again.", code=code)
+
+    monkeypatch.setattr(app.state.jobs, "retry_pipeline", refused)
+    response = TestClient(app).post(
+        "/api/pipeline/retry", json={"path": str(empty_project), "job_id": "original"}
+    )
+    assert response.status_code == status
+    assert response.headers["X-Sharecut-Error-Code"] == code
+
+
+def test_retry_route_accepts_only_host_original_job_reference(empty_project, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    app = create_app(served_project=empty_project)
+    calls = []
+    successor = Job(id="successor", project_path=str(empty_project))
+
+    def accept(path, job_id):
+        calls.append((path, job_id))
+        return successor
+
+    monkeypatch.setattr(app.state.jobs, "retry_pipeline", accept)
+    client = TestClient(app)
+    payload = {"path": str(empty_project), "job_id": "original"}
+    response = client.post("/api/pipeline/retry", json=payload)
+    assert response.status_code == 200
+    assert response.json()["job"]["id"] == "successor"
+    assert calls == [(empty_project, "original")]
+    calls.clear()
+    assert (
+        client.post(
+            "/api/pipeline/retry",
+            json={**payload, "config": {"transcribe": {"overwrite_edited": True}}},
+        ).status_code
+        == 422
+    )
+    assert (
+        client.post(
+            "/api/pipeline/retry", json=payload, headers={"x-sharecut-relayed": "1"}
+        ).status_code
+        == 403
+    )
+    assert calls == []
+
+
+def test_retry_preflight_refusal_leaves_original_admission_available(
+    empty_project, pipeline_worker, monkeypatch
+):
+    from podcast_mcp.engines.models.whisper import DEFAULT_WHISPER_MODEL
+
+    manager, calls, entered = pipeline_worker
+    original = manager.start(empty_project, config={"transcribe": {"model": DEFAULT_WHISPER_MODEL}})
+    assert entered.wait(5), manager.status()
+    manager.wait(original, timeout=5)
+    checks = []
+    unavailable = True
+
+    def require_model(model, variant=None, **kwargs):
+        checks.append((model, variant))
+        if unavailable:
+            raise _missing_model()
+
+    monkeypatch.setattr("podcast_mcp.engines.models.registry.require_model", require_model)
+    with pytest.raises(ModelMissing):
+        manager.retry_pipeline(empty_project, original.id)
+    assert len(calls) == 1
+    assert manager.get_job().id == original.id
+    unavailable = False
+    successor = manager.retry_pipeline(empty_project, original.id)
+    manager.wait(successor, timeout=5)
+    assert successor.status == "ok", successor.snapshot()
+    assert checks == [("whisper", DEFAULT_WHISPER_MODEL)] * 3
+
+
+def test_retry_thread_creation_failure_releases_slot_without_consuming_original(
+    empty_project, pipeline_worker, monkeypatch
+):
+    manager, calls, entered = pipeline_worker
+    original = manager.start(empty_project)
+    assert entered.wait(5), manager.status()
+    manager.wait(original, timeout=5)
+    with monkeypatch.context() as launch:
+
+        def fail_start(thread):
+            raise RuntimeError("controlled worker launch failure")
+
+        launch.setattr(threading.Thread, "start", fail_start)
+        with pytest.raises(RuntimeError, match="controlled worker launch failure"):
+            manager.retry_pipeline(empty_project, original.id)
+    assert manager.get_job().id == original.id
+    assert len(calls) == 1
+    successor = manager.retry_pipeline(empty_project, original.id)
+    manager.wait(successor, timeout=5)
+    assert successor.status == "ok", successor.snapshot()
+    assert len(calls) == 2
+
+
+def test_resolved_model_guards_never_merge_new_defaults(monkeypatch):
+    from podcast_mcp.engines.models.whisper import DEFAULT_WHISPER_MODEL
+    from podcast_mcp.services.pipeline import config as config_module
+
+    checks = []
+    monkeypatch.setattr(
+        "podcast_mcp.engines.models.registry.require_model",
+        lambda model, variant=None, **kw: checks.append((model, variant)),
+    )
+
+    def unexpected_defaults(*args, **kwargs):
+        pytest.fail("guard re-read defaults for an already resolved request")
+
+    monkeypatch.setattr(config_module, "merge_pipeline_config", unexpected_defaults)
+    config_module.ensure_whisper_cached_for_run(config={"transcribe": {}}, resolved=True)
+    config_module.ensure_word_aligner_for_run({"transcribe": {}}, resolved=True)
+    assert checks == [("whisper", DEFAULT_WHISPER_MODEL)]
+
+
+@pytest.mark.parametrize("mode", ["overwrite", "retime_words"])
+def test_own_destructive_progress_keeps_original_consent_eligible(
+    empty_project, pipeline_worker, mode
+):
+    manager, calls, entered = pipeline_worker
+    _FakeRunner.own_progress = True
+    original = manager.start(
+        empty_project, config={"transcribe": {mode: True, "overwrite_edited": True}}
+    )
+    assert entered.wait(5), manager.status()
+    manager.wait(original, timeout=5)
+    assert _transcript_text(empty_project) == "machine progress"
+    successor = manager.retry_pipeline(empty_project, original.id)
+    manager.wait(successor, timeout=5)
+    assert successor.status == "ok", successor.snapshot()
+    assert calls[0]["options"] == calls[1]["options"]
+
+
+def test_precheckpoint_model_failure_does_not_renew_revision_consent(
+    empty_project, pipeline_worker, monkeypatch
+):
+    manager, calls, entered = pipeline_worker
+    original = manager.start(
+        empty_project, config={"transcribe": {"overwrite": True, "overwrite_edited": True}}
+    )
+    assert entered.wait(5), manager.status()
+    manager.wait(original, timeout=5)
+    checks = 0
+
+    def lose_model_during_worker_check(*args, **kwargs):
+        nonlocal checks
+        checks += 1
+        if checks == 2:
+            editor = ProjectWorkspace.open(empty_project)
+            with editor.transaction():
+                editor.project.transcripts[0].words[0].text = "new human correction"
+                editor.save()
+            raise _missing_model()
+
+    monkeypatch.setattr(
+        "podcast_mcp.engines.models.registry.require_model", lose_model_during_worker_check
+    )
+    successor = manager.retry_pipeline(empty_project, original.id)
+    manager.wait(successor, timeout=5)
+    assert successor.error_code == "model_needed"
+    assert len(calls) == 1
+    with pytest.raises(CodedError) as stale:
+        manager.retry_pipeline(empty_project, successor.id)
+    assert stale.value.code == "pipeline_retry_stale"
+    assert _transcript_text(empty_project) == "new human correction"
+
+
+def test_pipeline_worker_creation_failure_does_not_leave_a_queued_slot(
+    empty_project, pipeline_worker, monkeypatch
+):
+    manager, calls, entered = pipeline_worker
+    with monkeypatch.context() as launch:
+
+        def fail_start(thread):
+            raise RuntimeError("controlled worker launch failure")
+
+        launch.setattr(threading.Thread, "start", fail_start)
+        with pytest.raises(RuntimeError, match="controlled worker launch failure"):
+            manager.start(empty_project)
+    assert manager.get_job() is None
+    original = manager.start(empty_project)
+    assert entered.wait(5), manager.status()
+    manager.wait(original, timeout=5)
+    assert original.error_code == "model_needed"
+    assert len(calls) == 1

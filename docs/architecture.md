@@ -106,7 +106,7 @@ The document facade exposes `HistoryDiffResult`. The media facade exposes
 reporters that feed them (`reporter.py`). A job's `kind` selects its snapshot
 shape, so the pipeline-slot and bootstrap payloads keep the keys their
 consumers read. `JobCatalog` (`catalog.py`) holds job identity, live agent
-claims, the bounded finished-job lookup and the download slot. The first-run
+claims, the bounded finished-job lookup and the download slot. Pipeline model recovery keeps a private typed request from `services/pipeline/run_intent.py` on the failed job. `PipelineService` owns its effective configuration and saved-revision certification; `JobManager` owns single-successor admission. The host-only retry route accepts a job reference, never replacement configuration or overwrite consent. Job snapshots and guest projections omit that request. The first-run
 download is a `bootstrap` job on the same `JobManager` (`start_bootstrap`), in a
 second slot: a download never blocks a run, and the reverse. Its snapshot keeps the
 bootstrap keys the setup screen reads, a second request the live job already covers joins it (`start_bootstrap` returns
