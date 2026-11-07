@@ -70,7 +70,11 @@ const beforeSkipped = projectOf({
 function reply(result: Record<string, unknown>, withHead = true) {
   return {
     ...(withHead ? { history_head_id: "h-split" } : {}),
-    split_outcome: { kind: "split", times: result.split_times ?? [10] },
+    split_outcome: {
+      kind: "split",
+      times: result.split_times ?? [10],
+      pieces: result.pieces ?? [{ track_id: "host", clip_id: "c2" }],
+    },
     command: { payload: { result } },
   };
 }
@@ -92,10 +96,25 @@ function serverSplits(
   after: ReturnType<typeof projectOf>,
   result: Record<string, unknown> = {},
 ) {
-  vi.mocked(submitQueuedDocumentCommand).mockImplementation(async () => {
-    useDawStore.setState({ project: after });
-    return reply({ operation: "split_clips_at", ...result });
-  });
+  vi.mocked(submitQueuedDocumentCommand).mockImplementation(
+    async (_path, _type, payload) => {
+      useDawStore.setState({ project: after });
+      const targetTracks = payload?.track_ids;
+      if (!Array.isArray(targetTracks))
+        throw new Error("Split fixture requires explicit target tracks");
+      const pieces = [
+        { track_id: "host", clip_id: "c2" },
+        { track_id: "guest", clip_id: "g2" },
+      ].filter(
+        (piece) =>
+          targetTracks.includes(piece.track_id) &&
+          after.clips.tracks[piece.track_id]?.some(
+            (clip) => clip.id === piece.clip_id,
+          ),
+      );
+      return reply({ operation: "split_clips_at", pieces, ...result });
+    },
+  );
 }
 
 describe("Split reply handling", () => {
@@ -172,7 +191,11 @@ describe("Split reply handling", () => {
       useDawStore.setState({ project: afterHostOnly });
       return {
         history_head_id: "h-split",
-        split_outcome: { kind: "split", times: [10] },
+        split_outcome: {
+          kind: "split",
+          times: [10],
+          pieces: [{ track_id: "host", clip_id: "c2" }],
+        },
         command: { type: "SplitAtTime" },
       };
     });
@@ -362,8 +385,39 @@ describe("Split reply handling", () => {
       ],
       guest: [whole("g1", "guest")],
     });
-    serverSplits(afterGap);
+    serverSplits(afterGap, {
+      pieces: [{ track_id: "host", clip_id: "gap-right" }],
+    });
     await splitHere();
     expect(selected()).toEqual(["gap-right"]);
   });
+  it.each([
+    undefined,
+    [],
+    [
+      { track_id: "host", clip_id: "c2" },
+      { track_id: "host", clip_id: "other" },
+    ],
+    [{ track_id: "other", clip_id: "c2" }],
+    [{ track_id: "host", clip_id: "c2", path: "private" }],
+    [
+      { track_id: "host", clip_id: "c2" },
+      { track_id: "guest", clip_id: 42 },
+    ],
+  ])(
+    "keeps applied feedback without retargeting malformed or missing piece facts: %j",
+    async (pieces) => {
+      const held = useDawStore.getState().selection;
+      vi.mocked(submitQueuedDocumentCommand).mockImplementation(async () => {
+        useDawStore.setState({ project: afterHostOnly });
+        return {
+          split_outcome: { kind: "split", times: [10], pieces },
+          command: { type: "SplitAtTime" },
+        };
+      });
+      await splitHere();
+      expect(useDawStore.getState().selection).toBe(held);
+      expect(toast()?.message).toBe("Split at 00:10.000");
+    },
+  );
 });

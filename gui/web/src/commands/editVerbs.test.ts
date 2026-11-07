@@ -41,6 +41,7 @@ vi.mock("../api", async (importOriginal) => ({
       extra: readonly number[] = [],
     ) => ({
       kind: "split" as const,
+      pieces: null,
       times: [at, ...extra] as const,
       undo: "h-split",
     }),

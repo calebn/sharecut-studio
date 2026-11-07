@@ -848,9 +848,15 @@ export async function deleteSocialClip(
 }
 
 type SplitTimes = readonly [number, ...number[]];
+export type SplitPiece = Readonly<{ id: string; trackId: string }>;
 
 export type SplitOutcome =
-  | { kind: "split"; times: SplitTimes; undo: HistoryEntryId | null }
+  | {
+      kind: "split";
+      times: SplitTimes;
+      undo: HistoryEntryId | null;
+      pieces: readonly SplitPiece[] | null;
+    }
   | { kind: "suggested"; times: SplitTimes }
   | { kind: "queued" }
   | { kind: "unavailable" };
@@ -865,7 +871,43 @@ function isSplitTimes(value: unknown): value is SplitTimes {
   );
 }
 
-function splitOutcome(reply: Record<string, unknown>): SplitOutcome {
+function splitPieces(
+  value: unknown,
+  targetTracks?: readonly string[] | null,
+): readonly SplitPiece[] | null {
+  if (!Array.isArray(value) || value.length === 0) return null;
+  const tracks = new Set<string>();
+  const ids = new Set<string>();
+  const pieces: SplitPiece[] = [];
+  for (const row of value) {
+    if (
+      !isSuggestionRecord(row) ||
+      Object.keys(row).length !== 2 ||
+      typeof row.track_id !== "string" ||
+      !row.track_id ||
+      typeof row.clip_id !== "string" ||
+      !row.clip_id ||
+      tracks.has(row.track_id) ||
+      ids.has(row.clip_id) ||
+      (targetTracks?.length && !targetTracks.includes(row.track_id))
+    )
+      return null;
+    tracks.add(row.track_id);
+    ids.add(row.clip_id);
+    pieces.push({ id: row.clip_id, trackId: row.track_id });
+  }
+  return targetTracks?.length
+    ? [...pieces].sort(
+        (a, b) =>
+          targetTracks.indexOf(a.trackId) - targetTracks.indexOf(b.trackId),
+      )
+    : pieces;
+}
+
+function splitOutcome(
+  reply: Record<string, unknown>,
+  targetTracks?: readonly string[] | null,
+): SplitOutcome {
   if (reply.queued === true) return { kind: "queued" };
   const outcome = reply.split_outcome;
   if (!isSuggestionRecord(outcome) || !isSplitTimes(outcome.times)) {
@@ -879,6 +921,7 @@ function splitOutcome(reply: Record<string, unknown>): SplitOutcome {
       kind: "split",
       times: outcome.times,
       undo: replyHistoryHead(reply),
+      pieces: splitPieces(outcome.pieces, targetTracks),
     };
   }
   return { kind: "unavailable" };
@@ -901,7 +944,7 @@ export async function splitAtTime(
       ...(extraAtTimes?.length ? { extra_at_times: [...extraAtTimes] } : {}),
     },
   );
-  return splitOutcome(reply);
+  return splitOutcome(reply, trackIds);
 }
 
 export async function deleteClips(
