@@ -214,6 +214,7 @@ export async function ingestFiles(
         useDawStore.getState().announceStatus("Import complete");
       }
     } catch (err) {
+      if (useDawStore.getState().projectPath !== projectPath) return hasMedia;
       const reason = errorMessage(err);
       useDawStore
         .getState()
