@@ -366,6 +366,104 @@ describe("the Inspector card on the desktop and the tablet", () => {
     expect(screen.getByRole("dialog", { name: "Inspector" })).toBeVisible();
   });
 
+  it("reveals an offscreen selected clip when Inspect opens", async () => {
+    let refresh = () => {};
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        private readonly observed = new Set<Element>();
+
+        constructor(private readonly callback: IntersectionObserverCallback) {
+          refresh = () => {
+            const scroller =
+              document.querySelector<HTMLElement>(".timeline-scroll");
+            if (!scroller) return;
+            const viewport = scroller.getBoundingClientRect();
+            for (const target of this.observed) {
+              const rect = target.getBoundingClientRect();
+              this.callback(
+                [
+                  {
+                    isIntersecting:
+                      rect.bottom > viewport.top && rect.top < viewport.bottom,
+                  } as IntersectionObserverEntry,
+                ],
+                this as unknown as IntersectionObserver,
+              );
+            }
+          };
+        }
+
+        observe(target: Element) {
+          this.observed.add(target);
+          refresh();
+        }
+
+        disconnect() {
+          this.observed.clear();
+        }
+      },
+    );
+    stubViewportShell("desktop");
+    const box = (top: number, bottom: number) =>
+      ({
+        x: 0,
+        y: top,
+        top,
+        bottom,
+        left: 0,
+        right: 1200,
+        width: 1200,
+        height: bottom - top,
+      }) as DOMRect;
+    const rects = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockImplementation(function (this: HTMLElement) {
+        const scrolled =
+          this.closest<HTMLElement>(".timeline-scroll")?.scrollTop ?? 0;
+        if (this.classList.contains("timeline-scroll")) return box(49, 844);
+        if (this.classList.contains("edit-workspace")) return box(0, 900);
+        if (this.classList.contains("timeline-ruler")) return box(49, 73);
+        if (this.classList.contains("marker-lane")) return box(73, 97);
+        if (this.classList.contains("lane-row"))
+          return box(100 - scrolled, 196 - scrolled);
+        if (this.getAttribute("data-clip-id") === "c1")
+          return box(110 - scrolled, 160 - scrolled);
+        return box(0, 0);
+      });
+
+    try {
+      useDawStore.setState({
+        selection: { kind: "clip", id: "c1", trackId: "host" },
+      });
+      render(<EditWorkspace />);
+      const scroller = document.querySelector<HTMLElement>(".timeline-scroll")!;
+      const target = document.querySelector<HTMLElement>(
+        '[data-clip-id="c1"]',
+      )!;
+      scroller.scrollTop = 159;
+      expect(target.getBoundingClientRect().bottom).toBeLessThan(49);
+
+      await inspect();
+      act(() => refresh());
+
+      const card = screen.getByRole("dialog", { name: "Inspector" });
+      expect(card).toBeVisible();
+      expect(card).toContainElement(document.activeElement as HTMLElement);
+      expect(useDawStore.getState().selection).toEqual({
+        kind: "clip",
+        id: "c1",
+        trackId: "host",
+      });
+      const viewport = scroller.getBoundingClientRect();
+      const selectedClip = target.getBoundingClientRect();
+      expect(selectedClip.bottom).toBeGreaterThan(viewport.top);
+      expect(selectedClip.top).toBeLessThan(viewport.bottom);
+    } finally {
+      rects.mockRestore();
+    }
+  });
+
   it("measures the card again when its anchor comes back into view", async () => {
     let report = (_visible: boolean) => {};
     vi.stubGlobal(
