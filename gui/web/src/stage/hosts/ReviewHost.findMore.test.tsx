@@ -201,6 +201,61 @@ describe("Find more in the Review host", () => {
     );
   });
 
+  it("replays the refused options and takes fresh settings only on a new press", async () => {
+    vi.mocked(startPipelineRun).mockRejectedValueOnce(WHISPER_NEEDED());
+    const { land } = mount([]);
+    await waitFor(async () => expect(await button()).toBeEnabled());
+    await userEvent.click(await button());
+    await screen.findByText("Needs the transcription model");
+    vi.mocked(loadPipelineConfig).mockImplementation(async () =>
+      config("conservative"),
+    );
+    land("whisper");
+    await waitFor(() => expect(startPipelineRun).toHaveBeenCalledTimes(2));
+    expect(startPipelineRun).toHaveBeenNthCalledWith(
+      2,
+      PATH,
+      expect.objectContaining({
+        config: expect.objectContaining({
+          tighten: expect.objectContaining({ intensity: "aggressive" }),
+        }),
+        useWorkingSet: false,
+      }),
+    );
+    act(() => useDawStore.setState({ pipelineJob: null, activityJob: null }));
+    await waitFor(async () => expect(await button()).toBeEnabled());
+    await userEvent.click(await button());
+    await waitFor(() => expect(startPipelineRun).toHaveBeenCalledTimes(3));
+    expect(startPipelineRun).toHaveBeenNthCalledWith(
+      3,
+      PATH,
+      expect.objectContaining({
+        config: expect.objectContaining({
+          tighten: expect.objectContaining({ intensity: "conservative" }),
+        }),
+      }),
+    );
+  });
+
+  it("retires a model wait when the same project is reopened", async () => {
+    vi.mocked(startPipelineRun).mockRejectedValueOnce(WHISPER_NEEDED());
+    const { land } = mount([]);
+    await waitFor(async () => expect(await button()).toBeEnabled());
+    await userEvent.click(await button());
+    await screen.findByText("Needs the transcription model");
+    act(() => {
+      useDawStore
+        .getState()
+        .hydrate("/tmp/find-more/other.sharecut", minimalProject());
+      useDawStore.getState().hydrate(PATH, minimalProject());
+    });
+    land("whisper");
+    await waitFor(() =>
+      expect(screen.queryByText("Needs the transcription model")).toBeNull(),
+    );
+    expect(startPipelineRun).toHaveBeenCalledTimes(1);
+  });
+
   it("still runs Find more when the model lands after the person left Review, and shows it on return", async () => {
     vi.mocked(startPipelineRun).mockRejectedValueOnce(WHISPER_NEEDED());
     const { land, rerender } = mount([]);

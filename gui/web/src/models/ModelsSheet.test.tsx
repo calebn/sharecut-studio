@@ -423,8 +423,15 @@ describe("ModelsSheet", () => {
       }),
     ).toBeNull();
     expect(
-      screen.getByRole("button", { name: "Update Noise reduction" }),
-    ).toBeEnabled();
+      screen.queryByRole("button", { name: "Update Noise reduction" }),
+    ).toBeNull();
+    await userEvent.click(
+      screen.getByRole("button", { name: "More for Noise reduction" }),
+    );
+    await userEvent.click(
+      screen.getByRole("menuitem", { name: "Update Noise reduction" }),
+    );
+    expect(api.download).toHaveBeenCalledWith(["rnnoise"], undefined);
     expect(screen.getByText("Couldn't reach the server.")).toBeTruthy();
     await userEvent.click(
       screen.getByRole("button", { name: "Try again Speaker split" }),

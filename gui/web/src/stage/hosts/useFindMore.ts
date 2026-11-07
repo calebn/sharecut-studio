@@ -21,7 +21,11 @@ import {
   tightenProposeRunOptions,
 } from "../../utils/tightenIntensity";
 
-import { NO_TIER, useFindMoreFlow } from "./findMoreFlowContext";
+import {
+  type FindMoreRequest,
+  NO_TIER,
+  useFindMoreFlow,
+} from "./findMoreFlowContext";
 
 /** Find more: reruns suggestion finding with the saved How tight, and reports the job. */
 export function useFindMore(enabled: boolean) {
@@ -51,6 +55,7 @@ export function useFindMore(enabled: boolean) {
       const s = useDawStore.getState();
       return s.projectPath === path && s.projectEpoch === epoch;
     };
+    let request: FindMoreRequest | null = null;
     try {
       const hits = (project?.pending_edits ?? []).filter(
         (e) => !e.applied && isTightenClass(e.kind),
@@ -72,10 +77,12 @@ export function useFindMore(enabled: boolean) {
       if (!fresh || !current()) return;
       const tier = currentTightenIntensity(fresh);
       if (!tier) throw new Error(NO_TIER);
-      const started = await startPipelineRun(
+      request = {
         path,
-        tightenProposeRunOptions(fresh, tier),
-      );
+        epoch,
+        options: structuredClone(tightenProposeRunOptions(fresh, tier)),
+      };
+      const started = await startPipelineRun(path, request.options);
       // The server holds the one pipeline slot now, so the store must show it
       // even when the host has moved to another project.
       setPipelineJob(started);
@@ -83,7 +90,12 @@ export function useFindMore(enabled: boolean) {
       setRun({ path, jobId: started.id, error: null });
       useDawStore.getState().announceStatus("Finding more suggestions…");
     } catch (e) {
-      if (isModelNeeded(e) && current() && stopFor(e.model)) {
+      if (
+        isModelNeeded(e) &&
+        current() &&
+        request &&
+        stopFor(e.model, request)
+      ) {
         return;
       }
       setRun({ path, jobId: null, error: errorMessage(e) });

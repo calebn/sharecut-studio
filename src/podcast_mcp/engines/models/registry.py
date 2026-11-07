@@ -112,7 +112,7 @@ def _whisper_problem(variant: str | None, memoize: bool) -> ModelProblem | None:
     if isinstance(found, WhisperPinMismatchError):
         return ModelProblem(str(found), whisper_bootstrap_command(model, upgrade=True), True)
     return ModelProblem(
-        f"Whisper model {model!r} is not downloaded — pick Download in the Pipeline tab "
+        f"Whisper model {model!r} is not downloaded — choose Get for Transcription in Models "
         f"or run {whisper_bootstrap_command(model)}",
         whisper_bootstrap_command(model),
     )
@@ -162,8 +162,8 @@ def _word_aligner_problem(variant: str | None, memoize: bool) -> ModelProblem | 
         return ModelProblem(str(found), f"{WORD_ALIGNER_BOOTSTRAP} --upgrade", True)
     return ModelProblem(
         f"{model.label} ({model.size}) is not downloaded; Precise word boundaries is "
-        "unavailable and words keep Whisper's times until it is. Download it next to "
-        "that field in the Pipeline tab",
+        "unavailable and words keep Whisper's times until it is. Choose Get on "
+        "the Word timing row in Models",
         WORD_ALIGNER_BOOTSTRAP,
     )
 

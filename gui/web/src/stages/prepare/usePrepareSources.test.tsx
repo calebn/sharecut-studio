@@ -1,4 +1,11 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import {
+  act,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -15,6 +22,7 @@ import { refreshDocumentProject } from "../../document/applyDocumentUpdate";
 import { ingestFiles } from "../../ingest/ingestFiles";
 import { ModelsContext } from "../../models/useModels";
 import { useDawStore } from "../../state/dawStore";
+import { SourceCard } from "../../system/SourceCard";
 import { pipelineJobSnapshot, sampleTrack } from "../../test/fixtures";
 import {
   modelRow,
@@ -702,4 +710,277 @@ describe("split drain ownership", () => {
       expect(refreshDocumentProject).toHaveBeenCalledTimes(2);
     },
   );
+});
+
+describe("split cancellation and failed queue retirement", () => {
+  const needed = new ApiError("model needed", "model_needed", 409, {
+    id: "speaker-ecapa",
+    variant: null,
+    label: "Speaker model",
+    purpose: "speaker recognition and split",
+    size: "~25 MB",
+    sizeBytes: null,
+    state: "missing",
+  });
+
+  it.each(["direct", "model-resumed"] as const)(
+    "keeps a %s start busy and cancels the exact late job",
+    async (mode) => {
+      const split = vi.mocked(startSplitSpeakersJob);
+      vi.mocked(cancelPipelineRun).mockResolvedValue(pipelineJobSnapshot());
+      if (mode === "model-resumed") split.mockRejectedValueOnce(needed);
+      let accept!: (
+        job: Awaited<ReturnType<typeof startSplitSpeakersJob>>,
+      ) => void;
+      split.mockReturnValueOnce(
+        new Promise((resolve) => {
+          accept = resolve;
+        }),
+      );
+      let finish!: (job: Awaited<ReturnType<typeof followJobToOk>>) => void;
+      vi.mocked(followJobToOk).mockReturnValueOnce(
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+      );
+      const { result, rerender } = setup();
+      await act(async () => {
+        result.current.actions.onSplit("maya");
+      });
+      if (mode === "model-resumed") {
+        api.current = SPEAKER_IN;
+        rerender({ projectPath: PATH, activityJob: null, isPlaying: false });
+        await waitFor(() => expect(split).toHaveBeenCalledTimes(2));
+      }
+      act(() => result.current.actions.onCancelSplit("maya"));
+      expect(result.current.splitting.maya).toEqual({ detail: "Starting" });
+      act(() => result.current.actions.onSplit("maya"));
+      expect(split).toHaveBeenCalledTimes(mode === "direct" ? 1 : 2);
+      await act(async () =>
+        accept(pipelineJobSnapshot({ id: "late-job", kind: "split_speakers" })),
+      );
+      expect(cancelPipelineRun).toHaveBeenCalledWith("late-job");
+      expect(result.current.splitting.maya).toEqual({ detail: "Starting" });
+      await act(async () =>
+        finish(
+          pipelineJobSnapshot({ id: "late-job", status: "ok", result: RESULT }),
+        ),
+      );
+      expect(result.current.splitting).toEqual({});
+      expect(refreshDocumentProject).toHaveBeenCalledWith(PATH);
+    },
+  );
+
+  it("retires a cancelled queued card without submitting it", async () => {
+    const split = vi.mocked(startSplitSpeakersJob);
+    split.mockRejectedValueOnce(needed).mockRejectedValueOnce(needed);
+    let finish!: (job: Awaited<ReturnType<typeof followJobToOk>>) => void;
+    vi.mocked(followJobToOk).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const { result, rerender } = setup();
+    await act(async () => result.current.actions.onSplit("maya"));
+    await act(async () => result.current.actions.onSplit("joss"));
+    api.current = SPEAKER_IN;
+    rerender({ projectPath: PATH, activityJob: null, isPlaying: false });
+    await waitFor(() => expect(split).toHaveBeenCalledTimes(3));
+    act(() => result.current.actions.onCancelSplit("joss"));
+    expect(result.current.splitting.joss).toBeUndefined();
+    await act(async () =>
+      finish(
+        pipelineJobSnapshot({ id: "split-1", status: "ok", result: RESULT }),
+      ),
+    );
+    expect(split).toHaveBeenCalledTimes(3);
+    expect(refreshDocumentProject).toHaveBeenCalledWith(PATH);
+  });
+
+  it("does not revive a failed queued request during another recovery and retries its captured count", async () => {
+    const split = vi.mocked(startSplitSpeakersJob);
+    split.mockRejectedValueOnce(needed).mockRejectedValueOnce(needed);
+    vi.mocked(followJobToOk).mockRejectedValueOnce(new Error("Out of memory"));
+    const { result, rerender } = setup();
+    await act(async () => result.current.actions.onSplit("maya"));
+    act(() => result.current.actions.onVoices("joss", 4));
+    await act(async () => result.current.actions.onSplit("joss"));
+    api.current = SPEAKER_IN;
+    rerender({ projectPath: PATH, activityJob: null, isPlaying: false });
+    await waitFor(() =>
+      expect(result.current.splitFailed.joss).toBe(
+        "Another split did not finish. Try again.",
+      ),
+    );
+    api.current = MISSING;
+    rerender({ projectPath: PATH, activityJob: null, isPlaying: false });
+    split.mockRejectedValueOnce(needed);
+    await act(async () => result.current.actions.onSplit("music"));
+    api.current = SPEAKER_IN;
+    rerender({ projectPath: PATH, activityJob: null, isPlaying: false });
+    await waitFor(() => expect(split).toHaveBeenCalledTimes(5));
+    expect(split.mock.calls[4][1].trackId).toBe("music");
+    act(() => result.current.actions.onVoices("joss", 6));
+    await act(async () => result.current.actions.onRetry("joss"));
+    expect(split.mock.calls[5][1]).toEqual({
+      trackId: "joss",
+      speakerCount: 4,
+      names: null,
+      enrollment: null,
+    });
+  });
+});
+
+describe("split operation epoch ownership", () => {
+  it("retires an unacknowledged split when its consumer unmounts", async () => {
+    let accept!: (
+      job: Awaited<ReturnType<typeof startSplitSpeakersJob>>,
+    ) => void;
+    vi.mocked(startSplitSpeakersJob).mockReturnValueOnce(
+      new Promise((resolve) => {
+        accept = resolve;
+      }),
+    );
+    const { result, unmount } = setup();
+    await act(async () => {
+      result.current.actions.onSplit("maya");
+    });
+    unmount();
+    await act(async () =>
+      accept(pipelineJobSnapshot({ id: "retired", kind: "split_speakers" })),
+    );
+    expect(followJobToOk).not.toHaveBeenCalled();
+    expect(refreshDocumentProject).not.toHaveBeenCalled();
+  });
+
+  it("does not let an old finalizer clear a newer split on the same track", async () => {
+    const follow = vi.mocked(followJobToOk);
+    let oldFinish!: (job: Awaited<ReturnType<typeof followJobToOk>>) => void;
+    let newFinish!: (job: Awaited<ReturnType<typeof followJobToOk>>) => void;
+    follow.mockReturnValueOnce(
+      new Promise((resolve) => {
+        oldFinish = resolve;
+      }),
+    );
+    follow.mockReturnValueOnce(
+      new Promise((resolve) => {
+        newFinish = resolve;
+      }),
+    );
+    const { result, rerender } = setup();
+    await act(async () => {
+      result.current.actions.onSplit("maya");
+    });
+    await waitFor(() => expect(follow).toHaveBeenCalledTimes(1));
+    act(() => {
+      useDawStore.setState({
+        projectEpoch: useDawStore.getState().projectEpoch + 1,
+      });
+      rerender({ projectPath: PATH, activityJob: null, isPlaying: false });
+    });
+    await act(async () => {
+      result.current.actions.onSplit("maya");
+    });
+    await waitFor(() => expect(follow).toHaveBeenCalledTimes(2));
+    await act(async () =>
+      oldFinish(
+        pipelineJobSnapshot({ id: "old", status: "ok", result: RESULT }),
+      ),
+    );
+    expect(result.current.splitting.maya).toEqual({ detail: "Starting" });
+    await act(async () =>
+      newFinish(
+        pipelineJobSnapshot({ id: "new", status: "ok", result: RESULT }),
+      ),
+    );
+    expect(result.current.splitting).toEqual({});
+    expect(refreshDocumentProject).toHaveBeenCalledWith(PATH);
+  });
+});
+
+describe("split cancellation on the source card", () => {
+  function SplitCard() {
+    const source = usePrepareSources({
+      projectPath: PATH,
+      tracks,
+      isPlaying: false,
+      activityJob: null,
+      canIngest: true,
+    });
+    return (
+      <SourceCard
+        index={1}
+        name="Maya"
+        fileName="maya.wav"
+        state={source.splitting.maya ? "splitting" : "split-prompt"}
+        splitDetail={source.splitting.maya?.detail}
+        onName={(name) => source.actions.onName("maya", name)}
+        onRemove={() => source.actions.onRemove("maya")}
+        onSplit={() => source.actions.onSplit("maya")}
+        onCancelSplit={() => source.actions.onCancelSplit("maya")}
+      />
+    );
+  }
+
+  it("keeps the card busy until the late accepted cancellation is terminal", async () => {
+    let accept!: (
+      job: Awaited<ReturnType<typeof startSplitSpeakersJob>>,
+    ) => void;
+    let finish!: (job: Awaited<ReturnType<typeof followJobToOk>>) => void;
+    vi.mocked(startSplitSpeakersJob).mockReturnValueOnce(
+      new Promise((resolve) => {
+        accept = resolve;
+      }),
+    );
+    vi.mocked(followJobToOk).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    vi.mocked(cancelPipelineRun).mockResolvedValue(pipelineJobSnapshot());
+    render(<SplitCard />, { wrapper });
+    await userEvent.click(screen.getByRole("button", { name: "Split Maya" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Cancel splitting Maya" }),
+    );
+    expect(screen.queryByRole("button", { name: "Split Maya" })).toBeNull();
+    await act(async () =>
+      accept(pipelineJobSnapshot({ id: "late-card", kind: "split_speakers" })),
+    );
+    expect(cancelPipelineRun).toHaveBeenCalledWith("late-card");
+    expect(screen.queryByRole("button", { name: "Split Maya" })).toBeNull();
+    await act(async () =>
+      finish(pipelineJobSnapshot({ id: "late-card", status: "cancelled" })),
+    );
+    expect(screen.getByRole("button", { name: "Split Maya" })).toBeVisible();
+    expect(startSplitSpeakersJob).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports a refused cancellation and allows cancelling that running job again", async () => {
+    let finish!: (job: Awaited<ReturnType<typeof followJobToOk>>) => void;
+    vi.mocked(followJobToOk).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    vi.mocked(cancelPipelineRun)
+      .mockRejectedValueOnce(new Error("lost response"))
+      .mockResolvedValueOnce(pipelineJobSnapshot());
+    render(<SplitCard />, { wrapper });
+    await userEvent.click(screen.getByRole("button", { name: "Split Maya" }));
+    await waitFor(() => expect(followJobToOk).toHaveBeenCalledTimes(1));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Cancel splitting Maya" }),
+    );
+    await waitFor(() =>
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "Could not cancel splitting. Try again.",
+      ),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Cancel splitting Maya" }),
+    );
+    expect(cancelPipelineRun).toHaveBeenCalledTimes(2);
+    await act(async () => finish(pipelineJobSnapshot({ status: "cancelled" })));
+  });
 });

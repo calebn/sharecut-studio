@@ -249,12 +249,13 @@ describe("ModelNeedRowView, Remove in the sheet row", () => {
 
   it("offers Remove in a more menu for an installed model and for one that needs an update", async () => {
     const onRemove = vi.fn();
+    const onGet = vi.fn();
     const { rerender } = render(
       <ModelNeedRowView
         placement="list"
         model={SIZED}
         state={{ kind: "installed" }}
-        onGet={vi.fn()}
+        onGet={onGet}
         onCancel={vi.fn()}
         onRemove={onRemove}
       />,
@@ -271,14 +272,21 @@ describe("ModelNeedRowView, Remove in the sheet row", () => {
         placement="list"
         model={SIZED}
         state={{ kind: "update_needed" }}
-        onGet={vi.fn()}
+        onGet={onGet}
         onCancel={vi.fn()}
         onRemove={onRemove}
       />,
     );
     expect(
-      screen.getByRole("button", { name: "Update Word timing" }),
-    ).toBeVisible();
+      screen.queryByRole("button", { name: "Update Word timing" }),
+    ).toBeNull();
+    await userEvent.click(
+      screen.getByRole("button", { name: "More for Word timing" }),
+    );
+    await userEvent.click(
+      screen.getByRole("menuitem", { name: "Update Word timing" }),
+    );
+    expect(onGet).toHaveBeenCalledOnce();
     expect(
       screen.getByRole("button", { name: "More for Word timing" }),
     ).toBeVisible();
@@ -287,7 +295,7 @@ describe("ModelNeedRowView, Remove in the sheet row", () => {
         placement="list"
         model={SIZED}
         state={{ kind: "missing" }}
-        onGet={vi.fn()}
+        onGet={onGet}
         onCancel={vi.fn()}
         onRemove={onRemove}
       />,

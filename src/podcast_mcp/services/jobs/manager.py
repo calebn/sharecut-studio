@@ -399,7 +399,16 @@ class JobManager:
             daemon=True,
             name=f"bootstrap-job-{job.id}",
         )
-        thread.start()
+        try:
+            thread.start()
+        except Exception:
+            with job._lock:
+                job.status = "error"
+                job.finished_at = time.monotonic()
+            with self._catalog._lock:
+                if self._catalog._bootstrap_job is job:
+                    self._catalog._bootstrap_job = current
+            raise
         return job, False
 
     @staticmethod

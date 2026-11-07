@@ -187,11 +187,7 @@ function ListRow({
   const holdsFocus = useRef(false);
   const working = state.kind === "downloading" || state.kind === "queued";
   const known = progressOf(state);
-  const get = state.kind === "update_needed" ? "Update" : "Get";
-  const getting =
-    state.kind === "missing" ||
-    state.kind === "update_needed" ||
-    state.kind === "failed";
+  const getting = state.kind === "missing" || state.kind === "failed";
 
   useEffect(() => {
     const row = rowRef.current;
@@ -266,17 +262,17 @@ function ListRow({
           ) : getting ? (
             <Button
               variant={state.kind === "failed" ? "primary" : "default"}
-              aria-label={`${state.kind === "failed" ? "Try again" : get} ${name}`}
+              aria-label={`${state.kind === "failed" ? "Try again" : "Get"} ${name}`}
               disabledReason={blockedReason}
               {...reason.describedBy}
               onClick={act(onGet)}
             >
               <SystemIcon name="cloud-download" size={14} />
-              {state.kind === "failed" ? "Try again" : get}
+              {state.kind === "failed" ? "Try again" : "Get"}
             </Button>
           ) : null}
-          {onRemove &&
-          (state.kind === "installed" || state.kind === "update_needed") ? (
+          {state.kind === "update_needed" ||
+          (onRemove && state.kind === "installed") ? (
             <Menu
               open={menuOpen}
               onOpenChange={setMenuOpen}
@@ -288,15 +284,26 @@ function ListRow({
                 </Button>
               )}
             >
-              <MenuItem
-                disabledReason={blockedReason}
-                onSelect={() => {
-                  setMenuOpen(false);
-                  onRemove();
-                }}
-              >
-                {`Remove ${name}`}
-              </MenuItem>
+              {state.kind === "update_needed" ? (
+                <MenuItem
+                  disabledReason={blockedReason}
+                  onSelect={() => {
+                    setMenuOpen(false);
+                    onGet();
+                  }}
+                >{`Update ${name}`}</MenuItem>
+              ) : null}
+              {onRemove ? (
+                <MenuItem
+                  disabledReason={blockedReason}
+                  onSelect={() => {
+                    setMenuOpen(false);
+                    onRemove();
+                  }}
+                >
+                  {`Remove ${name}`}
+                </MenuItem>
+              ) : null}
             </Menu>
           ) : null}
         </div>

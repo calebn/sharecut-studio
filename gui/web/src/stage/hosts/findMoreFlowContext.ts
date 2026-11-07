@@ -1,4 +1,5 @@
 import { createContext, useContext } from "react";
+import type { startPipelineRun } from "../../api";
 import type { ModelNeeded } from "../../utils/apiError";
 
 export const NO_TIER = "Set How tight in Prepare Cleanup first.";
@@ -10,6 +11,12 @@ export type FindMoreRun = {
   error: string | null;
 };
 
+export type FindMoreRequest = {
+  path: string;
+  epoch: number;
+  options: NonNullable<Parameters<typeof startPipelineRun>[1]>;
+};
+
 export type FindMoreFlow = {
   run: FindMoreRun | null;
   setRun: (run: FindMoreRun | null) => void;
@@ -19,7 +26,7 @@ export type FindMoreFlow = {
    * Waits for the model, then runs Find more again by itself, wherever the person is by then.
    * False when this model already ran Find more once since the last press, so the caller reports it.
    */
-  stopFor: (need: ModelNeeded) => boolean;
+  stopFor: (need: ModelNeeded, request: FindMoreRequest) => boolean;
   /** A new press by the person: the next refusal waits again. */
   fresh: () => void;
 };
