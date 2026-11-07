@@ -84,7 +84,7 @@ def bootstrap_remove_model(
     mgr = _jobs(request)
     try:
         with mgr.model_removal():
-            return uninstall_model(model_id, whisper_model)
+            return dict(uninstall_model(model_id, whisper_model))
     except BootstrapSlotBusyError as exc:
         raise coded_http_error(
             409,
