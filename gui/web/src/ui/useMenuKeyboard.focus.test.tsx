@@ -1,6 +1,13 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { useRef } from "react";
 import { afterEach, describe, expect, it } from "vitest";
+import { usePressedControl } from "./pressedControl";
 import { useMenuKeyboard } from "./useMenuKeyboard";
 
 afterEach(cleanup);
@@ -17,12 +24,23 @@ function Menu() {
   );
 }
 
+function PressedControlCapture() {
+  usePressedControl();
+  return null;
+}
+
 async function openMenuFrom(opener: HTMLElement) {
   document.body.append(opener);
-  opener.focus();
+  const capture = render(<PressedControlCapture />);
+  fireEvent.click(opener);
   const view = render(<Menu />);
   await waitFor(() => expect(screen.getByRole("menuitem")).toHaveFocus());
-  return view;
+  return {
+    unmount: () => {
+      view.unmount();
+      capture.unmount();
+    },
+  };
 }
 
 describe("useMenuKeyboard focus return", () => {
@@ -32,6 +50,19 @@ describe("useMenuKeyboard focus return", () => {
     unmount();
     expect(document.activeElement).toBe(opener);
     opener.remove();
+  });
+
+  it("leaves focus outside when focus moved there before the menu closes", async () => {
+    const opener = document.createElement("button");
+    const outside = document.createElement("button");
+    document.body.append(opener, outside);
+    const { unmount } = await openMenuFrom(opener);
+    await waitFor(() => expect(screen.getByRole("menuitem")).toHaveFocus());
+    outside.focus();
+    unmount();
+    expect(document.activeElement).toBe(outside);
+    opener.remove();
+    outside.remove();
   });
 
   it("does not give focus back to an opener inside an inert ancestor", async () => {
@@ -46,5 +77,26 @@ describe("useMenuKeyboard focus return", () => {
     unmount();
     expect(document.activeElement).not.toBe(opener);
     host.remove();
+  });
+
+  it("does not restore focus to a removed opener", async () => {
+    const opener = document.createElement("button");
+    const { unmount } = await openMenuFrom(opener);
+    opener.remove();
+    unmount();
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it("uses the focused control when the menu opens from the keyboard", async () => {
+    const opener = document.createElement("button");
+    document.body.append(opener);
+    opener.focus();
+    const capture = render(<PressedControlCapture />);
+    const { unmount } = render(<Menu />);
+    await waitFor(() => expect(screen.getByRole("menuitem")).toHaveFocus());
+    unmount();
+    expect(document.activeElement).toBe(opener);
+    opener.remove();
+    capture.unmount();
   });
 });
