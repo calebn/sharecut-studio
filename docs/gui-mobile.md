@@ -35,6 +35,9 @@ stay clear at larger text sizes. The measurement already includes the safe area.
 The existing keyboard rule still places an open sheet within the visual viewport.
 Centered dialogs and the clip Inspector keep their own placement.
 
+The frame rechecks its fit when the Edit action dock changes size, including
+when the project loads after the frame. It does not wait for a window resize.
+
 The phone Invite sheet's **Peek** detent stays within the compact 4–7.5rem
 content-height range, scaled with the root type size and capped by the available
 sheet slot. Its existing body remains the scroll owner, so all Invite links and
