@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Cover } from "../../system/Cover";
 import {
   type ScriptGuest,
@@ -11,6 +11,7 @@ import type {
   WordsSelection,
 } from "../../system/scriptPieces";
 import { GUEST_EMPTY_COPY, type GuestEmpty } from "./guestLogic";
+import { type GuestReading, useGuestReading } from "./useGuestReading";
 
 export type GuestScriptProps = {
   guest?: ScriptGuest;
@@ -26,6 +27,7 @@ export type GuestScriptProps = {
   selection?: ScriptSelection | null;
   onSelect?: (selection: WordsSelection) => void;
   onClearSelection?: () => void;
+  reading?: GuestReading;
 };
 
 export function GuestScript({
@@ -41,15 +43,24 @@ export function GuestScript({
   selection,
   onSelect,
   onClearSelection,
+  reading: providedReading,
 }: GuestScriptProps) {
-  const [following, setFollowing] = useState(true);
+  const reading = useGuestReading(providedReading);
   const pane = useRef<ScriptPaneHandle>(null);
+  const readingPosition = useMemo(
+    () => ({
+      getPosition: reading.getPosition,
+      capture: reading.capture,
+      restore: !reading.following,
+    }),
+    [reading.following, reading.getPosition, reading.capture],
+  );
   const first =
     (typeof playing === "number" ? playing : playing?.[0]) ?? playheadWord;
   useEffect(() => {
-    if (following && first !== undefined)
+    if (reading.following && first !== undefined)
       pane.current?.scrollToWord(first, "nearest");
-  }, [following, first]);
+  }, [reading.following, first]);
   if (turns.length === 0) {
     return (
       <Cover size="region" glyph="inbox" title="Nothing to read yet">
@@ -65,7 +76,7 @@ export function GuestScript({
       guest={guest}
       playing={playing}
       playheadWord={playheadWord}
-      following={following}
+      following={reading.following}
       selection={selection}
       onSelect={onSelect}
       onPrimary={
@@ -83,14 +94,15 @@ export function GuestScript({
         if (start !== undefined) onSeek(start);
       }}
       onUserScroll={() => {
-        setFollowing(false);
+        reading.setFollowing(false);
         onUserScroll?.();
       }}
       onBackToPlayhead={() => {
-        setFollowing(true);
+        reading.setFollowing(true);
         if (first !== undefined) pane.current?.scrollToWord(first, "center");
       }}
-      onFollowChange={setFollowing}
+      onFollowChange={reading.setFollowing}
+      readingPosition={readingPosition}
     />
   );
 }

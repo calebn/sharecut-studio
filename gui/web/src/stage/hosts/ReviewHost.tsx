@@ -6,11 +6,12 @@ import { useViewportClass } from "../../hooks/useViewportClass";
 import { ReviewStage } from "../../review/ReviewStage";
 import { undecidedOf } from "../../review/reviewQueueModel";
 import { isGuestSession, isShareProjectKey } from "../../shareMode";
+import type { GuestReading } from "../../stages/guest/useGuestReading";
+import { useGuestReading } from "../../stages/guest/useGuestReading";
 import { useDawStore } from "../../state/dawStore";
 import { GuestPlayerCard } from "../frame/GuestPlayerCard";
 import { guestPlayerCardShown } from "../frame/guestPlayerCardShown";
 import { useStageScroll } from "../useStageScroll";
-
 import { GuestScriptHost } from "./GuestScriptHost";
 import { LoadFailureCover } from "./HostBody";
 import { hostStateOf, type LoadFailure } from "./hostModels";
@@ -29,11 +30,12 @@ function panelFor(
   scripted: boolean,
   card: boolean,
   failure: ReactNode,
+  reading: GuestReading,
 ) {
   // Guest on a wide shell: Player card, composer, transcript in one column.
   // Otherwise the transcript sits above the Queue; a load failure takes the
   // transcript's place (guest) or the queue's (host), never the whole body.
-  const script = scripted ? <GuestScriptHost /> : null;
+  const script = scripted ? <GuestScriptHost reading={reading} /> : null;
   return (
     <>
       {card ? null : failure && scripted ? failure : script}
@@ -67,6 +69,7 @@ function ReviewHostAdapter({
   const shell = useViewportClass();
   const short = useShortViewport();
   const scrollRef = useStageScroll("review", "section:queue");
+  const reading = useGuestReading();
   return (
     <ReviewStageView
       shell={shell}
@@ -82,6 +85,7 @@ function ReviewHostAdapter({
         loadFailure ? (
           <LoadFailureCover stage="review" failure={loadFailure} />
         ) : null,
+        reading,
       )}
       onDeliver={guest ? undefined : () => runPointerCommand("stage.deliver")}
       undecided={undecidedOf(queue.stageProps.items)}
