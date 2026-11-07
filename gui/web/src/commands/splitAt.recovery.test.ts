@@ -3,7 +3,10 @@ import {
   applyDocumentSnapshot,
   recoverDocument,
 } from "../document/applyDocumentUpdate";
-import { resetDocumentAuthority } from "../document/authorityState";
+import {
+  documentScope,
+  resetDocumentAuthority,
+} from "../document/authorityState";
 import { useDawStore } from "../state/dawStore";
 import { selectedClipIdsOf, tracksSelection } from "../state/selection";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
@@ -103,12 +106,62 @@ it("selects the right piece after real command-queue snapshot recovery completes
     expect(fetchSpy, JSON.stringify(result)).toHaveBeenCalledTimes(2),
   );
   expect(selectedClipIdsOf(useDawStore.getState().selection)).toEqual([]);
+  const recovered = recoverDocument(3);
   resolveRecovery(
     response({ server_seq: 3, state_token: "b".repeat(64), project: after }),
   );
   await split;
-  await recoverDocument(3);
+  await recovered;
   expect(selectedClipIdsOf(useDawStore.getState().selection)).toEqual([
     "right",
   ]);
+});
+
+it("returns applied success while recovery is still pending", async () => {
+  const split = execute("edit.bladeCut", { atTime: 10 }, { skipWhen: true });
+  await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(2));
+  expect(await split).toEqual({ status: "ok" });
+  expect(useDawStore.getState().feedbackToast?.message).toBe(
+    "Split at 00:10.000",
+  );
+  const recovered = recoverDocument(3);
+  resolveRecovery(
+    response({ server_seq: 3, state_token: "b".repeat(64), project: after }),
+  );
+  await recovered;
+});
+
+it.each(["selection", "reopen"] as const)(
+  "preserves a newer %s during recovery",
+  async (change) => {
+    const split = execute("edit.bladeCut", { atTime: 10 }, { skipWhen: true });
+    await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(2));
+    const recovered = recoverDocument(3);
+    if (change === "reopen") {
+      resetDocumentAuthority(path);
+      useDawStore.getState().hydrate(path, before);
+    }
+    const held = tracksSelection([]);
+    useDawStore.getState().setSelection(held);
+    resolveRecovery(
+      response({ server_seq: 3, state_token: "b".repeat(64), project: after }),
+    );
+    await recovered;
+    await split;
+    expect(useDawStore.getState().selection).toBe(held);
+  },
+);
+
+it("keeps applied success when authoritative recovery fails", async () => {
+  const split = execute("edit.bladeCut", { atTime: 10 }, { skipWhen: true });
+  await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(2));
+  const recovered = recoverDocument(3, documentScope());
+  const failure = expect(recovered).rejects.toThrow();
+  resolveRecovery(new Response("Recovery unavailable", { status: 503 }));
+  await failure;
+  expect(await split).toEqual({ status: "ok" });
+  expect(useDawStore.getState().feedbackToast?.message).toBe(
+    "Split at 00:10.000",
+  );
+  expect(selectedClipIdsOf(useDawStore.getState().selection)).toEqual([]);
 });
