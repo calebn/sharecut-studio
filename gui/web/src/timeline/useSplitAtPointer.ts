@@ -100,11 +100,11 @@ export function useSplitAtPointer(
 
   // The window listeners are bound once.
   const showRef = useRef(show);
-  showRef.current = show;
 
   useLayoutEffect(() => {
-    if (shown.current) showRef.current(true);
-  }, [zoomPxPerSec, canvasSec]);
+    showRef.current = show;
+    if (shown.current) show(true);
+  }, [show]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
