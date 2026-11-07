@@ -489,7 +489,21 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       null,
     );
     const readingPositionRef = useRef(readingPosition);
-    const selectionScrolled = useRef(false);
+    const selectionViewport = useRef<"idle" | "active">("idle");
+    const internalFocus = useRef(false);
+    const focusInternally = useCallback(
+      (element: HTMLElement | null | undefined, options?: FocusOptions) => {
+        const previous = internalFocus.current;
+        internalFocus.current = true;
+        try {
+          if (options) element?.focus(options);
+          else element?.focus();
+        } finally {
+          internalFocus.current = previous;
+        }
+      },
+      [],
+    );
     useLayoutEffect(() => {
       readingPositionRef.current = readingPosition;
       if (!readingPosition) {
@@ -801,13 +815,13 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       (start: number, preventScroll = false) => {
         setFocused(start);
         const word = focusable(registry.current.get(start));
-        word?.focus({ preventScroll });
+        focusInternally(word, { preventScroll });
         if (!preventScroll && readingPositionRef.current?.restore) {
           captureReadingPosition(start);
           programmaticScrollTop.current = bodyRef.current?.scrollTop ?? null;
         }
       },
-      [captureReadingPosition],
+      [captureReadingPosition, focusInternally],
     );
 
     const control = useMemo<GestureControl>(
@@ -848,10 +862,11 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
             : (now.ownCaret ?? caretRef.current ?? index);
         },
         start: (anchor, gesture) => {
-          selectionScrolled.current = false;
-          return (
-            live.current.props.onSelectionStart?.(anchor, gesture) !== false
-          );
+          const accepted =
+            live.current.props.onSelectionStart?.(anchor, gesture) !== false;
+          selectionViewport.current = accepted ? "active" : "idle";
+          if (accepted) captureReadingPosition();
+          return accepted;
         },
         draft: (next) =>
           setDraft((prev) =>
@@ -859,15 +874,15 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
               ? prev
               : next,
           ),
-        change: (anchor, head, gesture) =>
-          live.current.props.onSelectionChange?.(anchor, head, gesture),
+        change: (anchor, head, gesture) => {
+          captureReadingPosition();
+          live.current.props.onSelectionChange?.(anchor, head, gesture);
+        },
         end: (anchor, head, gesture, committed) => {
           setDraft(null);
           const now = live.current;
-          if (selectionScrolled.current) {
-            captureReadingPosition();
-            selectionScrolled.current = false;
-          }
+          captureReadingPosition();
+          selectionViewport.current = "idle";
           now.props.onSelectionEnd?.(anchor, head, { ...gesture, committed });
           if (!committed) return;
           goalX.current = null;
@@ -877,7 +892,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
           now.props.onSelect?.({ kind: "words", anchor, head });
         },
         scrolled: () => {
-          selectionScrolled.current = true;
+          captureReadingPosition();
           live.current.props.onUserScroll?.();
         },
       }),
@@ -936,7 +951,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
           const now = live.current;
           goalX.current = null;
           setFocused(index);
-          focusable(registry.current.get(index))?.focus({
+          focusInternally(focusable(registry.current.get(index)), {
             preventScroll: true,
           });
           if (shift) {
@@ -1083,7 +1098,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
         speaker: (turnId, anchor) =>
           live.current.props.onSpeaker?.(turnId, anchor),
       };
-    }, [measure, focusStop, gestures]);
+    }, [measure, focusStop, focusInternally, gestures]);
 
     useImperativeHandle(
       ref,
@@ -1107,15 +1122,19 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
         focusWord: (index) => {
           const stop = stopContaining(live.current.stops, index);
           const el = stop ? focusable(registry.current.get(stop.start)) : null;
-          el?.focus();
+          focusInternally(el);
           return el != null;
         },
       }),
-      [],
+      [focusInternally],
     );
 
     const bodyShown = status.kind !== "empty" && status.kind !== "loading";
     const restoreReadingPosition = useCallback(() => {
+      if (selectionViewport.current !== "idle") {
+        captureReadingPosition();
+        return;
+      }
       const body = bodyRef.current;
       const position = readingPositionRef.current?.getPosition();
       if (!body || !position) return;
@@ -1145,7 +1164,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
         body.scrollTop = next;
         programmaticScrollTop.current = body.scrollTop;
       }
-    }, []);
+    }, [captureReadingPosition]);
     useLayoutEffect(() => {
       if (readingPosition?.restore) restoreReadingPosition();
     }, [bodyShown, turns, readingPosition, restoreReadingPosition]);
@@ -1177,11 +1196,34 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
           event.preventDefault();
         }
       };
+      let active = true;
+      let latestFocus: FocusEvent | null = null;
       const onFocusIn = (event: FocusEvent) => {
+        latestFocus = event;
         inside.current = true;
         if (!(event.target instanceof HTMLElement)) return;
         const stop = event.target.closest<HTMLElement>("[data-stop]");
-        if (stop) setFocused(Number(stop.dataset.stop));
+        if (!stop) return;
+        const index = Number(stop.dataset.stop);
+        setFocused(index);
+        if (internalFocus.current || !readingPositionRef.current?.restore)
+          return;
+        const target = event.target;
+        queueMicrotask(() => {
+          if (
+            !active ||
+            latestFocus !== event ||
+            bodyRef.current !== body ||
+            !body.isConnected ||
+            document.activeElement !== target ||
+            registry.current.get(index) !== stop ||
+            !body.contains(stop) ||
+            !readingPositionRef.current?.restore
+          )
+            return;
+          captureReadingPosition(index);
+          programmaticScrollTop.current = body.scrollTop;
+        });
       };
       const onFocusOut = (event: FocusEvent) => {
         const el = event.target;
@@ -1196,11 +1238,12 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       body.addEventListener("focusin", onFocusIn);
       body.addEventListener("focusout", onFocusOut);
       return () => {
+        active = false;
         body.removeEventListener("keyup", onKeyUp);
         body.removeEventListener("focusin", onFocusIn);
         body.removeEventListener("focusout", onFocusOut);
       };
-    }, [bodyShown]);
+    }, [bodyShown, captureReadingPosition]);
 
     useLayoutEffect(() => {
       const closedAt = editStart === undefined ? editedAt.current : null;
@@ -1214,7 +1257,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
         stops.find((stop) => stop.start >= from) ??
         stops[stops.length - 1];
       if (!heir) return;
-      focusable(registry.current.get(heir.start))?.focus();
+      focusInternally(focusable(registry.current.get(heir.start)));
     });
 
     // Places are measured once per layout, not once per key or pointer move.
@@ -1471,6 +1514,8 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
               const programmed = programmaticScrollTop.current;
               programmaticScrollTop.current = null;
               if (binding && body) {
+                if (selectionViewport.current !== "idle")
+                  captureReadingPosition();
                 const previous = readingBounds.current;
                 const bounds = body.getBoundingClientRect();
                 if (
