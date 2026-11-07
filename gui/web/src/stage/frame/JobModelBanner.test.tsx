@@ -150,6 +150,7 @@ describe("JobModelBanner", () => {
   );
 
   it("keeps a failed read actionable, retries with fresh evidence once, and does not re-arm the same job", async () => {
+    useDawStore.setState({ statusAnnouncement: "" });
     const { requests, onLimit } = mountReal();
     await act(async () => requests[0]!.resolve(installedNoise()));
     fail(failedJob());
@@ -174,6 +175,7 @@ describe("JobModelBanner", () => {
     await act(async () => requests[3]!.resolve(installedNoise()));
     expect(runPointerCommand).toHaveBeenCalledTimes(1);
     expect(requests).toHaveLength(4);
+    expect(useDawStore.getState().statusAnnouncement).toBe("");
     useDawStore.setState({ statusAnnouncement: "" });
     fail(failedJob({ id: "job-2" }));
     expect(useDawStore.getState().statusAnnouncement).toBe(
