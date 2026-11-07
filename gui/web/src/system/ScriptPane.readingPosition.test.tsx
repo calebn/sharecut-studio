@@ -510,7 +510,9 @@ describe("ScriptPane reading position", () => {
     if (!firstWord || !lastWord)
       throw new Error("Expected the first and last words");
     firstWord.focus({ preventScroll: true });
+    fireEvent.wheel(body);
     fireEvent.keyDown(firstWord, { key: "End" });
+    fireEvent.scroll(body);
 
     expect(document.activeElement).toBe(lastWord);
     expect(body.scrollTop).toBe(876);
