@@ -13,7 +13,7 @@ from collections.abc import Callable
 from contextlib import ExitStack
 from dataclasses import dataclass
 from types import TracebackType
-from typing import Any
+from typing import Any, Literal, TypedDict
 
 from podcast_mcp.engines.models.registry import (
     MODELS,
@@ -74,7 +74,13 @@ def model_status(
     return {**base, "path": path, **{k: v for k, v in record.items() if k not in base}}
 
 
-def uninstall_model(model_id: str, variant: str | None = None) -> dict[str, Any]:
+class UninstallModelResult(TypedDict):
+    ok: Literal[True]
+    freed_bytes: int
+    model: dict[str, Any]
+
+
+def uninstall_model(model_id: str, variant: str | None = None) -> UninstallModelResult:
     """Delete one model Studio downloaded and report the record after it, plus the bytes freed.
 
     Raises ``CodedValueError`` for an unknown id and ``ModelNotRemovable`` for a file the
