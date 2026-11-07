@@ -138,7 +138,9 @@ as fields and preserves selected half and full heights.
 
 Phone bottom sheets start below the rendered app header, including when larger
 text wraps its controls. The header remains reachable at every sheet height.
-The clip Inspector is a separate surface with its own dock, half, and full heights.
+The clip Inspector is a separate surface with its own dock, half, and full
+heights. At full height its grip hit area starts at the sheet edge, with the
+surface content padded below that target.
 
 
 ## Images
