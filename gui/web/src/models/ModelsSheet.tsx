@@ -25,7 +25,7 @@ export function ModelsSheet({ open, onClose }: Props) {
       panelClassName="models-sheet"
     >
       <div className="models-sheet-body">
-        {tools.ffmpeg !== "installed" ? (
+        {models !== null && tools.ffmpeg !== "installed" ? (
           <StatusRow
             state="failed"
             title="Audio tools are unavailable"
