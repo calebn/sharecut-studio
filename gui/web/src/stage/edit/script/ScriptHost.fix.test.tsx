@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../../../state/dawStore";
 import { seedScript } from "../../../test/scriptHostKit";
@@ -126,6 +127,7 @@ describe("ScriptHost Fix text", () => {
 
   it("keeps the field open with the reason when the commit is refused", async () => {
     submitWordCorrection.mockRejectedValue(new Error("The words changed."));
+    useDawStore.setState({ feedbackToast: null });
     await openWith("{Enter}");
     await userEvent.type(field(), "x{Enter}");
     expect(field()).toHaveValue("friendsx");
@@ -133,6 +135,7 @@ describe("ScriptHost Fix text", () => {
     expect(
       screen.getAllByRole("status").map((region) => region.textContent),
     ).toContain("Text not fixed. The words changed.");
+    expect(useDawStore.getState().feedbackToast).toBeNull();
   });
 
   it("reports a deferred correction failure once after ScriptHost unmounts", async () => {
@@ -153,9 +156,23 @@ describe("ScriptHost Fix text", () => {
     await userEvent.keyboard("{Enter}");
     await userEvent.clear(field());
     await userEvent.type(field(), "friend");
+    useDawStore.setState({
+      feedbackToast: null,
+      statusAnnouncement: "",
+      statusAnnouncementSeq: 40,
+    });
+    const initialAnnouncementSeq = useDawStore.getState().statusAnnouncementSeq;
     await userEvent.keyboard("{Enter}");
     expect(submitWordCorrection).toHaveBeenCalledTimes(1);
-    useDawStore.setState({ feedbackToast: null, statusAnnouncement: "" });
+    expect(submitWordCorrection).toHaveBeenCalledWith(
+      "/tmp/ep",
+      "host",
+      5,
+      5,
+      "friend",
+      "friends",
+      null,
+    );
     view.rerender(<StatusLive />);
     await act(async () => rejectCorrection(new Error("The words changed.")));
     expect(useDawStore.getState().feedbackToast).toMatchObject({
@@ -166,6 +183,117 @@ describe("ScriptHost Fix text", () => {
     expect(useDawStore.getState().statusAnnouncement).toBe(
       "Could not fix “friends”: The words changed.",
     );
+    expect(useDawStore.getState().statusAnnouncementSeq).toBe(
+      initialAnnouncementSeq + 1,
+    );
+    const announcedSequence = useDawStore.getState().statusAnnouncementSeq;
+    view.rerender(<StatusLive />);
+    expect(useDawStore.getState().statusAnnouncementSeq).toBe(
+      announcedSequence,
+    );
+  });
+
+  it("keeps a remounted draft when an earlier correction fails", async () => {
+    let rejectCorrection!: (failure: Error) => void;
+    submitWordCorrection.mockImplementationOnce(
+      () =>
+        new Promise<string>((_resolve, reject) => {
+          rejectCorrection = reject;
+        }),
+    );
+    const first = render(<ScriptHost />);
+    await userEvent.click(word("friends"));
+    await userEvent.keyboard("{Enter}");
+    await userEvent.clear(field());
+    await userEvent.type(field(), "friend{Enter}");
+    first.unmount();
+
+    render(
+      <>
+        <ScriptHost />
+        <StatusLive />
+      </>,
+    );
+    expect(field()).toHaveValue("friend");
+    await userEvent.clear(field());
+    await userEvent.type(field(), "new draft");
+    await act(async () => rejectCorrection(new Error("The words changed.")));
+    expect(field()).toHaveValue("new draft");
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      message: "Could not fix “friends”: The words changed.",
+      tone: "error",
+    });
+  });
+
+  it("reports a deferred correction failure once under StrictMode", async () => {
+    let rejectCorrection!: (failure: Error) => void;
+    submitWordCorrection.mockImplementationOnce(
+      () =>
+        new Promise<string>((_resolve, reject) => {
+          rejectCorrection = reject;
+        }),
+    );
+    const view = render(
+      <StrictMode>
+        <>
+          <ScriptHost />
+          <StatusLive />
+        </>
+      </StrictMode>,
+    );
+    useDawStore.setState({
+      feedbackToast: null,
+      statusAnnouncement: "",
+      statusAnnouncementSeq: 70,
+    });
+    await userEvent.click(word("friends"));
+    await userEvent.keyboard("{Enter}");
+    await userEvent.type(field(), "friend{Enter}");
+    view.rerender(<StatusLive />);
+    const beforeFailure = useDawStore.getState().statusAnnouncementSeq;
+    await act(async () => rejectCorrection(new Error("The words changed.")));
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      message: "Could not fix “friends”: The words changed.",
+      tone: "error",
+    });
+    expect(useDawStore.getState().statusAnnouncementSeq).toBe(
+      beforeFailure + 1,
+    );
+  });
+
+  it("drops a deferred failure after switching away and back to its project", async () => {
+    let rejectCorrection!: (failure: Error) => void;
+    submitWordCorrection.mockImplementationOnce(
+      () =>
+        new Promise<string>((_resolve, reject) => {
+          rejectCorrection = reject;
+        }),
+    );
+    render(
+      <>
+        <ScriptHost />
+        <StatusLive />
+      </>,
+    );
+    useDawStore.setState({
+      feedbackToast: null,
+      statusAnnouncement: "",
+      statusAnnouncementSeq: 90,
+    });
+    await userEvent.click(word("friends"));
+    await userEvent.keyboard("{Enter}");
+    await userEvent.type(field(), "friend{Enter}");
+    const project = useDawStore.getState().project;
+    if (!project) throw new Error("expected the seeded project");
+    act(() => {
+      useDawStore.getState().hydrate("/tmp/other", project);
+      useDawStore.getState().hydrate("/tmp/ep", project);
+    });
+    const beforeFailure = useDawStore.getState().statusAnnouncementSeq;
+    await act(async () => rejectCorrection(new Error("The words changed.")));
+    expect(useDawStore.getState().feedbackToast).toBeNull();
+    expect(useDawStore.getState().statusAnnouncementSeq).toBe(beforeFailure);
+    expect(useDawStore.getState().transcriptInlineEditFailure).toBeNull();
   });
 
   it("closes on Escape without a call and puts focus back on the word", async () => {

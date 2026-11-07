@@ -15,6 +15,7 @@ import { useDawStore } from "../../../state/dawStore";
 import type { ScriptPaneHandle } from "../../../system/ScriptPane";
 import type { FixTextVia as AskedVia } from "../../../system/scriptGesture";
 import type { ScriptSpan } from "../../../system/scriptPieces";
+import { reportDetachedWordFailure } from "../../../transcript/detachedWordFailure";
 import { submitWordCorrection } from "../../../transcript/wordCorrection";
 import { errorMessage } from "../../../utils/apiError";
 import { useStableCallback } from "../../../utils/useStableCallback";
@@ -101,6 +102,13 @@ export function useScriptFixText(
   if (!enabled && wasEnabled.current && pinned !== null) setPinned(null);
   const enabledNow = useRef(enabled);
   enabledNow.current = enabled;
+  const mounted = useRef(false);
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const focusAfter = useRef<{ index: number; tries: number } | null>(null);
 
   const editing = useMemo<ScriptSpan | null>(() => {
@@ -167,10 +175,24 @@ export function useScriptFixText(
       if (!enabledNow.current) return FIX_OFF;
       // The words are still where the field opened on them.
       if (editing === null) return FIX_MOVED;
+      const { projectPath, projectEpoch } = useDawStore.getState();
+      const detachedFailure = Object.freeze({
+        projectPath,
+        trackId: pin.first.trackId,
+        sourceId: pin.first.sourceId,
+        wordIndex: pin.first.wordIndex,
+        word: Object.freeze({
+          text: original,
+          suppressed: false,
+          ignored: false,
+          audibility_locked: false,
+        }),
+        action: "fix" as const,
+      });
       let head: Awaited<ReturnType<typeof submitWordCorrection>>;
       try {
         head = await submitWordCorrection(
-          useDawStore.getState().projectPath,
+          projectPath,
           pin.first.trackId,
           pin.first.wordIndex,
           pin.last.wordIndex,
@@ -179,8 +201,18 @@ export function useScriptFixText(
           pin.first.sourceId,
         );
       } catch (reason) {
+        const current = useDawStore.getState();
+        if (
+          current.projectPath !== projectPath ||
+          current.projectEpoch !== projectEpoch
+        )
+          return errorMessage(reason);
         const message = errorMessage(reason);
-        say(`Text not fixed. ${message}`);
+        if (mounted.current) {
+          say(`Text not fixed. ${message}`);
+        } else {
+          reportDetachedWordFailure({ ...detachedFailure, failure: reason });
+        }
         return message;
       }
       // The toast carries Undo for the fix; Tab's own note then says only the jump.
