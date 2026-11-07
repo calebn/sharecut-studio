@@ -107,6 +107,7 @@ describe("ScriptPane reading position", () => {
       index: 30,
       offset: 0,
       fallbackTop: 600,
+      turns: SCRIPT_TURNS,
     });
   });
 

@@ -104,7 +104,14 @@ export type ScriptPaneHandle = {
 };
 
 export type ScriptPaneReadingPosition =
-  | { kind: "word"; index: number; offset: number; fallbackTop: number }
+  | {
+      kind: "word";
+      index: number;
+      offset: number;
+      fallbackTop: number;
+      /** Captured ordinals are valid only in this immutable transcript snapshot. */
+      turns?: readonly ScriptTurn[];
+    }
   | { kind: "scroll"; top: number };
 
 export type ScriptPaneReadingPositionBinding = {
@@ -478,10 +485,16 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
     const inside = useRef(false);
     const scrollIntent = useUserScrollIntent();
     const programmaticScrollTop = useRef<number | null>(null);
+    const readingBounds = useRef<Pick<DOMRect, "width" | "height"> | null>(
+      null,
+    );
     const readingPositionRef = useRef(readingPosition);
     useLayoutEffect(() => {
       readingPositionRef.current = readingPosition;
-      if (!readingPosition) programmaticScrollTop.current = null;
+      if (!readingPosition) {
+        programmaticScrollTop.current = null;
+        readingBounds.current = null;
+      }
     }, [readingPosition]);
     const findButton = useRef<HTMLButtonElement>(null);
     const layoutCache = useRef<Measured | null>(null);
@@ -1021,9 +1034,13 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       const body = bodyRef.current;
       const position = readingPositionRef.current?.getPosition();
       if (!body || !position) return;
+      readingBounds.current = body.getBoundingClientRect();
       let target =
         position.kind === "scroll" ? position.top : position.fallbackTop;
-      if (position.kind === "word") {
+      if (
+        position.kind === "word" &&
+        (!position.turns || position.turns === live.current.turns)
+      ) {
         const anchor = registry.current.get(position.index);
         if (anchor && body.contains(anchor)) {
           const paneTop = body.getBoundingClientRect().top;
@@ -1041,12 +1058,12 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
           : Math.max(0, target);
       if (next !== body.scrollTop) {
         body.scrollTop = next;
-        programmaticScrollTop.current = next;
+        programmaticScrollTop.current = body.scrollTop;
       }
     }, []);
     useLayoutEffect(() => {
       if (readingPosition?.restore) restoreReadingPosition();
-    }, [bodyShown, readingPosition, restoreReadingPosition]);
+    }, [bodyShown, turns, readingPosition, restoreReadingPosition]);
     useResizeObserver(
       bodyRef,
       restoreReadingPosition,
@@ -1067,6 +1084,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       const binding = readingPositionRef.current;
       if (!body || !binding || !body.isConnected) return;
       const bounds = body.getBoundingClientRect();
+      readingBounds.current = bounds;
       const stops = live.current.stops;
       let low = 0;
       let high = stops.length;
@@ -1089,6 +1107,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
           index: stop.start,
           offset: rect.top - bounds.top,
           fallbackTop: body.scrollTop,
+          turns: live.current.turns,
         });
         return;
       }
@@ -1398,15 +1417,27 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
             {...scrollIntent.handlers}
             onScroll={() => {
               const binding = readingPositionRef.current;
-              if (
-                binding &&
-                programmaticScrollTop.current === bodyRef.current?.scrollTop
-              ) {
-                programmaticScrollTop.current = null;
-                return;
+              const body = bodyRef.current;
+              const programmed = programmaticScrollTop.current;
+              programmaticScrollTop.current = null;
+              if (binding && body) {
+                const previous = readingBounds.current;
+                const bounds = body.getBoundingClientRect();
+                if (
+                  binding.restore &&
+                  previous &&
+                  (previous.width !== bounds.width ||
+                    previous.height !== bounds.height)
+                ) {
+                  restoreReadingPosition();
+                  return;
+                }
+                if (programmed === body.scrollTop) return;
               }
-              if (binding) captureReadingPosition();
-              if (scrollIntent.isUserScroll()) onUserScroll?.();
+              if (scrollIntent.isUserScroll()) {
+                if (binding) captureReadingPosition();
+                onUserScroll?.();
+              }
             }}
           >
             {turns.map((turn, turnIndex) => {
