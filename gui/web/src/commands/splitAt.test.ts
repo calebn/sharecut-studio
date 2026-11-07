@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
 import { activateDocumentScope } from "../document/authorityState";
-import { useDawStore } from "../state/dawStore";
+import { batchDawWrites, useDawStore } from "../state/dawStore";
 import {
   clipsSelection,
   selectedClipIdsOf,
@@ -132,6 +133,7 @@ describe("Split reply handling", () => {
       shellBreakpoint: "desktop",
       feedbackToast: null,
     });
+    applyDocumentSnapshot({ server_seq: 1, project: before });
   });
 
   it("selects the right-hand piece after Split", async () => {
@@ -420,21 +422,26 @@ describe("Split reply handling", () => {
       expect(toast()?.message).toBe("Split at 00:10.000");
     },
   );
-  it("respects an explicit clear even when selection was already empty", async () => {
-    useDawStore.getState().setSelection(null);
-    let finish!: (value: Record<string, unknown>) => void;
-    vi.mocked(submitQueuedDocumentCommand).mockReturnValue(
-      new Promise((resolve) => {
-        finish = resolve;
-      }),
-    );
-    const split = splitHere();
-    useDawStore.getState().setSelection(null);
-    useDawStore.setState({ project: afterHostOnly });
-    finish(reply({}));
-    await split;
-    expect(useDawStore.getState().selection).toBeNull();
-  });
+  it.each(["direct", "batch"] as const)(
+    "respects an explicit %s clear even when selection was already empty",
+    async (mode) => {
+      useDawStore.getState().setSelection(null);
+      let finish!: (value: Record<string, unknown>) => void;
+      vi.mocked(submitQueuedDocumentCommand).mockReturnValue(
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+      );
+      const split = splitHere();
+      const clear = () => useDawStore.getState().setSelection(null);
+      if (mode === "batch") batchDawWrites(clear);
+      else clear();
+      useDawStore.setState({ project: afterHostOnly });
+      finish(reply({}));
+      await split;
+      expect(useDawStore.getState().selection).toBeNull();
+    },
+  );
 
   it("suppresses a late refusal after switching the document", async () => {
     let reject!: (error: Error) => void;

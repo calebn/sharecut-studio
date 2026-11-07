@@ -501,7 +501,8 @@ pairs from the first successful boundary. The mutation follows those pieces
 through later boundaries in the same command. Studio selects their final IDs
 once the authoritative document displays them, including splits inside timing
 holes. Missing or invalid piece facts retain applied feedback but do not change
-selection. A new selection or document opening cancels the pending retarget;
+selection. A newer Split, an explicit local selection write (including an already-empty clear),
+or a new document opening cancels the pending retarget;
 failed recovery never turns a saved Split into a refusal or restarts recovery.
 
 Crash recovery can journal a saved command without its handler result. Such a

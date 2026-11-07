@@ -35,6 +35,15 @@ let recovery: {
   scope: DocumentScope;
   promise: Promise<ProjectView | null>;
 } | null = null;
+export function pendingDocumentRecovery(
+  scope: DocumentScope,
+): Promise<ProjectView | null> | null {
+  return recovery &&
+    isCurrentDocumentScope(scope) &&
+    isCurrentDocumentScope(recovery.scope)
+    ? recovery.promise
+    : null;
+}
 function show(project: ProjectView): ProjectView {
   const displayed = overlayDocumentDrafts(project);
   useDawStore.getState().setProject(displayed);

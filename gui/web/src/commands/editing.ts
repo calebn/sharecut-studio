@@ -7,7 +7,10 @@ import {
   splitAtTime,
 } from "../api";
 import type { SplitPiece } from "../api/documentEdits";
-import { redisplayDrafts } from "../document/applyDocumentUpdate";
+import {
+  pendingDocumentRecovery,
+  redisplayDrafts,
+} from "../document/applyDocumentUpdate";
 import {
   type DocumentScope,
   documentAuthority,
@@ -27,6 +30,7 @@ import {
   selectedClipIdsOf,
   selectedTrackIdsOf,
 } from "../state/selection";
+import { localSelectionWriteSignal } from "../state/selectionSlice";
 import {
   SOLO_OFF_ANNOUNCEMENT,
   SOLO_ON_ANNOUNCEMENT,
@@ -54,55 +58,56 @@ function canSuggestStructuralFor(s: DawState): boolean {
   );
 }
 
+let cancelPendingSplitSelection: (() => void) | null = null;
+
 function splitSelectionIntent(
   scope: DocumentScope,
   held: DawState["selection"],
 ) {
-  let phase:
-    | { kind: "reply" }
-    | {
-        kind: "display";
-        pieces: readonly SplitPiece[];
-        minimum: number | null;
-      }
-    | { kind: "done" } = { kind: "reply" };
+  cancelPendingSplitSelection?.();
+  let active = true;
   const signal = documentAuthority.abort.signal;
+  const localWrite = localSelectionWriteSignal(useDawStore.getState);
   const cancel = () => {
-    phase = { kind: "done" };
+    active = false;
     unsubscribe();
     signal.removeEventListener("abort", cancel);
-  };
-  const check = () => {
-    if (phase.kind !== "display") return;
-    if (
-      phase.minimum !== null &&
-      (documentAuthority.phase.kind !== "ready" ||
-        currentDocumentSeq() < phase.minimum)
-    )
-      return;
-    const { pieces } = phase;
-    cancel();
-    selectRightPieces(scope, held, pieces);
+    localWrite.removeEventListener("abort", cancel);
+    if (cancelPendingSplitSelection === cancel)
+      cancelPendingSplitSelection = null;
   };
   const unsubscribe = useDawStore.subscribe((now, previous) => {
     if (now.selection !== previous.selection || !isCurrentDocumentScope(scope))
       cancel();
-    else check();
   });
   signal.addEventListener("abort", cancel, { once: true });
+  localWrite.addEventListener("abort", cancel, { once: true });
+  cancelPendingSplitSelection = cancel;
   return {
     cancel,
     apply(pieces: readonly SplitPiece[]) {
-      if (phase.kind === "done") return;
-      phase = {
-        kind: "display",
-        pieces,
-        minimum:
-          documentAuthority.phase.kind === "recovering"
-            ? documentAuthority.phase.minimum
-            : null,
+      if (!active) return;
+      const minimum =
+        documentAuthority.phase.kind === "recovering"
+          ? documentAuthority.phase.minimum
+          : currentDocumentSeq();
+      const select = () => {
+        if (!active) return;
+        const ready =
+          isCurrentDocumentScope(scope) &&
+          !localWrite.aborted &&
+          documentAuthority.phase.kind === "ready" &&
+          currentDocumentSeq() >= minimum;
+        cancel();
+        if (ready) selectRightPieces(scope, held, pieces);
       };
-      check();
+      const recovery = pendingDocumentRecovery(scope);
+      if (recovery)
+        void recovery.then((project) => {
+          if (project) select();
+          else cancel();
+        }, cancel);
+      else select();
     },
   };
 }
@@ -178,6 +183,7 @@ async function runSplitAt(
     }
     return { status: "ok" };
   } catch (e) {
+    if (!isCurrentDocumentScope(scope)) return { status: "ok" };
     const code = e instanceof ApiError ? e.code : undefined;
     const reason =
       code === "no_clip_at_time"
