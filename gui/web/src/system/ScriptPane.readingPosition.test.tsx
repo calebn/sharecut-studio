@@ -59,24 +59,30 @@ function scriptGeometry(lineHeight = 20) {
   let currentLineHeight = lineHeight;
   let width = 200;
   let height = 200;
-  vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(200);
+  let wordHeight = 16;
+  let paneTop = 0;
+  vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(
+    () => height,
+  );
   vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(1200);
   vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
     function (this: Element) {
       if (this.classList.contains("sys-script-body"))
-        return new DOMRect(0, 0, width, height);
+        return new DOMRect(0, paneTop, width, height);
       const body = this.closest<HTMLElement>(".sys-script-body");
       const index = Number(this.getAttribute("data-stop"));
       return new DOMRect(
         0,
-        index * currentLineHeight - (body?.scrollTop ?? 0),
+        paneTop + index * currentLineHeight - (body?.scrollTop ?? 0),
         100,
-        16,
+        wordHeight,
       );
     },
   );
   return {
     setLineHeight: (next: number) => (currentLineHeight = next),
+    setWordHeight: (next: number) => (wordHeight = next),
+    setPaneTop: (next: number) => (paneTop = next),
     resize: (nextWidth: number, nextHeight: number) => {
       width = nextWidth;
       height = nextHeight;
@@ -634,14 +640,14 @@ describe("ScriptPane reading position", () => {
         value: fonts,
       });
       vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(
-        200,
+        226,
       );
       vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(
         286,
       );
       const rectOf = (element: Element) => {
         if (element.classList.contains("sys-script-body"))
-          return new DOMRect(0, 0, 300, 200);
+          return new DOMRect(0, 0, 300, 226);
         const index = Number(element.getAttribute("data-stop"));
         const reader = element.closest<HTMLElement>(".sys-script-body");
         return new DOMRect(
@@ -693,7 +699,10 @@ describe("ScriptPane reading position", () => {
         configurable: true,
         get: () => top,
         set: (value: number) => {
-          top = Math.max(0, Math.min(value, 60));
+          top = Math.max(
+            0,
+            Math.min(value, body.scrollHeight - body.clientHeight),
+          );
         },
       });
       document.elementFromPoint = (x, y) => {
@@ -752,6 +761,308 @@ describe("ScriptPane reading position", () => {
       });
       expect(onUserScroll).toHaveBeenCalledOnce();
       expect(body).not.toHaveAttribute("data-selecting");
+    },
+  );
+
+  it.each(["font", "resize"])(
+    "fits the native Tab anchor after height-only %s restoration without stealing a wheel anchor",
+    async (callback) => {
+      const user = userEvent.setup();
+      const geometry = scriptGeometry();
+      geometry.resize(200, 400);
+      geometry.setPaneTop(80);
+      stubResizeObserver();
+      stubNativeFocusScroll();
+      const fonts = new EventTarget();
+      Object.defineProperty(document, "fonts", {
+        configurable: true,
+        value: fonts,
+      });
+      vi.stubGlobal("innerHeight", 500);
+      const { body, binding, captured, rerender } = setup();
+      rerender(
+        <ScriptPane
+          turns={SCRIPT_TURNS}
+          readingPosition={binding}
+          following={false}
+          onFollowChange={vi.fn()}
+        />,
+      );
+      const word = body.querySelector<HTMLElement>('[data-stop="15"]');
+      if (!word) throw new Error("Expected remembered Tab word");
+      await act(async () => {
+        word.focus();
+      });
+      await act(async () => {
+        screen.getByRole("button", { name: "Follow the playhead" }).focus();
+      });
+      await user.tab();
+      expect(document.activeElement).toBe(word);
+      expect(captured()).toMatchObject({
+        kind: "word",
+        index: 15,
+        offset: 300,
+        fallbackTop: 0,
+      });
+      const restore = () => {
+        if (callback === "font") fonts.dispatchEvent(new Event("loadingdone"));
+        else for (const observer of FakeResizeObserver.all) observer.fire(body);
+      };
+      geometry.resize(200, 180);
+      vi.stubGlobal("innerHeight", 240);
+      act(restore);
+      expect.soft(body.scrollTop).toBe(156);
+      expect.soft(word.getBoundingClientRect().top).toBe(224);
+      expect.soft(word.getBoundingClientRect().bottom).toBe(240);
+      expect(document.activeElement).toBe(word);
+
+      vi.stubGlobal("innerHeight", 400);
+      act(restore);
+      expect.soft(body.scrollTop).toBe(136);
+      expect.soft(word.getBoundingClientRect().top).toBe(244);
+      expect.soft(word.getBoundingClientRect().bottom).toBe(260);
+
+      geometry.setWordHeight(32);
+      act(restore);
+      expect.soft(body.scrollTop).toBe(152);
+      expect.soft(word.getBoundingClientRect().bottom).toBe(260);
+      expect(document.activeElement).toBe(word);
+
+      geometry.setWordHeight(16);
+      body.scrollTop = 600;
+      fireEvent.wheel(body);
+      fireEvent.scroll(body);
+      expect(captured()).toMatchObject({ kind: "word", index: 30, offset: 0 });
+      geometry.resize(200, 120);
+      act(restore);
+      expect(body.scrollTop).toBe(600);
+      expect(document.activeElement).toBe(word);
+      expect(
+        body.querySelector('[data-stop="30"]')?.getBoundingClientRect().top,
+      ).toBe(80);
+    },
+  );
+
+  it.each(["start", "end"] as const)(
+    "yields to an accepted %s grip through reflow and releases ownership on every exit",
+    (edge) => {
+      vi.useFakeTimers({
+        toFake: ["requestAnimationFrame", "cancelAnimationFrame"],
+      });
+      stubResizeObserver();
+      const fonts = new EventTarget();
+      Object.defineProperty(document, "fonts", {
+        configurable: true,
+        value: fonts,
+      });
+      let addedHeight = 0;
+      vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(
+        200,
+      );
+      vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(
+        () => 1200 + addedHeight,
+      );
+      const rectOf = (element: Element): DOMRect => {
+        if (element.classList.contains("sys-script-body"))
+          return new DOMRect(0, 0, 200, 200);
+        const body = element.closest<HTMLElement>(".sys-script-body");
+        if (
+          element instanceof HTMLElement &&
+          element.classList.contains("sys-handle")
+        ) {
+          return new DOMRect(
+            Number.parseFloat(element.style.insetInlineStart) - 10,
+            Number.parseFloat(element.style.insetBlockStart) -
+              (body?.scrollTop ?? 0),
+            20,
+            16,
+          );
+        }
+        const index = Number(element.getAttribute("data-stop"));
+        return new DOMRect(
+          0,
+          index * 20 + (index >= 5 ? addedHeight : 0) - (body?.scrollTop ?? 0),
+          100,
+          16,
+        );
+      };
+      vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
+        function (this: Element) {
+          return rectOf(this);
+        },
+      );
+      vi.spyOn(HTMLElement.prototype, "getClientRects").mockImplementation(
+        function (this: HTMLElement) {
+          return [rectOf(this)] as unknown as DOMRectList;
+        },
+      );
+      let position: ScriptPaneReadingPosition | null = {
+        kind: "word",
+        index: 5,
+        offset: 0,
+        fallbackTop: 100,
+      };
+      const binding: ScriptPaneReadingPositionBinding = {
+        getPosition: () => position,
+        capture: (next) => {
+          position = next;
+        },
+        restore: true,
+      };
+      const onSelect = vi.fn();
+      const onSelectionEnd = vi.fn();
+      const onUserScroll = vi.fn();
+      function Host({
+        handles = true,
+        shown = true,
+      }: {
+        handles?: boolean;
+        shown?: boolean;
+      }) {
+        const [selection, setSelection] = useState<
+          ScriptPaneProps["selection"]
+        >({ kind: "words", anchor: 8, head: 14 });
+        return (
+          <ScriptPane
+            turns={SCRIPT_TURNS}
+            readingPosition={binding}
+            following={false}
+            handles={handles}
+            status={shown ? { kind: "ready" } : { kind: "loading" }}
+            selection={selection}
+            onSelect={(next) => {
+              onSelect(next);
+              setSelection(next);
+            }}
+            onSelectionEnd={onSelectionEnd}
+            onUserScroll={onUserScroll}
+          />
+        );
+      }
+      const view = render(<Host />);
+      const body =
+        view.container.querySelector<HTMLElement>(".sys-script-body");
+      if (!body) throw new Error("Expected script body");
+      let top = body.scrollTop;
+      Object.defineProperty(body, "scrollTop", {
+        configurable: true,
+        get: () => top,
+        set: (next: number) => {
+          top = Math.max(
+            0,
+            Math.min(next, body.scrollHeight - body.clientHeight),
+          );
+        },
+      });
+      const grip = () => {
+        const result = body.querySelector<HTMLElement>(`[data-edge="${edge}"]`);
+        if (!result) throw new Error("Expected visible grip");
+        return result;
+      };
+      const pointer = {
+        pointerId: 7,
+        pointerType: "touch",
+        isPrimary: true,
+        clientX: 50,
+      };
+      const grab = () => {
+        const handle = grip();
+        const capture = vi.fn();
+        handle.setPointerCapture = capture;
+        const rect = handle.getBoundingClientRect();
+        fireEvent.pointerDown(handle, {
+          ...pointer,
+          clientX: rect.left + rect.width / 2,
+          clientY: rect.top + rect.height / 2,
+        });
+        expect(capture).toHaveBeenCalledExactlyOnceWith(7);
+        return handle;
+      };
+      const restore = () => {
+        act(() => {
+          fonts.dispatchEvent(new Event("loadingdone"));
+          for (const observer of FakeResizeObserver.all) observer.fire(body);
+          vi.advanceTimersByTime(16);
+        });
+      };
+      const handle = grab();
+      fireEvent.pointerMove(handle, { ...pointer, clientY: 108 });
+      expect(onSelect).toHaveBeenCalledExactlyOnceWith(
+        edge === "start"
+          ? { kind: "words", anchor: 10, head: 14 }
+          : { kind: "words", anchor: 8, head: 10 },
+      );
+      addedHeight = 40;
+      restore();
+      expect.soft(body.scrollTop).toBe(100);
+      fireEvent.pointerMove(handle, { ...pointer, clientY: 128 });
+      expect
+        .soft(onSelect)
+        .toHaveBeenLastCalledWith(
+          edge === "start"
+            ? { kind: "words", anchor: 9, head: 14 }
+            : { kind: "words", anchor: 8, head: 9 },
+        );
+      expect(onSelect).toHaveBeenCalledTimes(2);
+      fireEvent.pointerUp(handle, { ...pointer, clientY: 128 });
+      expect(onSelectionEnd).not.toHaveBeenCalled();
+      expect(onUserScroll).not.toHaveBeenCalled();
+      addedHeight = 60;
+      restore();
+      expect.soft(body.scrollTop).toBe(120);
+
+      for (const exit of [
+        "cancel",
+        "lost",
+        "escape",
+        "removed",
+        "hidden",
+      ] as const) {
+        addedHeight = 0;
+        body.scrollTop = 100;
+        fireEvent.wheel(body);
+        fireEvent.scroll(body);
+        const held = grab();
+        addedHeight = 40;
+        restore();
+        expect.soft(body.scrollTop).toBe(100);
+        if (exit === "cancel") fireEvent.pointerCancel(held, pointer);
+        else if (exit === "lost") fireEvent.lostPointerCapture(held, pointer);
+        else if (exit === "escape") fireEvent.keyDown(held, { key: "Escape" });
+        else if (exit === "removed") {
+          view.rerender(<Host handles={false} />);
+          expect(body.querySelector(".sys-handle")).toBeNull();
+          view.rerender(<Host />);
+        } else {
+          view.rerender(<Host shown={false} />);
+          expect(view.container.querySelector(".sys-script-body")).toBeNull();
+          view.rerender(<Host />);
+          break;
+        }
+        addedHeight = 60;
+        restore();
+        expect.soft(body.scrollTop).toBe(120);
+      }
+      const restored =
+        view.container.querySelector<HTMLElement>(".sys-script-body");
+      if (!restored) throw new Error("Expected restored script body");
+      expect.soft(restored.scrollTop).toBe(100);
+      addedHeight = 60;
+      act(() => {
+        fonts.dispatchEvent(new Event("loadingdone"));
+      });
+      expect.soft(restored.scrollTop).toBe(120);
+      const lastGrip = restored.querySelector<HTMLElement>(
+        `[data-edge="${edge}"]`,
+      );
+      if (!lastGrip) throw new Error("Expected grip before retirement");
+      fireEvent.pointerDown(lastGrip, { ...pointer, clientY: 100 });
+      view.unmount();
+      const remounted = render(<Host />);
+      expect(
+        remounted.container.querySelector<HTMLElement>(".sys-script-body")
+          ?.scrollTop,
+      ).toBe(120);
     },
   );
 
