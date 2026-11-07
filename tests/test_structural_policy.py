@@ -588,3 +588,67 @@ def test_split_piece_projection_rejects_the_entire_invalid_selection(pieces):
         },
         ["host"],
     ) == {"split_outcome": {"kind": "split", "times": [5.0]}}
+
+
+@pytest.mark.parametrize("guest", [False, True])
+@pytest.mark.parametrize("retry", [False, True])
+def test_repeated_target_keeps_every_surviving_piece_without_changing_the_mutation(
+    minimal_project, dialogue_wav, guest, retry
+):
+    ws = _seed_dialogue_clips(minimal_project, dialogue_wav)
+    host = next(c for c in ws.project.clips if c.track_id == "host")
+    ws.project.timeline.clips.append(
+        host.model_copy(update={"id": "overlap-host", "timeline_start": 2.0})
+    )
+    ws.project.timeline.duration_sec = 12.0
+    save_project(ws.project)
+    svc = DocumentSyncService.open(minimal_project)
+    command = DocumentCommand(
+        type="SplitAtTime",
+        payload={"at_time": 5.0, "extra_at_times": [8.0], "track_ids": ["host", "host"]},
+        client_id="duplicate-target",
+        role="guest" if guest else "viewer",
+        client_seq=1,
+    )
+    caps = capabilities_for_role("editor") if guest else None
+    audience = "guest" if guest else "host"
+    reply = svc.submit(command, capabilities=caps, audience=audience)
+    if retry:
+        reply = svc.submit(command, capabilities=caps, audience=audience)
+    expected = [
+        next(
+            c
+            for c in svc.ws.project.clips
+            if c.track_id == "host" and c.timeline_start == 5.0 and c.source_start == source
+        )
+        for source in [5.0, 3.0]
+    ]
+    assert len(svc.ws.project.clips) == 7
+    assert all(c.timeline_end == 8.0 for c in expected)
+    assert reply["split_outcome"]["pieces"] == [
+        {"track_id": "host", "clip_id": c.id} for c in expected
+    ]
+
+
+def test_commenter_invalid_primary_time_is_rejected_before_saving_a_proposal(
+    minimal_project, dialogue_wav
+):
+    from pydantic import ValidationError
+
+    _seed_dialogue_clips(minimal_project, dialogue_wav)
+    svc = DocumentSyncService.open(minimal_project)
+    before = len(svc.ws.project.edit_decisions)
+    from podcast_mcp.services.document_sync.payloads import parse_document_command
+
+    with pytest.raises(ValidationError):
+        command = parse_document_command(
+            {
+                "type": "SplitAtTime",
+                "payload": {"at_time": -1.0, "track_ids": ["host"]},
+                "client_id": "invalid-proposal",
+                "role": "guest",
+                "client_seq": 1,
+            }
+        )
+        svc.submit(command, capabilities=capabilities_for_role("commenter"), audience="guest")
+    assert len(svc.ws.project.edit_decisions) == before

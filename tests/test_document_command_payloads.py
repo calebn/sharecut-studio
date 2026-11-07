@@ -129,3 +129,13 @@ def test_suggest_pending_edit_rejects_nan_and_inverted():
 
 def test_comment_body_max_constant():
     assert COMMENT_BODY_MAX == 8000
+
+
+@pytest.mark.parametrize("at", [-1.0, float("nan"), float("inf"), float("-inf")])
+def test_split_at_time_rejects_invalid_primary_time(at):
+    with pytest.raises(ValidationError):
+        validate_payload("SplitAtTime", {"at_time": at, "track_ids": ["host"]})
+
+
+def test_split_at_time_accepts_zero_primary_time():
+    assert validate_payload("SplitAtTime", {"at_time": 0.0})["at_time"] == 0.0
