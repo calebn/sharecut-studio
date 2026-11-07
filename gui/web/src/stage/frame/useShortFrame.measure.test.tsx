@@ -2,6 +2,11 @@ import { act, render } from "@testing-library/react";
 import { useRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../../state/dawStore";
+import { minimalProject } from "../../test/fixtures";
+import {
+  FakeResizeObserver,
+  stubResizeObserver,
+} from "../../test/resizeObserver";
 import { useShortFrame } from "./useShortFrame";
 
 /**
@@ -39,6 +44,25 @@ function EditFrame() {
   );
 }
 
+function Dock() {
+  const filled = useDawStore((s) => s.project != null);
+  return (
+    <div className="edit-dock">{filled ? <button type="button" /> : null}</div>
+  );
+}
+
+function DockFrame() {
+  const ref = useRef<HTMLDivElement>(null);
+  const folded = useShortFrame(ref);
+  return (
+    <div ref={ref} data-folded={folded ? "yes" : "no"}>
+      <div className="stage-frame-header" />
+      <div className="stage-frame-player" />
+      <Dock />
+    </div>
+  );
+}
+
 /** Record: no Player element, and a tab bar that stretches unless it is measured at its natural height. */
 function RecordFrame() {
   const ref = useRef<HTMLDivElement>(null);
@@ -58,6 +82,7 @@ function sizeOf(el: Element): number {
   if (el.classList.contains("stage-frame-header")) return 60;
   if (el.classList.contains("stage-frame-player")) return 80;
   if (el.classList.contains("phone-edit-bar")) return 60;
+  if (el.classList.contains("edit-dock")) return el.childElementCount ? 60 : 0;
   if (el.hasAttribute("data-folded")) return FRAME;
   const style = (el as HTMLElement).style.blockSize;
   if (style.includes("--stage-stacked-lanes-min")) return 200;
@@ -129,5 +154,26 @@ describe("useShortFrame", () => {
 
     act(() => useDawStore.getState().setEditSurface("lanes"));
     expect(frame().dataset.folded).toBe("no");
+  });
+});
+
+describe("useShortFrame dock height", () => {
+  beforeEach(() => {
+    stubResizeObserver();
+    useDawStore.setState({ stage: "edit", project: null });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("folds when the always-mounted dock fills after the project loads", () => {
+    const { container } = render(<DockFrame />);
+    const frame = container.firstElementChild as HTMLElement;
+    const dock = container.querySelector(".edit-dock") as HTMLElement;
+    expect(frame.dataset.folded).toBe("no");
+
+    act(() => useDawStore.setState({ project: minimalProject() }));
+    act(() => FakeResizeObserver.of(dock).fire(dock));
+    expect(frame.dataset.folded).toBe("yes");
   });
 });
