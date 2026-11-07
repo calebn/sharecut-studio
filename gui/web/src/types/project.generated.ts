@@ -260,6 +260,11 @@ export interface PipelineConfigPutRequest {
   reset?: boolean;
 }
 
+export interface PipelineRetryRequest {
+  path: string;
+  job_id: string;
+}
+
 export interface PipelineRunRequest {
   path: string;
   from_step?: string | null;

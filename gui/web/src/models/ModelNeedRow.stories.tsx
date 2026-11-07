@@ -34,7 +34,7 @@ const meta: Meta<typeof ModelNeedRowView> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "The in-place answer to a step that needs a model: capability, size, Get, a progress bar with Cancel, and Manage for the Models sheet. It sits inside a Job row or a Check row and is never a modal. In the Models sheet the same row is the 64 px list row: icon, capability, 'Not installed · 360 MB', and Get, a progress ring with cancel, or nothing once installed. The step resumes by itself when the download lands (`useModelResume`).",
+          "The in-place answer to a step that needs a model: capability, size, Get, a progress bar with Cancel, and Manage for the Models sheet. It sits inside a Job row or a Check row and is never a modal. In the Models sheet the same row is the 64 px list row: icon, capability, 'Not installed · 360 MB', and Get, a progress ring with cancel, or a More menu with Update and Remove for an out-of-date model and Remove for an installed model. The step resumes by itself when the download lands (`useModelResume`).",
       },
     },
   },

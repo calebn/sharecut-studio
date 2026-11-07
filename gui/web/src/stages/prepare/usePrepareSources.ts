@@ -47,6 +47,15 @@ type SplitRequest = {
   label: string;
 };
 
+type SplitOperation = {
+  request: SplitRequest;
+  state:
+    | { kind: "starting" }
+    | { kind: "cancelling" }
+    | { kind: "running"; jobId: string }
+    | { kind: "cancelling-job"; jobId: string };
+};
+
 function ownsSplit(request: SplitRequest) {
   const store = useDawStore.getState();
   return (
@@ -75,7 +84,8 @@ export function usePrepareSources(input: {
   const [splitting, setSplitting] = useState<Keyed<SplitProgress>>({});
   const [splitFailed, setSplitFailed] = useState<Keyed<string>>({});
   const [playingId, setPlayingId] = useState<string | null>(null);
-  const splitJobs = useRef(new Map<string, string>());
+  const splitOperations = useRef(new Map<string, SplitOperation>());
+  const retrySplits = useRef(new Map<string, SplitRequest>());
   const splitUndos = useRef(new Map<string, HistoryEntryId>());
   const [splitNeeds, setSplitNeeds] = useState<Keyed<ModelNeeded>>({});
   const pendingSplits = useRef(
@@ -129,6 +139,8 @@ export function usePrepareSources(input: {
                 pendingSplits.current.get(id) !== remaining
               )
                 continue;
+              pendingSplits.current.delete(id);
+              retrySplits.current.set(id, remaining.request);
               setSplitting((current) => without(current, id));
               setSplitFailed((current) => ({
                 ...current,
@@ -221,13 +233,43 @@ export function usePrepareSources(input: {
     setPlayingId(id);
   }, []);
 
+  const cancelSplit = useCallback(
+    (operation: SplitOperation, jobId: string) => {
+      void cancelPipelineRun(jobId).catch(() => {
+        const { request } = operation;
+        if (
+          !ownsSplit(request) ||
+          splitOperations.current.get(request.trackId) !== operation
+        )
+          return;
+        operation.state = { kind: "running", jobId };
+        useDawStore
+          .getState()
+          .announceStatus("Could not cancel splitting. Try again.", {
+            tone: "error",
+          });
+      });
+    },
+    [],
+  );
+
   const startSplit = useCallback(
     async (request: SplitRequest): Promise<boolean> => {
       if (!ownsSplit(request)) return false;
       const { projectPath: path, trackId, label, speakerCount } = request;
+      if (splitOperations.current.has(trackId)) return false;
       if (!latest.current.tracks.some((track) => track.id === trackId))
         return false;
       pendingSplits.current.delete(trackId);
+      retrySplits.current.delete(trackId);
+      const operation: SplitOperation = {
+        request,
+        state: { kind: "starting" },
+      };
+      splitOperations.current.set(trackId, operation);
+      const ownsOperation = () =>
+        ownsSplit(request) &&
+        splitOperations.current.get(trackId) === operation;
       setSplitFailed((current) => without(current, trackId));
       setSplitNeeds((current) => without(current, trackId));
       setSplitting((current) => ({
@@ -243,22 +285,26 @@ export function usePrepareSources(input: {
           names: null,
           enrollment: null,
         });
-        if (!ownsSplit(request)) return false;
         jobId = job.id;
-        splitJobs.current.set(trackId, job.id);
+        const cancelled = operation.state.kind === "cancelling";
+        operation.state = cancelled
+          ? { kind: "cancelling-job", jobId: job.id }
+          : { kind: "running", jobId: job.id };
+        if (cancelled) cancelSplit(operation, job.id);
+        if (!ownsOperation()) return false;
         const store = useDawStore.getState();
         store.expectJobResult(job.id);
         seedStudioJob(job);
         const done = await followJobToOk(job.id, "Split failed", {
           signal: scope.signal,
         });
-        if (!ownsSplit(request)) return false;
+        if (!ownsOperation()) return false;
         const result = parseSplitSpeakersResult(done.result);
         if (result == null) {
           throw new Error("The split finished without saying what it made");
         }
         await refreshDocumentProject(path);
-        if (!ownsSplit(request)) return false;
+        if (!ownsOperation()) return false;
         const after = useDawStore.getState();
         after.announceStatus(splitSpeakersDoneCopy(result, label), {
           undo: result.history_head_id,
@@ -271,7 +317,12 @@ export function usePrepareSources(input: {
         return true;
       } catch (error) {
         if (jobId !== null) useDawStore.getState().settleJobResult(jobId);
-        if (!ownsSplit(request)) return false;
+        if (!ownsOperation()) return false;
+        if (
+          operation.state.kind === "cancelling" ||
+          operation.state.kind === "cancelling-job"
+        )
+          return false;
         if (isAbortError(error) || error instanceof JobCancelledError)
           return false;
         if (isModelNeeded(error) && !resumed.current.has(trackId)) {
@@ -294,13 +345,18 @@ export function usePrepareSources(input: {
         return false;
       } finally {
         scope.dispose();
-        if (ownsSplit(request)) {
-          splitJobs.current.delete(trackId);
+        if (ownsOperation()) {
+          if (
+            operation.state.kind === "cancelling" ||
+            operation.state.kind === "cancelling-job"
+          )
+            resumed.current.delete(trackId);
+          splitOperations.current.delete(trackId);
           setSplitting((current) => without(current, trackId));
         }
       }
     },
-    [stopFor],
+    [stopFor, cancelSplit],
   );
   startSplitRef.current = startSplit;
 
@@ -314,39 +370,47 @@ export function usePrepareSources(input: {
     if (!track) return;
     const pending = pendingSplits.current.get(trackId);
     void startSplit(
-      pending?.request ?? {
-        projectPath: path,
-        projectEpoch: useDawStore.getState().projectEpoch,
-        trackId,
-        speakerCount: chosen[trackId] ?? MIN_VOICES,
-        label: track.speaker?.trim() || track.label || trackId,
-      },
+      pending?.request ??
+        retrySplits.current.get(trackId) ?? {
+          projectPath: path,
+          projectEpoch: useDawStore.getState().projectEpoch,
+          trackId,
+          speakerCount: chosen[trackId] ?? MIN_VOICES,
+          label: track.speaker?.trim() || track.label || trackId,
+        },
     );
   };
 
   const projectEpoch = useDawStore((s) => s.projectEpoch);
   useEffect(() => {
     const pending = pendingSplits.current;
+    const operations = splitOperations.current;
+    const retries = retrySplits.current;
     drainingSplits.current = null;
     setSplitNeeds({});
     setSplitting({});
     pendingSplits.current.clear();
-    splitJobs.current.clear();
+    splitOperations.current.clear();
+    retrySplits.current.clear();
     resumed.current.clear();
     clear();
     return () => {
       drainingSplits.current = null;
       pending.clear();
+      operations.clear();
+      retries.clear();
     };
   }, [projectPath, projectEpoch, clear]);
 
   // The split's own progress, from the job the Activity chip follows.
   const shownSplitting = Object.fromEntries(
     Object.entries(splitting).map(([id, progress]) => {
-      const job =
-        activityJob && splitJobs.current.get(id) === activityJob.id
-          ? activityJob
+      const state = splitOperations.current.get(id)?.state;
+      const jobId =
+        state?.kind === "running" || state?.kind === "cancelling-job"
+          ? state.jobId
           : null;
+      const job = activityJob?.id === jobId ? activityJob : null;
       const total = job?.total ?? 0;
       return [
         id,
@@ -392,9 +456,17 @@ export function usePrepareSources(input: {
     onCancelSplit: (id) => {
       pendingSplits.current.delete(id);
       setSplitNeeds((current) => without(current, id));
-      setSplitting((current) => without(current, id));
-      const jobId = splitJobs.current.get(id);
-      if (jobId) void cancelPipelineRun(jobId).catch(() => undefined);
+      retrySplits.current.delete(id);
+      const operation = splitOperations.current.get(id);
+      if (!operation) {
+        setSplitting((current) => without(current, id));
+      } else if (operation.state.kind === "starting") {
+        operation.state = { kind: "cancelling" };
+      } else if (operation.state.kind === "running") {
+        const { jobId } = operation.state;
+        operation.state = { kind: "cancelling-job", jobId };
+        cancelSplit(operation, jobId);
+      }
     },
     onRetry: (id) => {
       if (splitFailed[id] || pendingSplits.current.has(id)) splitTrack(id);

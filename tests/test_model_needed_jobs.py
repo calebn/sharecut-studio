@@ -922,6 +922,39 @@ def test_precheckpoint_model_failure_does_not_renew_revision_consent(
     assert _transcript_text(empty_project) == "new human correction"
 
 
+def test_bootstrap_worker_creation_failure_restores_slot_and_removal_admission(monkeypatch):
+    from podcast_mcp.services.jobs import JobManager
+
+    manager = JobManager()
+    real_start = threading.Thread.start
+    starts = 0
+
+    def fail_first_start(thread):
+        nonlocal starts
+        starts += 1
+        if starts == 1:
+            raise RuntimeError("controlled worker launch failure")
+        return real_start(thread)
+
+    monkeypatch.setattr(threading.Thread, "start", fail_first_start)
+    monkeypatch.setattr(
+        "podcast_mcp.services.jobs.manager.run_bootstrap",
+        lambda *args, **kwargs: {"ok": True, "results": {}, "ready": True},
+    )
+
+    with pytest.raises(RuntimeError, match="controlled worker launch failure"):
+        manager.start_bootstrap(components=["rnnoise"])
+
+    assert manager.get_bootstrap_job() is None
+    with manager.model_removal():
+        pass
+
+    successor, adopted = manager.start_bootstrap(components=["rnnoise"])
+    assert adopted is False
+    assert manager.wait(successor, timeout=5).status == "ok"
+    assert manager.get_bootstrap_job().id == successor.id
+
+
 def test_pipeline_worker_creation_failure_does_not_leave_a_queued_slot(
     empty_project, pipeline_worker, monkeypatch
 ):
