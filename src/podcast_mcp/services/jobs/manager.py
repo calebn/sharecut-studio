@@ -6,7 +6,8 @@ import logging
 import threading
 import time
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -50,6 +51,7 @@ class JobManager:
     def __init__(self) -> None:
         self._catalog = JobCatalog()
         self._lock = self._catalog._lock
+        self._model_removal_lock = threading.Lock()
 
     @property
     def _job(self) -> Job | None:
@@ -110,9 +112,10 @@ class JobManager:
     def adopt_agent_job(
         self, *, tool_id: str, label: str, claim: str, project_path: str = ""
     ) -> Job:
-        return self._catalog.adopt_agent_job(
-            tool_id=tool_id, label=label, claim=claim, project_path=project_path
-        )
+        with self._model_removal_lock:
+            return self._catalog.adopt_agent_job(
+                tool_id=tool_id, label=label, claim=claim, project_path=project_path
+            )
 
     def complete_agent_job(
         self, job: Job, *, status: str, message: str | None = None, error: str | None = None
@@ -301,6 +304,21 @@ class JobManager:
             job.message = "Cancel requested…"
             return job
 
+    @contextmanager
+    def model_removal(self) -> Iterator[None]:
+        """Exclude job admission through removal, without blocking status or cancellation."""
+        with self._model_removal_lock:
+            live = self.get_bootstrap_job()
+            if live is not None and live.status in LIVE_JOB_STATUSES:
+                raise BootstrapSlotBusyError(
+                    "A download is running; remove the model when it finishes",
+                    running=list(live.components),
+                    cancelling=live.cancel_requested,
+                )
+            if self.status()["running"]:
+                raise JobSlotBusyError("A job is running; remove the model when it finishes")
+            yield
+
     def start_bootstrap(
         self,
         *,
@@ -317,7 +335,7 @@ class JobManager:
         waits for it to end rather than joining a failure.
         """
         request = BootstrapRequest.of(components, whisper_model=whisper_model, force=force)
-        with self._catalog._lock:
+        with self._model_removal_lock, self._catalog._lock:
             current = self._catalog._bootstrap_job
             if current is not None and current.status in LIVE_JOB_STATUSES:
                 running = list(current.components)
@@ -447,7 +465,7 @@ class JobManager:
                 raise JobSlotBusyError(SLOT_BUSY)
         if validate is not None:
             validate()
-        with self._catalog._lock:
+        with self._model_removal_lock, self._catalog._lock:
             if self._catalog._job is not None and self._catalog._job.status in LIVE_JOB_STATUSES:
                 raise JobSlotBusyError(SLOT_BUSY)
             current = self._catalog._job

@@ -15,7 +15,7 @@ from podcast_mcp.gui.routes.deps import (
 )
 from podcast_mcp.gui.routes.sse_common import job_events_response
 from podcast_mcp.gui.schemas import BootstrapCancelRequest, BootstrapRunRequest
-from podcast_mcp.services.jobs import LIVE_JOB_STATUSES, BootstrapSlotBusyError, JobManager
+from podcast_mcp.services.jobs import BootstrapSlotBusyError, JobManager, JobSlotBusyError
 from podcast_mcp.services.pipeline import (
     component_status,
     resolve_whisper_model,
@@ -82,23 +82,21 @@ def bootstrap_remove_model(
     """Delete one downloaded model (one Whisper size). Refused while a download or job runs."""
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     mgr = _jobs(request)
-    live = mgr.get_bootstrap_job()
-    if live is not None and live.status in LIVE_JOB_STATUSES:
+    try:
+        with mgr.model_removal():
+            return uninstall_model(model_id, whisper_model)
+    except BootstrapSlotBusyError as exc:
         raise coded_http_error(
             409,
             {
-                "detail": "A download is running; remove the model when it finishes",
-                "running": list(live.components),
-                "cancelling": live.cancel_requested,
+                "detail": str(exc),
+                "running": exc.running,
+                "cancelling": exc.cancelling,
             },
-            code=BootstrapSlotBusyError.code,
-        )
-    if mgr.status()["running"]:
-        raise coded_http_error(
-            409, "A job is running; remove the model when it finishes", code="pipeline_busy"
-        )
-    try:
-        return uninstall_model(model_id, whisper_model)
+            code=exc.code,
+        ) from exc
+    except JobSlotBusyError as exc:
+        raise coded_http_error(409, str(exc), code="pipeline_busy") from exc
     except CodedValueError as exc:
         refused = exc.code == "model_not_removable"
         raise coded_exception_error(409 if refused else 400, exc, code="invalid_request") from exc
