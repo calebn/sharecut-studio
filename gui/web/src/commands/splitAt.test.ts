@@ -66,6 +66,7 @@ const beforeSkipped = projectOf({
 function reply(result: Record<string, unknown>, withHead = true) {
   return {
     ...(withHead ? { history_head_id: "h-split" } : {}),
+    split_outcome: { kind: "split", times: result.split_times ?? [10] },
     command: { payload: { result } },
   };
 }
@@ -73,7 +74,7 @@ function reply(result: Record<string, unknown>, withHead = true) {
 function guestProposal() {
   return {
     history_head_id: "h-split",
-    split_proposed: true,
+    split_outcome: { kind: "suggested", times: [10] },
     command: { type: "SplitAtTime" },
   };
 }
@@ -95,6 +96,7 @@ function serverSplits(
 
 describe("Split reply handling", () => {
   beforeEach(() => {
+    activateDocumentScope("/tmp/ep");
     clearRegisteredCommands();
     registerDawCommands();
     vi.mocked(submitQueuedDocumentCommand).mockReset();
@@ -161,6 +163,68 @@ describe("Split reply handling", () => {
     expect(toast()?.undo).toBe("h-split");
   });
 
+  it("uses the applied times from a sanitized Editor reply", async () => {
+    vi.mocked(submitQueuedDocumentCommand).mockImplementation(async () => {
+      useDawStore.setState({ project: afterHostOnly });
+      return {
+        history_head_id: "h-split",
+        split_outcome: { kind: "split", times: [10] },
+        command: { type: "SplitAtTime" },
+      };
+    });
+    await execute(
+      "edit.bladeCut",
+      { atTime: 30, extraAtTimes: [10] },
+      { skipWhen: true },
+    );
+    expect(toast()?.message).toBe("Split at 00:10.000");
+    expect(toast()?.undo).toBe("h-split");
+    expect(selected()).toEqual(["c2"]);
+  });
+
+  it("does not report a queued acknowledgement as a completed split", async () => {
+    vi.mocked(submitQueuedDocumentCommand).mockResolvedValue({
+      ok: true,
+      queued: true,
+      command_id: "queued-split",
+      client_seq: 1,
+    });
+    const held = useDawStore.getState().selection;
+    expect(await splitHere()).toEqual({ status: "ok" });
+    expect(toast()).toBeNull();
+    expect(useDawStore.getState().selection).toBe(held);
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["empty times", { kind: "split", times: [] }],
+    [
+      "non-finite time",
+      { kind: "split", times: [10, Number.POSITIVE_INFINITY] },
+    ],
+    ["negative time", { kind: "split", times: [10, -1] }],
+    ["non-numeric time", { kind: "split", times: [10, "11"] }],
+    ["unknown kind", { kind: "other", times: [10] }],
+  ])(
+    "does not invent completion for %s result facts",
+    async (_name, outcome) => {
+      vi.mocked(submitQueuedDocumentCommand).mockResolvedValue({
+        ok: true,
+        idempotent: true,
+        command: { type: "SplitAtTime" },
+        history_head_id: "h-split",
+        split_outcome: outcome,
+      });
+      const held = useDawStore.getState().selection;
+      expect(await splitHere()).toEqual({ status: "ok" });
+      expect(toast()?.message).toBe(
+        "Split result unavailable. Check the timeline.",
+      );
+      expect(toast()?.undo ?? null).toBeNull();
+      expect(useDawStore.getState().selection).toBe(held);
+    },
+  );
+
   it("says suggested when the server only proposed the split", async () => {
     vi.mocked(submitQueuedDocumentCommand).mockResolvedValue(guestProposal());
     await splitHere();
@@ -188,6 +252,7 @@ describe("Split reply handling", () => {
     const held = useDawStore.getState().selection;
     await splitHere();
     expect(useDawStore.getState().selection).toBe(held);
+    expect(toast()).toBeNull();
   });
 
   it("selects only the piece cut at the split time, not a new clip just after it", async () => {
