@@ -671,6 +671,46 @@ describe("BounceFlowProvider", () => {
       },
     );
 
+    it("replays the submitted fixed range after the range is cleared", async () => {
+      vi.mocked(followJobToOk)
+        .mockRejectedValueOnce(needed())
+        .mockResolvedValue(finished);
+      useDawStore.setState({ bounceRangeTarget: RANGE });
+      const { land } = mountNeeding();
+      act(() => flow.setChoices({ ...BOUNCE_DEFAULTS, includeMp3: true }));
+      act(() => flow.start());
+      await waitFor(() => expect(flow.needs?.id).toBe("rnnoise"));
+      expect(startBounceJob).toHaveBeenNthCalledWith(1, PATH, {
+        track_ids: null,
+        start_s: null,
+        end_s: null,
+        formats: ["wav", "mp3"],
+        exact_range: {
+          kind: "exact_range",
+          intervals: [{ start: 1, end: 2 }],
+          track_ids: ["a"],
+          clips: [],
+        } as unknown as ExactRangeTarget,
+      });
+
+      act(() => useDawStore.getState().setBounceRangeTarget(null));
+      land("rnnoise");
+      await waitFor(() => expect(flow.run.kind).toBe("done"));
+
+      expect(startBounceJob).toHaveBeenNthCalledWith(2, PATH, {
+        track_ids: null,
+        start_s: null,
+        end_s: null,
+        formats: ["wav", "mp3"],
+        exact_range: {
+          kind: "exact_range",
+          intervals: [{ start: 1, end: 2 }],
+          track_ids: ["a"],
+          clips: [],
+        } as unknown as ExactRangeTarget,
+      });
+    });
+
     it("keeps waiting while the model is still missing", async () => {
       vi.mocked(followJobToOk).mockRejectedValue(needed());
       mountNeeding();

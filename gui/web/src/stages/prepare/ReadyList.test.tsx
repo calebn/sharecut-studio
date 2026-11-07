@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import type { DownloadOutcome } from "../../models/types";
 import {
   modelStatus,
   registryRows,
@@ -187,8 +188,11 @@ describe("ReadyList", () => {
   it("arms the word timing re-time only from the word timing ask, not from the transcription ask", async () => {
     const user = userEvent.setup();
     const onAction = vi.fn();
-    const { rerender } = render(
+    const outcome = Promise.resolve<DownloadOutcome>({ kind: "ok" });
+    const download = vi.fn(() => outcome);
+    const { rerender } = renderWithModels(
       <ReadyList rows={ROWS.needsModel} onAction={onAction} />,
+      { status: modelStatus(registryRows()), download },
     );
     await user.click(
       screen.getByRole("button", { name: "Get the transcription model" }),
@@ -196,7 +200,15 @@ describe("ReadyList", () => {
     expect(onAction).not.toHaveBeenCalled();
     rerender(<ReadyList rows={ROWS.approximateTiming} onAction={onAction} />);
     await user.click(screen.getByRole("button", { name: "Get word timing" }));
-    expect(onAction).toHaveBeenCalledWith("transcribe", "get-word-timing");
+    expect(onAction).toHaveBeenCalledExactlyOnceWith(
+      "transcribe",
+      "get-word-timing",
+      outcome,
+    );
+    expect(download).toHaveBeenNthCalledWith(1, ["whisper"], {
+      whisperModel: "large-v3-turbo",
+    });
+    expect(download).toHaveBeenNthCalledWith(2, ["word-aligner"], undefined);
   });
 
   it("reads the running bar in words", () => {

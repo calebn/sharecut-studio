@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { BounceSection } from "../stages/deliver/BounceSection";
 import { BOUNCE_DEFAULTS } from "../stages/deliver/bounceLogic";
@@ -108,7 +109,7 @@ describe.each(["bounce", "export"] as const)("%s model-need focus", (kind) => {
           screen.getByRole("button", { name: "Elsewhere" }),
         );
       } else {
-        fireEvent.keyDown(document.body, { key: "Tab" });
+        await userEvent.tab();
       }
       view.rerender(tree(kind, api({ kind: "missing" })));
       await waitFor(() => expect(get()).toBeVisible());

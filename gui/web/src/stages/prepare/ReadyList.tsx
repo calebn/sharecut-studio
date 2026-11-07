@@ -1,5 +1,9 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { ModelNeedRow, type NeedTarget } from "../../models";
+import {
+  type DownloadOutcome,
+  ModelNeedRow,
+  type NeedTarget,
+} from "../../models";
 import type { SystemIconName } from "../../system/icons";
 import { StatusList } from "../../system/StatusList";
 import { StatusRow, type StatusRowState } from "../../system/StatusRow";
@@ -16,8 +20,6 @@ export type ReadyRowId =
   | "suggest";
 
 export type ReadyAction =
-  /** Get was pressed on the word timing ask; the words are re-timed when it lands. */
-  | "get-word-timing"
   | "try-again"
   | "hear"
   | "looks-right"
@@ -27,6 +29,14 @@ export type ReadyAction =
   /** Leave this row out of the next run only; nothing is saved. */
   | "skip"
   | "include";
+
+export type ReadyActionArgs =
+  | [row: ReadyRowId, action: ReadyAction]
+  | [
+      row: ReadyRowId,
+      action: "get-word-timing",
+      outcome: Promise<DownloadOutcome>,
+    ];
 
 type ReadyBody =
   | {
@@ -60,7 +70,7 @@ export type ReadyRowData = {
 
 type ReadyListProps = {
   rows: readonly ReadyRowData[];
-  onAction: (row: ReadyRowId, action: ReadyAction) => void;
+  onAction: (...args: ReadyActionArgs) => void;
 };
 
 function defaultExpanded(row: ReadyRowData): boolean {
@@ -185,7 +195,7 @@ export function ReadyList({ rows, onAction }: ReadyListProps) {
                 model={row.model}
                 onGet={
                   modelGetAction
-                    ? () => onAction(row.id, modelGetAction)
+                    ? (outcome) => onAction(row.id, modelGetAction, outcome)
                     : undefined
                 }
               />

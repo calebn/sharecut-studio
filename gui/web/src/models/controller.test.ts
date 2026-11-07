@@ -143,6 +143,29 @@ describe("overlay", () => {
     ]);
   });
 
+  it("attributes queued and downloading Whisper work to its size", () => {
+    const fast = job({ whisper_model: "tiny.en" });
+    expect(overlay(status(), fast, {})[0]!.state).toEqual({ kind: "missing" });
+    expect(overlay(status(), fast, {}, "tiny.en")[0]!.state).toEqual({
+      kind: "queued",
+    });
+    const downloading = job({
+      whisper_model: "tiny.en",
+      download: { component: "whisper", bytes: 5, total: 10 },
+    });
+    expect(overlay(status(), downloading, {})[0]!.state).toEqual({
+      kind: "missing",
+    });
+    expect(overlay(status(), downloading, {}, "tiny.en")[0]!.state).toEqual({
+      kind: "downloading",
+      bytes: 5,
+      total: 10,
+    });
+    expect(overlay(status(), downloading, {})[1]!.state).toEqual({
+      kind: "queued",
+    });
+  });
+
   it("shows the rows Get was pressed on as queued before the server answers", () => {
     const views = overlay(status(), null, {}, undefined, ["rnnoise"]);
     expect(views.find((v) => v.id === "rnnoise")!.state).toEqual({

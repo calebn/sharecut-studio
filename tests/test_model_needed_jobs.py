@@ -379,7 +379,6 @@ def test_an_agent_job_failing_with_a_model_refusal_is_plain() -> None:
 
 @pytest.fixture
 def empty_project(tmp_path: Path) -> Path:
-    """Create a real project with no media dependency and an empty transcript."""
     project = EpisodeProject.create("retry-contract", str(tmp_path))
     project.ensure_dirs()
     project.transcript_data.per_track = [
@@ -411,7 +410,6 @@ def _transcript_text(path: Path) -> str:
 
 
 def test_retry_replays_captured_options_without_exposing_them(empty_project, pipeline_worker):
-    """A staged-config change after admission cannot rewrite the accepted run."""
     manager, runner_calls, entered = pipeline_worker
     supplied = {
         "transcribe": {"overwrite": True, "overwrite_edited": True},
@@ -438,6 +436,10 @@ def test_retry_replays_captured_options_without_exposing_them(empty_project, pip
     successor = manager.retry_pipeline(Path(empty_project), original.id)
     _wait_terminal(manager, successor)
     assert successor.status == "ok", successor.snapshot()
+    assert successor.snapshot()["retry_of"] == original.id
+    from podcast_mcp.services.jobs import GUEST_PIPELINE_KINDS
+
+    assert "retry_of" not in guest_job_view(successor, empty_project, GUEST_PIPELINE_KINDS)
     assert successor.project_path == original.project_path
     assert runner_calls[0]["options"] == runner_calls[1]["options"]
     assert runner_calls[1]["options"]["from_step"] == "transcribe_tracks"
@@ -515,8 +517,6 @@ def test_retry_rejects_foreign_saved_transcript_change_without_overwriting(
             editor.project.transcripts[0].words[0].text = "hand corrected"
             editor.checkpoint()
             editor.save_merged(history_label="human correction")
-        # This real merge accepts the foreign correction into the worker workspace
-        # before the model failure, so plain file-revision comparison cannot catch it.
         persist()
 
     _FakeRunner.before_first_failure = accept_hand_edit
@@ -561,7 +561,7 @@ def test_concurrent_retry_requests_publish_one_successor(empty_project, pipeline
         try:
             barrier.wait(timeout=5)
             results.append(manager.retry_pipeline(Path(empty_project), original.id))
-        except BaseException as exc:  # preserve thread failures for the assertion below
+        except BaseException as exc:
             errors.append(exc)
 
     threads = [threading.Thread(target=retry), threading.Thread(target=retry)]
@@ -593,7 +593,6 @@ def test_busy_refusal_does_not_consume_original_retry(empty_project, pipeline_wo
         manager.retry_pipeline(Path(empty_project), original.id)
     assert getattr(busy.value, "code", None) == "job_running"
 
-    # Once the occupied slot is released, the same original remains eligible.
     release_blocker.set()
     _wait_terminal(manager, blocker)
     successor = manager.retry_pipeline(Path(empty_project), original.id)
@@ -636,7 +635,6 @@ def test_retry_requires_model_needed_terminal_failure(empty_project, pipeline_wo
 
 @pytest.fixture
 def pipeline_worker(monkeypatch):
-    """Keep manager/service/workspace real; replace only expensive runner/model boundaries."""
 
     monkeypatch.setattr("podcast_mcp.services.pipeline.service.PipelineRunner", _FakeRunner)
     monkeypatch.setattr(

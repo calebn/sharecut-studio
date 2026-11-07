@@ -21,6 +21,7 @@ import {
   renderWithLanding,
 } from "../../test/renderWithModels";
 import type { PipelineJobSnapshot } from "../../types/pipeline";
+import { ApiError, type ModelNeeded } from "../../utils/apiError";
 import { JobModelBanner } from "./JobModelBanner";
 
 const runPointerCommand = vi.hoisted(() => vi.fn());
@@ -396,5 +397,147 @@ describe("JobModelBanner", () => {
     );
     expect(retryPipelineJob).toHaveBeenCalledTimes(2);
     expect(startPipelineRun).not.toHaveBeenCalled();
+  });
+  it("keeps the original retained request while another missing model is downloaded", async () => {
+    const aligner: ModelNeeded = {
+      id: "word-aligner",
+      variant: null,
+      label: "Word aligner",
+      purpose: "word timing",
+      size: "~360 MB",
+      sizeBytes: null,
+      state: "missing",
+    };
+    vi.mocked(retryPipelineJob).mockRejectedValueOnce(
+      new ApiError(
+        "Word aligner is not downloaded.",
+        "model_needed",
+        409,
+        aligner,
+      ),
+    );
+    const { land, api } = mount();
+    fail(failedJob({ kind: "pipeline" }));
+    land("rnnoise");
+    const get = await screen.findByRole("button", { name: "Get word timing" });
+    expect(retryPipelineJob).toHaveBeenCalledTimes(1);
+    await userEvent.click(get);
+    expect(api.download).toHaveBeenLastCalledWith(["word-aligner"], undefined);
+    land("word-aligner");
+    await waitFor(() => expect(retryPipelineJob).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(retryPipelineJob).mock.calls).toEqual([
+      ["/tmp/p.json", "job-1"],
+      ["/tmp/p.json", "job-1"],
+    ]);
+    expect(startPipelineRun).not.toHaveBeenCalled();
+  });
+
+  it("bounds a repeated model refusal during retained admission", async () => {
+    const noise: ModelNeeded = {
+      id: "rnnoise",
+      variant: null,
+      label: "Noise reduction (RNNoise)",
+      purpose: "noise reduction",
+      size: "~0.3 MB",
+      sizeBytes: null,
+      state: "missing",
+    };
+    vi.mocked(retryPipelineJob).mockRejectedValueOnce(
+      new ApiError(
+        "Noise reduction is not downloaded.",
+        "model_needed",
+        409,
+        noise,
+      ),
+    );
+    const { land } = mount();
+    fail(failedJob({ kind: "pipeline" }));
+    land("rnnoise");
+    await waitFor(() => expect(retryPipelineJob).toHaveBeenCalledTimes(1));
+    expect(
+      screen.queryByRole("button", { name: "Get noise reduction" }),
+    ).toBeNull();
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Noise reduction (RNNoise) is not downloaded.",
+    );
+    expect(retryPipelineJob).toHaveBeenCalledTimes(1);
+  });
+  it.each([false, true])(
+    "bounds a successor discovered before the retry reply, with intervening activity %s",
+    async (intervening) => {
+      let reply!: (job: PipelineJobSnapshot) => void;
+      vi.mocked(retryPipelineJob).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            reply = resolve;
+          }),
+      );
+      const { requests } = mountReal();
+      await act(async () => requests[0]!.resolve(modelStatus(registryRows())));
+      fail(failedJob({ kind: "pipeline" }));
+      await act(async () => requests[1]!.resolve(installedNoise()));
+      await waitFor(() => expect(retryPipelineJob).toHaveBeenCalledTimes(1));
+      if (intervening)
+        fail(
+          failedJob({
+            id: "unrelated",
+            kind: "agent",
+            status: "running",
+            error_code: null,
+            error_model: null,
+          }),
+        );
+      const successor = {
+        ...failedJob({ id: "retry", kind: "pipeline" }),
+        retry_of: "job-1",
+      };
+      fail(successor);
+      if (requests[2])
+        await act(async () => requests[2]!.resolve(installedNoise()));
+      await act(async () => reply(successor));
+      expect(retryPipelineJob).toHaveBeenCalledTimes(1);
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "Noise reduction (RNNoise) is not downloaded.",
+      );
+      expect(screen.queryByText("Needs noise reduction")).toBeNull();
+    },
+  );
+
+  it("retries a temporarily busy retained admission only after Try again", async () => {
+    vi.mocked(retryPipelineJob).mockRejectedValueOnce(
+      new ApiError("Another job is running.", "pipeline_busy", 409),
+    );
+    const { land } = mount();
+    fail(failedJob({ kind: "pipeline" }));
+    land("rnnoise");
+    const retry = await screen.findByRole("button", {
+      name: "Resume the stopped run",
+    });
+    expect(retryPipelineJob).toHaveBeenCalledTimes(1);
+    await userEvent.click(retry);
+    await waitFor(() => expect(retryPipelineJob).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(retryPipelineJob).mock.calls).toEqual([
+      ["/tmp/p.json", "job-1"],
+      ["/tmp/p.json", "job-1"],
+    ]);
+  });
+  it("keeps successor correlation after an uncertain transport failure", async () => {
+    vi.mocked(retryPipelineJob).mockRejectedValueOnce(
+      new Error("Connection lost."),
+    );
+    const { land } = mount();
+    fail(failedJob({ kind: "pipeline" }));
+    land("rnnoise");
+    await screen.findByRole("button", { name: "Resume the stopped run" });
+    fail({
+      ...failedJob({ id: "accepted-after-disconnect", kind: "pipeline" }),
+      retry_of: "job-1",
+    });
+    await act(async () => undefined);
+    expect(retryPipelineJob).toHaveBeenCalledTimes(1);
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Noise reduction (RNNoise) is not downloaded.",
+    );
+    expect(screen.queryByText("Needs noise reduction")).toBeNull();
   });
 });

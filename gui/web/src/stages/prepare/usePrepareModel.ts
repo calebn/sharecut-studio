@@ -35,7 +35,7 @@ import {
   trackLabel,
   transcriptIndex,
 } from "./prepareMappers";
-import type { ReadyAction, ReadyRowId } from "./ReadyList";
+import type { ReadyActionArgs, ReadyRowId } from "./ReadyList";
 import {
   readSoundScanStart,
   SOUND_SCAN_PATH,
@@ -281,7 +281,7 @@ export function usePrepareModel(): PrepareModel {
     void run.run("run", false, undefined, skipped);
   };
 
-  const onRowAction = (row: ReadyRowId, action: ReadyAction) => {
+  const onRowAction = (...[row, action, outcome]: ReadyActionArgs) => {
     switch (action) {
       case "skip":
       case "include":
@@ -293,7 +293,8 @@ export function usePrepareModel(): PrepareModel {
         });
         break;
       case "get-word-timing":
-        if (run.approximateTiming) run.awaitAligner(run.approximateTiming);
+        if (run.approximateTiming)
+          run.awaitAligner(run.approximateTiming, outcome);
         break;
       case "try-again":
         run.tryAgain();

@@ -90,6 +90,25 @@ function mountHomeModels(refusal?: {
 
 describe("App on Home: Models sheet", () => {
   beforeEach(() => {
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        callback: (
+          entries: { isIntersecting: boolean; intersectionRatio: number }[],
+        ) => void;
+        constructor(
+          callback: (
+            entries: { isIntersecting: boolean; intersectionRatio: number }[],
+          ) => void,
+        ) {
+          this.callback = callback;
+        }
+        observe() {
+          this.callback([{ isIntersecting: true, intersectionRatio: 1 }]);
+        }
+        disconnect() {}
+      },
+    );
     resetFeaturesCache();
     window.history.pushState({}, "", "/");
     useDawStore.getState().setModelsSheetOpen(false);
@@ -153,6 +172,11 @@ describe("App on Home: Models sheet", () => {
       await waitFor(() =>
         expect(useDawStore.getState().statusAnnouncement).toBe(feedback),
       );
+      expect(
+        within(
+          screen.getByRole("region", { name: "Status messages" }),
+        ).getByText(feedback),
+      ).toBeVisible();
       expect(
         screen.queryByRole("dialog", { name: "Remove Noise reduction?" }),
       ).toBeNull();

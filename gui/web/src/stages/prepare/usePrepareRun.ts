@@ -6,6 +6,7 @@ import {
 } from "../../api";
 import type { PipelineWorkingSet } from "../../hooks/usePipelineWorkingSet";
 import {
+  type DownloadOutcome,
   type NeedTarget,
   rowInstalled,
   useModelResume,
@@ -81,11 +82,29 @@ type PrepareRunInput = {
 };
 
 type RunRequest = {
+  projectPath: string;
+  projectEpoch: number;
   mode: RunMode;
-  overwriteEdited: boolean;
-  fromStep?: string;
-  skipped?: ReadonlySet<ReadyRowId>;
+  options: ReturnType<typeof runOptions>;
+  consent: {
+    edited: string[];
+    mediaKey: ReturnType<typeof currentMediaKey>;
+  } | null;
 };
+
+function retainRun(request: RunRequest): RunRequest {
+  return { ...request, options: { ...request.options, useWorkingSet: false } };
+}
+
+function ownsRequest(
+  request: Pick<RunRequest, "projectPath" | "projectEpoch">,
+) {
+  const store = useDawStore.getState();
+  return (
+    store.projectPath === request.projectPath &&
+    store.projectEpoch === request.projectEpoch
+  );
+}
 
 type KeepFixes = {
   mode: Exclude<RunMode, "run">;
@@ -107,10 +126,11 @@ export function usePrepareRun(input: PrepareRunInput) {
   const [keepFixes, setKeepFixes] = useState<KeepFixes | null>(null);
   const latest = useRef(input);
   latest.current = input;
-  const startingRef = useRef(false);
+  const activeStart = useRef<RunRequest | null>(null);
   /** Mirrors `waiting`, so a second refusal says so instead of doing nothing. */
   const waitingRef = useRef(false);
-  const waitSkipRef = useRef<ReadonlySet<ReadyRowId> | undefined>(undefined);
+  const waitingRequest = useRef<RunRequest | null>(null);
+  const confirmation = useRef<RunRequest | null>(null);
   /** The request a missing model stopped, replayed once the model is in. */
   const refusedRef = useRef<RunRequest | null>(null);
   /** The request that failed to start, replayed by Try again. */
@@ -118,74 +138,127 @@ export function usePrepareRun(input: PrepareRunInput) {
   /** The model the stopped run already waited for once, so a second refusal says so instead of looping. */
   const retried = useRef<string | null>(null);
   const replay = useRef<(model: NeedTarget) => void>(() => undefined);
-  const { stop: need, stopFor } = useModelResume((model) =>
-    replay.current(model),
-  );
+  const {
+    stop: need,
+    stopFor,
+    clear,
+  } = useModelResume((model) => replay.current(model));
 
   /**
    * The slot is taken, so nothing started. A plain run waits and goes on when
    * the slot frees (the row shows it); other modes say so, so none is silent.
    */
-  const busyRefused = useCallback(
-    (mode: RunMode, skipped?: ReadonlySet<ReadyRowId>) => {
-      if (mode === "run" && !waitingRef.current) {
-        waitingRef.current = true;
-        waitSkipRef.current = skipped;
-        setWaiting(true);
-        return;
-      }
-      useDawStore
-        .getState()
-        .announceStatus(
-          mode === "run"
-            ? "Another job is running. Processing starts when it finishes."
-            : "Another job is running. Try again when it finishes.",
-          { tone: "error" },
-        );
-    },
-    [],
-  );
+  const busyRefused = useCallback((request: RunRequest) => {
+    const { mode } = request;
+    if (mode === "run" && !waitingRef.current) {
+      waitingRef.current = true;
+      waitingRequest.current = retainRun(request);
+      setWaiting(true);
+      return;
+    }
+    useDawStore
+      .getState()
+      .announceStatus(
+        mode === "run"
+          ? "Another job is running. Processing starts when it finishes."
+          : "Another job is running. Try again when it finishes.",
+        { tone: "error" },
+      );
+  }, []);
 
-  const start = useCallback(
+  const capture = useCallback(
     async (
       mode: RunMode,
       overwriteEdited = false,
       fromStep?: string,
       skipped?: ReadonlySet<ReadyRowId>,
-    ) => {
-      if (startingRef.current) return;
+    ): Promise<RunRequest | null> => {
+      const { projectPath, workingSet } = latest.current;
+      const { projectEpoch } = useDawStore.getState();
+      const selection = skipped ? new Set(skipped) : undefined;
+      const cfg = workingSet.cfg
+        ? structuredClone(workingSet.cfg)
+        : await workingSet.fetchFresh();
+      if (!cfg) throw new Error("Could not read the pipeline settings.");
+      const request: RunRequest = {
+        projectPath,
+        projectEpoch,
+        mode,
+        options: structuredClone(
+          runOptions(cfg, mode, overwriteEdited, fromStep, selection),
+        ),
+        consent: null,
+      };
+      return ownsRequest(request) ? request : null;
+    },
+    [],
+  );
+
+  const offerReplace = useCallback((request: RunRequest, edited: string[]) => {
+    if (request.mode === "run" || !ownsRequest(request)) return;
+    confirmation.current = {
+      ...request,
+      options: { ...request.options, overwriteEdited: true },
+      consent: { edited: [...edited].sort(), mediaKey: currentMediaKey() },
+    };
+    setKeepFixes({
+      mode: request.mode,
+      names: edited.map(latest.current.nameOf),
+    });
+  }, []);
+
+  const execute = useCallback(
+    async (request: RunRequest) => {
+      if (activeStart.current || !ownsRequest(request)) return;
       const store = useDawStore.getState();
       if (
         isPipelineSlotBusy(store.pipelineJob) ||
         isPipelineSlotBusy(store.activityJob)
       ) {
-        busyRefused(mode, skipped);
+        busyRefused(request);
         return;
       }
-      startingRef.current = true;
+      const operation = request;
+      activeStart.current = operation;
+      const isCurrent = () =>
+        activeStart.current === operation && ownsRequest(operation);
       setStarting(true);
       setStartError(null);
       try {
-        const { workingSet } = latest.current;
-        const cfg = workingSet.cfg ?? (await workingSet.fetchFresh());
-        if (!cfg) throw new Error("Could not read the pipeline settings.");
+        if (request.options.overwriteEdited) {
+          const vocabulary = await loadTranscriptVocabulary(
+            request.projectPath,
+          );
+          if (!isCurrent()) return;
+          if (!vocabulary.edited_tracks) {
+            throw new Error("Could not tell which tracks have hand fixes.");
+          }
+          const edited = [...vocabulary.edited_tracks].sort();
+          const mediaKey = currentMediaKey();
+          if (
+            (request.consent === null && edited.length > 0) ||
+            (request.consent &&
+              (request.consent.mediaKey !== mediaKey ||
+                JSON.stringify(request.consent.edited) !==
+                  JSON.stringify(edited)))
+          ) {
+            offerReplace(request, vocabulary.edited_tracks);
+            return;
+          }
+          request = { ...request, consent: { edited, mediaKey } };
+        }
         let job: PipelineJobSnapshot;
         const keyAtRequest = currentMediaKey();
-        const options = runOptions(
-          cfg,
-          mode,
-          overwriteEdited,
-          fromStep,
-          skipped,
-        );
+        const { options } = request;
         try {
-          job = await startPipelineRun(latest.current.projectPath, options);
+          job = await startPipelineRun(request.projectPath, options);
         } catch (error) {
+          if (!isCurrent()) return;
           if (
             isModelNeeded(error) &&
             retried.current !== modelKey(error.model)
           ) {
-            refusedRef.current = { mode, overwriteEdited, fromStep, skipped };
+            refusedRef.current = { ...retainRun(request), consent: null };
             stopFor(error.model);
             return;
           }
@@ -197,22 +270,23 @@ export function usePrepareRun(input: PrepareRunInput) {
         }
         if (runIncludesTranscribe({ fromStep: options.fromStep }))
           recordJobMedia(job.id, keyAtRequest);
+        if (!isCurrent()) return;
         retried.current = null;
         refusedRef.current = null;
         failedRef.current = null;
         waitingRef.current = false;
+        waitingRequest.current = null;
         setWaiting(false);
-        if (useDawStore.getState().projectPath === latest.current.projectPath) {
-          useDawStore.getState().setPipelineJob(job);
-        }
+        useDawStore.getState().setPipelineJob(job);
       } catch (error) {
+        if (!isCurrent()) return;
         const code = (error as { code?: string | null }).code;
         if (code === BUSY_CODE) {
-          busyRefused(mode, skipped);
+          busyRefused(request);
         } else {
           waitingRef.current = false;
           setWaiting(false);
-          failedRef.current = { mode, overwriteEdited, fromStep, skipped };
+          failedRef.current = retainRun(request);
           setStartError(errorMessage(error));
           useDawStore
             .getState()
@@ -221,11 +295,34 @@ export function usePrepareRun(input: PrepareRunInput) {
             });
         }
       } finally {
-        startingRef.current = false;
-        setStarting(false);
+        if (activeStart.current === operation) {
+          activeStart.current = null;
+          setStarting(false);
+        }
       }
     },
-    [busyRefused, stopFor],
+    [busyRefused, offerReplace, stopFor],
+  );
+
+  const start = useCallback(
+    async (
+      mode: RunMode,
+      overwriteEdited = false,
+      fromStep?: string,
+      skipped?: ReadonlySet<ReadyRowId>,
+    ) => {
+      const scope = {
+        projectPath: latest.current.projectPath,
+        projectEpoch: useDawStore.getState().projectEpoch,
+      };
+      try {
+        const request = await capture(mode, overwriteEdited, fromStep, skipped);
+        if (request) await execute(request);
+      } catch (error) {
+        if (ownsRequest(scope)) setStartError(errorMessage(error));
+      }
+    },
+    [capture, execute],
   );
 
   // Import is done when the busy flag drops with different audio on the
@@ -255,10 +352,10 @@ export function usePrepareRun(input: PrepareRunInput) {
       isPipelineSlotBusy(s.pipelineJob) || isPipelineSlotBusy(s.activityJob),
   );
   useEffect(() => {
-    if (waiting && !slotBusy && canRun) {
-      void start("run", false, undefined, waitSkipRef.current);
+    if (waiting && !slotBusy && canRun && waitingRequest.current) {
+      void execute(waitingRequest.current);
     }
-  }, [waiting, slotBusy, canRun, start]);
+  }, [waiting, slotBusy, canRun, execute]);
 
   // A failed start is old news once any job holds the slot.
   useEffect(() => {
@@ -276,43 +373,61 @@ export function usePrepareRun(input: PrepareRunInput) {
   replay.current = (model) => {
     const refused = refusedRef.current;
     refusedRef.current = null;
+    if (!refused || !ownsRequest(refused)) return;
     retried.current = modelKey(model);
-    void start(
-      refused?.mode ?? "run",
-      refused?.overwriteEdited ?? false,
-      refused?.fromStep,
-      refused?.skipped,
-    );
+    void execute(refused);
   };
+
+  const confirmRequest = useCallback(
+    async (request: RunRequest, isCurrent: () => boolean) => {
+      if (request.mode === "run" || !isCurrent()) return;
+      try {
+        const edited =
+          (await loadTranscriptVocabulary(request.projectPath)).edited_tracks ??
+          [];
+        if (!isCurrent()) return;
+        if (edited.length === 0) {
+          if (request.mode === "update") {
+            useDawStore
+              .getState()
+              .announceStatus("Could not tell which tracks have hand fixes.", {
+                tone: "error",
+              });
+            return;
+          }
+          await execute(request);
+          return;
+        }
+        offerReplace(request, edited);
+      } catch (error) {
+        if (!isCurrent()) return;
+        useDawStore.getState().announceStatus(errorMessage(error), {
+          tone: "error",
+        });
+      }
+    },
+    [execute, offerReplace],
+  );
 
   /** Run from the transcribe step; ask first when hand fixes would be replaced. */
   const askToReplace = useCallback(
     async (mode: Exclude<RunMode, "run">) => {
-      const { projectPath: path, nameOf } = latest.current;
-      let edited: string[] = [];
+      const scope = {
+        projectPath: latest.current.projectPath,
+        projectEpoch: useDawStore.getState().projectEpoch,
+      };
       try {
-        edited = (await loadTranscriptVocabulary(path)).edited_tracks ?? [];
+        const request = await capture(mode);
+        if (request) await confirmRequest(request, () => ownsRequest(request));
       } catch (error) {
-        useDawStore.getState().announceStatus(errorMessage(error), {
-          tone: "error",
-        });
-        return;
-      }
-      if (edited.length === 0) {
-        if (mode === "update") {
+        if (ownsRequest(scope)) {
           useDawStore
             .getState()
-            .announceStatus("Could not tell which tracks have hand fixes.", {
-              tone: "error",
-            });
-          return;
+            .announceStatus(errorMessage(error), { tone: "error" });
         }
-        await start(mode, false);
-        return;
       }
-      setKeepFixes({ mode, names: edited.map(nameOf) });
     },
-    [start],
+    [capture, confirmRequest],
   );
 
   // A run the server refused because the audio changed under hand fixes asks
@@ -336,8 +451,47 @@ export function usePrepareRun(input: PrepareRunInput) {
     id: WORD_ALIGNER,
     variant: null,
   });
-  const retime = useModelResume<NeedTarget>(() => void askToReplace("retime"));
+  const retimeIntent = useRef<Pick<
+    RunRequest,
+    "projectPath" | "projectEpoch"
+  > | null>(null);
+  const { clear: clearRetime, stopFor: stopForRetime } = useModelResume<
+    NeedTarget & {
+      request: RunRequest;
+      intent: Pick<RunRequest, "projectPath" | "projectEpoch">;
+    }
+  >(({ request, intent }) => {
+    if (retimeIntent.current !== intent || !ownsRequest(request)) return;
+    void confirmRequest(
+      request,
+      () => retimeIntent.current === intent && ownsRequest(request),
+    ).finally(() => {
+      if (retimeIntent.current === intent) retimeIntent.current = null;
+    });
+  });
   const approximate = alignerRow && !alignerIn ? alignerRow : null;
+
+  const projectEpoch = useDawStore((s) => s.projectEpoch);
+  useEffect(() => {
+    activeStart.current = null;
+    setStarting(false);
+    refusedRef.current = null;
+    failedRef.current = null;
+    waitingRequest.current = null;
+    confirmation.current = null;
+    retried.current = null;
+    waitingRef.current = false;
+    setWaiting(false);
+    setKeepFixes(null);
+    setStartError(null);
+    clear();
+    retimeIntent.current = null;
+    clearRetime();
+    return () => {
+      activeStart.current = null;
+      retimeIntent.current = null;
+    };
+  }, [input.projectPath, projectEpoch, clear, clearRetime]);
 
   return {
     starting,
@@ -348,24 +502,49 @@ export function usePrepareRun(input: PrepareRunInput) {
     /** Word timing is missing; null when the model is in or unknown. */
     approximateTiming: approximate,
     /** Get on the word timing row: the words are re-timed when it lands. */
-    awaitAligner: retime.stopFor,
+    awaitAligner: (model: NeedTarget, outcome: Promise<DownloadOutcome>) => {
+      const intent = {
+        projectPath: latest.current.projectPath,
+        projectEpoch: useDawStore.getState().projectEpoch,
+      };
+      retimeIntent.current = intent;
+      clearRetime();
+      void Promise.all([capture("retime"), outcome]).then(
+        ([request, downloaded]) => {
+          if (retimeIntent.current !== intent || !ownsRequest(intent)) return;
+          if (!request || downloaded.kind !== "ok") {
+            retimeIntent.current = null;
+            return;
+          }
+          stopForRetime({ ...model, request: retainRun(request), intent });
+        },
+        (error: unknown) => {
+          if (retimeIntent.current !== intent || !ownsRequest(intent)) return;
+          retimeIntent.current = null;
+          useDawStore
+            .getState()
+            .announceStatus(errorMessage(error), { tone: "error" });
+        },
+      );
+    },
     run: start,
     tryAgain: () => {
       if (refusal) return void askToReplace("update");
       const failed = startError ? failedRef.current : null;
-      void start(
-        failed?.mode ?? "run",
-        failed?.overwriteEdited ?? false,
-        failed?.fromStep,
-        failed?.skipped,
-      );
+      const request = failed ?? waitingRequest.current;
+      if (request) void execute(request);
+      else void start("run");
     },
     retranscribe: () => void askToReplace("retranscribe"),
-    keepMyFixes: () => setKeepFixes(null),
-    replaceFixes: () => {
-      const pending = keepFixes;
+    keepMyFixes: () => {
+      confirmation.current = null;
       setKeepFixes(null);
-      if (pending) void start(pending.mode, true);
+    },
+    replaceFixes: () => {
+      const pending = confirmation.current;
+      confirmation.current = null;
+      setKeepFixes(null);
+      if (pending) void execute(pending);
     },
     cancel: async () => {
       const store = useDawStore.getState();

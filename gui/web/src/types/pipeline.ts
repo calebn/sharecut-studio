@@ -20,6 +20,7 @@ export interface PipelineStepTiming {
 
 export interface PipelineJobSnapshot {
   id: string;
+  retry_of?: string;
   project_path: string;
   from_step: string | null;
   only_step: string | null;

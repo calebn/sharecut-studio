@@ -16,14 +16,10 @@ export function useModelNeedFocus(asking: boolean): RefCallback<HTMLElement> {
       observer?.disconnect();
       document.removeEventListener("focusin", moved, true);
       document.removeEventListener("pointerdown", moved, true);
-      document.removeEventListener("keydown", navigated, true);
     };
     const moved = () => {
       handedOff.current = true;
       stop();
-    };
-    const navigated = (event: KeyboardEvent) => {
-      if (event.key === "Tab") moved();
     };
     const handOff = () => {
       const first = panel.querySelector<HTMLButtonElement>(
@@ -45,7 +41,6 @@ export function useModelNeedFocus(asking: boolean): RefCallback<HTMLElement> {
     });
     document.addEventListener("focusin", moved, true);
     document.addEventListener("pointerdown", moved, true);
-    document.addEventListener("keydown", navigated, true);
     return stop;
   }, [root, asking]);
   return setRoot;

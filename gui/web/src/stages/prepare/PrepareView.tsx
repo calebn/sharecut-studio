@@ -26,10 +26,9 @@ import { type PreparePhase, useAnnouncement } from "./prepareAnnouncement";
 import { isWorking, STILL_GETTING_READY } from "./prepareMappers";
 import type { PrepareSession, SourceActions } from "./prepareTypes";
 import {
-  type ReadyAction,
+  type ReadyActionArgs,
   ReadyList,
   type ReadyRowData,
-  type ReadyRowId,
 } from "./ReadyList";
 import { SessionSources } from "./SessionSources";
 import { Vocabulary } from "./Vocabulary";
@@ -88,7 +87,7 @@ export type PrepareViewProps = {
   onImport: () => void;
   onRecord: () => void;
   onAdvanced: () => void;
-  onRowAction: (row: ReadyRowId, action: ReadyAction) => void;
+  onRowAction: (...args: ReadyActionArgs) => void;
   onHandoff: () => void;
 };
 
@@ -199,13 +198,14 @@ export function PrepareView({
   const [moreOpen, setMoreOpen] = useState(false);
   const [rowNote, setRowNote] = useState("");
   const [replacingId, setReplacingId] = useState<string | null>(null);
-  const onRow = (row: ReadyRowId, action: ReadyAction) => {
+  const onRow = (...args: ReadyActionArgs) => {
+    const [row, action] = args;
     const title = rows.find((one) => one.id === row)?.title;
     if (title && action === "skip") setRowNote(`${title} skipped for this run`);
     if (title && action === "include") {
       setRowNote(`${title} included in this run`);
     }
-    onRowAction(row, action);
+    onRowAction(...args);
   };
   const [readyOpen, setReadyOpen] = useState(attention.length > 0);
   const [seen, setSeen] = useState(attention);
