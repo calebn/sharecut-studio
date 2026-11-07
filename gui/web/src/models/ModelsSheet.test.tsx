@@ -1,6 +1,8 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { BootstrapStatus } from "../api";
+import * as api from "../api";
 import { expectNoA11yViolations } from "../test/a11y";
 import {
   modelRow,
@@ -10,7 +12,22 @@ import {
   registryRows,
 } from "../test/renderWithModels";
 import { stubViewportShell } from "../test/viewportShell";
+import { ModelsProvider } from "./ModelsProvider";
 import { ModelsSheet } from "./ModelsSheet";
+import { useModels } from "./useModels";
+
+vi.mock("../api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../api")>();
+  return {
+    ...actual,
+    fetchBootstrapJob: vi.fn().mockResolvedValue(null),
+    fetchBootstrapStatus: vi.fn(),
+  };
+});
+
+const fetchStatus = vi.mocked(api.fetchBootstrapStatus);
+
+afterEach(() => fetchStatus.mockReset());
 
 function mount(
   rows = registryRows(),
@@ -32,6 +49,84 @@ const names = () =>
   [...document.querySelectorAll(".sys-need-name")].map((el) => el.textContent);
 
 describe("ModelsSheet", () => {
+  it("does not call unknown audio-tool status unavailable while the initial status is loading", async () => {
+    let resolveStatus: (status: BootstrapStatus) => void = () => undefined;
+    fetchStatus.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveStatus = resolve;
+        }),
+    );
+    stubViewportShell("desktop");
+    render(
+      <ModelsProvider>
+        <ModelsSheet open onClose={vi.fn()} />
+      </ModelsProvider>,
+    );
+
+    try {
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Checking what is installed",
+      );
+      expect(screen.queryByText("Audio tools are unavailable")).toBeNull();
+      expect(screen.queryByText(/Reinstall ShareCut Studio/)).toBeNull();
+    } finally {
+      await act(async () => {
+        resolveStatus(
+          modelStatus(registryRows(), {
+            tools: {
+              ffmpeg: { state: "missing", source: "unavailable", hint: null },
+            },
+          }),
+        );
+      });
+    }
+
+    await waitFor(() =>
+      expect(screen.getByText("Audio tools are unavailable")).toBeTruthy(),
+    );
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("keeps an initial status failure truthful and recovers when status is retried", async () => {
+    fetchStatus
+      .mockRejectedValueOnce(new Error("Status request failed"))
+      .mockResolvedValueOnce(modelStatus(registryRows()));
+    function RetryStatus() {
+      const { refresh } = useModels();
+      return (
+        <>
+          <ModelsSheet open onClose={vi.fn()} />
+          <button type="button" onClick={() => void refresh()}>
+            Retry status request
+          </button>
+        </>
+      );
+    }
+    stubViewportShell("desktop");
+    render(
+      <ModelsProvider>
+        <RetryStatus />
+      </ModelsProvider>,
+    );
+    expect(await screen.findByText("Status request failed")).toBeVisible();
+    expect(screen.queryByText("Checking what is installed")).toBeNull();
+    expect(screen.queryByText("Audio tools are unavailable")).toBeNull();
+    expect(screen.queryByText(/Reinstall ShareCut Studio/)).toBeNull();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Retry status request" }),
+    );
+    expect(await screen.findByText("Transcription")).toBeVisible();
+    expect(screen.queryByText("Status request failed")).toBeNull();
+    expect(screen.queryByText("Audio tools are unavailable")).toBeNull();
+    expect(fetchStatus).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not warn when the loaded status confirms installed audio tools", () => {
+    mount();
+    expect(screen.queryByText("Audio tools are unavailable")).toBeNull();
+  });
+
   it("lists a Model need row per capability, in the order a person meets them, with no Apply", async () => {
     mount();
     const dialog = screen.getByRole("dialog", { name: "Models" });
