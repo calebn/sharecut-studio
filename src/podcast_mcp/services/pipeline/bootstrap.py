@@ -81,10 +81,9 @@ def uninstall_model(model_id: str, variant: str | None = None) -> dict[str, Any]
     person supplied. The caller keeps it away from a running download or job.
     """
     try:
-        model_spec(model_id)
+        freed = remove_model(model_id, variant)
     except KeyError as exc:
         raise CodedValueError(f"Unknown model {model_id!r}", code="invalid_request") from exc
-    freed = remove_model(model_id, variant)
     record = model_status(model_id, variant, memoize=False)
     return {"ok": True, "freed_bytes": freed, "model": record}
 

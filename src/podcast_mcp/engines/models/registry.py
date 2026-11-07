@@ -214,9 +214,7 @@ def _whisper_downloaded(variant: str | None) -> list[Path]:
     pin = WHISPER_PINS.get(model)
     if pin is not None:
         return [root / f"models--{pin.hf_repo.replace('/', '--')}"]
-    return [
-        entry for entry in root.iterdir() if cache_path_matches_model(f"{entry.as_posix()}/", model)
-    ]
+    return [entry for entry in root.iterdir() if cache_path_matches_model(f"{entry.name}/", model)]
 
 
 def _rnnoise_downloaded(variant: str | None) -> list[Path]:
@@ -359,13 +357,17 @@ def require_model(model_id: str, variant: str | None = None, *, memoize: bool = 
 
 def remove_model(model_id: str, variant: str | None = None) -> int:
     """Delete what Studio downloaded for ``model_id`` (one Whisper size for ``whisper``) and
-    return the bytes freed. A model that is not installed frees nothing; it is not an error.
+    return its logical regular-file payload bytes, excluding snapshot links.
+    A model that is not installed frees nothing; it is not an error.
     Raises ``ModelNotRemovable`` for a file the person supplied. Callers keep it away from a
     running download or job."""
+    model_base(model_id, variant)
     freed = 0
     for path in model_spec(model_id).downloaded(variant):
         if path.is_dir():
-            freed += sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
+            freed += sum(
+                f.stat().st_size for f in path.rglob("*") if f.is_file() and not f.is_symlink()
+            )
             shutil.rmtree(path)
         elif path.is_file():
             freed += path.stat().st_size

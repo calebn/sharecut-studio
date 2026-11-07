@@ -1048,3 +1048,58 @@ def test_remove_model_is_refused_while_an_agent_job_runs(monkeypatch) -> None:
     assert res.status_code == 409
     assert res.headers["X-Sharecut-Error-Code"] == "pipeline_busy"
     remove.assert_not_called()
+
+
+def test_remove_invalid_aligner_variant_preserves_download(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.engines.models import registry
+
+    cache = tmp_path / "aligner-cache"
+    monkeypatch.setattr(registry, "word_aligner_cache_dir", lambda: cache)
+    sentinel = cache / "synthetic-download" / "model.onnx"
+    sentinel.parent.mkdir(parents=True)
+    sentinel.write_bytes(b"keep the installed model")
+
+    response = _client().delete(
+        "/api/bootstrap/models/word-aligner", params={"whisper_model": "not-an-aligner"}
+    )
+
+    assert response.status_code == 400
+    assert response.headers["X-Sharecut-Error-Code"] == "invalid_request"
+    assert sentinel.read_bytes() == b"keep the installed model"
+
+
+def test_remove_whisper_matches_only_cache_entry_not_ancestors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.config.defaults import whisper_cache_dir
+
+    monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "faster-whisper-tiny" / "cache"))
+    other = whisper_cache_dir() / "models--Systran--faster-whisper-small.en"
+    sentinel = other / "snapshots" / "fake" / "model.bin"
+    sentinel.parent.mkdir(parents=True)
+    sentinel.write_bytes(b"the other size")
+
+    response = _client().delete("/api/bootstrap/models/whisper", params={"whisper_model": "tiny"})
+
+    assert response.status_code == 200
+    assert response.json()["freed_bytes"] == 0
+    assert sentinel.read_bytes() == b"the other size"
+
+
+def test_remove_whisper_counts_blob_payload_without_snapshot_links(tmp_path: Path) -> None:
+    from podcast_mcp.config.defaults import whisper_cache_dir
+    from podcast_mcp.engines.models.registry import remove_model
+    from podcast_mcp.engines.models.whisper import WHISPER_PINS
+
+    folder = whisper_cache_dir() / f"models--{WHISPER_PINS['tiny.en'].hf_repo.replace('/', '--')}"
+    blob = folder / "blobs" / "weights"
+    blob.parent.mkdir(parents=True)
+    blob.write_bytes(b"w" * 100)
+    snapshot = folder / "snapshots" / "fake" / "model.bin"
+    snapshot.parent.mkdir(parents=True)
+    snapshot.symlink_to(blob)
+
+    assert remove_model("whisper", "tiny.en") == 100
+    assert not folder.exists()
