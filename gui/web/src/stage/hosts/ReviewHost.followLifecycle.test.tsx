@@ -228,6 +228,26 @@ describe("guest Review transcript follow lifetime", () => {
     expect(back()).toBeVisible();
   });
 
+  it("retains the place paused with Follow after playback has scrolled the pane", () => {
+    const size = viewport("phone");
+    join();
+    render(<ReviewHost guestShare />);
+    moveTo(11.1);
+    const reader = body();
+    expect(reader.scrollTop).toBe(1820);
+    fireEvent.scroll(reader);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Follow the playhead" }),
+    );
+    expect(back()).toBeVisible();
+
+    size.short("layout", true);
+    size.short("layout", false);
+
+    expect(back()).toBeVisible();
+    expect(body().scrollTop).toBe(1820);
+  });
+
   it("retains a same-project hydration pause but starts following on a project replacement through StageHost", () => {
     viewport("phone");
     join();
