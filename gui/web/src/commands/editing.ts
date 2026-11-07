@@ -6,6 +6,7 @@ import {
   rippleDeleteClips,
   splitAtTime,
 } from "../api";
+import type { SplitPiece } from "../api/documentEdits";
 import { redisplayDrafts } from "../document/applyDocumentUpdate";
 import {
   type DocumentScope,
@@ -52,19 +53,16 @@ function canSuggestStructuralFor(s: DawState): boolean {
     s.project != null,
   );
 }
-const SPLIT_TIME_TOLERANCE = 1e-6;
 
 function splitSelectionIntent(
   scope: DocumentScope,
   held: DawState["selection"],
-  before: NonNullable<DawState["project"]>,
 ) {
   let phase:
     | { kind: "reply" }
     | {
         kind: "display";
-        at: number;
-        tracks: readonly string[];
+        pieces: readonly SplitPiece[];
         minimum: number | null;
       }
     | { kind: "done" } = { kind: "reply" };
@@ -82,9 +80,9 @@ function splitSelectionIntent(
         currentDocumentSeq() < phase.minimum)
     )
       return;
-    const { at, tracks } = phase;
+    const { pieces } = phase;
     cancel();
-    selectRightPieces(scope, held, before, at, tracks);
+    selectRightPieces(scope, held, pieces);
   };
   const unsubscribe = useDawStore.subscribe((now, previous) => {
     if (now.selection !== previous.selection || !isCurrentDocumentScope(scope))
@@ -94,12 +92,11 @@ function splitSelectionIntent(
   signal.addEventListener("abort", cancel, { once: true });
   return {
     cancel,
-    apply(at: number, tracks: readonly string[]) {
+    apply(pieces: readonly SplitPiece[]) {
       if (phase.kind === "done") return;
       phase = {
         kind: "display",
-        at,
-        tracks,
+        pieces,
         minimum:
           documentAuthority.phase.kind === "recovering"
             ? documentAuthority.phase.minimum
@@ -113,28 +110,25 @@ function splitSelectionIntent(
 function selectRightPieces(
   scope: DocumentScope,
   held: DawState["selection"],
-  before: NonNullable<DawState["project"]>,
-  at: number,
-  trackIds: readonly string[],
+  pieces: readonly SplitPiece[],
 ): void {
   const now = useDawStore.getState();
-  const after = now.project;
-  if (!isCurrentDocumentScope(scope) || now.selection !== held || !after) {
+  if (
+    !isCurrentDocumentScope(scope) ||
+    now.selection !== held ||
+    !now.project ||
+    !pieces.length
+  )
     return;
+  if (
+    pieces.every((piece) =>
+      now.project!.clips.tracks[piece.trackId]?.some(
+        (clip) => clip.id === piece.id,
+      ),
+    )
+  ) {
+    now.setSelection(clipsSelection(pieces));
   }
-  const known = new Set(
-    Object.values(before.clips.tracks).flatMap((list) => list.map((c) => c.id)),
-  );
-  const pieces = trackIds.flatMap((trackId) =>
-    (after.clips.tracks[trackId] ?? [])
-      .filter(
-        (c) =>
-          !known.has(c.id) &&
-          Math.abs(c.timeline_start - at) <= SPLIT_TIME_TOLERANCE,
-      )
-      .map((c) => ({ id: c.id, trackId })),
-  );
-  if (pieces.length > 0) now.setSelection(clipsSelection(pieces));
 }
 
 async function runSplitAt(
@@ -154,7 +148,7 @@ async function runSplitAt(
       );
   const scope = documentScope();
   const held = s.selection;
-  const selection = splitSelectionIntent(scope, held, s.project);
+  const selection = splitSelectionIntent(scope, held);
   let waitingForDisplay = false;
   try {
     const outcome = await splitAtTime(
@@ -177,8 +171,10 @@ async function runSplitAt(
       announce(`Suggested split at ${where}`);
     } else {
       announce(`Split at ${where}`, { undo: outcome.undo });
-      selection.apply(outcome.times[0], tids);
-      waitingForDisplay = true;
+      if (outcome.pieces) {
+        selection.apply(outcome.pieces);
+        waitingForDisplay = true;
+      }
     }
     return { status: "ok" };
   } catch (e) {

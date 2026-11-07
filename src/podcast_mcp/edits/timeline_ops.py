@@ -555,11 +555,20 @@ def split_clip(
 ) -> dict:
     clips = clips_for_track(project, track_id)
     new_clips: list[Clip] = []
+    pieces: list[dict[str, str]] = []
     split = False
     for clip in clips:
         tl_end = clip.timeline_end
         if not split and clip.timeline_start < at_time < tl_end:
             before, after = split_clip_at(clip, at_time, defaults=defaults)
+            pieces.append(
+                {
+                    "track_id": track_id,
+                    "original_clip_id": clip.id,
+                    "left_clip_id": before.id,
+                    "right_clip_id": after.id,
+                }
+            )
             fades = recommend_micro_fades(defaults=defaults)
             before.fade_out_ms = max(before.fade_out_ms, fades["fade_out_ms"])
             after.fade_in_ms = max(after.fade_in_ms, fades["fade_in_ms"])
@@ -574,7 +583,9 @@ def split_clip(
     new_clips.sort(key=lambda c: c.timeline_start)
     set_track_clips(project, track_id, new_clips)
     update_timeline_duration(project)
-    return change_summary(project, operation="split_clip", affected_tracks=[track_id])
+    return change_summary(
+        project, operation="split_clip", affected_tracks=[track_id], split_pieces=pieces
+    )
 
 
 def split_clips_at(
@@ -597,9 +608,11 @@ def split_clips_at(
         )
     affected: list[str] = []
     skipped: list[str] = []
+    pieces: list[dict[str, str]] = []
     for tid in tracks:
         try:
-            split_clip(project, tid, at_time, defaults=defaults)
+            result = split_clip(project, tid, at_time, defaults=defaults)
+            pieces.extend(result["split_pieces"])
             affected.append(tid)
         except ValueError:
             skipped.append(tid)
@@ -636,6 +649,7 @@ def split_clips_at(
         at_time=at_time,
         skipped_track_ids=skipped,
         split_source_by_track=split_source_by_track,
+        split_pieces=pieces,
     )
 
 

@@ -84,7 +84,11 @@ beforeEach(() => {
     init?.method === "POST"
       ? response({
           ok: true,
-          split_outcome: { kind: "split", times: [10] },
+          split_outcome: {
+            kind: "split",
+            times: [10],
+            pieces: [{ track_id: "host", clip_id: "right" }],
+          },
           snapshot: { server_seq: 3, resync: true },
           command: { type: "SplitAtTime" },
         })

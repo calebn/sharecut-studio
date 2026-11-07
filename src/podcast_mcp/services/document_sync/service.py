@@ -12,7 +12,7 @@ from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal, NotRequired, TypedDict
 from uuid import uuid4
 
 from podcast_mcp.edits.audio_check_override import OVERRIDE_FLAG, audio_check_override
@@ -242,16 +242,24 @@ def _restore_conflicts(command: DocumentCommand, result: Mapping[str, Any]) -> R
     return {}
 
 
+class _SplitPiece(TypedDict):
+    track_id: str
+    clip_id: str
+
+
 class _SplitOutcome(TypedDict):
     kind: Literal["split", "suggested"]
     times: list[float]
+    pieces: NotRequired[list[_SplitPiece]]
 
 
 class _SplitReplyFacts(TypedDict, total=False):
     split_outcome: _SplitOutcome
 
 
-def _split_reply_facts(command_type: str, result: object) -> _SplitReplyFacts:
+def _split_reply_facts(
+    command_type: str, result: object, target_track_ids: object = None
+) -> _SplitReplyFacts:
     if command_type != "SplitAtTime" or not isinstance(result, Mapping):
         return {}
     operation = result.get("operation")
@@ -279,7 +287,36 @@ def _split_reply_facts(command_type: str, result: object) -> _SplitReplyFacts:
         if not math.isfinite(time) or time < 0:
             return {}
         times.append(time)
-    return {"split_outcome": {"kind": kind, "times": times}}
+    outcome: _SplitOutcome = {"kind": kind, "times": times}
+    raw_pieces = result.get("first_right_pieces")
+    if kind == "split" and isinstance(raw_pieces, list) and raw_pieces:
+        pieces: list[_SplitPiece] = []
+        tracks: set[str] = set()
+        clips: set[str] = set()
+        for piece in raw_pieces:
+            if not isinstance(piece, Mapping) or set(piece) != {"track_id", "clip_id"}:
+                break
+            tid, cid = piece["track_id"], piece["clip_id"]
+            if (
+                not isinstance(tid, str)
+                or not tid
+                or not isinstance(cid, str)
+                or not cid
+                or tid in tracks
+                or cid in clips
+                or (
+                    isinstance(target_track_ids, list)
+                    and target_track_ids
+                    and tid not in target_track_ids
+                )
+            ):
+                break
+            pieces.append({"track_id": tid, "clip_id": cid})
+            tracks.add(tid)
+            clips.add(cid)
+        else:
+            outcome["pieces"] = pieces
+    return {"split_outcome": outcome}
 
 
 def _journal_server_seq(store: SyncStore) -> int:
@@ -711,7 +748,9 @@ class DocumentSyncService:
                     "idempotent": True,
                     **_stored_asks(existing),
                     **_split_reply_facts(
-                        str(existing["type"]), (existing.get("payload") or {}).get("result")
+                        str(existing["type"]),
+                        (existing.get("payload") or {}).get("result"),
+                        (existing.get("payload") or {}).get("track_ids"),
                     ),
                 }
                 if audience == "guest":
@@ -788,7 +827,9 @@ class DocumentSyncService:
         confirmation = result_payload.get("needs_confirmation")
         asks = {"needs_confirmation": confirmation} if confirmation is not None else {}
         asks.update(_restore_conflicts(command, result_payload))
-        asks.update(_split_reply_facts(command.type, result_payload))
+        asks.update(
+            _split_reply_facts(command.type, result_payload, command.payload.get("track_ids"))
+        )
         # The entry this command left at the head, read under the same lock as the apply:
         # a toast offers Undo for exactly this change, and the client's next own history
         # move expects it. Null when history did not move. The id is opaque, so guests

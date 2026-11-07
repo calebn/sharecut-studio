@@ -259,7 +259,14 @@ def test_applied_single_split_reports_its_actual_boundary(
         assert reply["server_seq"] == seq
         assert len(svc.ws.project.clips) == clips
     assert reply["ok"]
-    assert reply["split_outcome"] == {"kind": "split", "times": [5.0]}
+    piece = next(
+        c for c in svc.ws.project.clips if c.track_id == "host" and c.timeline_start == 5.0
+    )
+    assert reply["split_outcome"] == {
+        "kind": "split",
+        "times": [5.0],
+        "pieces": [{"track_id": "host", "clip_id": piece.id}],
+    }
     if guest:
         assert reply["command"] == {"type": "SplitAtTime"}
 
@@ -287,8 +294,15 @@ def test_split_reply_reports_only_applied_times(minimal_project, dialogue_wav, r
         assert reply["server_seq"] == first_seq
         assert len(svc.ws.project.clips) == clips_after_first
     assert reply["ok"]
-    assert reply["split_outcome"] == {"kind": "split", "times": [5.0]}
-    assert set(reply["split_outcome"]) == {"kind", "times"}
+    piece = next(
+        c for c in svc.ws.project.clips if c.track_id == "host" and c.timeline_start == 5.0
+    )
+    assert reply["split_outcome"] == {
+        "kind": "split",
+        "times": [5.0],
+        "pieces": [{"track_id": "host", "clip_id": piece.id}],
+    }
+    assert set(reply["split_outcome"]) == {"kind", "times", "pieces"}
     if guest:
         assert reply["command"] == {"type": "SplitAtTime"}
     assert reply["split_outcome"]["kind"] == "split"
@@ -517,14 +531,19 @@ def test_split_clips_at_none_raises(minimal_project):
 
 @pytest.mark.parametrize("guest", [False, True])
 @pytest.mark.parametrize("retry", [False, True])
+@pytest.mark.parametrize(
+    "times, first, end",
+    [([5.0, 8.0], 5.0, 8.0), ([8.0, 5.0], 8.0, 10.0), ([30.0, 5.0, 8.0], 5.0, 8.0)],
+)
+@pytest.mark.parametrize("targets", [["host"], ["guest", "host"]])
 def test_two_edge_split_reports_the_surviving_first_right_piece(
-    minimal_project, dialogue_wav, guest, retry
+    minimal_project, dialogue_wav, guest, retry, times, first, end, targets
 ):
     _seed_dialogue_clips(minimal_project, dialogue_wav)
     svc = DocumentSyncService.open(minimal_project)
     command = DocumentCommand(
         type="SplitAtTime",
-        payload={"at_time": 5.0, "extra_at_times": [10.0], "track_ids": ["host"]},
+        payload={"at_time": times[0], "extra_at_times": times[1:], "track_ids": targets},
         client_id="editor" if guest else "host",
         role="guest" if guest else "viewer",
         client_seq=1,
@@ -534,10 +553,38 @@ def test_two_edge_split_reports_the_surviving_first_right_piece(
     reply = svc.submit(command, capabilities=caps, audience=audience)
     if retry:
         reply = svc.submit(command, capabilities=caps, audience=audience)
-    piece = next(
-        c for c in svc.ws.project.clips if c.track_id == "host" and c.timeline_start == 5.0
-    )
-    assert piece.timeline_end == 10.0
-    assert reply["split_outcome"]["pieces"] == [{"track_id": "host", "clip_id": piece.id}]
+    pieces = [
+        next(c for c in svc.ws.project.clips if c.track_id == tid and c.timeline_start == first)
+        for tid in targets
+    ]
+    assert all(piece.timeline_end == end for piece in pieces)
+    assert reply["split_outcome"]["pieces"] == [
+        {"track_id": piece.track_id, "clip_id": piece.id} for piece in pieces
+    ]
     if guest:
         assert reply["command"] == {"type": "SplitAtTime"}
+
+
+@pytest.mark.parametrize(
+    "pieces",
+    [
+        [{"track_id": "host", "clip_id": "right", "path": "/private"}],
+        [{"track_id": "host", "clip_id": "right"}, {"track_id": "host", "clip_id": "other"}],
+        [{"track_id": "other", "clip_id": "right"}],
+        [{"track_id": "host", "clip_id": "right"}, {"track_id": "guest", "clip_id": 42}],
+        [],
+        None,
+    ],
+)
+def test_split_piece_projection_rejects_the_entire_invalid_selection(pieces):
+    from podcast_mcp.services.document_sync.service import _split_reply_facts
+
+    assert _split_reply_facts(
+        "SplitAtTime",
+        {
+            "operation": "split_clips_at",
+            "at_time": 5.0,
+            "first_right_pieces": pieces,
+        },
+        ["host"],
+    ) == {"split_outcome": {"kind": "split", "times": [5.0]}}
