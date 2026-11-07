@@ -34,6 +34,7 @@ import { rangeSection } from "./rangeSection";
 import { useSelectionSections } from "./selectionSections";
 import type { InspectorOpen, InspectorShell } from "./useInspectorOpen";
 import { bandLocator, useKeepTargetClear } from "./useKeepTargetClear";
+import { useRevealEditedLane } from "./useRevealEditedLane";
 import { useSelectionAnchor } from "./useSelectionAnchor";
 
 /**
@@ -152,9 +153,11 @@ function useInspectorFocus(box: RefObject<HTMLElement | null>, ready: boolean) {
   }, []);
   useEffect(() => {
     if (!ready || entered.current) return;
-    entered.current = true;
-    if (document.activeElement?.closest(".ui-toast, .ui-toast-region--app"))
+    const active = document.activeElement;
+    if (opener.current ? active !== opener.current : active !== document.body)
       return;
+    entered.current = true;
+    if (active?.closest(".ui-toast, .ui-toast-region--app")) return;
     if (box.current) focusFirstControl(box.current);
   }, [ready, box]);
   return {
@@ -229,6 +232,16 @@ function Card({
 }) {
   const selection = useDaw((s) => s.selection);
   const anchor = useSelectionAnchor(root, selection, true);
+  const [anchorTrackId, setAnchorTrackId] = useState<string | null>(null);
+  useLayoutEffect(() => {
+    setAnchorTrackId(
+      selection?.kind === "clip"
+        ? (anchor.ref.current?.closest<HTMLElement>(".lane-row")?.dataset
+            .trackId ?? null)
+        : null,
+    );
+  }, [selection, anchor.ref, anchor.moves]);
+  useRevealEditedLane(anchorTrackId);
   const box = useRef<HTMLDivElement>(null);
   const [placement, setPlacement] = useState<Placement | null>(null);
   const measure = useCallback(() => {
