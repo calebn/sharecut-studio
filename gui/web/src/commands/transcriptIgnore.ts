@@ -103,7 +103,7 @@ export function registerTranscriptIgnoreCommands(): void {
             useDawStore
               .getState()
               .announceStatus(`Ignore failed: ${msg}`, { tone: "error" });
-            return { status: "disabled", reason: msg };
+            return { status: "disabled", reason: msg, told: true };
           }
         },
       );

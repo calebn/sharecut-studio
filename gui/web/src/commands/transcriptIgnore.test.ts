@@ -3,6 +3,7 @@ import * as api from "../api";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
 import { clearRegisteredCommands, execute } from "./execute";
+import { runAndAnnounceRefusal } from "./refusal";
 import { _resetSingleFlightsForTests } from "./register";
 import { registerTranscriptIgnoreCommands } from "./transcriptIgnore";
 
@@ -262,10 +263,18 @@ describe("transcript.ignoreWords", () => {
     vi.mocked(api.setTranscriptWordsIgnored).mockRejectedValueOnce(
       new Error("boom"),
     );
-    const result = await execute("transcript.ignoreWords", {});
+    const announced = vi.spyOn(useDawStore.getState(), "announceStatus");
+    const result = await runAndAnnounceRefusal(() =>
+      execute("transcript.ignoreWords", {}),
+    );
     expect(result).toEqual({
       status: "disabled",
       reason: "boom",
+      told: true,
+    });
+    expect(announced).toHaveBeenCalledTimes(1);
+    expect(announced).toHaveBeenCalledWith("Ignore failed: boom", {
+      tone: "error",
     });
     expect(useDawStore.getState().statusAnnouncement).toBe(
       "Ignore failed: boom",

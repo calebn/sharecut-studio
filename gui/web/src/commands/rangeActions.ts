@@ -239,8 +239,10 @@ export async function runRangeAction(
       !rangeIsCurrent(live.project, target)
     ) {
       const reason = "Selection changed while audio was prepared";
-      if (live.projectEpoch === epoch)
+      if (live.projectEpoch === epoch) {
         live.announceStatus(reason, { tone: "error" });
+        return { status: "disabled", reason, told: true };
+      }
       return { status: "disabled", reason };
     }
     if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -254,8 +256,10 @@ export async function runRangeAction(
     return { status: "ok" };
   } catch (error) {
     const reason = errorMessage(error);
-    if (useDawStore.getState().projectEpoch === epoch)
+    if (useDawStore.getState().projectEpoch === epoch) {
       useDawStore.getState().announceStatus(reason, { tone: "error" });
+      return { status: "disabled", reason, told: true };
+    }
     return { status: "disabled", reason };
   } finally {
     if (useDawStore.getState().projectEpoch === epoch)
@@ -324,7 +328,7 @@ async function fillRoomToneInRange(
   if (filled === 0) {
     const reason = stopped ?? [...skipped][0] ?? NO_GAP_REASON;
     live.announceStatus(reason, { tone: "error" });
-    return { status: "disabled", reason };
+    return { status: "disabled", reason, told: true };
   }
   const done = `Filled room tone in ${filled} ${filled === 1 ? "place" : "places"}`;
   const note = stopped

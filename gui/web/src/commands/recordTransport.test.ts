@@ -3,6 +3,7 @@ import { useRecordHostStore } from "../record/hostStore";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
 import { clearRegisteredCommands, execute } from "./execute";
+import { runAndAnnounceRefusal } from "./refusal";
 import { registerDawCommands } from "./register";
 
 const submit = vi.hoisted(() => vi.fn());
@@ -86,7 +87,14 @@ describe("record transport command failures", () => {
 
   it("announces a failure and keeps it for the stage off the Record stage", async () => {
     submit.mockRejectedValue(new Error("nope"));
-    await execute("record.stop");
+    const announced = vi.spyOn(useDawStore.getState(), "announceStatus");
+    expect(await runAndAnnounceRefusal(() => execute("record.stop"))).toEqual({
+      status: "disabled",
+      reason: "nope",
+      told: true,
+    });
+    expect(announced).toHaveBeenCalledTimes(1);
+    expect(announced).toHaveBeenCalledWith("nope", { tone: "error" });
     expect(useDawStore.getState().statusAnnouncement).toBe("nope");
     expect(useRecordHostStore.getState().transportError).toBe("nope");
   });
@@ -94,9 +102,21 @@ describe("record transport command failures", () => {
   it("shows a failure on the Record stage without a second announcement", async () => {
     useDawStore.setState({ stage: "record" });
     submit.mockRejectedValue(new Error("nope"));
-    await execute("record.pause");
+    const result = await execute("record.pause");
+    expect(result).toEqual({ status: "disabled", reason: "nope" });
     expect(useRecordHostStore.getState().transportError).toBe("nope");
     expect(useDawStore.getState().statusAnnouncement).toBe("");
+  });
+
+  it("lets the palette wrapper announce the Record-stage fallback", async () => {
+    useDawStore.setState({ stage: "record" });
+    submit.mockRejectedValue(new Error("nope"));
+    const announced = vi.spyOn(useDawStore.getState(), "announceStatus");
+    const result = await runAndAnnounceRefusal(() => execute("record.pause"));
+    expect(result).toEqual({ status: "disabled", reason: "nope" });
+    expect(announced).toHaveBeenCalledTimes(1);
+    expect(announced).toHaveBeenCalledWith("nope", { tone: "error" });
+    expect(useRecordHostStore.getState().transportError).toBe("nope");
   });
 
   it("keeps a land failure visible", async () => {

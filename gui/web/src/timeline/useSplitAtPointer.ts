@@ -7,6 +7,7 @@ import {
   useRef,
 } from "react";
 import { executePointerCommand } from "../commands/pointer";
+import { announceRefusal } from "../commands/refusal";
 import { seekTransport } from "../commands/seek";
 import { MOVE_THRESHOLD_PX } from "../hooks/gestureConstants";
 import { canSuggestStructuralOnProject } from "../shareMode";
@@ -162,13 +163,12 @@ export function useSplitAtPointer(
       e.preventDefault();
       e.stopPropagation();
       void seekTransport(sec);
-      const announce = (message: string) =>
-        useDawStore.getState().announceStatus(message, { tone: "error" });
       void executePointerCommand("edit.bladeCut", { atTime: sec }).then(
-        (result) => {
-          if (result.status === "disabled") announce(result.reason);
-        },
-        (error: unknown) => announce(splitFailure(error)),
+        announceRefusal,
+        (error: unknown) =>
+          useDawStore
+            .getState()
+            .announceStatus(splitFailure(error), { tone: "error" }),
       );
       return true;
     },

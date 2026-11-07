@@ -18,7 +18,12 @@ import { minimalProject } from "../test/fixtures";
 import type { HistoryEntryId } from "../types/project";
 import { ApiError } from "../utils/apiError";
 import { clearRegisteredCommands, execute } from "./execute";
-import { _resetHistoryMovesForTests, registerHistoryCommands } from "./history";
+import {
+  _resetHistoryMovesForTests,
+  registerHistoryCommands,
+  runHistoryAction,
+} from "./history";
+import { runAndAnnounceRefusal } from "./refusal";
 import { flushPendingMix } from "./trackMix";
 
 vi.mock("../api", async (importOriginal) => ({
@@ -82,10 +87,14 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
     );
     const refused =
       "Can't undo: the project changed since. Nothing was undone.";
-    expect(await execute("history.undo")).toEqual({
+    const announced = vi.spyOn(useDawStore.getState(), "announceStatus");
+    expect(await runAndAnnounceRefusal(() => execute("history.undo"))).toEqual({
       status: "disabled",
       reason: refused,
+      told: true,
     });
+    expect(announced).toHaveBeenCalledTimes(1);
+    expect(announced).toHaveBeenCalledWith(refused, { tone: "error" });
     expect(useDawStore.getState().statusAnnouncement).toBe(refused);
     expect(useDawStore.getState().feedbackToast).toMatchObject({
       message: refused,
@@ -100,6 +109,7 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
     expect(await execute("history.redo")).toEqual({
       status: "disabled",
       reason: "Can't redo: the project changed since. Nothing was redone.",
+      told: true,
     });
     expect(redoHistory).toHaveBeenCalledWith("/tmp/ep", {
       expectedHeadId: "seen-by-tab",
@@ -108,6 +118,42 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
         generation: expect.any(Number),
       }),
     });
+  });
+
+  it("keeps a newer Undo toast when a queued stale refusal is spoken", async () => {
+    const send = beginDocumentSend("/tmp/ep", "pending-edit");
+    vi.mocked(undoHistory).mockRejectedValueOnce(
+      new ApiError("Did not undo", "history_stale", 409),
+    );
+    const announced = vi.spyOn(useDawStore.getState(), "announceStatus");
+    const pending = runAndAnnounceRefusal(() => execute("history.undo"));
+    await vi.waitFor(() =>
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "Undo runs after save",
+      ),
+    );
+    useDawStore.getState().announceStatus("Newer edit saved", {
+      undo: "newer-entry" as HistoryEntryId,
+    });
+    const standingToast = useDawStore.getState().feedbackToast;
+    send.finish();
+
+    expect(await pending).toEqual({
+      status: "disabled",
+      reason: "Can't undo: the project changed since. Nothing was undone.",
+      told: true,
+    });
+    expect(announced).toHaveBeenCalledWith(
+      "Can't undo: the project changed since. Nothing was undone.",
+      { toast: false, tone: "error" },
+    );
+    expect(
+      announced.mock.calls.filter(([message]) =>
+        String(message).startsWith("Can't undo:"),
+      ),
+    ).toHaveLength(1);
+    expect(useDawStore.getState().feedbackToast).toBe(standingToast);
+    expect(standingToast).toMatchObject({ message: "Newer edit saved" });
   });
 
   it("passes any other failure through", async () => {
@@ -147,6 +193,7 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
         expect(await obsolete).toEqual({
           status: "disabled",
           reason,
+          told: true,
         });
         expect(vi.mocked(undoHistory).mock.calls).toEqual([
           [
@@ -177,6 +224,7 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
         expect(await execute(`history.${action}`)).toEqual({
           status: "disabled",
           reason,
+          told: true,
         });
         expect(useDawStore.getState().statusAnnouncement).toBe(reason);
         expect(undoHistory).not.toHaveBeenCalled();
@@ -823,4 +871,110 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
       });
     }
   });
+});
+
+describe("runHistoryAction", () => {
+  beforeEach(() => {
+    useDawStore.setState({ feedbackToast: null, statusAnnouncement: "" });
+  });
+
+  it.each(["custom announcement", "intentional quiet"] as const)(
+    "keeps a standing Undo toast when a told refusal is %s",
+    async (mode) => {
+      const undo = "Clip deleted";
+      useDawStore.getState().announceStatus(undo, {
+        undo: "entry-1" as HistoryEntryId,
+      });
+      const standingToast = useDawStore.getState().feedbackToast;
+      const announcement = vi.spyOn(useDawStore.getState(), "announceStatus");
+      let settle!: (result: {
+        status: "disabled";
+        reason: string;
+        told: true;
+      }) => void;
+      const pending = new Promise<{
+        status: "disabled";
+        reason: string;
+        told: true;
+      }>((resolve) => {
+        settle = resolve;
+      });
+
+      runHistoryAction("undo", () => pending);
+      if (mode === "custom announcement")
+        useDawStore
+          .getState()
+          .announceStatus("Undo is unavailable in this view", {
+            toast: false,
+            tone: "error",
+          });
+      settle({ status: "disabled", reason: "Nothing selected", told: true });
+      await pending;
+      await Promise.resolve();
+
+      expect(useDawStore.getState().feedbackToast).toBe(standingToast);
+      expect(useDawStore.getState().feedbackToast).toMatchObject({
+        message: undo,
+        undo: "entry-1",
+      });
+      expect(
+        announcement.mock.calls.filter(([message]) =>
+          String(message).startsWith("Undo failed:"),
+        ),
+      ).toHaveLength(0);
+    },
+  );
+
+  it("publishes its failure prefix when an untold reason was just announced", async () => {
+    const reason = "Nothing selected";
+    const announcement = vi.spyOn(useDawStore.getState(), "announceStatus");
+    let settle!: (result: { status: "disabled"; reason: string }) => void;
+    const pending = new Promise<{ status: "disabled"; reason: string }>(
+      (resolve) => {
+        settle = resolve;
+      },
+    );
+
+    runHistoryAction("undo", () => pending);
+    useDawStore.getState().announceStatus(reason, { toast: false });
+    settle({ status: "disabled", reason });
+    await pending;
+    await Promise.resolve();
+
+    expect(announcement).toHaveBeenLastCalledWith(`Undo failed: ${reason}`, {
+      tone: "error",
+    });
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      `Undo failed: ${reason}`,
+    );
+    expect(useDawStore.getState().feedbackToast?.tone).toBe("error");
+  });
+
+  it.each(["", "   "])(
+    "does not announce a disabled result with an empty reason %j",
+    async (reason) => {
+      const announcement = vi.spyOn(useDawStore.getState(), "announceStatus");
+      const prior = {
+        text: useDawStore.getState().statusAnnouncement,
+        seq: useDawStore.getState().statusAnnouncementSeq,
+        toast: useDawStore.getState().feedbackToast,
+      };
+      let settle!: (result: { status: "disabled"; reason: string }) => void;
+      const pending = new Promise<{ status: "disabled"; reason: string }>(
+        (resolve) => {
+          settle = resolve;
+        },
+      );
+
+      runHistoryAction("undo", () => pending);
+      settle({ status: "disabled", reason });
+      await pending;
+      await Promise.resolve();
+
+      expect(announcement).not.toHaveBeenCalled();
+      expect(useDawStore.getState().statusAnnouncement).toBe(prior.text);
+      expect(useDawStore.getState().statusAnnouncementSeq).toBe(prior.seq);
+      expect(useDawStore.getState().feedbackToast).toBe(prior.toast);
+    },
+  );
 });

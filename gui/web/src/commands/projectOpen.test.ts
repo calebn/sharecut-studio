@@ -9,6 +9,7 @@ import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { clearRegisteredCommands, execute } from "./execute";
 import { PROJECT_CLOSE_TIMEOUT_MS, PROJECT_NEW_RETRY_MS } from "./projectMedia";
+import { runAndAnnounceRefusal } from "./refusal";
 import {
   _resetProjectOpenInFlightForTests,
   registerDawCommands,
@@ -171,7 +172,18 @@ describe("project.open", () => {
 
   it("blocks New while this browser tab is recording", async () => {
     publishDesktopCloseGuard(true, "host");
-    expect((await execute("project.new")).status).toBe("disabled");
+    const announce = vi.spyOn(useDawStore.getState(), "announceStatus");
+    const result = await runAndAnnounceRefusal(() => execute("project.new"));
+    expect(result).toEqual({
+      status: "disabled",
+      reason: "Stop and finish recording before switching projects",
+      told: true,
+    });
+    expect(announce).toHaveBeenCalledTimes(1);
+    expect(announce).toHaveBeenCalledWith(
+      "Stop and finish recording before switching projects",
+      { tone: "error" },
+    );
     expect(closeMock).not.toHaveBeenCalled();
     expect(assign).not.toHaveBeenCalled();
   });
@@ -199,7 +211,14 @@ describe("project.open", () => {
       href: "http://127.0.0.1:8765/?project=old&sc_close_guard=host",
       assign,
     });
-    expect((await execute("project.open")).status).toBe("disabled");
+    const announce = vi.spyOn(useDawStore.getState(), "announceStatus");
+    const result = await runAndAnnounceRefusal(() => execute("project.open"));
+    expect(result).toEqual({
+      status: "disabled",
+      reason: "Stop and finish recording before switching projects",
+      told: true,
+    });
+    expect(announce).toHaveBeenCalledTimes(1);
     expect(pickMock).not.toHaveBeenCalled();
     expect(openMock).not.toHaveBeenCalled();
   });

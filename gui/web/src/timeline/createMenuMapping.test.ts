@@ -254,7 +254,7 @@ describe("runCreatePick", () => {
         .announceStatus("Point not added: Server unreachable", {
           tone: "error",
         });
-      return { status: "disabled", reason: "Server unreachable" };
+      return { status: "disabled", reason: "Server unreachable", told: true };
     });
     const seq = useDawStore.getState().statusAnnouncementSeq;
     await runCreatePick("addVolumePoint", lane);

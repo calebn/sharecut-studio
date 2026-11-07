@@ -13,7 +13,6 @@ import {
   headLandedSince,
   savesLandedMark,
 } from "../state/documentSendOrder";
-import { justAnnounced } from "../state/uiSlice";
 import { type HistoryEntryId, parseHistoryEntryId } from "../types/project";
 import { ApiError, errorMessage } from "../utils/apiError";
 import { execute, registerCommand } from "./execute";
@@ -125,6 +124,7 @@ function moveHistory(
         return {
           status: "disabled",
           reason: STALE_COPY[action],
+          told: true,
         };
       };
       const refuseObsolete = (): ExecuteResult | null =>
@@ -208,7 +208,7 @@ export function runHistoryAction(
     .then((result) => {
       if (result.status === "ok") return;
       if (result.status === "disabled") {
-        if (!justAnnounced(result.reason)) report(result.reason);
+        if (!result.told && result.reason.trim()) report(result.reason);
         return;
       }
       report("unavailable");
