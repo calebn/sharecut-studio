@@ -489,6 +489,19 @@ An explicit `client_seq` (>= 1) plus `client_id` names one edit (#377).
 - **Busy:** when another process holds the project lock past 30 s (`filelock.Timeout`), or the `document.db` write lock stays busy past sqlite's busy timeout (`sqlite3.OperationalError` busy/locked), `POST /api/document/command` (and the guest `POST /api/review/{token}/daw/document/command`) returns 503 with `X-Sharecut-Error-Code: project_busy`. Retry the same command (same `command_id` / `client_seq`). Undo/redo with `rerender` holds the project lock and the `document.db` write lock for its render; every `document.db` writer takes the project lock first, so other writers wait on the 30 s project lock, not the sqlite busy timeout. `Applied` is published inside both locks: `FanoutHub.publish` only schedules delivery (`call_soon_threadsafe`) and must stay non-blocking. It goes out before the `document.db` COMMIT, so a client can see a `server_seq` whose row a crash rolls back; that is safe only because the project commit saved the command as `document_sync.last_command` first, so crash recovery re-journals the same command at the same `server_seq` (`test_document_submit_crash_recovery.py`, `mid_publish`). Keep the project commit ahead of the publish. Other adapters map the same busy lock their own way — CLI `BusyErrorGroup`, MCP `install_tool_errors` and guest remote MCP (both a structured `isError` tool result, `util/tool_refusal.py`) — see [architecture.md § Staleness](architecture.md#staleness) (#488).
 - **Migration:** no `document.db` change. Legacy rows are compared without their stored `result`; old random positive MCP sequences stay as they are.
 
+`SplitAtTime` application replies expose `split_outcome` when the journal retains
+usable result facts. Its `kind` is `split` or `suggested`, and `times` contains the
+committed applied or proposed boundaries in execution order. Applied multi-edge
+results omit boundaries where no clip split. Host and guest replies use the same
+small projection; the guest command still contains only its type. Retries derive
+the outcome from the stored result and do not perform another split.
+
+Crash recovery can journal a saved command without its handler result. Such a
+reply omits `split_outcome`; Studio keeps the selection and reports that the
+result is unavailable rather than reconstructing success from the request. A
+client-side `queued: true` acknowledgement also supplies no completed outcome.
+The existing save status owns queued feedback. Planning dry runs are unchanged.
+
 ### Document command types
 
 Every command type has one `CommandSpec` in `services/document_sync/registry.py`: its payload

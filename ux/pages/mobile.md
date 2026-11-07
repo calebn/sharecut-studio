@@ -138,6 +138,8 @@ keeps the focused control in view.
 
 When the frame is short or the text is large, the Edit corner folds into the header's **Tools** button. While **Select range** is armed that button carries an accent dot and its name ends with "range armed", so the armed state shows without opening the sheet.
 
+After Split, the new right-hand piece is selected unless you chose something else while it ran. The result message offers Undo for an applied split. A Commenter link instead reports a suggested split and keeps the selection. Queued work stays with the save status until it lands.
+
 To adjust a track's volume envelope, open track details and choose **Show
 volume envelope**. Long-press the lane to add a point with **Add volume
 point**, or select an existing point, then choose **Inspect**. The sheet shows
