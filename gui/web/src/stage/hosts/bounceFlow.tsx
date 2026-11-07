@@ -33,6 +33,11 @@ import {
 import { jobResultPaths } from "../../utils/pipeline";
 import { type BounceFlow, type BounceRun, Flow } from "./bounceFlowContext";
 
+type BounceModelNeed = ModelNeeded & {
+  projectPath: string;
+  projectEpoch: number;
+};
+
 /**
  * The host bounce, outside any stage so it outlives them: the same
  * `BounceService` job as MCP `bounce_audio_tool` and CLI `podcast pipeline bounce`.
@@ -45,13 +50,13 @@ export function BounceFlowProvider({ children }: { children: ReactNode }) {
   const activityJob = useDawStore((s) => s.activityJob);
   const [run, setRun] = useState<BounceRun>({ kind: "idle" });
   const [choices, setChoices] = useState<BounceChoices>(BOUNCE_DEFAULTS);
-  const restart = useRef<(need: ModelNeeded) => void>(() => undefined);
+  const restart = useRef<(need: BounceModelNeed) => void>(() => undefined);
   const retried = useRef<string | null>(null);
   const {
     stop: needs,
     stopFor,
     clear,
-  } = useModelResume((need) => restart.current(need));
+  } = useModelResume<BounceModelNeed>((need) => restart.current(need));
   const runRef = useRef(run);
   runRef.current = run;
   const choicesRef = useRef(choices);
@@ -73,12 +78,13 @@ export function BounceFlowProvider({ children }: { children: ReactNode }) {
     const was = wasDeliver.current;
     wasDeliver.current = stage === "deliver";
     if (!was || stage === "deliver") return;
+    clear();
     useDawStore.getState().setBounceRangeTarget(null);
     setChoices(BOUNCE_DEFAULTS);
     setRun((r) =>
       r.kind === "failed" || r.kind === "cancelled" ? { kind: "idle" } : r,
     );
-  }, [stage]);
+  }, [stage, clear]);
 
   const start = useCallback(async () => {
     const s = useDawStore.getState();
@@ -139,7 +145,11 @@ export function BounceFlowProvider({ children }: { children: ReactNode }) {
       ) {
         runRef.current = { kind: "idle" };
         setRun({ kind: "idle" });
-        stopFor(err.model);
+        stopFor({
+          ...err.model,
+          projectPath: path,
+          projectEpoch: s.projectEpoch,
+        });
       } else if (isModelNeeded(err)) {
         setRun({ kind: "failed", reason: notDownloadedLine(err.model) });
       } else if (err instanceof JobCancelledError) {
@@ -153,6 +163,14 @@ export function BounceFlowProvider({ children }: { children: ReactNode }) {
   }, [stopFor]);
 
   restart.current = (need) => {
+    const current = useDawStore.getState();
+    if (
+      current.stage !== "deliver" ||
+      current.projectPath !== need.projectPath ||
+      current.projectEpoch !== need.projectEpoch
+    ) {
+      return;
+    }
     retried.current = need.id;
     void start();
   };
