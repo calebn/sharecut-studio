@@ -113,14 +113,34 @@ export function useSourceReorder(
       const { cards, tops, heights, from, stride } = current;
       const first = tops[0]!;
       const last = tops[cards.length - 1]! + heights[cards.length - 1]!;
+      const maxDy = last - tops[from]! - heights[from]!;
       const dy = Math.min(
-        last - tops[from]! - heights[from]!,
+        maxDy,
         Math.max(first - tops[from]!, event.clientY - current.startY),
       );
-      const centre = tops[from]! + heights[from]! / 2 + dy;
-      let to = 0;
+      const draggedCentre = tops[from]! + heights[from]! / 2;
+      let to = from;
       for (let at = 0; at < cards.length; at += 1) {
-        if (at !== from && tops[at]! + heights[at]! / 2 < centre) to += 1;
+        if (at === from) continue;
+        const siblingCentre = tops[at]! + heights[at]! / 2;
+        if (at > from) {
+          const tallCard = heights[from]! > heights[at]!;
+          const threshold = tallCard
+            ? tops[at]! + heights[at]! - tops[from]! - heights[from]!
+            : siblingCentre - draggedCentre;
+          if (
+            (tallCard ? dy >= threshold : dy > threshold) ||
+            (at === cards.length - 1 && dy === maxDy)
+          ) {
+            to = Math.max(to, at);
+          }
+        } else {
+          const threshold =
+            heights[from]! > heights[at]!
+              ? tops[at]! - tops[from]!
+              : siblingCentre - draggedCentre;
+          if (dy <= threshold) to = Math.min(to, at);
+        }
       }
       current.to = to;
       cards[from]!.style.setProperty(SHIFT, `${dy}px`);

@@ -13,8 +13,6 @@ function rule(selector: string): string {
   return css.slice(start, css.indexOf("}", start));
 }
 
-// A mousedown that focuses the field must not move it: the click would land
-// elsewhere and be lost. So the help line is laid out before and after focus.
 describe("advanced field help line", () => {
   const layout =
     /\b(display|position|inline-size|block-size|height|width|margin|padding|overflow|clip-path|white-space|font-size|visibility)\s*:/;

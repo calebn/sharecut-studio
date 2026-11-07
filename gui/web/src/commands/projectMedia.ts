@@ -333,7 +333,6 @@ export function registerProjectMediaCommands(): void {
         : s.selection?.kind === "track"
           ? s.selection.trackId
           : null;
-    // A named track takes one file: its audio is replaced, nothing else added.
     const files = await pickAudioFiles(typeof args.trackId !== "string");
     if (!files.length) {
       return { status: "disabled", reason: "No files selected" };
