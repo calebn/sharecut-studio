@@ -103,6 +103,16 @@ export type ScriptPaneHandle = {
   focusWord: (index: number) => boolean;
 };
 
+export type ScriptPaneReadingPosition =
+  | { kind: "word"; index: number; offset: number; fallbackTop: number }
+  | { kind: "scroll"; top: number };
+
+export type ScriptPaneReadingPositionBinding = {
+  getPosition: () => ScriptPaneReadingPosition | null;
+  capture: (position: ScriptPaneReadingPosition) => void;
+  restore: boolean;
+};
+
 export type ScriptGuest = "viewer" | "commenter" | "suggester";
 
 const GUEST_SCRIPT_LABEL: Record<ScriptGuest, string> = {
@@ -177,6 +187,8 @@ export type ScriptPaneProps = {
   showCutText?: boolean;
   /** The pane scrolls with the playhead. Off, "Back to playhead" shows. */
   following?: boolean;
+  /** Optional reader location owned by the host across pane lifetimes. */
+  readingPosition?: ScriptPaneReadingPositionBinding;
   /**
    * A bar between the header and the turns: the Find bar. The host opens it on
    * Mod+F or on `onFind` and keeps its own state; the pane only gives it room.
@@ -426,6 +438,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       renderEditor,
       showCutText = false,
       following = true,
+      readingPosition,
       findBar,
       handles = true,
       guest,
@@ -464,6 +477,12 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
     const [places, setPlaces] = useState<HandlePlaces | null>(null);
     const inside = useRef(false);
     const scrollIntent = useUserScrollIntent();
+    const programmaticScrollTop = useRef<number | null>(null);
+    const readingPositionRef = useRef(readingPosition);
+    useLayoutEffect(() => {
+      readingPositionRef.current = readingPosition;
+      if (!readingPosition) programmaticScrollTop.current = null;
+    }, [readingPosition]);
     const findButton = useRef<HTMLButtonElement>(null);
     const layoutCache = useRef<Measured | null>(null);
     const [dragging, setDragging] = useState(false);
@@ -975,7 +994,12 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
           const stop = stopContaining(live.current.stops, index);
           const el = stop ? registry.current.get(stop.start) : undefined;
           const body = bodyRef.current;
-          if (el && body) scrollWithin(body, el, block);
+          if (el && body) {
+            const before = body.scrollTop;
+            scrollWithin(body, el, block);
+            if (readingPositionRef.current && body.scrollTop !== before)
+              programmaticScrollTop.current = body.scrollTop;
+          }
           return el !== undefined;
         },
         focusFind: () => {
@@ -993,6 +1017,84 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
     );
 
     const bodyShown = status.kind !== "empty" && status.kind !== "loading";
+    const restoreReadingPosition = useCallback(() => {
+      const body = bodyRef.current;
+      const position = readingPositionRef.current?.getPosition();
+      if (!body || !position) return;
+      let target =
+        position.kind === "scroll" ? position.top : position.fallbackTop;
+      if (position.kind === "word") {
+        const anchor = registry.current.get(position.index);
+        if (anchor && body.contains(anchor)) {
+          const paneTop = body.getBoundingClientRect().top;
+          target =
+            body.scrollTop +
+            anchor.getBoundingClientRect().top -
+            paneTop -
+            position.offset;
+        }
+      }
+      const maximum = Math.max(0, body.scrollHeight - body.clientHeight);
+      const next =
+        body.scrollHeight > 0
+          ? Math.min(maximum, Math.max(0, target))
+          : Math.max(0, target);
+      if (next !== body.scrollTop) {
+        body.scrollTop = next;
+        programmaticScrollTop.current = next;
+      }
+    }, []);
+    useLayoutEffect(() => {
+      if (readingPosition?.restore) restoreReadingPosition();
+    }, [bodyShown, readingPosition, restoreReadingPosition]);
+    useResizeObserver(
+      bodyRef,
+      restoreReadingPosition,
+      Boolean(readingPosition?.restore),
+    );
+    useEffect(() => {
+      if (!readingPosition?.restore) return;
+      document.fonts?.addEventListener("loadingdone", restoreReadingPosition);
+      return () =>
+        document.fonts?.removeEventListener(
+          "loadingdone",
+          restoreReadingPosition,
+        );
+    }, [readingPosition?.restore, restoreReadingPosition]);
+
+    const captureReadingPosition = useCallback(() => {
+      const body = bodyRef.current;
+      const binding = readingPositionRef.current;
+      if (!body || !binding || !body.isConnected) return;
+      const bounds = body.getBoundingClientRect();
+      const stops = live.current.stops;
+      let low = 0;
+      let high = stops.length;
+      while (low < high) {
+        const middle = (low + high) >>> 1;
+        const word = registry.current.get(stops[middle].start);
+        if (!word || !body.contains(word)) {
+          low = middle + 1;
+          continue;
+        }
+        if (word.getBoundingClientRect().bottom <= bounds.top) low = middle + 1;
+        else high = middle;
+      }
+      const stop = stops[low];
+      const word = stop ? registry.current.get(stop.start) : undefined;
+      const rect = word?.getBoundingClientRect();
+      if (stop && rect && rect.top < bounds.bottom) {
+        binding.capture({
+          kind: "word",
+          index: stop.start,
+          offset: rect.top - bounds.top,
+          fallbackTop: body.scrollTop,
+        });
+        return;
+      }
+      binding.capture({ kind: "scroll", top: body.scrollTop });
+    }, []);
+
     useEffect(() => {
       const body = bodyRef.current;
       if (!body) return;
@@ -1229,7 +1331,10 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
                   className="sys-script-tool"
                   aria-label="Follow the playhead"
                   aria-pressed={following}
-                  onClick={() => onFollowChange(!following)}
+                  onClick={() => {
+                    if (following) captureReadingPosition();
+                    onFollowChange(!following);
+                  }}
                 >
                   <SystemIcon name="pin" size={16} />
                 </button>
@@ -1292,6 +1397,15 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
             }}
             {...scrollIntent.handlers}
             onScroll={() => {
+              const binding = readingPositionRef.current;
+              if (
+                binding &&
+                programmaticScrollTop.current === bodyRef.current?.scrollTop
+              ) {
+                programmaticScrollTop.current = null;
+                return;
+              }
+              if (binding) captureReadingPosition();
               if (scrollIntent.isUserScroll()) onUserScroll?.();
             }}
           >

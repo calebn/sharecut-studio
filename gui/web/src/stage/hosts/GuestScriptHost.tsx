@@ -6,6 +6,10 @@ import { useViewportClass } from "../../hooks/useViewportClass";
 import { rangeEditMode } from "../../shareMode";
 import { GuestScript } from "../../stages/guest/GuestScript";
 import { lastStartedWordAt } from "../../stages/guest/guestLogic";
+import {
+  type GuestReading,
+  useGuestReading,
+} from "../../stages/guest/useGuestReading";
 import { useDawStore } from "../../state/dawStore";
 import { stageRoleOf } from "../../state/stageRoutes";
 import { scriptGuestOf } from "../edit/script/scriptGuest";
@@ -19,7 +23,12 @@ import {
 
 const NOOP = () => {};
 
-function GuestScriptHostAdapter() {
+export type GuestScriptHostProps = { reading?: GuestReading };
+
+function GuestScriptHostAdapter({
+  reading: providedReading,
+}: GuestScriptHostProps) {
+  const reading = useGuestReading(providedReading);
   const { utterances, guestMode, projectPath, capabilities } = useDawStore(
     useShallow((s) => ({
       utterances: s.project?.transcript?.utterances,
@@ -72,6 +81,7 @@ function GuestScriptHostAdapter() {
         wordStarts={wordStarts}
         playing={playing}
         playheadWord={playheadWord}
+        reading={reading}
         empty={empty}
         onSeek={(seconds) => void seekTransport(seconds)}
         selection={mayRange ? range.selection : undefined}
