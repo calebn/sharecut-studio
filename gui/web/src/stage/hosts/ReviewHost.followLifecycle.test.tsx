@@ -309,6 +309,75 @@ describe("guest Review transcript follow lifetime", () => {
     expect(back()).toBeVisible();
   });
 
+  it("uses the pixel fallback when a removed word lets another word reuse its fallback key", () => {
+    const size = viewport("phone");
+    const original = Array.from({ length: 30 }, (_, index) => ({
+      text: `word-${String(index + 1).padStart(2, "0")}`,
+      start: index,
+      end: index + 0.5,
+      timeline_start: 10 + index,
+      timeline_end: 10.5 + index,
+    }));
+    const hydrated = () =>
+      minimalProject({
+        transcript: {
+          utterances: [
+            {
+              track_id: "t1",
+              source_id: "s1",
+              speaker: "Maya",
+              start: 0,
+              end: 30,
+              text: original.map((word) => word.text).join(" "),
+              words: original.map((word) => ({ ...word })),
+            },
+          ],
+        },
+        timeline_duration_sec: 60,
+      });
+    useDawStore
+      .getState()
+      .hydrate("share:follow", hydrated(), "view", ["view", "play"]);
+    useDawStore.setState({ stage: "review", playheadSec: 10.1 });
+    render(<ReviewHost guestShare />);
+    wordSpacing = 100;
+    const reader = body();
+    fireEvent.wheel(reader);
+    reader.scrollTop = 1090;
+    fireEvent.scroll(reader);
+    expect(back()).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "word-11" }).getBoundingClientRect()
+        .top,
+    ).toBe(10);
+
+    size.short("layout", true);
+    const changed = hydrated();
+    const utterance = changed.transcript!.utterances[0];
+    utterance.words!.splice(0, 1);
+    utterance.text = utterance.words!.map((word) => word.text).join(" ");
+    wordSpacing = 120;
+    act(() => {
+      useDawStore
+        .getState()
+        .hydrate("share:follow", changed, "view", ["view", "play"]);
+    });
+    size.short("layout", false);
+
+    expect(
+      screen.getByRole("button", { name: "Follow the playhead" }),
+    ).toHaveAttribute("aria-pressed", "false");
+    expect(body().scrollTop).toBe(1090);
+    expect(
+      screen.getByRole("button", { name: "word-11" }).getBoundingClientRect()
+        .top,
+    ).toBe(110);
+    expect(
+      screen.getByRole("button", { name: "word-12" }).getBoundingClientRect()
+        .top,
+    ).toBe(230);
+  });
+
   it("retains a same-project hydration pause but starts following on a project replacement through StageHost", () => {
     viewport("phone");
     join();
