@@ -327,6 +327,48 @@ describe("dragging a card to reorder", () => {
     ).toBe("");
   });
 
+  it("cancels lost capture and accepts a later drag", () => {
+    layout();
+    const handlers = actions();
+    const { container } = renderThree(handlers);
+    const grip = grips(container)[0]!;
+    fireEvent.pointerDown(grip, { pointerId: 1, clientY: 40, button: 0 });
+    fireEvent.pointerMove(grip, { pointerId: 1, clientY: 150 });
+    fireEvent.lostPointerCapture(grip, { pointerId: 1 });
+    expect(container.querySelector("[data-reordering]")).toBeNull();
+    const next = grips(container)[2]!;
+    fireEvent.pointerDown(next, { pointerId: 2, clientY: 240, button: 0 });
+    fireEvent.pointerMove(next, { pointerId: 2, clientY: 5 });
+    fireEvent.pointerUp(next, { pointerId: 2, clientY: 5 });
+    expect(handlers.onReorder).toHaveBeenCalledExactlyOnceWith("c", "a");
+  });
+
+  it("cancels a drag when the source order changes before release", () => {
+    layout();
+    const handlers = actions();
+    const view = renderThree(handlers);
+    const grip = grips(view.container)[0]!;
+    fireEvent.pointerDown(grip, { pointerId: 1, clientY: 40, button: 0 });
+    fireEvent.pointerMove(grip, { pointerId: 1, clientY: 150 });
+    view.rerender(
+      <SessionSources
+        session={{
+          ...session(),
+          sources: [
+            source("a", "ready"),
+            source("c", "ready"),
+            source("b", "ready"),
+          ],
+        }}
+        firstIndex={1}
+        actions={handlers}
+      />,
+    );
+    fireEvent.pointerUp(grip, { pointerId: 1, clientY: 150 });
+    expect(handlers.onReorder).not.toHaveBeenCalled();
+    expect(view.container.querySelector("[data-reordering]")).toBeNull();
+  });
+
   it("has no axe violations with grips on the cards", async () => {
     const { container } = renderThree(actions());
     expect(grips(container)).toHaveLength(3);

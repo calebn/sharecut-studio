@@ -170,6 +170,7 @@ export const WithGrip: Story = {
       onPointerMove: fn(),
       onPointerUp: fn(),
       onPointerCancel: fn(),
+      onLostPointerCapture: fn(),
     },
   },
   render: (args) => <Live {...args} />,
