@@ -1497,14 +1497,14 @@ describe("TimelineView render isolation", () => {
     Reflect.deleteProperty(HTMLElement.prototype, "clientHeight");
   });
 
-  function mount(fixedPlayhead = false) {
+  function mount(fixedPlayhead = false, headerSlot?: ReactNode) {
     renders.laneProps = {};
     const view = render(
       <DawProvider
         projectPath="/tmp/p.json"
         initialProject={useDawStore.getState().project}
       >
-        <TimelineView fixedPlayhead={fixedPlayhead} />
+        <TimelineView fixedPlayhead={fixedPlayhead} headerSlot={headerSlot} />
       </DawProvider>,
     );
     expect(renders.clips.length).toBeGreaterThanOrEqual(15);
@@ -1934,6 +1934,30 @@ describe("TimelineView render isolation", () => {
       act(() => useDawStore.setState({ zoomPxPerSec: 80 }));
       expect(useDawStore.getState().scrollLeft).toBe(0);
       expect(useDawStore.getState().splitHoverSec).toBe(1.25);
+    });
+
+    it("refreshes a resting guide after measured header width changes at fixed zoom", () => {
+      useDawStore.setState({ scrollLeft: 0 });
+      const { container } = mount(false, <div className="track-headers" />);
+      const header = container.querySelector(".track-headers")!;
+      let width = 168;
+      Object.defineProperty(header, "offsetWidth", {
+        configurable: true,
+        get: () => width,
+      });
+      const lanes = lanesOf(container);
+      Object.defineProperty(lanes, "getBoundingClientRect", {
+        configurable: true,
+        value: () => ({ left: width, top: 0, width: 2400, height: 216 }),
+      });
+      act(() => FakeResizeObserver.of(header).fire(header));
+      fireEvent.pointerMove(lanes, { clientX: 200, altKey: true });
+      expect(useDawStore.getState().splitHoverSec).toBe(0.8);
+      width = 56;
+      act(() => FakeResizeObserver.of(header).fire(header));
+      expect(useDawStore.getState().zoomPxPerSec).toBe(40);
+      expect(useDawStore.getState().scrollLeft).toBe(0);
+      expect(useDawStore.getState().splitHoverSec).toBe(3.6);
     });
 
     it("leaves the hover time cleared when the timeline scrolls after Alt is released", () => {
