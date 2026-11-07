@@ -15,6 +15,8 @@ import type { CombinedUtterance } from "../../types/project";
 import { ReviewHost } from "./ReviewHost";
 import { StageHost } from "./StageHost";
 
+const fontsDescriptor = Object.getOwnPropertyDescriptor(document, "fonts");
+
 function project() {
   const utterances: CombinedUtterance[] = [
     {
@@ -128,6 +130,9 @@ describe("guest Review transcript follow lifetime", () => {
     cleanup();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    if (fontsDescriptor)
+      Object.defineProperty(document, "fonts", fontsDescriptor);
+    else Reflect.deleteProperty(document, "fonts");
   });
 
   it.each(["layout", "visual"] as const)(
@@ -196,6 +201,31 @@ describe("guest Review transcript follow lifetime", () => {
     ).toBeNull();
     moveTo(10.1);
     expect(body().scrollTop).toBe(1000);
+  });
+
+  it("keeps the latest manual reading place when fonts settle after more scrolling", () => {
+    const fonts = new EventTarget();
+    Object.defineProperty(document, "fonts", {
+      configurable: true,
+      value: fonts,
+    });
+    viewport("phone");
+    join();
+    render(<ReviewHost guestShare />);
+    const reader = body();
+    fireEvent.wheel(reader);
+    reader.scrollTop = 1000;
+    fireEvent.scroll(reader);
+    expect(back()).toBeVisible();
+    reader.scrollTop = 2000;
+    fireEvent.scroll(reader);
+
+    act(() => {
+      fonts.dispatchEvent(new Event("loadingdone"));
+    });
+
+    expect(reader.scrollTop).toBe(2000);
+    expect(back()).toBeVisible();
   });
 
   it("retains a same-project hydration pause but starts following on a project replacement through StageHost", () => {
