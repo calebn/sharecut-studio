@@ -2905,7 +2905,6 @@ button.sys-picker-option:focus-visible {
 
 /* Source card */
 
-/* The drop listener wraps the card without adding a box of its own. */
 .sys-source-drop {
   display: contents;
 }
@@ -3750,9 +3749,6 @@ button.sys-picker-option:focus-visible {
   font-weight: 600;
 }
 
-/* One line of help: always read with the field, shown while it has focus.
-   It is always laid out, so focusing never moves the page under the pointer
-   (a mousedown that shifts the field loses its click). */
 .sys-adv-help {
   margin: 0;
   color: transparent;

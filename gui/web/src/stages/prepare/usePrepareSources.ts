@@ -279,13 +279,15 @@ export function usePrepareSources(input: {
     onDropAudio: canIngest
       ? (id, dropped) => {
           const { announceStatus } = useDawStore.getState();
-          const files = audioFilesFromDrop(dropped);
-          if (files.length === 0) {
-            announceStatus("Only audio files can replace a track.");
-          } else if (files.length > 1) {
+          if (dropped.length > 1) {
             announceStatus(
               "Drop one file on a card to replace its audio. Drop several anywhere else to add them as new tracks.",
             );
+            return;
+          }
+          const files = audioFilesFromDrop(dropped);
+          if (files.length === 0) {
+            announceStatus("Only audio files can replace a track.");
           } else {
             void ingestFiles(files, { kind: "track", id });
           }
