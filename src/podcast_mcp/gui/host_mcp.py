@@ -63,7 +63,7 @@ def install_host_project_injection() -> None:
             if _tool_accepts_project_path(name):
                 arguments["project_path"] = str(served)
             try:
-                with app.state.jobs.model_operation():
+                with app.state.jobs.host_tool_call():
                     return await call_next(arguments)
             except JobSlotBusyError as exc:
                 return refusal_tool_result(ToolRefusal(str(exc), exc.code))

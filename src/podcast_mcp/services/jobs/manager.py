@@ -52,8 +52,8 @@ class JobManager:
         self._catalog = JobCatalog()
         self._lock = self._catalog._lock
         self._model_removal_lock = threading.Lock()
-        self._model_operation_lock = threading.Lock()
-        self._model_operations: set[object] = set()
+        self._host_tool_lock = threading.Lock()
+        self._host_tool_calls: set[object] = set()
         self._removing_model = False
 
     @property
@@ -308,25 +308,24 @@ class JobManager:
             return job
 
     @contextmanager
-    def model_operation(self) -> Iterator[None]:
-        """Retain host work independently of its delayed, bounded progress row."""
+    def host_tool_call(self) -> Iterator[None]:
         operation = object()
-        with self._model_operation_lock:
+        with self._host_tool_lock:
             if self._removing_model:
                 raise JobSlotBusyError("A model is being removed. Try again when it finishes.")
-            self._model_operations.add(operation)
+            self._host_tool_calls.add(operation)
         try:
             yield
         finally:
-            with self._model_operation_lock:
-                self._model_operations.remove(operation)
+            with self._host_tool_lock:
+                self._host_tool_calls.remove(operation)
 
     @contextmanager
     def model_removal(self) -> Iterator[None]:
         """Exclude job admission through removal, without blocking status or cancellation."""
         with self._model_removal_lock:
-            with self._model_operation_lock:
-                if self._model_operations:
+            with self._host_tool_lock:
+                if self._host_tool_calls:
                     raise JobSlotBusyError("A job is running; remove the model when it finishes")
                 self._removing_model = True
             try:
@@ -341,7 +340,7 @@ class JobManager:
                     raise JobSlotBusyError("A job is running; remove the model when it finishes")
                 yield
             finally:
-                with self._model_operation_lock:
+                with self._host_tool_lock:
                     self._removing_model = False
 
     def start_bootstrap(
