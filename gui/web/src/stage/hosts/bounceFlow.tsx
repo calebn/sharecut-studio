@@ -137,13 +137,11 @@ export function BounceFlowProvider({ children }: { children: ReactNode }) {
             setRun((r) => (r.kind === "running" ? { ...r, jobId: job.id } : r)),
         });
         if (scope.signal.aborted) return;
-        // A range fixed while this run was going is a new request: keep it.
         if (useDawStore.getState().bounceRangeTarget === range) {
           useDawStore.getState().setBounceRangeTarget(null);
         }
         setRun({ kind: "done", paths: jobResultPaths(done) });
       } catch (err) {
-        // The project changed: this outcome belongs to the old one.
         if (scope.signal.aborted) return;
         if (isAbortError(err)) {
           setRun({ kind: "idle" });
