@@ -113,9 +113,13 @@ function useInspectorFocus(box: RefObject<HTMLElement | null>, ready: boolean) {
     }
     receipt.clicked = true;
   }, []);
-  const onPointerCancelCapture = useCallback(() => {
-    dismissal.current = null;
-  }, []);
+  const onPointerCancelCapture = useCallback(
+    (event: PointerEvent<HTMLElement>) => {
+      if (dismissal.current?.pointerId === event.pointerId)
+        dismissal.current = null;
+    },
+    [],
+  );
   const onKeyDownCapture = useCallback(() => {
     dismissal.current = null;
   }, []);
