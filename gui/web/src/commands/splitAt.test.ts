@@ -420,4 +420,33 @@ describe("Split reply handling", () => {
       expect(toast()?.message).toBe("Split at 00:10.000");
     },
   );
+  it("respects an explicit clear even when selection was already empty", async () => {
+    useDawStore.getState().setSelection(null);
+    let finish!: (value: Record<string, unknown>) => void;
+    vi.mocked(submitQueuedDocumentCommand).mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const split = splitHere();
+    useDawStore.getState().setSelection(null);
+    useDawStore.setState({ project: afterHostOnly });
+    finish(reply({}));
+    await split;
+    expect(useDawStore.getState().selection).toBeNull();
+  });
+
+  it("suppresses a late refusal after switching the document", async () => {
+    let reject!: (error: Error) => void;
+    vi.mocked(submitQueuedDocumentCommand).mockReturnValue(
+      new Promise((_resolve, fail) => {
+        reject = fail;
+      }),
+    );
+    const split = splitHere();
+    activateDocumentScope("/tmp/other");
+    reject(new Error("There is no clip at that time to split"));
+    expect(await split).toEqual({ status: "ok" });
+    expect(toast()).toBeNull();
+  });
 });
