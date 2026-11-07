@@ -104,7 +104,6 @@ const WHISPER: readonly (readonly [code: string, name: string])[] = [
   ["yo", "Yoruba"],
 ];
 
-/** Detect automatically first, then every language Whisper transcribes, by name. */
 export const LANGUAGES: readonly LanguageOption[] = [
   { value: AUTO_LANGUAGE, label: "Detect automatically" },
   ...WHISPER.map(([value, label]) => ({ value, label })),
