@@ -74,9 +74,12 @@ type Props = {
 
 function setup(models = modelsFor("missing")) {
   const api = models;
+  const modelContext = { current: models };
   const ws = workingSet();
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <ModelsContext.Provider value={api}>{children}</ModelsContext.Provider>
+    <ModelsContext.Provider value={modelContext.current}>
+      {children}
+    </ModelsContext.Provider>
   );
   const view = renderHook(
     ({ ingestBusy, mediaKey, canRun = true }: Props) =>
@@ -96,6 +99,7 @@ function setup(models = modelsFor("missing")) {
     ...view,
     ws,
     api,
+    modelContext,
   };
 }
 
@@ -303,8 +307,12 @@ describe("usePrepareRun auto-run", () => {
 
   it("does not loop when the model row already says installed", async () => {
     start.mockRejectedValue(WHISPER_NEEDED);
-    const { result, rerender } = setup(modelsFor("installed"));
+    const { result, rerender, modelContext } = setup(modelsFor("installed"));
     rerender({ ingestBusy: true, mediaKey: "" });
+    rerender({ ingestBusy: false, mediaKey: "a:/a.wav" });
+    await waitFor(() => expect(start).toHaveBeenCalledOnce());
+    expect(result.current.model).not.toBeNull();
+    modelContext.current = modelsFor("installed");
     rerender({ ingestBusy: false, mediaKey: "a:/a.wav" });
     await waitFor(() => expect(start).toHaveBeenCalledTimes(2));
     await act(async () => undefined);
