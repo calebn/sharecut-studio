@@ -43,6 +43,7 @@ from podcast_mcp.engines.models.word_aligner import (
     WordAlignerPinMismatchError,
     bootstrap_word_aligner,
     word_aligner_model,
+    word_aligner_override_dir,
     word_aligner_problem,
 )
 from podcast_mcp.util.asset_sources import OnProgress, asset_entry
@@ -211,6 +212,8 @@ def _rnnoise_sizes(variant: str | None) -> tuple[str | None, int | None]:
 def _whisper_downloaded(variant: str | None) -> list[Path]:
     model = validate_whisper_model(resolve_whisper_model(requested=variant))
     root = whisper_cache_dir()
+    if root.is_symlink():
+        raise ModelNotRemovable("The model cache is linked elsewhere, so Studio leaves it alone.")
     pin = WHISPER_PINS.get(model)
     if pin is not None:
         return [root / f"models--{pin.hf_repo.replace('/', '--')}"]
@@ -226,7 +229,15 @@ def _rnnoise_downloaded(variant: str | None) -> list[Path]:
 
 
 def _word_aligner_downloaded(variant: str | None) -> list[Path]:
-    return list(word_aligner_cache_dir().iterdir())
+    if word_aligner_override_dir() is not None:
+        raise ModelNotRemovable(
+            "The word aligner is a directory you supplied, so Studio leaves it alone."
+        )
+    model = word_aligner_model(variant or DEFAULT_WORD_ALIGNER)
+    root = word_aligner_cache_dir()
+    if root.is_symlink():
+        raise ModelNotRemovable("The model cache is linked elsewhere, so Studio leaves it alone.")
+    return [root / f"models--{model.hf_repo.replace('/', '--')}"]
 
 
 def _speaker_ecapa_downloaded(variant: str | None) -> list[Path]:
@@ -364,6 +375,8 @@ def remove_model(model_id: str, variant: str | None = None) -> int:
     model_base(model_id, variant)
     freed = 0
     for path in model_spec(model_id).downloaded(variant):
+        if path.is_symlink():
+            raise ModelNotRemovable("This model is linked elsewhere, so Studio leaves it alone.")
         if path.is_dir():
             freed += sum(
                 f.stat().st_size for f in path.rglob("*") if f.is_file() and not f.is_symlink()

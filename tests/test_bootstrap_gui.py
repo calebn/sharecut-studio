@@ -1103,3 +1103,92 @@ def test_remove_whisper_counts_blob_payload_without_snapshot_links(tmp_path: Pat
 
     assert remove_model("whisper", "tiny.en") == 100
     assert not folder.exists()
+
+
+@pytest.mark.parametrize("location", ["inside", "outside"])
+def test_remove_aligner_refuses_user_supplied_directory(tmp_path, monkeypatch, location):
+    from podcast_mcp.config.defaults import word_aligner_cache_dir
+    from podcast_mcp.engines.models import registry
+
+    cache = word_aligner_cache_dir()
+    cache.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(registry, "word_aligner_cache_dir", lambda: cache)
+    supplied = (cache if location == "inside" else tmp_path) / "supplied-aligner"
+    supplied.mkdir()
+    sentinel = supplied / "model.onnx"
+    sentinel.write_bytes(b"user supplied synthetic weights")
+    unrelated = cache / "unrelated-note.txt"
+    unrelated.write_bytes(b"unrelated cache content")
+    monkeypatch.setenv("PODCAST_MCP_WORD_ALIGNER_MODEL", str(supplied))
+    response = _client().delete("/api/bootstrap/models/word-aligner")
+    assert sentinel.read_bytes() == b"user supplied synthetic weights"
+    assert unrelated.read_bytes() == b"unrelated cache content"
+    assert response.status_code == 409
+    assert response.headers["X-Sharecut-Error-Code"] == "model_not_removable"
+
+
+def test_remove_aligner_targets_only_its_downloaded_repository(tmp_path, monkeypatch):
+    from podcast_mcp.config.defaults import word_aligner_cache_dir
+    from podcast_mcp.engines.models import registry
+    from podcast_mcp.engines.models.word_aligner import DEFAULT_WORD_ALIGNER, word_aligner_model
+
+    monkeypatch.delenv("PODCAST_MCP_WORD_ALIGNER_MODEL", raising=False)
+    cache = word_aligner_cache_dir()
+    cache.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(registry, "word_aligner_cache_dir", lambda: cache)
+    model = word_aligner_model(DEFAULT_WORD_ALIGNER)
+    target = cache / f"models--{model.hf_repo.replace('/', '--')}"
+    target.mkdir()
+    (target / "model.onnx").write_bytes(b"synthetic weights")
+    other = cache / "unrelated-repository"
+    other.mkdir()
+    sentinel = other / "keep.txt"
+    sentinel.write_bytes(b"unrelated")
+    response = _client().delete("/api/bootstrap/models/word-aligner")
+    assert response.status_code == 200
+    assert response.json()["freed_bytes"] == len(b"synthetic weights")
+    assert not target.exists()
+    assert sentinel.read_bytes() == b"unrelated"
+
+
+@pytest.mark.parametrize("linked", ["cache", "entry"])
+@pytest.mark.parametrize("model_id", ["word-aligner", "whisper"])
+def test_remove_model_refuses_linked_root_or_repository(tmp_path, monkeypatch, model_id, linked):
+    from podcast_mcp.engines.models import registry
+    from podcast_mcp.engines.models.whisper import WHISPER_PINS
+    from podcast_mcp.engines.models.word_aligner import DEFAULT_WORD_ALIGNER, word_aligner_model
+
+    monkeypatch.delenv("PODCAST_MCP_WORD_ALIGNER_MODEL", raising=False)
+    repo = (
+        WHISPER_PINS["tiny.en"].hf_repo
+        if model_id == "whisper"
+        else word_aligner_model(DEFAULT_WORD_ALIGNER).hf_repo
+    )
+    repository_name = f"models--{repo.replace('/', '--')}"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    if linked == "cache":
+        target = outside / repository_name
+        target.mkdir()
+        root = tmp_path / "linked-cache"
+        root.symlink_to(outside, target_is_directory=True)
+    else:
+        target = outside
+        root = tmp_path / "cache"
+        root.mkdir()
+        (root / repository_name).symlink_to(target, target_is_directory=True)
+    sentinel = target / "weights"
+    sentinel.write_bytes(b"synthetic external weights")
+    monkeypatch.setattr(
+        registry,
+        "whisper_cache_dir" if model_id == "whisper" else "word_aligner_cache_dir",
+        lambda: root,
+    )
+    response = _client().delete(
+        f"/api/bootstrap/models/{model_id}",
+        params={"whisper_model": "tiny.en"} if model_id == "whisper" else None,
+    )
+    assert response.status_code == 409
+    assert response.headers["X-Sharecut-Error-Code"] == "model_not_removable"
+    assert sentinel.read_bytes() == b"synthetic external weights"
+    assert (root if linked == "cache" else root / repository_name).is_symlink()
