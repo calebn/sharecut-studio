@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { activateDocumentScope } from "../document/authorityState";
 import { useDawStore } from "../state/dawStore";
-import { selectedClipIdsOf, tracksSelection } from "../state/selection";
+import {
+  clipsSelection,
+  selectedClipIdsOf,
+  tracksSelection,
+} from "../state/selection";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import { clearRegisteredCommands, execute } from "./execute";
 import { registerDawCommands } from "./register";
@@ -305,5 +309,61 @@ describe("Split reply handling", () => {
       { skipWhen: true },
     );
     expect(selected()).toEqual(["c2"]);
+  });
+  it("does not override an explicit clear after an intervening selection", async () => {
+    useDawStore.getState().setSelection(null);
+    let finish!: (value: Record<string, unknown>) => void;
+    vi.mocked(submitQueuedDocumentCommand).mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const split = splitHere();
+    useDawStore
+      .getState()
+      .setSelection(clipsSelection([{ id: "c1", trackId: "host" }]));
+    useDawStore.getState().setSelection(null);
+    useDawStore.setState({ project: afterHostOnly });
+    finish(reply({}));
+    await split;
+    expect(useDawStore.getState().selection).toBeNull();
+  });
+
+  it("selects a right piece whose timing hole starts after the split boundary", async () => {
+    useDawStore.setState({
+      project: projectOf({
+        host: [
+          clipRow({
+            id: "c1",
+            track_id: "host",
+            timeline_end: 20,
+            source_end: 16,
+            timing: {
+              steps: [{ at: 8, delta_sec: 4 }],
+              method: "test",
+              micro_fade_ms: 0,
+            },
+          }),
+        ],
+        guest: [whole("g1", "guest")],
+      }),
+    });
+    const afterGap = projectOf({
+      host: [
+        clipRow({ id: "c1", track_id: "host", timeline_end: 8, source_end: 8 }),
+        clipRow({
+          id: "gap-right",
+          track_id: "host",
+          timeline_start: 12,
+          timeline_end: 20,
+          source_start: 8,
+          source_end: 16,
+        }),
+      ],
+      guest: [whole("g1", "guest")],
+    });
+    serverSplits(afterGap);
+    await splitHere();
+    expect(selected()).toEqual(["gap-right"]);
   });
 });
