@@ -21,6 +21,7 @@ from podcast_mcp.services.jobs.events import (
     job_listener_count,
     publish_job_event,
 )
+from podcast_mcp.services.pipeline import PipelineRetryUnavailable, PipelineRunIntent
 from podcast_mcp.util.coded_error import CodedError
 
 JobKind = Literal[
@@ -166,6 +167,12 @@ class Job:
     failed_components: list[str] = field(default_factory=list)
     steps: list[StepTiming] = field(default_factory=list)
     result_step: str | None = None
+    _retry_state: PipelineRunIntent | PipelineRetryUnavailable | None = field(
+        default=None, repr=False
+    )
+    _retry_source: PipelineRunIntent | None = field(default=None, repr=False)
+    _retry_successor_id: str | None = field(default=None, repr=False)
+    _retry_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
     @classmethod

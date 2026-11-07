@@ -6,6 +6,7 @@ import type { BootstrapStatus } from "../../api";
 import {
   fetchBootstrapJob,
   fetchBootstrapStatus,
+  retryPipelineJob,
   runBootstrap,
   startPipelineRun,
 } from "../../api";
@@ -27,6 +28,7 @@ vi.mock("../../commands/pointer", () => ({ runPointerCommand }));
 vi.mock("../../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../api")>()),
   startPipelineRun: vi.fn(),
+  retryPipelineJob: vi.fn(),
   fetchBootstrapStatus: vi.fn(),
   fetchBootstrapJob: vi.fn(),
   runBootstrap: vi.fn(),
@@ -126,6 +128,17 @@ describe("JobModelBanner", () => {
     useDawStore.setState({ activityJob: null });
     runPointerCommand.mockReset();
     vi.mocked(startPipelineRun).mockReset();
+    vi.mocked(retryPipelineJob)
+      .mockReset()
+      .mockResolvedValue(
+        failedJob({
+          id: "retry",
+          kind: "pipeline",
+          status: "running",
+          error_code: null,
+          error_model: null,
+        }),
+      );
     vi.mocked(fetchBootstrapStatus).mockReset();
     vi.mocked(fetchBootstrapJob).mockReset().mockResolvedValue(null);
     vi.mocked(runBootstrap).mockReset();
@@ -193,7 +206,7 @@ describe("JobModelBanner", () => {
   )(
     "offers a fresh need after recovered $kind ends with $status and the model is removed",
     async ({ kind, status }) => {
-      vi.mocked(startPipelineRun).mockResolvedValue(
+      vi.mocked(retryPipelineJob).mockResolvedValue(
         failedJob({ id: "retry", kind, status: "running", error_code: null }),
       );
       const { requests, onLimit } = mountReal();
@@ -201,17 +214,8 @@ describe("JobModelBanner", () => {
       fail(failedJob({ kind }));
       await act(async () => requests[1]!.resolve(installedNoise()));
       const resumed =
-        kind === "pipeline" ? startPipelineRun : runPointerCommand;
-      if (kind === "pipeline") {
-        await waitFor(() =>
-          expect(useDawStore.getState().statusAnnouncement).toBe(
-            "The model is ready. Start the run again.",
-          ),
-        );
-        expect(resumed).not.toHaveBeenCalled();
-      } else {
-        await waitFor(() => expect(resumed).toHaveBeenCalledTimes(1));
-      }
+        kind === "pipeline" ? retryPipelineJob : runPointerCommand;
+      await waitFor(() => expect(resumed).toHaveBeenCalledTimes(1));
       fail(
         failedJob({
           id: "retry",
@@ -234,7 +238,7 @@ describe("JobModelBanner", () => {
         screen.getByRole("button", { name: "Get noise reduction" }),
       ).toBeVisible();
       expect(requests).toHaveLength(4);
-      expect(resumed).toHaveBeenCalledTimes(kind === "pipeline" ? 0 : 1);
+      expect(resumed).toHaveBeenCalledTimes(1);
       expect(runBootstrap).not.toHaveBeenCalled();
       expect(onLimit).not.toHaveBeenCalled();
     },
@@ -292,9 +296,7 @@ describe("JobModelBanner", () => {
     );
     land("rnnoise");
     await waitFor(() =>
-      expect(useDawStore.getState().statusAnnouncement).toBe(
-        "The model is ready. Start the run again.",
-      ),
+      expect(retryPipelineJob).toHaveBeenCalledWith("/tmp/p.json", "job-1"),
     );
     expect(startPipelineRun).not.toHaveBeenCalled();
     expect(runPointerCommand).not.toHaveBeenCalled();
@@ -314,7 +316,7 @@ describe("JobModelBanner", () => {
     expect(runPointerCommand).not.toHaveBeenCalled();
   });
 
-  it.each(["render_preview"])(
+  it.each(["pipeline", "render_preview"])(
     "reports a repeated %s refusal after its retry starts instead of looping",
     async (kind) => {
       const running = failedJob({
@@ -324,16 +326,16 @@ describe("JobModelBanner", () => {
         error_code: null,
         error_model: null,
       });
-      vi.mocked(startPipelineRun).mockResolvedValue(running);
+      vi.mocked(retryPipelineJob).mockResolvedValue(running);
       const { land } = mount();
       useDawStore.setState({ statusAnnouncement: "" });
       fail(failedJob({ kind }));
       land("rnnoise");
       const resumed =
-        kind === "pipeline" ? startPipelineRun : runPointerCommand;
+        kind === "pipeline" ? retryPipelineJob : runPointerCommand;
       await waitFor(() => expect(resumed).toHaveBeenCalledTimes(1));
       fail(running);
-      fail(failedJob({ id: "job-2", kind }));
+      fail(failedJob({ id: kind === "pipeline" ? "retry" : "job-2", kind }));
       await waitFor(() =>
         expect(useDawStore.getState().statusAnnouncement).toBe(
           "Noise reduction (RNNoise) is not downloaded.",
@@ -343,4 +345,56 @@ describe("JobModelBanner", () => {
       expect(resumed).toHaveBeenCalledTimes(1);
     },
   );
+  it("does not adopt a retained retry response after the project instance changes", async () => {
+    let accept!: (job: PipelineJobSnapshot) => void;
+    vi.mocked(retryPipelineJob).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          accept = resolve;
+        }),
+    );
+    const { land } = mount();
+    fail(failedJob({ kind: "pipeline" }));
+    land("rnnoise");
+    await waitFor(() => expect(retryPipelineJob).toHaveBeenCalledTimes(1));
+    const other = failedJob({
+      id: "other-project",
+      status: "running",
+      error_code: null,
+    });
+    act(() =>
+      useDawStore.setState({
+        projectEpoch: useDawStore.getState().projectEpoch + 1,
+        activityJob: other,
+      }),
+    );
+    await act(async () =>
+      accept(failedJob({ id: "retry", status: "running", error_code: null })),
+    );
+    expect(useDawStore.getState().activityJob).toBe(other);
+  });
+
+  it("keeps a later independent model need actionable after a retry request is refused", async () => {
+    vi.mocked(retryPipelineJob).mockRejectedValueOnce(
+      new Error("The project is busy."),
+    );
+    const { land } = mount();
+    fail(failedJob({ kind: "pipeline" }));
+    land("rnnoise");
+    await waitFor(() =>
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "The project is busy.",
+      ),
+    );
+    fail(failedJob({ id: "independent", kind: "pipeline" }));
+    land("rnnoise");
+    await waitFor(() =>
+      expect(retryPipelineJob).toHaveBeenLastCalledWith(
+        "/tmp/p.json",
+        "independent",
+      ),
+    );
+    expect(retryPipelineJob).toHaveBeenCalledTimes(2);
+    expect(startPipelineRun).not.toHaveBeenCalled();
+  });
 });

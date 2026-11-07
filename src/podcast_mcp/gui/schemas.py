@@ -51,6 +51,13 @@ class PipelineRunRequest(BaseModel):
     overwrite_edited: bool = False
 
 
+class PipelineRetryRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    path: str
+    job_id: str
+
+
 class PipelineConfigPutRequest(BaseModel):
     path: str
     config: dict | None = None

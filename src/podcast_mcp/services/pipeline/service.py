@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import copy
+import hashlib
 import json
 import math
 from collections.abc import Callable, Mapping
+from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -23,7 +26,9 @@ from podcast_mcp.pipeline import steps as pipeline_steps
 from podcast_mcp.pipeline.helpers import ffmpeg
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.pipeline.preview import render_preview_result, rerender_preview
+from podcast_mcp.services.pipeline.run_intent import PipelineRetryUnavailable, PipelineRunIntent
 from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.model_missing import ModelMissing
 from podcast_mcp.util.progress import ProgressReporter
 from podcast_mcp.util.project_state import render_cancel_scope, render_lock
 from podcast_mcp.util.text import count_noun
@@ -146,49 +151,143 @@ class PipelineService:
         unattended: bool = False,
         config: dict | None = None,
         cancel_check=None,
+        on_model_wait: Callable[[PipelineRunIntent | PipelineRetryUnavailable], None] | None = None,
+    ) -> PipelineRunResult:
+        from podcast_mcp.services.pipeline.config import merge_pipeline_config
+
+        defaults = merge_pipeline_config(config) if config is not None else self._run_defaults()
+        return self._run_effective(
+            defaults=copy.deepcopy(defaults),
+            from_step=from_step,
+            only_step=only_step,
+            skip_steps=skip_steps,
+            progress=progress,
+            unattended=unattended,
+            cancel_check=cancel_check,
+            on_model_wait=on_model_wait,
+        )
+
+    def retry(
+        self,
+        intent: PipelineRunIntent,
+        *,
+        progress: ProgressReporter | None = None,
+        cancel_check=None,
+        on_model_wait: Callable[[PipelineRunIntent | PipelineRetryUnavailable], None] | None = None,
+    ) -> PipelineRunResult:
+        return self._run_effective(
+            defaults=copy.deepcopy(intent.config),
+            from_step=intent.from_step,
+            only_step=intent.only_step,
+            skip_steps=list(intent.skip_steps) or None,
+            progress=progress,
+            unattended=intent.unattended,
+            cancel_check=cancel_check,
+            on_model_wait=on_model_wait,
+            intent=intent,
+        )
+
+    def _run_effective(
+        self,
+        *,
+        defaults: dict[str, Any],
+        from_step: str | None,
+        only_step: str | None,
+        skip_steps: list[str] | None,
+        progress: ProgressReporter | None,
+        unattended: bool,
+        cancel_check,
+        on_model_wait: Callable[[PipelineRunIntent | PipelineRetryUnavailable], None] | None,
+        intent: PipelineRunIntent | None = None,
     ) -> PipelineRunResult:
         from podcast_mcp.services.pipeline.config import (
             ensure_whisper_cached_for_run,
             ensure_word_aligner_for_run,
-            merge_pipeline_config,
         )
 
-        ensure_whisper_cached_for_run(
-            config=config,
-            from_step=from_step,
-            only_step=only_step,
-            skip_steps=skip_steps,
+        revision = intent.saved_revision if intent is not None else self.ws.loaded_file_revision
+        targets_unchanged = True
+        transcribe = defaults.get("transcribe", {})
+        destructive = bool(
+            transcribe.get("overwrite_edited")
+            and (transcribe.get("overwrite") or transcribe.get("retime_words"))
         )
-        ensure_word_aligner_for_run(
-            config if config is not None else self._run_defaults(),
-            from_step=from_step,
-            only_step=only_step,
-            skip_steps=skip_steps,
-        )
-        self.ws.checkpoint()
-        # Commit the "before" entry now so the index never holds an entry the file lacks.
-        self.ws.save_merged(history_label="before pipeline run")
-        defaults = merge_pipeline_config(config) if config is not None else self._run_defaults()
-        runner = PipelineRunner(defaults=defaults)
+
+        def transcript_target() -> str:
+            data = self.ws.project.transcript_data.model_dump(mode="json")
+            return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
+
+        def save_progress(history_label: str | None = None) -> None:
+            nonlocal revision, targets_unchanged
+            before = transcript_target() if destructive else None
+            revision = None
+            revision = self.ws.save_merged(history_label=history_label)
+            if before is not None and before != transcript_target():
+                targets_unchanged = False
+
         try:
-            pipeline_run = runner.run(
-                self.ws.project,
+            ensure_whisper_cached_for_run(
+                config=defaults,
+                resolved=True,
                 from_step=from_step,
                 only_step=only_step,
                 skip_steps=skip_steps,
-                on_step_complete=lambda step: self.ws.save_merged(history_label=f"after {step}"),
-                persist=self.ws.save_merged,
-                progress=progress,
-                unattended=unattended,
-                cancel_check=cancel_check,
             )
-            self.ws.save_merged(history_label="after pipeline run")
-        finally:
-            # Steps save as they finish, so a failed or cancelled run still changed the file.
-            # Imported here because document_sync's marker handlers import this module.
-            from podcast_mcp.services.document_sync import after_agent_mutation
+            ensure_word_aligner_for_run(
+                defaults,
+                from_step=from_step,
+                only_step=only_step,
+                skip_steps=skip_steps,
+                resolved=True,
+            )
+            with self.ws.transaction() if intent is not None else nullcontext():
+                if intent is not None and (
+                    self.ws.path.resolve() != intent.project_path
+                    or self.ws.loaded_file_revision != intent.saved_revision
+                ):
+                    raise CodedValueError(
+                        "The project changed. Review it before starting the run again.",
+                        code="pipeline_retry_stale",
+                    )
+                self.ws.checkpoint()
+                save_progress("before pipeline run")
+            runner = PipelineRunner(defaults=copy.deepcopy(defaults))
+            try:
+                pipeline_run = runner.run(
+                    self.ws.project,
+                    from_step=from_step,
+                    only_step=only_step,
+                    skip_steps=skip_steps,
+                    on_step_complete=lambda step: save_progress(f"after {step}"),
+                    persist=save_progress,
+                    progress=progress,
+                    unattended=unattended,
+                    cancel_check=cancel_check,
+                )
+                save_progress("after pipeline run")
+            finally:
+                from podcast_mcp.services.document_sync import after_agent_mutation
 
-            after_agent_mutation(self.ws)
+                after_agent_mutation(self.ws)
+        except ModelMissing:
+            if on_model_wait is not None:
+                state: PipelineRunIntent | PipelineRetryUnavailable
+                if not targets_unchanged:
+                    state = PipelineRetryUnavailable("changed_targets")
+                elif revision is None:
+                    state = PipelineRetryUnavailable("unknown_revision")
+                else:
+                    state = PipelineRunIntent(
+                        project_path=self.ws.path.resolve(),
+                        config=copy.deepcopy(defaults),
+                        from_step=from_step,
+                        only_step=only_step,
+                        skip_steps=tuple(skip_steps or []),
+                        unattended=unattended,
+                        saved_revision=revision,
+                    )
+                on_model_wait(state)
+            raise
         return self._run_result(pipeline_run)
 
     def _run_result(self, pipeline_run: PipelineRun) -> PipelineRunResult:

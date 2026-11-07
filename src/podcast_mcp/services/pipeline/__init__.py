@@ -45,6 +45,7 @@ if TYPE_CHECKING:
         validate_whisper_model,
     )
     from podcast_mcp.services.pipeline.preview import render_preview_result, rerender_preview
+    from podcast_mcp.services.pipeline.run_intent import PipelineRetryUnavailable, PipelineRunIntent
     from podcast_mcp.services.pipeline.service import (
         AudioExportResult,
         PipelineRunResult,
@@ -62,6 +63,8 @@ __all__ = [
     "BootstrapRequest",
     "InstallFailure",
     "ModelSpec",
+    "PipelineRetryUnavailable",
+    "PipelineRunIntent",
     "PipelineRunResult",
     "PipelineService",
     "WhisperWeightsMissingError",
@@ -100,6 +103,8 @@ __all__ = [
 ]
 
 _MODULE_BY_NAME = {
+    "PipelineRetryUnavailable": "run_intent",
+    "PipelineRunIntent": "run_intent",
     "DEFAULT_WHISPER_MODEL": "models",
     "MODELS": "models",
     "ModelSpec": "models",

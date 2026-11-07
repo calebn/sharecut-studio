@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import logging
 import threading
 import time
@@ -33,10 +34,17 @@ from podcast_mcp.services.media import (
     SpeakerService,
     coerce_enrollment,
 )
-from podcast_mcp.services.pipeline import BootstrapRequest, PipelineService, run_bootstrap
-from podcast_mcp.util.coded_error import CodedError
+from podcast_mcp.services.pipeline import (
+    BootstrapRequest,
+    PipelineRetryUnavailable,
+    PipelineRunIntent,
+    PipelineService,
+    run_bootstrap,
+)
+from podcast_mcp.util.coded_error import CodedError, CodedValueError
 from podcast_mcp.util.model_missing import ModelMissing, failure_text
 from podcast_mcp.util.progress import CancelledProgress, bind_progress
+from podcast_mcp.util.project_state import file_revision
 
 logger = logging.getLogger(__name__)
 
@@ -471,6 +479,82 @@ class JobManager:
             reporter.close()
         job.publish({"type": "done", "job": job.snapshot()})
 
+    def retry_pipeline(self, project_path: Path, job_id: str) -> Job:
+        original = self.get_job(job_id)
+        path = project_path.resolve()
+        if original is None or original.kind != "pipeline" or original.project_path != str(path):
+            raise CodedValueError(
+                "That run is no longer available. Start the run again.",
+                code="pipeline_retry_unavailable",
+            )
+        with original._retry_lock:
+            with original._lock:
+                successor_id = original._retry_successor_id
+                state = original._retry_state
+                eligible = original.status == "error" and original.error_code == "model_needed"
+            if successor_id is not None:
+                successor = self.get_job(successor_id)
+                if successor is not None:
+                    return successor
+                raise CodedValueError(
+                    "That retry is no longer available. Check the run's result.",
+                    code="pipeline_retry_unavailable",
+                )
+            if isinstance(state, PipelineRetryUnavailable) and state.reason == "changed_targets":
+                raise CodedValueError(
+                    "The transcript changed. Review it before starting the run again.",
+                    code="pipeline_retry_stale",
+                )
+            if not eligible or not isinstance(state, PipelineRunIntent):
+                raise CodedValueError(
+                    "That run cannot resume. Start the run again.",
+                    code="pipeline_retry_unavailable",
+                )
+            try:
+                unchanged = file_revision(path) == state.saved_revision
+            except OSError:
+                unchanged = False
+            if not unchanged:
+                raise CodedValueError(
+                    "The project changed. Review it before starting the run again.",
+                    code="pipeline_retry_stale",
+                )
+
+            def validate() -> None:
+                from podcast_mcp.services.pipeline import (
+                    ensure_whisper_cached_for_run,
+                    ensure_word_aligner_for_run,
+                )
+
+                ensure_whisper_cached_for_run(
+                    config=state.config,
+                    from_step=state.from_step,
+                    only_step=state.only_step,
+                    skip_steps=list(state.skip_steps),
+                    resolved=True,
+                )
+                ensure_word_aligner_for_run(
+                    state.config,
+                    from_step=state.from_step,
+                    only_step=state.only_step,
+                    skip_steps=list(state.skip_steps),
+                    resolved=True,
+                )
+
+            successor = self._spawn(
+                path,
+                kind="pipeline",
+                from_step=state.from_step,
+                only_step=state.only_step,
+                skip_steps=list(state.skip_steps),
+                unattended=state.unattended,
+                retry_source=state,
+                validate=validate,
+            )
+            with original._lock:
+                original._retry_successor_id = successor.id
+            return successor
+
     def _spawn(
         self,
         project_path: Path,
@@ -483,6 +567,7 @@ class JobManager:
         config: dict[str, Any] | None = None,
         label: str | None = None,
         validate: Callable[[], None] | None = None,
+        retry_source: PipelineRunIntent | None = None,
     ) -> Job:
         with self._catalog._lock:
             if self._catalog._job is not None and self._catalog._job.status in LIVE_JOB_STATUSES:
@@ -504,7 +589,8 @@ class JobManager:
                 label=label,
                 skip_steps=list(skip_steps or []),
                 unattended=unattended,
-                config=config,
+                config=copy.deepcopy(config),
+                _retry_source=retry_source,
             )
             self._catalog._job = job
 
@@ -514,7 +600,16 @@ class JobManager:
             daemon=True,
             name=f"pipeline-job-{job.id}",
         )
-        thread.start()
+        try:
+            thread.start()
+        except Exception:
+            with job._lock:
+                job.status = "error"
+                job.finished_at = time.monotonic()
+            with self._catalog._lock:
+                if self._catalog._job is job:
+                    self._catalog._job = current
+            raise
         return job
 
     def _run_job(self, job: Job) -> None:
@@ -639,15 +734,29 @@ class JobManager:
                     str(info.get("error") or "Render preview failed (premix missing)")
                 )
             return "Render preview complete", None
-        run_result = svc.run(
-            from_step=job.from_step,
-            only_step=job.only_step,
-            skip_steps=job.skip_steps or None,
-            progress=reporter,
-            unattended=job.unattended,
-            config=job.config,
-            cancel_check=cancel_check,
-        )
+
+        def capture_retry(state: PipelineRunIntent | PipelineRetryUnavailable) -> None:
+            with job._lock:
+                job._retry_state = state
+
+        if job._retry_source is not None:
+            run_result = svc.retry(
+                job._retry_source,
+                progress=reporter,
+                cancel_check=cancel_check,
+                on_model_wait=capture_retry,
+            )
+        else:
+            run_result = svc.run(
+                from_step=job.from_step,
+                only_step=job.only_step,
+                skip_steps=job.skip_steps or None,
+                progress=reporter,
+                unattended=job.unattended,
+                config=job.config,
+                cancel_check=cancel_check,
+                on_model_wait=capture_retry,
+            )
         job.result_step = run_result.last_step
         return "Pipeline complete", run_result.job_result()
 
