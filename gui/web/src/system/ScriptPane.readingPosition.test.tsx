@@ -5,6 +5,7 @@ import {
   render,
   screen,
 } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { createRef, StrictMode, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FakeResizeObserver, stubResizeObserver } from "../test/resizeObserver";
@@ -81,6 +82,29 @@ function scriptGeometry(lineHeight = 20) {
       height = nextHeight;
     },
   };
+}
+
+function stubNativeFocusScroll() {
+  const nativeFocus: unknown = Object.getOwnPropertyDescriptor(
+    HTMLElement.prototype,
+    "focus",
+  )?.value;
+  if (typeof nativeFocus !== "function")
+    throw new Error("Expected native focus");
+  vi.spyOn(HTMLElement.prototype, "focus").mockImplementation(function (
+    this: HTMLElement,
+    options?: FocusOptions,
+  ) {
+    Reflect.apply(nativeFocus, this, [{ preventScroll: true }]);
+    if (options?.preventScroll || !this.classList.contains("sys-script-word"))
+      return;
+    const body = this.closest<HTMLElement>(".sys-script-body");
+    if (!body) return;
+    const rect = this.getBoundingClientRect();
+    const pane = body.getBoundingClientRect();
+    if (rect.bottom > pane.bottom) body.scrollTop += rect.bottom - pane.bottom;
+    else if (rect.top < pane.top) body.scrollTop -= pane.top - rect.top;
+  });
 }
 
 describe("ScriptPane reading position", () => {
@@ -464,22 +488,7 @@ describe("ScriptPane reading position", () => {
       configurable: true,
       value: fonts,
     });
-    const nativeFocus = HTMLElement.prototype.focus;
-    vi.spyOn(HTMLElement.prototype, "focus").mockImplementation(function (
-      this: HTMLElement,
-      options?: FocusOptions,
-    ) {
-      nativeFocus.call(this, { preventScroll: true });
-      if (options?.preventScroll || !this.classList.contains("sys-script-word"))
-        return;
-      const body = this.closest<HTMLElement>(".sys-script-body");
-      if (!body) return;
-      const rect = this.getBoundingClientRect();
-      const pane = body.getBoundingClientRect();
-      if (rect.bottom > pane.bottom)
-        body.scrollTop += rect.bottom - pane.bottom;
-      else if (rect.top < pane.top) body.scrollTop -= pane.top - rect.top;
-    });
+    stubNativeFocusScroll();
     let position: ScriptPaneReadingPosition = {
       kind: "word",
       index: 5,
@@ -534,6 +543,356 @@ describe("ScriptPane reading position", () => {
       screen.getByRole("button", { name: "Back to playhead" }),
     ).toBeVisible();
   });
+
+  it.each(["font", "resize"])(
+    "keeps a native Tab-focused word visible after %s restoration",
+    async (callback) => {
+      const user = userEvent.setup();
+      const geometry = scriptGeometry();
+      vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(
+        1600,
+      );
+      stubResizeObserver();
+      const fonts = new EventTarget();
+      Object.defineProperty(document, "fonts", {
+        configurable: true,
+        value: fonts,
+      });
+      const clock = vi.spyOn(performance, "now").mockReturnValue(0);
+      stubNativeFocusScroll();
+      let position: ScriptPaneReadingPosition | null = null;
+      const binding: ScriptPaneReadingPositionBinding = {
+        getPosition: () => position,
+        capture: (next) => {
+          position = next;
+        },
+        restore: true,
+      };
+      const { container } = render(
+        <ScriptPane
+          turns={SCRIPT_TURNS}
+          readingPosition={binding}
+          following={false}
+          playing={0}
+          onFollowChange={vi.fn()}
+          onBackToPlayhead={vi.fn()}
+        />,
+      );
+      const body = container.querySelector<HTMLElement>(".sys-script-body");
+      const word = body?.querySelector<HTMLElement>('[data-stop="5"]');
+      if (!body || !word) throw new Error("Expected the remembered word");
+      await act(async () => {
+        word.focus();
+      });
+      await act(async () => {
+        screen.getByRole("button", { name: "Follow the playhead" }).focus();
+      });
+      body.scrollTop = 600;
+      fireEvent.wheel(body);
+      fireEvent.scroll(body);
+      expect(position).toMatchObject({
+        kind: "word",
+        index: 30,
+        fallbackTop: 600,
+      });
+      clock.mockReturnValue(1000);
+      await user.tab();
+      await act(async () => {
+        await Promise.resolve();
+      });
+      fireEvent.scroll(body);
+      expect(document.activeElement).toBe(word);
+      expect(word.textContent).toBe("Today");
+      expect(body.scrollTop).toBe(100);
+      expect(word.getBoundingClientRect().top).toBe(0);
+      geometry.setLineHeight(24);
+      await act(async () => {
+        if (callback === "font") fonts.dispatchEvent(new Event("loadingdone"));
+        else for (const observer of FakeResizeObserver.all) observer.fire(body);
+      });
+      expect(document.activeElement).toBe(word);
+      expect.soft(body.scrollTop).toBe(120);
+      expect.soft(word.getBoundingClientRect().top).toBe(0);
+      expect(position).toMatchObject({
+        kind: "word",
+        index: 5,
+        fallbackTop: 100,
+      });
+    },
+  );
+
+  it.each(["font", "resize"])(
+    "keeps a held edge selection viewport and endpoint through %s restoration",
+    (callback) => {
+      vi.useFakeTimers({
+        toFake: ["requestAnimationFrame", "cancelAnimationFrame", "setTimeout"],
+      });
+      stubResizeObserver();
+      const fonts = new EventTarget();
+      Object.defineProperty(document, "fonts", {
+        configurable: true,
+        value: fonts,
+      });
+      vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(
+        200,
+      );
+      vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(
+        286,
+      );
+      const rectOf = (element: Element) => {
+        if (element.classList.contains("sys-script-body"))
+          return new DOMRect(0, 0, 300, 200);
+        const index = Number(element.getAttribute("data-stop"));
+        const reader = element.closest<HTMLElement>(".sys-script-body");
+        return new DOMRect(
+          (index % 5) * 60,
+          Math.floor(index / 5) * 26 - (reader?.scrollTop ?? 0),
+          50,
+          20,
+        );
+      };
+      vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
+        function (this: Element) {
+          return rectOf(this);
+        },
+      );
+      vi.spyOn(HTMLElement.prototype, "getClientRects").mockImplementation(
+        function (this: HTMLElement) {
+          return [rectOf(this)] as unknown as DOMRectList;
+        },
+      );
+      let position: ScriptPaneReadingPosition | null = {
+        kind: "scroll",
+        top: 20,
+      };
+      const binding: ScriptPaneReadingPositionBinding = {
+        getPosition: () => position,
+        capture: (next) => {
+          position = next;
+        },
+        restore: true,
+      };
+      const onSelect = vi.fn();
+      const onSelectionEnd = vi.fn();
+      const onUserScroll = vi.fn();
+      const { container } = render(
+        <ScriptPane
+          turns={SCRIPT_TURNS}
+          following={false}
+          readingPosition={binding}
+          onSelect={onSelect}
+          onSelectionEnd={onSelectionEnd}
+          onUserScroll={onUserScroll}
+        />,
+      );
+      const body = container.querySelector<HTMLElement>(".sys-script-body");
+      const first = body?.querySelector<HTMLElement>('[data-stop="12"]');
+      if (!body || !first) throw new Error("Expected selection words");
+      let top = body.scrollTop;
+      Object.defineProperty(body, "scrollTop", {
+        configurable: true,
+        get: () => top,
+        set: (value: number) => {
+          top = Math.max(0, Math.min(value, 60));
+        },
+      });
+      document.elementFromPoint = (x, y) => {
+        const column = Math.floor(x / 60);
+        const row = Math.floor((y + top) / 26);
+        if (x % 60 >= 50 || (y + top) % 26 >= 20 || column > 4) return null;
+        return body.querySelector(`[data-stop="${row * 5 + column}"]`);
+      };
+      fireEvent.pointerDown(first, {
+        pointerId: 1,
+        pointerType: "mouse",
+        isPrimary: true,
+        clientX: 145,
+        clientY: 42,
+      });
+      fireEvent.pointerMove(body, {
+        pointerId: 1,
+        pointerType: "mouse",
+        isPrimary: true,
+        clientX: 10,
+        clientY: 190,
+      });
+      act(() => {
+        for (let frame = 0; frame < 20; frame += 1) vi.advanceTimersByTime(16);
+      });
+      fireEvent.scroll(body);
+      expect(body).toHaveAttribute("data-selecting");
+      expect(body.scrollTop).toBe(60);
+      expect(document.elementFromPoint(10, 190)?.textContent).toBe("So,");
+      expect(onSelect).not.toHaveBeenCalled();
+      act(() => {
+        if (callback === "font") fonts.dispatchEvent(new Event("loadingdone"));
+        else for (const observer of FakeResizeObserver.all) observer.fire(body);
+      });
+      expect.soft(body.scrollTop).toBe(60);
+      expect.soft(position).toMatchObject({ kind: "word", fallbackTop: 60 });
+      fireEvent.pointerUp(body, {
+        pointerId: 1,
+        pointerType: "mouse",
+        isPrimary: true,
+        clientX: 10,
+        clientY: 190,
+      });
+      expect(onSelect).toHaveBeenCalledExactlyOnceWith({
+        kind: "words",
+        anchor: 12,
+        head: 45,
+      });
+      expect(onSelectionEnd).toHaveBeenCalledExactlyOnceWith(12, 45, {
+        source: "mouse",
+        intent: "drag",
+        shift: false,
+        alt: false,
+        mod: false,
+        committed: true,
+      });
+      expect(onUserScroll).toHaveBeenCalledOnce();
+      expect(body).not.toHaveAttribute("data-selecting");
+    },
+  );
+
+  it("yields restoration during a held selection before any edge scrolling", () => {
+    const geometry = scriptGeometry();
+    stubResizeObserver();
+    const fonts = new EventTarget();
+    Object.defineProperty(document, "fonts", {
+      configurable: true,
+      value: fonts,
+    });
+    let position: ScriptPaneReadingPosition | null = {
+      kind: "word",
+      index: 5,
+      offset: 0,
+      fallbackTop: 100,
+    };
+    const binding: ScriptPaneReadingPositionBinding = {
+      getPosition: () => position,
+      capture: (next) => {
+        position = next;
+      },
+      restore: true,
+    };
+    const onSelect = vi.fn();
+    const onUserScroll = vi.fn();
+    const { container } = render(
+      <ScriptPane
+        turns={SCRIPT_TURNS}
+        readingPosition={binding}
+        following={false}
+        onSelect={onSelect}
+        onUserScroll={onUserScroll}
+      />,
+    );
+    const body = container.querySelector<HTMLElement>(".sys-script-body");
+    const word = body?.querySelector<HTMLElement>('[data-stop="5"]');
+    if (!body || !word) throw new Error("Expected selection words");
+    document.elementFromPoint = (_x, y) =>
+      body.querySelector(
+        `[data-stop="${Math.floor((y + body.scrollTop) / 24)}"]`,
+      );
+    geometry.setLineHeight(24);
+    fireEvent.pointerDown(word, {
+      pointerId: 1,
+      pointerType: "mouse",
+      isPrimary: true,
+      clientX: 10,
+      clientY: 25,
+    });
+    fireEvent.pointerMove(body, {
+      pointerId: 1,
+      pointerType: "mouse",
+      isPrimary: true,
+      clientX: 10,
+      clientY: 100,
+    });
+    expect(body).toHaveAttribute("data-selecting");
+    expect(document.elementFromPoint(10, 100)?.textContent).toBe("talking");
+    act(() => {
+      fonts.dispatchEvent(new Event("loadingdone"));
+      for (const observer of FakeResizeObserver.all) observer.fire(body);
+    });
+    expect(body.scrollTop).toBe(100);
+    expect(position).toMatchObject({
+      kind: "word",
+      index: 4,
+      fallbackTop: 100,
+    });
+    fireEvent.pointerUp(body, {
+      pointerId: 1,
+      pointerType: "mouse",
+      isPrimary: true,
+      clientX: 10,
+      clientY: 100,
+    });
+    expect(onSelect).toHaveBeenCalledExactlyOnceWith({
+      kind: "words",
+      anchor: 5,
+      head: 8,
+    });
+    expect(onUserScroll).not.toHaveBeenCalled();
+  });
+
+  it.each(["superseded", "imperative", "retired", "blurred"])(
+    "guards queued native focus capture when %s before the microtask",
+    async (transition) => {
+      scriptGeometry();
+      const ref = createRef<ScriptPaneHandle>();
+      let position: ScriptPaneReadingPosition | null = {
+        kind: "scroll",
+        top: 100,
+      };
+      const capture = vi.fn((next: ScriptPaneReadingPosition) => {
+        position = next;
+      });
+      const binding: ScriptPaneReadingPositionBinding = {
+        getPosition: () => position,
+        capture,
+        restore: true,
+      };
+      const view = render(
+        <StrictMode>
+          <ScriptPane
+            ref={ref}
+            turns={SCRIPT_TURNS}
+            readingPosition={binding}
+          />
+        </StrictMode>,
+      );
+      const body =
+        view.container.querySelector<HTMLElement>(".sys-script-body");
+      const first = body?.querySelector<HTMLElement>('[data-stop="5"]');
+      const second = body?.querySelector<HTMLElement>('[data-stop="8"]');
+      if (!body || !first || !second) throw new Error("Expected focus words");
+      await act(async () => {
+        first.focus();
+        if (transition === "superseded") second.focus();
+        else if (transition === "imperative")
+          expect(ref.current?.focusWord(8)).toBe(true);
+        else if (transition === "retired") view.unmount();
+        else first.blur();
+        await Promise.resolve();
+      });
+      if (transition === "superseded") {
+        expect(document.activeElement).toBe(second);
+        expect(capture).toHaveBeenCalledExactlyOnceWith({
+          kind: "word",
+          index: 8,
+          offset: 60,
+          fallbackTop: 100,
+          turns: SCRIPT_TURNS,
+        });
+      } else {
+        expect(capture).not.toHaveBeenCalled();
+        expect(position).toEqual({ kind: "scroll", top: 100 });
+        if (transition === "imperative")
+          expect(document.activeElement).toBe(second);
+      }
+    },
+  );
 
   it("clamps a pixel fallback to the pane's current scroll range", () => {
     scriptGeometry();
