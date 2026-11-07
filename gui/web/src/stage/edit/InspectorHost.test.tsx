@@ -130,7 +130,7 @@ describe("the Inspector card on the desktop and the tablet", () => {
       fireEvent.mouseDown(close, { button: 0 });
       stage.focus();
       expect(stage).toHaveFocus();
-      fireEvent.click(close);
+      fireEvent.click(close, { detail: 1 });
 
       expect(screen.queryByRole("dialog", { name: "Inspector" })).toBeNull();
       expect(from).toHaveFocus();
@@ -151,7 +151,7 @@ describe("the Inspector card on the desktop and the tablet", () => {
     const close = screen.getByRole("button", { name: "Close" });
     fireEvent.pointerDown(close, { button: 0, pointerId: 1 });
     fireEvent.mouseDown(close, { button: 0 });
-    fireEvent.click(close);
+    fireEvent.click(close, { detail: 1 });
 
     expect(outside).toHaveFocus();
     expect(from).not.toHaveFocus();
@@ -172,11 +172,33 @@ describe("the Inspector card on the desktop and the tablet", () => {
     fireEvent.pointerDown(close, { button: 0, pointerId: 1 });
     fireEvent.mouseDown(close, { button: 0 });
     outside.focus();
-    fireEvent.click(close);
+    fireEvent.click(close, { detail: 1 });
 
     expect(outside).toHaveFocus();
     expect(from).not.toHaveFocus();
     outside.remove();
+    from.remove();
+  });
+
+  it("keeps the containing stage focused when it owned focus before pointerdown", async () => {
+    stubViewportShell("desktop");
+    render(
+      <main className="stage-frame-body" aria-label="Edit" tabIndex={-1}>
+        <EditWorkspace />
+      </main>,
+    );
+    const from = opener();
+    await inspect();
+    const close = screen.getByRole("button", { name: "Close" });
+    const stage = screen.getByRole("main", { name: "Edit" });
+    stage.focus();
+
+    fireEvent.pointerDown(close, { button: 0, pointerId: 1 });
+    fireEvent.mouseDown(close, { button: 0 });
+    fireEvent.click(close, { detail: 1 });
+
+    expect(screen.queryByRole("dialog", { name: "Inspector" })).toBeNull();
+    expect(stage).toHaveFocus();
     from.remove();
   });
 
@@ -208,6 +230,33 @@ describe("the Inspector card on the desktop and the tablet", () => {
     from.remove();
   });
 
+  it("does not use a canceled pointer receipt for a later Escape", async () => {
+    stubViewportShell("desktop");
+    render(
+      <main className="stage-frame-body" aria-label="Edit" tabIndex={-1}>
+        <EditWorkspace />
+      </main>,
+    );
+    const from = opener();
+    await inspect();
+    const close = screen.getByRole("button", { name: "Close" });
+    const stage = screen.getByRole("main", { name: "Edit" });
+
+    fireEvent.pointerDown(close, { button: 0, pointerId: 1 });
+    fireEvent.mouseDown(close, { button: 0 });
+    stage.focus();
+    fireEvent.pointerCancel(close, { pointerId: 1 });
+    fireEvent.keyDown(
+      screen.getByRole("dialog").querySelector(".sys-inspector-keys")!,
+      { key: "Escape" },
+    );
+
+    expect(screen.queryByRole("dialog", { name: "Inspector" })).toBeNull();
+    expect(stage).toHaveFocus();
+    expect(from).not.toHaveFocus();
+    from.remove();
+  });
+
   it("does not restore focus to a removed opener after pointer Close", async () => {
     stubViewportShell("desktop");
     render(
@@ -224,7 +273,7 @@ describe("the Inspector card on the desktop and the tablet", () => {
     fireEvent.pointerDown(close, { button: 0, pointerId: 1 });
     fireEvent.mouseDown(close, { button: 0 });
     stage.focus();
-    fireEvent.click(close);
+    fireEvent.click(close, { detail: 1 });
 
     expect(screen.queryByRole("dialog", { name: "Inspector" })).toBeNull();
     expect(stage).toHaveFocus();

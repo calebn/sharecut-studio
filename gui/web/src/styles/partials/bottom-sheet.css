@@ -144,6 +144,8 @@ html[data-shell="phone"] .bottom-sheet-root {
 
 .bottom-sheet--peek {
   height: auto;
+  min-block-size: min(4rem, 100%);
+  max-block-size: min(7.5rem, 100%);
 }
 
 .bottom-sheet--peek .bottom-sheet-header {

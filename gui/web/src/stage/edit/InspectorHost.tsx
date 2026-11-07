@@ -1,4 +1,7 @@
 import {
+  type FocusEvent,
+  type MouseEvent,
+  type PointerEvent,
   type RefCallback,
   type RefObject,
   useCallback,
@@ -43,6 +46,90 @@ function useInspectorFocus(box: RefObject<HTMLElement | null>, ready: boolean) {
   const opener = useRef<HTMLElement | null>(null);
   const entered = useRef(false);
   const captured = useRef(false);
+  const dismissal = useRef<{
+    pointerId: number;
+    control: HTMLButtonElement;
+    owner: HTMLElement;
+    fallback: HTMLElement | null;
+    clicked: boolean;
+  } | null>(null);
+  const onPointerDownCapture = useCallback(
+    (event: PointerEvent<HTMLElement>) => {
+      dismissal.current = null;
+      const control = (event.target as Element).closest<HTMLButtonElement>(
+        "button.dialog-close",
+      );
+      const owner = document.activeElement;
+      if (
+        event.button !== 0 ||
+        !control ||
+        !control.closest(".sys-inspector-header") ||
+        !box.current?.contains(control) ||
+        !(owner instanceof HTMLElement) ||
+        !box.current.contains(owner)
+      )
+        return;
+      dismissal.current = {
+        pointerId: event.pointerId,
+        control,
+        owner,
+        fallback: null,
+        clicked: false,
+      };
+    },
+    [box],
+  );
+  const onBlurCapture = useCallback(
+    (event: FocusEvent<HTMLElement>) => {
+      const receipt = dismissal.current;
+      const next = event.relatedTarget;
+      if (
+        !receipt ||
+        !(next instanceof HTMLElement) ||
+        !next.isConnected ||
+        event.target !== receipt.owner ||
+        !next.contains(box.current)
+      )
+        return;
+      receipt.fallback = next;
+    },
+    [box],
+  );
+  const onClickCapture = useCallback((event: MouseEvent<HTMLElement>) => {
+    const receipt = dismissal.current;
+    const target = (event.target as Element).closest<HTMLButtonElement>(
+      "button.dialog-close",
+    );
+    if (
+      !receipt ||
+      event.detail === 0 ||
+      target !== receipt.control ||
+      !receipt.fallback ||
+      ("pointerId" in event.nativeEvent &&
+        event.nativeEvent.pointerId !== receipt.pointerId)
+    ) {
+      dismissal.current = null;
+      return;
+    }
+    receipt.clicked = true;
+  }, []);
+  const onPointerCancelCapture = useCallback(() => {
+    dismissal.current = null;
+  }, []);
+  const onKeyDownCapture = useCallback(() => {
+    dismissal.current = null;
+  }, []);
+  const close = useCallback(() => {
+    const receipt = dismissal.current;
+    dismissal.current = null;
+    const now = document.activeElement;
+    const ownsFocus = box.current?.contains(now) ?? false;
+    const matchedPointerDismissal =
+      receipt?.clicked === true && receipt.fallback === now;
+    const was = opener.current;
+    if ((ownsFocus || matchedPointerDismissal) && was?.isConnected)
+      was.focus({ preventScroll: true });
+  }, [box]);
   useEffect(() => {
     if (!captured.current) {
       captured.current = true;
@@ -66,6 +153,14 @@ function useInspectorFocus(box: RefObject<HTMLElement | null>, ready: boolean) {
       return;
     if (box.current) focusFirstControl(box.current);
   }, [ready, box]);
+  return {
+    close,
+    onBlurCapture,
+    onClickCapture,
+    onKeyDownCapture,
+    onPointerCancelCapture,
+    onPointerDownCapture,
+  };
 }
 
 function useBodySections(
@@ -181,9 +276,18 @@ function Card({
   const sections = useBodySections(sheet.rangeActionsInSheet, true);
   // The Action bar hides the same way when its anchor scrolls out.
   const shown = placement !== null && (anchor.visible || selection === null);
-  useInspectorFocus(box, shown);
+  const focus = useInspectorFocus(box, shown);
   return (
-    <div ref={box} className="edit-inspector-slot" hidden={!shown}>
+    <div
+      ref={box}
+      className="edit-inspector-slot"
+      hidden={!shown}
+      onBlurCapture={focus.onBlurCapture}
+      onClickCapture={focus.onClickCapture}
+      onKeyDownCapture={focus.onKeyDownCapture}
+      onPointerCancelCapture={focus.onPointerCancelCapture}
+      onPointerDownCapture={focus.onPointerDownCapture}
+    >
       {placement ? (
         <InspectorSheet
           form="card"
@@ -192,7 +296,10 @@ function Card({
           sections={sections}
           anchor={placement.anchor}
           bounds={placement.bounds}
-          onClose={sheet.close}
+          onClose={() => {
+            focus.close();
+            sheet.close();
+          }}
         />
       ) : null}
     </div>
@@ -253,9 +360,17 @@ function Phone({
     if (box.current) focusFirstControl(box.current);
   }, [focusFields]);
   const sections = useBodySections(sheet.rangeActionsInSheet, dockShown);
-  useInspectorFocus(box, true);
+  const focus = useInspectorFocus(box, true);
   return (
-    <div ref={box} className="edit-inspector-slot">
+    <div
+      ref={box}
+      className="edit-inspector-slot"
+      onBlurCapture={focus.onBlurCapture}
+      onClickCapture={focus.onClickCapture}
+      onKeyDownCapture={focus.onKeyDownCapture}
+      onPointerCancelCapture={focus.onPointerCancelCapture}
+      onPointerDownCapture={focus.onPointerDownCapture}
+    >
       <InspectorSheet
         form="phone"
         {...heading}
@@ -277,7 +392,10 @@ function Phone({
           setDetent(next);
         }}
         onDismiss={sheet.dismiss}
-        onClose={sheet.close}
+        onClose={() => {
+          focus.close();
+          sheet.close();
+        }}
       />
     </div>
   );

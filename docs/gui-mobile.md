@@ -35,6 +35,12 @@ stay clear at larger text sizes. The measurement already includes the safe area.
 The existing keyboard rule still places an open sheet within the visual viewport.
 Centered dialogs and the clip Inspector keep their own placement.
 
+The phone Invite sheet's **Peek** detent stays within the compact 4–7.5rem
+content-height range, scaled with the root type size and capped by the available
+sheet slot. Its existing body remains the scroll owner, so all Invite links and
+status content stay reachable when the compact height overflows. The sheet header
+and its Close and resize controls retain their own geometry.
+
 **Vocabulary since #2292.** The sections below keep their history. Where they
 say transport bar, status bar, tool rail, bottom dock tabs, splitter, layout
 presets, Listen, Text, More hub, Menu or View menu, read the replacement in the

@@ -138,7 +138,12 @@ export async function exerciseInviteAffordances(run: TouchRun): Promise<void> {
       await expect(expand("half height")).toBeVisible();
       const peekBox = await sheet.boundingBox();
       if (!peekBox) throw new Error("The peek Invite sheet has no geometry");
-      expect(peekBox.height).toBeLessThan(fullBox.height);
+      const peekBounds = await invitePeekBounds(page, sheet);
+      expect(peekBox.height).toBeGreaterThanOrEqual(peekBounds.minimum - 1);
+      expect(peekBox.height).toBeLessThanOrEqual(peekBounds.maximum + 1);
+      if (peekBounds.slotHeight > peekBounds.maximum + 1)
+        expect(peekBox.height).toBeLessThan(fullBox.height);
+      await assertInviteGeometry(page, sheet, viewport, owner);
       inviteEvidence.peek = await recordInviteGeometry(
         page,
         sheet,
@@ -641,6 +646,25 @@ async function assertInviteGeometry(
   }
   if (ownsStudioAxe(owner))
     await expectPageAxeClean(page, ".bottom-sheet-chrome");
+}
+
+async function invitePeekBounds(page: Page, sheet: Locator) {
+  const root = page.locator(".bottom-sheet-root");
+  const [rootFont, slotHeight] = await Promise.all([
+    page.evaluate(() =>
+      Number.parseFloat(getComputedStyle(document.documentElement).fontSize),
+    ),
+    root.evaluate((element) => element.clientHeight),
+  ]);
+  const detent = sheet.getByRole("slider", { name: "Sheet height" });
+  await expect(detent).toHaveValue("0");
+  await expect(detent).toHaveAttribute("aria-valuetext", "Strip");
+  return {
+    minimum: Math.min(4 * rootFont, slotHeight),
+    maximum: Math.min(7.5 * rootFont, slotHeight),
+    rootFont,
+    slotHeight,
+  };
 }
 
 async function recordInviteGeometry(
