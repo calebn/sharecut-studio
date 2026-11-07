@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../../../state/dawStore";
 import { seedScript } from "../../../test/scriptHostKit";
+import { StatusLive } from "../../frame/StatusLive";
 import { ScriptHost } from "./ScriptHost";
 
 const submitWordCorrection = vi.hoisted(() => vi.fn());
@@ -132,6 +133,39 @@ describe("ScriptHost Fix text", () => {
     expect(
       screen.getAllByRole("status").map((region) => region.textContent),
     ).toContain("Text not fixed. The words changed.");
+  });
+
+  it("reports a deferred correction failure once after ScriptHost unmounts", async () => {
+    let rejectCorrection!: (failure: Error) => void;
+    submitWordCorrection.mockImplementationOnce(
+      () =>
+        new Promise<string>((_resolve, reject) => {
+          rejectCorrection = reject;
+        }),
+    );
+    const view = render(
+      <>
+        <ScriptHost />
+        <StatusLive />
+      </>,
+    );
+    await userEvent.click(word("friends"));
+    await userEvent.keyboard("{Enter}");
+    await userEvent.clear(field());
+    await userEvent.type(field(), "friend");
+    await userEvent.keyboard("{Enter}");
+    expect(submitWordCorrection).toHaveBeenCalledTimes(1);
+    useDawStore.setState({ feedbackToast: null, statusAnnouncement: "" });
+    view.rerender(<StatusLive />);
+    await act(async () => rejectCorrection(new Error("The words changed.")));
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      message: "Could not fix “friends”: The words changed.",
+      tone: "error",
+    });
+    expect(useDawStore.getState().transcriptInlineEditFailure).toBeNull();
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Could not fix “friends”: The words changed.",
+    );
   });
 
   it("closes on Escape without a call and puts focus back on the word", async () => {
