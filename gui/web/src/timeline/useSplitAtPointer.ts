@@ -114,7 +114,13 @@ export function useSplitAtPointer(
     window.addEventListener("keyup", onKey);
     window.addEventListener("blur", release);
     document.addEventListener("visibilitychange", onVisibility);
+    const unsubscribeScroll = useDawStore.subscribe((s, prev) => {
+      if (s.scrollLeft !== prev.scrollLeft && shown.current) {
+        showRef.current(true);
+      }
+    });
     return () => {
+      unsubscribeScroll();
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("keyup", onKey);
       window.removeEventListener("blur", release);
