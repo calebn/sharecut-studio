@@ -10149,6 +10149,7 @@
       "SplitAtTimePayload": {
         "properties": {
           "at_time": {
+            "minimum": 0.0,
             "title": "At Time",
             "type": "number"
           },

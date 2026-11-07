@@ -876,7 +876,6 @@ function splitPieces(
   targetTracks?: readonly string[] | null,
 ): readonly SplitPiece[] | null {
   if (!Array.isArray(value) || value.length === 0) return null;
-  const tracks = new Set<string>();
   const ids = new Set<string>();
   const pieces: SplitPiece[] = [];
   for (const row of value) {
@@ -887,12 +886,10 @@ function splitPieces(
       !row.track_id ||
       typeof row.clip_id !== "string" ||
       !row.clip_id ||
-      tracks.has(row.track_id) ||
       ids.has(row.clip_id) ||
       (targetTracks?.length && !targetTracks.includes(row.track_id))
     )
       return null;
-    tracks.add(row.track_id);
     ids.add(row.clip_id);
     pieces.push({ id: row.clip_id, trackId: row.track_id });
   }

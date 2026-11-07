@@ -497,7 +497,8 @@ small projection; the guest command still contains only its type. Retries derive
 the outcome from the stored result and do not perform another split.
 
 Applied outcomes can also carry `pieces`, a complete list of `{track_id, clip_id}`
-pairs from the first successful boundary. The mutation follows those pieces
+pairs from the first successful Split application. Accepted repeated target
+tracks can produce several pieces on one track; the list retains all of them. The mutation follows those pieces
 through later boundaries in the same command. Studio selects their final IDs
 once the authoritative document displays them, including splits inside timing
 holes. Missing or invalid piece facts retain applied feedback but do not change
@@ -510,6 +511,8 @@ reply omits `split_outcome`; Studio keeps the selection and reports that the
 result is unavailable rather than reconstructing success from the request. A
 client-side `queued: true` acknowledgement also supplies no completed outcome.
 The existing save status owns queued feedback. Planning dry runs are unchanged.
+The typed command boundary rejects negative or nonfinite primary and additional
+split times before an edit or proposal can be saved.
 
 ### Document command types
 

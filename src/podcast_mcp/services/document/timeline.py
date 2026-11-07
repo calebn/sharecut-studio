@@ -615,7 +615,7 @@ class TimelineService(CutMutatingService):
             summary: dict | None = None
             failure: CodedValueError | None = None
             split_times: list[float] = []
-            first_right_pieces: dict[str, str] | None = None
+            first_right_pieces: list[dict[str, str]] | None = None
             for t in times:
                 try:
                     summary = split_clips_at(p, t, tids, defaults=self.ws.effective_config())
@@ -627,24 +627,25 @@ class TimelineService(CutMutatingService):
                 split_times.append(t)
                 replacements = summary["split_pieces"]
                 if first_right_pieces is None:
-                    first_right_pieces = {
-                        piece["track_id"]: piece["right_clip_id"] for piece in replacements
-                    }
+                    first_right_pieces = [
+                        {"track_id": piece["track_id"], "clip_id": piece["right_clip_id"]}
+                        for piece in replacements
+                    ]
                 else:
-                    for piece in replacements:
-                        tid = piece["track_id"]
-                        if first_right_pieces.get(tid) == piece["original_clip_id"]:
-                            first_right_pieces[tid] = piece["left_clip_id"]
+                    for replacement in replacements:
+                        for piece in first_right_pieces:
+                            if (
+                                piece["track_id"] == replacement["track_id"]
+                                and piece["clip_id"] == replacement["original_clip_id"]
+                            ):
+                                piece["clip_id"] = replacement["left_clip_id"]
             if summary is None:
                 assert failure is not None
                 raise failure
             if len(times) > 1:
                 summary["split_times"] = split_times
             summary.pop("split_pieces", None)
-            summary["first_right_pieces"] = [
-                {"track_id": tid, "clip_id": clip_id}
-                for tid, clip_id in (first_right_pieces or {}).items()
-            ]
+            summary["first_right_pieces"] = first_right_pieces or []
             return summary
 
         return self.ws.mutate(

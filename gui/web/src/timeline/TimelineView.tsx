@@ -698,7 +698,12 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
   // Lane callbacks: one stable function each, taking the track id first, so
   // memoized lanes and clips see equal props. Hot fields (playhead, scroll)
   // are read at call time.
-  const split = useSplitAtPointer(lanesRef, zoomPxPerSec, canvasSec);
+  const split = useSplitAtPointer(
+    lanesRef,
+    zoomPxPerSec,
+    canvasSec,
+    headerOffsetPx,
+  );
   const rangeGesture = useRangeGesture(
     lanesRef,
     zoomPxPerSec,

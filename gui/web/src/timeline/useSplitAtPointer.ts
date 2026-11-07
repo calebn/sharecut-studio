@@ -51,6 +51,7 @@ export function useSplitAtPointer(
   lanesRef: RefObject<HTMLElement | null>,
   zoomPxPerSec: number,
   canvasSec: number,
+  headerOffsetPx?: number,
 ) {
   const pointer = useRef<{ clientX: number; inside: boolean }>({
     clientX: 0,
@@ -104,7 +105,7 @@ export function useSplitAtPointer(
   useLayoutEffect(() => {
     showRef.current = show;
     if (shown.current) show(true);
-  }, [show]);
+  }, [show, headerOffsetPx]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

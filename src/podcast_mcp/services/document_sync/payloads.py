@@ -717,7 +717,7 @@ class StageWordsCutPayload(BaseModel):
 
 
 class SplitAtTimePayload(BaseModel):
-    at_time: float
+    at_time: float = Field(ge=0, allow_inf_nan=False)
     track_ids: list[str] | None = None
     reason: str | None = None
     extra_at_times: list[Annotated[float, Field(ge=0, allow_inf_nan=False)]] | None = Field(
