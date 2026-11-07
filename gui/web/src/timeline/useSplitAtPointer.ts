@@ -114,20 +114,20 @@ export function useSplitAtPointer(
     window.addEventListener("keyup", onKey);
     window.addEventListener("blur", release);
     document.addEventListener("visibilitychange", onVisibility);
-    const unsubscribeScroll = useDawStore.subscribe((s, prev) => {
-      if (s.scrollLeft !== prev.scrollLeft && shown.current) {
-        showRef.current(true);
-      }
-    });
+    const scroller = lanesRef.current?.closest(".timeline-scroll");
+    const onScroll = () => {
+      if (shown.current) showRef.current(true);
+    };
+    scroller?.addEventListener("scroll", onScroll, { passive: true });
     return () => {
-      unsubscribeScroll();
+      scroller?.removeEventListener("scroll", onScroll);
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("keyup", onKey);
       window.removeEventListener("blur", release);
       document.removeEventListener("visibilitychange", onVisibility);
       useDawStore.getState().setSplitHoverSec(null);
     };
-  }, []);
+  }, [lanesRef]);
 
   const onPointerMove = useCallback((e: ReactPointerEvent<HTMLElement>) => {
     pointer.current = { clientX: e.clientX, inside: true };
