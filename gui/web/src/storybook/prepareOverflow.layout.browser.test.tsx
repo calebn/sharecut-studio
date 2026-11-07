@@ -1,5 +1,15 @@
 import { composeStories } from "@storybook/react-vite";
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { useState } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { cdp, page } from "vitest/browser";
 
 /**
@@ -21,6 +31,8 @@ const PREFIXES = [
   "system-sessiongroup--",
 ];
 const LONG = "Q".repeat(300);
+const ENABLED_CLOSED =
+  '[aria-expanded="false"]:not([aria-haspopup]):not(:disabled):not([aria-disabled="true"])';
 const APP_COPY = [
   "label",
   "button:not(.sys-source-hear)",
@@ -73,6 +85,7 @@ const stories: ComposedStory[] = Object.values(modules)
   .filter((story) => PREFIXES.some((prefix) => story.id.startsWith(prefix)));
 
 let host: HTMLElement | undefined;
+let disclosureRoot: Root | undefined;
 const originalMedia = {
   reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
   light: matchMedia("(prefers-color-scheme: light)").matches,
@@ -92,6 +105,8 @@ beforeAll(async () => {
 });
 
 afterEach(async () => {
+  disclosureRoot?.unmount();
+  disclosureRoot = undefined;
   host?.remove();
   host = undefined;
   document.documentElement.removeAttribute("data-theme");
@@ -113,7 +128,7 @@ afterEach(async () => {
   }).toEqual(originalMedia);
 });
 
-function wideNodes(root: Element): string[] {
+function wideNodes(root: Element, context = "overflow fixture"): string[] {
   for (let pass = 0; pass < 6; pass += 1) {
     const closed = [
       ...root.querySelectorAll<HTMLElement>(
@@ -123,6 +138,12 @@ function wideNodes(root: Element): string[] {
     if (closed.length === 0) break;
     for (const control of closed) control.click();
   }
+  expect(
+    [...root.querySelectorAll(ENABLED_CLOSED)].map(
+      (control) => control.outerHTML,
+    ),
+    `${context}: enabled disclosures must be expanded before measurement`,
+  ).toEqual([]);
   const overflows = () =>
     document.documentElement.scrollWidth > document.documentElement.clientWidth;
   const nodes: Text[] = [];
@@ -156,6 +177,72 @@ function wideNodes(root: Element): string[] {
 }
 
 describe("Prepare text never scrolls the page sideways", () => {
+  it("settles enabled disclosures before measuring and leaves disabled controls alone", async () => {
+    await page.viewport(320, 800);
+    const enabledClick = vi.fn();
+    const disabledClick = vi.fn();
+    const ariaDisabledClick = vi.fn();
+    function Disclosure() {
+      const [expanded, setExpanded] = useState(false);
+      return (
+        <>
+          <button
+            type="button"
+            aria-expanded={expanded}
+            onClick={() => {
+              enabledClick();
+              setExpanded((value) => !value);
+            }}
+          >
+            Details
+          </button>
+          <button
+            type="button"
+            disabled
+            aria-expanded="false"
+            onClick={disabledClick}
+          >
+            Disabled details
+          </button>
+          <button
+            type="button"
+            aria-disabled="true"
+            aria-expanded="false"
+            onClick={ariaDisabledClick}
+          >
+            Unavailable details
+          </button>
+          {expanded && (
+            <span
+              className="expanded-overflow-probe"
+              style={{ whiteSpace: "nowrap" }}
+            >
+              Hidden name
+            </span>
+          )}
+        </>
+      );
+    }
+    host = document.createElement("div");
+    host.style.width = "6rem";
+    document.body.appendChild(host);
+    disclosureRoot = createRoot(host);
+    disclosureRoot.render(<Disclosure />);
+    await expect.poll(() => host?.querySelector("button")).not.toBeNull();
+
+    expect(await wideNodes(host)).toEqual([
+      'span.expanded-overflow-probe "Hidden name"',
+    ]);
+    expect(enabledClick).toHaveBeenCalledOnce();
+    expect(disabledClick).not.toHaveBeenCalled();
+    expect(ariaDisabledClick).not.toHaveBeenCalled();
+    expect(host.querySelector("button")?.getAttribute("aria-expanded")).toBe(
+      "true",
+    );
+    expect(host.querySelector(".expanded-overflow-probe")?.textContent).toBe(
+      "Hidden name",
+    );
+  });
   it("uses reduced motion and a light color scheme", () => {
     expect({
       reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
@@ -217,7 +304,12 @@ describe("Prepare text never scrolls the page sideways", () => {
         }
         await expect.element(page.elementLocator(storyRoot)).toBeVisible();
         await document.fonts.ready;
-        expect.soft(wideNodes(host), `${story.id} at ${width}`).toEqual([]);
+        expect
+          .soft(
+            wideNodes(host, `${story.id} at ${width}`),
+            `${story.id} at ${width}`,
+          )
+          .toEqual([]);
         host.remove();
         host = undefined;
       }
