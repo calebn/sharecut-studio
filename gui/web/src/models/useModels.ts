@@ -12,6 +12,8 @@ import type {
 export type ModelsApi = {
   /** Registry order; null until the first status arrives. */
   models: ModelView[] | null;
+  /** Active downloads and retained failures, with their own variant identity. */
+  downloads: ModelView[];
   observation: ModelObservation;
   tools: { ffmpeg: ModelInstallState; hint: string | null };
   ready: boolean;
@@ -37,6 +39,7 @@ export const ModelsContext = createContext<ModelsApi | null>(null);
  */
 export const INERT_MODELS: ModelsApi = {
   models: null,
+  downloads: [],
   observation: { kind: "checking", generation: 0 },
   tools: { ffmpeg: "missing", hint: null },
   ready: false,

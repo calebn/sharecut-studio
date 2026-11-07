@@ -7,6 +7,9 @@ export type ModelFailure = {
   plain: string;
 };
 
+export type ModelFailureKey = `${string}/${string}`;
+export type ModelFailures = Partial<Record<ModelFailureKey, ModelFailure>>;
+
 export type ModelState =
   | { kind: "checking" }
   | { kind: "unavailable" }

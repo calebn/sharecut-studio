@@ -77,8 +77,17 @@ export const Mixed: Story = {
     if (viewMode === "docs") return;
     const sheet = await openSheet(canvasElement);
     await expect(
-      within(sheet).getByRole("button", { name: "Update Noise reduction" }),
+      within(sheet).queryByRole("button", { name: "Update Noise reduction" }),
+    ).toBeNull();
+    await userEvent.click(
+      within(sheet).getByRole("button", { name: "More for Noise reduction" }),
+    );
+    await expect(
+      within(canvasElement.ownerDocument.body).getByRole("menuitem", {
+        name: "Update Noise reduction",
+      }),
     ).toBeEnabled();
+    await userEvent.keyboard("{Escape}");
     await expect(
       within(sheet).getByRole("button", { name: "Try again Speaker split" }),
     ).toBeEnabled();

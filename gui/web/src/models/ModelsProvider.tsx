@@ -22,6 +22,8 @@ import { ApiError, errorMessage, isAbortError } from "../utils/apiError";
 import { isTerminalJobStatus } from "../utils/pipeline";
 import { plainError } from "../utils/plainError";
 import {
+  downloadRows,
+  failureKey,
   initialState,
   jobFailures,
   overlay,
@@ -103,9 +105,11 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
         const refreshed = await reload();
         const stillMissing = done.components.filter(
           (id) =>
-            (id !== "whisper" ||
-              done.whisper_model === refreshed?.whisper_model) &&
-            refreshed?.models.find((m) => m.id === id)?.state !== "installed",
+            !(
+              (id !== "whisper" ||
+                done.whisper_model === refreshed?.whisper_model) &&
+              refreshed?.models.find((m) => m.id === id)?.state === "installed"
+            ),
         );
         const failures = jobFailures(done, stillMissing);
         dispatch({ type: "failed", failures });
@@ -113,7 +117,9 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
         if (done.status === "cancelled") {
           return { kind: "cancelled" };
         }
-        const failed = ids.filter((id) => failures[id]);
+        const failed = ids.filter(
+          (id) => failures[failureKey(id, done.whisper_model)],
+        );
         return failed.length > 0 ? { kind: "failed", failed } : { kind: "ok" };
       } catch (e: unknown) {
         if (isAbortError(e) || !mounted.current) {
@@ -125,7 +131,12 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
         };
         dispatch({
           type: "failed",
-          failures: Object.fromEntries(job.components.map((id) => [id, lost])),
+          failures: Object.fromEntries(
+            job.components.map((id) => [
+              failureKey(id, job.whisper_model),
+              lost,
+            ]),
+          ),
         });
         dispatch({ type: "jobSeen", job: null });
         return {
@@ -190,19 +201,25 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
           void reload();
         }
       }
-      dispatch({ type: "downloadStarted", ids });
+      const whisperModel = options?.whisperModel ?? stateRef.current.variant;
+      dispatch({ type: "downloadStarted", ids, variant: whisperModel });
       setStartingModelIds(ids);
-      const rows = stateRef.current.status?.models ?? [];
-      const force = ids.some(
-        (id) => rows.find((m) => m.id === id)?.state === "update_needed",
-      );
-      const whisperModel = ids.includes("whisper")
-        ? (options?.whisperModel ?? stateRef.current.variant)
-        : undefined;
+      const current = stateRef.current;
+      const force =
+        current.observation.kind === "current" &&
+        ids.some(
+          (id) =>
+            (id !== "whisper" ||
+              current.status?.whisper_model === whisperModel) &&
+            current.status?.models.find((m) => m.id === id)?.state ===
+              "update_needed",
+        );
       try {
         const started = await runBootstrap({
           components: ids,
-          ...(whisperModel ? { whisper_model: whisperModel } : {}),
+          ...(ids.includes("whisper") && whisperModel
+            ? { whisper_model: whisperModel }
+            : {}),
           force,
         });
         const outcome = track(started.job, ids);
@@ -220,7 +237,9 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
         const failure: ModelFailure = { kind: null, plain };
         dispatch({
           type: "failed",
-          failures: Object.fromEntries(ids.map((id) => [id, failure])),
+          failures: Object.fromEntries(
+            ids.map((id) => [failureKey(id, whisperModel), failure]),
+          ),
         });
         return { kind: "failed", failed: ids };
       }
@@ -269,18 +288,23 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
     [reload],
   );
 
-  const api = useMemo<ModelsApi>(
-    () => ({
-      models: state.status
-        ? overlay(
-            state.status,
-            state.job,
-            state.failures,
-            state.variant,
-            startingModelIds,
-            state.observation.kind,
-          )
-        : null,
+  const api = useMemo<ModelsApi>(() => {
+    const models = state.status
+      ? overlay(
+          state.status,
+          state.job,
+          state.failures,
+          state.variant,
+          startingModelIds,
+          state.observation.kind,
+        )
+      : null;
+    return {
+      models,
+      downloads:
+        state.status && models
+          ? downloadRows(state.status, state.job, state.failures, models)
+          : [],
       tools: toolsOf(state.status),
       ready:
         state.observation.kind === "current" &&
@@ -298,9 +322,8 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
       cancel,
       remove,
       refresh,
-    }),
-    [state, startingModelIds, choose, download, cancel, remove, refresh],
-  );
+    };
+  }, [state, startingModelIds, choose, download, cancel, remove, refresh]);
 
   return (
     <ModelsContext.Provider value={api}>{children}</ModelsContext.Provider>

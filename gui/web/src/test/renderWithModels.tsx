@@ -5,7 +5,7 @@ import type { BootstrapJobSnapshot, BootstrapStatus } from "../api";
 import { overlay, toolsOf } from "../models/controller";
 import type {
   DownloadOutcome,
-  ModelFailure,
+  ModelFailures,
   RemoveOutcome,
 } from "../models/types";
 import { type ModelsApi, ModelsContext } from "../models/useModels";
@@ -13,7 +13,7 @@ import { type ModelsApi, ModelsContext } from "../models/useModels";
 export type ModelsFixture = {
   status: BootstrapStatus;
   job?: BootstrapJobSnapshot | null;
-  failures?: Record<string, ModelFailure>;
+  failures?: ModelFailures;
   download?: ModelsApi["download"];
 };
 
@@ -22,8 +22,20 @@ let observationGeneration = 0;
 /** A static ModelsApi for consumer tests: the real overlay over a status fixture, spy actions. */
 export function modelsApi(fixture: ModelsFixture): ModelsApi {
   const { status, job = null, failures = {} } = fixture;
+  const models = overlay(status, job, failures);
   return {
-    models: overlay(status, job, failures),
+    models,
+    downloads: overlay(
+      status,
+      job,
+      failures,
+      job?.whisper_model ?? status.whisper_model,
+    ).filter(
+      (m) =>
+        m.state.kind === "queued" ||
+        m.state.kind === "downloading" ||
+        m.state.kind === "failed",
+    ),
     observation: { kind: "current", generation: ++observationGeneration },
     tools: toolsOf(status),
     ready: status.ready,

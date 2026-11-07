@@ -69,6 +69,9 @@ function storyModelsApi(over: Partial<ModelsApi> = {}): ModelsApi {
   const models = over.models === undefined ? registryModels() : over.models;
   return {
     models,
+    downloads: (models ?? []).filter((m) =>
+      ["queued", "downloading", "failed"].includes(m.state.kind),
+    ),
     observation: {
       kind: models === null ? "checking" : "current",
       generation: 1,

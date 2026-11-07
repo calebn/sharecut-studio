@@ -922,7 +922,10 @@ def test_precheckpoint_model_failure_does_not_renew_revision_consent(
     assert _transcript_text(empty_project) == "new human correction"
 
 
-def test_bootstrap_worker_creation_failure_restores_slot_and_removal_admission(monkeypatch):
+@pytest.mark.parametrize("previous_download", [False, True])
+def test_bootstrap_worker_creation_failure_restores_slot_and_removal_admission(
+    monkeypatch, previous_download
+):
     from podcast_mcp.services.jobs import JobManager
 
     manager = JobManager()
@@ -936,16 +939,21 @@ def test_bootstrap_worker_creation_failure_restores_slot_and_removal_admission(m
             raise RuntimeError("controlled worker launch failure")
         return real_start(thread)
 
-    monkeypatch.setattr(threading.Thread, "start", fail_first_start)
     monkeypatch.setattr(
         "podcast_mcp.services.jobs.manager.run_bootstrap",
         lambda *args, **kwargs: {"ok": True, "results": {}, "ready": True},
     )
+    previous = None
+    if previous_download:
+        previous, adopted = manager.start_bootstrap(components=["rnnoise"])
+        assert adopted is False
+        assert manager.wait(previous, timeout=5).status == "ok"
+    monkeypatch.setattr(threading.Thread, "start", fail_first_start)
 
     with pytest.raises(RuntimeError, match="controlled worker launch failure"):
         manager.start_bootstrap(components=["rnnoise"])
 
-    assert manager.get_bootstrap_job() is None
+    assert manager.get_bootstrap_job() is previous
     with manager.model_removal():
         pass
 
