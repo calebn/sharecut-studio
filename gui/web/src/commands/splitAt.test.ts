@@ -400,6 +400,10 @@ describe("Split reply handling", () => {
       { track_id: "host", clip_id: "c2" },
       { track_id: "host", clip_id: "other" },
     ],
+    [
+      { track_id: "host", clip_id: "c2" },
+      { track_id: "host", clip_id: "c2" },
+    ],
     [{ track_id: "other", clip_id: "c2" }],
     [{ track_id: "host", clip_id: "c2", path: "private" }],
     [
@@ -407,7 +411,7 @@ describe("Split reply handling", () => {
       { track_id: "guest", clip_id: 42 },
     ],
   ])(
-    "keeps applied feedback without retargeting malformed or missing piece facts: %j",
+    "keeps applied feedback without retargeting invalid, missing, or undisplayed piece facts: %j",
     async (pieces) => {
       const held = useDawStore.getState().selection;
       vi.mocked(submitQueuedDocumentCommand).mockImplementation(async () => {
@@ -455,5 +459,23 @@ describe("Split reply handling", () => {
     reject(new Error("There is no clip at that time to split"));
     expect(await split).toEqual({ status: "ok" });
     expect(toast()).toBeNull();
+  });
+  it("selects every mutation-owned piece on one repeated target track", async () => {
+    const after = projectOf({
+      host: [
+        leftPiece("c1", "host"),
+        rightPiece("c2", "host"),
+        rightPiece("c3", "host"),
+      ],
+      guest: [whole("g1", "guest")],
+    });
+    serverSplits(after, {
+      pieces: [
+        { track_id: "host", clip_id: "c2" },
+        { track_id: "host", clip_id: "c3" },
+      ],
+    });
+    await splitHere();
+    expect(selected()).toEqual(["c2", "c3"]);
   });
 });

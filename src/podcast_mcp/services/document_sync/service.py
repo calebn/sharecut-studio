@@ -291,7 +291,6 @@ def _split_reply_facts(
     raw_pieces = result.get("first_right_pieces")
     if kind == "split" and isinstance(raw_pieces, list) and raw_pieces:
         pieces: list[_SplitPiece] = []
-        tracks: set[str] = set()
         clips: set[str] = set()
         for piece in raw_pieces:
             if not isinstance(piece, Mapping) or set(piece) != {"track_id", "clip_id"}:
@@ -302,7 +301,6 @@ def _split_reply_facts(
                 or not tid
                 or not isinstance(cid, str)
                 or not cid
-                or tid in tracks
                 or cid in clips
                 or (
                     isinstance(target_track_ids, list)
@@ -312,7 +310,6 @@ def _split_reply_facts(
             ):
                 break
             pieces.append({"track_id": tid, "clip_id": cid})
-            tracks.add(tid)
             clips.add(cid)
         else:
             outcome["pieces"] = pieces

@@ -569,7 +569,7 @@ def test_two_edge_split_reports_the_surviving_first_right_piece(
     "pieces",
     [
         [{"track_id": "host", "clip_id": "right", "path": "/private"}],
-        [{"track_id": "host", "clip_id": "right"}, {"track_id": "host", "clip_id": "other"}],
+        [{"track_id": "host", "clip_id": "right"}, {"track_id": "guest", "clip_id": "right"}],
         [{"track_id": "other", "clip_id": "right"}],
         [{"track_id": "host", "clip_id": "right"}, {"track_id": "guest", "clip_id": 42}],
         [],
@@ -586,7 +586,7 @@ def test_split_piece_projection_rejects_the_entire_invalid_selection(pieces):
             "at_time": 5.0,
             "first_right_pieces": pieces,
         },
-        ["host"],
+        ["host", "guest"],
     ) == {"split_outcome": {"kind": "split", "times": [5.0]}}
 
 
