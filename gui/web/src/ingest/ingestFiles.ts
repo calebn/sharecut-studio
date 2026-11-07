@@ -216,9 +216,7 @@ export async function ingestFiles(
         .announceStatus(`Import failed: ${reason}`, { tone: "error" });
       try {
         await refreshDocumentProject(projectPath);
-      } catch {
-        // The failure above is already announced.
-      }
+      } catch {}
     } finally {
       imports -= 1;
       filesInFlight -= list.length;
