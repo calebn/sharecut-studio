@@ -146,6 +146,7 @@ export function usePrepareModel(): PrepareModel {
     tracks: allTracks ?? [],
     activityJob,
     isPlaying,
+    canIngest,
   });
   const { cleanup, onCleanup } = useCleanup(workingSet);
   const vocabulary = useVocabulary(

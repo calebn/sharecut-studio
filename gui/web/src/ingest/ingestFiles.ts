@@ -19,8 +19,32 @@ import { trackHasMedia } from "./dropLabels";
 /** Imports under way: busy ends when the last one settles, not the first. */
 let imports = 0;
 let filesInFlight = 0;
+const replacementTails = new Map<string, Map<string, Promise<boolean>>>();
 
 export type IngestTarget = { kind: "track"; id: string } | { kind: "new" };
+
+function enqueueReplacement(
+  projectPath: string,
+  trackId: string,
+  run: (hasMedia: boolean) => Promise<boolean>,
+): Promise<boolean> {
+  let projectTails = replacementTails.get(projectPath);
+  if (!projectTails) {
+    projectTails = new Map();
+    replacementTails.set(projectPath, projectTails);
+  }
+
+  const previous = projectTails.get(trackId) ?? Promise.resolve(false);
+  const operation = previous.then(run);
+  const tail = operation.catch(() => false);
+  projectTails.set(trackId, tail);
+  void tail.then(() => {
+    if (projectTails?.get(trackId) !== tail) return;
+    projectTails.delete(trackId);
+    if (projectTails.size === 0) replacementTails.delete(projectPath);
+  });
+  return operation;
+}
 
 function stemLabel(filename: string): string {
   const base = filename.replace(/\.[^.]+$/, "").trim();
@@ -129,68 +153,88 @@ export async function ingestFiles(
   }
 
   const list = [...files];
+  const ingestTarget: IngestTarget =
+    target.kind === "track"
+      ? { kind: "track", id: target.id }
+      : { kind: "new" };
   const taken = new Set((s.project?.tracks ?? []).map((t) => t.id));
-  let replaced = false;
-  if (target.kind === "track") {
-    const track = s.project?.tracks.find((t) => t.id === target.id);
-    replaced = trackHasMedia({
-      mediaPath: track?.media_path,
-      clipCount: s.project?.clips?.tracks?.[target.id]?.length ?? 0,
-    });
-  }
   imports += 1;
   filesInFlight += list.length;
   s.setIngestBusy(true, filesInFlight);
-  s.announceStatus(`Importing ${list.length} file(s)…`);
-  let focusId: string | null = null;
-  let undoHead: HistoryEntryId | null = null;
-  try {
-    if (target.kind === "track") {
-      const first = list[0]!;
-      const uploaded = await uploadMediaFile(projectPath, first);
-      focusId = target.id;
-      for (const extra of list.slice(1)) {
-        focusId = await createTrackWithMedia(projectPath, extra, taken);
-      }
-      const swap = await setTrackMediaCommand(
-        projectPath,
-        target.id,
-        uploaded.rel_path!,
-      );
-      undoHead = replyHistoryHead(swap);
-    } else {
-      for (const file of list) {
-        focusId = await createTrackWithMedia(projectPath, file, taken);
-      }
-    }
-    await refreshDocumentProject(projectPath);
-    if (focusId) {
-      focusImportedTrack(focusId);
-      if (replaced && target.kind === "track") {
-        announceImportResult(target.id, { replaced, undo: undoHead });
-      } else {
-        announceImportResult(focusId, { replaced: false, undo: null });
-      }
-    } else {
-      s.announceStatus("Import complete");
-    }
-  } catch (err) {
-    // Every call site is fire-and-forget with no rejection handler, so the
-    // error must surface here or the UI stalls on "Importing…" forever (#223).
-    const reason = errorMessage(err);
-    s.announceStatus(`Import failed: ${reason}`, { tone: "error" });
-    // Files before the failing one may have landed. Refresh so they show and
-    // the stage sees their audio (Prepare starts its run from that change).
+  const run = async (hadMedia: boolean): Promise<boolean> => {
+    let hasMedia = hadMedia;
+    let focusId: string | null = null;
+    let undoHead: HistoryEntryId | null = null;
     try {
+      const current = useDawStore.getState();
+      if (current.projectPath !== projectPath) return hasMedia;
+      const track =
+        ingestTarget.kind === "track"
+          ? current.project?.tracks.find((one) => one.id === ingestTarget.id)
+          : undefined;
+      const replaced =
+        hadMedia ||
+        (ingestTarget.kind === "track" &&
+          trackHasMedia({
+            mediaPath: track?.media_path,
+            clipCount:
+              current.project?.clips?.tracks?.[ingestTarget.id]?.length ?? 0,
+          }));
+      current.announceStatus(`Importing ${list.length} file(s)…`);
+      if (ingestTarget.kind === "track") {
+        const first = list[0]!;
+        const uploaded = await uploadMediaFile(projectPath, first);
+        if (useDawStore.getState().projectPath !== projectPath) return hasMedia;
+        focusId = ingestTarget.id;
+        for (const extra of list.slice(1)) {
+          focusId = await createTrackWithMedia(projectPath, extra, taken);
+        }
+        const swap = await setTrackMediaCommand(
+          projectPath,
+          ingestTarget.id,
+          uploaded.rel_path!,
+        );
+        hasMedia = true;
+        undoHead = replyHistoryHead(swap);
+      } else {
+        for (const file of list) {
+          focusId = await createTrackWithMedia(projectPath, file, taken);
+        }
+      }
       await refreshDocumentProject(projectPath);
-    } catch {
-      // The failure above is already announced.
+      if (useDawStore.getState().projectPath !== projectPath) return hasMedia;
+      if (focusId) {
+        focusImportedTrack(focusId);
+        if (replaced && ingestTarget.kind === "track") {
+          announceImportResult(ingestTarget.id, { replaced, undo: undoHead });
+        } else {
+          announceImportResult(focusId, { replaced: false, undo: null });
+        }
+      } else {
+        useDawStore.getState().announceStatus("Import complete");
+      }
+    } catch (err) {
+      if (useDawStore.getState().projectPath !== projectPath) return hasMedia;
+      const reason = errorMessage(err);
+      useDawStore
+        .getState()
+        .announceStatus(`Import failed: ${reason}`, { tone: "error" });
+      try {
+        await refreshDocumentProject(projectPath);
+      } catch {}
+    } finally {
+      imports -= 1;
+      filesInFlight -= list.length;
+      if (imports === 0) useDawStore.getState().setIngestBusy(false);
+      else useDawStore.getState().setIngestBusy(true, filesInFlight);
     }
-  } finally {
-    imports -= 1;
-    filesInFlight -= list.length;
-    if (imports === 0) s.setIngestBusy(false);
-    else s.setIngestBusy(true, filesInFlight);
+    return hasMedia;
+  };
+
+  if (ingestTarget.kind === "track") {
+    await enqueueReplacement(projectPath, ingestTarget.id, run);
+  } else {
+    await run(false);
   }
 }
 

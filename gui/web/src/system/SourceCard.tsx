@@ -1,10 +1,11 @@
-import { useId, useRef, useState } from "react";
+import { type DragEvent, useId, useRef, useState } from "react";
 import { Button, Field, Menu, MenuItem } from "../ui";
 import { OverviewStrip } from "./OverviewStrip";
 import { percentOf } from "./progress";
 import { StatusRow } from "./StatusRow";
 import { SystemIcon } from "./SystemIcon";
 import { useFocusRescue } from "./useFocusRescue";
+import type { SourceGrip } from "./useSourceReorder";
 
 type SourceCardState =
   | "uploading"
@@ -49,10 +50,15 @@ export type SourceCardProps = {
   onCancelSplit?: () => void;
   onRemove: () => void;
   onReplace?: () => void;
+  onDropAudio?: (files: File[]) => void;
+  /** True while audio is dragged over the card, so the stage can label the drop. */
+  onDropHover?: (over: boolean) => void;
   onMerge?: () => void;
   /** Reorder within the session without dragging. Omit at the ends. */
   onMoveUp?: () => void;
   onMoveDown?: () => void;
+  /** Pointer drag to reorder; the pointer-only twin of Move up and Move down. */
+  grip?: SourceGrip;
   /** Plain cause when the file failed. */
   cause?: string;
   onRetry?: () => void;
@@ -106,9 +112,12 @@ export function SourceCard({
   onCancelSplit,
   onRemove,
   onReplace,
+  onDropAudio,
+  onDropHover,
   onMerge,
   onMoveUp,
   onMoveDown,
+  grip,
   cause,
   onRetry,
   onDetails,
@@ -118,6 +127,8 @@ export function SourceCard({
   const [menuOpen, setMenuOpen] = useState(false);
   const card = useRef<HTMLElement>(null);
   useFocusRescue(card, () => () => card.current);
+  const dragDepth = useRef(0);
+  const [dropOver, setDropOver] = useState(false);
   const reasonId = useId();
   const named = name.trim();
   const who = !named
@@ -133,244 +144,295 @@ export function SourceCard({
     : atMost
       ? "Eight is the most"
       : null;
+  const accepting =
+    onDropAudio !== undefined && hasAudio(state) && state !== "splitting";
+  const setOver = (over: boolean) => {
+    setDropOver(over);
+    onDropHover?.(over);
+  };
+  const carriesFiles = (event: DragEvent) =>
+    accepting && Array.from(event.dataTransfer.types).includes("Files");
   return (
-    <section
-      ref={card}
-      tabIndex={-1}
-      data-source-id={sourceId}
-      className="sys-source"
-      aria-label={named ? `Voice ${index}, ${named}` : `Voice ${index}`}
-      data-state={state}
+    <div
+      className="sys-source-drop"
+      onDragEnter={(event) => {
+        if (!carriesFiles(event)) return;
+        dragDepth.current += 1;
+        if (dragDepth.current === 1) setOver(true);
+      }}
+      onDragOver={(event) => {
+        if (!carriesFiles(event)) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "copy";
+      }}
+      onDragLeave={(event) => {
+        if (!carriesFiles(event)) return;
+        dragDepth.current = Math.max(0, dragDepth.current - 1);
+        if (dragDepth.current === 0) setOver(false);
+      }}
+      onDrop={(event) => {
+        if (!carriesFiles(event)) return;
+        event.preventDefault();
+        dragDepth.current = 0;
+        setOver(false);
+        onDropAudio?.(Array.from(event.dataTransfer.files));
+      }}
     >
-      <Field
-        label="Speaker name"
-        className="sys-source-name"
-        hint={
-          sameNameAs ? `Another voice is also called ${sameNameAs}.` : undefined
-        }
+      <section
+        ref={card}
+        tabIndex={-1}
+        data-source-id={sourceId}
+        className="sys-source"
+        aria-label={named ? `Voice ${index}, ${named}` : `Voice ${index}`}
+        data-state={state}
+        data-drop-over={dropOver || undefined}
       >
-        {(control) => (
-          <input
-            {...control}
-            type="text"
-            aria-label={`Speaker name for voice ${index}`}
-            autoComplete="off"
-            maxLength={MAX_NAME}
-            value={name}
-            onChange={(event) => onName(event.target.value)}
-          />
-        )}
-      </Field>
-      <p className="sys-source-file">{fileName}</p>
-      {state === "uploading" ? (
-        <StatusRow
-          density="inline"
-          state="running"
-          title="Uploading"
-          barLabel={`Uploading ${fileName}`}
-          progress={progress ?? 0}
-          detail={`${percentOf(progress)}%`}
-          valueText={`${percentOf(progress)} percent`}
-        />
-      ) : null}
-      {state === "probing" ? (
-        <StatusRow density="inline" state="running" title="Checking file" />
-      ) : null}
-      {state === "ready" ? (
-        <StatusRow
-          density="inline"
-          state="done"
-          title="Ready"
-          detail={audioTime}
-        />
-      ) : null}
-      {state === "new" ? (
-        <StatusRow
-          density="inline"
-          state="queued"
-          title="New"
-          detail={
-            audioTime ? `${audioTime} · not processed yet` : "Not processed yet"
-          }
-        />
-      ) : null}
-      {state === "needs-name" ? (
-        <StatusRow
-          density="inline"
-          state="needs-you"
-          title="Needs a name"
-          detail={audioTime}
-        />
-      ) : null}
-      {state === "split-prompt" ? (
-        <StatusRow
-          density="inline"
-          state="needs-you"
-          title="One recording of several people?"
-          detail={audioTime}
-        />
-      ) : null}
-      {state === "splitting" ? (
-        <StatusRow
-          density="inline"
-          state="running"
-          title="Finding voices"
-          detail={splitDetail}
-          progress={progress ?? 0}
-          action={
-            onCancelSplit
-              ? {
-                  label: "Cancel splitting",
-                  name: `Cancel splitting ${who}`,
-                  onAction: onCancelSplit,
-                }
+        <Field
+          label="Speaker name"
+          className="sys-source-name"
+          hint={
+            sameNameAs
+              ? `Another voice is also called ${sameNameAs}.`
               : undefined
           }
-        />
-      ) : null}
-      {state === "failed" ? (
-        <StatusRow
-          density="inline"
-          state="failed"
-          title={cause ?? "Could not read this file"}
-          action={
-            onRetry
-              ? {
-                  label: "Try again",
-                  name: `Try again for ${who}`,
-                  onAction: onRetry,
-                }
-              : undefined
-          }
-        />
-      ) : null}
-      {hasAudio(state) ? (
-        <>
-          <div className="sys-source-wave" aria-hidden="true">
-            <OverviewStrip height={16} peaks={peaks} label="Waveform" />
-          </div>
-          {state === "splitting" ? null : (
-            <div className="sys-source-controls">
-              <Button
-                className="ui-control--quiet sys-source-hear"
-                aria-pressed={playing || undefined}
-                onClick={onHear}
-              >
-                <SystemIcon name={playing ? "pause" : "play"} size={16} />
-                {`Hear ${who}`}
-              </Button>
-              {splittable ? (
-                <>
-                  <div
-                    className="sys-stepper"
-                    role="group"
-                    aria-label="Number of voices"
-                    aria-describedby={reason ? reasonId : undefined}
-                  >
-                    <Button
-                      className="sys-stepper-button"
-                      aria-label={`Fewer voices for ${who}`}
-                      aria-disabled={atFewest || undefined}
-                      aria-describedby={atFewest ? reasonId : undefined}
-                      onClick={
-                        atFewest ? undefined : () => onVoices?.(voices - 1)
-                      }
-                    >
-                      <SystemIcon name="minus" size={16} />
-                    </Button>
-                    <output className="sys-stepper-value" aria-live="polite">
-                      {voices}
-                    </output>
-                    <Button
-                      className="sys-stepper-button"
-                      aria-label={`More voices for ${who}`}
-                      aria-disabled={atMost || undefined}
-                      aria-describedby={atMost ? reasonId : undefined}
-                      onClick={
-                        atMost ? undefined : () => onVoices?.(voices + 1)
-                      }
-                    >
-                      <SystemIcon name="plus" size={16} />
-                    </Button>
-                  </div>
-                  {reason ? (
-                    <span id={reasonId} className="sys-stepper-reason">
-                      {reason}
-                    </span>
-                  ) : null}
-                  <Button onClick={onSplit} aria-label={`Split ${who}`}>
-                    <SystemIcon name="split" size={14} />
-                    Split
-                  </Button>
-                </>
-              ) : null}
-            </div>
+        >
+          {(control) => (
+            <input
+              {...control}
+              type="text"
+              aria-label={`Speaker name for voice ${index}`}
+              autoComplete="off"
+              maxLength={MAX_NAME}
+              value={name}
+              onChange={(event) => onName(event.target.value)}
+            />
           )}
-        </>
-      ) : null}
-      <div className="sys-source-actions">
-        {state === "failed" && onDetails ? (
-          <Button onClick={onDetails} aria-label={`Details for ${who}`}>
-            Details
-          </Button>
+        </Field>
+        <p className="sys-source-file">{fileName}</p>
+        {state === "uploading" ? (
+          <StatusRow
+            density="inline"
+            state="running"
+            title="Uploading"
+            barLabel={`Uploading ${fileName}`}
+            progress={progress ?? 0}
+            detail={`${percentOf(progress)}%`}
+            valueText={`${percentOf(progress)} percent`}
+          />
         ) : null}
-        <Button onClick={onRemove} aria-label={`Remove ${who}`}>
-          <SystemIcon name="trash-2" size={14} />
-          Remove
-        </Button>
-        {hasAudio(state) && state !== "splitting" ? (
-          <Menu
-            open={menuOpen}
-            onOpenChange={setMenuOpen}
-            label={`More for ${who}`}
-            className="ui-menu-root sys-menu"
-            trigger={(props) => (
-              <Button {...props} aria-label={`More for ${who}`}>
-                <SystemIcon name="ellipsis" size={16} />
-              </Button>
+        {state === "probing" ? (
+          <StatusRow density="inline" state="running" title="Checking file" />
+        ) : null}
+        {state === "ready" ? (
+          <StatusRow
+            density="inline"
+            state="done"
+            title="Ready"
+            detail={audioTime}
+          />
+        ) : null}
+        {state === "new" ? (
+          <StatusRow
+            density="inline"
+            state="queued"
+            title="New"
+            detail={
+              audioTime
+                ? `${audioTime} · not processed yet`
+                : "Not processed yet"
+            }
+          />
+        ) : null}
+        {state === "needs-name" ? (
+          <StatusRow
+            density="inline"
+            state="needs-you"
+            title="Needs a name"
+            detail={audioTime}
+          />
+        ) : null}
+        {state === "split-prompt" ? (
+          <StatusRow
+            density="inline"
+            state="needs-you"
+            title="One recording of several people?"
+            detail={audioTime}
+          />
+        ) : null}
+        {state === "splitting" ? (
+          <StatusRow
+            density="inline"
+            state="running"
+            title="Finding voices"
+            detail={splitDetail}
+            progress={progress ?? 0}
+            action={
+              onCancelSplit
+                ? {
+                    label: "Cancel splitting",
+                    name: `Cancel splitting ${who}`,
+                    onAction: onCancelSplit,
+                  }
+                : undefined
+            }
+          />
+        ) : null}
+        {state === "failed" ? (
+          <StatusRow
+            density="inline"
+            state="failed"
+            title={cause ?? "Could not read this file"}
+            action={
+              onRetry
+                ? {
+                    label: "Try again",
+                    name: `Try again for ${who}`,
+                    onAction: onRetry,
+                  }
+                : undefined
+            }
+          />
+        ) : null}
+        {hasAudio(state) ? (
+          <>
+            <div className="sys-source-wave" aria-hidden="true">
+              <OverviewStrip height={16} peaks={peaks} label="Waveform" />
+            </div>
+            {state === "splitting" ? null : (
+              <div className="sys-source-controls">
+                <Button
+                  className="ui-control--quiet sys-source-hear"
+                  aria-pressed={playing || undefined}
+                  onClick={onHear}
+                >
+                  <SystemIcon name={playing ? "pause" : "play"} size={16} />
+                  {`Hear ${who}`}
+                </Button>
+                {splittable ? (
+                  <>
+                    <div
+                      className="sys-stepper"
+                      role="group"
+                      aria-label="Number of voices"
+                      aria-describedby={reason ? reasonId : undefined}
+                    >
+                      <Button
+                        className="sys-stepper-button"
+                        aria-label={`Fewer voices for ${who}`}
+                        aria-disabled={atFewest || undefined}
+                        aria-describedby={atFewest ? reasonId : undefined}
+                        onClick={
+                          atFewest ? undefined : () => onVoices?.(voices - 1)
+                        }
+                      >
+                        <SystemIcon name="minus" size={16} />
+                      </Button>
+                      <output className="sys-stepper-value" aria-live="polite">
+                        {voices}
+                      </output>
+                      <Button
+                        className="sys-stepper-button"
+                        aria-label={`More voices for ${who}`}
+                        aria-disabled={atMost || undefined}
+                        aria-describedby={atMost ? reasonId : undefined}
+                        onClick={
+                          atMost ? undefined : () => onVoices?.(voices + 1)
+                        }
+                      >
+                        <SystemIcon name="plus" size={16} />
+                      </Button>
+                    </div>
+                    {reason ? (
+                      <span id={reasonId} className="sys-stepper-reason">
+                        {reason}
+                      </span>
+                    ) : null}
+                    <Button onClick={onSplit} aria-label={`Split ${who}`}>
+                      <SystemIcon name="split" size={14} />
+                      Split
+                    </Button>
+                  </>
+                ) : null}
+              </div>
             )}
-          >
-            <MenuItem
-              onSelect={() => {
-                setMenuOpen(false);
-                onReplace?.();
-              }}
-            >
-              <Named label="Replace audio" who={who} />
-            </MenuItem>
-            {onMerge ? (
-              <MenuItem
-                onSelect={() => {
-                  setMenuOpen(false);
-                  onMerge();
-                }}
-              >
-                <Named label="Merge" who={who} />
-              </MenuItem>
-            ) : null}
-            {onMoveUp ? (
-              <MenuItem
-                onSelect={() => {
-                  setMenuOpen(false);
-                  onMoveUp();
-                }}
-              >
-                <Named label="Move up" who={who} />
-              </MenuItem>
-            ) : null}
-            {onMoveDown ? (
-              <MenuItem
-                onSelect={() => {
-                  setMenuOpen(false);
-                  onMoveDown();
-                }}
-              >
-                <Named label="Move down" who={who} />
-              </MenuItem>
-            ) : null}
-          </Menu>
+          </>
         ) : null}
-      </div>
-    </section>
+        <div className="sys-source-actions">
+          {grip ? (
+            <button
+              type="button"
+              {...grip}
+              className="sys-source-grip"
+              tabIndex={-1}
+              aria-hidden="true"
+              data-grip
+            >
+              <span className="sys-source-grip-dots" />
+            </button>
+          ) : null}
+          {state === "failed" && onDetails ? (
+            <Button onClick={onDetails} aria-label={`Details for ${who}`}>
+              Details
+            </Button>
+          ) : null}
+          <Button onClick={onRemove} aria-label={`Remove ${who}`}>
+            <SystemIcon name="trash-2" size={14} />
+            Remove
+          </Button>
+          {hasAudio(state) && state !== "splitting" ? (
+            <Menu
+              open={menuOpen}
+              onOpenChange={setMenuOpen}
+              label={`More for ${who}`}
+              className="ui-menu-root sys-menu"
+              trigger={(props) => (
+                <Button {...props} aria-label={`More for ${who}`}>
+                  <SystemIcon name="ellipsis" size={16} />
+                </Button>
+              )}
+            >
+              <MenuItem
+                onSelect={() => {
+                  setMenuOpen(false);
+                  onReplace?.();
+                }}
+              >
+                <Named label="Replace audio" who={who} />
+              </MenuItem>
+              {onMerge ? (
+                <MenuItem
+                  onSelect={() => {
+                    setMenuOpen(false);
+                    onMerge();
+                  }}
+                >
+                  <Named label="Merge" who={who} />
+                </MenuItem>
+              ) : null}
+              {onMoveUp ? (
+                <MenuItem
+                  onSelect={() => {
+                    setMenuOpen(false);
+                    onMoveUp();
+                  }}
+                >
+                  <Named label="Move up" who={who} />
+                </MenuItem>
+              ) : null}
+              {onMoveDown ? (
+                <MenuItem
+                  onSelect={() => {
+                    setMenuOpen(false);
+                    onMoveDown();
+                  }}
+                >
+                  <Named label="Move down" who={who} />
+                </MenuItem>
+              ) : null}
+            </Menu>
+          ) : null}
+        </div>
+      </section>
+    </div>
   );
 }

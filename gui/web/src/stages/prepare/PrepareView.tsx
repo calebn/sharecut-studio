@@ -144,7 +144,11 @@ const GLYPH = {
   failed: "failed",
 } as const;
 
-function dropLabel(count: number | undefined): string {
+function dropLabel(
+  count: number | undefined,
+  replacing: string | null,
+): string {
+  if (replacing) return `Replace ${replacing}'s audio`;
   return count === undefined
     ? "Drop to add audio"
     : `Drop to add ${count} ${count === 1 ? "file" : "files"}`;
@@ -194,6 +198,7 @@ export function PrepareView({
     .map((row) => row.id);
   const [moreOpen, setMoreOpen] = useState(false);
   const [rowNote, setRowNote] = useState("");
+  const [replacingId, setReplacingId] = useState<string | null>(null);
   const onRow = (row: ReadyRowId, action: ReadyAction) => {
     const title = rows.find((one) => one.id === row)?.title;
     if (title && action === "skip") setRowNote(`${title} skipped for this run`);
@@ -246,6 +251,13 @@ export function PrepareView({
     handoffLabel: handoff.label,
     failure,
   });
+  const cardActions: SourceActions = {
+    ...sourceActions,
+    onDropHover: (id, over) =>
+      setReplacingId((current) =>
+        over ? id : current === id ? null : current,
+      ),
+  };
   const tileState = dropActive ? "drag-hover" : "rest";
   const status = (
     <>
@@ -268,8 +280,14 @@ export function PrepareView({
       </p>
     </>
   );
+  const allSources = sessions.flatMap((one) => one.sources);
+  const replacingAt = allSources.findIndex((one) => one.id === replacingId);
+  const replacingName =
+    replacingAt < 0
+      ? null
+      : allSources[replacingAt]!.name.trim() || `voice ${replacingAt + 1}`;
   const overlay = dropActive ? (
-    <DropOverlay label={dropLabel(dropCount)} />
+    <DropOverlay label={dropLabel(dropCount, replacingName)} />
   ) : null;
 
   if (phase === "empty") {
@@ -420,7 +438,7 @@ export function PrepareView({
                 session={session}
                 firstIndex={firstIndexes[at]}
                 repeated={repeated}
-                actions={sourceActions}
+                actions={cardActions}
                 onTarget={
                   onTarget ? (to) => onTarget(session.id, to) : undefined
                 }

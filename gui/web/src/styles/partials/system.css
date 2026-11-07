@@ -2905,6 +2905,10 @@ button.sys-picker-option:focus-visible {
 
 /* Source card */
 
+.sys-source-drop {
+  display: contents;
+}
+
 .sys-source {
   container: sys-source / inline-size;
   display: flex;
@@ -2915,6 +2919,55 @@ button.sys-picker-option:focus-visible {
   border-radius: var(--radius-lg);
   background: var(--color-bg-elevated);
   color: var(--color-text-primary);
+}
+
+.sys-source {
+  --sys-source-shift: 0;
+  transform: translateY(var(--sys-source-shift));
+}
+
+.sys-source[data-reordering] {
+  position: relative;
+  z-index: var(--z-timeline-popover);
+  box-shadow: var(--shadow-floating);
+  cursor: grabbing;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sys-source[data-making-room] {
+    transition: transform var(--motion-hover);
+  }
+}
+
+.sys-source-grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-inline-end: auto;
+  inline-size: var(--touch-min);
+  block-size: var(--touch-min);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: grab;
+  touch-action: none;
+}
+
+.sys-source-grip:hover {
+  background: var(--color-bg-sunken);
+}
+
+.sys-source-grip-dots {
+  inline-size: 0.75rem;
+  block-size: 1rem;
+  border-inline: 0.25rem dotted currentcolor;
+}
+
+.sys-source[data-drop-over] {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 var(--focus-ring-width) var(--color-accent);
 }
 
 .sys-source .ui-field-hint {
@@ -3638,12 +3691,6 @@ button.sys-picker-option:focus-visible {
   overflow-wrap: anywhere;
 }
 
-.sys-adv-value {
-  color: var(--color-text-secondary);
-  font-family: var(--font-family-mono);
-  font-size: var(--font-size-ui);
-}
-
 .sys-adv-reset {
   display: inline-flex;
   align-items: center;
@@ -3670,12 +3717,6 @@ button.sys-picker-option:focus-visible {
   background: var(--color-accent);
 }
 
-.sys-adv-range {
-  inline-size: 100%;
-  min-block-size: var(--control-height);
-  accent-color: var(--color-accent-solid);
-}
-
 .sys-adv-select {
   inline-size: 100%;
   min-block-size: var(--control-height);
@@ -3688,40 +3729,70 @@ button.sys-picker-option:focus-visible {
   font-size: var(--font-size-field);
 }
 
-.sys-adv-range[aria-disabled="true"],
 .sys-adv-select[aria-disabled="true"] {
   opacity: 0.55;
   cursor: not-allowed;
 }
 
-.sys-adv-range:focus-visible,
 .sys-adv-select:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-accent);
   outline-offset: var(--focus-ring-offset);
 }
 
-/* One line of help: always read with the field, shown while it has focus. */
-.sys-adv-help {
+.sys-adv-picker {
+  position: relative;
+}
+
+.sys-adv-options {
   position: absolute;
-  inline-size: 1px;
-  block-size: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
+  inset-inline: 0;
+  z-index: var(--z-timeline-popover);
+  max-block-size: 14rem;
+  margin-block-start: var(--space-1);
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-elevated);
+  box-shadow: var(--shadow-floating);
+}
+
+.sys-adv-option,
+.sys-adv-none {
+  display: flex;
+  align-items: center;
+  min-block-size: var(--control-height);
+  margin: 0;
+  padding-inline: var(--space-3);
+  cursor: pointer;
+}
+
+.sys-adv-option {
+  min-block-size: var(--touch-min);
+}
+
+.sys-adv-none {
+  color: var(--color-text-secondary);
+  cursor: default;
+}
+
+.sys-adv-option[data-active] {
+  background: var(--color-bg-sunken);
+}
+
+.sys-adv-option[aria-selected="true"] {
+  font-weight: 600;
+}
+
+.sys-adv-help {
+  margin: 0;
+  color: transparent;
+  font-size: var(--font-size-ui);
+  user-select: none;
 }
 
 .sys-adv-field:focus-within .sys-adv-help {
-  position: static;
-  inline-size: auto;
-  block-size: auto;
-  margin: 0;
-  overflow: visible;
-  clip-path: none;
-  white-space: normal;
   color: var(--color-text-secondary);
-  font-size: var(--font-size-ui);
+  user-select: auto;
 }
 
 @media (prefers-reduced-motion: no-preference) {

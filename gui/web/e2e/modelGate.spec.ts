@@ -197,7 +197,7 @@ async function openSplitSpeakers(page: Page): Promise<void> {
     .getByRole("button", { name: "Split speakers…", exact: true })
     .click();
   await expect(
-    page.getByRole("group", { name: "Number of voices" }),
+    page.getByRole("group", { name: "Number of voices", exact: true }),
   ).toBeVisible();
 }
 

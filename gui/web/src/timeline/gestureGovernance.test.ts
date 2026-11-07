@@ -207,8 +207,8 @@ const SURFACE_GESTURES: Record<string, string> = {
     "the waveform handles preview a word's timing and save one adjustment on release; Escape cancels, and the Start and End Scrub fields do the same by key",
   "system/Seam.tsx":
     "the pill's edges roll the seam with pointer capture and save one roll on release; Alt with an arrow key rolls it 1 ms",
-  "stages/prepare/AdvancedSteps.tsx":
-    "a step's seconds setting is a native range input beside its value; it is a setting, not a timeline target",
+  "system/useSourceReorder.ts":
+    "source reorder: a pointer drag on a Source card's grip, with pointer capture, moves the card among the session's cards and saves one new order on release; Escape, a cancel or a lost capture put it back; the card menu moves a source by key; it is a list reorder, not a timeline target",
   "system/wavePointer.ts":
     "the pointer helpers shared by the suggestion and clip trim handles: a pointer position as a ratio of a strip, and a safe pointer capture; no gesture of its own",
   "system/useScriptGestures.ts":
@@ -295,12 +295,15 @@ const SRC_ARROW_ALLOWLIST: Record<string, string> = {
 };
 
 function srcSources() {
-  return [...sourceFiles()].filter(
-    ({ rel }) =>
-      !/\.(test|stories)\./.test(rel) &&
-      !rel.startsWith("test/") &&
-      !rel.startsWith("timeline/"),
-  );
+  return walkTsFiles(SRC_ROOT)
+    .map((file) => ({ file, rel: srcRelative(file) }))
+    .filter(
+      ({ rel }) =>
+        !/\.(test|stories)\./.test(rel) &&
+        !rel.startsWith("test/") &&
+        !rel.startsWith("timeline/"),
+    )
+    .map(({ file, rel }) => ({ rel, text: readFileSync(file, "utf8") }));
 }
 
 describe("gesture governance across src", () => {
@@ -319,14 +322,15 @@ describe("gesture governance across src", () => {
   });
 
   it("keeps arrow-key edits out of src files that are not widgets or the keymap", () => {
-    const offenders = srcSources()
+    const sources = srcSources();
+    const offenders = sources
       .filter(({ text }) => /["']Arrow(Left|Right)["']/.test(text))
       .map(({ rel }) => rel)
       .filter((rel) => !(rel in SRC_ARROW_ALLOWLIST));
     expect(offenders).toEqual([]);
     const stale = Object.keys(SRC_ARROW_ALLOWLIST).filter(
       (rel) =>
-        !srcSources().some(
+        !sources.some(
           ({ rel: found, text }) =>
             found === rel && /["']Arrow(Left|Right)["']/.test(text),
         ),

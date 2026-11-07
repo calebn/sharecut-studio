@@ -28,6 +28,7 @@ describe("ingestFiles", () => {
   beforeEach(() => {
     uploadMock.mockReset();
     addTrackMock.mockReset();
+    vi.mocked(api.setTrackMediaCommand).mockReset();
     refreshMock.mockReset();
     useDawStore.setState({
       projectPath: "/tmp/test/episode.sharecut",
@@ -153,6 +154,408 @@ describe("ingestFiles", () => {
       expect(useDawStore.getState().statusAnnouncement).toMatch(
         /^Replaced Guest/,
       );
+    });
+
+    it("keeps same-track replacements in drop order when the later upload is ready first", async () => {
+      let finishFirst!: (
+        value: Awaited<ReturnType<typeof api.uploadMediaFile>>,
+      ) => void;
+      let finishSecond!: (
+        value: Awaited<ReturnType<typeof api.uploadMediaFile>>,
+      ) => void;
+      const firstUpload = new Promise<
+        Awaited<ReturnType<typeof api.uploadMediaFile>>
+      >((resolve) => {
+        finishFirst = resolve;
+      });
+      const secondUpload = new Promise<
+        Awaited<ReturnType<typeof api.uploadMediaFile>>
+      >((resolve) => {
+        finishSecond = resolve;
+      });
+      uploadMock
+        .mockImplementationOnce(() => firstUpload)
+        .mockImplementationOnce(() => secondUpload);
+      const applied: string[] = [];
+      vi.mocked(api.setTrackMediaCommand).mockImplementation(
+        async (_path, _id, media) => {
+          applied.push(media);
+          return {
+            history_head_id:
+              media === "media/earlier.wav" ? "e-earlier" : "e-later",
+          };
+        },
+      );
+      refreshMock.mockResolvedValue(minimalProject());
+      const first = ingestFiles([new File(["a"], "earlier.wav")], {
+        kind: "track",
+        id: "guest",
+      });
+      const second = ingestFiles([new File(["b"], "later.wav")], {
+        kind: "track",
+        id: "guest",
+      });
+      finishSecond({ complete: true, rel_path: "media/later.wav" });
+      await secondUpload;
+      await Promise.resolve();
+      const appliedBeforeFirstFinished = [...applied];
+      const busyWhileWaiting = useDawStore.getState().ingestBusy;
+      finishFirst({ complete: true, rel_path: "media/earlier.wav" });
+      await Promise.all([first, second]);
+      expect(appliedBeforeFirstFinished).toEqual([]);
+      expect(busyWhileWaiting).toBe(true);
+      expect(applied).toEqual(["media/earlier.wav", "media/later.wav"]);
+      expect(useDawStore.getState().feedbackToast).toMatchObject({
+        undo: "e-later",
+      });
+      expect(useDawStore.getState().ingestBusy).toBe(false);
+    });
+
+    it("waits for the earlier refresh and result before starting the next replacement", async () => {
+      let releaseRefresh!: (project: ReturnType<typeof minimalProject>) => void;
+      let refreshStarted!: () => void;
+      const firstRefreshStarted = new Promise<void>((resolve) => {
+        refreshStarted = resolve;
+      });
+      refreshMock
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              releaseRefresh = resolve;
+              refreshStarted();
+            }),
+        )
+        .mockResolvedValue(minimalProject());
+      uploadMock
+        .mockResolvedValueOnce({ complete: true, rel_path: "media/first.wav" })
+        .mockResolvedValueOnce({
+          complete: true,
+          rel_path: "media/second.wav",
+        });
+      const events: string[] = [];
+      const undoHeads: Array<string | null | undefined> = [];
+      const announce = useDawStore.getState().announceStatus;
+      useDawStore.setState({
+        announceStatus: (message, options) => {
+          events.push(message);
+          if (options?.undo) undoHeads.push(options.undo);
+          announce(message, options);
+        },
+      });
+      vi.mocked(api.setTrackMediaCommand)
+        .mockResolvedValueOnce({ history_head_id: "e-first" })
+        .mockResolvedValueOnce({ history_head_id: "e-second" });
+
+      const first = ingestFiles([new File(["a"], "first.wav")], {
+        kind: "track",
+        id: "guest",
+      });
+      const second = ingestFiles([new File(["b"], "second.wav")], {
+        kind: "track",
+        id: "guest",
+      });
+      await firstRefreshStarted;
+      const uploadsWhileRefreshHeld = uploadMock.mock.calls.length;
+      const countWhileRefreshHeld = useDawStore.getState().ingestFileCount;
+
+      releaseRefresh(minimalProject());
+      await Promise.all([first, second]);
+
+      expect(uploadsWhileRefreshHeld).toBe(1);
+      expect(countWhileRefreshHeld).toBe(2);
+      const results = events.filter((message) =>
+        message.startsWith("Replaced Guest"),
+      );
+      expect(results).toHaveLength(2);
+      expect(undoHeads).toEqual(["e-first", "e-second"]);
+      expect(api.setTrackMediaCommand).toHaveBeenNthCalledWith(
+        1,
+        "/tmp/test/episode.sharecut",
+        "guest",
+        "media/first.wav",
+      );
+      expect(api.setTrackMediaCommand).toHaveBeenNthCalledWith(
+        2,
+        "/tmp/test/episode.sharecut",
+        "guest",
+        "media/second.wav",
+      );
+      expect(useDawStore.getState().feedbackToast).toMatchObject({
+        undo: "e-second",
+      });
+      expect(useDawStore.getState().ingestBusy).toBe(false);
+    });
+
+    it("uses the media state when each queued replacement starts for Undo", async () => {
+      useDawStore.setState({
+        project: minimalProject({
+          tracks: [
+            sampleTrack({ id: "guest", label: "Guest", media_path: null }),
+          ],
+        }),
+      });
+      let release!: () => void;
+      let started!: () => void;
+      const refreshing = new Promise<void>((resolve) => {
+        started = resolve;
+      });
+      refreshMock
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              release = () => {
+                const project = minimalProject({
+                  tracks: [
+                    sampleTrack({
+                      id: "guest",
+                      label: "Guest",
+                      media_path: "media/first.wav",
+                    }),
+                  ],
+                });
+                useDawStore.setState({ project });
+                resolve(project);
+              };
+              started();
+            }),
+        )
+        .mockResolvedValue(minimalProject());
+      uploadMock.mockImplementation(async (_path, file) => ({
+        complete: true,
+        rel_path: `media/${file.name}`,
+      }));
+      vi.mocked(api.setTrackMediaCommand)
+        .mockResolvedValueOnce({ history_head_id: "e-first" })
+        .mockResolvedValueOnce({ history_head_id: "e-second" });
+      const first = ingestFiles([new File(["a"], "first.wav")], {
+        kind: "track",
+        id: "guest",
+      });
+      const second = ingestFiles([new File(["b"], "second.wav")], {
+        kind: "track",
+        id: "guest",
+      });
+      await refreshing;
+      release();
+      await Promise.all([first, second]);
+      expect(useDawStore.getState().statusAnnouncement).toMatch(
+        /^Replaced Guest/,
+      );
+      expect(useDawStore.getState().feedbackToast?.undo).toBe("e-second");
+    });
+
+    it("retains replacement Undo when the earlier swap landed but both refreshes failed", async () => {
+      useDawStore.setState({
+        project: minimalProject({
+          tracks: [
+            sampleTrack({ id: "guest", label: "Guest", media_path: null }),
+          ],
+        }),
+      });
+      uploadMock.mockImplementation(async (_path, file) => ({
+        complete: true,
+        rel_path: `media/${file.name}`,
+      }));
+      vi.mocked(api.setTrackMediaCommand)
+        .mockResolvedValueOnce({ history_head_id: "e-first" })
+        .mockResolvedValueOnce({ history_head_id: "e-second" });
+      refreshMock
+        .mockRejectedValueOnce(new Error("refresh failed"))
+        .mockRejectedValueOnce(new Error("recovery failed"))
+        .mockResolvedValueOnce(minimalProject());
+      await Promise.all([
+        ingestFiles([new File(["a"], "first.wav")], {
+          kind: "track",
+          id: "guest",
+        }),
+        ingestFiles([new File(["b"], "second.wav")], {
+          kind: "track",
+          id: "guest",
+        }),
+      ]);
+      expect(useDawStore.getState().feedbackToast?.undo).toBe("e-second");
+      expect(useDawStore.getState().statusAnnouncement).toMatch(/^Replaced/);
+      expect(useDawStore.getState().ingestBusy).toBe(false);
+    });
+
+    it("does not start a queued upload after switching projects", async () => {
+      let release!: (project: ReturnType<typeof minimalProject>) => void;
+      let started!: () => void;
+      const refreshing = new Promise<void>((resolve) => {
+        started = resolve;
+      });
+      refreshMock.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            release = resolve;
+            started();
+          }),
+      );
+      uploadMock.mockImplementation(async (_path, file) => ({
+        complete: true,
+        rel_path: `media/${file.name}`,
+      }));
+      vi.mocked(api.setTrackMediaCommand).mockResolvedValue({});
+      const first = ingestFiles([new File(["a"], "first.wav")], {
+        kind: "track",
+        id: "guest",
+      });
+      const second = ingestFiles([new File(["b"], "second.wav")], {
+        kind: "track",
+        id: "guest",
+      });
+      await refreshing;
+      useDawStore.setState({ projectPath: "/tmp/other/episode.sharecut" });
+      release(minimalProject());
+      await Promise.all([first, second]);
+      expect(uploadMock.mock.calls.map((call) => call[1].name)).toEqual([
+        "first.wav",
+      ]);
+      expect(useDawStore.getState().ingestBusy).toBe(false);
+      expect(useDawStore.getState().ingestFileCount).toBe(0);
+    });
+
+    it("continues after upload and recovery refresh failures through a third replacement", async () => {
+      const announcements: string[] = [];
+      const announce = useDawStore.getState().announceStatus;
+      useDawStore.setState({
+        announceStatus: (message, options) => {
+          announcements.push(message);
+          announce(message, options);
+        },
+      });
+      uploadMock
+        .mockRejectedValueOnce(new Error("first upload failed"))
+        .mockResolvedValueOnce({ complete: true, rel_path: "media/second.wav" })
+        .mockResolvedValueOnce({ complete: true, rel_path: "media/third.wav" });
+      refreshMock
+        .mockRejectedValueOnce(new Error("recovery refresh failed"))
+        .mockResolvedValue(minimalProject());
+      vi.mocked(api.setTrackMediaCommand)
+        .mockResolvedValueOnce({ history_head_id: "e-second" })
+        .mockResolvedValueOnce({ history_head_id: "e-third" });
+
+      await Promise.all([
+        ingestFiles([new File(["a"], "first.wav")], {
+          kind: "track",
+          id: "guest",
+        }),
+        ingestFiles([new File(["b"], "second.wav")], {
+          kind: "track",
+          id: "guest",
+        }),
+      ]);
+      await ingestFiles([new File(["c"], "third.wav")], {
+        kind: "track",
+        id: "guest",
+      });
+
+      expect(useDawStore.getState().statusAnnouncement).toMatch(
+        /^Replaced Guest/,
+      );
+      expect(announcements).toContain("Import failed: first upload failed");
+      expect(api.setTrackMediaCommand).toHaveBeenNthCalledWith(
+        1,
+        "/tmp/test/episode.sharecut",
+        "guest",
+        "media/second.wav",
+      );
+      expect(api.setTrackMediaCommand).toHaveBeenNthCalledWith(
+        2,
+        "/tmp/test/episode.sharecut",
+        "guest",
+        "media/third.wav",
+      );
+      expect(useDawStore.getState().feedbackToast).toMatchObject({
+        undo: "e-third",
+      });
+      expect(useDawStore.getState().ingestBusy).toBe(false);
+      expect(useDawStore.getState().ingestFileCount).toBe(0);
+    });
+
+    it("keeps a held target replacement independent from other targets and new imports", async () => {
+      let releaseGuest!: (
+        value: Awaited<ReturnType<typeof api.uploadMediaFile>>,
+      ) => void;
+      uploadMock
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              releaseGuest = resolve;
+            }),
+        )
+        .mockImplementation(async (_path, file) => ({
+          complete: true,
+          rel_path: `media/${file.name}`,
+        }));
+      addTrackMock.mockResolvedValue({});
+      refreshMock.mockResolvedValue(minimalProject());
+      const guest = ingestFiles([new File(["a"], "guest.wav")], {
+        kind: "track",
+        id: "guest",
+      });
+      const host = ingestFiles([new File(["b"], "host.wav")], {
+        kind: "track",
+        id: "host",
+      });
+      const added = ingestFiles([new File(["c"], "new.wav")], {
+        kind: "new",
+      });
+      await Promise.all([host, added]);
+      const guestStillBusy = useDawStore.getState().ingestBusy;
+      const countWhileGuestHeld = useDawStore.getState().ingestFileCount;
+      releaseGuest({ complete: true, rel_path: "media/guest.wav" });
+      await guest;
+
+      expect(guestStillBusy).toBe(true);
+      expect(countWhileGuestHeld).toBe(1);
+      expect(api.setTrackMediaCommand).toHaveBeenCalledWith(
+        "/tmp/test/episode.sharecut",
+        "host",
+        "media/host.wav",
+      );
+      expect(addTrackMock).toHaveBeenCalledWith("/tmp/test/episode.sharecut", {
+        track_id: "new",
+        label: "new",
+      });
+      expect(api.setTrackMediaCommand).toHaveBeenCalledWith(
+        "/tmp/test/episode.sharecut",
+        "guest",
+        "media/guest.wav",
+      );
+      expect(useDawStore.getState().ingestBusy).toBe(false);
+    });
+
+    it("does not report an old import failure in a newly opened project", async () => {
+      uploadMock.mockResolvedValue({
+        complete: true,
+        rel_path: "media/take2.wav",
+      });
+      vi.mocked(api.setTrackMediaCommand).mockResolvedValue({});
+      refreshMock.mockImplementationOnce(async () => {
+        useDawStore.setState({
+          projectPath: "/tmp/other/episode.sharecut",
+          statusAnnouncement: "Other project ready",
+        });
+        throw new Error("project changed");
+      });
+      await ingestFiles([file], { kind: "track", id: "guest" });
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "Other project ready",
+      );
+      expect(refreshMock).toHaveBeenCalledOnce();
+      expect(useDawStore.getState().ingestBusy).toBe(false);
+    });
+
+    it("changes nothing when the project switched during the upload", async () => {
+      vi.mocked(api.setTrackMediaCommand).mockClear();
+      uploadMock.mockImplementation(async () => {
+        useDawStore.setState({ projectPath: "/tmp/other/episode.sharecut" });
+        return { complete: true, rel_path: "media/take2.wav" };
+      });
+      await ingestFiles([file], { kind: "track", id: "guest" });
+      expect(api.setTrackMediaCommand).not.toHaveBeenCalled();
+      expect(refreshMock).not.toHaveBeenCalled();
     });
 
     it("offers Undo for the swap when several files are dropped", async () => {

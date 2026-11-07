@@ -11,7 +11,8 @@ function carriesFiles(event: DragEvent): boolean {
 /**
  * Audio dragged over the window: `active` is true while files are over it, and a
  * drop hands the audio files to `onFiles`. Counted enter and leave events, so
- * crossing child elements does not flicker it off.
+ * crossing child elements does not flicker it off. A drop a more specific
+ * target already handled (it called `preventDefault`) is not handed over.
  */
 export function useWindowFileDrop(
   enabled: boolean,
@@ -49,8 +50,10 @@ export function useWindowFileDrop(
     };
     const drop = (event: DragEvent) => {
       if (!carriesFiles(event)) return;
+      const claimed = event.defaultPrevented;
       event.preventDefault();
       end();
+      if (claimed) return;
       const files = audioFilesFromDrop(event.dataTransfer?.files ?? []);
       if (files.length > 0) latest.current(files);
     };
