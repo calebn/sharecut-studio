@@ -5263,7 +5263,7 @@ button.sys-script-speaker {
 .sys-edit-fix-field {
   position: relative;
   display: inline-grid;
-  min-inline-size: 3rem;
+  min-inline-size: calc(3rem + 2 * (var(--space-1) + 1px));
   max-inline-size: 100%;
   vertical-align: middle;
 }
