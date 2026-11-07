@@ -1,5 +1,3 @@
-"""Model removal excludes host tool bodies independently of progress presentation."""
-
 from __future__ import annotations
 
 import asyncio
