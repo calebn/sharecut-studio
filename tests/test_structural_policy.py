@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import sqlite3
+
 import numpy as np
 import pytest
 
 from pause_policy_public_helpers import RATE, write_wav
+from sqlite_helpers import FailingConnection
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.timeline_ops import split_clips_at
 from podcast_mcp.models import (
@@ -232,7 +235,7 @@ def test_guest_split_proposal_reply_flags_the_proposal_at_the_top(minimal_projec
         audience="guest",
     )
     assert reply["ok"]
-    assert reply["split_proposed"] is True
+    assert reply["split_outcome"] == {"kind": "suggested", "times": [5.0]}
     assert reply["command"] == {"type": "SplitAtTime"}
     assert len(svc.ws.project.clips) == before_clips
 
@@ -242,7 +245,75 @@ def test_host_split_apply_reply_does_not_flag_a_proposal(minimal_project, dialog
     svc = DocumentSyncService.open(minimal_project)
     reply = svc.submit(_split_command("host", "viewer"), capabilities=None)
     assert reply["ok"]
-    assert "split_proposed" not in reply
+    assert reply["split_outcome"]["kind"] == "split"
+
+
+@pytest.mark.parametrize("retry", [False, True])
+@pytest.mark.parametrize("guest", [False, True])
+def test_split_reply_reports_only_applied_times(minimal_project, dialogue_wav, retry, guest):
+    _seed_dialogue_clips(minimal_project, dialogue_wav)
+    svc = DocumentSyncService.open(minimal_project)
+    command = DocumentCommand(
+        type="SplitAtTime",
+        payload={"at_time": 30.0, "extra_at_times": [5.0], "track_ids": ["host"]},
+        client_id="editor",
+        role="guest",
+        client_seq=1,
+    )
+    caps = capabilities_for_role("editor") if guest else None
+    audience = "guest" if guest else "host"
+    reply = svc.submit(command, capabilities=caps, audience=audience)
+    clips_after_first = len(svc.ws.project.clips)
+    if retry:
+        first_seq = reply["server_seq"]
+        reply = svc.submit(command, capabilities=caps, audience=audience)
+        assert reply["idempotent"] is True
+        assert reply["server_seq"] == first_seq
+        assert len(svc.ws.project.clips) == clips_after_first
+    assert reply["ok"]
+    assert reply["split_outcome"] == {"kind": "split", "times": [5.0]}
+    assert set(reply["split_outcome"]) == {"kind", "times"}
+    if guest:
+        assert reply["command"] == {"type": "SplitAtTime"}
+    assert reply["split_outcome"]["kind"] == "split"
+
+
+def test_guest_split_proposal_retry_keeps_proposal_status(minimal_project, dialogue_wav):
+    _seed_dialogue_clips(minimal_project, dialogue_wav)
+    svc = DocumentSyncService.open(minimal_project)
+    command = _split_command("guest", "guest")
+    reply = svc.submit(command, capabilities=capabilities_for_role("commenter"), audience="guest")
+    seq = reply["server_seq"]
+    clips = len(svc.ws.project.clips)
+    retry = svc.submit(command, capabilities=capabilities_for_role("commenter"), audience="guest")
+    assert retry["idempotent"] is True
+    assert retry["server_seq"] == seq
+    assert retry["split_outcome"] == {"kind": "suggested", "times": [5.0]}
+    assert retry["command"] == {"type": "SplitAtTime"}
+    assert len(svc.ws.project.clips) == clips
+
+
+def test_recovered_split_does_not_invent_lost_result_facts(
+    minimal_project, dialogue_wav, monkeypatch
+):
+    _seed_dialogue_clips(minimal_project, dialogue_wav)
+    svc = DocumentSyncService.open(minimal_project)
+    command = _split_command("editor", "guest")
+    real = svc.store._conn
+    with monkeypatch.context() as patch:
+        patch.setattr(svc.store, "_conn", FailingConnection(real, "INSERT INTO commands"))
+        with pytest.raises(sqlite3.OperationalError):
+            svc.submit(command, capabilities=capabilities_for_role("editor"), audience="guest")
+    clips = len(svc.ws.project.clips)
+    recovered = DocumentSyncService.open(minimal_project)
+    reply = recovered.submit(
+        command, capabilities=capabilities_for_role("editor"), audience="guest"
+    )
+    assert reply["ok"]
+    assert reply["idempotent"] is True
+    assert "split_outcome" not in reply
+    assert reply["command"] == {"type": "SplitAtTime"}
+    assert len(recovered.ws.project.clips) == clips
 
 
 def test_delete_clip_apply_and_suggest(minimal_project, dialogue_wav):
