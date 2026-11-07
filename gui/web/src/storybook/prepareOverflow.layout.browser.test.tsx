@@ -128,15 +128,25 @@ afterEach(async () => {
   }).toEqual(originalMedia);
 });
 
-function wideNodes(root: Element, context = "overflow fixture"): string[] {
+async function wideNodes(
+  root: Element,
+  context = "overflow fixture",
+): Promise<string[]> {
   for (let pass = 0; pass < 6; pass += 1) {
-    const closed = [
-      ...root.querySelectorAll<HTMLElement>(
-        '[aria-expanded="false"]:not([aria-haspopup])',
-      ),
-    ];
+    const closed = [...root.querySelectorAll<HTMLElement>(ENABLED_CLOSED)];
     if (closed.length === 0) break;
-    for (const control of closed) control.click();
+    for (const control of closed) {
+      if (!root.contains(control) || !control.matches(ENABLED_CLOSED)) continue;
+      control.click();
+      await expect
+        .poll(
+          () =>
+            !root.contains(control) ||
+            control.getAttribute("aria-expanded") !== "false",
+          { message: `${context}: disclosure click must settle` },
+        )
+        .toBe(true);
+    }
   }
   expect(
     [...root.querySelectorAll(ENABLED_CLOSED)].map(
@@ -255,7 +265,7 @@ describe("Prepare text never scrolls the page sideways", () => {
   });
 
   for (const className of ["sys-scrub-value", "sys-scrub-unit"]) {
-    it(`leaves app-generated ${className} text out of the mutation`, () => {
+    it(`leaves app-generated ${className} text out of the mutation`, async () => {
       host = document.createElement("div");
       const value = document.createElement("span");
       value.className = className;
@@ -264,7 +274,7 @@ describe("Prepare text never scrolls the page sideways", () => {
       host.appendChild(value);
       document.body.appendChild(host);
 
-      expect(wideNodes(host)).toEqual([]);
+      expect(await wideNodes(host)).toEqual([]);
       expect(value.textContent).toBe("24");
     });
   }
@@ -281,9 +291,9 @@ describe("Prepare text never scrolls the page sideways", () => {
     host.appendChild(value);
     document.body.appendChild(host);
 
-    expect(wideNodes(host)).toEqual(['span.overflow-probe "24"']);
+    expect(await wideNodes(host)).toEqual(['span.overflow-probe "24"']);
     value.style.whiteSpace = "normal";
-    expect(wideNodes(host)).toEqual([]);
+    expect(await wideNodes(host)).toEqual([]);
   });
 
   for (const width of [320, 360]) {
@@ -306,7 +316,7 @@ describe("Prepare text never scrolls the page sideways", () => {
         await document.fonts.ready;
         expect
           .soft(
-            wideNodes(host, `${story.id} at ${width}`),
+            await wideNodes(host, `${story.id} at ${width}`),
             `${story.id} at ${width}`,
           )
           .toEqual([]);
