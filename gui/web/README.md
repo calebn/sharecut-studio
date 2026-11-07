@@ -212,9 +212,11 @@ has already handled the refusal, including an intentional quiet result. Generic
 refusal callers announce only untold, nonblank reasons at error tone and keep
 the original result object unchanged. Treat those callers as terminal feedback
 boundaries because generic announcements do not stamp a result for another
-consumer. Command errors reject the tool promise unchanged. DAW transport seeking uses
-`src/commands/seek.ts`, which returns the pointer command result for callers
-that need to await it. Listen skip math stays in `src/stage/frame/listenSeek.ts`;
+consumer. The inline chapter caller in `timeline/MarkerLaneHost.tsx` uses the
+same terminal feedback boundary. Command errors reject the tool promise
+unchanged. DAW transport seeking uses `src/commands/seek.ts`, which returns the
+pointer command result for callers that need to await it. Listen skip math stays
+in `src/stage/frame/listenSeek.ts`;
 timeline callers keep their selection and blade actions after the seek
 dispatch, and WebMCP awaits the shared helper.
 `commands/governance.test.ts` rejects inline `skipWhen: true` outside the pointer
