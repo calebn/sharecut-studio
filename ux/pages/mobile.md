@@ -136,6 +136,8 @@ A short sheet, such as the Tools sheet on a phone held sideways at large text, k
 enough half height for a scrollable body. On the Prepare stage, resizing the window
 keeps the focused control in view.
 
+When the frame is short or the text is large, the Edit corner folds into the header's **Tools** button. While **Select range** is armed that button carries an accent dot and its name ends with "range armed", so the armed state shows without opening the sheet.
+
 To adjust a track's volume envelope, open track details and choose **Show
 volume envelope**. Long-press the lane to add a point with **Add volume
 point**, or select an existing point, then choose **Inspect**. The sheet shows

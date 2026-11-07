@@ -162,7 +162,7 @@ export async function openToolsIfFolded(
 ): Promise<boolean> {
   if (control && (await control.isVisible())) return false;
   const button = page.getByRole("button", {
-    name: /^Tools(, (Timeline|Script))?$/,
+    name: /^Tools(, (Timeline|Script))?(, range armed)?$/,
   });
   if (!(await button.isVisible())) return false;
   const sheet = page.getByRole("dialog", { name: "Tools" });
