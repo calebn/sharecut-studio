@@ -282,3 +282,28 @@ it("keeps the second live Split's right piece selected after serialized saves", 
     "Split at 00:08.000",
   );
 });
+
+it("selects a WebSocket-recovered display before the pending recovery GET fails", async () => {
+  const split = execute("edit.bladeCut", { atTime: 10 }, { skipWhen: true });
+  await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(2));
+  await split;
+  const attempt = recoverDocument(3);
+  const failure = expect(attempt).rejects.toThrow();
+  try {
+    applyDocumentSnapshot({
+      server_seq: 3,
+      state_token: "b".repeat(64),
+      project: after,
+    });
+    expect(selectedClipIdsOf(useDawStore.getState().selection)).toEqual([
+      "right",
+    ]);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  } finally {
+    resolveRecovery(new Response("Recovery unavailable", { status: 503 }));
+    await failure;
+  }
+  expect(selectedClipIdsOf(useDawStore.getState().selection)).toEqual([
+    "right",
+  ]);
+});
