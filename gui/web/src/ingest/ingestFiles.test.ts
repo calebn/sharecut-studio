@@ -344,6 +344,40 @@ describe("ingestFiles", () => {
       expect(useDawStore.getState().feedbackToast?.undo).toBe("e-second");
     });
 
+    it("retains replacement Undo when the earlier swap landed but both refreshes failed", async () => {
+      useDawStore.setState({
+        project: minimalProject({
+          tracks: [
+            sampleTrack({ id: "guest", label: "Guest", media_path: null }),
+          ],
+        }),
+      });
+      uploadMock.mockImplementation(async (_path, file) => ({
+        complete: true,
+        rel_path: `media/${file.name}`,
+      }));
+      vi.mocked(api.setTrackMediaCommand)
+        .mockResolvedValueOnce({ history_head_id: "e-first" })
+        .mockResolvedValueOnce({ history_head_id: "e-second" });
+      refreshMock
+        .mockRejectedValueOnce(new Error("refresh failed"))
+        .mockRejectedValueOnce(new Error("recovery failed"))
+        .mockResolvedValueOnce(minimalProject());
+      await Promise.all([
+        ingestFiles([new File(["a"], "first.wav")], {
+          kind: "track",
+          id: "guest",
+        }),
+        ingestFiles([new File(["b"], "second.wav")], {
+          kind: "track",
+          id: "guest",
+        }),
+      ]);
+      expect(useDawStore.getState().feedbackToast?.undo).toBe("e-second");
+      expect(useDawStore.getState().statusAnnouncement).toMatch(/^Replaced/);
+      expect(useDawStore.getState().ingestBusy).toBe(false);
+    });
+
     it("does not start a queued upload after switching projects", async () => {
       let release!: (project: ReturnType<typeof minimalProject>) => void;
       let started!: () => void;

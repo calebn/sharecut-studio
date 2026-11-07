@@ -19,27 +19,24 @@ import { trackHasMedia } from "./dropLabels";
 /** Imports under way: busy ends when the last one settles, not the first. */
 let imports = 0;
 let filesInFlight = 0;
-const replacementTails = new Map<string, Map<string, Promise<void>>>();
+const replacementTails = new Map<string, Map<string, Promise<boolean>>>();
 
 export type IngestTarget = { kind: "track"; id: string } | { kind: "new" };
 
 function enqueueReplacement(
   projectPath: string,
   trackId: string,
-  run: () => Promise<void>,
-): Promise<void> {
+  run: (hasMedia: boolean) => Promise<boolean>,
+): Promise<boolean> {
   let projectTails = replacementTails.get(projectPath);
   if (!projectTails) {
     projectTails = new Map();
     replacementTails.set(projectPath, projectTails);
   }
 
-  const previous = projectTails.get(trackId) ?? Promise.resolve();
+  const previous = projectTails.get(trackId) ?? Promise.resolve(false);
   const operation = previous.then(run);
-  const tail = operation.then(
-    () => undefined,
-    () => undefined,
-  );
+  const tail = operation.catch(() => false);
   projectTails.set(trackId, tail);
   void tail.then(() => {
     if (projectTails?.get(trackId) !== tail) return;
@@ -164,28 +161,30 @@ export async function ingestFiles(
   imports += 1;
   filesInFlight += list.length;
   s.setIngestBusy(true, filesInFlight);
-  const run = async (): Promise<void> => {
+  const run = async (hadMedia: boolean): Promise<boolean> => {
+    let hasMedia = hadMedia;
     let focusId: string | null = null;
     let undoHead: HistoryEntryId | null = null;
     try {
       const current = useDawStore.getState();
-      if (current.projectPath !== projectPath) return;
+      if (current.projectPath !== projectPath) return hasMedia;
       const track =
         ingestTarget.kind === "track"
           ? current.project?.tracks.find((one) => one.id === ingestTarget.id)
           : undefined;
       const replaced =
-        ingestTarget.kind === "track" &&
-        trackHasMedia({
-          mediaPath: track?.media_path,
-          clipCount:
-            current.project?.clips?.tracks?.[ingestTarget.id]?.length ?? 0,
-        });
+        hadMedia ||
+        (ingestTarget.kind === "track" &&
+          trackHasMedia({
+            mediaPath: track?.media_path,
+            clipCount:
+              current.project?.clips?.tracks?.[ingestTarget.id]?.length ?? 0,
+          }));
       current.announceStatus(`Importing ${list.length} file(s)…`);
       if (ingestTarget.kind === "track") {
         const first = list[0]!;
         const uploaded = await uploadMediaFile(projectPath, first);
-        if (useDawStore.getState().projectPath !== projectPath) return;
+        if (useDawStore.getState().projectPath !== projectPath) return hasMedia;
         focusId = ingestTarget.id;
         for (const extra of list.slice(1)) {
           focusId = await createTrackWithMedia(projectPath, extra, taken);
@@ -195,6 +194,7 @@ export async function ingestFiles(
           ingestTarget.id,
           uploaded.rel_path!,
         );
+        hasMedia = true;
         undoHead = replyHistoryHead(swap);
       } else {
         for (const file of list) {
@@ -202,7 +202,7 @@ export async function ingestFiles(
         }
       }
       await refreshDocumentProject(projectPath);
-      if (useDawStore.getState().projectPath !== projectPath) return;
+      if (useDawStore.getState().projectPath !== projectPath) return hasMedia;
       if (focusId) {
         focusImportedTrack(focusId);
         if (replaced && ingestTarget.kind === "track") {
@@ -227,12 +227,13 @@ export async function ingestFiles(
       if (imports === 0) useDawStore.getState().setIngestBusy(false);
       else useDawStore.getState().setIngestBusy(true, filesInFlight);
     }
+    return hasMedia;
   };
 
   if (ingestTarget.kind === "track") {
     await enqueueReplacement(projectPath, ingestTarget.id, run);
   } else {
-    await run();
+    await run(false);
   }
 }
 
