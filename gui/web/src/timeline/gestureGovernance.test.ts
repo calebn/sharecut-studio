@@ -197,6 +197,8 @@ const SURFACE_GESTURES: Record<string, string> = {
     "the detent slider under the grabber is the keyboard and screen reader path to the same detents",
   "stage/edit/useViewAnchor.ts":
     "a new press cancels pending View focus recovery; it starts no gesture and intercepts no pointer action",
+  "stage/edit/InspectorHost.tsx":
+    "the Close control's capture-phase pointer observer runs before default focus transfer and matches focus restoration to the press; it starts no gesture and takes no pointer capture, while InspectorSheet and useGrab own the detent drag",
   "stage/edit/ScriptDivider.tsx":
     "divider: a drag resizes the Script pane beside the timeline; the arrow keys, Enter and double-click do the same by key",
   "system/Player.tsx":
