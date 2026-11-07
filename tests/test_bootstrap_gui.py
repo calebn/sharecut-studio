@@ -874,3 +874,54 @@ def test_remove_model_is_refused_while_a_download_runs(monkeypatch) -> None:
     assert res.headers["X-Sharecut-Error-Code"] == "bootstrap_job_running"
     assert res.json()["detail"]["running"] == ["rnnoise"]
     gate.set()
+
+
+def test_remove_model_is_refused_while_a_pipeline_runs(monkeypatch) -> None:
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    from podcast_mcp.gui.routes import bootstrap
+
+    manager = SimpleNamespace(get_bootstrap_job=lambda: None, status=lambda: {"running": True})
+    remove = Mock(side_effect=AssertionError("A busy pipeline must not uninstall a model"))
+    monkeypatch.setattr(bootstrap, "_jobs", lambda _request: manager)
+    monkeypatch.setattr(bootstrap, "uninstall_model", remove)
+
+    res = _client().delete("/api/bootstrap/models/rnnoise")
+
+    assert res.status_code == 409
+    assert res.headers["X-Sharecut-Error-Code"] == "pipeline_busy"
+    assert res.json()["detail"] == "A job is running; remove the model when it finishes"
+    remove.assert_not_called()
+
+
+def test_remove_whisper_rejects_an_invalid_variant_before_accessing_models(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    from podcast_mcp.engines.models import registry
+    from podcast_mcp.gui.routes import bootstrap
+
+    manager = SimpleNamespace(get_bootstrap_job=lambda: None, status=lambda: {"running": False})
+    cache = tmp_path / "whisper-cache"
+    cache.mkdir()
+    sentinel = cache / "keep.bin"
+    sentinel.write_bytes(b"unchanged")
+    locate = Mock(return_value=cache)
+    remove = Mock(side_effect=AssertionError("An invalid variant must not remove model files"))
+    monkeypatch.setattr(bootstrap, "_jobs", lambda _request: manager)
+    monkeypatch.setattr(registry, "whisper_cache_dir", locate)
+    monkeypatch.setattr(registry.shutil, "rmtree", remove)
+
+    res = _client().delete(
+        "/api/bootstrap/models/whisper", params={"whisper_model": "not-a-whisper-size"}
+    )
+
+    assert res.status_code == 400
+    assert res.headers["X-Sharecut-Error-Code"] == "invalid_request"
+    assert "Unknown Whisper model" in res.json()["detail"]
+    locate.assert_not_called()
+    remove.assert_not_called()
+    assert sentinel.read_bytes() == b"unchanged"
