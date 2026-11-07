@@ -34,8 +34,8 @@ describe("SourceCard", () => {
     const order = [
       "Speaker name for voice 2",
       "Hear voice 2",
-      "Number of voices for voice 2",
-      "Reset Number of voices for voice 2 to 2 voices",
+      "Fewer voices for voice 2",
+      "More voices for voice 2",
       "Split voice 2",
       "Remove voice 2",
       "More for voice 2",
@@ -94,42 +94,30 @@ describe("SourceCard", () => {
     );
   });
 
-  it("sets the number of voices from 2 to 8 with a scrub field, not step buttons", async () => {
+  it("steps the voice count from 2 to 8 with visible bound reasons", async () => {
     const onVoices = vi.fn();
     const { rerender } = render(
       <Card canSplit name="Maya" voices={2} onVoices={onVoices} />,
     );
-    const field = screen.getByRole("spinbutton", {
-      name: "Number of voices for Maya",
-    });
-    expect(field).toHaveAttribute("aria-valuemin", "2");
-    expect(field).toHaveAttribute("aria-valuemax", "8");
-    expect(field).toHaveAttribute("aria-valuetext", "2 voices");
-    expect(
-      screen.queryByRole("button", { name: /Fewer|More voices/ }),
-    ).toBeNull();
-    expect(
-      screen.queryByRole("button", { name: /^Reset Number of voices/ }),
-    ).toBeNull();
-    field.focus();
-    await userEvent.keyboard("{ArrowDown}");
+    const fewer = screen.getByRole("button", { name: "Fewer voices for Maya" });
+    expect(fewer).toHaveAttribute("aria-disabled", "true");
+    expect(fewer).toHaveAccessibleDescription("Two is the fewest");
+    await userEvent.click(fewer);
     expect(onVoices).not.toHaveBeenCalled();
-    await userEvent.keyboard("{ArrowUp}");
+    await userEvent.click(
+      screen.getByRole("button", { name: "More voices for Maya" }),
+    );
     expect(onVoices).toHaveBeenLastCalledWith(3);
-    await userEvent.keyboard("{Enter}9{Enter}");
-    expect(onVoices).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("alert")).toHaveTextContent(/2/);
-    await userEvent.keyboard("{Escape}");
     rerender(<Card canSplit name="Maya" voices={8} onVoices={onVoices} />);
-    screen
-      .getByRole("spinbutton", { name: "Number of voices for Maya" })
-      .focus();
-    await userEvent.keyboard("{ArrowUp}");
+    const more = screen.getByRole("button", { name: "More voices for Maya" });
+    expect(more).toHaveAttribute("aria-disabled", "true");
+    expect(more).toHaveAccessibleDescription("Eight is the most");
+    await userEvent.click(more);
     expect(onVoices).toHaveBeenCalledTimes(1);
     await userEvent.click(
-      screen.getByRole("button", { name: /^Reset Number of voices/ }),
+      screen.getByRole("button", { name: "Fewer voices for Maya" }),
     );
-    expect(onVoices).toHaveBeenLastCalledWith(2);
+    expect(onVoices).toHaveBeenLastCalledWith(7);
   });
 
   it("offers Replace audio and Merge from the More menu", async () => {
@@ -221,7 +209,7 @@ describe("SourceCard", () => {
     expect(screen.queryByRole("button", { name: /^Split/ })).toBeNull();
     rerender(<Card state="split-prompt" />);
     expect(
-      screen.getByRole("spinbutton", { name: "Number of voices for voice 2" }),
+      screen.getByRole("group", { name: "Number of voices" }),
     ).toBeVisible();
     expect(screen.getByRole("button", { name: "Split voice 2" })).toBeVisible();
     rerender(<Card state="split-prompt" canSplit={false} />);

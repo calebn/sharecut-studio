@@ -3016,6 +3016,36 @@ button.sys-picker-option:focus-visible {
   overflow-wrap: anywhere;
 }
 
+.sys-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.sys-stepper-button {
+  inline-size: var(--touch-min);
+  min-block-size: var(--touch-min);
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.sys-stepper-button[aria-disabled="true"] {
+  color: var(--color-text-secondary);
+  cursor: not-allowed;
+}
+
+.sys-stepper-value {
+  min-inline-size: 1.5rem;
+  text-align: center;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-emphasis);
+}
+
+.sys-stepper-reason {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+}
+
 @container sys-source (max-width: 40rem) {
   .sys-source-controls > .ui-control {
     flex: 1 1 auto;
@@ -3734,6 +3764,10 @@ button.sys-picker-option:focus-visible {
   margin: 0;
   padding-inline: var(--space-3);
   cursor: pointer;
+}
+
+.sys-adv-option {
+  min-block-size: var(--touch-min);
 }
 
 .sys-adv-none {

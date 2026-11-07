@@ -172,7 +172,7 @@ const meta: Meta<typeof SplitSpeakers> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          'Splitting one recording of several people, in place on its Source card, with no dialog. Prompt asks "One recording of several people?" and offers "Number of voices" as a scrub field (2 to 8) and Split. Splitting shows plain progress, "about 1 min left", with Cancel splitting. Name voices turns the card into one card per voice, each with Hear (plays a few seconds of that voice), a name field and its time as "11:02 of audio"; names are typed after hearing, so they cannot rotate. A toast offers one Undo that puts the single recording back. Failed says the plain cause with Try again and Details. Buttons carry the card name ("Split Track 1", "Remove voice 2") so stacked cards differ.\n\n**Motion.** Progress grows with `--motion-state`; the new cards appear with `--motion-panel`. Not implemented in this slice.',
+          'Splitting one recording of several people, in place on its Source card, with no dialog. Prompt asks "One recording of several people?" and offers "Number of voices" as a stepper (2 to 8, 44px buttons) and Split. Splitting shows plain progress, "about 1 min left", with Cancel splitting. Name voices turns the card into one card per voice, each with Hear (plays a few seconds of that voice), a name field and its time as "11:02 of audio"; names are typed after hearing, so they cannot rotate. A toast offers one Undo that puts the single recording back. Failed says the plain cause with Try again and Details. Buttons carry the card name ("Split Track 1", "Remove voice 2") so stacked cards differ.\n\n**Motion.** Progress grows with `--motion-state`; the new cards appear with `--motion-panel`. Not implemented in this slice.',
       },
     },
   },
@@ -247,12 +247,14 @@ export const Prompt: Story = {
     await expect(
       canvas.getAllByText("One recording of several people?"),
     ).toHaveLength(1);
-    const voices = canvas.getByRole("spinbutton", {
-      name: /^Number of voices/,
-    });
-    voices.focus();
-    await userEvent.keyboard("{ArrowUp}");
-    await expect(voices).toHaveAttribute("aria-valuetext", "4 voices");
+    await userEvent.click(
+      canvas.getByRole("button", { name: "More voices for Track 1" }),
+    );
+    await expect(
+      within(canvas.getByRole("group", { name: "Number of voices" })).getByText(
+        "4",
+      ),
+    ).toBeVisible();
     await expect(
       canvas.getByRole("button", { name: "Split Track 1" }),
     ).toBeVisible();
