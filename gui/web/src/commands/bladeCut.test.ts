@@ -8,7 +8,11 @@ import { clearRegisteredCommands, execute } from "./execute";
 import { registerDawCommands } from "./register";
 
 vi.mock("../api", () => ({
-  splitAtTime: vi.fn(async () => ({ kind: "split", times: [0], undo: null })),
+  splitAtTime: vi.fn(async () => ({
+    kind: "split",
+    times: [0] as const,
+    undo: null,
+  })),
 }));
 
 describe("edit.bladeCut", () => {

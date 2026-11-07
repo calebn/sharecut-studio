@@ -847,21 +847,61 @@ export async function deleteSocialClip(
   return reply ? replyHistoryHead(reply) : null;
 }
 
+type SplitTimes = readonly [number, ...number[]];
+
+export type SplitOutcome =
+  | { kind: "split"; times: SplitTimes; undo: HistoryEntryId | null }
+  | { kind: "suggested"; times: SplitTimes }
+  | { kind: "queued" }
+  | { kind: "unavailable" };
+
+function isSplitTimes(value: unknown): value is SplitTimes {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every(
+      (time) => typeof time === "number" && Number.isFinite(time) && time >= 0,
+    )
+  );
+}
+
+function splitOutcome(reply: Record<string, unknown>): SplitOutcome {
+  if (reply.queued === true) return { kind: "queued" };
+  const outcome = reply.split_outcome;
+  if (!isSuggestionRecord(outcome) || !isSplitTimes(outcome.times)) {
+    return { kind: "unavailable" };
+  }
+  if (outcome.kind === "suggested") {
+    return { kind: "suggested", times: outcome.times };
+  }
+  if (outcome.kind === "split") {
+    return {
+      kind: "split",
+      times: outcome.times,
+      undo: replyHistoryHead(reply),
+    };
+  }
+  return { kind: "unavailable" };
+}
+
 export async function splitAtTime(
   projectPath: string,
   atTime: number,
   trackIds?: string[] | null,
   reason?: string | null,
   extraAtTimes?: readonly number[],
-): Promise<HistoryEntryId | null> {
-  return replyHistoryHead(
-    await submitDocumentCommand(projectPath, DocumentCommand.SplitAtTime, {
+): Promise<SplitOutcome> {
+  const reply = await submitDocumentCommand(
+    projectPath,
+    DocumentCommand.SplitAtTime,
+    {
       at_time: atTime,
       track_ids: trackIds ?? null,
       reason: reason ?? null,
       ...(extraAtTimes?.length ? { extra_at_times: [...extraAtTimes] } : {}),
-    }),
+    },
   );
+  return splitOutcome(reply);
 }
 
 export async function deleteClips(

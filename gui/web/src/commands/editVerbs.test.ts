@@ -39,7 +39,11 @@ vi.mock("../api", async (importOriginal) => ({
       _tracks?: string[] | null,
       _reason?: string | null,
       extra: readonly number[] = [],
-    ) => ({ kind: "split" as const, times: [at, ...extra], undo: "h-split" }),
+    ) => ({
+      kind: "split" as const,
+      times: [at, ...extra] as const,
+      undo: "h-split",
+    }),
   ),
   setTranscriptWordsIgnored: vi.fn(async () => "h-ignore"),
 }));

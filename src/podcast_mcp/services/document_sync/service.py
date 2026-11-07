@@ -5,13 +5,14 @@ from __future__ import annotations
 import copy
 import json
 import logging
+import math
 import sqlite3
 import threading
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Any, Literal, TypedDict
 from uuid import uuid4
 
 from podcast_mcp.edits.audio_check_override import OVERRIDE_FLAG, audio_check_override
@@ -134,7 +135,6 @@ def dump_projection_locked(
     audience: str = "host",
 ) -> dict[str, Any]:
     """Dump a ProjectView slice under the document submit lock."""
-    from typing import Literal
 
     from podcast_mcp.gui.assembler import dump_project_projection
 
@@ -240,6 +240,47 @@ def _restore_conflicts(command: DocumentCommand, result: Mapping[str, Any]) -> R
     if command.type == "RestoreAppliedEdit" and result.get("status") == "conflict":
         return {"restore_conflicts": result["conflicts"]}
     return {}
+
+
+class _SplitOutcome(TypedDict):
+    kind: Literal["split", "suggested"]
+    times: list[float]
+
+
+class _SplitReplyFacts(TypedDict, total=False):
+    split_outcome: _SplitOutcome
+
+
+def _split_reply_facts(command_type: str, result: object) -> _SplitReplyFacts:
+    """Guests lose the command payload; expose only the operation kind and times."""
+    if command_type != "SplitAtTime" or not isinstance(result, Mapping):
+        return {}
+    operation = result.get("operation")
+    if operation == "propose_split":
+        edits = result.get("edits")
+        if not isinstance(edits, list) or any(not isinstance(edit, Mapping) for edit in edits):
+            return {}
+        raw_times = [edit.get("start") for edit in edits]
+        kind: Literal["split", "suggested"] = "suggested"
+    elif operation == "split_clips_at":
+        raw_times = result["split_times"] if "split_times" in result else [result.get("at_time")]
+        kind = "split"
+    else:
+        return {}
+    if not isinstance(raw_times, list) or not raw_times:
+        return {}
+    times: list[float] = []
+    for value in raw_times:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return {}
+        try:
+            time = float(value)
+        except OverflowError:
+            return {}
+        if not math.isfinite(time) or time < 0:
+            return {}
+        times.append(time)
+    return {"split_outcome": {"kind": kind, "times": times}}
 
 
 def _journal_server_seq(store: SyncStore) -> int:
@@ -670,6 +711,9 @@ class DocumentSyncService:
                     "server_seq": existing["server_seq"],
                     "idempotent": True,
                     **_stored_asks(existing),
+                    **_split_reply_facts(
+                        str(existing["type"]), (existing.get("payload") or {}).get("result")
+                    ),
                 }
                 if audience == "guest":
                     from podcast_mcp.services.collaboration import sanitize_guest_document_event
@@ -745,6 +789,7 @@ class DocumentSyncService:
         confirmation = result_payload.get("needs_confirmation")
         asks = {"needs_confirmation": confirmation} if confirmation is not None else {}
         asks.update(_restore_conflicts(command, result_payload))
+        asks.update(_split_reply_facts(command.type, result_payload))
         # The entry this command left at the head, read under the same lock as the apply:
         # a toast offers Undo for exactly this change, and the client's next own history
         # move expects it. Null when history did not move. The id is opaque, so guests
