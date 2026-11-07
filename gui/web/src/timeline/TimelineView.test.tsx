@@ -1905,6 +1905,26 @@ describe("TimelineView render isolation", () => {
       expect(useDawStore.getState().splitHoverSec).toBe(4.5);
     });
 
+    it("refreshes the guide after a store-first followed pan reaches the DOM", () => {
+      const { container } = mount();
+      const lanes = lanesOf(container);
+      let laneLeft = 0;
+      Object.defineProperty(lanes, "getBoundingClientRect", {
+        configurable: true,
+        value: () => ({ left: laneLeft, top: 0, width: 800, height: 216 }),
+      });
+      fireEvent.pointerMove(lanes, { clientX: 100, altKey: true });
+      expect(useDawStore.getState().splitHoverSec).toBe(2.5);
+      act(() => useDawStore.setState({ scrollLeft: 80 }));
+      laneLeft = -80;
+      const scroller = container.querySelector(
+        ".timeline-scroll",
+      ) as HTMLElement;
+      scroller.scrollLeft = 80;
+      fireEvent.scroll(scroller);
+      expect(useDawStore.getState().splitHoverSec).toBe(4.5);
+    });
+
     it("leaves the hover time cleared when the timeline scrolls after Alt is released", () => {
       const { container } = mount();
       const lanes = lanesOf(container);
