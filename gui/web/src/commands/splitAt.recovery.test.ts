@@ -85,7 +85,7 @@ const after = minimalProject({
 });
 const response = (data: unknown) => new Response(JSON.stringify(data));
 let resolveRecovery: (value: Response) => void;
-let fetchSpy: ReturnType<typeof vi.fn>;
+let fetchSpy: ReturnType<typeof vi.fn<typeof fetch>>;
 
 beforeEach(() => {
   queued.clear();
