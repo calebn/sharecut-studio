@@ -195,7 +195,11 @@ function sameClipMapping(
       .filter(
         (clip) =>
           clip.source_start <= utterance.end &&
-          clip.source_end >= utterance.start,
+          clip.source_end >= utterance.start &&
+          (clip.track_id === utterance.track_id ||
+            clip.origin_track_id === utterance.track_id ||
+            (utterance.source_id != null &&
+              clip.source_id === utterance.source_id)),
       )
       .sort((a, b) => a.id.localeCompare(b.id));
   const before = placements(previous);
