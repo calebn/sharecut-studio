@@ -13,6 +13,7 @@ import {
   scheduleTranscriptDetailHydrate,
   transcriptDetailSnapshot,
 } from "../../document/hydrateTranscriptDetail";
+import type { DocumentSnapshot } from "../../document/projectPatch";
 import { useDawStore } from "../../state/dawStore";
 import { minimalProject, sampleComment } from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
@@ -203,61 +204,92 @@ describe("guest transcript detail loading in Review", () => {
     },
   );
 
-  it("keeps the regional failure mounted and focused while retrying, then mounts the Script", async () => {
-    const first = deferred<{
-      server_seq: number;
-      state_token: string;
-      project: ReturnType<typeof minimalProject>;
-    }>();
-    const retry = deferred<{
-      server_seq: number;
-      state_token: string;
-      project: ReturnType<typeof minimalProject>;
-    }>();
-    loadDetail
-      .mockReturnValueOnce(first.promise)
-      .mockReturnValueOnce(retry.promise);
-    join("comment", false);
-    render(<ReviewHost guestShare />);
+  it.each(["no drift", "newer reply", "rejection after sequence advances"])(
+    "keeps the regional failure mounted and focused while retrying (%s), then mounts the Script",
+    async (outcome) => {
+      const first = deferred<DocumentSnapshot>();
+      const retry = deferred<DocumentSnapshot>();
+      const replacement = deferred<DocumentSnapshot>();
+      loadDetail
+        .mockReturnValueOnce(first.promise)
+        .mockReturnValueOnce(retry.promise)
+        .mockReturnValueOnce(replacement.promise);
+      join("comment", false);
+      render(<ReviewHost guestShare />);
 
-    await act(async () => first.reject(new Error("private transport detail")));
-    const failed = transcriptDetailSnapshot();
-    expect(failed.kind).toBe("failed");
-    const button = await screen.findByRole("button", { name: "Try again" });
-    expect(screen.getByRole("alert")).toBeVisible();
-    expect(screen.getByText("Try again in a moment.")).toBeVisible();
-    expect(screen.queryByText("private transport detail")).toBeNull();
+      await act(async () =>
+        first.reject(new Error("private transport detail")),
+      );
+      const failed = transcriptDetailSnapshot();
+      expect(failed.kind).toBe("failed");
+      const button = await screen.findByRole("button", { name: "Try again" });
+      expect(screen.getByRole("alert")).toBeVisible();
+      expect(screen.getByText("Try again in a moment.")).toBeVisible();
+      expect(screen.queryByText("private transport detail")).toBeNull();
 
-    await userEvent.setup().click(button);
-    expect(button).toHaveFocus();
-    expect(button).toHaveAttribute("aria-busy", "true");
-    expect(screen.getByRole("alert")).toBeVisible();
-    expect(loadDetail).toHaveBeenCalledTimes(2);
-    if (failed.kind !== "failed")
-      throw new Error("The first attempt should fail");
-    retryTranscriptDetail(failed.attempt);
-    expect(loadDetail).toHaveBeenCalledTimes(2);
+      await userEvent.setup().click(button);
+      expect(button).toHaveFocus();
+      expect(button).toHaveAttribute("aria-busy", "true");
+      expect(screen.getByRole("alert")).toBeVisible();
+      expect(loadDetail).toHaveBeenCalledTimes(2);
+      if (failed.kind !== "failed")
+        throw new Error("The first attempt should fail");
+      retryTranscriptDetail(failed.attempt);
+      expect(loadDetail).toHaveBeenCalledTimes(2);
 
-    const complete = minimalProject({
-      meta: {
-        name: "Test Episode",
-        workspace_dir: "/tmp/test",
-        hydration: { transcript_words: true },
-      },
-    });
-    await act(async () =>
-      retry.resolve({ server_seq: 0, state_token: TOKEN, project: complete }),
-    );
-    expect(
-      useDawStore.getState().project?.meta.hydration?.transcript_words,
-    ).toBe(true);
-    await waitFor(() =>
+      const complete = minimalProject({
+        meta: {
+          name: "Test Episode",
+          workspace_dir: "/tmp/test",
+          hydration: { transcript_words: true },
+        },
+      });
+      const currentSeq =
+        outcome === "rejection after sequence advances" ? 1 : 0;
+      if (outcome !== "no drift") {
+        await act(async () => {
+          if (outcome === "newer reply") {
+            retry.resolve({
+              server_seq: 1,
+              state_token: TOKEN,
+              project: complete,
+            });
+          } else {
+            noteDocumentSeq(currentSeq);
+            retry.reject(new Error("private transport detail"));
+          }
+        });
+        expect(loadDetail).toHaveBeenCalledTimes(3);
+        expect(
+          useDawStore.getState().project?.meta.hydration?.transcript_words,
+        ).toBe(false);
+        expect(button.isConnected).toBe(true);
+        expect(screen.getByRole("button", { name: "Try again" })).toBe(button);
+        expect(button).toHaveFocus();
+        expect(button).toHaveAttribute("aria-busy", "true");
+      }
+      const successful = outcome === "no drift" ? retry : replacement;
+      await act(async () =>
+        successful.resolve({
+          server_seq: currentSeq,
+          state_token: TOKEN,
+          project: complete,
+        }),
+      );
       expect(
-        screen.getByText("The host has not made a transcript of this version."),
-      ).toBeVisible(),
-    );
-    expect(screen.getByRole("textbox", { name: "Comment" })).toBeEnabled();
-  });
+        useDawStore.getState().project?.meta.hydration?.transcript_words,
+      ).toBe(true);
+      await waitFor(() =>
+        expect(
+          screen.getByText(
+            "The host has not made a transcript of this version.",
+          ),
+        ).toBeVisible(),
+      );
+      expect(screen.getByRole("textbox", { name: "Comment" })).toBeEnabled();
+      expect(button.isConnected).toBe(false);
+    },
+  );
 
   it("retries after a new accepted incomplete snapshot without dropping the focused Cover", async () => {
     const first = deferred<{
