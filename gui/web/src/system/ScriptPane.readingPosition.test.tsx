@@ -4218,6 +4218,11 @@ describe("ScriptPane reading position", () => {
       geometry.setLineHeight(21);
       fireEvent(window, new Event("resize"));
       expect(body.scrollTop).toBe(590);
+      expect(captured()).toMatchObject({
+        index: 32,
+        offset: 82,
+        intent: "focus",
+      });
       body.scrollTop = 560;
       fireEvent.scroll(body);
       expect.soft(captured()).toMatchObject({ fallbackTop: 560 });
@@ -4233,6 +4238,48 @@ describe("ScriptPane reading position", () => {
       expect(
         container.querySelector<HTMLElement>(".sys-script-body")?.scrollTop,
       ).toBe(560);
+    },
+  );
+  it.each(["observer-first", "release-first"] as const)(
+    "keeps actual Guest Follow on after empty-bookmark held reflow delivered %s",
+    (delivery) => {
+      const geometry = scriptGeometry();
+      const now = vi.spyOn(performance, "now").mockReturnValue(0);
+      const onUserScroll = vi.fn();
+      const { container } = render(
+        <GuestScript
+          guest="suggester"
+          layout="desktop"
+          turns={SCRIPT_TURNS}
+          wordStarts={[]}
+          playing={17}
+          onSeek={vi.fn()}
+          onUserScroll={onUserScroll}
+        />,
+      );
+      const body = container.querySelector<HTMLElement>(".sys-script-body");
+      if (!body) throw new Error("Expected followed Guest body");
+      expect(body.scrollTop).toBe(156);
+      const follow = screen.getByRole("button", {
+        name: "Follow the playhead",
+      });
+      expect(follow).toHaveAttribute("aria-pressed", "true");
+      fireEvent.pointerDown(body, {
+        pointerId: 17,
+        pointerType: "mouse",
+        isPrimary: true,
+        button: 0,
+      });
+      now.mockReturnValue(700);
+      geometry.resize(100, 200);
+      body.scrollTop = 251;
+      if (delivery === "observer-first") fireEvent(window, new Event("resize"));
+      fireEvent.pointerUp(window, { pointerId: 17 });
+      expect.soft(follow).toHaveAttribute("aria-pressed", "true");
+      expect
+        .soft(screen.queryByRole("button", { name: "Back to playhead" }))
+        .toBeNull();
+      expect(onUserScroll).not.toHaveBeenCalled();
     },
   );
 });
