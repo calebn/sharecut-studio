@@ -1,5 +1,3 @@
-"""Configuration inputs consumed by saved-export comparisons and source certification."""
-
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
