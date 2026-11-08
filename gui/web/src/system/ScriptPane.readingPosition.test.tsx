@@ -434,36 +434,41 @@ describe("ScriptPane reading position", () => {
     },
   );
 
-  it("keeps the bottom reading anchor when a clamped scroll follows a no-op wheel", () => {
-    const geometry = scriptGeometry();
-    stubResizeObserver();
-    const onUserScroll = vi.fn();
-    const { body, captured } = setup(null, false, onUserScroll);
-    body.scrollTop = 950;
-    fireEvent.wheel(body, { deltaY: 20 });
-    fireEvent.scroll(body);
-    const saved = captured();
-    expect(saved).toMatchObject({
-      kind: "word",
-      index: 47,
-      fallbackTop: 950,
-    });
+  it.each(["scroll-first", "observer-first"] as const)(
+    "keeps the bottom reading anchor after a no-op wheel with %s delivery",
+    (order) => {
+      const geometry = scriptGeometry();
+      stubResizeObserver();
+      const onUserScroll = vi.fn();
+      const { body, captured } = setup(null, false, onUserScroll);
+      body.scrollTop = 950;
+      fireEvent.wheel(body, { deltaY: 20 });
+      fireEvent.scroll(body);
+      const saved = captured();
+      expect(saved).toMatchObject({
+        kind: "word",
+        index: 47,
+        fallbackTop: 950,
+      });
 
-    geometry.resize(200, 408);
-    body.scrollTop = body.scrollHeight - body.clientHeight;
-    fireEvent.wheel(body, { deltaY: 20 });
-    fireEvent.scroll(body);
+      geometry.resize(200, 408);
+      body.scrollTop = body.scrollHeight - body.clientHeight;
+      fireEvent.wheel(body, { deltaY: 20 });
+      if (order === "observer-first")
+        for (const observer of FakeResizeObserver.all) observer.fire(body);
+      fireEvent.scroll(body);
 
-    geometry.resize(200, 200);
-    for (const observer of FakeResizeObserver.all) observer.fire(body);
-    expect(body.scrollTop).toBe(950);
-    expect(captured()).toMatchObject({
-      kind: "word",
-      index: 47,
-      fallbackTop: 950,
-    });
-    expect(onUserScroll).toHaveBeenCalledOnce();
-  });
+      geometry.resize(200, 200);
+      for (const observer of FakeResizeObserver.all) observer.fire(body);
+      expect(body.scrollTop).toBe(950);
+      expect(captured()).toMatchObject({
+        kind: "word",
+        index: 47,
+        fallbackTop: 950,
+      });
+      expect(onUserScroll).toHaveBeenCalledOnce();
+    },
+  );
 
   it("keeps a touch scroll that arrives before the geometry observer", () => {
     const geometry = scriptGeometry();
@@ -504,6 +509,228 @@ describe("ScriptPane reading position", () => {
     });
     expect(onUserScroll).toHaveBeenCalledTimes(2);
   });
+
+  it.each(["resize", "font", "layout"])(
+    "accepts visible movement before the %s observation and notifies only once",
+    (observation) => {
+      const geometry = scriptGeometry();
+      stubResizeObserver();
+      const fonts = new EventTarget();
+      Object.defineProperty(document, "fonts", {
+        configurable: true,
+        value: fonts,
+      });
+      const onUserScroll = vi.fn();
+      const { body, binding, captured, rerender } = setup(
+        null,
+        false,
+        onUserScroll,
+      );
+      body.scrollTop = 590;
+      fireEvent.wheel(body);
+      fireEvent.scroll(body);
+      fireEvent.wheel(body, { deltaY: 80 });
+      geometry.resize(201, 408);
+      body.scrollTop = 670;
+      if (observation === "resize") {
+        for (const observer of FakeResizeObserver.all) observer.fire(body);
+      } else if (observation === "font") {
+        act(() => {
+          fonts.dispatchEvent(new Event("loadingdone"));
+        });
+      } else {
+        rerender(
+          <ScriptPane
+            turns={SCRIPT_TURNS}
+            readingPosition={{ ...binding }}
+            onUserScroll={onUserScroll}
+          />,
+        );
+      }
+      expect(body.scrollTop).toBe(670);
+      expect(captured()).toMatchObject({
+        kind: "word",
+        index: 33,
+        fallbackTop: 670,
+      });
+      expect(onUserScroll).toHaveBeenCalledTimes(2);
+      const saved = captured();
+      fireEvent.scroll(body);
+      expect(captured()).toBe(saved);
+      expect(onUserScroll).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it("keeps unobserved input through an unchanged geometry callback", () => {
+    const geometry = scriptGeometry();
+    stubResizeObserver();
+    const onUserScroll = vi.fn();
+    const { body, captured } = setup(null, false, onUserScroll);
+    body.scrollTop = 590;
+    fireEvent.wheel(body);
+    fireEvent.scroll(body);
+    fireEvent.wheel(body, { deltaY: 80 });
+    for (const observer of FakeResizeObserver.all) observer.fire(body);
+    geometry.resize(200, 408);
+    body.scrollTop = 670;
+    for (const observer of FakeResizeObserver.all) observer.fire(body);
+    expect(body.scrollTop).toBe(670);
+    expect(captured()).toMatchObject({
+      kind: "word",
+      index: 33,
+      fallbackTop: 670,
+    });
+    fireEvent.scroll(body);
+    expect(onUserScroll).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([0, -20, 20])(
+    "keeps earlier down movement after a later wheel delta %s",
+    (lastDelta) => {
+      const geometry = scriptGeometry();
+      stubResizeObserver();
+      const onUserScroll = vi.fn();
+      const { body, captured } = setup(null, false, onUserScroll);
+      body.scrollTop = 590;
+      fireEvent.wheel(body);
+      fireEvent.scroll(body);
+      fireEvent.wheel(body, { deltaY: 80 });
+      body.scrollTop = 650;
+      fireEvent.wheel(body, { deltaY: 40 });
+      geometry.resize(200, 408);
+      body.scrollTop = 792;
+      fireEvent.wheel(body, { deltaY: lastDelta });
+      for (const observer of FakeResizeObserver.all) observer.fire(body);
+      expect(body.scrollTop).toBe(792);
+      expect(captured()).toMatchObject({
+        kind: "word",
+        index: 39,
+        fallbackTop: 792,
+      });
+      fireEvent.scroll(body);
+      expect(onUserScroll).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it.each(["wheel", "ended touch"])(
+    "cancels the active contact without losing earlier %s movement",
+    (earlier) => {
+      const geometry = scriptGeometry();
+      stubResizeObserver();
+      const onUserScroll = vi.fn();
+      const { body, captured } = setup(null, false, onUserScroll);
+      body.scrollTop = 590;
+      fireEvent.wheel(body);
+      fireEvent.scroll(body);
+      if (earlier === "wheel") fireEvent.wheel(body, { deltaY: 80 });
+      else {
+        fireEvent.touchStart(body, {
+          touches: [{ identifier: 1, clientY: 160 }],
+        });
+        fireEvent.touchMove(body, {
+          touches: [{ identifier: 1, clientY: 80 }],
+        });
+        fireEvent.touchEnd(body, {
+          touches: [],
+          changedTouches: [{ identifier: 1, clientY: 80 }],
+        });
+      }
+      body.scrollTop = 650;
+      fireEvent.touchStart(body, { touches: [{ identifier: 2, clientY: 80 }] });
+      fireEvent.touchMove(body, { touches: [{ identifier: 2, clientY: 160 }] });
+      fireEvent.touchCancel(body, {
+        touches: [],
+        changedTouches: [{ identifier: 2, clientY: 160 }],
+      });
+      geometry.resize(200, 408);
+      body.scrollTop = 670;
+      for (const observer of FakeResizeObserver.all) observer.fire(body);
+      expect(body.scrollTop).toBe(670);
+      expect(captured()).toMatchObject({
+        kind: "word",
+        index: 33,
+        fallbackTop: 670,
+      });
+      fireEvent.scroll(body);
+      expect(onUserScroll).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it("discards movement supported only by a cancelled contact", () => {
+    const geometry = scriptGeometry();
+    stubResizeObserver();
+    const { body, captured } = setup({ kind: "scroll", top: 590 });
+    fireEvent.scroll(body);
+    fireEvent.touchStart(body, { touches: [{ identifier: 1, clientY: 160 }] });
+    fireEvent.touchMove(body, { touches: [{ identifier: 1, clientY: 80 }] });
+    fireEvent.touchCancel(body, {
+      touches: [],
+      changedTouches: [{ identifier: 1, clientY: 80 }],
+    });
+    geometry.resize(200, 408);
+    body.scrollTop = 670;
+    for (const observer of FakeResizeObserver.all) observer.fire(body);
+    expect(body.scrollTop).toBe(590);
+    expect(captured()).toEqual({ kind: "scroll", top: 590 });
+  });
+
+  it.each(["key", "pointer"])(
+    "does not renew an older extreme with weaker movement and generic %s intent",
+    (renewal) => {
+      const geometry = scriptGeometry();
+      stubResizeObserver();
+      const clock = vi.spyOn(performance, "now").mockReturnValue(0);
+      const onUserScroll = vi.fn();
+      const { body, captured } = setup(
+        { kind: "scroll", top: 590 },
+        false,
+        onUserScroll,
+      );
+      fireEvent.scroll(body);
+      fireEvent.wheel(body, { deltaY: 80 });
+      clock.mockReturnValue(500);
+      body.scrollTop = 650;
+      fireEvent.wheel(body, { deltaY: 20 });
+      clock.mockReturnValue(650);
+      if (renewal === "key") fireEvent.keyDown(body, { key: "PageDown" });
+      else fireEvent.pointerDown(body, { pointerId: 1, pointerType: "mouse" });
+      geometry.resize(200, 408);
+      body.scrollTop = 670;
+      for (const observer of FakeResizeObserver.all) observer.fire(body);
+      expect(body.scrollTop).toBe(590);
+      expect(captured()).toEqual({ kind: "scroll", top: 590 });
+      expect(onUserScroll).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["body", "binding"])(
+    "retires pending input with the %s",
+    (retired) => {
+      const geometry = scriptGeometry();
+      stubResizeObserver();
+      const { body, container, binding, captured, rerender } = setup({
+        kind: "scroll",
+        top: 590,
+      });
+      fireEvent.scroll(body);
+      fireEvent.wheel(body, { deltaY: 80 });
+      rerender(
+        <ScriptPane
+          turns={SCRIPT_TURNS}
+          readingPosition={retired === "binding" ? undefined : binding}
+          status={retired === "body" ? { kind: "loading" } : { kind: "ready" }}
+        />,
+      );
+      rerender(<ScriptPane turns={SCRIPT_TURNS} readingPosition={binding} />);
+      const current = container.querySelector<HTMLElement>(".sys-script-body");
+      if (!current) throw new Error("Expected the current body");
+      geometry.resize(200, 408);
+      current.scrollTop = 670;
+      for (const observer of FakeResizeObserver.all) observer.fire(current);
+      expect(current.scrollTop).toBe(590);
+      expect(captured()).toEqual({ kind: "scroll", top: 590 });
+    },
+  );
 
   it("does not recapture a programmatic restore as user intent while wheel intent is armed", () => {
     const geometry = scriptGeometry();
