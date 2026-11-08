@@ -1,6 +1,6 @@
 # Readable transcript export
 
-Choose `readable.txt` in Transcript to write a paragraph-style reading copy next to the audio. The file uses the episode title, then one speaker and edited-time header for each adjacent speaker turn. Existing `txt`, `md`, `srt`, and `vtt` exports keep their current output. The default remains Markdown and SRT. Copy and preview continue to use the detailed text layout.
+Choose **Reading copy** in Transcript to write a paragraph-style reading copy next to the audio. The file uses the episode title, then one speaker and edited-time header for each adjacent speaker turn. Existing `txt`, `md`, `srt`, and `vtt` exports keep their current output. The default remains Markdown and SRT. Copy and preview continue to use the detailed text layout.
 
 The exporter maps unsuppressed timed words through the edited timeline. It omits fully cut words, keeps a word when any part survives, and uses stored corrected text and punctuation. Repeated placements produce separate entries. Overlapping speakers stay in separate runs rather than interleaving individual words.
 

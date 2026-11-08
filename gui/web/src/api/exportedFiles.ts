@@ -18,7 +18,7 @@ export type ExportedFileEntry = {
   label: string;
   bytes: number;
   current: boolean;
-  /** Exact transcript format from the export inventory; absent or null for other file kinds or older servers. */
+  /** Exact transcript format from the export inventory; absent or null for other file kinds. */
   format?: ExportedTranscriptFormat | null;
   /** Host listing only: a short-lived signed ticket that downloads this file as listed. */
   ticket?: string;

@@ -126,12 +126,6 @@ export function exportLabel(count: number, again: boolean): string {
   return `Export${files}${again ? " again" : ""}`;
 }
 
-/** Resolve legacy listings that predate the authoritative format field. */
-function formatOfName(name: string): TranscriptFormat | undefined {
-  const suffix = name.slice(name.lastIndexOf(".") + 1).toLowerCase();
-  return TRANSCRIPT_FORMATS.find((format) => format.id === suffix)?.id;
-}
-
 /** A chosen format has a file on disk that predates the last transcript edit. */
 export function transcriptStaleOf(
   files: readonly {
@@ -143,8 +137,8 @@ export function transcriptStaleOf(
 ): boolean {
   const chosen: readonly string[] = choices;
   return files.some((file) => {
-    const format = file.format ?? formatOfName(file.name);
-    return !file.current && format !== undefined && chosen.includes(format);
+    const format = file.format;
+    return !file.current && format != null && chosen.includes(format);
   });
 }
 
