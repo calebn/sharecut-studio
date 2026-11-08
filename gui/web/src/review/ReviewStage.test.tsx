@@ -994,6 +994,60 @@ describe("ReviewStage host seams", () => {
     expect(props.onSelect).toHaveBeenCalledWith("u1");
   });
 
+  it.each(["pending", "failed"] as const)(
+    "keeps word-dependent queue totals and empty states unknown when Detail is %s",
+    (kind) => {
+      const retry = vi.fn();
+      const detail =
+        kind === "pending"
+          ? { kind, retry }
+          : { kind, retry, recovering: false };
+      const { container } = render(
+        <ReviewStageHarness
+          initialItems={[]}
+          content={reviewContent}
+          duration={3000}
+          wordDetail={detail}
+        />,
+      );
+
+      expect(screen.queryByText(/of \d+ decided/)).toBeNull();
+      expect(screen.queryByRole("button", { name: "All, 0" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Checks, 0" })).toBeNull();
+      expect(
+        screen.getByRole("button", { name: "Suggestions, 0" }),
+      ).toBeVisible();
+      expect(screen.getByRole("button", { name: "Comments, 0" })).toBeVisible();
+      expect(screen.queryByText("Nothing to decide")).toBeNull();
+      expect(container.querySelector(".sys-decision-empty")).toBeNull();
+    },
+  );
+
+  it.each(["pending", "failed"] as const)(
+    "uses a nonnumeric phone queue label while Detail is %s",
+    (kind) => {
+      const retry = vi.fn();
+      const detail =
+        kind === "pending"
+          ? { kind, retry }
+          : { kind, retry, recovering: false };
+      render(
+        <ReviewStageHarness
+          initialItems={[]}
+          initialFilter="all"
+          content={reviewContent}
+          duration={3000}
+          layout="phone"
+          wordDetail={detail}
+        />,
+      );
+
+      expect(
+        screen.getByRole("button", { name: "Review queue" }),
+      ).toBeVisible();
+    },
+  );
+
   it("asks again when a transcript check comes back after Cut anyway", async () => {
     const view = render(<ReviewStage {...stageProps(QUEUE_ITEMS)} />);
     press(view, "Enter");

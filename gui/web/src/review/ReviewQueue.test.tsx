@@ -12,6 +12,7 @@ import {
   attentionRowsOf,
   type ReviewAttention,
   type ReviewFilter,
+  type ReviewItem,
 } from "./reviewQueueModel";
 
 const waive = vi.hoisted(() => vi.fn());
@@ -45,6 +46,77 @@ describe("ReviewQueue", () => {
     }
     expect(onVerb).toHaveBeenCalled();
     expect(onVerb).not.toHaveBeenCalledWith("f1");
+  });
+
+  it("keeps selection but removes the phone decision gesture for an unavailable word", async () => {
+    const onSelect = vi.fn();
+    const onVerb = vi.fn();
+    const onKeep = vi.fn();
+    const content = (item: ReviewItem) => {
+      const shown = reviewContent(item);
+      return item.kind === "unsure-word" && shown.card.unsure
+        ? {
+            ...shown,
+            card: {
+              ...shown.card,
+              unsure: {
+                ...shown.card.unsure,
+                disabledReason: "Transcript words are still loading.",
+              },
+            },
+          }
+        : shown;
+    };
+    const item: ReviewItem = {
+      id: "u1",
+      kind: "unsure-word",
+      at: 614,
+      savedSeconds: 0,
+    };
+    const available: ReviewItem = {
+      id: "f1",
+      kind: "filler",
+      at: 700,
+      savedSeconds: 0.4,
+    };
+    const { container } = render(
+      <ReviewQueue
+        items={[item, available]}
+        content={content}
+        selectedId={null}
+        filter="all"
+        onFilter={vi.fn()}
+        onSelect={onSelect}
+        onVerb={onVerb}
+        onKeep={onKeep}
+      />,
+    );
+
+    const row = container.querySelector(".sys-queue-row") as HTMLElement;
+    const at = (clientX: number) => ({ clientX, clientY: 0, pointerId: 1 });
+    fireEvent.pointerDown(row, { ...at(100), isPrimary: true });
+    fireEvent.pointerMove(row, at(190));
+    expect(row).not.toHaveAttribute("data-swipe", "verb");
+    fireEvent.pointerUp(row, at(190));
+    expect(onVerb).not.toHaveBeenCalled();
+
+    fireEvent.pointerDown(row, { ...at(190), isPrimary: true });
+    fireEvent.pointerMove(row, at(100));
+    expect(row).not.toHaveAttribute("data-swipe", "keep");
+    fireEvent.pointerUp(row, at(100));
+    expect(onKeep).not.toHaveBeenCalled();
+
+    await userEvent.click(row.querySelector("button") as HTMLButtonElement);
+    expect(onSelect).toHaveBeenCalledWith("u1");
+
+    const availableRow = container.querySelector(
+      '.sys-queue-row[data-kind="filler"]',
+    ) as HTMLElement;
+    fireEvent.pointerDown(availableRow, { ...at(100), isPrimary: true });
+    fireEvent.pointerMove(availableRow, at(190));
+    expect(availableRow).toHaveAttribute("data-swipe", "verb");
+    fireEvent.pointerUp(availableRow, at(190));
+    expect(onVerb).toHaveBeenCalledWith("f1");
   });
 
   it("lists every edit in episode order under one heading when sorted by time", async () => {
