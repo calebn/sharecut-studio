@@ -3801,4 +3801,106 @@ describe("ScriptPane reading position", () => {
       expect(onUserScroll).toHaveBeenCalledTimes(exit === "release" ? 1 : 0);
     },
   );
+  it("does not let a stationary padding click claim later reflow", () => {
+    const geometry = scriptGeometry();
+    vi.spyOn(performance, "now").mockReturnValue(0);
+    const onUserScroll = vi.fn();
+    const { body, binding, captured, rerender, container } = setup(
+      null,
+      false,
+      onUserScroll,
+    );
+    body.scrollTop = 590;
+    fireEvent.wheel(body, { deltaY: 590 });
+    fireEvent.scroll(body);
+    const saved = captured();
+    expect(saved).toMatchObject({ index: 29, offset: -10, fallbackTop: 590 });
+    fireEvent.pointerDown(body, {
+      pointerId: 17,
+      pointerType: "mouse",
+      isPrimary: true,
+      button: 0,
+    });
+    fireEvent.pointerUp(window, { pointerId: 17 });
+    geometry.setLineHeight(22);
+    geometry.resize(100, 200);
+    body.scrollTop = 670;
+    fireEvent(window, new Event("resize"));
+    expect.soft(body.scrollTop).toBe(648);
+    expect.soft(captured()).toBe(saved);
+    expect.soft(onUserScroll).toHaveBeenCalledOnce();
+    rerender(
+      <ScriptPane
+        turns={SCRIPT_TURNS}
+        readingPosition={binding}
+        status={{ kind: "loading" }}
+      />,
+    );
+    rerender(<ScriptPane turns={SCRIPT_TURNS} readingPosition={binding} />);
+    expect(
+      container.querySelector<HTMLElement>(".sys-script-body")?.scrollTop,
+    ).toBe(648);
+    expect(captured()).toBe(saved);
+  });
+
+  it.each(["key", "ended touch"] as const)(
+    "keeps %s continuation across reflow that needs no restoration write",
+    (input) => {
+      const geometry = scriptGeometry();
+      vi.spyOn(performance, "now").mockReturnValue(0);
+      const onUserScroll = vi.fn();
+      const { body, binding, captured, rerender, container } = setup(
+        null,
+        false,
+        onUserScroll,
+      );
+      if (input === "key") fireEvent.keyDown(body, { key: "PageDown" });
+      else {
+        fireEvent.touchStart(body, {
+          touches: [{ identifier: 17, clientY: 172 }],
+        });
+        fireEvent.touchMove(body, {
+          touches: [{ identifier: 17, clientY: 152 }],
+        });
+      }
+      body.scrollTop = 30;
+      fireEvent.scroll(body);
+      expect(captured()).toMatchObject({
+        index: 1,
+        offset: -10,
+        fallbackTop: 30,
+      });
+      expect(onUserScroll).toHaveBeenCalledOnce();
+      if (input === "ended touch")
+        fireEvent.touchEnd(body, {
+          touches: [],
+          changedTouches: [{ identifier: 17, clientY: 152 }],
+        });
+      const firstStep = captured();
+      geometry.resize(201, 200);
+      fireEvent(window, new Event("resize"));
+      expect(body.scrollTop).toBe(30);
+      expect(captured()).toBe(firstStep);
+      for (const [top, count] of [
+        [74, 2],
+        [368, 3],
+      ]) {
+        body.scrollTop = top;
+        fireEvent.scroll(body);
+        expect.soft(captured()).toMatchObject({ fallbackTop: top });
+        expect.soft(onUserScroll).toHaveBeenCalledTimes(count);
+      }
+      rerender(
+        <ScriptPane
+          turns={SCRIPT_TURNS}
+          readingPosition={binding}
+          status={{ kind: "loading" }}
+        />,
+      );
+      rerender(<ScriptPane turns={SCRIPT_TURNS} readingPosition={binding} />);
+      expect(
+        container.querySelector<HTMLElement>(".sys-script-body")?.scrollTop,
+      ).toBe(368);
+    },
+  );
 });
