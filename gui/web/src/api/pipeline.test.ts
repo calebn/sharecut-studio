@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiFetch, HOST_KEY } from "./http";
 import { openJobStream } from "./jobStream";
 import { retryPipelineJob, waitForPipelineJob } from "./pipeline";
@@ -93,9 +93,114 @@ describe("waitForPipelineJob exact terminal lookup", () => {
       expect(apiFetch).toHaveBeenCalledExactlyOnceWith(
         HOST_KEY,
         { host: "/api/pipeline/status" },
-        { signal: undefined },
+        { signal: expect.any(AbortSignal) },
       );
+      expect(controller.signal.aborted).toBe(false);
       expect(openJobStream).not.toHaveBeenCalled();
     },
   );
+});
+
+describe("waitForPipelineJob initial request lifetime", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.mocked(apiFetch).mockReset();
+    vi.mocked(openJobStream).mockClear();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+  const terminal = { id: "B", kind: "pipeline", status: "ok" };
+  function heldStatus() {
+    let release!: (response: Response) => void;
+    const request = new Promise<Response>((resolve) => {
+      release = resolve;
+    });
+    return { request, release };
+  }
+  function track(promise: Promise<unknown>) {
+    const state = {
+      kind: "pending" as "pending" | "ok" | "error",
+      error: undefined as unknown,
+    };
+    const finished = promise.then(
+      () => {
+        state.kind = "ok";
+      },
+      (error: unknown) => {
+        state.kind = "error";
+        state.error = error;
+      },
+    );
+    return { state, finished };
+  }
+
+  it("aborts while status is held and ignores its late response", async () => {
+    const held = heldStatus();
+    vi.mocked(apiFetch).mockReturnValueOnce(held.request);
+    const controller = new AbortController();
+    const pending = track(
+      waitForPipelineJob("B", { signal: controller.signal }),
+    );
+    controller.abort();
+    await vi.advanceTimersByTimeAsync(0);
+    const stateAtAbort = pending.state.kind;
+    held.release(Response.json({ job: terminal }));
+    await pending.finished;
+    expect(stateAtAbort).toBe("error");
+    expect(pending.state.error).toMatchObject({ name: "AbortError" });
+    expect(vi.mocked(apiFetch).mock.calls[0]?.[2]?.signal?.aborted).toBe(true);
+    expect(openJobStream).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("times out while status is held and ignores its late response", async () => {
+    const held = heldStatus();
+    vi.mocked(apiFetch).mockReturnValueOnce(held.request);
+    const pending = track(waitForPipelineJob("B", { timeoutMs: 50 }));
+    await vi.advanceTimersByTimeAsync(50);
+    const stateAtDeadline = pending.state.kind;
+    held.release(Response.json({ job: terminal }));
+    await pending.finished;
+    expect(stateAtDeadline).toBe("error");
+    expect(pending.state.error).toMatchObject({
+      message: "Timed out waiting for job",
+    });
+    expect(vi.mocked(apiFetch).mock.calls[0]?.[2]?.signal?.aborted).toBe(true);
+    expect(openJobStream).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("clears the deadline after an exact terminal status", async () => {
+    vi.mocked(apiFetch).mockResolvedValueOnce(Response.json({ job: terminal }));
+    await expect(waitForPipelineJob("B", { timeoutMs: 50 })).resolves.toEqual(
+      terminal,
+    );
+    expect(vi.getTimerCount()).toBe(0);
+    expect(openJobStream).not.toHaveBeenCalled();
+  });
+
+  it("keeps successive StrictMode-style caller signals independent", async () => {
+    const first = heldStatus();
+    const second = heldStatus();
+    vi.mocked(apiFetch)
+      .mockReturnValueOnce(first.request)
+      .mockReturnValueOnce(second.request);
+    const retired = new AbortController();
+    const active = new AbortController();
+    const oldWait = track(waitForPipelineJob("B", { signal: retired.signal }));
+    retired.abort();
+    await vi.advanceTimersByTimeAsync(0);
+    const retiredState = oldWait.state.kind;
+    const newWait = waitForPipelineJob("B", { signal: active.signal });
+    first.release(Response.json({ job: terminal }));
+    second.release(Response.json({ job: terminal }));
+    await oldWait.finished;
+    await expect(newWait).resolves.toEqual(terminal);
+    expect(retiredState).toBe("error");
+    expect(oldWait.state.error).toMatchObject({ name: "AbortError" });
+    expect(active.signal.aborted).toBe(false);
+    expect(openJobStream).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+  });
 });

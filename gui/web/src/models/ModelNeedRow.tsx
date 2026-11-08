@@ -390,7 +390,9 @@ export function ModelNeedRow({
   if (placement === "need" && rowInstalled(row, model)) {
     return null;
   }
-  const state: ModelState = live?.state ?? { kind: "checking" };
+  const state: ModelState = live?.state ?? {
+    kind: observation.kind === "checking" ? "checking" : "unavailable",
+  };
   return (
     <ModelNeedRowView
       placement={placement}
