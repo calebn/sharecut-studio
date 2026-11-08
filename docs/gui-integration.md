@@ -143,6 +143,15 @@ without hiding canonical downloads. Missing or unsafe encoder output produces a
 path-free coded refusal. QC refusals retain requested and measured LUFS and peak
 within the host job's 200-character message.
 
+Named requests reject malformed `master` and `export` section containers and container-valued
+`export.wav` before mastering, cache reuse and the final publication check. These refusals use
+`pipeline_config_value_invalid`; malformed audio format records use `export_variant_format_invalid`.
+Missing sections, null and empty mappings retain their defaults, as do accepted falsy scalar sections.
+Numeric scalar conversions and scalar WAV truth semantics stay unchanged. A non-null request
+`formats` replaces configured formats, including an empty list, and leaves `export.wav` in effect.
+An explicit format list does not consume configured formats or the legacy MP3 bitrate.
+Request-only mastering settings do not affect a saved variant's source-currentness flag.
+
 This is a partial backend implementation, part of #2455. It does not add UI controls,
 CLI/MCP target support, time-range or folder selection, or guest target generation.
 Completed variant audio is exposed through the existing export-file list, open, download

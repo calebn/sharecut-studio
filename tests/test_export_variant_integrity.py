@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import threading
 
@@ -1382,8 +1383,8 @@ def test_source_fingerprint_runtime_error_is_not_unavailable(saved_bundle, monke
 
 
 @pytest.fixture
-def request_workspace(minimal_project, sample_wav):
-    import os
+def request_workspace(minimal_project, request):
+    sample_wav = request.getfixturevalue(getattr(request, "param", "sample_wav"))
 
     from podcast_mcp.config.defaults import load_defaults
     from podcast_mcp.engines.play_audit import mix_gains, write_premix_hash, write_stem_hash
@@ -1404,6 +1405,7 @@ def request_workspace(minimal_project, sample_wav):
                 )
             ),
         )
+    (ws.project.raw_dir() / "host.wav").write_bytes(sample_wav.read_bytes())
     stem = stem_path(ws.project, "host")
     stem.parent.mkdir(parents=True, exist_ok=True)
     stem.write_bytes(sample_wav.read_bytes())
@@ -1425,16 +1427,40 @@ def request_workspace(minimal_project, sample_wav):
         ({"master": []}, True),
     ],
 )
+@pytest.mark.parametrize(
+    "request_workspace",
+    [
+        "sample_wav",
+        pytest.param(
+            "gentle_wav",
+            marks=pytest.mark.skipif(
+                os.environ.get("PODCAST_RUN_VARIANT_REAL_ENGINE") != "1",
+                reason="opt-in real FFmpeg",
+            ),
+        ),
+    ],
+    indirect=True,
+)
 def test_delivery_request_rejects_container_fallback(
-    request_workspace, monkeypatch, tmp_path, patch, after_encode
+    request_workspace, monkeypatch, tmp_path, patch, after_encode, request
 ):
     import yaml
 
     from podcast_mcp.config.defaults import load_defaults
 
     ws = request_workspace
-    engine = _FakeEngine(premix_path(ws.project))
-    engine.qc = {"integrated_lufs": -16.0, "true_peak_db": -10.0, "lra": 7.0}
+    real = request.node.callspec.params["request_workspace"] == "gentle_wav"
+    engine = pipeline.pipeline_steps.ffmpeg() if real else _FakeEngine(premix_path(ws.project))
+    calls = []
+    master = engine.master_loudness
+
+    def counted_master(*args, **kwargs):
+        calls.append(kwargs)
+        return master(*args, **kwargs)
+
+    monkeypatch.setattr(engine, "master_loudness", counted_master)
+    if not real:
+        engine.qc = {"integrated_lufs": -16.0, "true_peak_db": -10.0, "lra": 7.0}
     monkeypatch.setattr(pipeline.pipeline_steps, "ffmpeg", lambda: engine)
     defaults = load_defaults()
     defaults["master"]["true_peak_db"] = -4
@@ -1472,7 +1498,8 @@ def test_delivery_request_rejects_container_fallback(
     else:
         defaults.update(patch)
         override.write_text(yaml.safe_dump(defaults))
-    engine.qc = {"integrated_lufs": -23.0, "true_peak_db": -17.0, "lra": 7.0}
+    if not real:
+        engine.qc = {"integrated_lufs": -23.0, "true_peak_db": -17.0, "lra": 7.0}
     job = done(client, ws.path, start(client, ws.path, target="broadcast"))
     assert _canonical_snapshot(ws) == before
     for row in rows:
@@ -1495,4 +1522,357 @@ def test_delivery_request_rejects_container_fallback(
     assert job["error_code"] == "pipeline_config_value_invalid"
     assert job["result"] is None
     assert {path.name for path in root.iterdir()} == bundles
-    assert engine.master_calls == (2 if after_encode else 1)
+    assert len(calls) == (2 if after_encode else 1)
+
+
+@pytest.fixture
+def request_defaults(tmp_path, monkeypatch):
+    import yaml
+
+    path = tmp_path / "request-defaults.yaml"
+
+    def replace(config):
+        path.write_text(yaml.safe_dump(config))
+        monkeypatch.setenv("PODCAST_MCP_PIPELINE_DEFAULTS", str(path))
+
+    return replace
+
+
+@pytest.mark.parametrize("section", ["master", "export"])
+@pytest.mark.parametrize("value", ["absent", None, {}, False, 0, "", b""])
+def test_request_empty_section_preserves_default_identity(
+    request_workspace, monkeypatch, section, value, request_defaults
+):
+    from podcast_mcp.config.defaults import load_defaults
+    from podcast_mcp.services.pipeline import ExportTarget, PipelineService
+    from podcast_mcp.services.pipeline.export_variant import variant_identity
+
+    ws = request_workspace
+    engine = _FakeEngine(premix_path(ws.project))
+    monkeypatch.setattr(pipeline.pipeline_steps, "ffmpeg", lambda: engine)
+    config = load_defaults()
+    config.pop(section)
+    expected = variant_identity(ws.project, config, ExportTarget.PODCAST, None)
+    if value != "absent":
+        config[section] = value
+    request_defaults(config)
+    result = PipelineService(ws).export_variant(ExportTarget.PODCAST)
+    assert result.master.target.integrated_lufs == -16
+    assert result.master.target.true_peak_db == -1.5
+    assert result.master.target.lra == 11
+    assert [name.rsplit(".", 1)[1] for name in result.file_ids] == ["wav", "mp3"]
+    assert variant_identity(ws.project, config, ExportTarget.PODCAST, None) == expected
+    assert result.file_ids[0].split("/")[1] == expected[1]
+
+
+@pytest.mark.parametrize(
+    "patch",
+    [
+        {"master": [False]},
+        {"master": set()},
+        {"master": "invalid"},
+        {"export": [("wav", False)]},
+        {"export": set()},
+        {"export": 1},
+        *({"export": {"wav": value}} for value in ({}, {"on": True}, [], [False], set(), {False})),
+        {"master": {"true_peak_db": None}},
+        {"master": {"lra": "invalid"}},
+        {"master": {"qc_lufs_tolerance_lu": []}},
+    ],
+)
+def test_request_invalid_consumed_value_refuses_before_mastering(
+    request_workspace, monkeypatch, patch, request_defaults
+):
+    from podcast_mcp.config.defaults import load_defaults
+
+    ws = request_workspace
+    engine = _FakeEngine(premix_path(ws.project))
+    monkeypatch.setattr(pipeline.pipeline_steps, "ffmpeg", lambda: engine)
+    config = load_defaults()
+    config.update(patch)
+    request_defaults(config)
+    before = _canonical_snapshot(ws)
+    client = TestClient(create_app())
+    job = done(client, ws.path, start(client, ws.path, target="podcast", formats=[{"ext": "wav"}]))
+    assert job["status"] == "error"
+    assert job["error_code"] == "pipeline_config_value_invalid"
+    assert job["result"] is None
+    assert str(ws.path.parent) not in job["error"]
+    assert engine.master_calls == 0
+    assert not (ws.project.export_dir() / "variants").exists()
+    assert _canonical_snapshot(ws) == before
+
+
+@pytest.mark.parametrize(
+    "wav,extensions",
+    [
+        (None, ["mp3"]),
+        (False, ["mp3"]),
+        (0, ["mp3"]),
+        ("", ["mp3"]),
+        (1, ["wav", "mp3"]),
+        ("false", ["wav", "mp3"]),
+    ],
+)
+def test_request_scalar_conversions_keep_target_formats_and_identity(
+    request_workspace, monkeypatch, wav, extensions, request_defaults
+):
+    from podcast_mcp.config.defaults import load_defaults
+    from podcast_mcp.services.pipeline import ExportTarget, PipelineService
+    from podcast_mcp.services.pipeline.export_variant import variant_identity
+
+    ws = request_workspace
+    engine = _FakeEngine(premix_path(ws.project))
+    monkeypatch.setattr(pipeline.pipeline_steps, "ffmpeg", lambda: engine)
+    config = load_defaults()
+    config["master"] = {
+        "integrated_lufs": "-19",
+        "true_peak_db": "-1.5",
+        "lra": True,
+        "qc_lufs_tolerance_lu": "0.5",
+        "qc_true_peak_tolerance_db": False,
+    }
+    config["export"] = {"wav": wav, "mp3_bitrate_kbps": "128"}
+    request_defaults(config)
+    result = PipelineService(ws).export_variant(ExportTarget.PODCAST)
+    assert result.master.target.integrated_lufs == -16
+    assert result.master.target.true_peak_db == -1.5
+    assert result.master.target.lra == 1
+    assert result.master.limits.lufs_tolerance_lu == 0.5
+    assert result.master.limits.true_peak_tolerance_db == 0
+    assert [name.rsplit(".", 1)[1] for name in result.file_ids] == extensions
+    identity = variant_identity(ws.project, config, ExportTarget.PODCAST, None)
+    config["master"] = {
+        "integrated_lufs": -19,
+        "true_peak_db": -1.5,
+        "lra": 1,
+        "qc_lufs_tolerance_lu": 0.5,
+        "qc_true_peak_tolerance_db": 0,
+    }
+    config["export"] = {"wav": bool(wav), "mp3_bitrate_kbps": 128}
+    assert variant_identity(ws.project, config, ExportTarget.PODCAST, None) == identity
+    assert result.file_ids[0].split("/")[1] == identity[1]
+
+
+@pytest.mark.parametrize(
+    "export,formats,extensions",
+    [
+        ({}, None, ["wav", "mp3"]),
+        ({"formats": None}, None, ["wav"]),
+        ({"formats": []}, None, ["wav"]),
+        ({"formats": "invalid", "mp3_bitrate_kbps": []}, [], ["wav"]),
+        ({"wav": False, "formats": "invalid", "mp3_bitrate_kbps": []}, [{"ext": "wav"}], ["wav"]),
+        ({"wav": False, "formats": "invalid", "mp3_bitrate_kbps": []}, [{"ext": "flac"}], ["flac"]),
+        ({"wav": False}, [], None),
+        ({"wav": False, "formats": None}, None, None),
+        ({"wav": False, "formats": []}, None, None),
+    ],
+)
+def test_request_format_precedence(
+    request_workspace, monkeypatch, export, formats, extensions, request_defaults
+):
+    from podcast_mcp.config.defaults import load_defaults
+
+    ws = request_workspace
+    engine = _FakeEngine(premix_path(ws.project))
+    monkeypatch.setattr(pipeline.pipeline_steps, "ffmpeg", lambda: engine)
+    config = load_defaults()
+    config["export"] = export
+    request_defaults(config)
+    client = TestClient(create_app())
+    job = done(client, ws.path, start(client, ws.path, target="podcast", formats=formats))
+    if extensions is None:
+        assert job["status"] == "error"
+        assert job["error_code"] == "export_variant_format_invalid"
+        assert job["result"] is None
+        assert engine.master_calls == 0
+    else:
+        assert job["status"] == "ok", job
+        assert [name.rsplit(".", 1)[1] for name in job["result"]["file_ids"]] == extensions
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        {},
+        "mp3",
+        [False],
+        [{}],
+        [{"ext": "wav"}, {"ext": "wav"}],
+        [{"ext": "zip"}],
+        [{"ext": "wav", "extra_args": ["-y"]}],
+        [{"ext": "mp3", "bitrate_kbps": 7}],
+    ],
+)
+@pytest.mark.parametrize("recheck", [False, True])
+def test_request_raw_format_errors_keep_code(
+    request_workspace, monkeypatch, raw, recheck, request_defaults
+):
+    from podcast_mcp.config.defaults import load_defaults
+    from podcast_mcp.services.pipeline import ExportTarget, PipelineService
+    from podcast_mcp.services.pipeline.export_variant import variant_identity
+    from podcast_mcp.util.coded_error import CodedValueError
+
+    ws = request_workspace
+    config = load_defaults()
+    config["export"]["formats"] = raw
+    engine = _FakeEngine(premix_path(ws.project))
+    monkeypatch.setattr(pipeline.pipeline_steps, "ffmpeg", lambda: engine)
+    request_defaults(config)
+    with pytest.raises(CodedValueError) as caught:
+        if recheck:
+            variant_identity(ws.project, config, ExportTarget.PODCAST, None)
+        else:
+            PipelineService(ws).export_variant(ExportTarget.PODCAST)
+    assert caught.value.code == "export_variant_format_invalid"
+    assert engine.master_calls == 0
+
+
+@pytest.mark.parametrize("patch", [{"master": []}, {"export": []}, {"export": {"wav": [False]}}])
+@pytest.mark.parametrize("at_guard", [False, True])
+def test_invalid_request_cannot_reuse_cache_and_saved_source_stays_current(
+    request_workspace, monkeypatch, patch, at_guard
+):
+    from contextlib import contextmanager
+
+    from podcast_mcp.services.document import ExportFilesService
+
+    ws = request_workspace
+    engine = _FakeEngine(premix_path(ws.project))
+    monkeypatch.setattr(pipeline.pipeline_steps, "ffmpeg", lambda: engine)
+    client = TestClient(create_app())
+    body = {"target": "podcast", "formats": [{"ext": "wav"}]}
+    first = done(client, ws.path, start(client, ws.path, **body))
+    assert first["status"] == "ok", first
+    file_id = first["result"]["file_ids"][0]
+    bundle = (ws.project.export_dir() / file_id).parent
+    immutable = {p.name: p.read_bytes() for p in bundle.iterdir()}
+    version = ExportFilesService(ws).open(file_id).version
+    params = {"path": str(ws.path)}
+    row = next(
+        row for row in client.get(FILES, params=params).json()["files"] if row["id"] == file_id
+    )
+    before = _canonical_snapshot(ws)
+    original_guard = pipeline.project_commit_guard
+
+    @contextmanager
+    def changed_guard(*args, **kwargs):
+        config_store().put(ws.path, config=patch)
+        with original_guard(*args, **kwargs):
+            yield
+
+    if at_guard:
+        monkeypatch.setattr(pipeline, "project_commit_guard", changed_guard)
+    else:
+        config_store().put(ws.path, config=patch)
+    refused = done(client, ws.path, start(client, ws.path, **body))
+    assert refused["status"] == "error", refused
+    assert refused["error_code"] == "pipeline_config_value_invalid"
+    assert refused["result"] is None
+    current = next(
+        row for row in client.get(FILES, params=params).json()["files"] if row["id"] == file_id
+    )
+    assert current["current"] is True
+    assert ExportFilesService(ws).open(file_id).version == version
+    response = client.get(f"{FILES}/{file_id}", params={**params, "ticket": row["ticket"]})
+    assert response.status_code == 200
+    assert response.content == immutable["audio.wav"]
+    assert {p.name: p.read_bytes() for p in bundle.iterdir()} == immutable
+    assert _canonical_snapshot(ws) == before
+    assert engine.master_calls == 1
+    monkeypatch.setattr(pipeline, "project_commit_guard", original_guard)
+    config_store().put(ws.path, config={}, reset=True)
+    recovered = done(client, ws.path, start(client, ws.path, **body))
+    assert recovered["status"] == "ok", recovered
+    assert recovered["result"] == first["result"]
+    assert engine.master_calls == 1
+    print(
+        json.dumps(
+            {
+                "cache_guard": at_guard,
+                "patch": patch,
+                "error_code": refused["error_code"],
+                "current": current["current"],
+                "version": version,
+                "recovered": recovered["result"],
+                "immutable_preserved": True,
+                "canonical_preserved": True,
+            }
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    "patch,code",
+    [
+        ({"master": []}, "pipeline_config_value_invalid"),
+        ({"export": []}, "pipeline_config_value_invalid"),
+        ({"export": {"wav": [False]}}, "pipeline_config_value_invalid"),
+        ({"master": {"true_peak_db": None}}, "pipeline_config_value_invalid"),
+        ({"master": {"lra": 12}}, "stale_mix"),
+        ({"export": {"formats": "invalid", "mp3_bitrate_kbps": []}}, None),
+    ],
+)
+def test_request_recheck_after_encode_uses_consumed_settings(
+    request_workspace, monkeypatch, patch, code
+):
+    ws = request_workspace
+    engine = _FakeEngine(premix_path(ws.project))
+    monkeypatch.setattr(pipeline.pipeline_steps, "ffmpeg", lambda: engine)
+    original = engine.export_audio
+    encoded = threading.Event()
+    resume = threading.Event()
+
+    def encode(*args, **kwargs):
+        original(*args, **kwargs)
+        encoded.set()
+        assert resume.wait(5)
+
+    monkeypatch.setattr(engine, "export_audio", encode)
+    before = _canonical_snapshot(ws)
+    client = TestClient(create_app())
+    job_id = start(client, ws.path, target="broadcast", formats=[{"ext": "mp3"}])
+    try:
+        assert encoded.wait(5)
+        config_store().put(ws.path, config=patch)
+    finally:
+        resume.set()
+    job = done(client, ws.path, job_id)
+    assert engine.encode_calls == 1
+    assert _canonical_snapshot(ws) == before
+    assert job["error_code"] == code
+    root = ws.project.export_dir() / "variants"
+    if code:
+        assert job["status"] == "error"
+        assert job["result"] is None
+        assert list(root.iterdir()) == []
+    else:
+        assert job["status"] == "ok", job
+        assert len(list(root.iterdir())) == 1
+
+
+@pytest.mark.parametrize("constructor", ["master_target_for", "MasterQcLimits", "_resolve_formats"])
+@pytest.mark.parametrize("recheck", [False, True])
+def test_request_programming_runtime_error_propagates(
+    request_workspace, monkeypatch, constructor, recheck
+):
+    from podcast_mcp.services.pipeline import ExportTarget, PipelineService, export_variant
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("request constructor defect")
+
+    if constructor == "MasterQcLimits":
+        monkeypatch.setattr(export_variant.MasterQcLimits, "from_defaults", broken)
+    else:
+        monkeypatch.setattr(export_variant, constructor, broken)
+    ws = request_workspace
+    engine = _FakeEngine(premix_path(ws.project))
+    monkeypatch.setattr(pipeline.pipeline_steps, "ffmpeg", lambda: engine)
+    with pytest.raises(RuntimeError, match="request constructor defect"):
+        if recheck:
+            export_variant.variant_identity(
+                ws.project, ws.effective_config(), ExportTarget.PODCAST, None
+            )
+        else:
+            PipelineService(ws).export_variant(ExportTarget.PODCAST)
+    assert engine.master_calls == 0
