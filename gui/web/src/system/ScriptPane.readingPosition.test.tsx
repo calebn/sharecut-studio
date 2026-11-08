@@ -18,6 +18,10 @@ import {
 } from "./ScriptPane";
 import { SCRIPT_TURNS } from "./scriptFixtures";
 
+const scrollIntoViewDescriptor = Object.getOwnPropertyDescriptor(
+  HTMLElement.prototype,
+  "scrollIntoView",
+);
 const fontsDescriptor = Object.getOwnPropertyDescriptor(document, "fonts");
 const elementFromPointDescriptor = Object.getOwnPropertyDescriptor(
   document,
@@ -113,10 +117,121 @@ function stubNativeFocusScroll() {
   });
 }
 
+function nestedScrollGeometry(paneTop: number) {
+  let paneHeight = 400;
+  let outerHeight = 600;
+  const computedStyle = window.getComputedStyle.bind(window);
+  vi.spyOn(window, "getComputedStyle").mockImplementation((element) => {
+    const style = computedStyle(element);
+    if (element.matches(".sys-script-body, .rv-main")) {
+      style.overflowY = "auto";
+      style.overflowX = "auto";
+    }
+    if (element.matches(".sys-script-word")) {
+      style.outlineStyle = "solid";
+      style.outlineWidth = "2px";
+      style.outlineOffset = "2px";
+    }
+    return style;
+  });
+  vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(
+    function (this: HTMLElement) {
+      return this.matches(".rv-main") ? outerHeight : paneHeight;
+    },
+  );
+  vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(
+    function (this: HTMLElement) {
+      return this.matches(".rv-main") ? 300 : 260;
+    },
+  );
+  vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(
+    function (this: HTMLElement) {
+      return this.matches(".rv-main")
+        ? Math.max(outerHeight, paneTop - 40 + paneHeight + 120)
+        : 1600;
+    },
+  );
+  vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
+    function (this: Element) {
+      if (this.matches(".rv-main")) return new DOMRect(0, 40, 300, outerHeight);
+      const outer = this.closest<HTMLElement>(".rv-main");
+      const top = paneTop - (outer?.scrollTop ?? 0);
+      if (this.matches(".sys-script-body"))
+        return new DOMRect(20, top, 260, paneHeight);
+      const body = this.closest<HTMLElement>(".sys-script-body");
+      return new DOMRect(
+        40,
+        top +
+          Number(this.getAttribute("data-stop")) * 20 -
+          (body?.scrollTop ?? 0),
+        100,
+        16,
+      );
+    },
+  );
+  // JSDOM has no layout scrolling. Model native alignment from inner to outer
+  // scrollports, with their reported scroll ranges, including focus's nearest reveal.
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+    configurable: true,
+    value: function (
+      this: HTMLElement,
+      options?: boolean | ScrollIntoViewOptions,
+    ) {
+      for (let owner = this.parentElement; owner; owner = owner.parentElement) {
+        if (!owner.matches(".sys-script-body, .rv-main")) continue;
+        const word = this.getBoundingClientRect();
+        const pane = owner.getBoundingClientRect();
+        const center =
+          typeof options === "object" && options.block === "center";
+        const delta = center
+          ? (word.top + word.bottom - pane.top - pane.bottom) / 2
+          : word.top < pane.top
+            ? word.top - pane.top
+            : word.bottom > pane.bottom
+              ? word.bottom - pane.bottom
+              : 0;
+        owner.scrollTop = Math.max(
+          0,
+          Math.min(
+            owner.scrollHeight - owner.clientHeight,
+            owner.scrollTop + delta,
+          ),
+        );
+      }
+    },
+  });
+  const focus: unknown = Object.getOwnPropertyDescriptor(
+    HTMLElement.prototype,
+    "focus",
+  )?.value;
+  if (typeof focus !== "function") throw new Error("Expected native focus");
+  vi.spyOn(HTMLElement.prototype, "focus").mockImplementation(function (
+    this: HTMLElement,
+    options?: FocusOptions,
+  ) {
+    Reflect.apply(focus, this, [{ preventScroll: true }]);
+    if (!options?.preventScroll && this.matches(".sys-script-word"))
+      this.scrollIntoView({ block: "nearest", inline: "nearest" });
+  });
+  return {
+    shrink: () => {
+      paneHeight = 180;
+      outerHeight = 200;
+    },
+  };
+}
+
 describe("ScriptPane reading position", () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+    if (scrollIntoViewDescriptor)
+      Object.defineProperty(
+        HTMLElement.prototype,
+        "scrollIntoView",
+        scrollIntoViewDescriptor,
+      );
+    else Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
     vi.unstubAllGlobals();
     vi.useRealTimers();
     if (fontsDescriptor)
@@ -355,13 +470,11 @@ describe("ScriptPane reading position", () => {
     vi.useFakeTimers({
       toFake: ["requestAnimationFrame", "cancelAnimationFrame", "setTimeout"],
     });
-    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(200);
-    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(
-      1200,
-    );
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(226);
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(286);
     const rectOf = (element: HTMLElement) => {
       if (element.classList.contains("sys-script-body"))
-        return new DOMRect(0, 0, 300, 200);
+        return new DOMRect(0, 0, 300, 226);
       const index = Number(element.dataset.stop);
       const reader = element.closest<HTMLElement>(".sys-script-body");
       return new DOMRect(
@@ -426,14 +539,17 @@ describe("ScriptPane reading position", () => {
       configurable: true,
       get: () => top,
       set: (value: number) => {
-        top = Math.min(value, 60);
+        top = Math.max(
+          0,
+          Math.min(value, body.scrollHeight - body.clientHeight),
+        );
         fireEvent.scroll(body);
       },
     });
     document.elementFromPoint = (x, y) => {
       const column = Math.floor(x / 60);
       const row = Math.floor((y + top) / 26);
-      if (x % 60 >= 50 || y % 26 >= 20 || column > 4) return null;
+      if (x % 60 >= 50 || (y + top) % 26 >= 20 || column > 4) return null;
       return document.querySelector(`[data-stop="${row * 5 + column}"]`);
     };
     fireEvent.pointerDown(first, {
@@ -818,14 +934,14 @@ describe("ScriptPane reading position", () => {
 
       vi.stubGlobal("innerHeight", 400);
       act(restore);
-      expect.soft(body.scrollTop).toBe(136);
-      expect.soft(word.getBoundingClientRect().top).toBe(244);
-      expect.soft(word.getBoundingClientRect().bottom).toBe(260);
+      expect.soft(body.scrollTop).toBe(156);
+      expect.soft(word.getBoundingClientRect().top).toBe(224);
+      expect.soft(word.getBoundingClientRect().bottom).toBe(240);
 
       geometry.setWordHeight(32);
       act(restore);
-      expect.soft(body.scrollTop).toBe(152);
-      expect.soft(word.getBoundingClientRect().bottom).toBe(260);
+      expect.soft(body.scrollTop).toBe(156);
+      expect.soft(word.getBoundingClientRect().bottom).toBe(256);
       expect(document.activeElement).toBe(word);
 
       geometry.setWordHeight(16);
@@ -840,6 +956,228 @@ describe("ScriptPane reading position", () => {
       expect(
         body.querySelector('[data-stop="30"]')?.getBoundingClientRect().top,
       ).toBe(80);
+    },
+  );
+
+  it.each([
+    [60, "resize", 10],
+    [60, "font", 10],
+    [80, "resize", 30],
+    [80, "font", 30],
+    [300, "resize", 250],
+    [300, "font", 250],
+  ] as const)(
+    "reveals the full Tab anchor and ring across nested scrollports at %i after %s",
+    async (paneTop, callback, expectedOuterTop) => {
+      const user = userEvent.setup();
+      const geometry = nestedScrollGeometry(paneTop);
+      stubResizeObserver();
+      vi.stubGlobal("innerHeight", 800);
+      const fonts = new EventTarget();
+      Object.defineProperty(document, "fonts", {
+        configurable: true,
+        value: fonts,
+      });
+      let position: ScriptPaneReadingPosition | null = null;
+      const binding: ScriptPaneReadingPositionBinding = {
+        getPosition: () => position,
+        capture: (next) => {
+          position = next;
+        },
+        restore: true,
+      };
+      const onUserScroll = vi.fn();
+      const { container } = render(
+        <div className="rv-main">
+          <ScriptPane
+            turns={SCRIPT_TURNS}
+            following={false}
+            readingPosition={binding}
+            onFollowChange={vi.fn()}
+            onUserScroll={onUserScroll}
+          />
+        </div>,
+      );
+      const body = container.querySelector<HTMLElement>(".sys-script-body");
+      const outer = container.querySelector<HTMLElement>(".rv-main");
+      const word = body?.querySelector<HTMLElement>('[data-stop="15"]');
+      if (!body || !outer || !word)
+        throw new Error("Expected nested reading pane");
+      await act(async () => {
+        word.focus();
+      });
+      await act(async () => {
+        screen.getByRole("button", { name: "Follow the playhead" }).focus();
+      });
+      await user.tab();
+      expect(document.activeElement).toBe(word);
+      expect(position).toMatchObject({ kind: "word", index: 15, offset: 300 });
+      const saved = position;
+      const restore = () => {
+        if (callback === "font") fonts.dispatchEvent(new Event("loadingdone"));
+        else for (const observer of FakeResizeObserver.all) observer.fire(body);
+      };
+      act(restore);
+      expect(position).toBe(saved);
+      expect(body.scrollTop).toBe(0);
+      expect(outer.scrollTop).toBe(0);
+      geometry.shrink();
+      vi.stubGlobal("innerHeight", 500);
+      fireEvent.wheel(body);
+      act(restore);
+      fireEvent.scroll(body);
+      fireEvent.scroll(outer);
+      const style = getComputedStyle(word);
+      const ring =
+        Number.parseFloat(style.outlineWidth) +
+        Number.parseFloat(style.outlineOffset);
+      expect(ring).toBe(4);
+      expect.soft(word.getBoundingClientRect().top - ring).toBe(128);
+      expect.soft(word.getBoundingClientRect().bottom + ring).toBe(152);
+      expect.soft(body.scrollTop).toBe(218);
+      expect.soft(outer.scrollTop).toBe(expectedOuterTop);
+      const visibleTop = Math.max(
+        0,
+        body.getBoundingClientRect().top,
+        outer.getBoundingClientRect().top,
+      );
+      const visibleBottom = Math.min(
+        innerHeight,
+        body.getBoundingClientRect().bottom,
+        outer.getBoundingClientRect().bottom,
+      );
+      expect
+        .soft(word.getBoundingClientRect().top - ring)
+        .toBeGreaterThanOrEqual(visibleTop);
+      expect
+        .soft(word.getBoundingClientRect().bottom + ring)
+        .toBeLessThanOrEqual(visibleBottom);
+      expect(word.getBoundingClientRect().left - ring).toBeGreaterThanOrEqual(
+        20,
+      );
+      expect(word.getBoundingClientRect().right + ring).toBeLessThanOrEqual(
+        280,
+      );
+      expect(document.activeElement).toBe(word);
+      expect(position).toMatchObject({
+        kind: "word",
+        index: 15,
+        offset: 82,
+        fallbackTop: 218,
+      });
+      expect(onUserScroll).not.toHaveBeenCalled();
+
+      body.scrollTop = 600;
+      fireEvent.wheel(body);
+      fireEvent.scroll(body);
+      expect(position).toMatchObject({
+        kind: "word",
+        index: 30,
+        offset: 0,
+        fallbackTop: 600,
+      });
+      act(restore);
+      expect(body.scrollTop).toBe(600);
+      expect(outer.scrollTop).toBe(expectedOuterTop);
+      expect(document.activeElement).toBe(word);
+      expect(onUserScroll).toHaveBeenCalledOnce();
+    },
+  );
+
+  it.each(["pane", "ancestor"] as const)(
+    "keeps the accepted %s fit after short-height unmount without refocusing",
+    async (owner) => {
+      const user = userEvent.setup();
+      const nested = owner === "ancestor" ? nestedScrollGeometry(300) : null;
+      const pane = owner === "pane" ? scriptGeometry() : null;
+      if (pane) {
+        pane.resize(200, 400);
+        pane.setPaneTop(80);
+        stubNativeFocusScroll();
+      }
+      stubResizeObserver();
+      vi.stubGlobal("innerHeight", 800);
+      let position: ScriptPaneReadingPosition | null = null;
+      const binding: ScriptPaneReadingPositionBinding = {
+        getPosition: () => position,
+        capture: (next) => {
+          position = next;
+        },
+        restore: true,
+      };
+      const onUserScroll = vi.fn();
+      const tree = (shown: boolean) => (
+        <div className="rv-main">
+          {shown ? (
+            <ScriptPane
+              turns={SCRIPT_TURNS}
+              following={false}
+              onFollowChange={vi.fn()}
+              onUserScroll={onUserScroll}
+              readingPosition={binding}
+            />
+          ) : (
+            <p>Script hidden at short height</p>
+          )}
+        </div>
+      );
+      const { container, rerender } = render(tree(true));
+      const body = container.querySelector<HTMLElement>(".sys-script-body");
+      const word = body?.querySelector<HTMLElement>('[data-stop="15"]');
+      if (!body || !word) throw new Error("Expected remembered word");
+      await act(async () => {
+        word.focus();
+      });
+      await act(async () => {
+        screen.getByRole("button", { name: "Follow the playhead" }).focus();
+      });
+      await user.tab();
+      expect(document.activeElement).toBe(word);
+      expect(position).toMatchObject({ kind: "word", index: 15, offset: 300 });
+      nested?.shrink();
+      pane?.resize(200, 180);
+      vi.stubGlobal("innerHeight", owner === "pane" ? 240 : 500);
+      fireEvent.wheel(body);
+      act(() => {
+        for (const observer of FakeResizeObserver.all) observer.fire(body);
+      });
+      fireEvent.scroll(body);
+      const expectedOffset = owner === "pane" ? 144 : 82;
+      const expectedTop = owner === "pane" ? 156 : 218;
+      expect(
+        word.getBoundingClientRect().top - body.getBoundingClientRect().top,
+      ).toBe(expectedOffset);
+      expect(body.scrollTop).toBe(expectedTop);
+      expect.soft(position).toMatchObject({
+        kind: "word",
+        index: 15,
+        offset: expectedOffset,
+        fallbackTop: expectedTop,
+      });
+      expect(onUserScroll).not.toHaveBeenCalled();
+      vi.stubGlobal("innerHeight", 100);
+      rerender(tree(false));
+      expect(container.querySelector(".sys-script-body")).toBeNull();
+      expect(document.activeElement).toBe(document.body);
+      vi.stubGlobal("innerHeight", owner === "pane" ? 240 : 500);
+      rerender(tree(true));
+      const restored = container.querySelector<HTMLElement>(".sys-script-body");
+      const restoredWord =
+        restored?.querySelector<HTMLElement>('[data-stop="15"]');
+      if (!restored || !restoredWord) throw new Error("Expected restored word");
+      expect(restoredWord.textContent).toBe("sound");
+      expect.soft(restored.scrollTop).toBe(expectedTop);
+      const rect = restoredWord.getBoundingClientRect();
+      const bounds = restored.getBoundingClientRect();
+      expect.soft(rect.top - bounds.top).toBe(expectedOffset);
+      expect.soft(rect.top).toBe(owner === "pane" ? 224 : 132);
+      expect.soft(rect.bottom).toBe(owner === "pane" ? 240 : 148);
+      expect.soft(rect.top).toBeGreaterThanOrEqual(bounds.top);
+      expect
+        .soft(rect.bottom)
+        .toBeLessThanOrEqual(Math.min(bounds.bottom, innerHeight));
+      expect(document.activeElement).toBe(document.body);
+      expect(onUserScroll).not.toHaveBeenCalled();
     },
   );
 
