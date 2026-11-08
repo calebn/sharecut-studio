@@ -190,11 +190,10 @@ function advanceReading(
     : 0;
   const contentChanged = Boolean(
     previous &&
-      (previous.width !== sample.width ||
-        (referencePair
-          ? referenceShift !== 0 ||
-            referencePair.previous.height !== referencePair.current.height
-          : previous.reference || sample.reference)),
+      (referencePair
+        ? referenceShift !== 0 ||
+          referencePair.previous.height !== referencePair.current.height
+        : previous.reference || sample.reference),
   );
   const fresh = (evidence: ReadingEvidence | null) =>
     evidence &&
@@ -857,9 +856,18 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       [],
     );
     useLayoutEffect(() => {
+      const resumesFollowing =
+        readingPositionRef.current?.restore && !readingPosition?.restore;
       readingPositionRef.current = readingPosition;
       if (!readingPosition) {
         readingOwnership.current = EMPTY_READING_OWNERSHIP;
+      } else if (resumesFollowing) {
+        const body = bodyRef.current;
+        if (body?.isConnected)
+          readingOwnership.current = acceptReadingPosition(
+            readingOwnership.current,
+            sampleReadingViewport(body, undefined),
+          );
       }
     }, [readingPosition]);
     const findButton = useRef<HTMLButtonElement>(null);
