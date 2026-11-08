@@ -1,6 +1,5 @@
 import {
   type KeyboardEvent,
-  useEffect,
   useId,
   useLayoutEffect,
   useRef,
@@ -138,16 +137,24 @@ export function FixTextField({
     }
   });
 
-  // Native, so the element's own connectedness is read: a blur fired while the
-  // field is being removed is not the person leaving it.
-  useEffect(() => {
+  // A connected blur can precede synchronous DOM retirement, so decide after it settles.
+  useLayoutEffect(() => {
     const el = input.current;
     if (!el) return;
+    let active = true;
     const onBlur = () => {
-      if (el.isConnected) void finish("blur");
+      if (!el.isConnected) return;
+      queueMicrotask(() => {
+        if (active && input.current === el && el.isConnected) {
+          void finish("blur");
+        }
+      });
     };
     el.addEventListener("blur", onBlur);
-    return () => el.removeEventListener("blur", onBlur);
+    return () => {
+      active = false;
+      el.removeEventListener("blur", onBlur);
+    };
   }, [finish]);
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
