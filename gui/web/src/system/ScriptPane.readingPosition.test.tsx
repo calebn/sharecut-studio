@@ -1334,7 +1334,7 @@ describe("ScriptPane reading position", () => {
       geometry.setOuterHeight(450);
       vi.stubGlobal("innerHeight", 850);
       if (delivery === "window") fireEvent(window, new Event("resize"));
-      else for (const observer of FakeResizeObserver.all) observer.fire(outer);
+      else FakeResizeObserver.of(outer).fire(outer);
       expect(body.clientHeight).toBe(400);
       expect(document.activeElement).toBe(word);
       expect(word.getBoundingClientRect().top - 4).toBeGreaterThanOrEqual(

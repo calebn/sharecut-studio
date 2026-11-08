@@ -246,7 +246,7 @@ const SURFACE_GESTURES: Record<string, string> = {
   "system/RecordButton.tsx":
     "the Record button: a 600 ms press-and-hold stops a live take, and Enter or Space asks first; it is not a timeline target",
   "system/ScriptPane.tsx":
-    "observes native scrolling to retain the guest reading place; word-selection gestures remain in useWordSelection and grips remain in SelectionHandles",
+    "observes native scrolling to retain the guest reading place; word-selection gestures remain in useScriptGestures and grips remain in SelectionHandles",
   "system/ScrubField.tsx":
     "the scrub field: a horizontal drag previews a number and saves one value on release; it is an inspector field, not a timeline target",
   "system/TimeField.tsx":
