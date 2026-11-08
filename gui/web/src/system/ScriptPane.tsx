@@ -94,7 +94,7 @@ function scrollWithin(
   if (to !== from) body.scrollTop = Math.max(0, to);
 }
 
-function focusRingClipped(element: HTMLElement) {
+function elementClipped(element: HTMLElement, includeViewport: boolean) {
   const rect = element.getBoundingClientRect();
   const style = getComputedStyle(element);
   const ring =
@@ -105,10 +105,10 @@ function focusRingClipped(element: HTMLElement) {
           (Number.parseFloat(style.outlineWidth) || 0) +
             (Number.parseFloat(style.outlineOffset) || 0),
         );
-  let top = 0;
-  let left = 0;
-  let bottom = window.innerHeight;
-  let right = window.innerWidth;
+  let top = includeViewport ? 0 : Number.NEGATIVE_INFINITY;
+  let left = includeViewport ? 0 : Number.NEGATIVE_INFINITY;
+  let bottom = includeViewport ? window.innerHeight : Number.POSITIVE_INFINITY;
+  let right = includeViewport ? window.innerWidth : Number.POSITIVE_INFINITY;
   for (let owner = element.parentElement; owner; owner = owner.parentElement) {
     const overflow = getComputedStyle(owner);
     const clipsY = /^(auto|scroll|hidden|clip|overlay)$/.test(
@@ -153,6 +153,8 @@ export type ScriptPaneReadingPosition =
       index: number;
       offset: number;
       fallbackTop: number;
+      /** Only explicit focus captures may reveal a still-focused word; omission preserves manual reading. */
+      intent?: "focus";
       /** Captured ordinals are valid only in this immutable transcript snapshot. */
       turns?: readonly ScriptTurn[];
     }
@@ -814,6 +816,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
         const position: ScriptPaneReadingPosition = {
           kind: "word",
           index: preferred.index,
+          intent: "focus",
           offset: preferredRect.top - bounds.top,
           fallbackTop: body.scrollTop,
           turns: live.current.turns,
@@ -1195,7 +1198,10 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
           const pane = body.getBoundingClientRect();
           const word = anchor.getBoundingClientRect();
           let offset = position.offset;
-          if (anchor.contains(document.activeElement)) {
+          if (
+            position.intent === "focus" &&
+            anchor.contains(document.activeElement)
+          ) {
             focusedAnchor = anchor;
             const top = Math.max(0, -pane.top);
             const bottom = Math.min(
@@ -1217,7 +1223,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
         body.scrollTop = next;
         programmaticScrollTop.current = body.scrollTop;
       }
-      if (focusedAnchor && focusRingClipped(focusedAnchor)) {
+      if (focusedAnchor && elementClipped(focusedAnchor, true)) {
         focusedAnchor.scrollIntoView({
           block: "center",
           inline: "center",
@@ -1239,6 +1245,27 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
     useLayoutEffect(() => {
       if (readingPosition?.restore) restoreReadingPosition();
     }, [bodyShown, turns, readingPosition, restoreReadingPosition]);
+    useLayoutEffect(() => {
+      const body = bodyRef.current;
+      const binding = readingPositionRef.current;
+      if (!bodyShown || !body || !binding?.restore || !binding.getPosition())
+        return;
+      const active = document.activeElement;
+      if (
+        active &&
+        active !== document.body &&
+        active !== document.documentElement &&
+        !body.parentElement?.contains(active)
+      )
+        return;
+      if (elementClipped(body, false)) {
+        body.scrollIntoView({
+          block: "nearest",
+          inline: "nearest",
+          behavior: "instant",
+        });
+      }
+    }, [bodyShown]);
     useResizeObserver(
       bodyRef,
       restoreReadingPosition,
