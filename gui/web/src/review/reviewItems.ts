@@ -233,6 +233,7 @@ const SUGGESTED = ["cut", "shorten", "lower", "leave"] as const;
 function entryOf(
   edit: PendingEditView,
   tracks: readonly Pick<TrackView, "id" | "label">[],
+  eligibleWords?: ReadonlyMap<string, WordTarget>,
 ): ReviewEntry {
   const at = Number.isFinite(edit.timeline_start)
     ? (edit.timeline_start as number)
@@ -254,7 +255,13 @@ function entryOf(
   const savedSeconds = unionSeconds(spans);
   const title = edit.label ?? "Suggestion";
   const time = Number.isFinite(at) ? formatTimeShort(at) : "Unplaced";
-  const words = edit.unsure_words ?? [];
+  const words = (edit.unsure_words ?? []).filter(
+    (word) =>
+      eligibleWords === undefined ||
+      eligibleWords.has(
+        wordIdOf(word.track_id, word.source_id, word.word_index),
+      ),
+  );
   const first = words[0];
   const risk = riskOf(edit);
   const speaker = edit.track_id
@@ -345,8 +352,11 @@ export const needsReview = (e: PendingEditView) =>
 export const reviewEntriesOf = (
   pending: readonly PendingEditView[],
   tracks: readonly Pick<TrackView, "id" | "label">[] = [],
+  eligibleWords?: ReadonlyMap<string, WordTarget>,
 ): ReviewEntry[] =>
-  pending.filter(needsReview).map((edit) => entryOf(edit, tracks));
+  pending
+    .filter(needsReview)
+    .map((edit) => entryOf(edit, tracks, eligibleWords));
 
 /** `guest` leaves out the cuts over an unsure word, which only the host decides. */
 export const reviewCountOf = (
