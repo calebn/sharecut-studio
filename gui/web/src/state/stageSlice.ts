@@ -43,6 +43,12 @@ export type RecordScript = {
   text: string;
 };
 
+export type EditWordReveal = Readonly<{
+  trackId: string;
+  sourceId: string | null;
+  wordIndex: number;
+}>;
+
 type StageOpenOptions = {
   section?: ReviewSection;
   /** Open this sheet on the new stage. */
@@ -82,6 +88,7 @@ export interface StageSliceState {
    * Memory only.
    */
   recordScript: RecordScript | null;
+  pendingEditWordReveal: EditWordReveal | null;
   /**
    * Switch stage, or deep-link into one with `options`. In one write it saves
    * the leaving stage's view, restores the arriving one's, closes sheets and
@@ -91,6 +98,8 @@ export interface StageSliceState {
   setPendingRecordTarget: (target: PendingRecordTarget | null) => void;
   setPendingReviewItem: (id: string | null) => void;
   setRecordScript: (script: RecordScript | null) => void;
+  requestEditWordReveal: (word: EditWordReveal) => EditWordReveal;
+  consumeEditWordReveal: (request: EditWordReveal) => boolean;
   setReviewSection: (section: ReviewSection) => void;
   setEditSurface: (surface: EditSurface) => void;
   setOpenSheet: (sheet: StageSheet | null) => void;
@@ -115,6 +124,7 @@ export function stageProjectInitial(guestMode: string | null = null) {
     pendingRecordTarget: null as PendingRecordTarget | null,
     pendingReviewItem: null as string | null,
     recordScript: null as RecordScript | null,
+    pendingEditWordReveal: null as EditWordReveal | null,
   };
 }
 
@@ -129,8 +139,18 @@ export const createStageSlice: StateCreator<
     set((s) => {
       const sheet = options.sheet ?? null;
       const section = options.section ?? s.reviewSection;
+      const revealWord = next === "edit" ? s.pendingEditWordReveal : null;
+      const revealPatch = revealWord
+        ? { editSurface: "text" as const, scriptCollapsed: false }
+        : {};
       if (next === prev) {
-        return { reviewSection: section, openSheet: sheet, inviteAt: null };
+        return {
+          reviewSection: section,
+          openSheet: sheet,
+          inviteAt: null,
+          ...revealPatch,
+          ...(next === "edit" ? {} : { pendingEditWordReveal: null }),
+        };
       }
       const saved = s.stageViews[next];
       return {
@@ -164,6 +184,8 @@ export const createStageSlice: StateCreator<
             }
           : { scrollLeft: 0, userZoomed: false }),
         landingSettled: true,
+        ...revealPatch,
+        pendingEditWordReveal: revealWord,
       };
     });
     if (next !== prev && get().guestMode == null) {
@@ -182,6 +204,20 @@ export const createStageSlice: StateCreator<
       set({ pendingRecordTarget }),
     setPendingReviewItem: (pendingReviewItem) => set({ pendingReviewItem }),
     setRecordScript: (recordScript) => set({ recordScript }),
+    requestEditWordReveal: (word) => {
+      const request = Object.freeze({ ...word });
+      set({ pendingEditWordReveal: request });
+      return request;
+    },
+    consumeEditWordReveal: (request) => {
+      let consumed = false;
+      set((s) => {
+        if (s.pendingEditWordReveal !== request) return {};
+        consumed = true;
+        return { pendingEditWordReveal: null };
+      });
+      return consumed;
+    },
     setReviewSection: (reviewSection) => set({ reviewSection }),
     setEditSurface: (editSurface) => set({ editSurface }),
     setOpenSheet: (openSheet) => set({ openSheet, inviteAt: null }),

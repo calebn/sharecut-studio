@@ -20,7 +20,10 @@ import {
   releaseSessionPreview,
   warmSessionPreview,
 } from "../../audio/pendingPreview";
-import { runPointerCommand } from "../../commands/pointer";
+import {
+  executePointerCommand,
+  runPointerCommand,
+} from "../../commands/pointer";
 import { refreshDocumentProject } from "../../document/applyDocumentUpdate";
 import { currentDocumentSeq } from "../../document/cursor";
 import { REFINE_GATE_GUI_MESSAGE } from "../../inspector/TranscriptRefineRecovery";
@@ -787,7 +790,22 @@ export function useReviewQueue(guestShare = false) {
         endWordIndex: word.wordIndex,
       });
       if (word.at !== null) state.setPlayheadSec(word.at);
-      return runPointerCommand("stage.edit");
+      const request = state.requestEditWordReveal({
+        trackId: word.trackId,
+        sourceId: word.sourceId,
+        wordIndex: word.wordIndex,
+      });
+      return executePointerCommand("stage.edit", { surface: "text" }).then(
+        (result) => {
+          if (result.status !== "ok")
+            useDawStore.getState().consumeEditWordReveal(request);
+          return result;
+        },
+        (error: unknown) => {
+          useDawStore.getState().consumeEditWordReveal(request);
+          throw error;
+        },
+      );
     }
     const suggestionId = sessionIdOf(id);
     if (suggestionId) {
