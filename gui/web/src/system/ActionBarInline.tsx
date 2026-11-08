@@ -35,6 +35,8 @@ export type ActionBarInlineProps = {
   onVerb?: () => void;
   onLater?: () => void;
   onOpenInEdit?: () => void;
+  openInEditDisabledReason?: string;
+  openInEditNoteId?: string;
   onComment?: () => void;
 };
 
@@ -68,6 +70,8 @@ export function ActionBarInline({
   onVerb,
   onLater,
   onOpenInEdit,
+  openInEditDisabledReason,
+  openInEditNoteId,
   onComment,
 }: ActionBarInlineProps) {
   const dock = form === "dock";
@@ -83,7 +87,15 @@ export function ActionBarInline({
       : undefined;
   const openInEdit =
     canEdit && showOpenInEdit ? (
-      <Button variant="link" onClick={onOpenInEdit} title={editTitle}>
+      <Button
+        variant="link"
+        onClick={onOpenInEdit}
+        title={editTitle}
+        disabledReason={openInEditDisabledReason}
+        aria-describedby={
+          openInEditDisabledReason ? openInEditNoteId : undefined
+        }
+      >
         <SystemIcon name={edit?.icon ?? "stage-edit"} size={16} />
         Open in {edit?.label ?? "Edit"}
       </Button>

@@ -11,6 +11,7 @@ import type {
   TimelineComment,
   TrackView,
   TranscriptCheckStatus,
+  TranscriptWordView,
 } from "../types/project";
 import { formatTimeShort } from "../utils/time";
 import { wordSeekSec, wordsForUtterance } from "../utils/transcript";
@@ -213,10 +214,22 @@ export type WordTarget = {
   text: string;
   at: number | null;
   endSec: number | null;
+  editorIdentity?: string;
 };
 
 export const wordIdOf = (track: string, source: string | null, index: number) =>
   `word:${track}:${source ?? ""}:${index}`;
+
+function editorIdentityOf(row: CombinedUtterance, word: TranscriptWordView) {
+  const recording = word.timing_target;
+  return JSON.stringify([
+    recording?.track_id ?? row.track_id,
+    recording ? recording.source_id : (row.source_id ?? null),
+    word.start,
+    word.end,
+    word.text,
+  ]);
+}
 
 /** Why a cut needs a listen, from the server's flags; null for a clean cut. */
 function riskOf(edit: PendingEditView): ReviewItem["risk"] | null {
@@ -264,6 +277,9 @@ function entryOf(
       ),
   );
   const first = words[0];
+  const firstId =
+    first && wordIdOf(first.track_id, first.source_id, first.word_index);
+  const target = firstId ? eligibleWords?.get(firstId) : undefined;
   const risk = riskOf(edit);
   const speaker = edit.track_id
     ? {
@@ -314,7 +330,10 @@ function entryOf(
               unsure: {
                 word: first.text,
                 guess: first.text,
-                id: wordIdOf(first.track_id, first.source_id, first.word_index),
+                id: firstId,
+                ...(target && {
+                  editorIdentity: target.editorIdentity ?? target,
+                }),
                 step: { index: 1, total: words.length },
               },
             }
@@ -428,7 +447,7 @@ export function unsureEntriesOf(
   const found = new Map<string, WordTarget & { cut?: string }>();
   const indexed = new Map<
     string,
-    ReturnType<typeof wordsForUtterance>[number]
+    { row: CombinedUtterance; word: TranscriptWordView }
   >();
   for (const row of utterances) {
     for (const word of wordsForUtterance(row)) {
@@ -438,7 +457,7 @@ export function unsureEntriesOf(
         word.timing_target?.source_id ?? row.source_id ?? null,
         word.word_index,
       );
-      if (!indexed.has(id)) indexed.set(id, word);
+      if (!indexed.has(id)) indexed.set(id, { row, word });
     }
   }
 
@@ -457,7 +476,7 @@ export function unsureEntriesOf(
     for (const w of edit.unsure_words ?? []) {
       const id = wordIdOf(w.track_id, w.source_id, w.word_index);
       const known = found.get(id);
-      const own = indexed.get(id);
+      const own = indexed.get(id)?.word;
       if (own?.mappable === false) continue;
       const start = edit.timeline_start;
       found.set(id, {
@@ -476,7 +495,14 @@ export function unsureEntriesOf(
     }
   }
   const targets = new Map<string, WordTarget>();
-  const entries = [...found].map(([id, { cut, ...target }]): ReviewEntry => {
+  const entries = [...found].map(([id, { cut, ...placement }]): ReviewEntry => {
+    const source = indexed.get(id);
+    const target = {
+      ...placement,
+      ...(source && {
+        editorIdentity: editorIdentityOf(source.row, source.word),
+      }),
+    };
     targets.set(id, target);
     const at = target.at ?? Number.POSITIVE_INFINITY;
     const time = target.at === null ? "Unplaced" : formatTimeShort(at);
@@ -493,7 +519,11 @@ export function unsureEntriesOf(
           title: `Is this “${target.text}”?`,
           time,
           ...(cut ? { why: `Inside “${cut}”` } : {}),
-          unsure: { word: target.text, guess: target.text },
+          unsure: {
+            word: target.text,
+            guess: target.text,
+            editorIdentity: target.editorIdentity ?? target,
+          },
         },
       },
     };

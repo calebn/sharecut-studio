@@ -67,8 +67,10 @@ editor saves and Escape cancels.
 ├─ Record │ Prepare │ Edit │ Review │ Deliver ─┤
 ```
 
-Review keeps an open Fix draft while word detail reloads for the same target.
-Save and Looks right wait until the words are ready. A failed load offers Try
-again. Deliver keeps Check available during this wait and does not report zero
-unsure words until the transcript detail establishes that count. Export remains
-available under its existing requirements.
+Review keeps an open Fix draft while word detail reloads for the same recorded
+word. If another word takes its place, Review closes the old draft. Save, Looks
+right, and a word card's Open in Edit wait until the words are ready. A proposal
+can still open in Edit. A failed load offers Try again. Deliver keeps Check
+available during this wait and does not report zero unsure words until the
+transcript detail establishes that count. Export remains available under its
+existing requirements.
