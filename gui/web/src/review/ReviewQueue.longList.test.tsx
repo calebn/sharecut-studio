@@ -86,7 +86,9 @@ describe("ReviewQueue long list", () => {
       .map((row) => row.textContent);
     expect(new Set(originalWordRows).size).toBe(159);
     expect(
-      screen.queryByRole("button", { name: /\ball \d+\b|\bclean edits?\b/i }),
+      screen.queryByRole("button", {
+        name: /\ball \d+\b|\bthis one\b|\bclean edits?\b/i,
+      }),
     ).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "Fix text" }));
@@ -136,7 +138,9 @@ describe("ReviewQueue long list", () => {
     expect(within(checksGroup).getByText("unclear-word-159")).toBeVisible();
     expect(within(checksGroup).queryByText("unclear-word-001")).toBeNull();
     expect(
-      screen.queryByRole("button", { name: /\ball \d+\b|\bclean edits?\b/i }),
+      screen.queryByRole("button", {
+        name: /\ball \d+\b|\bthis one\b|\bclean edits?\b/i,
+      }),
     ).toBeNull();
 
     const commentsFilter = screen.getByRole("button", {
