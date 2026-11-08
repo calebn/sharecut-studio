@@ -1,9 +1,40 @@
-import { act, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { act, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { applyDocumentSnapshot } from "../../document/applyDocumentUpdate";
+import {
+  documentAuthority,
+  documentScope,
+  resetDocumentAuthority,
+} from "../../document/authorityState";
+import { noteDocumentSeq } from "../../document/cursor";
+import {
+  retryTranscriptDetail,
+  scheduleTranscriptDetailHydrate,
+  transcriptDetailSnapshot,
+} from "../../document/hydrateTranscriptDetail";
 import { useDawStore } from "../../state/dawStore";
 import { minimalProject, sampleComment } from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
 import { ReviewHost } from "./ReviewHost";
+
+const { loadDetail } = vi.hoisted(() => ({ loadDetail: vi.fn() }));
+vi.mock("../../api/project", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../api/project")>()),
+  loadDocumentState: loadDetail,
+}));
+
+const TOKEN = "a".repeat(64);
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((yes, no) => {
+    resolve = yes;
+    reject = no;
+  });
+  return { promise, resolve, reject };
+}
 
 function join(role: "comment" | "view", transcriptWordsLoaded: boolean) {
   useDawStore.getState().hydrate(
@@ -20,12 +51,26 @@ function join(role: "comment" | "view", transcriptWordsLoaded: boolean) {
     role === "comment" ? ["view", "comment", "suggest"] : ["view"],
   );
   useDawStore.setState({ stage: "review" });
+  resetDocumentAuthority("share:tok");
+  const project = useDawStore.getState().project;
+  if (!project) throw new Error("The guest project should be hydrated");
+  documentAuthority.project = project;
+  documentAuthority.token = TOKEN;
+  documentAuthority.phase = { kind: "ready" };
+  scheduleTranscriptDetailHydrate(useDawStore.getState().project);
 }
 
 describe("guest transcript detail loading in Review", () => {
   beforeEach(() => {
+    resetDocumentAuthority();
+    loadDetail.mockReset();
+    loadDetail.mockImplementation(() => new Promise(() => undefined));
     localStorage.clear();
     stubViewportShell("desktop");
+  });
+  afterEach(() => {
+    resetDocumentAuthority();
+    vi.unstubAllGlobals();
   });
   it("keeps the Commenter Queue and composer usable while the Script waits, then shows settled empty copy", () => {
     join("comment", false);
@@ -57,6 +102,69 @@ describe("guest transcript detail loading in Review", () => {
     expect(screen.getByRole("textbox", { name: "Comment" })).toBeEnabled();
   });
 
+  it("keeps the phone Queue and composer usable beside the pending Script region", () => {
+    stubViewportShell("phone");
+    join("comment", false);
+    const { container } = render(<ReviewHost guestShare />);
+
+    expect(
+      container.querySelector(".sys-skeleton[aria-busy='true']"),
+    ).not.toBeNull();
+    expect(screen.getAllByRole("region", { name: "Queue" })[0]).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Comment" })).toBeEnabled();
+    expect(loadDetail).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides the pending and failed Script slot at short height, then restores it with the same request", async () => {
+    stubViewportShell("phone");
+    const visualViewport = Object.assign(new EventTarget(), {
+      height: 400,
+      width: 390,
+      scale: 1,
+    });
+    vi.stubGlobal("visualViewport", visualViewport);
+    const first = deferred<{
+      server_seq: number;
+      state_token: string;
+      project: ReturnType<typeof minimalProject>;
+    }>();
+    loadDetail.mockReturnValueOnce(first.promise);
+    join("comment", false);
+    const { container } = render(<ReviewHost guestShare />);
+
+    expect(
+      container.querySelector(".sys-skeleton[aria-busy='true']"),
+    ).toBeNull();
+    expect(screen.getAllByRole("region", { name: "Queue" })[0]).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Comment" })).toBeEnabled();
+
+    act(() => {
+      visualViewport.height = 600;
+      visualViewport.dispatchEvent(new Event("resize"));
+    });
+    expect(
+      container.querySelector(".sys-skeleton[aria-busy='true']"),
+    ).not.toBeNull();
+    expect(loadDetail).toHaveBeenCalledTimes(1);
+
+    await act(async () => first.reject(new Error("private transport detail")));
+    expect(screen.getByRole("alert")).toBeVisible();
+    act(() => {
+      visualViewport.height = 400;
+      visualViewport.dispatchEvent(new Event("resize"));
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getAllByRole("region", { name: "Queue" })[0]).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Comment" })).toBeEnabled();
+
+    act(() => {
+      visualViewport.height = 600;
+      visualViewport.dispatchEvent(new Event("resize"));
+    });
+    expect(screen.getByRole("alert")).toBeVisible();
+    expect(loadDetail).toHaveBeenCalledTimes(1);
+  });
+
   it("does not show a permanent loading region to a Viewer without timed words", () => {
     join("view", false);
     const { container } = render(<ReviewHost guestShare />);
@@ -69,5 +177,369 @@ describe("guest transcript detail loading in Review", () => {
       screen.queryByText("The host has not made a transcript of this version."),
     ).toBeNull();
     expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
+    expect(loadDetail).not.toHaveBeenCalled();
+  });
+
+  it.each(["complete", "unspecified"] as const)(
+    "keeps the legacy Viewer Script mount when hydration metadata is %s",
+    (hydration) => {
+      join("view", true);
+      if (hydration === "unspecified") {
+        const project = useDawStore.getState().project;
+        if (!project) throw new Error("The guest project should be hydrated");
+        useDawStore.setState({
+          project: {
+            ...project,
+            meta: { name: "Test Episode", workspace_dir: "/tmp/test" },
+          },
+        });
+      }
+      render(<ReviewHost guestShare />);
+
+      expect(
+        screen.getByText("The host has not made a transcript of this version."),
+      ).toBeVisible();
+      expect(loadDetail).not.toHaveBeenCalled();
+    },
+  );
+
+  it("keeps the regional failure mounted and focused while retrying, then mounts the Script", async () => {
+    const first = deferred<{
+      server_seq: number;
+      state_token: string;
+      project: ReturnType<typeof minimalProject>;
+    }>();
+    const retry = deferred<{
+      server_seq: number;
+      state_token: string;
+      project: ReturnType<typeof minimalProject>;
+    }>();
+    loadDetail
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(retry.promise);
+    join("comment", false);
+    render(<ReviewHost guestShare />);
+
+    await act(async () => first.reject(new Error("private transport detail")));
+    const failed = transcriptDetailSnapshot();
+    expect(failed.kind).toBe("failed");
+    const button = await screen.findByRole("button", { name: "Try again" });
+    expect(screen.getByRole("alert")).toBeVisible();
+    expect(screen.getByText("Try again in a moment.")).toBeVisible();
+    expect(screen.queryByText("private transport detail")).toBeNull();
+
+    await userEvent.setup().click(button);
+    expect(button).toHaveFocus();
+    expect(button).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("alert")).toBeVisible();
+    expect(loadDetail).toHaveBeenCalledTimes(2);
+    if (failed.kind !== "failed")
+      throw new Error("The first attempt should fail");
+    retryTranscriptDetail(failed.attempt);
+    expect(loadDetail).toHaveBeenCalledTimes(2);
+
+    const complete = minimalProject({
+      meta: {
+        name: "Test Episode",
+        workspace_dir: "/tmp/test",
+        hydration: { transcript_words: true },
+      },
+    });
+    await act(async () =>
+      retry.resolve({ server_seq: 0, state_token: TOKEN, project: complete }),
+    );
+    expect(
+      useDawStore.getState().project?.meta.hydration?.transcript_words,
+    ).toBe(true);
+    await waitFor(() =>
+      expect(
+        screen.getByText("The host has not made a transcript of this version."),
+      ).toBeVisible(),
+    );
+    expect(screen.getByRole("textbox", { name: "Comment" })).toBeEnabled();
+  });
+
+  it("retries after a new accepted incomplete snapshot without dropping the focused Cover", async () => {
+    const first = deferred<{
+      server_seq: number;
+      state_token: string;
+      project: ReturnType<typeof minimalProject>;
+    }>();
+    loadDetail
+      .mockReturnValueOnce(first.promise)
+      .mockImplementation(() => new Promise(() => undefined));
+    join("comment", false);
+    render(<ReviewHost guestShare />);
+
+    await act(async () => first.reject(new Error("private transport detail")));
+    const alert = await screen.findByRole("alert");
+    const retry = screen.getByRole("button", { name: "Try again" });
+    retry.focus();
+
+    act(() => {
+      const project = useDawStore.getState().project;
+      if (!project) throw new Error("The guest project should be hydrated");
+      applyDocumentSnapshot(
+        { server_seq: 0, state_token: TOKEN, project },
+        { scope: documentScope() },
+      );
+    });
+
+    expect(loadDetail).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("alert")).toBe(alert);
+    expect(screen.getByRole("button", { name: "Try again" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Try again" })).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
+  });
+
+  it("preserves the old Script mount for complete or unspecified hydration metadata", () => {
+    join("comment", true);
+    const complete = render(<ReviewHost guestShare />);
+    expect(
+      screen.getByText("The host has not made a transcript of this version."),
+    ).toBeVisible();
+    complete.unmount();
+
+    act(() => {
+      const project = useDawStore.getState().project;
+      if (!project) throw new Error("The guest project should be hydrated");
+      useDawStore.setState({
+        project: {
+          ...project,
+          meta: { name: "Test Episode", workspace_dir: "/tmp/test" },
+        },
+      });
+    });
+    render(<ReviewHost guestShare />);
+    expect(
+      screen.getByText("The host has not made a transcript of this version."),
+    ).toBeVisible();
+    expect(loadDetail).not.toHaveBeenCalled();
+  });
+
+  it("reschedules a deferred detail response when the document sequence moved", async () => {
+    const first = deferred<{
+      server_seq: number;
+      state_token: string;
+      project: ReturnType<typeof minimalProject>;
+    }>();
+    loadDetail
+      .mockReturnValueOnce(first.promise)
+      .mockImplementation(() => new Promise(() => undefined));
+    join("comment", false);
+    render(<ReviewHost guestShare />);
+
+    noteDocumentSeq(1);
+    await act(async () =>
+      first.resolve({
+        server_seq: 0,
+        state_token: TOKEN,
+        project: minimalProject({
+          meta: {
+            name: "Test Episode",
+            workspace_dir: "/tmp/test",
+            hydration: { transcript_words: true },
+          },
+        }),
+      }),
+    );
+
+    expect(loadDetail).toHaveBeenCalledTimes(2);
+    expect(
+      useDawStore.getState().project?.meta.hydration?.transcript_words,
+    ).toBe(false);
+  });
+
+  it("routes a detail token mismatch through shell recovery before retrying detail", async () => {
+    const detail = deferred<{
+      server_seq: number;
+      state_token: string;
+      project: ReturnType<typeof minimalProject>;
+    }>();
+    const refreshedToken = "d".repeat(64);
+    const shell = minimalProject({
+      meta: {
+        name: "Test Episode",
+        workspace_dir: "/tmp/test",
+        hydration: { transcript_words: false },
+      },
+    });
+    loadDetail
+      .mockReturnValueOnce(detail.promise)
+      .mockResolvedValueOnce({
+        server_seq: 0,
+        state_token: refreshedToken,
+        project: shell,
+      })
+      .mockImplementation(() => new Promise(() => undefined));
+    join("comment", false);
+    render(<ReviewHost guestShare />);
+
+    await act(async () =>
+      detail.resolve({
+        server_seq: 0,
+        state_token: "e".repeat(64),
+        project: minimalProject({
+          meta: {
+            name: "Test Episode",
+            workspace_dir: "/tmp/test",
+            hydration: { transcript_words: true },
+          },
+        }),
+      }),
+    );
+    await waitFor(() => expect(loadDetail).toHaveBeenCalledTimes(3));
+
+    expect(loadDetail.mock.calls.map(([, phase]) => phase)).toEqual([
+      "detail",
+      "shell",
+      "detail",
+    ]);
+    expect(documentAuthority.token).toBe(refreshedToken);
+    expect(transcriptDetailSnapshot()).toMatchObject({
+      kind: "failed",
+      recovering: true,
+    });
+    expect(
+      useDawStore.getState().project?.meta.hydration?.transcript_words,
+    ).toBe(false);
+  });
+
+  it("replaces a same-path request when a newer snapshot changes the sequence and token", () => {
+    loadDetail.mockImplementation(() => new Promise(() => undefined));
+    join("comment", false);
+    const firstSignal = loadDetail.mock.calls[0]?.[2] as AbortSignal;
+    const incomplete = useDawStore.getState().project;
+    if (!incomplete) throw new Error("The guest project should be hydrated");
+
+    act(() => {
+      applyDocumentSnapshot(
+        { server_seq: 1, state_token: "c".repeat(64), project: incomplete },
+        { scope: documentScope() },
+      );
+    });
+
+    expect(firstSignal.aborted).toBe(true);
+    expect(loadDetail).toHaveBeenCalledTimes(2);
+    expect(transcriptDetailSnapshot().kind).toBe("pending");
+  });
+
+  it("retires a pending request when a complete authoritative snapshot arrives", () => {
+    join("comment", false);
+    const signal = loadDetail.mock.calls[0]?.[2] as AbortSignal;
+    expect(signal.aborted).toBe(false);
+    const complete = minimalProject({
+      meta: {
+        name: "Test Episode",
+        workspace_dir: "/tmp/test",
+        hydration: { transcript_words: true },
+      },
+    });
+
+    act(() => {
+      applyDocumentSnapshot(
+        { server_seq: 1, state_token: TOKEN, project: complete },
+        { scope: documentScope() },
+      );
+    });
+
+    expect(signal.aborted).toBe(true);
+    expect(loadDetail).toHaveBeenCalledTimes(1);
+  });
+
+  it("turns an incomplete successful detail response into a retryable failure without looping", async () => {
+    const response = deferred<{
+      server_seq: number;
+      state_token: string;
+      project: ReturnType<typeof minimalProject>;
+    }>();
+    loadDetail.mockReturnValueOnce(response.promise);
+    join("comment", false);
+    render(<ReviewHost guestShare />);
+
+    await act(async () =>
+      response.resolve({
+        server_seq: 0,
+        state_token: TOKEN,
+        project: minimalProject({
+          meta: {
+            name: "Test Episode",
+            workspace_dir: "/tmp/test",
+            hydration: { transcript_words: false },
+          },
+        }),
+      }),
+    );
+
+    expect(loadDetail).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("The transcript didn't load")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeVisible();
+    expect(
+      useDawStore.getState().project?.meta.hydration?.transcript_words,
+    ).toBe(false);
+  });
+
+  it("ignores a deferred A reply after an A-to-B-to-A scope reset", async () => {
+    const staleA = deferred<{
+      server_seq: number;
+      state_token: string;
+      project: ReturnType<typeof minimalProject>;
+    }>();
+    loadDetail
+      .mockReturnValueOnce(staleA.promise)
+      .mockImplementation(() => new Promise(() => undefined));
+    join("comment", false);
+    const firstSignal = loadDetail.mock.calls[0]?.[2] as AbortSignal;
+
+    const incomplete = minimalProject({
+      meta: {
+        name: "Test Episode",
+        workspace_dir: "/tmp/test",
+        hydration: { transcript_words: false },
+      },
+    });
+    act(() => {
+      useDawStore
+        .getState()
+        .hydrate("share:other", incomplete, "comment", [
+          "view",
+          "comment",
+          "suggest",
+        ]);
+      scheduleTranscriptDetailHydrate(incomplete);
+      useDawStore
+        .getState()
+        .hydrate("share:tok", incomplete, "comment", [
+          "view",
+          "comment",
+          "suggest",
+        ]);
+      documentAuthority.token = TOKEN;
+      documentAuthority.project = incomplete;
+      documentAuthority.phase = { kind: "ready" };
+      scheduleTranscriptDetailHydrate(incomplete);
+    });
+
+    expect(firstSignal.aborted).toBe(true);
+    expect(loadDetail).toHaveBeenCalledTimes(3);
+    await act(async () =>
+      staleA.resolve({
+        server_seq: 0,
+        state_token: TOKEN,
+        project: minimalProject({
+          meta: {
+            name: "Test Episode",
+            workspace_dir: "/tmp/test",
+            hydration: { transcript_words: true },
+          },
+        }),
+      }),
+    );
+    expect(
+      useDawStore.getState().project?.meta.hydration?.transcript_words,
+    ).toBe(false);
+    expect(transcriptDetailSnapshot().kind).toBe("pending");
   });
 });

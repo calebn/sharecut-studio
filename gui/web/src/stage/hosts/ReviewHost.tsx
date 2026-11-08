@@ -1,6 +1,7 @@
 import { memo, type ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { runPointerCommand } from "../../commands/pointer";
+import { useTranscriptDetail } from "../../document/useTranscriptDetail";
 import { useShortViewport } from "../../hooks/useShortViewport";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import { ReviewStage } from "../../review/ReviewStage";
@@ -9,6 +10,7 @@ import { isGuestSession, isShareProjectKey } from "../../shareMode";
 import type { GuestReading } from "../../stages/guest/useGuestReading";
 import { useGuestReading } from "../../stages/guest/useGuestReading";
 import { useDawStore } from "../../state/dawStore";
+import { Skeleton } from "../../system/Skeleton";
 import { GuestPlayerCard } from "../frame/GuestPlayerCard";
 import { guestPlayerCardShown } from "../frame/guestPlayerCardShown";
 import { useStageScroll } from "../useStageScroll";
@@ -30,6 +32,7 @@ function panelFor(
   scripted: boolean,
   card: boolean,
   failure: ReactNode,
+  detailRegion: ReactNode,
   reading: GuestReading,
 ) {
   // Guest on a wide shell: Player card, composer, transcript in one column.
@@ -38,14 +41,14 @@ function panelFor(
   const script = scripted ? <GuestScriptHost reading={reading} /> : null;
   return (
     <>
-      {card ? null : failure && scripted ? failure : script}
+      {card ? null : (detailRegion ?? (failure && scripted ? failure : script))}
       <ReviewStage
         {...queue.stageProps}
         job={find.job}
         onFindMore={find.onFindMore}
         findMoreDisabled={find.findMoreDisabled}
         centerTop={card ? <GuestPlayerCard /> : undefined}
-        centerBottom={card ? script : undefined}
+        centerBottom={card ? (detailRegion ?? script) : undefined}
         regionFailure={failure && (card || !scripted) ? failure : undefined}
       />
     </>
@@ -66,10 +69,27 @@ function ReviewHostAdapter({
   );
   const guest = isGuestSession(projectPath, guestMode, guestShare);
   const find = useFindMore(!guest && !isShareProjectKey(projectPath));
+  const detail = useTranscriptDetail();
   const shell = useViewportClass();
   const short = useShortViewport();
   const scrollRef = useStageScroll("review", "section:queue");
   const reading = useGuestReading();
+  const detailFailure =
+    guest && !loadFailure && !short && detail.kind === "failed" ? (
+      <LoadFailureCover
+        stage="review"
+        failure={{
+          message: "Try again in a moment.",
+          onRetry: detail.retry,
+          recovering: detail.recovering,
+        }}
+      />
+    ) : null;
+  const detailLoading =
+    guest && !loadFailure && !short && detail.kind === "pending" ? (
+      <Skeleton rows={1} onRetry={detail.retry} />
+    ) : null;
+  const detailRegion = detailFailure ?? detailLoading;
   return (
     <ReviewStageView
       shell={shell}
@@ -78,12 +98,13 @@ function ReviewHostAdapter({
       panel={panelFor(
         queue,
         find,
-        guest &&
-          (loadFailure != null ||
-            project?.meta.hydration?.transcript_words !== false),
+        guest && (loadFailure != null || detail.kind === "ready"),
         guestPlayerCardShown("review", shell, guest, short),
         loadFailure ? (
           <LoadFailureCover stage="review" failure={loadFailure} />
+        ) : null,
+        detailRegion ? (
+          <div className="stage-host-guest-feedback">{detailRegion}</div>
         ) : null,
         reading,
       )}

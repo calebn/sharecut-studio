@@ -1,5 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { applyDocumentSnapshot } from "../../document/applyDocumentUpdate";
+import {
+  documentScope,
+  resetDocumentAuthority,
+} from "../../document/authorityState";
+import { reviewApiBase } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import {
   portaledOverlayParameters,
@@ -278,6 +284,29 @@ const TRANSCRIPT_WORDS_PENDING = episode({
   },
 });
 
+const DETAIL_TOKEN = "b".repeat(64);
+const DETAIL_ROUTE = `${reviewApiBase("episode")}/daw/document/state`;
+
+function startDetailRequest() {
+  const project = useDawStore.getState().project;
+  if (!project) throw new Error("The guest project should be hydrated");
+  resetDocumentAuthority(useDawStore.getState().projectPath);
+  applyDocumentSnapshot(
+    { server_seq: 0, state_token: DETAIL_TOKEN, project },
+    { scope: documentScope() },
+  );
+}
+
+function firstVisitCommenterHint() {
+  const key = "sharecut.roleHintSeen.commenter";
+  const previous = localStorage.getItem(key);
+  localStorage.removeItem(key);
+  return () => {
+    if (previous === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, previous);
+  };
+}
+
 const noDecisions = async (canvas: ReturnType<typeof within>) => {
   await expect(
     await canvas.findByRole("region", { name: "Queue" }),
@@ -314,10 +343,68 @@ export const GuestCommenterPhone390: Story = {
   play: commenterPlay,
 };
 
+const commenterFirstVisitPlay: Story["play"] = async ({ canvasElement }) => {
+  const canvas = within(canvasElement);
+  const script = await waitFor(() => {
+    const node = canvasElement.querySelector<HTMLElement>(
+      ".stage-host-guest-script",
+    );
+    if (!node) throw new Error("The phone Script should be visible");
+    return node;
+  });
+  const note = await canvas.findByRole("note");
+  await expect(note).toHaveTextContent(
+    "You can comment and suggest cuts. The host decides.",
+  );
+  const roleChip = canvas.getByRole("img", { name: "Commenter: can comment" });
+  await expect(roleChip).toBeVisible();
+  const caption = canvas.getByText("You can comment and suggest edits");
+  await expect(caption).toBeVisible();
+  await waitFor(async () => {
+    const noteBox = note.getBoundingClientRect();
+    const captionBox = caption.getBoundingClientRect();
+    await expect(noteBox.left).toBeGreaterThanOrEqual(0);
+    await expect(noteBox.right).toBeLessThanOrEqual(window.innerWidth);
+    await expect(captionBox.left).toBeGreaterThanOrEqual(0);
+    await expect(captionBox.right).toBeLessThanOrEqual(window.innerWidth);
+    await expect(captionBox.top).toBeGreaterThanOrEqual(0);
+    await expect(captionBox.bottom).toBeLessThanOrEqual(window.innerHeight);
+    await expect(
+      canvasElement.ownerDocument.documentElement.scrollWidth,
+    ).toBeLessThanOrEqual(window.innerWidth);
+  });
+  await userEvent.click(canvas.getByRole("button", { name: "Dismiss hint" }));
+  await expect(canvas.queryByRole("note")).toBeNull();
+  await expect(roleChip).toBeVisible();
+  await expect(script).toBeVisible();
+  await expect(
+    canvas.getByText("You can comment and suggest edits"),
+  ).toBeVisible();
+};
+
+export const GuestCommenterPhoneFirstVisit360: Story = {
+  ...phone,
+  ...asGuest("commenter"),
+  beforeEach: firstVisitCommenterHint,
+  play: commenterFirstVisitPlay,
+};
+
+export const GuestCommenterPhoneFirstVisit390: Story = {
+  ...phone390,
+  ...asGuest("commenter"),
+  beforeEach: firstVisitCommenterHint,
+  play: commenterFirstVisitPlay,
+};
+
 export const GuestCommenterTranscriptPending: Story = {
   ...phone,
-  ...asGuest("commenter", { project: TRANSCRIPT_WORDS_PENDING }),
+  ...asGuest("commenter", {
+    project: TRANSCRIPT_WORDS_PENDING,
+    hang: [DETAIL_ROUTE],
+  }),
+  beforeEach: () => () => resetDocumentAuthority(),
   play: async ({ canvasElement }) => {
+    startDetailRequest();
     const canvas = within(canvasElement);
     await expect(
       (await canvas.findAllByRole("region", { name: "Queue" }))[0],
@@ -331,6 +418,59 @@ export const GuestCommenterTranscriptPending: Story = {
     await expect(
       canvas.queryByText("The host has not made a transcript of this version."),
     ).toBeNull();
+    const retry = await canvas.findByRole(
+      "button",
+      { name: "Retry" },
+      { timeout: 6_000 },
+    );
+    await userEvent.click(retry);
+    await expect(
+      canvasElement.querySelector(".sys-skeleton[aria-busy='true']"),
+    ).not.toBeNull();
+    await expect(
+      canvas.getByRole("textbox", { name: "Comment" }),
+    ).toBeEnabled();
+  },
+};
+
+export const GuestCommenterTranscriptFailure: Story = {
+  ...phone,
+  ...asGuest("commenter", {
+    project: TRANSCRIPT_WORDS_PENDING,
+    responses: { [DETAIL_ROUTE]: { server_seq: 0 } },
+  }),
+  beforeEach: () => () => resetDocumentAuthority(),
+  play: async ({ canvasElement }) => {
+    startDetailRequest();
+    const canvas = within(canvasElement);
+    const alert = await canvas.findByRole("alert");
+    await expect(
+      within(alert).getByRole("heading", {
+        name: "The transcript didn't load",
+      }),
+    ).toBeVisible();
+    await expect(
+      within(alert).getByText("Try again in a moment."),
+    ).toBeVisible();
+    await expect(
+      within(alert).queryByText(/server_seq|Invalid document basis/),
+    ).toBeNull();
+    await expect(canvas.getByRole("region", { name: "Queue" })).toBeVisible();
+    await expect(
+      canvas.getByRole("textbox", { name: "Comment" }),
+    ).toBeEnabled();
+    const retry = within(alert).getByRole("button", { name: "Try again" });
+    await userEvent.click(retry);
+    await expect(retry).toHaveFocus();
+    await expect(
+      within(alert).getByRole("heading", {
+        name: "The transcript didn't load",
+      }),
+    ).toBeVisible();
+    await expect(canvas.getByRole("region", { name: "Queue" })).toBeVisible();
+    await expect(
+      canvas.getByRole("textbox", { name: "Comment" }),
+    ).toBeEnabled();
   },
 };
 
