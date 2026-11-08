@@ -297,6 +297,22 @@ for (const {
             await wheelInspector(page, receipts, 220);
             await expect(level).toHaveAttribute("aria-valuenow", "0.75");
             expect(observer.commands).toHaveLength(commandCount);
+            await exposeControl(page, time, receipts);
+            const timeBounds = await time.boundingBox();
+            expect(timeBounds).not.toBeNull();
+            receipts.push({
+              checkpoint: "time-field-wheel",
+              observation: { point: timeBounds, delta: 220, shownTime },
+            });
+            await time.hover();
+            await page.mouse.wheel(0, 220);
+            await page.waitForTimeout(100);
+            await expect(time).toHaveAttribute(
+              "aria-valuenow",
+              String(shownTime),
+            );
+            expect(observer.commands).toHaveLength(commandCount);
+            expect(envelopeSnapshot(projectPath, track.id)).toEqual(edited);
             receipts.push({
               checkpoint: "exact-Applied-identities-and-history",
               observation: { first, changed, origin, saved, edited },
