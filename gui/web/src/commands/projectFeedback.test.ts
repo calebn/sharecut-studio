@@ -47,6 +47,26 @@ type Operation = {
   expectedArgs: (path: string) => unknown;
 };
 
+const expectedCutClipboard = {
+  mode: "cut",
+  timelineStart: 0,
+  timelineEnd: 4,
+  trackIds: ["host"],
+  extracts: [
+    {
+      track_id: "host",
+      source_start: 0,
+      source_end: 4,
+      relative_timeline_start: 0,
+      source_id: null,
+      fade_in_ms: 0,
+      fade_out_ms: 0,
+      join_in_mode: "fade",
+      mute_regions: [],
+    },
+  ],
+};
+
 const operationRows: Operation[] = [
   {
     name: "edit.delete clip",
@@ -117,7 +137,19 @@ const operationRows: Operation[] = [
     },
     expectedMessage: "Pasted at 00:20.000 (same track)",
     expectedFailureMessage: "Paste failed: request failed",
-    expectedArgs: (path) => [path, 20, 4, expect.any(Array)],
+    expectedArgs: (path) => [
+      path,
+      20,
+      4,
+      [
+        {
+          track_id: "host",
+          source_start: 0,
+          source_end: 4,
+          relative_timeline_start: 0,
+        },
+      ],
+    ],
   },
   {
     name: "Actionbar envelope point remove",
@@ -321,10 +353,7 @@ describe.each(operationRows)(
       expect(useDawStore.getState().statusAnnouncementSeq).toBe(beforeSeq + 1);
       expect(useDawStore.getState().selection).toEqual(selectionFor(operation));
       if (operation.name === "edit.cut clip")
-        expect(getClipboard()).toMatchObject({
-          mode: "cut",
-          timelineStart: 0,
-        });
+        expect(getClipboard()).toMatchObject(expectedCutClipboard);
     });
 
     it.each(["resolve", "reject"] as const)(
@@ -356,6 +385,9 @@ describe.each(operationRows)(
               told: true,
             });
         }
+        if (settlement === "resolve") expect(result).toEqual({ status: "ok" });
+        if (operation.name === "edit.cut clip")
+          expect(getClipboard()).toMatchObject(expectedCutClipboard);
         expectReceivingProjectUntouched(receivingSelection, receivingSeq);
         expect(originPath).toBe("/projects/origin.sharecut");
       },
@@ -392,6 +424,9 @@ describe.each(operationRows)(
               told: true,
             });
         }
+        if (settlement === "resolve") expect(result).toEqual({ status: "ok" });
+        if (operation.name === "edit.cut clip")
+          expect(getClipboard()).toMatchObject(expectedCutClipboard);
         expectReceivingProjectUntouched(selectionFor(operation), receivingSeq);
       },
     );
@@ -403,10 +438,7 @@ describe.each(operationRows)(
       const pending = operation.start(request);
       expectOperationStarted(operation, path);
       if (operation.name === "edit.cut clip")
-        expect(getClipboard()).toMatchObject({
-          mode: "cut",
-          timelineStart: 0,
-        });
+        expect(getClipboard()).toMatchObject(expectedCutClipboard);
       useDawStore.getState().hydrate(path, projectFor(operation));
       expect(useDawStore.getState().projectEpoch).toBe(epoch);
       useDawStore.getState().setSelection(selectionFor(operation));
@@ -542,9 +574,10 @@ describe("Actionbar selected-range Cut diagnostic", () => {
     });
     const receivingSeq = useDawStore.getState().statusAnnouncementSeq;
     request.reject(new Error("request failed"));
-    expect(await pending).toMatchObject({
+    expect(await pending).toEqual({
       status: "disabled",
       reason: "request failed",
+      told: true,
     });
     const state = useDawStore.getState();
     expect({
