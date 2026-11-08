@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { FILLER_EXCERPT, FILLER_WAVEFORM } from "../storybook/reviewFixtures";
+import { expectNoA11yViolations } from "../test/a11y";
 import { DecisionCard, type DecisionCardProps } from "./DecisionCard";
 import { Suggestion } from "./Suggestion";
 
@@ -137,6 +138,74 @@ describe("DecisionCard", () => {
     await userEvent.click(screen.getByRole("button", { name: "Open in Edit" }));
     expect(onOpenInEdit).toHaveBeenCalledTimes(1);
     rerender(<DecisionCard {...props} layout="phone" canEdit={false} />);
+    expect(screen.queryByRole("button", { name: "Open in Edit" })).toBeNull();
+  });
+
+  it("offers Open in Edit on a blocked phone card without an unsure section", async () => {
+    const onOpenInEdit = vi.fn();
+    const { container } = render(
+      <DecisionCard
+        {...base()}
+        layout="phone"
+        verbDisabledReason="Open it in Edit to resolve."
+        onOpenInEdit={onOpenInEdit}
+      />,
+    );
+
+    expect(screen.queryByText(/Unsure word:/)).toBeNull();
+    expect(
+      screen.getAllByRole("button", { name: "Open in Edit" }),
+    ).toHaveLength(1);
+    await userEvent.click(screen.getByRole("button", { name: "Open in Edit" }));
+    expect(onOpenInEdit).toHaveBeenCalledOnce();
+    await expectNoA11yViolations(container);
+  });
+
+  it("does not duplicate the phone Open in Edit link beside an unsure word", () => {
+    render(
+      <DecisionCard
+        {...base()}
+        layout="phone"
+        verbDisabledReason="Open it in Edit to resolve."
+        unsure={{ word: "uncle", guess: "uncle", onFix: vi.fn() }}
+      />,
+    );
+
+    expect(
+      screen.getAllByRole("button", { name: "Open in Edit" }),
+    ).toHaveLength(1);
+  });
+
+  it("does not add a phone fallback beside an existing read-only dock link", () => {
+    render(
+      <DecisionCard
+        {...base()}
+        layout="phone"
+        readOnly
+        canEdit
+        verbDisabledReason="Open it in Edit to resolve."
+      />,
+    );
+    const dock = screen.getByRole("group", { name: "Actions" });
+
+    expect(
+      within(dock).getByRole("button", { name: "Open in Edit" }),
+    ).toBeVisible();
+    expect(
+      screen.getAllByRole("button", { name: "Open in Edit" }),
+    ).toHaveLength(1);
+  });
+
+  it("does not offer a blocked phone fallback without edit access", () => {
+    render(
+      <DecisionCard
+        {...base()}
+        layout="phone"
+        verbDisabledReason="Open it in Edit to resolve."
+        canEdit={false}
+      />,
+    );
+
     expect(screen.queryByRole("button", { name: "Open in Edit" })).toBeNull();
   });
 
