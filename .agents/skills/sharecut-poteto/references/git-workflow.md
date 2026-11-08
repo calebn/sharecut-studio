@@ -35,13 +35,19 @@ the owning lane performs the merge after every gate passes. It does not wait for
 a separate coordinator approval or final merge instruction. Ownership is not
 self-review. Preserve the independent native review and Shipping seats.
 
-Coordinate shared-state mutations through the current serial merge window.
-Confirm the coordinator's recorded turn assignment or handoff names your lane
-and PR before preparing the merge. Missing or conflicting turn ownership blocks
-that preparation. Do not merge concurrently or take over another lane's claim.
-Report the confirmed merge or blocked outcome so the next turn can be assigned.
-The coordinator tracks ownership, ordering, evidence, and blockers. It does not
-replace an independent verdict or an unresolved user decision.
+Keep shared-state mutations serial through lane-to-lane coordination. Use the
+shared reservation and handoff record in the active lane sessions. Before final
+preparation, announce your lane, PR, intended head, and base in that record.
+Respect any explicit reservation until its owner records completion, release,
+or a handoff. If the turn is free, announce and verify your exclusive turn with
+the peer lanes. Resolve competing announcements before mutation. No coordinator
+assignment or approval is required.
+
+This is a coordination protocol, not an atomic lock. Do not infer release from
+a disconnect, silence, or an expired per-issue claim. Per-issue claims do not
+serialize merges of different PRs. Immediately recheck the live head, base,
+claim, and applicable predicates before merge. Stop and requalify if they changed.
+Record the outcome and release the turn when finished.
 
 Require successful `pytest`, `frontend`, `frontend-e2e`, and `gitleaks-history`
 checks for the exact final PR head. The Python-floor job is advisory.
@@ -92,8 +98,8 @@ retain the JSON receipt. Before a separate merge action, require all of these:
 A command error, malformed or missing JSON, an API failure such as HTTP 503,
 or a null head stops the merge invocation. Do not put the helper and merge
 on separate unchecked lines in one shell action. The owning lane inspects the
-receipt and exit status before invoking the separate merge action, and reports
-them to the coordinator. A previous passing receipt cannot replace this
+receipt and exit status before invoking the separate merge action, and retains
+them in its PR verification record. A previous passing receipt cannot replace this
 immediate predicate.
 
 When qualifying this procedure, retain a PR-only failure-path demonstration.
