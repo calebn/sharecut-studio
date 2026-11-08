@@ -27,7 +27,10 @@ export function useTranscriptDetail(): TranscriptDetailView {
       shareCapabilities: state.shareCapabilities,
     })),
   );
-  useSyncExternalStore(subscribeTranscriptDetail, transcriptDetailSnapshot);
+  const observedSnapshot = useSyncExternalStore(
+    subscribeTranscriptDetail,
+    transcriptDetailSnapshot,
+  );
   if (!project) return { kind: "hidden" };
 
   const mode = rangeEditMode(projectPath, shareCapabilities);
@@ -35,19 +38,15 @@ export function useTranscriptDetail(): TranscriptDetailView {
   if (incomplete && mode === "none") return { kind: "hidden" };
   if (!needsTranscriptDetailHydrate(project, mode)) return { kind: "ready" };
 
-  const current = transcriptDetailStateFor(
-    projectPath,
-    documentScope(),
-    currentDocumentSeq(),
-    documentAuthority.token,
-  );
   const scope = documentScope();
   const seq = currentDocumentSeq();
   const token = documentAuthority.token;
+  const current = transcriptDetailStateFor(projectPath, scope, seq, token);
   const retryUntracked = () => {
     const state = useDawStore.getState();
     const now = documentScope();
     if (
+      transcriptDetailSnapshot() !== observedSnapshot ||
       state.project !== project ||
       state.projectPath !== projectPath ||
       now.generation !== scope.generation ||
