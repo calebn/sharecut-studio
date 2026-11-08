@@ -55,3 +55,26 @@ def test_preserves_existing_destination_and_source(tmp_path: Path, occupied: str
         assert destination.read_bytes() == b"old"
     elif occupied != "empty-directory":
         assert (destination / "chunk.mp3").read_bytes() == b"old"
+
+
+def test_two_descriptor_move_and_nested_restore_preserve_collision(tmp_path):
+    source = tmp_path / "source"
+    destination = tmp_path / "destination"
+    source.mkdir()
+    destination.mkdir()
+    (source / "stage").mkdir()
+    (source / "stage" / "keep").write_bytes(b"owned")
+    source_fd = os.open(source, os.O_RDONLY | os.O_DIRECTORY)
+    destination_fd = os.open(destination, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        rename_noreplace("stage", "moved", source_fd, dst_root_fd=destination_fd)
+        (source / "stage").mkdir()
+        with pytest.raises(FileExistsError):
+            rename_noreplace("moved", "stage", destination_fd, dst_root_fd=source_fd)
+        (source / "nested").mkdir()
+        rename_noreplace("moved", "nested/restored", destination_fd, dst_root_fd=source_fd)
+    finally:
+        os.close(source_fd)
+        os.close(destination_fd)
+    assert (source / "nested/restored/keep").read_bytes() == b"owned"
+    assert (source / "stage").is_dir()
