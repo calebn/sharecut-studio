@@ -30,7 +30,7 @@ describe("TranscriptSection", () => {
     expect(screen.getByText(/editing by text/)).toBeInTheDocument();
     expect(screen.getByText(/Showing 3 of 212 turns/)).toBeInTheDocument();
     expect(button("Markdown")).toHaveAttribute("aria-pressed", "true");
-    expect(button("Detailed text")).toHaveAttribute("aria-pressed", "false");
+    expect(button("Text")).toHaveAttribute("aria-pressed", "false");
     expect(button("Reading copy")).toHaveAttribute("aria-pressed", "false");
     await userEvent.click(button("Export 2 files"));
     expect(onExport).toHaveBeenCalledOnce();
@@ -40,7 +40,7 @@ describe("TranscriptSection", () => {
   it("toggles a format in chip order", async () => {
     const onChoices = vi.fn();
     render(<TranscriptSection options={transcriptOptions({ onChoices })} />);
-    await userEvent.click(button("Detailed text"));
+    await userEvent.click(button("Text"));
     expect(onChoices).toHaveBeenCalledWith(["txt", "md", "srt"]);
   });
 
@@ -388,7 +388,7 @@ describe("TranscriptSection", () => {
         })}
       />,
     );
-    expect(button("Detailed text")).toHaveFocus();
+    expect(button("Text")).toHaveFocus();
   });
 
   it("explains an audio export in progress and blocks Export", () => {
