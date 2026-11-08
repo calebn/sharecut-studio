@@ -128,7 +128,7 @@ export type DeliverFactsInput = {
   pendingReviewCount: number;
   appliedEditCount: number;
   comments: readonly { resolved: boolean }[];
-  unsureWordsLeft: number;
+  unsureWordsLeft: ReadinessFacts["unsureWordsLeft"];
   mixUpToDate: boolean;
   chapterCount: number;
   removedSeconds: number;

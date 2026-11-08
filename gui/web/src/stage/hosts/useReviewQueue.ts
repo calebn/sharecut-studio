@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   acceptSessionSuggestionCommand,
   applySuggestedActions,
@@ -26,6 +26,7 @@ import {
 } from "../../commands/pointer";
 import { refreshDocumentProject } from "../../document/applyDocumentUpdate";
 import { currentDocumentSeq } from "../../document/cursor";
+import { useTranscriptDetail } from "../../document/useTranscriptDetail";
 import { REFINE_GATE_GUI_MESSAGE } from "../../inspector/TranscriptRefineRecovery";
 import type { BulkProgress } from "../../review/ReviewQueue";
 import type { ReviewIntent } from "../../review/ReviewStage";
@@ -91,6 +92,8 @@ const UNSURE_REASON = "unsure_word";
 const HEAR_PAD_SEC = 2;
 const PICKUP_HANDLED = "This suggestion was already handled.";
 const PICKUP_UNEXPECTED = "The host sent an unexpected reply. Nothing changed.";
+const WORD_LOADING_REASON =
+  "The transcript is loading. Wait for the words to load.";
 const OPEN_CHECK =
   "The transcript check stays open until every word has loaded.";
 const LEFT_AS_IS = "Left as it is. Nobody is talking over it.";
@@ -116,6 +119,7 @@ export function useReviewQueue(guestShare = false) {
   const {
     project,
     projectPath,
+    projectEpoch,
     shell,
     guestMode,
     shareCapabilities,
@@ -124,6 +128,7 @@ export function useReviewQueue(guestShare = false) {
   } = useDaw((s) => ({
     project: s.project,
     projectPath: s.projectPath,
+    projectEpoch: s.projectEpoch,
     shell: s.shellBreakpoint,
     guestMode: s.guestMode,
     shareCapabilities: s.shareCapabilities,
@@ -202,10 +207,47 @@ export function useReviewQueue(guestShare = false) {
   }, [sessions]);
 
   const utterances = guest ? undefined : project?.transcript?.utterances;
-  const words = useMemo(
-    () => unsureEntriesOf(guest ? [] : (pending ?? []), utterances ?? []),
-    [guest, pending, utterances],
+  const detail = useTranscriptDetail();
+  const readyWords = useMemo(
+    () =>
+      detail.kind === "ready" && !guest
+        ? unsureEntriesOf(pending ?? [], utterances ?? [])
+        : null,
+    [detail.kind, guest, pending, utterances],
   );
+  const committedWords = useRef<{
+    path: string;
+    epoch: number;
+    words: ReturnType<typeof unsureEntriesOf>;
+  } | null>(null);
+  const emptyWords = useMemo(() => unsureEntriesOf([], []), []);
+  const words =
+    readyWords ??
+    (!guest &&
+    committedWords.current?.path === projectPath &&
+    committedWords.current.epoch === projectEpoch
+      ? committedWords.current.words
+      : emptyWords);
+  useLayoutEffect(() => {
+    if (readyWords)
+      committedWords.current = {
+        path: projectPath,
+        epoch: projectEpoch,
+        words: readyWords,
+      };
+    else if (
+      guest ||
+      committedWords.current?.path !== projectPath ||
+      committedWords.current.epoch !== projectEpoch
+    )
+      committedWords.current = null;
+  }, [readyWords, projectPath, projectEpoch, guest]);
+  const wordDisabledReason =
+    detail.kind === "ready"
+      ? undefined
+      : detail.kind === "failed"
+        ? "The transcript didn't load. Try again."
+        : WORD_LOADING_REASON;
   const open = useMemo<ReviewEntry[]>(() => {
     const eligibleWords = guest ? undefined : words.targets;
     const proposals = reviewEntriesOf(
@@ -254,9 +296,26 @@ export function useReviewQueue(guestShare = false) {
       ...words.entries,
       ...(check ? [check] : []),
       ...comments.entries,
-    ];
+    ].map((entry) =>
+      !guest && entry.content.card.unsure && wordDisabledReason
+        ? {
+            ...entry,
+            content: {
+              ...entry.content,
+              card: {
+                ...entry.content.card,
+                unsure: {
+                  ...entry.content.card.unsure,
+                  disabledReason: wordDisabledReason,
+                },
+              },
+            },
+          }
+        : entry,
+    );
   }, [
     guest,
+    wordDisabledReason,
     canDecide,
     pending,
     held,
@@ -554,7 +613,23 @@ export function useReviewQueue(guestShare = false) {
     }
   };
 
+  const currentWord = (id: string): WordTarget | undefined => {
+    const live = useDawStore.getState();
+    return live.projectPath === projectPath &&
+      live.projectEpoch === projectEpoch &&
+      live.project === project &&
+      detail.kind === "ready" &&
+      live.project?.meta.hydration?.transcript_words !== false
+      ? words.targets.get(id)
+      : undefined;
+  };
+
   const onDecide = useStableCallback(async (intent: ReviewIntent) => {
+    const live = useDawStore.getState();
+    if (live.projectPath !== projectPath || live.projectEpoch !== projectEpoch)
+      return false;
+    if (intent.ids.some((id) => id.startsWith("word:") && !currentWord(id)))
+      return false;
     const plan = session.decide(intent);
     if (!plan) return;
     const suggestionId = sessionIdOf(intent.ids[0] ?? "");
@@ -709,8 +784,14 @@ export function useReviewQueue(guestShare = false) {
   });
 
   const onHear = useStableCallback(async (id: string, side: AuditionSide) => {
-    const word = words.targets.get(id);
-    if (word) {
+    if (id.startsWith("word:")) {
+      const word = currentWord(id);
+      if (!word) {
+        useDawStore
+          .getState()
+          .announceStatus(wordDisabledReason ?? WORD_LOADING_REASON);
+        return;
+      }
       const { at, endSec } = word;
       if (at === null)
         return useDawStore
@@ -783,8 +864,14 @@ export function useReviewQueue(guestShare = false) {
   );
 
   const onOpenInEdit = useStableCallback((id: string) => {
-    const word = words.targets.get(id);
-    if (word) {
+    if (id.startsWith("word:")) {
+      const word = currentWord(id);
+      if (!word) {
+        useDawStore
+          .getState()
+          .announceStatus(wordDisabledReason ?? WORD_LOADING_REASON);
+        return;
+      }
       const state = useDawStore.getState();
       state.setSelection({
         kind: "transcriptRange",
@@ -834,6 +921,8 @@ export function useReviewQueue(guestShare = false) {
       duration: project?.timeline_duration_sec ?? 0,
       layout: shell === "phone" ? ("phone" as const) : ("desktop" as const),
       bulkRunning: bulkRunning ?? undefined,
+      wordDetail: guest ? undefined : detail,
+      documentKey: JSON.stringify([projectPath, projectEpoch]),
       guest,
       canDecide,
       attention,

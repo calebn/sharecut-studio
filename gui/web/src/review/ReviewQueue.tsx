@@ -72,6 +72,7 @@ export type ReviewContent = {
     unsure?: {
       word: string;
       guess: string;
+      disabledReason?: string;
       id?: string;
       step?: { index: number; total: number };
     };

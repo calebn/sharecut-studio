@@ -9,10 +9,13 @@ import {
   useRef,
   useState,
 } from "react";
+import type { TranscriptDetailView } from "../document/useTranscriptDetail";
 import { useShortLayoutViewport } from "../hooks/useShortLayoutViewport";
 import type { AuditionSide } from "../system/auditionWindow";
 import { DecisionCard } from "../system/DecisionCard";
 import { Sheet } from "../system/Sheet";
+import { Skeleton } from "../system/Skeleton";
+import { StatusRow } from "../system/StatusRow";
 import { SystemIcon } from "../system/SystemIcon";
 import type { TimeRange } from "../system/seconds";
 import { Button } from "../ui";
@@ -54,6 +57,8 @@ export type ReviewIntent = {
 };
 
 export type ReviewStageProps = {
+  wordDetail?: TranscriptDetailView;
+  documentKey?: string;
   ref?: Ref<HTMLDivElement>;
   items: readonly ReviewItem[];
   content: (item: ReviewItem) => ReviewContent;
@@ -149,6 +154,8 @@ export function ReviewStage({
   centerTop,
   centerBottom,
   regionFailure,
+  wordDetail,
+  documentKey,
   onResolve,
   onReply,
   onFindMore,
@@ -217,6 +224,9 @@ export function ReviewStage({
       item !== undefined &&
       !item.result &&
       !item.blocked &&
+      !(
+        item.kind === "unsure-word" && content(item).card.unsure?.disabledReason
+      ) &&
       !(item.kind === "pickup" && takeRefusal(item)) &&
       !(item.unsure && !looksRight.has(id))
     );
@@ -382,7 +392,7 @@ export function ReviewStage({
             ? { onHear: () => onHear(selected.id, "A") }
             : {}),
           onFix: (text: string) => {
-            if (selected.result) return;
+            if (selected.result || body.card.unsure?.disabledReason) return;
             if (selected.kind === "unsure-word")
               return void onDecide({
                 ids: [selected.id],
@@ -393,7 +403,9 @@ export function ReviewStage({
             if (word) void onDecide({ ids: [word], result: "applied", text });
             onSelect(selected.id);
           },
-          onLooksRight: () => onLooksRight(selected.id),
+          onLooksRight: () => {
+            if (!body.card.unsure?.disabledReason) onLooksRight(selected.id);
+          },
         }
       : undefined;
   const takes =
@@ -497,11 +509,26 @@ export function ReviewStage({
         )}
         <div className="rv-card">
           {centerTop}
+          {wordDetail?.kind === "pending" ? (
+            <Skeleton rows={1} onRetry={wordDetail.retry} />
+          ) : wordDetail?.kind === "failed" ? (
+            <StatusRow
+              state="failed"
+              title="The transcript didn't load"
+              detail="Try again in a moment."
+              action={{
+                label: "Try again",
+                onAction: wordDetail.retry,
+                disabledReason: wordDetail.recovering ? BUSY_REASON : undefined,
+              }}
+            />
+          ) : null}
+
           {!dockedComposer && <Fragment key="composer">{composer}</Fragment>}
           {regionFailure && guestColumn ? regionFailure : centerBottom}
           {guestColumn && !selected ? null : (
             <DecisionCard
-              key={selected?.id ?? "none"}
+              key={JSON.stringify([documentKey, selected?.id ?? "none"])}
               kind={selected?.kind ?? "filler"}
               state={
                 state !== "ready" ? state : selected && body ? "ready" : "empty"
@@ -509,17 +536,19 @@ export function ReviewStage({
               {...card}
               verb={selected ? itemVerb(selected) : undefined}
               verbDisabledReason={
-                guest && selected?.kind === "comment"
-                  ? "The host resolves comments."
-                  : selected?.blocked
-                    ? guest
-                      ? "The host resolves this one."
-                      : "Open it in Edit to resolve."
-                    : selected?.kind === "comment" && selected.result
-                      ? "Already resolved."
-                      : selected?.kind === "pickup" && !selected.result
-                        ? takeRefusal(selected)
-                        : undefined
+                selected?.kind === "unsure-word" && card.unsure?.disabledReason
+                  ? card.unsure.disabledReason
+                  : guest && selected?.kind === "comment"
+                    ? "The host resolves comments."
+                    : selected?.blocked
+                      ? guest
+                        ? "The host resolves this one."
+                        : "Open it in Edit to resolve."
+                      : selected?.kind === "comment" && selected.result
+                        ? "Already resolved."
+                        : selected?.kind === "pickup" && !selected.result
+                          ? takeRefusal(selected)
+                          : undefined
               }
               thread={selected && thread?.(selected)}
               why={selected?.blocked ? (card.why ?? BLOCKED_WHY) : card.why}

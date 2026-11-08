@@ -16,6 +16,7 @@ import {
   type DocumentScope,
   documentScope,
 } from "../../document/authorityState";
+import { useTranscriptDetail } from "../../document/useTranscriptDetail";
 import { useHasFeature } from "../../extensions/FeaturesContext";
 import { FEATURE_SHARE_UI_MENU } from "../../extensions/features";
 import { useNowSec } from "../../hooks/useNowSec";
@@ -165,6 +166,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
       sessionRegion: s.sessionRegion,
     })),
   );
+  const wordDetail = useTranscriptDetail();
   const exportFlow = useExportFlow();
   const { reload: reloadExportSettings, start: startExport } = exportFlow;
   const bounceFlow = useBounceFlow();
@@ -457,11 +459,13 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     pendingReviewCount: project.edit_impact.pending_review_count,
     appliedEditCount: project.applied_edits.count,
     comments: project.comments ?? [],
-    unsureWordsLeft: lowConfidenceStops(
-      project.transcript?.utterances ?? [],
-      false,
-      false,
-    ).length,
+    unsureWordsLeft:
+      wordDetail.kind === "ready"
+        ? lowConfidenceStops(project.transcript?.utterances ?? [], false, false)
+            .length
+        : wordDetail.kind === "failed"
+          ? "failed"
+          : "pending",
     mixUpToDate: !breakdown.stale && !breakdown.premixMissing,
     chapterCount: page.chapters.length,
     removedSeconds: project.edit_impact.total_removed_sec,

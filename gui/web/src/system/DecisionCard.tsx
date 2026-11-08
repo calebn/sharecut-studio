@@ -58,6 +58,7 @@ export type DecisionCardProps = {
     word: string;
     /** The transcript's best guess, "uncle". */
     guess: string;
+    disabledReason?: string;
     id?: string;
     resolved?: boolean;
     /** "1 of 3" for the unsure-word pass. */
@@ -135,6 +136,7 @@ function UnsureWord({
       <div className="sys-decision-unsure-row">
         <Button
           variant="link"
+          disabledReason={unsure.disabledReason}
           aria-expanded={fixing}
           aria-controls={fieldId}
           onClick={() => setFixing(!fixing)}
@@ -143,7 +145,11 @@ function UnsureWord({
           Fix text
         </Button>
         {unsure.onHear ? (
-          <Button variant="link" onClick={unsure.onHear}>
+          <Button
+            variant="link"
+            onClick={unsure.onHear}
+            disabledReason={unsure.disabledReason}
+          >
             <SystemIcon name="play" size={16} />
             Hear
           </Button>
@@ -155,18 +161,24 @@ function UnsureWord({
           </Button>
         ) : null}
         {canSkip ? (
-          <Button variant="link" onClick={unsure.onLooksRight}>
+          <Button
+            variant="link"
+            onClick={unsure.onLooksRight}
+            disabledReason={unsure.disabledReason}
+          >
             <SystemIcon name={iconOf("approve")} size={16} />
             Looks right
           </Button>
         ) : null}
       </div>
+      {unsure.disabledReason ? <p>{unsure.disabledReason}</p> : null}
       {fixing ? (
         <form
           id={fieldId}
           className="sys-decision-fix"
           onSubmit={(event) => {
             event.preventDefault();
+            if (unsure.disabledReason) return;
             if (!text.trim()) {
               setEmpty(true);
               field.current?.focus();
@@ -186,7 +198,9 @@ function UnsureWord({
               setEmpty(false);
             }}
           />
-          <Button type="submit">Save</Button>
+          <Button type="submit" disabledReason={unsure.disabledReason}>
+            Save
+          </Button>
           {empty ? <p role="alert">Type the corrected word.</p> : null}
         </form>
       ) : null}
