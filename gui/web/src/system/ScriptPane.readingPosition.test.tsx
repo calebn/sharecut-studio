@@ -470,6 +470,75 @@ describe("ScriptPane reading position", () => {
     },
   );
 
+  it("keeps a wheel scroll delivered after a stationary contact ends", () => {
+    scriptGeometry();
+    stubResizeObserver();
+    const onUserScroll = vi.fn();
+    const { body, captured } = setup(null, false, onUserScroll);
+    body.scrollTop = 590;
+    fireEvent.wheel(body, { deltaY: 20 });
+    fireEvent.scroll(body);
+    fireEvent.touchStart(body, {
+      touches: [{ identifier: 1, target: body, clientY: 160 }],
+    });
+    fireEvent.wheel(body, { deltaY: 80 });
+    body.scrollTop = 670;
+    fireEvent.touchEnd(body, {
+      touches: [],
+      changedTouches: [{ identifier: 1, target: body, clientY: 160 }],
+    });
+    fireEvent.scroll(body);
+    for (const observer of FakeResizeObserver.all) observer.fire(body);
+
+    expect(body.scrollTop).toBe(670);
+    expect(captured()).toMatchObject({
+      kind: "word",
+      index: 33,
+      fallbackTop: 670,
+    });
+    expect(onUserScroll).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps a bottom reading anchor when font reflow only shrinks the scroll range", () => {
+    const geometry = scriptGeometry();
+    let extent = 1200;
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(
+      () => extent,
+    );
+    const fonts = new EventTarget();
+    Object.defineProperty(document, "fonts", {
+      configurable: true,
+      value: fonts,
+    });
+    const onUserScroll = vi.fn();
+    const { body, captured } = setup(null, false, onUserScroll);
+    body.scrollTop = 1000;
+    fireEvent.wheel(body, { deltaY: 20 });
+    fireEvent.scroll(body);
+    expect(captured()).toMatchObject({
+      kind: "word",
+      index: 50,
+      fallbackTop: 1000,
+    });
+
+    geometry.setLineHeight(16);
+    extent = 960;
+    body.scrollTop = extent - body.clientHeight;
+    fireEvent.wheel(body, { deltaY: 20 });
+    fireEvent.scroll(body);
+    geometry.setLineHeight(20);
+    extent = 1200;
+    act(() => fonts.dispatchEvent(new Event("loadingdone")));
+
+    expect(body.scrollTop).toBe(1000);
+    expect(captured()).toMatchObject({
+      kind: "word",
+      index: 50,
+      fallbackTop: 1000,
+    });
+    expect(onUserScroll).toHaveBeenCalledOnce();
+  });
+
   it("keeps a touch scroll that arrives before the geometry observer", () => {
     const geometry = scriptGeometry();
     stubResizeObserver();
