@@ -39,6 +39,7 @@ BOOTSTRAP_SNAPSHOT_KEYS = {
     "id",
     "kind",
     "components",
+    "failed_components",
     "whisper_model",
     "status",
     "current",
@@ -126,6 +127,8 @@ def test_bootstrap_job_defaults_and_snapshot_shape() -> None:
     assert snap["kind"] == "bootstrap"
     assert snap["components"] == ["whisper"]
     assert snap["components"] is not job.components
+    assert snap["failed_components"] == []
+    assert snap["failed_components"] is not job.failed_components
     assert snap["elapsed_sec"] == 0.0
 
 
@@ -317,9 +320,11 @@ def test_bootstrap_lifecycle_event_order_and_fields(monkeypatch) -> None:
     assert [e["kind"] for e in events if e["type"] == "progress"] == ["start", "update", "end"]
     assert events[0]["job"]["status"] == "running"
     assert set(events[0]["job"]) == BOOTSTRAP_SNAPSHOT_KEYS
+    assert events[0]["job"]["failed_components"] == []
     assert events[1]["label"] == "Downloading"
     assert events[1]["elapsed_sec"] == 0.0
     last = events[-1]["job"]
+    assert last["failed_components"] == []
     assert (last["status"], last["message"], last["result"]) == (
         "ok",
         "Bootstrap complete",
