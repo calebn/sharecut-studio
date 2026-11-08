@@ -60,7 +60,7 @@ export function ModelsSheet({ open, onClose }: Props) {
             title="Couldn't check what is installed"
             action={{
               label: "Try again",
-              name: "Check model status",
+              name: "Try again to check model status",
               onAction: () => void refresh(),
             }}
           />
