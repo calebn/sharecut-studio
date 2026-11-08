@@ -110,7 +110,7 @@ export function mergeProjectPatch(
 }
 
 function utteranceSourceKey(utterance: CombinedUtterance): string {
-  return `${utterance.track_id}\0${utterance.start}\0${utterance.end}`;
+  return `${utterance.track_id}\0${utterance.source_id ?? ""}\0${utterance.start}\0${utterance.end}`;
 }
 
 function remapOverlayWords(
