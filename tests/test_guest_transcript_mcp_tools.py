@@ -564,3 +564,24 @@ def test_a_repeated_done_mark_writes_nothing(world) -> None:
 
     assert sidecar(world) == before
     assert again["status"] == "done"
+
+
+def test_reading_copy_partial_cut_has_actionable_fixed_guest_copy(world, monkeypatch) -> None:
+    from podcast_mcp.export.transcript import ReadableTranscriptTimingError
+
+    monkeypatch.setattr(TranscriptService, "export", raising(ReadableTranscriptTimingError()))
+    tool = "guest_transcript_export"
+    body = {**_body(tool, world), "formats": ["readable.txt"]}
+
+    http = _http(world, tool, body)
+    code, text = mcp_refusal(call_tool(world, tool, body))
+
+    assert code == http.headers[CODE] == "readable_timing_unavailable"
+    assert (
+        text
+        == http.json()["detail"]
+        == (
+            "This reading copy needs word timings after a partial cut. "
+            "Choose Text or Markdown instead."
+        )
+    )

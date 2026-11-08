@@ -63,6 +63,7 @@ _GUEST_MESSAGES = {
     "project_write_failed": "Your change could not be saved on the host's computer. Ask the host to check that its disk has space and is not read-only, then try again.",
     "project_unreadable": "This project can't be opened right now; ask the host to check it.",
     "project_not_found": "This link isn't available right now; ask the host to check it.",
+    "readable_timing_unavailable": "This reading copy needs word timings after a partial cut. Choose Text or Markdown instead.",
     "registry_not_private": "The host's sharing setup needs attention; ask the host to check it.",
     "registry_backup_invalid_path": "The host's sharing setup needs attention; ask the host to check it.",
     "registry_backup_integrity_changed": "The host's sharing setup needs attention; ask the host to check it.",
