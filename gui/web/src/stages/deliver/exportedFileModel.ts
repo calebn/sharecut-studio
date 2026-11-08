@@ -1,4 +1,4 @@
-import type { ExportedFileKind } from "../../api";
+import type { ExportedFileKind, ExportedTranscriptFormat } from "../../api";
 
 export type ExportedFile = {
   /** Folder-relative name, opaque to the client. */
@@ -10,6 +10,8 @@ export type ExportedFile = {
   bytes: number;
   /** False when the episode changed after this file was written. */
   current: boolean;
+  /** Exact transcript format when supplied by the server. */
+  format?: ExportedTranscriptFormat | null;
   /** Download address; absent in the desktop app, which reveals instead. */
   href?: string;
 };

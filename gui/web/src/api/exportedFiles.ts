@@ -2,6 +2,12 @@ import { reviewApiBase, shareTokenFromKey } from "../shareMode";
 import { apiFetch, HOST_KEY } from "./http";
 
 export type ExportedFileKind = "audio" | "transcript" | "chapters" | "feed";
+export type ExportedTranscriptFormat =
+  | "txt"
+  | "md"
+  | "readable.txt"
+  | "srt"
+  | "vtt";
 
 /** One file an export left in the export folder, as the server lists it. No host path. */
 export type ExportedFileEntry = {
@@ -12,6 +18,8 @@ export type ExportedFileEntry = {
   label: string;
   bytes: number;
   current: boolean;
+  /** Exact transcript format from the export inventory; absent or null for other file kinds or older servers. */
+  format?: ExportedTranscriptFormat | null;
   /** Host listing only: a short-lived signed ticket that downloads this file as listed. */
   ticket?: string;
 };

@@ -58,6 +58,7 @@ class ExportedFile:
     label: str
     bytes: int
     current: bool
+    format: str | None = None
 
 
 ListedFiles = list[tuple[ExportedFile, str]]
@@ -72,6 +73,7 @@ class ServedFile:
     path: Path
     media_type: str
     version: str
+    format: str | None = None
 
 
 def _same_text(path: Path, expected: str) -> bool:
@@ -98,7 +100,12 @@ class ExportFilesService:
         root = export_root.resolve()
         stem = sanitize_export_stem(project.name)
 
-        def served(relative: str, kind: ExportedFileKind, media_type: str) -> ServedFile | None:
+        def served(
+            relative: str,
+            kind: ExportedFileKind,
+            media_type: str,
+            format: str | None = None,
+        ) -> ServedFile | None:
             path = export_root / relative
             if path.is_symlink():
                 return None
@@ -113,25 +120,34 @@ class ExportFilesService:
             except OSError:
                 return None
             return ServedFile(
-                relative, kind, resolved, media_type, f"{stamp.size}-{stamp.mtime_ns}"
+                relative, kind, resolved, media_type, f"{stamp.size}-{stamp.mtime_ns}", format
             )
 
-        wanted: list[tuple[str, ExportedFileKind, str]] = [
-            (f"{stem}.{ext}", "audio", media) for ext, media in AUDIO_EXPORT_MEDIA.items()
+        wanted: list[tuple[str, ExportedFileKind, str, str | None]] = [
+            (f"{stem}.{ext}", "audio", media, None) for ext, media in AUDIO_EXPORT_MEDIA.items()
         ]
         clips = export_root / CLIPS_DIRNAME
         if clips.is_dir() and not clips.is_symlink():
             wanted.extend(
-                (f"{CLIPS_DIRNAME}/{p.name}", "audio", AUDIO_EXPORT_MEDIA[p.suffix[1:].lower()])
+                (
+                    f"{CLIPS_DIRNAME}/{p.name}",
+                    "audio",
+                    AUDIO_EXPORT_MEDIA[p.suffix[1:].lower()],
+                    None,
+                )
                 for p in sorted(clips.iterdir())
                 if p.suffix[1:].lower() in AUDIO_EXPORT_MEDIA and _plain_name(p.name)
             )
         wanted.extend(
-            (f"{stem}.{fmt}", "transcript", TRANSCRIPT_MIME[fmt]) for fmt in TRANSCRIPT_FORMATS
+            (f"{stem}.{fmt}", "transcript", TRANSCRIPT_MIME[fmt], fmt) for fmt in TRANSCRIPT_FORMATS
         )
-        wanted.append((f"{stem}.chapters.json", "chapters", _JSON_CHAPTERS_MEDIA))
-        wanted.append((feed_path(project).name, "feed", _FEED_MEDIA))
-        return [found for item in wanted if (found := served(*item)) is not None]
+        wanted.append((f"{stem}.chapters.json", "chapters", _JSON_CHAPTERS_MEDIA, None))
+        wanted.append((feed_path(project).name, "feed", _FEED_MEDIA, None))
+        return [
+            found
+            for relative, kind, media_type, format in wanted
+            if (found := served(relative, kind, media_type, format)) is not None
+        ]
 
     def open(self, file_id: str) -> ServedFile:
         """The listed file *file_id*; raises ``CodedFileNotFoundError`` (``export_file_gone``)."""
@@ -180,6 +196,7 @@ class ExportFilesService:
                 label=self._label(found),
                 bytes=size,
                 current=current,
+                format=found.format,
             )
             out.append((entry, found.version))
         return out
@@ -195,9 +212,7 @@ class ExportFilesService:
                     else _AUDIO_LABELS.get(suffix, _LISTENING_LABEL)
                 )
             case "transcript":
-                return _TRANSCRIPT_LABELS[
-                    "readable.txt" if found.id.endswith(".readable.txt") else suffix
-                ]
+                return _TRANSCRIPT_LABELS[found.format or suffix]
             case "chapters":
                 return "Chapters"
             case "feed":

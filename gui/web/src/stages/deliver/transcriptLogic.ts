@@ -5,7 +5,7 @@ export const TRANSCRIPT_FORMATS: readonly {
   label: string;
   group: "read" | "captions";
 }[] = [
-  { id: "txt", label: "Detailed text", group: "read" },
+  { id: "txt", label: "Text", group: "read" },
   { id: "md", label: "Markdown", group: "read" },
   { id: "readable.txt", label: "Reading copy", group: "read" },
   { id: "srt", label: "SRT", group: "captions" },
@@ -126,20 +126,26 @@ export function exportLabel(count: number, again: boolean): string {
   return `Export${files}${again ? " again" : ""}`;
 }
 
-/** The format a written transcript file carries, from its extension. */
-function formatOfName(name: string): string {
-  return name.slice(name.lastIndexOf(".") + 1).toLowerCase();
+/** Resolve legacy listings that predate the authoritative format field. */
+function formatOfName(name: string): TranscriptFormat | undefined {
+  const suffix = name.slice(name.lastIndexOf(".") + 1).toLowerCase();
+  return TRANSCRIPT_FORMATS.find((format) => format.id === suffix)?.id;
 }
 
 /** A chosen format has a file on disk that predates the last transcript edit. */
 export function transcriptStaleOf(
-  files: readonly { name: string; current: boolean }[],
+  files: readonly {
+    name: string;
+    current: boolean;
+    format?: TranscriptFormat | null;
+  }[],
   choices: readonly TranscriptFormat[],
 ): boolean {
   const chosen: readonly string[] = choices;
-  return files.some(
-    (file) => !file.current && chosen.includes(formatOfName(file.name)),
-  );
+  return files.some((file) => {
+    const format = file.format ?? formatOfName(file.name);
+    return !file.current && format !== undefined && chosen.includes(format);
+  });
 }
 
 /** Toggle one format, keeping the order the chips show. */

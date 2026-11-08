@@ -179,6 +179,7 @@ def test_the_host_lists_and_downloads_with_no_host_path(ws, folder, client) -> N
         "label",
         "bytes",
         "current",
+        "format",
         "ticket",
     }
     assert str(ws.path.parent) not in res.text
