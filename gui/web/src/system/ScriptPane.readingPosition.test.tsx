@@ -169,8 +169,7 @@ function nestedScrollGeometry(paneTop: number) {
       );
     },
   );
-  // JSDOM has no layout scrolling. Model native alignment from inner to outer
-  // scrollports, with their reported scroll ranges, including focus's nearest reveal.
+  // JSDOM has no layout scrolling.
   Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
     configurable: true,
     value: function (
