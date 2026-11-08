@@ -12,12 +12,15 @@ from podcast_mcp.models import (
     Clip,
     CombinedTranscript,
     CombinedUtterance,
+    MediaAsset,
+    SourceRecording,
+    Track,
     Transcript,
     TranscriptWord,
     load_project,
     save_project,
 )
-from podcast_mcp.models.clip_timing import ClipTiming, TimingStep
+from podcast_mcp.models.clip_timing import ClipTiming, QuietSpan, TimingStep
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import TranscriptService
 from podcast_mcp.services.document.export_files import ExportFilesService
@@ -350,7 +353,11 @@ def test_timed_placement_gap_allows_intervening_speaker(minimal_project: Path) -
     )
 
 
-def test_combined_only_positive_timing_gap_keeps_fully_retained_text(minimal_project: Path) -> None:
+@pytest.mark.parametrize("split_clips", [False, True])
+def test_combined_only_positive_timing_gap_keeps_fully_retained_text(
+    minimal_project: Path,
+    split_clips: bool,
+) -> None:
     ws = _workspace(minimal_project)
     project = load_project(ws.path)
     project.transcripts = []
@@ -369,6 +376,11 @@ def test_combined_only_positive_timing_gap_keeps_fully_retained_text(minimal_pro
             timing=ClipTiming(steps=[TimingStep(at=1, delta_sec=10)]),
         )
     ]
+    if split_clips:
+        project.clips = [
+            Clip(id="before", track_id="host", source_start=0, source_end=1, timeline_start=0),
+            Clip(id="after", track_id="host", source_start=1, source_end=2, timeline_start=11),
+        ]
     save_project(project, ws.path)
 
     result = TranscriptService(ProjectWorkspace.open(ws.path)).export(["readable.txt"])
@@ -459,6 +471,102 @@ def test_zero_length_words_keep_clip_end_boundary_fallback(minimal_project: Path
     assert Path(result.files[0].path).read_text(encoding="utf-8") == (
         "Readable sample\n\nhost  0:03\nStart middle end.\n"
     )
+
+
+def test_copied_source_on_another_lane_keeps_partial_occurrence_identity(
+    minimal_project: Path,
+) -> None:
+    ws = _workspace(minimal_project)
+    project = load_project(ws.path)
+    project.tracks = [
+        Track(id="host", label="Host", media=MediaAsset(path="raw/host.wav")),
+        Track(id="guest", label="Guest"),
+    ]
+    project.sources = [SourceRecording(id="host-copy", path="raw/host.wav")]
+    project.transcripts = [
+        Transcript(track_id="host", words=[_word("A", 0), _word("B", 1), _word("C", 2)])
+    ]
+    project.clips = [
+        Clip(id="first", track_id="host", source_start=0, source_end=1.5, timeline_start=0),
+        Clip(
+            id="copied",
+            track_id="guest",
+            source_id="host-copy",
+            source_start=1,
+            source_end=2.5,
+            timeline_start=10,
+        ),
+    ]
+    ensure_combined_transcript(project, defaults=load_defaults())
+    save_project(project, ws.path)
+
+    result = TranscriptService(ProjectWorkspace.open(ws.path)).export(["readable.txt"])
+
+    assert Path(result.files[0].path).read_text(encoding="utf-8") == (
+        "Readable sample\n\nhost  0:00\nA B B C\n"
+    )
+
+
+def test_combined_timed_replays_keep_text_once_per_occurrence(minimal_project: Path) -> None:
+    ws = _workspace(minimal_project)
+    project = load_project(ws.path)
+    project.transcripts = []
+    project.combined_transcript = CombinedTranscript(
+        utterances=[
+            CombinedUtterance(track_id="host", speaker="Host", start=0, end=2, text="Intact."),
+            CombinedUtterance(track_id="guest", speaker="Guest", start=30, end=31, text="Reply."),
+        ]
+    )
+    project.clips = [
+        Clip(
+            id="first",
+            track_id="host",
+            source_start=0,
+            source_end=2,
+            timeline_start=0,
+            timing=ClipTiming(steps=[TimingStep(at=1, delta_sec=10)]),
+        ),
+        Clip(id="repeat", track_id="host", source_start=0, source_end=2, timeline_start=3661.9),
+    ]
+    save_project(project, ws.path)
+
+    result = TranscriptService(ProjectWorkspace.open(ws.path)).export(["readable.txt"])
+
+    assert Path(result.files[0].path).read_text(encoding="utf-8") == (
+        "Readable sample\n\nHost  0:00\nIntact.\n\nGuest  0:30\nReply.\n\nHost  1:01:01\nIntact.\n"
+    )
+
+
+def test_combined_negative_timing_step_still_refuses_partial_removal(
+    minimal_project: Path,
+) -> None:
+    ws = _workspace(minimal_project)
+    project = load_project(ws.path)
+    project.transcripts = []
+    project.combined_transcript = CombinedTranscript(
+        utterances=[
+            CombinedUtterance(track_id="host", speaker="Host", start=0, end=3, text="Partly cut.")
+        ]
+    )
+    project.clips = [
+        Clip(
+            id="timed",
+            track_id="host",
+            source_start=0,
+            source_end=3,
+            timeline_start=0,
+            timing=ClipTiming(
+                steps=[TimingStep(at=1, delta_sec=-1, quiet=QuietSpan(start_s=1, end_s=2))]
+            ),
+        )
+    ]
+    save_project(project, ws.path)
+
+    with pytest.raises(ReadableTranscriptTimingError) as error:
+        TranscriptService(ProjectWorkspace.open(ws.path)).export(["readable.txt"])
+
+    assert error.value.code == "readable_timing_unavailable"
+    assert not (project.export_dir() / "Readable_sample.readable.txt").exists()
 
 
 def test_paragraph_reflow_uses_entry_boundaries_and_keeps_long_single_entry(
