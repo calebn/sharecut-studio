@@ -1328,12 +1328,9 @@ describe("Review host unsure words", () => {
         "data-layout",
         "phone",
       );
-      expect(
-        screen.getByRole("button", { name: "Cut", exact: true }),
-      ).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Cut" })).toBeDisabled();
       const open = screen.getByRole("button", {
         name: "Open in Edit",
-        exact: true,
       });
       expect(open).toBeVisible();
       await userEvent.click(open);
