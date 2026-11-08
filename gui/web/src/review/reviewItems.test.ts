@@ -6,7 +6,12 @@ import {
   sampleTrack,
   sessionSuggestionView,
 } from "../test/fixtures";
-import type { PendingKind, TranscriptCheckStatus } from "../types/project";
+import type {
+  CombinedUtterance,
+  PendingKind,
+  PendingUnsureWord,
+  TranscriptCheckStatus,
+} from "../types/project";
 import {
   CHECK_ID,
   checkEntryOf,
@@ -355,7 +360,7 @@ describe("checkEntryOf", () => {
 });
 
 describe("unsureEntriesOf", () => {
-  const word = (index: number, text: string) => ({
+  const word = (index: number, text: string): PendingUnsureWord => ({
     track_id: "host",
     source_id: null,
     word_index: index,
@@ -479,6 +484,124 @@ describe("unsureEntriesOf", () => {
       at: 9,
       endSec: 9.2,
     });
+  });
+
+  it("matches pending timing targets by source and preserves a null source fallback", () => {
+    const { entries, targets } = unsureEntriesOf(
+      [
+        cut("override", 20, [
+          { ...word(1, "override"), source_id: "source-b" },
+        ]),
+        cut("fallback", 30, [
+          { ...word(2, "fallback"), source_id: "source-a" },
+        ]),
+      ],
+      [
+        {
+          track_id: "host",
+          source_id: "source-a",
+          speaker: "Jon",
+          start: 0,
+          end: 9,
+          text: "",
+          mappable: true,
+          words: [
+            {
+              text: "override",
+              start: 2,
+              end: 2.2,
+              word_index: 1,
+              unsure: true,
+              mappable: true,
+              timeline_start: 6,
+              timing_target: {
+                track_id: "host",
+                source_id: "source-b",
+                word_index: 1,
+              },
+            },
+            {
+              text: "fallback",
+              start: 3,
+              end: 3.2,
+              word_index: 2,
+              unsure: true,
+              mappable: true,
+              timeline_start: 7,
+              timing_target: {
+                track_id: "host",
+                source_id: null,
+                word_index: 2,
+              },
+            },
+          ],
+        },
+      ] satisfies CombinedUtterance[],
+    );
+
+    expect(entries.map((entry) => [entry.item.id, entry.item.at])).toEqual([
+      ["word:host:source-b:1", 6],
+      ["word:host:source-a:2", 7],
+    ]);
+    expect(targets.get("word:host:source-b:1")).toMatchObject({
+      sourceId: "source-b",
+      at: 6,
+    });
+  });
+
+  it("does not let a known unmapped word veto another track with the same index", () => {
+    const pending = [
+      cut("host-cut", 20, [{ ...word(1, "host"), track_id: "host" }]),
+      cut("guest-cut", 30, [{ ...word(1, "guest"), track_id: "guest" }]),
+    ];
+    const utterances: CombinedUtterance[] = [
+      {
+        track_id: "host",
+        source_id: null,
+        speaker: "Jon",
+        start: 0,
+        end: 9,
+        text: "",
+        mappable: true,
+        words: [
+          {
+            text: "host",
+            start: 2,
+            end: 2.2,
+            word_index: 1,
+            unsure: true,
+            mappable: false,
+            timeline_start: null,
+          },
+        ],
+      },
+      {
+        track_id: "guest",
+        source_id: null,
+        speaker: "Rosa",
+        start: 0,
+        end: 9,
+        text: "",
+        mappable: true,
+        words: [
+          {
+            text: "guest",
+            start: 3,
+            end: 3.2,
+            word_index: 1,
+            unsure: true,
+            mappable: true,
+            timeline_start: 8,
+          },
+        ],
+      },
+    ];
+
+    const { entries } = unsureEntriesOf(pending, utterances);
+
+    expect(entries.map((entry) => [entry.item.id, entry.item.at])).toEqual([
+      ["word:guest::1", 8],
+    ]);
   });
 
   it("puts a word with no placement last, and ignores applied cuts", () => {

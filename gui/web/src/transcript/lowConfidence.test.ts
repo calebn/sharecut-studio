@@ -189,6 +189,13 @@ describe("lowConfidenceStops", () => {
             timeline_start: 8,
             timeline_end: 8.2,
           },
+          {
+            text: "uncertain-map",
+            start: 0.4,
+            end: 0.6,
+            word_index: 6,
+            unsure: true,
+          },
         ],
       }),
     ];
@@ -203,6 +210,14 @@ describe("lowConfidenceStops", () => {
         endSec: 8.2,
         order: 1,
       },
+      {
+        trackId: "host",
+        sourceId: "source-a",
+        wordIndex: 6,
+        text: "uncertain-map",
+        seekSec: null,
+        order: 2,
+      },
     ]);
     expect(
       lowConfidenceStops(utterances, true, true).map((stop) => [
@@ -213,6 +228,7 @@ describe("lowConfidenceStops", () => {
     ).toEqual([
       [4, null, 0],
       [5, 8, 1],
+      [6, null, 2],
     ]);
   });
 
