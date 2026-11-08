@@ -528,7 +528,9 @@ describe("ScriptPane reading position", () => {
     fireEvent.scroll(body);
     geometry.setLineHeight(20);
     extent = 1200;
-    act(() => fonts.dispatchEvent(new Event("loadingdone")));
+    act(() => {
+      fonts.dispatchEvent(new Event("loadingdone"));
+    });
 
     expect(body.scrollTop).toBe(1000);
     expect(captured()).toMatchObject({
