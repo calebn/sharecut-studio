@@ -306,7 +306,7 @@ describe("projectFromDocumentSnapshot", () => {
       speaker: "Host",
       start: 0,
       end: 2,
-      text: "cut play",
+      text: "one two",
       timeline_start: timelineStart,
       timeline_end: timelineStart + 1,
       timeline_spans: [{ start: timelineStart, end: timelineStart + 1 }],
@@ -320,24 +320,26 @@ describe("projectFromDocumentSnapshot", () => {
       const { words: _words, ...utterance } = row(sourceId, timelineStart, []);
       return utterance;
     };
-    const cutWord = {
-      text: "cut",
-      word_index: 0,
-      start: 0,
-      end: 1,
-      timeline_start: null,
-      timeline_end: null,
-      mappable: false,
-    };
-    const playableWord = {
-      text: "play",
-      word_index: 1,
-      start: 1,
-      end: 2,
-      timeline_start: 0,
-      timeline_end: 1,
-      mappable: true,
-    };
+    const words = (timelineStart: number, firstCut: boolean) => [
+      {
+        text: "one",
+        word_index: 0,
+        start: 0,
+        end: 1,
+        timeline_start: firstCut ? null : timelineStart,
+        timeline_end: firstCut ? null : timelineStart + 1,
+        mappable: !firstCut,
+      },
+      {
+        text: "two",
+        word_index: 1,
+        start: 1,
+        end: 2,
+        timeline_start: firstCut ? timelineStart : null,
+        timeline_end: firstCut ? timelineStart + 1 : null,
+        mappable: firstCut,
+      },
+    ];
     const previous = minimalProject({
       meta: {
         name: "Test",
@@ -346,10 +348,10 @@ describe("projectFromDocumentSnapshot", () => {
       },
       transcript: {
         utterances: [
-          row("take-a", 0, [cutWord, playableWord]),
-          row("take-b", 4, [playableWord, cutWord]),
-          row(null, 8, [cutWord, playableWord]),
-          row(undefined, 12, [playableWord, cutWord]),
+          row("take-a", 0, words(0, true)),
+          row("take-b", 4, words(4, false)),
+          row(null, 8, words(8, true)),
+          row(undefined, 12, words(12, false)),
         ],
       },
     });
@@ -380,6 +382,33 @@ describe("projectFromDocumentSnapshot", () => {
       ["take-a", [false, true]],
       [null, [false, true]],
       [null, [true, false]],
+    ]);
+    expect(
+      next?.transcript?.utterances.map((utterance) =>
+        utterance.words?.map((word) => [
+          word.text,
+          word.word_index,
+          word.timeline_start,
+          word.timeline_end,
+        ]),
+      ),
+    ).toEqual([
+      [
+        ["one", 0, 0, 1],
+        ["two", 1, null, null],
+      ],
+      [
+        ["one", 0, null, null],
+        ["two", 1, 4, 5],
+      ],
+      [
+        ["one", 0, null, null],
+        ["two", 1, 8, 9],
+      ],
+      [
+        ["one", 0, 12, 13],
+        ["two", 1, null, null],
+      ],
     ]);
     expect(next?.meta.hydration?.transcript_words).toBe(true);
   });
