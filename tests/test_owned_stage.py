@@ -164,7 +164,8 @@ def test_stage_close_error_preserves_qc_refusal_and_closes_root(
 
     def tracked_root(path):
         descriptor = real_open_root(path)
-        descriptors["root"] = descriptor
+        if descriptors["root"] is None:
+            descriptors["root"] = descriptor
         return descriptor
 
     def tracked_open(path, **kwargs):
