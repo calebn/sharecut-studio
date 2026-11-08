@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { postDocumentCommand, postHistoryMove } from "./documentCommand";
 import { e2eProjectPath } from "./env";
+import { withShareableProject } from "./shareableProject";
 import { openProject, phone } from "./stageNav";
 import { openScript, withDocumentCommandTypes } from "./transcriptEdit";
 
@@ -24,50 +25,56 @@ test.describe("Script Fix text", () => {
   test("double-click, type, Enter commits one undoable step; Mod+Z restores", async ({
     page,
   }) => {
-    await openProject(page, e2eProjectPath);
-    await expect(page.getByRole("heading", { level: 1 })).toContainText(
-      /aligned dialogue/i,
-    );
-    const list = await openScript(page);
-    const original = list
-      .getByRole("button", { name: /^my(?: \(.*\))?$/ })
-      .first();
-    let committed = false;
-    try {
-      await withDocumentCommandTypes(page, async (commands) => {
-        await original.dblclick();
-        const input = list.getByRole("textbox", { name: "Fix text" });
-        await expect(input).toBeFocused();
-        await input.press("Escape");
-        await expect(input).toHaveCount(0);
-        expect(commands).not.toContain("CorrectTranscriptWord");
+    await withShareableProject(async (projectPath) => {
+      await openProject(page, projectPath);
+      await expect(page.getByRole("heading", { level: 1 })).toContainText(
+        /aligned dialogue/i,
+      );
+      const list = await openScript(page);
+      const original = list
+        .getByRole("button", { name: /^my(?: \(.*\))?$/ })
+        .first();
+      let committed = false;
+      try {
+        await withDocumentCommandTypes(page, async (commands) => {
+          await original.dblclick();
+          const input = list.getByRole("textbox", { name: "Fix text" });
+          await expect(input).toBeFocused();
+          await input.press("Escape");
+          await expect(input).toHaveCount(0);
+          expect(commands).not.toContain("CorrectTranscriptWord");
 
-        await original.dblclick();
-        await expect(input).toBeFocused();
-        await expectPageAxeClean(page, ".sys-script");
-        await input.fill("My");
-        await input.press("Enter");
-        await expect(
-          list.getByRole("button", { name: /^My(?: \(.*\))?$/ }).first(),
-        ).toBeVisible();
-        committed = true;
-        expect(commands).toContain("CorrectTranscriptWord");
+          await original.dblclick();
+          await expect(input).toBeFocused();
+          await expectPageAxeClean(page, ".sys-script");
+          await input.fill("My");
+          await input.press("Enter");
+          await expect(
+            list.getByRole("button", { name: /^My(?: \(.*\))?$/ }).first(),
+          ).toBeVisible();
+          committed = true;
+          expect(commands).toContain("CorrectTranscriptWord");
 
-        await page.keyboard.press("ControlOrMeta+Z");
-        await expect(
-          list.getByRole("button", { name: /^my(?: \(.*\))?$/ }).first(),
-        ).toBeVisible();
-        await expect(
-          list.getByRole("button", { name: /^My(?: \(.*\))?$/ }),
-        ).toHaveCount(0);
-        committed = false;
-      });
-    } finally {
-      if (committed) {
-        // Leave the shared live E2E project as later specs expect it.
-        await postHistoryMove(page, "e2e-inline-edit", "UndoHistory");
+          await page.keyboard.press("ControlOrMeta+Z");
+          await expect(
+            list.getByRole("button", { name: /^my(?: \(.*\))?$/ }).first(),
+          ).toBeVisible();
+          await expect(
+            list.getByRole("button", { name: /^My(?: \(.*\))?$/ }),
+          ).toHaveCount(0);
+          committed = false;
+        });
+      } finally {
+        if (committed) {
+          await postHistoryMove(
+            page,
+            "e2e-inline-edit",
+            "UndoHistory",
+            projectPath,
+          );
+        }
       }
-    }
+    });
   });
 });
 
@@ -81,70 +88,75 @@ test.describe("Phone Fix text", () => {
   test("a double tap opens Fix text in the Script and a fix commits there", async ({
     page,
   }) => {
-    await openProject(page, e2eProjectPath);
-    await phone.showText(page);
-    const list = page.locator(".sys-script-body");
-    const word = list.getByRole("button", { name: /^my(?: \(.*\))?$/ }).first();
-    await word.scrollIntoViewIfNeeded();
-    const point = await word.boundingBox();
-    expect(point).not.toBeNull();
-    const x = point!.x + point!.width / 2;
-    const y = point!.y + point!.height / 2;
-    await page.touchscreen.tap(x, y);
-    await page.touchscreen.tap(x, y);
+    await withShareableProject(async (projectPath) => {
+      await openProject(page, projectPath);
+      await phone.showText(page);
+      const list = page.locator(".sys-script-body");
+      const word = list
+        .getByRole("button", { name: /^my(?: \(.*\))?$/ })
+        .first();
+      await word.scrollIntoViewIfNeeded();
+      const point = await word.boundingBox();
+      expect(point).not.toBeNull();
+      const x = point!.x + point!.width / 2;
+      const y = point!.y + point!.height / 2;
+      await page.touchscreen.tap(x, y);
+      await page.touchscreen.tap(x, y);
 
-    const field = list.getByRole("textbox", { name: "Fix text" });
-    await expect(field).toBeFocused();
-    await expect(field).toBeInViewport({ ratio: 0.9 });
-    await expectPageAxeClean(page, ".sys-script");
+      const field = list.getByRole("textbox", { name: "Fix text" });
+      await expect(field).toBeFocused();
+      await expect(field).toBeInViewport({ ratio: 0.9 });
+      await expectPageAxeClean(page, ".sys-script");
 
-    let savedHead: string | null = null;
-    let failed = false;
-    let failure: unknown;
-    try {
-      await field.fill("My");
-      const saving = page.waitForResponse(
-        (response) =>
-          response.request().method() === "POST" &&
-          response.url().includes("/api/document/command") &&
-          response.request().postDataJSON()?.type === "CorrectTranscriptWord",
-      );
-      await field.press("Enter");
-      const reply = await saving;
-      expect(reply.ok()).toBe(true);
-      const result = (await reply.json()) as { history_head_id?: string };
-      savedHead = result.history_head_id ?? null;
-      expect(savedHead).not.toBeNull();
-      await expect(
-        list.getByRole("button", { name: /^My(?: \(.*\))?$/ }).first(),
-      ).toBeVisible();
-    } catch (error) {
-      failed = true;
-      failure = error;
-    }
-    if (savedHead) {
+      let savedHead: string | null = null;
+      let failed = false;
+      let failure: unknown;
       try {
-        await postDocumentCommand(
-          page,
-          "e2e-phone-correct-cleanup",
-          "UndoHistory",
-          {
-            rerender: false,
-            expected_head_id: savedHead,
-          },
+        await field.fill("My");
+        const saving = page.waitForResponse(
+          (response) =>
+            response.request().method() === "POST" &&
+            response.url().includes("/api/document/command") &&
+            response.request().postDataJSON()?.type === "CorrectTranscriptWord",
         );
+        await field.press("Enter");
+        const reply = await saving;
+        expect(reply.ok()).toBe(true);
+        const result = (await reply.json()) as { history_head_id?: string };
+        savedHead = result.history_head_id ?? null;
+        expect(savedHead).not.toBeNull();
+        await expect(
+          list.getByRole("button", { name: /^My(?: \(.*\))?$/ }).first(),
+        ).toBeVisible();
       } catch (error) {
-        if (failed) {
-          test.info().annotations.push({
-            type: "Correction cleanup failure",
-            description: String(error),
-          });
-        } else {
-          failed = true;
-          failure = error;
+        failed = true;
+        failure = error;
+      }
+      if (savedHead) {
+        try {
+          await postDocumentCommand(
+            page,
+            "e2e-phone-correct-cleanup",
+            "UndoHistory",
+            {
+              rerender: false,
+              expected_head_id: savedHead,
+            },
+            projectPath,
+          );
+        } catch (error) {
+          if (failed) {
+            test.info().annotations.push({
+              type: "Correction cleanup failure",
+              description: String(error),
+            });
+          } else {
+            failed = true;
+            failure = error;
+          }
         }
       }
-    }
-    if (failed) throw failure;
+      if (failed) throw failure;
+    });
   });
 });
