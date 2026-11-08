@@ -4,6 +4,7 @@ import {
   loadTranscriptVocabulary,
   startPipelineRun,
 } from "../../api";
+import { useLatestRequest } from "../../hooks/useLatestRequest";
 import type { PipelineWorkingSet } from "../../hooks/usePipelineWorkingSet";
 import {
   type DownloadOutcome,
@@ -127,6 +128,7 @@ export function usePrepareRun(input: PrepareRunInput) {
   const latest = useRef(input);
   latest.current = input;
   const activeStart = useRef<RunRequest | null>(null);
+  const captureReads = useLatestRequest();
   /** Mirrors `waiting`, so a second refusal says so instead of doing nothing. */
   const waitingRef = useRef(false);
   const waitingRequest = useRef<RunRequest | null>(null);
@@ -175,23 +177,31 @@ export function usePrepareRun(input: PrepareRunInput) {
     ): Promise<RunRequest | null> => {
       const { projectPath, workingSet } = latest.current;
       const { projectEpoch } = useDawStore.getState();
+      const scope = { projectPath, projectEpoch };
+      const token = captureReads.begin();
+      const isCurrent = () =>
+        captureReads.isCurrent(token) && ownsRequest(scope);
       const selection = skipped ? new Set(skipped) : undefined;
-      const cfg = workingSet.cfg
-        ? structuredClone(workingSet.cfg)
-        : await workingSet.fetchFresh();
-      if (!cfg) throw new Error("Could not read the pipeline settings.");
-      const request: RunRequest = {
-        projectPath,
-        projectEpoch,
-        mode,
-        options: structuredClone(
-          runOptions(cfg, mode, overwriteEdited, fromStep, selection),
-        ),
-        consent: null,
-      };
-      return ownsRequest(request) ? request : null;
+      try {
+        const cfg = workingSet.cfg
+          ? structuredClone(workingSet.cfg)
+          : await workingSet.fetchFresh();
+        if (!isCurrent()) return null;
+        if (!cfg) throw new Error("Could not read the pipeline settings.");
+        return {
+          ...scope,
+          mode,
+          options: structuredClone(
+            runOptions(cfg, mode, overwriteEdited, fromStep, selection),
+          ),
+          consent: null,
+        };
+      } catch (error) {
+        if (!isCurrent()) return null;
+        throw error;
+      }
     },
-    [],
+    [captureReads],
   );
 
   const offerReplace = useCallback((request: RunRequest, edited: string[]) => {

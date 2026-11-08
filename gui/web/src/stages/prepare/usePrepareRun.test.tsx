@@ -9,10 +9,14 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   cancelPipelineRun,
+  loadPipelineConfig,
   loadTranscriptVocabulary,
   startPipelineRun,
 } from "../../api";
-import type { PipelineWorkingSet } from "../../hooks/usePipelineWorkingSet";
+import {
+  type PipelineWorkingSet,
+  usePipelineWorkingSet,
+} from "../../hooks/usePipelineWorkingSet";
 import { ModelNeedRow } from "../../models/ModelNeedRow";
 import type { DownloadOutcome } from "../../models/types";
 import { ModelsContext } from "../../models/useModels";
@@ -36,6 +40,7 @@ import { runOptions, usePrepareRun } from "./usePrepareRun";
 
 vi.mock("../../api", async (original) => ({
   ...(await original<typeof import("../../api")>()),
+  loadPipelineConfig: vi.fn(),
   startPipelineRun: vi.fn(),
   loadTranscriptVocabulary: vi.fn(),
   cancelPipelineRun: vi.fn(),
@@ -1222,4 +1227,126 @@ it("does not resave old working settings when a stopped request resumes", async 
       config: { transcribe: { model: "small.en" } },
     }),
   ]);
+});
+
+describe("configuration capture ownership", () => {
+  function mountReads() {
+    type Config = ReturnType<typeof pipelineConfig>;
+    const deferred = () => {
+      let resolve!: (value: Config) => void;
+      let reject!: (error: Error) => void;
+      const promise = new Promise<Config>((yes, no) => {
+        resolve = yes;
+        reject = no;
+      });
+      return { promise, resolve, reject };
+    };
+    const reads = [deferred(), deferred(), deferred()] as const;
+    vi.mocked(loadPipelineConfig)
+      .mockReset()
+      .mockReturnValueOnce(reads[0].promise)
+      .mockReturnValueOnce(reads[1].promise)
+      .mockReturnValueOnce(reads[2].promise);
+    const view = renderHook(() => {
+      const workingSet = usePipelineWorkingSet("/tmp/p/episode.sharecut", true);
+      return usePrepareRun({
+        projectPath: "/tmp/p/episode.sharecut",
+        workingSet,
+        transcribed: 0,
+        untranscribed: 1,
+        mediaKey: "synthetic",
+        ingestBusy: false,
+        canRun: true,
+        nameOf: (id) => id,
+      });
+    });
+    return { ...view, reads };
+  }
+
+  it.each(["resolve", "reject"] as const)(
+    "ignores an obsolete real working-set %s after the newer run succeeds",
+    async (outcome) => {
+      const {
+        result,
+        reads: [initial, older, newer],
+      } = mountReads();
+      let first!: Promise<void>;
+      let second!: Promise<void>;
+      act(() => {
+        first = result.current.run("run");
+        second = result.current.run("run");
+      });
+      expect(loadPipelineConfig).toHaveBeenCalledTimes(3);
+      await act(async () => {
+        newer.resolve(pipelineConfig());
+        await second;
+      });
+      expect(start).toHaveBeenCalledOnce();
+      expect(useDawStore.getState().pipelineJob?.id).toBe("j1");
+      expect(result.current.startError).toBeNull();
+      await act(async () => {
+        if (outcome === "resolve") older.resolve(pipelineConfig());
+        else older.reject(new Error("Obsolete settings error"));
+        await first;
+        initial.resolve(pipelineConfig());
+      });
+      expect(result.current.startError).toBeNull();
+      expect(start).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("reports a genuine failure of the current configuration read", async () => {
+    const {
+      result,
+      reads: [initial, current],
+    } = mountReads();
+    let pending!: Promise<void>;
+    act(() => {
+      pending = result.current.run("run");
+    });
+    await act(async () => {
+      current.reject(new Error("Settings offline"));
+      await pending;
+      initial.resolve(pipelineConfig());
+    });
+    expect(result.current.startError).toBe("Settings offline");
+    expect(start).not.toHaveBeenCalled();
+  });
+
+  it.each(["run", "retranscribe", "retime"] as const)(
+    "retires a pending %s configuration capture on unmount",
+    async (mode) => {
+      useDawStore.setState({ statusAnnouncement: "" });
+      const {
+        result,
+        unmount,
+        reads: [initial, current],
+      } = mountReads();
+      let pending: Promise<void> | undefined;
+      act(() => {
+        if (mode === "run") pending = result.current.run("run");
+        else if (mode === "retranscribe") result.current.retranscribe();
+        else
+          result.current.awaitAligner(
+            {
+              id: "word-aligner",
+              variant: null,
+              label: "Word timing",
+              size: "360 MB",
+            },
+            Promise.resolve({ kind: "ok" }),
+          );
+      });
+      expect(loadPipelineConfig).toHaveBeenCalledTimes(2);
+      unmount();
+      await act(async () => {
+        current.reject(new Error("Retired settings error"));
+        await pending;
+        initial.resolve(pipelineConfig());
+      });
+      expect(start).not.toHaveBeenCalled();
+      expect(vocabulary).not.toHaveBeenCalled();
+      expect(useDawStore.getState().statusAnnouncement).toBe("");
+    },
+  );
 });
