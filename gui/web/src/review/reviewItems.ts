@@ -420,30 +420,28 @@ export function commentEntriesOf(
   });
 }
 
-function ownWord(
-  utterances: readonly CombinedUtterance[],
-  track: string,
-  source: string | null,
-  index: number,
-): ReturnType<typeof wordsForUtterance>[number] | null {
-  for (const u of utterances) {
-    if (u.track_id !== track) continue;
-    for (const w of wordsForUtterance(u))
-      if (
-        w.word_index === index &&
-        (w.timing_target?.source_id ?? u.source_id ?? null) === source
-      )
-        return w;
-  }
-  return null;
-}
-
 /** One item per unsure word, whether it sits inside an open cut or only in the transcript. */
 export function unsureEntriesOf(
   pending: readonly PendingEditView[],
   utterances: readonly CombinedUtterance[],
 ): { entries: ReviewEntry[]; targets: ReadonlyMap<string, WordTarget> } {
   const found = new Map<string, WordTarget & { cut?: string }>();
+  const indexed = new Map<
+    string,
+    ReturnType<typeof wordsForUtterance>[number]
+  >();
+  for (const row of utterances) {
+    for (const word of wordsForUtterance(row)) {
+      if (word.word_index == null) continue;
+      const id = wordIdOf(
+        row.track_id,
+        word.timing_target?.source_id ?? row.source_id ?? null,
+        word.word_index,
+      );
+      if (!indexed.has(id)) indexed.set(id, word);
+    }
+  }
+
   for (const stop of selectLowConfidenceStops(utterances, false, false)) {
     found.set(wordIdOf(stop.trackId, stop.sourceId ?? null, stop.wordIndex), {
       trackId: stop.trackId,
@@ -459,7 +457,7 @@ export function unsureEntriesOf(
     for (const w of edit.unsure_words ?? []) {
       const id = wordIdOf(w.track_id, w.source_id, w.word_index);
       const known = found.get(id);
-      const own = ownWord(utterances, w.track_id, w.source_id, w.word_index);
+      const own = indexed.get(id);
       if (own?.mappable === false) continue;
       const start = edit.timeline_start;
       found.set(id, {

@@ -84,7 +84,7 @@ export function parseClock(text: string): number | null {
 export type ReadinessFacts = {
   suggestions: { decided: number; total: number };
   comments: { resolved: number; total: number };
-  unsureWordsLeft: number;
+  unsureWordsLeft: number | "pending" | "failed";
   mixUpToDate: boolean;
   /** Without it the Loudness row is left out. */
   loudness?: LoudnessId;
@@ -140,7 +140,12 @@ export function readinessRows(facts: ReadinessFacts): ReadinessRow[] {
       id: "unsure",
       state: facts.unsureWordsLeft === 0 ? "done" : "needs-you",
       title: "Unsure words checked",
-      detail: `${facts.unsureWordsLeft} left`,
+      detail:
+        typeof facts.unsureWordsLeft === "number"
+          ? `${facts.unsureWordsLeft} left`
+          : facts.unsureWordsLeft === "failed"
+            ? "The transcript didn't load"
+            : "Loading the transcript…",
       fix:
         facts.unsureWordsLeft === 0
           ? undefined
@@ -226,9 +231,12 @@ export function reviewHandoff(facts: ReadinessFacts): ReviewHandoff | null {
     facts.suggestions.total -
     facts.suggestions.decided +
     (facts.comments.total - facts.comments.resolved) +
-    facts.unsureWordsLeft;
+    (typeof facts.unsureWordsLeft === "number" ? facts.unsureWordsLeft : 0);
   return {
-    label: `Review ${plural(open, "open item")}`,
+    label:
+      typeof facts.unsureWordsLeft === "number"
+        ? `Review ${plural(open, "open item")}`
+        : "Review open items",
     target: first.fix?.target,
   };
 }

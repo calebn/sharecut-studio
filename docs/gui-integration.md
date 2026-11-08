@@ -222,9 +222,18 @@ timebase QC uses, so a zero-length word at a kept clip's source end is
 mappable in both. Edit-boundary `cutaway_word_ids` ask the same helper and
 leave out a zero-length word it maps onto the left clip, so they cannot drift
 from the word views.
-When a word-free snapshot changes clip geometry overlapping an utterance, the
+When a word-free snapshot changes a candidate recording's clip mapping, the
 client discards retained word detail and fetches authoritative mapping again.
+The comparison covers complete placements, including overlapping words whose
+ends extend beyond the combined utterance. Candidate placements are indexed
+once per snapshot and compared once per recording identity.
 Unchanged placements and uniform timeline translations can retain that detail.
+While Detail is pending or failed, Review retains the last committed target in
+the same project and epoch, but word corrections, Hear, and exact-word
+navigation require ready Detail. Proposal Open in Edit remains available.
+A genuine target change retires its Fix draft. Review exposes the normal Detail
+retry without replacing the card. Deliver keeps the unsure check actionable
+with an unknown count until Detail succeeds. This does not block export.
 
 ### Transcript check routes
 

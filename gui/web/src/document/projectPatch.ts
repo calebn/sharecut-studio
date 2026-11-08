@@ -183,54 +183,92 @@ function samePlacementTranslation(
   );
 }
 
-function sameClipMapping(
-  previous: ProjectView,
-  incoming: ProjectView,
-  utterance: CombinedUtterance,
-  nextUtterance: CombinedUtterance,
-): boolean {
-  const placements = (project: ProjectView) =>
-    Object.values(project.clips.tracks)
-      .flat()
-      .filter(
-        (clip) =>
-          clip.source_start <= utterance.end &&
-          clip.source_end >= utterance.start &&
-          (clip.track_id === utterance.track_id ||
-            clip.origin_track_id === utterance.track_id ||
-            (utterance.source_id != null &&
-              clip.source_id === utterance.source_id)),
-      )
-      .sort((a, b) => a.id.localeCompare(b.id));
-  const before = placements(previous);
-  const after = placements(incoming);
-  if (before.length !== after.length) return false;
-  if (before.length === 0) return true;
+type Placement = ProjectView["clips"]["tracks"][string][number];
+type PlacementIndex = Map<string, Map<string, Placement>>;
+type PlacementChange =
+  | { kind: "changed" }
+  | { kind: "same"; delta: number | null };
 
-  const delta =
-    (nextUtterance.timeline_start ?? 0) - (utterance.timeline_start ?? 0);
-  return before.every((clip, index) => {
-    const next = after[index];
-    return (
-      next !== undefined &&
-      clip.id === next.id &&
-      clip.track_id === next.track_id &&
-      clip.origin_track_id === next.origin_track_id &&
-      clip.source_id === next.source_id &&
-      clip.recording_key === next.recording_key &&
-      clip.timing_steps === next.timing_steps &&
-      clip.timing_summary === next.timing_summary &&
-      clip.source_start === next.source_start &&
-      clip.source_end === next.source_end &&
-      Math.abs(next.timeline_start - clip.timeline_start - delta) < 1e-7 &&
-      Math.abs(next.timeline_end - clip.timeline_end - delta) < 1e-7 &&
-      sameItems(
+function indexPlacements(project: ProjectView): PlacementIndex {
+  const index: PlacementIndex = new Map();
+  for (const lane of Object.values(project.clips.tracks)) {
+    for (const clip of lane) {
+      const keys = new Set([`track:${clip.track_id}`]);
+      if (clip.origin_track_id != null)
+        keys.add(`track:${clip.origin_track_id}`);
+      if (clip.source_id != null) keys.add(`source:${clip.source_id}`);
+      for (const key of keys) {
+        const clips = index.get(key) ?? new Map<string, Placement>();
+        clips.set(clip.id, clip);
+        index.set(key, clips);
+      }
+    }
+  }
+  return index;
+}
+
+function recordingPlacements(index: PlacementIndex, row: CombinedUtterance) {
+  const clips = new Map(index.get(`track:${row.track_id}`));
+  if (row.source_id != null) {
+    for (const [id, clip] of index.get(`source:${row.source_id}`) ?? []) {
+      clips.set(id, clip);
+    }
+  }
+  return clips;
+}
+
+function comparePlacements(
+  before: Map<string, Placement>,
+  after: Map<string, Placement>,
+): PlacementChange {
+  if (before.size !== after.size) return { kind: "changed" };
+  let delta: number | null = null;
+  for (const [id, clip] of before) {
+    const next = after.get(id);
+    if (!next) return { kind: "changed" };
+    delta ??= next.timeline_start - clip.timeline_start;
+    if (
+      clip.track_id !== next.track_id ||
+      clip.origin_track_id !== next.origin_track_id ||
+      clip.source_id !== next.source_id ||
+      clip.recording_key !== next.recording_key ||
+      clip.timing_steps !== next.timing_steps ||
+      clip.timing_summary !== next.timing_summary ||
+      clip.source_start !== next.source_start ||
+      clip.source_end !== next.source_end ||
+      Math.abs(next.timeline_start - clip.timeline_start - delta) >= 1e-7 ||
+      Math.abs(next.timeline_end - clip.timeline_end - delta) >= 1e-7 ||
+      !sameItems(
         clip.timing?.steps ?? [],
         next.timing?.steps ?? [],
         (a, b) => a.at === b.at && a.delta_sec === b.delta_sec,
       )
+    )
+      return { kind: "changed" };
+  }
+  return { kind: "same", delta };
+}
+
+function clipMappingComparison(previous: ProjectView, incoming: ProjectView) {
+  const before = indexPlacements(previous);
+  const after = indexPlacements(incoming);
+  const changes = new Map<string, PlacementChange>();
+  return (row: CombinedUtterance, next: CombinedUtterance): boolean => {
+    const key = JSON.stringify([row.track_id, row.source_id ?? null]);
+    let change = changes.get(key);
+    if (!change) {
+      change = comparePlacements(
+        recordingPlacements(before, row),
+        recordingPlacements(after, row),
+      );
+      changes.set(key, change);
+    }
+    const delta = (next.timeline_start ?? 0) - (row.timeline_start ?? 0);
+    return (
+      change.kind === "same" &&
+      (change.delta === null || Math.abs(change.delta - delta) < 1e-7)
     );
-  });
+  };
 }
 
 function overlayTranscriptWords(
@@ -251,6 +289,10 @@ function overlayTranscriptWords(
       previousBySource.set(key, candidates);
     }
   }
+  const sameClipMapping = clipMappingComparison(
+    previousProject,
+    incomingProject,
+  );
   let complete = incoming.utterances.length > 0;
   const utterances = incoming.utterances.map((utterance) => {
     if (utterance.words) {
@@ -260,7 +302,7 @@ function overlayTranscriptWords(
     if (
       !prior?.words ||
       prior.text !== utterance.text ||
-      !sameClipMapping(previousProject, incomingProject, prior, utterance) ||
+      !sameClipMapping(prior, utterance) ||
       !samePlacementTranslation(prior, utterance) ||
       !sameIgnoredWords(prior, utterance) ||
       !sameEdgeSuppressedWords(prior, utterance) ||

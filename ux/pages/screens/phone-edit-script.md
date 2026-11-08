@@ -64,3 +64,9 @@ editor saves and Escape cancels.
 ├─ ▶ 12:34   Hear original ────────────┤
 ├─ Record │ Prepare │ Edit │ Review │ Deliver ─┤
 ```
+
+Review keeps an open Fix draft while word detail reloads for the same target.
+Save and Looks right wait until the words are ready. A failed load offers Try
+again. Deliver keeps Check available during this wait and does not report zero
+unsure words until the transcript detail establishes that count. Export remains
+available under its existing requirements.

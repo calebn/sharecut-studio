@@ -81,7 +81,7 @@ const words = [
     timeline_end: 3.2,
   },
 ];
-function project(ready = true, changed = false) {
+function project(ready = true, changed = false, rolled = !ready) {
   const base = minimalProject();
   return minimalProject({
     tracks: [sampleTrack({ id: "host" })],
@@ -92,15 +92,15 @@ function project(ready = true, changed = false) {
           {
             id: "left",
             source_start: 0,
-            source_end: ready ? 2 : 2.5,
+            source_end: changed ? 3 : rolled ? 2.5 : 2,
             timeline_start: 0,
-            timeline_end: ready ? 2 : 2.5,
+            timeline_end: changed ? 3 : rolled ? 2.5 : 2,
           },
           {
             id: "right",
-            source_start: ready ? 3 : 3.5,
+            source_start: changed ? 4 : rolled ? 3.5 : 3,
             source_end: 60,
-            timeline_start: ready ? 2 : 2.5,
+            timeline_start: changed ? 3 : rolled ? 2.5 : 2,
             timeline_end: 59,
           },
         ].map((clip) => ({
@@ -276,7 +276,11 @@ it("keeps a draft through failed Detail and normal retry", async () => {
   expect(wire.detail).toHaveBeenCalledTimes(2);
   expect(screen.getByRole("button", { name: "Try again" })).toBeDisabled();
   await act(async () =>
-    retry.resolve({ server_seq: 2, state_token: "test", project: project() }),
+    retry.resolve({
+      server_seq: 2,
+      state_token: "test",
+      project: project(true, false, true),
+    }),
   );
   expect(
     screen.getByRole("textbox", { name: "Corrected text for “valid”" }),
@@ -387,7 +391,11 @@ it("does not publish the projection from an abandoned render", async () => {
     screen.getByRole("textbox", { name: "Corrected text for “valid”" }),
   ).toHaveValue("valid committed");
   await act(async () =>
-    request.resolve({ server_seq: 3, state_token: "test", project: project() }),
+    request.resolve({
+      server_seq: 3,
+      state_token: "test",
+      project: project(true, false, true),
+    }),
   );
   expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
 });
@@ -485,12 +493,31 @@ it.each(["pending", "failed"])(
         id: "p1",
       });
       if (phase === "pending") {
-        const fresh = project();
-        fresh.transcript!.utterances[0].words = words.map((word) =>
-          word.word_index === 2
-            ? { ...word, timeline_start: 8, timeline_end: 8.3 }
-            : word,
-        );
+        const fresh = project(true, false, true);
+        fresh.clips.tracks.host = fresh.clips.tracks.host.map((clip) => ({
+          ...clip,
+          timeline_start: clip.timeline_start + 5.4,
+          timeline_end: clip.timeline_end + 5.4,
+        }));
+        fresh.transcript = {
+          utterances: [
+            {
+              ...fresh.transcript!.utterances[0],
+              timeline_start: 6.9,
+              timeline_end: 8.6,
+              timeline_spans: [{ start: 6.9, end: 8.6 }],
+              words: words.map((word) => ({
+                ...word,
+                timeline_start:
+                  word.timeline_start === null
+                    ? null
+                    : word.timeline_start + 5.4,
+                timeline_end:
+                  word.timeline_end === null ? null : word.timeline_end + 5.4,
+              })),
+            },
+          ],
+        };
         await act(async () =>
           request.resolve({
             server_seq: 2,
