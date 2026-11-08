@@ -99,7 +99,6 @@ to UX partners; for UI copy, this table wins.
 | Shorter / Taller / Reset panel size | Local editor-panel sizing buttons. Steps are 1 rem; Reset clears the browser preference | A project edit or History action |
 | Queue suggestion | One candidate tightening decision in the Review Queue | — |
 | Reading copy | The optional paragraph-style `readable.txt` transcript export in Deliver. Detailed text remains the timestamped TXT export and Copy output | "Text" when the paragraph-style file is meant |
-| Reading copy | The optional paragraph-style `readable.txt` transcript export in Deliver. Detailed text remains the timestamped TXT export and Copy output | "Text" when the paragraph-style file is meant |
 | Likely laugh | The label on a Queue suggestion whose sound rises and falls like a laugh. It is a hint, and its suggested action is Lower (when another speaker talks over it, otherwise it is left) | "Laugh detected", "filler:acoustic:likely_laugh" |
 | Possible missed word | The label on a Queue suggestion that the project's speech recogniser, hearing that sound alone, writes down as a word the transcript missed. It is a hint, and its suggested action is Leave, so applying suggested actions (agent and CLI only) keeps the audio and dismisses the suggestion (#1434) | "Missed word detected", "Rejected", "filler:acoustic:possible_word" |
 | Edit marker | The in-lane symbol for one join at any zoom: `|` cut, `╲╱` fade, `✕` crossfade, each in its own hue. Tapping one opens the join's popover. Named like "Fade join at 0:05.0" | "badge", "join badge" |
