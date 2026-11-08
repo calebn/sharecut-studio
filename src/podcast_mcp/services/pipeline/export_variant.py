@@ -159,6 +159,8 @@ _FORMAT_FIELDS = {
     "channels",
     "extra_args",
 }
+_MP3_SAMPLE_RATES = frozenset({44100, 48000, 32000, 22050, 24000, 16000, 11025, 12000, 8000})
+_MP3_CHANNEL_COUNTS = frozenset({1, 2})
 
 
 @dataclass(frozen=True)
@@ -316,6 +318,12 @@ def _parse_variant_format(raw: Mapping[str, Any]) -> ExportFormatSpec:
         if codec not in (None, "libmp3lame") or muxer not in (None, "mp3"):
             raise _VariantValidationError(
                 "MP3 variants require the libmp3lame encoder and mp3 muxer"
+            )
+        if (sample_rate is not None and sample_rate not in _MP3_SAMPLE_RATES) or (
+            channels is not None and channels not in _MP3_CHANNEL_COUNTS
+        ):
+            raise _VariantValidationError(
+                "MP3 variants require a libmp3lame-supported sample rate and channel count"
             )
         return ExportFormatSpec(
             ext="mp3",

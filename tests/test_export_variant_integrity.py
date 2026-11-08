@@ -261,7 +261,7 @@ def test_receipt_admission_preserves_valid_unicode(prepared):
     result = PipelineService(ws).export_variant(ExportTarget.PODCAST, formats=[])
     receipt_path = (ws.project.export_dir() / result.file_ids[0]).with_name("receipt.json")
     record = json.loads(receipt_path.read_text())
-    record["qc"]["plan"] = "loudnorm – café 🎙"
+    record["qc"]["plan"] = "loudnorm café 🎙"
     record["qc"]["measured"]["測定"] = record["qc"]["measured"].pop("lra")
     sidecar = receipt_path.with_name("master_qc.json")
     sidecar.write_text(json.dumps(record["qc"], ensure_ascii=False))
@@ -272,7 +272,7 @@ def test_receipt_admission_preserves_valid_unicode(prepared):
     }
     receipt_path.write_text(json.dumps(record, ensure_ascii=False))
     admitted = admit_bundle(receipt_path.parent, result.file_ids[0].split("/")[1])
-    assert admitted.qc.plan == "loudnorm – café 🎙"
+    assert admitted.qc.plan == "loudnorm café 🎙"
 
 
 @pytest.mark.parametrize("option", [{"channels": 3}, {"sample_rate": 48001}])
@@ -498,7 +498,7 @@ def test_swapped_parent_preserves_unowned_stage(prepared, monkeypatch, tmp_path,
 def test_platform_refusal_preserves_default_exports(prepared, monkeypatch):
     import sys
 
-    from podcast_mcp.services.pipeline import export_variant
+    from podcast_mcp.services.pipeline import service as service_module
     from podcast_mcp.util.owned_stage import owned_stage_supported
 
     ws, engine, _ = prepared
@@ -508,7 +508,7 @@ def test_platform_refusal_preserves_default_exports(prepared, monkeypatch):
         assert not owned_stage_supported()
     else:
         assert owned_stage_supported()
-        monkeypatch.setattr(export_variant, "owned_stage_supported", lambda: False)
+        monkeypatch.setattr(service_module, "owned_stage_supported", lambda: False)
     client = TestClient(create_app())
     job = done(client, ws.path, start(client, ws.path, target="broadcast", formats=[]))
     assert job["status"] == "error"
@@ -524,11 +524,11 @@ def test_platform_refusal_preserves_default_exports(prepared, monkeypatch):
 
 def test_platform_refusal_precedes_ffmpeg_construction(prepared, monkeypatch):
     from podcast_mcp.services.pipeline import ExportTarget, PipelineService
-    from podcast_mcp.services.pipeline import export_variant, service as service_module
+    from podcast_mcp.services.pipeline import service as service_module
     from podcast_mcp.util.coded_error import CodedValueError
 
     ws, _, _ = prepared
-    monkeypatch.setattr(export_variant, "owned_stage_supported", lambda: False)
+    monkeypatch.setattr(service_module, "owned_stage_supported", lambda: False)
     calls = []
 
     def construct_engine():
