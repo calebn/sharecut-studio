@@ -150,7 +150,12 @@ ticket and reveal paths. The inventory admits only registered audio files from c
 valid bundles. Saved files remain available when current mix evidence or pipeline defaults
 cannot be read. Variants and transcripts report not current when their currentness cannot
 be established; canonical audio retains its existing currentness behavior. Generation still requires
-valid working configuration. Existing host and guest read permissions continue to apply.
+valid working configuration, checked again before publication. Listing selects one private
+working-config snapshot, including staged settings. Source and transcript comparisons are
+independent, so an invalid mix setting does not mark transcripts stale and an invalid caption
+setting does not mark audio stale. Downloads and reveal use only immutable file admission;
+they do not load current configuration or render transcripts. Existing host and guest read
+permissions continue to apply.
 Guest routes do not create variant jobs. Isolated generation requires Linux or macOS directory
 descriptors. Unsupported hosts, including Windows, return
 `export_variant_storage_invalid` before staging or rendering. Default exports remain

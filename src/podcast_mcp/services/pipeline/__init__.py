@@ -30,12 +30,17 @@ if TYPE_CHECKING:
         suggest_pipeline_tuning,
         transcribe_run_config,
     )
+    from podcast_mcp.services.pipeline.export_config import (
+        export_config_snapshot,
+        transcript_comparison_limits,
+    )
     from podcast_mcp.services.pipeline.export_variant import (
         TARGET_INTEGRATED_LUFS,
         ExportTarget,
         VariantExportResult,
         VariantJobResult,
         completed_variant_files,
+        current_source_digest,
     )
     from podcast_mcp.services.pipeline.install_failure import InstallFailure, unexpected_text
     from podcast_mcp.services.pipeline.models import (
@@ -88,8 +93,10 @@ __all__ = [
     "config_assignment_paths",
     "config_assignments",
     "config_store",
+    "current_source_digest",
     "ensure_whisper_cached_for_run",
     "ensure_word_aligner_for_run",
+    "export_config_snapshot",
     "format_export_qc_lines",
     "install_model",
     "merge_pipeline_config",
@@ -109,6 +116,7 @@ __all__ = [
     "stale_stream_notices",
     "suggest_pipeline_tuning",
     "transcribe_run_config",
+    "transcript_comparison_limits",
     "unexpected_text",
     "uninstall_model",
     "validate_whisper_model",
@@ -138,6 +146,9 @@ _MODULE_BY_NAME = {
     "VariantExportResult": "export_variant",
     "VariantJobResult": "export_variant",
     "completed_variant_files": "export_variant",
+    "current_source_digest": "export_variant",
+    "export_config_snapshot": "export_config",
+    "transcript_comparison_limits": "export_config",
     "PipelineRunResult": "service",
     "PipelineService": "service",
     "format_export_qc_lines": "service",

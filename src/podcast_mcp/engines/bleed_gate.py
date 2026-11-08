@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import math
 import wave
+from collections.abc import Mapping
 from contextlib import suppress
 from dataclasses import dataclass
 from functools import cached_property, lru_cache
@@ -44,6 +45,7 @@ from podcast_mcp.engines.session_timeline import (
 )
 from podcast_mcp.engines.ungated_audio import raw_evidence_layout_reason, raw_timeline_samples
 from podcast_mcp.models import Clip, EpisodeProject, TranscriptGateScope, TranscriptWord
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dsp import bool_runs, bridge_short_dips, frame_rms_db_stream
 from podcast_mcp.util.intervals import (
     HalfOpenIntervalIndex,
@@ -919,10 +921,20 @@ def _compute_bleed_gate_plan(
     )
 
 
-def bleed_fill_enabled(defaults: EffectiveConfig) -> bool:
+def bleed_fill_enabled(defaults: EffectiveConfig, *, strict_inputs: bool = False) -> bool:
     """A bleed mute is filled unless ``gate_fill.mode`` is ``off`` (the same switch as the
     recorder-gate fill)."""
-    return str((defaults.get("gate_fill") or {}).get("mode", "auto")) != "off"
+    cfg = defaults.get("gate_fill")
+    if strict_inputs and cfg is not None and not isinstance(cfg, Mapping):
+        raise CodedValueError(
+            "gate_fill must be a mapping or null", code="pipeline_config_value_invalid"
+        )
+    mode = (cfg or {}).get("mode", "auto")
+    if strict_inputs and isinstance(mode, (Mapping, list, tuple, set, frozenset)):
+        raise CodedValueError(
+            "gate_fill.mode must be a scalar", code="pipeline_config_value_invalid"
+        )
+    return str(mode) != "off"
 
 
 def _media_runs(

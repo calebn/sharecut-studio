@@ -13,8 +13,6 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, TypedDict, cast
 
-import yaml
-
 from podcast_mcp.config.defaults import EffectiveConfig, mix_peak_ceiling_db
 from podcast_mcp.engines.ffmpeg import MASTER_SEMANTICS_REV, FFmpegEngine
 from podcast_mcp.engines.mastering import (
@@ -51,6 +49,7 @@ from podcast_mcp.util.project_state import FileRevision, file_revision
 from podcast_mcp.util.tracks import stem_path
 from podcast_mcp.util.wav import rendered_wav_is_complete
 
+from .export_config import require_source_config
 from .export_variant_receipt import AdmittedBundle, InvalidReceipt, _finite, admit_bundle
 
 
@@ -218,7 +217,6 @@ class VariantFile:
     source_digest: str
     size: int
     content_sha256: str
-    current: bool
     path: Path
 
 
@@ -561,6 +559,7 @@ def variant_identity(
     target: ExportTarget,
     formats: list[dict[str, Any]] | None,
 ) -> tuple[str, str]:
+    require_source_config(project, defaults)
     source = _source_certificate(project, defaults)
     request = _request(target, defaults, formats, project, source)
     return source.digest, request.identity
@@ -724,6 +723,7 @@ def export_variant_bundle(
             "This host cannot safely store isolated exports. Use the default export.",
             "export_variant_storage_invalid",
         )
+    require_source_config(project, defaults)
     source = _source_certificate(project, defaults)
     try:
         request = _request(target, defaults, formats, project, source)
@@ -852,9 +852,20 @@ def export_variant_bundle(
         owned.close()
 
 
-def completed_variant_files(
-    project: EpisodeProject, *, load_config: Callable[[], EffectiveConfig]
-) -> tuple[VariantFile, ...]:
+def current_source_digest(project: EpisodeProject, defaults: EffectiveConfig | None) -> str | None:
+    if defaults is None:
+        return None
+    try:
+        require_source_config(project, defaults)
+    except CodedValueError:
+        return None
+    try:
+        return _source_certificate(project, defaults).digest
+    except (CodedValueError, OSError):
+        return None
+
+
+def completed_variant_files(project: EpisodeProject) -> tuple[VariantFile, ...]:
     try:
         root = _safe_bundle_root(project, create=False)
     except CodedValueError:
@@ -877,10 +888,6 @@ def completed_variant_files(
             continue
     if not admitted:
         return ()
-    try:
-        source_digest = _source_certificate(project, load_config()).digest
-    except (CodedValueError, OSError, UnicodeError, ValueError, yaml.YAMLError):
-        source_digest = None
     entries: list[VariantFile] = []
     for directory, bundle in admitted:
         for audio in bundle.audio:
@@ -893,7 +900,6 @@ def completed_variant_files(
                     bundle.source_digest,
                     audio.size,
                     audio.sha256,
-                    bool(source_digest and source_digest == bundle.source_digest),
                     directory / audio.name,
                 )
             )

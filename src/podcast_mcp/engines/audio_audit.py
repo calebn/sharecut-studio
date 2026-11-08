@@ -6,7 +6,7 @@ import logging
 import math
 import tempfile
 from collections import Counter
-from collections.abc import Callable, Collection, Hashable
+from collections.abc import Callable, Collection, Hashable, Mapping
 from dataclasses import dataclass, field
 from functools import cached_property
 from pathlib import Path
@@ -145,9 +145,36 @@ class AnalysisPolicy:
     bleed_ratio_warn_threshold: float = 0.2
 
     @classmethod
-    def from_defaults(cls, defaults: EffectiveConfig) -> AnalysisPolicy:
+    def from_defaults(
+        cls, defaults: EffectiveConfig, *, strict_inputs: bool = False
+    ) -> AnalysisPolicy:
         cfg = defaults.get("analysis", {})
+        if strict_inputs and not isinstance(cfg, Mapping):
+            raise CodedValueError(
+                "analysis must be a mapping", code="pipeline_config_value_invalid"
+            )
         heur = cfg.get("heuristics", {})
+        if strict_inputs and not isinstance(heur, Mapping):
+            raise CodedValueError(
+                "analysis.heuristics must be a mapping", code="pipeline_config_value_invalid"
+            )
+        ml_backend = cfg.get("ml_backend", "off")
+        transcript_mode = cfg.get("transcript_mode", "reconcile")
+        reconcile_on_render = cfg.get("reconcile_on_render", True)
+        bleed_text_match_enabled = heur.get("bleed_text_match_enabled", True)
+        if strict_inputs and any(
+            isinstance(value, (Mapping, list, tuple, set, frozenset))
+            for value in (
+                ml_backend,
+                transcript_mode,
+                reconcile_on_render,
+                bleed_text_match_enabled,
+            )
+        ):
+            raise CodedValueError(
+                "analysis string and boolean inputs must be scalars",
+                code="pipeline_config_value_invalid",
+            )
         min_dom = heur.get("bleed_text_match_min_dominance_db")
         return cls(
             bleed_dominance_db=float(heur.get("bleed_dominance_db", 6.0)),
@@ -165,10 +192,10 @@ class AnalysisPolicy:
             word_span_end_slack_sec=float(
                 heur.get("word_span_end_slack_sec", DEFAULT_WORD_SPAN_END_SLACK_SEC)
             ),
-            ml_backend=str(cfg.get("ml_backend", "off")).lower(),
-            transcript_mode=str(cfg.get("transcript_mode", "reconcile")),
-            reconcile_on_render=bool(cfg.get("reconcile_on_render", True)),
-            bleed_text_match_enabled=bool(heur.get("bleed_text_match_enabled", True)),
+            ml_backend=str(ml_backend).lower(),
+            transcript_mode=str(transcript_mode),
+            reconcile_on_render=bool(reconcile_on_render),
+            bleed_text_match_enabled=bool(bleed_text_match_enabled),
             bleed_text_match_min_overlap_sec=float(
                 heur.get("bleed_text_match_min_overlap_sec", 0.02)
             ),

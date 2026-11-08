@@ -7,9 +7,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-import yaml
-
-from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.export.audio import AUDIO_EXPORT_MEDIA
 from podcast_mcp.export.chapters import render_chapters_json
 from podcast_mcp.export.names import sanitize_export_stem
@@ -21,6 +18,8 @@ from podcast_mcp.services.document.transcript import TranscriptService
 from podcast_mcp.services.pipeline import (
     TARGET_INTEGRATED_LUFS,
     completed_variant_files,
+    current_source_digest,
+    export_config_snapshot,
 )
 from podcast_mcp.util.coded_error import CodedFileNotFoundError
 from podcast_mcp.util.fingerprint import file_stamp
@@ -82,7 +81,7 @@ class ServedFile:
     version: str
     format: str | None = None
     label: str | None = None
-    current: bool | None = None
+    source_digest: str | None = None
 
 
 def _same_text(path: Path, expected: str) -> bool:
@@ -115,7 +114,7 @@ class ExportFilesService:
             media_type: str,
             format: str | None = None,
             label: str | None = None,
-            current: bool | None = None,
+            source_digest: str | None = None,
         ) -> ServedFile | None:
             path = export_root / relative
             if path.is_symlink():
@@ -138,7 +137,7 @@ class ExportFilesService:
                 f"{stamp.size}-{stamp.mtime_ns}",
                 format,
                 label,
-                current,
+                source_digest,
             )
 
         wanted: list[tuple[str, ExportedFileKind, str, str | None]] = [
@@ -166,7 +165,7 @@ class ExportFilesService:
             for relative, kind, media_type, format in wanted
             if (found := served(relative, kind, media_type, format)) is not None
         ]
-        for variant in completed_variant_files(project, load_config=self.ws.effective_config):
+        for variant in completed_variant_files(project):
             label = (
                 f"{variant.target.value.title()} ({TARGET_INTEGRATED_LUFS[variant.target]:g} LUFS) "
                 f"· {variant.format.upper()}"
@@ -177,7 +176,7 @@ class ExportFilesService:
                 AUDIO_EXPORT_MEDIA[variant.format],
                 variant.format,
                 label,
-                variant.current,
+                variant.source_digest,
             )
             if entry is not None and entry.path == variant.path:
                 found.append(entry)
@@ -199,25 +198,27 @@ class ExportFilesService:
 
         Audio, chapters and the feed are judged against the project here. Transcripts reuse ``TranscriptService.exported`` for ``current``. Chapters are current
         when the file equals a fresh render. The feed is current when the listing's own check
-        says so. Audio has no record of the edit state it was rendered from, so it is always
-        reported current; the Deliver status row keeps the stale judgement for it.
+        says so. Canonical audio retains its existing currentness behavior; named variants
+        compare their admitted source digest with current source evidence.
         """
         project = self.ws.project
         found = self._found()
         transcript_files = [entry for entry in found if entry.kind == "transcript"]
-        transcript_current: dict[str, bool] = {}
-        if transcript_files:
-            try:
-                config: EffectiveConfig | None = self.ws.effective_config()
-            except (OSError, UnicodeError, yaml.YAMLError):
-                config = None
-            if config is None:
-                transcript_current = {entry.path.name: False for entry in transcript_files}
-            else:
-                transcript_current = {
-                    transcript.name: transcript.current
-                    for transcript in TranscriptService(self.ws).exported(config)
-                }
+        has_variants = any(entry.source_digest is not None for entry in found)
+        config = (
+            export_config_snapshot(self.ws.effective_config)
+            if transcript_files or has_variants
+            else None
+        )
+        source_digest = current_source_digest(project, config) if has_variants else None
+        transcript_current = (
+            {
+                transcript.name: transcript.current
+                for transcript in TranscriptService(self.ws).exported(config)
+            }
+            if transcript_files
+            else {}
+        )
         chapters_text = render_chapters_json(project.chapters) if project.chapters else None
         feed_current: bool | None = None
         out: ListedFiles = []
@@ -228,7 +229,7 @@ class ExportFilesService:
             except OSError:
                 continue
             if found_entry.kind == "transcript":
-                current = transcript_current.get(name, True)
+                current = transcript_current.get(name, False)
             elif found_entry.kind == "chapters":
                 current = chapters_text is not None and _same_text(found_entry.path, chapters_text)
             elif found_entry.kind == "feed":
@@ -236,7 +237,11 @@ class ExportFilesService:
                     feed_current = FeedService(self.ws).read().file != "stale"
                 current = feed_current
             else:
-                current = found_entry.current if found_entry.current is not None else True
+                current = (
+                    source_digest == found_entry.source_digest
+                    if found_entry.source_digest is not None
+                    else True
+                )
             entry = ExportedFile(
                 id=found_entry.id,
                 name=name,

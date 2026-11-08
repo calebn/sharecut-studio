@@ -6,6 +6,7 @@ import logging
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from enum import Enum
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -67,6 +68,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document.service_base import WorkspaceService
+from podcast_mcp.services.pipeline import export_config_snapshot, transcript_comparison_limits
 from podcast_mcp.util.atomic_render import render_atomic_all
 from podcast_mcp.util.coded_error import CodedError, CodedValueError
 from podcast_mcp.util.project_state import (
@@ -93,6 +95,10 @@ def _user_transcript_edit(
 
 
 PREVIEW_TURNS = 6
+
+
+class _ComparisonConfig(Enum):
+    LOAD = "load"
 
 
 class ExportBusyError(CodedError, RuntimeError):
@@ -366,12 +372,16 @@ class TranscriptService(WorkspaceService):
             text=render_reading_text(p, defaults) if with_text else None,
         )
 
-    def exported(self, config: EffectiveConfig | None = None) -> list[ExportedTranscript]:
+    def exported(
+        self, config: EffectiveConfig | _ComparisonConfig | None = _ComparisonConfig.LOAD
+    ) -> list[ExportedTranscript]:
         """Transcript files in ``export_dir()`` for this project, read-only (no lock, no save).
 
         Only known transcript files directly in the folder count, so ``bounces/`` and ``clips/``
         never appear. ``current`` compares each file with a fresh render; captions compare by their
         words and cue start times, since the file does not record the cue limits.
+        Omitted config selects a private working snapshot. Explicit None means comparison
+        inputs are unavailable and never reloads settings.
         """
         p = self.ws.project
         stem = sanitize_export_stem(p.name)
@@ -383,17 +393,26 @@ class TranscriptService(WorkspaceService):
         if not found:
             return []
         fresh = p.model_copy(deep=True)
-        defaults = config if config is not None else self.ws.effective_config()
+        defaults = (
+            export_config_snapshot(self.ws.effective_config)
+            if config is _ComparisonConfig.LOAD
+            else config
+        )
+        limits = transcript_comparison_limits(fresh, defaults, [fmt for fmt, _ in found])
         other_formats = [fmt for fmt, _ in found if fmt != READABLE_TRANSCRIPT_FORMAT]
         rendered = (
-            render_transcript_formats(fresh, defaults, other_formats, _configured_limits(defaults))
-            if other_formats
+            render_transcript_formats(fresh, defaults, other_formats, limits)
+            if other_formats and defaults is not None and limits is not None
             else {}
         )
-        if any(fmt == READABLE_TRANSCRIPT_FORMAT for fmt, _ in found):
+        if (
+            defaults is not None
+            and limits is not None
+            and any(fmt == READABLE_TRANSCRIPT_FORMAT for fmt, _ in found)
+        ):
             try:
                 rendered[READABLE_TRANSCRIPT_FORMAT] = render_transcript_formats(
-                    fresh, defaults, [READABLE_TRANSCRIPT_FORMAT], _configured_limits(defaults)
+                    fresh, defaults, [READABLE_TRANSCRIPT_FORMAT], limits
                 )[READABLE_TRANSCRIPT_FORMAT]
             except ReadableTranscriptTimingError:
                 rendered[READABLE_TRANSCRIPT_FORMAT] = ""
@@ -416,7 +435,8 @@ class TranscriptService(WorkspaceService):
                     modified=datetime.fromtimestamp(mtime, tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
                     current=(
                         False
-                        if fmt == READABLE_TRANSCRIPT_FORMAT and not rendered[fmt]
+                        if fmt not in rendered
+                        or (fmt == READABLE_TRANSCRIPT_FORMAT and not rendered[fmt])
                         else _same_transcript(fmt, data, rendered[fmt], fresh)
                     ),
                 )

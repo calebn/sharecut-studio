@@ -206,3 +206,81 @@ def test_yaml_decoder_runtime_error_propagates(tmp_path, monkeypatch):
         with pytest.raises(RuntimeError, match="decoder programming failure"):
             load_defaults()
     assert load_defaults()["custom"] == "valid"
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        {},
+        {"transcribe": None},
+        {"transcribe": {"vad": None, "forced_alignment": {"enabled": None}}},
+        {"transcribe": {"vad": {"threshold": "n/a", "speech_pad_ms": "90000"}}},
+        {"transcribe": {"decode": {"temperature": [0, "0.4", 9, "n/a"]}}},
+        {"transcribe": {"decode": {"temperature": (), "hallucination_silence_threshold": None}}},
+        {"transcribe": {"decode": {"temperature": True, "hallucination_silence_threshold": 0}}},
+    ],
+)
+def test_strict_asr_admission_preserves_owned_conversions(config):
+    from podcast_mcp.engines.asr_options import AsrOptions
+
+    options = AsrOptions.from_defaults(config, strict_inputs=True)
+    assert options == AsrOptions.from_defaults(config)
+    assert options.language == "en"
+    assert options.vad_threshold == 0.4
+    assert options.forced_alignment.requested is None
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        {"transcribe": []},
+        {"transcribe": {"vad": "invalid"}},
+        {"transcribe": {"language": {}}},
+        {"transcribe": {"vad": {"threshold": []}}},
+        {"transcribe": {"decode": {"temperature": [0.0, {}]}}},
+        {"transcribe": {"silence_filter": {"enabled": []}}},
+        {"transcribe": {"forced_alignment": {"min_word_score": {}}}},
+    ],
+)
+def test_strict_asr_admission_rejects_shapes_without_changing_ordinary_resolution(config):
+    from podcast_mcp.engines.asr_options import AsrOptions
+
+    AsrOptions.from_defaults(config)
+    with pytest.raises(ValueError):
+        AsrOptions.from_defaults(config, strict_inputs=True)
+
+
+@pytest.mark.parametrize(
+    "mode,expected",
+    [(None, True), (False, True), (0, True), ("off", False), ("auto", True), ("other", True)],
+)
+def test_strict_gate_fill_admission_keeps_scalar_semantics(mode, expected):
+    from podcast_mcp.engines.bleed_gate import bleed_fill_enabled
+
+    config = {"gate_fill": {"mode": mode}}
+    assert bleed_fill_enabled(config, strict_inputs=True) is expected
+    assert bleed_fill_enabled(config) is expected
+
+
+def test_strict_analysis_admission_preserves_scalar_conversions():
+    from podcast_mcp.engines.audio_audit import AnalysisPolicy
+
+    config = {
+        "analysis": {
+            "ml_backend": False,
+            "transcript_mode": None,
+            "reconcile_on_render": 0,
+            "heuristics": {
+                "min_fade_ms": "12",
+                "bleed_dominance_db": "4.5",
+                "bleed_text_match_enabled": None,
+                "bleed_text_match_min_dominance_db": None,
+            },
+        }
+    }
+    policy = AnalysisPolicy.from_defaults(config, strict_inputs=True)
+    assert policy == AnalysisPolicy.from_defaults(config)
+    assert (policy.min_fade_ms, policy.bleed_dominance_db) == (12, 4.5)
+    assert (policy.ml_backend, policy.transcript_mode) == ("false", "None")
+    assert policy.reconcile_on_render is False
+    assert policy.bleed_text_match_enabled is False
