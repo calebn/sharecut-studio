@@ -76,6 +76,9 @@ describe("ReviewQueue long list", () => {
     expect(within(filterGroup).getByText("Comments")).toBeVisible();
     expect(within(filterGroup).getByText("Checks")).toBeVisible();
     expect(
+      within(filterGroup).getByRole("button", { name: "Comments, 1" }),
+    ).toHaveTextContent("Comments 1");
+    expect(
       screen
         .getByRole("region", { name: "Unsure words" })
         .querySelectorAll(".sys-queue-row"),
