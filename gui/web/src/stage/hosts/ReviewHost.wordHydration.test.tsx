@@ -4,6 +4,7 @@ import {
   render,
   renderHook,
   screen,
+  within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Suspense } from "react";
@@ -22,6 +23,7 @@ import {
   sampleTrack,
 } from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
+import type { CombinedUtterance } from "../../types/project";
 import { useReviewQueue } from "./useReviewQueue";
 
 const wire = vi.hoisted(() => ({ detail: vi.fn(), correct: vi.fn() }));
@@ -172,6 +174,77 @@ function project(ready = true, changed = false, rolled = !ready) {
     },
   });
 }
+
+function restorationProject(restored: string | null, ready = true, offset = 0) {
+  const result = project(ready);
+  const leftEnd = restored === null ? 2 : 2.12;
+  const rightStart = leftEnd + 0.2;
+  result.clips.tracks.host = result.clips.tracks.host.map((clip, index) =>
+    index === 0
+      ? {
+          ...clip,
+          source_end: leftEnd,
+          timeline_start: offset,
+          timeline_end: leftEnd + offset,
+        }
+      : {
+          ...clip,
+          source_start: rightStart,
+          timeline_start: leftEnd + offset,
+          timeline_end: 59.8 + offset,
+        },
+  );
+  result.pending_edits = [];
+  const word = (
+    text: string,
+    start: number,
+    end: number,
+    wordIndex: number,
+    unsure = false,
+  ) => {
+    const shift = offset - (start >= rightStart ? 0.2 : 0);
+    return {
+      text,
+      start,
+      end,
+      word_index: wordIndex,
+      timing_target: {
+        track_id: "host",
+        source_id: null,
+        word_index: wordIndex,
+      },
+      mappable: true,
+      timeline_start: start + shift,
+      timeline_end: end + shift,
+      confidence: unsure ? 0.4 : 0.95,
+      unsure,
+    };
+  };
+  const active = [
+    word("anchor", 1.5, 1.8, 0),
+    ...(restored === null ? [] : [word(restored, 2.01, 2.1, 1, true)]),
+    word("original", 2.33, 2.43, restored === null ? 1 : 2, true),
+  ];
+  const row: CombinedUtterance = {
+    track_id: "host",
+    source_id: null,
+    speaker: "Host",
+    start: 1.5,
+    end: 2.43,
+    text: active.map((w) => w.text).join(" "),
+    timeline_start: 1.5 + offset,
+    timeline_end: 2.23 + offset,
+    timeline_spans: [
+      { start: 1.5 + offset, end: leftEnd + offset },
+      { start: leftEnd + offset, end: 2.23 + offset },
+    ],
+    mappable: true,
+    ...(ready ? { words: active } : {}),
+  };
+  result.transcript = { utterances: [row] };
+  return result;
+}
+
 const interrupted = deferred<void>();
 function App({ suspend = false }: { suspend?: boolean }) {
   const queue = useReviewQueue();
@@ -189,12 +262,17 @@ function publish(next: ReturnType<typeof project>, seq: number) {
 }
 beforeEach(() => {
   vi.clearAllMocks();
+  wire.detail.mockReset();
   clearRegisteredCommands();
   registerDawCommands();
   path = `/tmp/review-hydration-${++runs}/episode.sharecut`;
   stubViewportShell("desktop");
   useDawStore.getState().hydrate(path, project());
-  useDawStore.setState({ stage: "review", guestMode: null });
+  useDawStore.setState({
+    stage: "review",
+    guestMode: null,
+    shellBreakpoint: "desktop",
+  });
   resetDocumentAuthority(path);
   publish(project(), 1);
 });
@@ -285,6 +363,7 @@ it("keeps a draft through failed Detail and normal retry", async () => {
   expect(
     screen.getByRole("textbox", { name: "Corrected text for “valid”" }),
   ).toBe(input);
+  expect(input).toHaveValue("valid retained");
   expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
   expect(wire.correct).not.toHaveBeenCalled();
 });
@@ -318,6 +397,131 @@ it("retires the draft when authoritative Detail genuinely changes the target", a
     "cut",
   );
 });
+
+it.each(["restored", "original"])(
+  "drops the old draft when Roll restores %s at the selected ordinal",
+  async (restored) => {
+    const request = deferred<DocumentSnapshot>();
+    wire.detail.mockReturnValueOnce(request.promise);
+    publish(restorationProject(null), 2);
+    render(<App />);
+    const unsure = within(screen.getByRole("region", { name: "Unsure words" }));
+    await userEvent.click(unsure.getByRole("button", { name: /original/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Fix text" }));
+    const draft = screen.getByRole("textbox", {
+      name: "Corrected text for “original”",
+    });
+    await userEvent.type(draft, " draft for B");
+
+    publish(restorationProject(null, true, 5), 3);
+    expect(
+      screen.getByRole("textbox", { name: "Corrected text for “original”" }),
+    ).toBe(draft);
+    expect(draft).toHaveValue("original draft for B");
+
+    publish(restorationProject(restored, false, 5), 4);
+    expect(draft).toHaveValue("original draft for B");
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    fireEvent.submit(draft.closest("form")!);
+    expect(wire.correct).not.toHaveBeenCalled();
+    await act(async () =>
+      request.resolve({
+        server_seq: 4,
+        state_token: "test",
+        project: restorationProject(restored, true, 5),
+      }),
+    );
+
+    expect(
+      unsure.getAllByRole("button", { name: /original|restored/ }),
+    ).toHaveLength(2);
+    expect(
+      screen.getByText(`“${restored}”`, { selector: ".sys-sugg-unsure" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Fix text" }));
+    const fresh = screen.getByRole("textbox", {
+      name: `Corrected text for “${restored}”`,
+    });
+    expect(fresh).toHaveValue(restored);
+    await userEvent.clear(fresh);
+    await userEvent.type(fresh, "fresh correction");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(wire.correct).toHaveBeenCalledExactlyOnceWith(
+      path,
+      "host",
+      1,
+      "fresh correction",
+      restored,
+      null,
+    );
+  },
+);
+
+it.each(["desktop", "phone"] as const)(
+  "disables exact-word Open in Edit during pending and failed Detail on %s",
+  async (shell) => {
+    const request = deferred<DocumentSnapshot>();
+    const retry = deferred<DocumentSnapshot>();
+    wire.detail
+      .mockReturnValueOnce(request.promise)
+      .mockReturnValueOnce(retry.promise);
+    stubViewportShell(shell);
+    useDawStore.setState({ shellBreakpoint: shell });
+    render(<App />);
+    const open = () => screen.getByRole("button", { name: "Open in Edit" });
+    const select = async (name: RegExp) => {
+      if (shell === "phone")
+        await userEvent.click(
+          screen.getByRole("button", { name: "Filter the queue" }),
+        );
+      await userEvent.click(screen.getByRole("button", { name }));
+    };
+    await select(/valid/);
+    expect(open()).toBeEnabled();
+    publish(project(false), 2);
+    expect.soft(open()).toBeDisabled();
+    expect
+      .soft(open())
+      .toHaveAccessibleDescription(
+        "The transcript is loading. Wait for the words to load.",
+      );
+    await select(/Proposal/);
+    expect(open()).toBeEnabled();
+    await select(/valid/);
+    await act(async () => request.reject(new Error("Detail unavailable")));
+    expect.soft(open()).toBeDisabled();
+    expect
+      .soft(open())
+      .toHaveAccessibleDescription("The transcript didn't load. Try again.");
+
+    await select(/Proposal/);
+    expect(open()).toBeEnabled();
+    await userEvent.click(open());
+    expect(useDawStore.getState().selection).toMatchObject({
+      kind: "pending",
+      id: "p1",
+    });
+    act(() => useDawStore.setState({ stage: "review" }));
+    await select(/valid/);
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect.soft(open()).toBeDisabled();
+    await act(async () =>
+      retry.resolve({
+        server_seq: 2,
+        state_token: "test",
+        project: project(true, false, true),
+      }),
+    );
+    expect(open()).toBeEnabled();
+    await userEvent.click(open());
+    expect(useDawStore.getState().selection).toMatchObject({
+      kind: "transcriptRange",
+      startWordIndex: 2,
+      endWordIndex: 2,
+    });
+  },
+);
 
 it.each(["path", "epoch"])(
   "does not retain a draft or target across a project %s change",

@@ -42,6 +42,31 @@ describe("ActionBarInline", () => {
     ).toEqual([1, 1, 1, 1]);
   });
 
+  it("associates an unavailable Open in Edit action with its visible reason", async () => {
+    const calls = handlers();
+    const reason = "The transcript is loading.";
+    const unavailable = {
+      ...calls,
+      openInEditDisabledReason: reason,
+      openInEditNoteId: "word-loading",
+    };
+    const { container, rerender } = render(
+      <>
+        <p id="word-loading">{reason}</p>
+        <ActionBarInline verb="cut" {...unavailable} />
+      </>,
+    );
+    const open = screen.getByRole("button", { name: "Open in Edit" });
+    expect(open).toBeDisabled();
+    expect(open).toHaveAccessibleDescription(reason);
+    await userEvent.click(open);
+    expect(calls.onOpenInEdit).not.toHaveBeenCalled();
+    await expectNoA11yViolations(container);
+    rerender(<ActionBarInline verb="cut" {...calls} />);
+    await userEvent.click(screen.getByRole("button", { name: "Open in Edit" }));
+    expect(calls.onOpenInEdit).toHaveBeenCalledOnce();
+  });
+
   it("leaves out the verb while a prompt is open", () => {
     show({ promptOpen: true });
     expect(buttons()).toEqual(["Open in Edit", "Keep", "Later"]);
