@@ -1876,3 +1876,192 @@ def test_request_programming_runtime_error_propagates(
         else:
             PipelineService(ws).export_variant(ExportTarget.PODCAST)
     assert engine.master_calls == 0
+
+
+@pytest.fixture
+def boundary_stages(monkeypatch):
+    import errno
+
+    from podcast_mcp.util.owned_stage import OwnedStage
+
+    closed = []
+    original = OwnedStage.close
+
+    def close(stage):
+        descriptors = (stage.root_fd, stage.stage_fd)
+        original(stage)
+        for descriptor in descriptors:
+            try:
+                os.fstat(descriptor)
+            except OSError as error:
+                assert error.errno == errno.EBADF
+            else:
+                os.close(descriptor)
+                pytest.fail("owned stage descriptor remained open")
+        closed.append({"committed": stage.committed, "closed": list(descriptors)})
+
+    monkeypatch.setattr(OwnedStage, "close", close)
+    return closed
+
+
+@pytest.fixture
+def boundary_export(request_workspace, request, monkeypatch):
+    from podcast_mcp.services.document import ExportFilesService
+
+    ws = request_workspace
+    real = (
+        getattr(request.node, "callspec", None) is not None
+        and request.node.callspec.params.get("request_workspace") == "gentle_wav"
+    )
+    engine = pipeline.pipeline_steps.ffmpeg() if real else _FakeEngine(premix_path(ws.project))
+    monkeypatch.setattr(pipeline.pipeline_steps, "ffmpeg", lambda: engine)
+    client = TestClient(create_app())
+    first = done(
+        client, ws.path, start(client, ws.path, target="podcast", formats=[{"ext": "mp3"}])
+    )
+    assert first["status"] == "ok", first
+    params = {"path": str(ws.path)}
+    rows = client.get(FILES, params=params).json()["files"]
+    root = ws.project.export_dir() / "variants"
+    saved = {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+    versions = {row["id"]: ExportFilesService(ws).open(row["id"]).version for row in rows}
+    downloads = {
+        row["id"]: client.get(
+            f"{FILES}/{row['id']}", params={**params, "ticket": row["ticket"]}
+        ).content
+        for row in rows
+    }
+    canonical = _canonical_snapshot(ws)
+
+    def unchanged():
+        assert _canonical_snapshot(ws) == canonical
+        assert {
+            p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()
+        } == saved
+        assert {p.name for p in root.iterdir()} == {path.parts[0] for path in saved}
+        listed = client.get(FILES, params=params)
+        assert listed.status_code == 200
+        current = {row["id"]: row for row in listed.json()["files"]}
+        assert current.keys() == versions.keys()
+        for row in rows:
+            file_id = row["id"]
+            assert current[file_id]["current"] is True
+            assert ExportFilesService(ws).open(file_id).version == versions[file_id]
+            download = client.get(f"{FILES}/{file_id}", params={**params, "ticket": row["ticket"]})
+            assert download.status_code == 200
+            assert download.content == downloads[file_id]
+
+    return ws, engine, client, unchanged
+
+
+@pytest.mark.parametrize("owner", ["master_target_for", "_source_certificate"])
+@pytest.mark.parametrize("phase", ["initial", "cache", "fresh"])
+def test_transaction_fault_keeps_same_exception(
+    boundary_export, boundary_stages, monkeypatch, owner, phase
+):
+    from podcast_mcp.services.pipeline import ExportTarget, PipelineService, export_variant
+
+    ws, engine, _, unchanged = boundary_export
+    defect = RuntimeError("request boundary defect")
+    original = getattr(export_variant, owner)
+    encode = engine.export_audio
+    encoded = []
+    transaction_depths = []
+    calls = []
+
+    def completed_encode(*args, **kwargs):
+        result = encode(*args, **kwargs)
+        encoded.append(args[1].read_bytes())
+        return result
+
+    def fail(*args, **kwargs):
+        calls.append(1)
+        if phase == "initial" or len(calls) == 2:
+            transaction_depths.append(ws._transaction_depth)
+            raise defect
+        return original(*args, **kwargs)
+
+    with monkeypatch.context() as scope:
+        scope.setattr(engine, "export_audio", completed_encode)
+        scope.setattr(export_variant, owner, fail)
+        with pytest.raises((RuntimeError, ValueError)) as caught:
+            PipelineService(ws).export_variant(
+                ExportTarget.PODCAST if phase == "cache" else ExportTarget.BROADCAST,
+                formats=[{"ext": "mp3"}],
+            )
+    unchanged()
+    assert len(encoded) == (1 if phase == "fresh" else 0)
+    assert transaction_depths == ([0] if phase == "initial" else [1])
+    assert ws._transaction_depth == 0
+    assert len(boundary_stages) == (1 if phase == "fresh" else 0)
+    assert all(not stage["committed"] for stage in boundary_stages)
+    print(
+        json.dumps(
+            {
+                "owner": owner,
+                "phase": phase,
+                "same_exception": caught.value is defect,
+                "type": type(caught.value).__name__,
+                "code": getattr(caught.value, "code", None),
+                "cause_is_sentinel": caught.value.__cause__ is defect,
+                "encoded": len(encoded),
+                "transaction_depths": transaction_depths,
+                "closed_stages": boundary_stages,
+                "saved_and_canonical_preserved": True,
+            }
+        )
+    )
+    assert caught.value is defect
+
+
+@pytest.mark.parametrize("owner", ["master_target_for", "_source_certificate"])
+def test_public_transaction_fault_is_unexpected(
+    boundary_export, boundary_stages, monkeypatch, owner
+):
+    from podcast_mcp.services.pipeline import export_variant
+
+    ws, engine, client, unchanged = boundary_export
+    original = getattr(export_variant, owner)
+    encode = engine.export_audio
+    encoded = []
+    calls = []
+
+    def completed_encode(*args, **kwargs):
+        result = encode(*args, **kwargs)
+        encoded.append(args[1].read_bytes())
+        return result
+
+    def fail(*args, **kwargs):
+        if encoded:
+            calls.append(1)
+            raise RuntimeError("request boundary defect")
+        return original(*args, **kwargs)
+
+    with monkeypatch.context() as scope:
+        scope.setattr(engine, "export_audio", completed_encode)
+        scope.setattr(export_variant, owner, fail)
+        job = done(
+            client, ws.path, start(client, ws.path, target="broadcast", formats=[{"ext": "mp3"}])
+        )
+    unchanged()
+    assert len(encoded) == len(calls) == 1
+    assert job["status"] == "error"
+    assert job["result"] is None
+    assert len(boundary_stages) == 1
+    assert boundary_stages[0]["committed"] is False
+    assert "Traceback" not in job["error"]
+    assert str(ws.path) not in job["error"]
+    print(
+        json.dumps(
+            {
+                "owner": owner,
+                "public_status": job["status"],
+                "error_code": job["error_code"],
+                "error": job["error"],
+                "result": job["result"],
+                "closed_stages": boundary_stages,
+                "saved_and_canonical_preserved": True,
+            }
+        )
+    )
+    assert job["error_code"] is None
