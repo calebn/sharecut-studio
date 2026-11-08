@@ -714,6 +714,88 @@ describe("HomeScreen", () => {
       ).toBeVisible();
     });
 
+    it("counts Fast before word timing in the live job order and cancels the exact bundle", async () => {
+      const fast: BootstrapJobSnapshot = {
+        id: "home-fast-aligner",
+        kind: "bootstrap",
+        status: "running",
+        components: ["whisper", "word-aligner"],
+        whisper_model: "tiny.en",
+        download: {
+          component: "whisper",
+          bytes: 25_000_000,
+          total: 75_000_000,
+        },
+      };
+      vi.mocked(api.fetchBootstrapStatus).mockImplementation((variant) =>
+        Promise.resolve(
+          modelStatus(
+            registryRows().map((row) =>
+              row.id === "whisper" && variant === "tiny.en"
+                ? {
+                    ...row,
+                    model: "tiny.en",
+                    size: "75 MB",
+                    size_bytes: 75_000_000,
+                  }
+                : row,
+            ),
+            { whisper_model: variant ?? "large-v3-turbo" },
+          ),
+        ),
+      );
+      vi.mocked(api.fetchBootstrapJob).mockResolvedValue(fast);
+      const done = deferred<BootstrapJobSnapshot>();
+      let progress: (job: BootstrapJobSnapshot) => void = () => undefined;
+      vi.mocked(api.waitForBootstrapJob).mockImplementation((_id, options) => {
+        progress = (job) => options?.onUpdate?.(job);
+        return done.promise;
+      });
+      vi.mocked(api.cancelBootstrap).mockResolvedValue({
+        ...fast,
+        status: "cancelled",
+      });
+      rtlRender(
+        <ModelsProvider>
+          <HomeScreen />
+        </ModelsProvider>,
+      );
+      expect(await screen.findByText("25 MB of 435 MB")).toBeVisible();
+      act(() =>
+        progress({
+          ...fast,
+          download: {
+            component: "word-aligner",
+            bytes: 10_000_000,
+            total: 360_000_000,
+          },
+        }),
+      );
+      expect(await screen.findByText("85 MB of 435 MB")).toBeVisible();
+      act(() =>
+        progress({
+          ...fast,
+          download: {
+            component: "word-aligner",
+            bytes: 20_000_000,
+            total: null,
+          },
+        }),
+      );
+      expect(await screen.findByText("95 MB downloaded")).toBeVisible();
+      expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: /cancel/i }));
+      await waitFor(() =>
+        expect(api.cancelBootstrap).toHaveBeenCalledExactlyOnceWith(
+          "home-fast-aligner",
+        ),
+      );
+      await act(async () => done.resolve({ ...fast, status: "cancelled" }));
+      expect(
+        await screen.findByRole("button", { name: "Get ready" }),
+      ).toBeVisible();
+    });
+
     it("offers the bundle, starts the download and remembers Not now", async () => {
       const user = userEvent.setup();
       const models = modelsApi({

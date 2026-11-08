@@ -217,6 +217,8 @@ class PipelineService:
             data = self.ws.project.transcript_data.model_dump(mode="json")
             return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
 
+        initial_target = transcript_target() if destructive else None
+
         def save_progress(history_label: str | None = None) -> None:
             nonlocal revision, targets_unchanged
             before = transcript_target() if destructive else None
@@ -250,6 +252,8 @@ class PipelineService:
                         code="pipeline_retry_stale",
                     )
                 self.ws.checkpoint()
+                if initial_target is not None and initial_target != transcript_target():
+                    targets_unchanged = False
                 save_progress("before pipeline run")
             runner = PipelineRunner(defaults=copy.deepcopy(defaults))
             try:

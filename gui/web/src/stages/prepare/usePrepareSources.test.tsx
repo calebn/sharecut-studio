@@ -20,6 +20,7 @@ import {
 } from "../../commands/pointer";
 import { refreshDocumentProject } from "../../document/applyDocumentUpdate";
 import { ingestFiles } from "../../ingest/ingestFiles";
+import { ModelNeedRow } from "../../models";
 import { ModelsContext } from "../../models/useModels";
 import { useDawStore } from "../../state/dawStore";
 import { SourceCard } from "../../system/SourceCard";
@@ -982,5 +983,82 @@ describe("split cancellation on the source card", () => {
     );
     expect(cancelPipelineRun).toHaveBeenCalledTimes(2);
     await act(async () => finish(pipelineJobSnapshot({ status: "cancelled" })));
+  });
+});
+
+describe("failed split queue on project reopen", () => {
+  it("retires the failed card and its old retry action on a new epoch", async () => {
+    const needed = new ApiError("model needed", "model_needed", 409, {
+      id: "speaker-ecapa",
+      variant: null,
+      label: "Speaker model",
+      purpose: "speaker recognition and split",
+      size: "~25 MB",
+      sizeBytes: null,
+      state: "missing",
+    });
+    vi.mocked(startSplitSpeakersJob)
+      .mockRejectedValueOnce(needed)
+      .mockRejectedValueOnce(needed);
+    vi.mocked(followJobToOk).mockRejectedValueOnce(new Error("Out of memory"));
+    function Cards() {
+      const source = usePrepareSources({
+        projectPath: PATH,
+        tracks,
+        isPlaying: false,
+        activityJob: null,
+        canIngest: true,
+      });
+      return (
+        <>
+          {tracks.map((track, index) => {
+            const failed = source.splitFailed[track.id];
+            const need = source.splitNeeds[track.id];
+            const progress = source.splitting[track.id];
+            return (
+              <SourceCard
+                key={track.id}
+                index={index + 1}
+                name={track.id}
+                fileName={`${track.id}.wav`}
+                state={
+                  failed || need
+                    ? "failed"
+                    : progress
+                      ? "splitting"
+                      : "split-prompt"
+                }
+                cause={failed}
+                splitDetail={progress?.detail}
+                modelAsk={need ? <ModelNeedRow model={need} /> : undefined}
+                onName={(name) => source.actions.onName(track.id, name)}
+                onRemove={() => source.actions.onRemove(track.id)}
+                onSplit={() => source.actions.onSplit(track.id)}
+                onRetry={() => source.actions.onRetry(track.id)}
+              />
+            );
+          })}
+        </>
+      );
+    }
+    const { rerender } = render(<Cards />, { wrapper });
+    await userEvent.click(screen.getByRole("button", { name: "Split maya" }));
+    await userEvent.click(screen.getByRole("button", { name: "Split joss" }));
+    api.current = SPEAKER_IN;
+    rerender(<Cards />);
+    expect(
+      await screen.findByText("Another split did not finish. Try again."),
+    ).toBeVisible();
+    expect(startSplitSpeakersJob).toHaveBeenCalledTimes(3);
+    act(() =>
+      useDawStore.setState({
+        projectEpoch: useDawStore.getState().projectEpoch + 1,
+      }),
+    );
+    expect(
+      screen.queryByText("Another split did not finish. Try again."),
+    ).toBeNull();
+    expect(screen.getByRole("button", { name: "Split joss" })).toBeVisible();
+    expect(startSplitSpeakersJob).toHaveBeenCalledTimes(3);
   });
 });

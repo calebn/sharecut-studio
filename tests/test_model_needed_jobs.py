@@ -533,6 +533,93 @@ def test_retry_rejects_foreign_saved_transcript_change_without_overwriting(
     assert _transcript_text(empty_project) == "hand corrected"
 
 
+@pytest.mark.parametrize("mode", ["overwrite", "retime_words"])
+@pytest.mark.parametrize("injection", ["workspace_open", "preflight"])
+@pytest.mark.parametrize("edit_target", ["transcript", "project_name"])
+def test_initial_checkpoint_adoption_preserves_retry_consent_boundary(
+    empty_project, pipeline_worker, monkeypatch, mode, injection, edit_target
+):
+    manager, calls, entered = pipeline_worker
+    open_workspace = ProjectWorkspace.open.__func__
+    worker_workspace = None
+    edited = False
+    observed = []
+
+    def commit_foreign_edit():
+        nonlocal edited
+        assert worker_workspace is not None
+        assert worker_workspace.project.transcripts[0].words[0].text == "source"
+        editor = open_workspace(ProjectWorkspace, empty_project)
+        with editor.transaction():
+            if edit_target == "transcript":
+                editor.project.transcripts[0].words[0].text = "new human correction"
+            else:
+                editor.project.name = "renamed by human"
+            editor.save()
+        edited = True
+
+    def open_then_edit(cls, path, **kwargs):
+        nonlocal worker_workspace
+        workspace = open_workspace(cls, path, **kwargs)
+        if worker_workspace is None:
+            worker_workspace = workspace
+            if injection == "workspace_open":
+                commit_foreign_edit()
+        return workspace
+
+    def preflight(*args, **kwargs):
+        if injection == "preflight" and not edited:
+            commit_foreign_edit()
+
+    def observe_adoption(persist):
+        assert edited
+        assert worker_workspace is not None
+        observed.append(
+            (
+                worker_workspace.project.transcripts[0].words[0].text,
+                worker_workspace.project.name,
+            )
+        )
+        persist()
+
+    monkeypatch.setattr(ProjectWorkspace, "open", classmethod(open_then_edit))
+    monkeypatch.setattr("podcast_mcp.engines.models.registry.require_model", preflight)
+    _FakeRunner.before_first_failure = observe_adoption
+    original = manager.start(
+        empty_project, config={"transcribe": {mode: True, "overwrite_edited": True}}
+    )
+    assert entered.wait(5), manager.status()
+    manager.wait(original, timeout=5)
+    assert original.status == "error", original.snapshot()
+    assert original.error_code == "model_needed"
+    assert len(calls) == 1
+
+    if edit_target == "transcript":
+        assert observed == [("new human correction", "retry-contract")]
+        assert _transcript_text(empty_project) == "new human correction"
+        try:
+            unexpected = manager.retry_pipeline(empty_project, original.id)
+        except CodedError as stale:
+            assert stale.code == "pipeline_retry_stale"
+        else:
+            manager.wait(unexpected, timeout=5)
+            pytest.fail("The retained retry accepted a newly adopted human correction")
+        assert manager.get_job().id == original.id
+        assert len(calls) == 1
+        assert _transcript_text(empty_project) == "new human correction"
+    else:
+        assert observed == [("source", "renamed by human")]
+        successor = manager.retry_pipeline(empty_project, original.id)
+        manager.wait(successor, timeout=5)
+        assert successor.status == "ok", successor.snapshot()
+        assert successor.snapshot()["retry_of"] == original.id
+        assert len(calls) == 2
+        assert calls[0]["options"] == calls[1]["options"]
+        saved = ProjectWorkspace.open(empty_project).project
+        assert saved.name == "renamed by human"
+        assert saved.transcripts[0].words[0].text == "source"
+
+
 def test_retry_duplicate_returns_same_successor_after_fast_completion(
     empty_project, pipeline_worker
 ):

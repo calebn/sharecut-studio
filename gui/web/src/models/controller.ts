@@ -9,6 +9,7 @@ import type {
   ModelObservation,
   ModelState,
   ModelView,
+  VariantStatuses,
 } from "./types";
 
 export function failureKey(id: string, variant: string): ModelFailureKey {
@@ -24,12 +25,20 @@ export type ControllerState = {
   failures: ModelFailures;
   /** The Whisper size the person picked; the server's until they pick. */
   variant: string;
-  /** True once the person (or their download) picked a size; a reload then keeps it. */
+  /** True once the person picked a size; a reload then keeps it. */
   picked: boolean;
   observation: ModelObservation;
+  variants: VariantStatuses;
 };
 
 export type ControllerAction =
+  | { type: "variantReadStarted"; variant: string; generation: number }
+  | {
+      type: "variantReadFinished";
+      variant: string;
+      generation: number;
+      status: BootstrapStatus | null;
+    }
   | { type: "loadStarted" }
   | { type: "statusLoaded"; status: BootstrapStatus }
   | { type: "loadFailed"; message: string }
@@ -46,6 +55,7 @@ export const initialState: ControllerState = {
   variant: "",
   picked: false,
   observation: { kind: "checking", generation: 0 },
+  variants: {},
 };
 
 function without(
@@ -62,6 +72,46 @@ export function reduce(
   action: ControllerAction,
 ): ControllerState {
   switch (action.type) {
+    case "variantReadStarted":
+      return {
+        ...state,
+        variants: {
+          ...state.variants,
+          [action.variant]: {
+            status: state.variants[action.variant]?.status ?? null,
+            observation: { kind: "checking", generation: action.generation },
+          },
+        },
+      };
+    case "variantReadFinished": {
+      const previous = state.variants[action.variant];
+      if (previous && previous.observation.generation > action.generation)
+        return state;
+      const status =
+        action.status?.whisper_model === action.variant ? action.status : null;
+      const installed =
+        status?.models.find((row) => row.id === "whisper")?.state ===
+        "installed";
+      return {
+        ...state,
+        variants: {
+          ...state.variants,
+          [action.variant]: {
+            status: status ?? previous?.status ?? null,
+            observation: {
+              kind: status ? "current" : "unavailable",
+              generation: action.generation,
+            },
+          },
+        },
+        failures: installed
+          ? without(
+              state.failures,
+              (key) => key === failureKey("whisper", action.variant),
+            )
+          : state.failures,
+      };
+    }
     case "loadStarted":
       return {
         ...state,
@@ -250,14 +300,14 @@ export function downloadRows(
     row.state.kind === "queued" ||
     row.state.kind === "downloading" ||
     row.state.kind === "failed";
-  const variants = new Set(
+  const targets = new Set(
     Object.keys(failures)
       .filter((key) => key.startsWith("whisper/"))
       .map((key) => key.slice("whisper/".length)),
   );
-  if (job?.components.includes("whisper")) variants.add(job.whisper_model);
+  if (job?.components.includes("whisper")) targets.add(job.whisper_model);
   const rows = selected.filter(relevant);
-  for (const variant of variants) {
+  for (const variant of targets) {
     if (
       selected.some((row) => row.id === "whisper" && row.variant === variant)
     ) {
@@ -268,5 +318,19 @@ export function downloadRows(
     );
     if (row && relevant(row)) rows.push(row);
   }
-  return rows;
+  if (!job || isTerminalJobStatus(job.status)) return rows;
+  const active = overlay(status, job, failures, job.whisper_model);
+  const ordered = job.components.flatMap((id) => {
+    const row = active.find((model) => model.id === id);
+    return row ? [row] : [];
+  });
+  return [
+    ...ordered,
+    ...rows.filter(
+      (row) =>
+        !ordered.some(
+          (active) => active.id === row.id && active.variant === row.variant,
+        ),
+    ),
+  ];
 }

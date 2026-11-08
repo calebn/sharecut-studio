@@ -1128,12 +1128,12 @@ def test_remove_aligner_refuses_user_supplied_directory(tmp_path, monkeypatch, l
 
 
 def test_remove_aligner_targets_only_its_downloaded_repository(tmp_path, monkeypatch):
-    from podcast_mcp.config.defaults import word_aligner_cache_dir
+    from podcast_mcp.config.defaults import cache_dir
     from podcast_mcp.engines.models import registry
     from podcast_mcp.engines.models.word_aligner import DEFAULT_WORD_ALIGNER, word_aligner_model
 
     monkeypatch.delenv("PODCAST_MCP_WORD_ALIGNER_MODEL", raising=False)
-    cache = word_aligner_cache_dir()
+    cache = cache_dir() / "word-aligner"
     cache.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(registry, "word_aligner_cache_dir", lambda: cache)
     model = word_aligner_model(DEFAULT_WORD_ALIGNER)
@@ -1170,7 +1170,8 @@ def test_remove_model_refuses_linked_root_or_repository(tmp_path, monkeypatch, m
     if linked == "cache":
         target = outside / repository_name
         target.mkdir()
-        root = tmp_path / "linked-cache"
+        root = tmp_path / "cache" / "linked-cache"
+        root.parent.mkdir(parents=True, exist_ok=True)
         root.symlink_to(outside, target_is_directory=True)
     else:
         target = outside
@@ -1192,3 +1193,191 @@ def test_remove_model_refuses_linked_root_or_repository(tmp_path, monkeypatch, m
     assert response.headers["X-Sharecut-Error-Code"] == "model_not_removable"
     assert sentinel.read_bytes() == b"synthetic external weights"
     assert (root if linked == "cache" else root / repository_name).is_symlink()
+
+
+@pytest.mark.parametrize("model_id", ["whisper", "word-aligner", "rnnoise", "speaker-ecapa"])
+@pytest.mark.parametrize("linked", ["anchor", "root", "entry"])
+def test_remove_model_refuses_linked_managed_ancestry(tmp_path, monkeypatch, model_id, linked):
+    from podcast_mcp.engines.models.whisper import WHISPER_PINS
+    from podcast_mcp.engines.models.word_aligner import DEFAULT_WORD_ALIGNER, word_aligner_model
+    from podcast_mcp.util.asset_sources import asset_entry
+    from podcast_mcp.util.model_assets import RNNOISE_MODEL_NAME
+
+    for name in (
+        "PODCAST_MCP_RNNOISE_MODEL",
+        "PODCAST_MCP_WORD_ALIGNER_MODEL",
+        "PODCAST_MCP_SPEAKER_ECAPA_MODEL",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    anchor = tmp_path / "cache"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    if model_id == "whisper":
+        relative = Path("whisper") / f"models--{WHISPER_PINS['tiny.en'].hf_repo.replace('/', '--')}"
+    elif model_id == "word-aligner":
+        repo = word_aligner_model(DEFAULT_WORD_ALIGNER).hf_repo.replace("/", "--")
+        relative = Path("word-aligner") / f"models--{repo}"
+    elif model_id == "rnnoise":
+        relative = Path("models") / RNNOISE_MODEL_NAME
+    else:
+        relative = Path("models") / str(asset_entry("speaker-ecapa")["filename"])
+    is_repository = model_id in ("whisper", "word-aligner")
+    if linked == "anchor":
+        anchor.symlink_to(outside, target_is_directory=True)
+        target = outside / relative
+    elif linked == "root":
+        anchor.mkdir(exist_ok=True)
+        (anchor / relative.parent).symlink_to(outside, target_is_directory=True)
+        target = outside / relative.name
+    else:
+        (anchor / relative.parent).mkdir(parents=True, exist_ok=True)
+        target = outside / "target"
+        if is_repository:
+            target.mkdir()
+        (anchor / relative).symlink_to(target, target_is_directory=is_repository)
+    if is_repository:
+        target.mkdir(parents=True, exist_ok=True)
+        sentinel = target / "weights"
+    else:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        sentinel = target
+    sentinel.write_bytes(b"external synthetic weights")
+    response = _client().delete(
+        f"/api/bootstrap/models/{model_id}",
+        params={"whisper_model": "tiny.en"} if model_id == "whisper" else None,
+    )
+    assert response.status_code == 409
+    assert response.headers["X-Sharecut-Error-Code"] == "model_not_removable"
+    assert str(tmp_path) not in response.text
+    assert sentinel.read_bytes() == b"external synthetic weights"
+    link = (
+        anchor
+        if linked == "anchor"
+        else anchor / (relative.parent if linked == "root" else relative)
+    )
+    assert link.is_symlink()
+
+
+@pytest.mark.parametrize("model_id", ["whisper", "word-aligner", "rnnoise", "speaker-ecapa"])
+def test_remove_model_refuses_lexical_escape(tmp_path, monkeypatch, model_id):
+    from podcast_mcp.engines.models import registry
+
+    for name in (
+        "PODCAST_MCP_RNNOISE_MODEL",
+        "PODCAST_MCP_WORD_ALIGNER_MODEL",
+        "PODCAST_MCP_SPEAKER_ECAPA_MODEL",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    anchor = tmp_path / "cache"
+    anchor.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    escaped = anchor / ".." / "outside"
+    if model_id in ("whisper", "word-aligner"):
+        from podcast_mcp.engines.models.whisper import WHISPER_PINS
+        from podcast_mcp.engines.models.word_aligner import DEFAULT_WORD_ALIGNER, word_aligner_model
+
+        repo = (
+            WHISPER_PINS["tiny.en"].hf_repo
+            if model_id == "whisper"
+            else word_aligner_model(DEFAULT_WORD_ALIGNER).hf_repo
+        )
+        sentinel = outside / f"models--{repo.replace('/', '--')}" / "weights"
+        sentinel.parent.mkdir()
+        name = "whisper_cache_dir" if model_id == "whisper" else "word_aligner_cache_dir"
+        monkeypatch.setattr(registry, name, lambda: escaped)
+    else:
+        sentinel = outside / "weights"
+        name = "rnnoise_model_path" if model_id == "rnnoise" else "speaker_ecapa_path"
+        monkeypatch.setattr(registry, name, lambda: escaped / "weights")
+    sentinel.write_bytes(b"external synthetic weights")
+    response = _client().delete(
+        f"/api/bootstrap/models/{model_id}",
+        params={"whisper_model": "tiny.en"} if model_id == "whisper" else None,
+    )
+    assert response.status_code == 409
+    assert response.headers["X-Sharecut-Error-Code"] == "model_not_removable"
+    assert str(tmp_path) not in response.text
+    assert sentinel.read_bytes() == b"external synthetic weights"
+
+
+@pytest.mark.parametrize("model_id", ["whisper", "word-aligner", "rnnoise", "speaker-ecapa"])
+def test_remove_model_removes_regular_managed_target(tmp_path, monkeypatch, model_id):
+    from podcast_mcp.engines.models import registry
+
+    for name in (
+        "PODCAST_MCP_RNNOISE_MODEL",
+        "PODCAST_MCP_WORD_ALIGNER_MODEL",
+        "PODCAST_MCP_SPEAKER_ECAPA_MODEL",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    variant = "tiny.en" if model_id == "whisper" else None
+    target = registry.model_spec(model_id).downloaded(variant)[0]
+    if model_id in ("whisper", "word-aligner"):
+        target.mkdir(parents=True)
+        sentinel = target / "weights"
+    else:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        sentinel = target
+    sentinel.write_bytes(b"managed synthetic weights")
+    response = _client().delete(
+        f"/api/bootstrap/models/{model_id}",
+        params={"whisper_model": variant} if variant else None,
+    )
+    assert response.status_code == 200
+    assert response.json()["freed_bytes"] == len(b"managed synthetic weights")
+    assert not target.exists()
+
+
+def test_remove_model_preserves_the_configured_cache_anchor_through_parent_alias(
+    tmp_path, monkeypatch
+):
+    from podcast_mcp.util.model_assets import RNNOISE_MODEL_NAME, rnnoise_model_path
+
+    configured_parent = tmp_path / "configured"
+    physical_parent = tmp_path / "physical"
+    configured_parent.mkdir()
+    (physical_parent / "child").mkdir(parents=True)
+    alias = configured_parent / "redirect"
+    alias.symlink_to(physical_parent / "child", target_is_directory=True)
+    monkeypatch.setenv("PODCAST_MCP_CACHE", str(alias / ".." / "cache"))
+    monkeypatch.delenv("PODCAST_MCP_RNNOISE_MODEL", raising=False)
+    managed = rnnoise_model_path()
+    managed.parent.mkdir(parents=True, exist_ok=True)
+    managed.write_bytes(b"managed synthetic weights")
+    other = configured_parent / "cache" / "models" / RNNOISE_MODEL_NAME
+    other.parent.mkdir(parents=True)
+    other.write_bytes(b"unrelated synthetic weights")
+    response = _client().delete("/api/bootstrap/models/rnnoise")
+    assert response.status_code == 200
+    assert response.json()["freed_bytes"] == len(b"managed synthetic weights")
+    assert not managed.exists()
+    assert other.read_bytes() == b"unrelated synthetic weights"
+    assert alias.is_symlink()
+
+
+def test_remove_model_refuses_directory_reparse_metadata(tmp_path, monkeypatch):
+    import stat
+    from types import SimpleNamespace
+
+    from podcast_mcp.util.model_assets import rnnoise_model_path
+
+    monkeypatch.delenv("PODCAST_MCP_RNNOISE_MODEL", raising=False)
+    managed = rnnoise_model_path()
+    managed.parent.mkdir(parents=True, exist_ok=True)
+    managed.write_bytes(b"synthetic redirected weights")
+    actual_lstat = Path.lstat
+
+    def reported_lstat(path):
+        actual = actual_lstat(path)
+        if path == managed.parent:
+            return SimpleNamespace(
+                st_mode=actual.st_mode, st_file_attributes=stat.FILE_ATTRIBUTE_REPARSE_POINT
+            )
+        return actual
+
+    monkeypatch.setattr(Path, "lstat", reported_lstat)
+    response = _client().delete("/api/bootstrap/models/rnnoise")
+    assert response.status_code == 409
+    assert response.headers["X-Sharecut-Error-Code"] == "model_not_removable"
+    assert managed.read_bytes() == b"synthetic redirected weights"

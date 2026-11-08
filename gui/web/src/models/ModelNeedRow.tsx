@@ -287,10 +287,10 @@ function ListRow({
               {state.kind === "update_needed" ? (
                 <MenuItem
                   disabledReason={blockedReason}
-                  onSelect={() => {
+                  onSelect={act(() => {
                     setMenuOpen(false);
                     onGet();
-                  }}
+                  })}
                 >{`Update ${name}`}</MenuItem>
               ) : null}
               {onRemove ? (
@@ -369,21 +369,28 @@ export function ModelNeedRow({
   onManage,
   children,
 }: ModelNeedRowProps) {
-  const { models, busy, download, cancel, remove, refresh } = useModels();
+  const { models, lookup, observe, busy, download, cancel, remove } =
+    useModels();
+  const { id, variant } = model;
+  const { row, observation } = lookup(model);
+  const loaded = models !== null;
+  useEffect(() => {
+    if (placement === "need" && loaded && observation.generation === 0) {
+      void observe({ id, variant });
+    }
+  }, [id, variant, placement, loaded, observation.generation, observe]);
   const mayManage = useDawStore((s) => canManageProjects(s.projectPath));
   const manage =
     placement === "need" && mayManage
       ? (onManage ?? (() => runPointerCommand("models.open")))
       : undefined;
-  const row = models?.find((m) => m.id === model.id) ?? null;
   const sizeAsked = model.id === "whisper" && model.variant;
-  const foreign = row !== null && sizeAsked && row.variant !== model.variant;
-  const live = foreign ? null : row;
+  const live = row;
   const activity: ModelActivity = modelActivity(live, busy);
   if (placement === "need" && rowInstalled(row, model)) {
     return null;
   }
-  const state: ModelState = live?.state ?? { kind: "missing" };
+  const state: ModelState = live?.state ?? { kind: "checking" };
   return (
     <ModelNeedRowView
       placement={placement}
@@ -398,7 +405,7 @@ export function ModelNeedRow({
         onGet?.(outcome);
       }}
       onCancel={() => void cancel()}
-      onCheck={() => void refresh()}
+      onCheck={() => void observe(model)}
       onManage={manage}
       onRemove={
         placement === "list"

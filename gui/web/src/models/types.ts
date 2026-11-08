@@ -1,4 +1,8 @@
-import type { BootstrapFailureKind, WhisperModelChoice } from "../api";
+import type {
+  BootstrapFailureKind,
+  BootstrapStatus,
+  WhisperModelChoice,
+} from "../api";
 
 export type ModelFailure = {
   /** Null for untyped plain text (an unexpected error). */
@@ -23,6 +27,18 @@ export type ModelState =
 export type ModelObservation = {
   kind: "checking" | "current" | "unavailable";
   generation: number;
+};
+
+export type VariantStatus = {
+  status: BootstrapStatus | null;
+  observation: ModelObservation;
+};
+
+export type VariantStatuses = Partial<Record<string, VariantStatus>>;
+
+export type TargetObservation = {
+  row: ModelView | null;
+  observation: ModelObservation;
 };
 
 export type ModelView = {

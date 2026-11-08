@@ -2,7 +2,7 @@ import { act, type RenderResult, render } from "@testing-library/react";
 import { type ReactElement, type ReactNode, useMemo, useState } from "react";
 import { vi } from "vitest";
 import type { BootstrapJobSnapshot, BootstrapStatus } from "../api";
-import { overlay, toolsOf } from "../models/controller";
+import { downloadRows, overlay, toolsOf } from "../models/controller";
 import type {
   DownloadOutcome,
   ModelFailures,
@@ -23,19 +23,21 @@ let observationGeneration = 0;
 export function modelsApi(fixture: ModelsFixture): ModelsApi {
   const { status, job = null, failures = {} } = fixture;
   const models = overlay(status, job, failures);
-  return {
+  const api: ModelsApi = {
     models,
-    downloads: overlay(
-      status,
-      job,
-      failures,
-      job?.whisper_model ?? status.whisper_model,
-    ).filter(
-      (m) =>
-        m.state.kind === "queued" ||
-        m.state.kind === "downloading" ||
-        m.state.kind === "failed",
-    ),
+    downloads: downloadRows(status, job, failures, models),
+    lookup: (target) => ({
+      row:
+        api.models?.find(
+          (row) =>
+            row.id === target.id &&
+            (target.id !== "whisper" ||
+              !target.variant ||
+              row.variant === target.variant),
+        ) ?? null,
+      observation: api.observation,
+    }),
+    observe: () => api.refresh(),
     observation: { kind: "current", generation: ++observationGeneration },
     tools: toolsOf(status),
     ready: status.ready,
@@ -53,6 +55,7 @@ export function modelsApi(fixture: ModelsFixture): ModelsApi {
     remove: vi.fn(async (): Promise<RemoveOutcome> => ({ kind: "ok" })),
     refresh: vi.fn(async () => undefined),
   };
+  return api;
 }
 
 /** A `wrapper` for RTL `render` that supplies `api` (so `rerender` keeps it). */
@@ -83,19 +86,22 @@ export function renderWithLanding(
   function Landing({ children }: { children: ReactNode }) {
     const [landed, setLanded] = useState<string[]>([]);
     mark = (id) => setLanded((ids) => [...ids, id]);
-    const api = useMemo<ModelsApi>(
-      () => ({
-        ...base,
-        observation: { kind: "current", generation: ++observationGeneration },
-        models:
-          base.models?.map((m) =>
-            landed.includes(m.id)
-              ? { ...m, state: { kind: "installed" } as const }
-              : m,
-          ) ?? null,
-      }),
-      [landed],
-    );
+    const api = useMemo<ModelsApi>(() => {
+      const next = modelsApi({
+        ...fixture,
+        status: {
+          ...fixture.status,
+          models: fixture.status.models.map((row) =>
+            landed.includes(row.id) ? { ...row, state: "installed" } : row,
+          ),
+        },
+      });
+      next.download = base.download;
+      next.cancel = base.cancel;
+      next.remove = base.remove;
+      next.refresh = base.refresh;
+      return next;
+    }, [landed]);
     return (
       <ModelsContext.Provider value={api}>{children}</ModelsContext.Provider>
     );

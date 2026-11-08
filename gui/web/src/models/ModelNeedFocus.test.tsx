@@ -21,13 +21,11 @@ const MODEL = {
 
 function api(state: ModelState): ModelsApi {
   const base = modelsApi({ status: modelStatus(registryRows()) });
-  return {
-    ...base,
-    models:
-      base.models?.map((row) =>
-        row.id === MODEL.id ? { ...row, state } : row,
-      ) ?? null,
-  };
+  base.models =
+    base.models?.map((row) =>
+      row.id === MODEL.id ? { ...row, state } : row,
+    ) ?? null;
+  return base;
 }
 
 function tree(kind: "bounce" | "export", models: ModelsApi, loading = false) {

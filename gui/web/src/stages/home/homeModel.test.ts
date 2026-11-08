@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { RecentProject } from "../../api";
+import type { BootstrapJobSnapshot, RecentProject } from "../../api";
 import type { ModelView } from "../../models";
+import { downloadRows, overlay } from "../../models/controller";
+import { modelStatus, registryRows } from "../../test/renderWithModels";
 import {
   bundleToGet,
   cardOf,
@@ -444,5 +446,61 @@ describe("importStoppedLine", () => {
     ).toBe(
       'Upload failed. 1 of 2 files were added to "Rosa". Open it from Recent to add the rest. Its folder is C:\\ShareCut\\Rosa.',
     );
+  });
+});
+
+describe("live bootstrap component order", () => {
+  it("keeps earlier completed components and never counts a later queued component as completed", () => {
+    const selectedStatus = modelStatus(registryRows());
+    const fastStatus = modelStatus(
+      registryRows().map((row) =>
+        row.id === "whisper"
+          ? { ...row, model: "tiny.en", size: "75 MB", size_bytes: 75_000_000 }
+          : row,
+      ),
+      { whisper_model: "tiny.en" },
+    );
+    const job: BootstrapJobSnapshot = {
+      id: "bundle",
+      kind: "bootstrap",
+      status: "running",
+      whisper_model: "tiny.en",
+      components: ["whisper", "word-aligner"],
+      download: { component: "whisper", bytes: 25_000_000, total: 75_000_000 },
+    };
+    const project = (active: BootstrapJobSnapshot) =>
+      downloadRows(fastStatus, active, {}, overlay(selectedStatus, active, {}));
+    expect(project(job).map((row) => row.id)).toEqual([
+      "whisper",
+      "word-aligner",
+    ]);
+    expect(downloadTotals(project(job))).toEqual({
+      bytes: 25_000_000,
+      total: 435_000_000,
+    });
+    const boundary = {
+      ...job,
+      download: {
+        component: "word-aligner",
+        bytes: 10_000_000,
+        total: 360_000_000,
+      },
+    };
+    expect(project(boundary).map((row) => row.id)).toEqual([
+      "whisper",
+      "word-aligner",
+    ]);
+    expect(downloadTotals(project(boundary))).toEqual({
+      bytes: 85_000_000,
+      total: 435_000_000,
+    });
+    expect(
+      downloadTotals(
+        project({
+          ...boundary,
+          download: { ...boundary.download, total: null },
+        }),
+      ),
+    ).toEqual({ bytes: 85_000_000, total: null });
   });
 });

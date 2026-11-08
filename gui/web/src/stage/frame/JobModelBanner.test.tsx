@@ -154,7 +154,7 @@ describe("JobModelBanner", () => {
       fail(failedJob({ kind }));
       expect(requests).toHaveLength(2);
       expect(onLimit).not.toHaveBeenCalled();
-      expect(screen.getByText("Needs noise reduction")).toBeVisible();
+      expect(screen.getByText("Checking noise reduction")).toBeVisible();
       fail(failedJob({ kind }));
       await act(async () => requests[0]!.resolve(installedNoise()));
       expect(requests).toHaveLength(2);

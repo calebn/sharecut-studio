@@ -9,12 +9,13 @@ downloads every model that is not installed, so a ``recommended`` row is in that
 from __future__ import annotations
 
 import shutil
+import stat
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
-from podcast_mcp.config.defaults import whisper_cache_dir, word_aligner_cache_dir
+from podcast_mcp.config.defaults import cache_dir, whisper_cache_dir, word_aligner_cache_dir
 from podcast_mcp.engines.models.speaker_ecapa import (
     SPEAKER_ECAPA_BOOTSTRAP,
     SPEAKER_ECAPA_LABEL,
@@ -366,6 +367,36 @@ def require_model(model_id: str, variant: str | None = None, *, memoize: bool = 
         raise ModelMissing.from_record(rec)
 
 
+def _is_removal_link(path: Path) -> bool:
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        return False
+    return stat.S_ISLNK(info.st_mode) or bool(
+        getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT
+    )
+
+
+def _managed_removal_path(anchor: Path, path: Path) -> Path:
+    path = path.absolute()
+    try:
+        relative = path.relative_to(anchor)
+    except ValueError:
+        raise ModelNotRemovable(
+            "This model is outside the managed cache, so Studio leaves it alone."
+        ) from None
+    if not relative.parts or ".." in relative.parts:
+        raise ModelNotRemovable(
+            "This model is outside the managed cache, so Studio leaves it alone."
+        )
+    current = anchor
+    for part in relative.parts:
+        current = current / part
+        if _is_removal_link(current):
+            raise ModelNotRemovable("This model is linked elsewhere, so Studio leaves it alone.")
+    return path
+
+
 def remove_model(model_id: str, variant: str | None = None) -> int:
     """Delete what Studio downloaded for ``model_id`` (one Whisper size for ``whisper``) and
     return its logical regular-file payload bytes, excluding snapshot links.
@@ -373,10 +404,14 @@ def remove_model(model_id: str, variant: str | None = None) -> int:
     Raises ``ModelNotRemovable`` for a file the person supplied. Callers keep it away from a
     running download or job."""
     model_base(model_id, variant)
+    anchor = cache_dir().absolute()
+    if _is_removal_link(anchor):
+        raise ModelNotRemovable("This model is linked elsewhere, so Studio leaves it alone.")
+    paths = [
+        _managed_removal_path(anchor, path) for path in model_spec(model_id).downloaded(variant)
+    ]
     freed = 0
-    for path in model_spec(model_id).downloaded(variant):
-        if path.is_symlink():
-            raise ModelNotRemovable("This model is linked elsewhere, so Studio leaves it alone.")
+    for path in paths:
         if path.is_dir():
             freed += sum(
                 f.stat().st_size for f in path.rglob("*") if f.is_file() and not f.is_symlink()

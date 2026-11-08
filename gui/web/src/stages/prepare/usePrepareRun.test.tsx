@@ -980,17 +980,18 @@ describe("approximate timing download intent", () => {
     const cancel = vi.fn(async () => {
       finish({ kind: "cancelled" });
     });
-    const makeApi = (state: "missing" | "installed") => ({
-      ...modelsApi({
+    const makeApi = (state: "missing" | "installed") => {
+      const api = modelsApi({
         status: modelStatus(
           registryRows().map((row) =>
             row.id === "word-aligner" ? modelRow({ ...row, state }) : row,
           ),
         ),
         download,
-      }),
-      cancel,
-    });
+      });
+      api.cancel = cancel;
+      return api;
+    };
     const context = { current: makeApi("missing") };
     const target = {
       id: "word-aligner",
@@ -1022,16 +1023,13 @@ describe("approximate timing download intent", () => {
     onGet = (outcome) => result.current.awaitAligner(target, outcome);
     fireEvent.click(screen.getByRole("button", { name: /^Get / }));
     expect(download).toHaveBeenCalledOnce();
-    context.current = {
-      ...context.current,
-      busy: true,
-      models:
-        context.current.models?.map((row) =>
-          row.id === "word-aligner"
-            ? { ...row, state: { kind: "downloading", bytes: 1, total: 10 } }
-            : row,
-        ) ?? null,
-    };
+    context.current.busy = true;
+    context.current.models =
+      context.current.models?.map((row) =>
+        row.id === "word-aligner"
+          ? { ...row, state: { kind: "downloading", bytes: 1, total: 10 } }
+          : row,
+      ) ?? null;
     rerender();
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: /^Cancel / }));

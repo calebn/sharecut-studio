@@ -9,6 +9,7 @@ import {
 } from "react";
 import {
   type BootstrapJobSnapshot,
+  type BootstrapStatus,
   cancelBootstrap,
   fetchBootstrapJob,
   fetchBootstrapStatus,
@@ -21,6 +22,7 @@ import { useMountedRef } from "../hooks/useMountedRef";
 import { ApiError, errorMessage, isAbortError } from "../utils/apiError";
 import { isTerminalJobStatus } from "../utils/pipeline";
 import { plainError } from "../utils/plainError";
+import type { NeedTarget } from "./capability";
 import {
   downloadRows,
   failureKey,
@@ -34,6 +36,7 @@ import type {
   DownloadOptions,
   DownloadOutcome,
   ModelFailure,
+  ModelObservation,
   RemoveOutcome,
 } from "./types";
 import { type ModelsApi, ModelsContext } from "./useModels";
@@ -47,9 +50,9 @@ type DownloadSlot =
   | { kind: "running"; id: string };
 
 /**
- * The one owner of model status and of the server's single download slot. It reads status at mount
- * and again when a job ends (never on a progress frame), adopts a job it finds running, and starts a
- * download only when `download` is called.
+ * Owns selected and target observations and the server's single download slot.
+ * Reads status at mount, for explicit needs and when a job ends, never per progress frame.
+ * Adopts a running job and starts a download only when `download` is called.
  */
 export function ModelsProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reduce, initialState);
@@ -65,24 +68,75 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
   const controller = useRef<AbortController | null>(null);
   const running = useRef<DownloadSlot | null>(null);
   const requested = useRef<string | undefined>(undefined);
+  const readGeneration = useRef(0);
+  const variantReads = useRef(new Map<string, number>());
+  const startingVariant = useRef("");
 
-  const reload = useCallback(async () => {
-    const token = latest.begin();
-    dispatch({ type: "loadStarted" });
-    try {
-      const next = await fetchBootstrapStatus(requested.current);
-      if (latest.isCurrent(token)) {
-        dispatch({ type: "statusLoaded", status: next });
-        return next;
+  const readVariant = useCallback(
+    async (variant: string | undefined): Promise<BootstrapStatus | null> => {
+      const generation = ++readGeneration.current;
+      const key = variant ?? stateRef.current.variant;
+      variantReads.current.set(key, generation);
+      if (key)
+        dispatch({ type: "variantReadStarted", variant: key, generation });
+      try {
+        const status = await fetchBootstrapStatus(variant);
+        if (!mounted.current || variantReads.current.get(key) !== generation)
+          return null;
+        const target = variant ?? status.whisper_model;
+        if ((variantReads.current.get(target) ?? 0) <= generation) {
+          variantReads.current.set(target, generation);
+          dispatch({
+            type: "variantReadFinished",
+            variant: target,
+            generation,
+            status,
+          });
+        }
+        return status;
+      } catch (error: unknown) {
+        if (!mounted.current || variantReads.current.get(key) !== generation)
+          return null;
+        if (key)
+          dispatch({
+            type: "variantReadFinished",
+            variant: key,
+            generation,
+            status: null,
+          });
+        throw error;
       }
-      return null;
-    } catch (e: unknown) {
-      if (latest.isCurrent(token)) {
-        dispatch({ type: "loadFailed", message: errorMessage(e) });
+    },
+    [mounted],
+  );
+
+  const readTarget = useCallback(
+    async (variant: string) => {
+      return readVariant(variant).catch(() => null);
+    },
+    [readVariant],
+  );
+
+  const reload = useCallback(
+    async (variant: string | undefined = requested.current) => {
+      const token = latest.begin();
+      dispatch({ type: "loadStarted" });
+      try {
+        const next = await readVariant(variant);
+        if (next && latest.isCurrent(token)) {
+          dispatch({ type: "statusLoaded", status: next });
+          return next;
+        }
+        return null;
+      } catch (e: unknown) {
+        if (latest.isCurrent(token)) {
+          dispatch({ type: "loadFailed", message: errorMessage(e) });
+        }
+        return null;
       }
-      return null;
-    }
-  }, [latest]);
+    },
+    [latest, readVariant],
+  );
 
   const track = useCallback(
     async (
@@ -102,7 +156,22 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
             }
           },
         });
-        const refreshed = await reload();
+        const target =
+          done.components.includes("whisper") &&
+          done.whisper_model !== stateRef.current.variant
+            ? await readTarget(done.whisper_model)
+            : null;
+        const selected = await reload(
+          done.components.includes("whisper") &&
+            done.whisper_model === stateRef.current.variant
+            ? done.whisper_model
+            : undefined,
+        );
+        const refreshed =
+          done.components.includes("whisper") &&
+          done.whisper_model !== selected?.whisper_model
+            ? target
+            : selected;
         const stillMissing = done.components.filter(
           (id) =>
             !(
@@ -147,7 +216,7 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
         if (running.current === slot) running.current = null;
       }
     },
-    [reload, mounted],
+    [reload, readTarget, mounted],
   );
 
   const adoptRunning = useCallback(async () => {
@@ -165,10 +234,23 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const ctrl = new AbortController();
     controller.current = ctrl;
+    const reads = variantReads.current;
     void reload();
     void adoptRunning();
-    return () => ctrl.abort();
+    return () => {
+      reads.clear();
+      ctrl.abort();
+    };
   }, [reload, adoptRunning]);
+
+  const jobVariant = state.job?.components.includes("whisper")
+    ? state.job.whisper_model
+    : null;
+  const jobObservation = jobVariant ? state.variants[jobVariant] : null;
+  useEffect(() => {
+    if (state.status && jobVariant && !jobObservation)
+      void readTarget(jobVariant);
+  }, [state.status, jobVariant, jobObservation, readTarget]);
 
   const cancelJob = useCallback(
     async (id: string) => {
@@ -194,26 +276,22 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
         cancelRequested: false,
       };
       running.current = pending;
-      if (options?.whisperModel && ids.includes("whisper")) {
-        dispatch({ type: "variantChosen", variant: options.whisperModel });
-        requested.current = options.whisperModel;
-        if (options.whisperModel !== stateRef.current.status?.whisper_model) {
-          void reload();
-        }
-      }
       const whisperModel = options?.whisperModel ?? stateRef.current.variant;
+      startingVariant.current = whisperModel;
       dispatch({ type: "downloadStarted", ids, variant: whisperModel });
       setStartingModelIds(ids);
       const current = stateRef.current;
-      const force =
-        current.observation.kind === "current" &&
-        ids.some(
-          (id) =>
-            (id !== "whisper" ||
-              current.status?.whisper_model === whisperModel) &&
-            current.status?.models.find((m) => m.id === id)?.state ===
-              "update_needed",
+      const target = current.variants[whisperModel];
+      const force = ids.some((id) => {
+        const observation =
+          id === "whisper" ? target?.observation : current.observation;
+        const status = id === "whisper" ? target?.status : current.status;
+        return (
+          observation?.kind === "current" &&
+          status?.models.find((model) => model.id === id)?.state ===
+            "update_needed"
         );
+      });
       try {
         const started = await runBootstrap({
           components: ids,
@@ -244,7 +322,7 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
         return { kind: "failed", failed: ids };
       }
     },
-    [adoptRunning, track, reload, cancelJob],
+    [adoptRunning, track, cancelJob],
   );
 
   const cancel = useCallback(async () => {
@@ -269,15 +347,38 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
         }
         return { kind: "failed", plain: plainError(errorMessage(e)) };
       }
+      if (id === "whisper" && variant && variant !== stateRef.current.variant) {
+        await readTarget(variant);
+      }
       await reload();
       return { kind: "ok" };
     },
-    [reload],
+    [reload, readTarget],
   );
 
   const refresh = useCallback(async () => {
-    await reload();
-  }, [reload]);
+    const targets = [...variantReads.current.keys()].filter(
+      (variant) => variant && variant !== stateRef.current.variant,
+    );
+    await Promise.all([...targets.map(readTarget), reload()]);
+  }, [reload, readTarget]);
+
+  const observe = useCallback(
+    async (target: Pick<NeedTarget, "id" | "variant">) => {
+      if (
+        target.id === "whisper" &&
+        target.variant &&
+        target.variant !== stateRef.current.variant
+      ) {
+        await readTarget(target.variant);
+      } else {
+        await reload(
+          target.id === "whisper" ? (target.variant ?? undefined) : undefined,
+        );
+      }
+    },
+    [readTarget, reload],
+  );
 
   const choose = useCallback(
     (variant: string) => {
@@ -295,15 +396,65 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
           state.job,
           state.failures,
           state.variant,
-          startingModelIds,
+          startingModelIds.filter(
+            (id) =>
+              id !== "whisper" || startingVariant.current === state.variant,
+          ),
           state.observation.kind,
         )
       : null;
     return {
       models,
+      observe,
+      lookup: (target) => {
+        if (target.id !== "whisper" || !target.variant) {
+          return {
+            row: models?.find((row) => row.id === target.id) ?? null,
+            observation: state.observation,
+          };
+        }
+        const cached = state.variants[target.variant];
+        const observation: ModelObservation = cached?.observation ?? {
+          kind: "checking",
+          generation: 0,
+        };
+        const status = cached?.status ?? state.status;
+        const row = status
+          ? (overlay(
+              status,
+              state.job,
+              state.failures,
+              target.variant,
+              startingVariant.current === target.variant
+                ? startingModelIds
+                : NONE,
+              observation.kind,
+            ).find((row) => row.id === target.id) ?? null)
+          : null;
+        const failure = state.failures[failureKey(target.id, target.variant)];
+        if (
+          row &&
+          failure &&
+          observation.kind !== "current" &&
+          row.state.kind !== "queued" &&
+          row.state.kind !== "downloading"
+        ) {
+          return {
+            row: { ...row, state: { kind: "failed", failure } },
+            observation,
+          };
+        }
+        return { row, observation };
+      },
       downloads:
         state.status && models
-          ? downloadRows(state.status, state.job, state.failures, models)
+          ? downloadRows(
+              (state.job && state.variants[state.job.whisper_model]?.status) ||
+                state.status,
+              state.job,
+              state.failures,
+              models,
+            )
           : [],
       tools: toolsOf(state.status),
       ready:
@@ -323,7 +474,16 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
       remove,
       refresh,
     };
-  }, [state, startingModelIds, choose, download, cancel, remove, refresh]);
+  }, [
+    state,
+    startingModelIds,
+    choose,
+    download,
+    cancel,
+    remove,
+    refresh,
+    observe,
+  ]);
 
   return (
     <ModelsContext.Provider value={api}>{children}</ModelsContext.Provider>
