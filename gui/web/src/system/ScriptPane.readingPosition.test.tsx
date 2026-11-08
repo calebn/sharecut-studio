@@ -434,6 +434,77 @@ describe("ScriptPane reading position", () => {
     },
   );
 
+  it("keeps the bottom reading anchor when a clamped scroll follows a no-op wheel", () => {
+    const geometry = scriptGeometry();
+    stubResizeObserver();
+    const onUserScroll = vi.fn();
+    const { body, captured } = setup(null, false, onUserScroll);
+    body.scrollTop = 950;
+    fireEvent.wheel(body, { deltaY: 20 });
+    fireEvent.scroll(body);
+    const saved = captured();
+    expect(saved).toMatchObject({
+      kind: "word",
+      index: 47,
+      fallbackTop: 950,
+    });
+
+    geometry.resize(200, 408);
+    body.scrollTop = body.scrollHeight - body.clientHeight;
+    fireEvent.wheel(body, { deltaY: 20 });
+    fireEvent.scroll(body);
+
+    geometry.resize(200, 200);
+    for (const observer of FakeResizeObserver.all) observer.fire(body);
+    expect(body.scrollTop).toBe(950);
+    expect(captured()).toMatchObject({
+      kind: "word",
+      index: 47,
+      fallbackTop: 950,
+    });
+    expect(onUserScroll).toHaveBeenCalledOnce();
+  });
+
+  it("keeps a touch scroll that arrives before the geometry observer", () => {
+    const geometry = scriptGeometry();
+    stubResizeObserver();
+    const onUserScroll = vi.fn();
+    const { body, captured } = setup(null, false, onUserScroll);
+    body.scrollTop = 590;
+    fireEvent.wheel(body, { deltaY: 20 });
+    fireEvent.scroll(body);
+    expect(captured()).toMatchObject({
+      kind: "word",
+      index: 29,
+      fallbackTop: 590,
+    });
+
+    fireEvent.touchStart(body, {
+      touches: [{ identifier: 1, target: body, clientX: 40, clientY: 160 }],
+    });
+    fireEvent.touchMove(body, {
+      touches: [{ identifier: 1, target: body, clientX: 40, clientY: 80 }],
+    });
+    geometry.resize(200, 408);
+    body.scrollTop = 670;
+    fireEvent.touchEnd(body, {
+      changedTouches: [
+        { identifier: 1, target: body, clientX: 40, clientY: 80 },
+      ],
+    });
+    fireEvent.scroll(body);
+
+    geometry.resize(200, 200);
+    for (const observer of FakeResizeObserver.all) observer.fire(body);
+    expect(body.scrollTop).toBe(670);
+    expect(captured()).toMatchObject({
+      kind: "word",
+      index: 33,
+      fallbackTop: 670,
+    });
+    expect(onUserScroll).toHaveBeenCalledTimes(2);
+  });
+
   it("does not recapture a programmatic restore as user intent while wheel intent is armed", () => {
     const geometry = scriptGeometry();
     stubResizeObserver();
