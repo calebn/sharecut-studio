@@ -148,7 +148,8 @@ CLI/MCP target support, time-range or folder selection, or guest target generati
 Completed variant audio is exposed through the existing export-file list, open, download
 ticket and reveal paths. The inventory admits only registered audio files from complete
 valid bundles. Saved files remain available when current mix evidence or pipeline defaults
-cannot be read. The inventory reports those files as not current. Generation still requires
+cannot be read. Variants and transcripts report not current when their currentness cannot
+be established; canonical audio retains its existing currentness behavior. Generation still requires
 valid working configuration. Existing host and guest read permissions continue to apply.
 Guest routes do not create variant jobs. Isolated generation requires Linux or macOS directory
 descriptors. Unsupported hosts, including Windows, return
