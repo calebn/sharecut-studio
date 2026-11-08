@@ -37,7 +37,7 @@ def _open_listed(ws: ProjectWorkspace, file_id: str) -> ServedFile:
 
 
 def list_exported_files(ws: ProjectWorkspace, *, ticketed: bool = False) -> dict[str, Any]:
-    """``{files: [{id, name, kind, label, bytes, current}]}``; names only, never a host path.
+    """``{files: [{id, name, kind, label, bytes, current, format}]}``; names only, never a host path.
 
     With *ticketed* each entry also carries a ``ticket`` that downloads that file as listed.
     """
