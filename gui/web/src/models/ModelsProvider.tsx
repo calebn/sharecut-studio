@@ -49,11 +49,6 @@ type DownloadSlot =
   | { kind: "starting"; cancelRequested: boolean }
   | { kind: "running"; id: string };
 
-/**
- * Owns selected and target observations and the server's single download slot.
- * Reads status at mount, for explicit needs and when a job ends, never per progress frame.
- * Adopts a running job and starts a download only when `download` is called.
- */
 export function ModelsProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reduce, initialState);
   const [startingModelIds, setStartingModelIds] = useState<readonly string[]>(

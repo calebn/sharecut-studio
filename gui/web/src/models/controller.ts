@@ -25,7 +25,6 @@ export type ControllerState = {
   failures: ModelFailures;
   /** The Whisper size the person picked; the server's until they pick. */
   variant: string;
-  /** True once the person picked a size; a reload then keeps it. */
   picked: boolean;
   observation: ModelObservation;
   variants: VariantStatuses;
