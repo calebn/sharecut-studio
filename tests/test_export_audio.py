@@ -581,3 +581,69 @@ def test_the_studio_export_publishes_chapters_through_the_same_exporter(
     assert json.loads(chapters_path.read_text("utf-8"))["chapters"] == [
         {"startTime": 2.5, "title": "Cold open"}
     ]
+
+
+@pytest.mark.parametrize(
+    "config,expected",
+    [
+        (
+            {"wav": "false", "formats": [{"ext": "flac"}, {"ext": "m4a"}]},
+            [("wav", None), ("flac", None), ("m4a", 128)],
+        ),
+        ({"wav": None, "formats": None}, []),
+        ({"wav": 0, "formats": []}, []),
+        ({"wav": False, "mp3_bitrate_kbps": "192"}, [("mp3", 192)]),
+        ({"wav": False, "formats": [{"ext": "mp3", "bitrate_kbps": "192"}]}, [("mp3", "192")]),
+        (
+            {"wav": False, "formats": [{"ext": "flac"}, {"ext": "flac"}]},
+            [("flac", None), ("flac", None)],
+        ),
+    ],
+)
+def test_composer_captures_exact_order_and_legacy_values(tmp_path, config, expected):
+    project = _project_with_previous_export(tmp_path)
+    source = tmp_path / "source.wav"
+    source.write_bytes(b"original master")
+    calls = []
+    captured = []
+    engine = MagicMock(spec=FFmpegEngine)
+    engine.supports_encode.return_value = True
+
+    def encode(source, output, **kwargs):
+        calls.append((output.suffix[1:], kwargs["bitrate_kbps"]))
+        output.write_bytes(b"encoded")
+
+    engine.export_audio.side_effect = encode
+    written = export_episode_deliverables(
+        project,
+        engine,
+        source,
+        {"export": config, "performance": {"max_workers": 1}},
+        capture_audio_plan=captured.append,
+    )
+    assert [(spec.ext, spec.bitrate_kbps) for spec in captured[0]] == expected
+    assert calls == [item for item in expected if item[0] != "wav"]
+    assert [path.suffix[1:] for path in written] == [item[0] for item in expected]
+    assert [path.read_bytes() for path in written] == [
+        b"original master" if item[0] == "wav" else b"encoded" for item in expected
+    ]
+
+
+def test_composer_observer_failure_preserves_published_files(tmp_path):
+    project = _project_with_previous_export(tmp_path)
+    source = tmp_path / "source.wav"
+    source.write_bytes(b"new master")
+    engine = MagicMock(spec=FFmpegEngine)
+    engine.export_audio.side_effect = _writes_output
+
+    captured = []
+
+    def capture(plan):
+        captured.append(plan)
+        raise RuntimeError("optional observer failed")
+
+    paths = export_episode_deliverables(
+        project, engine, source, {"export": MP3}, capture_audio_plan=capture
+    )
+    assert [path.read_bytes() for path in paths] == [b"new master", b"MP3"]
+    assert [spec.ext for spec in captured[0]] == ["wav", "mp3"]

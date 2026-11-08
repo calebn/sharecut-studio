@@ -49,7 +49,7 @@ from podcast_mcp.util.project_state import FileRevision, file_revision
 from podcast_mcp.util.tracks import stem_path
 from podcast_mcp.util.wav import rendered_wav_is_complete
 
-from .export_config import require_source_config
+from .export_config import ExportSettingsEvidence, export_settings_evidence, require_source_config
 from .export_variant_receipt import AdmittedBundle, InvalidReceipt, _finite, admit_bundle
 
 
@@ -206,6 +206,7 @@ class VariantExportResult:
     target: ExportTarget
     master: VariantQc
     edit_head_id: str | None
+    applied_settings: ExportSettingsEvidence | None = None
 
 
 @dataclass(frozen=True)
@@ -240,6 +241,13 @@ class _SourceCertificate:
     mix_gains: tuple[tuple[str, float], ...]
     stem_state: tuple[tuple[str, str, FileRevision], ...]
     premix_revision: FileRevision
+
+
+@dataclass(frozen=True)
+class NamedExportSettings:
+    master_target: MasterTarget
+    limits: MasterQcLimits
+    formats: tuple[ExportFormatSpec, ...]
 
 
 @dataclass(frozen=True)
@@ -490,13 +498,11 @@ def _config_container(value: Any) -> bool:
     )
 
 
-def _request(
+def resolve_named_settings(
     target: ExportTarget,
     defaults: EffectiveConfig,
     formats: list[dict[str, Any]] | None,
-    project: EpisodeProject,
-    source: _SourceCertificate,
-) -> _VariantRequest:
+) -> NamedExportSettings:
     config_message = (
         "Export settings contain an invalid value. Correct the pipeline configuration and retry."
     )
@@ -520,6 +526,18 @@ def _request(
             else "Variant export format is invalid. Choose a supported audio format."
         )
         raise _variant_error(message, "export_variant_format_invalid") from exc
+    return NamedExportSettings(master_target, limits, resolved)
+
+
+def _request(
+    target: ExportTarget,
+    defaults: EffectiveConfig,
+    formats: list[dict[str, Any]] | None,
+    project: EpisodeProject,
+    source: _SourceCertificate,
+) -> _VariantRequest:
+    settings = resolve_named_settings(target, defaults, formats)
+    master_target, limits, resolved = settings.master_target, settings.limits, settings.formats
     metadata = (("album", project.name), ("title", project.name))
     identity_value = {
         "source": source.digest,
@@ -729,6 +747,12 @@ def _result(bundle: AdmittedBundle, edit_head_id: str | None) -> VariantExportRe
         bundle.target,
         bundle.qc,
         edit_head_id,
+        export_settings_evidence(
+            bundle.target,
+            bundle.qc.target,
+            bundle.qc.limits,
+            tuple(audio.spec for audio in bundle.audio),
+        ),
     )
 
 

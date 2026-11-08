@@ -179,6 +179,36 @@ class ExportDeliverablesRequest(BaseModel):
     target: ExportTarget | None = None
 
 
+class ExportMasterTarget(BaseModel):
+    integrated_lufs: float = Field(allow_inf_nan=False)
+    true_peak_db: float = Field(allow_inf_nan=False)
+    lra: float = Field(allow_inf_nan=False)
+
+
+class ExportQcLimits(BaseModel):
+    lufs_tolerance_lu: float = Field(allow_inf_nan=False)
+    true_peak_tolerance_db: float = Field(allow_inf_nan=False)
+
+
+class ExportSettingsEvidence(BaseModel):
+    version: Literal[1]
+    basis: str
+    target: ExportTarget | None
+    master_target: ExportMasterTarget
+    qc_limits: ExportQcLimits
+    audio_formats: list[Literal["mp3", "m4a", "aac", "opus", "ogg", "flac", "wav", "other"]]
+
+
+class ExportSettingsAvailable(BaseModel):
+    status: Literal["available"]
+    settings: ExportSettingsEvidence
+
+
+class ExportSettingsUnavailable(BaseModel):
+    status: Literal["unavailable"]
+    code: Literal["export_settings_unavailable"]
+
+
 class ExportRevealRequest(BaseModel):
     path: str
     id: str

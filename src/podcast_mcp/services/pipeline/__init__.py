@@ -32,6 +32,7 @@ if TYPE_CHECKING:
     )
     from podcast_mcp.services.pipeline.export_config import (
         export_config_snapshot,
+        read_export_settings,
         transcript_comparison_limits,
     )
     from podcast_mcp.services.pipeline.export_variant import (
@@ -107,6 +108,7 @@ __all__ = [
     "persist_whisper_model",
     "pipeline_step_states",
     "prosody_params_for",
+    "read_export_settings",
     "render_preview_result",
     "rerender_preview",
     "resolve_whisper_model",
@@ -148,6 +150,7 @@ _MODULE_BY_NAME = {
     "completed_variant_files": "export_variant",
     "current_source_digest": "export_variant",
     "export_config_snapshot": "export_config",
+    "read_export_settings": "export_config",
     "transcript_comparison_limits": "export_config",
     "PipelineRunResult": "service",
     "PipelineService": "service",

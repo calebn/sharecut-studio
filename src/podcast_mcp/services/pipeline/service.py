@@ -14,6 +14,7 @@ from uuid import uuid4
 from podcast_mcp.edits.envelopes import validate_envelope_point_times
 from podcast_mcp.engines.stale_audio_streams import stale_stream_files, stale_stream_lines
 from podcast_mcp.engines.timeline_render import timeline_duration_sec
+from podcast_mcp.export.audio import ExportFormatSpec
 from podcast_mcp.models import (
     AutomationEnvelope,
     AutomationPoint,
@@ -25,6 +26,11 @@ from podcast_mcp.pipeline import PipelineRunner
 from podcast_mcp.pipeline import steps as pipeline_steps
 from podcast_mcp.pipeline.helpers import ffmpeg
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.pipeline.export_config import (
+    ExportSettingsEvidence,
+    canonical_export_defaults,
+    canonical_settings_evidence,
+)
 from podcast_mcp.services.pipeline.export_variant import (
     ExportTarget,
     VariantExportResult,
@@ -106,6 +112,7 @@ class AudioExportResult:
     # verdict. None when the master has no QC report.
     master: dict[str, Any] | None
     edit_head_id: str | None = None
+    applied_settings: ExportSettingsEvidence | None = None
 
     def master_summary(self) -> str:
         """One line naming the configured target and ceiling and what the master measured."""
@@ -135,6 +142,8 @@ class AudioExportResult:
         result: dict[str, Any] = {"paths": [str(p) for p in self.paths], "master": self.master}
         if self.edit_head_id is not None:
             result["edit_head_id"] = self.edit_head_id
+        if self.applied_settings is not None:
+            result["applied_settings"] = self.applied_settings.to_record()
         return result
 
 
@@ -412,9 +421,8 @@ class PipelineService:
         *,
         cancel_check: Callable[[], bool] | None = None,
     ) -> AudioExportResult:
-        defaults = self._run_defaults()
-        if formats is not None:
-            defaults = {**defaults, "export": {**defaults.get("export", {}), "formats": formats}}
+        defaults = canonical_export_defaults(self._run_defaults(), formats)
+        captured: list[tuple[ExportFormatSpec, ...]] = []
         from podcast_mcp.export.episode import export_episode_deliverables
         from podcast_mcp.util.progress import raise_if_cancel_requested, resolve_progress_task
 
@@ -442,10 +450,14 @@ class PipelineService:
                     defaults,
                     cancel_check=cancel_check,
                     persist_project=self.ws.save_merged,
+                    capture_audio_plan=captured.append,
                 )
             self.ws.save_merged()
             result = AudioExportResult(
-                paths, pipeline_steps.read_master_qc(self.ws.project), edit_head_id
+                paths,
+                pipeline_steps.read_master_qc(self.ws.project),
+                edit_head_id,
+                canonical_settings_evidence(defaults, captured[0]) if captured else None,
             )
             prog.advance(1, message=f"Export complete. {result.master_summary()}")
             return result

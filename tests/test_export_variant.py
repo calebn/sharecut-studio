@@ -674,6 +674,7 @@ def test_export_applied_settings_observe_producer_and_admitted_cache(
     minimal_project, sample_wav, monkeypatch, target, lufs
 ):
     from podcast_mcp.config.defaults import load_defaults
+    from podcast_mcp.project.store import WriteGrantKind, write_grant
     from podcast_mcp.services.pipeline import ExportTarget, PipelineService
     from podcast_mcp.services.pipeline import service as service_module
 
@@ -723,8 +724,10 @@ def test_export_applied_settings_observe_producer_and_admitted_cache(
     monkeypatch.setattr(PipelineService, "_run_defaults", lambda self: defaults.copy())
     service = PipelineService(workspace)
     formats = [{"ext": "flac"}, {"ext": "m4a"}]
+    canonical_before = _canonical_snapshot(workspace)
     if target is None:
-        result = service.export_audio(formats)
+        with write_grant(WriteGrantKind.LEGACY_CLI):
+            result = service.export_audio(formats)
     else:
         result = service.export_variant(ExportTarget(target), formats)
     assert master_args == [{"integrated_lufs": lufs, "true_peak_db": -2.0, "lra": 8.0}]
@@ -746,6 +749,18 @@ def test_export_applied_settings_observe_producer_and_admitted_cache(
             "extra_args": None,
         },
     ]
+    if target is None:
+        written = result.paths
+    else:
+        written = [workspace.project.export_dir() / file_id for file_id in result.file_ids]
+        assert _canonical_snapshot(workspace) == canonical_before
+    assert [path.suffix for path in written] == [".wav", ".flac", ".m4a"]
+    assert written[0].read_bytes() == sample_wav.read_bytes()
+    assert [path.read_bytes() for path in written[1:]] == [b"encoded variant", b"encoded variant"]
+    print(
+        "producer output SHA256",
+        {path.suffix: hashlib.sha256(path.read_bytes()).hexdigest() for path in written},
+    )
     evidence = result.applied_settings.to_record()
     assert evidence["version"] == 1
     assert evidence["target"] == target

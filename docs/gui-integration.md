@@ -175,6 +175,47 @@ descriptors. Unsupported hosts, including Windows, return
 `export_variant_storage_invalid` before staging or rendering. Default exports remain
 available. The existing Windows commit-lock CI job checks this refusal.
 
+### Export settings evidence
+
+Host-only `POST /api/export/deliverables/settings` accepts the same
+`ExportDeliverablesRequest` as export submission: `path`, optional/null `formats`,
+and optional/null `target`. It reads effective settings once without creating a
+working set, job, source certificate, or render. Responses use `Cache-Control:
+no-store`. The response is either `{status: "available", settings}` or
+`{status: "unavailable", code: "export_settings_unavailable"}`. Authentication
+and request-admission failures retain their HTTP status handling.
+
+`settings` is the generated `ExportSettingsEvidence` shape. It contains
+`version: 1`, a SHA-256 `basis`, nullable `target`, finite `master_target`
+(`integrated_lufs`, `true_peak_db`, `lra`), finite `qc_limits`
+(`lufs_tolerance_lu`, `true_peak_tolerance_db`), and ordered `audio_formats`.
+The format vocabulary is `mp3`, `m4a`, `aac`, `opus`, `ogg`, `flac`, `wav`,
+or `other`. Order and duplicates reflect the producer plan.
+
+Successful canonical and named export jobs add `result.applied_settings` with
+this shape when evidence is available. Existing result fields remain unchanged.
+Legacy results may omit it. Error and cancellation do not certify settings.
+If cancellation wins after the producer returns, the terminal result retains
+its legacy fields and removes `applied_settings`. Unrepresentable optional
+evidence never turns a completed export into a failure.
+
+The basis compares the private normalized recipe, including encoder options,
+with type distinctions and order preserved. It excludes project metadata,
+output paths, source identity, edit heads, and job IDs. Raw options, credentials,
+configuration, and receipt details are not exposed. The basis is neither
+authentication nor concealment of guessable inputs. Guest projections omit
+the evidence.
+
+For a retry or comparison, retain the submitted target and a deep snapshot of
+the explicit ordered formats. Omitted/null formats resolve current defaults
+again; an explicit empty list remains distinct. A read compares settings only
+at read time and gives no compare-and-swap or later-export guarantee. Correlate
+reads to project, submitted intent, and read generation. Invalidate the previous
+read when starting another; failed, missing, superseded, or unsupported evidence
+means unknown. This API does not implement that consumer state management.
+Settings comparison does not change file inventory, tickets, or currentness.
+Saved files remain accessible when settings cannot be read.
+
 ## Progress
 
 Shared contract: [progress.md](progress.md). CLI adapter flags: [cli-progress.md](cli-progress.md).
