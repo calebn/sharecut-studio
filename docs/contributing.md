@@ -322,10 +322,18 @@ contributor PR to call it.
 Run that immediate predicate as a separate tool action and capture its exit
 status and JSON. Before the separate merge action, require exit `0`,
 `mergeable=true`, the expected non-null `head_sha`, and an empty `blockers` list.
-An API failure stops the merge invocation. Delegated owners wait for the root
-to inspect the receipt and give the final merge instruction. Follow the
+An API failure stops the merge invocation. The owning lane inspects the receipt
+and carries its authorized PR through merge without a separate coordinator
+approval. Independent review, Shipping, user decisions, and serial merge
+coordination still apply. Follow the
 [Git policy failure-path qualification](../.agents/skills/sharecut-poteto/references/git-workflow.md#verify-an-authorized-merge)
 with a harmless stand-in and retain the proof on the PR.
+
+After a disconnect or material head or base change, reconcile uncertain commands
+and immediately refresh relevant final evidence under the
+[Git policy](../.agents/skills/sharecut-poteto/references/git-workflow.md#refresh-evidence-after-interruption-or-change).
+Show later failures ahead of historical Shipping passes, with exact revisions,
+tested scope, and retained receipts. A stale pass cannot establish merge readiness.
 
 ## Docs in sync
 

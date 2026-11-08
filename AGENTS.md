@@ -36,7 +36,11 @@ handoffs while the PR is in review, before publishing its merging label.
 Repository engineering, product, security, and CSS approval rules still apply.
 State the outcome, acceptance proof, affected areas, and non-goals before coding.
 Follow [contributor scope and proof guidance](docs/contributing.md#bound-the-outcome-before-coding)
-through code-ready review and PR delivery.
+through code-ready review and PR delivery. The owning lane carries an authorized
+PR through merge without a separate coordinator approval. Preserve independent
+Shipping and serial merge coordination. After interruption or material head or
+base changes, follow the Git policy's evidence refresh and superseded-verdict
+rules before claiming readiness.
 
 ## SOLID / DRY (short)
 
