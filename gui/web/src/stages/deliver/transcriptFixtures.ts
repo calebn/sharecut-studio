@@ -62,6 +62,7 @@ export function transcriptRows(current = true): DeliverFiles {
       kind: "transcript" as const,
       label: file.format === "md" ? "Markdown" : "Captions",
       bytes: file.bytes,
+      format: file.format,
       current,
       href: `#${file.name}`,
     })),
