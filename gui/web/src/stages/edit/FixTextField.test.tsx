@@ -72,6 +72,47 @@ describe("FixTextField", () => {
     expect(onDone.mock.calls).toEqual([["tiny space", "blur", "small room"]]);
   });
 
+  it("commits when a connected input blurs", async () => {
+    const { field, onDone } = setup();
+    fireEvent.change(field, { target: { value: "tiny space" } });
+    await act(async () => {
+      fireEvent.blur(field);
+      await Promise.resolve();
+    });
+    expect(onDone.mock.calls).toEqual([["tiny space", "blur", "small room"]]);
+  });
+
+  it("commits once when a connected blur coincides with a harmless rerender", async () => {
+    const onDone = vi.fn();
+    const previousOnDone = (
+      text: string | null,
+      via: "enter" | "tab" | "blur" | "escape",
+      original: string,
+    ) => onDone(text, via, original);
+    const currentOnDone = (
+      text: string | null,
+      via: "enter" | "tab" | "blur" | "escape",
+      original: string,
+    ) => onDone(text, via, original);
+    const { rerender } = render(
+      <FixTextField value="small room" label="Fix" onDone={previousOnDone} />,
+    );
+    const field = screen.getByRole("textbox");
+    fireEvent.change(field, { target: { value: "tiny space" } });
+
+    act(() => {
+      field.dispatchEvent(new FocusEvent("blur"));
+      rerender(
+        <FixTextField value="small room" label="Fix" onDone={currentOnDone} />,
+      );
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(onDone.mock.calls).toEqual([["tiny space", "blur", "small room"]]);
+  });
+
   it("commits on Tab and says so, so the host can step to the next unsure word", async () => {
     const user = userEvent.setup();
     const { onDone } = setup();
@@ -224,6 +265,21 @@ describe("FixTextField", () => {
     field.remove();
     field.dispatchEvent(new FocusEvent("blur"));
     parent.append(field);
+    expect(onDone).not.toHaveBeenCalled();
+  });
+
+  it("does not save when a connected blur is followed by same-turn removal", async () => {
+    const { field, onDone, unmount } = setup();
+    fireEvent.change(field, { target: { value: "tiny space" } });
+
+    act(() => {
+      field.dispatchEvent(new FocusEvent("blur"));
+      unmount();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
     expect(onDone).not.toHaveBeenCalled();
   });
 });
