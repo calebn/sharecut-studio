@@ -4282,4 +4282,79 @@ describe("ScriptPane reading position", () => {
       expect(onUserScroll).not.toHaveBeenCalled();
     },
   );
+  it.each(["key", "wheel", "touch"] as const)(
+    "does not give blocked %s a prior upward range clamp in actual Guest Script",
+    async (input) => {
+      const geometry = scriptGeometry();
+      const scrollHeight = vi
+        .spyOn(HTMLElement.prototype, "scrollHeight", "get")
+        .mockReturnValue(790);
+      const onUserScroll = vi.fn();
+      function Host({ shown }: { shown: boolean }) {
+        const reading = useGuestReading();
+        return (
+          <>
+            <button type="button">Outside</button>
+            {shown ? (
+              <GuestScript
+                guest="suggester"
+                layout="desktop"
+                turns={SCRIPT_TURNS}
+                wordStarts={[]}
+                playing={32}
+                onSeek={vi.fn()}
+                onUserScroll={onUserScroll}
+                reading={reading}
+              />
+            ) : null}
+          </>
+        );
+      }
+      const { container, rerender } = render(<Host shown />);
+      const body = container.querySelector<HTMLElement>(".sys-script-body");
+      if (!body) throw new Error("Expected Guest body");
+      expect(body.scrollTop).toBe(456);
+      body.scrollTop = 590;
+      fireEvent.wheel(body, { deltaY: 134 });
+      fireEvent.scroll(body);
+      const word = body.querySelector<HTMLElement>('[data-stop="32"]');
+      if (!word) throw new Error("Expected saved keyboard reading word");
+      await act(async () => {
+        word.focus();
+        await Promise.resolve();
+      });
+      expect(body.scrollTop).toBe(590);
+      onUserScroll.mockClear();
+      if (input === "touch")
+        fireEvent.touchStart(body, {
+          touches: [{ identifier: 17, clientY: 170 }],
+        });
+      geometry.setLineHeight(18.5);
+      scrollHeight.mockReturnValue(760);
+      body.scrollTop = 560;
+      if (input === "key") fireEvent.keyDown(word, { key: "PageDown" });
+      else if (input === "wheel") fireEvent.wheel(body, { deltaY: 100 });
+      else
+        fireEvent.touchMove(body, {
+          touches: [{ identifier: 17, clientY: 150 }],
+        });
+      fireEvent.scroll(body);
+      fireEvent(window, new Event("resize"));
+      expect.soft(onUserScroll).not.toHaveBeenCalled();
+      expect.soft(body.scrollTop).toBe(542);
+      rerender(<Host shown={false} />);
+      const outside = screen.getByRole("button", { name: "Outside" });
+      outside.focus();
+      rerender(<Host shown />);
+      expect(document.activeElement).toBe(outside);
+      const returnedBody =
+        container.querySelector<HTMLElement>(".sys-script-body");
+      expect.soft(returnedBody?.scrollTop).toBe(542);
+      screen.getByRole("button", { name: "Follow the playhead" }).focus();
+      await userEvent.tab();
+      expect(document.activeElement).toBe(
+        returnedBody?.querySelector('[data-stop="32"]'),
+      );
+    },
+  );
 });
