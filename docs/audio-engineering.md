@@ -471,7 +471,12 @@ true-peak ceiling and LRA behavior, applies the existing `master_qc_issues` verd
 the measured variant master, and refuses unmeasured or out-of-tolerance output before
 encoding. It writes a separate immutable bundle and leaves `mastered.wav` and
 `master_qc.json` untouched. These targets are backend choices; they do not imply that
-every source can meet them or that the output has been auditioned.
+every source can meet them or that the output has been auditioned. Completed bundles
+are admitted through the same typed receipt boundary for publication, cache reuse and
+inventory. Admission reconstructs the source certificate digest, checks canonical
+format records and registered file integrity, and recomputes the existing QC verdict.
+A consistent failed QC verdict is still refused. Unknown ambient files are ignored
+and never served.
 
 `export_deliverables` goes one step further and writes `artifacts/export_qc.json`,
 rolling up `master_qc.json`'s issues **plus** transcript reconciliation staleness

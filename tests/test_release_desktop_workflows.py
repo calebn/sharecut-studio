@@ -715,3 +715,15 @@ def test_sign_updater_signs_only_windows_and_linux_and_needs_no_platform_secrets
     assert resolve["if"] == "${{ needs.verify-source.outputs.trusted == 'true' && inputs.sign }}"
     require = next(s for s in job["steps"] if s.get("name") == "Require signing when requested")
     assert 'if [[ "${{ inputs.sign }}" != "true" ]]; then' in require["run"]
+
+
+def test_windows_job_checks_isolated_export_refusal():
+    job = load_github_yaml(DESKTOP_CHECK)["jobs"]["project-commit-lock-windows"]
+    steps = [
+        step for step in job["steps"] if step.get("name") == "Isolated export platform refusal"
+    ]
+    assert len(steps) == 1
+    command = steps[0]["run"]
+    assert "tests/test_export_variant_integrity.py -k platform_refusal" in command
+    assert '--basetemp "${{ env.SHARECUT_PROOF_ROOT }}/variant-pytest"' in command
+    assert job["runs-on"] == "windows-latest"

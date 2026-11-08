@@ -569,3 +569,12 @@ def test_projected_matrix_expansion_counts(paths, desktop, registry) -> None:
             expansions *= len(values)
         counts[workload.workflow] += expansions
     assert counts == {"desktop.yml": desktop, "registry-backup-windows.yml": registry}
+
+
+def test_variant_storage_paths_select_windows_refusal_job():
+    for path in (
+        "src/podcast_mcp/services/pipeline/export_variant_receipt.py",
+        "src/podcast_mcp/util/owned_stage.py",
+        "tests/test_export_variant_integrity.py",
+    ):
+        assert native.NativeFamily.LOCK in cp.plan("pull_request", [path]).native.required
