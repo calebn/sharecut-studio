@@ -16,10 +16,13 @@ function stub(short: boolean, visualHeight?: number, visualScale = 1) {
   }));
   const addWindow = vi.spyOn(window, "addEventListener");
   const removeWindow = vi.spyOn(window, "removeEventListener");
-  const vvListeners = new Set<() => void>();
+  const vvListeners = new Map<string, Set<() => void>>();
   let height = visualHeight;
   let scale = visualScale;
   const vvEvents: string[] = [];
+  const emitVisual = (type: string) => {
+    vvListeners.get(type)?.forEach((fn) => fn());
+  };
   vi.stubGlobal("visualViewport", {
     get height() {
       return height;
@@ -29,11 +32,13 @@ function stub(short: boolean, visualHeight?: number, visualScale = 1) {
     },
     addEventListener: (type: string, fn: () => void) => {
       vvEvents.push(`add:${type}`);
-      vvListeners.add(fn);
+      const listeners = vvListeners.get(type) ?? new Set<() => void>();
+      listeners.add(fn);
+      vvListeners.set(type, listeners);
     },
     removeEventListener: (type: string, fn: () => void) => {
       vvEvents.push(`remove:${type}`);
-      vvListeners.delete(fn);
+      vvListeners.get(type)?.delete(fn);
     },
   });
   return {
@@ -43,14 +48,22 @@ function stub(short: boolean, visualHeight?: number, visualScale = 1) {
     },
     setScale(next: number) {
       scale = next;
-      vvListeners.forEach((fn) => fn());
+      emitVisual("resize");
     },
     vvEvents,
     addWindow,
     removeWindow,
+    setVisualHeight(next: number) {
+      height = next;
+    },
+    emitVisual,
     setVisual(next: number) {
       height = next;
-      vvListeners.forEach((fn) => fn());
+      emitVisual("resize");
+    },
+    setWindowHeight(next: number) {
+      height = next;
+      window.dispatchEvent(new Event("resize"));
     },
   };
 }
@@ -82,6 +95,25 @@ describe("useShortViewport", () => {
     act(() => control.setVisual(480));
     expect(result.current).toBe(true);
     act(() => control.setVisual(568));
+    expect(result.current).toBe(false);
+  });
+
+  it("updates from only the visual viewport event type that was emitted", () => {
+    const control = stub(false, 844);
+    const { result } = renderHook(() => useShortViewport());
+    control.setVisualHeight(340);
+    act(() => control.emitVisual("scroll"));
+    expect(result.current).toBe(false);
+    act(() => control.emitVisual("resize"));
+    expect(result.current).toBe(true);
+  });
+
+  it("updates from a real window resize independently of visual events", () => {
+    const control = stub(false, 844);
+    const { result } = renderHook(() => useShortViewport());
+    act(() => control.setWindowHeight(340));
+    expect(result.current).toBe(true);
+    act(() => control.setWindowHeight(568));
     expect(result.current).toBe(false);
   });
 
