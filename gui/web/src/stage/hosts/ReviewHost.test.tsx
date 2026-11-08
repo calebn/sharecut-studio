@@ -1310,6 +1310,43 @@ describe("Review host unsure words", () => {
     expect(sent("ApproveEdits")).toHaveLength(0);
   });
 
+  it("keeps Open in Edit reachable on a phone when no eligible Fix word remains", async () => {
+    stubViewportShell("phone");
+    setup("done", [
+      edit("f1", "filler", 10, { unsure_words: [word(1, "uncle")] }),
+    ]);
+    server.words = [
+      { text: "ordinary", unsure: false, at: 10, listed: true },
+      { text: "uncle", unsure: true, at: 10.25, listed: true, mappable: false },
+    ];
+    snapshot();
+    act(() => useDawStore.getState().setShellBreakpoint("phone"));
+
+    try {
+      expect(heading()).toBe("filler f1");
+      expect(document.querySelector(".sys-decision")).toHaveAttribute(
+        "data-layout",
+        "phone",
+      );
+      expect(
+        screen.getByRole("button", { name: "Cut", exact: true }),
+      ).toBeDisabled();
+      const open = screen.getByRole("button", {
+        name: "Open in Edit",
+        exact: true,
+      });
+      expect(open).toBeVisible();
+      await userEvent.click(open);
+      expect(useDawStore.getState().stage).toBe("edit");
+      expect(useDawStore.getState().selection).toMatchObject({
+        kind: "pending",
+        id: "f1",
+      });
+    } finally {
+      act(() => useDawStore.getState().setShellBreakpoint("desktop"));
+    }
+  });
+
   it("does not carry an open Fix draft from a retired word to the next proposal word", async () => {
     setup("done", [
       edit("f1", "filler", 10, {
