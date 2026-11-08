@@ -311,10 +311,12 @@ export async function waitForPipelineJob(
   },
 ): Promise<PipelineJobSnapshot> {
   const timeoutMs = opts?.timeoutMs ?? 600_000;
-  const signal = opts?.signal;
+  const callerSignal = opts?.signal;
+  const controller = new AbortController();
+  const signal = controller.signal;
 
   const fromStatus = async (): Promise<PipelineJobSnapshot | null> => {
-    const st = await loadPipelineStatus();
+    const st = await loadPipelineStatus({ signal });
     const rows = [st.job, ...(st.jobs ?? [])].filter(
       (job): job is PipelineJobSnapshot => job != null,
     );
@@ -324,83 +326,72 @@ export async function waitForPipelineJob(
     );
   };
 
-  if (signal?.aborted) {
-    throw new DOMException("Aborted", "AbortError");
-  }
-
-  const early = await fromStatus();
-  if (signal?.aborted) {
-    throw new DOMException("Aborted", "AbortError");
-  }
-  if (early) {
-    return early;
-  }
-
   return new Promise<PipelineJobSnapshot>((resolve, reject) => {
     let settled = false;
-    const stream = openJobStream<PipelineEvent, PipelineJobSnapshot>({
-      url: pipelineEventsUrl(jobId),
-      recheck: { check: fromStatus, onResult: (job) => finish(job) },
-      onFrame: (data) => {
-        const job = data.job;
-        if (job?.id === jobId && isTerminalJobStatus(job.status)) {
-          finish(job);
-        }
-      },
-      onError: (es) => {
-        if (settled) {
-          return;
-        }
-        void fromStatus()
-          .then((job) => {
-            if (job) {
-              finish(job);
-              return;
-            }
-            if (es.readyState === EventSource.CLOSED) {
-              fail(new Error("Lost connection while waiting for job"));
-            }
-          })
-          .catch(() => {
-            /* ignore transient */
-          });
-      },
-    });
-
-    const finish = (job: PipelineJobSnapshot) => {
-      if (settled) {
-        return;
-      }
-      settled = true;
+    let stream: ReturnType<typeof openJobStream> | undefined;
+    const cleanup = () => {
       window.clearTimeout(timeout);
-      stream.close();
-      signal?.removeEventListener("abort", onAbort);
+      stream?.close();
+      callerSignal?.removeEventListener("abort", onAbort);
+      controller.abort();
+    };
+    const finish = (job: PipelineJobSnapshot) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
       resolve(job);
     };
-
-    const fail = (err: Error) => {
-      if (settled) {
-        return;
-      }
+    const fail = (err: unknown) => {
+      if (settled) return;
       settled = true;
-      window.clearTimeout(timeout);
-      stream.close();
-      signal?.removeEventListener("abort", onAbort);
+      cleanup();
       reject(err);
     };
-
-    const onAbort = () => {
-      fail(new DOMException("Aborted", "AbortError"));
-    };
-
+    const onAbort = () => fail(new DOMException("Aborted", "AbortError"));
     const timeout = window.setTimeout(() => {
       fail(new Error("Timed out waiting for job"));
     }, timeoutMs);
-
-    signal?.addEventListener("abort", onAbort);
-    if (signal?.aborted) {
+    callerSignal?.addEventListener("abort", onAbort);
+    if (callerSignal?.aborted) {
       onAbort();
+      return;
     }
+
+    void fromStatus()
+      .then((early) => {
+        if (settled) return;
+        if (early) {
+          finish(early);
+          return;
+        }
+        stream = openJobStream<PipelineEvent, PipelineJobSnapshot>({
+          url: pipelineEventsUrl(jobId),
+          recheck: { check: fromStatus, onResult: (job) => finish(job) },
+          onFrame: (data) => {
+            const job = data.job;
+            if (job?.id === jobId && isTerminalJobStatus(job.status)) {
+              finish(job);
+            }
+          },
+          onError: (es) => {
+            if (settled) return;
+            void fromStatus()
+              .then((job) => {
+                if (job) {
+                  finish(job);
+                  return;
+                }
+                if (es.readyState === EventSource.CLOSED) {
+                  fail(new Error("Lost connection while waiting for job"));
+                }
+              })
+              .catch(() => {
+                /* ignore transient */
+              });
+          },
+        });
+      })
+      .catch(fail);
   });
 }
 

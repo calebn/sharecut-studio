@@ -223,6 +223,33 @@ describe("JobModelBanner", () => {
     },
   );
 
+  it("recovers inline after both initial catalog reads fail", async () => {
+    const { requests, onLimit } = mountReal();
+    await act(async () =>
+      requests[0]!.reject(new Error("Initial status offline")),
+    );
+    fail(failedJob({ kind: "pipeline" }));
+    expect(requests).toHaveLength(2);
+    await act(async () =>
+      requests[1]!.reject(new Error("Recovery status offline")),
+    );
+    const check = screen.getByRole("button", {
+      name: "Check Noise reduction status",
+    });
+    expect(screen.getByText("Couldn't check noise reduction")).toBeVisible();
+    await userEvent.click(check);
+    expect(requests).toHaveLength(3);
+    await act(async () => requests[2]!.resolve(installedNoise()));
+    await waitFor(() =>
+      expect(retryPipelineJob).toHaveBeenCalledExactlyOnceWith(
+        "/tmp/p.json",
+        "job-1",
+      ),
+    );
+    expect(runPointerCommand).not.toHaveBeenCalled();
+    expect(onLimit).not.toHaveBeenCalled();
+  });
+
   it("keeps a failed read actionable, retries with fresh evidence once, and does not re-arm the same job", async () => {
     useDawStore.setState({ statusAnnouncement: "" });
     const { requests, onLimit } = mountReal();
@@ -1329,4 +1356,40 @@ describe("JobModelBanner", () => {
       ["/tmp/p.json", "A"],
     ]);
   });
+
+  it.each(["repeated", "success"] as const)(
+    "keeps a confirmed %s successor outcome when its late POST rejects",
+    async (outcome) => {
+      useDawStore.setState({ statusAnnouncement: "" });
+      const reply = deferredJob();
+      vi.mocked(retryPipelineJob).mockReturnValueOnce(reply.promise);
+      const { land } = mount();
+      const { a, j } = competingJobs();
+      status(a, [a], 0);
+      land("rnnoise");
+      await waitFor(() => expect(retryPipelineJob).toHaveBeenCalledTimes(1));
+      const terminal = failedJob({
+        id: "B",
+        kind: "pipeline",
+        retry_of: "A",
+        ...(outcome === "success"
+          ? { status: "ok", error: null, error_code: null, error_model: null }
+          : {}),
+      });
+      status(j, [j, terminal, a], 1);
+      const confirmed = useDawStore.getState().statusAnnouncement;
+      expect(confirmed).toBe(
+        outcome === "repeated"
+          ? "Noise reduction (RNNoise) is not downloaded."
+          : "",
+      );
+      await act(async () =>
+        reply.reject(new Error("Late POST connection error")),
+      );
+      expect(useDawStore.getState().statusAnnouncement).toBe(confirmed);
+      expect(useDawStore.getState().activityJob).toBe(j);
+      expect(retryPipelineJob).toHaveBeenCalledTimes(1);
+      expect(jobWaits).toHaveLength(0);
+    },
+  );
 });

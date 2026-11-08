@@ -293,13 +293,8 @@ export function JobModelBanner({ guestShare }: { guestShare: boolean }) {
           store.projectPath !== last.path
         )
           return;
-        if (attempt.observed || attempts.current.get(last.job.id) !== attempt) {
-          store.announceStatus(
-            errorMessage(error, "The run could not resume."),
-            { tone: "error" },
-          );
+        if (attempt.observed || attempts.current.get(last.job.id) !== attempt)
           return;
-        }
         const refusedBeforeAdmission =
           isModelNeeded(error) ||
           (error instanceof ApiError &&
