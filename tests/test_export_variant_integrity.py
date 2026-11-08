@@ -217,6 +217,76 @@ def test_malformed_bundle_does_not_hide_canonical_files(prepared):
     assert all(row["id"] != file_id for row in files.json()["files"])
 
 
+@pytest.mark.parametrize("field,value", [("qc.plan", "bad\ud800"), ("qc.measured.bad\ud800", 1.0)])
+def test_malformed_unicode_receipt_is_skipped_and_cache_refused(prepared, field, value):
+    import hashlib
+
+    from podcast_mcp.services.document import ExportFilesService
+    from podcast_mcp.services.pipeline import ExportTarget, PipelineService
+    from podcast_mcp.util.coded_error import CodedValueError
+
+    ws, _, sample = prepared
+    (ws.project.export_dir() / "test_episode.wav").write_bytes(sample.read_bytes())
+    service = PipelineService(ws)
+    result = service.export_variant(ExportTarget.PODCAST, formats=[])
+    receipt_path = (ws.project.export_dir() / result.file_ids[0]).with_name("receipt.json")
+    record = json.loads(receipt_path.read_text())
+    if field == "qc.plan":
+        record["qc"]["plan"] = value
+    else:
+        record["qc"]["measured"]["bad\ud800"] = value
+    sidecar = receipt_path.with_name("master_qc.json")
+    sidecar.write_text(json.dumps(record["qc"]))
+    sidecar_bytes = sidecar.read_bytes()
+    record["files"]["master_qc.json"] = {
+        "size": len(sidecar_bytes),
+        "sha256": hashlib.sha256(sidecar_bytes).hexdigest(),
+    }
+    receipt_path.write_text(json.dumps(record))
+
+    with pytest.raises(CodedValueError) as caught:
+        service.export_variant(ExportTarget.PODCAST, formats=[])
+    assert caught.value.code == "export_variant_cache_corrupt"
+    assert result.file_ids[0] not in {row.id for row in ExportFilesService(ws).list()}
+
+
+def test_receipt_admission_preserves_valid_unicode(prepared):
+    import hashlib
+
+    from podcast_mcp.services.pipeline import ExportTarget, PipelineService
+    from podcast_mcp.services.pipeline.export_variant_receipt import admit_bundle
+
+    ws, _, sample = prepared
+    (ws.project.export_dir() / "test_episode.wav").write_bytes(sample.read_bytes())
+    result = PipelineService(ws).export_variant(ExportTarget.PODCAST, formats=[])
+    receipt_path = (ws.project.export_dir() / result.file_ids[0]).with_name("receipt.json")
+    record = json.loads(receipt_path.read_text())
+    record["qc"]["plan"] = "loudnorm – café 🎙"
+    record["qc"]["measured"]["測定"] = record["qc"]["measured"].pop("lra")
+    sidecar = receipt_path.with_name("master_qc.json")
+    sidecar.write_text(json.dumps(record["qc"], ensure_ascii=False))
+    sidecar_bytes = sidecar.read_bytes()
+    record["files"]["master_qc.json"] = {
+        "size": len(sidecar_bytes),
+        "sha256": hashlib.sha256(sidecar_bytes).hexdigest(),
+    }
+    receipt_path.write_text(json.dumps(record, ensure_ascii=False))
+    admitted = admit_bundle(receipt_path.parent, result.file_ids[0].split("/")[1])
+    assert admitted.qc.plan == "loudnorm – café 🎙"
+
+
+@pytest.mark.parametrize("option", [{"channels": 3}, {"sample_rate": 48001}])
+def test_mp3_encoder_constraints_refuse_before_mastering(prepared, option):
+    from podcast_mcp.services.pipeline import ExportTarget, PipelineService
+    from podcast_mcp.util.coded_error import CodedValueError
+
+    ws, engine, _ = prepared
+    with pytest.raises(CodedValueError) as caught:
+        PipelineService(ws).export_variant(ExportTarget.PODCAST, formats=[{"ext": "mp3", **option}])
+    assert caught.value.code == "export_variant_format_invalid"
+    assert engine.master_calls == 0
+
+
 def test_conflicting_format_alias_cannot_bypass_raw_field_validation(prepared):
     ws, engine, _ = prepared
     client = TestClient(create_app())
@@ -450,6 +520,27 @@ def test_platform_refusal_preserves_default_exports(prepared, monkeypatch):
         == before[ws.project.export_dir() / "test_episode.wav"]
     )
     assert _canonical_snapshot(ws) == before
+
+
+def test_platform_refusal_precedes_ffmpeg_construction(prepared, monkeypatch):
+    from podcast_mcp.services.pipeline import ExportTarget, PipelineService
+    from podcast_mcp.services.pipeline import export_variant, service as service_module
+    from podcast_mcp.util.coded_error import CodedValueError
+
+    ws, _, _ = prepared
+    monkeypatch.setattr(export_variant, "owned_stage_supported", lambda: False)
+    calls = []
+
+    def construct_engine():
+        calls.append("ffmpeg")
+        raise RuntimeError("engine construction must not run")
+
+    monkeypatch.setattr(service_module.pipeline_steps, "ffmpeg", construct_engine)
+    with pytest.raises(CodedValueError) as caught:
+        PipelineService(ws).export_variant(ExportTarget.PODCAST, formats=[])
+    assert caught.value.code == "export_variant_storage_invalid"
+    assert calls == []
+    assert not (ws.project.export_dir() / "variants").exists()
 
 
 @pytest.mark.parametrize(

@@ -112,8 +112,7 @@ def _canonical_snapshot(workspace) -> dict[Path, bytes | None]:
         project.history_dir() / "index.json",
     ]
     paths.extend(
-        project.history_dir() / "snapshots" / entry.snapshot_file
-        for entry in project.history.entries
+        project.workspace_path() / entry.snapshot_file for entry in project.history.entries
     )
     paths.extend(
         project.workspace_path() / version.audio_relpath for version in project.review.versions
@@ -156,7 +155,7 @@ def _seed_canonical_outputs(workspace) -> None:
     history_entry = HistoryEntry(
         id="preserve01",
         label="Saved edit",
-        snapshot_file="preserve01.json",
+        snapshot_file="history/snapshots/preserve01.json",
     )
     project.history = ProjectHistory(cursor=0, entries=[history_entry])
     index_path = history_index_path(project)
@@ -174,6 +173,19 @@ def _seed_canonical_outputs(workspace) -> None:
     write_json_atomic(snapshot_path, snapshot_from_project(project).model_dump(mode="json"))
     write_json_atomic(index_path, project.history.model_dump(mode="json"))
     save_project(project, workspace.path)
+
+
+def test_seeded_history_snapshot_is_reachable_through_production_reader(
+    minimal_project, sample_wav
+):
+    from podcast_mcp.project.store import read_history_snapshot
+
+    workspace = _current_mix(minimal_project, sample_wav)
+    _seed_canonical_outputs(workspace)
+    entry = workspace.project.history.entries[0]
+    snapshot = read_history_snapshot(workspace.project, entry)
+    assert snapshot.timeline is not None
+    assert (workspace.project.workspace_path() / entry.snapshot_file).is_file()
 
 
 def test_service_exports_isolated_bundle_and_reuses_a_b_a(minimal_project, sample_wav, monkeypatch):
