@@ -51,6 +51,12 @@ import {
   timeQueue,
 } from "./reviewQueueModel";
 
+export type UnsureContext = {
+  readonly before: readonly string[];
+  readonly focus: string;
+  readonly after: readonly string[];
+};
+
 export type ReviewContent = {
   row: Pick<
     QueueRowProps,
@@ -82,6 +88,7 @@ export type ReviewContent = {
         DecisionCardProps["unsure"]
       >["editorIdentity"];
       step?: { index: number; total: number };
+      context?: UnsureContext;
     };
   };
 };

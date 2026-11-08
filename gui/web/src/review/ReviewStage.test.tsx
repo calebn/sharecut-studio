@@ -12,6 +12,7 @@ import {
   ReviewStageHarness,
   type ReviewStageHarnessProps,
 } from "../storybook/reviewHarness";
+import type { ReviewContent } from "./ReviewQueue";
 import { ReviewStage } from "./ReviewStage";
 import {
   OPEN_REVIEW_ATTENTION_EVENT,
@@ -380,6 +381,159 @@ describe("ReviewStage", () => {
     expect(screen.queryByRole("button", { name: /Fix text/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /Looks right/ })).toBeNull();
     expect(decided()).toBe(before);
+  });
+
+  it("renders the exact unsure occurrence inline and refreshes it when the standalone target advances", () => {
+    const items: ReviewItem[] = [
+      { id: "u1", kind: "unsure-word", at: 1, savedSeconds: 0 },
+      { id: "u2", kind: "unsure-word", at: 2, savedSeconds: 0 },
+    ];
+    const content = (item: ReviewItem) => {
+      const body = reviewContent(item);
+      const context =
+        item.id === "u1"
+          ? { before: ["we", "said"], focus: "go", after: ["again"] }
+          : { before: ["they"], focus: "went", after: ["home"] };
+      return {
+        ...body,
+        card: {
+          ...body.card,
+          unsure: {
+            ...(body.card.unsure ?? {
+              word: context.focus,
+              guess: context.focus,
+            }),
+            context,
+          },
+        },
+      };
+    };
+    const props = {
+      items,
+      content,
+      duration: 3000,
+      filter: "all" as const,
+      looksRight: new Set<string>(),
+      onSelect: vi.fn(),
+      onFilter: vi.fn(),
+      onLooksRight: vi.fn(),
+      onDecide: vi.fn(),
+    };
+    const view = render(<ReviewStage {...props} selectedId="u1" />);
+
+    expect(
+      view.container.querySelector(".sys-decision-excerpt")?.textContent,
+    ).toBe("we said go again");
+    expect(
+      view.container.querySelectorAll(".sys-decision-excerpt strong"),
+    ).toHaveLength(1);
+    expect(
+      view.container.querySelector(".sys-decision-excerpt strong"),
+    ).toHaveClass("sys-sugg-unsure");
+    expect(
+      view.container.querySelector(".sys-decision-excerpt"),
+    ).not.toHaveAttribute("aria-live");
+    expect(
+      view.container.querySelector(".sys-decision-excerpt button"),
+    ).toBeNull();
+
+    view.rerender(<ReviewStage {...props} selectedId="u2" />);
+
+    expect(
+      view.container.querySelector(".sys-decision-excerpt")?.textContent,
+    ).toBe("they went home");
+    expect(
+      view.container.querySelectorAll(".sys-decision-excerpt strong"),
+    ).toHaveLength(1);
+    expect(
+      view.container.querySelector(".sys-decision-excerpt strong"),
+    ).toHaveTextContent("went");
+  });
+
+  it("renders the currently chosen unsure target on the same proposal card and keeps existing excerpt fallback", () => {
+    const selected: ReviewItem = {
+      id: "edit:cut",
+      kind: "filler",
+      at: 1,
+      savedSeconds: 1,
+    };
+    const items = [selected];
+    let target: NonNullable<ReviewContent["card"]["unsure"]> = {
+      word: "first",
+      guess: "first",
+      id: "word:host::1",
+      step: { index: 1, total: 2 },
+      context: { before: ["the"], focus: "first", after: ["word"] },
+    };
+    const content = (item: ReviewItem) => {
+      const body = reviewContent(item);
+      return {
+        ...body,
+        card: {
+          ...body.card,
+          excerpt: "Existing proposal excerpt",
+          unsure: target,
+        },
+      };
+    };
+    const props = {
+      items,
+      content,
+      duration: 3000,
+      filter: "all" as const,
+      looksRight: new Set<string>(),
+      selectedId: selected.id,
+      onSelect: vi.fn(),
+      onFilter: vi.fn(),
+      onLooksRight: vi.fn(),
+      onDecide: vi.fn(),
+    };
+    const view = render(<ReviewStage {...props} />);
+
+    expect(
+      view.container.querySelector(".sys-decision-excerpt")?.textContent,
+    ).toBe("the first word");
+    expect(
+      view.container.querySelector(".sys-decision-excerpt strong"),
+    ).toHaveTextContent("first");
+
+    target = {
+      word: "second",
+      guess: "second",
+      id: "word:host::2",
+      step: { index: 2, total: 2 },
+      context: { before: ["that"], focus: "second", after: ["one"] },
+    };
+    view.rerender(<ReviewStage {...props} />);
+
+    expect(
+      view.container.querySelector(".sys-decision-excerpt")?.textContent,
+    ).toBe("that second one");
+    expect(
+      view.container.querySelector(".sys-decision-excerpt strong"),
+    ).toHaveTextContent("second");
+
+    const readyTarget = target;
+    const retry = vi.fn();
+    for (const wordDetail of [
+      { kind: "pending", retry },
+      { kind: "failed", retry, recovering: false },
+    ] as const) {
+      target = { ...readyTarget, disabledReason: "Transcript unavailable." };
+      view.rerender(<ReviewStage {...props} wordDetail={wordDetail} />);
+      expect(
+        view.container.querySelector(".sys-decision-excerpt")?.textContent,
+      ).toBe("Existing proposal excerpt");
+      expect(
+        view.container.querySelector(".sys-decision-excerpt strong"),
+      ).toBeNull();
+    }
+
+    target = { word: "legacy", guess: "legacy", id: "word:host::3" };
+    view.rerender(<ReviewStage {...props} />);
+    expect(
+      view.container.querySelector(".sys-decision-excerpt")?.textContent,
+    ).toBe("Existing proposal excerpt");
   });
 
   it("opens Edit and comments on the selected item", () => {
