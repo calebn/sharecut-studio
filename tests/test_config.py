@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import os
 
+import pytest
+import yaml
+
 from podcast_mcp.config import defaults as config
 from podcast_mcp.config.defaults import (
     DEFAULT_MICRO_FADE_MS,
@@ -83,6 +86,30 @@ def test_load_defaults_invalid_env_does_not_crash(tmp_path, monkeypatch):
 def test_load_defaults_missing_override_returns_empty(tmp_path, monkeypatch):
     monkeypatch.setenv("PODCAST_MCP_PIPELINE_DEFAULTS", str(tmp_path / "missing.yaml"))
     assert load_defaults() == {}
+
+
+@pytest.mark.parametrize("source", ["- master\n", "plain scalar\n"])
+def test_load_defaults_rejects_non_mapping_yaml_roots(tmp_path, monkeypatch, source):
+    path = tmp_path / "non-mapping.yaml"
+    path.write_text(source, encoding="utf-8")
+    monkeypatch.setenv("PODCAST_MCP_PIPELINE_DEFAULTS", str(path))
+
+    with pytest.raises(yaml.YAMLError):
+        load_defaults()
+
+
+@pytest.mark.parametrize("source", ["", "null\n", "render:\n  join_fade_max_ms: 23\n"])
+def test_load_defaults_preserves_mapping_and_empty_root_semantics(tmp_path, monkeypatch, source):
+    path = tmp_path / "valid-root.yaml"
+    path.write_text(source, encoding="utf-8")
+    monkeypatch.setenv("PODCAST_MCP_PIPELINE_DEFAULTS", str(path))
+
+    result = load_defaults()
+
+    if "render:" in source:
+        assert result["render"]["join_fade_max_ms"] == 23
+    else:
+        assert "render" not in result
 
 
 def test_load_defaults_rereads_a_changed_file_and_copies_per_caller(tmp_path, monkeypatch):

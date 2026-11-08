@@ -185,6 +185,62 @@ def test_the_host_lists_and_downloads_with_no_host_path(ws, folder, client) -> N
     assert str(ws.path.parent) not in res.text
 
 
+@pytest.mark.parametrize("invalid_yaml", ["master: [\n", "- master\n"])
+def test_saved_audio_remains_listed_and_ticketed_when_defaults_are_invalid(
+    ws, tmp_path, client, monkeypatch, invalid_yaml
+) -> None:
+    client = TestClient(client.app, raise_server_exceptions=False)
+    stem = sanitize_export_stem(ws.project.name)
+    audio = ws.project.export_dir() / f"{stem}.wav"
+    audio.parent.mkdir(parents=True, exist_ok=True)
+    audio.write_bytes(WAV)
+    params = {"path": str(ws.path)}
+    initial = client.get("/api/export/files", params=params)
+    assert initial.status_code == 200
+    row = next(item for item in initial.json()["files"] if item["id"] == audio.name)
+    invalid = tmp_path / "invalid-defaults.yaml"
+    invalid.write_text(invalid_yaml, encoding="utf-8")
+
+    monkeypatch.setenv("PODCAST_MCP_PIPELINE_DEFAULTS", str(invalid))
+    listed = client.get("/api/export/files", params=params)
+    downloaded = client.get(
+        f"/api/export/files/{audio.name}", params={**params, "ticket": row["ticket"]}
+    )
+
+    assert listed.status_code == 200
+    assert [item["id"] for item in listed.json()["files"]] == [audio.name]
+    assert (downloaded.status_code, downloaded.content) == (200, WAV)
+
+
+def test_saved_transcripts_remain_listed_as_not_current_when_defaults_are_invalid(
+    ws, folder, client, tmp_path, monkeypatch
+) -> None:
+    client = TestClient(client.app, raise_server_exceptions=False)
+    invalid = tmp_path / "invalid-defaults.yaml"
+    invalid.write_text("master: [\n", encoding="utf-8")
+    monkeypatch.setenv("PODCAST_MCP_PIPELINE_DEFAULTS", str(invalid))
+
+    response = client.get("/api/export/files", params={"path": str(ws.path)})
+
+    assert response.status_code == 200
+    rows = {row["id"]: row for row in response.json()["files"]}
+    assert {"test_episode.md", "test_episode.srt"} <= rows.keys()
+    assert rows["test_episode.md"]["current"] is False
+    assert rows["test_episode.srt"]["current"] is False
+
+
+def test_transcript_renderer_runtime_errors_propagate(ws, folder, monkeypatch) -> None:
+    def fail_render(*args, **kwargs):
+        raise RuntimeError("renderer programming failure")
+
+    monkeypatch.setattr(
+        "podcast_mcp.services.document.transcript.render_transcript_formats", fail_render
+    )
+
+    with pytest.raises(RuntimeError, match="renderer programming failure"):
+        ExportFilesService(ws).list()
+
+
 @pytest.mark.parametrize(
     "file_id",
     [
