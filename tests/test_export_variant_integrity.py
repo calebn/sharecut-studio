@@ -141,10 +141,12 @@ def test_variant_route_round_trip_and_authority(prepared, monkeypatch):
     assert engine.master_targets == [-16]
 
 
+@pytest.mark.parametrize("invalid_yaml", ["master: [\n", "- master\n"])
 def test_completed_variant_currentness_is_optional_for_saved_bundle(
-    prepared, tmp_path, monkeypatch
+    prepared, tmp_path, monkeypatch, invalid_yaml
 ):
     ws, engine, _ = prepared
+    _seed_canonical_outputs(ws)
     client = TestClient(create_app(), raise_server_exceptions=False)
     job_id = start(client, ws.path, target="podcast", formats=[{"ext": "wav"}])
     generated = done(client, ws.path, job_id)
@@ -155,20 +157,49 @@ def test_completed_variant_currentness_is_optional_for_saved_bundle(
     before = receipt.read_bytes()
     params = {"path": str(ws.path)}
     invalid = tmp_path / "invalid-defaults.yaml"
-    invalid.write_text("master: [\n", encoding="utf-8")
+    invalid.write_text(invalid_yaml, encoding="utf-8")
 
     monkeypatch.setenv("PODCAST_MCP_PIPELINE_DEFAULTS", str(invalid))
     stale_rows = client.get(FILES, params=params)
     download = client.get(f"{FILES}/{file_id}", params=params)
     assert stale_rows.status_code == 200
-    stale = next(row for row in stale_rows.json()["files"] if row["id"] == file_id)
+    stale_files = {row["id"]: row for row in stale_rows.json()["files"]}
+    assert {"test_episode.wav", file_id} <= stale_files.keys()
+    stale = stale_files[file_id]
     assert stale["current"] is False
     assert (download.status_code, download.content) == (200, (bundle / "audio.wav").read_bytes())
+    assert client.get(f"{FILES}/test_episode.wav", params=params).content == (
+        b"canonical artifact 5"
+    )
 
     monkeypatch.delenv("PODCAST_MCP_PIPELINE_DEFAULTS")
     current_rows = client.get(FILES, params=params)
     current = next(row for row in current_rows.json()["files"] if row["id"] == file_id)
     assert current["current"] is True
+
+    premix = premix_path(ws.project)
+    unavailable = premix.with_name("premix.saved-for-inventory-test.wav")
+    premix.rename(unavailable)
+    try:
+        unavailable_rows = client.get(FILES, params=params)
+        unavailable_files = {row["id"]: row for row in unavailable_rows.json()["files"]}
+        assert unavailable_rows.status_code == 200
+        assert {"test_episode.wav", file_id} <= unavailable_files.keys()
+        assert unavailable_files[file_id]["current"] is False
+        assert (
+            client.get(f"{FILES}/{file_id}", params=params).content
+            == (bundle / "audio.wav").read_bytes()
+        )
+        assert (
+            client.get(f"{FILES}/test_episode.wav", params=params).content
+            == b"canonical artifact 5"
+        )
+    finally:
+        unavailable.rename(premix)
+
+    recovered_rows = client.get(FILES, params=params)
+    recovered = next(row for row in recovered_rows.json()["files"] if row["id"] == file_id)
+    assert recovered["current"] is True
     assert receipt.read_bytes() == before
     assert engine.master_calls == 1
 

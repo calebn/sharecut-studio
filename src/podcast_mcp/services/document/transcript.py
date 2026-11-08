@@ -366,7 +366,7 @@ class TranscriptService(WorkspaceService):
             text=render_reading_text(p, defaults) if with_text else None,
         )
 
-    def exported(self) -> list[ExportedTranscript]:
+    def exported(self, config: EffectiveConfig | None = None) -> list[ExportedTranscript]:
         """Transcript files in ``export_dir()`` for this project, read-only (no lock, no save).
 
         Only known transcript files directly in the folder count, so ``bounces/`` and ``clips/``
@@ -383,7 +383,7 @@ class TranscriptService(WorkspaceService):
         if not found:
             return []
         fresh = p.model_copy(deep=True)
-        defaults = self.ws.effective_config()
+        defaults = config if config is not None else self.ws.effective_config()
         other_formats = [fmt for fmt, _ in found if fmt != READABLE_TRANSCRIPT_FORMAT]
         rendered = (
             render_transcript_formats(fresh, defaults, other_formats, _configured_limits(defaults))

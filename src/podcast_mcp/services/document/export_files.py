@@ -7,6 +7,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+import yaml
+
+from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.export.audio import AUDIO_EXPORT_MEDIA
 from podcast_mcp.export.chapters import render_chapters_json
 from podcast_mcp.export.names import sanitize_export_stem
@@ -163,7 +166,7 @@ class ExportFilesService:
             for relative, kind, media_type, format in wanted
             if (found := served(relative, kind, media_type, format)) is not None
         ]
-        for variant in completed_variant_files(project, self.ws.effective_config()):
+        for variant in completed_variant_files(project, load_config=self.ws.effective_config):
             label = (
                 f"{variant.target.value.title()} ({TARGET_INTEGRATED_LUFS[variant.target]:g} LUFS) "
                 f"· {variant.format.upper()}"
@@ -200,36 +203,50 @@ class ExportFilesService:
         reported current; the Deliver status row keeps the stale judgement for it.
         """
         project = self.ws.project
-        transcript_current = {t.name: t.current for t in TranscriptService(self.ws).exported()}
+        found = self._found()
+        transcript_files = [entry for entry in found if entry.kind == "transcript"]
+        transcript_current: dict[str, bool] = {}
+        if transcript_files:
+            try:
+                config: EffectiveConfig | None = self.ws.effective_config()
+            except (OSError, UnicodeError, yaml.YAMLError):
+                config = None
+            if config is None:
+                transcript_current = {entry.path.name: False for entry in transcript_files}
+            else:
+                transcript_current = {
+                    transcript.name: transcript.current
+                    for transcript in TranscriptService(self.ws).exported(config)
+                }
         chapters_text = render_chapters_json(project.chapters) if project.chapters else None
         feed_current: bool | None = None
         out: ListedFiles = []
-        for found in self._found():
-            name = found.path.name
+        for found_entry in found:
+            name = found_entry.path.name
             try:
-                size = found.path.stat().st_size
+                size = found_entry.path.stat().st_size
             except OSError:
                 continue
-            if found.kind == "transcript":
+            if found_entry.kind == "transcript":
                 current = transcript_current.get(name, True)
-            elif found.kind == "chapters":
-                current = chapters_text is not None and _same_text(found.path, chapters_text)
-            elif found.kind == "feed":
+            elif found_entry.kind == "chapters":
+                current = chapters_text is not None and _same_text(found_entry.path, chapters_text)
+            elif found_entry.kind == "feed":
                 if feed_current is None:
                     feed_current = FeedService(self.ws).read().file != "stale"
                 current = feed_current
             else:
-                current = found.current if found.current is not None else True
+                current = found_entry.current if found_entry.current is not None else True
             entry = ExportedFile(
-                id=found.id,
+                id=found_entry.id,
                 name=name,
-                kind=found.kind,
-                label=self._label(found),
+                kind=found_entry.kind,
+                label=self._label(found_entry),
                 bytes=size,
                 current=current,
-                format=found.format,
+                format=found_entry.format,
             )
-            out.append((entry, found.version))
+            out.append((entry, found_entry.version))
         return out
 
     @staticmethod

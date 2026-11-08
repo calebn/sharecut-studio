@@ -703,7 +703,7 @@ Every environment variable the package reads is declared once in `src/podcast_mc
 | `PODCAST_CONFIG_DIR` | `~/.config/podcast_mcp` | Directory for the OAuth client files, the recent episodes list, the podcast show files (`shows/`), the segment library (`segments/`) and the show kit library (`kits/`, see [segments](segments.md#show-kit)). |
 | `PODCAST_WORKSPACE_ROOT` | `~/ShareCut` | Folder that holds episodes Home creates when no folder is named. |
 | `PODCAST_MCP_PROJECT` |  | Project path the MCP tools use when none is passed. |
-| `PODCAST_MCP_PIPELINE_DEFAULTS` |  | Pipeline defaults YAML replacing the shipped one. |
+| `PODCAST_MCP_PIPELINE_DEFAULTS` |  | Pipeline defaults YAML replacing the shipped one. The YAML root must be a mapping or null. Invalid YAML blocks new runs; saved export files remain readable and report `current=false`. |
 | `PODCAST_SHARE_REGISTRY` | `~/.podcast_mcp/share_registry.sqlite` | Share registry database file. |
 | `PODCAST_SHARE_IDENTITY` | `~/.podcast_mcp/share_identity.sqlite` | Share identity database file. |
 | `PODCAST_E2E_PROJECT` |  | Project the end-to-end fixture serves instead of the built-in one. |

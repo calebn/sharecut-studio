@@ -147,8 +147,10 @@ This is a partial backend implementation, part of #2455. It does not add UI cont
 CLI/MCP target support, time-range or folder selection, or guest target generation.
 Completed variant audio is exposed through the existing export-file list, open, download
 ticket and reveal paths. The inventory admits only registered audio files from complete
-valid bundles. Existing host and guest read permissions continue to apply; guest routes
-do not create variant jobs. Isolated generation requires Linux or macOS directory
+valid bundles. Saved files remain available when current mix evidence or pipeline defaults
+cannot be read. The inventory reports those files as not current. Generation still requires
+valid working configuration. Existing host and guest read permissions continue to apply.
+Guest routes do not create variant jobs. Isolated generation requires Linux or macOS directory
 descriptors. Unsupported hosts, including Windows, return
 `export_variant_storage_invalid` before staging or rendering. Default exports remain
 available. The existing Windows commit-lock CI job checks this refusal.
