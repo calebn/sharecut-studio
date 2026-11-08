@@ -10,7 +10,7 @@ import uuid
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.services.app import ProjectWorkspace
@@ -36,9 +36,11 @@ from podcast_mcp.services.media import (
 )
 from podcast_mcp.services.pipeline import (
     BootstrapRequest,
+    ExportTarget,
     PipelineRetryUnavailable,
     PipelineRunIntent,
     PipelineService,
+    VariantJobResult,
     run_bootstrap,
 )
 from podcast_mcp.util.coded_error import CodedError, CodedValueError
@@ -259,6 +261,7 @@ class JobManager:
         project_path: Path,
         *,
         formats: list[dict[str, Any]] | None = None,
+        target: ExportTarget | None = None,
         wait_for_rebuild: bool = True,
     ) -> Job:
         """Mastered deliverables via ``PipelineService.export_audio``.
@@ -277,7 +280,7 @@ class JobManager:
                     project_path,
                     kind="export",
                     label="Export deliverables",
-                    config={"formats": formats},
+                    config={"formats": formats, "target": target.value if target else None},
                 )
             except JobSlotBusyError:
                 if not wait_for_rebuild or self._live_mix_rebuild(scope) is None:
@@ -686,7 +689,12 @@ class JobManager:
         job: Job,
         reporter: JobProgressReporter,
     ) -> tuple[str, dict[str, Any] | None]:
-        ws = ProjectWorkspace.open(Path(job.project_path))
+        raw_target = (job.config or {}).get("target") if job.kind == "export" else None
+        variant_target = ExportTarget(raw_target) if raw_target is not None else None
+        if variant_target is not None:
+            ws = ProjectWorkspace.open(Path(job.project_path), adopt=False)
+        else:
+            ws = ProjectWorkspace.open(Path(job.project_path))
         from podcast_mcp.util.progress import CancelledProgress
 
         def cancel_check() -> bool:
@@ -735,8 +743,20 @@ class JobManager:
         svc = PipelineService(ws)
         if job.kind == "export":
             cfg = job.config or {}
-            export = svc.export_audio(cfg.get("formats"), cancel_check=cancel_check)
-            return "Export complete", export.job_result()
+            if variant_target is not None:
+                variant_export = svc.export_variant(
+                    variant_target, cfg.get("formats"), cancel_check=cancel_check
+                )
+                variant_job_result: VariantJobResult = {
+                    "file_ids": list(variant_export.file_ids),
+                    "target": variant_export.target.value,
+                    "master": variant_export.master.to_record(),
+                    "edit_head_id": variant_export.edit_head_id,
+                }
+                serialized_variant = cast(dict[str, Any], dict(variant_job_result))
+                return "Export complete", serialized_variant
+            canonical_export = svc.export_audio(cfg.get("formats"), cancel_check=cancel_check)
+            return "Export complete", canonical_export.job_result()
         if job.kind == "render_preview":
             if job.cancel_requested:
                 raise CancelledProgress(cancelled_copy(job.kind))

@@ -465,6 +465,14 @@ run](pipeline.md#configurable-run-gui--mcp)), else the shipped defaults. The has
 the settings the master was made at, so callers with no run config (review publish)
 judge only the premix.
 
+The host Studio one-off variant export uses fixed integrated targets of -23 LUFS
+(`broadcast`), -16 LUFS (`podcast`) and -14 LUFS (`streaming`). It keeps the configured
+true-peak ceiling and LRA behavior, applies the existing `master_qc_issues` verdict to
+the measured variant master, and refuses unmeasured or out-of-tolerance output before
+encoding. It writes a separate immutable bundle and leaves `mastered.wav` and
+`master_qc.json` untouched. These targets are backend choices; they do not imply that
+every source can meet them or that the output has been auditioned.
+
 `export_deliverables` goes one step further and writes `artifacts/export_qc.json`,
 rolling up `master_qc.json`'s issues **plus** transcript reconciliation staleness
 (`engines/reconciliation_state.py::reconciliation_status`) into one `ok`/`issues` gate —

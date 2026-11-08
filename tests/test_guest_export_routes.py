@@ -56,6 +56,7 @@ def world(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     app = create_app()
     gate, started, finished = threading.Event(), threading.Event(), threading.Event()
     calls: list[list[dict] | None] = []
+    variant_calls: list[tuple[object, list[dict] | None]] = []
 
     def fake_export(self, formats=None, **_kwargs):
         calls.append(formats)
@@ -67,6 +68,19 @@ def world(minimal_project, sample_wav, tmp_workspace, monkeypatch):
         return SimpleNamespace(job_result=dict)
 
     monkeypatch.setattr("podcast_mcp.services.pipeline.PipelineService.export_audio", fake_export)
+
+    def fake_variant(self, target, formats=None, **_kwargs):
+        variant_calls.append((target.value, formats))
+        started.set()
+        try:
+            gate.wait(5)
+        finally:
+            finished.set()
+        return SimpleNamespace(job_result=dict)
+
+    monkeypatch.setattr(
+        "podcast_mcp.services.pipeline.PipelineService.export_variant", fake_variant
+    )
     world = SimpleNamespace(
         client=TestClient(app),
         app=app,
@@ -76,6 +90,7 @@ def world(minimal_project, sample_wav, tmp_workspace, monkeypatch):
         gate=gate,
         started=started,
         calls=calls,
+        variant_calls=variant_calls,
     )
     world.slot = lambda job: setattr(app.state.jobs._catalog, "_job", job)
     yield world
@@ -169,7 +184,8 @@ def test_the_closed_formats_are_the_fixed_specs_and_name_no_path() -> None:
 
 
 @pytest.mark.parametrize(
-    "field", ["path", "dest", "output_dir", "filename", "ext", "codec", "extra_args", "config"]
+    "field",
+    ["path", "dest", "output_dir", "filename", "ext", "codec", "extra_args", "config", "target"],
 )
 def test_the_body_refuses_what_only_the_host_may_send(world, field) -> None:
     res = _start(world, **{field: "../../etc/passwd"})
@@ -437,6 +453,15 @@ def test_the_owner_export_keeps_its_behaviour(world) -> None:
     assert res.json()["job"]["project_path"] == str(world.ws.path.resolve())
     assert world.started.wait(5)
     assert world.calls == [[spec]]
+
+
+def test_the_host_named_target_reaches_the_variant_job(world) -> None:
+    res = _owner_start(world, target="broadcast", formats=[{"ext": "flac"}])
+
+    assert res.status_code == 200
+    assert world.started.wait(5)
+    assert world.variant_calls == [("broadcast", [{"ext": "flac"}])]
+    assert world.calls == []
 
 
 def test_the_owner_export_busy_slot_is_the_coded_409(world) -> None:

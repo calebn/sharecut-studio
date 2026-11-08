@@ -15,6 +15,10 @@ from podcast_mcp.feed.inputs import feed_path
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document.feed import FeedService
 from podcast_mcp.services.document.transcript import TranscriptService
+from podcast_mcp.services.pipeline import (
+    TARGET_INTEGRATED_LUFS,
+    completed_variant_files,
+)
 from podcast_mcp.util.coded_error import CodedFileNotFoundError
 from podcast_mcp.util.fingerprint import file_stamp
 
@@ -74,6 +78,8 @@ class ServedFile:
     media_type: str
     version: str
     format: str | None = None
+    label: str | None = None
+    current: bool | None = None
 
 
 def _same_text(path: Path, expected: str) -> bool:
@@ -105,6 +111,8 @@ class ExportFilesService:
             kind: ExportedFileKind,
             media_type: str,
             format: str | None = None,
+            label: str | None = None,
+            current: bool | None = None,
         ) -> ServedFile | None:
             path = export_root / relative
             if path.is_symlink():
@@ -120,7 +128,14 @@ class ExportFilesService:
             except OSError:
                 return None
             return ServedFile(
-                relative, kind, resolved, media_type, f"{stamp.size}-{stamp.mtime_ns}", format
+                relative,
+                kind,
+                resolved,
+                media_type,
+                f"{stamp.size}-{stamp.mtime_ns}",
+                format,
+                label,
+                current,
             )
 
         wanted: list[tuple[str, ExportedFileKind, str, str | None]] = [
@@ -143,11 +158,27 @@ class ExportFilesService:
         )
         wanted.append((f"{stem}.chapters.json", "chapters", _JSON_CHAPTERS_MEDIA, None))
         wanted.append((feed_path(project).name, "feed", _FEED_MEDIA, None))
-        return [
+        found = [
             found
             for relative, kind, media_type, format in wanted
             if (found := served(relative, kind, media_type, format)) is not None
         ]
+        for variant in completed_variant_files(project, self.ws.effective_config()):
+            label = (
+                f"{variant.target.value.title()} ({TARGET_INTEGRATED_LUFS[variant.target]:g} LUFS) "
+                f"· {variant.format.upper()}"
+            )
+            entry = served(
+                variant.file_id,
+                "audio",
+                AUDIO_EXPORT_MEDIA[variant.format],
+                variant.format,
+                label,
+                variant.current,
+            )
+            if entry is not None and entry.path == variant.path:
+                found.append(entry)
+        return found
 
     def open(self, file_id: str) -> ServedFile:
         """The listed file *file_id*; raises ``CodedFileNotFoundError`` (``export_file_gone``)."""
@@ -188,7 +219,7 @@ class ExportFilesService:
                     feed_current = FeedService(self.ws).read().file != "stale"
                 current = feed_current
             else:
-                current = True
+                current = found.current if found.current is not None else True
             entry = ExportedFile(
                 id=found.id,
                 name=name,
@@ -203,6 +234,8 @@ class ExportFilesService:
 
     @staticmethod
     def _label(found: ServedFile) -> str:
+        if found.label is not None:
+            return found.label
         suffix = found.path.suffix[1:].lower()
         match found.kind:
             case "audio":

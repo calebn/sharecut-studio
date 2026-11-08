@@ -18,7 +18,7 @@ from podcast_mcp.services.document_sync import (
     TranscriptReplacementOptions,
     WordTimingTargetPayload,
 )
-from podcast_mcp.services.pipeline import STEP_NAMES
+from podcast_mcp.services.pipeline import STEP_NAMES, ExportTarget
 
 # Discriminated union — source of truth in document_sync.payloads.
 DocumentCommandRequest = DocumentCommandBody
@@ -176,6 +176,7 @@ class SpeakerMoveLaneSpanRequest(BaseModel):
 class ExportDeliverablesRequest(BaseModel):
     path: str
     formats: list[dict] | None = None
+    target: ExportTarget | None = None
 
 
 class ExportRevealRequest(BaseModel):

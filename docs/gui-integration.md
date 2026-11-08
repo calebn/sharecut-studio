@@ -130,6 +130,22 @@ A share guest chooses the `reason` of their own suggestion. Share-guest commands
 
 `gui/web/src/types/project.generated.ts` is emitted from the Pydantic models in `gui/schemas.py`, and `types/documentCommands.generated.ts` from the document-command schema (`DocumentCommandType`, plus the `DocumentCommand` name table that call sites use instead of string literals). `scripts/export_project_types.py` writes both, Biome-formatted, from `make schema-export`; `--check` (run by `make generated-check` and the `frontend` CI job) fails on drift. `types/project.ts` re-exports the generated shapes and narrows the loose `dict[str, Any]` view fields. The generated types are optional for fields with a Pydantic default, so the server's always-sent fields are re-required in `project.ts`.
 
+## One-off export variants
+
+The host `POST /api/export/deliverables` route forwards an optional `target` to the export job.
+`broadcast`, `podcast` and `streaming` select fixed -23, -16 and -14 LUFS targets;
+omitted or null preserves the canonical export behavior and configured default. The
+job result carries the target, measured QC, captured edit head and file IDs. Variant
+jobs open a non-adopting workspace and do not save project state or rewrite the shared
+master artifacts.
+
+This is a partial backend implementation, part of #2455. It does not add UI controls,
+CLI/MCP target support, time-range or folder selection, or guest target generation.
+Completed variant audio is exposed through the existing export-file list, open, download
+ticket and reveal paths. The inventory admits only registered audio files from complete
+valid bundles. Existing host and guest read permissions continue to apply; guest routes
+do not create variant jobs.
+
 ## Progress
 
 Shared contract: [progress.md](progress.md). CLI adapter flags: [cli-progress.md](cli-progress.md).

@@ -121,12 +121,15 @@ export interface ExpectedTimingWord {
 export interface ExportDeliverablesRequest {
   path: string;
   formats?: Array<Record<string, unknown>> | null;
+  target?: ExportTarget | null;
 }
 
 export interface ExportRevealRequest {
   path: string;
   id: string;
 }
+
+export type ExportTarget = "broadcast" | "podcast" | "streaming";
 
 /** One edit to the episode's podcast listing; the empty string unsets. */
 export interface FeedEditRequest {
