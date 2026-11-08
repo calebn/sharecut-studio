@@ -5,7 +5,7 @@ import { useTranscriptDetail } from "../../document/useTranscriptDetail";
 import { useShortViewport } from "../../hooks/useShortViewport";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import { ReviewStage } from "../../review/ReviewStage";
-import { undecidedOf } from "../../review/reviewQueueModel";
+import { reviewCompletenessOf } from "../../review/reviewCompleteness";
 import { isGuestSession, isShareProjectKey } from "../../shareMode";
 import type { GuestReading } from "../../stages/guest/useGuestReading";
 import { useGuestReading } from "../../stages/guest/useGuestReading";
@@ -60,6 +60,10 @@ function ReviewHostAdapter({
   loadFailure,
 }: ReviewHostProps) {
   const queue = useReviewQueue(guestShare);
+  const completeness = reviewCompletenessOf(
+    queue.stageProps.items,
+    queue.stageProps.wordDetail?.kind,
+  );
   const { project, projectPath, guestMode } = useDawStore(
     useShallow((s) => ({
       project: s.project,
@@ -109,7 +113,7 @@ function ReviewHostAdapter({
         reading,
       )}
       onDeliver={guest ? undefined : () => runPointerCommand("stage.deliver")}
-      undecided={undecidedOf(queue.stageProps.items)}
+      undecided={completeness.undecided}
       scrollRef={scrollRef}
     />
   );

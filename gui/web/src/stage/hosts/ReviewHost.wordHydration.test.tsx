@@ -4,6 +4,7 @@ import {
   render,
   renderHook,
   screen,
+  waitFor,
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -24,9 +25,22 @@ import {
 } from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
 import type { CombinedUtterance } from "../../types/project";
+import { ReviewHost } from "./ReviewHost";
 import { useReviewQueue } from "./useReviewQueue";
 
 const wire = vi.hoisted(() => ({ detail: vi.fn(), correct: vi.fn() }));
+vi.mock("../../services/offlineQueue/offlineAttention", () => ({
+  useOfflineAttention: () => ({
+    pending: 0,
+    conflicts: [],
+    recoverySelection: null,
+    status: "ready",
+    loaded: true,
+    settling: false,
+  }),
+  dismissAllConflicts: vi.fn(),
+  refreshOfflineAttention: vi.fn(),
+}));
 vi.mock("../../api/project", async (original) => ({
   ...(await original<typeof import("../../api/project")>()),
   loadDocumentState: wire.detail,
@@ -247,6 +261,9 @@ function App({ suspend = false }: { suspend?: boolean }) {
   const queue = useReviewQueue();
   if (suspend) throw interrupted.promise;
   return <ReviewStage {...queue.stageProps} />;
+}
+function HostApp() {
+  return <ReviewHost />;
 }
 function publish(next: ReturnType<typeof project>, seq: number) {
   void act(() =>
@@ -658,6 +675,75 @@ it("does not reconstruct raw pending targets on an initial word-free shell", () 
     view.result.current.stageProps.content(proposal).card.unsure,
   ).toBeUndefined();
 });
+
+it("keeps Deliver secondary until a word-free queue is authoritatively ready", async () => {
+  const request = deferred<DocumentSnapshot>();
+  wire.detail.mockReturnValueOnce(request.promise);
+  const shell = project(false);
+  shell.pending_edits = [];
+  useDawStore.getState().hydrate(path, shell);
+  publish(shell, 2);
+  render(<HostApp />);
+
+  await waitFor(() => expect(wire.detail).toHaveBeenCalledOnce());
+  const deliver = screen.getByRole("button", { name: /Deliver/ });
+  expect(deliver).not.toHaveClass("primary");
+  expect(screen.queryByText(/of \d+ decided/)).toBeNull();
+  expect(screen.queryByText("Nothing to decide")).toBeNull();
+
+  const ready = project(true);
+  ready.pending_edits = [];
+  ready.transcript = {
+    ...ready.transcript!,
+    utterances: ready.transcript!.utterances.map((utterance) => ({
+      ...utterance,
+      words: utterance.words?.map((word) => ({
+        ...word,
+        confidence: 0.95,
+        unsure: false,
+      })),
+    })),
+  };
+  await act(async () =>
+    request.resolve({
+      server_seq: 2,
+      state_token: "test",
+      project: ready,
+    }),
+  );
+
+  expect(await screen.findByText(/0 of 0 decided/)).toBeVisible();
+  expect(screen.getAllByText("Nothing to decide")).toHaveLength(2);
+  expect(deliver).toHaveClass("primary");
+});
+
+it.each(["pending", "failed"])(
+  "drops a retained proposal word step while Detail is %s and preserves its editor identity",
+  async (phase) => {
+    const request = deferred<DocumentSnapshot>();
+    wire.detail.mockReturnValueOnce(request.promise);
+    const view = renderHook(() => useReviewQueue());
+    const proposal = view.result.current.stageProps.items.find(
+      (item) => item.id === "edit:p1",
+    );
+    if (!proposal) throw new Error("Expected proposal");
+    const before = view.result.current.stageProps.content(proposal).card.unsure;
+    expect(before?.step).toEqual({ index: 1, total: 1 });
+
+    publish(project(false), 2);
+    if (phase === "failed")
+      await act(async () => request.reject(new Error("Detail unavailable")));
+
+    const retained = view.result.current.stageProps.items.find(
+      (item) => item.id === "edit:p1",
+    );
+    if (!retained) throw new Error("Expected retained proposal");
+    const after = view.result.current.stageProps.content(retained).card.unsure;
+    expect(after?.step).toBeUndefined();
+    expect(after?.editorIdentity).toEqual(before?.editorIdentity);
+    expect(after?.disabledReason).toBeTruthy();
+  },
+);
 
 it.each(["pending", "failed"])(
   "does not use retained word coordinates for Hear or Open in Edit while %s",

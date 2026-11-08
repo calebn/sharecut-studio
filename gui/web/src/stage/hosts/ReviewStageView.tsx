@@ -13,7 +13,7 @@ export type ReviewStageViewProps = {
   /** Offered to the host; secondary while anything waits on a decision. */
   onDeliver?: () => void;
   /** Items still waiting on a decision; zero makes the hand-off primary. */
-  undecided?: number;
+  undecided: number | null;
   scrollRef?: Ref<HTMLDivElement>;
 };
 
@@ -28,7 +28,7 @@ export function ReviewStageView({
   failure,
   panel,
   onDeliver,
-  undecided = 0,
+  undecided,
   scrollRef,
 }: ReviewStageViewProps) {
   return (

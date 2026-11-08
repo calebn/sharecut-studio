@@ -442,11 +442,11 @@ describe("checkEntryOf", () => {
     { status: "done" as const },
     { status: "waived" as const },
   ])("is null for %o", (over) => {
-    expect(checkEntryOf(status(over))).toBeNull();
+    expect(checkEntryOf(status(over), null)).toBeNull();
   });
 
   it("is the transcript check, first in its group, with no edit id", () => {
-    const entry = checkEntryOf(status({}));
+    const entry = checkEntryOf(status({}), 3);
     expect(entry?.item).toEqual({
       id: CHECK_ID,
       kind: "check",
@@ -460,8 +460,22 @@ describe("checkEntryOf", () => {
 
   it("words the detail as the count even when the server sends a hint", () => {
     expect(
-      checkEntryOf(status({ hint: "Run the CLI." }))?.content.check?.detail,
+      checkEntryOf(status({ hint: "Run the CLI." }), 3)?.content.check?.detail,
     ).toBe("3 unsure words");
+  });
+
+  it("keeps the server check open without counting unmappable saved words", () => {
+    const entry = checkEntryOf(status({ low_confidence_words: 1 }), 0);
+    expect(entry?.item.transcript).toBe(true);
+    expect(entry?.content.check?.detail).toBeUndefined();
+    expect(entry?.content.card.why).toBeUndefined();
+  });
+
+  it("omits the numeric copy until the active word count is known", () => {
+    expect(
+      checkEntryOf(status({ low_confidence_words: 3 }), null)?.content.check,
+    ).toMatchObject({ title: "Check the transcript before cutting" });
+    expect(checkEntryOf(status({}), null)?.content.card.why).toBeUndefined();
   });
 });
 

@@ -347,11 +347,14 @@ export const CHECK_ID = "check:transcript";
 
 export function checkEntryOf(
   status: TranscriptCheckStatus,
+  activeWordCount: number | null,
 ): ReviewEntry | null {
   if (status.clear || status.status !== "pending") return null;
-  const words = status.low_confidence_words;
+  const words = activeWordCount;
   const detail =
-    words > 0 ? `${words} unsure ${words === 1 ? "word" : "words"}` : undefined;
+    words !== null && words > 0
+      ? `${words} unsure ${words === 1 ? "word" : "words"}`
+      : undefined;
   const title = "Check the transcript before cutting";
   return {
     item: {

@@ -28,6 +28,7 @@ import {
   type ReviewContent,
   ReviewQueue,
 } from "./ReviewQueue";
+import { reviewCompletenessOf } from "./reviewCompleteness";
 import { stageActionFor } from "./reviewKeys";
 import {
   attentionVisible,
@@ -196,6 +197,7 @@ export function ReviewStage({
   const short = useShortLayoutViewport();
   const dockedComposer = phone && guest && !short;
   const selected = items.find((item) => item.id === selectedId) ?? null;
+  const completeness = reviewCompletenessOf(items, wordDetail?.kind, speaker);
   const gate = !waived && hasCheck;
   const holdsGate = (ids: readonly string[]) =>
     gate &&
@@ -422,10 +424,9 @@ export function ReviewStage({
         }
       : undefined;
   const unsureWords = openOf(items, "unsure-word").length;
-  const checkLabel =
-    wordDetail?.kind === "pending" || wordDetail?.kind === "failed"
-      ? "Check words"
-      : `Check ${unsureWords} ${unsureWords === 1 ? "word" : "words"}`;
+  const checkLabel = completeness.wordsKnown
+    ? `Check ${unsureWords} ${unsureWords === 1 ? "word" : "words"}`
+    : "Check words";
   const position = selected
     ? fullOrder(items, sort).findIndex((i) => i.id === selected.id) + 1
     : 0;
@@ -446,6 +447,7 @@ export function ReviewStage({
         bulkRunning={bulkRunning}
         guest={guest}
         canDecide={canDecide}
+        detailKind={wordDetail?.kind}
         attention={attention}
         state={state}
         onFilter={onFilter}
@@ -499,7 +501,9 @@ export function ReviewStage({
               <SystemIcon name="inbox" size={14} />
               {!canDecide && items.length === 0
                 ? "No comments"
-                : `${position} of ${items.length}`}
+                : completeness.total === null
+                  ? "Review queue"
+                  : `${position} of ${completeness.total}`}
               {attentionVisible(attention, "all") ? " · Needs attention" : ""}
             </Button>
             <button
@@ -535,7 +539,8 @@ export function ReviewStage({
 
           {!dockedComposer && <Fragment key="composer">{composer}</Fragment>}
           {regionFailure && guestColumn ? regionFailure : centerBottom}
-          {guestColumn && !selected ? null : (
+          {guestColumn && !selected ? null : !selected &&
+            !completeness.wordsKnown ? null : (
             <DecisionCard
               key={JSON.stringify([documentKey, selected?.id ?? "none"])}
               kind={selected?.kind ?? "filler"}
