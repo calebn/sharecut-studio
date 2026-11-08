@@ -135,6 +135,7 @@ function progressFrames(id: string, onDone: () => void) {
   const running = (bytes: number): Job => ({
     id: "job-1",
     kind: "bootstrap",
+    failed_components: [],
     components: [id],
     whisper_model: "large-v3-turbo",
     status: "running",
@@ -150,6 +151,7 @@ function progressFrames(id: string, onDone: () => void) {
     return frame({
       id: "job-1",
       kind: "bootstrap",
+      failed_components: [],
       components: [id],
       whisper_model: "large-v3-turbo",
       status: "ok",
@@ -262,6 +264,7 @@ for (const viewport of VIEWPORTS) {
               job: {
                 id: "job-1",
                 kind: "bootstrap",
+                failed_components: ["whisper"],
                 components: ["whisper"],
                 whisper_model: "large-v3-turbo",
                 status: "error",
@@ -332,6 +335,7 @@ for (const viewport of VIEWPORTS) {
             m.job = {
               id: "job-1",
               kind: "bootstrap",
+              failed_components: [],
               components: ["whisper"],
               whisper_model: "large-v3-turbo",
               status: "running",

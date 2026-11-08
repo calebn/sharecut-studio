@@ -12,7 +12,7 @@ import type { BootstrapJobSnapshot, RecentProject } from "../../api";
 import * as api from "../../api";
 import * as ingest from "../../ingest/ingestFiles";
 import { ModelsProvider } from "../../models/ModelsProvider";
-import { ModelsContext } from "../../models/useModels";
+import { ModelsContext, useModels } from "../../models/useModels";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { deferred } from "../../test/deferred";
@@ -672,6 +672,7 @@ describe("HomeScreen", () => {
       const fast: BootstrapJobSnapshot = {
         id: "home-fast",
         kind: "bootstrap",
+        failed_components: [],
         status: "running",
         components: ["whisper"],
         whisper_model: "tiny.en",
@@ -718,6 +719,7 @@ describe("HomeScreen", () => {
       const fast: BootstrapJobSnapshot = {
         id: "home-fast-aligner",
         kind: "bootstrap",
+        failed_components: [],
         status: "running",
         components: ["whisper", "word-aligner"],
         whisper_model: "tiny.en",
@@ -765,6 +767,17 @@ describe("HomeScreen", () => {
         progress({
           ...fast,
           download: {
+            component: "whisper",
+            bytes: 75_000_000,
+            total: 75_000_000,
+          },
+        }),
+      );
+      expect(await screen.findByText("75 MB of 435 MB")).toBeVisible();
+      act(() =>
+        progress({
+          ...fast,
+          download: {
             component: "word-aligner",
             bytes: 10_000_000,
             total: 360_000_000,
@@ -795,6 +808,106 @@ describe("HomeScreen", () => {
         await screen.findByRole("button", { name: "Get ready" }),
       ).toBeVisible();
     });
+
+    it.each([
+      {
+        scenario: "adopting after a failure before bytes",
+        sawPartialFast: false,
+        total: 360_000_000,
+        detail: "10 MB of 360 MB",
+      },
+      {
+        scenario: "observing a failure after partial bytes",
+        sawPartialFast: true,
+        total: null,
+        detail: "10 MB downloaded",
+      },
+    ])(
+      "excludes failed Fast from Setup when $scenario",
+      async ({ sawPartialFast, total, detail }) => {
+        vi.stubGlobal(
+          "fetch",
+          vi.fn(() => Promise.reject(new Error("Unexpected live fetch"))),
+        );
+        const components = ["whisper", "word-aligner"];
+        const fast = {
+          id: "failed-fast-aligner",
+          kind: "bootstrap",
+          status: "running",
+          components,
+          whisper_model: "tiny.en",
+          failed_components: [],
+          current: 0,
+          total: 2,
+          failure: null,
+          result: null,
+          download: {
+            component: "whisper",
+            bytes: 25_000_000,
+            total: 75_000_000,
+          },
+        };
+        const aligner = {
+          ...fast,
+          failed_components: ["whisper"],
+          current: 1,
+          download: { component: "word-aligner", bytes: 10_000_000, total },
+        };
+        vi.mocked(api.fetchBootstrapStatus).mockImplementation((variant) =>
+          Promise.resolve(
+            modelStatus(
+              registryRows().map((row) =>
+                row.id === "whisper" && variant === "tiny.en"
+                  ? {
+                      ...row,
+                      model: "tiny.en",
+                      size: "75 MB",
+                      size_bytes: 75_000_000,
+                    }
+                  : row,
+              ),
+              { whisper_model: variant ?? "large-v3-turbo" },
+            ),
+          ),
+        );
+        vi.mocked(api.fetchBootstrapJob).mockResolvedValue(
+          sawPartialFast ? fast : aligner,
+        );
+        const done = deferred<BootstrapJobSnapshot>();
+        let progress: (job: BootstrapJobSnapshot) => void = () => undefined;
+        vi.mocked(api.waitForBootstrapJob).mockImplementation(
+          (_id, options) => {
+            progress = (job) => options?.onUpdate?.(job);
+            return done.promise;
+          },
+        );
+        function SelectedWhisper() {
+          const { whisper } = useModels();
+          return (
+            <output aria-label="Selected Whisper">{whisper.variant}</output>
+          );
+        }
+        rtlRender(
+          <ModelsProvider>
+            <HomeScreen />
+            <SelectedWhisper />
+          </ModelsProvider>,
+        );
+        if (sawPartialFast) {
+          expect(await screen.findByText("25 MB of 435 MB")).toBeVisible();
+          act(() => progress(aligner));
+        }
+        expect(await screen.findByText(detail)).toBeVisible();
+        expect(screen.getByLabelText("Selected Whisper")).toHaveTextContent(
+          "large-v3-turbo",
+        );
+        if (total === null) {
+          expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+        } else {
+          expect(screen.getByRole("progressbar")).toBeVisible();
+        }
+      },
+    );
 
     it("offers the bundle, starts the download and remembers Not now", async () => {
       const user = userEvent.setup();

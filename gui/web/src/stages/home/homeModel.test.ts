@@ -463,6 +463,7 @@ describe("live bootstrap component order", () => {
     const job: BootstrapJobSnapshot = {
       id: "bundle",
       kind: "bootstrap",
+      failed_components: [],
       status: "running",
       whisper_model: "tiny.en",
       components: ["whisper", "word-aligner"],
@@ -502,5 +503,27 @@ describe("live bootstrap component order", () => {
         }),
       ),
     ).toEqual({ bytes: 85_000_000, total: null });
+
+    const failed = { ...boundary, failed_components: ["whisper"] };
+    const partialFast = downloadTotals(project(job));
+    const remaining = downloadTotals(project(failed));
+    expect(remaining).toMatchObject({ bytes: 10_000_000, total: 360_000_000 });
+    expect(holdTotals(partialFast, remaining)).toMatchObject({
+      bytes: 10_000_000,
+      total: 360_000_000,
+    });
+    const unknown = downloadTotals(
+      project({ ...failed, download: { ...failed.download, total: null } }),
+    );
+    expect(holdTotals(partialFast, unknown)).toMatchObject({
+      bytes: 10_000_000,
+      total: null,
+    });
+    expect(
+      holdTotals(
+        remaining,
+        downloadTotals(project({ ...failed, download: null })),
+      ),
+    ).toMatchObject({ bytes: 10_000_000, total: 360_000_000 });
   });
 });

@@ -421,6 +421,7 @@ def test_a_cancelled_job_ends_cancelled_without_an_error(
     monkeypatch.setattr(boot, "model_spec", lambda model_id: spec)
     JobManager()._run_bootstrap_job(job)
     assert (job.status, job.error, job.message) == ("cancelled", None, "Bootstrap cancelled")
+    assert job.snapshot()["failed_components"] == []
     assert job.download is None
     assert list(tmp_path.glob("m.bin*")) == []
 
@@ -484,6 +485,79 @@ def test_a_failed_model_reports_its_failure_and_the_next_still_runs(
     assert out["results"]["rnnoise"]["failure"] == {"kind": "http", "status": 404, "plain": plain}
     assert out["results"]["rnnoise"]["error"] == plain
     assert out["results"]["word-aligner"] == {"ok": True, "path": "/stub/word-aligner"}
+
+
+@pytest.mark.parametrize(
+    ("whisper_outcome", "aligner_total", "failed_components"),
+    [
+        ("ok", 360_000_000, []),
+        ("before-bytes", 360_000_000, ["whisper"]),
+        ("after-partial", 360_000_000, ["whisper"]),
+        ("after-partial", None, ["whisper"]),
+    ],
+)
+def test_live_bootstrap_snapshots_report_failures_before_the_next_download(
+    monkeypatch: pytest.MonkeyPatch,
+    clock: None,
+    whisper_outcome: str,
+    aligner_total: int | None,
+    failed_components: list[str],
+) -> None:
+    job = Job.bootstrap("fast-aligner", ["whisper", "word-aligner"], whisper_model="tiny.en")
+    events: list[dict[str, Any]] = []
+    monkeypatch.setattr(job, "publish", events.append)
+
+    def install_whisper(variant, force, on_progress):
+        assert variant == "tiny.en"
+        if whisper_outcome == "before-bytes":
+            raise _http_error(404)
+        on_progress(DownloadProgress(25_000_000, 75_000_000))
+        if whisper_outcome == "after-partial":
+            raise _http_error(404)
+        on_progress(DownloadProgress(75_000_000, 75_000_000))
+        return {"ok": True}
+
+    def install_aligner(variant, force, on_progress):
+        on_progress(DownloadProgress(10_000_000, aligner_total))
+        return {"ok": True}
+
+    specs = {
+        "whisper": replace(registry.model_spec("whisper"), install=install_whisper),
+        "word-aligner": replace(registry.model_spec("word-aligner"), install=install_aligner),
+    }
+    monkeypatch.setattr(boot, "model_spec", specs.__getitem__)
+    monkeypatch.setattr(boot, "component_status", lambda **_kwargs: {})
+    JobManager()._run_bootstrap_job(job)
+
+    snapshots = [event["job"] for event in events]
+    fast_bytes = [
+        snapshot["download"]["bytes"]
+        for snapshot in snapshots
+        if snapshot["download"]
+        and snapshot["download"]["component"] == "whisper"
+        and snapshot["download"]["bytes"] > 0
+    ]
+    assert (
+        fast_bytes
+        == {
+            "ok": [25_000_000, 75_000_000],
+            "before-bytes": [],
+            "after-partial": [25_000_000],
+        }[whisper_outcome]
+    )
+
+    aligner_download = {"component": "word-aligner", "bytes": 10_000_000, "total": aligner_total}
+    live = next(snapshot for snapshot in snapshots if snapshot["download"] == aligner_download)
+    assert live["status"] == "running"
+    assert live["components"] == ["whisper", "word-aligner"]
+    assert live["whisper_model"] == "tiny.en"
+    assert (live["current"], live["total"]) == (1, 2)
+    assert (live["failure"], live["result"]) == (None, None)
+    assert live["failed_components"] == failed_components
+    assert snapshots[0]["failed_components"] == []
+    assert snapshots[-1]["failed_components"] == failed_components
+    assert snapshots[-1]["status"] == ("error" if failed_components else "ok")
+    assert snapshots[-1]["result"]["results"]["word-aligner"] == {"ok": True}
 
 
 SECRET = "/home/someone/secret/model.bin"

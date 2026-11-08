@@ -43,6 +43,7 @@ function okJob(id: string): BootstrapJobSnapshot {
   return {
     id,
     kind: "bootstrap",
+    failed_components: [],
     components: ["whisper"],
     whisper_model: "small.en",
     status: "ok",
@@ -75,6 +76,7 @@ describe("waitForBootstrapJob", () => {
     const failed: BootstrapJobSnapshot = {
       id: "job-err",
       kind: "bootstrap",
+      failed_components: ["whisper"],
       components: ["whisper"],
       whisper_model: "small.en",
       status: "error",
@@ -174,6 +176,7 @@ describe("waitForBootstrapJob", () => {
           job: {
             id: "job-stuck",
             kind: "bootstrap",
+            failed_components: [],
             components: ["whisper"],
             whisper_model: "small.en",
             status: "running",

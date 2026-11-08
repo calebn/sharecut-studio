@@ -78,6 +78,7 @@ export function runningJob(components: string[], bytes = 420_000_000): Job {
   return {
     id: "job-1",
     kind: "bootstrap",
+    failed_components: [],
     components,
     whisper_model: "large-v3-turbo",
     status: "running",

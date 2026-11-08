@@ -5,6 +5,7 @@ import type {
   ModelStatus,
 } from "../api";
 import {
+  downloadRows,
   initialState,
   jobFailures,
   overlay,
@@ -49,6 +50,7 @@ function job(over: Partial<BootstrapJobSnapshot> = {}): BootstrapJobSnapshot {
   return {
     id: "j1",
     kind: "bootstrap",
+    failed_components: [],
     components: ["whisper", "rnnoise"],
     whisper_model: "large-v3-turbo",
     status: "running",
@@ -221,6 +223,41 @@ describe("overlay", () => {
       { "rnnoise/": failure },
     );
     expect(views[1]!.state.kind).toBe("downloading");
+  });
+});
+
+describe("downloadRows", () => {
+  it("marks the failed job variant and keeps the next component active", () => {
+    const best = status();
+    const fast = {
+      ...job({
+        components: ["whisper", "word-aligner"],
+        whisper_model: "tiny.en",
+        download: {
+          component: "word-aligner",
+          bytes: 10_000_000,
+          total: 360_000_000,
+        },
+      }),
+      failed_components: ["whisper"],
+    };
+    const selected = overlay(best, fast, {});
+    expect(selected[0]).toMatchObject({
+      id: "whisper",
+      variant: "large-v3-turbo",
+      state: { kind: "missing" },
+    });
+    expect(downloadRows(best, fast, {}, selected)).toMatchObject([
+      {
+        id: "whisper",
+        variant: "tiny.en",
+        state: { kind: "failed" },
+      },
+      {
+        id: "word-aligner",
+        state: { kind: "downloading", bytes: 10_000_000, total: 360_000_000 },
+      },
+    ]);
   });
 });
 

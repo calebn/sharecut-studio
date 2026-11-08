@@ -167,10 +167,9 @@ function isRunning(model: ModelView): boolean {
 }
 
 export type DownloadTotals = {
-  /** Whole bundle: the models already finished (listed before the current one) plus the current one's bytes. */
   bytes: number;
-  /** Null while any running model's size is unknown. */
   total: number | null;
+  failedRows?: string;
 };
 
 export function downloadTotals(
@@ -193,20 +192,27 @@ export function downloadTotals(
       if (i < current) bytes += m.sizeBytes;
     }
   });
-  return { bytes, total: known && total > 0 ? total : null };
+  const failedRows = models
+    ?.filter((model) => model.state.kind === "failed")
+    .map((model) => `${model.id}/${model.variant ?? ""}`)
+    .sort()
+    .join(",");
+  return {
+    bytes,
+    total: known && total > 0 ? total : null,
+    ...(failedRows ? { failedRows } : {}),
+  };
 }
 
-/**
- * `next` with nothing falling back from `held`, the totals of the same
- * download a moment ago. Between two components, and after the last one until
- * the job ends, no row is downloading and `next` reads as nothing done yet.
- */
 export function holdTotals(
   held: DownloadTotals | null,
   next: DownloadTotals | null,
 ): DownloadTotals | null {
-  if (held === null || next === null) return next;
+  if (held === null || next === null || held.failedRows !== next.failedRows) {
+    return next;
+  }
   return {
+    ...next,
     bytes: Math.max(held.bytes, next.bytes),
     total:
       held.total === null || next.total === null
