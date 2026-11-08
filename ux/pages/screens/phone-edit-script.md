@@ -15,6 +15,11 @@ even when it is far away or its text repeats. The word is selected without
 turning Follow playhead on. This jump takes precedence over the saved reading
 position. Returning later without another jump does not repeat that navigation.
 
+Words whose audio is fully cut leave the active Unsure words queue and Script
+count. Neighboring words with audio remain reviewable. Undo restores a cut word
+to both lists if it is still unsure. Annotate with Show cut away keeps its
+scroll-only history stops.
+
 Follow playhead keeps overlapping speakers highlighted in transcript order.
 Backward seeks update the active words through the same time-indexed lookup.
 

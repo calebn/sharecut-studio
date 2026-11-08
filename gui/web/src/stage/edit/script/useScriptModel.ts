@@ -13,6 +13,7 @@ import {
   type ScriptModel,
   type ScriptWordRef,
   speakerColorIndex,
+  wordKey,
 } from "./scriptModel";
 
 const NO_UTTERANCES: readonly CombinedUtterance[] = [];
@@ -63,8 +64,8 @@ export function useScriptModel(): ScriptHostModel {
       person,
     });
     const silent = new Set<number>();
+    const cutAway = new Set<string>();
     for (const utterance of utterances) {
-      if (!utterance.suppressed_only) continue;
       for (const word of wordsForUtterance(utterance)) {
         // A word with no project index is never looked up, as in the model.
         if (word.word_index == null) continue;
@@ -73,6 +74,8 @@ export function useScriptModel(): ScriptHostModel {
           sourceId: utterance.source_id ?? null,
           wordIndex: word.word_index,
         };
+        if (word.mappable === false) cutAway.add(wordKey(ref));
+        if (!utterance.suppressed_only) continue;
         const index = model.indexOf(ref);
         if (index !== undefined) silent.add(index);
       }
@@ -85,7 +88,8 @@ export function useScriptModel(): ScriptHostModel {
         if (
           word.lowConfidence &&
           !silent.has(word.index) &&
-          model.refs[word.index]?.wordIndex != null
+          model.refs[word.index]?.wordIndex != null &&
+          !cutAway.has(wordKey(model.refs[word.index]))
         ) {
           unsure.push(word.index);
         }

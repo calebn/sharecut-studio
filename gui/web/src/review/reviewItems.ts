@@ -406,12 +406,12 @@ export function commentEntriesOf(
   });
 }
 
-function ownStart(
+function ownWord(
   utterances: readonly CombinedUtterance[],
   track: string,
   source: string | null,
   index: number,
-): number | null {
+): ReturnType<typeof wordsForUtterance>[number] | null {
   for (const u of utterances) {
     if (u.track_id !== track) continue;
     for (const w of wordsForUtterance(u))
@@ -419,7 +419,7 @@ function ownStart(
         w.word_index === index &&
         (w.timing_target?.source_id ?? u.source_id ?? null) === source
       )
-        return wordSeekSec(w);
+        return w;
   }
   return null;
 }
@@ -445,6 +445,8 @@ export function unsureEntriesOf(
     for (const w of edit.unsure_words ?? []) {
       const id = wordIdOf(w.track_id, w.source_id, w.word_index);
       const known = found.get(id);
+      const own = ownWord(utterances, w.track_id, w.source_id, w.word_index);
+      if (own?.mappable === false) continue;
       const start = edit.timeline_start;
       found.set(id, {
         trackId: w.track_id,
@@ -455,7 +457,7 @@ export function unsureEntriesOf(
         ...known,
         at:
           known?.at ??
-          ownStart(utterances, w.track_id, w.source_id, w.word_index) ??
+          (own ? wordSeekSec(own) : null) ??
           (Number.isFinite(start) ? (start as number) : null),
         cut: known?.cut ?? edit.label ?? undefined,
       });
