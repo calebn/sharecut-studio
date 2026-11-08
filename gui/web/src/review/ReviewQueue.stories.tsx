@@ -3,6 +3,7 @@ import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { reviewContent } from "../storybook/reviewContent";
 import { QUEUE_ITEMS } from "../storybook/reviewFixtures";
+import { ReviewStageHarness } from "../storybook/reviewHarness";
 import {
   isolatedStoryParameters,
   viewportStoryParameters,
@@ -75,6 +76,7 @@ const meta: Meta<typeof ReviewQueue> = {
 
 export default meta;
 type Story = StoryObj<typeof ReviewQueue>;
+type ReviewStageStory = StoryObj<typeof ReviewStageHarness>;
 
 const LONG_LIST_ITEMS: readonly ReviewItem[] = [
   ...Array.from({ length: 159 }, (_, index) => ({
@@ -133,6 +135,39 @@ export const LongList: Story = {
     content: longListContent,
     selectedId: "unsure-001",
   },
+};
+
+export const LongListReviewStageDesktop: ReviewStageStory = {
+  args: {
+    initialItems: LONG_LIST_ITEMS,
+    content: longListContent,
+    duration: 1000,
+    initialSelectedId: "unsure-001",
+  },
+  render: (args) => (
+    <div style={{ blockSize: "100dvh" }}>
+      <ReviewStageHarness {...args} />
+    </div>
+  ),
+  decorators: [],
+  parameters: isolatedStoryParameters,
+};
+
+export const LongListReviewStagePhone: ReviewStageStory = {
+  args: {
+    initialItems: LONG_LIST_ITEMS,
+    content: longListContent,
+    duration: 1000,
+    initialSelectedId: "unsure-001",
+    layout: "phone",
+  },
+  render: (args) => (
+    <div style={{ blockSize: "100dvh" }}>
+      <ReviewStageHarness {...args} />
+    </div>
+  ),
+  decorators: [],
+  parameters: isolatedStoryParameters,
 };
 
 export const FilteredComments: Story = {
