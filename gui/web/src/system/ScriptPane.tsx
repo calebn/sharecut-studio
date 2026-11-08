@@ -105,7 +105,6 @@ type ReadingContact = Readonly<{
 }>;
 type ReadingScrollOwnership = Readonly<{
   physical: ReadingSample | null;
-  acknowledgement: { top: number } | null;
   sources: Record<"wheel" | "key" | "endedTouch", ReadingDirections>;
   touch: ReadingContact | null;
   scrollbar: { pointerId: number | null; evidence: ReadingDirections };
@@ -126,7 +125,6 @@ type ReadingBoundary =
 const NO_READING_EVIDENCE: ReadingDirections = { up: null, down: null };
 const EMPTY_READING_OWNERSHIP: ReadingScrollOwnership = {
   physical: null,
-  acknowledgement: null,
   sources: {
     wheel: NO_READING_EVIDENCE,
     key: NO_READING_EVIDENCE,
@@ -163,12 +161,10 @@ function sampleReadingViewport(
 function acceptReadingPosition(
   state: ReadingScrollOwnership,
   physical: ReadingSample,
-  expectsScroll: boolean,
 ): ReadingScrollOwnership {
   return {
     ...EMPTY_READING_OWNERSHIP,
     physical,
-    acknowledgement: expectsScroll ? { top: physical.top } : null,
     touch: state.touch
       ? { ...state.touch, evidence: NO_READING_EVIDENCE }
       : null,
@@ -202,7 +198,6 @@ function advanceReading(
   );
   const fresh = (evidence: ReadingEvidence | null) =>
     evidence &&
-    !(contentChanged && evidence.kind === "moving") &&
     sample.observedAt -
       (evidence.kind === "pending" ? evidence.sourceAt : evidence.observedAt) <
       USER_SCROLL_INTENT_MS
@@ -303,6 +298,10 @@ function advanceReading(
         scrollbar.pointerId = null;
         if (input.kind === "scrollbar-cancel")
           scrollbar.evidence = { ...NO_READING_EVIDENCE };
+        else
+          for (const toward of ["up", "down"] as const)
+            if (scrollbar.evidence[toward]?.kind === "pending")
+              scrollbar.evidence[toward] = null;
       }
       break;
     case "none":
@@ -315,21 +314,19 @@ function advanceReading(
     scrollbar.evidence,
     ...(touch ? [touch.evidence] : []),
   ];
-  const acknowledged =
-    boundary.kind === "scroll" &&
-    previous?.top === sample.top &&
-    state.acknowledgement?.top === sample.top;
   const supported =
     direction !== null &&
-    !acknowledged &&
-    (evidence.some((facts) => facts[direction] !== null) ||
+    (evidence.some((facts) => {
+      const fact = facts[direction];
+      return fact && (fact.kind === "pending" || !contentChanged);
+    }) ||
       scrollbar.pointerId !== null ||
       releasedScrollbar);
   if (direction) {
     for (const facts of evidence) {
       for (const toward of ["up", "down"] as const) {
         const fact = facts[toward];
-        if (!fact) continue;
+        if (!fact || (contentChanged && fact.kind === "moving")) continue;
         if (toward === direction && supported)
           facts[toward] = {
             ...fact,
@@ -361,14 +358,6 @@ function advanceReading(
   return {
     state: {
       physical: sample,
-      acknowledgement:
-        boundary.kind === "scroll"
-          ? null
-          : supported
-            ? { top: sample.top }
-            : state.acknowledgement?.top === sample.top
-              ? state.acknowledgement
-              : null,
       sources,
       touch,
       scrollbar,
@@ -1207,13 +1196,12 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
     }, []);
 
     const captureReadingPosition = useCallback(
-      (preferredIndex?: number, acknowledge = false) => {
+      (preferredIndex?: number) => {
         const body = bodyRef.current;
         if (!body?.isConnected || !readingPositionRef.current) return;
         readingOwnership.current = acceptReadingPosition(
           readingOwnership.current,
           sampleReading(body),
-          acknowledge,
         );
         serializeReadingPosition(preferredIndex);
       },
@@ -1226,7 +1214,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
         const word = focusable(registry.current.get(start));
         focusInternally(word, { preventScroll });
         if (!preventScroll && readingPositionRef.current?.restore) {
-          captureReadingPosition(start, true);
+          captureReadingPosition(start);
         }
       },
       [captureReadingPosition, focusInternally],
@@ -1522,7 +1510,6 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
               readingOwnership.current = acceptReadingPosition(
                 readingOwnership.current,
                 sampleReading(body),
-                true,
               );
           }
           return el !== undefined;
@@ -1607,7 +1594,6 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
         readingOwnership.current = acceptReadingPosition(
           readingOwnership.current,
           sampleReading(body),
-          true,
         );
       if (focusAccepted && position.kind === "word")
         serializeReadingPosition(position.index);
@@ -1787,7 +1773,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
             !readingPositionRef.current?.restore
           )
             return;
-          captureReadingPosition(index, true);
+          captureReadingPosition(index);
         });
       };
       const onFocusOut = (event: FocusEvent) => {
