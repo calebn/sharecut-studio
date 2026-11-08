@@ -337,6 +337,13 @@ describe("projectFromDocumentSnapshot", () => {
         source_duration_sec: 2,
         recording_key: null,
       });
+      const otherClip = (start: number) => ({
+        ...clip(start),
+        id: "other-clip",
+        track_id: "guest",
+        origin_track_id: "guest",
+        source_id: "take-b",
+      });
       const row = {
         track_id: "host",
         source_id: "take-a",
@@ -368,7 +375,10 @@ describe("projectFromDocumentSnapshot", () => {
           workspace_dir: "/tmp",
           hydration: { transcript_words: true, history_groups: true },
         },
-        clips: { tracks: { host: [clip(0)] }, clip_count: 1 },
+        clips: {
+          tracks: { host: [clip(0)], guest: [otherClip(0)] },
+          clip_count: 2,
+        },
         transcript: { utterances: [row] },
       });
       const { words: _words, ...shellRow } = row;
@@ -378,7 +388,13 @@ describe("projectFromDocumentSnapshot", () => {
           workspace_dir: "/tmp",
           hydration: { transcript_words: false, history_groups: false },
         },
-        clips: { tracks: { host: [clip(timelineStart)] }, clip_count: 1 },
+        clips: {
+          tracks: {
+            host: [clip(timelineStart)],
+            guest: [otherClip(timelineStart === 0 ? 1 : 0)],
+          },
+          clip_count: 2,
+        },
         transcript: {
           utterances: [
             {
