@@ -65,6 +65,24 @@ describe("transcriptStaleOf", () => {
   it("is never stale with nothing ticked", () => {
     expect(transcriptStaleOf([file("md", false)], [])).toBe(false);
   });
+
+  it("uses the listed transcript format when the project stem contains a format suffix", () => {
+    const readable = {
+      name: "Episode.readable.txt",
+      current: false,
+      format: "readable.txt" as const,
+    };
+    expect(transcriptStaleOf([readable], ["readable.txt"])).toBe(true);
+    expect(transcriptStaleOf([readable], ["txt"])).toBe(false);
+
+    const detailed = {
+      name: "Episode.readable.txt",
+      current: false,
+      format: "txt" as const,
+    };
+    expect(transcriptStaleOf([detailed], ["txt"])).toBe(true);
+    expect(transcriptStaleOf([detailed], ["readable.txt"])).toBe(false);
+  });
 });
 
 describe("transcriptBlocker", () => {
