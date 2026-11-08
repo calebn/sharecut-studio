@@ -88,6 +88,7 @@ function job(over: Partial<BootstrapJobSnapshot> = {}): BootstrapJobSnapshot {
   return {
     id: "j1",
     kind: "bootstrap",
+    failed_components: [],
     components: ["whisper"],
     whisper_model: "large-v3-turbo",
     status: "running",

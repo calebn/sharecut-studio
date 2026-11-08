@@ -319,9 +319,21 @@ export function downloadRows(
   }
   if (!job || isTerminalJobStatus(job.status)) return rows;
   const active = overlay(status, job, failures, job.whisper_model);
-  const ordered = job.components.flatMap((id) => {
+  const ordered = job.components.flatMap((id): ModelView[] => {
     const row = active.find((model) => model.id === id);
-    return row ? [row] : [];
+    if (!row) return [];
+    if (job.failed_components.includes(id)) {
+      return [
+        {
+          ...row,
+          state: {
+            kind: "failed",
+            failure: { kind: null, plain: "The download failed." },
+          },
+        },
+      ];
+    }
+    return [row];
   });
   return [
     ...ordered,

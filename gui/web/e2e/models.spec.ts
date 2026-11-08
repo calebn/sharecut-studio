@@ -107,6 +107,7 @@ for (const viewport of VIEWPORTS) {
               job: {
                 id: "job-1",
                 kind: "bootstrap",
+                failed_components: ["speaker-ecapa"],
                 components: ["speaker-ecapa"],
                 whisper_model: "large-v3-turbo",
                 status: "error",

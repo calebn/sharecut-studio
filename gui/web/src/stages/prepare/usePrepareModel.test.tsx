@@ -305,6 +305,7 @@ it("retires real-provider cancellation before an unrelated install and accepts a
   const running: BootstrapJobSnapshot = {
     id: "cancelled-alignment",
     kind: "bootstrap",
+    failed_components: [],
     components: ["word-aligner"],
     whisper_model: "large-v3-turbo",
     status: "running",
@@ -396,6 +397,7 @@ it("replays Prepare's captured Fast request once after the adopted Fast target i
     const fast: BootstrapJobSnapshot = {
       id: "prepare-adopted-fast",
       kind: "bootstrap",
+      failed_components: [],
       status: "running",
       components: ["whisper"],
       whisper_model: "tiny.en",

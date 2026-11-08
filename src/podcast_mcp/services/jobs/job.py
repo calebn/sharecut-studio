@@ -222,6 +222,7 @@ class Job:
                     "id": self.id,
                     "kind": "bootstrap",
                     "components": self.components,
+                    "failed_components": list(self.failed_components),
                     "whisper_model": self.whisper_model,
                     "status": self.status,
                     "current": self.current,

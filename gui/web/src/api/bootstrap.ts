@@ -63,6 +63,7 @@ export type BootstrapJobSnapshot = {
   id: string;
   kind: string;
   components: string[];
+  failed_components: string[];
   whisper_model: string;
   status: string;
   current?: number | null;
@@ -213,6 +214,7 @@ export function waitForBootstrapJob(
                   id: jobId,
                   kind: "bootstrap",
                   components: [],
+                  failed_components: [],
                   whisper_model: "",
                   status: "ok",
                 });
