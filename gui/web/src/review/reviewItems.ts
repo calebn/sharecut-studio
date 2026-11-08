@@ -274,6 +274,7 @@ function contextsForTargets(
       utterance.suppressed_only ||
       !focus ||
       focus.word_index !== target.wordIndex ||
+      focus.text !== target.text ||
       focus.text.trim() === "" ||
       focus.mappable === false ||
       focus.suppressed === true ||
@@ -445,7 +446,9 @@ function entryOf(
                   editorIdentity: target.editorIdentity ?? target,
                 }),
                 step: { index: 1, total: words.length },
-                ...(target?.context ? { context: target.context } : {}),
+                ...(target?.context && target.context.focus === first.text
+                  ? { context: target.context }
+                  : {}),
               },
             }
           : {}),

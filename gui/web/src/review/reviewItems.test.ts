@@ -689,6 +689,116 @@ describe("unsureEntriesOf", () => {
     });
   });
 
+  it("omits context when the proposal word differs from its indexed target", () => {
+    const pending = [cut("proposal", 20, [word(2, "canonical")])];
+    const transcript = utterance([
+      { text: "before", start: 1, end: 1.2, word_index: 1, mappable: true },
+      {
+        text: "indexed",
+        start: 2,
+        end: 2.2,
+        word_index: 2,
+        confidence: 0.4,
+        unsure: true,
+        mappable: true,
+      },
+      { text: "after", start: 3, end: 3.2, word_index: 3, mappable: true },
+    ]);
+    const { entries, targets } = unsureEntriesOf(pending, transcript);
+    const [standalone] = entries;
+    const [proposal] = reviewEntriesOf(pending, [], targets);
+
+    expect(standalone?.item.id).toBe("word:host::2");
+    expect(standalone?.content.card.unsure).toMatchObject({
+      word: "indexed",
+      guess: "indexed",
+      context: { before: ["before"], focus: "indexed", after: ["after"] },
+    });
+    expect(proposal?.item.id).toBe("edit:proposal");
+    expect(proposal?.content.card.unsure).toMatchObject({
+      word: "canonical",
+      guess: "canonical",
+      id: "word:host::2",
+      editorIdentity: JSON.stringify(["host", null, 2, 2.2, "indexed"]),
+      step: { index: 1, total: 1 },
+    });
+    expect(proposal?.content.card.unsure).not.toHaveProperty("context");
+
+    const matchingPending = [cut("matching", 20, [word(2, "indexed")])];
+    const matching = unsureEntriesOf(matchingPending, transcript);
+    const [matchingProposal] = reviewEntriesOf(
+      matchingPending,
+      [],
+      matching.targets,
+    );
+    expect(matchingProposal?.content.card.unsure).toMatchObject({
+      word: "indexed",
+      context: { before: ["before"], focus: "indexed", after: ["after"] },
+    });
+  });
+
+  it("omits transcript context that differs from a pending-only target", () => {
+    const pending = [cut("pending-only", 20, [word(2, "old")])];
+    const transcript = utterance([
+      { text: "before", start: 1, end: 1.2, word_index: 1, mappable: true },
+      {
+        text: "new",
+        start: 2,
+        end: 2.2,
+        word_index: 2,
+        confidence: 0.99,
+        mappable: true,
+      },
+      { text: "after", start: 3, end: 3.2, word_index: 3, mappable: true },
+    ]);
+    const { entries, targets } = unsureEntriesOf(pending, transcript);
+    const [standalone] = entries;
+    const [proposal] = reviewEntriesOf(pending, [], targets);
+
+    expect(targets.get("word:host::2")).toMatchObject({
+      trackId: "host",
+      sourceId: null,
+      wordIndex: 2,
+      text: "old",
+      editorIdentity: JSON.stringify(["host", null, 2, 2.2, "new"]),
+    });
+    expect(targets.get("word:host::2")).not.toHaveProperty("context");
+    expect(standalone?.content.card.unsure).toEqual({
+      word: "old",
+      guess: "old",
+      editorIdentity: JSON.stringify(["host", null, 2, 2.2, "new"]),
+    });
+    expect(standalone?.content.card.unsure).not.toHaveProperty("context");
+    expect(proposal?.item.id).toBe("edit:pending-only");
+    expect(proposal?.content.card.unsure).toMatchObject({
+      word: "old",
+      guess: "old",
+      id: "word:host::2",
+      editorIdentity: JSON.stringify(["host", null, 2, 2.2, "new"]),
+      step: { index: 1, total: 1 },
+    });
+    expect(proposal?.content.card.unsure).not.toHaveProperty("context");
+
+    const matchingPending = [
+      cut("matching-pending-only", 20, [word(2, "new")]),
+    ];
+    const matching = unsureEntriesOf(matchingPending, transcript);
+    const [matchingProposal] = reviewEntriesOf(
+      matchingPending,
+      [],
+      matching.targets,
+    );
+    expect(matching.targets.get("word:host::2")?.context).toEqual({
+      before: ["before"],
+      focus: "new",
+      after: ["after"],
+    });
+    expect(matchingProposal?.content.card.unsure).toMatchObject({
+      word: "new",
+      context: { before: ["before"], focus: "new", after: ["after"] },
+    });
+  });
+
   it("places a cut-only word at its own start, not the cut's, when the transcript has it", () => {
     const { entries } = unsureEntriesOf(
       [cut("a", 20)],
