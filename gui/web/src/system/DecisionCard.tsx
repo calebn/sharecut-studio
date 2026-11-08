@@ -409,6 +409,19 @@ export function DecisionCard(props: DecisionCardProps) {
             onOpenInEdit={phone && canEdit !== false ? onOpenInEdit : undefined}
           />
         ) : null}
+        {phone &&
+        !readOnly &&
+        !unsure &&
+        canEdit !== false &&
+        onOpenInEdit &&
+        verbDisabledReason !== undefined ? (
+          <div className="sys-decision-unsure-row">
+            <Button variant="link" onClick={onOpenInEdit}>
+              <SystemIcon name="stage-edit" size={16} />
+              Open in Edit
+            </Button>
+          </div>
+        ) : null}
         {abInBar ? null : ab}
       </div>
       {prompt && !readOnly ? <ActionPrompt {...prompt} /> : null}
