@@ -119,6 +119,7 @@ type ServerWord = {
   unsure: boolean;
   at: number;
   listed: boolean;
+  mappable?: boolean;
 };
 
 const fresh = () => ({
@@ -181,8 +182,11 @@ const transcriptOf = (all = server.words) =>
                       text: w.text,
                       start: w.at,
                       end: w.at + 0.5,
-                      timeline_start: w.at,
-                      timeline_end: w.at + 0.5,
+                      timeline_start: w.mappable === false ? null : w.at,
+                      timeline_end: w.mappable === false ? null : w.at + 0.5,
+                      ...(w.mappable === undefined
+                        ? {}
+                        : { mappable: w.mappable }),
                       word_index: i,
                       unsure: w.unsure,
                     },
@@ -922,6 +926,39 @@ describe("Review host unsure words", () => {
     );
     expect(screen.getAllByText("3 unsure words").length).toBeGreaterThan(0);
     expect(screen.queryByText("Run the CLI refine.")).toBeNull();
+  });
+
+  it("retires the open unsure word when its audio is cut and restores its row on Undo", async () => {
+    setup("pending", []);
+    await pick(/gnu/);
+    expect(rows()).toEqual([
+      expect.stringContaining("uncle"),
+      expect.stringContaining("gnu"),
+    ]);
+    expect(heading()).toBe("Is this “gnu”?");
+
+    const beforeCut = server.words;
+    server.words = beforeCut.map((word, index) =>
+      index === 1 ? { ...word, mappable: false } : word,
+    );
+    snapshot();
+
+    await waitFor(() =>
+      expect(rows()).toEqual([expect.stringContaining("uncle")]),
+    );
+    expect(heading()).toBe("Is this “uncle”?");
+
+    server.words = beforeCut;
+    snapshot();
+
+    await waitFor(() =>
+      expect(rows()).toEqual([
+        expect.stringContaining("uncle"),
+        expect.stringContaining("gnu"),
+      ]),
+    );
+    await pick(/gnu/);
+    expect(heading()).toBe("Is this “gnu”?");
   });
 
   it("Looks right on a non-final word sends one correction and nothing else, and Undo returns it", async () => {
