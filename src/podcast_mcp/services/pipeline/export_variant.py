@@ -5,7 +5,7 @@ import json
 import os
 import re
 import subprocess
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence, Set
 from contextlib import AbstractContextManager, contextmanager
 from dataclasses import asdict, dataclass
 from enum import StrEnum
@@ -484,6 +484,12 @@ def _canonical_json(value: Any) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
 
 
+def _config_container(value: Any) -> bool:
+    return isinstance(value, (Mapping, Sequence, Set)) and not isinstance(
+        value, (str, bytes, bytearray)
+    )
+
+
 def _request(
     target: ExportTarget,
     defaults: EffectiveConfig,
@@ -491,10 +497,30 @@ def _request(
     project: EpisodeProject,
     source: _SourceCertificate,
 ) -> _VariantRequest:
-    master_target = master_target_for(target, defaults)
-    limits = MasterQcLimits.from_defaults(defaults)
+    config_message = (
+        "Export settings contain an invalid value. Correct the pipeline configuration and retry."
+    )
+    for name in ("master", "export"):
+        section = defaults.get(name)
+        if not isinstance(section, Mapping) and (_config_container(section) or section):
+            raise _variant_error(config_message, "pipeline_config_value_invalid")
+    if _config_container((defaults.get("export") or {}).get("wav")):
+        raise _variant_error(config_message, "pipeline_config_value_invalid")
+    try:
+        master_target = master_target_for(target, defaults)
+        limits = MasterQcLimits.from_defaults(defaults)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise _variant_error(config_message, "pipeline_config_value_invalid") from exc
+    try:
+        resolved = _resolve_formats(defaults, formats)
+    except (TypeError, ValueError, OverflowError) as exc:
+        message = (
+            str(exc)
+            if isinstance(exc, _VariantValidationError)
+            else "Variant export format is invalid. Choose a supported audio format."
+        )
+        raise _variant_error(message, "export_variant_format_invalid") from exc
     metadata = (("album", project.name), ("title", project.name))
-    resolved = _resolve_formats(defaults, formats)
     identity_value = {
         "source": source.digest,
         "master_target": asdict(master_target),
@@ -725,15 +751,7 @@ def export_variant_bundle(
         )
     require_source_config(project, defaults)
     source = _source_certificate(project, defaults)
-    try:
-        request = _request(target, defaults, formats, project, source)
-    except (AttributeError, KeyError, TypeError, ValueError) as exc:
-        message = (
-            str(exc)
-            if isinstance(exc, _VariantValidationError)
-            else "Variant export format is invalid. Choose a supported audio format."
-        )
-        raise _variant_error(message, "export_variant_format_invalid") from exc
+    request = _request(target, defaults, formats, project, source)
     try:
         root = _safe_bundle_root(project, create=True)
     except OSError as exc:
