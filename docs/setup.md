@@ -694,6 +694,10 @@ validated.
 
 Every environment variable the package reads is declared once in `src/podcast_mcp/settings.py`; nothing else under `src/podcast_mcp` touches `os.environ`. Reads are live, so a variable changed after start-up applies on the next call. The `relay.yaml` keys and the `~/.config/podcast_mcp` file names are unchanged; the `PODCAST_RELAY_*` and `PODCAST_OBJECT_STORE_*` rows are the environment overrides of those keys. Regenerate this table with `python -m podcast_mcp.settings`; a test fails when it drifts.
 
+The pipeline defaults YAML root must be a mapping or null. Invalid YAML blocks
+new runs. Saved exports remain readable; variants and transcripts report
+`current=false` when their currentness cannot be established.
+
 <!-- settings:start -->
 **Paths and caches**
 
@@ -703,7 +707,7 @@ Every environment variable the package reads is declared once in `src/podcast_mc
 | `PODCAST_CONFIG_DIR` | `~/.config/podcast_mcp` | Directory for the OAuth client files, the recent episodes list, the podcast show files (`shows/`), the segment library (`segments/`) and the show kit library (`kits/`, see [segments](segments.md#show-kit)). |
 | `PODCAST_WORKSPACE_ROOT` | `~/ShareCut` | Folder that holds episodes Home creates when no folder is named. |
 | `PODCAST_MCP_PROJECT` |  | Project path the MCP tools use when none is passed. |
-| `PODCAST_MCP_PIPELINE_DEFAULTS` |  | Pipeline defaults YAML replacing the shipped one. The YAML root must be a mapping or null. Invalid YAML blocks new runs. Saved exports remain readable; variants and transcripts report `current=false` when their currentness cannot be established. |
+| `PODCAST_MCP_PIPELINE_DEFAULTS` |  | Pipeline defaults YAML replacing the shipped one. |
 | `PODCAST_SHARE_REGISTRY` | `~/.podcast_mcp/share_registry.sqlite` | Share registry database file. |
 | `PODCAST_SHARE_IDENTITY` | `~/.podcast_mcp/share_identity.sqlite` | Share identity database file. |
 | `PODCAST_E2E_PROJECT` |  | Project the end-to-end fixture serves instead of the built-in one. |
