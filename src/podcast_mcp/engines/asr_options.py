@@ -21,6 +21,7 @@ from podcast_mcp.engines.models.word_aligner import (
     WORD_ALIGNER_BOOTSTRAP,
     word_aligner_installed,
 )
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dicts import get_by_path
 
 DEFAULT_TEMPERATURE: tuple[float, ...] = (0.0, 0.2, 0.4)
@@ -108,12 +109,27 @@ class ForcedAlignment:
         }
 
 
-def _section(defaults: Mapping[str, Any], path: str) -> Mapping[str, Any]:
+def _section(
+    defaults: Mapping[str, Any], path: str, *, strict_inputs: bool = False
+) -> Mapping[str, Any]:
     node = get_by_path(defaults, path)
+    if strict_inputs and node is not None and not isinstance(node, Mapping):
+        raise CodedValueError(
+            f"{path} must be a mapping or null", code="pipeline_config_value_invalid"
+        )
     return node if isinstance(node, Mapping) else {}
 
 
-def _temperatures(value: Any, default: tuple[float, ...]) -> tuple[float, ...]:
+def _temperatures(
+    value: Any, default: tuple[float, ...], *, strict_inputs: bool = False
+) -> tuple[float, ...]:
+    if strict_inputs:
+        values = value if isinstance(value, (list, tuple)) else (value,)
+        if any(isinstance(item, (Mapping, list, tuple, set, frozenset)) for item in values):
+            raise CodedValueError(
+                "transcribe.decode.temperature must contain scalar values",
+                code="pipeline_config_value_invalid",
+            )
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         value = [value]
     if not isinstance(value, (list, tuple)) or not value:
@@ -150,52 +166,64 @@ class AsrOptions:
         return self.forced_alignment.enabled
 
     @classmethod
-    def from_defaults(cls, defaults: EffectiveConfig) -> AsrOptions:
+    def from_defaults(cls, defaults: EffectiveConfig, *, strict_inputs: bool = False) -> AsrOptions:
+        def scalar(value: Any) -> Any:
+            if strict_inputs and isinstance(value, (Mapping, list, tuple, set, frozenset)):
+                raise CodedValueError(
+                    "ASR scalar inputs cannot be containers", code="pipeline_config_value_invalid"
+                )
+            return value
+
         base = cls()
-        vad = _section(defaults, "transcribe.vad")
-        dec = _section(defaults, "transcribe.decode")
-        sil = _section(defaults, "transcribe.silence_filter")
-        fa = _section(defaults, "transcribe.forced_alignment")
-        hst = dec.get("hallucination_silence_threshold", base.hallucination_silence_threshold)
+        transcribe = _section(defaults, "transcribe", strict_inputs=strict_inputs)
+        vad = _section(defaults, "transcribe.vad", strict_inputs=strict_inputs)
+        dec = _section(defaults, "transcribe.decode", strict_inputs=strict_inputs)
+        sil = _section(defaults, "transcribe.silence_filter", strict_inputs=strict_inputs)
+        fa = _section(defaults, "transcribe.forced_alignment", strict_inputs=strict_inputs)
+        hst = scalar(
+            dec.get("hallucination_silence_threshold", base.hallucination_silence_threshold)
+        )
         return cls(
-            language=_section(defaults, "transcribe").get("language", base.language),
-            vad_enabled=bool(vad.get("enabled", base.vad_enabled)),
-            vad_threshold=bounded_float(vad.get("threshold"), base.vad_threshold, 0.0, 1.0),
+            language=scalar(transcribe.get("language", base.language)),
+            vad_enabled=bool(scalar(vad.get("enabled", base.vad_enabled))),
+            vad_threshold=bounded_float(scalar(vad.get("threshold")), base.vad_threshold, 0.0, 1.0),
             vad_min_silence_ms=int(
                 bounded_float(
-                    vad.get("min_silence_duration_ms"), base.vad_min_silence_ms, 0, 60_000
+                    scalar(vad.get("min_silence_duration_ms")), base.vad_min_silence_ms, 0, 60_000
                 )
             ),
             vad_speech_pad_ms=int(
-                bounded_float(vad.get("speech_pad_ms"), base.vad_speech_pad_ms, 0, 10_000)
+                bounded_float(scalar(vad.get("speech_pad_ms")), base.vad_speech_pad_ms, 0, 10_000)
             ),
-            temperature=_temperatures(dec.get("temperature"), base.temperature),
+            temperature=_temperatures(
+                dec.get("temperature"), base.temperature, strict_inputs=strict_inputs
+            ),
             no_speech_threshold=bounded_float(
-                dec.get("no_speech_threshold"), base.no_speech_threshold, 0.0, 1.0
+                scalar(dec.get("no_speech_threshold")), base.no_speech_threshold, 0.0, 1.0
             ),
             log_prob_threshold=bounded_float(
-                dec.get("log_prob_threshold"), base.log_prob_threshold, -10.0, 0.0
+                scalar(dec.get("log_prob_threshold")), base.log_prob_threshold, -10.0, 0.0
             ),
             compression_ratio_threshold=bounded_float(
-                dec.get("compression_ratio_threshold"),
+                scalar(dec.get("compression_ratio_threshold")),
                 base.compression_ratio_threshold,
                 0.0,
                 20.0,
             ),
             condition_on_previous_text=bool(
-                dec.get("condition_on_previous_text", base.condition_on_previous_text)
+                scalar(dec.get("condition_on_previous_text", base.condition_on_previous_text))
             ),
             # None or 0 disables the hallucination skip.
             hallucination_silence_threshold=(
                 None if hst is None else bounded_float(hst, 2.0, 0.0, 60.0) or None
             ),
-            silence_filter_enabled=bool(sil.get("enabled", base.silence_filter_enabled)),
-            forced_alignment=ForcedAlignment.resolve(fa.get("enabled")),
+            silence_filter_enabled=bool(scalar(sil.get("enabled", base.silence_filter_enabled))),
+            forced_alignment=ForcedAlignment.resolve(scalar(fa.get("enabled"))),
             forced_alignment_min_word_score=bounded_float(
-                fa.get("min_word_score"), base.forced_alignment_min_word_score, 0.0, 1.0
+                scalar(fa.get("min_word_score")), base.forced_alignment_min_word_score, 0.0, 1.0
             ),
             forced_alignment_bleed_margin_db=bounded_float(
-                fa.get("evidence_bleed_margin_db"),
+                scalar(fa.get("evidence_bleed_margin_db")),
                 base.forced_alignment_bleed_margin_db,
                 0.0,
                 60.0,

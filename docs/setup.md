@@ -696,7 +696,11 @@ Every environment variable the package reads is declared once in `src/podcast_mc
 
 The pipeline defaults YAML root must be a mapping or null. Invalid YAML blocks
 new runs. Saved exports remain readable; variants and transcripts report
-`current=false` when their currentness cannot be established.
+`current=false` when their currentness cannot be established. Each comparison uses only
+its consumed settings. Invalid mix inputs do not invalidate transcript comparisons, and
+invalid caption inputs do not invalidate audio comparisons. Restoring valid settings
+restores currentness when the saved output still matches. Saved-file downloads do not
+read pipeline settings.
 
 <!-- settings:start -->
 **Paths and caches**

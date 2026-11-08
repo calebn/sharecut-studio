@@ -550,3 +550,29 @@ def test_exported_unavailable_asr_input_is_not_current(ws, section, key):
     rows = svc.exported(defaults)
     assert [(row.format, row.current) for row in rows] == [("md", False)]
     assert [(row.format, row.current) for row in svc.exported(load_defaults())] == [("md", True)]
+
+
+def test_explicit_unavailable_comparison_never_reloads(ws, monkeypatch):
+    from podcast_mcp.project.store import WriteGrantKind, write_grant
+
+    service = TranscriptService(ws)
+    with write_grant(WriteGrantKind.DISPATCHER):
+        service.export(["md"])
+
+    def fail(self):
+        raise RuntimeError("explicit unavailable must not reload")
+
+    monkeypatch.setattr(ProjectWorkspace, "effective_config", fail)
+    assert [(row.format, row.current) for row in service.exported(None)] == [("md", False)]
+
+
+@pytest.mark.parametrize("formats", [["srt"], ["readable.txt"]])
+def test_transcript_formats_without_merge_ignore_asr_input(ws, formats):
+    from podcast_mcp.project.store import WriteGrantKind, write_grant
+
+    service = TranscriptService(ws)
+    with write_grant(WriteGrantKind.DISPATCHER):
+        service.export(formats)
+    config = load_defaults()
+    config["transcribe"] = ["invalid"]
+    assert [(row.format, row.current) for row in service.exported(config)] == [(formats[0], True)]

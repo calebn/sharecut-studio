@@ -208,10 +208,7 @@ def test_variant_inventory_does_not_load_config_without_admitted_audio(prepared)
     from podcast_mcp.services.pipeline.export_variant import completed_variant_files
 
     ws, _, _ = prepared
-    calls = []
-
-    assert completed_variant_files(ws.project, load_config=lambda: calls.append(True)) == ()
-    assert calls == []
+    assert completed_variant_files(ws.project) == ()
 
 
 def test_named_generation_does_not_use_fallback_config(prepared, tmp_path, monkeypatch):
@@ -1031,6 +1028,23 @@ def test_saved_bundle_config_failure_preserves_all_tickets(
     for name in ("test_episode.md", "test_episode.srt"):
         assert invalid_rows[name]["current"] is transcript_current
     assert {name: response.content for name, response in downloads.items()} == expected
+    print(
+        json.dumps(
+            {
+                "payload": payload.decode("utf-8", errors="backslashreplace"),
+                "source_digest": source_digest,
+                "source_current": invalid_rows[file_id]["current"],
+                "transcript_current": invalid_rows["test_episode.md"]["current"],
+                "canonical_current": invalid_rows["test_episode.wav"]["current"],
+                "restored_current": all(row["current"] for row in recovered.values()),
+                "receipt_unchanged": receipt_path.read_bytes() == receipt,
+                "canonical_unchanged": _canonical_snapshot(ws) == canonical_before,
+                "saved_ticket_bytes_equal": True,
+                "generation": {"status": failed["status"], "result": failed["result"]},
+            },
+            sort_keys=True,
+        )
+    )
 
 
 @pytest.mark.parametrize("poison", ["config", "renderer"])
@@ -1099,3 +1113,269 @@ def test_named_export_rejects_consumed_containers_only(
             premix_path(ws.project).read_bytes(),
         )
         assert engine.master_targets == [-16]
+
+
+@pytest.mark.parametrize(
+    "patch,source_current,transcript_current",
+    [
+        ({"mix": {"premix_peak_ceiling_db": []}}, False, True),
+        ({"export": {"captions": {"max_lines": []}}}, True, False),
+        ({"transcribe": {"decode": {"condition_on_previous_text": {}}}}, True, False),
+    ],
+)
+def test_staged_comparison_inputs_are_independent(
+    saved_bundle, patch, source_current, transcript_current
+):
+    ws, _, client, rows, file_id = saved_bundle
+    before = _canonical_snapshot(ws)
+    receipt_path = (ws.project.export_dir() / file_id).parent / "receipt.json"
+    receipt = receipt_path.read_bytes()
+    config_store().put(ws.path, config=patch)
+    response = client.get(FILES, params={"path": str(ws.path)})
+    assert response.status_code == 200
+    found = {row["id"]: row for row in response.json()["files"]}
+    assert set(found) == set(rows)
+    assert found[file_id]["current"] is source_current
+    assert found["test_episode.md"]["current"] is transcript_current
+    assert found["test_episode.srt"]["current"] is transcript_current
+    assert found["test_episode.wav"]["current"] is True
+    for name, row in rows.items():
+        downloaded = client.get(
+            f"{FILES}/{name}", params={"path": str(ws.path), "ticket": row["ticket"]}
+        )
+        assert downloaded.status_code == 200
+        assert downloaded.content == (ws.project.export_dir() / name).read_bytes()
+    config_store().put(ws.path, config={}, reset=True)
+    restored = client.get(FILES, params={"path": str(ws.path)}).json()["files"]
+    assert all(row["current"] for row in restored)
+    assert receipt_path.read_bytes() == receipt
+    assert _canonical_snapshot(ws) == before
+
+
+def test_listing_selects_one_private_config_snapshot(saved_bundle, monkeypatch):
+    from podcast_mcp.config.defaults import load_defaults
+    from podcast_mcp.services.document import export_files
+
+    ws, _, client, _, _ = saved_bundle
+    calls = []
+    config = load_defaults()
+
+    def selected(self):
+        calls.append(self.path)
+        if len(calls) != 1:
+            raise RuntimeError("listing reloaded its configuration")
+        return config
+
+    original_digest = export_files.current_source_digest
+
+    def digest(project, snapshot):
+        result = original_digest(project, snapshot)
+        config["export"]["captions"] = []
+        return result
+
+    monkeypatch.setattr(export_files, "current_source_digest", digest)
+    monkeypatch.setattr(ProjectWorkspace, "effective_config", selected)
+    response = client.get(FILES, params={"path": str(ws.path)})
+    assert response.status_code == 200
+    assert all(row["current"] for row in response.json()["files"])
+    assert calls == [ws.path]
+
+
+@pytest.mark.parametrize(
+    "patch",
+    [
+        {"mix": []},
+        {"mix": {"premix_peak_ceiling_db": []}},
+        {"analysis": {"reconcile_on_render": []}},
+        {"analysis": {"heuristics": {"bleed_text_match_enabled": {}}}},
+        {"gate_fill": {"mode": []}},
+    ],
+)
+def test_config_changed_before_commit_refuses_publication(prepared, monkeypatch, patch):
+    from podcast_mcp.config.defaults import load_defaults
+    from podcast_mcp.engines.play_audit import write_stem_hash
+
+    ws, engine, _ = prepared
+    with write_grant(WriteGrantKind.DISPATCHER):
+        ws.mutate(
+            "before gate",
+            "after gate",
+            lambda project: setattr(project.tracks[0], "transcript_gate", True),
+        )
+    write_stem_hash(ws.project, "host", defaults=load_defaults())
+    before = _canonical_snapshot(ws)
+    original = engine.master_loudness
+
+    def master(*args, **kwargs):
+        result = original(*args, **kwargs)
+        config_store().put(ws.path, config=patch)
+        return result
+
+    monkeypatch.setattr(engine, "master_loudness", master)
+    client = TestClient(create_app(), raise_server_exceptions=False)
+    job = done(client, ws.path, start(client, ws.path, target="podcast", formats=[{"ext": "wav"}]))
+    assert job["status"] == "error"
+    assert job["result"] is None
+    assert engine.master_calls == 1
+    assert list((ws.project.export_dir() / "variants").iterdir()) == []
+    assert _canonical_snapshot(ws) == before
+    print(json.dumps({"recheck": job["status"], "result": job["result"], "bundles": 0}))
+
+
+@pytest.mark.parametrize("timed", [False, True])
+def test_source_admission_uses_actual_timed_clips(prepared, timed):
+    from podcast_mcp.config.defaults import load_defaults
+    from podcast_mcp.engines.play_audit import write_stem_hash
+    from podcast_mcp.models import Clip
+    from podcast_mcp.models.clip_timing import ClipTiming, TimingStep
+
+    ws, engine, _ = prepared
+    with write_grant(WriteGrantKind.DISPATCHER):
+        ws.mutate(
+            "before clip",
+            "after clip",
+            lambda project: setattr(
+                project,
+                "clips",
+                [
+                    Clip(
+                        id="host-clip",
+                        track_id="host",
+                        source_start=0,
+                        source_end=2.0,
+                        timeline_start=0,
+                        timing=ClipTiming(steps=[TimingStep(at=1.0, delta_sec=0.01)])
+                        if timed
+                        else None,
+                    )
+                ],
+            ),
+        )
+    write_stem_hash(ws.project, "host", defaults=load_defaults())
+    config_store().put(ws.path, config={"inaudible_cuts": {"micro_fade_ms": []}})
+    client = TestClient(create_app(), raise_server_exceptions=False)
+    job = done(client, ws.path, start(client, ws.path, target="podcast", formats=[{"ext": "wav"}]))
+    assert job["status"] == ("error" if timed else "ok"), job
+    assert engine.master_calls == (0 if timed else 1)
+    if timed:
+        assert job["result"] is None
+
+
+@pytest.mark.parametrize(
+    "patch",
+    [
+        {"analysis": []},
+        {"analysis": {"heuristics": []}},
+        {"analysis": {"heuristics": {"bleed_text_match_enabled": {}}}},
+        {"analysis": {"heuristics": {"min_fade_ms": []}}},
+        {"gate_fill": []},
+    ],
+)
+def test_gated_source_shapes_are_refused_before_mastering(prepared, patch):
+    from podcast_mcp.config.defaults import load_defaults
+    from podcast_mcp.engines.play_audit import write_stem_hash
+
+    ws, engine, _ = prepared
+    with write_grant(WriteGrantKind.DISPATCHER):
+        ws.mutate(
+            "before gate",
+            "after gate",
+            lambda project: setattr(project.tracks[0], "transcript_gate", True),
+        )
+    write_stem_hash(ws.project, "host", defaults=load_defaults())
+    config_store().put(ws.path, config=patch)
+    client = TestClient(create_app(), raise_server_exceptions=False)
+    job = done(client, ws.path, start(client, ws.path, target="podcast", formats=[{"ext": "wav"}]))
+    assert job["status"] == "error", job
+    assert job["result"] is None
+    assert engine.master_calls == 0
+    assert not (ws.project.export_dir() / "variants").exists()
+
+
+@pytest.mark.parametrize("with_media", [False, True], ids=["no-media", "muted"])
+def test_unmixed_gated_track_does_not_consume_gate_config(prepared, with_media):
+    from podcast_mcp.models import Track
+
+    ws, engine, _ = prepared
+    with write_grant(WriteGrantKind.DISPATCHER):
+        ws.mutate(
+            "before inactive track",
+            "after inactive track",
+            lambda project: project.tracks.append(
+                Track(
+                    id="unused",
+                    label="Unused",
+                    transcript_gate=True,
+                    media=project.tracks[0].media if with_media else None,
+                    muted=with_media,
+                )
+            ),
+        )
+    config_store().put(ws.path, config={"analysis": [], "gate_fill": []})
+    client = TestClient(create_app(), raise_server_exceptions=False)
+    job = done(client, ws.path, start(client, ws.path, target="podcast", formats=[{"ext": "wav"}]))
+    assert job["status"] == "ok", job
+    assert engine.master_calls == 1
+
+
+def test_nondefault_inputs_preserve_actual_source_certificate(prepared):
+    from podcast_mcp.config.defaults import load_defaults
+    from podcast_mcp.engines.play_audit import mix_gains, write_premix_hash, write_stem_hash
+    from podcast_mcp.services.pipeline.export_variant import _source_certificate
+
+    ws, _, _ = prepared
+    with write_grant(WriteGrantKind.DISPATCHER):
+        ws.mutate(
+            "before gate",
+            "after gate",
+            lambda project: setattr(project.tracks[0], "transcript_gate", True),
+        )
+    config = load_defaults()
+    config["mix"]["premix_peak_ceiling_db"] = "-2.5"
+    config["analysis"]["ml_backend"] = False
+    config["analysis"]["heuristics"]["bleed_dominance_db"] = "4.5"
+    config["analysis"]["heuristics"]["bleed_text_match_min_dominance_db"] = None
+    config["gate_fill"]["mode"] = None
+    config_store().put(ws.path, config=config)
+    config = ws.effective_config()
+    write_stem_hash(ws.project, "host", defaults=config)
+    write_premix_hash(ws.project, mix_gains(ws.project), trim_db=None, defaults=config)
+    before = _source_certificate(ws.project, config)
+    canonical = _canonical_snapshot(ws)
+    client = TestClient(create_app(), raise_server_exceptions=False)
+    job = done(client, ws.path, start(client, ws.path, target="podcast", formats=[{"ext": "wav"}]))
+    assert job["status"] == "ok", job
+    file_id = job["result"]["file_ids"][0]
+    receipt = json.loads(((ws.project.export_dir() / file_id).parent / "receipt.json").read_bytes())
+    assert receipt["source_digest"] == before.digest
+    assert _source_certificate(ws.project, config) == before
+    rows = client.get(FILES, params={"path": str(ws.path)}).json()["files"]
+    assert next(row for row in rows if row["id"] == file_id)["current"] is True
+    assert (
+        client.get(f"{FILES}/{file_id}", params={"path": str(ws.path)}).content
+        == premix_path(ws.project).read_bytes()
+    )
+    assert _canonical_snapshot(ws) == canonical
+    print(
+        json.dumps(
+            {
+                "nondefault_source_digest": before.digest,
+                "current": True,
+                "canonical_unchanged": True,
+            }
+        )
+    )
+
+
+def test_source_fingerprint_runtime_error_is_not_unavailable(saved_bundle, monkeypatch):
+    from podcast_mcp.services.document import ExportFilesService
+    from podcast_mcp.services.pipeline import export_variant
+
+    ws, _, _, _, _ = saved_bundle
+
+    def fail(*args, **kwargs):
+        raise RuntimeError("fingerprint programming failure")
+
+    monkeypatch.setattr(export_variant, "_source_certificate", fail)
+    with pytest.raises(RuntimeError, match="fingerprint programming failure"):
+        ExportFilesService(ws).listed()
