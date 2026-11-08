@@ -305,8 +305,22 @@ for (const {
               observation: { point: timeBounds, delta: 220, shownTime },
             });
             await time.hover();
+            const timeWheel = await time.evaluateHandle((element) => {
+              const trusted: boolean[] = [];
+              element.addEventListener(
+                "wheel",
+                (event) => {
+                  requestAnimationFrame(() =>
+                    requestAnimationFrame(() => trusted.push(event.isTrusted)),
+                  );
+                },
+                { capture: true, once: true },
+              );
+              return trusted;
+            });
             await page.mouse.wheel(0, 220);
-            await page.waitForTimeout(100);
+            await expect.poll(() => timeWheel.jsonValue()).toEqual([true]);
+            await timeWheel.dispose();
             await expect(time).toHaveAttribute(
               "aria-valuenow",
               String(shownTime),
