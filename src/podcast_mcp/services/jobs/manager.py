@@ -270,6 +270,7 @@ class JobManager:
         holds the slot only briefly, so the export queues behind it instead of refusing.
         ``wait_for_rebuild=False`` tries the slot once and refuses at once when it is taken.
         """
+        formats = copy.deepcopy(formats)
         deadline = time.monotonic() + EXPORT_PREVIEW_WAIT_S
         scope = str(project_path.resolve())
         while True:
@@ -643,8 +644,15 @@ class JobManager:
                         job.status = "cancelled"
                         job.message = cancelled_copy(job.kind)
                         if result is not None:
-                            # Work finished (or wrote files) before cancel took effect.
-                            job.result = result
+                            job.result = (
+                                {
+                                    key: value
+                                    for key, value in result.items()
+                                    if key != "applied_settings"
+                                }
+                                if job.kind == "export"
+                                else result
+                            )
                     else:
                         job.status = "ok"
                         job.message = job.message or done_message
@@ -754,6 +762,10 @@ class JobManager:
                     "edit_head_id": variant_export.edit_head_id,
                 }
                 serialized_variant = cast(dict[str, Any], dict(variant_job_result))
+                if variant_export.applied_settings is not None:
+                    serialized_variant["applied_settings"] = (
+                        variant_export.applied_settings.to_record()
+                    )
                 return "Export complete", serialized_variant
             canonical_export = svc.export_audio(cfg.get("formats"), cancel_check=cancel_check)
             return "Export complete", canonical_export.job_result()

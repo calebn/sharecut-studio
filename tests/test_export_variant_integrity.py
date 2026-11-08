@@ -79,7 +79,13 @@ def test_variant_route_round_trip_and_authority(prepared, monkeypatch):
     job = done(client, ws.path, job_id)
     assert job["status"] == "ok", job["error"]
     result = job["result"]
-    assert set(result) == {"file_ids", "target", "master", "edit_head_id"}
+    assert set(result) == {"file_ids", "target", "master", "edit_head_id", "applied_settings"}
+    assert result["applied_settings"]["audio_formats"] == ["wav"]
+    assert result["applied_settings"]["master_target"] == {
+        "integrated_lufs": -16.0,
+        "true_peak_db": -1.5,
+        "lra": 11.0,
+    }
     assert result["target"] == "podcast"
     assert result["edit_head_id"] == "preserve01"
     assert result["master"]["target"]["integrated_lufs"] == -16
@@ -101,6 +107,7 @@ def test_variant_route_round_trip_and_authority(prepared, monkeypatch):
     monkeypatch.setenv("PODCAST_SESSION_TOKEN", "isolated-api-probe")
     remote = TestClient(client.app, client=("198.51.100.21", 61235))
     assert remote.get(download_url, params=params).status_code == 403
+    assert remote.post("/api/export/deliverables/settings", json=body).status_code == 403
     assert (
         remote.get(download_url, params={**params, "ticket": ticket}).content == sample.read_bytes()
     )
@@ -1703,6 +1710,9 @@ def test_request_format_precedence(
         [{"ext": "zip"}],
         [{"ext": "wav", "extra_args": ["-y"]}],
         [{"ext": "mp3", "bitrate_kbps": 7}],
+        [{"ext": "mp3", "bitrate_kbps": 0}],
+        [{"ext": "mp3", "bitrate_kbps": "128"}],
+        [{"ext": "wav", "codec": "pcm_s16le"}],
     ],
 )
 @pytest.mark.parametrize("recheck", [False, True])
@@ -2273,3 +2283,52 @@ def test_success_closes_stage_descriptors(boundary_export, boundary_stages):
     assert all((ws.project.export_dir() / file_id).is_file() for file_id in result.file_ids)
     assert len(boundary_stages) == 1 and boundary_stages[0]["committed"] is True
     print(json.dumps({"success_ids": result.file_ids, "closed_stages": boundary_stages}))
+
+
+def test_admitted_settings_ignore_ambient_defaults_and_leave_receipt_unchanged(
+    prepared, monkeypatch
+):
+    from podcast_mcp.services.pipeline import (
+        ExportTarget,
+        PipelineService,
+        config_store,
+        read_export_settings,
+    )
+    from podcast_mcp.services.pipeline.export_variant import _result
+    from podcast_mcp.services.pipeline.export_variant_receipt import admit_bundle
+
+    ws, engine, _ = prepared
+    formats = [
+        {"ext": "mp3", "codec": None, "format": None, "bitrate_kbps": None},
+        {"ext": "wav"},
+        {"ext": "flac"},
+    ]
+    first = PipelineService(ws).export_variant(ExportTarget.PODCAST, formats)
+    directory = (ws.project.export_dir() / first.file_ids[0]).parent
+    before = {path.name: path.read_bytes() for path in directory.iterdir()}
+    admitted = admit_bundle(directory, directory.name)
+    assert [
+        (audio.spec.ext, audio.spec.codec, audio.spec.format, audio.spec.bitrate_kbps)
+        for audio in admitted.audio
+    ] == [
+        ("mp3", "libmp3lame", "mp3", 128),
+        ("wav", None, None, None),
+        ("flac", "flac", "flac", None),
+    ]
+    config_store().apply_patches(
+        ws.path, {"master": {"true_peak_db": -3, "lra": 7}, "export": {"wav": False}}
+    )
+    current = read_export_settings(ws.path, formats, ExportTarget.PODCAST)["settings"]
+    evidence = _result(admitted, first.edit_head_id).applied_settings.to_record()
+    assert evidence["master_target"] == {
+        "integrated_lufs": -16.0,
+        "true_peak_db": -1.5,
+        "lra": 11.0,
+    }
+    assert evidence["qc_limits"] == {"lufs_tolerance_lu": 0.5, "true_peak_tolerance_db": 0.3}
+    assert evidence["audio_formats"] == ["mp3", "wav", "flac"]
+    assert evidence == first.applied_settings.to_record()
+    assert evidence["basis"] != current["basis"]
+    assert {path.name: path.read_bytes() for path in directory.iterdir()} == before
+    assert engine.master_calls == 1
+    assert engine.encode_calls == 2

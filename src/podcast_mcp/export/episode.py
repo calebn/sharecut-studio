@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from contextlib import suppress
 from pathlib import Path
+from typing import Any
 
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.engines.ffmpeg import ENCODE_CANCELLED, FFmpegEngine
@@ -25,6 +26,12 @@ from podcast_mcp.util.atomic_render import render_atomic_all
 from podcast_mcp.util.progress import raise_if_cancel_requested
 
 
+def resolve_episode_audio_plan(export_cfg: dict[str, Any]) -> tuple[ExportFormatSpec, ...]:
+    specs = [ExportFormatSpec(ext="wav")] if export_wav_enabled(export_cfg) else []
+    specs.extend(resolve_export_formats(export_cfg))
+    return tuple(specs)
+
+
 def export_episode_deliverables(
     project: EpisodeProject,
     eng: FFmpegEngine,
@@ -33,6 +40,7 @@ def export_episode_deliverables(
     *,
     cancel_check: Callable[[], bool] | None = None,
     persist_project: Callable[[], object] | None = None,
+    capture_audio_plan: Callable[[tuple[ExportFormatSpec, ...]], None] | None = None,
 ) -> list[Path]:
     """Publish episode audio, edited transcripts and chapters after all files are prepared.
 
@@ -49,8 +57,7 @@ def export_episode_deliverables(
     """
     export_cfg = defaults.get("export", {})
     stem = project.export_dir() / sanitize_export_stem(project.name)
-    specs = [ExportFormatSpec(ext="wav")] if export_wav_enabled(export_cfg) else []
-    specs.extend(resolve_export_formats(export_cfg))
+    specs = resolve_episode_audio_plan(export_cfg)
     sidecars: dict[Path, str] = {}
     if project.transcripts or project.combined_transcript:
         refreshed = tuple(
@@ -94,4 +101,7 @@ def export_episode_deliverables(
     from podcast_mcp.feed.writer import write_after_export
 
     write_after_export(project, persist=persist_project)
+    if capture_audio_plan is not None:
+        with suppress(Exception):
+            capture_audio_plan(specs)
     return written

@@ -521,3 +521,291 @@ def test_export_audio_reports_the_edit_head_at_its_checkpoint(minimal_project, m
     monkeypatch.setattr("podcast_mcp.services.pipeline.service.ffmpeg", lambda: object())
     result = PipelineService(ProjectWorkspace.open(Path(minimal_project))).export_audio()
     assert result.edit_head_id == "cut-2"
+
+
+@pytest.mark.parametrize(
+    "target,lufs", [(None, -19.0), ("broadcast", -23.0), ("podcast", -16.0), ("streaming", -14.0)]
+)
+def test_settings_read_is_host_only_private_and_does_not_create_a_job(
+    minimal_project, monkeypatch, target, lufs
+):
+    from podcast_mcp.services.pipeline import config as config_module
+    from podcast_mcp.services.pipeline import config_store
+
+    config_store().put(
+        minimal_project,
+        config={
+            "master": {
+                "integrated_lufs": "-19",
+                "true_peak_db": "-2",
+                "lra": "8",
+                "qc_lufs_tolerance_lu": "0.7",
+                "qc_true_peak_tolerance_db": "0.4",
+            },
+            "export": {"wav": "false"},
+        },
+    )
+    calls = []
+    original = config_module.run_defaults_for
+
+    def read_once(path):
+        calls.append(path)
+        return original(path)
+
+    monkeypatch.setattr(config_module, "run_defaults_for", read_once)
+    app = create_app()
+    client = TestClient(app)
+    body = {
+        "path": str(minimal_project),
+        "target": target,
+        "formats": [{"ext": "flac"}, {"ext": "m4a"}],
+    }
+    response = client.post("/api/export/deliverables/settings", json=body)
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    settings = response.json()["settings"]
+    assert settings == {
+        "version": 1,
+        "basis": settings["basis"],
+        "target": target,
+        "master_target": {"integrated_lufs": lufs, "true_peak_db": -2.0, "lra": 8.0},
+        "qc_limits": {"lufs_tolerance_lu": 0.7, "true_peak_tolerance_db": 0.4},
+        "audio_formats": ["wav", "flac", "m4a"],
+    }
+    assert len(settings["basis"]) == 64
+    assert calls == [Path(minimal_project)]
+    assert app.state.jobs.status()["running_count"] == 0
+    assert str(minimal_project) not in response.text
+    denied = client.post(
+        "/api/export/deliverables/settings", json=body, headers={"x-sharecut-relayed": "1"}
+    )
+    assert denied.status_code == 403
+    assert calls == [Path(minimal_project)]
+
+
+def test_settings_basis_covers_private_options_and_types_but_not_unrelated_config(
+    minimal_project, monkeypatch
+):
+    from podcast_mcp.services.pipeline import config as config_module
+    from podcast_mcp.services.pipeline import config_store
+
+    store = config_store()
+    assert store.peek(minimal_project) is None
+    client = TestClient(create_app())
+    body = {
+        "path": str(minimal_project),
+        "formats": [
+            {"ext": "mp3", "bitrate_kbps": "192", "extra_args": ["/private/credential-secret"]}
+        ],
+    }
+
+    def read():
+        response = client.post("/api/export/deliverables/settings", json=body)
+        assert response.status_code == 200
+        assert response.headers["cache-control"] == "no-store"
+        assert "credential-secret" not in response.text
+        assert "extra_args" not in response.text
+        return response.json()
+
+    initial = read()["settings"]
+    assert store.peek(minimal_project) is None
+    store.apply_patches(minimal_project, {"performance": {"max_workers": 1}})
+    assert read()["settings"] == initial
+    body["formats"][0]["bitrate_kbps"] = 192
+    numeric = read()["settings"]
+    assert numeric["basis"] != initial["basis"]
+    body["formats"][0]["extra_args"] = ["/private/credential-secret-changed"]
+    assert read()["settings"]["basis"] != numeric["basis"]
+    for patch in (
+        {"master": {"true_peak_db": -2}},
+        {"master": {"lra": 8}},
+        {"master": {"qc_lufs_tolerance_lu": 0.9}},
+        {"export": {"wav": False}},
+    ):
+        before = read()["settings"]["basis"]
+        store.apply_patches(minimal_project, patch)
+        assert read()["settings"]["basis"] != before
+    body["formats"] = None
+    for value in (float("nan"), float("inf"), {"nested": 1}):
+        monkeypatch.setattr(
+            config_module,
+            "run_defaults_for",
+            lambda path, value=value: {
+                "export": {"formats": [{"ext": "mp3", "bitrate_kbps": value}]}
+            },
+        )
+        assert read() == {"status": "unavailable", "code": "export_settings_unavailable"}
+
+    def fail(path):
+        raise OSError("/private/credential-secret")
+
+    monkeypatch.setattr(config_module, "run_defaults_for", fail)
+    assert read() == {"status": "unavailable", "code": "export_settings_unavailable"}
+
+
+@pytest.mark.parametrize("target", [None, ExportTarget.PODCAST])
+def test_export_admission_snapshots_nested_formats_before_wait(
+    minimal_project, monkeypatch, target
+):
+    submitted = [{"ext": "flac", "extra_args": ["original"]}, {"ext": "mp3"}]
+    manager = JobManager()
+    captured = []
+
+    def wait(scope, deadline):
+        submitted.reverse()
+        submitted[1]["extra_args"].append("changed")
+
+    def spawn(path, **kwargs):
+        captured.append(kwargs["config"])
+        return Job(id="captured", project_path=str(path), from_step=None, only_step=None)
+
+    monkeypatch.setattr(manager, "_wait_out_mix_rebuild", wait)
+    monkeypatch.setattr(manager, "_spawn", spawn)
+    manager.start_export(Path(minimal_project), formats=submitted, target=target)
+    assert captured == [
+        {
+            "formats": [{"ext": "flac", "extra_args": ["original"]}, {"ext": "mp3"}],
+            "target": target.value if target else None,
+        }
+    ]
+
+
+@pytest.mark.parametrize("cancelled", [False, True])
+def test_export_terminal_lock_strips_only_success_evidence_after_late_cancel(
+    minimal_project, monkeypatch, cancelled
+):
+    from podcast_mcp.services.jobs.job import guest_job_projection
+
+    manager = JobManager()
+    job = Job(
+        id="late-export",
+        project_path=str(minimal_project),
+        from_step=None,
+        only_step=None,
+        kind="export",
+    )
+    legacy = {"paths": ["saved.wav"], "master": {"measured": None}, "edit_head_id": "edit-1"}
+    enriched = {**legacy, "applied_settings": {"basis": "private-basis"}}
+
+    def completed(job, reporter):
+        with job._lock:
+            job.cancel_requested = cancelled
+        return "Export complete", enriched
+
+    monkeypatch.setattr(manager, "_execute_job", completed)
+    manager._run_job(job)
+    assert job.status == ("cancelled" if cancelled else "ok")
+    assert job.result == (legacy if cancelled else enriched)
+    assert enriched["applied_settings"] == {"basis": "private-basis"}
+    assert guest_job_projection(job) == {
+        "id": "late-export",
+        "status": job.status,
+        "current": None,
+        "total": None,
+        "message": None,
+        "error": None,
+    }
+
+
+@pytest.mark.parametrize("target", [None, "broadcast"])
+@pytest.mark.parametrize("late_cancel", [False, True])
+def test_real_export_job_uses_its_snapshot_and_same_intent_retry(
+    minimal_project, sample_wav, monkeypatch, target, late_cancel
+):
+    from contextlib import contextmanager
+
+    from podcast_mcp.services.pipeline import config_store
+    from podcast_mcp.services.pipeline import service as pipeline
+    from test_export_variant import _current_mix, _FakeEngine
+
+    workspace = _current_mix(minimal_project, sample_wav)
+    store = config_store()
+    store.put(
+        minimal_project,
+        config={
+            "master": {"integrated_lufs": -19, "true_peak_db": -2},
+            "performance": {"max_workers": 1},
+        },
+    )
+
+    class Engine(_FakeEngine):
+        def measure_loudness_full(self, path, **kwargs):
+            return super().measure_loudness_full(path)
+
+    engine = Engine(sample_wav)
+    monkeypatch.setattr(pipeline.pipeline_steps, "ffmpeg", lambda: engine)
+    monkeypatch.setattr(pipeline, "ffmpeg", lambda: engine)
+    app = create_app()
+    client = TestClient(app)
+    returned = []
+    execute = app.state.jobs._execute_job
+
+    def cancel_after_return(job, reporter):
+        message, result = execute(job, reporter)
+        returned.append(result)
+        with job._lock:
+            job.cancel_requested = late_cancel
+        return message, result
+
+    monkeypatch.setattr(app.state.jobs, "_execute_job", cancel_after_return)
+    body = {"path": str(minimal_project), "target": target, "formats": [{"ext": "flac"}]}
+    if target is None:
+        body["formats"][0]["extra_args"] = ["/private/credential-secret"]
+    previous = client.post("/api/export/deliverables/settings", json=body).json()["settings"]
+    store.apply_patches(minimal_project, {"master": {"integrated_lufs": -20, "lra": 8}})
+    original_lock = pipeline.render_lock
+
+    @contextmanager
+    def change_at_lock(project, **kwargs):
+        store.apply_patches(minimal_project, {"master": {"integrated_lufs": -21, "lra": 9}})
+        with original_lock(project, **kwargs):
+            yield
+
+    monkeypatch.setattr(pipeline, "render_lock", change_at_lock)
+    response = client.post("/api/export/deliverables", json=body)
+    assert response.status_code == 200
+    job = app.state.jobs._job
+    app.state.jobs.wait(job, timeout=5)
+    if late_cancel:
+        assert job.status == "cancelled", job.snapshot()
+        assert returned[0]["applied_settings"]["audio_formats"] == ["wav", "flac"]
+        assert job.snapshot()["result"] == {
+            key: value for key, value in returned[0].items() if key != "applied_settings"
+        }
+        assert engine.master_calls == 1
+        return
+    assert job.status == "ok", job.snapshot()
+    result = job.snapshot()["result"]
+    applied = result["applied_settings"]
+    assert "credential-secret" not in str(applied)
+    assert engine.master_targets == ([-20.0] if target is None else [-23.0])
+    assert applied["master_target"] == {
+        "integrated_lufs": -20.0 if target is None else -23.0,
+        "true_peak_db": -2.0,
+        "lra": 8.0 if target is None else 9.0,
+    }
+    assert applied["audio_formats"] == ["wav", "flac"]
+    assert applied["basis"] != previous["basis"]
+    current = client.post("/api/export/deliverables/settings", json=body).json()["settings"]
+    assert current["master_target"]["lra"] == 9.0
+    assert (current["basis"] == applied["basis"]) is (target is not None)
+    monkeypatch.setattr(pipeline, "render_lock", original_lock)
+    store.apply_patches(minimal_project, {"export": {"wav": False, "formats": [{"ext": "mp3"}]}})
+    retry_read = client.post("/api/export/deliverables/settings", json=body).json()["settings"]
+    assert retry_read["audio_formats"] == ["flac"]
+    retry = client.post("/api/export/deliverables", json=body)
+    assert retry.status_code == 200
+    job = app.state.jobs._job
+    app.state.jobs.wait(job, timeout=5)
+    assert job.status == "ok", job.snapshot()
+    assert job.snapshot()["result"]["applied_settings"] == retry_read
+    implicit = {"path": str(minimal_project), "target": target}
+    assert client.post("/api/export/deliverables/settings", json=implicit).json()["settings"][
+        "audio_formats"
+    ] == ["mp3"]
+    store.apply_patches(minimal_project, {"export": {"formats": [{"ext": "m4a"}]}})
+    implicit["formats"] = None
+    assert client.post("/api/export/deliverables/settings", json=implicit).json()["settings"][
+        "audio_formats"
+    ] == ["m4a"]
+    assert workspace.project.raw_dir().joinpath("host.wav").read_bytes() == sample_wav.read_bytes()

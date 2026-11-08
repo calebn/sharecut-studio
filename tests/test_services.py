@@ -1054,3 +1054,150 @@ def test_standalone_transcribe_trims_stretched_word_spans(tmp_path):
 
     (word,) = ws.project.transcripts[0].words
     assert (word.start, word.end, word.trimmed_from) == (7.59, 8.01, (2.0, 8.0))
+
+
+def test_export_cached_unmeasured_master_keeps_success_with_unusable_evidence(
+    minimal_project, sample_wav, monkeypatch
+):
+    from podcast_mcp.services.pipeline import config_store, read_export_settings
+    from podcast_mcp.services.pipeline import service as pipeline
+    from test_export_variant import _canonical_snapshot, _current_mix, _FakeEngine
+
+    ws = _current_mix(minimal_project, sample_wav)
+
+    class Engine(_FakeEngine):
+        def measure_loudness_full(self, path, **kwargs):
+            return None
+
+    engine = Engine(sample_wav)
+    monkeypatch.setattr(pipeline.pipeline_steps, "ffmpeg", lambda: engine)
+    monkeypatch.setattr(pipeline, "ffmpeg", lambda: engine)
+    service = PipelineService(ws)
+    first = service.export_audio([{"ext": "flac"}])
+    assert first.applied_settings.to_record()["audio_formats"] == ["wav", "flac"]
+    assert first.master["measured"] is None
+    before = _canonical_snapshot(ws)
+    store = config_store()
+    store.apply_patches(minimal_project, {"master": {"qc_lufs_tolerance_lu": "unusable"}})
+    cached = service.export_audio([{"ext": "flac"}])
+    assert cached.paths == first.paths
+    assert cached.master == first.master
+    assert cached.applied_settings is None
+    assert "applied_settings" not in cached.job_result()
+    assert engine.master_calls == 1
+    assert _canonical_snapshot(ws) == before
+    assert read_export_settings(minimal_project, [{"ext": "flac"}]) == {
+        "status": "unavailable",
+        "code": "export_settings_unavailable",
+    }
+    store.apply_patches(minimal_project, {"master": {"qc_lufs_tolerance_lu": 0.5}})
+    assert service.export_audio([{"ext": "flac"}]).applied_settings is not None
+    assert _canonical_snapshot(ws) == before
+
+
+def test_export_metadata_failure_cannot_fail_publication(minimal_project, sample_wav, monkeypatch):
+    from podcast_mcp.services.pipeline import export_config
+    from podcast_mcp.services.pipeline import service as pipeline
+    from test_export_variant import _current_mix, _FakeEngine
+
+    ws = _current_mix(minimal_project, sample_wav)
+
+    class Engine(_FakeEngine):
+        def measure_loudness_full(self, path, **kwargs):
+            return super().measure_loudness_full(path)
+
+    engine = Engine(sample_wav)
+    monkeypatch.setattr(pipeline.pipeline_steps, "ffmpeg", lambda: engine)
+    monkeypatch.setattr(pipeline, "ffmpeg", lambda: engine)
+
+    def failed_encoding(value):
+        raise RuntimeError("private metadata failure")
+
+    monkeypatch.setattr(export_config, "_typed_recipe", failed_encoding)
+    result = PipelineService(ws).export_audio([{"ext": "flac"}])
+    assert result.applied_settings is None
+    assert [path.read_bytes() for path in result.paths] == [
+        sample_wav.read_bytes(),
+        b"encoded variant",
+    ]
+    assert result.master["within_tolerance"] is True
+
+
+def test_canonical_evidence_preserves_files_feed_history_and_cached_measured_qc(
+    minimal_project, sample_wav, monkeypatch
+):
+    from feed_helpers import complete_show
+    from podcast_mcp.export import episode
+    from podcast_mcp.feed.inputs import feed_path
+    from podcast_mcp.feed.show_store import ShowStore, default_directory
+    from podcast_mcp.models import (
+        ChapterMarker,
+        CombinedTranscript,
+        CombinedUtterance,
+        load_project,
+        save_project,
+    )
+    from podcast_mcp.services.pipeline import config_store
+    from podcast_mcp.services.pipeline import service as pipeline
+    from test_export_variant import (
+        _canonical_snapshot,
+        _current_mix,
+        _FakeEngine,
+        _seed_canonical_outputs,
+    )
+
+    ws = _current_mix(minimal_project, sample_wav)
+    _seed_canonical_outputs(ws)
+    ws.project.chapters = [ChapterMarker(time=0, title="Opening")]
+    ws.project.combined_transcript = CombinedTranscript(
+        utterances=[
+            CombinedUtterance(track_id="host", speaker="Host", start=0, end=1, text="Hello.")
+        ]
+    )
+    save_project(ws.project, ws.path)
+    ws = ProjectWorkspace.open(ws.path)
+    shows = ShowStore(default_directory())
+    show = shows.create("The Long River")
+    complete = complete_show()
+
+    def fill(profile):
+        profile.pins.update(complete.pins)
+        profile.roster.extend(complete.roster)
+        profile.media_url = complete.media_url
+
+    shows.update(show.id, fill)
+
+    class Engine(_FakeEngine):
+        def measure_loudness_full(self, path, **kwargs):
+            return super().measure_loudness_full(path)
+
+    engine = Engine(sample_wav)
+    monkeypatch.setattr(pipeline.pipeline_steps, "ffmpeg", lambda: engine)
+    monkeypatch.setattr(pipeline, "ffmpeg", lambda: engine)
+    composer = episode.export_episode_deliverables
+
+    def without_capture(*args, **kwargs):
+        kwargs.pop("capture_audio_plan")
+        return composer(*args, **kwargs)
+
+    monkeypatch.setattr(episode, "export_episode_deliverables", without_capture)
+    service = PipelineService(ws)
+    baseline = service.export_audio([{"ext": "mp3"}])
+    assert baseline.applied_settings is None
+    assert load_project(ws.path).feed.guid is not None
+    assert b"<rss" in feed_path(ws.project).read_bytes()
+    assert {path.suffix for path in baseline.paths} == {".wav", ".mp3", ".md", ".srt", ".json"}
+    before = _canonical_snapshot(ws)
+    output_before = {path: path.read_bytes() for path in baseline.paths}
+    monkeypatch.setattr(episode, "export_episode_deliverables", composer)
+    enriched = service.export_audio([{"ext": "mp3"}])
+    assert enriched.applied_settings.to_record()["audio_formats"] == ["wav", "mp3"]
+    assert enriched.edit_head_id == baseline.edit_head_id == "preserve01"
+    assert _canonical_snapshot(ws) == before
+    assert {path: path.read_bytes() for path in enriched.paths} == output_before
+    config_store().apply_patches(ws.path, {"master": {"qc_lufs_tolerance_lu": 0.1}})
+    rejudged = service.export_audio([{"ext": "mp3"}])
+    assert rejudged.applied_settings.to_record()["qc_limits"]["lufs_tolerance_lu"] == 0.1
+    assert rejudged.applied_settings.basis != enriched.applied_settings.basis
+    assert _canonical_snapshot(ws) == before
+    assert engine.master_calls == 1

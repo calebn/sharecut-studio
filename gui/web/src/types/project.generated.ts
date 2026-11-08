@@ -124,9 +124,41 @@ export interface ExportDeliverablesRequest {
   target?: ExportTarget | null;
 }
 
+export interface ExportMasterTarget {
+  integrated_lufs: number;
+  true_peak_db: number;
+  lra: number;
+}
+
+export interface ExportQcLimits {
+  lufs_tolerance_lu: number;
+  true_peak_tolerance_db: number;
+}
+
 export interface ExportRevealRequest {
   path: string;
   id: string;
+}
+
+export interface ExportSettingsAvailable {
+  status: "available";
+  settings: ExportSettingsEvidence;
+}
+
+export interface ExportSettingsEvidence {
+  version: 1;
+  basis: string;
+  target: ExportTarget | null;
+  master_target: ExportMasterTarget;
+  qc_limits: ExportQcLimits;
+  audio_formats: Array<
+    "mp3" | "m4a" | "aac" | "opus" | "ogg" | "flac" | "wav" | "other"
+  >;
+}
+
+export interface ExportSettingsUnavailable {
+  status: "unavailable";
+  code: "export_settings_unavailable";
 }
 
 export type ExportTarget = "broadcast" | "podcast" | "streaming";

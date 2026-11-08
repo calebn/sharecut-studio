@@ -385,6 +385,31 @@ A running export can be cancelled from either one, the way Studio's Deliver page
 - **CLI.** The first Ctrl+C (SIGINT) cancels (`cli/cancel.py::sigint_cancel`). A terminal Ctrl+C signals the whole foreground process group, so every child the command starts inside that block (mastering and encode ffmpeg, ffprobe) runs in its own session (`util/process.py::detached_children`): the terminal's SIGINT reaches only the CLI, and the cancel check stops the encode. The command prints `Export cancelled. Files from an earlier export are unchanged.` to stderr, writes nothing to stdout and exits 130. A second Ctrl+C kills those children's process groups (`kill_detached_children`) and quits at once with exit 130, also during mastering. A signal that ends the command (SIGHUP when the terminal closes, SIGTERM from `kill`, SIGQUIT from Ctrl+\) kills them the same way, then passes the signal on, so the command still ends by that signal; a signal ignored on entry (`nohup`) stays ignored. The block also kills any child still running when it exits, so no ffmpeg is left behind. SIGKILL to the CLI is the exception, since no handler runs. After a signal ends the command, the earlier export is unchanged; the stopped encode's `.partial` temp stays in `export/` until the next export of that format removes it. A Ctrl+C that lands after the files were written prints `Cancel came too late. Exported N files to export/.` to stderr, then the usual JSON, and exits 0.
 - **MCP.** `mcp/request_cancel.py::install_request_cancel` binds the request's cancellation (`notifications/cancelled`, or the client dropping the request) to `current_cancel_check()`, and `export_audio_tool` passes it to `export_audio`: the encode stops and the tool raises `CancelledProgress("Export cancelled")`; the task ends `cancel` on the progress plane (a Studio Activity chip shows it cancelled). Whether the client still sees a reply depends on the transport: after `notifications/cancelled` the SDK sends no response for that request, but an in-process `auto`-mode client that cancels its own call can still receive the tool's error. Check `export/` or make the next call rather than relying on a reply either way.
 
+### Applied export settings
+
+The host settings read and terminal export evidence are documented in
+[GUI integration](gui-integration.md#export-settings-evidence). Canonical export
+keeps its private defaults snapshot from before the render-lock wait and overlays
+explicit request formats. The episode composer resolves the ordered WAV-plus-format
+tuple once, renders that tuple, and captures it after successful publication.
+Evidence uses the same defaults snapshot for master targets and QC limits.
+Cached unmeasured masters still skip unused QC-limit conversion; malformed
+optional limits omit evidence without failing an otherwise successful export.
+
+Named export snapshots settings under the render lock. Its settings read shares
+the strict request normalizer. Fresh and cached terminal evidence comes from
+admitted bundle audio specs and QC target/limits, never later ambient defaults.
+Source/request/edit guards, bundle identity, receipts, and publication remain
+unchanged. Named MP3 zero bitrate remains invalid; missing/null uses 128.
+
+The stateless version-1 comparison basis hashes a domain-separated private
+recipe with type-preserving scalar encoding. It describes supplied producer
+settings, including unresolved encoder choices, rather than byte equivalence
+or measured audio quality. Unrelated configuration does not participate.
+Explicit retry formats stay ordered and independent of configured formats;
+implicit formats and WAV policy resolve again for each attempt. A later failed
+read leaves comparison unknown and does not invalidate saved output.
+
 ### Caption cue limits
 
 `export_deliverables`' SRT (and `transcript export --format srt|vtt`) split cues at word

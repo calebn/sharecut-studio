@@ -24,11 +24,14 @@ from podcast_mcp.gui.schemas import (
     BounceRequestBody,
     ExportDeliverablesRequest,
     ExportRevealRequest,
+    ExportSettingsAvailable,
+    ExportSettingsUnavailable,
     TranscriptExportRequest,
 )
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import ExportBusyError, TranscriptEmptyError, TranscriptService
 from podcast_mcp.services.jobs import JobManager
+from podcast_mcp.services.pipeline import read_export_settings
 
 router = APIRouter()
 
@@ -86,6 +89,23 @@ def export_deliverables(
         raise coded_exception_error(400, exc, code="export_request_invalid") from exc
     snap = job.snapshot()
     return {"job_id": job.id, "job": snap}
+
+
+@router.post(
+    "/api/export/deliverables/settings",
+    response_model=ExportSettingsAvailable | ExportSettingsUnavailable,
+)
+def export_settings(
+    body: ExportDeliverablesRequest,
+    request: Request,
+    response: Response,
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> dict[str, Any]:
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    project_path = resolve_project(body.path, request)
+    response.headers["Cache-Control"] = "no-store"
+    return read_export_settings(project_path, body.formats, body.target)
 
 
 @router.post("/api/transcript/export")
