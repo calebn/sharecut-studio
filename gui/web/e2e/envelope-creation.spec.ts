@@ -185,6 +185,11 @@ for (const core of [
             await expect
               .poll(() => envelopeSnapshot(projectPath, track.id).points)
               .toEqual([]);
+            await expect
+              .poll(
+                () => envelopeSnapshot(projectPath, track.id).history?.cursor,
+              )
+              .toBe(0);
             await acceptedEnvelopeCommand(page, "RedoHistory", () =>
               projectHistoryShortcut(page, receipts, "ControlOrMeta+Shift+z"),
             );
@@ -282,6 +287,19 @@ for (const core of [
             receipts.push({
               checkpoint: "edit-reopen-remove-final-removal",
               observation: { moved, edited, left, removed },
+            });
+            await acceptedEnvelopeCommand(page, "UndoHistory", () =>
+              projectHistoryShortcut(page, receipts, "ControlOrMeta+z"),
+            );
+            await expect
+              .poll(() => envelopeSnapshot(projectPath, track.id).points)
+              .toEqual(left.points);
+            const restored = envelopeSnapshot(projectPath, track.id);
+            expect(restored.history?.cursor).toBe(5);
+            expect(restored.history?.entries).toEqual(final.history?.entries);
+            receipts.push({
+              checkpoint: "final-removal-undo-restored-points-and-redo-history",
+              observation: { final, restored },
             });
             await observer.verifyAssets();
           } finally {
