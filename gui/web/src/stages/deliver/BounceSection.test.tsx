@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../../test/a11y";
+import { defaultModelsWrapper } from "../../test/renderWithModels";
 import { BounceSection } from "./BounceSection";
 import { BOUNCE_DEFAULTS, type BounceOptions } from "./bounceLogic";
 
@@ -294,6 +295,7 @@ describe("BounceSection", () => {
           state: { phase: "needs-model", model: SPEAKER },
         })}
       />,
+      { wrapper: defaultModelsWrapper },
     );
     expect(screen.queryByRole("button", { name: "Bounce" })).toBeNull();
     expect(screen.queryByRole("group", { name: "Source" })).toBeNull();
@@ -352,7 +354,9 @@ describe("BounceSection", () => {
 
   it("focuses the Model need row once, not again when the page re-renders", () => {
     const asking = options({ state: { phase: "needs-model", model: SPEAKER } });
-    const { rerender } = render(<BounceSection options={asking} />);
+    const { rerender } = render(<BounceSection options={asking} />, {
+      wrapper: defaultModelsWrapper,
+    });
     expect(document.activeElement).toBe(
       screen.getByRole("button", { name: "Get the speaker model" }),
     );

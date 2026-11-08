@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { retryPipelineJob } from "../../api";
+import { retryPipelineJob, waitForPipelineJob } from "../../api";
 import { runPointerCommand } from "../../commands/pointer";
 import { ModelNeedRow, useModelResume } from "../../models";
 import { useDawStore } from "../../state/dawStore";
@@ -14,6 +14,7 @@ import {
   modelNeededOfJob,
   notDownloadedLine,
 } from "../../utils/apiError";
+import { isTerminalJobStatus } from "../../utils/pipeline";
 
 const RESUMABLE = new Set(["pipeline", "render_preview"]);
 type Stopped = { job: PipelineJobSnapshot; epoch: number; path: string };
@@ -35,12 +36,85 @@ type Attempt = {
 
 const modelKey = (model: ModelNeeded) => `${model.id}:${model.variant}`;
 
+type AcceptedJob = {
+  jobId: string;
+  originalId: string;
+  attempt: Attempt;
+};
+type Scope = Pick<Stopped, "path" | "epoch">;
+type ObserveJob = (
+  job: PipelineJobSnapshot,
+  scope: Scope,
+  accepted?: AcceptedJob,
+) => void;
+
+function AcceptedJobObserver({
+  accepted,
+  observe,
+}: {
+  accepted: AcceptedJob;
+  observe: ObserveJob;
+}) {
+  const [retry, setRetry] = useState(0);
+  const [message, setMessage] = useState<string | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    const scope = accepted.attempt;
+    const current = useDawStore.getState();
+    if (
+      current.projectPath !== scope.path ||
+      current.projectEpoch !== scope.epoch
+    )
+      return;
+    void waitForPipelineJob(accepted.jobId, { signal: controller.signal }).then(
+      (terminal) => {
+        if (!controller.signal.aborted) observe(terminal, scope, accepted);
+      },
+      (error: unknown) => {
+        if (controller.signal.aborted) return;
+        const store = useDawStore.getState();
+        if (
+          store.projectPath !== scope.path ||
+          store.projectEpoch !== scope.epoch
+        )
+          return;
+        const next = errorMessage(error, "Could not check the resumed run.");
+        setMessage(next);
+        store.announceStatus(next, { tone: "error", toast: false });
+      },
+    );
+    return () => controller.abort();
+  }, [accepted, observe, retry]);
+
+  if (!message) return null;
+  return (
+    <div className="guest-banner">
+      <StatusRow
+        state="failed"
+        title={message}
+        action={{
+          label: "Try again",
+          name: "Check the resumed run",
+          onAction: () => {
+            setMessage(null);
+            setRetry((value) => value + 1);
+          },
+        }}
+      />
+    </div>
+  );
+}
+
 export function JobModelBanner({ guestShare }: { guestShare: boolean }) {
   const job = useDaw((s) => s.activityJob);
+  const pipelineJob = useDaw((s) => s.pipelineJob);
   const path = useDaw((s) => s.projectPath);
   const epoch = useDaw((s) => s.projectEpoch);
   const attempts = useRef(new Map<string, Attempt>());
   const recoveries = useRef(new Map<string, Recovery>());
+  const acceptedJobs = useRef(new Map<string, AcceptedJob>());
+  const terminalJobs = useRef(new Set<string>());
+  const mounted = useRef(false);
   const seen = useRef(new Set<string>());
   const identity = useRef({ path, epoch, job });
   const retiredJobs = useRef(new Set<string>());
@@ -56,6 +130,108 @@ export function JobModelBanner({ guestShare }: { guestShare: boolean }) {
     else recoveries.current.delete(id);
     update((n) => n + 1);
   }, []);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  const observe = useCallback<ObserveJob>(
+    (observed, scope, accepted) => {
+      const store = useDawStore.getState();
+      if (
+        !mounted.current ||
+        store.projectPath !== scope.path ||
+        store.projectEpoch !== scope.epoch ||
+        (observed.project_path && observed.project_path !== scope.path)
+      )
+        return;
+      if (
+        retiredJobs.current.has(observed.id) ||
+        (observed.retry_of && retiredJobs.current.has(observed.retry_of))
+      ) {
+        retiredJobs.current.add(observed.id);
+        return;
+      }
+      if (
+        accepted &&
+        (accepted.jobId !== observed.id ||
+          attempts.current.get(accepted.originalId) !== accepted.attempt)
+      )
+        return;
+      const parentEntry = accepted
+        ? ([accepted.originalId, accepted.attempt] as const)
+        : [...attempts.current.entries()].find(
+            ([id, entry]) =>
+              id === observed.retry_of ||
+              (entry.result.kind === "accepted" &&
+                entry.result.jobId === observed.id),
+          );
+      const parent = parentEntry?.[1];
+      const terminal = isTerminalJobStatus(observed.status);
+      if (terminal) {
+        terminalJobs.current.add(observed.id);
+        acceptedJobs.current.delete(observed.id);
+      }
+      if (parentEntry) {
+        const [originalId, attempt] = parentEntry;
+        attempt.observed = true;
+        attempt.result = { kind: "accepted", jobId: observed.id };
+        recoveries.current.delete(originalId);
+        if (
+          !terminal &&
+          !terminalJobs.current.has(observed.id) &&
+          !acceptedJobs.current.has(observed.id)
+        ) {
+          acceptedJobs.current.set(observed.id, {
+            jobId: observed.id,
+            originalId,
+            attempt,
+          });
+        }
+      }
+      const need = RESUMABLE.has(observed.kind ?? "")
+        ? modelNeededOfJob(observed)
+        : null;
+      if (!need) {
+        if (terminal) {
+          recoveries.current.delete(observed.id);
+          if (parentEntry) attempts.current.delete(parentEntry[0]);
+          if (observed.kind === "render_preview") previewRetried.current = null;
+        }
+        update((n) => n + 1);
+        return;
+      }
+      const needKey = `${observed.id}:${modelKey(need)}`;
+      if (seen.current.has(needKey)) return;
+      seen.current.add(needKey);
+      const preview = previewRetried.current;
+      if (
+        (preview?.model === modelKey(need) &&
+          preview.epoch === scope.epoch &&
+          preview.path === scope.path) ||
+        (parent?.epoch === scope.epoch &&
+          parent.path === scope.path &&
+          parent.models.includes(modelKey(need)))
+      ) {
+        previewRetried.current = null;
+        store.announceStatus(notDownloadedLine(need), { tone: "error" });
+        update((n) => n + 1);
+        return;
+      }
+      put(observed.id, {
+        kind: "waiting",
+        wait: {
+          ...need,
+          origin: { job: observed, path: scope.path, epoch: scope.epoch },
+          tried: parent?.models ?? [],
+        },
+      });
+    },
+    [put],
+  );
 
   function resume(wait: ModelWait) {
     const last = wait.origin;
@@ -91,19 +267,28 @@ export function JobModelBanner({ guestShare }: { guestShare: boolean }) {
       (successor) => {
         const store = useDawStore.getState();
         if (
+          !mounted.current ||
           store.projectEpoch !== last.epoch ||
           store.projectPath !== last.path
-        )
+        ) {
+          retiredJobs.current.add(last.job.id);
+          retiredJobs.current.add(successor.id);
           return;
-        attempt.result = { kind: "accepted", jobId: successor.id };
-        if (recoveries.current.get(last.job.id)?.kind === "pending")
-          put(last.job.id, null);
+        }
+        if (attempts.current.get(last.job.id) !== attempt) return;
+        if (terminalJobs.current.has(successor.id)) return;
+        observe(successor, attempt, {
+          jobId: successor.id,
+          originalId: last.job.id,
+          attempt,
+        });
         if (store.activityJob?.id === last.job.id)
           store.setActivityJob(successor);
       },
       (error: unknown) => {
         const store = useDawStore.getState();
         if (
+          !mounted.current ||
           store.projectEpoch !== last.epoch ||
           store.projectPath !== last.path
         )
@@ -169,9 +354,12 @@ export function JobModelBanner({ guestShare }: { guestShare: boolean }) {
         if (attempt.result.kind === "accepted")
           retiredJobs.current.add(attempt.result.jobId);
       }
+      for (const id of terminalJobs.current) retiredJobs.current.add(id);
       attempts.current.clear();
       recoveries.current.clear();
       seen.current.clear();
+      acceptedJobs.current.clear();
+      terminalJobs.current.clear();
       previewRetried.current = null;
       clear();
       update((n) => n + 1);
@@ -189,66 +377,20 @@ export function JobModelBanner({ guestShare }: { guestShare: boolean }) {
         : modelNeededOfJob(job),
     [guestShare, job, path],
   );
-  const needKey = need && job ? `${job.id}:${modelKey(need)}` : null;
   useEffect(() => {
-    if (!job) return;
-    if (job.project_path && job.project_path !== path) return;
-    if (retiredJobs.current.has(job.id)) return;
-    const parent = job.retry_of
-      ? attempts.current.get(job.retry_of)
-      : [...attempts.current.values()].find(
-          (entry) =>
-            entry.result.kind === "accepted" && entry.result.jobId === job.id,
-        );
-    if (parent) {
-      parent.observed = true;
-      for (const [id, attempt] of attempts.current) {
-        if (attempt === parent) recoveries.current.delete(id);
-      }
-    }
-    if (!need || !needKey) {
-      if (
-        job.status === "ok" ||
-        job.status === "cancelled" ||
-        job.status === "error"
-      ) {
-        recoveries.current.delete(job.id);
-        if (parent) {
-          for (const [id, attempt] of attempts.current)
-            if (attempt === parent) attempts.current.delete(id);
-        }
-        if (job.kind === "render_preview") previewRetried.current = null;
-      }
-      update((n) => n + 1);
-      return;
-    }
-    if (seen.current.has(needKey)) return;
-    seen.current.add(needKey);
-    const preview = previewRetried.current;
-    if (
-      (preview?.model === modelKey(need) &&
-        preview.epoch === epoch &&
-        preview.path === path) ||
-      (parent?.epoch === epoch &&
-        parent.path === path &&
-        parent.models.includes(modelKey(need)))
-    ) {
-      previewRetried.current = null;
-      useDawStore
-        .getState()
-        .announceStatus(notDownloadedLine(need), { tone: "error" });
-      update((n) => n + 1);
-      return;
-    }
-    put(job.id, {
-      kind: "waiting",
-      wait: {
-        ...need,
-        origin: { job, epoch, path },
-        tried: parent?.models ?? [],
-      },
-    });
-  }, [needKey, job, need, path, epoch, guestShare, put]);
+    if (!guestShare && job) observe(job, { path, epoch });
+  }, [job, path, epoch, guestShare, observe]);
+
+  useEffect(() => {
+    if (guestShare || !pipelineJob || pipelineJob.id === job?.id) return;
+    const linked =
+      (pipelineJob.retry_of &&
+        (attempts.current.has(pipelineJob.retry_of) ||
+          retiredJobs.current.has(pipelineJob.retry_of))) ||
+      acceptedJobs.current.has(pipelineJob.id) ||
+      retiredJobs.current.has(pipelineJob.id);
+    if (linked) observe(pipelineJob, { path, epoch });
+  }, [pipelineJob, job, path, epoch, guestShare, observe]);
 
   const selected =
     (job && need ? recoveries.current.get(job.id) : undefined) ??
@@ -260,25 +402,37 @@ export function JobModelBanner({ guestShare }: { guestShare: boolean }) {
   }, [selectedWait, stopFor, clear]);
 
   if (guestShare) return null;
-  if (selected?.kind === "refused") {
-    return (
-      <div className="guest-banner">
-        <StatusRow
-          state="failed"
-          title={selected.message}
-          action={{
-            label: "Try again",
-            name: "Resume the stopped run",
-            onAction: () => resume(selected.wait),
-          }}
-        />
-      </div>
-    );
-  }
-  if (!stop || stop !== selectedWait) return null;
   return (
-    <div className="guest-banner" role="status">
-      <ModelNeedRow model={stop} />
-    </div>
+    <>
+      {[...acceptedJobs.current.values()]
+        .filter(
+          (entry) =>
+            entry.attempt.path === path && entry.attempt.epoch === epoch,
+        )
+        .map((accepted) => (
+          <AcceptedJobObserver
+            key={accepted.jobId}
+            accepted={accepted}
+            observe={observe}
+          />
+        ))}
+      {selected?.kind === "refused" ? (
+        <div className="guest-banner">
+          <StatusRow
+            state="failed"
+            title={selected.message}
+            action={{
+              label: "Try again",
+              name: "Resume the stopped run",
+              onAction: () => resume(selected.wait),
+            }}
+          />
+        </div>
+      ) : stop && stop === selectedWait ? (
+        <div className="guest-banner" role="status">
+          <ModelNeedRow model={stop} />
+        </div>
+      ) : null}
+    </>
   );
 }

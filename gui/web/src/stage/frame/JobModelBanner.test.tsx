@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useEffect, useState } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { StrictMode, useEffect, useState } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BootstrapStatus } from "../../api";
 import {
   fetchBootstrapJob,
@@ -9,15 +9,17 @@ import {
   retryPipelineJob,
   runBootstrap,
   startPipelineRun,
+  waitForPipelineJob,
 } from "../../api";
 import { applyPipelineJobStatus } from "../../hooks/usePipelineJob";
 import { ModelsProvider } from "../../models/ModelsProvider";
-import { useModels } from "../../models/useModels";
+import { ModelsContext, useModels } from "../../models/useModels";
 import { useDawStore } from "../../state/dawStore";
 import { DawProvider } from "../../state/store";
 import { minimalProject } from "../../test/fixtures";
 import {
   modelStatus,
+  modelsApi,
   registryRows,
   renderWithLanding,
 } from "../../test/renderWithModels";
@@ -31,10 +33,40 @@ vi.mock("../../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../api")>()),
   startPipelineRun: vi.fn(),
   retryPipelineJob: vi.fn(),
+  waitForPipelineJob: vi.fn(),
   fetchBootstrapStatus: vi.fn(),
   fetchBootstrapJob: vi.fn(),
   runBootstrap: vi.fn(),
 }));
+
+type JobWait = {
+  id: string;
+  signal: AbortSignal;
+  resolve: (job: PipelineJobSnapshot) => void;
+  reject: (error: Error) => void;
+};
+const jobWaits: JobWait[] = [];
+const liveIO = vi.fn(() => {
+  throw new Error("Live I/O is forbidden in banner tests");
+});
+
+function activeWait(id: string): JobWait {
+  const wait = [...jobWaits]
+    .reverse()
+    .find((entry) => entry.id === id && !entry.signal.aborted);
+  if (!wait) throw new Error("No active waiter for " + id);
+  return wait;
+}
+
+function deferredJob() {
+  let resolve!: (job: PipelineJobSnapshot) => void;
+  let reject!: (error: Error) => void;
+  const promise = new Promise<PipelineJobSnapshot>((yes, no) => {
+    resolve = yes;
+    reject = no;
+  });
+  return { promise, resolve, reject };
+}
 
 function deferredStatus() {
   let resolve!: (status: BootstrapStatus) => void;
@@ -127,7 +159,29 @@ const fail = (job: PipelineJobSnapshot) =>
 describe("JobModelBanner", () => {
   beforeEach(() => {
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
-    useDawStore.setState({ activityJob: null });
+    useDawStore.setState({
+      activityJob: null,
+      pipelineJob: null,
+      statusAnnouncement: "",
+    });
+    jobWaits.length = 0;
+    liveIO.mockClear();
+    vi.stubGlobal("fetch", liveIO);
+    vi.stubGlobal("EventSource", liveIO);
+    vi.mocked(waitForPipelineJob)
+      .mockReset()
+      .mockImplementation((id, options) => {
+        const signal = options?.signal;
+        if (!signal) throw new Error("Banner waiter must own an abort signal");
+        const request = deferredJob();
+        jobWaits.push({
+          id,
+          signal,
+          resolve: request.resolve,
+          reject: request.reject,
+        });
+        return request.promise;
+      });
     runPointerCommand.mockReset();
     vi.mocked(startPipelineRun).mockReset();
     vi.mocked(retryPipelineJob)
@@ -144,6 +198,11 @@ describe("JobModelBanner", () => {
     vi.mocked(fetchBootstrapStatus).mockReset();
     vi.mocked(fetchBootstrapJob).mockReset().mockResolvedValue(null);
     vi.mocked(runBootstrap).mockReset();
+  });
+
+  afterEach(() => {
+    expect(liveIO).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
   });
 
   it.each(["pipeline", "render_preview"])(
@@ -890,6 +949,383 @@ describe("JobModelBanner", () => {
     expect(vi.mocked(retryPipelineJob).mock.calls).toEqual([
       ["/tmp/p.json", "A"],
       ["/tmp/p.json", "D"],
+      ["/tmp/p.json", "A"],
+    ]);
+  });
+  function competingJobs() {
+    const a = failedJob({ id: "A", kind: "pipeline" });
+    const b = failedJob({
+      id: "B",
+      kind: "pipeline",
+      retry_of: "A",
+      status: "running",
+      error: null,
+      error_code: null,
+      error_model: null,
+    });
+    const j = failedJob({
+      id: "J",
+      kind: "agent",
+      status: "running",
+      error: null,
+      error_code: null,
+      error_model: null,
+    });
+    return { a, b, j };
+  }
+
+  const alignerFailure = {
+    id: "word-aligner",
+    label: "Word aligner",
+    purpose: "word timing",
+    size: "~360 MB",
+    state: "missing",
+  };
+
+  it.each(
+    ["reply-first", "frame-first"].flatMap((order) =>
+      ["different", "repeated"].map((need) => ({ order, need })),
+    ),
+  )(
+    "follows B to a $need need with J primary, $order",
+    async ({ order, need }) => {
+      const reply = deferredJob();
+      vi.mocked(retryPipelineJob).mockReturnValueOnce(reply.promise);
+      const { land } = mount();
+      const { a, b, j } = competingJobs();
+      status(a, [a], 0);
+      land("rnnoise");
+      await waitFor(() => expect(retryPipelineJob).toHaveBeenCalledTimes(1));
+      status(j, [j, a], 1);
+      if (order === "frame-first") status(j, [j, b, a], 2);
+      await act(async () => reply.resolve(b));
+      if (order === "reply-first") status(j, [j, b, a], 2);
+      expect(jobWaits.map((entry) => entry.id)).toEqual(["B"]);
+      const waiter = activeWait("B");
+      const terminal = failedJob({
+        id: "B",
+        kind: "pipeline",
+        retry_of: "A",
+        ...(need === "different" ? { error_model: alignerFailure } : {}),
+      });
+      await act(async () => waiter.resolve(terminal));
+      expect(waiter.signal.aborted).toBe(true);
+      expect(useDawStore.getState().activityJob).toBe(j);
+      expect(useDawStore.getState().activityRunningCount).toBe(2);
+      expect(vi.mocked(retryPipelineJob).mock.calls).toEqual([
+        ["/tmp/p.json", "A"],
+      ]);
+      if (need === "different") {
+        expect(
+          await screen.findByRole("button", { name: "Get word timing" }),
+        ).toBeVisible();
+        const c = failedJob({
+          id: "C",
+          kind: "pipeline",
+          retry_of: "B",
+          status: "running",
+          error_code: null,
+          error_model: null,
+        });
+        vi.mocked(retryPipelineJob).mockResolvedValueOnce(c);
+        land("word-aligner");
+        await waitFor(() => expect(retryPipelineJob).toHaveBeenCalledTimes(2));
+        await act(async () =>
+          activeWait("C").resolve(
+            failedJob({ id: "C", kind: "pipeline", retry_of: "B" }),
+          ),
+        );
+        expect(useDawStore.getState().statusAnnouncement).toBe(
+          "Noise reduction (RNNoise) is not downloaded.",
+        );
+        expect(vi.mocked(retryPipelineJob).mock.calls).toEqual([
+          ["/tmp/p.json", "A"],
+          ["/tmp/p.json", "B"],
+        ]);
+        expect(useDawStore.getState().activityJob).toBe(j);
+      } else {
+        expect(useDawStore.getState().statusAnnouncement).toBe(
+          "Noise reduction (RNNoise) is not downloaded.",
+        );
+        expect(screen.queryByText("Needs noise reduction")).toBeNull();
+      }
+      expect(startPipelineRun).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["different", "repeated"])(
+    "does not start a waiter or replay a terminal %s frame before the reply",
+    async (need) => {
+      const reply = deferredJob();
+      vi.mocked(retryPipelineJob).mockReturnValueOnce(reply.promise);
+      const { land } = mount();
+      const { a, b, j } = competingJobs();
+      status(a, [a], 0);
+      land("rnnoise");
+      await waitFor(() => expect(retryPipelineJob).toHaveBeenCalledTimes(1));
+      const terminal = failedJob({
+        id: "B",
+        kind: "pipeline",
+        retry_of: "A",
+        ...(need === "different" ? { error_model: alignerFailure } : {}),
+      });
+      status(j, [j, terminal, a], 1);
+      await act(async () => reply.resolve(b));
+      expect(jobWaits).toHaveLength(0);
+      expect(useDawStore.getState().activityJob).toBe(j);
+      expect(vi.mocked(retryPipelineJob).mock.calls).toEqual([
+        ["/tmp/p.json", "A"],
+      ]);
+      if (need === "different") {
+        expect(
+          await screen.findByRole("button", { name: "Get word timing" }),
+        ).toBeVisible();
+      } else {
+        expect(useDawStore.getState().statusAnnouncement).toBe(
+          "Noise reduction (RNNoise) is not downloaded.",
+        );
+      }
+    },
+  );
+
+  it("keeps an unknown-response retry idempotent while J hides its successor", async () => {
+    vi.mocked(retryPipelineJob).mockRejectedValueOnce(
+      new Error("Connection lost."),
+    );
+    const { land } = mount();
+    const { a, b, j } = competingJobs();
+    status(a, [a], 0);
+    land("rnnoise");
+    const retry = await screen.findByRole("button", {
+      name: "Resume the stopped run",
+    });
+    expect(screen.getByText("Connection lost.")).toBeVisible();
+    status(j, [j, a], 1);
+    vi.mocked(retryPipelineJob).mockResolvedValueOnce(b);
+    await userEvent.click(retry);
+    await waitFor(() => expect(jobWaits).toHaveLength(1));
+    await act(async () =>
+      activeWait("B").resolve(
+        failedJob({ id: "B", kind: "pipeline", retry_of: "A" }),
+      ),
+    );
+    expect(vi.mocked(retryPipelineJob).mock.calls).toEqual([
+      ["/tmp/p.json", "A"],
+      ["/tmp/p.json", "A"],
+    ]);
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Noise reduction (RNNoise) is not downloaded.",
+    );
+    expect(useDawStore.getState().activityJob).toBe(j);
+  });
+
+  it.each(["reply-first", "frame-first"])(
+    "retires unseen descendants after hydrate-away-return, %s",
+    async (order) => {
+      const reply = deferredJob();
+      vi.mocked(retryPipelineJob).mockReturnValueOnce(reply.promise);
+      const { land } = mount();
+      const { a, b, j } = competingJobs();
+      status(a, [a], 0);
+      land("rnnoise");
+      await waitFor(() => expect(retryPipelineJob).toHaveBeenCalledTimes(1));
+      act(() => {
+        useDawStore.getState().hydrate("/tmp/away.json", minimalProject());
+        useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
+      });
+      const terminal = failedJob({ id: "B", kind: "pipeline", retry_of: "A" });
+      if (order === "reply-first") await act(async () => reply.resolve(b));
+      status(j, [j, terminal, a], 1);
+      if (order === "frame-first") await act(async () => reply.resolve(b));
+      status(
+        j,
+        [j, failedJob({ id: "C", kind: "pipeline", retry_of: "B" }), a],
+        1,
+      );
+      expect(jobWaits).toHaveLength(0);
+      expect(screen.queryByText("Needs noise reduction")).toBeNull();
+      expect(useDawStore.getState().statusAnnouncement).toBe("");
+      expect(useDawStore.getState().activityJob).toBe(j);
+      expect(vi.mocked(retryPipelineJob).mock.calls).toEqual([
+        ["/tmp/p.json", "A"],
+      ]);
+      const independent = failedJob({
+        id: "new-independent",
+        kind: "pipeline",
+        error_model: alignerFailure,
+      });
+      status(independent, [independent, j], 1);
+      expect(
+        await screen.findByRole("button", { name: "Get word timing" }),
+      ).toBeVisible();
+      land("word-aligner");
+      await waitFor(() =>
+        expect(retryPipelineJob).toHaveBeenLastCalledWith(
+          "/tmp/p.json",
+          "new-independent",
+        ),
+      );
+    },
+  );
+
+  it("records a late retired reply even when the successor frame omits its parent", async () => {
+    const reply = deferredJob();
+    vi.mocked(retryPipelineJob).mockReturnValueOnce(reply.promise);
+    const { land } = mount();
+    const { a, b, j } = competingJobs();
+    status(a, [a], 0);
+    land("rnnoise");
+    await waitFor(() => expect(retryPipelineJob).toHaveBeenCalledTimes(1));
+    act(() => {
+      useDawStore.getState().hydrate("/tmp/away.json", minimalProject());
+      useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
+    });
+    status(j, [j], 1);
+    await act(async () => reply.resolve(b));
+    expect(useDawStore.getState().activityJob).toBe(j);
+    status(failedJob({ id: "B", kind: "pipeline" }), [], 0);
+    expect(screen.queryByText("Needs noise reduction")).toBeNull();
+    expect(jobWaits).toHaveLength(0);
+    expect(vi.mocked(retryPipelineJob).mock.calls).toEqual([
+      ["/tmp/p.json", "A"],
+    ]);
+  });
+
+  it("makes waiter failure visible and retries observation without another POST", async () => {
+    const { a, b, j } = competingJobs();
+    vi.mocked(retryPipelineJob).mockResolvedValueOnce(b);
+    const { land } = mount();
+    status(a, [a], 0);
+    land("rnnoise");
+    await waitFor(() => expect(jobWaits).toHaveLength(1));
+    status(j, [j, b, a], 2);
+    const first = activeWait("B");
+    await act(async () => first.reject(new Error("Run status unavailable.")));
+    expect(screen.getByText("Run status unavailable.")).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Check the resumed run" }),
+    );
+    expect(first.signal.aborted).toBe(true);
+    const next = activeWait("B");
+    expect(next).not.toBe(first);
+    await act(async () =>
+      next.resolve(
+        failedJob({
+          id: "B",
+          kind: "pipeline",
+          retry_of: "A",
+          error_model: alignerFailure,
+        }),
+      ),
+    );
+    expect(
+      await screen.findByRole("button", { name: "Get word timing" }),
+    ).toBeVisible();
+    expect(vi.mocked(retryPipelineJob).mock.calls).toEqual([
+      ["/tmp/p.json", "A"],
+    ]);
+    expect(useDawStore.getState().activityJob).toBe(j);
+  });
+
+  it.each(["hydrate", "unmount"])(
+    "aborts the owned waiter on %s and ignores late completion",
+    async (end) => {
+      const { a, b } = competingJobs();
+      vi.mocked(retryPipelineJob).mockResolvedValueOnce(b);
+      const view = mount();
+      status(a, [a], 0);
+      view.land("rnnoise");
+      await waitFor(() => expect(jobWaits).toHaveLength(1));
+      const owned = activeWait("B");
+      if (end === "hydrate") {
+        act(() =>
+          useDawStore.getState().hydrate("/tmp/next.json", minimalProject()),
+        );
+      } else {
+        view.unmount();
+      }
+      expect(owned.signal.aborted).toBe(true);
+      await act(async () =>
+        owned.resolve(
+          failedJob({
+            id: "B",
+            kind: "pipeline",
+            retry_of: "A",
+            error_model: alignerFailure,
+          }),
+        ),
+      );
+      expect(screen.queryByText("Needs word timing")).toBeNull();
+      expect(useDawStore.getState().statusAnnouncement).toBe("");
+      expect(vi.mocked(retryPipelineJob).mock.calls).toEqual([
+        ["/tmp/p.json", "A"],
+      ]);
+    },
+  );
+
+  it("does not adopt a POST that settles after unmount", async () => {
+    const reply = deferredJob();
+    vi.mocked(retryPipelineJob).mockReturnValueOnce(reply.promise);
+    const view = mount();
+    const { a, b } = competingJobs();
+    status(a, [a], 0);
+    view.land("rnnoise");
+    await waitFor(() => expect(retryPipelineJob).toHaveBeenCalledTimes(1));
+    view.unmount();
+    await act(async () => reply.resolve(b));
+    expect(useDawStore.getState().activityJob).toBe(a);
+    expect(jobWaits).toHaveLength(0);
+    expect(vi.mocked(retryPipelineJob).mock.calls).toEqual([
+      ["/tmp/p.json", "A"],
+    ]);
+  });
+
+  it("restarts a StrictMode observer after cleanup and accepts only its live result", async () => {
+    const { a, b, j } = competingJobs();
+    vi.mocked(retryPipelineJob).mockResolvedValueOnce(b);
+    const tree = (modelState: BootstrapStatus) => (
+      <StrictMode>
+        <ModelsContext.Provider value={modelsApi({ status: modelState })}>
+          <DawProvider
+            projectPath="/tmp/p.json"
+            initialProject={minimalProject()}
+          >
+            <JobModelBanner guestShare={false} />
+          </DawProvider>
+        </ModelsContext.Provider>
+      </StrictMode>
+    );
+    const view = render(tree(modelStatus(registryRows())));
+    status(a, [a], 0);
+    view.rerender(tree(installedNoise()));
+    await waitFor(() => expect(jobWaits).toHaveLength(2));
+    expect(jobWaits.map((entry) => entry.signal.aborted)).toEqual([
+      true,
+      false,
+    ]);
+    status(j, [j, b, a], 2);
+    await act(async () =>
+      jobWaits[0]!.resolve(
+        failedJob({ id: "B", kind: "pipeline", retry_of: "A" }),
+      ),
+    );
+    expect(useDawStore.getState().statusAnnouncement).toBe("");
+    await act(async () =>
+      activeWait("B").resolve(
+        failedJob({
+          id: "B",
+          kind: "pipeline",
+          retry_of: "A",
+          error_model: alignerFailure,
+        }),
+      ),
+    );
+    expect(
+      await screen.findByRole("button", { name: "Get word timing" }),
+    ).toBeVisible();
+    expect(jobWaits.map((entry) => entry.signal.aborted)).toEqual([true, true]);
+    expect(useDawStore.getState().activityJob).toBe(j);
+    expect(vi.mocked(retryPipelineJob).mock.calls).toEqual([
       ["/tmp/p.json", "A"],
     ]);
   });
