@@ -49,10 +49,83 @@ describe("stageSlice", () => {
     st().openStage("edit");
     expect(st().editSurface).toBe("text");
     expect(st().scriptCollapsed).toBe(false);
+    expect(st().stageViews).toEqual({});
     expect(localStorage.getItem("sharecut.scriptCollapsed")).toBeNull();
     expect(st().consumeEditWordReveal(latest)).toBe(true);
     expect(st().pendingEditWordReveal).toBeNull();
     expect(st().consumeEditWordReveal(latest)).toBe(false);
+  });
+
+  it("drops only the saved Edit script offset for an explicit word reveal", () => {
+    st().setPanelScroll("edit", "script", 640);
+    st().setPanelScroll("edit", "inspector", 24);
+    useDawStore.setState({
+      zoomPxPerSec: 72,
+      scrollLeft: 180,
+      userZoomed: true,
+    });
+    st().openStage("review");
+    st().setPanelScroll("review", "queue", 36);
+    useDawStore.setState({
+      zoomPxPerSec: 14,
+      scrollLeft: 20,
+      userZoomed: false,
+    });
+
+    st().requestEditWordReveal({
+      trackId: "host",
+      sourceId: null,
+      wordIndex: 175,
+    });
+    st().openStage("edit");
+
+    expect(st().stageViews.edit).toEqual({
+      zoomPxPerSec: 72,
+      scrollLeft: 180,
+      userZoomed: true,
+      panelScroll: { inspector: 24 },
+    });
+    expect(st().stageViews.review?.panelScroll).toEqual({ queue: 36 });
+    expect(st().zoomPxPerSec).toBe(72);
+    expect(st().scrollLeft).toBe(180);
+    expect(st().userZoomed).toBe(true);
+  });
+
+  it("drops the saved Edit script offset for a same-stage word reveal", () => {
+    st().setPanelScroll("edit", "script", 640);
+    st().setPanelScroll("edit", "inspector", 24);
+    st().requestEditWordReveal({
+      trackId: "host",
+      sourceId: null,
+      wordIndex: 175,
+    });
+
+    st().openStage("edit");
+
+    expect(st().stageViews.edit?.panelScroll).toEqual({ inspector: 24 });
+  });
+
+  it("restores the saved Edit script offset for an ordinary stage opening", () => {
+    st().setPanelScroll("edit", "script", 640);
+    st().setPanelScroll("edit", "inspector", 24);
+    useDawStore.setState({
+      zoomPxPerSec: 72,
+      scrollLeft: 180,
+      userZoomed: true,
+    });
+    st().openStage("review");
+
+    st().openStage("edit");
+
+    expect(st().stageViews.edit).toEqual({
+      zoomPxPerSec: 72,
+      scrollLeft: 180,
+      userZoomed: true,
+      panelScroll: { script: 640, inspector: 24 },
+    });
+    expect(st().zoomPxPerSec).toBe(72);
+    expect(st().scrollLeft).toBe(180);
+    expect(st().userZoomed).toBe(true);
   });
 
   it("drops a pending word reveal when leaving Edit or changing project", () => {
