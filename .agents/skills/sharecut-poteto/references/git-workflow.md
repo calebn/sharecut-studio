@@ -126,6 +126,13 @@ gh pr merge <N> --rebase --match-head-commit <sha>
 Clean up only worktrees this run created. Release owned claims on every exit,
 including completion, hold, abandon, and failure.
 
+After a successful merge and owned cleanup, keep the lane moving within the
+user's standing scope without routine resume approval. Pick useful remaining
+open-PR work first, then the UI epic, then other eligible issues. Recheck scope,
+[claims and ownership](issue-claims.md), holds, and overlap before pickup. Keep
+#3403 deferred. Each new item retains all review, testing, listening, and merge
+gates. This priority does not authorize a release or website deployment.
+
 ## Refresh evidence after interruption or change
 
 After a disconnect, reconcile any uncertain prior command against its process,
