@@ -165,3 +165,7 @@ html[data-shell="phone"] .stage-host-guest-script {
   flex: 0 0 auto;
   block-size: clamp(6rem, 17dvh, 16rem);
 }
+
+.stage-host--phone .stage-host-guest-feedback .sys-cover-inner {
+  padding-block: var(--space-4);
+}
