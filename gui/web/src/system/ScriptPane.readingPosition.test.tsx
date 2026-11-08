@@ -4116,4 +4116,123 @@ describe("ScriptPane reading position", () => {
       screen.getByRole("button", { name: "Back to playhead" }),
     ).toBeVisible();
   });
+  it.each(["observer-first", "release-first"] as const)(
+    "does not pause empty-bookmark Follow for held-padding reflow delivered %s",
+    (delivery) => {
+      const geometry = scriptGeometry();
+      const now = vi.spyOn(performance, "now").mockReturnValue(0);
+      const onUserScroll = vi.fn();
+      const { body, captured } = setup(null, false, onUserScroll, false);
+      body.scrollTop = 170;
+      fireEvent.scroll(body);
+      expect(captured()).toBeNull();
+      fireEvent.pointerDown(body, {
+        pointerId: 17,
+        pointerType: "mouse",
+        isPrimary: true,
+        button: 0,
+      });
+      now.mockReturnValue(700);
+      geometry.resize(100, 200);
+      body.scrollTop = 265;
+      if (delivery === "observer-first") fireEvent(window, new Event("resize"));
+      fireEvent.pointerUp(window, { pointerId: 17 });
+      expect.soft(body.scrollTop).toBe(265);
+      expect.soft(captured()).toBeNull();
+      expect(onUserScroll).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["wheel", "key", "touch"] as const)(
+    "does not credit a blocked %s at the new bottom for passive word anchoring",
+    (input) => {
+      const geometry = scriptGeometry();
+      const saved: ScriptPaneReadingPosition = {
+        kind: "word",
+        index: 50,
+        offset: 0,
+        fallbackTop: 1000,
+      };
+      const onUserScroll = vi.fn();
+      const { body, captured } = setup(saved, false, onUserScroll);
+      fireEvent.scroll(body);
+      expect(body.scrollTop).toBe(1000);
+      if (input === "touch")
+        fireEvent.touchStart(body, {
+          touches: [{ identifier: 17, clientY: 170 }],
+        });
+      geometry.setLineHeight(22);
+      vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(
+        1300,
+      );
+      body.scrollTop = 1100;
+      if (input === "wheel") fireEvent.wheel(body, { deltaY: 100 });
+      else if (input === "key") fireEvent.keyDown(body, { key: "PageDown" });
+      else
+        fireEvent.touchMove(body, {
+          touches: [{ identifier: 17, clientY: 150 }],
+        });
+      fireEvent.scroll(body);
+      fireEvent(window, new Event("resize"));
+      expect.soft(body.scrollTop).toBe(1100);
+      expect.soft(captured()).toBe(saved);
+      expect(onUserScroll).not.toHaveBeenCalled();
+    },
+  );
+  it.each(["key", "wheel", "touch"] as const)(
+    "keeps pending %s across a clamped focus restore that writes no pixels",
+    async (input) => {
+      const geometry = scriptGeometry();
+      vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(
+        790,
+      );
+      const onUserScroll = vi.fn();
+      const { body, binding, captured, rerender, container } = setup(
+        {
+          kind: "word",
+          index: 32,
+          offset: 50,
+          fallbackTop: 590,
+          intent: "focus",
+        },
+        false,
+        onUserScroll,
+      );
+      const word = body.querySelector<HTMLElement>('[data-stop="32"]');
+      if (!word) throw new Error("Expected focused bottom word");
+      await act(async () => {
+        word.focus();
+        await Promise.resolve();
+      });
+      expect(body.scrollTop).toBe(590);
+      if (input === "key") fireEvent.keyDown(word, { key: "PageUp" });
+      else if (input === "wheel") fireEvent.wheel(body, { deltaY: -30 });
+      else {
+        fireEvent.touchStart(body, {
+          touches: [{ identifier: 17, clientY: 150 }],
+        });
+        fireEvent.touchMove(body, {
+          touches: [{ identifier: 17, clientY: 170 }],
+        });
+      }
+      geometry.setLineHeight(21);
+      fireEvent(window, new Event("resize"));
+      expect(body.scrollTop).toBe(590);
+      body.scrollTop = 560;
+      fireEvent.scroll(body);
+      expect.soft(captured()).toMatchObject({ fallbackTop: 560 });
+      expect.soft(onUserScroll).toHaveBeenCalledOnce();
+      rerender(
+        <ScriptPane
+          turns={SCRIPT_TURNS}
+          readingPosition={binding}
+          status={{ kind: "loading" }}
+        />,
+      );
+      rerender(<ScriptPane turns={SCRIPT_TURNS} readingPosition={binding} />);
+      expect(
+        container.querySelector<HTMLElement>(".sys-script-body")?.scrollTop,
+      ).toBe(560);
+    },
+  );
 });
