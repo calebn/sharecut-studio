@@ -56,11 +56,14 @@ const meta: Meta<typeof ReviewQueue> = {
   },
   render: (args) => <StatefulQueue {...args} />,
   decorators: [
-    (Story) => (
-      <div style={{ padding: "var(--space-5)", maxWidth: "24rem" }}>
+    (Story, { parameters }) =>
+      parameters.reviewStageFixture ? (
         <Story />
-      </div>
-    ),
+      ) : (
+        <div style={{ padding: "var(--space-5)", maxWidth: "24rem" }}>
+          <Story />
+        </div>
+      ),
   ],
   parameters: {
     ...viewportStoryParameters,
@@ -150,7 +153,7 @@ export const LongListReviewStageDesktop: ReviewStageStory = {
     </div>
   ),
   decorators: [],
-  parameters: isolatedStoryParameters,
+  parameters: { ...isolatedStoryParameters, reviewStageFixture: true },
 };
 
 export const LongListReviewStagePhone: ReviewStageStory = {
@@ -167,7 +170,7 @@ export const LongListReviewStagePhone: ReviewStageStory = {
     </div>
   ),
   decorators: [],
-  parameters: isolatedStoryParameters,
+  parameters: { ...isolatedStoryParameters, reviewStageFixture: true },
 };
 
 export const FilteredComments: Story = {
