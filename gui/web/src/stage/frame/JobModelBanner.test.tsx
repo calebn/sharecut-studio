@@ -234,7 +234,7 @@ describe("JobModelBanner", () => {
       requests[1]!.reject(new Error("Recovery status offline")),
     );
     const check = screen.getByRole("button", {
-      name: "Check Noise reduction status",
+      name: "Try again to check Noise reduction status",
     });
     expect(screen.getByText("Couldn't check noise reduction")).toBeVisible();
     await userEvent.click(check);
@@ -259,7 +259,9 @@ describe("JobModelBanner", () => {
     await act(async () => requests[1]!.reject(new Error("Status offline")));
     expect(runPointerCommand).not.toHaveBeenCalled();
     await userEvent.click(
-      screen.getByRole("button", { name: "Check Noise reduction status" }),
+      screen.getByRole("button", {
+        name: "Try again to check Noise reduction status",
+      }),
     );
     expect(requests).toHaveLength(3);
     await act(async () => requests[2]!.resolve(installedNoise()));
