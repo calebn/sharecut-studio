@@ -212,6 +212,7 @@ describe("projectFromDocumentSnapshot", () => {
           source_duration_sec: 6,
           fade_in_ms: 0,
           fade_out_ms: 0,
+          join_in_mode: "fade",
         })),
       },
     });

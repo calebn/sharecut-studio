@@ -30,6 +30,7 @@ import {
   restoreChapter,
   restoreClip,
   retimeChapter,
+  reviewHandoff,
   sentenceStarts,
   snapToSentenceStart,
   trimClip,
@@ -38,6 +39,35 @@ import {
 } from "./deliverLogic";
 
 describe("readiness", () => {
+  it.each(["pending", "failed"] as const)(
+    "keeps %s word detail actionable without an invented count",
+    (unsureWordsLeft) => {
+      const facts = { ...CLEAR_FACTS, unsureWordsLeft };
+      const rows = readinessRows(facts);
+      expect(rows.find((row) => row.id === "unsure")).toMatchObject({
+        state: "needs-you",
+        fix: { label: "Check", stage: "review", target: "unsure-words" },
+      });
+      expect(rows.find((row) => row.id === "unsure")?.detail).not.toContain(
+        "0 left",
+      );
+      expect(reviewHandoff(facts)).toEqual({
+        label: "Review open items",
+        target: "unsure-words",
+      });
+      expect(readinessSummary(rows)).toBe(
+        "1 thing left. You can still export.",
+      );
+      expect(
+        exportBlocker({
+          formats: ["mp3"],
+          loudness: "podcast",
+          part: { mode: "whole" },
+        }),
+      ).toBeUndefined();
+    },
+  );
+
   it("says ready when nothing is open", () => {
     expect(readinessSummary(readinessRows(CLEAR_FACTS))).toBe(
       "Ready to export",
