@@ -1054,9 +1054,15 @@ describe("JobModelBanner", () => {
           error_code: null,
           error_model: null,
         });
-        vi.mocked(retryPipelineJob).mockResolvedValueOnce(c);
+        const acknowledgement = deferredJob();
+        vi.mocked(retryPipelineJob).mockReturnValueOnce(
+          acknowledgement.promise,
+        );
         land("word-aligner");
         await waitFor(() => expect(retryPipelineJob).toHaveBeenCalledTimes(2));
+        expect(jobWaits.some((wait) => wait.id === "C")).toBe(false);
+        await act(async () => acknowledgement.resolve(c));
+        await waitFor(() => expect(activeWait("C").signal.aborted).toBe(false));
         await act(async () =>
           activeWait("C").resolve(
             failedJob({ id: "C", kind: "pipeline", retry_of: "B" }),

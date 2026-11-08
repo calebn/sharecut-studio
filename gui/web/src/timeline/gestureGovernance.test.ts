@@ -195,6 +195,8 @@ const SURFACE_GESTURES: Record<string, string> = {
     "sheet drag: the grabber drags a bottom sheet between detents; a range input under it keeps the keyboard and screen reader path",
   "ui/BottomSheet.tsx":
     "the detent slider under the grabber is the keyboard and screen reader path to the same detents",
+  "models/useModelNeedFocus.ts":
+    "cancels a delayed model-action focus handoff when a press or focus move happens before the action is ready; it starts no gesture, captures no pointer and never consumes the event; focusin also covers keyboard navigation",
   "stage/edit/useViewAnchor.ts":
     "a new press cancels pending View focus recovery; it starts no gesture and intercepts no pointer action",
   "stage/edit/InspectorHost.tsx":
