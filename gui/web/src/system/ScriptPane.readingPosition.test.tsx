@@ -3729,33 +3729,40 @@ describe("ScriptPane reading position", () => {
     ).toBeVisible();
   });
 
-  it("retires an interrupted scrollbar press when the window loses focus", () => {
-    scriptGeometry();
-    const clock = vi.spyOn(performance, "now").mockReturnValue(0);
-    const onUserScroll = vi.fn();
-    const { body, captured } = setup(
-      { kind: "scroll", top: 590 },
-      false,
-      onUserScroll,
-    );
-    fireEvent.scroll(body);
-    const saved = captured();
-    fireEvent.pointerDown(body, {
-      pointerId: 7,
-      pointerType: "mouse",
-      isPrimary: true,
-      button: 0,
-    });
-    fireEvent(window, new Event("blur"));
-    clock.mockReturnValue(601);
-    body.scrollTop = 670;
-    fireEvent.scroll(body);
-    fireEvent(window, new Event("resize"));
+  it.each(["blur", "hidden"] as const)(
+    "retires an interrupted scrollbar press on %s",
+    (interruption) => {
+      scriptGeometry();
+      const clock = vi.spyOn(performance, "now").mockReturnValue(0);
+      const onUserScroll = vi.fn();
+      const { body, captured } = setup(
+        { kind: "scroll", top: 590 },
+        false,
+        onUserScroll,
+      );
+      fireEvent.scroll(body);
+      const saved = captured();
+      fireEvent.pointerDown(body, {
+        pointerId: 7,
+        pointerType: "mouse",
+        isPrimary: true,
+        button: 0,
+      });
+      if (interruption === "blur") fireEvent(window, new Event("blur"));
+      else {
+        vi.spyOn(document, "hidden", "get").mockReturnValue(true);
+        fireEvent(document, new Event("visibilitychange"));
+      }
+      clock.mockReturnValue(601);
+      body.scrollTop = 670;
+      fireEvent.scroll(body);
+      fireEvent(window, new Event("resize"));
 
-    expect(body.scrollTop).toBe(590);
-    expect(captured()).toBe(saved);
-    expect(onUserScroll).not.toHaveBeenCalled();
-  });
+      expect(body.scrollTop).toBe(590);
+      expect(captured()).toBe(saved);
+      expect(onUserScroll).not.toHaveBeenCalled();
+    },
+  );
 
   it.each(["release", "cancel"] as const)(
     "observes the last held-scrollbar position on %s after its initial fact expires",
