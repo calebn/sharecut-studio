@@ -778,75 +778,91 @@ def export_variant_bundle(
             "The variant export folder could not be prepared. Retry the export.",
             "export_variant_storage_invalid",
         ) from exc
-    stage = owned.path
     try:
-        raise_if_cancel_requested(cancel_check, "Export cancelled")
-        owned.verify()
-        master_path = stage / "master.wav"
-        master_result = engine.master_loudness(
-            premix_path(project),
-            master_path,
-            integrated_lufs=request.master_target.integrated_lufs,
-            true_peak_db=request.master_target.true_peak_db,
-            lra=request.master_target.lra,
-        )
-        raise_if_cancel_requested(cancel_check, "Export cancelled")
-        owned.verify()
-        if master_path.is_symlink() or not rendered_wav_is_complete(master_path):
-            raise _variant_error(
-                "The mastered audio is incomplete. No variant was published.",
-                "export_variant_unmeasured",
-            )
-        measured = engine.measure_loudness_full(master_path)
-        qc = _qc_from_measurement(measured, master_result, request.master_target, request.limits)
-        if qc.issues:
-            measured_lufs = _qc_number(qc.measured.get("integrated_lufs"))
-            measured_peak = _qc_number(qc.measured.get("true_peak_db"))
-            raise _variant_error(
-                f"Loudness QC failed. Requested {request.master_target.integrated_lufs:.6g} LUFS and at most {request.master_target.true_peak_db:.6g} dBTP; measured {measured_lufs!s} LUFS and {measured_peak!s} dBTP. No variant was published.",
-                "export_variant_qc_failed",
-            )
-        raise_if_cancel_requested(cancel_check, "Export cancelled")
-        outputs = [(spec, stage / f"audio.{spec.ext}") for spec in request.formats]
+        stage = owned.path
         try:
-            render_audio_formats(
-                engine,
+            raise_if_cancel_requested(cancel_check, "Export cancelled")
+            owned.verify()
+            master_path = stage / "master.wav"
+            master_result = engine.master_loudness(
+                premix_path(project),
                 master_path,
-                outputs,
-                metadata=dict(request.metadata),
-                max_workers=(defaults.get("performance") or {}).get("max_workers"),
-                cancel_check=cancel_check,
+                integrated_lufs=request.master_target.integrated_lufs,
+                true_peak_db=request.master_target.true_peak_db,
+                lra=request.master_target.lra,
             )
             raise_if_cancel_requested(cancel_check, "Export cancelled")
             owned.verify()
-            write_json_atomic(stage / "master_qc.json", cast(dict[str, Any], qc.to_record()))
-            for _, path in outputs:
-                if path.is_symlink() or not path.is_file() or path.stat().st_size == 0:
-                    raise _VariantValidationError("invalid encoder output")
-            files: dict[str, VariantFileRecord] = {
-                name: _file_record(stage / name)
-                for name in ["master.wav", "master_qc.json", *[path.name for _, path in outputs]]
-            }
-            receipt = _receipt(request, source, edit_head_id, qc, files)
-            write_json_atomic(stage / "receipt.json", cast(dict[str, Any], receipt))
-            expected_names = {
-                "master.wav",
-                "master_qc.json",
-                "receipt.json",
-                *[p.name for _, p in outputs],
-            }
-            if {path.name for path in stage.iterdir()} != expected_names:
-                raise _VariantValidationError("staging bundle has unexpected files")
-            for path in stage.iterdir():
-                if path.is_symlink() or not path.is_file():
-                    raise _VariantValidationError("staging bundle contains unsafe output")
-                _fsync_file(path)
-            bundle = _validate_bundle(stage, request.identity, expected_identity=request.identity)
+            if master_path.is_symlink() or not rendered_wav_is_complete(master_path):
+                raise _variant_error(
+                    "The mastered audio is incomplete. No variant was published.",
+                    "export_variant_unmeasured",
+                )
+            measured = engine.measure_loudness_full(master_path)
+            qc = _qc_from_measurement(
+                measured, master_result, request.master_target, request.limits
+            )
+            if qc.issues:
+                measured_lufs = _qc_number(qc.measured.get("integrated_lufs"))
+                measured_peak = _qc_number(qc.measured.get("true_peak_db"))
+                raise _variant_error(
+                    f"Loudness QC failed. Requested {request.master_target.integrated_lufs:.6g} LUFS and at most {request.master_target.true_peak_db:.6g} dBTP; measured {measured_lufs!s} LUFS and {measured_peak!s} dBTP. No variant was published.",
+                    "export_variant_qc_failed",
+                )
+            raise_if_cancel_requested(cancel_check, "Export cancelled")
+            outputs = [(spec, stage / f"audio.{spec.ext}") for spec in request.formats]
+            try:
+                render_audio_formats(
+                    engine,
+                    master_path,
+                    outputs,
+                    metadata=dict(request.metadata),
+                    max_workers=(defaults.get("performance") or {}).get("max_workers"),
+                    cancel_check=cancel_check,
+                )
+                raise_if_cancel_requested(cancel_check, "Export cancelled")
+                owned.verify()
+                write_json_atomic(stage / "master_qc.json", cast(dict[str, Any], qc.to_record()))
+                for _, path in outputs:
+                    if path.is_symlink() or not path.is_file() or path.stat().st_size == 0:
+                        raise _VariantValidationError("invalid encoder output")
+                files: dict[str, VariantFileRecord] = {
+                    name: _file_record(stage / name)
+                    for name in [
+                        "master.wav",
+                        "master_qc.json",
+                        *[path.name for _, path in outputs],
+                    ]
+                }
+                receipt = _receipt(request, source, edit_head_id, qc, files)
+                write_json_atomic(stage / "receipt.json", cast(dict[str, Any], receipt))
+                expected_names = {
+                    "master.wav",
+                    "master_qc.json",
+                    "receipt.json",
+                    *[p.name for _, p in outputs],
+                }
+                if {path.name for path in stage.iterdir()} != expected_names:
+                    raise _VariantValidationError("staging bundle has unexpected files")
+                for path in stage.iterdir():
+                    if path.is_symlink() or not path.is_file():
+                        raise _VariantValidationError("staging bundle contains unsafe output")
+                    _fsync_file(path)
+                bundle = _validate_bundle(
+                    stage, request.identity, expected_identity=request.identity
+                )
+            except (CodedValueError, CancelledProgress):
+                raise
+            except (ValueError, OSError, RuntimeError, subprocess.SubprocessError) as exc:
+                raise _variant_error(
+                    "The mastered or encoded variant output is incomplete or invalid. No variant was published.",
+                    "export_variant_unmeasured",
+                ) from exc
         except (CodedValueError, CancelledProgress):
             raise
-        except (ValueError, OSError, RuntimeError, subprocess.SubprocessError) as exc:
+        except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
             raise _variant_error(
-                "The mastered or encoded variant output is incomplete or invalid. No variant was published.",
+                "The mastered or encoded output is incomplete or unsafe. No variant was published.",
                 "export_variant_unmeasured",
             ) from exc
         with commit_guard(source.digest, request.identity):
@@ -859,13 +875,6 @@ def export_variant_bundle(
                     "export_variant_storage_invalid",
                 ) from exc
         return _result(bundle, edit_head_id)
-    except (CodedValueError, CancelledProgress):
-        raise
-    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
-        raise _variant_error(
-            "The mastered or encoded output is incomplete or unsafe. No variant was published.",
-            "export_variant_unmeasured",
-        ) from exc
     finally:
         owned.close()
 

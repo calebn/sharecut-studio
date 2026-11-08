@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import re
@@ -1933,16 +1934,20 @@ def boundary_export(request_workspace, request, monkeypatch):
     }
     canonical = _canonical_snapshot(ws)
 
-    def unchanged():
+    def unchanged(*, allow_new=False):
         assert _canonical_snapshot(ws) == canonical
-        assert {
-            p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()
-        } == saved
-        assert {p.name for p in root.iterdir()} == {path.parts[0] for path in saved}
+        actual = {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+        assert all(actual.get(path) == data for path, data in saved.items())
+        assert all(not path.name.startswith(".") for path in root.iterdir())
+        if not allow_new:
+            assert actual == saved
+            assert {p.name for p in root.iterdir()} == {path.parts[0] for path in saved}
         listed = client.get(FILES, params=params)
         assert listed.status_code == 200
         current = {row["id"]: row for row in listed.json()["files"]}
-        assert current.keys() == versions.keys()
+        assert current.keys() >= versions.keys()
+        if not allow_new:
+            assert current.keys() == versions.keys()
         for row in rows:
             file_id = row["id"]
             assert current[file_id]["current"] is True
@@ -1950,12 +1955,37 @@ def boundary_export(request_workspace, request, monkeypatch):
             download = client.get(f"{FILES}/{file_id}", params={**params, "ticket": row["ticket"]})
             assert download.status_code == 200
             assert download.content == downloads[file_id]
+        return {
+            "versions": versions,
+            "download_sha256": {
+                name: hashlib.sha256(data).hexdigest() for name, data in downloads.items()
+            },
+            "bundle_sha256": {
+                str(path): hashlib.sha256(data).hexdigest() for path, data in saved.items()
+            },
+        }
 
     return ws, engine, client, unchanged
 
 
 @pytest.mark.parametrize("owner", ["master_target_for", "_source_certificate"])
-@pytest.mark.parametrize("phase", ["initial", "cache", "fresh"])
+@pytest.mark.parametrize(
+    "phase,request_workspace",
+    [
+        ("initial", "sample_wav"),
+        ("cache", "sample_wav"),
+        ("fresh", "sample_wav"),
+        pytest.param(
+            "fresh",
+            "gentle_wav",
+            marks=pytest.mark.skipif(
+                os.environ.get("PODCAST_RUN_VARIANT_REAL_ENGINE") != "1",
+                reason="opt-in real FFmpeg",
+            ),
+        ),
+    ],
+    indirect=["request_workspace"],
+)
 def test_transaction_fault_keeps_same_exception(
     boundary_export, boundary_stages, monkeypatch, owner, phase
 ):
@@ -1989,7 +2019,7 @@ def test_transaction_fault_keeps_same_exception(
                 ExportTarget.PODCAST if phase == "cache" else ExportTarget.BROADCAST,
                 formats=[{"ext": "mp3"}],
             )
-    unchanged()
+    saved_state = unchanged()
     assert len(encoded) == (1 if phase == "fresh" else 0)
     assert transaction_depths == ([0] if phase == "initial" else [1])
     assert ws._transaction_depth == 0
@@ -2004,6 +2034,9 @@ def test_transaction_fault_keeps_same_exception(
                 "type": type(caught.value).__name__,
                 "code": getattr(caught.value, "code", None),
                 "cause_is_sentinel": caught.value.__cause__ is defect,
+                "producer": type(engine).__name__,
+                "encoded_sha256": [hashlib.sha256(data).hexdigest() for data in encoded],
+                "saved_state": saved_state,
                 "encoded": len(encoded),
                 "transaction_depths": transaction_depths,
                 "closed_stages": boundary_stages,
@@ -2015,6 +2048,20 @@ def test_transaction_fault_keeps_same_exception(
 
 
 @pytest.mark.parametrize("owner", ["master_target_for", "_source_certificate"])
+@pytest.mark.parametrize(
+    "request_workspace",
+    [
+        "sample_wav",
+        pytest.param(
+            "gentle_wav",
+            marks=pytest.mark.skipif(
+                os.environ.get("PODCAST_RUN_VARIANT_REAL_ENGINE") != "1",
+                reason="opt-in real FFmpeg",
+            ),
+        ),
+    ],
+    indirect=True,
+)
 def test_public_transaction_fault_is_unexpected(
     boundary_export, boundary_stages, monkeypatch, owner
 ):
@@ -2043,7 +2090,7 @@ def test_public_transaction_fault_is_unexpected(
         job = done(
             client, ws.path, start(client, ws.path, target="broadcast", formats=[{"ext": "mp3"}])
         )
-    unchanged()
+    saved_state = unchanged()
     assert len(encoded) == len(calls) == 1
     assert job["status"] == "error"
     assert job["result"] is None
@@ -2056,6 +2103,9 @@ def test_public_transaction_fault_is_unexpected(
             {
                 "owner": owner,
                 "public_status": job["status"],
+                "producer": type(engine).__name__,
+                "encoded_sha256": [hashlib.sha256(data).hexdigest() for data in encoded],
+                "saved_state": saved_state,
                 "error_code": job["error_code"],
                 "error": job["error"],
                 "result": job["result"],
@@ -2065,3 +2115,149 @@ def test_public_transaction_fault_is_unexpected(
         )
     )
     assert job["error_code"] is None
+
+
+@pytest.mark.parametrize("origin", ["guard_exit", "result"])
+@pytest.mark.parametrize("public", [False, True])
+def test_post_publication_fault_keeps_committed_bundle(
+    boundary_export, boundary_stages, monkeypatch, origin, public
+):
+    from contextlib import contextmanager
+
+    from podcast_mcp.services.document import ExportFilesService
+    from podcast_mcp.services.pipeline import ExportTarget, PipelineService, export_variant
+
+    ws, _, client, unchanged = boundary_export
+    defect = RuntimeError("post publication boundary defect")
+    root = ws.project.export_dir() / "variants"
+    before = {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+    canonical = _canonical_snapshot(ws)
+    guard = pipeline.project_commit_guard
+    reached = []
+
+    @contextmanager
+    def fail_exit(*args, **kwargs):
+        with guard(*args, **kwargs):
+            yield
+        reached.append("guard_exit")
+        raise defect
+
+    def fail_result(*args, **kwargs):
+        reached.append("result")
+        raise defect
+
+    with monkeypatch.context() as scope:
+        if origin == "guard_exit":
+            scope.setattr(pipeline, "project_commit_guard", fail_exit)
+        else:
+            scope.setattr(export_variant, "_result", fail_result)
+        if public:
+            job = done(
+                client,
+                ws.path,
+                start(client, ws.path, target="broadcast", formats=[{"ext": "mp3"}]),
+            )
+            observed = {key: job[key] for key in ("status", "error", "error_code", "result")}
+        else:
+            with pytest.raises((RuntimeError, ValueError)) as caught:
+                PipelineService(ws).export_variant(ExportTarget.BROADCAST, formats=[{"ext": "mp3"}])
+            observed = {
+                "same_exception": caught.value is defect,
+                "code": getattr(caught.value, "code", None),
+            }
+    saved_state = unchanged(allow_new=True)
+    assert reached == [origin]
+    assert len(boundary_stages) == 1 and boundary_stages[0]["committed"] is True
+    assert _canonical_snapshot(ws) == canonical
+    assert all((root / path).read_bytes() == data for path, data in before.items())
+    assert len(list(root.iterdir())) == 2
+    files = ExportFilesService(ws)
+    rows = files.list()
+    broadcast = [row for row in rows if row.id.startswith("variants/") and "Broadcast" in row.label]
+    assert len(broadcast) == 2
+    assert all(row.current for row in broadcast)
+    assert all(files.open(row.id).path.read_bytes() for row in broadcast)
+    assert ws._transaction_depth == 0
+    print(
+        json.dumps(
+            {
+                "origin": origin,
+                "public": public,
+                "observed": observed,
+                "saved_state": saved_state,
+                "closed_stages": boundary_stages,
+                "committed_ids": [row.id for row in broadcast],
+                "prior_and_canonical_preserved": True,
+            }
+        )
+    )
+    if public:
+        assert job["status"] == "error" and job["result"] is None
+        assert job["error_code"] is None
+        assert "No variant was published" not in job["error"]
+    else:
+        assert caught.value is defect
+
+
+@pytest.mark.parametrize("origin", ["master_loudness", "measure_loudness_full", "export_audio"])
+@pytest.mark.parametrize("kind", ["runtime", "os", "value", "subprocess"])
+def test_producer_fault_retains_output_translation(
+    boundary_export, boundary_stages, monkeypatch, origin, kind
+):
+    import subprocess
+
+    from podcast_mcp.services.pipeline import ExportTarget, PipelineService
+    from podcast_mcp.util.coded_error import CodedValueError
+
+    ws, engine, _, unchanged = boundary_export
+    exception_type = {
+        "runtime": RuntimeError,
+        "os": OSError,
+        "value": ValueError,
+        "subprocess": subprocess.SubprocessError,
+    }[kind]
+    defect = exception_type(f"producer detail {ws.path}")
+
+    def fail(*args, **kwargs):
+        raise defect
+
+    with monkeypatch.context() as scope:
+        scope.setattr(engine, origin, fail)
+        with pytest.raises(CodedValueError) as caught:
+            PipelineService(ws).export_variant(ExportTarget.BROADCAST, formats=[{"ext": "mp3"}])
+    saved_state = unchanged()
+    expected = (
+        "The mastered or encoded variant output is incomplete or invalid. No variant was published."
+        if origin == "export_audio"
+        else "The mastered or encoded output is incomplete or unsafe. No variant was published."
+    )
+    assert caught.value.code == "export_variant_unmeasured"
+    assert str(caught.value) == expected
+    assert caught.value.__cause__ is defect
+    assert len(boundary_stages) == 1 and boundary_stages[0]["committed"] is False
+    print(
+        json.dumps(
+            {
+                "origin": origin,
+                "kind": kind,
+                "code": caught.value.code,
+                "message": str(caught.value),
+                "same_cause": caught.value.__cause__ is defect,
+                "saved_state": saved_state,
+                "closed_stages": boundary_stages,
+                "saved_and_canonical_preserved": True,
+            }
+        )
+    )
+
+
+def test_success_closes_stage_descriptors(boundary_export, boundary_stages):
+    from podcast_mcp.services.pipeline import ExportTarget, PipelineService
+
+    ws, _, _, _ = boundary_export
+    result = PipelineService(ws).export_variant(ExportTarget.BROADCAST, formats=[{"ext": "mp3"}])
+    assert result.master.target.integrated_lufs == -23
+    assert len(result.file_ids) == 2
+    assert all((ws.project.export_dir() / file_id).is_file() for file_id in result.file_ids)
+    assert len(boundary_stages) == 1 and boundary_stages[0]["committed"] is True
+    print(json.dumps({"success_ids": result.file_ids, "closed_stages": boundary_stages}))
