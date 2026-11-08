@@ -113,7 +113,6 @@ def export_settings_evidence(
     limits: MasterQcLimits,
     formats: tuple[ExportFormatSpec, ...],
 ) -> ExportSettingsEvidence | None:
-    """Project a private producer recipe without making optional evidence a failure."""
     try:
         master_values = tuple(asdict(master_target).values())
         limit_values = tuple(asdict(limits).values())
