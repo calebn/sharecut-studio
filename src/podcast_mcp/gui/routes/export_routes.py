@@ -76,11 +76,10 @@ def export_deliverables(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    """Same PipelineService.export_audio path used by MCP/CLI master export."""
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(body.path, request)
     try:
-        job = _jobs(request).start_export(project_path, formats=body.formats)
+        job = _jobs(request).start_export(project_path, formats=body.formats, target=body.target)
     except RuntimeError as exc:
         raise coded_exception_error(409, exc, code="export_job_conflict") from exc
     except (ValueError, FileNotFoundError) as exc:

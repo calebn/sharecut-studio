@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models.history import HistoryEntry, ProjectHistory
 from podcast_mcp.services.jobs import Job, JobManager
-from podcast_mcp.services.pipeline import AudioExportResult
+from podcast_mcp.services.pipeline import AudioExportResult, ExportTarget
 
 
 def _skip_bounce_validate(monkeypatch) -> None:
@@ -65,6 +65,82 @@ def test_start_export_returns_paths_and_master_target_on_terminal_snapshot(
     assert result["paths"][0].endswith("demo.wav")
     assert result["master"] == master
     assert result["edit_head_id"] == "cut-2"
+
+
+def test_named_variant_export_uses_read_only_workspace_and_typed_result(
+    minimal_project, monkeypatch
+) -> None:
+    from podcast_mcp.engines.mastering import MasterQcLimits, MasterTarget
+    from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.services.pipeline import VariantExportResult
+    from podcast_mcp.services.pipeline.export_variant import VariantQc
+
+    opened_with_adoption: list[bool] = []
+    targets: list[ExportTarget] = []
+
+    original_open = ProjectWorkspace.open
+
+    def recording_open(path, *, adopt=True):
+        opened_with_adoption.append(adopt)
+        return original_open(path, adopt=adopt)
+
+    def fake_variant(self, target, formats=None, **_kwargs):
+        targets.append(target)
+        return VariantExportResult(
+            file_ids=("variants/" + "a" * 64 + "/audio.wav",),
+            target=target,
+            master=VariantQc(
+                MasterTarget(-14.0, -1.5, 11.0),
+                MasterQcLimits(),
+                {"integrated_lufs": -14.0, "true_peak_db": -2.0},
+                None,
+                "test",
+                None,
+                None,
+                (),
+            ),
+            edit_head_id="cut-3",
+        )
+
+    monkeypatch.setattr(ProjectWorkspace, "open", recording_open)
+    monkeypatch.setattr(
+        "podcast_mcp.services.pipeline.PipelineService.export_variant", fake_variant
+    )
+    manager = JobManager()
+    job = manager.start_export(Path(minimal_project), target=ExportTarget.STREAMING)
+    manager.wait(job, timeout=2.5)
+
+    assert job.status == "ok"
+    assert opened_with_adoption == [False]
+    assert targets == [ExportTarget.STREAMING]
+    assert job.snapshot()["result"]["target"] == "streaming"
+    assert job.snapshot()["result"]["file_ids"] == ["variants/" + "a" * 64 + "/audio.wav"]
+
+
+def test_host_export_request_forwards_target_and_explicit_wav(minimal_project, monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    calls: list[tuple[list[dict] | None, ExportTarget | None]] = []
+
+    def start_export(self, project_path, *, formats=None, target=None, **_kwargs):
+        calls.append((formats, target))
+        return SimpleNamespace(
+            id="job-variant",
+            snapshot=lambda: {"id": "job-variant", "status": "queued"},
+        )
+
+    monkeypatch.setattr(JobManager, "start_export", start_export)
+    response = TestClient(create_app()).post(
+        "/api/export/deliverables",
+        json={
+            "path": str(minimal_project),
+            "target": "podcast",
+            "formats": [{"ext": "wav"}],
+        },
+    )
+
+    assert response.status_code == 200
+    assert calls == [([{"ext": "wav"}], ExportTarget.PODCAST)]
 
 
 def test_bounce_takes_pipeline_lock_and_coexists_with_agent(minimal_project, monkeypatch) -> None:
@@ -291,7 +367,8 @@ class _OrderedSlotService:
 
 def _wire_ordered_slot(monkeypatch, order: list[str], release: threading.Event) -> None:
     monkeypatch.setattr(
-        "podcast_mcp.services.jobs.manager.ProjectWorkspace.open", lambda _p: object()
+        "podcast_mcp.services.jobs.manager.ProjectWorkspace.open",
+        lambda _p, **_kwargs: object(),
     )
     monkeypatch.setattr(
         "podcast_mcp.services.jobs.manager.PipelineService",

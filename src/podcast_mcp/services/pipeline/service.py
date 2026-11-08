@@ -25,6 +25,12 @@ from podcast_mcp.pipeline import PipelineRunner
 from podcast_mcp.pipeline import steps as pipeline_steps
 from podcast_mcp.pipeline.helpers import ffmpeg
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.pipeline.export_variant import (
+    ExportTarget,
+    VariantExportResult,
+    export_variant_bundle,
+    project_commit_guard,
+)
 from podcast_mcp.services.pipeline.preview import render_preview_result, rerender_preview
 from podcast_mcp.services.pipeline.run_intent import PipelineRetryUnavailable, PipelineRunIntent
 from podcast_mcp.util.coded_error import CodedValueError
@@ -441,4 +447,51 @@ class PipelineService:
                 paths, pipeline_steps.read_master_qc(self.ws.project), edit_head_id
             )
             prog.advance(1, message=f"Export complete. {result.master_summary()}")
+            return result
+
+    def export_variant(
+        self,
+        target: ExportTarget,
+        formats: list[dict[str, Any]] | None = None,
+        *,
+        cancel_check: Callable[[], bool] | None = None,
+    ) -> VariantExportResult:
+        """Export a named loudness variant from a positively verified current premix."""
+        from podcast_mcp.util.progress import resolve_progress_task
+
+        with (
+            resolve_progress_task(
+                "export_variant",
+                "Exporting loudness variant",
+                total=1,
+                prefer_parent=True,
+            ) as _progress,
+            render_lock(self.ws.project, cancel_check=cancel_check),
+        ):
+            self.ws.checkpoint()
+            defaults = self._run_defaults()
+            edit_head_id = self.ws.project.history.edit_head_id()
+
+            def commit_guard(source_digest: str, identity: str):
+                return project_commit_guard(
+                    self.ws,
+                    self._run_defaults,
+                    target,
+                    formats,
+                    source_digest,
+                    identity,
+                    edit_head_id,
+                )
+
+            result = export_variant_bundle(
+                self.ws.project,
+                defaults,
+                target,
+                formats,
+                pipeline_steps.ffmpeg(),
+                edit_head_id=edit_head_id,
+                cancel_check=cancel_check,
+                commit_guard=commit_guard,
+            )
+            _progress.advance(1, message="Loudness variant complete")
             return result
