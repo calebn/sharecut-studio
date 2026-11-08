@@ -201,15 +201,24 @@ function reconcileReadingViewport(
     now,
   );
   const previous = state.checkpoint;
+  const projected = (top: number) =>
+    Math.min(viewport.maximum, Math.max(0, top));
+  const passiveClamp = Boolean(
+    previous &&
+      previous.width === viewport.width &&
+      previous.height === viewport.height &&
+      previous.maximum > viewport.maximum &&
+      previous.top > viewport.maximum &&
+      viewport.top === projected(previous.top),
+  );
   const geometry =
     observation === "geometry" ||
+    passiveClamp ||
     Boolean(
       previous &&
         (previous.width !== viewport.width ||
           previous.height !== viewport.height),
     );
-  const projected = (top: number) =>
-    Math.min(viewport.maximum, Math.max(0, top));
   const supported =
     (!previous || viewport.top !== projected(previous.top)) &&
     ((origins.up !== null &&
