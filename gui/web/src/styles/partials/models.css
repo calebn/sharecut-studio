@@ -93,6 +93,10 @@
   font-weight: 400;
 }
 
+.sys-need-extra .ui-control[aria-pressed="true"] .sys-size-bytes {
+  color: var(--color-chip-selected-fg);
+}
+
 .models-sheet-body {
   display: flex;
   flex-direction: column;

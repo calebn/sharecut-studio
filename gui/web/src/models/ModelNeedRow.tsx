@@ -85,7 +85,7 @@ function NeedRow({
           state.kind === "unavailable" && onCheck
             ? {
                 label: "Try again",
-                name: `Check ${name} status`,
+                name: `Try again to check ${name} status`,
                 onAction: onCheck,
               }
             : undefined
@@ -118,7 +118,7 @@ function NeedRow({
         detail={failure.plain}
         action={{
           label: "Try again",
-          name: `Try getting ${what} again`,
+          name: `Try again to get ${what}`,
           icon: "cloud-download",
           onAction: onGet,
           disabledReason: blockedReason,
@@ -247,7 +247,10 @@ function ListRow({
         </span>
         <div className="sys-need-control">
           {state.kind === "unavailable" && onCheck ? (
-            <Button aria-label={`Check ${name} status`} onClick={onCheck}>
+            <Button
+              aria-label={`Try again to check ${name} status`}
+              onClick={onCheck}
+            >
               Try again
             </Button>
           ) : working ? (

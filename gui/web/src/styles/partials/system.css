@@ -1819,7 +1819,8 @@ html:not([data-shell="phone"])
 }
 
 /* The muted red ground is too close to the secondary text colour in dark. */
-.sys-status[data-state="failed"] .sys-status-detail {
+.sys-status[data-state="failed"] .sys-status-detail,
+.sys-status[data-state="failed"] .sys-status-actions .ui-control:not(.primary) {
   color: var(--color-text-primary);
 }
 
