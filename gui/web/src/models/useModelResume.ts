@@ -13,26 +13,29 @@ type Stop<N> = { need: N; afterGeneration: number };
 export function useModelResume<N extends NeedTarget = ModelNeeded>(
   resume: (need: N) => void,
 ) {
-  const { models, observation, refresh } = useModels();
+  const { lookup, observe } = useModels();
   const [stop, setStop] = useState<Stop<N> | null>(null);
   const pending = useRef<Stop<N> | null>(null);
   const resumeRef = useRef(resume);
-  const generationRef = useRef(observation.generation);
+  const lookupRef = useRef(lookup);
   useEffect(() => {
     resumeRef.current = resume;
   }, [resume]);
   useEffect(() => {
-    generationRef.current = observation.generation;
-  }, [observation.generation]);
+    lookupRef.current = lookup;
+  }, [lookup]);
 
   const stopFor = useCallback(
     (need: N) => {
-      const next = { need, afterGeneration: generationRef.current };
+      const next = {
+        need,
+        afterGeneration: lookupRef.current(need).observation.generation,
+      };
       pending.current = next;
       setStop(next);
-      void refresh();
+      void observe(need);
     },
-    [refresh],
+    [observe],
   );
   const clear = useCallback(() => {
     pending.current = null;
@@ -40,11 +43,13 @@ export function useModelResume<N extends NeedTarget = ModelNeeded>(
   }, []);
 
   const need = stop?.need ?? null;
-  const row = need ? (models?.find((m) => m.id === need.id) ?? null) : null;
+  const target = need ? lookup(need) : null;
+  const row = target?.row ?? null;
+  const observation = target?.observation;
   const here = need !== null && rowInstalled(row, need);
   const ready =
     stop !== null &&
-    observation.kind === "current" &&
+    observation?.kind === "current" &&
     observation.generation > stop.afterGeneration &&
     here;
   useEffect(() => {

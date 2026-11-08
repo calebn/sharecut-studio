@@ -8,6 +8,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type BootstrapJobSnapshot,
+  type BootstrapStatus,
   cancelBootstrap,
   fetchBootstrapJob,
   fetchBootstrapStatus,
@@ -16,6 +17,7 @@ import {
   startPipelineRun,
   waitForBootstrapJob,
 } from "../../api";
+import { usePipelineWorkingSet } from "../../hooks/usePipelineWorkingSet";
 import { ModelsProvider } from "../../models/ModelsProvider";
 import type { DownloadOutcome } from "../../models/types";
 import { ModelsContext, useModels } from "../../models/useModels";
@@ -32,6 +34,7 @@ import {
   modelsApi,
   registryRows,
 } from "../../test/renderWithModels";
+import { ApiError } from "../../utils/apiError";
 import { PrepareView } from "./PrepareView";
 import { usePrepareModel } from "./usePrepareModel";
 
@@ -46,7 +49,7 @@ vi.mock("../../api", async (original) => ({
   waitForBootstrapJob: vi.fn(),
 }));
 vi.mock("../../hooks/usePipelineWorkingSet", () => ({
-  usePipelineWorkingSet: () => ({
+  usePipelineWorkingSet: vi.fn(() => ({
     cfg: pipelineConfig(),
     loadError: null,
     saveError: null,
@@ -54,7 +57,7 @@ vi.mock("../../hooks/usePipelineWorkingSet", () => ({
     reload: vi.fn(),
     update: vi.fn(async () => true),
     fetchFresh: vi.fn(async () => pipelineConfig()),
-  }),
+  })),
 }));
 
 const PATH = "/tmp/test/episode.sharecut";
@@ -78,17 +81,18 @@ function setup() {
     .mockReturnValueOnce(first.promise)
     .mockReturnValueOnce(second.promise);
   const refresh = vi.fn(async () => undefined);
-  const apiFor = (state: "missing" | "installed") => ({
-    ...modelsApi({
+  const apiFor = (state: "missing" | "installed") => {
+    const api = modelsApi({
       status: modelStatus(
         registryRows().map((row) =>
           row.id === "word-aligner" ? modelRow({ ...row, state }) : row,
         ),
       ),
       download,
-    }),
-    refresh,
-  });
+    });
+    api.refresh = refresh;
+    return api;
+  };
   const view = render(
     <ModelsContext.Provider value={apiFor("missing")}>
       <Stage />
@@ -371,4 +375,141 @@ it("retires real-provider cancellation before an unrelated install and accepts a
     components: ["word-aligner"],
     force: false,
   });
+});
+
+it("replays Prepare's captured Fast request once after the adopted Fast target is freshly installed, keeping Best selected", async () => {
+  const workingSet = vi.mocked(usePipelineWorkingSet);
+  const originalImplementation = workingSet.getMockImplementation();
+  if (!originalImplementation)
+    throw new Error("Working-set fixture is missing");
+  let config = pipelineConfig({ config: { transcribe: { model: "tiny.en" } } });
+  workingSet.mockImplementation(() => ({
+    cfg: config,
+    loadError: null,
+    saveError: null,
+    saving: false,
+    reload: vi.fn(),
+    update: vi.fn(async () => true),
+    fetchFresh: vi.fn(async () => config),
+  }));
+  try {
+    const fast: BootstrapJobSnapshot = {
+      id: "prepare-adopted-fast",
+      kind: "bootstrap",
+      status: "running",
+      components: ["whisper"],
+      whisper_model: "tiny.en",
+      download: { component: "whisper", bytes: 25_000_000, total: 75_000_000 },
+    };
+    const found = deferred<BootstrapJobSnapshot | null>();
+    const done = deferred<BootstrapJobSnapshot>();
+    const checked = deferred<BootstrapStatus>();
+    let terminal = false;
+    const statusFor = (variant: string, installed: boolean) =>
+      modelStatus(
+        registryRows().map((row) =>
+          modelRow({
+            ...row,
+            ...(row.id === "whisper" ? { model: variant } : {}),
+            state: row.id === "whisper" && !installed ? "missing" : "installed",
+          }),
+        ),
+        { whisper_model: variant, ready: installed },
+      );
+    vi.mocked(fetchBootstrapStatus).mockImplementation((variant) =>
+      variant === "tiny.en" && terminal
+        ? checked.promise
+        : Promise.resolve(
+            statusFor(variant ?? "large-v3-turbo", variant !== "tiny.en"),
+          ),
+    );
+    vi.mocked(fetchBootstrapJob).mockReturnValue(found.promise);
+    vi.mocked(waitForBootstrapJob).mockReturnValue(done.promise);
+    start.mockRejectedValueOnce(
+      new ApiError("model needed", "model_needed", 409, {
+        id: "whisper",
+        variant: "tiny.en",
+        label: "Whisper",
+        purpose: "transcription",
+        size: "75 MB",
+        sizeBytes: 75_000_000,
+        state: "missing",
+      }),
+    );
+    let selected: ReturnType<typeof useModels> | undefined;
+    function ActualPrepare() {
+      selected = useModels();
+      const prepare = usePrepareModel();
+      return (
+        <>
+          <button onClick={() => selected?.whisper.choose("large-v3-turbo")}>
+            Choose Best
+          </button>
+          <button
+            onClick={() =>
+              prepare.advanced.props.onRunFromHere("transcribe_tracks")
+            }
+          >
+            Run captured Fast
+          </button>
+          <PrepareView {...prepare.view} />
+        </>
+      );
+    }
+    render(
+      <ModelsProvider>
+        <ActualPrepare />
+      </ModelsProvider>,
+    );
+    await waitFor(() => expect(selected?.ready).toBe(true));
+    fireEvent.click(screen.getByText("Choose Best"));
+    await waitFor(() =>
+      expect(fetchBootstrapStatus).toHaveBeenCalledWith("large-v3-turbo"),
+    );
+    await act(async () => found.resolve(fast));
+    await waitFor(() =>
+      expect(waitForBootstrapJob).toHaveBeenCalledWith(
+        "prepare-adopted-fast",
+        expect.anything(),
+      ),
+    );
+    fireEvent.click(screen.getByText("Run captured Fast"));
+    expect(await screen.findByText("25 MB of 75 MB")).toBeVisible();
+    expect(
+      screen.getByRole("button", {
+        name: "Cancel the transcription model download",
+      }),
+    ).toBeEnabled();
+    expect(start).toHaveBeenCalledTimes(1);
+    const original = structuredClone(start.mock.calls[0]);
+    expect(original).toEqual([
+      PATH,
+      expect.objectContaining({ config: { transcribe: { model: "tiny.en" } } }),
+    ]);
+    expect(selected?.whisper.variant).toBe("large-v3-turbo");
+    config = pipelineConfig({ config: { transcribe: { model: "small.en" } } });
+    terminal = true;
+    await act(async () => done.resolve({ ...fast, status: "ok" }));
+    expect(start).toHaveBeenCalledTimes(1);
+    await act(async () => checked.resolve(statusFor("tiny.en", true)));
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(2));
+    expect(start.mock.calls[1]).toEqual([
+      original?.[0],
+      { ...original?.[1], useWorkingSet: false },
+    ]);
+    expect(selected?.whisper.variant).toBe("large-v3-turbo");
+    expect(selected?.ready).toBe(true);
+    expect(
+      screen.queryByRole("button", {
+        name: "Cancel the transcription model download",
+      }),
+    ).toBeNull();
+    await act(async () => {
+      await selected?.refresh();
+    });
+    expect(start).toHaveBeenCalledTimes(2);
+    expect(runBootstrap).not.toHaveBeenCalled();
+  } finally {
+    workingSet.mockImplementation(originalImplementation);
+  }
 });

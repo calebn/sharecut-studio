@@ -388,6 +388,7 @@ export function usePrepareSources(input: {
     const retries = retrySplits.current;
     drainingSplits.current = null;
     setSplitNeeds({});
+    setSplitFailed({});
     setSplitting({});
     pendingSplits.current.clear();
     splitOperations.current.clear();

@@ -1,11 +1,13 @@
 import { createContext, useContext } from "react";
 import type { ModelInstallState } from "../types/pipeline";
+import type { NeedTarget } from "./capability";
 import type {
   DownloadOptions,
   DownloadOutcome,
   ModelObservation,
   ModelView,
   RemoveOutcome,
+  TargetObservation,
   WhisperChoice,
 } from "./types";
 
@@ -15,6 +17,8 @@ export type ModelsApi = {
   /** Active downloads and retained failures, with their own variant identity. */
   downloads: ModelView[];
   observation: ModelObservation;
+  lookup: (target: Pick<NeedTarget, "id" | "variant">) => TargetObservation;
+  observe: (target: Pick<NeedTarget, "id" | "variant">) => Promise<void>;
   tools: { ffmpeg: ModelInstallState; hint: string | null };
   ready: boolean;
   /** True while any bootstrap download runs, ours or another tab's. */
@@ -38,6 +42,11 @@ export const ModelsContext = createContext<ModelsApi | null>(null);
  * must make no host bootstrap calls. Rows are absent, nothing is busy, and a download does nothing.
  */
 export const INERT_MODELS: ModelsApi = {
+  lookup: () => ({
+    row: null,
+    observation: { kind: "checking", generation: 0 },
+  }),
+  observe: () => Promise.resolve(),
   models: null,
   downloads: [],
   observation: { kind: "checking", generation: 0 },

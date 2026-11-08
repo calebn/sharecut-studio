@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { DownloadOutcome } from "../../models/types";
 import {
+  defaultModelsWrapper,
   modelStatus,
   registryRows,
   renderWithModels,
@@ -140,6 +141,7 @@ describe("ReadyList", () => {
   it("holds the Model need row inside the Transcribe row, for the model and for word timing", () => {
     const { rerender } = render(
       <ReadyList rows={ROWS.needsModel} onAction={vi.fn()} />,
+      { wrapper: defaultModelsWrapper },
     );
     const item = screen.getAllByRole("listitem")[1];
     expect(

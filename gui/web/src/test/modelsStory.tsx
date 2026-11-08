@@ -67,8 +67,20 @@ export function registryModels(
 
 function storyModelsApi(over: Partial<ModelsApi> = {}): ModelsApi {
   const models = over.models === undefined ? registryModels() : over.models;
-  return {
+  const api: ModelsApi = {
     models,
+    lookup: (target) => ({
+      row:
+        api.models?.find(
+          (row) =>
+            row.id === target.id &&
+            (target.id !== "whisper" ||
+              !target.variant ||
+              row.variant === target.variant),
+        ) ?? null,
+      observation: api.observation,
+    }),
+    observe: () => api.refresh(),
     downloads: (models ?? []).filter((m) =>
       ["queued", "downloading", "failed"].includes(m.state.kind),
     ),
@@ -87,6 +99,7 @@ function storyModelsApi(over: Partial<ModelsApi> = {}): ModelsApi {
     refresh: () => Promise.resolve(),
     ...over,
   };
+  return api;
 }
 
 export const withModels: Decorator = (Story, context) => (

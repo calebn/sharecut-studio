@@ -7,6 +7,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
@@ -19,9 +20,11 @@ import { setupOf } from "../stages/home/homeModel";
 import { deferred } from "../test/deferred";
 import { stubViewportShell } from "../test/viewportShell";
 import { ApiError } from "../utils/apiError";
+import type { NeedTarget } from "./capability";
 import { ModelNeedRow, ModelNeedRowView } from "./ModelNeedRow";
 import { ModelsProvider } from "./ModelsProvider";
 import { ModelsSheet } from "./ModelsSheet";
+import { useModelResume } from "./useModelResume";
 import { useModels } from "./useModels";
 
 vi.mock("../api", () => ({
@@ -599,7 +602,7 @@ describe("ModelsProvider", () => {
     });
     expect(outcome).toEqual({ kind: "ok" });
     expect(removeModel).toHaveBeenCalledWith("whisper", "small.en");
-    expect(fetchStatus).toHaveBeenCalledTimes(1);
+    expect(fetchStatus.mock.calls).toEqual([["small.en"], [undefined]]);
     await act(async () => {
       await result.current.remove("rnnoise", "ignored");
     });
@@ -1042,6 +1045,8 @@ describe("variant ownership regressions", () => {
       fetchJob.mockResolvedValue(fast);
       const { result } = await mounted();
       await waitFor(() => expect(waiters).toHaveLength(1));
+      await act(async () => {});
+      const readsBeforeTerminal = fetchStatus.mock.calls.length;
       const stale = deferred<BootstrapStatus>();
       fetchStatus.mockReturnValueOnce(stale.promise);
       await act(async () =>
@@ -1054,7 +1059,9 @@ describe("variant ownership regressions", () => {
             : null,
         }),
       );
-      await waitFor(() => expect(fetchStatus).toHaveBeenCalledTimes(2));
+      await waitFor(() =>
+        expect(fetchStatus).toHaveBeenCalledTimes(readsBeforeTerminal + 1),
+      );
       await act(() => result.current.refresh());
       await act(async () =>
         stale.resolve(
@@ -1171,5 +1178,339 @@ describe("exception ownership", () => {
         },
       }),
     ]);
+  });
+});
+
+describe("explicit target observations", () => {
+  const fastNeed = {
+    id: "whisper",
+    variant: "tiny.en",
+    label: "Whisper",
+    size: "75 MB",
+    request: { operation: "original", revision: 7 },
+  };
+  function variantStatus(variant: string, installed = false) {
+    return status(
+      [
+        row({
+          id: "whisper",
+          model: variant,
+          state: installed ? "installed" : "missing",
+          size_bytes: variant === "tiny.en" ? 75_000_000 : 1_600_000_000,
+        }),
+        row({ id: "rnnoise", state: "installed" }),
+      ],
+      { whisper_model: variant, ready: installed },
+    );
+  }
+
+  it("shows adopted Fast inline, keeps explicit Best selected, and resumes the original request once", async () => {
+    let installed = false;
+    fetchStatus.mockImplementation((variant) =>
+      Promise.resolve(
+        variantStatus(
+          variant ?? "large-v3-turbo",
+          variant !== "tiny.en" || installed,
+        ),
+      ),
+    );
+    const found = deferred<BootstrapJobSnapshot | null>();
+    fetchJob.mockReturnValue(found.promise);
+    const fast = job({
+      id: "inline-fast",
+      whisper_model: "tiny.en",
+      download: { component: "whisper", bytes: 25_000_000, total: 75_000_000 },
+    });
+    cancel.mockResolvedValue(fast);
+    const resume = vi.fn();
+    function Consumer() {
+      const models = useModels();
+      const recovery = useModelResume<typeof fastNeed>(resume);
+      return (
+        <>
+          <button onClick={() => models.whisper.choose("large-v3-turbo")}>
+            Choose Best
+          </button>
+          <button onClick={() => recovery.stopFor(fastNeed)}>
+            Refuse Fast
+          </button>
+          <output aria-label="Selected">{models.whisper.variant}</output>
+          <output aria-label="Ready">{String(models.ready)}</output>
+          <output aria-label="Stopped">
+            {recovery.stop ? "waiting" : "idle"}
+          </output>
+          {recovery.stop && <ModelNeedRow model={recovery.stop} />}
+        </>
+      );
+    }
+    render(
+      <ModelsProvider>
+        <Consumer />
+      </ModelsProvider>,
+    );
+    await waitFor(() =>
+      expect(screen.getByLabelText("Ready")).toHaveTextContent("true"),
+    );
+    fireEvent.click(screen.getByText("Choose Best"));
+    await act(async () => found.resolve(fast));
+    await waitFor(() => expect(waiters).toHaveLength(1));
+    fireEvent.click(screen.getByText("Refuse Fast"));
+    expect(await screen.findByText("25 MB of 75 MB")).toBeVisible();
+    expect(screen.getByLabelText("Selected")).toHaveTextContent(
+      "large-v3-turbo",
+    );
+    expect(screen.getByLabelText("Ready")).toHaveTextContent("true");
+    expect(screen.getByLabelText("Stopped")).toHaveTextContent("waiting");
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Cancel the transcription model download",
+      }),
+    );
+    await waitFor(() =>
+      expect(cancel).toHaveBeenCalledExactlyOnceWith("inline-fast"),
+    );
+    expect(resume).not.toHaveBeenCalled();
+    installed = true;
+    await act(async () => waiters[0]!.finish({ ...fast, status: "cancelled" }));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Stopped")).toHaveTextContent("idle"),
+    );
+    expect(resume).toHaveBeenCalledExactlyOnceWith(fastNeed);
+    expect(resume.mock.calls[0]?.[0]).toBe(fastNeed);
+    expect(fetchStatus).toHaveBeenCalledWith("tiny.en");
+    expect(screen.getByLabelText("Selected")).toHaveTextContent(
+      "large-v3-turbo",
+    );
+    expect(screen.getByLabelText("Ready")).toHaveTextContent("true");
+    fireEvent.click(screen.getByText("Choose Best"));
+    await act(async () => {});
+    expect(resume).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps concurrent Fast and Balanced freshness independent of Best", async () => {
+    const fast = deferred<BootstrapStatus>();
+    const balanced = deferred<BootstrapStatus>();
+    fetchStatus.mockImplementation((variant) =>
+      variant === "tiny.en"
+        ? fast.promise
+        : variant === "small.en"
+          ? balanced.promise
+          : Promise.resolve(variantStatus("large-v3-turbo", true)),
+    );
+    const resumedFast = vi.fn();
+    const resumedBalanced = vi.fn();
+    const balancedNeed = { ...fastNeed, variant: "small.en", size: "500 MB" };
+    const { result } = renderHook(
+      () => ({
+        models: useModels(),
+        fast: useModelResume<typeof fastNeed>(resumedFast),
+        balanced: useModelResume<typeof balancedNeed>(resumedBalanced),
+      }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.models.ready).toBe(true));
+    act(() => {
+      result.current.fast.stopFor(fastNeed);
+      result.current.balanced.stopFor(balancedNeed);
+    });
+    await act(async () => fast.resolve(variantStatus("tiny.en", true)));
+    await waitFor(() =>
+      expect(resumedFast).toHaveBeenCalledExactlyOnceWith(fastNeed),
+    );
+    expect(result.current.balanced.stop).toBe(balancedNeed);
+    expect(result.current.models.whisper.variant).toBe("large-v3-turbo");
+    expect(result.current.models.ready).toBe(true);
+    await act(async () => balanced.resolve(variantStatus("small.en", true)));
+    expect(resumedBalanced).toHaveBeenCalledExactlyOnceWith(balancedNeed);
+    expect(result.current.balanced.stop).toBeNull();
+  });
+
+  it("rejects superseded Fast success and a newer failed read, then resumes the latest request", async () => {
+    const obsolete = deferred<BootstrapStatus>();
+    const newer = deferred<BootstrapStatus>();
+    const retry = deferred<BootstrapStatus>();
+    const targetReads = [obsolete, newer, retry];
+    fetchStatus.mockImplementation((variant) =>
+      variant === "tiny.en"
+        ? (targetReads.shift()?.promise ??
+          Promise.resolve(variantStatus("tiny.en", true)))
+        : Promise.resolve(variantStatus(variant ?? "large-v3-turbo", true)),
+    );
+    const resume = vi.fn();
+    const { result } = renderHook(
+      () => ({
+        models: useModels(),
+        recovery: useModelResume<typeof fastNeed>(resume),
+      }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.models.ready).toBe(true));
+    act(() => result.current.recovery.stopFor(fastNeed));
+    const original = {
+      ...fastNeed,
+      request: { operation: "latest", revision: 8 },
+    };
+    act(() => result.current.recovery.stopFor(original));
+    await act(async () => result.current.models.whisper.choose("small.en"));
+    await act(async () => obsolete.resolve(variantStatus("tiny.en", true)));
+    expect(result.current.recovery.stop).toBe(original);
+    expect(resume).not.toHaveBeenCalled();
+    await act(async () => newer.reject(new Error("Target status offline")));
+    expect(result.current.recovery.stop).toBe(original);
+    act(() => {
+      void result.current.models.refresh();
+    });
+    await act(async () => retry.resolve(variantStatus("tiny.en", true)));
+    await waitFor(() =>
+      expect(resume).toHaveBeenCalledExactlyOnceWith(original),
+    );
+    expect(result.current.recovery.stop).toBeNull();
+    expect(result.current.models.whisper.variant).toBe("small.en");
+  });
+
+  it("checks non-Whisper readiness on the machine without using its metadata as a Whisper size", async () => {
+    fetchStatus.mockImplementation((variant) =>
+      Promise.resolve(variantStatus(variant ?? "large-v3-turbo")),
+    );
+    const resume = vi.fn();
+    const need: NeedTarget = {
+      id: "rnnoise",
+      variant: "rnnoise-model-v1",
+      label: "RNNoise",
+      size: "0.3 MB",
+    };
+    const { result } = renderHook(
+      () => ({
+        models: useModels(),
+        recovery: useModelResume<NeedTarget>(resume),
+      }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.models.models).not.toBeNull());
+    act(() => result.current.models.whisper.choose("small.en"));
+    await waitFor(() =>
+      expect(result.current.models.models?.[0]?.variant).toBe("small.en"),
+    );
+    act(() => result.current.recovery.stopFor(need));
+    await waitFor(() => expect(resume).toHaveBeenCalledExactlyOnceWith(need));
+    expect(fetchStatus).toHaveBeenLastCalledWith("small.en");
+    expect(fetchStatus).not.toHaveBeenCalledWith("rnnoise-model-v1");
+    expect(result.current.models.whisper.variant).toBe("small.en");
+    expect(result.current.models.models?.[0]?.state.kind).toBe("missing");
+  });
+});
+
+describe("target update ownership", () => {
+  it("forces an observed Fast update while leaving Best selected", async () => {
+    fetchStatus.mockImplementation((variant) =>
+      Promise.resolve(
+        status(
+          [
+            row({
+              id: "whisper",
+              model: variant ?? "large-v3-turbo",
+              state: variant === "tiny.en" ? "update_needed" : "installed",
+            }),
+          ],
+          {
+            whisper_model: variant ?? "large-v3-turbo",
+            ready: variant !== "tiny.en",
+          },
+        ),
+      ),
+    );
+    run.mockResolvedValue({
+      job: job({ id: "fast-update", whisper_model: "tiny.en" }),
+    });
+    let selected: ReturnType<typeof useModels> | undefined;
+    function Observe() {
+      selected = useModels();
+      return null;
+    }
+    render(
+      <ModelsProvider>
+        <Observe />
+        <ModelNeedRow
+          model={{
+            id: "whisper",
+            variant: "tiny.en",
+            label: "Whisper",
+            size: "75 MB",
+          }}
+        />
+      </ModelsProvider>,
+    );
+    const update = await screen.findByRole("button", {
+      name: "Update the transcription model",
+    });
+    expect(selected?.whisper.variant).toBe("large-v3-turbo");
+    fireEvent.click(update);
+    await waitFor(() =>
+      expect(run).toHaveBeenCalledExactlyOnceWith({
+        components: ["whisper"],
+        whisper_model: "tiny.en",
+        force: true,
+      }),
+    );
+    expect(selected?.whisper.variant).toBe("large-v3-turbo");
+    expect(selected?.models?.[0]?.state).toEqual({ kind: "installed" });
+    expect(
+      await screen.findByRole("button", {
+        name: "Cancel the transcription model download",
+      }),
+    ).toBeEnabled();
+  });
+});
+
+describe("Models update menu focus", () => {
+  it("hands keyboard focus to Cancel and then honors focus moved to another row", async () => {
+    fetchStatus.mockResolvedValue(
+      status([
+        row({ id: "whisper", model: "large-v3-turbo", state: "installed" }),
+        row({ id: "rnnoise", state: "update_needed" }),
+      ]),
+    );
+    const starting = deferred<Awaited<ReturnType<typeof api.runBootstrap>>>();
+    run.mockReturnValueOnce(starting.promise);
+    stubViewportShell("desktop");
+    render(
+      <ModelsProvider>
+        <ModelsSheet open onClose={vi.fn()} />
+      </ModelsProvider>,
+    );
+    const more = await screen.findByRole("button", {
+      name: "More for Noise reduction",
+    });
+    more.focus();
+    await userEvent.keyboard("{Enter}");
+    const update = await screen.findByRole("menuitem", {
+      name: "Update Noise reduction",
+    });
+    await waitFor(() => expect(update).toHaveFocus());
+    await userEvent.keyboard("{Enter}");
+    const cancelButton = await screen.findByRole("button", {
+      name: "Cancel Noise reduction download",
+    });
+    expect(cancelButton).toHaveFocus();
+    const elsewhere = screen.getByRole("button", {
+      name: "More for Transcription",
+    });
+    await userEvent.click(elsewhere);
+    await userEvent.keyboard("{Escape}");
+    expect(elsewhere).toHaveFocus();
+    const downloading = job({ id: "focus-update", components: ["rnnoise"] });
+    await act(async () => starting.resolve({ job: downloading }));
+    await waitFor(() => expect(waiters).toHaveLength(1));
+    act(() =>
+      waiters[0]!.onUpdate({
+        ...downloading,
+        download: { component: "rnnoise", bytes: 10, total: 100 },
+      }),
+    );
+    expect(elsewhere).toHaveFocus();
+    await act(async () =>
+      waiters[0]!.finish({ ...downloading, status: "cancelled" }),
+    );
+    expect(elsewhere).toHaveFocus();
   });
 });

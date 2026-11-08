@@ -309,8 +309,11 @@ describe("ModelNeedRow with a models provider", () => {
     model: Parameters<typeof ModelNeedRow>[0]["model"],
     rows = registryRows(),
     placement: "need" | "list" = "need",
+    variant = "large-v3-turbo",
   ) {
-    const api = modelsApi({ status: modelStatus(rows) });
+    const api = modelsApi({
+      status: modelStatus(rows, { whisper_model: variant }),
+    });
     const out = render(<ModelNeedRow model={model} placement={placement} />, {
       wrapper: modelsWrapper(api),
     });
@@ -318,7 +321,21 @@ describe("ModelNeedRow with a models provider", () => {
   }
 
   it("downloads the exact Whisper size the step asked for", async () => {
-    const { api } = mount({ ...WHISPER, variant: "small.en", size: "~500 MB" });
+    const { api } = mount(
+      { ...WHISPER, variant: "small.en", size: "~500 MB" },
+      registryRows().map((row) =>
+        row.id === "whisper"
+          ? {
+              ...row,
+              model: "small.en",
+              size: "~500 MB",
+              size_bytes: 500_000_000,
+            }
+          : row,
+      ),
+      "need",
+      "small.en",
+    );
     await userEvent.click(
       screen.getByRole("button", { name: "Get the transcription model" }),
     );
