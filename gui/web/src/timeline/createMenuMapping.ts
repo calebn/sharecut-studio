@@ -1,5 +1,6 @@
 import { COMMANDS } from "../commands/catalog";
 import { buildCommandContext, evaluateWhen } from "../commands/context";
+import { inProject } from "../commands/envelopes";
 import { executePointerCommand } from "../commands/pointer";
 import { runAndAnnounceRefusal } from "../commands/refusal";
 import { getClipboard } from "../edit/clipboard";
@@ -159,7 +160,7 @@ export async function runCreatePick(
       const trackId = place.trackId;
       if (trackId) {
         requestAnimationFrame(() => {
-          if (focusIsFree()) focusLane(trackId);
+          if (inProject(store) && focusIsFree()) focusLane(trackId);
         });
       }
     }

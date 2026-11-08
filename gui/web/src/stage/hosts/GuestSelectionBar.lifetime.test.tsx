@@ -88,11 +88,9 @@ describe.each([
         expect(useDawStore.getState().projectEpoch).toBe(epoch + 1);
       }
       act(() =>
-        useDawStore
-          .getState()
-          .announceStatus("Current project saved", {
-            undo: "undo-receiving" as HistoryEntryId,
-          }),
+        useDawStore.getState().announceStatus("Current project saved", {
+          undo: "undo-receiving" as HistoryEntryId,
+        }),
       );
       const before = useDawStore.getState().statusAnnouncementSeq;
       await act(async () =>

@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { runRangeAction } from "../../commands/rangeActions";
+import { runAndAnnounceRefusal } from "../../commands/refusal";
 import { canComment, rangeEditMode } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { ActionBar, type BarItem } from "../../system/ActionBar";
@@ -43,10 +44,7 @@ export function GuestSelectionBar({
   const onVerb = useCallback((id: BarId) => {
     const action = id === "cut" ? "cut" : id === "comment" ? "comment" : null;
     if (!action) return;
-    void runRangeAction(action).then((result) => {
-      if (result.status === "disabled")
-        useDawStore.getState().announceStatus(result.reason, { tone: "error" });
-    });
+    void runAndAnnounceRefusal(() => runRangeAction(action));
   }, []);
   if (selection?.kind !== "transcriptRange" || !anchor.visible) return null;
   const items: BarItem[] = mayComment ? [{ id: "comment" }] : [];
