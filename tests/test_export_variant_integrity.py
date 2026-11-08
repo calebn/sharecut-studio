@@ -1379,3 +1379,120 @@ def test_source_fingerprint_runtime_error_is_not_unavailable(saved_bundle, monke
     monkeypatch.setattr(export_variant, "_source_certificate", fail)
     with pytest.raises(RuntimeError, match="fingerprint programming failure"):
         ExportFilesService(ws).listed()
+
+
+@pytest.fixture
+def request_workspace(minimal_project, sample_wav):
+    import os
+
+    from podcast_mcp.config.defaults import load_defaults
+    from podcast_mcp.engines.play_audit import mix_gains, write_premix_hash, write_stem_hash
+    from podcast_mcp.models import MediaAsset, Track, TrackRole
+    from podcast_mcp.util.tracks import stem_path
+
+    ws = ProjectWorkspace.open(minimal_project)
+    with write_grant(WriteGrantKind.DISPATCHER):
+        ws.mutate(
+            "before source",
+            "after source",
+            lambda project: project.tracks.append(
+                Track(
+                    id="host",
+                    label="Host",
+                    role=TrackRole.DIALOGUE,
+                    media=MediaAsset(path="raw/host.wav"),
+                )
+            ),
+        )
+    stem = stem_path(ws.project, "host")
+    stem.parent.mkdir(parents=True, exist_ok=True)
+    stem.write_bytes(sample_wav.read_bytes())
+    os.utime(stem, ns=(1_000_000_000, 1_000_000_000))
+    defaults = load_defaults()
+    write_stem_hash(ws.project, "host", defaults=defaults)
+    premix_path(ws.project).write_bytes(sample_wav.read_bytes())
+    write_premix_hash(ws.project, mix_gains(ws.project), trim_db=None, defaults=defaults)
+    (ws.project.export_dir() / "test_episode.wav").write_bytes(sample_wav.read_bytes())
+    return ws
+
+
+@pytest.mark.parametrize(
+    "patch,after_encode",
+    [
+        ({"master": []}, False),
+        ({"export": []}, False),
+        ({"export": {"wav": [False]}}, False),
+        ({"master": []}, True),
+    ],
+)
+def test_delivery_request_rejects_container_fallback(
+    request_workspace, monkeypatch, tmp_path, patch, after_encode
+):
+    import yaml
+
+    from podcast_mcp.config.defaults import load_defaults
+
+    ws = request_workspace
+    engine = _FakeEngine(premix_path(ws.project))
+    engine.qc = {"integrated_lufs": -16.0, "true_peak_db": -10.0, "lra": 7.0}
+    monkeypatch.setattr(pipeline.pipeline_steps, "ffmpeg", lambda: engine)
+    defaults = load_defaults()
+    defaults["master"]["true_peak_db"] = -4
+    defaults["export"].update(wav=False, formats=[{"ext": "mp3"}])
+    override = tmp_path / "request-defaults.yaml"
+    override.write_text(yaml.safe_dump(defaults))
+    monkeypatch.setenv("PODCAST_MCP_PIPELINE_DEFAULTS", str(override))
+    client = TestClient(create_app())
+    control = done(client, ws.path, start(client, ws.path, target="podcast"))
+    assert control["status"] == "ok", control
+    assert control["result"]["master"]["target"]["true_peak_db"] == -4
+    assert [name.rsplit(".", 1)[1] for name in control["result"]["file_ids"]] == ["mp3"]
+    before = _canonical_snapshot(ws)
+    root = ws.project.export_dir() / "variants"
+    bundles = {path.name for path in root.iterdir()}
+    params = {"path": str(ws.path)}
+    rows = client.get(FILES, params=params).json()["files"]
+    saved = {
+        row["id"]: client.get(
+            f"{FILES}/{row['id']}", params={**params, "ticket": row["ticket"]}
+        ).content
+        for row in rows
+    }
+    original = engine.export_audio
+
+    def encode_then_change(*args, **kwargs):
+        original(*args, **kwargs)
+        defaults.update(patch)
+        override.write_text(yaml.safe_dump(defaults))
+
+    if after_encode:
+        defaults["master"]["true_peak_db"] = -1.5
+        override.write_text(yaml.safe_dump(defaults))
+        monkeypatch.setattr(engine, "export_audio", encode_then_change)
+    else:
+        defaults.update(patch)
+        override.write_text(yaml.safe_dump(defaults))
+    engine.qc = {"integrated_lufs": -23.0, "true_peak_db": -17.0, "lra": 7.0}
+    job = done(client, ws.path, start(client, ws.path, target="broadcast"))
+    assert _canonical_snapshot(ws) == before
+    for row in rows:
+        response = client.get(f"{FILES}/{row['id']}", params={**params, "ticket": row["ticket"]})
+        assert response.status_code == 200
+        assert response.content == saved[row["id"]]
+    print(
+        json.dumps(
+            {
+                "patch": patch,
+                "after_encode": after_encode,
+                "job": job,
+                "canonical_preserved": True,
+                "tickets_preserved": True,
+                "new_bundles": sorted({path.name for path in root.iterdir()} - bundles),
+            }
+        )
+    )
+    assert job["status"] == "error", job
+    assert job["error_code"] == "pipeline_config_value_invalid"
+    assert job["result"] is None
+    assert {path.name for path in root.iterdir()} == bundles
+    assert engine.master_calls == (2 if after_encode else 1)
