@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { expectNoA11yViolations } from "../test/a11y";
 import {
   ActionBarInline,
   type ActionBarInlineProps,
@@ -97,5 +98,39 @@ describe("ActionPrompt note", () => {
     fireEvent.keyDown(note, { key: "Enter", isComposing: true });
     fireEvent.keyDown(note, { key: "Enter", keyCode: 229 });
     expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it("guards click, form submit and Enter while confirmation is unavailable", async () => {
+    const onConfirm = vi.fn();
+    const onCheck = vi.fn();
+    const props = { onConfirm, onCheck, checkLabel: "Check words" };
+    const blocked = {
+      confirmDisabledReason: "The suggestion cannot be cut right now.",
+    };
+    const user = userEvent.setup();
+    const view = render(<ActionPrompt verb="cut" {...props} />);
+    await user.click(screen.getByRole("button", { name: "Add a note" }));
+    const note = screen.getByRole("textbox", { name: "Your reason" });
+    await user.type(note, "  Reviewed the audio  ");
+    view.rerender(<ActionPrompt verb="cut" {...props} {...blocked} />);
+
+    const cut = screen.getByRole("button", { name: "Cut anyway" });
+    expect(cut).toBeDisabled();
+    expect(cut).toHaveAccessibleDescription(blocked.confirmDisabledReason);
+    expect(screen.getByText(blocked.confirmDisabledReason)).toBeVisible();
+    expect(note).toHaveFocus();
+    await user.keyboard("{Enter}");
+    await user.click(cut);
+    fireEvent.submit(screen.getByRole("form", { name: "Cut anyway" }));
+    expect(onConfirm).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Check words" }));
+    expect(onCheck).toHaveBeenCalledOnce();
+    await expectNoA11yViolations(view.container);
+
+    view.rerender(<ActionPrompt verb="cut" {...props} />);
+    expect(cut).toBeEnabled();
+    expect(screen.getByRole("textbox", { name: "Your reason" })).toBe(note);
+    await user.click(cut);
+    expect(onConfirm.mock.calls).toEqual([["Reviewed the audio"]]);
   });
 });
