@@ -74,6 +74,16 @@ function scriptGeometry(lineHeight = 20) {
       if (this.classList.contains("sys-script-body"))
         return new DOMRect(0, paneTop, width, height);
       const body = this.closest<HTMLElement>(".sys-script-body");
+      if (this instanceof HTMLElement && this.matches(".sys-handle")) {
+        return new DOMRect(
+          Number.parseFloat(this.style.insetInlineStart) - 10,
+          paneTop +
+            Number.parseFloat(this.style.insetBlockStart) -
+            (body?.scrollTop ?? 0),
+          20,
+          16,
+        );
+      }
       const index = Number(this.getAttribute("data-stop"));
       return new DOMRect(
         0,
@@ -615,72 +625,84 @@ describe("ScriptPane reading position", () => {
     expect(restoredWord?.getBoundingClientRect().top).toBe(18);
   });
 
-  it("keeps a paused End-focused word visible after font restoration", () => {
-    const geometry = scriptGeometry();
-    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(
-      1600,
-    );
-    stubResizeObserver();
-    const fonts = new EventTarget();
-    Object.defineProperty(document, "fonts", {
-      configurable: true,
-      value: fonts,
-    });
-    stubNativeFocusScroll();
-    let position: ScriptPaneReadingPosition = {
-      kind: "word",
-      index: 5,
-      offset: 0,
-      fallbackTop: 100,
-    };
-    const readingPosition: ScriptPaneReadingPositionBinding = {
-      getPosition: () => position,
-      capture: (next) => {
-        position = next;
-      },
-      restore: true,
-    };
-    const { container } = render(
-      <ScriptPane
-        turns={SCRIPT_TURNS}
-        readingPosition={readingPosition}
-        following={false}
-        onFollowChange={vi.fn()}
-        onBackToPlayhead={vi.fn()}
-        playing={0}
-      />,
-    );
-    const body = container.querySelector<HTMLElement>(".sys-script-body");
-    if (!body) throw new Error("Script body was not rendered");
-    const firstWord = body.querySelector<HTMLElement>('[data-stop="0"]');
-    const lastWord = body.querySelector<HTMLElement>('[data-stop="53"]');
-    if (!firstWord || !lastWord)
-      throw new Error("Expected the first and last words");
-    firstWord.focus({ preventScroll: true });
-    fireEvent.wheel(body);
-    fireEvent.keyDown(firstWord, { key: "End" });
-    fireEvent.scroll(body);
+  it.each([false, true])(
+    "keeps a paused End-focused word visible after font restoration with pending resize %s",
+    (resized) => {
+      const geometry = scriptGeometry();
+      vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(
+        1600,
+      );
+      stubResizeObserver();
+      const fonts = new EventTarget();
+      Object.defineProperty(document, "fonts", {
+        configurable: true,
+        value: fonts,
+      });
+      stubNativeFocusScroll();
+      let position: ScriptPaneReadingPosition = {
+        kind: "word",
+        index: 5,
+        offset: 0,
+        fallbackTop: 100,
+      };
+      const readingPosition: ScriptPaneReadingPositionBinding = {
+        getPosition: () => position,
+        capture: (next) => {
+          position = next;
+        },
+        restore: true,
+      };
+      const onUserScroll = vi.fn();
+      const { container } = render(
+        <ScriptPane
+          turns={SCRIPT_TURNS}
+          readingPosition={readingPosition}
+          following={false}
+          onUserScroll={onUserScroll}
+          onFollowChange={vi.fn()}
+          onBackToPlayhead={vi.fn()}
+          playing={0}
+        />,
+      );
+      const body = container.querySelector<HTMLElement>(".sys-script-body");
+      if (!body) throw new Error("Script body was not rendered");
+      const firstWord = body.querySelector<HTMLElement>('[data-stop="0"]');
+      const lastWord = body.querySelector<HTMLElement>('[data-stop="53"]');
+      if (!firstWord || !lastWord)
+        throw new Error("Expected the first and last words");
+      firstWord.focus({ preventScroll: true });
+      fireEvent.wheel(body);
+      fireEvent.keyDown(firstWord, { key: "End" });
+      if (resized) geometry.resize(201, 200);
+      fireEvent.scroll(body);
+      expect(onUserScroll).not.toHaveBeenCalled();
+      expect(position).toMatchObject({
+        kind: "word",
+        index: 53,
+        intent: "focus",
+      });
 
-    expect(document.activeElement).toBe(lastWord);
-    expect(body.scrollTop).toBe(876);
-    expect(lastWord.getBoundingClientRect().top).toBe(184);
-    expect(
-      screen.getByRole("button", { name: "Back to playhead" }),
-    ).toBeVisible();
+      expect(document.activeElement).toBe(lastWord);
+      expect(body.scrollTop).toBe(876);
+      expect(lastWord.getBoundingClientRect().top).toBe(184);
+      expect(
+        screen.getByRole("button", { name: "Back to playhead" }),
+      ).toBeVisible();
 
-    geometry.setLineHeight(24);
-    act(() => {
-      fonts.dispatchEvent(new Event("loadingdone"));
-    });
-    for (const observer of FakeResizeObserver.all) observer.fire(body);
+      geometry.setLineHeight(24);
+      act(() => {
+        fonts.dispatchEvent(new Event("loadingdone"));
+      });
+      for (const observer of FakeResizeObserver.all) observer.fire(body);
 
-    expect(document.activeElement).toBe(lastWord);
-    expect(body.scrollTop).toBe(1088);
-    expect(lastWord.getBoundingClientRect().top).toBe(184);
-    expect(
-      screen.getByRole("button", { name: "Back to playhead" }),
-    ).toBeVisible();
-  });
+      expect(document.activeElement).toBe(lastWord);
+      expect(body.scrollTop).toBe(1088);
+      expect(lastWord.getBoundingClientRect().top).toBe(184);
+      expect(
+        screen.getByRole("button", { name: "Back to playhead" }),
+      ).toBeVisible();
+    },
+  );
 
   it.each(["font", "resize"])(
     "keeps a native Tab-focused word visible after %s restoration",
@@ -1100,9 +1122,14 @@ describe("ScriptPane reading position", () => {
     },
   );
 
-  it.each(["font", "resize"] as const)(
-    "preserves a manually partial still-focused word after %s and accepts fresh Tab ownership",
-    async (callback) => {
+  it.each([
+    ["font", "before"],
+    ["resize", "before"],
+    ["font", "after"],
+    ["resize", "after"],
+  ] as const)(
+    "preserves a manually partial still-focused word after %s with scroll delivered %s resize and accepts fresh Tab ownership",
+    async (callback, scrollOrder) => {
       const user = userEvent.setup();
       const geometry = scriptGeometry();
       stubNativeFocusScroll();
@@ -1156,6 +1183,7 @@ describe("ScriptPane reading position", () => {
 
       fireEvent.wheel(body, { deltaY: 10 });
       body.scrollTop = 10;
+      if (scrollOrder === "after") geometry.resize(200, 199);
       fireEvent.scroll(body);
       expect(position).toMatchObject({
         kind: "word",
@@ -1193,13 +1221,17 @@ describe("ScriptPane reading position", () => {
   );
 
   it.each([
-    ["unmount", false],
-    ["unmount", true],
-    ["loading", false],
-    ["loading", true],
+    ["unmount", false, "document"],
+    ["unmount", true, "document"],
+    ["loading", false, "document"],
+    ["loading", true, "document"],
+    ["unmount", false, "ancestor"],
+    ["unmount", true, "ancestor"],
+    ["loading", false, "ancestor"],
+    ["loading", true, "ancestor"],
   ] as const)(
-    "reveals the returning reading region after %s with StrictMode %s and ancestor clamp",
-    async (transition, strict) => {
+    "reveals the returning reading region after %s with StrictMode %s, %s focus and ancestor clamp",
+    async (transition, strict, focusOwner) => {
       const geometry = nestedScrollGeometry(300);
       stubResizeObserver();
       vi.stubGlobal("innerHeight", 800);
@@ -1214,18 +1246,20 @@ describe("ScriptPane reading position", () => {
       const onUserScroll = vi.fn();
       const tree = (shown: boolean) => {
         const pane = (
-          <div className="rv-main">
-            {shown || transition === "loading" ? (
-              <ScriptPane
-                turns={SCRIPT_TURNS}
-                status={shown ? { kind: "ready" } : { kind: "loading" }}
-                following={false}
-                readingPosition={binding}
-                onUserScroll={onUserScroll}
-              />
-            ) : (
-              <p>Script hidden at short height</p>
-            )}
+          <div tabIndex={-1} data-stage-fallback="">
+            <div className="rv-main">
+              {shown || transition === "loading" ? (
+                <ScriptPane
+                  turns={SCRIPT_TURNS}
+                  status={shown ? { kind: "ready" } : { kind: "loading" }}
+                  following={false}
+                  readingPosition={binding}
+                  onUserScroll={onUserScroll}
+                />
+              ) : (
+                <p>Script hidden at short height</p>
+              )}
+            </div>
           </div>
         );
         return strict ? <StrictMode>{pane}</StrictMode> : pane;
@@ -1255,6 +1289,14 @@ describe("ScriptPane reading position", () => {
       geometry.setBodyPresent(false, outer);
       expect(outer.scrollTop).toBe(0);
       expect(document.activeElement).toBe(document.body);
+      const ancestor = container.querySelector<HTMLElement>(
+        "[data-stage-fallback]",
+      );
+      if (!ancestor) throw new Error("Expected persistent stage ancestor");
+      if (focusOwner === "ancestor") {
+        act(() => ancestor.focus({ preventScroll: true }));
+      }
+      const retiredFocus = document.activeElement;
       geometry.setBodyPresent(true, outer);
       rerender(tree(true));
       const restored = container.querySelector<HTMLElement>(".sys-script-body");
@@ -1277,7 +1319,7 @@ describe("ScriptPane reading position", () => {
         .soft(restored.getBoundingClientRect().bottom)
         .toBeLessThanOrEqual(outer.getBoundingClientRect().bottom);
       expect(position).toBe(saved);
-      expect(document.activeElement).toBe(document.body);
+      expect(document.activeElement).toBe(retiredFocus);
       fireEvent.scroll(restored);
       expect(onUserScroll).not.toHaveBeenCalled();
       rerender(tree(true));
@@ -1524,6 +1566,110 @@ describe("ScriptPane reading position", () => {
         .toBeLessThanOrEqual(Math.min(bounds.bottom, innerHeight));
       expect(document.activeElement).toBe(document.body);
       expect(onUserScroll).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["start", "end"] as const)(
+    "keeps manual reading after a %s grip completes without restoration while held",
+    async (edge) => {
+      const geometry = scriptGeometry();
+      stubNativeFocusScroll();
+      stubResizeObserver();
+      vi.spyOn(HTMLElement.prototype, "getClientRects").mockImplementation(
+        function (this: HTMLElement) {
+          return [this.getBoundingClientRect()] as unknown as DOMRectList;
+        },
+      );
+      const fonts = new EventTarget();
+      Object.defineProperty(document, "fonts", {
+        configurable: true,
+        value: fonts,
+      });
+      let position: ScriptPaneReadingPosition | null = null;
+      const binding: ScriptPaneReadingPositionBinding = {
+        getPosition: () => position,
+        capture: (next) => {
+          position = next;
+        },
+        restore: true,
+      };
+      const onSelect = vi.fn();
+      function Host() {
+        const [selection, setSelection] =
+          useState<ScriptPaneProps["selection"]>(null);
+        return (
+          <ScriptPane
+            turns={SCRIPT_TURNS}
+            following={false}
+            readingPosition={binding}
+            handles
+            selection={selection}
+            onSelect={(next) => {
+              onSelect(next);
+              setSelection(next);
+            }}
+          />
+        );
+      }
+      const { container } = render(<Host />);
+      const body = container.querySelector<HTMLElement>(".sys-script-body");
+      const word = body?.querySelector<HTMLElement>('[data-stop="8"]');
+      const focused = body?.querySelector<HTMLElement>('[data-stop="9"]');
+      if (!body || !word || !focused) throw new Error("Expected reading words");
+      await act(async () => word.focus());
+      fireEvent.keyDown(word, { key: "ArrowRight", shiftKey: true });
+      expect(document.activeElement).toBe(focused);
+      expect(position).toMatchObject({
+        kind: "word",
+        index: 9,
+        intent: "focus",
+        offset: 180,
+      });
+      expect(onSelect).toHaveBeenLastCalledWith({
+        kind: "words",
+        anchor: 8,
+        head: 9,
+      });
+      const grip = body.querySelector<HTMLElement>(`[data-edge="${edge}"]`);
+      if (!grip) throw new Error("Expected selection grip");
+      const rect = grip.getBoundingClientRect();
+      grip.setPointerCapture = vi.fn();
+      const pointer = {
+        pointerId: 7,
+        pointerType: "touch",
+        isPrimary: true,
+        clientX: rect.left + rect.width / 2,
+      };
+      fireEvent.pointerDown(grip, { ...pointer, clientY: rect.top + 8 });
+      fireEvent.pointerMove(grip, {
+        ...pointer,
+        clientY: edge === "start" ? 128 : 208,
+      });
+      fireEvent.pointerUp(grip, {
+        ...pointer,
+        clientY: edge === "start" ? 128 : 208,
+      });
+      expect(onSelect).toHaveBeenLastCalledWith(
+        edge === "start"
+          ? { kind: "words", anchor: 6, head: 9 }
+          : { kind: "words", anchor: 8, head: 10 },
+      );
+      expect(document.activeElement).toBe(focused);
+      expect(body.scrollTop).toBe(0);
+      geometry.resize(200, 100);
+      act(() => {
+        fonts.dispatchEvent(new Event("loadingdone"));
+        for (const observer of FakeResizeObserver.all) observer.fire(body);
+      });
+      expect(body.scrollTop).toBe(0);
+      expect(position).toMatchObject({
+        kind: "word",
+        index: 0,
+        offset: 0,
+        fallbackTop: 0,
+      });
+      expect(position).not.toHaveProperty("intent");
+      expect(document.activeElement).toBe(focused);
     },
   );
 
