@@ -234,10 +234,7 @@ function restorationProject(restored: string | null, ready = true, offset = 0) {
     text: active.map((w) => w.text).join(" "),
     timeline_start: 1.5 + offset,
     timeline_end: 2.23 + offset,
-    timeline_spans: [
-      { start: 1.5 + offset, end: leftEnd + offset },
-      { start: leftEnd + offset, end: 2.23 + offset },
-    ],
+    timeline_spans: [{ start: 1.5 + offset, end: 2.23 + offset }],
     mappable: true,
     ...(ready ? { words: active } : {}),
   };
