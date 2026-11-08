@@ -218,12 +218,13 @@ def test_saved_audio_remains_listed_and_ticketed_when_defaults_are_invalid(
     assert (downloaded.status_code, downloaded.content) == (200, WAV)
 
 
+@pytest.mark.parametrize("invalid_yaml", ["master: [\n", "created_at: 2026-99-99\n"])
 def test_saved_transcripts_remain_listed_as_not_current_when_defaults_are_invalid(
-    ws, folder, client, tmp_path, monkeypatch
+    ws, folder, client, tmp_path, monkeypatch, invalid_yaml
 ) -> None:
     client = TestClient(client.app, raise_server_exceptions=False)
     invalid = tmp_path / "invalid-defaults.yaml"
-    invalid.write_text("master: [\n", encoding="utf-8")
+    invalid.write_text(invalid_yaml, encoding="utf-8")
     monkeypatch.setenv("PODCAST_MCP_PIPELINE_DEFAULTS", str(invalid))
 
     response = client.get("/api/export/files", params={"path": str(ws.path)})
@@ -233,6 +234,15 @@ def test_saved_transcripts_remain_listed_as_not_current_when_defaults_are_invali
     assert {"test_episode.md", "test_episode.srt"} <= rows.keys()
     assert rows["test_episode.md"]["current"] is False
     assert rows["test_episode.srt"]["current"] is False
+    for name in ("test_episode.md", "test_episode.srt"):
+        downloaded = client.get(
+            f"/api/export/files/{name}",
+            params={"path": str(ws.path), "ticket": rows[name]["ticket"]},
+        )
+        assert (downloaded.status_code, downloaded.content) == (
+            200,
+            (ws.project.export_dir() / name).read_bytes(),
+        )
 
 
 def test_transcript_renderer_runtime_errors_propagate(ws, folder, monkeypatch) -> None:

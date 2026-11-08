@@ -78,7 +78,11 @@ def _parsed_defaults(path: Path) -> dict[str, Any]:
     key = str(path)
     hit = _PARSED_DEFAULTS.get(key)
     if hit is None or hit[0] != raw:
-        data = yaml.safe_load(raw.decode("utf-8"))
+        text = raw.decode("utf-8")
+        try:
+            data = yaml.safe_load(text)
+        except ValueError as exc:
+            raise yaml.YAMLError("Invalid pipeline defaults YAML value.") from exc
         if data is None:
             data = {}
         if not isinstance(data, dict):
