@@ -132,7 +132,7 @@ function remapOverlayWords(
     if (typeof word.timeline_end === "number") {
       next.timeline_end = word.timeline_end + delta;
     }
-    if (incoming.mappable !== undefined) {
+    if (word.mappable === undefined && incoming.mappable !== undefined) {
       next.mappable = incoming.mappable;
     }
     return next;
