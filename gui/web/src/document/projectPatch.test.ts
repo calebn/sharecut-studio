@@ -238,8 +238,8 @@ describe("projectFromDocumentSnapshot", () => {
         word_index: 2,
         start: 3.1,
         end: 3.4,
-        timeline_start: 2.6,
-        timeline_end: 2.9,
+        timeline_start: 2.1,
+        timeline_end: 2.4,
         mappable: true,
       },
       {
@@ -247,8 +247,8 @@ describe("projectFromDocumentSnapshot", () => {
         word_index: 3,
         start: 4,
         end: 4.5,
-        timeline_start: 3.5,
-        timeline_end: 4,
+        timeline_start: 3,
+        timeline_end: 3.5,
         mappable: true,
       },
     ] satisfies NonNullable<
@@ -277,7 +277,122 @@ describe("projectFromDocumentSnapshot", () => {
 
     expect(next?.transcript?.utterances[0]?.words).toBeUndefined();
     expect(next?.meta.hydration?.transcript_words).toBe(false);
+    const refreshedWords = words.map((word) =>
+      word.word_index === 1
+        ? { ...word, mappable: true, timeline_start: 2.1, timeline_end: 2.4 }
+        : word.word_index === 2
+          ? {
+              ...word,
+              mappable: false,
+              timeline_start: null,
+              timeline_end: null,
+            }
+          : word,
+    );
+    const detail = minimalProject({
+      ...shell,
+      meta: {
+        ...shell.meta,
+        hydration: { transcript_words: true, history_groups: false },
+      },
+      transcript: { utterances: [{ ...row, words: refreshedWords }] },
+    });
+    const refreshed = projectFromDocumentSnapshot(next, { project: detail });
+    expect(refreshed?.transcript?.utterances[0]?.words).toEqual(refreshedWords);
   });
+
+  it.each([
+    { label: "unchanged", timelineStart: 0, wordStart: 0.5, wordEnd: 1 },
+    {
+      label: "translated together",
+      timelineStart: 4,
+      wordStart: 4.5,
+      wordEnd: 5,
+    },
+  ])(
+    "retains clip-mapped words when placements are $label",
+    ({ timelineStart, wordStart, wordEnd }) => {
+      const clip = (timelineStart: number) => ({
+        id: "only-clip",
+        track_id: "host",
+        source_start: 0,
+        source_end: 2,
+        timeline_start: timelineStart,
+        timeline_end: timelineStart + 2,
+        fade_in_ms: 0,
+        fade_out_ms: 0,
+        join_in_mode: "fade",
+        source_id: "take-a",
+        source_duration_sec: 2,
+        recording_key: null,
+      });
+      const row = {
+        track_id: "host",
+        source_id: "take-a",
+        speaker: "Host",
+        start: 0,
+        end: 2,
+        text: "hello",
+        timeline_start: 0,
+        timeline_end: 2,
+        timeline_spans: [{ start: 0, end: 2 }],
+        mappable: true,
+        words: [
+          {
+            text: "hello",
+            word_index: 0,
+            start: 0.5,
+            end: 1,
+            timeline_start: 0.5,
+            timeline_end: 1,
+            mappable: true,
+          },
+        ],
+      } satisfies NonNullable<
+        NonNullable<ProjectView["transcript"]>["utterances"][number]
+      >;
+      const previous = minimalProject({
+        meta: {
+          name: "Test",
+          workspace_dir: "/tmp",
+          hydration: { transcript_words: true, history_groups: true },
+        },
+        clips: { tracks: { host: [clip(0)] }, clip_count: 1 },
+        transcript: { utterances: [row] },
+      });
+      const { words: _words, ...shellRow } = row;
+      const shell = minimalProject({
+        meta: {
+          name: "Test",
+          workspace_dir: "/tmp",
+          hydration: { transcript_words: false, history_groups: false },
+        },
+        clips: { tracks: { host: [clip(timelineStart)] }, clip_count: 1 },
+        transcript: {
+          utterances: [
+            {
+              ...shellRow,
+              timeline_start: timelineStart,
+              timeline_end: timelineStart + 2,
+              timeline_spans: [
+                { start: timelineStart, end: timelineStart + 2 },
+              ],
+            },
+          ],
+        },
+      });
+
+      const next = projectFromDocumentSnapshot(previous, { project: shell });
+
+      expect(next?.transcript?.utterances[0]?.words?.[0]).toMatchObject({
+        text: "hello",
+        timeline_start: wordStart,
+        timeline_end: wordEnd,
+        mappable: true,
+      });
+      expect(next?.meta.hydration?.transcript_words).toBe(true);
+    },
+  );
 
   it.each([
     { label: "unchanged", timelineStart: 0 },

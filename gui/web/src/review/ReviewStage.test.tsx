@@ -173,21 +173,26 @@ describe("ReviewStage", () => {
   });
 
   it("keeps an armed group note and focus when the same proposal gets a new Fix target", async () => {
-    const contentWithTarget = (target: string) => (item: ReviewItem) => {
-      const body = reviewContent(item);
-      return item.id === "f3" && body.card.unsure
-        ? {
-            ...body,
-            card: {
-              ...body.card,
-              unsure: { ...body.card.unsure, id: target },
-            },
-          }
-        : body;
-    };
+    const contentWithTarget =
+      (target: string, index: number) => (item: ReviewItem) => {
+        const body = reviewContent(item);
+        return item.id === "f3" && body.card.unsure
+          ? {
+              ...body,
+              card: {
+                ...body.card,
+                unsure: {
+                  ...body.card.unsure,
+                  id: target,
+                  step: { index, total: 2 },
+                },
+              },
+            }
+          : body;
+      };
     const props = {
       initialItems: QUEUE_ITEMS,
-      content: contentWithTarget("host:take-a:word:0"),
+      content: contentWithTarget("host:take-a:word:0", 1),
       duration: 3000,
       initialSelectedId: "f3",
     };
@@ -202,7 +207,7 @@ describe("ReviewStage", () => {
     view.rerender(
       <ReviewStageHarness
         {...props}
-        content={contentWithTarget("host:take-a:word:1")}
+        content={contentWithTarget("host:take-a:word:1", 2)}
       />,
     );
 
