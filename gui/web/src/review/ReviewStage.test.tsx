@@ -842,6 +842,7 @@ describe("ReviewStage host seams", () => {
     fireEvent.submit(screen.getByRole("form", { name: "Cut anyway" }));
     expect(props.onDecide).not.toHaveBeenCalled();
 
+    await user.click(note);
     view.rerender(<ReviewStage {...props} />);
     expect(screen.getByRole("textbox", { name: "Your reason" })).toBe(note);
     expect(note).toHaveFocus();

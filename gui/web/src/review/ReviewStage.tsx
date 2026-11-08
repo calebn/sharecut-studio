@@ -232,10 +232,15 @@ export function ReviewStage({
     );
   };
 
-  const armed = gate && pending?.ids.some(cuttable) ? pending : null;
-  const pendingItem = armed
-    ? items.find((i) => i.id === armed.ids[0])
-    : undefined;
+  const pendingItem =
+    pending && items.find((i) => !i.result && pending.ids.includes(i.id));
+  if (pending && !pendingItem) setPending(null);
+  const armed = gate && pendingItem ? pending : null;
+  const confirmDisabledReason = bulkRunning
+    ? BUSY_REASON
+    : armed && !armed.ids.some(cuttable)
+      ? "None of these suggestions can be applied right now."
+      : undefined;
 
   const keep = (id: string) => {
     if (
@@ -417,6 +422,10 @@ export function ReviewStage({
         }
       : undefined;
   const unsureWords = openOf(items, "unsure-word").length;
+  const checkLabel =
+    wordDetail?.kind === "pending" || wordDetail?.kind === "failed"
+      ? "Check words"
+      : `Check ${unsureWords} ${unsureWords === 1 ? "word" : "words"}`;
   const position = selected
     ? fullOrder(items, sort).findIndex((i) => i.id === selected.id) + 1
     : 0;
@@ -565,7 +574,8 @@ export function ReviewStage({
                 armed && pendingItem
                   ? {
                       verb: itemVerb(pendingItem),
-                      checkLabel: `Check ${unsureWords} ${unsureWords === 1 ? "word" : "words"}`,
+                      checkLabel,
+                      confirmDisabledReason,
                       onConfirm: confirmAnyway,
                       onCheck: checkWords,
                     }
