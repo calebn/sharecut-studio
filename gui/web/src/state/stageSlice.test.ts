@@ -27,6 +27,54 @@ describe("stageSlice", () => {
     expect(st().openSheet).toBeNull();
   });
 
+  it("claims only the latest explicit word reveal and exposes Script for Edit", () => {
+    const first = st().requestEditWordReveal({
+      trackId: "host",
+      sourceId: null,
+      wordIndex: 2,
+    });
+    const latest = st().requestEditWordReveal({
+      trackId: "host",
+      sourceId: "source-a",
+      wordIndex: 2,
+    });
+
+    expect(first).not.toBe(latest);
+    expect(st().consumeEditWordReveal(first)).toBe(false);
+    expect(st().pendingEditWordReveal).toEqual({
+      trackId: "host",
+      sourceId: "source-a",
+      wordIndex: 2,
+    });
+    st().openStage("edit");
+    expect(st().editSurface).toBe("text");
+    expect(st().scriptCollapsed).toBe(false);
+    expect(localStorage.getItem("sharecut.scriptCollapsed")).toBeNull();
+    expect(st().consumeEditWordReveal(latest)).toBe(true);
+    expect(st().pendingEditWordReveal).toBeNull();
+    expect(st().consumeEditWordReveal(latest)).toBe(false);
+  });
+
+  it("drops a pending word reveal when leaving Edit or changing project", () => {
+    const leaving = st().requestEditWordReveal({
+      trackId: "host",
+      sourceId: null,
+      wordIndex: 9,
+    });
+    st().openStage("review");
+    expect(st().pendingEditWordReveal).toBeNull();
+    expect(st().consumeEditWordReveal(leaving)).toBe(false);
+
+    const switching = st().requestEditWordReveal({
+      trackId: "host",
+      sourceId: null,
+      wordIndex: 10,
+    });
+    st().hydrate("/tmp/stage-b.json", minimalProject());
+    expect(st().pendingEditWordReveal).toBeNull();
+    expect(st().consumeEditWordReveal(switching)).toBe(false);
+  });
+
   it("restores the zoom, scroll and userZoomed a stage left", () => {
     useDawStore.setState({
       zoomPxPerSec: 80,

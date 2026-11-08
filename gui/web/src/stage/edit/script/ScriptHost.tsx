@@ -47,6 +47,9 @@ export function ScriptHost({
   onTranscribe,
 }: ScriptHostProps) {
   const projectPath = useDawStore((s) => s.projectPath);
+  const projectEpoch = useDawStore((s) => s.projectEpoch);
+  const stage = useDawStore((s) => s.stage);
+  const pendingEditWordReveal = useDawStore((s) => s.pendingEditWordReveal);
   const guestMode = useDawStore((s) => s.guestMode);
   const capabilities = useDawStore((s) => s.shareCapabilities);
   const breakpoint = useDawStore((s) => s.shellBreakpoint);
@@ -80,6 +83,40 @@ export function ScriptHost({
 
   const playback = useScriptPlayback(model, silent);
   const win = useScriptWindow(model, pane, hostEl, playback);
+  useEffect(() => {
+    const request = pendingEditWordReveal;
+    if (
+      request === null ||
+      stage !== "edit" ||
+      !ready ||
+      loading === true ||
+      pane.current === null
+    )
+      return;
+    const store = useDawStore.getState();
+    if (
+      store.pendingEditWordReveal !== request ||
+      store.stage !== "edit" ||
+      store.projectPath !== projectPath ||
+      store.projectEpoch !== projectEpoch
+    )
+      return;
+    const index = model.indexOf(request);
+    if (index === undefined) {
+      store.consumeEditWordReveal(request);
+      return;
+    }
+    if (store.consumeEditWordReveal(request)) win.scrollTo(index, "center");
+  }, [
+    loading,
+    model,
+    pendingEditWordReveal,
+    projectEpoch,
+    projectPath,
+    ready,
+    stage,
+    win.scrollTo,
+  ]);
   const selection = useScriptSelection(model, mode !== "none", win.reached);
   const carets = useScriptCarets(model, selection.carets);
   const jump = useScriptUnsure(model, texts, unsure, win.scrollTo, say);

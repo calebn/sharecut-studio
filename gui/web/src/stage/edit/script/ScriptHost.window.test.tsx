@@ -1,4 +1,10 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -95,6 +101,42 @@ beforeEach(() => {
 });
 
 describe("ScriptHost unsure words", () => {
+  it("reveals an exact far word once through the window retry in StrictMode", async () => {
+    useDawStore.getState().requestEditWordReveal({
+      trackId: "host",
+      sourceId: null,
+      wordIndex: 350,
+    });
+    useDawStore.setState({ stage: "edit" });
+    render(
+      <StrictMode>
+        <ScriptHost />
+      </StrictMode>,
+    );
+
+    expect(scrolling.calls).toContain(700);
+    expect(useDawStore.getState().pendingEditWordReveal).toBeNull();
+    expect(scrolling.calls.at(-1)).toBe(700);
+    await waitFor(() => expect(hasWord("a350")).toBe(true));
+  });
+
+  it("holds the exact reveal until words are ready", async () => {
+    const request = useDawStore.getState().requestEditWordReveal({
+      trackId: "host",
+      sourceId: null,
+      wordIndex: 350,
+    });
+    useDawStore.setState({ stage: "edit" });
+    const view = render(<ScriptHost status={{ kind: "loading" }} />);
+    expect(useDawStore.getState().pendingEditWordReveal).toBe(request);
+    expect(scrolling.calls).toEqual([]);
+
+    view.rerender(<ScriptHost status={{ kind: "ready" }} />);
+    expect(scrolling.calls).toContain(700);
+    await waitFor(() => expect(hasWord("a350")).toBe(true));
+    expect(useDawStore.getState().pendingEditWordReveal).toBeNull();
+  });
+
   it("counts unsure words over the episode and leaves out a bleed-only row", () => {
     seedScript();
     render(<ScriptHost />);
