@@ -1,6 +1,7 @@
 import {
   act,
   cleanup,
+  createEvent,
   fireEvent,
   render,
   screen,
@@ -239,6 +240,9 @@ function nestedScrollGeometry(paneTop: number) {
         outer.scrollTop,
         outer.scrollHeight - outer.clientHeight,
       );
+    },
+    setOuterHeight: (height: number) => {
+      outerHeight = height;
     },
     shrink: () => {
       paneHeight = 180;
@@ -984,6 +988,336 @@ describe("ScriptPane reading position", () => {
     fireEvent.scroll(body);
     expect(onUserScroll).toHaveBeenCalledOnce();
   });
+
+  it.each([
+    ["wheel", "resize"],
+    ["wheel", "font"],
+    ["touch", "resize"],
+    ["touch", "font"],
+  ] as const)(
+    "retains newer %s movement after acknowledging a restore before %s",
+    (input, observation) => {
+      const geometry = scriptGeometry();
+      stubResizeObserver();
+      const fonts = new EventTarget();
+      Object.defineProperty(document, "fonts", {
+        configurable: true,
+        value: fonts,
+      });
+      const onUserScroll = vi.fn();
+      const { body, captured } = setup(
+        { kind: "scroll", top: 590 },
+        false,
+        onUserScroll,
+      );
+      expect(body.scrollTop).toBe(590);
+      if (input === "wheel") fireEvent.wheel(body, { deltaY: 80 });
+      else {
+        fireEvent.touchStart(body, {
+          touches: [{ identifier: 1, target: body, clientY: 160 }],
+        });
+        fireEvent.touchMove(body, {
+          touches: [{ identifier: 1, target: body, clientY: 80 }],
+        });
+      }
+      fireEvent.scroll(body);
+      expect(captured()).toEqual({ kind: "scroll", top: 590 });
+      expect(onUserScroll).not.toHaveBeenCalled();
+      body.scrollTop = 670;
+      geometry.resize(201, 408);
+      act(() => {
+        if (observation === "font")
+          fonts.dispatchEvent(new Event("loadingdone"));
+        else for (const observer of FakeResizeObserver.all) observer.fire(body);
+      });
+      expect.soft(body.scrollTop).toBe(670);
+      expect.soft(captured()).toMatchObject({
+        kind: "word",
+        index: 33,
+        fallbackTop: 670,
+      });
+      fireEvent.scroll(body);
+      expect(onUserScroll).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each(["cancelled", "prevented"] as const)(
+    "rejects same-box reflow scroll before font delivery after a %s touch",
+    (input) => {
+      const geometry = scriptGeometry();
+      const fonts = new EventTarget();
+      Object.defineProperty(document, "fonts", {
+        configurable: true,
+        value: fonts,
+      });
+      const onUserScroll = vi.fn();
+      const { body, captured } = setup(
+        { kind: "word", index: 29, offset: -10, fallbackTop: 590 },
+        false,
+        onUserScroll,
+      );
+      fireEvent.scroll(body);
+      const saved = captured();
+      fireEvent.touchStart(body, {
+        touches: [{ identifier: 1, target: body, clientY: 160 }],
+      });
+      const move = createEvent.touchMove(body, {
+        cancelable: true,
+        touches: [{ identifier: 1, target: body, clientY: 80 }],
+        changedTouches: [{ identifier: 1, target: body, clientY: 80 }],
+      });
+      if (input === "prevented") {
+        move.preventDefault();
+        expect(move.defaultPrevented).toBe(true);
+      }
+      fireEvent(body, move);
+      const end = {
+        touches: [],
+        changedTouches: [{ identifier: 1, target: body, clientY: 80 }],
+      };
+      if (input === "cancelled") fireEvent.touchCancel(body, end);
+      else fireEvent.touchEnd(body, end);
+      geometry.setLineHeight(24);
+      body.scrollTop = 670;
+      fireEvent.scroll(body);
+      expect.soft(captured()).toBe(saved);
+      expect.soft(onUserScroll).not.toHaveBeenCalled();
+      act(() => {
+        fonts.dispatchEvent(new Event("loadingdone"));
+      });
+      expect(body.scrollTop).toBe(706);
+      expect(captured()).toMatchObject({
+        kind: "word",
+        index: 29,
+        offset: -10,
+        fallbackTop: 590,
+      });
+    },
+  );
+
+  it.each([
+    ["bound", "ctrl"],
+    ["bound", "prevented"],
+    ["unbound", "ctrl"],
+    ["unbound", "prevented"],
+  ] as const)(
+    "keeps the %s Follow contract for a %s wheel",
+    (bindingMode, input) => {
+      scriptGeometry();
+      let position: ScriptPaneReadingPosition | null = null;
+      const onUserScroll = vi.fn();
+      function Host() {
+        const [following, setFollowing] = useState(true);
+        return (
+          <ScriptPane
+            turns={SCRIPT_TURNS}
+            following={following}
+            onFollowChange={setFollowing}
+            onUserScroll={() => {
+              onUserScroll();
+              setFollowing(false);
+            }}
+            readingPosition={
+              bindingMode === "bound"
+                ? {
+                    getPosition: () => position,
+                    capture: (next) => {
+                      position = next;
+                    },
+                    restore: !following,
+                  }
+                : undefined
+            }
+          />
+        );
+      }
+      const { container } = render(<Host />);
+      const body = container.querySelector<HTMLElement>(".sys-script-body");
+      if (!body) throw new Error("Expected script body");
+      const follow = screen.getByRole("button", {
+        name: "Follow the playhead",
+      });
+      expect(follow).toHaveAttribute("aria-pressed", "true");
+      const wheel = new WheelEvent("wheel", {
+        bubbles: true,
+        cancelable: true,
+        deltaY: 80,
+        ctrlKey: input === "ctrl",
+      });
+      if (input === "prevented") wheel.preventDefault();
+      fireEvent(body, wheel);
+      body.scrollTop = 80;
+      fireEvent.scroll(body);
+      expect
+        .soft(follow)
+        .toHaveAttribute(
+          "aria-pressed",
+          bindingMode === "bound" ? "true" : "false",
+        );
+      expect
+        .soft(onUserScroll)
+        .toHaveBeenCalledTimes(bindingMode === "bound" ? 0 : 1);
+      fireEvent.wheel(body, { deltaY: 80 });
+      body.scrollTop = 160;
+      fireEvent.scroll(body);
+      expect(follow).toHaveAttribute("aria-pressed", "false");
+      expect(onUserScroll).toHaveBeenCalledTimes(
+        bindingMode === "bound" ? 1 : 2,
+      );
+      if (bindingMode === "bound")
+        expect(position).toMatchObject({
+          kind: "word",
+          index: 8,
+          fallbackTop: 160,
+        });
+    },
+  );
+
+  it("fits the focused word ring after an ancestor-only window resize", async () => {
+    const geometry = nestedScrollGeometry(300);
+    stubResizeObserver();
+    vi.stubGlobal("innerHeight", 1000);
+    let position: ScriptPaneReadingPosition | null = null;
+    const binding: ScriptPaneReadingPositionBinding = {
+      getPosition: () => position,
+      capture: (next) => {
+        position = next;
+      },
+      restore: true,
+    };
+    const { container } = render(
+      <div className="rv-main">
+        <ScriptPane
+          turns={SCRIPT_TURNS}
+          following={false}
+          readingPosition={binding}
+        />
+      </div>,
+    );
+    const body = container.querySelector<HTMLElement>(".sys-script-body");
+    const outer = container.querySelector<HTMLElement>(".rv-main");
+    const word = body?.querySelector<HTMLElement>('[data-stop="15"]');
+    if (!body || !outer || !word)
+      throw new Error("Expected nested reading pane");
+    await act(async () => word.focus());
+    expect(document.activeElement).toBe(word);
+    expect(word.textContent).toBe("sound");
+    expect(position).toMatchObject({
+      kind: "word",
+      index: 15,
+      intent: "focus",
+    });
+    expect(word.getBoundingClientRect().bottom + 4).toBe(620);
+    geometry.setOuterHeight(450);
+    vi.stubGlobal("innerHeight", 850);
+    fireEvent(window, new Event("resize"));
+    expect(body.clientHeight).toBe(400);
+    expect(document.activeElement).toBe(word);
+    expect(word.getBoundingClientRect().top - 4).toBeGreaterThanOrEqual(
+      Math.max(
+        0,
+        body.getBoundingClientRect().top,
+        outer.getBoundingClientRect().top,
+      ),
+    );
+    expect(word.getBoundingClientRect().bottom + 4).toBeLessThanOrEqual(
+      Math.min(
+        innerHeight,
+        body.getBoundingClientRect().bottom,
+        outer.getBoundingClientRect().bottom,
+      ),
+    );
+  });
+
+  it.each(["word drag", "grip hold"] as const)(
+    "keeps the held pointer word fixed during imperative follow with a %s",
+    (owner) => {
+      vi.useFakeTimers({
+        toFake: ["requestAnimationFrame", "cancelAnimationFrame"],
+      });
+      scriptGeometry();
+      vi.spyOn(HTMLElement.prototype, "getClientRects").mockImplementation(
+        function (this: HTMLElement) {
+          return [this.getBoundingClientRect()] as unknown as DOMRectList;
+        },
+      );
+      const ref = createRef<ScriptPaneHandle>();
+      let position: ScriptPaneReadingPosition | null = {
+        kind: "scroll",
+        top: 100,
+      };
+      const binding: ScriptPaneReadingPositionBinding = {
+        getPosition: () => position,
+        capture: (next) => {
+          position = next;
+        },
+        restore: true,
+      };
+      function Host() {
+        const [selection, setSelection] = useState<
+          ScriptPaneProps["selection"]
+        >({ kind: "words", anchor: 8, head: 9 });
+        return (
+          <ScriptPane
+            ref={ref}
+            turns={SCRIPT_TURNS}
+            readingPosition={binding}
+            following
+            handles
+            selection={selection}
+            onSelect={setSelection}
+          />
+        );
+      }
+      const { container } = render(<Host />);
+      const body = container.querySelector<HTMLElement>(".sys-script-body");
+      const word = body?.querySelector<HTMLElement>('[data-stop="8"]');
+      const grip = body?.querySelector<HTMLElement>('[data-edge="end"]');
+      if (!body || !word || !grip)
+        throw new Error("Expected selectable words and grip");
+      document.elementFromPoint = (_x, y) =>
+        body.querySelector(
+          `[data-stop="${Math.floor((y + body.scrollTop) / 20)}"]`,
+        );
+      const target = owner === "word drag" ? word : grip;
+      const capturePointer = vi.fn();
+      target.setPointerCapture = capturePointer;
+      const pointer = {
+        pointerId: 7,
+        pointerType: owner === "word drag" ? "mouse" : "touch",
+        isPrimary: true,
+        clientX: 50,
+        clientY: 88,
+      };
+      fireEvent.pointerDown(target, {
+        ...pointer,
+        clientY: owner === "word drag" ? 68 : 88,
+      });
+      if (owner === "word drag") {
+        fireEvent.pointerMove(body, pointer);
+        expect(body).toHaveAttribute("data-selecting");
+      } else expect(capturePointer).toHaveBeenCalledExactlyOnceWith(7);
+      act(() => {
+        vi.advanceTimersByTime(16);
+      });
+      expect(body.scrollTop).toBe(100);
+      expect(document.elementFromPoint(50, 88)?.textContent).toBe("about");
+      act(() => {
+        expect(ref.current?.scrollToWord(40, "center")).toBe(true);
+      });
+      expect.soft(body.scrollTop).toBe(100);
+      expect.soft(document.elementFromPoint(50, 88)?.textContent).toBe("about");
+      fireEvent.pointerUp(owner === "word drag" ? body : target, pointer);
+      act(() => {
+        expect(ref.current?.scrollToWord(5, "center")).toBe(true);
+      });
+      expect(body.scrollTop).toBe(8);
+      act(() => {
+        expect(ref.current?.scrollToWord(40, "center")).toBe(true);
+      });
+      expect(body.scrollTop).toBe(708);
+    },
+  );
 
   it("keeps the anchor offset after body and font reflow", () => {
     const geometry = scriptGeometry();
