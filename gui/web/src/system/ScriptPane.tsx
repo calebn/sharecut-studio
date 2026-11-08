@@ -221,14 +221,43 @@ function advanceReading(
   const projected = previous
     ? Math.min(sample.maximum, Math.max(0, previous.top + referenceShift))
     : sample.top;
-  const direction =
-    sample.top === previous?.top
-      ? null
-      : sample.top < projected
+  const input =
+    boundary.kind === "input" ? boundary.input : { kind: "none" as const };
+  const touchDelta =
+    input.kind === "touch-move" &&
+    !input.blocked &&
+    touch?.identifier === input.identifier
+      ? touch.previousY - input.y
+      : 0;
+  const inputDirection =
+    input.kind === "direction"
+      ? input.direction
+      : touchDelta < 0
         ? "up"
-        : sample.top > projected
+        : touchDelta > 0
           ? "down"
           : null;
+  const passiveTop = previous
+    ? Math.min(sample.maximum, Math.max(0, previous.top))
+    : sample.top;
+  const physicalDirection =
+    sample.top === previous?.top
+      ? null
+      : sample.top < passiveTop
+        ? "up"
+        : sample.top > passiveTop
+          ? "down"
+          : null;
+  const direction =
+    inputDirection !== null && inputDirection === physicalDirection
+      ? inputDirection
+      : sample.top === previous?.top
+        ? null
+        : sample.top < projected
+          ? "up"
+          : sample.top > projected
+            ? "down"
+            : null;
   const admit = (evidence: ReadingDirections, toward: ReadingDirection) => {
     if (
       direction === toward ||
@@ -241,10 +270,10 @@ function advanceReading(
       };
     }
   };
-  const input =
-    boundary.kind === "input" ? boundary.input : { kind: "none" as const };
   const releasedScrollbar =
-    input.kind === "scrollbar-end" && input.pointerId === scrollbar.pointerId;
+    !contentChanged &&
+    input.kind === "scrollbar-end" &&
+    input.pointerId === scrollbar.pointerId;
   switch (input.kind) {
     case "direction":
       admit(sources[input.source], input.direction);
@@ -310,16 +339,17 @@ function advanceReading(
   }
   const evidence = [
     ...Object.values(sources),
-    scrollbar.evidence,
+    contentChanged ? NO_READING_EVIDENCE : scrollbar.evidence,
     ...(touch ? [touch.evidence] : []),
   ];
+  const scrollbarActive = !contentChanged && scrollbar.pointerId !== null;
   const supported =
     direction !== null &&
     (evidence.some((facts) => {
       const fact = facts[direction];
       return fact && (fact.kind === "pending" || !contentChanged);
     }) ||
-      scrollbar.pointerId !== null ||
+      scrollbarActive ||
       releasedScrollbar);
   if (direction) {
     for (const facts of evidence) {
@@ -335,11 +365,7 @@ function advanceReading(
         else if (fact.kind === "moving") facts[toward] = null;
       }
     }
-    if (
-      supported &&
-      scrollbar.pointerId !== null &&
-      !scrollbar.evidence[direction]
-    )
+    if (supported && scrollbarActive && !scrollbar.evidence[direction])
       scrollbar.evidence[direction] = {
         kind: "moving",
         sourceAt: sample.observedAt,
@@ -348,6 +374,7 @@ function advanceReading(
   }
   const geometry =
     boundary.kind === "geometry" ||
+    contentChanged ||
     Boolean(
       previous &&
         (previous.width !== sample.width ||
@@ -1041,13 +1068,31 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
 
     const tabStop = useMemo(() => {
       if (focused !== null && stopPos.has(focused)) return focused;
+      const saved = readingPosition?.restore
+        ? readingPosition.getPosition()
+        : null;
+      if (
+        saved?.kind === "word" &&
+        saved.intent === "focus" &&
+        (!saved.turns || saved.turns === turns) &&
+        stopPos.has(saved.index)
+      )
+        return saved.index;
       return (
         stopContaining(stops, ownCaret)?.start ??
         stopContaining(stops, playingList[0])?.start ??
         stops[0]?.start ??
         -1
       );
-    }, [focused, stopPos, stops, ownCaret, playingList]);
+    }, [
+      focused,
+      stopPos,
+      stops,
+      ownCaret,
+      playingList,
+      readingPosition,
+      turns,
+    ]);
 
     const live = useRef<Live>({
       stops,
@@ -2134,19 +2179,20 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
               readingPosition == null
                 ? scrollHandlers.onPointerDown
                 : (event) => {
+                    if (
+                      event.target !== event.currentTarget ||
+                      !event.isPrimary ||
+                      event.pointerType === "touch" ||
+                      event.button !== 0 ||
+                      event.defaultPrevented
+                    )
+                      return;
                     reconcileViewport({
                       kind: "input",
-                      input:
-                        event.target === event.currentTarget &&
-                        event.isPrimary &&
-                        event.pointerType !== "touch" &&
-                        event.button === 0 &&
-                        !event.defaultPrevented
-                          ? {
-                              kind: "scrollbar-start",
-                              pointerId: event.pointerId,
-                            }
-                          : { kind: "none" },
+                      input: {
+                        kind: "scrollbar-start",
+                        pointerId: event.pointerId,
+                      },
                     });
                   }
             }
