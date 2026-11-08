@@ -1,5 +1,6 @@
 import errno
 import os
+from contextlib import contextmanager
 
 import pytest
 
@@ -216,3 +217,93 @@ def test_publish_collision_preserves_existing_destination(tmp_path):
     stage.close()
 
     assert (destination / "foreign").read_bytes() == b"keep"
+
+
+@contextmanager
+def _reuse_on_close(tmp_path, monkeypatch, path_prefix, *, same_inode):
+    import fcntl
+
+    real_open = owned_stage.open_nofollow_dir
+    real_close = os.close
+    real_fstat = os.fstat
+    marker = tmp_path / "replacement-marker"
+    marker.write_bytes(b"separately owned")
+    target = None
+    replacement = None
+    original_identity = None
+    foreign_close_attempts = []
+
+    def opened(path, **kwargs):
+        nonlocal target
+        descriptor = real_open(path, **kwargs)
+        if target is None and str(path).startswith(path_prefix):
+            target = descriptor
+        return descriptor
+
+    def close(descriptor):
+        nonlocal replacement, original_identity
+        if descriptor == replacement:
+            foreign_close_attempts.append(descriptor)
+            return
+        if descriptor != target or replacement is not None:
+            real_close(descriptor)
+            return
+
+        original = real_fstat(descriptor)
+        original_identity = (original.st_dev, original.st_ino)
+        if same_inode:
+            donor = os.open(".", os.O_RDONLY | os.O_DIRECTORY, dir_fd=descriptor)
+        else:
+            donor = os.open(marker, os.O_RDONLY)
+        try:
+            real_close(descriptor)
+            replacement = fcntl.fcntl(donor, fcntl.F_DUPFD, descriptor)
+            assert replacement == descriptor, "the control must reuse the released number"
+        finally:
+            real_close(donor)
+
+    try:
+        with monkeypatch.context() as scope:
+            scope.setattr(owned_stage, "open_nofollow_dir", opened)
+            scope.setattr(os, "close", close)
+            yield scope
+
+        assert replacement is not None
+        current = real_fstat(replacement)
+        assert ((current.st_dev, current.st_ino) == original_identity) is same_inode
+        if not same_inode:
+            assert os.read(replacement, 16) == b"separately owned"
+        assert foreign_close_attempts == []
+    finally:
+        if replacement is not None:
+            real_close(replacement)
+
+
+@pytest.mark.parametrize("same_inode", [False, True], ids=["different-file", "same-inode"])
+def test_constructor_observer_leaves_replacement_owned_by_control(
+    tmp_path, monkeypatch, same_inode
+):
+    with _reuse_on_close(tmp_path, monkeypatch, ".partial-", same_inode=same_inode) as scope:
+        test_constructor_fstat_failure_closes_acquired_stage(tmp_path, scope)
+
+
+@pytest.mark.parametrize("child_open_fails", [False, True], ids=["return", "exception"])
+def test_root_walk_observer_leaves_replacement_owned_by_control(
+    tmp_path, monkeypatch, child_open_fails
+):
+    real_open = owned_stage.open_nofollow_dir
+
+    def failing_open(path, **kwargs):
+        if path == "child":
+            raise OSError(errno.EIO, "injected child open error")
+        return real_open(path, **kwargs)
+
+    if child_open_fails:
+        monkeypatch.setattr(owned_stage, "open_nofollow_dir", failing_open)
+    with _reuse_on_close(tmp_path, monkeypatch, tmp_path.anchor, same_inode=True) as scope:
+        if child_open_fails:
+            with pytest.raises(OSError, match="injected child open error") as caught:
+                test_open_root_child_is_released_when_parent_close_raises(tmp_path, scope)
+            assert caught.value.errno == errno.EIO
+        else:
+            test_open_root_child_is_released_when_parent_close_raises(tmp_path, scope)
