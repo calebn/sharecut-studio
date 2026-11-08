@@ -280,16 +280,39 @@ describe("projectFromDocumentSnapshot", () => {
           utterances: [
             {
               ...row,
-              words: words.map((word) => ({ ...word, mappable: false })),
+              mappable: false,
+              timeline_start: null,
+              timeline_end: null,
+              words: words.map((word) => ({
+                ...word,
+                mappable: false,
+                timeline_start: null,
+                timeline_end: null,
+              })),
             },
           ],
         },
       });
-      const undone = projectFromDocumentSnapshot(overlaid, { project: detail });
-      expect(undone?.meta.hydration?.transcript_words).toBe(true);
+      const replaced = projectFromDocumentSnapshot(overlaid, {
+        project: detail,
+      });
+      expect(replaced?.meta.hydration?.transcript_words).toBe(true);
       expect(
-        undone?.transcript?.utterances[0]?.words?.map((word) => word.mappable),
+        replaced?.transcript?.utterances[0]?.words?.map(
+          (word) => word.mappable,
+        ),
       ).toEqual([false, false, false, false]);
+      expect(
+        replaced?.transcript?.utterances[0]?.words?.map((word) => [
+          word.timeline_start,
+          word.timeline_end,
+        ]),
+      ).toEqual([
+        [null, null],
+        [null, null],
+        [null, null],
+        [null, null],
+      ]);
     },
   );
 
