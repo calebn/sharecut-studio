@@ -21,7 +21,7 @@ Do not commit or push directly to `main` unless the user explicitly overrides.
    A native base-branch stack targets its parent until the parent lands.
    Report the issue selection and draft PR URL to the parent or operator immediately.
    The owning lane carries its PR through verification and an authorized merge.
-   Reporting to the coordinator does not add a separate approval dependency.
+   Reporting progress does not add a separate approval dependency.
 
 Put `Fixes #N`, `Closes #N`, or `Resolves #N` on its own line for an issue the PR
 finishes. Use `Related #N` for work it touches without completing.
@@ -40,14 +40,17 @@ shared reservation and handoff record in the active lane sessions. Before final
 preparation, announce your lane, PR, intended head, and base in that record.
 Respect any explicit reservation until its owner records completion, release,
 or a handoff. If the turn is free, announce and verify your exclusive turn with
-the peer lanes. Resolve competing announcements before mutation. No coordinator
-assignment or approval is required.
+the peer lanes. If announcements compete, the contenders agree on one owner
+and record that agreement before any contender mutates shared state. Until
+they agree, all contenders wait. No coordinator assignment or approval is required.
 
 This is a coordination protocol, not an atomic lock. Do not infer release from
 a disconnect, silence, or an expired per-issue claim. Per-issue claims do not
 serialize merges of different PRs. Immediately recheck the live head, base,
 claim, and applicable predicates before merge. Stop and requalify if they changed.
-Record the outcome and release the turn when finished.
+Record the confirmed outcome and release the turn when finished. Keep the
+reservation while a merge outcome is uncertain, and reconcile that outcome
+before releasing or handing off the turn.
 
 Require successful `pytest`, `frontend`, `frontend-e2e`, and `gitleaks-history`
 checks for the exact final PR head. The Python-floor job is advisory.
