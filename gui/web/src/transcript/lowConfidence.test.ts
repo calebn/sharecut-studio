@@ -163,6 +163,59 @@ describe("lowConfidenceStops", () => {
     ]);
   });
 
+  it("skips a cut-away word in a mapped utterance while keeping its unsure neighbor", () => {
+    const utterances = [
+      u({
+        track_id: "host",
+        source_id: "source-a",
+        words: [
+          {
+            text: "maybe",
+            start: 0,
+            end: 0.2,
+            word_index: 4,
+            unsure: true,
+            mappable: false,
+            timeline_start: null,
+            timeline_end: null,
+          },
+          {
+            text: "perhaps",
+            start: 0.2,
+            end: 0.4,
+            word_index: 5,
+            unsure: true,
+            mappable: true,
+            timeline_start: 8,
+            timeline_end: 8.2,
+          },
+        ],
+      }),
+    ];
+
+    expect(lowConfidenceStops(utterances, false, false)).toEqual([
+      {
+        trackId: "host",
+        sourceId: "source-a",
+        wordIndex: 5,
+        text: "perhaps",
+        seekSec: 8,
+        endSec: 8.2,
+        order: 1,
+      },
+    ]);
+    expect(
+      lowConfidenceStops(utterances, true, true).map((stop) => [
+        stop.wordIndex,
+        stop.seekSec,
+        stop.order,
+      ]),
+    ).toEqual([
+      [4, null, 0],
+      [5, 8, 1],
+    ]);
+  });
+
   it("numbers hidden cut-away words too, so order is stable across Show cut away", () => {
     const utts: CombinedUtterance[] = [
       u({

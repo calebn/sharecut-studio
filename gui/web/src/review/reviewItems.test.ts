@@ -442,6 +442,45 @@ describe("unsureEntriesOf", () => {
     expect(entries.map((e) => e.item.at)).toEqual([20]);
   });
 
+  it("does not reinsert a known unmapped transcript word from a pending cut", () => {
+    const { entries, targets } = unsureEntriesOf(
+      [cut("a", 20, [word(1, "maybe"), word(2, "perhaps")])],
+      utterance([
+        {
+          text: "maybe",
+          start: 5,
+          end: 5.2,
+          word_index: 1,
+          confidence: 0.4,
+          unsure: true,
+          mappable: false,
+          timeline_start: null,
+          timeline_end: null,
+        },
+        {
+          text: "perhaps",
+          start: 5.2,
+          end: 5.4,
+          word_index: 2,
+          confidence: 0.4,
+          unsure: true,
+          mappable: true,
+          timeline_start: 9,
+          timeline_end: 9.2,
+        },
+      ]),
+    );
+
+    expect(entries.map((entry) => entry.item.id)).toEqual(["word:host::2"]);
+    expect(entries[0]?.item.at).toBe(9);
+    expect(targets.has("word:host::1")).toBe(false);
+    expect(targets.get("word:host::2")).toMatchObject({
+      text: "perhaps",
+      at: 9,
+      endSec: 9.2,
+    });
+  });
+
   it("puts a word with no placement last, and ignores applied cuts", () => {
     const { entries } = unsureEntriesOf(
       [cut("a", null), { ...cut("b", 3, [word(7, "no")]), applied: true }],
