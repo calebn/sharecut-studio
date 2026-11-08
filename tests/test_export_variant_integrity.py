@@ -141,6 +141,63 @@ def test_variant_route_round_trip_and_authority(prepared, monkeypatch):
     assert engine.master_targets == [-16]
 
 
+def test_completed_variant_currentness_is_optional_for_saved_bundle(
+    prepared, tmp_path, monkeypatch
+):
+    ws, engine, _ = prepared
+    client = TestClient(create_app(), raise_server_exceptions=False)
+    job_id = start(client, ws.path, target="podcast", formats=[{"ext": "wav"}])
+    generated = done(client, ws.path, job_id)
+    assert generated["status"] == "ok", generated["error"]
+    file_id = generated["result"]["file_ids"][0]
+    bundle = (ws.project.export_dir() / file_id).parent
+    receipt = bundle / "receipt.json"
+    before = receipt.read_bytes()
+    params = {"path": str(ws.path)}
+    invalid = tmp_path / "invalid-defaults.yaml"
+    invalid.write_text("master: [\n", encoding="utf-8")
+
+    monkeypatch.setenv("PODCAST_MCP_PIPELINE_DEFAULTS", str(invalid))
+    stale_rows = client.get(FILES, params=params)
+    download = client.get(f"{FILES}/{file_id}", params=params)
+    assert stale_rows.status_code == 200
+    stale = next(row for row in stale_rows.json()["files"] if row["id"] == file_id)
+    assert stale["current"] is False
+    assert (download.status_code, download.content) == (200, (bundle / "audio.wav").read_bytes())
+
+    monkeypatch.delenv("PODCAST_MCP_PIPELINE_DEFAULTS")
+    current_rows = client.get(FILES, params=params)
+    current = next(row for row in current_rows.json()["files"] if row["id"] == file_id)
+    assert current["current"] is True
+    assert receipt.read_bytes() == before
+    assert engine.master_calls == 1
+
+
+def test_variant_inventory_does_not_load_config_without_admitted_audio(prepared):
+    from podcast_mcp.services.pipeline.export_variant import completed_variant_files
+
+    ws, _, _ = prepared
+    calls = []
+
+    assert completed_variant_files(ws.project, load_config=lambda: calls.append(True)) == ()
+    assert calls == []
+
+
+def test_named_generation_does_not_use_fallback_config(prepared, tmp_path, monkeypatch):
+    ws, engine, _ = prepared
+    invalid = tmp_path / "invalid-defaults.yaml"
+    invalid.write_text("master: [\n", encoding="utf-8")
+    monkeypatch.setenv("PODCAST_MCP_PIPELINE_DEFAULTS", str(invalid))
+    client = TestClient(create_app())
+
+    job = done(client, ws.path, start(client, ws.path, target="podcast", formats=[]))
+
+    assert job["status"] == "error"
+    assert job["result"] is None
+    assert engine.master_calls == 0
+    assert not (ws.project.export_dir() / "variants").exists()
+
+
 def test_absence_and_null_keep_canonical_adoption_and_config(prepared, monkeypatch):
     ws, _, _ = prepared
     client = TestClient(create_app())
