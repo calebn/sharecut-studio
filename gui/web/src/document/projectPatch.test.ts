@@ -166,6 +166,119 @@ describe("patchTracksOrder / patchTrackMeta", () => {
 });
 
 describe("projectFromDocumentSnapshot", () => {
+  it("does not reuse cached word mapping after a clip roll changes source coverage", () => {
+    const clips = (leftEnd: number, rightStart: number) => ({
+      tracks: {
+        host: [
+          {
+            id: "left",
+            track_id: "host",
+            source_start: 0,
+            source_end: leftEnd,
+            timeline_start: 0,
+            timeline_end: leftEnd,
+            fade_in_ms: 0,
+            fade_out_ms: 0,
+            join_in_mode: "fade",
+            source_id: "take-a",
+            source_duration_sec: 6,
+            recording_key: null,
+          },
+          {
+            id: "right",
+            track_id: "host",
+            source_start: rightStart,
+            source_end: 6,
+            timeline_start: leftEnd,
+            timeline_end: leftEnd + 6 - rightStart,
+            fade_in_ms: 0,
+            fade_out_ms: 0,
+            join_in_mode: "fade",
+            source_id: "take-a",
+            source_duration_sec: 6,
+            recording_key: null,
+          },
+        ],
+      },
+      clip_count: 2,
+    });
+    const row = {
+      track_id: "host",
+      source_id: "take-a",
+      speaker: "Host",
+      start: 0,
+      end: 6,
+      text: "before restored after cut",
+      timeline_start: 0,
+      timeline_end: 5,
+      timeline_spans: [{ start: 0, end: 5 }],
+      mappable: true,
+    };
+    const words = [
+      {
+        text: "before",
+        word_index: 0,
+        start: 1,
+        end: 1.5,
+        timeline_start: 1,
+        timeline_end: 1.5,
+        mappable: true,
+      },
+      {
+        text: "restored",
+        word_index: 1,
+        start: 2.1,
+        end: 2.4,
+        timeline_start: null,
+        timeline_end: null,
+        mappable: false,
+      },
+      {
+        text: "after cut",
+        word_index: 2,
+        start: 3.1,
+        end: 3.4,
+        timeline_start: 2.6,
+        timeline_end: 2.9,
+        mappable: true,
+      },
+      {
+        text: "after",
+        word_index: 3,
+        start: 4,
+        end: 4.5,
+        timeline_start: 3.5,
+        timeline_end: 4,
+        mappable: true,
+      },
+    ] satisfies NonNullable<
+      NonNullable<ProjectView["transcript"]>["utterances"][number]["words"]
+    >;
+    const previous = minimalProject({
+      meta: {
+        name: "Test",
+        workspace_dir: "/tmp",
+        hydration: { transcript_words: true, history_groups: true },
+      },
+      clips: clips(2, 3),
+      transcript: { utterances: [{ ...row, words }] },
+    });
+    const shell = minimalProject({
+      meta: {
+        name: "Test",
+        workspace_dir: "/tmp",
+        hydration: { transcript_words: false, history_groups: false },
+      },
+      clips: clips(2.5, 3.5),
+      transcript: { utterances: [row] },
+    });
+
+    const next = projectFromDocumentSnapshot(previous, { project: shell });
+
+    expect(next?.transcript?.utterances[0]?.words).toBeUndefined();
+    expect(next?.meta.hydration?.transcript_words).toBe(false);
+  });
+
   it.each([
     { label: "unchanged", timelineStart: 0 },
     { label: "translated", timelineStart: 1.2 },
