@@ -7,7 +7,7 @@ from collections.abc import Callable, Mapping, Sequence
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal, TypedDict, cast, get_args
 
 import yaml
 
@@ -18,7 +18,7 @@ from podcast_mcp.engines.bleed_gate import bleed_fill_enabled
 from podcast_mcp.engines.clips_ops import clips_for_track
 from podcast_mcp.engines.mastering import MasterQcLimits, MasterTarget
 from podcast_mcp.engines.play_audit import mix_gains
-from podcast_mcp.export.audio import AUDIO_EXPORT_MEDIA, ExportFormatSpec
+from podcast_mcp.export.audio import ExportFormatSpec
 from podcast_mcp.export.episode import resolve_episode_audio_plan
 from podcast_mcp.export.transcript import CaptionLimits, resolve_caption_limits
 from podcast_mcp.models import EpisodeProject
@@ -28,21 +28,69 @@ if TYPE_CHECKING:
     from .export_variant import ExportTarget
 
 
+class MasterTargetRecord(TypedDict):
+    integrated_lufs: float
+    true_peak_db: float
+    lra: float
+
+
+class MasterQcLimitsRecord(TypedDict):
+    lufs_tolerance_lu: float
+    true_peak_tolerance_db: float
+
+
+AudioFormat = Literal["mp3", "m4a", "aac", "opus", "ogg", "flac", "wav", "other"]
+
+
+_PUBLIC_AUDIO_FORMATS: dict[str, AudioFormat] = {
+    value: cast(AudioFormat, value) for value in get_args(AudioFormat) if value != "other"
+}
+
+
+class ExportSettingsRecord(TypedDict):
+    version: Literal[1]
+    basis: str
+    target: Literal["broadcast", "podcast", "streaming"] | None
+    master_target: MasterTargetRecord
+    qc_limits: MasterQcLimitsRecord
+    audio_formats: list[AudioFormat]
+
+
+class ExportSettingsAvailableRecord(TypedDict):
+    status: Literal["available"]
+    settings: ExportSettingsRecord
+
+
+class ExportSettingsUnavailableRecord(TypedDict):
+    status: Literal["unavailable"]
+    code: Literal["export_settings_unavailable"]
+
+
+ExportSettingsReadRecord = ExportSettingsAvailableRecord | ExportSettingsUnavailableRecord
+
+
 @dataclass(frozen=True)
 class ExportSettingsEvidence:
     basis: str
     target: ExportTarget | None
     master_target: MasterTarget
     qc_limits: MasterQcLimits
-    audio_formats: tuple[str, ...]
+    audio_formats: tuple[AudioFormat, ...]
 
-    def to_record(self) -> dict[str, Any]:
+    def to_record(self) -> ExportSettingsRecord:
         return {
             "version": 1,
             "basis": self.basis,
             "target": self.target.value if self.target is not None else None,
-            "master_target": asdict(self.master_target),
-            "qc_limits": asdict(self.qc_limits),
+            "master_target": {
+                "integrated_lufs": self.master_target.integrated_lufs,
+                "true_peak_db": self.master_target.true_peak_db,
+                "lra": self.master_target.lra,
+            },
+            "qc_limits": {
+                "lufs_tolerance_lu": self.qc_limits.lufs_tolerance_lu,
+                "true_peak_tolerance_db": self.qc_limits.true_peak_tolerance_db,
+            },
             "audio_formats": list(self.audio_formats),
         }
 
@@ -86,7 +134,7 @@ def export_settings_evidence(
             target,
             master_target,
             limits,
-            tuple(spec.ext if spec.ext in AUDIO_EXPORT_MEDIA else "other" for spec in formats),
+            tuple(_PUBLIC_AUDIO_FORMATS.get(spec.ext, "other") for spec in formats),
         )
     except Exception:
         return None
@@ -116,7 +164,7 @@ def canonical_settings_evidence(
 
 def read_export_settings(
     path: Path, formats: list[dict[str, Any]] | None = None, target: ExportTarget | None = None
-) -> dict[str, Any]:
+) -> ExportSettingsReadRecord:
     from .config import run_defaults_for
     from .export_variant import resolve_named_settings
 

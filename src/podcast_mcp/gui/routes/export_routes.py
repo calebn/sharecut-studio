@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import asdict
 from typing import Any
 
@@ -101,7 +102,7 @@ def export_settings(
     response: Response,
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
-) -> dict[str, Any]:
+) -> Mapping[str, object]:
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(body.path, request)
     response.headers["Cache-Control"] = "no-store"
