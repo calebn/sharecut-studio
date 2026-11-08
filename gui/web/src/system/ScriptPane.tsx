@@ -14,6 +14,7 @@ import {
   useState,
 } from "react";
 import {
+  isScrollKey,
   USER_SCROLL_INTENT_MS,
   useUserScrollIntent,
 } from "../hooks/useUserScrollIntent";
@@ -77,181 +78,256 @@ import {
 } from "./scriptSelection";
 import { type GestureControl, useScriptGestures } from "./useScriptGestures";
 
-type ReadingOrigin = Readonly<{
-  top: number;
-  maximum: number;
-  observedAt: number;
-}>;
-type ReadingOrigins = Readonly<{
-  up: ReadingOrigin | null;
-  down: ReadingOrigin | null;
-}>;
-type ReadingContact = Readonly<{
-  identifier: number;
-  previousY: number;
-  pending: ReadingOrigins;
-}>;
-type ReadingViewport = Readonly<{
+type ReadingDirection = "up" | "down";
+type ReadingSample = Readonly<{
   top: number;
   maximum: number;
   width: number;
   height: number;
+  observedAt: number;
+}>;
+type ReadingEvidence = Readonly<{
+  sourceAt: number;
+  point: ReadingSample;
+  kind: "pending" | "moving";
+}>;
+type ReadingDirections = Record<ReadingDirection, ReadingEvidence | null>;
+type ReadingContact = Readonly<{
+  identifier: number;
+  previousY: number;
+  evidence: ReadingDirections;
 }>;
 type ReadingScrollOwnership = Readonly<{
-  checkpoint: ReadingViewport | null;
-  expectedAcceptedTop: number | null;
-  pending: ReadingOrigins;
+  physical: ReadingSample | null;
+  acknowledgement: { top: number } | null;
+  sources: Record<"wheel" | "key" | "endedTouch", ReadingDirections>;
   touch: ReadingContact | null;
+  scrollbar: { pointerId: number | null; evidence: ReadingDirections };
 }>;
-const NO_READING_ORIGINS: ReadingOrigins = { up: null, down: null };
+type ReadingInput =
+  | { kind: "direction"; source: "wheel" | "key"; direction: ReadingDirection }
+  | { kind: "reject-wheel" }
+  | { kind: "touch-start"; identifier: number; y: number }
+  | { kind: "touch-move"; identifier: number; y: number; blocked: boolean }
+  | { kind: "touch-end"; identifier: number }
+  | { kind: "touch-cancel" }
+  | { kind: "scrollbar-start"; pointerId: number }
+  | { kind: "scrollbar-end" | "scrollbar-cancel"; pointerId: number }
+  | { kind: "none" };
+type ReadingBoundary =
+  | { kind: "input"; input: ReadingInput }
+  | { kind: "scroll" | "geometry" };
+const NO_READING_EVIDENCE: ReadingDirections = { up: null, down: null };
 const EMPTY_READING_OWNERSHIP: ReadingScrollOwnership = {
-  checkpoint: null,
-  expectedAcceptedTop: null,
-  pending: NO_READING_ORIGINS,
+  physical: null,
+  acknowledgement: null,
+  sources: {
+    wheel: NO_READING_EVIDENCE,
+    key: NO_READING_EVIDENCE,
+    endedTouch: NO_READING_EVIDENCE,
+  },
   touch: null,
+  scrollbar: { pointerId: null, evidence: NO_READING_EVIDENCE },
 };
 
-function sampleReadingViewport(body: HTMLElement): ReadingViewport {
+function sampleReadingViewport(body: HTMLElement): ReadingSample {
   const bounds = body.getBoundingClientRect();
   return {
     top: body.scrollTop,
     maximum: Math.max(0, body.scrollHeight - body.clientHeight),
     width: bounds.width,
     height: bounds.height,
+    observedAt: performance.now(),
   };
 }
 
-function freshReadingOrigins(
-  origins: ReadingOrigins,
-  now: number,
-): ReadingOrigins {
-  const fresh = (origin: ReadingOrigin | null) =>
-    origin && now - origin.observedAt < USER_SCROLL_INTENT_MS ? origin : null;
-  return { up: fresh(origins.up), down: fresh(origins.down) };
-}
-
-function mergeReadingOrigins(
-  a: ReadingOrigins,
-  b: ReadingOrigins,
-  now: number,
-): ReadingOrigins {
-  const left = freshReadingOrigins(a, now);
-  const right = freshReadingOrigins(b, now);
-  return {
-    up:
-      right.up && (!left.up || right.up.top >= left.up.top)
-        ? right.up
-        : left.up,
-    down:
-      right.down && (!left.down || right.down.top <= left.down.top)
-        ? right.down
-        : left.down,
-  };
-}
-
-function observeReadingMovement(
-  origins: ReadingOrigins,
-  viewport: ReadingViewport,
-  delta: number,
-  now: number,
-): ReadingOrigins {
-  const origin: ReadingOrigin = {
-    top: viewport.top,
-    maximum: viewport.maximum,
-    observedAt: now,
-  };
-  return mergeReadingOrigins(
-    origins,
-    {
-      up: delta < 0 && viewport.top > 0 ? origin : null,
-      down: delta > 0 && viewport.top < viewport.maximum ? origin : null,
-    },
-    now,
-  );
-}
-
-function settleReadingViewport(
+function acceptReadingPosition(
   state: ReadingScrollOwnership,
-  viewport: ReadingViewport,
-  acknowledge: boolean,
+  physical: ReadingSample,
+  expectsScroll: boolean,
 ): ReadingScrollOwnership {
   return {
-    checkpoint: viewport,
-    expectedAcceptedTop: acknowledge ? viewport.top : null,
-    pending: NO_READING_ORIGINS,
-    touch: state.touch ? { ...state.touch, pending: NO_READING_ORIGINS } : null,
+    ...EMPTY_READING_OWNERSHIP,
+    physical,
+    acknowledgement: expectsScroll ? { top: physical.top } : null,
+    touch: state.touch
+      ? { ...state.touch, evidence: NO_READING_EVIDENCE }
+      : null,
+    scrollbar: { ...state.scrollbar, evidence: NO_READING_EVIDENCE },
   };
 }
 
-function reconcileReadingViewport(
+function advanceReading(
   state: ReadingScrollOwnership,
-  viewport: ReadingViewport,
-  observation: "scroll" | "geometry",
-  eligible: boolean,
+  boundary: ReadingBoundary,
+  sample: ReadingSample,
   restore: boolean,
-  now: number,
 ): { state: ReadingScrollOwnership; effect: "capture" | "restore" | "none" } {
-  const pending = freshReadingOrigins(state.pending, now);
-  const touch = state.touch
-    ? { ...state.touch, pending: freshReadingOrigins(state.touch.pending, now) }
+  const fresh = (evidence: ReadingEvidence | null) =>
+    evidence &&
+    sample.observedAt -
+      (evidence.kind === "pending"
+        ? evidence.sourceAt
+        : evidence.point.observedAt) <
+      USER_SCROLL_INTENT_MS
+      ? evidence
+      : null;
+  const expire = (evidence: ReadingDirections): ReadingDirections => ({
+    up: fresh(evidence.up),
+    down: fresh(evidence.down),
+  });
+  const sources = {
+    wheel: expire(state.sources.wheel),
+    key: expire(state.sources.key),
+    endedTouch: expire(state.sources.endedTouch),
+  };
+  let touch = state.touch
+    ? { ...state.touch, evidence: expire(state.touch.evidence) }
     : null;
-  const origins = mergeReadingOrigins(
-    pending,
-    touch?.pending ?? NO_READING_ORIGINS,
-    now,
-  );
-  const previous = state.checkpoint;
-  const projected = (top: number) =>
-    Math.min(viewport.maximum, Math.max(0, top));
-  const passiveClamp = Boolean(
-    previous &&
-      previous.width === viewport.width &&
-      previous.height === viewport.height &&
-      previous.maximum > viewport.maximum &&
-      previous.top > viewport.maximum &&
-      viewport.top === projected(previous.top),
-  );
+  let scrollbar = {
+    ...state.scrollbar,
+    evidence: expire(state.scrollbar.evidence),
+  };
+  const previous = state.physical;
+  const projected = previous
+    ? Math.min(sample.maximum, Math.max(0, previous.top))
+    : sample.top;
+  const direction =
+    sample.top === previous?.top
+      ? null
+      : sample.top < projected
+        ? "up"
+        : sample.top > projected
+          ? "down"
+          : null;
+  const admit = (evidence: ReadingDirections, toward: ReadingDirection) => {
+    if (
+      direction === toward ||
+      (toward === "up" ? sample.top > 0 : sample.top < sample.maximum)
+    ) {
+      evidence[toward] = {
+        kind: "pending",
+        sourceAt: sample.observedAt,
+        point: sample,
+      };
+    }
+  };
+  const input =
+    boundary.kind === "input" ? boundary.input : { kind: "none" as const };
+  switch (input.kind) {
+    case "direction":
+      admit(sources[input.source], input.direction);
+      break;
+    case "reject-wheel":
+      for (const toward of ["up", "down"] as const)
+        if (sources.wheel[toward]?.kind === "moving")
+          sources.wheel[toward] = null;
+      break;
+    case "touch-start":
+      touch = {
+        identifier: input.identifier,
+        previousY: input.y,
+        evidence: { ...NO_READING_EVIDENCE },
+      };
+      break;
+    case "touch-move":
+      if (!touch || touch.identifier !== input.identifier) {
+        touch = null;
+      } else {
+        const delta = touch.previousY - input.y;
+        touch.previousY = input.y;
+        if (input.blocked) touch.evidence = { ...NO_READING_EVIDENCE };
+        else if (delta !== 0) admit(touch.evidence, delta < 0 ? "up" : "down");
+      }
+      break;
+    case "touch-end":
+      if (touch?.identifier === input.identifier) {
+        for (const toward of ["up", "down"] as const) {
+          const evidence = touch.evidence[toward];
+          if (evidence) sources.endedTouch[toward] = evidence;
+        }
+      }
+      touch = null;
+      break;
+    case "touch-cancel":
+      touch = null;
+      break;
+    case "scrollbar-start":
+      scrollbar = {
+        pointerId: input.pointerId,
+        evidence: { ...NO_READING_EVIDENCE },
+      };
+      admit(scrollbar.evidence, "up");
+      admit(scrollbar.evidence, "down");
+      break;
+    case "scrollbar-end":
+    case "scrollbar-cancel":
+      if (scrollbar.pointerId === input.pointerId) {
+        scrollbar.pointerId = null;
+        if (input.kind === "scrollbar-cancel")
+          scrollbar.evidence = { ...NO_READING_EVIDENCE };
+      }
+      break;
+    case "none":
+      break;
+    default:
+      return input satisfies never;
+  }
+  const evidence = [
+    ...Object.values(sources),
+    scrollbar.evidence,
+    ...(touch ? [touch.evidence] : []),
+  ];
+  const acknowledged =
+    boundary.kind === "scroll" && state.acknowledgement?.top === sample.top;
+  const supported =
+    direction !== null &&
+    !acknowledged &&
+    (evidence.some((facts) => facts[direction] !== null) ||
+      scrollbar.pointerId !== null);
+  if (direction) {
+    for (const facts of evidence) {
+      for (const toward of ["up", "down"] as const) {
+        const fact = facts[toward];
+        if (!fact) continue;
+        if (toward === direction && supported)
+          facts[toward] = { ...fact, kind: "moving", point: sample };
+        else if (fact.kind === "moving") facts[toward] = null;
+      }
+    }
+    if (
+      supported &&
+      scrollbar.pointerId !== null &&
+      !scrollbar.evidence[direction]
+    )
+      scrollbar.evidence[direction] = {
+        kind: "moving",
+        sourceAt: sample.observedAt,
+        point: sample,
+      };
+  }
   const geometry =
-    observation === "geometry" ||
-    passiveClamp ||
+    boundary.kind === "geometry" ||
     Boolean(
       previous &&
-        (previous.width !== viewport.width ||
-          previous.height !== viewport.height),
+        (previous.width !== sample.width ||
+          previous.height !== sample.height ||
+          (previous.top !== sample.top && sample.top === projected)),
     );
-  const supported =
-    (!previous || viewport.top !== projected(previous.top)) &&
-    ((origins.up !== null &&
-      origins.up.top > 0 &&
-      viewport.top < projected(origins.up.top)) ||
-      (origins.down !== null &&
-        origins.down.top < origins.down.maximum &&
-        viewport.top > projected(origins.down.top)));
-  const acknowledged = state.expectedAcceptedTop === viewport.top;
-  const effect =
-    eligible && !acknowledged && (!(restore && geometry) || supported)
-      ? "capture"
-      : restore && geometry
-        ? "restore"
-        : "none";
-  const next = {
-    ...state,
-    pending,
-    touch,
-    expectedAcceptedTop:
-      observation === "geometry" &&
-      effect === "restore" &&
-      previous &&
-      previous.top !== viewport.top
-        ? viewport.top
-        : state.expectedAcceptedTop,
-  };
   return {
-    state:
-      observation === "scroll"
-        ? settleReadingViewport(next, viewport, false)
-        : next,
-    effect,
+    state: {
+      physical: sample,
+      acknowledgement:
+        boundary.kind === "scroll"
+          ? null
+          : supported
+            ? { top: sample.top }
+            : state.acknowledgement,
+      sources,
+      touch,
+      scrollbar,
+    },
+    effect: supported ? "capture" : restore && geometry ? "restore" : "none",
   };
 }
 
@@ -275,6 +351,20 @@ function scrollWithin(
   if (to !== from) body.scrollTop = Math.max(0, to);
 }
 
+function clipsOverflow(overflow: string) {
+  return /^(auto|scroll|hidden|clip|overlay)$/.test(overflow);
+}
+
+function readingObservationTargets(body: HTMLElement): Element[] {
+  const targets: Element[] = [body];
+  for (let owner = body.parentElement; owner; owner = owner.parentElement) {
+    const style = getComputedStyle(owner);
+    if (clipsOverflow(style.overflowX) || clipsOverflow(style.overflowY))
+      targets.push(owner);
+  }
+  return targets;
+}
+
 function elementClipped(element: HTMLElement, includeViewport: boolean) {
   const rect = element.getBoundingClientRect();
   const style = getComputedStyle(element);
@@ -292,12 +382,8 @@ function elementClipped(element: HTMLElement, includeViewport: boolean) {
   let right = includeViewport ? window.innerWidth : Number.POSITIVE_INFINITY;
   for (let owner = element.parentElement; owner; owner = owner.parentElement) {
     const overflow = getComputedStyle(owner);
-    const clipsY = /^(auto|scroll|hidden|clip|overlay)$/.test(
-      overflow.overflowY,
-    );
-    const clipsX = /^(auto|scroll|hidden|clip|overlay)$/.test(
-      overflow.overflowX,
-    );
+    const clipsY = clipsOverflow(overflow.overflowY);
+    const clipsX = clipsOverflow(overflow.overflowX);
     if (!clipsX && !clipsY) continue;
     const box = owner.getBoundingClientRect();
     if (clipsY) {
@@ -976,78 +1062,83 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       return rects;
     }, []);
 
+    const serializeReadingPosition = useCallback((preferredIndex?: number) => {
+      const body = bodyRef.current;
+      const binding = readingPositionRef.current;
+      if (!body || !binding || !body.isConnected) return;
+      const bounds = body.getBoundingClientRect();
+      const preferred =
+        preferredIndex === undefined
+          ? undefined
+          : {
+              index: preferredIndex,
+              element: registry.current.get(preferredIndex),
+            };
+      const preferredRect = preferred?.element?.getBoundingClientRect();
+      if (
+        preferred?.element &&
+        body.contains(preferred.element) &&
+        preferredRect &&
+        preferredRect.top < bounds.bottom &&
+        preferredRect.bottom > bounds.top
+      ) {
+        const position: ScriptPaneReadingPosition = {
+          kind: "word",
+          index: preferred.index,
+          intent: "focus",
+          offset: preferredRect.top - bounds.top,
+          fallbackTop: body.scrollTop,
+          turns: live.current.turns,
+        };
+        binding.capture(position);
+        return;
+      }
+      const stops = live.current.stops;
+      let low = 0;
+      let high = stops.length;
+      while (low < high) {
+        const middle = (low + high) >>> 1;
+        const word = registry.current.get(stops[middle].start);
+        if (!word || !body.contains(word)) {
+          low = middle + 1;
+          continue;
+        }
+        if (word.getBoundingClientRect().bottom <= bounds.top) low = middle + 1;
+        else high = middle;
+      }
+      const stop = stops[low];
+      const word = stop ? registry.current.get(stop.start) : undefined;
+      const rect = word?.getBoundingClientRect();
+      if (stop && rect && rect.top < bounds.bottom) {
+        const position: ScriptPaneReadingPosition = {
+          kind: "word",
+          index: stop.start,
+          offset: rect.top - bounds.top,
+          fallbackTop: body.scrollTop,
+          turns: live.current.turns,
+        };
+        binding.capture(position);
+        return;
+      }
+      const position: ScriptPaneReadingPosition = {
+        kind: "scroll",
+        top: body.scrollTop,
+      };
+      binding.capture(position);
+    }, []);
+
     const captureReadingPosition = useCallback(
       (preferredIndex?: number, acknowledge = false) => {
         const body = bodyRef.current;
-        const binding = readingPositionRef.current;
-        if (!body || !binding || !body.isConnected) return;
-        const bounds = body.getBoundingClientRect();
-        readingOwnership.current = settleReadingViewport(
+        if (!body?.isConnected || !readingPositionRef.current) return;
+        readingOwnership.current = acceptReadingPosition(
           readingOwnership.current,
           sampleReadingViewport(body),
           acknowledge,
         );
-        const preferred =
-          preferredIndex === undefined
-            ? undefined
-            : {
-                index: preferredIndex,
-                element: registry.current.get(preferredIndex),
-              };
-        const preferredRect = preferred?.element?.getBoundingClientRect();
-        if (
-          preferred?.element &&
-          body.contains(preferred.element) &&
-          preferredRect &&
-          preferredRect.top < bounds.bottom &&
-          preferredRect.bottom > bounds.top
-        ) {
-          const position: ScriptPaneReadingPosition = {
-            kind: "word",
-            index: preferred.index,
-            intent: "focus",
-            offset: preferredRect.top - bounds.top,
-            fallbackTop: body.scrollTop,
-            turns: live.current.turns,
-          };
-          binding.capture(position);
-          return;
-        }
-        const stops = live.current.stops;
-        let low = 0;
-        let high = stops.length;
-        while (low < high) {
-          const middle = (low + high) >>> 1;
-          const word = registry.current.get(stops[middle].start);
-          if (!word || !body.contains(word)) {
-            low = middle + 1;
-            continue;
-          }
-          if (word.getBoundingClientRect().bottom <= bounds.top)
-            low = middle + 1;
-          else high = middle;
-        }
-        const stop = stops[low];
-        const word = stop ? registry.current.get(stop.start) : undefined;
-        const rect = word?.getBoundingClientRect();
-        if (stop && rect && rect.top < bounds.bottom) {
-          const position: ScriptPaneReadingPosition = {
-            kind: "word",
-            index: stop.start,
-            offset: rect.top - bounds.top,
-            fallbackTop: body.scrollTop,
-            turns: live.current.turns,
-          };
-          binding.capture(position);
-          return;
-        }
-        const position: ScriptPaneReadingPosition = {
-          kind: "scroll",
-          top: body.scrollTop,
-        };
-        binding.capture(position);
+        serializeReadingPosition(preferredIndex);
       },
-      [],
+      [serializeReadingPosition],
     );
 
     const focusStop = useCallback(
@@ -1349,7 +1440,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
             const before = body.scrollTop;
             scrollWithin(body, el, block);
             if (readingPositionRef.current && body.scrollTop !== before)
-              readingOwnership.current = settleReadingViewport(
+              readingOwnership.current = acceptReadingPosition(
                 readingOwnership.current,
                 sampleReadingViewport(body),
                 true,
@@ -1424,54 +1515,63 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
           behavior: "instant",
         });
       }
+      let focusAccepted = false;
       if (focusedAnchor && position.kind === "word") {
         const offset =
           focusedAnchor.getBoundingClientRect().top -
           body.getBoundingClientRect().top;
         if (Math.abs(offset - position.offset) > 0.5) {
-          captureReadingPosition(position.index, true);
+          focusAccepted = true;
         }
       }
-      const viewport = sampleReadingViewport(body);
-      readingOwnership.current =
-        before !== viewport.top
-          ? settleReadingViewport(readingOwnership.current, viewport, true)
-          : { ...readingOwnership.current, checkpoint: viewport };
-    }, [captureReadingPosition]);
-    const reconcileViewport = useCallback(
-      (observation: "scroll" | "geometry") => {
-        const body = bodyRef.current;
-        const binding = readingPositionRef.current;
-        const eligible = isUserScroll();
-        if (!body || !binding) {
-          if (observation === "scroll" && eligible)
-            live.current.props.onUserScroll?.();
-          return;
-        }
-        if (selectionViewport.current !== "idle" || grabbed.current !== null) {
-          captureReadingPosition(undefined, observation === "geometry");
-          if (observation === "scroll" && eligible)
-            live.current.props.onUserScroll?.();
-          return;
-        }
-        const result = reconcileReadingViewport(
+      if (before !== body.scrollTop || focusAccepted)
+        readingOwnership.current = acceptReadingPosition(
           readingOwnership.current,
           sampleReadingViewport(body),
-          observation,
-          eligible,
+          true,
+        );
+      if (focusAccepted && position.kind === "word")
+        serializeReadingPosition(position.index);
+    }, [captureReadingPosition, serializeReadingPosition]);
+    const reconcileViewport = useCallback(
+      (boundary: ReadingBoundary) => {
+        const body = bodyRef.current;
+        const binding = readingPositionRef.current;
+        if (!body?.isConnected) {
+          readingOwnership.current = EMPTY_READING_OWNERSHIP;
+          return;
+        }
+        if (!binding) {
+          if (boundary.kind === "scroll" && isUserScroll())
+            live.current.props.onUserScroll?.();
+          return;
+        }
+        const sample = sampleReadingViewport(body);
+        const result = advanceReading(
+          readingOwnership.current,
+          boundary,
+          sample,
           binding.restore,
-          performance.now(),
         );
         readingOwnership.current = result.state;
+        if (selectionViewport.current !== "idle" || grabbed.current !== null) {
+          if (result.state.touch)
+            readingOwnership.current = {
+              ...result.state,
+              touch: { ...result.state.touch, evidence: NO_READING_EVIDENCE },
+            };
+          serializeReadingPosition();
+          return;
+        }
         if (result.effect === "capture") {
-          captureReadingPosition(undefined, observation === "geometry");
+          serializeReadingPosition();
           live.current.props.onUserScroll?.();
         } else if (result.effect === "restore") restoreReadingPosition();
       },
-      [captureReadingPosition, restoreReadingPosition, isUserScroll],
+      [serializeReadingPosition, restoreReadingPosition, isUserScroll],
     );
     useLayoutEffect(() => {
-      if (readingPosition?.restore) reconcileViewport("geometry");
+      if (readingPosition) reconcileViewport({ kind: "geometry" });
     }, [bodyShown, turns, readingPosition, reconcileViewport]);
     useLayoutEffect(() => {
       const body = bodyRef.current;
@@ -1495,20 +1595,60 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
         });
       }
     }, [bodyShown]);
+    const [readingTargets] = useState<Element[]>(() => []);
+    useLayoutEffect(() => {
+      const body = bodyRef.current;
+      readingTargets.splice(
+        0,
+        readingTargets.length,
+        ...(readingPosition && body?.isConnected
+          ? readingObservationTargets(body)
+          : []),
+      );
+    });
     useResizeObserver(
-      bodyRef,
+      readingTargets,
       (entries) => {
-        if (entries.some((entry) => entry.target === bodyRef.current))
-          reconcileViewport("geometry");
+        if (entries.some((entry) => readingTargets.includes(entry.target)))
+          reconcileViewport({ kind: "geometry" });
       },
-      Boolean(readingPosition?.restore),
+      readingPosition != null,
     );
+    const readingBound = readingPosition != null;
     useEffect(() => {
-      if (!readingPosition?.restore) return;
-      const restore = () => reconcileViewport("geometry");
+      if (!readingBound) return;
+      const restore = () => reconcileViewport({ kind: "geometry" });
       document.fonts?.addEventListener("loadingdone", restore);
-      return () => document.fonts?.removeEventListener("loadingdone", restore);
-    }, [readingPosition?.restore, reconcileViewport]);
+      window.addEventListener("resize", restore);
+      return () => {
+        document.fonts?.removeEventListener("loadingdone", restore);
+        window.removeEventListener("resize", restore);
+      };
+    }, [readingBound, reconcileViewport]);
+
+    useEffect(() => {
+      if (!readingBound) return;
+      const endScrollbar = (event: globalThis.PointerEvent) => {
+        if (readingOwnership.current.scrollbar.pointerId !== event.pointerId)
+          return;
+        reconcileViewport({
+          kind: "input",
+          input: {
+            kind:
+              event.type === "pointercancel"
+                ? "scrollbar-cancel"
+                : "scrollbar-end",
+            pointerId: event.pointerId,
+          },
+        });
+      };
+      window.addEventListener("pointerup", endScrollbar);
+      window.addEventListener("pointercancel", endScrollbar);
+      return () => {
+        window.removeEventListener("pointerup", endScrollbar);
+        window.removeEventListener("pointercancel", endScrollbar);
+      };
+    }, [readingBound, reconcileViewport]);
 
     useEffect(() => {
       const body = bodyRef.current;
@@ -1822,6 +1962,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
         ) : (
           <div
             className="sys-script-body"
+            role="presentation"
             data-selecting={selecting ? "" : undefined}
             ref={attachBody}
             onCopy={(event) => {
@@ -1840,98 +1981,152 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
               event.clipboardData.setData("text/plain", text);
               event.preventDefault();
             }}
-            {...scrollHandlers}
-            onWheel={(event) => {
-              const ownsReadingPosition = readingPositionRef.current !== null;
-              if (
-                ownsReadingPosition &&
-                (event.ctrlKey || event.defaultPrevented)
-              ) {
-                return;
-              }
-              scrollHandlers.onWheel();
-              if (!ownsReadingPosition) return;
-              const state = readingOwnership.current;
-              readingOwnership.current = {
-                ...state,
-                pending: observeReadingMovement(
-                  state.pending,
-                  sampleReadingViewport(event.currentTarget),
-                  event.deltaY,
-                  performance.now(),
-                ),
-              };
-            }}
-            onTouchStart={(event) => {
-              scrollHandlers.onTouchStart();
-              if (!readingPositionRef.current) return;
-              const state = readingOwnership.current;
-              const contact =
-                event.touches.length === 1 ? event.touches[0] : null;
-              readingOwnership.current = {
-                ...state,
-                pending: freshReadingOrigins(state.pending, performance.now()),
-                touch: contact
-                  ? {
-                      identifier: contact.identifier,
-                      previousY: contact.clientY,
-                      pending: NO_READING_ORIGINS,
-                    }
-                  : null,
-              };
-            }}
-            onTouchMove={(event) => {
-              scrollHandlers.onTouchMove();
-              const state = readingOwnership.current;
-              const contact =
-                event.touches.length === 1 ? event.touches[0] : null;
-              if (
-                !state.touch ||
-                !contact ||
-                state.touch.identifier !== contact.identifier
-              ) {
-                readingOwnership.current = { ...state, touch: null };
-                return;
-              }
-              readingOwnership.current = {
-                ...state,
-                touch: {
-                  ...state.touch,
-                  previousY: contact.clientY,
-                  pending: observeReadingMovement(
-                    state.touch.pending,
-                    sampleReadingViewport(event.currentTarget),
-                    !readingPositionRef.current ||
-                      (selectionViewport.current === "idle" &&
-                        grabbed.current === null &&
-                        !event.defaultPrevented)
-                      ? state.touch.previousY - contact.clientY
-                      : 0,
-                    performance.now(),
-                  ),
-                },
-              };
-            }}
-            onTouchEnd={() => {
-              scrollHandlers.onTouchEnd();
-              const state = readingOwnership.current;
-              readingOwnership.current = {
-                ...state,
-                pending: mergeReadingOrigins(
-                  state.pending,
-                  state.touch?.pending ?? NO_READING_ORIGINS,
-                  performance.now(),
-                ),
-                touch: null,
-              };
-            }}
-            onTouchCancel={() => {
-              readingOwnership.current = {
-                ...readingOwnership.current,
-                touch: null,
-              };
-            }}
-            onScroll={() => reconcileViewport("scroll")}
+            {...(readingPosition == null ? scrollHandlers : {})}
+            onWheel={
+              readingPosition == null
+                ? scrollHandlers.onWheel
+                : (event) => {
+                    reconcileViewport({
+                      kind: "input",
+                      input:
+                        event.ctrlKey || event.defaultPrevented
+                          ? { kind: "reject-wheel" }
+                          : event.deltaY === 0
+                            ? { kind: "none" }
+                            : {
+                                kind: "direction",
+                                source: "wheel",
+                                direction: event.deltaY < 0 ? "up" : "down",
+                              },
+                    });
+                  }
+            }
+            onKeyDown={
+              readingPosition == null
+                ? scrollHandlers.onKeyDown
+                : (event) => {
+                    const editable =
+                      event.target instanceof Element &&
+                      event.target.closest(
+                        "input, textarea, select, [contenteditable]:not([contenteditable='false'])",
+                      );
+                    reconcileViewport({
+                      kind: "input",
+                      input:
+                        !event.defaultPrevented &&
+                        !editable &&
+                        !event.ctrlKey &&
+                        !event.metaKey &&
+                        !event.altKey &&
+                        isScrollKey(
+                          event.key,
+                          event.target === event.currentTarget,
+                        )
+                          ? {
+                              kind: "direction",
+                              source: "key",
+                              direction:
+                                event.key === "PageUp" ||
+                                event.key === "Home" ||
+                                event.key === "ArrowUp" ||
+                                (event.key === " " && event.shiftKey)
+                                  ? "up"
+                                  : "down",
+                            }
+                          : { kind: "none" },
+                    });
+                  }
+            }
+            onPointerDown={
+              readingPosition == null
+                ? scrollHandlers.onPointerDown
+                : (event) => {
+                    reconcileViewport({
+                      kind: "input",
+                      input:
+                        event.target === event.currentTarget &&
+                        event.isPrimary &&
+                        event.pointerType !== "touch" &&
+                        event.button === 0 &&
+                        !event.defaultPrevented
+                          ? {
+                              kind: "scrollbar-start",
+                              pointerId: event.pointerId,
+                            }
+                          : { kind: "none" },
+                    });
+                  }
+            }
+            onTouchStart={
+              readingPosition == null
+                ? scrollHandlers.onTouchStart
+                : (event) => {
+                    const contact =
+                      event.touches.length === 1 && !event.defaultPrevented
+                        ? event.touches[0]
+                        : null;
+                    reconcileViewport({
+                      kind: "input",
+                      input: contact
+                        ? {
+                            kind: "touch-start",
+                            identifier: contact.identifier,
+                            y: contact.clientY,
+                          }
+                        : { kind: "touch-cancel" },
+                    });
+                  }
+            }
+            onTouchMove={
+              readingPosition == null
+                ? scrollHandlers.onTouchMove
+                : (event) => {
+                    const contact =
+                      event.touches.length === 1 ? event.touches[0] : null;
+                    reconcileViewport({
+                      kind: "input",
+                      input: contact
+                        ? {
+                            kind: "touch-move",
+                            identifier: contact.identifier,
+                            y: contact.clientY,
+                            blocked:
+                              event.defaultPrevented ||
+                              selectionViewport.current !== "idle" ||
+                              grabbed.current !== null,
+                          }
+                        : { kind: "touch-cancel" },
+                    });
+                  }
+            }
+            onTouchEnd={
+              readingPosition == null
+                ? scrollHandlers.onTouchEnd
+                : (event) => {
+                    const contact =
+                      event.changedTouches.length === 1 &&
+                      event.touches.length === 0
+                        ? event.changedTouches[0]
+                        : null;
+                    reconcileViewport({
+                      kind: "input",
+                      input: contact
+                        ? { kind: "touch-end", identifier: contact.identifier }
+                        : { kind: "touch-cancel" },
+                    });
+                  }
+            }
+            onTouchCancel={
+              readingPosition == null
+                ? undefined
+                : () => {
+                    reconcileViewport({
+                      kind: "input",
+                      input: { kind: "touch-cancel" },
+                    });
+                  }
+            }
+            onScroll={() => reconcileViewport({ kind: "scroll" })}
           >
             {turns.map((turn, turnIndex) => {
               const { lo, hi } = ranges[turnIndex];
