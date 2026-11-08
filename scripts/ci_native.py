@@ -89,6 +89,7 @@ NATIVE_WORKLOADS = (
             "tests/test_project_commit_lock.py",
             "tests/test_history.py",
             "tests/test_review_versions.py",
+            "tests/test_export_variant_integrity.py",
         ),
     ),
     NativeWorkload("desktop.yml", "ffmpeg-native-payload", NativeFamily.PAYLOAD),

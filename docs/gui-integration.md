@@ -137,14 +137,21 @@ The host `POST /api/export/deliverables` route forwards an optional `target` to 
 omitted or null preserves the canonical export behavior and configured default. The
 job result carries the target, measured QC, captured edit head and file IDs. Variant
 jobs open a non-adopting workspace and do not save project state or rewrite the shared
-master artifacts.
+master artifacts. Cache reuse returns the edit head guarded for the current request;
+the saved receipt keeps its original generation head. Malformed receipts are excluded
+without hiding canonical downloads. Missing or unsafe encoder output produces a
+path-free coded refusal. QC refusals retain requested and measured LUFS and peak
+within the host job's 200-character message.
 
 This is a partial backend implementation, part of #2455. It does not add UI controls,
 CLI/MCP target support, time-range or folder selection, or guest target generation.
 Completed variant audio is exposed through the existing export-file list, open, download
 ticket and reveal paths. The inventory admits only registered audio files from complete
 valid bundles. Existing host and guest read permissions continue to apply; guest routes
-do not create variant jobs.
+do not create variant jobs. Isolated generation requires Linux or macOS directory
+descriptors. Unsupported hosts, including Windows, return
+`export_variant_storage_invalid` before staging or rendering. Default exports remain
+available. The existing Windows commit-lock CI job checks this refusal.
 
 ## Progress
 
