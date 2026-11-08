@@ -306,7 +306,7 @@ describe("reviewEntriesOf", () => {
     expect(reviewCountOf([pending])).toBe(1);
   });
 
-  it("omits the unsure affordance when every proposed word is cut away", () => {
+  it("keeps the raw unsure guard when every proposed word is cut away", () => {
     const pending = pendingEditView({
       unsure_words: [
         {
@@ -328,7 +328,7 @@ describe("reviewEntriesOf", () => {
     expect(raw?.content.card.unsure).toMatchObject({
       id: wordIdOf("host", null, 1),
     });
-    expect(entry?.item.unsure).toBeUndefined();
+    expect(entry?.item.unsure).toBe(true);
     expect(entry?.content.card.unsure).toBeUndefined();
     expect(reviewCountOf([pending])).toBe(1);
   });

@@ -1282,6 +1282,93 @@ describe("Review host unsure words", () => {
     });
   });
 
+  it("keeps a source proposal blocked when its only unsure word is unmappable", async () => {
+    setup("done", [
+      edit("f1", "filler", 10, { unsure_words: [word(1, "uncle")] }),
+    ]);
+    server.words = [
+      { text: "ordinary", unsure: false, at: 10, listed: true },
+      {
+        text: "uncle",
+        unsure: true,
+        at: 10.25,
+        listed: true,
+        mappable: false,
+      },
+    ];
+    snapshot();
+
+    expect(screen.queryByRole("button", { name: /^Cut all/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Fix text" })).toBeNull();
+    expect(screen.getByRole("button", { name: /filler f1/ })).toBeVisible();
+    expect(heading()).toBe("filler f1");
+    expect(screen.getByText("Open it in Edit to resolve.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Cut" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Keep/ })).toBeEnabled();
+
+    press("Enter");
+    expect(sent("ApproveEdits")).toHaveLength(0);
+  });
+
+  it("does not carry an open Fix draft from a retired word to the next proposal word", async () => {
+    setup("done", [
+      edit("f1", "filler", 10, {
+        unsure_words: [word(0, "uncle"), word(1, "gnu")],
+      }),
+    ]);
+    await userEvent.click(screen.getByRole("button", { name: /filler f1/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Fix text" }));
+    const field = screen.getByRole("textbox", {
+      name: /^Corrected text for/,
+    });
+    await userEvent.clear(field);
+    await userEvent.type(field, "distinctive uncle draft");
+
+    server.words = server.words.map((item, index) =>
+      index === 0 ? { ...item, mappable: false } : item,
+    );
+    snapshot();
+
+    expect(heading()).toBe("filler f1");
+    expect(
+      screen.queryByRole("textbox", { name: /^Corrected text for/ }),
+    ).toBeNull();
+    expect(sent("CorrectTranscriptWord")).toHaveLength(0);
+    await userEvent.click(screen.getByRole("button", { name: "Fix text" }));
+    expect(
+      screen.getByRole("textbox", { name: /^Corrected text for/ }),
+    ).toHaveValue("gnu");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(sent("CorrectTranscriptWord")).toHaveLength(1);
+    expect(sent("CorrectTranscriptWord")[0].payload).toEqual({
+      track_id: "host",
+      word_index: 1,
+      text: "gnu",
+      expected_text: "gnu",
+    });
+  });
+
+  it("opens Fix with the current word after a closed editor's target retires", async () => {
+    setup("done", [
+      edit("f1", "filler", 10, {
+        unsure_words: [word(0, "uncle"), word(1, "gnu")],
+      }),
+    ]);
+    await userEvent.click(screen.getByRole("button", { name: /filler f1/ }));
+
+    server.words = server.words.map((item, index) =>
+      index === 0 ? { ...item, mappable: false } : item,
+    );
+    snapshot();
+
+    expect(heading()).toBe("filler f1");
+    await userEvent.click(screen.getByRole("button", { name: "Fix text" }));
+    expect(
+      screen.getByRole("textbox", { name: /^Corrected text for/ }),
+    ).toHaveValue("gnu");
+  });
+
   it("Fixes the surviving word after a pending suggestion's first word becomes unmappable", async () => {
     setup("pending", [
       edit("f1", "filler", 10, {
