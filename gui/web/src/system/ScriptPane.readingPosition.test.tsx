@@ -3903,4 +3903,123 @@ describe("ScriptPane reading position", () => {
       ).toBe(368);
     },
   );
+  it.each(["key", "ended touch"] as const)(
+    "accepts a no-op Back before old %s motion and still admits fresh input",
+    (input) => {
+      const geometry = scriptGeometry();
+      geometry.setWordHeight(20);
+      vi.spyOn(performance, "now").mockReturnValue(0);
+      const onUserScroll = vi.fn();
+      const { container } = render(
+        <GuestScript
+          layout="desktop"
+          turns={SCRIPT_TURNS}
+          wordStarts={[]}
+          playing={6}
+          onSeek={vi.fn()}
+          onUserScroll={onUserScroll}
+        />,
+      );
+      const body = container.querySelector<HTMLElement>(".sys-script-body");
+      if (!body) throw new Error("Expected actual guest body");
+      if (input === "key") fireEvent.keyDown(body, { key: "PageDown" });
+      else {
+        fireEvent.touchStart(body, {
+          touches: [{ identifier: 17, clientY: 172 }],
+        });
+        fireEvent.touchMove(body, {
+          touches: [{ identifier: 17, clientY: 152 }],
+        });
+      }
+      body.scrollTop = 30;
+      fireEvent.scroll(body);
+      if (input === "ended touch")
+        fireEvent.touchEnd(body, {
+          touches: [],
+          changedTouches: [{ identifier: 17, clientY: 152 }],
+        });
+      expect(onUserScroll).toHaveBeenCalledOnce();
+      fireEvent.click(screen.getByRole("button", { name: "Back to playhead" }));
+      expect(body.scrollTop).toBe(30);
+      expect(
+        screen.queryByRole("button", { name: "Back to playhead" }),
+      ).toBeNull();
+      body.scrollTop = 74;
+      fireEvent.scroll(body);
+      expect.soft(onUserScroll).toHaveBeenCalledOnce();
+      expect
+        .soft(screen.queryByRole("button", { name: "Back to playhead" }))
+        .toBeNull();
+      fireEvent.keyDown(body, { key: "PageDown" });
+      body.scrollTop = 100;
+      fireEvent.scroll(body);
+      expect(onUserScroll).toHaveBeenCalledTimes(2);
+      expect(
+        screen.getByRole("button", { name: "Back to playhead" }),
+      ).toBeVisible();
+    },
+  );
+
+  it.each([
+    ["key", "observer"],
+    ["key", "scroll"],
+    ["ended touch", "observer"],
+    ["ended touch", "scroll"],
+  ] as const)(
+    "keeps %s motion already present in the first resized %s sample",
+    (input, delivery) => {
+      const geometry = scriptGeometry();
+      stubResizeObserver();
+      vi.spyOn(performance, "now").mockReturnValue(0);
+      const onUserScroll = vi.fn();
+      const { body, binding, captured, rerender, container } = setup(
+        null,
+        false,
+        onUserScroll,
+      );
+      if (input === "key") fireEvent.keyDown(body, { key: "PageDown" });
+      else {
+        fireEvent.touchStart(body, {
+          touches: [{ identifier: 17, clientY: 172 }],
+        });
+        fireEvent.touchMove(body, {
+          touches: [{ identifier: 17, clientY: 152 }],
+        });
+      }
+      body.scrollTop = 30;
+      fireEvent.scroll(body);
+      expect(captured()).toMatchObject({
+        index: 1,
+        offset: -10,
+        fallbackTop: 30,
+      });
+      if (input === "ended touch")
+        fireEvent.touchEnd(body, {
+          touches: [],
+          changedTouches: [{ identifier: 17, clientY: 152 }],
+        });
+      geometry.resize(201, 200);
+      body.scrollTop = 74;
+      if (delivery === "observer") FakeResizeObserver.of(body).fire(body);
+      else fireEvent.scroll(body);
+      expect.soft(body.scrollTop).toBe(74);
+      expect.soft(captured()).toMatchObject({ fallbackTop: 74 });
+      expect.soft(onUserScroll).toHaveBeenCalledTimes(2);
+      body.scrollTop = 368;
+      fireEvent.scroll(body);
+      expect.soft(captured()).toMatchObject({ fallbackTop: 368 });
+      expect.soft(onUserScroll).toHaveBeenCalledTimes(3);
+      rerender(
+        <ScriptPane
+          turns={SCRIPT_TURNS}
+          readingPosition={binding}
+          status={{ kind: "loading" }}
+        />,
+      );
+      rerender(<ScriptPane turns={SCRIPT_TURNS} readingPosition={binding} />);
+      expect(
+        container.querySelector<HTMLElement>(".sys-script-body")?.scrollTop,
+      ).toBe(368);
+    },
+  );
 });
