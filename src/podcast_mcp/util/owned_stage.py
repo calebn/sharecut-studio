@@ -11,7 +11,7 @@ import os
 import shutil
 import stat
 import sys
-from contextlib import suppress
+from contextlib import ExitStack, suppress
 from pathlib import Path
 from uuid import uuid4
 
@@ -39,15 +39,27 @@ def _identity(value: os.stat_result) -> tuple[int, int]:
 
 def _open_root(path: Path) -> int:
     descriptor = open_nofollow_dir(path.anchor)
+    resources = ExitStack()
+    resources.callback(_close_descriptor, descriptor)
     try:
         for part in path.parts[1:]:
             child = open_nofollow_dir(part, dir_fd=descriptor)
-            os.close(descriptor)
+            child_resources = ExitStack()
+            child_resources.callback(_close_descriptor, child)
+            previous_resources = resources
+            resources = child_resources.pop_all()
+            previous_resources.close()
             descriptor = child
+        resources.pop_all()
         return descriptor
     except BaseException:
-        os.close(descriptor)
+        resources.close()
         raise
+
+
+def _close_descriptor(descriptor: int) -> None:
+    with suppress(OSError):
+        os.close(descriptor)
 
 
 class OwnedStage:
@@ -58,15 +70,15 @@ class OwnedStage:
         self.name = f".partial-{uuid4().hex}"
         self.path = root / self.name
         self.committed = False
-        self.root_fd = _open_root(root)
-        try:
+        with ExitStack() as resources:
+            self.root_fd = _open_root(root)
+            resources.callback(_close_descriptor, self.root_fd)
             self.root_identity = _identity(os.fstat(self.root_fd))
             os.mkdir(self.name, mode=0o700, dir_fd=self.root_fd)
             self.stage_fd = open_nofollow_dir(self.name, dir_fd=self.root_fd)
+            resources.callback(_close_descriptor, self.stage_fd)
             self.stage_identity = _identity(os.fstat(self.stage_fd))
-        except BaseException:
-            os.close(self.root_fd)
-            raise
+            self._resources = resources.pop_all()
 
     def verify(self, name: str | None = None) -> None:
         visible = _open_root(self.root)
@@ -95,27 +107,34 @@ class OwnedStage:
                 with suppress(OSError):
                     self._quarantine_cleanup()
         finally:
-            os.close(self.stage_fd)
-            os.close(self.root_fd)
+            self._resources.close()
 
     def _quarantine_cleanup(self) -> None:
         quarantine = f".cleanup-{uuid4().hex}"
         os.mkdir(quarantine, mode=0o700, dir_fd=self.root_fd)
-        quarantine_fd = open_nofollow_dir(quarantine, dir_fd=self.root_fd)
-        identity = _identity(os.fstat(quarantine_fd))
+        identity: tuple[int, int] | None = None
         try:
-            rename_noreplace(self.name, "stage", self.root_fd, dst_root_fd=quarantine_fd)
-            moved = _identity(os.stat("stage", dir_fd=quarantine_fd, follow_symlinks=False))
-            if moved != self.stage_identity:
-                with suppress(OSError):
-                    rename_noreplace("stage", self.name, quarantine_fd, dst_root_fd=self.root_fd)
-                return
-            shutil.rmtree("stage", dir_fd=quarantine_fd)
+            with ExitStack() as resources:
+                quarantine_fd = open_nofollow_dir(quarantine, dir_fd=self.root_fd)
+                resources.callback(_close_descriptor, quarantine_fd)
+                identity = _identity(os.fstat(quarantine_fd))
+                rename_noreplace(self.name, "stage", self.root_fd, dst_root_fd=quarantine_fd)
+                moved = _identity(os.stat("stage", dir_fd=quarantine_fd, follow_symlinks=False))
+                if moved != self.stage_identity:
+                    with suppress(OSError):
+                        rename_noreplace(
+                            "stage", self.name, quarantine_fd, dst_root_fd=self.root_fd
+                        )
+                    return
+                shutil.rmtree("stage", dir_fd=quarantine_fd)
         finally:
-            os.close(quarantine_fd)
-            with suppress(OSError):
-                if (
-                    _identity(os.stat(quarantine, dir_fd=self.root_fd, follow_symlinks=False))
-                    == identity
-                ):
-                    os.rmdir(quarantine, dir_fd=self.root_fd)
+            if identity is not None:
+                self._remove_quarantine_if_owned(quarantine, identity)
+
+    def _remove_quarantine_if_owned(self, quarantine: str, identity: tuple[int, int]) -> None:
+        with suppress(OSError):
+            if (
+                _identity(os.stat(quarantine, dir_fd=self.root_fd, follow_symlinks=False))
+                == identity
+            ):
+                os.rmdir(quarantine, dir_fd=self.root_fd)
