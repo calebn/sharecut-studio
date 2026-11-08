@@ -1117,7 +1117,7 @@ describe("Review host unsure words", () => {
     await checks();
   });
 
-  it("sends no mark when the transcript words are not all loaded", async () => {
+  it("sends no word correction or mark while transcript detail is unknown", async () => {
     setup();
     const { project } = useDawStore.getState();
     useDawStore.setState({
@@ -1131,11 +1131,9 @@ describe("Review host unsure words", () => {
       act(() => {
         press("Enter");
       });
-    await waitFor(() => expect(sent("CorrectTranscriptWord")).toHaveLength(3));
+    expect(sent("CorrectTranscriptWord")).toHaveLength(0);
     expect(order).not.toContain("done");
-    expect(toast()).toBe(
-      "Looks right. The transcript check stays open until every word has loaded.",
-    );
+    expect(screen.getByRole("button", { name: "Fix text" })).toBeDisabled();
     await checks();
   });
 

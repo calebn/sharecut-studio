@@ -697,3 +697,36 @@ describe("DecisionCard verb", () => {
     expect(onConfirm).toHaveBeenCalledWith(undefined);
   });
 });
+
+it("retains a Fix draft while unknown detail disables every word write", async () => {
+  const onFix = vi.fn();
+  const onLooksRight = vi.fn();
+  const unsure = {
+    id: "word:host::2",
+    word: "valid",
+    guess: "valid",
+    onFix,
+    onLooksRight,
+  };
+  const view = render(<DecisionCard {...base()} unsure={unsure} />);
+  await userEvent.click(screen.getByRole("button", { name: "Fix text" }));
+  const input = screen.getByRole("textbox", { name: /Corrected text/ });
+  await userEvent.type(input, " draft");
+  view.rerender(
+    <DecisionCard
+      {...base()}
+      unsure={{ ...unsure, disabledReason: "The transcript is loading." }}
+    />,
+  );
+  expect(screen.getByRole("textbox", { name: /Corrected text/ })).toBe(input);
+  expect(input).toHaveValue("valid draft");
+  expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Looks right" })).toBeDisabled();
+  fireEvent.submit(input.closest("form")!);
+  expect(onFix).not.toHaveBeenCalled();
+  expect(onLooksRight).not.toHaveBeenCalled();
+  await expectNoA11yViolations(view.container);
+  view.rerender(<DecisionCard {...base()} unsure={unsure} />);
+  await userEvent.click(screen.getByRole("button", { name: "Save" }));
+  expect(onFix).toHaveBeenCalledWith("valid draft");
+});
