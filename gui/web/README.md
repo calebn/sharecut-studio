@@ -224,7 +224,9 @@ timeline callers keep their selection and blade actions after the seek
 dispatch, and WebMCP awaits the shared helper.
 Clip edit completions check the initiating project path and epoch before changing
 selection or feedback. After a project switch, envelope-point removal and range
-Cut failures return `told: true` so terminal callers stay quiet.
+Cut failures return `told: true`; terminal callers use the shared refusal
+boundary so they do not announce those handled failures again. Paste focus checks
+the same project scope inside its scheduled animation frame.
 `commands/governance.test.ts` rejects inline `skipWhen: true` outside the pointer
 helper, keymap listener, and WebMCP adapter.
 
