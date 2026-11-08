@@ -1230,7 +1230,7 @@ describe("ScriptPane reading position", () => {
   });
 
   it.each(["word drag", "grip hold"] as const)(
-    "keeps the held pointer word fixed during imperative follow with a %s",
+    "preserves explicit follow navigation during a %s hold",
     (owner) => {
       vi.useFakeTimers({
         toFake: ["requestAnimationFrame", "cancelAnimationFrame"],
@@ -1251,7 +1251,7 @@ describe("ScriptPane reading position", () => {
         capture: (next) => {
           position = next;
         },
-        restore: true,
+        restore: false,
       };
       function Host() {
         const [selection, setSelection] = useState<
@@ -1275,6 +1275,9 @@ describe("ScriptPane reading position", () => {
       const grip = body?.querySelector<HTMLElement>('[data-edge="end"]');
       if (!body || !word || !grip)
         throw new Error("Expected selectable words and grip");
+      act(() => {
+        expect(ref.current?.scrollToWord(5, "start")).toBe(true);
+      });
       document.elementFromPoint = (_x, y) =>
         body.querySelector(
           `[data-stop="${Math.floor((y + body.scrollTop) / 20)}"]`,
@@ -1305,8 +1308,10 @@ describe("ScriptPane reading position", () => {
       act(() => {
         expect(ref.current?.scrollToWord(40, "center")).toBe(true);
       });
-      expect.soft(body.scrollTop).toBe(100);
-      expect.soft(document.elementFromPoint(50, 88)?.textContent).toBe("about");
+      expect.soft(body.scrollTop).toBe(708);
+      expect
+        .soft(document.elementFromPoint(50, 88)?.textContent)
+        .toBe("microphones.");
       fireEvent.pointerUp(owner === "word drag" ? body : target, pointer);
       act(() => {
         expect(ref.current?.scrollToWord(5, "center")).toBe(true);
