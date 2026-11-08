@@ -1255,7 +1255,8 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
         active &&
         active !== document.body &&
         active !== document.documentElement &&
-        !body.parentElement?.contains(active)
+        !body.parentElement?.contains(active) &&
+        !active.contains(body)
       )
         return;
       if (elementClipped(body, false)) {
@@ -1613,6 +1614,10 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
               event.preventDefault();
             }}
             {...scrollIntent.handlers}
+            onWheel={() => {
+              scrollIntent.handlers.onWheel();
+              readingBounds.current = null;
+            }}
             onScroll={() => {
               const binding = readingPositionRef.current;
               const body = bodyRef.current;
@@ -1686,6 +1691,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
                 end={places.end}
                 onDrag={dragHandle}
                 onGrab={() => {
+                  captureReadingPosition();
                   const now = live.current.selection;
                   grabbed.current =
                     now?.kind === "words"
