@@ -3651,4 +3651,147 @@ describe("ScriptPane reading position", () => {
     fireEvent.scroll(body);
     expect(onUserScroll).toHaveBeenCalledOnce();
   });
+  it.each(["width", "font"] as const)(
+    "does not carry layout-driven %s motion into a replacement pane",
+    (reflow) => {
+      const geometry = scriptGeometry();
+      vi.spyOn(performance, "now").mockReturnValue(0);
+      const onUserScroll = vi.fn();
+      const { body, binding, captured, rerender, container } = setup(
+        null,
+        false,
+        onUserScroll,
+      );
+      body.scrollTop = 590;
+      fireEvent.wheel(body, { deltaY: 590 });
+      fireEvent.scroll(body);
+      const saved = captured();
+      expect(saved).toMatchObject({ index: 29, offset: -10, fallbackTop: 590 });
+
+      geometry.setLineHeight(22);
+      if (reflow === "width") geometry.resize(100, 200);
+      body.scrollTop = 650;
+      fireEvent(window, new Event("resize"));
+
+      expect.soft(body.scrollTop).toBe(648);
+      expect.soft(captured()).toBe(saved);
+      expect.soft(onUserScroll).toHaveBeenCalledOnce();
+      rerender(
+        <ScriptPane
+          turns={SCRIPT_TURNS}
+          readingPosition={binding}
+          status={{ kind: "loading" }}
+        />,
+      );
+      rerender(<ScriptPane turns={SCRIPT_TURNS} readingPosition={binding} />);
+      const replacement =
+        container.querySelector<HTMLElement>(".sys-script-body");
+      expect(replacement).not.toBe(body);
+      expect(replacement?.scrollTop).toBe(648);
+      expect(captured()).toBe(saved);
+    },
+  );
+
+  it("does not let an old write acknowledgement swallow a new paging advance", () => {
+    const geometry = scriptGeometry();
+    geometry.setWordHeight(20);
+    vi.spyOn(performance, "now").mockReturnValue(0);
+    const onUserScroll = vi.fn();
+    const { container } = render(
+      <GuestScript
+        layout="desktop"
+        turns={SCRIPT_TURNS}
+        wordStarts={[]}
+        playing={34}
+        onSeek={vi.fn()}
+        onUserScroll={onUserScroll}
+      />,
+    );
+    const body = container.querySelector<HTMLElement>(".sys-script-body");
+    if (!body) throw new Error("Expected the actual guest Script body");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Follow the playhead" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Back to playhead" }));
+    expect(body.scrollTop).toBe(590);
+    expect(
+      screen.queryByRole("button", { name: "Back to playhead" }),
+    ).toBeNull();
+
+    body.scrollTop = 520;
+    fireEvent.keyDown(body, { key: "PageDown" });
+    body.scrollTop = 590;
+    fireEvent.scroll(body);
+
+    expect(onUserScroll).toHaveBeenCalledOnce();
+    expect(
+      screen.getByRole("button", { name: "Back to playhead" }),
+    ).toBeVisible();
+  });
+
+  it("retires an interrupted scrollbar press when the window loses focus", () => {
+    scriptGeometry();
+    const clock = vi.spyOn(performance, "now").mockReturnValue(0);
+    const onUserScroll = vi.fn();
+    const { body, captured } = setup(
+      { kind: "scroll", top: 590 },
+      false,
+      onUserScroll,
+    );
+    fireEvent.scroll(body);
+    const saved = captured();
+    fireEvent.pointerDown(body, {
+      pointerId: 7,
+      pointerType: "mouse",
+      isPrimary: true,
+      button: 0,
+    });
+    fireEvent(window, new Event("blur"));
+    clock.mockReturnValue(601);
+    body.scrollTop = 670;
+    fireEvent.scroll(body);
+    fireEvent(window, new Event("resize"));
+
+    expect(body.scrollTop).toBe(590);
+    expect(captured()).toBe(saved);
+    expect(onUserScroll).not.toHaveBeenCalled();
+  });
+
+  it.each(["release", "cancel"] as const)(
+    "observes the last held-scrollbar position on %s after its initial fact expires",
+    (exit) => {
+      scriptGeometry();
+      const clock = vi.spyOn(performance, "now").mockReturnValue(0);
+      const onUserScroll = vi.fn();
+      const { body, captured } = setup(
+        { kind: "scroll", top: 590 },
+        false,
+        onUserScroll,
+      );
+      fireEvent.scroll(body);
+      const saved = captured();
+      fireEvent.pointerDown(body, {
+        pointerId: 7,
+        pointerType: "mouse",
+        isPrimary: true,
+        button: 0,
+      });
+      clock.mockReturnValue(600);
+      body.scrollTop = 670;
+      if (exit === "release") fireEvent.pointerUp(window, { pointerId: 7 });
+      else fireEvent.pointerCancel(window, { pointerId: 7 });
+
+      if (exit === "release") {
+        expect(captured()).toMatchObject({ index: 33, fallbackTop: 670 });
+        expect(onUserScroll).toHaveBeenCalledOnce();
+      } else {
+        expect(captured()).toBe(saved);
+        expect(onUserScroll).not.toHaveBeenCalled();
+      }
+      const afterExit = captured();
+      fireEvent.scroll(body);
+      expect(captured()).toBe(afterExit);
+      expect(onUserScroll).toHaveBeenCalledTimes(exit === "release" ? 1 : 0);
+    },
+  );
 });
