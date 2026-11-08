@@ -440,12 +440,14 @@ describe("ModelNeedRow with a models provider", () => {
           status: modelStatus(registryRows()),
           job: {
             id: "j",
+            kind: "bootstrap",
+            failed_components: [],
             status: "running",
             components: ["rnnoise"],
             whisper_model: "large-v3-turbo",
             download: null,
             error: null,
-          } as never,
+          },
         }),
       ),
     });
