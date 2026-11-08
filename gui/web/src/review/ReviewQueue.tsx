@@ -24,12 +24,16 @@ import type { ModelNeeded } from "../utils/apiError";
 import { formatTimeShort } from "../utils/time";
 import { RefineGateWaiver } from "./RefineGateWaiver";
 import {
+  type ReviewDetailKind,
+  reviewCompletenessOf,
+  reviewSubsetCount,
+} from "./reviewCompleteness";
+import {
   attentionLabelOf,
   attentionVisible,
   commentLine,
   decidedItems,
   dismissHeld,
-  filterCounts,
   filterItems,
   groupQueue,
   kindInFilter,
@@ -115,6 +119,7 @@ export type ReviewQueueProps = {
   /** Without it the queue is comments only: no bulk verbs, Cut or Keep, swipes. */
   canDecide?: boolean;
   state?: "ready" | "loading" | "error";
+  detailKind?: ReviewDetailKind;
   /** A share guest's edits that did not apply. */
   attention?: ReviewAttention;
   onFilter: (filter: ReviewFilter) => void;
@@ -193,11 +198,13 @@ function GroupHeader({
   running,
   canDecide,
   onBulk,
+  count,
 }: {
   group: ReviewGroup;
   running?: BulkProgress;
   canDecide: boolean;
   onBulk?: (group: ReviewGroup) => void;
+  count: number | null;
 }) {
   const meta = KIND_META[group.kind];
   if (running) return <BulkRow running={running} />;
@@ -214,7 +221,9 @@ function GroupHeader({
     <div className="rv-group-head">
       <SystemIcon name={meta.icon} size={16} />
       <span className="rv-group-name">{group.label}</span>
-      <span className="sys-mono rv-group-count">{group.items.length}</span>
+      <span className="sys-mono rv-group-count">
+        {count ?? "Count unavailable"}
+      </span>
       {bulk && verb?.icon ? (
         <>
           <span className="sys-mono">{formatSeconds(bulk.savedSeconds)}</span>
@@ -379,6 +388,7 @@ export function ReviewQueue({
   guest = false,
   canDecide = !guest,
   state = "ready",
+  detailKind,
   attention,
   onFilter,
   onSpeaker,
@@ -394,7 +404,8 @@ export function ReviewQueue({
 }: ReviewQueueProps) {
   const [showDecided, setShowDecided] = useState(false);
   const [waived, setWaived] = useState<ReadonlySet<string>>(() => new Set());
-  const counts = filterCounts(items, speaker);
+  const completeness = reviewCompletenessOf(items, detailKind, speaker);
+  const { counts } = completeness;
   const shown = filterItems(items, filter, speaker);
   const people = canDecide && onSpeaker ? speakersOf(items) : [];
   const byTime = sort === "time";
@@ -450,7 +461,9 @@ export function ReviewQueue({
         className="rv-progress sys-mono"
         aria-live="polite"
       >
-        {canDecide ? progressLine(items) : commentLine(items)}
+        {canDecide
+          ? (completeness.unavailableMessage ?? progressLine(items))
+          : commentLine(items)}
       </p>
       <div className="rv-filter">
         <SegmentedControl label="Filter" className="rv-kind-filter">
@@ -463,13 +476,13 @@ export function ReviewQueue({
               key={id}
               quiet
               pressed={filter === id}
-              aria-label={`${label}, ${counts[id]}`}
+              aria-label={`${label}, ${counts[id] ?? "count unavailable"}`}
               title={label}
               onClick={() => onFilter(id)}
             >
               {icon}
               <span>{label}</span>{" "}
-              <span className="sys-mono">{counts[id]}</span>
+              <span className="sys-mono">{counts[id] ?? "—"}</span>
             </ToggleButton>
           ))}
         </SegmentedControl>
@@ -514,12 +527,14 @@ export function ReviewQueue({
                 key={chip.id}
                 quiet
                 pressed={speaker === chip.id}
-                aria-label={`${chip.label}, ${chip.open}`}
+                aria-label={`${chip.label}, ${completeness.wordsKnown ? chip.open : "count unavailable"}`}
                 title={chip.label}
                 onClick={() => onSpeaker(chip.id)}
               >
                 <span>{chip.label}</span>
-                <span className="sys-mono">{chip.open}</span>
+                <span className="sys-mono">
+                  {completeness.wordsKnown ? chip.open : "—"}
+                </span>
               </ToggleButton>
             ))}
           </SegmentedControl>
@@ -529,8 +544,10 @@ export function ReviewQueue({
   );
 
   const renderItem = (item: ReviewItem, running?: BulkProgress) => {
-    const { row, check } = content(item);
+    const { row, check, card } = content(item);
     const selected = item.id === selectedId;
+    const unavailableWord =
+      item.kind === "unsure-word" && !!card.unsure?.disabledReason;
     if (check) {
       return (
         <div
@@ -559,6 +576,7 @@ export function ReviewQueue({
         onSelect={() => onSelect(item.id)}
         onVerb={
           !canDecide ||
+          unavailableWord ||
           running ||
           item.blocked ||
           (guest && item.kind === "comment")
@@ -566,7 +584,10 @@ export function ReviewQueue({
             : () => onVerb?.(item.id)
         }
         onKeep={
-          !canDecide || running || (guest && item.kind === "comment")
+          !canDecide ||
+          unavailableWord ||
+          running ||
+          (guest && item.kind === "comment")
             ? undefined
             : () => onKeep?.(item.id)
         }
@@ -647,11 +668,13 @@ export function ReviewQueue({
       !cuttingAlone &&
       !showAttention ? (
         <EmptyState as="div" role="status">
-          {filter !== "all"
-            ? "Nothing here"
-            : !canDecide
-              ? "No comments yet"
-              : "Nothing to decide"}
+          {counts[filter] === null
+            ? completeness.unavailableMessage
+            : filter !== "all"
+              ? "Nothing here"
+              : !canDecide
+                ? "No comments yet"
+                : "Nothing to decide"}
         </EmptyState>
       ) : null}
       {groups.map((group) => {
@@ -669,6 +692,11 @@ export function ReviewQueue({
               running={running}
               canDecide={canDecide}
               onBulk={onBulk}
+              count={reviewSubsetCount(
+                group.items.length,
+                detailKind,
+                group.kind === "unsure-word",
+              )}
             />
             {group.items.map((item) => renderItem(item, running))}
           </section>
@@ -679,7 +707,9 @@ export function ReviewQueue({
           <div className="rv-group-head">
             <SystemIcon name="clock" size={16} />
             <span className="rv-group-name">In time order</span>
-            <span className="sys-mono rv-group-count">{inTime.length}</span>
+            <span className="sys-mono rv-group-count">
+              {counts[filter] ?? "Count unavailable"}
+            </span>
           </div>
           {inTime.map((item) => renderItem(item))}
         </section>

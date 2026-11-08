@@ -70,7 +70,9 @@ editor saves and Escape cancels.
 Review keeps an open Fix draft while word detail reloads for the same recorded
 word. If another word takes its place, Review closes the old draft. Save, Looks
 right, and a word card's Open in Edit wait until the words are ready. A proposal
-can still open in Edit. A failed load offers Try again. Deliver keeps Check
-available during this wait and does not report zero unsure words until the
-transcript detail establishes that count. Export remains available under its
-existing requirements.
+can still open in Edit. A failed load offers Try again. While words are loading
+or could not load, Review leaves word-dependent totals and completion unknown;
+known suggestions and comments remain countable, and Deliver stays secondary.
+Deliver keeps Check available during this wait and does not report zero unsure
+words until transcript detail establishes that count. Export remains available
+under its existing requirements.

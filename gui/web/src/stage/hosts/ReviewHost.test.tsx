@@ -910,7 +910,7 @@ describe("Review host unsure words", () => {
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
   };
 
-  it("lists each unsure word once, after Checks, in time order, with the count copy", async () => {
+  it("keeps retained unsure rows but counts only active transcript words in Checks", async () => {
     setup();
     await checks();
     expect(rows()).toEqual([
@@ -924,7 +924,7 @@ describe("Review host unsure words", () => {
     expect(regions.indexOf("Checks")).toBeLessThan(
       regions.indexOf("Unsure words"),
     );
-    expect(screen.getAllByText("3 unsure words").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("2 unsure words").length).toBeGreaterThan(0);
     expect(screen.queryByText("Run the CLI refine.")).toBeNull();
   });
 

@@ -59,6 +59,7 @@ import {
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
 import type { AuditionSide } from "../../system/auditionWindow";
+import { selectLowConfidenceStops } from "../../transcript/lowConfidence";
 import type {
   HistoryEntryId,
   PendingEditView,
@@ -208,6 +209,10 @@ export function useReviewQueue(guestShare = false) {
 
   const utterances = guest ? undefined : project?.transcript?.utterances;
   const detail = useTranscriptDetail();
+  const activeWordCount =
+    detail.kind === "ready" && !guest
+      ? selectLowConfidenceStops(utterances ?? [], false, false).length
+      : null;
   const readyWords = useMemo(
     () =>
       detail.kind === "ready" && !guest
@@ -279,7 +284,7 @@ export function useReviewQueue(guestShare = false) {
             },
           };
     });
-    const check = status && checkEntryOf(status);
+    const check = status && checkEntryOf(status, activeWordCount);
     const pickups = sessionEntriesOf(
       sessions ?? [],
       tracks ?? [],
@@ -296,23 +301,22 @@ export function useReviewQueue(guestShare = false) {
       ...words.entries,
       ...(check ? [check] : []),
       ...comments.entries,
-    ].map((entry) =>
-      !guest && entry.content.card.unsure && wordDisabledReason
-        ? {
-            ...entry,
-            content: {
-              ...entry.content,
-              card: {
-                ...entry.content.card,
-                unsure: {
-                  ...entry.content.card.unsure,
-                  disabledReason: wordDisabledReason,
-                },
-              },
-            },
-          }
-        : entry,
-    );
+    ].map((entry) => {
+      if (guest || !entry.content.card.unsure || !wordDisabledReason)
+        return entry;
+      const unsure = { ...entry.content.card.unsure };
+      delete unsure.step;
+      return {
+        ...entry,
+        content: {
+          ...entry.content,
+          card: {
+            ...entry.content.card,
+            unsure: { ...unsure, disabledReason: wordDisabledReason },
+          },
+        },
+      };
+    });
   }, [
     guest,
     wordDisabledReason,
@@ -320,6 +324,7 @@ export function useReviewQueue(guestShare = false) {
     pending,
     held,
     status,
+    activeWordCount,
     words,
     comments.entries,
     sessions,
@@ -767,7 +772,7 @@ export function useReviewQueue(guestShare = false) {
       const next =
         gate || intent.waive || changedText ? await refreshStatus() : null;
       if (!current()) return false;
-      if (next && checkEntryOf(next) && !changedText && !intent.waive)
+      if (next && checkEntryOf(next, null) && !changedText && !intent.waive)
         say(CUT_AGAIN);
       else
         say(
