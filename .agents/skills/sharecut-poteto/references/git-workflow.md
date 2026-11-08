@@ -47,7 +47,8 @@ they agree, all contenders wait. No coordinator assignment or approval is requir
 This is a coordination protocol, not an atomic lock. Do not infer release from
 a disconnect, silence, or an expired per-issue claim. Per-issue claims do not
 serialize merges of different PRs. Immediately recheck the live head, base,
-claim, and applicable predicates before merge. Stop and requalify if they changed.
+and applicable predicates before merge, plus the claim for an issue-backed PR.
+Stop and requalify if they changed.
 Record the confirmed outcome and release the turn when finished. Keep the
 reservation while a merge outcome is uncertain, and reconcile that outcome
 before releasing or handing off the turn.
