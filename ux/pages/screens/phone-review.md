@@ -22,3 +22,5 @@
 ```
 
 Hear original’s menu (Full mix / Without mix processing / Original) is on every stage; Review keeps its controls focused on playback and comments.
+
+When a host reviews an unsure transcript word in the Queue, its card shows up to four indexed words on either side from the same utterance. Suppressed words and edge-suppressed attachments stop the excerpt. The card underlines only the selected word. If word details are unavailable or the target is missing or ambiguous, the card keeps its existing text.

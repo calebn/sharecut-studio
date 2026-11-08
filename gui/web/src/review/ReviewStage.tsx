@@ -389,6 +389,19 @@ export function ReviewStage({
         )
       : 0;
   const card = body?.card ?? EMPTY_CARD;
+  const context =
+    completeness.wordsKnown && !card.unsure?.disabledReason
+      ? card.unsure?.context
+      : undefined;
+  const excerpt = context ? (
+    <>
+      {context.before.length ? `${context.before.join(" ")} ` : null}
+      <strong className="sys-sugg-unsure">{context.focus}</strong>
+      {context.after.length ? ` ${context.after.join(" ")}` : null}
+    </>
+  ) : (
+    card.excerpt
+  );
   const held = selected && !selected.result ? body?.confirm : undefined;
   const unsure =
     body?.card.unsure && selected && !guest
@@ -548,6 +561,7 @@ export function ReviewStage({
                 state !== "ready" ? state : selected && body ? "ready" : "empty"
               }
               {...card}
+              excerpt={excerpt}
               verb={selected ? itemVerb(selected) : undefined}
               verbDisabledReason={
                 selected?.kind === "unsure-word" && card.unsure?.disabledReason

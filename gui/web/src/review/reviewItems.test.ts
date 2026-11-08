@@ -508,6 +508,143 @@ describe("unsureEntriesOf", () => {
       },
     ] as never;
 
+  it("stops display context at suppressed and edge-suppressed words", () => {
+    const typedUtterance = (
+      overrides: Partial<CombinedUtterance> = {},
+    ): CombinedUtterance => ({
+      track_id: "host",
+      speaker: "Jon",
+      start: 0,
+      end: 9,
+      text: "",
+      mappable: true,
+      words: [
+        {
+          text: "ordinary-left",
+          start: 1,
+          end: 1.2,
+          word_index: 0,
+          mappable: true,
+        },
+        {
+          text: "edge-left",
+          start: 2,
+          end: 2.2,
+          word_index: 1,
+          mappable: true,
+          suppressed: true,
+        },
+        {
+          text: "focus",
+          start: 3,
+          end: 3.2,
+          word_index: 2,
+          mappable: true,
+          unsure: true,
+        },
+        {
+          text: "edge-right",
+          start: 4,
+          end: 4.2,
+          word_index: 3,
+          mappable: true,
+          suppressed: true,
+        },
+        {
+          text: "ordinary-right",
+          start: 5,
+          end: 5.2,
+          word_index: 4,
+          mappable: true,
+        },
+      ],
+      ...overrides,
+    });
+    const mappedEdge = typedUtterance({ edge_suppressed_word_indices: [1, 3] });
+    const result = unsureEntriesOf([], [mappedEdge]);
+    const target = result.targets.get("word:host::2");
+    const [standalone] = result.entries;
+    const [proposal] = reviewEntriesOf(
+      [pendingEditView({ unsure_words: [word(2, "focus")] })],
+      [],
+      result.targets,
+    );
+
+    expect(target?.context).toEqual({ before: [], focus: "focus", after: [] });
+    expect(standalone?.content.card.unsure).toMatchObject({
+      word: "focus",
+      context: { before: [], focus: "focus", after: [] },
+    });
+    expect(proposal?.content.card.unsure).toMatchObject({
+      word: "focus",
+      step: { index: 1, total: 1 },
+      context: { before: [], focus: "focus", after: [] },
+    });
+    expect(standalone?.item.id).toBe("word:host::2");
+    expect(proposal?.item.id).toBe("edit:pending-1");
+
+    const metadataOnly = structuredClone(mappedEdge);
+    for (const word of metadataOnly.words ?? []) delete word.suppressed;
+    expect(
+      unsureEntriesOf([], [metadataOnly]).targets.get("word:host::2")?.context,
+    ).toEqual({ before: [], focus: "focus", after: [] });
+    expect(
+      unsureEntriesOf([], [typedUtterance()]).targets.get("word:host::2")
+        ?.context,
+    ).toEqual({ before: [], focus: "focus", after: [] });
+
+    const suppressedFocus = typedUtterance({
+      words: [
+        {
+          text: "suppressed-focus",
+          start: 2,
+          end: 2.2,
+          word_index: 2,
+          mappable: true,
+          suppressed: true,
+          unsure: true,
+        },
+        { text: "next", start: 3, end: 3.2, word_index: 3, mappable: true },
+      ],
+    });
+    const retained = unsureEntriesOf(
+      [cut("kept", 20, [word(2, "suppressed-focus")])],
+      [suppressedFocus],
+    );
+    expect(retained.targets.has("word:host::2")).toBe(true);
+    expect(retained.targets.get("word:host::2")).not.toHaveProperty("context");
+    expect(retained.entries.map((entry) => entry.item.id)).toEqual([
+      "word:host::2",
+    ]);
+
+    const suppressedOnly = typedUtterance({
+      suppressed_only: true,
+      words: [
+        {
+          text: "row-focus",
+          start: 2,
+          end: 2.2,
+          word_index: 2,
+          mappable: true,
+          unsure: true,
+        },
+        {
+          text: "row-neighbor",
+          start: 3,
+          end: 3.2,
+          word_index: 3,
+          mappable: true,
+        },
+      ],
+    });
+    const rowTarget = unsureEntriesOf(
+      [cut("suppressed-row", 20, [word(2, "row-focus")])],
+      [suppressedOnly],
+    ).targets.get("word:host::2");
+    expect(rowTarget).toMatchObject({ trackId: "host", wordIndex: 2 });
+    expect(rowTarget).not.toHaveProperty("context");
+  });
+
   it("lists a shared word once, adds transcript-only words, and orders by time", () => {
     const { entries, targets } = unsureEntriesOf(
       [cut("a", 20), cut("b", 30), cut("c", null, [word(2, "orc")])],
@@ -830,6 +967,356 @@ describe("unsureEntriesOf", () => {
       id: "word:host::4",
       step: { index: 1, total: 2 },
     });
+  });
+
+  it("builds a bounded context for the exact repeated occurrence", () => {
+    const words = ["we", "said", "go", "go", "again", "today"].map(
+      (text, index) => ({
+        text,
+        start: index,
+        end: index + 0.5,
+        word_index: index,
+        unsure: index === 3,
+        mappable: true,
+      }),
+    );
+    const { entries, targets } = unsureEntriesOf([], utterance(words));
+
+    expect(targets.get("word:host::3")).toMatchObject({
+      context: {
+        before: ["we", "said", "go"],
+        focus: "go",
+        after: ["again", "today"],
+      },
+    });
+    expect(
+      entries.find((entry) => entry.item.id === "word:host::3")?.content.card
+        .unsure,
+    ).toMatchObject({
+      context: {
+        before: ["we", "said", "go"],
+        focus: "go",
+        after: ["again", "today"],
+      },
+    });
+  });
+
+  it("uses track, effective source, and timing-source override to isolate the occurrence", () => {
+    const makeUtterance = (
+      track_id: string,
+      source_id: string | null,
+      text: string,
+      timingSource?: string | null,
+    ): CombinedUtterance => ({
+      track_id,
+      source_id,
+      speaker: track_id,
+      start: 0,
+      end: 9,
+      text: "",
+      words: [
+        {
+          text: `${text}-before`,
+          start: 1,
+          end: 1.2,
+          word_index: 1,
+          mappable: true,
+          ...(timingSource === undefined
+            ? {}
+            : {
+                timing_target: {
+                  track_id,
+                  source_id: timingSource,
+                  word_index: 1,
+                },
+              }),
+        },
+        {
+          text,
+          start: 2,
+          end: 2.2,
+          word_index: 2,
+          unsure: false,
+          mappable: true,
+          ...(timingSource === undefined
+            ? {}
+            : {
+                timing_target: {
+                  track_id,
+                  source_id: timingSource,
+                  word_index: 2,
+                },
+              }),
+        },
+        {
+          text: `${text}-after`,
+          start: 3,
+          end: 3.2,
+          word_index: 3,
+          mappable: true,
+          ...(timingSource === undefined
+            ? {}
+            : {
+                timing_target: {
+                  track_id,
+                  source_id: timingSource,
+                  word_index: 3,
+                },
+              }),
+        },
+      ],
+    });
+    const utterances = [
+      makeUtterance("host", "source-a", "wrong-take"),
+      makeUtterance("host", "source-a", "override-take", "source-b"),
+      makeUtterance("guest", "source-b", "wrong-track"),
+      makeUtterance("host", null, "null-source"),
+    ];
+    const targets = [
+      { ...word(2, "override-take"), source_id: "source-b" },
+      { ...word(2, "null-source"), source_id: null },
+    ];
+    const result = unsureEntriesOf([cut("selected", 20, targets)], utterances);
+
+    expect(result.targets.get("word:host:source-b:2")).toMatchObject({
+      context: {
+        before: ["override-take-before"],
+        focus: "override-take",
+        after: ["override-take-after"],
+      },
+    });
+    expect(result.targets.get("word:host::2")).toMatchObject({
+      context: {
+        before: ["null-source-before"],
+        focus: "null-source",
+        after: ["null-source-after"],
+      },
+    });
+    expect(result.entries.map((entry) => entry.item.id)).toEqual([
+      "word:host:source-b:2",
+      "word:host::2",
+    ]);
+  });
+
+  it("clamps each side to four words and stops at unusable or discontinuous neighbors", () => {
+    const words = Array.from({ length: 12 }, (_, index) => ({
+      text: `w${index},`,
+      start: index,
+      end: index + 0.5,
+      word_index: index,
+      unsure: index === 5,
+      mappable: true,
+    }));
+    const utterances = utterance(words);
+    const middle = unsureEntriesOf([], utterances).targets.get("word:host::5");
+    const first = unsureEntriesOf(
+      [],
+      utterance(
+        words.map((word, index) => ({
+          ...word,
+          unsure: index === 0,
+        })),
+      ),
+    ).targets.get("word:host::0");
+    const barrierWords = words.map((word, index) =>
+      index === 4 ? { ...word, mappable: false } : word,
+    );
+    const stopped = unsureEntriesOf([], utterance(barrierWords)).targets.get(
+      "word:host::5",
+    );
+
+    expect(middle).toMatchObject({
+      context: {
+        before: ["w1,", "w2,", "w3,", "w4,"],
+        focus: "w5,",
+        after: ["w6,", "w7,", "w8,", "w9,"],
+      },
+    });
+    expect(first).toMatchObject({
+      context: {
+        before: [],
+        focus: "w0,",
+        after: ["w1,", "w2,", "w3,", "w4,"],
+      },
+    });
+    expect(stopped).toMatchObject({
+      context: {
+        before: [],
+        focus: "w5,",
+        after: ["w6,", "w7,", "w8,", "w9,"],
+      },
+    });
+  });
+
+  it("omits absent or conflicting context without removing the target or its card", () => {
+    const missing = unsureEntriesOf([cut("missing", 20)], utterance([]));
+    const synthetic = unsureEntriesOf(
+      [cut("synthetic", 20)],
+      [
+        {
+          track_id: "host",
+          source_id: null,
+          speaker: "Jon",
+          start: 0,
+          end: 9,
+          text: "we said gnu now",
+        },
+      ],
+    );
+    const duplicate = [
+      ...utterance([
+        { text: "before-a", start: 1, end: 1.2, word_index: 1, mappable: true },
+        {
+          text: "gnu",
+          start: 2,
+          end: 2.2,
+          word_index: 2,
+          unsure: true,
+          mappable: true,
+        },
+        { text: "after-a", start: 3, end: 3.2, word_index: 3, mappable: true },
+      ]),
+      ...utterance([
+        { text: "before-b", start: 1, end: 1.2, word_index: 1, mappable: true },
+        {
+          text: "gnu",
+          start: 2,
+          end: 2.2,
+          word_index: 2,
+          unsure: true,
+          mappable: true,
+        },
+        { text: "after-b", start: 3, end: 3.2, word_index: 3, mappable: true },
+      ]),
+    ];
+    const ambiguous = unsureEntriesOf([], duplicate);
+    const consistent = unsureEntriesOf(
+      [],
+      [
+        ...utterance([
+          { text: "before", start: 1, end: 1.2, word_index: 1, mappable: true },
+          {
+            text: "gnu",
+            start: 2,
+            end: 2.2,
+            word_index: 2,
+            unsure: true,
+            mappable: true,
+          },
+          { text: "after", start: 3, end: 3.2, word_index: 3, mappable: true },
+        ]),
+        ...utterance([
+          { text: "before", start: 1, end: 1.2, word_index: 1, mappable: true },
+          {
+            text: "gnu",
+            start: 2,
+            end: 2.2,
+            word_index: 2,
+            unsure: true,
+            mappable: true,
+          },
+          { text: "after", start: 3, end: 3.2, word_index: 3, mappable: true },
+        ]),
+      ],
+    );
+
+    expect(missing.entries).toHaveLength(1);
+    expect(missing.entries[0]?.content.card.unsure).toEqual({
+      word: "gnu",
+      guess: "gnu",
+      editorIdentity: missing.targets.get("word:host::1"),
+    });
+    expect(missing.targets.has("word:host::1")).toBe(true);
+    expect(synthetic.entries).toHaveLength(1);
+    expect(synthetic.targets.get("word:host::1")).not.toHaveProperty("context");
+    expect(ambiguous.entries).toHaveLength(1);
+    expect(ambiguous.targets.get("word:host::2")).not.toHaveProperty("context");
+    expect(consistent.targets.get("word:host::2")).toMatchObject({
+      context: { before: ["before"], focus: "gnu", after: ["after"] },
+    });
+  });
+
+  it("adds the chosen target context to a proposal without changing its selection step", () => {
+    const utterances = utterance([
+      {
+        text: "first-before",
+        start: 1,
+        end: 1.2,
+        word_index: 1,
+        mappable: true,
+      },
+      {
+        text: "first",
+        start: 2,
+        end: 2.2,
+        word_index: 2,
+        unsure: true,
+        mappable: true,
+      },
+      {
+        text: "first-after",
+        start: 3,
+        end: 3.2,
+        word_index: 3,
+        mappable: true,
+      },
+      {
+        text: "second-before",
+        start: 4,
+        end: 4.2,
+        word_index: 4,
+        mappable: true,
+      },
+      {
+        text: "second",
+        start: 5,
+        end: 5.2,
+        word_index: 5,
+        unsure: true,
+        mappable: true,
+      },
+      {
+        text: "second-after",
+        start: 6,
+        end: 6.2,
+        word_index: 6,
+        mappable: true,
+      },
+    ]);
+    const { targets } = unsureEntriesOf([], utterances);
+    const edit = pendingEditView({
+      unsure_words: [word(5, "second"), word(2, "first")],
+    });
+    const [proposal] = reviewEntriesOf([edit], [], targets);
+
+    expect(proposal?.content.card.unsure).toMatchObject({
+      word: "second",
+      id: "word:host::5",
+      step: { index: 1, total: 2 },
+      context: {
+        before: ["first-before", "first", "first-after", "second-before"],
+        focus: "second",
+        after: ["second-after"],
+      },
+    });
+  });
+
+  it("keeps the landed editor identity when equal excerpts name different occurrences", () => {
+    const rows = [2, 2.1].flatMap((start) =>
+      utterance([
+        { text: "before", start: 1, end: 1.2, word_index: 1 },
+        { text: "gnu", start, end: 2.3, word_index: 2, unsure: true },
+        { text: "after", start: 3, end: 3.2, word_index: 3 },
+      ]),
+    );
+    const { entries, targets } = unsureEntriesOf([], rows);
+    expect(entries.map((entry) => entry.item.id)).toEqual(["word:host::2"]);
+    expect(entries[0]?.content.card.unsure).toEqual({
+      word: "gnu",
+      guess: "gnu",
+      editorIdentity: JSON.stringify(["host", null, 2, 2.3, "gnu"]),
+    });
+    expect(targets.get("word:host::2")).not.toHaveProperty("context");
   });
 });
 

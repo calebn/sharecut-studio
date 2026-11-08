@@ -15,7 +15,7 @@ import type {
 } from "../types/project";
 import { formatTimeShort } from "../utils/time";
 import { wordSeekSec, wordsForUtterance } from "../utils/transcript";
-import type { ReviewContent } from "./ReviewQueue";
+import type { ReviewContent, UnsureContext } from "./ReviewQueue";
 import { unionSeconds } from "./rangeUnion";
 import type { ReviewItem } from "./reviewQueueModel";
 
@@ -215,6 +215,7 @@ export type WordTarget = {
   at: number | null;
   endSec: number | null;
   editorIdentity?: string;
+  readonly context?: UnsureContext;
 };
 
 export const wordIdOf = (track: string, source: string | null, index: number) =>
@@ -229,6 +230,115 @@ function editorIdentityOf(row: CombinedUtterance, word: TranscriptWordView) {
     word.end,
     word.text,
   ]);
+}
+
+function contextsForTargets(
+  utterances: readonly CombinedUtterance[],
+  targets: ReadonlyMap<string, WordTarget>,
+): ReadonlyMap<string, UnsureContext> {
+  const locations = new Map<
+    string,
+    {
+      utterance: CombinedUtterance;
+      position: number;
+      edgeSuppressed: ReadonlySet<number>;
+    }[]
+  >();
+
+  for (const utterance of utterances) {
+    const edgeSuppressed = new Set(utterance.edge_suppressed_word_indices);
+    for (const [position, word] of (utterance.words ?? []).entries()) {
+      if (word.word_index == null) continue;
+      const id = wordIdOf(
+        utterance.track_id,
+        word.timing_target?.source_id ?? utterance.source_id ?? null,
+        word.word_index,
+      );
+      if (!targets.has(id)) continue;
+      const matches = locations.get(id) ?? [];
+      matches.push({ utterance, position, edgeSuppressed });
+      locations.set(id, matches);
+    }
+  }
+
+  const contextAt = (
+    target: WordTarget,
+    utterance: CombinedUtterance,
+    position: number,
+    edgeSuppressed: ReadonlySet<number>,
+  ) => {
+    const words = utterance.words ?? [];
+    const focus = words[position];
+    if (
+      utterance.mappable === false ||
+      utterance.suppressed_only ||
+      !focus ||
+      focus.word_index !== target.wordIndex ||
+      focus.text.trim() === "" ||
+      focus.mappable === false ||
+      focus.suppressed === true ||
+      edgeSuppressed.has(target.wordIndex)
+    )
+      return null;
+
+    const collect = (direction: -1 | 1): string[] => {
+      const result: string[] = [];
+      let nextPosition = position + direction;
+      let expectedIndex = target.wordIndex + direction;
+      while (result.length < 4) {
+        const word = words[nextPosition];
+        if (
+          !word ||
+          word.word_index !== expectedIndex ||
+          word.text.trim() === "" ||
+          word.mappable === false ||
+          word.suppressed === true ||
+          edgeSuppressed.has(expectedIndex) ||
+          (word.timing_target?.source_id ?? utterance.source_id ?? null) !==
+            target.sourceId
+        )
+          break;
+        if (direction < 0) result.unshift(word.text);
+        else result.push(word.text);
+        nextPosition += direction;
+        expectedIndex += direction;
+      }
+      return result;
+    };
+
+    return {
+      identity: editorIdentityOf(utterance, focus),
+      context: {
+        before: collect(-1),
+        focus: focus.text,
+        after: collect(1),
+      },
+    };
+  };
+
+  const contexts = new Map<string, UnsureContext>();
+  for (const [id, target] of targets) {
+    const matches = locations.get(id) ?? [];
+    if (matches.length === 0) continue;
+    const candidates = matches.flatMap(
+      ({ utterance, position, edgeSuppressed }) => {
+        const candidate = contextAt(
+          target,
+          utterance,
+          position,
+          edgeSuppressed,
+        );
+        return candidate ? [candidate] : [];
+      },
+    );
+    if (candidates.length !== matches.length) continue;
+    const signature = JSON.stringify(candidates[0]);
+    if (
+      candidates.every((candidate) => JSON.stringify(candidate) === signature)
+    )
+      contexts.set(id, candidates[0].context);
+  }
+  return contexts;
 }
 
 /** Why a cut needs a listen, from the server's flags; null for a clean cut. */
@@ -335,6 +445,7 @@ function entryOf(
                   editorIdentity: target.editorIdentity ?? target,
                 }),
                 step: { index: 1, total: words.length },
+                ...(target?.context ? { context: target.context } : {}),
               },
             }
           : {}),
@@ -497,14 +608,17 @@ export function unsureEntriesOf(
       });
     }
   }
+  const contexts = contextsForTargets(utterances, found);
   const targets = new Map<string, WordTarget>();
   const entries = [...found].map(([id, { cut, ...placement }]): ReviewEntry => {
     const source = indexed.get(id);
+    const context = contexts.get(id);
     const target = {
       ...placement,
       ...(source && {
         editorIdentity: editorIdentityOf(source.row, source.word),
       }),
+      ...(context ? { context } : {}),
     };
     targets.set(id, target);
     const at = target.at ?? Number.POSITIVE_INFINITY;
@@ -526,6 +640,7 @@ export function unsureEntriesOf(
             word: target.text,
             guess: target.text,
             editorIdentity: target.editorIdentity ?? target,
+            ...(context ? { context } : {}),
           },
         },
       },
