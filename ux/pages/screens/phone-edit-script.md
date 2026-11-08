@@ -14,6 +14,8 @@ From Review, **Open in Edit** opens Script and reveals the exact unsure word,
 even when it is far away or its text repeats. The word is selected without
 turning Follow playhead on. This jump takes precedence over the saved reading
 position. Returning later without another jump does not repeat that navigation.
+For a blocked proposal whose Fix word is gone, **Open in Edit** opens the
+pending edit. Resolved comments have no such link on the phone Review card.
 
 Words whose audio is fully cut leave the active Unsure words queue and Script
 count. Neighboring words with audio remain reviewable. Undo restores a cut word

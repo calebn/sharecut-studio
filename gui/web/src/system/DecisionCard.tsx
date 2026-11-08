@@ -428,6 +428,10 @@ export function DecisionCard(props: DecisionCardProps) {
         {phone &&
         !readOnly &&
         !unsure &&
+        kind !== "comment" &&
+        kind !== "check" &&
+        kind !== "unsure-word" &&
+        kind !== "pickup" &&
         canEdit !== false &&
         onOpenInEdit &&
         verbDisabledReason !== undefined ? (

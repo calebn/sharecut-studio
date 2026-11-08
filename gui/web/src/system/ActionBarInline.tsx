@@ -1,5 +1,6 @@
 import { type ReactNode, useId, useState } from "react";
 import { Button } from "../ui";
+import { useDisabledReasonNote } from "../ui/disabledReason";
 import { ActionBar, type ActionBarProps } from "./ActionBar";
 import type { BarId } from "./editActionSets";
 import { isImeKey } from "./imeKey";
@@ -130,19 +131,21 @@ export function ActionBarInline({
 export type ActionPromptProps = {
   verb: VerbId;
   message?: string;
-  /** "Check 3 words". Absent when there is nothing to check first. */
+  /** "Check 3 words", or "Check words" while the count is unknown. */
   checkLabel?: string;
+  confirmDisabledReason?: string;
   /** False when the reason is not recorded anywhere, so no note is offered. */
   allowNote?: boolean;
   onConfirm: (note?: string) => void;
   onCheck?: () => void;
 };
 
-/** Offers to do it anyway, check first or add a note. It never blocks and shows once per session. */
+/** Offers to do it anyway, check first or add a note. */
 export function ActionPrompt({
   verb,
   message = "The transcript isn't checked yet.",
   checkLabel,
+  confirmDisabledReason,
   allowNote = true,
   onConfirm,
   onCheck,
@@ -151,7 +154,14 @@ export function ActionPrompt({
   const noteId = useId();
   const [adding, setAdding] = useState(false);
   const [note, setNote] = useState("");
-  const confirm = () => onConfirm(note.trim() === "" ? undefined : note.trim());
+  const reason = useDisabledReasonNote(
+    confirmDisabledReason,
+    "sys-prompt-line",
+  );
+  const confirm = () => {
+    if (confirmDisabledReason !== undefined) return;
+    onConfirm(note.trim() || undefined);
+  };
   return (
     <form
       className="sys-prompt"
@@ -165,7 +175,12 @@ export function ActionPrompt({
         {message} {def.label} anyway?
       </p>
       <div className="sys-prompt-row">
-        <Button type="submit" variant="primary">
+        <Button
+          type="submit"
+          variant="primary"
+          disabledReason={confirmDisabledReason}
+          {...reason.describedBy}
+        >
           {def.icon ? <SystemIcon name={def.icon} size={16} /> : null}
           {def.label} anyway
         </Button>
@@ -186,6 +201,7 @@ export function ActionPrompt({
           </Button>
         ) : null}
       </div>
+      {reason.note}
       {allowNote && adding ? (
         <textarea
           id={noteId}
