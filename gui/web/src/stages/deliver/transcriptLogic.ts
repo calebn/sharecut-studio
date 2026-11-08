@@ -5,8 +5,9 @@ export const TRANSCRIPT_FORMATS: readonly {
   label: string;
   group: "read" | "captions";
 }[] = [
-  { id: "txt", label: "Text", group: "read" },
+  { id: "txt", label: "Detailed text", group: "read" },
   { id: "md", label: "Markdown", group: "read" },
+  { id: "readable.txt", label: "Reading copy", group: "read" },
   { id: "srt", label: "SRT", group: "captions" },
   { id: "vtt", label: "VTT", group: "captions" },
 ];

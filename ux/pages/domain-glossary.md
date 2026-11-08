@@ -11,6 +11,7 @@ Two layers: **Partner terms** (plain language) and **Schema map** (for people wh
 | **Episode / project** | The session you’re editing or reviewing |
 | **Mix sheet** | Phone More → Mix controls all tracks. Hosts and Editors save M and Volume; other guests use local M. S is local for everyone |
 | **Track** | One speaker mic (or music bed) |
+| **Reading copy** | Optional paragraph-style transcript file in Deliver. Detailed text and Copy keep the timestamped layout |
 | **Clip** | A kept stretch of audio on the session |
 | **Split speakers** | One recording of several people becomes one track per speaker. Every track plays the same audio and goes quiet where someone else talks, so together they sound like the original. The host says how many speakers there are and can mark a few seconds of each person (a **voice sample**) so the split tells similar voices apart; the result names overlapping speech and unsure stretches to listen to, and Undo puts the single track back |
 | **Voice sample** | A few seconds of one person talking, taken from the selected range in Split speakers. It tells similar voices apart; Listen replays it and Clear drops it |

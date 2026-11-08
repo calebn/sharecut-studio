@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from unittest.mock import patch
 
 import click
@@ -645,6 +646,23 @@ def test_transcript_export_default_formats_and_json(tmp_path):
     data = json.loads(as_json.stdout)
     assert [f["format"] for f in data["files"]] == ["txt", "vtt"]
     assert data["turns"] == 1 and data["language"] == "en"
+
+
+def test_transcript_export_accepts_readable_format(tmp_path):
+    project = _transcript_project(tmp_path)
+    result = runner.invoke(
+        transcript_app,
+        ["export", "--project", str(project), "--format", "readable.txt", "--json"],
+    )
+
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["files"][0]["format"] == "readable.txt"
+    assert (
+        Path(data["files"][0]["path"])
+        .read_text(encoding="utf-8")
+        .endswith("host  0:03\nReading text here.\n")
+    )
 
 
 def test_transcript_export_dry_run_and_text(tmp_path):

@@ -107,6 +107,39 @@ def test_episode_export_refreshes_txt_and_vtt_already_on_disk(
     assert "Later." in (export_dir / "edited-episode.vtt").read_text()
 
 
+def test_episode_export_does_not_refresh_readable_sidecar(
+    export_workspace: tuple[ProjectWorkspace, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace, master = export_workspace
+    project = workspace.project
+    readable = project.export_dir() / "edited-episode.readable.txt"
+    readable.write_text("Old reading copy", encoding="utf-8")
+    rendered_formats: list[tuple[str, ...]] = []
+
+    def render(project, defaults, formats, limits=None):
+        rendered_formats.append(tuple(formats))
+        from podcast_mcp.export.transcript import render_transcript_formats
+
+        return render_transcript_formats(project, defaults, formats, limits)
+
+    monkeypatch.setattr("podcast_mcp.export.episode.render_transcript_formats", render)
+    monkeypatch.setattr(
+        "podcast_mcp.export.episode.render_audio_formats",
+        lambda _engine, _source, outputs, **_kwargs: [
+            path.write_bytes(b"new audio") for _, path in outputs
+        ],
+    )
+    monkeypatch.setattr(
+        "podcast_mcp.feed.writer.write_after_export", lambda *_args, **_kwargs: None
+    )
+
+    result = export_episode_deliverables(project, MagicMock(), master, load_defaults())
+
+    assert "edited-episode.readable.txt" not in {path.name for path in result}
+    assert readable.read_text(encoding="utf-8") == "Old reading copy"
+    assert all("readable.txt" not in formats for formats in rendered_formats)
+
+
 @pytest.mark.parametrize(
     "fault",
     [

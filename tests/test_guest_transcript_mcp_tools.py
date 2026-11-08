@@ -271,6 +271,13 @@ def test_a_dry_run_export_answers_what_the_http_twin_answers(world) -> None:
     assert _exported(world) == []
 
 
+def test_guest_can_select_readable_transcript_export(world) -> None:
+    result = mcp_ok(call_tool(world, "guest_transcript_export", {"formats": ["readable.txt"]}))
+
+    assert [file["format"] for file in result["files"]] == ["readable.txt"]
+    assert result["files"][0]["name"].endswith(".readable.txt")
+
+
 def test_the_export_writes_the_project_files_and_the_listing_names_them(world, caplog) -> None:
     with caplog.at_level(logging.INFO, logger=guest_transcript_ops.__name__):
         got = mcp_ok(call_tool(world, "guest_transcript_export", {"formats": ["md", "srt"]}))

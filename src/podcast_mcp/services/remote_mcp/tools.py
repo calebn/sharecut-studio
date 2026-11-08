@@ -571,7 +571,7 @@ def guest_transcript_word_timing_context(req: GuestWordTimingContextRequest) -> 
 
 
 def guest_transcript_export(req: GuestTranscriptExportRequest) -> dict[str, Any]:
-    """Write or preview the transcript as txt, md, srt or vtt in the project's export folder."""
+    """Write or preview transcript formats, including the paragraph-style readable.txt, in the project's export folder."""
     _require_tool("guest_transcript_export")
     ctx = get_remote_mcp_context()
     return guest_export_transcript(
@@ -717,7 +717,7 @@ TOOL_DESCRIPTIONS: dict[str, str] = {
         "The audio context of one transcript word, checked against the word last seen."
     ),
     "guest_transcript_export": (
-        "Write or preview the transcript as txt, md, srt or vtt in the project's export folder; no file paths returned (requires edit)."
+        "Write or preview transcript formats, including readable.txt, in the project's export folder; no file paths returned (requires edit)."
     ),
     "guest_transcript_exports": (
         "The transcript files already exported (names and whether current; no paths)."

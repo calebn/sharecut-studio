@@ -4504,12 +4504,13 @@
               "enum": [
                 "txt",
                 "md",
+                "readable.txt",
                 "srt",
                 "vtt"
               ],
               "type": "string"
             },
-            "maxItems": 4,
+            "maxItems": 5,
             "minItems": 1,
             "title": "Formats",
             "type": "array"

@@ -37,7 +37,13 @@ def _plain_name(name: str) -> bool:
 
 _AUDIO_LABELS = {"wav": "Lossless master", "flac": "Lossless"}
 _LISTENING_LABEL = "Listening file"
-_TRANSCRIPT_LABELS = {"txt": "Plain text", "md": "Markdown", "srt": "Captions", "vtt": "Captions"}
+_TRANSCRIPT_LABELS = {
+    "txt": "Plain text",
+    "md": "Markdown",
+    "readable.txt": "Reading copy",
+    "srt": "Captions",
+    "vtt": "Captions",
+}
 _JSON_CHAPTERS_MEDIA = "application/json"
 _FEED_MEDIA = "application/rss+xml"
 
@@ -189,7 +195,9 @@ class ExportFilesService:
                     else _AUDIO_LABELS.get(suffix, _LISTENING_LABEL)
                 )
             case "transcript":
-                return _TRANSCRIPT_LABELS[suffix]
+                return _TRANSCRIPT_LABELS[
+                    "readable.txt" if found.id.endswith(".readable.txt") else suffix
+                ]
             case "chapters":
                 return "Chapters"
             case "feed":

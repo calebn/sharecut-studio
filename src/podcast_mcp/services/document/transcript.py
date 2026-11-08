@@ -44,9 +44,12 @@ from podcast_mcp.engines.models.whisper import resolve_whisper_model
 from podcast_mcp.engines.transcribe import dialogue_transcribe_jobs, track_transcribe_job
 from podcast_mcp.export.names import sanitize_export_stem
 from podcast_mcp.export.transcript import (
+    READABLE_TRANSCRIPT_FORMAT,
     TRANSCRIPT_FORMATS,
     TRANSCRIPT_MIME,
     CaptionLimits,
+    ReadableTranscriptEmptyError,
+    ReadableTranscriptTimingError,
     captions_match,
     first_cue_sample,
     render_reading_text,
@@ -256,7 +259,7 @@ class TranscriptService(WorkspaceService):
         with_text: bool = False,
         limits: CaptionLimits | None = None,
     ) -> TranscriptExport:
-        """Write the edited episode's transcript as ``formats`` (``txt|md|srt|vtt``), or preview it.
+        """Write the edited episode's transcript in selected formats, or preview it.
 
         Files land in ``export_dir()`` next to the audio, written to temporary files first, and a
         destination that is not a file is refused before any file is replaced. ``dry_run``
@@ -266,7 +269,19 @@ class TranscriptService(WorkspaceService):
         """
         wanted = _validated_formats(formats)
         if dry_run:
-            return self._export_result(self.ws.project.model_copy(deep=True), with_text, limits)
+            project = self.ws.project.model_copy(deep=True)
+            if READABLE_TRANSCRIPT_FORMAT in wanted:
+                readable = render_transcript_formats(
+                    project,
+                    self.ws.effective_config(),
+                    [READABLE_TRANSCRIPT_FORMAT],
+                    limits,
+                )[READABLE_TRANSCRIPT_FORMAT]
+                if not readable.strip():
+                    raise ReadableTranscriptEmptyError(
+                        "No readable transcript text remains to export."
+                    )
+            return self._export_result(project, with_text, limits)
         try:
             with (
                 render_lock(self.ws.project, timeout=REQUEST_RENDER_LOCK_TIMEOUT_SEC),
@@ -295,6 +310,11 @@ class TranscriptService(WorkspaceService):
         if result.turns == 0:
             raise TranscriptEmptyError("Every word is cut. Nothing to export.")
         rendered = render_transcript_formats(p, defaults, formats, limits)
+        if (
+            READABLE_TRANSCRIPT_FORMAT in rendered
+            and not rendered[READABLE_TRANSCRIPT_FORMAT].strip()
+        ):
+            raise ReadableTranscriptEmptyError("No readable transcript text remains to export.")
         stem = p.export_dir() / sanitize_export_stem(p.name)
         dests = [stem.with_name(f"{stem.name}.{fmt}") for fmt in rendered]
         blocked = next((d for d in dests if d.exists() and not d.is_file()), None)
@@ -349,9 +369,9 @@ class TranscriptService(WorkspaceService):
     def exported(self) -> list[ExportedTranscript]:
         """Transcript files in ``export_dir()`` for this project, read-only (no lock, no save).
 
-        Only ``<stem>.{txt,md,srt,vtt}`` directly in the folder count, so ``bounces/`` and
-        ``clips/`` never appear. ``current`` compares each file with a fresh render; captions
-        compare by their words and cue start times, since the file does not record the cue limits.
+        Only known transcript files directly in the folder count, so ``bounces/`` and ``clips/``
+        never appear. ``current`` compares each file with a fresh render; captions compare by their
+        words and cue start times, since the file does not record the cue limits.
         """
         p = self.ws.project
         stem = sanitize_export_stem(p.name)
@@ -364,9 +384,19 @@ class TranscriptService(WorkspaceService):
             return []
         fresh = p.model_copy(deep=True)
         defaults = self.ws.effective_config()
-        rendered = render_transcript_formats(
-            fresh, defaults, [fmt for fmt, _ in found], _configured_limits(defaults)
+        other_formats = [fmt for fmt, _ in found if fmt != READABLE_TRANSCRIPT_FORMAT]
+        rendered = (
+            render_transcript_formats(fresh, defaults, other_formats, _configured_limits(defaults))
+            if other_formats
+            else {}
         )
+        if any(fmt == READABLE_TRANSCRIPT_FORMAT for fmt, _ in found):
+            try:
+                rendered[READABLE_TRANSCRIPT_FORMAT] = render_transcript_formats(
+                    fresh, defaults, [READABLE_TRANSCRIPT_FORMAT], _configured_limits(defaults)
+                )[READABLE_TRANSCRIPT_FORMAT]
+            except ReadableTranscriptTimingError:
+                rendered[READABLE_TRANSCRIPT_FORMAT] = ""
         language = transcript_language(fresh)
         out: list[ExportedTranscript] = []
         for fmt, path in found:
@@ -384,7 +414,11 @@ class TranscriptService(WorkspaceService):
                     language=language,
                     bytes=len(data),
                     modified=datetime.fromtimestamp(mtime, tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                    current=_same_transcript(fmt, data, rendered[fmt], fresh),
+                    current=(
+                        False
+                        if fmt == READABLE_TRANSCRIPT_FORMAT and not rendered[fmt]
+                        else _same_transcript(fmt, data, rendered[fmt], fresh)
+                    ),
                 )
             )
         return out

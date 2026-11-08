@@ -4,6 +4,8 @@ import {
   exportLabel,
   filesSummary,
   previewFooter,
+  TRANSCRIPT_DEFAULTS,
+  TRANSCRIPT_FORMATS,
   toggleFormat,
   transcriptBlocker,
   transcriptClock,
@@ -24,6 +26,17 @@ describe("toggleFormat", () => {
   it("keeps chip order", () => {
     expect(toggleFormat(["srt"], "txt")).toEqual(["txt", "srt"]);
     expect(toggleFormat(["md", "srt"], "md")).toEqual(["srt"]);
+  });
+
+  it("offers a separate reading copy without changing the audio export defaults", () => {
+    expect(TRANSCRIPT_FORMATS.map((format) => format.id)).toEqual([
+      "txt",
+      "md",
+      "readable.txt",
+      "srt",
+      "vtt",
+    ]);
+    expect(TRANSCRIPT_DEFAULTS).toEqual(["md", "srt"]);
   });
 });
 
