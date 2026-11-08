@@ -4,8 +4,6 @@ import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-from podcast_mcp.models import EpisodeProject
-
 _END = re.compile(r"[.!?…][\"'\u201d\u2019\)\]\}]*$")
 
 
@@ -69,22 +67,3 @@ def _paragraphs(fragments: tuple[str, ...]) -> tuple[str, ...]:
     if current:
         paragraphs.append(" ".join(current))
     return tuple(paragraphs)
-
-
-def render_readable_transcript(project: EpisodeProject, entries: Iterable[ReadableEntry]) -> str:
-    turns = readable_turns(entries)
-    if not turns:
-        return ""
-    lines = [project.name, ""]
-    for turn in turns:
-        lines.append(f"{turn.speaker}  {_clock(turn.start)}")
-        lines.append("\n\n".join(turn.paragraphs))
-        lines.append("")
-    return "\n".join(lines).rstrip() + "\n"
-
-
-def _clock(seconds: float) -> str:
-    total = max(0, int(seconds))
-    hours, remainder = divmod(total, 3600)
-    minutes, seconds = divmod(remainder, 60)
-    return f"{hours}:{minutes:02d}:{seconds:02d}" if hours else f"{minutes}:{seconds:02d}"

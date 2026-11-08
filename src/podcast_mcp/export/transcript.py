@@ -1,19 +1,21 @@
 from __future__ import annotations
 
 import re
+from bisect import bisect_right
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, replace
+from itertools import pairwise
 from typing import Any
 
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.transcript_search import ensure_combined_transcript
 from podcast_mcp.engines.session_timeline import SessionTimeline, clip_plays_lane
 from podcast_mcp.engines.utterance_runs import transcript_word_runs
-from podcast_mcp.export.readable_transcript import ReadableEntry, render_readable_transcript
-from podcast_mcp.models import EpisodeProject, TranscriptWord
+from podcast_mcp.export.readable_transcript import ReadableEntry, readable_turns
+from podcast_mcp.models import Clip, EpisodeProject
 from podcast_mcp.util.coded_error import CodedError
-from podcast_mcp.util.timebase import SourceSec, TimelineSec
+from podcast_mcp.util.timebase import SourceSec
 
 # Common caption guidance: at most ~2 lines of ~42 characters, at most ~7s on screen.
 DEFAULT_CAPTION_MAX_DURATION_SEC = 7.0
@@ -170,6 +172,11 @@ class ReadableTranscriptTimingError(CodedError, ValueError):
 
     code = "readable_timing_unavailable"
 
+    def __init__(self) -> None:
+        super().__init__(
+            "Readable export needs word timings to resolve a partial cut in combined transcript text."
+        )
+
 
 class ReadableTranscriptEmptyError(CodedError, ValueError):
     """No readable transcript text remains after suppression and cuts."""
@@ -177,76 +184,125 @@ class ReadableTranscriptEmptyError(CodedError, ValueError):
     code = "transcript_empty"
 
 
-def _placement_count(word: TranscriptWord, spans: Sequence[tuple[TimelineSec, TimelineSec]]) -> int:
-    if not spans:
-        return 0
-    mapped_duration = sum(float(end - start) for start, end in spans)
-    return max(1, round(mapped_duration / max(word.end - word.start, 0.001)))
+def _readable_placements(
+    project: EpisodeProject, track_id: str, source_id: str | None
+) -> Iterator[tuple[Clip | None, SessionTimeline]]:
+    lane_clips = [clip for clip in project.clips if clip_plays_lane(project, clip, track_id)]
+    source_ids = project.equivalent_source_ids(track_id, source_id)
+    if not lane_clips and None in source_ids:
+        yield None, SessionTimeline(project)
+    for clip in lane_clips:
+        if clip.source_id in source_ids:
+            occurrence = project.model_copy(
+                update={"timeline": project.timeline.model_copy(update={"clips": [clip]})}
+            )
+            yield clip, SessionTimeline(occurrence)
+
+
+def _inserted_gap_starts(clip: Clip | None) -> list[float]:
+    if clip is None:
+        return []
+    pieces = clip.virtual_pieces()
+    return [
+        start
+        for (source_start, source_end, previous_start), (_, _, start) in pairwise(pieces)
+        if start > previous_start + source_end - source_start + 1e-6
+    ]
 
 
 def readable_transcript_entries(project: EpisodeProject) -> tuple[ReadableEntry, ...]:
-    """Project unsuppressed word runs into placement-aware readable entries."""
-    timeline = SessionTimeline(project)
+    """Keep source-run order within each actual placement, splitting inserted gaps.
+
+    Map each clip independently so partial reuses retain their identity. Multiple
+    virtual pieces of one word belong to its first surviving entry, not replays.
+    """
     entries: list[ReadableEntry] = []
     if project.transcripts:
         for run in transcript_word_runs(project):
-            lane_clips = [
-                clip for clip in project.clips if clip_plays_lane(project, clip, run.track_id)
-            ]
-            source_ids = project.equivalent_source_ids(run.track_id, run.source_id)
             word_bounds = [(word.start, word.end) for word in run.words]
-            if not lane_clips and None in source_ids:
-                mapped = timeline.map_word_spans(run.track_id, word_bounds)
-            else:
-                mapped = timeline.map_placements_word_spans(run.track_id, source_ids, word_bounds)
-            occurrences = [
-                _placement_count(word, spans) for word, spans in zip(run.words, mapped, strict=True)
-            ]
-            placements = max(occurrences, default=0)
-            for placement in range(placements):
-                words = [
-                    (word, spans[placement] if occurrence > 1 else spans[0])
-                    for word, spans, occurrence in zip(run.words, mapped, occurrences, strict=True)
-                    if occurrence > placement
-                ]
-                if words:
-                    entries.append(
-                        ReadableEntry(
-                            run.speaker,
-                            float(words[0][1][0]),
-                            " ".join(word.text for word, _ in words).strip(),
-                        )
+            for clip, timeline in _readable_placements(project, run.track_id, run.source_id):
+                mapped = (
+                    timeline.map_word_spans(run.track_id, word_bounds)
+                    if clip is None
+                    else timeline.map_placements_word_spans(
+                        run.track_id, {clip.source_id}, word_bounds
                     )
-    elif project.combined_transcript:
-        for utterance in project.combined_transcript.utterances:
-            source_ids = project.equivalent_source_ids(utterance.track_id, utterance.source_id)
-            lane_clips = [
-                clip for clip in project.clips if clip_plays_lane(project, clip, utterance.track_id)
-            ]
-            if not lane_clips and None in source_ids:
-                spans = timeline.map_source_span(
-                    utterance.track_id, SourceSec(utterance.start), SourceSec(utterance.end)
                 )
-            else:
-                spans = timeline.map_placements_source_span(
-                    utterance.track_id,
-                    source_ids,
-                    SourceSec(utterance.start),
-                    SourceSec(utterance.end),
+                breaks = _inserted_gap_starts(clip)
+                groups: dict[int, list[tuple[str, float]]] = {}
+                for word, spans in zip(run.words, mapped, strict=True):
+                    if spans:
+                        start = float(spans[0][0])
+                        groups.setdefault(bisect_right(breaks, start), []).append(
+                            (word.text, start)
+                        )
+                entries.extend(
+                    ReadableEntry(run.speaker, words[0][1], " ".join(text for text, _ in words))
+                    for words in groups.values()
                 )
-            duration = utterance.end - utterance.start
-            if spans and any(float(end - start) + 1e-6 < duration for start, end in spans):
-                raise ReadableTranscriptTimingError(
-                    "Readable export needs word timings to resolve a partial cut in combined transcript text."
-                )
-            entries.extend(
-                ReadableEntry(utterance.speaker, float(start), utterance.text) for start, _ in spans
-            )
+    else:
+        entries.extend(_combined_readable_entries(project))
     return tuple(entries)
 
 
+def _combined_readable_entries(project: EpisodeProject) -> list[ReadableEntry]:
+    entries: list[ReadableEntry] = []
+    if project.combined_transcript:
+        for utterance in project.combined_transcript.utterances:
+            fragments: list[tuple[float, float, float]] = []
+            for clip, timeline in _readable_placements(
+                project, utterance.track_id, utterance.source_id
+            ):
+                bounds = SourceSec(utterance.start), SourceSec(utterance.end)
+                spans = (
+                    timeline.map_source_span(utterance.track_id, *bounds)
+                    if clip is None
+                    else timeline.map_placements_source_span(
+                        utterance.track_id, {clip.source_id}, *bounds
+                    )
+                )
+                if not spans:
+                    continue
+                source_start, source_end = utterance.start, utterance.end
+                if clip is not None:
+                    kept = [
+                        (max(start, utterance.start), min(end, utterance.end))
+                        for start, end, _ in clip.virtual_pieces()
+                        if start < utterance.end and end > utterance.start
+                    ]
+                    source_start, source_end = kept[0][0], kept[-1][1]
+                retained = sum(float(end - start) for start, end in spans)
+                if retained + 1e-6 < source_end - source_start:
+                    raise ReadableTranscriptTimingError()
+                fragments.append((source_start, source_end, float(spans[0][0])))
+            cursor = utterance.start
+            occurrence_start = 0.0
+            for source_start, source_end, start in sorted(fragments, key=lambda item: item[2]):
+                if abs(source_start - cursor) > 1e-6:
+                    raise ReadableTranscriptTimingError()
+                if cursor == utterance.start:
+                    occurrence_start = start
+                cursor = source_end
+                if abs(cursor - utterance.end) <= 1e-6:
+                    entries.append(
+                        ReadableEntry(utterance.speaker, occurrence_start, utterance.text)
+                    )
+                    cursor = utterance.start
+            if cursor != utterance.start:
+                raise ReadableTranscriptTimingError()
+    return entries
+
+
 def render_readable_format(project: EpisodeProject) -> str:
-    return render_readable_transcript(project, readable_transcript_entries(project))
+    turns = readable_turns(readable_transcript_entries(project))
+    if not turns:
+        return ""
+    lines = [project.name, ""]
+    for turn in turns:
+        lines.append(f"{turn.speaker}  {format_clock(turn.start)}")
+        lines.append("\n\n".join(turn.paragraphs))
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def render_transcript_formats(
