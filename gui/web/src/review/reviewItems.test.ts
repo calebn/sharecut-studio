@@ -29,6 +29,7 @@ import {
   sessionStartSec,
   takeToPlace,
   unsureEntriesOf,
+  wordIdOf,
 } from "./reviewItems";
 import {
   decidedItems,
@@ -249,6 +250,110 @@ describe("reviewEntriesOf", () => {
       reviewEntriesOf([pendingEditView({ label: null })])[0]?.content.card
         .title,
     ).toBe("Suggestion");
+  });
+
+  it("uses the first eligible unsure word and keeps the proposal count", () => {
+    const pending = pendingEditView({
+      id: "mixed",
+      track_id: "host",
+      track_ids: ["host"],
+      unsure_words: [
+        {
+          track_id: "host",
+          source_id: "source",
+          word_index: 1,
+          text: "cut",
+          confidence: 0.4,
+        },
+        {
+          track_id: "host",
+          source_id: "source",
+          word_index: 2,
+          text: "playable",
+          confidence: 0.4,
+        },
+        {
+          track_id: "host",
+          source_id: "source",
+          word_index: 3,
+          text: "also cut",
+          confidence: 0.4,
+        },
+      ],
+    });
+    const target = (trackId: string, sourceId: string, wordIndex: number) => ({
+      trackId,
+      sourceId,
+      wordIndex,
+      text: "playable",
+      at: 4,
+      endSec: 5,
+    });
+    const targets = new Map([
+      [wordIdOf("host", "source", 2), target("host", "source", 2)],
+      [wordIdOf("guest", "source", 1), target("guest", "source", 1)],
+      [wordIdOf("host", "other", 1), target("host", "other", 1)],
+      [wordIdOf("host", "source", 9), target("host", "source", 9)],
+    ]);
+    const [entry] = reviewEntriesOf([pending], [], targets);
+    expect(entry?.item.unsure).toBe(true);
+    expect(entry?.content.card.unsure).toEqual({
+      word: "playable",
+      guess: "playable",
+      id: wordIdOf("host", "source", 2),
+      step: { index: 1, total: 1 },
+    });
+    expect(reviewCountOf([pending])).toBe(1);
+  });
+
+  it("omits the unsure affordance when every proposed word is cut away", () => {
+    const pending = pendingEditView({
+      unsure_words: [
+        {
+          track_id: "host",
+          source_id: null,
+          word_index: 1,
+          text: "cut",
+          confidence: 0.4,
+        },
+      ],
+    });
+
+    const [raw, entry] = [
+      reviewEntriesOf([pending], [], undefined)[0],
+      reviewEntriesOf([pending], [], new Map())[0],
+    ];
+
+    expect(raw?.item.unsure).toBe(true);
+    expect(raw?.content.card.unsure).toMatchObject({
+      id: wordIdOf("host", null, 1),
+    });
+    expect(entry?.item.unsure).toBeUndefined();
+    expect(entry?.content.card.unsure).toBeUndefined();
+    expect(reviewCountOf([pending])).toBe(1);
+  });
+
+  it("keeps raw unsure fallback when eligibility is unknown", () => {
+    const pending = pendingEditView({
+      unsure_words: [
+        {
+          track_id: "host",
+          source_id: null,
+          word_index: 1,
+          text: "maybe",
+          confidence: 0.4,
+        },
+      ],
+    });
+
+    const [entry] = reviewEntriesOf([pending]);
+
+    expect(entry?.item.unsure).toBe(true);
+    expect(entry?.content.card.unsure).toMatchObject({
+      word: "maybe",
+      id: wordIdOf("host", null, 1),
+      step: { index: 1, total: 1 },
+    });
   });
 });
 
