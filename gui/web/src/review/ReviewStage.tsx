@@ -501,10 +501,7 @@ export function ReviewStage({
           {regionFailure && guestColumn ? regionFailure : centerBottom}
           {guestColumn && !selected ? null : (
             <DecisionCard
-              key={JSON.stringify([
-                selected?.id ?? "none",
-                card.unsure?.id ?? null,
-              ])}
+              key={selected?.id ?? "none"}
               kind={selected?.kind ?? "filler"}
               state={
                 state !== "ready" ? state : selected && body ? "ready" : "empty"

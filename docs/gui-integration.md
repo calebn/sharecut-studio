@@ -222,6 +222,9 @@ timebase QC uses, so a zero-length word at a kept clip's source end is
 mappable in both. Edit-boundary `cutaway_word_ids` ask the same helper and
 leave out a zero-length word it maps onto the left clip, so they cannot drift
 from the word views.
+When a word-free snapshot changes clip geometry overlapping an utterance, the
+client discards retained word detail and fetches authoritative mapping again.
+Unchanged placements and uniform timeline translations can retain that detail.
 
 ### Transcript check routes
 

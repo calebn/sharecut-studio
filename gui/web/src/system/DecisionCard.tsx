@@ -58,6 +58,7 @@ export type DecisionCardProps = {
     word: string;
     /** The transcript's best guess, "uncle". */
     guess: string;
+    id?: string;
     resolved?: boolean;
     /** "1 of 3" for the unsure-word pass. */
     step?: { index: number; total: number };
@@ -404,6 +405,7 @@ export function DecisionCard(props: DecisionCardProps) {
         ) : null}
         {unsure && !readOnly ? (
           <UnsureWord
+            key={unsure.id}
             unsure={unsure}
             canSkip={kind !== "unsure-word" && !unsure.resolved}
             onOpenInEdit={phone && canEdit !== false ? onOpenInEdit : undefined}

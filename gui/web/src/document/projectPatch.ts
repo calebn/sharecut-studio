@@ -183,9 +183,57 @@ function samePlacementTranslation(
   );
 }
 
+function sameClipMapping(
+  previous: ProjectView,
+  incoming: ProjectView,
+  utterance: CombinedUtterance,
+  nextUtterance: CombinedUtterance,
+): boolean {
+  const placements = (project: ProjectView) =>
+    Object.values(project.clips.tracks)
+      .flat()
+      .filter(
+        (clip) =>
+          clip.source_start <= utterance.end &&
+          clip.source_end >= utterance.start,
+      )
+      .sort((a, b) => a.id.localeCompare(b.id));
+  const before = placements(previous);
+  const after = placements(incoming);
+  if (before.length !== after.length) return false;
+  if (before.length === 0) return true;
+
+  const delta =
+    (nextUtterance.timeline_start ?? 0) - (utterance.timeline_start ?? 0);
+  return before.every((clip, index) => {
+    const next = after[index];
+    return (
+      next !== undefined &&
+      clip.id === next.id &&
+      clip.track_id === next.track_id &&
+      clip.origin_track_id === next.origin_track_id &&
+      clip.source_id === next.source_id &&
+      clip.recording_key === next.recording_key &&
+      clip.timing_steps === next.timing_steps &&
+      clip.timing_summary === next.timing_summary &&
+      clip.source_start === next.source_start &&
+      clip.source_end === next.source_end &&
+      Math.abs(next.timeline_start - clip.timeline_start - delta) < 1e-7 &&
+      Math.abs(next.timeline_end - clip.timeline_end - delta) < 1e-7 &&
+      sameItems(
+        clip.timing?.steps ?? [],
+        next.timing?.steps ?? [],
+        (a, b) => a.at === b.at && a.delta_sec === b.delta_sec,
+      )
+    );
+  });
+}
+
 function overlayTranscriptWords(
   previous: ProjectView["transcript"],
   incoming: ProjectView["transcript"],
+  previousProject: ProjectView,
+  incomingProject: ProjectView,
 ): { transcript: ProjectView["transcript"]; complete: boolean } {
   if (!incoming) {
     return { transcript: incoming, complete: false };
@@ -208,6 +256,7 @@ function overlayTranscriptWords(
     if (
       !prior?.words ||
       prior.text !== utterance.text ||
+      !sameClipMapping(previousProject, incomingProject, prior, utterance) ||
       !samePlacementTranslation(prior, utterance) ||
       !sameIgnoredWords(prior, utterance) ||
       !sameEdgeSuppressedWords(prior, utterance) ||
@@ -238,6 +287,8 @@ function preserveHydratedFields(
     const { transcript, complete } = overlayTranscriptWords(
       previous.transcript,
       incoming.transcript,
+      previous,
+      incoming,
     );
     const mergedMeta = mergeHydration(previous.meta, incoming.meta);
     next = {
