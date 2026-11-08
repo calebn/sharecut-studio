@@ -403,28 +403,30 @@ for (const profile of profiles) {
             const dialog = pointSheet(page);
             const beforeRefusal = envelopeSnapshot(projectPath, track.id);
             const commandsBefore = observer.commands.length;
-            await setPointField(page, "Level", "9");
-            await expect(dialog.getByRole("alert")).toContainText(
-              /Enter a number from 0 to 1\.5/,
-            );
-            const refused = dialog.getByRole("textbox", {
-              name: "Level",
-              exact: true,
-            });
-            await expect(refused).toHaveAttribute("aria-invalid", "true");
-            const described = await refused.getAttribute("aria-describedby");
-            expect(described).toBeTruthy();
-            await expect(page.locator(`[id="${described}"]`)).toContainText(
-              /Enter a number from 0 to 1\.5/,
-            );
-            await page.keyboard.press("Escape");
-            // A refused value saves nothing: no command, the same file.
-            await expect(refused).toBeHidden();
-            await settle(page);
-            expect(observer.commands).toHaveLength(commandsBefore);
-            expect(envelopeSnapshot(projectPath, track.id)).toEqual(
-              beforeRefusal,
-            );
+            for (const value of ["9", "1.6"]) {
+              await setPointField(page, "Level", value);
+              await expect(dialog.getByRole("alert")).toContainText(
+                /Enter a number from 0 to 1\.5/,
+              );
+              const refused = dialog.getByRole("textbox", {
+                name: "Level",
+                exact: true,
+              });
+              await expect(refused).toHaveAttribute("aria-invalid", "true");
+              await expect(refused).toHaveValue(value);
+              const described = await refused.getAttribute("aria-describedby");
+              expect(described).toBeTruthy();
+              await expect(page.locator(`[id="${described}"]`)).toContainText(
+                /Enter a number from 0 to 1\.5/,
+              );
+              await page.keyboard.press("Escape");
+              await expect(refused).toBeHidden();
+              await settle(page);
+              expect(observer.commands).toHaveLength(commandsBefore);
+              expect(envelopeSnapshot(projectPath, track.id)).toEqual(
+                beforeRefusal,
+              );
+            }
             await setPointField(page, "Time", "999");
             const refusedTime = dialog.getByRole("textbox", {
               name: "Time",
@@ -432,6 +434,13 @@ for (const profile of profiles) {
             });
             await expect(refusedTime).toHaveAttribute("aria-invalid", "true");
             await expect(dialog.getByRole("alert")).toBeVisible();
+            await expect(refusedTime).toHaveValue("999");
+            expect(
+              await refusedTime.getAttribute("aria-describedby"),
+            ).toBeTruthy();
+            await expect(refusedTime).toHaveAccessibleDescription(
+              "Enter a number from 0 to 60 s",
+            );
             await page.keyboard.press("Escape");
             await expect(refusedTime).toBeHidden();
             await settle(page);
