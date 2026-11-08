@@ -52,7 +52,12 @@ export function lowConfidenceStops(
     for (const w of wordsForUtterance(u)) {
       if (w.word_index == null) continue;
       const wordOrder = order++;
-      if (!listed || !isLowConfidenceWord(w)) continue;
+      if (
+        !listed ||
+        !isLowConfidenceWord(w) ||
+        (w.mappable === false && !(annotate && showCutAway))
+      )
+        continue;
       stops.push({
         trackId: u.track_id,
         ...((w.timing_target?.source_id ?? u.source_id) != null
