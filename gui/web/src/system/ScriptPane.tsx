@@ -1842,8 +1842,15 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
             }}
             {...scrollHandlers}
             onWheel={(event) => {
+              const ownsReadingPosition = readingPositionRef.current !== null;
+              if (
+                ownsReadingPosition &&
+                (event.ctrlKey || event.defaultPrevented)
+              ) {
+                return;
+              }
               scrollHandlers.onWheel();
-              if (!readingPositionRef.current) return;
+              if (!ownsReadingPosition) return;
               const state = readingOwnership.current;
               readingOwnership.current = {
                 ...state,
@@ -1894,7 +1901,12 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
                   pending: observeReadingMovement(
                     state.touch.pending,
                     sampleReadingViewport(event.currentTarget),
-                    state.touch.previousY - contact.clientY,
+                    !readingPositionRef.current ||
+                      (selectionViewport.current === "idle" &&
+                        grabbed.current === null &&
+                        !event.defaultPrevented)
+                      ? state.touch.previousY - contact.clientY
+                      : 0,
                     performance.now(),
                   ),
                 },
