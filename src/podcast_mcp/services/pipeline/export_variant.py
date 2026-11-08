@@ -13,6 +13,8 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, TypedDict, cast
 
+import yaml
+
 from podcast_mcp.config.defaults import EffectiveConfig, mix_peak_ceiling_db
 from podcast_mcp.engines.ffmpeg import MASTER_SEMANTICS_REV, FFmpegEngine
 from podcast_mcp.engines.mastering import (
@@ -851,7 +853,7 @@ def export_variant_bundle(
 
 
 def completed_variant_files(
-    project: EpisodeProject, defaults: EffectiveConfig
+    project: EpisodeProject, *, load_config: Callable[[], EffectiveConfig]
 ) -> tuple[VariantFile, ...]:
     try:
         root = _safe_bundle_root(project, create=False)
@@ -860,33 +862,39 @@ def completed_variant_files(
     if not root.exists():
         return ()
     try:
-        source_digest = _source_certificate(project, defaults).digest
-    except (CodedValueError, OSError, ValueError):
-        source_digest = ""
-    try:
         directories = sorted(root.iterdir())
     except OSError:
         return ()
-    entries: list[VariantFile] = []
+    admitted: list[tuple[Path, AdmittedBundle]] = []
     for directory in directories:
         if directory.name.startswith(_PARTIAL) or not _BUNDLE_ID.fullmatch(directory.name):
             continue
         try:
             bundle = _load_bundle(root, directory.name)
-            for audio in bundle.audio:
-                entries.append(
-                    VariantFile(
-                        f"variants/{bundle.identity}/{audio.name}",
-                        f"{bundle.target.value.title()} {audio.spec.ext.upper()}",
-                        audio.spec.ext,
-                        bundle.target,
-                        bundle.source_digest,
-                        audio.size,
-                        audio.sha256,
-                        bool(source_digest and source_digest == bundle.source_digest),
-                        directory / audio.name,
-                    )
-                )
+            if bundle.audio:
+                admitted.append((directory, bundle))
         except (KeyError, TypeError, ValueError, OSError):
             continue
+    if not admitted:
+        return ()
+    try:
+        source_digest = _source_certificate(project, load_config()).digest
+    except (CodedValueError, OSError, UnicodeError, ValueError, yaml.YAMLError):
+        source_digest = None
+    entries: list[VariantFile] = []
+    for directory, bundle in admitted:
+        for audio in bundle.audio:
+            entries.append(
+                VariantFile(
+                    f"variants/{bundle.identity}/{audio.name}",
+                    f"{bundle.target.value.title()} {audio.spec.ext.upper()}",
+                    audio.spec.ext,
+                    bundle.target,
+                    bundle.source_digest,
+                    audio.size,
+                    audio.sha256,
+                    bool(source_digest and source_digest == bundle.source_digest),
+                    directory / audio.name,
+                )
+            )
     return tuple(entries)

@@ -186,14 +186,20 @@ def test_the_host_lists_and_downloads_with_no_host_path(ws, folder, client) -> N
 
 
 @pytest.mark.parametrize("invalid_yaml", ["master: [\n", "- master\n"])
+@pytest.mark.parametrize("variants", ["absent", "empty"])
 def test_saved_audio_remains_listed_and_ticketed_when_defaults_are_invalid(
-    ws, tmp_path, client, monkeypatch, invalid_yaml
+    ws, tmp_path, client, monkeypatch, invalid_yaml, variants
 ) -> None:
     client = TestClient(client.app, raise_server_exceptions=False)
     stem = sanitize_export_stem(ws.project.name)
     audio = ws.project.export_dir() / f"{stem}.wav"
     audio.parent.mkdir(parents=True, exist_ok=True)
     audio.write_bytes(WAV)
+    variant_root = ws.project.export_dir() / "variants"
+    if variants == "empty":
+        variant_root.mkdir()
+    else:
+        assert not variant_root.exists()
     params = {"path": str(ws.path)}
     initial = client.get("/api/export/files", params=params)
     assert initial.status_code == 200

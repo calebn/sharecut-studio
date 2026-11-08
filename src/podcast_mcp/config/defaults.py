@@ -78,7 +78,12 @@ def _parsed_defaults(path: Path) -> dict[str, Any]:
     key = str(path)
     hit = _PARSED_DEFAULTS.get(key)
     if hit is None or hit[0] != raw:
-        hit = (raw, yaml.safe_load(raw.decode("utf-8")) or {})
+        data = yaml.safe_load(raw.decode("utf-8"))
+        if data is None:
+            data = {}
+        if not isinstance(data, dict):
+            raise yaml.YAMLError("Pipeline defaults YAML must have a mapping root.")
+        hit = (raw, data)
         _PARSED_DEFAULTS.put(key, hit)
     return copy.deepcopy(hit[1])
 
