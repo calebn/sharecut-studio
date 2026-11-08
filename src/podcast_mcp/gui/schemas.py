@@ -264,7 +264,7 @@ VocabularyEntry = Annotated[
     str, Field(max_length=VOCABULARY_MAX_ENTRY_CHARS), AfterValidator(_plain_term)
 ]
 GuestNote = Annotated[str, Field(max_length=GUEST_NOTE_MAX_CHARS), AfterValidator(_plain_text)]
-TranscriptFormat = Literal["txt", "md", "srt", "vtt"]
+TranscriptFormat = Literal["txt", "md", "readable.txt", "srt", "vtt"]
 DEFAULT_TRANSCRIPT_EXPORT_FORMATS: tuple[TranscriptFormat, ...] = ("md", "srt")
 
 
@@ -349,7 +349,7 @@ class GuestTranscriptExportRequest(GuestRequest):
     """Write or preview the share's transcript files; each name is a format the host fixes."""
 
     formats: list[TranscriptFormat] = Field(
-        default=list(DEFAULT_TRANSCRIPT_EXPORT_FORMATS), min_length=1, max_length=4
+        default=list(DEFAULT_TRANSCRIPT_EXPORT_FORMATS), min_length=1, max_length=5
     )
     dry_run: bool = False
     with_text: bool = False

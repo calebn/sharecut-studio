@@ -297,7 +297,7 @@ def transcript_review_cmd(
     typer.echo(json.dumps(words, indent=2))
 
 
-_FORMAT_CHOICES = ("txt", "md", "srt", "vtt")
+_FORMAT_CHOICES = ("txt", "md", "readable.txt", "srt", "vtt")
 
 
 @transcript_app.command("export")
@@ -306,7 +306,7 @@ def transcript_export_cmd(
     formats: list[str] = typer.Option(
         None,
         "--format",
-        help="txt, md, srt or vtt; repeat for several (default: md and srt).",
+        help="txt, md, readable.txt, srt or vtt; repeat for several (default: md and srt).",
     ),
     dry_run: bool = typer.Option(
         False, "--dry-run", help="Preview the turns and a cue sample; write nothing."
@@ -323,7 +323,7 @@ def transcript_export_cmd(
     ),
     as_json: bool = typer.Option(False, "--json", help="Emit the full result as JSON."),
 ) -> None:
-    """Write the edited episode's transcript next to the audio (txt, md, srt, vtt)."""
+    """Write the edited episode's transcript next to the audio in selected formats."""
     chosen = list(formats) if formats else ["md", "srt"]
     for fmt in chosen:
         if fmt not in _FORMAT_CHOICES:

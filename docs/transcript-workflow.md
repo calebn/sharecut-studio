@@ -586,9 +586,11 @@ A host who waives once can approve hits one at a time, apply all, and render wit
 
 ## Exporting the transcript
 
+The Transcript section can write `readable.txt`, a paragraph-style reading copy. Its speaker turns, word mapping, paragraph heuristic, combined-only cut refusal, and audio-sidecar behavior are documented in [Readable transcript export](readable-transcript-export.md). The existing detailed TXT and Markdown formats, captions, defaults, preview, and Copy behavior remain unchanged.
+
 One call writes the edited episode's transcript next to the audio, in `export/`, under the
 episode's file stem: `TranscriptService.export(formats, dry_run, with_text, limits)`. CLI
-`podcast transcript export --project P [--format txt|md|srt|vtt]... [--dry-run] [--text] [--json]`
+`podcast transcript export --project P [--format txt|md|readable.txt|srt|vtt]... [--dry-run] [--text] [--json]`
 (default formats `md` and `srt`), MCP `export_transcript(project_path, formats, dry_run,
 with_text)`, and host HTTP `POST /api/transcript/export` all return the same result: `language`
 (the most common `Transcript.language`, `en` by default), `turns`, `duration_sec`, a six-turn

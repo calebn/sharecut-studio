@@ -10,8 +10,10 @@ from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.transcript_search import ensure_combined_transcript
 from podcast_mcp.engines.session_timeline import SessionTimeline, clip_plays_lane
 from podcast_mcp.engines.utterance_runs import transcript_word_runs
-from podcast_mcp.models import EpisodeProject
-from podcast_mcp.util.timebase import SourceSec
+from podcast_mcp.export.readable_transcript import ReadableEntry, render_readable_transcript
+from podcast_mcp.models import EpisodeProject, TranscriptWord
+from podcast_mcp.util.coded_error import CodedError
+from podcast_mcp.util.timebase import SourceSec, TimelineSec
 
 # Common caption guidance: at most ~2 lines of ~42 characters, at most ~7s on screen.
 DEFAULT_CAPTION_MAX_DURATION_SEC = 7.0
@@ -152,13 +154,99 @@ def render_reading_text(project: EpisodeProject, defaults: EffectiveConfig) -> s
     return "\n".join(lines)
 
 
-TRANSCRIPT_FORMATS = ("txt", "md", "srt", "vtt")
+READABLE_TRANSCRIPT_FORMAT = "readable.txt"
+TRANSCRIPT_FORMATS: tuple[str, ...] = ("txt", "md", "readable.txt", "srt", "vtt")
 TRANSCRIPT_MIME = {
     "txt": "text/plain",
     "md": "text/markdown",
     "srt": "application/x-subrip",
     "vtt": "text/vtt",
+    READABLE_TRANSCRIPT_FORMAT: "text/plain",
 }
+
+
+class ReadableTranscriptTimingError(CodedError, ValueError):
+    """Combined transcript timing cannot safely resolve a partial cut."""
+
+    code = "readable_timing_unavailable"
+
+
+class ReadableTranscriptEmptyError(CodedError, ValueError):
+    """No readable transcript text remains after suppression and cuts."""
+
+    code = "transcript_empty"
+
+
+def _placement_count(word: TranscriptWord, spans: Sequence[tuple[TimelineSec, TimelineSec]]) -> int:
+    if not spans:
+        return 0
+    mapped_duration = sum(float(end - start) for start, end in spans)
+    return max(1, round(mapped_duration / max(word.end - word.start, 0.001)))
+
+
+def readable_transcript_entries(project: EpisodeProject) -> tuple[ReadableEntry, ...]:
+    """Project unsuppressed word runs into placement-aware readable entries."""
+    timeline = SessionTimeline(project)
+    entries: list[ReadableEntry] = []
+    if project.transcripts:
+        for run in transcript_word_runs(project):
+            lane_clips = [
+                clip for clip in project.clips if clip_plays_lane(project, clip, run.track_id)
+            ]
+            source_ids = project.equivalent_source_ids(run.track_id, run.source_id)
+            word_bounds = [(word.start, word.end) for word in run.words]
+            if not lane_clips and None in source_ids:
+                mapped = timeline.map_word_spans(run.track_id, word_bounds)
+            else:
+                mapped = timeline.map_placements_word_spans(run.track_id, source_ids, word_bounds)
+            occurrences = [
+                _placement_count(word, spans) for word, spans in zip(run.words, mapped, strict=True)
+            ]
+            placements = max(occurrences, default=0)
+            for placement in range(placements):
+                words = [
+                    (word, spans[placement] if occurrence > 1 else spans[0])
+                    for word, spans, occurrence in zip(run.words, mapped, occurrences, strict=True)
+                    if occurrence > placement
+                ]
+                if words:
+                    entries.append(
+                        ReadableEntry(
+                            run.speaker,
+                            float(words[0][1][0]),
+                            " ".join(word.text for word, _ in words).strip(),
+                        )
+                    )
+    elif project.combined_transcript:
+        for utterance in project.combined_transcript.utterances:
+            source_ids = project.equivalent_source_ids(utterance.track_id, utterance.source_id)
+            lane_clips = [
+                clip for clip in project.clips if clip_plays_lane(project, clip, utterance.track_id)
+            ]
+            if not lane_clips and None in source_ids:
+                spans = timeline.map_source_span(
+                    utterance.track_id, SourceSec(utterance.start), SourceSec(utterance.end)
+                )
+            else:
+                spans = timeline.map_placements_source_span(
+                    utterance.track_id,
+                    source_ids,
+                    SourceSec(utterance.start),
+                    SourceSec(utterance.end),
+                )
+            duration = utterance.end - utterance.start
+            if spans and any(float(end - start) + 1e-6 < duration for start, end in spans):
+                raise ReadableTranscriptTimingError(
+                    "Readable export needs word timings to resolve a partial cut in combined transcript text."
+                )
+            entries.extend(
+                ReadableEntry(utterance.speaker, float(start), utterance.text) for start, _ in spans
+            )
+    return tuple(entries)
+
+
+def render_readable_format(project: EpisodeProject) -> str:
+    return render_readable_transcript(project, readable_transcript_entries(project))
 
 
 def render_transcript_formats(
@@ -167,7 +255,7 @@ def render_transcript_formats(
     formats: Sequence[str],
     limits: CaptionLimits | None = None,
 ) -> dict[str, str]:
-    """Render each of ``formats`` (``txt|md|srt|vtt``) from the edited timeline.
+    """Render each selected transcript format from the edited timeline.
 
     The one place a transcript file's text is produced: audio Export and
     ``TranscriptService.export`` both call it.
@@ -177,6 +265,7 @@ def render_transcript_formats(
         "md": lambda: combined_transcript_markdown(project, defaults),
         "srt": lambda: utterances_to_srt(project, limits=limits),
         "vtt": lambda: utterances_to_vtt(project, limits=limits),
+        READABLE_TRANSCRIPT_FORMAT: lambda: render_readable_format(project),
     }
     return {fmt: renderers[fmt]() for fmt in formats}
 

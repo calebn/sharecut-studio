@@ -58,7 +58,7 @@ def export_transcript(
 ) -> str:
     """Write the edited episode's transcript next to the audio; return JSON.
 
-    formats: any of "txt", "md", "srt", "vtt" (default ["md", "srt"]). Files go to the
+    formats: any of "txt", "md", "readable.txt", "srt", "vtt" (default ["md", "srt"]). Files go to the
     project's export folder under the episode name, all written together or none, and
     reflect the edited timeline (cut material omitted). dry_run writes nothing and returns
     the preview only; with_text adds the full reading text. Result keys: language, turns,
@@ -76,7 +76,7 @@ def export_transcript(
 
 
 def list_exported_transcripts(project_path: str) -> str:
-    """List transcript files already exported next to the audio (txt, md, srt, vtt) as JSON.
+    """List transcript files already exported next to the audio as JSON.
 
     Each entry: format, path, name, mime, language, bytes, modified (UTC), current (false
     when the transcript was edited since the file was written). Read-only.

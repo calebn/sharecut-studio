@@ -220,7 +220,7 @@ export interface GuestSpeakerSplitRequest {
 
 /** Write or preview the share's transcript files; each name is a format the host fixes. */
 export interface GuestTranscriptExportRequest {
-  formats?: Array<"txt" | "md" | "srt" | "vtt">;
+  formats?: Array<"txt" | "md" | "readable.txt" | "srt" | "vtt">;
   dry_run?: boolean;
   with_text?: boolean;
 }

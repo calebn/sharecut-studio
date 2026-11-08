@@ -19,6 +19,7 @@ One file per page under `ux/pages/screens/`, so parallel UI changes edit differe
 | [Information architecture](#/screens/information-architecture) | `screens/information-architecture.md` |
 | [Shared: App header, Stage bar and Player bar](#/screens/app-header-stage-bar-player-bar) | `screens/app-header-stage-bar-player-bar.md` |
 | [Podcast listing (Deliver section)](#/screens/podcast-listing) | `screens/podcast-listing.md` |
+| [Transcript export (Deliver section)](#/screens/transcript-export) | `screens/transcript-export.md` |
 | [Host: Share (Deliver section)](#/screens/host-share) | `screens/host-share.md` |
 | [Host: Connect agent dialog](#/screens/host-connect-agent) | `screens/host-connect-agent.md` |
 | [Shared: Selection → Inspector / Bottom sheet](#/screens/selection-inspector) | `screens/selection-inspector.md` |

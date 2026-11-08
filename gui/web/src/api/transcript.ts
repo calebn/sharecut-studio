@@ -1,6 +1,6 @@
 import { apiFetch, HOST_KEY } from "./http";
 
-export type TranscriptFormat = "txt" | "md" | "srt" | "vtt";
+export type TranscriptFormat = "txt" | "md" | "readable.txt" | "srt" | "vtt";
 
 export type TranscriptPreviewTurn = {
   speaker: string;
