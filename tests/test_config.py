@@ -98,6 +98,15 @@ def test_load_defaults_rejects_non_mapping_yaml_roots(tmp_path, monkeypatch, sou
         load_defaults()
 
 
+def test_load_defaults_rejects_invalid_yaml_timestamp(tmp_path, monkeypatch):
+    path = tmp_path / "invalid-timestamp.yaml"
+    path.write_text("created_at: 2026-99-99\n", encoding="utf-8")
+    monkeypatch.setenv("PODCAST_MCP_PIPELINE_DEFAULTS", str(path))
+
+    with pytest.raises(yaml.YAMLError):
+        load_defaults()
+
+
 @pytest.mark.parametrize("source", ["", "null\n", "render:\n  join_fade_max_ms: 23\n"])
 def test_load_defaults_preserves_mapping_and_empty_root_semantics(tmp_path, monkeypatch, source):
     path = tmp_path / "valid-root.yaml"
