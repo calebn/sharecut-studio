@@ -946,6 +946,8 @@ describe("Review host unsure words", () => {
     await waitFor(() =>
       expect(rows()).toEqual([expect.stringContaining("uncle")]),
     );
+    expect(heading()).toBe("Check the transcript before cutting");
+    await pick(/uncle/);
     expect(heading()).toBe("Is this “uncle”?");
 
     server.words = beforeCut;
