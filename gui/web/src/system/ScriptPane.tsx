@@ -193,7 +193,11 @@ function advanceReading(
       (referencePair
         ? referenceShift !== 0 ||
           referencePair.previous.height !== referencePair.current.height
-        : previous.reference || sample.reference),
+        : previous.reference ||
+          sample.reference ||
+          previous.width !== sample.width ||
+          previous.height !== sample.height ||
+          previous.maximum !== sample.maximum),
   );
   const fresh = (evidence: ReadingEvidence | null) =>
     evidence &&
@@ -249,7 +253,9 @@ function advanceReading(
           ? "down"
           : null;
   const direction =
-    inputDirection !== null && inputDirection === physicalDirection
+    inputDirection !== null &&
+    inputDirection === physicalDirection &&
+    sample.top !== projected
       ? inputDirection
       : sample.top === previous?.top
         ? null
@@ -1643,7 +1649,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
           focusAccepted = true;
         }
       }
-      if (before !== body.scrollTop || focusAccepted)
+      if (before !== body.scrollTop)
         readingOwnership.current = acceptReadingPosition(
           readingOwnership.current,
           sampleReading(body),
