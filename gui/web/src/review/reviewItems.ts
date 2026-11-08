@@ -255,7 +255,8 @@ function entryOf(
   const savedSeconds = unionSeconds(spans);
   const title = edit.label ?? "Suggestion";
   const time = Number.isFinite(at) ? formatTimeShort(at) : "Unplaced";
-  const words = (edit.unsure_words ?? []).filter(
+  const rawWords = edit.unsure_words ?? [];
+  const words = rawWords.filter(
     (word) =>
       eligibleWords === undefined ||
       eligibleWords.has(
@@ -281,7 +282,10 @@ function entryOf(
       suggested,
       ...(risk ? { risk } : {}),
       ...(speaker ? { speaker } : {}),
-      ...(first ? { unsure: true } : {}),
+      ...(rawWords.length ? { unsure: true } : {}),
+      ...(eligibleWords !== undefined && rawWords.length > 0 && !first
+        ? { blocked: true }
+        : {}),
     },
     content: {
       row: {
