@@ -260,6 +260,7 @@ export async function runRangeAction(
       useDawStore.getState().announceStatus(reason, { tone: "error" });
       return { status: "disabled", reason, told: true };
     }
+    if (action === "cut") return { status: "disabled", reason, told: true };
     return { status: "disabled", reason };
   } finally {
     if (useDawStore.getState().projectEpoch === epoch)
