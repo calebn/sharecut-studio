@@ -166,6 +166,100 @@ describe("patchTracksOrder / patchTrackMeta", () => {
 });
 
 describe("projectFromDocumentSnapshot", () => {
+  it("invalidates an overlapping word whose playable tail extends beyond the row end", () => {
+    const row = {
+      track_id: "host",
+      speaker: "Host",
+      start: 1.75,
+      end: 2.25,
+      text: "anchor overlap tail",
+      mappable: true,
+      timeline_start: 1.75,
+      timeline_end: 2,
+      timeline_spans: [{ start: 1.75, end: 2 }],
+    };
+    const clips = (rolled: boolean): ProjectView["clips"] => ({
+      clip_count: 3,
+      tracks: {
+        host: [
+          {
+            id: "anchor",
+            source_start: 0,
+            source_end: 2,
+            timeline_start: 0,
+            timeline_end: 2,
+          },
+          {
+            id: "left",
+            source_start: 4,
+            source_end: rolled ? 5.1 : 5,
+            timeline_start: 2.28,
+            timeline_end: rolled ? 3.38 : 3.28,
+          },
+          {
+            id: "right",
+            source_start: rolled ? 2.38 : 2.28,
+            source_end: 4,
+            timeline_start: rolled ? 3.38 : 3.28,
+            timeline_end: 5,
+          },
+        ].map((clip) => ({
+          ...clip,
+          track_id: "host",
+          origin_track_id: "host",
+          source_id: null,
+          recording_key: null,
+          source_duration_sec: 6,
+          fade_in_ms: 0,
+          fade_out_ms: 0,
+        })),
+      },
+    });
+    const words = [
+      {
+        text: "anchor",
+        word_index: 0,
+        start: 1.75,
+        end: 1.99,
+        mappable: true,
+        timeline_start: 1.75,
+        timeline_end: 1.99,
+      },
+      {
+        text: "overlap",
+        word_index: 1,
+        start: 2,
+        end: 2.33,
+        confidence: 0.4,
+        mappable: true,
+        timeline_start: 3.28,
+        timeline_end: 3.33,
+      },
+      {
+        text: "tail",
+        word_index: 2,
+        start: 2.15,
+        end: 2.25,
+        mappable: false,
+        timeline_start: null,
+        timeline_end: null,
+      },
+    ];
+    const previous = minimalProject({
+      clips: clips(false),
+      transcript: { utterances: [{ ...row, words }] },
+    });
+    const shell = minimalProject({
+      ...previous,
+      clips: clips(true),
+      meta: { ...previous.meta, hydration: { transcript_words: false } },
+      transcript: { utterances: [row] },
+    });
+    const next = projectFromDocumentSnapshot(previous, { project: shell });
+    expect(next?.meta.hydration?.transcript_words).toBe(false);
+    expect(next?.transcript?.utterances[0].words).toBeUndefined();
+  });
+
   it.each([
     { rowSource: "take-a", clipSource: "take-a", lane: "host", origin: "host" },
     { rowSource: null, clipSource: "primary", lane: "host", origin: "host" },
