@@ -659,6 +659,82 @@ describe("ScriptPane reading position", () => {
     },
   );
 
+  it.each([
+    ["following", null, false],
+    ["paused", { kind: "scroll", top: 0 }, true],
+  ] as const)(
+    "retains a native-style post-applied wheel before its queued scroll while %s",
+    (_mode, position, restore) => {
+      scriptGeometry();
+      const onUserScroll = vi.fn();
+      const { body, binding, captured, rerender, container } = setup(
+        position,
+        false,
+        onUserScroll,
+        restore,
+      );
+      body.scrollTop = 170;
+      fireEvent.wheel(body, { deltaY: 170 });
+      expect.soft(captured()).toMatchObject({
+        kind: "word",
+        index: 8,
+        offset: -10,
+        fallbackTop: 170,
+      });
+      expect.soft(onUserScroll).toHaveBeenCalledOnce();
+      rerender(
+        <ScriptPane
+          turns={SCRIPT_TURNS}
+          readingPosition={binding}
+          status={{ kind: "loading" }}
+        />,
+      );
+      expect(container.querySelector(".sys-script-body")).toBeNull();
+      rerender(
+        <ScriptPane
+          turns={SCRIPT_TURNS}
+          readingPosition={{ ...binding, restore: true }}
+          onUserScroll={onUserScroll}
+        />,
+      );
+      expect(
+        container.querySelector<HTMLElement>(".sys-script-body")?.scrollTop,
+      ).toBe(170);
+      expect(onUserScroll).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("does not give a zero-delta wheel ownership of a font-reflow scroll", () => {
+    const geometry = scriptGeometry();
+    const fonts = new EventTarget();
+    Object.defineProperty(document, "fonts", {
+      configurable: true,
+      value: fonts,
+    });
+    const onUserScroll = vi.fn();
+    const { body, captured } = setup(
+      { kind: "word", index: 29, offset: -10, fallbackTop: 590 },
+      false,
+      onUserScroll,
+    );
+    fireEvent.scroll(body);
+    geometry.setLineHeight(24);
+    body.scrollTop = 650;
+    fireEvent.wheel(body, { deltaY: 0 });
+    fireEvent.scroll(body);
+    act(() => {
+      fonts.dispatchEvent(new Event("loadingdone"));
+    });
+
+    expect(body.scrollTop).toBe(706);
+    expect(captured()).toMatchObject({
+      kind: "word",
+      index: 29,
+      fallbackTop: 590,
+    });
+    expect(onUserScroll).not.toHaveBeenCalled();
+  });
+
   it("keeps a touch scroll that arrives before the geometry observer", () => {
     const geometry = scriptGeometry();
     stubResizeObserver();
