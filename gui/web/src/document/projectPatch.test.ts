@@ -166,6 +166,133 @@ describe("patchTracksOrder / patchTrackMeta", () => {
 });
 
 describe("projectFromDocumentSnapshot", () => {
+  it.each([
+    { label: "unchanged", timelineStart: 0, mappable: true },
+    { label: "translated", timelineStart: 1.2, mappable: false },
+  ])(
+    "preserves per-word mapping through a compatible $label shell update",
+    ({ timelineStart, mappable }) => {
+      const words = [
+        {
+          text: "cut",
+          start: 0,
+          end: 0.2,
+          timeline_start: 0,
+          timeline_end: 0.2,
+          mappable: false,
+        },
+        {
+          text: "also cut",
+          start: 0.2,
+          end: 0.4,
+          timeline_start: 0.2,
+          timeline_end: 0.4,
+          mappable: false,
+        },
+        {
+          text: "play",
+          start: 0.4,
+          end: 0.6,
+          timeline_start: 0.4,
+          timeline_end: 0.6,
+          mappable: true,
+        },
+        {
+          text: "unknown",
+          start: 0.6,
+          end: 0.8,
+          timeline_start: 0.6,
+          timeline_end: 0.8,
+        },
+      ] satisfies NonNullable<
+        NonNullable<ProjectView["transcript"]>["utterances"][number]["words"]
+      >;
+      const row = {
+        track_id: "host",
+        source_id: "source-1",
+        speaker: "Host",
+        start: 0,
+        end: 0.8,
+        text: "cut also cut play unknown",
+        timeline_start: 0,
+        timeline_end: 0.8,
+        mappable,
+      };
+      const previous = minimalProject({
+        meta: {
+          name: "Test",
+          workspace_dir: "/tmp",
+          hydration: { transcript_words: true, history_groups: true },
+        },
+        transcript: { utterances: [{ ...row, words }] },
+      });
+      const shell = minimalProject({
+        meta: {
+          name: "Test",
+          workspace_dir: "/tmp",
+          hydration: { transcript_words: false, history_groups: false },
+        },
+        transcript: {
+          utterances: [
+            {
+              ...row,
+              timeline_start: timelineStart,
+              timeline_end: timelineStart + 0.8,
+            },
+          ],
+        },
+      });
+
+      const overlaid = projectFromDocumentSnapshot(previous, {
+        project: shell,
+      });
+      const overlaidWords = overlaid?.transcript?.utterances[0]?.words;
+      expect(overlaid?.meta.hydration?.transcript_words).toBe(true);
+      expect(overlaid?.transcript?.utterances[0]?.source_id).toBe("source-1");
+      expect(overlaidWords?.map((word) => word.text)).toEqual([
+        "cut",
+        "also cut",
+        "play",
+        "unknown",
+      ]);
+      expect(overlaidWords?.map((word) => word.mappable)).toEqual([
+        false,
+        false,
+        true,
+        mappable,
+      ]);
+      expect(
+        overlaidWords?.map((word) => [word.timeline_start, word.timeline_end]),
+      ).toEqual([
+        [timelineStart, timelineStart + 0.2],
+        [timelineStart + 0.2, timelineStart + 0.4],
+        [timelineStart + 0.4, timelineStart + 0.6],
+        [timelineStart + 0.6, timelineStart + 0.8],
+      ]);
+
+      const detail = minimalProject({
+        meta: {
+          name: "Test",
+          workspace_dir: "/tmp",
+          hydration: { transcript_words: true, history_groups: true },
+        },
+        transcript: {
+          utterances: [
+            {
+              ...row,
+              words: words.map((word) => ({ ...word, mappable: false })),
+            },
+          ],
+        },
+      });
+      const undone = projectFromDocumentSnapshot(overlaid, { project: detail });
+      expect(undone?.meta.hydration?.transcript_words).toBe(true);
+      expect(
+        undone?.transcript?.utterances[0]?.words?.map((word) => word.mappable),
+      ).toEqual([false, false, false, false]);
+    },
+  );
+
   it("merges comments-only snapshots", () => {
     const prev = minimalProject({ comments: [] });
     const next = projectFromDocumentSnapshot(prev, {
