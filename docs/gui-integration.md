@@ -152,6 +152,11 @@ Numeric scalar conversions and scalar WAV truth semantics stay unchanged. A non-
 An explicit format list does not consume configured formats or the legacy MP3 bitrate.
 Request-only mastering settings do not affect a saved variant's source-currentness flag.
 
+Output-error translation covers production and validation of staged audio. Programming faults
+in the publication transaction or result construction follow the job's unexpected-error path,
+with a null error code. A fault after publication retains the completed saved bundle and does
+not report that no variant was published. Stage descriptors close on both success and failure.
+
 This is a partial backend implementation, part of #2455. It does not add UI controls,
 CLI/MCP target support, time-range or folder selection, or guest target generation.
 Completed variant audio is exposed through the existing export-file list, open, download
