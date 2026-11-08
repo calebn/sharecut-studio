@@ -796,6 +796,203 @@ describe("ReviewStage host seams", () => {
       key,
     });
 
+  const openNote = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.click(screen.getByRole("button", { name: "Add a note" }));
+    const note = screen.getByRole("textbox", { name: "Your reason" });
+    await user.type(note, "Reviewed the audio");
+    return note;
+  };
+
+  it("keeps an armed note and focus when a proposal loses its final Fix word", async () => {
+    const user = userEvent.setup();
+    const props = {
+      ...stageProps(QUEUE_ITEMS),
+      selectedId: "f3",
+      looksRight: new Set(["f3"]),
+    };
+    const view = render(<ReviewStage {...props} />);
+    press(view, "Enter");
+    const note = await openNote(user);
+    expect(note).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Fix text" })).toBeVisible();
+
+    view.rerender(
+      <ReviewStage
+        {...props}
+        items={props.items.map((item) =>
+          item.id === "f3" ? { ...item, blocked: true } : item,
+        )}
+        content={(item) => {
+          const body = reviewContent(item);
+          return item.id === "f3"
+            ? { ...body, card: { ...body.card, unsure: undefined } }
+            : body;
+        }}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Fix text" })).toBeNull();
+    expect(screen.getByRole("textbox", { name: "Your reason" })).toBe(note);
+    expect(note).toHaveValue("Reviewed the audio");
+    expect(note).toHaveFocus();
+    const cut = screen.getByRole("button", { name: "Cut anyway" });
+    expect(cut).toBeDisabled();
+    await user.keyboard("{Enter}");
+    await user.click(cut);
+    fireEvent.submit(screen.getByRole("form", { name: "Cut anyway" }));
+    expect(props.onDecide).not.toHaveBeenCalled();
+
+    view.rerender(<ReviewStage {...props} />);
+    expect(screen.getByRole("textbox", { name: "Your reason" })).toBe(note);
+    expect(note).toHaveFocus();
+    expect(cut).toBeEnabled();
+    await user.keyboard("{Enter}");
+    expect(props.onDecide.mock.calls).toEqual([
+      [
+        {
+          ids: ["f3"],
+          result: "applied",
+          waive: { note: "Reviewed the audio" },
+        },
+      ],
+    ]);
+  });
+
+  it("confirms only runnable captured group items after the queue changes", async () => {
+    const user = userEvent.setup();
+    const props = { ...stageProps(QUEUE_ITEMS), selectedId: "p1" };
+    const view = render(<ReviewStage {...props} />);
+    await user.click(screen.getByRole("button", { name: "Cut all 3" }));
+    const note = await openNote(user);
+    view.rerender(
+      <ReviewStage
+        {...props}
+        items={props.items.flatMap((item) => {
+          if (item.id === "f1") return [];
+          if (item.id === "f2") return [{ ...item, blocked: true }];
+          if (item.id === "f3") return [{ ...item, unsure: false }];
+          return [item];
+        })}
+      />,
+    );
+    expect(screen.getByRole("textbox", { name: "Your reason" })).toBe(note);
+    expect(note).toHaveFocus();
+    await user.click(screen.getByRole("button", { name: "Cut anyway" }));
+    expect(props.onDecide.mock.calls).toEqual([
+      [
+        {
+          ids: ["f4"],
+          result: "applied",
+          waive: { note: "Reviewed the audio" },
+          group: true,
+        },
+      ],
+    ]);
+  });
+
+  it.each(["decided", "removed"])(
+    "retires an armed group when every captured item is %s",
+    async (change) => {
+      const user = userEvent.setup();
+      const props = { ...stageProps(QUEUE_ITEMS), selectedId: "p1" };
+      const view = render(<ReviewStage {...props} />);
+      await user.click(screen.getByRole("button", { name: "Cut all 3" }));
+      await openNote(user);
+      const captured = new Set(["f1", "f2", "f4"]);
+      view.rerender(
+        <ReviewStage
+          {...props}
+          items={props.items.flatMap((item) => {
+            if (!captured.has(item.id)) return [item];
+            return change === "removed"
+              ? []
+              : [{ ...item, result: "applied" as const }];
+          })}
+        />,
+      );
+      expect(screen.queryByRole("form", { name: "Cut anyway" })).toBeNull();
+
+      view.rerender(<ReviewStage {...props} />);
+      expect(screen.queryByRole("form", { name: "Cut anyway" })).toBeNull();
+      await user.click(screen.getByRole("button", { name: "Cut all 3" }));
+      expect(screen.getByRole("form", { name: "Cut anyway" })).toBeVisible();
+      expect(screen.queryByRole("textbox", { name: "Your reason" })).toBeNull();
+    },
+  );
+
+  it("drops a draft when the keyed project changes even with the same selected id", async () => {
+    const user = userEvent.setup();
+    const props = stageProps(QUEUE_ITEMS);
+    const view = render(<ReviewStage key="episode-a" {...props} />);
+    press(view, "Enter");
+    await openNote(user);
+    view.rerender(<ReviewStage key="episode-b" {...props} />);
+    expect(screen.queryByRole("form", { name: "Cut anyway" })).toBeNull();
+    press(view, "Enter");
+    expect(screen.getByRole("form", { name: "Cut anyway" })).toBeVisible();
+    expect(screen.queryByRole("textbox", { name: "Your reason" })).toBeNull();
+  });
+
+  it("keeps the selected card's note when only the queue filter changes", async () => {
+    const user = userEvent.setup();
+    const { press } = setup({ initialItems: QUEUE_ITEMS });
+    press("Enter");
+    const note = await openNote(user);
+    await user.click(screen.getByRole("button", { name: /^Comments, / }));
+    expect(screen.getByRole("textbox", { name: "Your reason" })).toBe(note);
+    expect(note).toHaveValue("Reviewed the audio");
+  });
+
+  it("hides an armed draft and refuses a cut when decision permission is lost", async () => {
+    const user = userEvent.setup();
+    const props = stageProps(QUEUE_ITEMS);
+    const view = render(<ReviewStage {...props} />);
+    press(view, "Enter");
+    await openNote(user);
+    view.rerender(<ReviewStage {...props} canDecide={false} />);
+    expect(screen.queryByRole("form", { name: "Cut anyway" })).toBeNull();
+    press(view, "Enter");
+    expect(props.onDecide).not.toHaveBeenCalled();
+  });
+
+  it("uses an uncounted Check words until Detail can supply a count", async () => {
+    const retry = vi.fn();
+    const props = stageProps(QUEUE_ITEMS);
+    const view = render(<ReviewStage {...props} />);
+    press(view, "Enter");
+    expect(screen.getByRole("button", { name: "Check 1 word" })).toBeVisible();
+    const unloaded = props.items.filter((item) => item.kind !== "unsure-word");
+    view.rerender(
+      <ReviewStage
+        {...props}
+        items={unloaded}
+        wordDetail={{ kind: "pending", retry }}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Check words" })).toBeVisible();
+    view.rerender(
+      <ReviewStage
+        {...props}
+        items={unloaded}
+        wordDetail={{ kind: "failed", retry, recovering: false }}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Check words" })).toBeVisible();
+    view.rerender(
+      <ReviewStage
+        {...props}
+        items={[
+          ...props.items,
+          { id: "u2", kind: "unsure-word", at: 615, savedSeconds: 0 },
+        ]}
+        wordDetail={{ kind: "ready" }}
+      />,
+    );
+    const check = screen.getByRole("button", { name: "Check 2 words" });
+    await userEvent.click(check);
+    expect(props.onSelect).toHaveBeenCalledWith("u1");
+  });
+
   it("asks again when a transcript check comes back after Cut anyway", async () => {
     const view = render(<ReviewStage {...stageProps(QUEUE_ITEMS)} />);
     press(view, "Enter");

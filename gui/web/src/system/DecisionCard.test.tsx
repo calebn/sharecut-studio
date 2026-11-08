@@ -503,6 +503,31 @@ describe("DecisionCard without a waveform", () => {
 });
 
 describe("DecisionCard verb", () => {
+  it("keeps blocked edit recovery on phone and omits it for a resolved comment", async () => {
+    const onOpenInEdit = vi.fn();
+    const props = { ...base(), onOpenInEdit, layout: "phone" as const };
+    const { rerender } = render(
+      <DecisionCard
+        {...props}
+        verbDisabledReason="Open it in Edit to resolve."
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Cut" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Open in Edit" }));
+    expect(onOpenInEdit).toHaveBeenCalledOnce();
+
+    rerender(
+      <DecisionCard
+        {...props}
+        kind="comment"
+        title="Comment from Rosa"
+        verbDisabledReason="Already resolved."
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Resolve" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Open in Edit" })).toBeNull();
+  });
+
   it("replaces the kind's primary and drops the duplicate Keep", async () => {
     const onVerb = vi.fn();
     render(
