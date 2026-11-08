@@ -4290,7 +4290,13 @@ describe("ScriptPane reading position", () => {
         .spyOn(HTMLElement.prototype, "scrollHeight", "get")
         .mockReturnValue(790);
       const onUserScroll = vi.fn();
-      function Host({ shown }: { shown: boolean }) {
+      function Host({
+        shown,
+        playing = 32,
+      }: {
+        shown: boolean;
+        playing?: number;
+      }) {
         const reading = useGuestReading();
         return (
           <>
@@ -4301,7 +4307,7 @@ describe("ScriptPane reading position", () => {
                 layout="desktop"
                 turns={SCRIPT_TURNS}
                 wordStarts={[]}
-                playing={32}
+                playing={playing}
                 onSeek={vi.fn()}
                 onUserScroll={onUserScroll}
                 reading={reading}
@@ -4342,10 +4348,10 @@ describe("ScriptPane reading position", () => {
       fireEvent(window, new Event("resize"));
       expect.soft(onUserScroll).not.toHaveBeenCalled();
       expect.soft(body.scrollTop).toBe(542);
-      rerender(<Host shown={false} />);
+      rerender(<Host shown={false} playing={0} />);
       const outside = screen.getByRole("button", { name: "Outside" });
       outside.focus();
-      rerender(<Host shown />);
+      rerender(<Host shown playing={0} />);
       expect(document.activeElement).toBe(outside);
       const returnedBody =
         container.querySelector<HTMLElement>(".sys-script-body");
