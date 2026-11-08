@@ -270,6 +270,13 @@ const asGuest = (role: "commenter" | "viewer", episodeState: object = {}) => ({
 });
 
 const NO_COMMENTS = episode({ comments: [] });
+const TRANSCRIPT_WORDS_PENDING = episode({
+  meta: {
+    name: "After Hours Almanac 12",
+    workspace_dir: "/episodes/after-hours",
+    hydration: { transcript_words: false },
+  },
+});
 
 const noDecisions = async (canvas: ReturnType<typeof within>) => {
   await expect(
@@ -305,6 +312,44 @@ export const GuestCommenterPhone390: Story = {
   ...phone390,
   ...asGuest("commenter"),
   play: commenterPlay,
+};
+
+export const GuestCommenterTranscriptPending: Story = {
+  ...phone,
+  ...asGuest("commenter", { project: TRANSCRIPT_WORDS_PENDING }),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      (await canvas.findAllByRole("region", { name: "Queue" }))[0],
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("textbox", { name: "Comment" }),
+    ).toBeEnabled();
+    await expect(
+      canvasElement.querySelector(".sys-skeleton[aria-busy='true']"),
+    ).not.toBeNull();
+    await expect(
+      canvas.queryByText("The host has not made a transcript of this version."),
+    ).toBeNull();
+  },
+};
+
+export const GuestViewerTranscriptWordsUnavailable: Story = {
+  ...phone,
+  ...asGuest("viewer", { project: TRANSCRIPT_WORDS_PENDING }),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      (await canvas.findAllByRole("region", { name: "Queue" }))[0],
+    ).toBeVisible();
+    await expect(
+      canvasElement.querySelector(".sys-skeleton[aria-busy='true']"),
+    ).toBeNull();
+    await expect(
+      canvas.queryByText("The host has not made a transcript of this version."),
+    ).toBeNull();
+    await expect(canvas.queryByRole("textbox", { name: "Comment" })).toBeNull();
+  },
 };
 
 export const GuestCommenterEmpty: Story = {
