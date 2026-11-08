@@ -4,6 +4,7 @@ from pathlib import Path
 
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.transcript_search import ensure_combined_transcript
+from podcast_mcp.gui.routes.export_files import list_exported_files
 from podcast_mcp.export.names import sanitize_export_stem
 from podcast_mcp.models import Transcript, TranscriptWord, load_project, save_project
 from podcast_mcp.project.store import WriteGrantKind, write_grant
@@ -29,6 +30,7 @@ def test_dotted_project_stem_keeps_detailed_and_readable_formats_distinct(
         TranscriptService(ws).export(["txt", "readable.txt"])
 
     rows = {row.id: row for row in ExportFilesService(ws).list()}
+    response_rows = {row["id"]: row for row in list_exported_files(ws)["files"]}
     stem = sanitize_export_stem("Episode.readable")
 
     assert (rows[f"{stem}.txt"].format, rows[f"{stem}.txt"].label, rows[f"{stem}.txt"].current) == (
@@ -41,6 +43,8 @@ def test_dotted_project_stem_keeps_detailed_and_readable_formats_distinct(
         rows[f"{stem}.readable.txt"].label,
         rows[f"{stem}.readable.txt"].current,
     ) == ("readable.txt", "Reading copy", True)
+    assert response_rows[f"{stem}.txt"]["format"] == "txt"
+    assert response_rows[f"{stem}.readable.txt"]["format"] == "readable.txt"
 
     (ws.project.export_dir() / f"{stem}.readable.txt").write_text(
         "Changed reading copy", encoding="utf-8"
