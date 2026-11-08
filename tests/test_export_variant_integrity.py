@@ -1881,8 +1881,6 @@ def test_request_programming_runtime_error_propagates(
 
 @pytest.fixture
 def boundary_stages(monkeypatch):
-    import errno
-
     from podcast_mcp.util.owned_stage import OwnedStage
 
     closed = []
@@ -1890,15 +1888,29 @@ def boundary_stages(monkeypatch):
 
     def close(stage):
         descriptors = (stage.root_fd, stage.stage_fd)
-        original(stage)
-        for descriptor in descriptors:
+        pending = {
+            stage.root_fd: stage.root_identity,
+            stage.stage_fd: stage.stage_identity,
+        }
+        real_close = os.close
+
+        def observe_close(descriptor):
+            if descriptor not in pending:
+                return real_close(descriptor)
+            identity = pending[descriptor]
+            info = os.fstat(descriptor)
+            assert (info.st_dev, info.st_ino) == identity
+            del pending[descriptor]
             try:
-                os.fstat(descriptor)
-            except OSError as error:
-                assert error.errno == errno.EBADF
-            else:
-                os.close(descriptor)
-                pytest.fail("owned stage descriptor remained open")
+                real_close(descriptor)
+            except OSError:
+                pending[descriptor] = identity
+                raise
+
+        with monkeypatch.context() as scope:
+            scope.setattr(os, "close", observe_close)
+            original(stage)
+        assert not pending, "owned stage descriptor remained open"
         closed.append({"committed": stage.committed, "closed": list(descriptors)})
 
     monkeypatch.setattr(OwnedStage, "close", close)
