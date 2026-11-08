@@ -904,3 +904,198 @@ def test_mapping_producer_roundtrips_unknown_plan_and_stats(prepared, monkeypatc
     assert second.master.normalization_type == "producer-mode"
     assert engine.master_calls == 1
     assert all(ExportFilesService(ws).open(file_id).path.is_file() for file_id in second.file_ids)
+
+
+@pytest.fixture
+def saved_bundle(prepared):
+    from podcast_mcp.models import Transcript, TranscriptWord
+    from podcast_mcp.services.document import TranscriptService
+
+    ws, engine, sample = prepared
+
+    def add_words(project):
+        project.transcripts = [
+            Transcript(
+                track_id="host",
+                words=[TranscriptWord(text="Hello.", start=0.0, end=0.5)],
+            )
+        ]
+
+    with write_grant(WriteGrantKind.DISPATCHER):
+        ws.mutate("before transcript", "after transcript", add_words)
+        TranscriptService(ws).export(["md", "srt"])
+    canonical = ws.project.export_dir() / "test_episode.wav"
+    canonical.write_bytes(sample.read_bytes())
+    client = TestClient(create_app(), client=("127.0.0.1", 61234), raise_server_exceptions=False)
+    generated = done(
+        client,
+        ws.path,
+        start(client, ws.path, target="podcast", formats=[{"ext": "wav"}]),
+    )
+    assert generated["status"] == "ok", generated["error"]
+    file_id = generated["result"]["file_ids"][0]
+    listed = client.get(FILES, params={"path": str(ws.path)})
+    assert listed.status_code == 200
+    rows = {row["id"]: row for row in listed.json()["files"]}
+    assert set(rows) == {"test_episode.wav", "test_episode.md", "test_episode.srt", file_id}
+    assert all(row["current"] for row in rows.values())
+    return ws, engine, client, rows, file_id
+
+
+@pytest.mark.parametrize(
+    "payload,transcript_current",
+    [
+        (b'custom: !!int ""\n', False),
+        (b"custom: !!bool banana\n", False),
+        (b"custom: !!timestamp invalid\n", False),
+        (b"mix: [invalid]\n", True),
+        (b"mix: {premix_peak_ceiling_db: []}\n", True),
+        (b"master: [\n", False),
+        (b"- master\n", False),
+        (b"created_at: 2026-99-99\n", False),
+        (b"custom: \xff\n", False),
+    ],
+    ids=[
+        "empty-int",
+        "bad-bool",
+        "bad-timestamp",
+        "mix-list",
+        "mix-leaf",
+        "syntax",
+        "root",
+        "date",
+        "utf8",
+    ],
+)
+def test_saved_bundle_config_failure_preserves_all_tickets(
+    saved_bundle, tmp_path, monkeypatch, payload, transcript_current
+):
+    import yaml
+
+    from podcast_mcp.config.defaults import bundled_defaults
+    from podcast_mcp.services.pipeline.export_variant import _source_certificate
+
+    ws, engine, client, rows, file_id = saved_bundle
+    params = {"path": str(ws.path)}
+    expected = {name: (ws.project.export_dir() / name).read_bytes() for name in rows}
+    receipt_path = (ws.project.export_dir() / file_id).parent / "receipt.json"
+    receipt = receipt_path.read_bytes()
+    source_digest = json.loads(receipt)["source_digest"]
+    assert _source_certificate(ws.project, ws.effective_config()).digest == source_digest
+    canonical_before = _canonical_snapshot(ws)
+    bundle_ids = {path.name for path in receipt_path.parent.parent.iterdir()}
+    valid = yaml.safe_dump(bundled_defaults()).encode()
+    override = tmp_path / "defaults.yaml"
+    override.write_bytes(valid)
+    monkeypatch.setenv("PODCAST_MCP_PIPELINE_DEFAULTS", str(override))
+    remote = TestClient(client.app, client=("198.51.100.21", 61235), raise_server_exceptions=False)
+    monkeypatch.setenv("PODCAST_SESSION_AUTHZ", "strict")
+    monkeypatch.setenv("PODCAST_SESSION_TOKEN", "isolated-config-regression")
+    override.write_bytes(payload)
+    listed = client.get(FILES, params=params)
+    downloads = {
+        name: remote.get(f"{FILES}/{name}", params={**params, "ticket": row["ticket"]})
+        for name, row in rows.items()
+    }
+    failed = done(
+        client,
+        ws.path,
+        start(client, ws.path, target="broadcast", formats=[{"ext": "wav"}]),
+    )
+    assert failed["status"] == "error", failed
+    assert failed["result"] is None
+    assert {path.name for path in receipt_path.parent.parent.iterdir()} == bundle_ids
+    assert engine.master_targets == [-16]
+    override.write_bytes(valid)
+    restored = client.get(FILES, params=params)
+    assert restored.status_code == 200
+    recovered = {row["id"]: row for row in restored.json()["files"]}
+    assert set(recovered) == set(rows)
+    assert all(row["current"] for row in recovered.values())
+    for name, row in rows.items():
+        response = remote.get(f"{FILES}/{name}", params={**params, "ticket": row["ticket"]})
+        assert (response.status_code, response.content) == (200, expected[name])
+    assert receipt_path.read_bytes() == receipt
+    assert _source_certificate(ws.project, ws.effective_config()).digest == source_digest
+    assert _canonical_snapshot(ws) == canonical_before
+    observed = {
+        "list": listed.status_code,
+        "tickets": {name: res.status_code for name, res in downloads.items()},
+    }
+    print(json.dumps(observed, sort_keys=True))
+    assert observed == {"list": 200, "tickets": dict.fromkeys(rows, 200)}
+    invalid_rows = {row["id"]: row for row in listed.json()["files"]}
+    assert set(invalid_rows) == set(rows)
+    assert invalid_rows["test_episode.wav"]["current"] is True
+    assert invalid_rows[file_id]["current"] is False
+    for name in ("test_episode.md", "test_episode.srt"):
+        assert invalid_rows[name]["current"] is transcript_current
+    assert {name: response.content for name, response in downloads.items()} == expected
+
+
+@pytest.mark.parametrize("poison", ["config", "renderer"])
+def test_saved_bundle_ticket_open_has_no_comparison_dependency(saved_bundle, monkeypatch, poison):
+    ws, _, client, rows, _ = saved_bundle
+    expected = {name: (ws.project.export_dir() / name).read_bytes() for name in rows}
+
+    def fail(*args, **kwargs):
+        raise RuntimeError("comparison must not authorize files")
+
+    if poison == "config":
+        monkeypatch.setattr(ProjectWorkspace, "effective_config", fail)
+    else:
+        monkeypatch.setattr(
+            "podcast_mcp.services.document.transcript.render_transcript_formats", fail
+        )
+    responses = {
+        name: client.get(f"{FILES}/{name}", params={"path": str(ws.path), "ticket": row["ticket"]})
+        for name, row in rows.items()
+    }
+    assert {name: res.status_code for name, res in responses.items()} == dict.fromkeys(rows, 200)
+    assert {name: res.content for name, res in responses.items()} == expected
+
+
+@pytest.mark.parametrize("gated", [False, True], ids=["inactive", "active"])
+@pytest.mark.parametrize(
+    "section,key",
+    [("analysis", "ml_backend"), ("analysis", "reconcile_on_render"), ("gate_fill", "mode")],
+)
+def test_named_export_rejects_consumed_containers_only(
+    prepared, tmp_path, monkeypatch, gated, section, key
+):
+    import yaml
+
+    from podcast_mcp.config.defaults import load_defaults
+    from podcast_mcp.engines.play_audit import write_stem_hash
+
+    ws, engine, _ = prepared
+    if gated:
+        with write_grant(WriteGrantKind.DISPATCHER):
+            ws.mutate(
+                "before gate",
+                "after gate",
+                lambda project: setattr(project.tracks[0], "transcript_gate", True),
+            )
+        write_stem_hash(ws.project, "host", defaults=load_defaults())
+    defaults = load_defaults()
+    defaults[section][key] = ["invalid"]
+    path = tmp_path / "containers.yaml"
+    path.write_text(yaml.safe_dump(defaults), encoding="utf-8")
+    monkeypatch.setenv("PODCAST_MCP_PIPELINE_DEFAULTS", str(path))
+    client = TestClient(create_app(), raise_server_exceptions=False)
+    job = done(client, ws.path, start(client, ws.path, target="podcast", formats=[{"ext": "wav"}]))
+    if gated:
+        assert job["status"] == "error", job
+        assert job["result"] is None
+        assert engine.master_targets == []
+        root = ws.project.export_dir() / "variants"
+        assert not root.exists() or list(root.iterdir()) == []
+    else:
+        assert job["status"] == "ok", job["error"]
+        file_id = job["result"]["file_ids"][0]
+        response = client.get(f"{FILES}/{file_id}", params={"path": str(ws.path)})
+        assert (response.status_code, response.content) == (
+            200,
+            premix_path(ws.project).read_bytes(),
+        )
+        assert engine.master_targets == [-16]

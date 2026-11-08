@@ -178,3 +178,31 @@ def test_load_defaults_parses_once_per_content_and_returns_private_copies(tmp_pa
     path.write_text("mix:\n  premix_peak_ceiling_db: -3.0\n")
     assert load_defaults()["mix"]["premix_peak_ceiling_db"] == -3.0
     assert len(parses) == 2
+
+
+@pytest.mark.parametrize(
+    "source", ['custom: !!int ""', "custom: !!bool banana", "custom: !!timestamp invalid"]
+)
+def test_external_scalar_constructor_errors_are_yaml_errors(tmp_path, monkeypatch, source):
+    path = tmp_path / "scalar.yaml"
+    path.write_text(source, encoding="utf-8")
+    monkeypatch.setenv("PODCAST_MCP_PIPELINE_DEFAULTS", str(path))
+    with pytest.raises(yaml.YAMLError):
+        load_defaults()
+    path.write_text("mix: {premix_peak_ceiling_db: -2.5}\n", encoding="utf-8")
+    assert load_defaults()["mix"]["premix_peak_ceiling_db"] == -2.5
+
+
+def test_yaml_decoder_runtime_error_propagates(tmp_path, monkeypatch):
+    path = tmp_path / "decoder.yaml"
+    path.write_text("custom: valid\n", encoding="utf-8")
+    monkeypatch.setenv("PODCAST_MCP_PIPELINE_DEFAULTS", str(path))
+
+    def fail(_text):
+        raise RuntimeError("decoder programming failure")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(config.yaml, "safe_load", fail)
+        with pytest.raises(RuntimeError, match="decoder programming failure"):
+            load_defaults()
+    assert load_defaults()["custom"] == "valid"
