@@ -489,6 +489,27 @@ export async function exerciseClipInspectorAffordances(
         contentType: "application/json",
       });
       await expect(clip).toBeFocused();
+
+      await page.keyboard.press("i");
+      await expect(inspector).toBeVisible();
+      await expect(heading).toBeVisible();
+      expect(await inspectorHeadingText(heading)).toBe(selectionTitle);
+      await expect(clip).toHaveAttribute("aria-pressed", "true");
+      await expect(sheet).toHaveAttribute(
+        "data-detent",
+        initial === "full" ? "full" : "half",
+      );
+      await expect(grip).toHaveAttribute(
+        "aria-valuetext",
+        initial === "full" ? "Full height" : "Half height",
+      );
+      evidence.reopenedFromFullTitle = await inspectorHeadingText(heading);
+      await assertInspectorInitialFocus(inspector);
+      evidence.reopenedCloseTarget = await admittedPointerClick(page, close);
+      await expect(inspector).toHaveCount(0);
+      await expect(clip).toHaveAttribute("aria-pressed", "true");
+      await expect(clip).toBeFocused();
+      evidence.focusAfterReopenedClose = await activeElement(page);
     } else {
       await expect(page.locator(".sys-inspector--card")).toBeVisible();
       await expect(page.locator(".bottom-sheet")).toHaveCount(0);
