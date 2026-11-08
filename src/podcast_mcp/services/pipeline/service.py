@@ -35,6 +35,7 @@ from podcast_mcp.services.pipeline.preview import render_preview_result, rerende
 from podcast_mcp.services.pipeline.run_intent import PipelineRetryUnavailable, PipelineRunIntent
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.model_missing import ModelMissing
+from podcast_mcp.util.owned_stage import owned_stage_supported
 from podcast_mcp.util.progress import ProgressReporter
 from podcast_mcp.util.project_state import render_cancel_scope, render_lock
 from podcast_mcp.util.text import count_noun
@@ -458,6 +459,12 @@ class PipelineService:
     ) -> VariantExportResult:
         """Export a named loudness variant from a positively verified current premix."""
         from podcast_mcp.util.progress import resolve_progress_task
+
+        if not owned_stage_supported():
+            raise CodedValueError(
+                "This host cannot safely store isolated exports. Use the default export.",
+                code="export_variant_storage_invalid",
+            )
 
         with (
             resolve_progress_task(

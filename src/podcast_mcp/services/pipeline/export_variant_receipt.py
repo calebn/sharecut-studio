@@ -221,7 +221,17 @@ def admit_bundle(directory: Path, bundle_id: str) -> AdmittedBundle:
 
     if directory.is_symlink() or not directory.is_dir():
         raise InvalidReceipt("unsafe bundle")
-    record = _Receipt.model_validate(_json(directory / "receipt.json"))
+    raw_record = _json(directory / "receipt.json")
+    try:
+        json.dumps(
+            raw_record,
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise InvalidReceipt("receipt is not valid UTF-8 JSON text") from exc
+    record = _Receipt.model_validate(raw_record)
     target = ExportTarget(record.target)
     master = MasterTarget(**record.master_target.model_dump())
     limits = MasterQcLimits(**record.qc_limits.model_dump())
