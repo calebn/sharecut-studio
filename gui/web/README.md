@@ -222,6 +222,9 @@ pointer command result for callers that need to await it. Listen skip math stays
 in `src/stage/frame/listenSeek.ts`;
 timeline callers keep their selection and blade actions after the seek
 dispatch, and WebMCP awaits the shared helper.
+Clip edit completions check the initiating project path and epoch before changing
+selection or feedback. After a project switch, envelope-point removal and range
+Cut failures return `told: true` so terminal callers stay quiet.
 `commands/governance.test.ts` rejects inline `skipWhen: true` outside the pointer
 helper, keymap listener, and WebMCP adapter.
 

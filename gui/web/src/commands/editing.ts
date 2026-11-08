@@ -39,6 +39,7 @@ import { anySolo } from "../utils/audio";
 import { bladeTrackIds, dialogueTrackIds } from "../utils/bladeTracks";
 import { formatTime } from "../utils/time";
 import { openCreateMenu } from "./createMenuHost";
+import { inProject } from "./envelopes";
 import { registerCommand } from "./execute";
 import { runFocusedClipHandle } from "./focusedClipHandle";
 import { runRangeAction } from "./rangeActions";
@@ -240,6 +241,7 @@ export async function runDeleteClips(
     const undo = ripple
       ? await rippleDeleteClips(s.projectPath, [...clipIds])
       : await deleteClips(s.projectPath, [...clipIds]);
+    if (!inProject(s)) return { status: "ok" };
     const store = useDawStore.getState();
     store.setSelection(null);
     store.announceStatus(
@@ -249,9 +251,10 @@ export async function runDeleteClips(
     return { status: "ok" };
   } catch (e) {
     const msg = errorMessage(e);
-    useDawStore
-      .getState()
-      .announceStatus(`Delete failed: ${msg}`, { tone: "error" });
+    if (inProject(s))
+      useDawStore
+        .getState()
+        .announceStatus(`Delete failed: ${msg}`, { tone: "error" });
     return { status: "disabled", reason: msg, told: true };
   }
 }
@@ -401,15 +404,17 @@ export function registerClipboardCommands(): void {
     }
     try {
       const undo = await rippleDeleteClips(s.projectPath, [s.selection.id]);
+      if (!inProject(s)) return { status: "ok" };
       const store = useDawStore.getState();
       store.setSelection(null);
       store.announceStatus("Cut to clipboard", { undo });
       return { status: "ok" };
     } catch (e) {
       const msg = errorMessage(e);
-      useDawStore
-        .getState()
-        .announceStatus(`Cut failed: ${msg}`, { tone: "error" });
+      if (inProject(s))
+        useDawStore
+          .getState()
+          .announceStatus(`Cut failed: ${msg}`, { tone: "error" });
       return { status: "disabled", reason: msg, told: true };
     }
   });
@@ -447,6 +452,7 @@ export function registerClipboardCommands(): void {
               clip.timelineEnd,
               at,
             );
+      if (!inProject(s)) return { status: "ok" };
       useDawStore
         .getState()
         .announceStatus(
@@ -458,9 +464,10 @@ export function registerClipboardCommands(): void {
       return { status: "ok" };
     } catch (e) {
       const msg = errorMessage(e);
-      useDawStore
-        .getState()
-        .announceStatus(`Paste failed: ${msg}`, { tone: "error" });
+      if (inProject(s))
+        useDawStore
+          .getState()
+          .announceStatus(`Paste failed: ${msg}`, { tone: "error" });
       return { status: "disabled", reason: msg, told: true };
     }
   });

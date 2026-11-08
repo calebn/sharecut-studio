@@ -53,7 +53,7 @@ import {
 } from "../utils/speakerSplit";
 import { staleRenderBreakdown } from "../utils/staleRender";
 import { runDeleteClips } from "./editing";
-import { removeEnvelopePoint } from "./envelopes";
+import { inProject, removeEnvelopePoint } from "./envelopes";
 import { registerCommand } from "./execute";
 import { decideThroughSheet, sheetBusyReason } from "./pendingDecision";
 import { executePointerCommand } from "./pointer";
@@ -382,7 +382,8 @@ async function removeMarker(
       selection.pointId,
     );
     if (written.status === "ok") return OK;
-    useDawStore.getState().announceStatus(written.reason, { tone: "error" });
+    if (inProject(s))
+      useDawStore.getState().announceStatus(written.reason, { tone: "error" });
     return { status: "disabled", reason: written.reason, told: true };
   } catch (error) {
     const reason = errorMessage(error);
