@@ -143,16 +143,41 @@ export const createStageSlice: StateCreator<
       const revealPatch = revealWord
         ? { editSurface: "text" as const, scriptCollapsed: false }
         : {};
+      const savedEditView = s.stageViews.edit;
+      const stageViews =
+        revealWord && savedEditView
+          ? {
+              ...s.stageViews,
+              edit: {
+                ...savedEditView,
+                panelScroll: Object.fromEntries(
+                  Object.entries(savedEditView.panelScroll).filter(
+                    ([key]) => key !== "script",
+                  ),
+                ),
+              },
+            }
+          : s.stageViews;
       if (next === prev) {
         return {
           reviewSection: section,
           openSheet: sheet,
           inviteAt: null,
+          stageViews,
           ...revealPatch,
           ...(next === "edit" ? {} : { pendingEditWordReveal: null }),
         };
       }
       const saved = s.stageViews[next];
+      const viewsWithOutgoingStage = {
+        ...stageViews,
+        [prev]: {
+          zoomPxPerSec: s.zoomPxPerSec,
+          scrollLeft: s.scrollLeft,
+          userZoomed: s.userZoomed,
+          panelScroll: s.stageViews[prev]?.panelScroll ?? {},
+        },
+      };
       return {
         // A comment draft belongs to the Review stage it opened.
         ...(prev === "review" ? { commentDraft: null } : {}),
@@ -167,15 +192,7 @@ export const createStageSlice: StateCreator<
         openSheet: sheet,
         inviteAt: null,
         timelineFocused: next === "edit",
-        stageViews: {
-          ...s.stageViews,
-          [prev]: {
-            zoomPxPerSec: s.zoomPxPerSec,
-            scrollLeft: s.scrollLeft,
-            userZoomed: s.userZoomed,
-            panelScroll: s.stageViews[prev]?.panelScroll ?? {},
-          },
-        },
+        stageViews: viewsWithOutgoingStage,
         ...(saved
           ? {
               zoomPxPerSec: saved.zoomPxPerSec,

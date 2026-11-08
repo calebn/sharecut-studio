@@ -12,8 +12,8 @@ An applied cut seam shares the Timeline selection and highlight. Tapping it agai
 
 From Review, **Open in Edit** opens Script and reveals the exact unsure word,
 even when it is far away or its text repeats. The word is selected without
-turning Follow playhead on. Returning later without another jump does not
-repeat that navigation.
+turning Follow playhead on. This jump takes precedence over the saved reading
+position. Returning later without another jump does not repeat that navigation.
 
 Follow playhead keeps overlapping speakers highlighted in transcript order.
 Backward seeks update the active words through the same time-indexed lookup.

@@ -83,6 +83,7 @@ export function ScriptHost({
 
   const playback = useScriptPlayback(model, silent);
   const win = useScriptWindow(model, pane, hostEl, playback);
+  const { scrollTo } = win;
   useEffect(() => {
     const request = pendingEditWordReveal;
     if (
@@ -106,7 +107,7 @@ export function ScriptHost({
       store.consumeEditWordReveal(request);
       return;
     }
-    if (store.consumeEditWordReveal(request)) win.scrollTo(index, "center");
+    if (store.consumeEditWordReveal(request)) scrollTo(index, "center");
   }, [
     loading,
     model,
@@ -115,7 +116,7 @@ export function ScriptHost({
     projectPath,
     ready,
     stage,
-    win.scrollTo,
+    scrollTo,
   ]);
   const selection = useScriptSelection(model, mode !== "none", win.reached);
   const carets = useScriptCarets(model, selection.carets);
