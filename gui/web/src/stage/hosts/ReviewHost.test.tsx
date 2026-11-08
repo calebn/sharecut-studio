@@ -17,6 +17,7 @@ const wire = vi.hoisted(() => ({
   refresh: vi.fn(),
   rows: [] as { command_id: string }[],
 }));
+const editWorkspace = vi.hoisted(() => ({ script: false }));
 vi.mock("../../api/documentTransport", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../api/documentTransport")>()),
   postHostDocumentCommand: wire.post,
@@ -52,7 +53,8 @@ vi.mock("../../services/offlineQueue/offlineStore", async (importOriginal) => ({
   },
 }));
 vi.mock("../edit/EditWorkspace", () => ({
-  EditWorkspace: () => <div>edit workspace</div>,
+  EditWorkspace: () =>
+    editWorkspace.script ? <ScriptHost /> : <div>edit workspace</div>,
 }));
 
 import { clearRegisteredCommands } from "../../commands/execute";
@@ -71,12 +73,14 @@ import {
 } from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
 import type {
+  CombinedUtterance,
   HistoryEntryId,
   PendingEditView,
   PendingUnsureWord,
 } from "../../types/project";
 import { ApiError } from "../../utils/apiError";
 import { PENDING_REVIEW_QUEUED_MESSAGE } from "../../utils/pendingEditLabels";
+import { ScriptHost } from "../edit/script/ScriptHost";
 import { StageHost } from "./StageHost";
 
 let runs = 0;
@@ -421,6 +425,7 @@ beforeEach(() => {
   order.length = 0;
   marks.length = 0;
   wire.rows = [];
+  editWorkspace.script = false;
   wire.post.mockImplementation(async (_path: string, body) => answer(body));
   wire.preview.mockImplementation(async () => wavResponse(1));
   wire.refresh.mockImplementation(async (_path: string, phase?: string) => {
@@ -1327,6 +1332,88 @@ describe("Review host unsure words", () => {
       endWordIndex: 1,
     });
     expect(useDawStore.getState().stage).toBe("edit");
+  });
+
+  it("reveals the exact far unsure word from Open in Edit with Follow off", async () => {
+    const utterances: CombinedUtterance[] = Array.from(
+      { length: 400 },
+      (_, n) => {
+        const trackId = n % 2 === 0 ? "host" : "guest";
+        const sourceId = trackId === "host" ? null : "guest-source";
+        const wordIndex = Math.floor(n / 2);
+        const text = n === 5 || n === 350 ? "Echo" : `word${n}`;
+        return {
+          track_id: trackId,
+          source_id: sourceId,
+          speaker: trackId === "host" ? "Maya" : "Anneke",
+          start: n,
+          end: n + 0.5,
+          timeline_start: n,
+          timeline_end: n + 0.5,
+          text,
+          mappable: true,
+          words: [
+            {
+              text,
+              start: n,
+              end: n + 0.5,
+              timeline_start: n,
+              timeline_end: n + 0.5,
+              word_index: wordIndex,
+              mappable: true,
+            },
+          ],
+        };
+      },
+    );
+    const target: PendingUnsureWord = {
+      track_id: "host",
+      source_id: null,
+      word_index: 175,
+      text: "Echo",
+      confidence: 0.4,
+    };
+    const project = minimalProject({
+      transcript: { utterances },
+      tracks: [
+        sampleTrack({ id: "host", speaker: "Maya" }),
+        sampleTrack({ id: "guest", speaker: "Anneke" }),
+      ],
+      pending_edits: [edit("far", "filler", 350, { unsure_words: [target] })],
+      timeline_duration_sec: 400,
+    });
+    useDawStore.getState().hydrate(PATH, project);
+    useDawStore.setState({
+      stage: "review",
+      guestMode: null,
+      transcriptFollowPlayhead: false,
+    });
+    editWorkspace.script = true;
+    render(<App />);
+
+    await userEvent.click(
+      within(screen.getByRole("region", { name: "Unsure words" })).getByRole(
+        "button",
+        { name: /Echo/ },
+      ),
+    );
+    await userEvent.click(screen.getByRole("button", { name: /Open in Edit/ }));
+
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "transcriptRange",
+      trackId: "host",
+      sourceId: null,
+      startWordIndex: 175,
+      endWordIndex: 175,
+    });
+    expect(useDawStore.getState().playheadSec).toBe(350);
+    expect(useDawStore.getState().transcriptFollowPlayhead).toBe(false);
+    const farEcho = document.querySelector<HTMLElement>(
+      '.sys-script-word[data-word-key="host::175"]',
+    );
+    expect(farEcho).toBeInTheDocument();
+    expect(farEcho).toHaveTextContent("Echo");
+    expect(farEcho).toHaveAttribute("data-selected", "");
   });
 
   it("drops a held unsure note once the cut has no unsure words", async () => {
