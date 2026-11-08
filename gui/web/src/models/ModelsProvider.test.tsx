@@ -1479,6 +1479,9 @@ describe("Models update menu focus", () => {
         <ModelsSheet open onClose={vi.fn()} />
       </ModelsProvider>,
     );
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Close" })).toHaveFocus(),
+    );
     const more = await screen.findByRole("button", {
       name: "More for Noise reduction",
     });

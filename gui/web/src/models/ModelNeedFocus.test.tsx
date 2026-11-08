@@ -78,7 +78,7 @@ describe.each(["bounce", "export"] as const)("%s model-need focus", (kind) => {
     view.rerender(tree(kind, api({ kind: "unavailable" })));
     await waitFor(() =>
       expect(
-        screen.getByRole("button", { name: /^Check .* status$/ }),
+        screen.getByRole("button", { name: /^Try again to check .* status$/ }),
       ).toHaveFocus(),
     );
   });

@@ -137,11 +137,25 @@ describe("ModelNeedRowView, need placement", () => {
     ).toBeTruthy();
     await userEvent.click(
       screen.getByRole("button", {
-        name: "Try getting the transcription model again",
+        name: "Try again to get the transcription model",
       }),
     );
     expect(onGet).toHaveBeenCalledOnce();
   });
+
+  it.each(["need", "list"] as const)(
+    "keeps the visible retry label in the %s status action's accessible name",
+    async (placement) => {
+      const onCheck = vi.fn();
+      view({ placement, state: { kind: "unavailable" }, onCheck });
+      const retry = screen.getByRole("button", {
+        name: "Try again to check Transcription status",
+      });
+      expect(retry).toHaveTextContent("Try again");
+      await userEvent.click(retry);
+      expect(onCheck).toHaveBeenCalledOnce();
+    },
+  );
 
   it("explains a blocked Get when another download holds the slot", () => {
     view({ blockedReason: "Another download is running" });
