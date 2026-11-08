@@ -301,6 +301,7 @@ describe("reviewEntriesOf", () => {
       word: "playable",
       guess: "playable",
       id: wordIdOf("host", "source", 2),
+      editorIdentity: targets.get(wordIdOf("host", "source", 2)),
       step: { index: 1, total: 1 },
     });
     expect(reviewCountOf([pending])).toBe(1);
@@ -547,9 +548,61 @@ describe("unsureEntriesOf", () => {
     expect(entries.map((e) => e.item.at)).toEqual([5]);
   });
 
+  it("distinguishes identical guesses at a reused ordinal and keeps identity across timeline moves", () => {
+    const projection = (start: number, at: number, text = "gnu") => {
+      const pending = [cut("a", 2, [word(1, text)])];
+      const { entries, targets } = unsureEntriesOf(
+        pending,
+        utterance([
+          {
+            text,
+            start,
+            end: start + 0.1,
+            timeline_start: at,
+            timeline_end: at + 0.1,
+            word_index: 1,
+            unsure: true,
+            mappable: true,
+          },
+        ]),
+      );
+      return {
+        id: entries[0]?.item.id,
+        standalone: entries[0]?.content.card.unsure,
+        proposal: reviewEntriesOf(pending, [], targets)[0]?.content.card.unsure,
+      };
+    };
+    const original = projection(2.33, 2.13);
+    const moved = projection(2.33, 7.13);
+    const restored = projection(2.01, 2.01);
+    expect([original.id, moved.id, restored.id]).toEqual(
+      Array(3).fill("word:host::1"),
+    );
+    expect(original.standalone).toMatchObject({ word: "gnu" });
+    expect(original.proposal).toMatchObject(original.standalone ?? {});
+    expect(moved).toEqual(original);
+    expect(restored.standalone).not.toEqual(original.standalone);
+    expect(restored.proposal).not.toEqual(original.proposal);
+    expect(projection(2.33, 2.13, "corrected").proposal).toHaveProperty(
+      "editorIdentity",
+      JSON.stringify(["host", null, 2.33, 2.43, "corrected"]),
+    );
+  });
+
   it("falls back to the cut's start when the transcript lacks the word", () => {
-    const { entries } = unsureEntriesOf([cut("a", 20)], utterance([]));
+    const pending = [cut("a", 20)];
+    const { entries, targets } = unsureEntriesOf(pending, utterance([]));
     expect(entries.map((e) => e.item.at)).toEqual([20]);
+    const id = "word:host::1";
+    const target = targets.get(id);
+    expect(entries[0]?.content.card.unsure).toMatchObject({ word: "gnu" });
+    expect(entries[0]?.content.card.unsure).toHaveProperty(
+      "editorIdentity",
+      target,
+    );
+    expect(
+      reviewEntriesOf(pending, [], targets)[0]?.content.card.unsure,
+    ).toHaveProperty("editorIdentity", target);
   });
 
   it("does not reinsert a known unmapped transcript word from a pending cut", () => {
@@ -656,6 +709,18 @@ describe("unsureEntriesOf", () => {
       sourceId: "source-b",
       at: 6,
     });
+    expect(entries.map((entry) => entry.content.card.unsure)).toMatchObject([
+      {
+        editorIdentity: JSON.stringify([
+          "host",
+          "source-b",
+          2,
+          2.2,
+          "override",
+        ]),
+      },
+      { editorIdentity: JSON.stringify(["host", null, 3, 3.2, "fallback"]) },
+    ]);
 
     const afterCut = utterances.map((utterance) => ({
       ...utterance,

@@ -284,6 +284,76 @@ describe("DecisionCard", () => {
     expect(onConfirm).toHaveBeenCalledWith("Heard it");
   });
 
+  it("resets only the correction when a proposal's unsure occurrence changes at the same address", async () => {
+    const props = {
+      ...base(),
+      unsure: {
+        word: "uncle",
+        guess: "uncle",
+        id: "word:host::1",
+        editorIdentity: "second occurrence",
+        onFix: vi.fn(),
+      },
+      prompt: { verb: "cut" as const, onConfirm: vi.fn() },
+    };
+    const view = render(<DecisionCard {...props} />);
+    await userEvent.click(screen.getByRole("button", { name: "Fix text" }));
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Corrected text for “uncle”" }),
+      " correction draft",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Add a note" }));
+    const note = screen.getByRole("textbox", { name: "Your reason" });
+    await userEvent.type(note, "Heard it");
+    const restored = { ...props.unsure, editorIdentity: "first occurrence" };
+    view.rerender(<DecisionCard {...props} unsure={restored} />);
+
+    expect(screen.getByRole("textbox", { name: "Your reason" })).toBe(note);
+    expect(note).toHaveValue("Heard it");
+    expect(note).toHaveFocus();
+    expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Fix text" }));
+    expect(
+      screen.getByRole("textbox", { name: "Corrected text for “uncle”" }),
+    ).toHaveValue("uncle");
+    await userEvent.click(screen.getByRole("button", { name: "Cut anyway" }));
+    expect(props.prompt.onConfirm).toHaveBeenCalledWith("Heard it");
+  });
+
+  it("drops a draft after Detail replaces a fallback target without source bounds", async () => {
+    const target = { wordIndex: 1 };
+    const props = {
+      ...base(),
+      unsure: {
+        word: "uncle",
+        guess: "uncle",
+        id: "word:host::1",
+        editorIdentity: target,
+        onFix: vi.fn(),
+      },
+    };
+    const view = render(<DecisionCard {...props} />);
+    await userEvent.click(screen.getByRole("button", { name: "Fix text" }));
+    const field = screen.getByRole("textbox", {
+      name: "Corrected text for “uncle”",
+    });
+    await userEvent.type(field, " draft");
+    const retained = {
+      ...props.unsure,
+      disabledReason: "The transcript is loading.",
+    };
+    view.rerender(<DecisionCard {...props} unsure={retained} />);
+    expect(field).toHaveValue("uncle draft");
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    const replaced = { ...props.unsure, editorIdentity: { ...target } };
+    view.rerender(<DecisionCard {...props} unsure={replaced} />);
+    expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Fix text" }));
+    expect(
+      screen.getByRole("textbox", { name: "Corrected text for “uncle”" }),
+    ).toHaveValue("uncle");
+  });
+
   it("gives a guest Hear and Comment, and Open in Edit only with canEdit", async () => {
     const props = { ...base(), onComment: vi.fn() };
     const { rerender } = render(<DecisionCard {...props} readOnly />);
