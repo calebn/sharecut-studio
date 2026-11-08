@@ -96,11 +96,15 @@ const back = () => screen.getByRole("button", { name: "Back to playhead" });
 const moveTo = (playheadSec: number) =>
   act(() => useDawStore.setState({ playheadSec }));
 
+function scrollManually(reader: HTMLElement, top: number) {
+  fireEvent.wheel(reader, { deltaY: top - reader.scrollTop });
+  reader.scrollTop = top;
+  fireEvent.scroll(reader);
+}
+
 function readAway() {
   const reader = body();
-  fireEvent.wheel(reader);
-  reader.scrollTop = 123;
-  fireEvent.scroll(reader);
+  scrollManually(reader, 123);
   expect(back()).toBeVisible();
   return reader;
 }
@@ -109,6 +113,9 @@ describe("guest Review transcript follow lifetime", () => {
   beforeEach(() => {
     wordSpacing = 1000;
     vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(200);
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(
+      100000,
+    );
     const original = Element.prototype.getBoundingClientRect;
     vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
       function (this: Element) {
@@ -216,9 +223,7 @@ describe("guest Review transcript follow lifetime", () => {
     join();
     render(<ReviewHost guestShare />);
     const reader = body();
-    fireEvent.wheel(reader);
-    reader.scrollTop = 1000;
-    fireEvent.scroll(reader);
+    scrollManually(reader, 1000);
     expect(back()).toBeVisible();
     reader.scrollTop = 2000;
     fireEvent.scroll(reader);
@@ -256,9 +261,7 @@ describe("guest Review transcript follow lifetime", () => {
     join();
     render(<ReviewHost guestShare />);
     const reader = body();
-    fireEvent.wheel(reader);
-    reader.scrollTop = 1990;
-    fireEvent.scroll(reader);
+    scrollManually(reader, 1990);
     expect(back()).toBeVisible();
     expect(
       screen.getByRole("button", { name: "two" }).getBoundingClientRect().top,
@@ -280,9 +283,7 @@ describe("guest Review transcript follow lifetime", () => {
     join();
     render(<ReviewHost guestShare />);
     const reader = body();
-    fireEvent.wheel(reader);
-    reader.scrollTop = 1990;
-    fireEvent.scroll(reader);
+    scrollManually(reader, 1990);
     expect(
       screen.getByRole("button", { name: "two" }).getBoundingClientRect().top,
     ).toBe(10);
@@ -342,9 +343,7 @@ describe("guest Review transcript follow lifetime", () => {
     render(<ReviewHost guestShare />);
     wordSpacing = 100;
     const reader = body();
-    fireEvent.wheel(reader);
-    reader.scrollTop = 1090;
-    fireEvent.scroll(reader);
+    scrollManually(reader, 1090);
     expect(back()).toBeVisible();
     expect(
       screen.getByRole("button", { name: "word-11" }).getBoundingClientRect()

@@ -113,7 +113,12 @@ describe("GuestScript", () => {
     expect(
       screen.queryByRole("button", { name: /Back to playhead/ }),
     ).toBeNull();
-    fireEvent.wheel(body);
+    Object.defineProperty(body, "scrollHeight", {
+      configurable: true,
+      value: 10000,
+    });
+    body.scrollTop = 2000;
+    fireEvent.wheel(body, { deltaY: 2000 });
     fireEvent.scroll(body);
     scroll.mockClear();
     await userEvent.click(
@@ -247,7 +252,12 @@ describe("GuestScript following", () => {
     };
   };
   const scrollAway = (body: HTMLElement) => {
-    fireEvent.wheel(body);
+    Object.defineProperty(body, "scrollHeight", {
+      configurable: true,
+      value: 10000,
+    });
+    body.scrollTop = 2000;
+    fireEvent.wheel(body, { deltaY: 2000 });
     fireEvent.scroll(body);
   };
 

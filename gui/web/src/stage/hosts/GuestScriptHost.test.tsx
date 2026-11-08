@@ -393,7 +393,12 @@ describe("GuestScriptHost", () => {
     render(<GuestScriptHost />);
     const body = document.querySelector(".sys-script-body") as HTMLElement;
     const probe = probeScript(body);
-    fireEvent.wheel(body);
+    Object.defineProperty(body, "scrollHeight", {
+      configurable: true,
+      value: 10000,
+    });
+    body.scrollTop = 2000;
+    fireEvent.wheel(body, { deltaY: 2000 });
     fireEvent.scroll(body);
     probe.clear();
     await userEvent.click(
@@ -411,7 +416,12 @@ describe("GuestScriptHost", () => {
     const scrolledTo = () => probe.calls;
     const scrollAway = () => {
       const body = document.querySelector(".sys-script-body") as HTMLElement;
-      fireEvent.wheel(body);
+      Object.defineProperty(body, "scrollHeight", {
+        configurable: true,
+        value: 10000,
+      });
+      body.scrollTop = 2000;
+      fireEvent.wheel(body, { deltaY: 2000 });
       fireEvent.scroll(body);
     };
     const moveTo = (playheadSec: number) =>
