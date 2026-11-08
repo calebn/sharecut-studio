@@ -707,15 +707,17 @@ route answers 400.
   Both answer what the host's routes do and write nothing; they count as reads for the rate
   limit. The preview holds the project's commit lock while it scans, which is why its search is
   shorter than the host's.
-- Transcript files: `POST …/export` (`formats`, one to four distinct of `txt`, `md`, `srt` and
+- Transcript files: `POST …/export` (`formats`, one to five distinct of `txt`, `md`, `readable.txt`, `srt` and
   `vtt`, default `md` and `srt`; `dry_run`; `with_text`) and `GET …/exports`. The files go to the
   project's own `export/` folder under the project's name, the same place as the host's, and
-  replace same-named `.txt`, `.md`, `.srt` and `.vtt` files there (a host's hand-edited
+  replace same-named `.txt`, `.md`, `.readable.txt`, `.srt` and `.vtt` files there (a host's hand-edited
   transcript with that name included): there is no backup and no undo, and an export may also
   save the project when it had to build the combined transcript. The body names no folder or
   file. The write is synchronous and takes the project's render lock for up to 30 seconds (503
   `export_busy` after that, or at once when two link-started exports are already running; 409
-  `transcript_empty` when every word is cut). `dry_run` writes nothing and takes neither the lock
+  `transcript_empty` when every word is cut). Reading copy refuses an ambiguous combined-only partial cut
+  with `readable_timing_unavailable` before publishing any selected file; its fixed guest message
+  offers Text or Markdown instead. `dry_run` writes nothing and takes neither the lock
   nor a slot, and `with_text` adds the reading text of the transcript, which an Editor can already
   read. The host's answers name each file's absolute `path`; the twins send only an allowlist
   (`format`, `name`, `bytes`, `language`, `written`, `current`; the listing: `name`, `format`,

@@ -98,7 +98,11 @@ export {
   updateSocialClipDetails,
   waiveTranscriptRefine,
 } from "./api/documentEdits";
-export type { ExportedFileEntry, ExportedFileKind } from "./api/exportedFiles";
+export type {
+  ExportedFileEntry,
+  ExportedFileKind,
+  ExportedTranscriptFormat,
+} from "./api/exportedFiles";
 export {
   exportedFileHref,
   listExportedFiles,

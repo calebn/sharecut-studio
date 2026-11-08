@@ -1,5 +1,4 @@
-import type { ExportedFileKind } from "../../api";
-import type { ExportedTranscriptFormat } from "../../api/exportedFiles";
+import type { ExportedFileKind, ExportedTranscriptFormat } from "../../api";
 
 export type ExportedFile = {
   /** Folder-relative name, opaque to the client. */

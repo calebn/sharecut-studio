@@ -207,6 +207,9 @@ def test_combined_only_partial_cut_refuses_readable_before_publication(
         TranscriptService(ProjectWorkspace.open(ws.path)).export(["readable.txt"])
 
     assert error.value.code == "readable_timing_unavailable"
+    assert error.value.guest_message() == (
+        "This reading copy needs word timings after a partial cut. Choose Text or Markdown instead."
+    )
     assert not export_path.exists()
 
     with pytest.raises(ReadableTranscriptTimingError):
@@ -566,6 +569,9 @@ def test_combined_negative_timing_step_still_refuses_partial_removal(
         TranscriptService(ProjectWorkspace.open(ws.path)).export(["readable.txt"])
 
     assert error.value.code == "readable_timing_unavailable"
+    assert error.value.guest_message() == (
+        "This reading copy needs word timings after a partial cut. Choose Text or Markdown instead."
+    )
     assert not (project.export_dir() / "Readable_sample.readable.txt").exists()
 
 
