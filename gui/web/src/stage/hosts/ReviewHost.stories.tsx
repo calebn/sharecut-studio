@@ -443,7 +443,11 @@ export const GuestCommenterTranscriptFailure: Story = {
   play: async ({ canvasElement }) => {
     startDetailRequest();
     const canvas = within(canvasElement);
-    const alert = await canvas.findByRole("alert");
+    const heading = await canvas.findByRole("heading", {
+      name: "The transcript didn't load",
+    });
+    const alert = heading.closest<HTMLElement>('[role="alert"]');
+    if (!alert) throw new Error("The transcript failure should be an alert");
     await expect(
       within(alert).getByRole("heading", {
         name: "The transcript didn't load",
