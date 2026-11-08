@@ -667,3 +667,98 @@ def test_real_engine_variant_targets(
         assert engine.measure_loudness_full(served.path) is not None
     assert premix_path(workspace.project).is_file()
     assert _canonical_snapshot(workspace) == before
+
+
+@pytest.mark.parametrize("target,lufs", [(None, -19.0), ("broadcast", -23.0)])
+def test_export_applied_settings_observe_producer_and_admitted_cache(
+    minimal_project, sample_wav, monkeypatch, target, lufs
+):
+    from podcast_mcp.config.defaults import load_defaults
+    from podcast_mcp.services.pipeline import ExportTarget, PipelineService
+    from podcast_mcp.services.pipeline import service as service_module
+
+    workspace = _current_mix(minimal_project, sample_wav)
+    defaults = load_defaults()
+    defaults["master"] = {
+        "integrated_lufs": "-19",
+        "true_peak_db": "-2",
+        "lra": "8",
+        "qc_lufs_tolerance_lu": "0.7",
+        "qc_true_peak_tolerance_db": "0.4",
+    }
+    defaults["export"] = {"wav": "false", "formats": [{"ext": "mp3"}]}
+    defaults["performance"] = {"max_workers": 1}
+    master_args = []
+    encode_args = []
+
+    class Engine(_FakeEngine):
+        def measure_loudness_full(self, path, **kwargs):
+            return super().measure_loudness_full(path)
+
+        def master_loudness(self, source, output, **kwargs):
+            master_args.append(
+                {key: kwargs[key] for key in ("integrated_lufs", "true_peak_db", "lra")}
+            )
+            return super().master_loudness(source, output, **kwargs)
+
+        def export_audio(self, source, output, **kwargs):
+            encode_args.append(
+                {
+                    key: kwargs[key]
+                    for key in (
+                        "codec",
+                        "format",
+                        "bitrate_kbps",
+                        "sample_rate",
+                        "channels",
+                        "extra_args",
+                    )
+                }
+            )
+            return super().export_audio(source, output, **kwargs)
+
+    engine = Engine(sample_wav)
+    monkeypatch.setattr(service_module.pipeline_steps, "ffmpeg", lambda: engine)
+    monkeypatch.setattr(service_module, "ffmpeg", lambda: engine)
+    monkeypatch.setattr(PipelineService, "_run_defaults", lambda self: defaults.copy())
+    service = PipelineService(workspace)
+    formats = [{"ext": "flac"}, {"ext": "m4a"}]
+    if target is None:
+        result = service.export_audio(formats)
+    else:
+        result = service.export_variant(ExportTarget(target), formats)
+    assert master_args == [{"integrated_lufs": lufs, "true_peak_db": -2.0, "lra": 8.0}]
+    assert encode_args == [
+        {
+            "codec": None if target is None else "flac",
+            "format": None if target is None else "flac",
+            "bitrate_kbps": None,
+            "sample_rate": None,
+            "channels": None,
+            "extra_args": None,
+        },
+        {
+            "codec": "aac",
+            "format": "ipod",
+            "bitrate_kbps": 128,
+            "sample_rate": None,
+            "channels": None,
+            "extra_args": None,
+        },
+    ]
+    evidence = result.applied_settings.to_record()
+    assert evidence["version"] == 1
+    assert evidence["target"] == target
+    assert evidence["master_target"] == {"integrated_lufs": lufs, "true_peak_db": -2.0, "lra": 8.0}
+    assert evidence["qc_limits"] == {"lufs_tolerance_lu": 0.7, "true_peak_tolerance_db": 0.4}
+    assert evidence["audio_formats"] == ["wav", "flac", "m4a"]
+    assert len(evidence["basis"]) == 64
+    if target is not None:
+        paths = [workspace.project.export_dir() / file_id for file_id in result.file_ids]
+        before = {path: hashlib.sha256(path.read_bytes()).hexdigest() for path in paths}
+        cached = service.export_variant(ExportTarget(target), formats)
+        assert cached.applied_settings.to_record() == evidence
+        assert cached.file_ids == result.file_ids
+        assert {path: hashlib.sha256(path.read_bytes()).hexdigest() for path in paths} == before
+        assert engine.master_calls == 1
+        assert engine.encode_calls == 2
