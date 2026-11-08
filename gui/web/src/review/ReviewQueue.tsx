@@ -74,6 +74,9 @@ export type ReviewContent = {
       guess: string;
       disabledReason?: string;
       id?: string;
+      editorIdentity?: NonNullable<
+        DecisionCardProps["unsure"]
+      >["editorIdentity"];
       step?: { index: number; total: number };
     };
   };

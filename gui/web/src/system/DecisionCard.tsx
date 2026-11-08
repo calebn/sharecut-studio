@@ -60,6 +60,8 @@ export type DecisionCardProps = {
     guess: string;
     disabledReason?: string;
     id?: string;
+    /** Source key, or the retained target reference when source evidence is missing. */
+    editorIdentity?: string | object;
     resolved?: boolean;
     /** "1 of 3" for the unsure-word pass. */
     step?: { index: number; total: number };
@@ -107,11 +109,15 @@ function Swatch({ colorIndex }: { colorIndex?: number }) {
 function UnsureWord({
   unsure,
   canSkip,
+  noteId,
   onOpenInEdit,
+  openInEditDisabledReason,
 }: {
   unsure: NonNullable<DecisionCardProps["unsure"]>;
+  noteId: string;
   /** The phone dock has no Open in Edit link, so the card carries it. */
   onOpenInEdit?: () => void;
+  openInEditDisabledReason?: string;
   /** A cut touching the word can be released with Looks right; the word's own card uses its verb. */
   canSkip: boolean;
 }) {
@@ -120,6 +126,15 @@ function UnsureWord({
   const [text, setText] = useState(unsure.word);
   const [empty, setEmpty] = useState(false);
   const field = useRef<HTMLInputElement>(null);
+  const [previousIdentity, setPreviousIdentity] = useState(
+    unsure.editorIdentity,
+  );
+  if (previousIdentity !== unsure.editorIdentity) {
+    setPreviousIdentity(unsure.editorIdentity);
+    setFixing(false);
+    setText(unsure.word);
+    setEmpty(false);
+  }
   return (
     <div className="sys-decision-unsure">
       <p className="sys-decision-unsure-line">
@@ -155,7 +170,12 @@ function UnsureWord({
           </Button>
         ) : null}
         {onOpenInEdit ? (
-          <Button variant="link" onClick={onOpenInEdit}>
+          <Button
+            variant="link"
+            onClick={onOpenInEdit}
+            disabledReason={openInEditDisabledReason}
+            aria-describedby={openInEditDisabledReason ? noteId : undefined}
+          >
             <SystemIcon name="stage-edit" size={16} />
             Open in Edit
           </Button>
@@ -171,7 +191,9 @@ function UnsureWord({
           </Button>
         ) : null}
       </div>
-      {unsure.disabledReason ? <p>{unsure.disabledReason}</p> : null}
+      {unsure.disabledReason ? (
+        <p id={noteId}>{unsure.disabledReason}</p>
+      ) : null}
       {fixing ? (
         <form
           id={fieldId}
@@ -248,6 +270,7 @@ export function DecisionCard(props: DecisionCardProps) {
   } = props;
   const headingId = useId();
   const verbNoteId = useId();
+  const unsureNoteId = useId();
   const meta = KIND_META[kind];
   const phone = layout === "phone";
   const compact = layout === "compact";
@@ -257,6 +280,8 @@ export function DecisionCard(props: DecisionCardProps) {
     ? "Check the unsure word first."
     : verbDisabledReason;
   const verbHeld = holdVerb || verbDisabledReason !== undefined;
+  const openInEditDisabledReason =
+    !readOnly && kind === "unsure-word" ? unsure?.disabledReason : undefined;
   const [keysIntro] = useState(() => !keysIntroSeen);
   useEffect(() => {
     keysIntroSeen = true;
@@ -419,10 +444,16 @@ export function DecisionCard(props: DecisionCardProps) {
         ) : null}
         {unsure && !readOnly ? (
           <UnsureWord
-            key={unsure.id}
+            key={
+              typeof unsure.editorIdentity === "string"
+                ? unsure.editorIdentity
+                : unsure.id
+            }
             unsure={unsure}
             canSkip={kind !== "unsure-word" && !unsure.resolved}
+            noteId={unsureNoteId}
             onOpenInEdit={phone && canEdit !== false ? onOpenInEdit : undefined}
+            openInEditDisabledReason={openInEditDisabledReason}
           />
         ) : null}
         {phone &&
@@ -461,6 +492,8 @@ export function DecisionCard(props: DecisionCardProps) {
         onVerb={onVerb}
         onLater={onLater}
         onOpenInEdit={onOpenInEdit}
+        openInEditDisabledReason={openInEditDisabledReason}
+        openInEditNoteId={openInEditDisabledReason ? unsureNoteId : undefined}
         onComment={onComment}
       />
       {layout === "card" && !readOnly ? (

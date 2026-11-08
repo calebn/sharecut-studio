@@ -229,13 +229,17 @@ ends extend beyond the combined utterance. Candidate placements are indexed
 once per snapshot and compared once per recording identity.
 Unchanged placements and uniform timeline translations can retain that detail.
 While Detail is pending or failed, Review retains the last committed target in
-the same project and epoch, but word corrections, Hear, and exact-word
-navigation require ready Detail. Proposal Open in Edit remains available.
-A genuine target change retires its Fix draft. If a refresh removes the last
-Fix word, an armed approval keeps its note and focus while the same undecided
-proposal stays selected. Review disables confirmation and shows the reason
-when none of the requested suggestions can be applied. Review exposes the
-normal Detail retry without replacing the card and labels the prompt's check
+the same project and epoch. It disables word corrections, Hear, and exact-word
+Open in Edit until Detail is ready. Proposal Open in Edit remains available.
+The Fix draft follows the word's recording, source bounds, and original text.
+The active word index still addresses the command. When restoration gives that
+index to a different source word, Review drops the old draft. A target without
+indexed source detail keeps its draft only while Review retains that target.
+If a refresh removes the last Fix word, an armed approval keeps its note and
+focus while the same undecided proposal stays selected. Review disables
+confirmation and shows the reason when none of the requested suggestions can
+be applied. Review exposes the normal Detail retry without replacing the card
+and labels the prompt's check
 action **Check words** until the count is known. Deliver keeps the unsure check
 actionable with an unknown count until Detail succeeds. This does not block export.
 
