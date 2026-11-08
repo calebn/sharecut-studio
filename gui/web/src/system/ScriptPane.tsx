@@ -253,17 +253,19 @@ function advanceReading(
           ? "down"
           : null;
   const direction =
-    inputDirection !== null &&
-    inputDirection === physicalDirection &&
-    sample.top !== projected
-      ? inputDirection
-      : sample.top === previous?.top
-        ? null
-        : sample.top < projected
-          ? "up"
-          : sample.top > projected
-            ? "down"
-            : null;
+    physicalDirection === null
+      ? null
+      : inputDirection !== null &&
+          inputDirection === physicalDirection &&
+          sample.top !== projected
+        ? inputDirection
+        : sample.top === previous?.top
+          ? null
+          : sample.top < projected
+            ? "up"
+            : sample.top > projected
+              ? "down"
+              : null;
   const admit = (evidence: ReadingDirections, toward: ReadingDirection) => {
     if (
       direction === toward ||
