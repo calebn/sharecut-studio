@@ -1282,6 +1282,32 @@ describe("Review host unsure words", () => {
     });
   });
 
+  it("Fixes the surviving word after a pending suggestion's first word becomes unmappable", async () => {
+    setup("pending", [
+      edit("f1", "filler", 10, {
+        unsure_words: [word(0, "uncle"), word(1, "gnu")],
+      }),
+    ]);
+    await userEvent.click(screen.getByRole("button", { name: /filler f1/ }));
+    expect(heading()).toBe("filler f1");
+
+    server.words = server.words.map((item, index) =>
+      index === 0 ? { ...item, mappable: false } : item,
+    );
+    snapshot();
+
+    await waitFor(() => expect(heading()).toBe("filler f1"));
+    await fix("new gnu");
+
+    expect(sent("CorrectTranscriptWord")).toHaveLength(1);
+    expect(sent("CorrectTranscriptWord")[0].payload).toEqual({
+      track_id: "host",
+      word_index: 1,
+      text: "new gnu",
+      expected_text: "gnu",
+    });
+  });
+
   it("says so when the words do not reload after Undo", async () => {
     setup("pending", []);
     await pick(/gnu/);
