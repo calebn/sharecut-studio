@@ -4022,4 +4022,98 @@ describe("ScriptPane reading position", () => {
       ).toBe(368);
     },
   );
+  it.each(["observer-first", "release-first"] as const)(
+    "does not lend a stationary held padding press to reflow delivered %s",
+    (delivery) => {
+      const geometry = scriptGeometry();
+      vi.spyOn(performance, "now").mockReturnValue(0);
+      const onUserScroll = vi.fn();
+      const { body, binding, captured, rerender, container } = setup(
+        null,
+        false,
+        onUserScroll,
+      );
+      body.scrollTop = 590;
+      fireEvent.wheel(body, { deltaY: 590 });
+      fireEvent.scroll(body);
+      const saved = captured();
+      expect(saved).toMatchObject({ index: 29, offset: -10, fallbackTop: 590 });
+      fireEvent.pointerDown(body, {
+        pointerId: 17,
+        pointerType: "mouse",
+        isPrimary: true,
+        button: 0,
+      });
+      geometry.setLineHeight(22);
+      geometry.resize(100, 200);
+      body.scrollTop = 670;
+      if (delivery === "observer-first") fireEvent(window, new Event("resize"));
+      fireEvent.pointerUp(window, { pointerId: 17 });
+      expect.soft(body.scrollTop).toBe(648);
+      expect.soft(captured()).toBe(saved);
+      expect.soft(onUserScroll).toHaveBeenCalledOnce();
+      rerender(
+        <ScriptPane
+          turns={SCRIPT_TURNS}
+          readingPosition={binding}
+          status={{ kind: "loading" }}
+        />,
+      );
+      rerender(<ScriptPane turns={SCRIPT_TURNS} readingPosition={binding} />);
+      expect(
+        container.querySelector<HTMLElement>(".sys-script-body")?.scrollTop,
+      ).toBe(648);
+      expect(captured()).toBe(saved);
+    },
+  );
+
+  it("returns Tab to the saved keyboard reading word without taking focus on remount", async () => {
+    scriptGeometry();
+    stubNativeFocusScroll();
+    function Host({ shown }: { shown: boolean }) {
+      const reading = useGuestReading();
+      return (
+        <>
+          <button type="button">Outside</button>
+          {shown ? (
+            <GuestScript
+              guest="suggester"
+              layout="desktop"
+              turns={SCRIPT_TURNS}
+              wordStarts={[]}
+              playing={0}
+              onSeek={vi.fn()}
+              reading={reading}
+            />
+          ) : null}
+        </>
+      );
+    }
+    const { container, rerender } = render(<Host shown />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Follow the playhead" }),
+    );
+    const word = container.querySelector<HTMLElement>('[data-stop="15"]');
+    if (!word) throw new Error("Expected keyboard reading word");
+    await act(async () => {
+      word.focus();
+      await Promise.resolve();
+    });
+    expect(word.closest<HTMLElement>(".sys-script-body")?.scrollTop).toBe(116);
+    rerender(<Host shown={false} />);
+    const outside = screen.getByRole("button", { name: "Outside" });
+    outside.focus();
+    rerender(<Host shown />);
+    expect(document.activeElement).toBe(outside);
+    const body = container.querySelector<HTMLElement>(".sys-script-body");
+    const returned = body?.querySelector('[data-stop="15"]');
+    expect(body?.scrollTop).toBe(116);
+    screen.getByRole("button", { name: "Follow the playhead" }).focus();
+    await userEvent.tab();
+    expect(document.activeElement).toBe(returned);
+    expect(body?.scrollTop).toBe(116);
+    expect(
+      screen.getByRole("button", { name: "Back to playhead" }),
+    ).toBeVisible();
+  });
 });
