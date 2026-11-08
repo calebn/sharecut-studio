@@ -14,7 +14,6 @@ import {
 import { stubViewportShell } from "../test/viewportShell";
 import { ModelsProvider } from "./ModelsProvider";
 import { ModelsSheet } from "./ModelsSheet";
-import { useModels } from "./useModels";
 
 vi.mock("../api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api")>();
@@ -218,7 +217,9 @@ describe("ModelsSheet", () => {
         screen.queryByRole("button", { name: "Get Transcription" }),
       ).toBeNull();
       await userEvent.click(
-        screen.getByRole("button", { name: "Check Transcription status" }),
+        screen.getByRole("button", {
+          name: "Try again to check Transcription status",
+        }),
       );
       await act(async () =>
         resolveRetry(
@@ -297,21 +298,10 @@ describe("ModelsSheet", () => {
     fetchStatus
       .mockRejectedValueOnce(new Error("Status request failed"))
       .mockResolvedValueOnce(modelStatus(registryRows()));
-    function RetryStatus() {
-      const { refresh } = useModels();
-      return (
-        <>
-          <ModelsSheet open onClose={vi.fn()} />
-          <button type="button" onClick={() => void refresh()}>
-            Retry status request
-          </button>
-        </>
-      );
-    }
     stubViewportShell("desktop");
     render(
       <ModelsProvider>
-        <RetryStatus />
+        <ModelsSheet open onClose={vi.fn()} />
       </ModelsProvider>,
     );
     expect(await screen.findByText("Status request failed")).toBeVisible();
@@ -319,7 +309,7 @@ describe("ModelsSheet", () => {
     expect(screen.queryByText("Audio tools are unavailable")).toBeNull();
     expect(screen.queryByText(/Reinstall ShareCut Studio/)).toBeNull();
     await userEvent.click(
-      screen.getByRole("button", { name: "Retry status request" }),
+      screen.getByRole("button", { name: "Try again to check model status" }),
     );
     expect(await screen.findByText("Transcription")).toBeVisible();
     expect(screen.queryByText("Status request failed")).toBeNull();

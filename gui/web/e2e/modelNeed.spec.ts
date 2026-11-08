@@ -227,6 +227,7 @@ for (const viewport of VIEWPORTS) {
 
         const get = getAction(page);
         await expect(get).toBeVisible();
+        await get.scrollIntoViewIfNeeded();
         await expect(get).toBeInViewport();
         await expect(page.getByRole("dialog")).toHaveCount(0);
         expect(mock.runs).toEqual([]);
@@ -292,7 +293,7 @@ for (const viewport of VIEWPORTS) {
         await expect(page.getByText(failure.plain)).toBeVisible();
         await expect(
           page.getByRole("button", {
-            name: "Try getting the transcription model again",
+            name: "Try again to get the transcription model",
           }),
         ).toBeInViewport();
         expect(run.posts()).toBe(1);
@@ -318,7 +319,7 @@ for (const viewport of VIEWPORTS) {
 
         await expect(getAction(page)).toBeVisible();
         await expect(
-          page.getByText(/Needs the transcription model before it can start/),
+          page.getByText("Needs the transcription model", { exact: true }),
         ).toBeVisible();
         expect(mock.runs).toEqual([]);
         expect(run.posts()).toBe(1);
@@ -382,15 +383,10 @@ for (const viewport of VIEWPORTS) {
       }) => {
         await prepare(page, theme, true);
         let downloaded = false;
-        const rows = ROWS.map((r) => ({
-          ...r,
-          state: r.id === "speaker-ecapa" ? ("installed" as const) : r.state,
-        }));
         const progress = progressFrames("speaker-ecapa", () => {
           downloaded = true;
         });
         const mock = await mockBootstrap(page, {
-          rows,
           events: progress.events,
         });
         const split = await mockNeedingRoute(
@@ -409,6 +405,7 @@ for (const viewport of VIEWPORTS) {
         await expect(page.getByText("Needs the speaker model")).toBeVisible();
         await expect(page.getByRole("dialog")).toHaveCount(0);
         expect(split.posts()).toBe(1);
+        expect(mock.runs).toEqual([]);
         await expectNoHorizontalScroll(page);
         await expectSurfaceAxeClean(page, ".sys-prepare");
         await shot(page, viewport.name, theme, "split-idle");
@@ -443,7 +440,9 @@ for (const viewport of VIEWPORTS) {
         await startExport(page);
         const dialog = deliverPage(page);
 
-        await expect(dialog.getByText("Needs noise reduction")).toBeVisible();
+        await expect(
+          dialog.getByText("Needs noise reduction", { exact: true }),
+        ).toBeVisible();
         await expect(page.getByRole("dialog")).toHaveCount(0);
         const get = dialog.getByRole("button", { name: "Get noise reduction" });
         await expect(get).toBeInViewport();
