@@ -94,6 +94,50 @@ function scrollWithin(
   if (to !== from) body.scrollTop = Math.max(0, to);
 }
 
+function focusRingClipped(element: HTMLElement) {
+  const rect = element.getBoundingClientRect();
+  const style = getComputedStyle(element);
+  const ring =
+    style.outlineStyle === "none"
+      ? 0
+      : Math.max(
+          0,
+          (Number.parseFloat(style.outlineWidth) || 0) +
+            (Number.parseFloat(style.outlineOffset) || 0),
+        );
+  let top = 0;
+  let left = 0;
+  let bottom = window.innerHeight;
+  let right = window.innerWidth;
+  for (let owner = element.parentElement; owner; owner = owner.parentElement) {
+    const overflow = getComputedStyle(owner);
+    const clipsY = /^(auto|scroll|hidden|clip|overlay)$/.test(
+      overflow.overflowY,
+    );
+    const clipsX = /^(auto|scroll|hidden|clip|overlay)$/.test(
+      overflow.overflowX,
+    );
+    if (!clipsX && !clipsY) continue;
+    const box = owner.getBoundingClientRect();
+    if (clipsY) {
+      const edge = box.top + owner.clientTop;
+      top = Math.max(top, edge);
+      bottom = Math.min(bottom, edge + owner.clientHeight);
+    }
+    if (clipsX) {
+      const edge = box.left + owner.clientLeft;
+      left = Math.max(left, edge);
+      right = Math.min(right, edge + owner.clientWidth);
+    }
+  }
+  return (
+    rect.top - ring < top - 0.5 ||
+    rect.bottom + ring > bottom + 0.5 ||
+    rect.left - ring < left - 0.5 ||
+    rect.right + ring > right + 0.5
+  );
+}
+
 export type ScriptPaneHandle = {
   /** Scroll the word into view. False when the pane does not show it, so the host should widen its window of turns. */
   scrollToWord: (index: number, block?: ScrollLogicalPosition) => boolean;
@@ -1139,6 +1183,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       const position = readingPositionRef.current?.getPosition();
       if (!body || !position) return;
       readingBounds.current = body.getBoundingClientRect();
+      let focusedAnchor: HTMLElement | null = null;
       let target =
         position.kind === "scroll" ? position.top : position.fallbackTop;
       if (
@@ -1151,6 +1196,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
           const word = anchor.getBoundingClientRect();
           let offset = position.offset;
           if (anchor.contains(document.activeElement)) {
+            focusedAnchor = anchor;
             const top = Math.max(0, -pane.top);
             const bottom = Math.min(
               body.clientHeight,
@@ -1170,6 +1216,24 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       if (next !== body.scrollTop) {
         body.scrollTop = next;
         programmaticScrollTop.current = body.scrollTop;
+      }
+      if (focusedAnchor && focusRingClipped(focusedAnchor)) {
+        focusedAnchor.scrollIntoView({
+          block: "center",
+          inline: "center",
+          behavior: "instant",
+        });
+        programmaticScrollTop.current = body.scrollTop;
+        readingBounds.current = body.getBoundingClientRect();
+      }
+      if (focusedAnchor && position.kind === "word") {
+        const offset =
+          focusedAnchor.getBoundingClientRect().top -
+          body.getBoundingClientRect().top;
+        if (Math.abs(offset - position.offset) > 0.5) {
+          captureReadingPosition(position.index);
+          programmaticScrollTop.current = body.scrollTop;
+        }
       }
     }, [captureReadingPosition]);
     useLayoutEffect(() => {
