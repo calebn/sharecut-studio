@@ -172,6 +172,47 @@ describe("ReviewStage", () => {
     expect(screen.queryByRole("button", { name: "Cut anyway" })).toBeNull();
   });
 
+  it("keeps an armed group note and focus when the same proposal gets a new Fix target", async () => {
+    const contentWithTarget = (target: string) => (item: ReviewItem) => {
+      const body = reviewContent(item);
+      return item.id === "f3" && body.card.unsure
+        ? {
+            ...body,
+            card: {
+              ...body.card,
+              unsure: { ...body.card.unsure, id: target },
+            },
+          }
+        : body;
+    };
+    const props = {
+      initialItems: QUEUE_ITEMS,
+      content: contentWithTarget("host:take-a:word:0"),
+      duration: 3000,
+      initialSelectedId: "f3",
+    };
+    const view = render(<ReviewStageHarness {...props} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Cut all 3" }));
+    await userEvent.click(screen.getByRole("button", { name: "Add a note" }));
+    const note = screen.getByRole("textbox", { name: "Your reason" });
+    await userEvent.type(note, "Reviewed the group audio");
+    expect(note).toHaveFocus();
+
+    view.rerender(
+      <ReviewStageHarness
+        {...props}
+        content={contentWithTarget("host:take-a:word:1")}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Cut anyway" })).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Your reason" })).toHaveValue(
+      "Reviewed the group audio",
+    );
+    expect(screen.getByRole("textbox", { name: "Your reason" })).toHaveFocus();
+  });
+
   it("closes an armed Cut anyway prompt when the speaker changes under a speakerless selection", async () => {
     const host = { id: "host", label: "Host" };
     const guest = { id: "guest", label: "Guest" };
