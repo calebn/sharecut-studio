@@ -84,6 +84,9 @@ without mounting DAW state.
 the timeline lane with fictional visible, selected, dense, filtered and empty
 records, including 360px variants. The ticks are decorative and cannot select
 an edit; the live Review Queue (`stage/hosts/ReviewHost.tsx`) owns selection.
+The Review queue filter shows each category name beside its count. Comments
+opens comment rows, and Checks returns to unsure-word rows through the same
+filter state.
 `Templates/PendingEditOverlay` previews the production `PendingEditOverlayView`
 with fictional remove, mute and split suggestions, a selected edit, an
 end-handle drag, and filtered and 360px lanes. The live adapter commits
