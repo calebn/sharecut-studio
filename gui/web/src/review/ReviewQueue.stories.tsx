@@ -14,11 +14,13 @@ import { episodeBeforeEach } from "../test/withEpisode";
 import { DocumentCommand } from "../types/documentCommands.generated";
 import { Button } from "../ui";
 import { TRANSCRIPT_REFINE_REFUSAL } from "../utils/apiError";
+import { formatTimeShort } from "../utils/time";
 import { ReviewQueue, type ReviewQueueProps } from "./ReviewQueue";
 import {
   attentionRowsOf,
   type ReviewAttention,
   type ReviewFilter,
+  type ReviewItem,
 } from "./reviewQueueModel";
 
 function StatefulQueue(props: ReviewQueueProps) {
@@ -74,6 +76,45 @@ const meta: Meta<typeof ReviewQueue> = {
 export default meta;
 type Story = StoryObj<typeof ReviewQueue>;
 
+const LONG_LIST_ITEMS: readonly ReviewItem[] = [
+  ...Array.from({ length: 159 }, (_, index) => ({
+    id: `unsure-${String(index + 1).padStart(3, "0")}`,
+    kind: "unsure-word" as const,
+    at: index * 4,
+    savedSeconds: 0,
+  })),
+  { id: "comment-boat", kind: "comment", at: 700, savedSeconds: 0 },
+];
+
+function longListContent(item: ReviewItem) {
+  if (item.kind === "comment") {
+    return {
+      row: { snippet: "Keep the laugh by the boat?", time: "11:40" },
+      card: {
+        title: "Rosa asks about the laugh",
+        time: "11:40",
+        comment: {
+          author: { name: "Rosa" },
+          time: "11:40",
+          body: "Keep the laugh by the boat?",
+        },
+      },
+    };
+  }
+
+  const ordinal = item.id.slice("unsure-".length);
+  const word = `unclear-word-${ordinal}`;
+  const time = formatTimeShort(item.at);
+  return {
+    row: { snippet: word, time },
+    card: {
+      title: `Check “${word}”`,
+      time,
+      unsure: { word, guess: word, id: item.id },
+    },
+  };
+}
+
 export const Groups: Story = {
   play: async ({ canvasElement, args }) => {
     const view = within(canvasElement);
@@ -83,6 +124,14 @@ export const Groups: Story = {
       .ids;
     await expect(ids).toEqual(["f1", "f2", "f4"]);
     await expect(ids).not.toContain("f3");
+  },
+};
+
+export const LongList: Story = {
+  args: {
+    items: LONG_LIST_ITEMS,
+    content: longListContent,
+    selectedId: "unsure-001",
   },
 };
 

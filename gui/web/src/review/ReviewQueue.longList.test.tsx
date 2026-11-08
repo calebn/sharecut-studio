@@ -72,6 +72,9 @@ describe("ReviewQueue long list", () => {
     );
 
     expect(screen.getByText("0 of 160 decided · saves 0.0 s")).toBeVisible();
+    const filterGroup = screen.getByRole("group", { name: "Filter" });
+    expect(within(filterGroup).getByText("Comments")).toBeVisible();
+    expect(within(filterGroup).getByText("Checks")).toBeVisible();
     expect(
       screen
         .getByRole("region", { name: "Unsure words" })

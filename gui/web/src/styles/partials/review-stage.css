@@ -41,6 +41,24 @@
   gap: var(--space-1);
 }
 
+.rv-kind-filter {
+  inline-size: max-content;
+  max-inline-size: 100%;
+  block-size: auto;
+  flex-wrap: wrap;
+}
+
+.rv-kind-filter > .ui-control {
+  flex: 1 1 auto;
+  min-inline-size: max-content;
+}
+
+@media (pointer: coarse) {
+  .rv-kind-filter > .ui-control {
+    min-block-size: var(--touch-min);
+  }
+}
+
 .rv-group {
   display: flex;
   flex-direction: column;

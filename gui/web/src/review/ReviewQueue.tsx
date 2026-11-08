@@ -441,7 +441,7 @@ export function ReviewQueue({
         {canDecide ? progressLine(items) : commentLine(items)}
       </p>
       <div className="rv-filter">
-        <SegmentedControl label="Filter">
+        <SegmentedControl label="Filter" className="rv-kind-filter">
           {FILTERS.filter(({ id }) =>
             id === "checks"
               ? canDecide && !guest
@@ -456,9 +456,8 @@ export function ReviewQueue({
               onClick={() => onFilter(id)}
             >
               {icon}
-              <span className="sys-mono">
-                {id === "all" ? `All ${counts.all}` : counts[id]}
-              </span>
+              <span>{label}</span>
+              <span className="sys-mono">{counts[id]}</span>
             </ToggleButton>
           ))}
         </SegmentedControl>
