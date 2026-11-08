@@ -487,57 +487,61 @@ describe("unsureEntriesOf", () => {
   });
 
   it("matches pending timing targets by source and preserves a null source fallback", () => {
-    const { entries, targets } = unsureEntriesOf(
-      [
-        cut("override", 20, [
-          { ...word(1, "override"), source_id: "source-b" },
-        ]),
-        cut("fallback", 30, [
-          { ...word(2, "fallback"), source_id: "source-a" },
-        ]),
-      ],
-      [
-        {
-          track_id: "host",
-          source_id: "source-a",
-          speaker: "Jon",
-          start: 0,
-          end: 9,
-          text: "",
-          mappable: true,
-          words: [
-            {
-              text: "override",
-              start: 2,
-              end: 2.2,
+    const pending = [
+      cut("override", 20, [{ ...word(1, "override"), source_id: "source-b" }]),
+      cut("fallback", 30, [{ ...word(2, "fallback"), source_id: "source-a" }]),
+    ];
+    const utterances = [
+      {
+        track_id: "host",
+        source_id: "source-a",
+        speaker: "Jon",
+        start: 0,
+        end: 9,
+        text: "override fallback sure",
+        mappable: true,
+        words: [
+          {
+            text: "override",
+            start: 2,
+            end: 2.2,
+            word_index: 1,
+            unsure: true,
+            mappable: true,
+            timeline_start: 6,
+            timing_target: {
+              track_id: "host",
+              source_id: "source-b",
               word_index: 1,
-              unsure: true,
-              mappable: true,
-              timeline_start: 6,
-              timing_target: {
-                track_id: "host",
-                source_id: "source-b",
-                word_index: 1,
-              },
             },
-            {
-              text: "fallback",
-              start: 3,
-              end: 3.2,
+          },
+          {
+            text: "fallback",
+            start: 3,
+            end: 3.2,
+            word_index: 2,
+            unsure: true,
+            mappable: true,
+            timeline_start: 7,
+            timing_target: {
+              track_id: "host",
+              source_id: null,
               word_index: 2,
-              unsure: true,
-              mappable: true,
-              timeline_start: 7,
-              timing_target: {
-                track_id: "host",
-                source_id: null,
-                word_index: 2,
-              },
             },
-          ],
-        },
-      ] satisfies CombinedUtterance[],
-    );
+          },
+          {
+            text: "sure",
+            start: 4,
+            end: 4.2,
+            word_index: 3,
+            unsure: false,
+            mappable: true,
+            timeline_start: 8,
+          },
+        ],
+      },
+    ] satisfies CombinedUtterance[];
+    const { entries, targets } = unsureEntriesOf(pending, utterances);
 
     expect(entries.map((entry) => [entry.item.id, entry.item.at])).toEqual([
       ["word:host:source-b:1", 6],
@@ -547,6 +551,23 @@ describe("unsureEntriesOf", () => {
       sourceId: "source-b",
       at: 6,
     });
+
+    const afterCut = utterances.map((utterance) => ({
+      ...utterance,
+      words: utterance.words.map((word) =>
+        word.unsure
+          ? {
+              ...word,
+              mappable: false,
+              timeline_start: null,
+              timeline_end: null,
+            }
+          : word,
+      ),
+    }));
+    const cutEntries = unsureEntriesOf(pending, afterCut);
+    expect(cutEntries.entries.map((entry) => entry.item.id)).toEqual([]);
+    expect(cutEntries.targets.size).toBe(0);
   });
 
   it("does not let a known unmapped word veto another track with the same index", () => {
