@@ -95,6 +95,14 @@ function isActiveAttempt(request: Attempt): boolean {
   return active.kind !== "idle" && active.request === request;
 }
 
+function replaceDriftedRequest({ key, scope }: Attempt): void {
+  beginRequest(
+    { ...key, seq: currentDocumentSeq(), token: documentAuthority.token },
+    scope,
+    active.kind === "failed",
+  );
+}
+
 function beginRequest(
   key: RequestKey,
   scope: DocumentScope,
@@ -139,9 +147,7 @@ function beginRequest(
         detail.server_seq !== key.seq ||
         documentAuthority.token !== key.token
       ) {
-        request.detachScope();
-        publish({ kind: "idle" });
-        scheduleTranscriptDetailHydrate(useDawStore.getState().project);
+        replaceDriftedRequest(request);
         return;
       }
       applyDocumentSnapshot(detail, { scope, hydrationSeq: key.seq });
@@ -178,9 +184,7 @@ function beginRequest(
         currentDocumentSeq() !== key.seq ||
         documentAuthority.token !== key.token
       ) {
-        request.detachScope();
-        publish({ kind: "idle" });
-        scheduleTranscriptDetailHydrate(useDawStore.getState().project);
+        replaceDriftedRequest(request);
       } else {
         publish({ kind: "failed", request, recovering: false });
       }
