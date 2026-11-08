@@ -185,7 +185,18 @@ def test_the_host_lists_and_downloads_with_no_host_path(ws, folder, client) -> N
     assert str(ws.path.parent) not in res.text
 
 
-@pytest.mark.parametrize("invalid_yaml", ["master: [\n", "- master\n"])
+@pytest.mark.parametrize(
+    "invalid_yaml",
+    [
+        "master: [\n",
+        "- master\n",
+        'custom: !!int ""\n',
+        "custom: !!bool banana\n",
+        "custom: !!timestamp invalid\n",
+        "mix: [invalid]\n",
+        "mix: {premix_peak_ceiling_db: []}\n",
+    ],
+)
 @pytest.mark.parametrize("variants", ["absent", "empty"])
 def test_saved_audio_remains_listed_and_ticketed_when_defaults_are_invalid(
     ws, tmp_path, client, monkeypatch, invalid_yaml, variants

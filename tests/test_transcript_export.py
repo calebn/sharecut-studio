@@ -533,3 +533,20 @@ def test_route_empty_transcript_is_coded(tmp_path, client):
     res = client.post("/api/transcript/export", json={"path": str(path)})
     assert res.status_code == 409
     assert res.headers["X-Sharecut-Error-Code"] == "transcript_empty"
+
+
+@pytest.mark.parametrize(
+    "section,key",
+    [("vad", "enabled"), ("decode", "condition_on_previous_text"), ("forced_alignment", "enabled")],
+)
+def test_exported_unavailable_asr_input_is_not_current(ws, section, key):
+    from podcast_mcp.project.store import WriteGrantKind, write_grant
+
+    svc = TranscriptService(ws)
+    with write_grant(WriteGrantKind.DISPATCHER):
+        svc.export(["md"])
+    defaults = load_defaults()
+    defaults["transcribe"][section][key] = ["invalid"]
+    rows = svc.exported(defaults)
+    assert [(row.format, row.current) for row in rows] == [("md", False)]
+    assert [(row.format, row.current) for row in svc.exported(load_defaults())] == [("md", True)]
