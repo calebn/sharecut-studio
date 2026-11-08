@@ -456,7 +456,7 @@ export function ReviewQueue({
               onClick={() => onFilter(id)}
             >
               {icon}
-              <span>{label}</span>
+              <span>{label}</span>{" "}
               <span className="sys-mono">{counts[id]}</span>
             </ToggleButton>
           ))}
