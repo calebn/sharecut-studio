@@ -582,74 +582,78 @@ describe("ScriptPane reading position", () => {
     },
   );
 
-  it("does not treat selection-grip touch movement as reading input", () => {
-    const geometry = scriptGeometry();
-    vi.spyOn(HTMLElement.prototype, "getClientRects").mockImplementation(
-      function (this: HTMLElement) {
-        return [this.getBoundingClientRect()] as unknown as DOMRectList;
-      },
-    );
-    const fonts = new EventTarget();
-    Object.defineProperty(document, "fonts", {
-      configurable: true,
-      value: fonts,
-    });
-    const onUserScroll = vi.fn();
-    const { body, binding, captured, rerender } = setup(
-      null,
-      false,
-      onUserScroll,
-    );
-    rerender(
-      <ScriptPane
-        turns={SCRIPT_TURNS}
-        readingPosition={binding}
-        onUserScroll={onUserScroll}
-        following={false}
-        handles
-        selection={{ kind: "words", anchor: 30, head: 31 }}
-        onSelect={vi.fn()}
-      />,
-    );
-    body.scrollTop = 590;
-    fireEvent.wheel(body, { deltaY: 20 });
-    fireEvent.scroll(body);
-    const grip = body.querySelector<HTMLElement>('[data-edge="end"]');
-    if (!grip) throw new Error("Expected selection grip");
-    grip.setPointerCapture = vi.fn();
-    const pointer = {
-      pointerId: 7,
-      pointerType: "touch",
-      isPrimary: true,
-      clientX: 50,
-    };
-    fireEvent.pointerDown(grip, { ...pointer, clientY: 160 });
-    fireEvent.touchStart(grip, {
-      touches: [{ identifier: 1, target: grip, clientY: 160 }],
-    });
-    fireEvent.pointerMove(grip, { ...pointer, clientY: 80 });
-    fireEvent.touchMove(grip, {
-      touches: [{ identifier: 1, target: grip, clientY: 80 }],
-    });
-    fireEvent.pointerUp(grip, { ...pointer, clientY: 80 });
-    fireEvent.touchEnd(grip, {
-      touches: [],
-      changedTouches: [{ identifier: 1, target: grip, clientY: 80 }],
-    });
-    geometry.setLineHeight(24);
-    body.scrollTop = 670;
-    act(() => {
-      fonts.dispatchEvent(new Event("loadingdone"));
-    });
+  it.each(["geometry-first", "scroll-first"] as const)(
+    "does not treat selection-grip touch movement as reading input with %s delivery",
+    (order) => {
+      const geometry = scriptGeometry();
+      vi.spyOn(HTMLElement.prototype, "getClientRects").mockImplementation(
+        function (this: HTMLElement) {
+          return [this.getBoundingClientRect()] as unknown as DOMRectList;
+        },
+      );
+      const fonts = new EventTarget();
+      Object.defineProperty(document, "fonts", {
+        configurable: true,
+        value: fonts,
+      });
+      const onUserScroll = vi.fn();
+      const { body, binding, captured, rerender } = setup(
+        null,
+        false,
+        onUserScroll,
+      );
+      rerender(
+        <ScriptPane
+          turns={SCRIPT_TURNS}
+          readingPosition={binding}
+          onUserScroll={onUserScroll}
+          following={false}
+          handles
+          selection={{ kind: "words", anchor: 30, head: 31 }}
+          onSelect={vi.fn()}
+        />,
+      );
+      body.scrollTop = 590;
+      fireEvent.wheel(body, { deltaY: 20 });
+      fireEvent.scroll(body);
+      const grip = body.querySelector<HTMLElement>('[data-edge="end"]');
+      if (!grip) throw new Error("Expected selection grip");
+      grip.setPointerCapture = vi.fn();
+      const pointer = {
+        pointerId: 7,
+        pointerType: "touch",
+        isPrimary: true,
+        clientX: 50,
+      };
+      fireEvent.pointerDown(grip, { ...pointer, clientY: 160 });
+      fireEvent.touchStart(grip, {
+        touches: [{ identifier: 1, target: grip, clientY: 160 }],
+      });
+      fireEvent.pointerMove(grip, { ...pointer, clientY: 80 });
+      fireEvent.touchMove(grip, {
+        touches: [{ identifier: 1, target: grip, clientY: 80 }],
+      });
+      fireEvent.pointerUp(grip, { ...pointer, clientY: 80 });
+      fireEvent.touchEnd(grip, {
+        touches: [],
+        changedTouches: [{ identifier: 1, target: grip, clientY: 80 }],
+      });
+      geometry.setLineHeight(24);
+      body.scrollTop = 670;
+      if (order === "scroll-first") fireEvent.scroll(body);
+      act(() => {
+        fonts.dispatchEvent(new Event("loadingdone"));
+      });
 
-    expect(body.scrollTop).toBe(706);
-    expect(captured()).toMatchObject({
-      kind: "word",
-      index: 29,
-      fallbackTop: 590,
-    });
-    expect(onUserScroll).toHaveBeenCalledOnce();
-  });
+      expect(body.scrollTop).toBe(706);
+      expect(captured()).toMatchObject({
+        kind: "word",
+        index: 29,
+        fallbackTop: 590,
+      });
+      expect(onUserScroll).toHaveBeenCalledOnce();
+    },
+  );
 
   it("keeps a touch scroll that arrives before the geometry observer", () => {
     const geometry = scriptGeometry();
@@ -738,6 +742,40 @@ describe("ScriptPane reading position", () => {
       const saved = captured();
       fireEvent.scroll(body);
       expect(captured()).toBe(saved);
+      expect(onUserScroll).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it.each([
+    ["key", "observer-first"],
+    ["key", "scroll-first"],
+    ["scrollbar", "observer-first"],
+    ["scrollbar", "scroll-first"],
+  ] as const)(
+    "keeps %s reading movement through a %s geometry collision",
+    (input, order) => {
+      const geometry = scriptGeometry();
+      stubResizeObserver();
+      const onUserScroll = vi.fn();
+      const { body, captured } = setup(null, false, onUserScroll);
+      body.scrollTop = 590;
+      fireEvent.wheel(body);
+      fireEvent.scroll(body);
+      if (input === "key") fireEvent.keyDown(body, { key: "PageDown" });
+      else fireEvent.pointerDown(body, { pointerId: 3 });
+      geometry.resize(201, 408);
+      body.scrollTop = 670;
+      if (order === "observer-first")
+        for (const observer of FakeResizeObserver.all) observer.fire(body);
+      else fireEvent.scroll(body);
+
+      expect(body.scrollTop).toBe(670);
+      expect(captured()).toMatchObject({
+        kind: "word",
+        index: 33,
+        fallbackTop: 670,
+      });
+      fireEvent.scroll(body);
       expect(onUserScroll).toHaveBeenCalledTimes(2);
     },
   );
