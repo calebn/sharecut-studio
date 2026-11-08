@@ -126,42 +126,42 @@ describe("DecisionCard", () => {
     expect(onFix).not.toHaveBeenCalled();
   });
 
-  it("retires only the correction draft when its target identity changes", async () => {
-    const props = {
-      ...base(),
-      kind: "unsure-word" as const,
-      unsure: {
-        word: "uncle",
-        guess: "uncle",
-        id: "host:take-a:0",
-        onFix: vi.fn(),
-      },
-    };
-    const { rerender } = render(<DecisionCard {...props} />);
-    await userEvent.click(screen.getByRole("button", { name: "Fix text" }));
-    await userEvent.clear(
-      screen.getByRole("textbox", { name: "Corrected text for “uncle”" }),
-    );
-    await userEvent.type(
-      screen.getByRole("textbox", { name: "Corrected text for “uncle”" }),
-      "new target draft",
-    );
+  it.each(["other:take-a:0", "host:take-b:0", "host:take-a:1"])(
+    "retires the correction draft for target %s",
+    async (nextId) => {
+      const props = {
+        ...base(),
+        kind: "unsure-word" as const,
+        unsure: {
+          word: "uncle",
+          guess: "uncle",
+          id: "host:take-a:0",
+          onFix: vi.fn(),
+        },
+      };
+      const { rerender } = render(<DecisionCard {...props} />);
+      await userEvent.click(screen.getByRole("button", { name: "Fix text" }));
+      await userEvent.clear(
+        screen.getByRole("textbox", { name: "Corrected text for “uncle”" }),
+      );
+      await userEvent.type(
+        screen.getByRole("textbox", { name: "Corrected text for “uncle”" }),
+        "new target draft",
+      );
 
-    rerender(
-      <DecisionCard
-        {...props}
-        unsure={{ ...props.unsure, id: "host:take-a:1" }}
-      />,
-    );
+      rerender(
+        <DecisionCard {...props} unsure={{ ...props.unsure, id: nextId }} />,
+      );
 
-    expect(
-      screen.queryByRole("textbox", { name: "Corrected text for “uncle”" }),
-    ).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "Fix text" }));
-    expect(
-      screen.getByRole("textbox", { name: "Corrected text for “uncle”" }),
-    ).toHaveValue("uncle");
-  });
+      expect(
+        screen.queryByRole("textbox", { name: "Corrected text for “uncle”" }),
+      ).toBeNull();
+      await userEvent.click(screen.getByRole("button", { name: "Fix text" }));
+      expect(
+        screen.getByRole("textbox", { name: "Corrected text for “uncle”" }),
+      ).toHaveValue("uncle");
+    },
+  );
 
   it("carries Open in Edit on the phone's unsure card, where the dock has none", async () => {
     const onOpenInEdit = vi.fn();
