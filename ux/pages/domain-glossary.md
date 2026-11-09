@@ -251,16 +251,16 @@ as a conflict instead of changing a different word. ShareCut Studio's inline wor
 editor always sends that text, and the Correct inspector sends it whenever it can confirm the
 current text of every word in the range (otherwise it says so under Apply); Suppress and Ignore
 send the word or range's currently displayed text, or no guard when that text can't be
-confirmed, same as Apply. When that happens, Select-mode Ignore/Restore and the hover Restore
+confirmed, same as Apply. When that happens, the Script's Ignore/Restore and the hover Restore
 say "text not verified" in their status message.
 
-A refusal from the inline editor or the Correct inspector shows under the editor. A refusal from Select-mode or
+A refusal from the inline editor or the word Inspector shows under the editor. A refusal from the Script's or
 hover Ignore/Restore is announced as a status message instead, since those have no editor
 open. Either way it is also listed in **Needs attention**. A later successful correction of the same word, including one sent from the offline queue after reconnecting, clears it from **Needs attention**.
 The Correct inspector keeps what was typed and re-checks the
 current text on its own, so trying Apply again is enough (if it could not load the current
 text yet, it says to re-read instead); with the inline word editor,
-reopen the word and try again, and after a Select-mode or hover Ignore/Restore refusal,
+reopen the word and try again, and after a Script or hover Ignore/Restore refusal,
 re-read the selection and try again. Undoing your own correction does not count as a conflict.
 
 ```mermaid
