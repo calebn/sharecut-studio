@@ -17,7 +17,7 @@ export function ContextStrip({
   peaks?: readonly number[];
 }) {
   const playheadSec = useDawStore((s) => s.playheadSec);
-  const onSeek = useSeekFraction(duration);
+  const { onSeek, onScrub } = useSeekFraction(duration);
   const ticks: OverviewTick[] = items
     .filter((item) => item.result === undefined && Number.isFinite(item.at))
     .map((item) => ({
@@ -34,6 +34,7 @@ export function ContextStrip({
       playhead={duration > 0 ? playheadSec / duration : 0}
       duration={duration}
       onSeek={onSeek}
+      onScrub={onScrub}
     />
   );
 }

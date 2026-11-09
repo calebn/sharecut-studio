@@ -69,6 +69,7 @@ export type PlayerProps = {
   duration?: number;
   /** Seeks to a 0 to 1 fraction of the episode from the expanded overview strip. */
   onSeek?: (fraction: number) => void;
+  onScrub?: (phase: "start" | "cancel") => void;
   onPlayPause: () => void;
   onSkip?: (seconds: number) => void;
   /**
@@ -526,6 +527,7 @@ export function Player(props: PlayerProps) {
         playhead={playhead}
         duration={props.duration}
         onSeek={props.onSeek}
+        onScrub={props.onScrub}
         label={`Episode overview, ${time} of ${total}`}
       />
       <p className="sys-player-readout">

@@ -95,7 +95,7 @@ export function usePlayerProps(
 
   const breakdown = useStaleRenderBreakdown(project);
   const duration = project?.timeline_duration_sec ?? 0;
-  const onSeek = useSeekFraction(duration);
+  const { onSeek, onScrub } = useSeekFraction(duration);
   const chapterMarkers = project?.chapters ?? NONE;
   const sortedMarkers = useMemo(
     () => sortChapters(chapterMarkers),
@@ -189,6 +189,7 @@ export function usePlayerProps(
     playhead: duration > 0 ? playheadSec / duration : 0,
     duration,
     onSeek,
+    onScrub,
     hearMenu: guest
       ? undefined
       : {
