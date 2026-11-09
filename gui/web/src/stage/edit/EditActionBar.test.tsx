@@ -367,3 +367,70 @@ describe("EditActionBar floating", () => {
     );
   });
 });
+
+describe("EditActionBar against the timeline ruler", () => {
+  const RULER_BOTTOM = 100;
+
+  function rect(top: number, bottom: number) {
+    return () =>
+      ({
+        left: 100,
+        right: 400,
+        top,
+        bottom,
+        width: 300,
+        height: bottom - top,
+      }) as DOMRect;
+  }
+
+  function Timeline({ selectionTop }: { selectionTop: number }) {
+    const [root, setRoot] = useState<HTMLElement | null>(null);
+    return (
+      <div ref={setRoot}>
+        <div className="timeline-scroll">
+          <div
+            className="timeline-ruler"
+            ref={(el) => {
+              if (el) el.getBoundingClientRect = rect(60, RULER_BOTTOM);
+            }}
+          />
+          <div className="lane-row" data-track-id={MIRA}>
+            <div className="lane-inner">
+              <div
+                className="range-overlay"
+                ref={(el) => {
+                  if (el)
+                    el.getBoundingClientRect = rect(
+                      selectionTop,
+                      selectionTop + 40,
+                    );
+                }}
+              />
+            </div>
+          </div>
+        </div>
+        <EditActionBar form="floating" root={root} />
+      </div>
+    );
+  }
+
+  function barTop(selectionTop: number) {
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(40);
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(200);
+    host(EDIT_SELECTIONS.rangeOnAllTracks);
+    render(<Timeline selectionTop={selectionTop} />);
+    const bar = screen.getByRole("group", { name: "Selection actions" });
+    return { bar, top: Number.parseFloat(bar.style.top) };
+  }
+
+  it("hangs 8 px above a selection that leaves room under the ruler", () => {
+    const { top } = barTop(RULER_BOTTOM + 56);
+    expect(top).toBe(RULER_BOTTOM + 56 - 8 - 40);
+  });
+
+  it("drops below a selection within 56 px of the ruler so the bar never covers it", () => {
+    const { top } = barTop(RULER_BOTTOM + 55);
+    expect(top).toBe(RULER_BOTTOM + 55 + 40 + 8);
+    expect(top).toBeGreaterThanOrEqual(RULER_BOTTOM);
+  });
+});

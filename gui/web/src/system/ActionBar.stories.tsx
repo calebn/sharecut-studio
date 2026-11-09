@@ -9,6 +9,7 @@ import {
   EDIT_SELECTIONS,
 } from "../test/actionBarFixtures";
 import type { Selection } from "../types/project";
+import { timelineChromeBottom } from "../utils/timelineChrome";
 import {
   ActionBar,
   type ActionBarProps,
@@ -91,6 +92,38 @@ function FloatingScene({
       <ActionBar
         placement={{ form: "floating", anchorRef }}
         leading={leadingFor(scene, ripple)}
+        items={scene.items}
+        more={scene.more}
+        primary={scene.primary}
+        onVerb={onVerb}
+      />
+    </div>
+  );
+}
+
+function RulerScene({ selection, gap, onVerb }: SceneProps & { gap: string }) {
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const scene = barScene(selection, {});
+  return (
+    <div className="timeline-scroll" style={{ minBlockSize: "20rem" }}>
+      <div
+        className="timeline-ruler"
+        style={{
+          position: "static",
+          blockSize: "var(--ruler-height)",
+          background: "var(--color-timeline-lane)",
+        }}
+      />
+      <div style={{ paddingBlockStart: gap, paddingInline: "var(--space-5)" }}>
+        <div ref={anchorRef} style={selected} />
+      </div>
+      <ActionBar
+        placement={{
+          form: "floating",
+          anchorRef,
+          clearTop: timelineChromeBottom,
+        }}
+        leading={leadingFor(scene, true)}
         items={scene.items}
         more={scene.more}
         primary={scene.primary}
@@ -183,6 +216,54 @@ export const Words: Story = {
       within(canvasElement).getByRole("button", { name: "Cut" }),
     );
     await expect(args.onVerb).toHaveBeenLastCalledWith("cut");
+  },
+};
+
+const bounds = (element: Element) => element.getBoundingClientRect();
+
+export const AboveSelectionClearOfRuler: Story = {
+  render: (args) => (
+    <RulerScene
+      selection={EDIT_SELECTIONS.rangeOnAllTracks}
+      gap="6rem"
+      onVerb={args.onVerb}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const bar = within(canvasElement).getByRole("group", {
+      name: "Actions",
+    });
+    const ruler = canvasElement.querySelector(".timeline-ruler");
+    const selection = canvasElement.querySelector("[style*='border']");
+    await expect(bounds(bar).bottom).toBeLessThanOrEqual(
+      bounds(selection as Element).top,
+    );
+    await expect(bounds(bar).top).toBeGreaterThanOrEqual(
+      bounds(ruler as Element).bottom,
+    );
+  },
+};
+
+export const BelowSelectionNearRuler: Story = {
+  render: (args) => (
+    <RulerScene
+      selection={EDIT_SELECTIONS.rangeOnAllTracks}
+      gap="1rem"
+      onVerb={args.onVerb}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const bar = within(canvasElement).getByRole("group", {
+      name: "Actions",
+    });
+    const ruler = canvasElement.querySelector(".timeline-ruler");
+    const selection = canvasElement.querySelector("[style*='border']");
+    await expect(bounds(bar).top).toBeGreaterThanOrEqual(
+      bounds(selection as Element).bottom,
+    );
+    await expect(bounds(bar).top).toBeGreaterThanOrEqual(
+      bounds(ruler as Element).bottom,
+    );
   },
 };
 

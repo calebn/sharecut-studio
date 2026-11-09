@@ -23,8 +23,9 @@ export type ActionBarPlacement =
       readonly exclusion?: AnchorExclusion;
       /** A value that moves the anchor without a scroll or resize. */
       readonly moves?: unknown;
-      /** The side tried first; above unless the selection sits under chrome (the Edit ruler). */
+      /** The side tried first; above, flipping below when the bar would cross `clearTop` or the screen edge. */
       readonly prefer?: "above" | "below";
+      readonly clearTop?: () => number;
     }
   | { readonly form: "dock" }
   | { readonly form: "inline" };
@@ -437,6 +438,7 @@ function Floating({
       exclusion: placement.exclusion,
       moves: placement.moves,
       prefer: placement.prefer ?? "above",
+      clearTop: placement.clearTop,
     },
     true,
   );
