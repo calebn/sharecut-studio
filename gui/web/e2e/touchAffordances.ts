@@ -187,9 +187,10 @@ export async function exerciseInviteAffordances(run: TouchRun): Promise<void> {
         name: "Commands and shortcuts",
       });
       await expect(
-        palette.getByRole("option", {
-          name: "Undo Two-finger tap Undo the last action. Optional ShareCut shortcut.",
-        }),
+        palette
+          .getByRole("group", { name: "Gestures" })
+          .getByRole("listitem")
+          .filter({ hasText: "Optional ShareCut shortcut." }),
       ).toBeVisible();
       await page.keyboard.press("Escape");
       await expect(palette).toHaveCount(0);
