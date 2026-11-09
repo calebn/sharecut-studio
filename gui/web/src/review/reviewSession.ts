@@ -145,10 +145,15 @@ export function reviewSession(
       const decided = new Map(s.decided);
       for (const id of hit) decided.delete(id);
       const follow = a.from === undefined || a.from === s.selectedId;
+      const owner = s.decided.get(hit[0])?.entry.item.speaker?.id;
       return {
         ...s,
         decided,
         selectedId: follow ? hit[0] : s.selectedId,
+        speaker:
+          follow && owner && s.speaker && owner !== s.speaker
+            ? null
+            : s.speaker,
         looksRight: without(s.looksRight, [...hit, ...hold]),
       };
     }

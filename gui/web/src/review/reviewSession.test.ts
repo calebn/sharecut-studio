@@ -171,6 +171,77 @@ describe("revert", () => {
     const s = start();
     expect(reviewSession(s, { type: "revert", ids: ["zzz"] })).toBe(s);
   });
+
+  it("leaves the speaker chip unchanged when there is no chip to clear", () => {
+    const host = { id: "host", label: "Host" };
+    const row = entry("host-a", 1, { speaker: host });
+    const s = {
+      ...start("guest-b"),
+      decided: new Map([[row.item.id, { entry: row, left: false }]]),
+    };
+    const next = reviewSession(s, {
+      type: "revert",
+      ids: ["host-a"],
+      from: "guest-b",
+    });
+    expect(next.selectedId).toBe("host-a");
+    expect(next.speaker).toBeNull();
+  });
+
+  it("keeps the chip when the followed row belongs to that speaker", () => {
+    const guest = { id: "guest", label: "Guest" };
+    const row = entry("guest-a", 1, { speaker: guest });
+    const s = {
+      ...start("guest-b"),
+      speaker: "guest",
+      decided: new Map([[row.item.id, { entry: row, left: false }]]),
+    };
+    const next = reviewSession(s, {
+      type: "revert",
+      ids: ["guest-a"],
+      from: "guest-b",
+    });
+    expect(next.selectedId).toBe("guest-a");
+    expect(next.speaker).toBe("guest");
+  });
+
+  it("keeps the chip for a followed row without a speaker", () => {
+    const row = entry("unknown-a", 1);
+    const s = {
+      ...start("guest-b"),
+      speaker: "guest",
+      decided: new Map([[row.item.id, { entry: row, left: false }]]),
+    };
+    const next = reviewSession(s, {
+      type: "revert",
+      ids: ["unknown-a"],
+      from: "guest-b",
+    });
+    expect(next.selectedId).toBe("unknown-a");
+    expect(next.speaker).toBe("guest");
+  });
+
+  it("clears the chip based on the first followed row in a batch", () => {
+    const host = { id: "host", label: "Host" };
+    const guest = { id: "guest", label: "Guest" };
+    const hostRow = entry("host-a", 1, { speaker: host });
+    const guestRow = entry("guest-b", 2, { speaker: guest });
+    const s = {
+      ...start("guest-c"),
+      speaker: "guest",
+      decided: new Map([
+        [hostRow.item.id, { entry: hostRow, left: false }],
+        [guestRow.item.id, { entry: guestRow, left: false }],
+      ]),
+    };
+    const next = reviewSession(s, {
+      type: "revert",
+      ids: ["host-a", "guest-b"],
+      from: "guest-c",
+    });
+    expect(next.selectedId).toBe("host-a");
+    expect(next.speaker).toBeNull();
+  });
 });
 
 describe("mergeOpen", () => {
