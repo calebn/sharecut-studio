@@ -590,7 +590,7 @@ describe("ScriptPane marks", () => {
 
   it("puts muted words behind a glyph and names each one", () => {
     const { container } = render(<ScriptPane {...props({ turns: MARKED })} />);
-    expect(container.querySelector(".sys-script-muted svg")).not.toBeNull();
+    expect(container.querySelector(".sys-script-muted > svg")).not.toBeNull();
     expect(word("small (muted)")).toHaveAttribute("data-state", "muted");
     expect(word("room (muted)")).toHaveAttribute("data-state", "muted");
     expect(word("can")).not.toHaveAttribute("data-state");

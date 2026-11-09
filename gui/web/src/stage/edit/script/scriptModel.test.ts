@@ -200,6 +200,47 @@ describe("buildScriptModel", () => {
     expect(words[4]?.hallucination).toBeUndefined();
   });
 
+  it("passes a hand-set suppression lock through, muted or not", () => {
+    const locked = utterance("host", "Maya", [
+      word("held", 0, 1, { suppressed: true, audibility_locked: true }),
+      word("back", 1, 2, { audibility_locked: true }),
+      word("skip", 2, 3, { ignored: true, audibility_locked: true }),
+      word("auto", 3, 4, { suppressed: true }),
+      word("plain", 4, 5),
+      word("ghost", 5, 6, {
+        suspect_hallucination: true,
+        audibility_locked: true,
+      }),
+      word("free", 6, 7, { audibility_locked: false }),
+    ]);
+    const words = buildScriptModel(input([locked])).turns[0]?.words ?? [];
+    expect(words[0]).toMatchObject({ locked: true, mark: { kind: "muted" } });
+    expect(words[1]?.locked).toBe(true);
+    expect(words[1]?.mark).toBeUndefined();
+    expect(words[2]?.locked).toBe(true);
+    expect("locked" in (words[3] ?? {})).toBe(false);
+    expect("locked" in (words[4] ?? {})).toBe(false);
+    expect(words[5]).toMatchObject({ locked: true, hallucination: true });
+    expect("locked" in (words[6] ?? {})).toBe(false);
+    expect(words[1]?.lowConfidence).toBeUndefined();
+  });
+
+  it("gives a cut word no lock", () => {
+    const boundary = {
+      id: "b1",
+      has_cutaway: true,
+      cutaway_word_ids: [{ track_id: "host", word_index: 5 }],
+    } as unknown as EditBoundaryView;
+    const model = buildScriptModel({
+      ...input([HOST]),
+      boundaries: [boundary],
+    });
+    const cut = model.turns
+      .flatMap((t) => t.words)
+      .filter((w) => w.mark?.kind === "cut");
+    for (const w of cut) expect("locked" in w).toBe(false);
+  });
+
   it("puts the words an applied cut took out back at its join, as cut words", () => {
     const boundary = {
       id: "b1",
