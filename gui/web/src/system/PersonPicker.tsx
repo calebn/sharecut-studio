@@ -73,6 +73,7 @@ export function PersonPicker({
       return;
     }
     event.preventDefault();
+    event.stopPropagation();
     const at = people.findIndex((person) => person.id === id);
     const to =
       move === "first"
