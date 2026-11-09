@@ -17,7 +17,7 @@ Impeccable detector output. The other ran the detector and inspected source.
 All 28 shared production component files were reviewed:
 Avatar, BottomSheet, Button, ClipLed, CloseButton, CommandButton,
 CommandMenuItem, CoverScreen, DefinitionList/DefItem, Dialog, EmptyState,
-ErrorScreen, Field, FieldRow, FocusPull, GesturesSheet, Icon, InlineError,
+ErrorScreen, Field, FieldRow, FocusPull, Icon, InlineError,
 InspectorSeekFooter, InspectorSeekFooterView, LevelMeter, LoadingScreen, Menu
 (including MenuItem/MenuSection), Pill, SegmentedControl, Timecode,
 ToggleButton, and UndoToast. Supporting hooks, exports, tokens, reading overrides,
@@ -56,7 +56,7 @@ the warning is a performance lead, not proof of a visible defect.
 | P1 | Phone Share and Lobby actions measured about 25.6px high, compared with the repo's 44px touch minimum. CloseButton was a 2rem square. | Share actions and checkbox labels, reading-room controls, and shared dialog close buttons use `--touch-min`. Browser measurements confirm 44px actions in Share and Lobby. Dense editor controls retain their existing sizing. |
 | P2 | Lobby Field labels measured 11px next to reading copy and larger inputs. | Reading-room labels, hints, and errors use `--font-size-body`; actions use reading-body type. Lobby labels now measure 14px and actions 16px. |
 | P2 | Brand/token/library docs claimed every selected control used a neutral chip, but `.ui-control--quiet` shipped transparent fill and an underline. | Docs and guide explicitly distinguish standalone quiet tabs/toggles from default toggles and grouped segments. Existing selected behavior is preserved and illustrated. |
-| P2 | GesturesSheet and CommandPaletteView used raw buttons with only the quiet modifier, bypassing `.ui-control`. | Both cross-links use the existing `Button` link variant and retain callback behavior. |
+| P2 | CommandPaletteView used raw buttons with only the quiet modifier, bypassing `.ui-control`. | Its cross-link used the existing `Button` link variant. The Gestures sheet it linked to has since been replaced by the palette's Gestures rows. |
 | P2 | Field could not expose hint/error IDs, and its stories showed visually complete help without a programmatic description. | Added optional `hintId`/`errorId`, documented the caller's `aria-describedby`/`aria-invalid` responsibility, and updated stories and guide. Tests verify accessible descriptions and clearing an error. This does not automatically migrate every existing Field caller. |
 | P3 | DefinitionList's standalone story missed the inspector ancestor that owns its typography and spacing. | Story now uses the real inspector context; the library contract explains the composition. |
 | P3 | Host MCP snippet and edit-boundary marks used system monospace rather than the bundled family. | Both use `--font-family-mono`. |
