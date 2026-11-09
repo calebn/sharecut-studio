@@ -26,6 +26,19 @@ class RangeEditResult(TypedDict):
     edits: list[dict[str, Any]]
 
 
+def _refuse_overlapping(targets: Sequence[ExactRangeTarget]) -> None:
+    """Two targets over the same track and time would be removed twice and counted twice."""
+    for n, a in enumerate(targets):
+        for b in targets[n + 1 :]:
+            if set(a.track_ids).isdisjoint(b.track_ids):
+                continue
+            if any(x.start < y.end and y.start < x.end for x in a.intervals for y in b.intervals):
+                raise CodedValueError(
+                    "Two targets cover the same audio on one track. Send each stretch once.",
+                    code="overlapping_targets",
+                )
+
+
 def edit_selected_range(
     project: EpisodeProject,
     targets: Sequence[ExactRangeTarget],
@@ -44,6 +57,7 @@ def edit_selected_range(
     ``action_id:2`` so a retried command reuses them.
     """
     base_id = action_id or f"range_{uuid4().hex}"
+    _refuse_overlapping(targets)
     edits: list[EditDecision] = []
     for n, target in enumerate(targets):
         if propose:
@@ -75,6 +89,12 @@ def edit_selected_range(
                 ),
                 boundary_intent=boundary_intent,
             )
+        )
+    taken = {e.id for e in project.edit_decisions} & {e.id for e in edits}
+    if taken:
+        raise CodedValueError(
+            f"Edit id {sorted(taken)[0]} is already used. Send a different command_id.",
+            code="edit_id_taken",
         )
     if propose:
         for edit in edits:
