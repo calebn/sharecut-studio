@@ -94,7 +94,6 @@ enforced-by:
 - gui/web/src/timeline/gestureGovernance.test.ts::routes arrow-key edits through the focused-handle commands
 - gui/web/src/timeline/inputContract.conformance.test.ts::one finger moving never edits it
 - gui/web/src/timeline/inputContract.conformance.test.ts::drags on touch only once a long press arms it, selected or not
-- gui/web/src/timeline/JoinEditor.test.tsx::a long press arms the grip, which then drags and saves on lift
 - gui/web/src/timeline/inputContract.conformance.test.ts::has a reachable touch path: an element that marks it owns the drag
 - gui/web/src/timeline/inputContract.conformance.test.ts::starts no drag on a plain surface, where a long-press opens the create menu
 - gui/web/src/timeline/ClipBlock.test.tsx::arms the body on a long press and moves the clip in time only
@@ -103,7 +102,6 @@ enforced-by:
 - gui/web/src/timeline/hitRouting.grammar.test.ts::closes, with the selection put back, when a second finger lands
 - gui/web/src/timeline/hitRouting.grammar.test.ts::picks nothing when the finger lifts without moving onto an item, whatever is under it
 - gui/web/src/timeline/hitRouting.fingers.test.ts::cancels the armed target and puts the selection back, so the chip's lift saves nothing
-- gui/web/src/timeline/hitRouting.fingers.test.ts::rolls an armed grip back when a second finger lands on the lanes
 - gui/web/src/timeline/createMenuMapping.test.ts::cuts at the held time with edit.bladeCut, never at the playhead with edit.split
 - gui/web/src/stages/edit/createMenuLayout.test.ts::falls back to the viewport when the box is shorter than the menu, below the point rather than over it
 - gui/web/src/stages/edit/createMenuLayout.test.ts::never covers the point, in any geometry that has a free side
@@ -315,7 +313,7 @@ enforced-by:
 - gui/web/e2e/edit-markers.spec.ts::a touch in the lane above a glyph seeks
 - gui/web/e2e/edit-markers.spec.ts::a tap beside a glyph delivered in Mobile Safari's event order opens the join and does not seek
 - gui/web/src/timeline/hitRouting.grammar.test.ts::opens the join from the browser's click when a finger lands 20 px beside it
-- gui/web/src/timeline/AppliedEditOverlay.test.tsx::has no axe violations with a selected seam tick
+- gui/web/src/timeline/AppliedEditOverlay.test.tsx::has no axe violations with a seam tick
 -->
 
 Two touch targets join the timeline: a join glyph and an edit chip. Both
