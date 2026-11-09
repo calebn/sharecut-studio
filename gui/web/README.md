@@ -23,6 +23,7 @@ npm run format:check
 ```
 
 Repo root:
+
 - `make test-web` — lint + format:check + typecheck + vitest + build (CI `frontend` job)
 - `make test-web-e2e` — E2E-flagged build + Playwright against `aligned_dialogue`, then the Chromium/WebKit compat matrix (CI runs the main shards and each complete compatibility engine concurrently on separate runners behind the `frontend-e2e` gate). Ordinary `npm run build` rejects emitted E2E hooks.
 - `npm run test:e2e:compat` — focused Chromium/WebKit compatibility matrix only (`npm run test:e2e:install` installs both engines)
@@ -314,7 +315,6 @@ unchanged. `UX_DEMO_SCREENS_DIR` can place generated PNGs outside the UX assets.
 </tr>
 </tbody></table>
 
-
 `e2e-compat/timeline-scroll-end.spec.ts` checks that short desktop lanes can
 reach the horizontal end with a rem-sized classic scrollbar on Chromium and
 WebKit. `e2e/scroll.ts` permits only 2 px of fractional scroll rounding.
@@ -467,6 +467,7 @@ stone. Edit shared brand values in `deploy/brand/brand-tokens.css` and sync
 its four copies; `tests/test_public_sites.py` enforces identical content.
 
 Root switching (same CSS contract as marketing):
+
 - `document.documentElement.dataset.theme = "light" | "dark"` overrides OS
 - No `data-theme` → follow `prefers-color-scheme` on `:root:not([data-theme])`
 - Preference persisted in `localStorage` key `daw_theme` via `hooks/useTheme.ts`
