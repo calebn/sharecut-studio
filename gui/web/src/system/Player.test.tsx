@@ -16,6 +16,28 @@ const chapters = [
 ];
 
 describe("Player", () => {
+  it("seeks from the expanded overview strip, and not from the bar", () => {
+    const onSeek = vi.fn();
+    const { rerender } = render(
+      <Player
+        {...base}
+        form="expanded"
+        duration={3130}
+        playhead={0.5}
+        onSeek={onSeek}
+      />,
+    );
+    fireEvent.keyDown(
+      screen.getByRole("slider", { name: /Episode overview/ }),
+      {
+        key: "End",
+      },
+    );
+    expect(onSeek).toHaveBeenCalledWith(1);
+    rerender(<Player {...base} form="bar" onSeek={onSeek} />);
+    expect(screen.queryByRole("slider")).toBeNull();
+  });
+
   it.each(["bar", "expanded"] as const)(
     "shows the status line and describes a disabled Play with it in the %s form",
     (form) => {
