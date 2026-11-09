@@ -2,16 +2,13 @@ import { expect, type Page, test } from "@playwright/test";
 import type { PipelineJobSnapshot } from "../src/types/pipeline";
 import { expectSurfaceAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
-import { expectNoHorizontalScroll } from "./modelsMock";
+import { expectNoHorizontalScroll, mockBootstrap, ROWS } from "./modelsMock";
 import { setRootFontSize } from "./rootFontSize";
 import { openProject } from "./stageNav";
 import { setTheme, withAppearance } from "./theme";
 
 const LONG_FILE = `recording_${"abcdefghij".repeat(12)}.wav`;
 const LONG_ERROR = `Could not write ${LONG_FILE}: permission denied`;
-const LONG_MODEL_PATH =
-  "/very-long-project-directory-name/with-a-deeply-nested-model-cache/word-timing-model-weights.bin";
-const LONG_MODEL_LABEL = `Word-timing-model-for-${"languages-with-long-names-".repeat(4)}weights`;
 
 function failedJob(
   id: string,
@@ -156,30 +153,47 @@ for (const { cell, theme } of withAppearance(
   });
 }
 
-test("Prepare warning layout: a missing-model banner with a long name wraps at 768px", async ({
+test("Prepare missing-model recovery status row fits at 768px", async ({
   page,
 }) => {
+  const model = {
+    id: "word-aligner",
+    model: "onnx-base",
+    label: "wav2vec2 base (ONNX, English)",
+    purpose: "precise word boundaries",
+    size: "~360 MB",
+    size_bytes: 360_000_000,
+    command: "podcast bootstrap --component word-aligner",
+    state: "missing" as const,
+  };
+  await mockBootstrap(page, {
+    rows: ROWS.map((row) => (row.id === model.id ? { ...row, ...model } : row)),
+  });
   await page.setViewportSize({ width: 768, height: 1024 });
   await openPrepare(
     page,
-    failedJob("fit-model", `Model not found at ${LONG_MODEL_PATH}`, {
+    failedJob("fit-model", `${model.label} is not downloaded.`, {
       error_code: "model_needed",
-      error_model: {
-        id: "word-timing",
-        label: LONG_MODEL_LABEL,
-        size: "~120 MB",
-        state: "missing",
-      },
+      error_model: model,
     }),
   );
   const banner = page.locator(".guest-banner", {
-    hasText: "is not downloaded.",
+    hasText: "Needs word timing",
   });
-  await expect(banner).toContainText(LONG_MODEL_LABEL);
+  await expect(banner).toContainText("Needs word timing");
+  await expect(banner).toContainText("360 MB");
+  await expect(
+    banner.getByRole("button", { name: "Get word timing", exact: true }),
+  ).toBeEnabled();
+  await expect(
+    banner.getByRole("button", { name: "Manage models", exact: true }),
+  ).toBeVisible();
   await expect(banner).toBeInViewport();
   const box = (await banner.boundingBox())!;
   expect(box.x).toBeGreaterThanOrEqual(-1);
   expect(box.x + box.width).toBeLessThanOrEqual(768 + 1);
   await textFits(page, ".guest-banner");
+  await textFits(page, ".guest-banner .sys-status-title");
+  await textFits(page, ".guest-banner .sys-status-detail");
   await expectNoHorizontalScroll(page);
 });
