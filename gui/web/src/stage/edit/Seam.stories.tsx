@@ -121,7 +121,7 @@ const meta: Meta = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "A selected seam: the Action bar (`EditActionBar`: Hear, Join type, Keep, Comment, Inspect) and the seam sheet (`useSeamSections`: what applied the cut, the Length scrub), both read from the hydrated episode.",
+          "A selected seam: the Action bar (`EditActionBar`: Hear, Join type, Keep, Comment, Inspect) and the seam sheet (`useSeamSections`: what applied the cut, the Offset and Length scrubs), both read from the hydrated episode.",
       },
     },
   },
@@ -140,6 +140,9 @@ export const CutSeamWithKeep: Story = {
       canvas.getByRole("group", { name: "Join type" }),
     ).toBeVisible();
     await expect(canvas.getAllByText(/Trim the false start/)[0]).toBeVisible();
+    await expect(
+      canvas.getByRole("spinbutton", { name: "Offset" }),
+    ).toHaveAttribute("aria-valuenow", "0");
   },
 };
 
