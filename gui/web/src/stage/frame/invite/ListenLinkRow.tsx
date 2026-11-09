@@ -22,6 +22,7 @@ export function ListenLinkRow({
   share = false,
   compact = false,
   escapeKeeps = true,
+  onConfirmedStop,
 }: {
   options: ShareOptions;
   /** Outlines Copy as the follow-up to an export. */
@@ -31,6 +32,8 @@ export function ListenLinkRow({
   compact?: boolean;
   /** False inside the Invite sheet, whose dialog already keeps an open confirm on Escape. */
   escapeKeeps?: boolean;
+  /** Reports an accepted Invite stop so its owner can wait for row removal. */
+  onConfirmedStop?: (token: string) => void;
 }) {
   const end = useShareEnd(options, escapeKeeps);
   const { listen } = shareRowsOf(options.rows);
@@ -42,7 +45,12 @@ export function ListenLinkRow({
         pending={end.pending}
         onAsk={end.ask}
         onKeep={end.keep}
-        onConfirm={() => void end.confirm()}
+        onConfirm={() => {
+          const target = end.pending;
+          if (end.confirm() && target?.kind === "link") {
+            onConfirmedStop?.(target.token);
+          }
+        }}
         highlight={highlight}
         share={share}
         compact={compact}
