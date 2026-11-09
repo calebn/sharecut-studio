@@ -213,14 +213,28 @@ describe("placeAnchored", () => {
       clearTop: 100,
     } as const;
 
-    it("stays above an anchor 56 px below the chrome", () => {
+    it("stays above an anchor at barHeight + gap + margin (56 px for a 40 px bar) below the chrome", () => {
       const placed = placeAnchored(anchorAt(100, 156), bar, viewport, opts);
       expect(placed).toMatchObject({ side: "above", top: 108 });
     });
 
-    it("flips below an anchor within 56 px of the chrome", () => {
+    it("flips below an anchor within barHeight + gap + margin (56 px for a 40 px bar) of the chrome", () => {
       const placed = placeAnchored(anchorAt(100, 155), bar, viewport, opts);
-      expect(placed).toMatchObject({ side: "below", top: 155 + 32 + 8 });
+      expect(placed).toMatchObject({
+        side: "below",
+        top: 155 + 32 + 8,
+        covered: false,
+      });
+    });
+
+    it("reports covered when neither side clears the chrome", () => {
+      const placed = placeAnchored(
+        anchorAt(100, 40, 40, 40),
+        bar,
+        viewport,
+        opts,
+      );
+      expect(placed).toMatchObject({ side: "below", top: 88, covered: true });
     });
   });
 

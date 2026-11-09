@@ -172,11 +172,10 @@ export function useSelectionAnchor(
     [zoomPxPerSec, node, selection, excluded, root],
   );
 
-  const clearTop = useCallback(
-    () =>
-      ref.current?.closest(".timeline-scroll") ? timelineChromeBottom() : 0,
-    [],
-  );
+  const clearTop = useCallback(() => {
+    const scroll = ref.current?.closest(".timeline-scroll");
+    return scroll ? timelineChromeBottom(scroll) : 0;
+  }, []);
 
   return {
     ref,
