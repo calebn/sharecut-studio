@@ -1,6 +1,6 @@
 import type { SystemIconName } from "../../system/icons";
 
-export type TrackRole = "dialogue" | "music" | "sfx" | "intro" | "outro";
+type TrackRole = "dialogue" | "music" | "sfx" | "intro" | "outro";
 export type TrackKind = "voice" | "music" | "other";
 
 const KIND_OF: Readonly<Record<TrackRole, TrackKind>> = {
