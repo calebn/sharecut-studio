@@ -44,7 +44,7 @@ export type ScriptFind = ScriptFindState & {
   next: () => void;
   previous: () => void;
   selectAll: () => void;
-  /** Cuts every hit, each speaker's own audio only, as one undoable edit. Rejects with a message the bar shows. */
+  /** Rejects with a message the bar shows. */
   cutAll: () => Promise<void>;
   replaceAll: () => Promise<number>;
 };

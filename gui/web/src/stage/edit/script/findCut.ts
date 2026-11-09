@@ -14,9 +14,7 @@ import type { ScriptModel } from "./scriptModel";
 export const MAX_CUT_INTERVALS = 1000;
 
 export type MatchCut = {
-  /** One per speaker (track set), each with its own merged intervals. */
   targets: ExactRangeTarget[];
-  /** Hits that went into `targets`. */
   cut: number;
   /** Hits with no audible words or more than one placement, left alone. */
   skipped: number;
