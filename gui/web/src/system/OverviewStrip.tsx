@@ -1,7 +1,7 @@
 import { type KeyboardEvent, type MouseEvent, useRef } from "react";
 import { clamp } from "../utils/math";
 import { formatTime } from "../utils/time";
-import { useGrab } from "./useGrab";
+import { swallowsDuringDrag, useGrab } from "./useGrab";
 import { pointerRatio } from "./wavePointer";
 
 export type OverviewTick = {
@@ -70,7 +70,11 @@ export function OverviewStrip({
   const key = (event: KeyboardEvent<HTMLElement>) => {
     if (!onSeek || duration <= 0) return;
     if (event.ctrlKey || event.metaKey || event.altKey) return;
-    if (grab.dragging()) return;
+    if (grab.dragging() && swallowsDuringDrag(event)) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
     const from = playhead ?? 0;
     const step = (event.shiftKey ? KEY_STEP_BIG_SEC : KEY_STEP_SEC) / duration;
     const target =
@@ -85,6 +89,7 @@ export function OverviewStrip({
               : null;
     if (target === null) return;
     event.preventDefault();
+    event.stopPropagation();
     onSeek(clamp(target, 0, 1));
   };
   const seconds = clamp(playhead ?? 0, 0, 1) * duration;
