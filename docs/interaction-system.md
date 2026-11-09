@@ -64,10 +64,9 @@ Each thing is declared once. A second map from the same key is a bug.
    Track focus, clip focus and range are views over it, not sibling stores.
 2. **One kind per target.** A tapped word is one kind. Extending it to a range
    changes the kind once. Two kinds for one target means two inspectors, two
-   sheets and two sets of Related commands for the same thing.
+   sheets for the same thing.
 3. **One table.** `SELECTION_SURFACES` is the only map from kind to inspector
-   body, sheet screens and Related commands. Related
-   derives from it. Phone and tablet read the same `screens`; a kind that opens
+   body and sheet screens. Phone and tablet read the same `screens`; a kind that opens
    on tablet opens the same way on phone.
 4. **Selection survives mode and shell changes.** Switching Timeline to Text or
    rotating the device keeps the selection. Only an explicit clear or a new

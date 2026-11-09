@@ -2,7 +2,6 @@ import { isRangeSelection } from "../edit/rangeSelection";
 import { useDaw } from "../state/useDaw";
 import { RangeFields } from "../timeline/RangeFields";
 import { Inspector } from "./Inspector";
-import { RelatedCommands } from "./RelatedCommands";
 
 export function SelectionSheetBody({
   rangeActionsInSheet,
@@ -20,7 +19,6 @@ export function SelectionSheetBody({
       {selection != null && !(rangeArmed && selection.kind === "track") ? (
         <Inspector placement="sheet" />
       ) : null}
-      {rangeArmed ? null : <RelatedCommands selection={selection} />}
     </>
   );
 }

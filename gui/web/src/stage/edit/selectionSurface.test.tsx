@@ -222,10 +222,7 @@ const REACH: Record<SelectionKind, Reach[]> = {
     { role: "checkbox", name: "Snap to silence" },
   ],
   seam: [{ role: "spinbutton", name: "Length" }],
-  track: [
-    { role: "button", name: "Show volume envelope" },
-    { role: "button", name: "Move track down" },
-  ],
+  track: [{ role: "button", name: "Show volume envelope" }],
   chapter: [
     { role: "spinbutton", name: "Time" },
     { role: "button", name: "Seek" },
@@ -465,9 +462,10 @@ describe("a tapped word is one kind", () => {
       inspect();
       const home = sheet();
       expect(home).not.toBeNull();
-      for (const name of ["Suppress", "Copy"]) {
-        expect(within(home!).getByRole("button", { name })).toBeVisible();
-      }
+      expect(
+        within(home!).getByRole("button", { name: "Suppress" }),
+      ).toBeVisible();
+      expect(within(home!).queryByRole("button", { name: "Copy" })).toBeNull();
       expect(
         within(
           home!.querySelector<HTMLElement>(".sys-inspector-scroll")!,

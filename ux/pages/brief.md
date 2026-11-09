@@ -124,7 +124,7 @@ Known limits: a music bed that two microphones share, or own sound that follows 
 5. **Same project, many clients** — GUI, CLI, and agent mutate one episode project.
 6. **Progressive complexity** — guests only see what their review role allows (Viewer, Commenter, Editor).
 7. **Primary chrome stays reachable** — on narrow widths, Comment/Fit icons stay visible; secondary controls go under Menu.
-8. **Contextual discovery** — selection sheets show related commands ("You might also want…"); gestures have a cheatsheet. Users shouldn't hunt through menus to find what goes with their current task.
+8. **Contextual discovery** — the Action bar's More shows the commands that go with the selection; gestures have a cheatsheet. Users shouldn't hunt through menus to find what goes with their current task.
 
 ---
 

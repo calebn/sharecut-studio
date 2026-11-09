@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
 import type { ClipRow, TrackView } from "../types/project";
-import { wordSelection } from "../utils/rangeSelect";
 import { Inspector } from "./Inspector";
 import { SelectionSheetBody } from "./SelectionSheetBody";
 
@@ -170,23 +169,6 @@ describe("SelectionSheetBody", () => {
         },
       }),
     );
-  });
-
-  it("shows the related commands once for a single selected word", () => {
-    useDawStore.setState({
-      rangeArmed: false,
-      selection: wordSelection({
-        trackId: "host",
-        sourceId: null,
-        wordIndex: 0,
-      }),
-    });
-    render(
-      <div className="bottom-sheet-body">
-        <SelectionSheetBody rangeActionsInSheet />
-      </div>,
-    );
-    expect(screen.getAllByLabelText("Selection actions")).toHaveLength(1);
   });
 
   it("shows range actions without empty inspector while range is armed with no selection", () => {

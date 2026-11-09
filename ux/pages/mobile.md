@@ -82,7 +82,7 @@ inspector keeps your Script choice.
 Selecting a word in Text can open a word sheet. The comment list in Review seeks to
 the comment; comment actions are on that comment's card in the Review queue.
 
-Inspector action buttons, including **Replace audio…**, **Remove track**,
+Inspector action buttons, including **Replace audio…**,
 **Go to start**, and preview controls, keep at least 44 CSS px of height on
 touch devices and in the phone layout, including when you use a mouse.
 Transcript **Find and replace** row wraps its
@@ -112,11 +112,7 @@ On a short screen with enlarged text, scroll the expanded inspector to reach
 its fields. The compact header keeps its close spacing at every height, and
 Tab reveals the field and its label below the pinned actions when they fit.
 
-The selection sheet groups actions in this order:
-
-1. **Details** — the inspector for what you selected
-2. **You might also want…** — related commands when available
-3. **More actions** — available clip Cut or track Move up/down actions. Selections with no related or overflow actions omit the command region.
+The selection sheet holds the inspector for what you selected. Its commands sit in the Action bar, and the bar's **More** offers Copy for a clip or a word and Move track up/down for a track.
 
 The phone and the tablet build this sheet from one table of selection kinds, so what you can do with a selection is the same on both. While a sheet is open, no range control sits behind it. On a tablet, a clip sheet with an agent session range includes its In/Out fields, selected-track checkboxes and explicit **Use agent range on selected tracks** action; opening the sheet does not adopt the agent range.
 
