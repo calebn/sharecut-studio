@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
+import { MOBILE_GESTURES } from "../../commands/gestures";
 import {
   groupPaletteCommands,
   groupPaletteEntries,
+  PALETTE_GESTURES,
   type PaletteCommand,
   type PaletteEntry,
-  paletteGesturesMatch,
   searchPaletteCommands,
   searchPaletteEntries,
+  searchPaletteGestures,
 } from "./paletteSearch";
 
 function cmd(
@@ -182,17 +184,34 @@ describe("group names in search", () => {
   });
 });
 
-describe("paletteGesturesMatch", () => {
-  it("matches an empty query, the group name, touch and a gesture name", () => {
-    expect(paletteGesturesMatch("")).toBe(true);
-    expect(paletteGesturesMatch("  ")).toBe(true);
-    expect(paletteGesturesMatch("gestures")).toBe(true);
-    expect(paletteGesturesMatch("touch")).toBe(true);
-    expect(paletteGesturesMatch("Pinch")).toBe(true);
-    expect(paletteGesturesMatch("two-finger tap")).toBe(true);
+describe("PALETTE_GESTURES", () => {
+  it("has one row per MOBILE_GESTURES entry, the first being Undo", () => {
+    expect(PALETTE_GESTURES).toHaveLength(MOBILE_GESTURES.length);
+    expect(PALETTE_GESTURES[0]).toEqual({
+      id: "gesture:Two-finger tap",
+      gesture: "Two-finger tap",
+      action: "Undo",
+      description: "Undo the last action. Optional ShareCut shortcut.",
+    });
   });
-  it("rejects a word no gesture or label contains", () => {
-    expect(paletteGesturesMatch("blade")).toBe(false);
-    expect(paletteGesturesMatch("pinch blade")).toBe(false);
+});
+
+describe("searchPaletteGestures", () => {
+  const names = (q: string) =>
+    searchPaletteGestures(PALETTE_GESTURES, q).map((g) => g.gesture);
+  it("returns every gesture for an empty query, the group name or touch", () => {
+    expect(names("")).toHaveLength(5);
+    expect(names("  ")).toHaveLength(5);
+    expect(names("gestures")).toHaveLength(5);
+    expect(names("touch")).toHaveLength(5);
+  });
+  it("finds a gesture by its name or its action", () => {
+    expect(names("Pinch")).toEqual(["Pinch"]);
+    expect(names("zoom")).toEqual(["Pinch"]);
+    expect(names("two-finger tap")).toEqual(["Two-finger tap"]);
+  });
+  it("rejects a word no gesture or action contains", () => {
+    expect(names("blade")).toEqual([]);
+    expect(names("pinch blade")).toEqual([]);
   });
 });

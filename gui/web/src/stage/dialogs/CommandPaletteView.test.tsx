@@ -4,7 +4,11 @@ import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { waitForDialogFocus } from "../../test/dialogFocus";
 import { CommandPaletteView } from "./CommandPaletteView";
-import type { PaletteCommand, PaletteEntry } from "./paletteSearch";
+import {
+  PALETTE_GESTURES,
+  type PaletteCommand,
+  type PaletteEntry,
+} from "./paletteSearch";
 
 const COMMANDS: PaletteCommand[] = [
   {
@@ -78,7 +82,6 @@ function renderPalette(
     open: true,
     commands: COMMANDS,
     onClose: vi.fn(),
-    onOpenGestures: vi.fn(),
     onRun: vi.fn(),
     onRemap: vi.fn(),
     ...overrides,
@@ -125,15 +128,14 @@ describe("CommandPaletteView", () => {
       "Projects",
       "People",
       "Chapters",
-      "Gestures",
     ]);
     const search = screen.getByRole("combobox");
     await user.type(search, "alp");
     expect(screen.getAllByRole("option")).toHaveLength(1);
     expect(screen.queryAllByRole("group")).toHaveLength(0);
     await user.clear(search);
-    expect(labels()).toHaveLength(8);
-    expect(screen.getAllByRole("option")).toHaveLength(8);
+    expect(labels()).toHaveLength(7);
+    expect(screen.getAllByRole("option")).toHaveLength(7);
     const ids = screen.getAllByRole("option").map((o) => o.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
@@ -154,7 +156,7 @@ describe("CommandPaletteView", () => {
         .getAllByRole("group")
         .map((g) => g.getAttribute("aria-labelledby"))
         .map((id) => document.getElementById(id ?? "")?.textContent),
-    ).toEqual(["Transport", "Edit", "App", "Gestures"]);
+    ).toEqual(["Transport", "Edit", "App"]);
     expect(
       within(listbox).getByRole("option", { name: "Play / pause Space" }),
     ).not.toHaveAttribute("aria-disabled");
@@ -176,7 +178,7 @@ describe("CommandPaletteView", () => {
     const search = screen.getByRole("combobox", { name: "Search commands" });
     await user.type(search, "export");
     expect(screen.getByRole("status")).toHaveTextContent(
-      "2 commands. Enter runs Export deliverables…",
+      "2 commands. Enter runs Export deliverables…. Tab remaps",
     );
     const top = screen.getByRole("option", { name: /^Export deliverables…/ });
     expect(top).toHaveAccessibleName("Export deliverables… App ⌘E");
@@ -210,7 +212,7 @@ describe("CommandPaletteView", () => {
       "mp3",
     );
     expect(screen.getByRole("status")).toHaveTextContent(
-      "1 command. Enter runs Export deliverables…",
+      "1 command. Enter runs Export deliverables…. Tab remaps",
     );
   });
 
@@ -281,7 +283,7 @@ describe("CommandPaletteView", () => {
     expect(props.onRun).not.toHaveBeenCalled();
     await user.keyboard("{ArrowDown}");
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Enter runs Play / pause",
+      "Enter runs Play / pause. Tab remaps",
     );
     await user.keyboard("{Enter}");
     expect(props.onRun).toHaveBeenCalledExactlyOnceWith("transport.togglePlay");
@@ -318,32 +320,106 @@ describe("CommandPaletteView", () => {
     expect(row).toHaveAccessibleDescription("");
   });
 
-  it("hands Gestures and Escape to the owner", async () => {
+  it("opens with Search first and no help sentence, remap checkbox or Gestures button", async () => {
+    renderPalette();
+    await waitForDialogFocus();
+    expect(screen.queryByText(/anytime/)).toBeNull();
+    expect(screen.queryByLabelText("Show remaps")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Gestures" })).toBeNull();
+    expect(
+      screen.getByRole("combobox", { name: "Search commands" }),
+    ).toHaveFocus();
+  });
+
+  it("hands Escape to the owner", async () => {
     const user = userEvent.setup();
     const { props } = renderPalette();
     await waitForDialogFocus();
-    await user.click(screen.getByRole("button", { name: "Gestures" }));
-    expect(props.onOpenGestures).toHaveBeenCalledOnce();
     await user.keyboard("{Escape}");
     expect(props.onClose).toHaveBeenCalled();
   });
 
-  it("sends the trimmed key on remap blur, and empty string when cleared", async () => {
-    const user = userEvent.setup();
-    const { props } = renderPalette();
-    await waitForDialogFocus();
-    await user.click(screen.getByLabelText("Show remaps"));
-    expect(screen.queryByLabelText("Remap Export diagnostics…")).toBeNull();
-    const input = screen.getByLabelText("Remap Blade cut");
-    await user.type(input, " B ");
-    await user.tab();
-    expect(props.onRemap).toHaveBeenLastCalledWith("edit.bladeCut", "B");
-    await user.clear(input);
-    await user.tab();
-    expect(props.onRemap).toHaveBeenLastCalledWith("edit.bladeCut", "");
+  describe("Tab remap", () => {
+    async function openBladeField() {
+      const user = userEvent.setup();
+      const view = renderPalette();
+      await waitForDialogFocus();
+      const search = screen.getByRole("combobox", { name: "Search commands" });
+      await user.type(search, "blade");
+      await user.keyboard("{Tab}");
+      return { user, search, ...view };
+    }
+
+    it("opens the key field in the row and saves the trimmed key on Enter", async () => {
+      const { user, search, props } = await openBladeField();
+      expect(screen.getByLabelText("Remap Blade cut")).toHaveFocus();
+      expect(search).toHaveAttribute("aria-expanded", "false");
+      expect(screen.queryAllByRole("option")).toHaveLength(0);
+      await user.keyboard(" B {Enter}");
+      expect(props.onRemap).toHaveBeenCalledTimes(1);
+      expect(props.onRemap).toHaveBeenCalledWith("edit.bladeCut", "B");
+      expect(screen.queryByLabelText("Remap Blade cut")).toBeNull();
+      expect(search).toHaveFocus();
+      expect(search).toHaveAttribute(
+        "aria-activedescendant",
+        screen.getByRole("option", { name: /^Blade cut/ }).id,
+      );
+    });
+
+    it("keeps the palette open and saves nothing on Escape", async () => {
+      const { user, search, props } = await openBladeField();
+      await user.keyboard("B{Escape}");
+      expect(props.onRemap).not.toHaveBeenCalled();
+      expect(props.onClose).not.toHaveBeenCalled();
+      expect(screen.queryByLabelText("Remap Blade cut")).toBeNull();
+      expect(search).toHaveFocus();
+    });
+
+    it("saves nothing when Tab leaves an untouched field, and restores the default from an empty one", async () => {
+      const { user, props } = await openBladeField();
+      await user.keyboard("{Tab}");
+      expect(props.onRemap).not.toHaveBeenCalled();
+      expect(screen.queryByLabelText("Remap Blade cut")).toBeNull();
+      await user.keyboard("{Tab}");
+      await user.keyboard("{Enter}");
+      expect(props.onRemap).toHaveBeenCalledTimes(1);
+      expect(props.onRemap).toHaveBeenCalledWith("edit.bladeCut", "");
+    });
+
+    it("commits a typed key when Tab leaves the field", async () => {
+      const { user, props } = await openBladeField();
+      await user.keyboard("B{Tab}");
+      expect(props.onRemap).toHaveBeenCalledTimes(1);
+      expect(props.onRemap).toHaveBeenCalledWith("edit.bladeCut", "B");
+    });
+
+    it("does not open a field on an unkeyed command or an entry", async () => {
+      const user = userEvent.setup();
+      renderPalette({ entries: ENTRIES });
+      await waitForDialogFocus();
+      const search = screen.getByRole("combobox", { name: "Search commands" });
+      await user.type(search, "diagnostics");
+      await user.keyboard("{ArrowDown}{Tab}");
+      expect(screen.queryByRole("textbox")).toBeNull();
+      await user.clear(search);
+      await user.type(search, "ana");
+      expect(screen.getByRole("status").textContent).toBe(
+        "1 result. Enter: Follow Ana",
+      );
+    });
+
+    it("names Tab on a keyed row in the status line", async () => {
+      const user = userEvent.setup();
+      renderPalette();
+      await waitForDialogFocus();
+      await user.type(screen.getByRole("combobox"), "blade");
+      expect(screen.getByRole("status").textContent).toBe(
+        "1 command. Enter runs Blade cut. Tab remaps",
+      );
+    });
   });
 
-  it("clears the search and remaps when it reopens", async () => {
+  it("clears the search and any open key field when it reopens", async () => {
     const user = userEvent.setup();
     const { props, rerender } = renderPalette();
     await waitForDialogFocus();
@@ -351,13 +427,14 @@ describe("CommandPaletteView", () => {
       screen.getByRole("combobox", { name: "Search commands" }),
       "blade",
     );
-    await user.click(screen.getByLabelText("Show remaps"));
+    await user.keyboard("{Tab}");
+    expect(screen.getByLabelText("Remap Blade cut")).toBeTruthy();
     rerender(<CommandPaletteView {...props} open={false} />);
     rerender(<CommandPaletteView {...props} open />);
     expect(
       screen.getByRole("combobox", { name: "Search commands" }),
     ).toHaveValue("");
-    expect(screen.getByLabelText("Show remaps")).not.toBeChecked();
+    expect(screen.queryByLabelText("Remap Blade cut")).toBeNull();
   });
 
   it("shows Recent first when Search is empty, skipping unavailable and unknown ids", () => {
@@ -450,12 +527,12 @@ describe("CommandPaletteView", () => {
     expect(box.getAttribute("aria-activedescendant")).toBe(
       screen.getAllByRole("option")[0]?.id,
     );
-    expect(last?.textContent).toContain("Gestures");
+    expect(last?.textContent).toContain("Intro");
     for (let i = 0; i < 20; i++) await user.keyboard("{ArrowDown}");
     expect(box.getAttribute("aria-activedescendant")).toBe(last?.id);
   });
 
-  describe("Stages, Gestures and Help groups, verb icons", () => {
+  describe("Stages and Help groups, verb icons", () => {
     const stage = (
       id: string,
       label: string,
@@ -509,7 +586,6 @@ describe("CommandPaletteView", () => {
         "Projects",
         "People",
         "Chapters",
-        "Gestures",
         "Help",
       ]);
       const stages = within(screen.getByRole("group", { name: "Stages" }));
@@ -528,10 +604,10 @@ describe("CommandPaletteView", () => {
       expect(ids.every((id, i) => id.endsWith(`-opt-${i}`))).toBe(true);
     });
 
-    it("with leadGroup lists Help then Gestures first and makes the first Help row active; searching lists flat", async () => {
+    it("with leadGroup lists Help first and makes the first Help row active; searching lists flat", async () => {
       const user = userEvent.setup();
       renderPalette({ commands: GROUPED, leadGroup: "help" });
-      expect(groupNames()).toEqual(["Help", "Gestures", "Transport", "Stages"]);
+      expect(groupNames()).toEqual(["Help", "Transport", "Stages"]);
       const search = screen.getByRole("combobox", { name: "Search commands" });
       expect(search).toHaveAttribute(
         "aria-activedescendant",
@@ -554,20 +630,7 @@ describe("CommandPaletteView", () => {
 
     it("hides the Stages group when no stage command is listed", () => {
       renderPalette({ commands: [COMMANDS[0]] });
-      expect(groupNames()).toEqual(["Transport", "Gestures"]);
-    });
-
-    it("opens the Gestures sheet from its row, by click and by Enter", async () => {
-      const user = userEvent.setup();
-      const { props } = renderPalette();
-      await user.click(screen.getByRole("option", { name: /^Gestures/ }));
-      expect(props.onOpenGestures).toHaveBeenCalledTimes(1);
-      await user.type(screen.getByRole("combobox"), "pinch");
-      expect(screen.getByRole("status").textContent).toContain(
-        "1 result. Enter opens Gestures",
-      );
-      await user.keyboard("{Enter}");
-      expect(props.onOpenGestures).toHaveBeenCalledTimes(2);
+      expect(groupNames()).toEqual(["Transport"]);
     });
 
     it("keeps Stages and Help commands in the flat search results, labelled by group", async () => {
@@ -598,6 +661,112 @@ describe("CommandPaletteView", () => {
           .getByRole("option", { name: /Go to Deliver/ })
           .querySelector("svg"),
       ).toBeNull();
+    });
+  });
+
+  describe("Gestures rows", () => {
+    const groupNames = () =>
+      screen
+        .queryAllByRole("group")
+        .map(
+          (g) =>
+            document.getElementById(g.getAttribute("aria-labelledby") ?? "")
+              ?.textContent,
+        );
+
+    it("lists one row per gesture after Chapters, before Help, only when passed", () => {
+      const help: PaletteCommand = {
+        id: "help.diagnosticsBundle",
+        label: "Export diagnostics…",
+        category: "ui",
+        shortcut: null,
+        group: "help",
+        disabledReason: null,
+      };
+      const { unmount } = renderPalette({
+        commands: [COMMANDS[0], help],
+        entries: ENTRIES,
+        gestures: PALETTE_GESTURES,
+      });
+      expect(groupNames()).toEqual([
+        "Transport",
+        "Projects",
+        "People",
+        "Chapters",
+        "Gestures",
+        "Help",
+      ]);
+      const rows = within(
+        screen.getByRole("group", { name: "Gestures" }),
+      ).getAllByRole("option");
+      expect(
+        rows.map((r) => r.querySelector("[id$=-label]")?.textContent),
+      ).toEqual([
+        "Undo",
+        "Open inspector",
+        "Zoom in / Zoom out",
+        "Extend transcript range",
+        "Edit focused transcript word",
+      ]);
+      expect(
+        rows.map(
+          (r) => r.querySelector(".command-palette-gesture")?.textContent,
+        ),
+      ).toEqual([
+        "Two-finger tap",
+        "Long-press",
+        "Pinch",
+        "Hold a word, then drag",
+        "Double-tap word",
+      ]);
+      unmount();
+      renderPalette({ entries: ENTRIES });
+      expect(groupNames()).not.toContain("Gestures");
+    });
+
+    it("lists two-finger Undo as an optional ShareCut shortcut among the gesture rows", () => {
+      renderPalette({ gestures: PALETTE_GESTURES });
+      expect(
+        screen.getByRole("option", {
+          name: "Undo Two-finger tap Undo the last action. Optional ShareCut shortcut.",
+        }),
+      ).toBeTruthy();
+    });
+
+    it("finds a gesture by name and does nothing on Enter or click", async () => {
+      const user = userEvent.setup();
+      const { props } = renderPalette({
+        entries: ENTRIES,
+        gestures: PALETTE_GESTURES,
+      });
+      await user.type(screen.getByRole("combobox"), "pinch");
+      expect(screen.getAllByRole("option")).toHaveLength(1);
+      expect(screen.getByRole("status").textContent).toBe(
+        "1 result. Pinch: Zoom in / Zoom out",
+      );
+      await user.keyboard("{Enter}");
+      await user.click(screen.getByRole("option"));
+      expect(props.onRun).not.toHaveBeenCalled();
+      expect(props.onClose).not.toHaveBeenCalled();
+    });
+
+    it("leads with Help on Home and keeps Gestures after the entries", () => {
+      renderPalette({
+        commands: [
+          COMMANDS[0],
+          {
+            id: "help.diagnosticsBundle",
+            label: "Export diagnostics…",
+            category: "ui",
+            shortcut: null,
+            group: "help",
+            disabledReason: null,
+          },
+        ],
+        leadGroup: "help",
+        gestures: PALETTE_GESTURES,
+      });
+      expect(groupNames()).toEqual(["Help", "Transport", "Gestures"]);
     });
   });
 });

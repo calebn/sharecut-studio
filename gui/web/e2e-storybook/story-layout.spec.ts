@@ -87,9 +87,8 @@ for (const width of [1440, 360]) {
     for (const [family, story] of [
       ["organisms-dialog", "default"],
       ["organisms-bottomsheet", "default"],
-      ["templates-gesturessheet", "open"],
       ["templates-hostmcpdialog", "ready"],
-      ["templates-commandpalette", "browse"],
+      ["templates-commandpalette", "empty"],
     ]) {
       test(`${family} contains its portaled dialog in Docs at ${width} in ${theme}`, async ({
         page,

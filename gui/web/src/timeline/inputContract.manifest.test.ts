@@ -1,7 +1,7 @@
 /**
  * The capabilities manifest's touch column (#1096) is the grammar's, not a
  * second hand-kept list: each command's `surfaces.touch` must equal what the
- * input contract, the create menu and the Gestures sheet say runs it.
+ * input contract, the create menu and the palette's Gestures rows say runs it.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";

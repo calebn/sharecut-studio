@@ -14,12 +14,10 @@ test("manager Docs toolbar themes reach isolated previews and follow System", as
     "/?path=/docs/templates-commandpalette--docs&globals=theme:light",
   );
   const docs = page.frameLocator("#storybook-preview-iframe");
-  const iframe = docs.locator(
-    "#story--templates-commandpalette--browse iframe",
-  );
+  const iframe = docs.locator("#story--templates-commandpalette--empty iframe");
   await iframe.scrollIntoViewIfNeeded();
   const story = docs.frameLocator(
-    "#story--templates-commandpalette--browse iframe",
+    "#story--templates-commandpalette--empty iframe",
   );
   await expectPreviewBoot(
     story.locator(".command-palette-panel"),
