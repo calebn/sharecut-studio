@@ -8,7 +8,7 @@ export type ExportedFile = {
   /** What the file is for, in words: "Listening file", "Captions". */
   label: string;
   bytes: number;
-  /** False when the episode changed after this file was written. */
+  /** Producer freshness judgment; false does not identify what changed. */
   current: boolean;
   /** Exact transcript format when supplied by the server. */
   format?: ExportedTranscriptFormat | null;

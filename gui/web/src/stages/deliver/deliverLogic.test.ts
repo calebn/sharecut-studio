@@ -186,6 +186,73 @@ describe("export contract", () => {
   const now = (change: Partial<typeof SETTINGS>, clips = CLIPS) =>
     exportRequest({ ...SETTINGS, ...change }, clips, CHAPTERS);
 
+  it("classifies exact heads, approved clips and chapters as edits only while output settings match", () => {
+    const wrote = exportRequest(SETTINGS, CLIPS, CHAPTERS, null, null, null);
+    const done = { phase: "done", when: "now", exported: wrote } as const;
+    const edits = [
+      { ...wrote, edits: "h2" },
+      { ...wrote, edits: undefined },
+      exportRequest(
+        SETTINGS,
+        approveClip(CLIPS, "k1"),
+        CHAPTERS,
+        null,
+        null,
+        null,
+      ),
+      exportRequest(
+        SETTINGS,
+        CLIPS,
+        retimeChapter(CHAPTERS, "c2", 400),
+        null,
+        null,
+        null,
+      ),
+    ];
+    for (const current of edits) {
+      expect(coversRequest(wrote, current)).toBe(false);
+      expect(currentExportState(done, current)).toMatchObject({
+        phase: "stale",
+        staleReason: "edits",
+      });
+      expect(
+        currentExportState(done, {
+          ...current,
+          settings: { ...current.settings, formats: ["flac"] },
+        }),
+      ).toMatchObject({ phase: "stale", staleReason: "other" });
+      expect(currentExportState(done, current, wrote)).toEqual(done);
+      expect(
+        currentExportState(
+          done,
+          { ...current, settings: { ...current.settings, formats: ["flac"] } },
+          current,
+        ),
+      ).toMatchObject({ phase: "stale", staleReason: "edits" });
+    }
+    expect(wrote.edits).toBeNull();
+    expect(
+      coversRequest(
+        wrote,
+        exportRequest(SETTINGS, CLIPS, CHAPTERS, null, null, null),
+      ),
+    ).toBe(true);
+    expect(
+      currentExportState(done, { ...wrote, namedTarget: "broadcast" }),
+    ).toMatchObject({ phase: "stale", staleReason: "other" });
+    const cancelled = {
+      phase: "cancelled",
+      detail: "Cancel came too late",
+      when: "now",
+      exported: wrote,
+    } as const;
+    expect(currentExportState(cancelled, edits[0])).toMatchObject({
+      phase: "stale",
+      staleReason: "edits",
+    });
+    expect(currentExportState(cancelled, wrote)).toEqual(cancelled);
+  });
+
   it("stays done while nothing changed", () => {
     expect(
       currentExportState(DONE, exportRequest(SETTINGS, CLIPS, CHAPTERS)).phase,

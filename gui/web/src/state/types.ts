@@ -1,7 +1,7 @@
 import type { RippleTrim } from "../edit/ripplePreview";
 import type { PresenceDeltaChanges, SessionRoster } from "../presence/roster";
 import type { RoutedTarget } from "../timeline/hitRouting";
-import type { PendingJobResults, PipelineJobSnapshot } from "../types/pipeline";
+import type { PipelineJobSnapshot } from "../types/pipeline";
 import type {
   ClipRow,
   ExactRangeTarget,
@@ -175,6 +175,36 @@ export interface FeedbackToast {
   gesture: boolean;
 }
 
+export type AnnouncedJobKind = "export" | "bounce";
+export type JobStartToken = Readonly<{
+  identity: symbol;
+  projectEpoch: number;
+}>;
+export type JobResultOwner = Readonly<{
+  start: JobStartToken;
+  jobId: string;
+}>;
+export type JobResultOutcome =
+  | { kind: "verified"; copy: string }
+  | { kind: "failure"; copy: string }
+  | { kind: "cancelled-empty" };
+export type JobFeedback =
+  | { kind: "deferred"; copy: string; blockers: ReadonlySet<JobStartToken> }
+  | { kind: "known" }
+  | { kind: "following"; owner: JobResultOwner }
+  | {
+      kind: "ready";
+      outcome: Exclude<JobResultOutcome, { kind: "cancelled-empty" }>;
+    }
+  | { kind: "unverified" }
+  | { kind: "failure-delivered" };
+export type JobChipObservation = Readonly<{
+  id: string | undefined;
+  kind: string | undefined;
+  status: PipelineJobSnapshot["status"];
+  copy: string;
+}>;
+
 export interface AnnounceOptions {
   /** Offer Undo on the toast for this entry (the command reply's `replyHistoryHead`). */
   undo?: HistoryEntryId | null;
@@ -332,12 +362,8 @@ export interface DawState {
   statusAnnouncementSeq: number;
   /** Visible twin of the last announcement that has one; null once dismissed. */
   feedbackToast: FeedbackToast | null;
-  /**
-   * Result copy owed by jobs whose callers announce their own outcome (#704):
-   * `useJobStatusAnnouncement` holds back the generic "ok" headline for these
-   * jobs and speaks the copy once it arrives. Reset by a project switch (hydrate).
-   */
-  pendingJobResults: PendingJobResults;
+  jobResultStarts: ReadonlyMap<JobStartToken, AnnouncedJobKind>;
+  jobFeedback: ReadonlyMap<string, JobFeedback>;
   /**
    * Jobs whose own result copy `useJobStatusAnnouncement` has spoken, oldest
    * first, capped at `SPOKEN_JOB_RESULT_LIMIT`. This is a list, not one slot,
@@ -497,11 +523,21 @@ export interface DawState {
   dropFeedbackUndo: (id: number) => void;
   /** Mark a job whose caller will post its own result copy (holds back its generic "ok" headline). */
   expectJobResult: (jobId: string) => void;
-  /** Hand over a job's own result copy for `useJobStatusAnnouncement` to speak. */
-  announceJobResult: (jobId: string, message: string) => void;
-  /** Drop a job's pending result (spoken, failed or aborted). */
+  beginJobResultStart: (kind: AnnouncedJobKind) => JobStartToken;
+  bindJobResultStart: (owner: JobResultOwner) => boolean;
+  finishJobResult: (
+    owner: JobResultOwner,
+    outcome: JobResultOutcome,
+  ) => boolean;
+  releaseJobResultStart: (start: JobStartToken, owner?: JobResultOwner) => void;
+  reconcileJobAnnouncements: (
+    observation: JobChipObservation | null,
+    chipId: string | undefined,
+    chipTerminal: boolean,
+  ) => void;
+  /** Release Prepare's known-ID expectation after failure or cancellation. */
   settleJobResult: (jobId: string) => void;
-  /** In one store write, drop these jobs' pending results and remember them as spoken (see `spokenJobResultIds`). */
+  /** Consume acknowledged results and remember them across shell remounts. */
   markJobResultsSpoken: (jobIds: readonly string[]) => void;
 }
 

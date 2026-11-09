@@ -12,8 +12,11 @@ export type ExportedFilesLoad = "loading" | "ready" | "error";
 export type ExportedFilesData = {
   files: readonly ExportedFile[];
   load: ExportedFilesLoad;
+  currentLoad: ExportedFilesLoad;
   reload: () => void;
 };
+
+type InventoryRead = { path: string | null; again: string };
 
 type Options = {
   /** `download` gives each row a link; `reveal` leaves it to the app. */
@@ -35,7 +38,10 @@ export function useExportedFiles(
     path: string;
     files: readonly ExportedFileEntry[];
   } | null>(null);
-  const [load, setLoad] = useState<ExportedFilesLoad>("loading");
+  const [settled, setSettled] = useState<{
+    read: InventoryRead;
+    load: "ready" | "error";
+  } | null>(null);
   const [reads, setReads] = useState(0);
   const reload = useCallback(() => setReads((n) => n + 1), []);
 
@@ -51,11 +57,11 @@ export function useExportedFiles(
       (files) => {
         if (controller.signal.aborted) return;
         setListed({ path, files });
-        setLoad("ready");
+        setSettled({ read, load: "ready" });
       },
       (error) => {
         if (controller.signal.aborted || isAbortError(error)) return;
-        setLoad("error");
+        setSettled({ read, load: "error" });
       },
     );
     return () => controller.abort();
@@ -84,5 +90,10 @@ export function useExportedFiles(
         : [],
     [listed, projectPath, access],
   );
-  return { files, load: projectPath === null ? "loading" : load, reload };
+  return {
+    files,
+    load: projectPath === null ? "loading" : (settled?.load ?? "loading"),
+    currentLoad: settled?.read === read ? settled.load : "loading",
+    reload,
+  };
 }

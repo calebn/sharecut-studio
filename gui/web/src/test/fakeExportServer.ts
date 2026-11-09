@@ -1,7 +1,9 @@
 import { vi } from "vitest";
 import type { ExportedFileEntry } from "../api/exportedFiles";
 import { READY } from "../stages/deliver/feedFixture";
+import type { FeedView } from "../types/feedView";
 import type {
+  LoudnessId,
   PipelineConfigResponse,
   PipelineJobSnapshot,
 } from "../types/pipeline";
@@ -34,12 +36,32 @@ export const EXPORT_STARTED: PipelineJobSnapshot = {
   steps: [],
 };
 
+export function exportEvidence(
+  target: LoudnessId | null,
+  basis = target ?? "default",
+) {
+  const lufs = { broadcast: -23, podcast: -16, streaming: -14 };
+  return {
+    version: 1,
+    basis,
+    target,
+    master_target: {
+      integrated_lufs: target === null ? -16 : lufs[target],
+      true_peak_db: -1.5,
+      lra: 11,
+    },
+    qc_limits: { lufs_tolerance_lu: 0.5, true_peak_tolerance_db: 0.3 },
+    audio_formats: ["wav", "mp3"],
+  };
+}
+
 export const EXPORT_FINISHED: PipelineJobSnapshot = {
   ...EXPORT_STARTED,
   status: "ok",
   current: 2,
   result: {
     paths: ["/tmp/ep/export/ep.wav", "/tmp/ep/export/ep.mp3"],
+    applied_settings: exportEvidence(null),
     master: { measured: { integrated_lufs: -16.1, true_peak_db: -1.6 } },
   },
 };
@@ -103,6 +125,15 @@ export function fakeExportServer() {
     started: EXPORT_STARTED,
     settled: null as PipelineJobSnapshot | null,
     configRequests: [] as string[],
+    settingsRequests: [] as {
+      body: unknown;
+      signal: AbortSignal | null | undefined;
+    }[],
+    readSettings: async (body: { target?: LoudnessId }) =>
+      json(null, {
+        status: "available",
+        settings: exportEvidence(body.target ?? null),
+      }),
     exportRequests: [] as { path: string; formats: unknown }[],
     bounceRequests: [] as Record<string, unknown>[],
     bounceAnswer: null as Answer | null,
@@ -110,6 +141,10 @@ export function fakeExportServer() {
     shares: [] as HostShareRow[],
     files: [] as ExportedFileEntry[],
     fileRequests: [] as string[],
+    fileAnswer: null as Answer | null,
+    holdFiles: null as Promise<void> | null,
+    revealRequests: [] as { path: string; id: string }[],
+    feed: READY as FeedView,
     shareListRequests: 0,
     shareRequests: [] as Record<string, unknown>[],
     shareAnswer: null as Answer | null,
@@ -196,11 +231,23 @@ export function fakeExportServer() {
         await server.holdConfig;
         return json(server.configAnswer, server.config);
       }
+      if (url.includes("/api/export/files/reveal")) {
+        server.revealRequests.push(body);
+        return json(null, { ok: true });
+      }
       if (url.includes("/api/export/files")) {
         server.fileRequests.push(
           decodeURIComponent(url.split("path=")[1] ?? "").split("&")[0] ?? "",
         );
-        return json(null, { files: server.files });
+        await server.holdFiles;
+        return json(server.fileAnswer, { files: server.files });
+      }
+      if (
+        new URL(url, window.location.origin).pathname ===
+        "/api/export/deliverables/settings"
+      ) {
+        server.settingsRequests.push({ body, signal: init?.signal });
+        return server.readSettings(body);
       }
       if (url.includes("/api/export/deliverables")) {
         server.exportRequests.push(body);
@@ -216,7 +263,7 @@ export function fakeExportServer() {
         return json(server.cancelAnswer, { job: server.started });
       }
       if (url.includes("/api/feed") || url.endsWith("/feed")) {
-        return json(null, { view: READY, itemXml: "<item/>" });
+        return json(null, { view: server.feed, itemXml: "<item/>" });
       }
       if (url.includes("/api/pipeline/status")) {
         return json(null, {

@@ -12,13 +12,22 @@ import {
   SETTINGS,
   TOTAL,
 } from "./deliverFixture";
-import type { EpisodeSettings } from "./deliverLogic";
+import type { EpisodeSettings, LoudnessId } from "./deliverLogic";
 import { EpisodeFile } from "./EpisodeFile";
 
 function Controlled(props: React.ComponentProps<typeof EpisodeFile>) {
   const [settings, setSettings] = useState<EpisodeSettings>(props.settings);
+  const [choice, setChoice] = useState<LoudnessId | null>(null);
+  const options = props.options?.loudness
+    ? { ...props.options, loudness: { choice, onChoice: setChoice } }
+    : props.options;
   return (
-    <EpisodeFile {...props} settings={settings} onSettings={setSettings} />
+    <EpisodeFile
+      {...props}
+      options={options}
+      settings={settings}
+      onSettings={setSettings}
+    />
   );
 }
 
@@ -177,8 +186,8 @@ const HOST_OPTIONS = {
     { id: "flac", label: "FLAC · lossless", bytesPerSecond: 97_000 },
   ],
   wavAlwaysWritten: true,
-  loudnessNote: "Mastered to −16.0 LUFS, peaks under −1.5 dBTP.",
-  loudness: false,
+  loudnessNote: "Project target preview is −16.0 LUFS, peaks under −1.5 dBTP.",
+  loudness: { choice: null, onChoice: fn() },
   range: false,
 } as const;
 
@@ -188,7 +197,19 @@ export const WithProjectFormats: Story = {
     const view = within(canvasElement);
     await expect(view.getByRole("button", { name: "WAV" })).toBeDisabled();
     await expect(view.getByRole("button", { name: /^M4A/ })).toBeVisible();
-    await expect(view.queryByRole("group", { name: "Loudness" })).toBeNull();
+    const loudness = within(view.getByRole("group", { name: "Loudness" }));
+    const projectDefault = loudness.getByRole("button", {
+      name: "Project default",
+    });
+    await expect(projectDefault).toHaveAttribute("aria-pressed", "true");
+    const broadcast = loudness.getByRole("button", { name: /^Broadcast/ });
+    await userEvent.click(broadcast);
+    await expect(broadcast).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      view.getByText("This export includes audio only."),
+    ).toBeVisible();
+    await userEvent.click(projectDefault);
+    await expect(projectDefault).toHaveAttribute("aria-pressed", "true");
     await expect(view.queryByRole("group", { name: "Range" })).toBeNull();
   },
 };
@@ -251,5 +272,32 @@ export const SettingsLoading: Story = {
       "Loading export settings…",
     );
     await expect(view.getByRole("button", { name: /^Export/ })).toBeDisabled();
+  },
+};
+
+export const UnavailableFormat: Story = {
+  args: {
+    settings: { ...SETTINGS, formats: ["opus", "mp3"] },
+    options: HOST_OPTIONS,
+  },
+  play: async ({ canvasElement }) => {
+    const view = within(canvasElement);
+    const missing = view.getByRole("button", { name: "OPUS · unavailable" });
+    await expect(missing).toHaveAttribute("aria-pressed", "true");
+    await expect(missing).toBeEnabled();
+    await expect(missing).toHaveTextContent(/^OPUS · unavailable$/);
+    await expect(view.getByRole("button", { name: "Export" })).toBeDisabled();
+    await expect(
+      view.getByText("Remove unavailable formats before exporting."),
+    ).toBeVisible();
+    await userEvent.click(missing);
+    await expect(
+      view.queryByRole("button", { name: "OPUS · unavailable" }),
+    ).toBeNull();
+    await expect(view.getByRole("button", { name: "Export" })).toBeEnabled();
+    await expect(view.getByRole("button", { name: /^MP3/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
   },
 };

@@ -82,7 +82,7 @@ beforeEach(() => {
   registerDawCommands();
   useDawStore.setState({
     activityJob: null,
-    pendingJobResults: {},
+    jobFeedback: new Map(),
     selection: null,
     soloTracks: {},
     sessionRegion: null,
@@ -129,9 +129,20 @@ describe("Bounce on the Deliver stage", () => {
       await screen.findByText("Bounced 1 file(s) to export/bounces/"),
     ).toBeVisible();
     expect(screen.getByText("ep.wav")).toBeVisible();
-    expect(useDawStore.getState().pendingJobResults).toEqual({
-      b1: "Bounced 1 file(s) to export/bounces/",
-    });
+    expect(useDawStore.getState().jobFeedback).toEqual(
+      new Map([
+        [
+          "b1",
+          {
+            kind: "ready",
+            outcome: {
+              kind: "verified",
+              copy: "Bounced 1 file(s) to export/bounces/",
+            },
+          },
+        ],
+      ]),
+    );
   });
 
   it("writes an MP3 beside the WAV and limits to the session region", async () => {

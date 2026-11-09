@@ -8,6 +8,7 @@ import {
 } from "../../api";
 import { BOUNCE_DEFAULTS } from "../../stages/deliver/bounceLogic";
 import { useDawStore } from "../../state/dawStore";
+import { uiProjectInitial } from "../../state/uiSlice";
 import { deferred } from "../../test/deferred";
 import { minimalProject } from "../../test/fixtures";
 import {
@@ -95,6 +96,7 @@ function heldFollow() {
 describe("BounceFlowProvider", () => {
   beforeEach(() => {
     useDawStore.setState({
+      ...uiProjectInitial(),
       projectPath: PATH,
       project: minimalProject(),
       stage: "deliver",
@@ -104,7 +106,7 @@ describe("BounceFlowProvider", () => {
       bounceRangeTarget: null,
       activityJob: null,
       pipelineJob: null,
-      pendingJobResults: {},
+      jobFeedback: new Map(),
     });
     vi.mocked(startBounceJob).mockReset().mockResolvedValue(started);
     vi.mocked(followJobToOk).mockReset();
@@ -155,9 +157,20 @@ describe("BounceFlowProvider", () => {
         "/tmp/ep/export/bounces/mix.mp3",
       ],
     });
-    expect(useDawStore.getState().pendingJobResults).toEqual({
-      b1: "Bounced 2 file(s) to export/bounces/",
-    });
+    expect(useDawStore.getState().jobFeedback).toEqual(
+      new Map([
+        [
+          "b1",
+          {
+            kind: "ready",
+            outcome: {
+              kind: "verified",
+              copy: "Bounced 2 file(s) to export/bounces/",
+            },
+          },
+        ],
+      ]),
+    );
   });
 
   it("sends the selected tracks, the region and the MP3", async () => {
@@ -288,7 +301,7 @@ describe("BounceFlowProvider", () => {
       ),
     );
     expect(flow.run).toEqual({ kind: "cancelled", paths: [] });
-    expect(useDawStore.getState().pendingJobResults).toEqual({});
+    expect(useDawStore.getState().jobFeedback).toEqual(new Map([]));
     act(() => flow.again());
     expect(flow.run).toEqual({ kind: "idle" });
   });
@@ -313,9 +326,20 @@ describe("BounceFlowProvider", () => {
         "/tmp/ep/export/bounces/mix.mp3",
       ],
     });
-    expect(useDawStore.getState().pendingJobResults).toEqual({
-      b1: "Cancel came too late. Bounced 2 file(s) to export/bounces/",
-    });
+    expect(useDawStore.getState().jobFeedback).toEqual(
+      new Map([
+        [
+          "b1",
+          {
+            kind: "ready",
+            outcome: {
+              kind: "verified",
+              copy: "Cancel came too late. Bounced 2 file(s) to export/bounces/",
+            },
+          },
+        ],
+      ]),
+    );
   });
 
   it("says why a cancel failed and lets it be tried again", async () => {
@@ -383,7 +407,9 @@ describe("BounceFlowProvider", () => {
       expect(flow.run).toEqual({ kind: "failed", reason: "ffmpeg exited 1" }),
     );
     expect(useDawStore.getState().bounceRangeTarget).toBe(RANGE);
-    expect(useDawStore.getState().pendingJobResults).toEqual({});
+    expect(useDawStore.getState().jobFeedback).toEqual(
+      new Map([["b1", { kind: "unverified" }]]),
+    );
     act(() => flow.again());
     expect(flow.run).toEqual({ kind: "idle" });
   });
@@ -421,7 +447,9 @@ describe("BounceFlowProvider", () => {
     act(() => useDawStore.setState({ projectPath: "/tmp/other.project.json" }));
     await waitFor(() => expect(flow.run).toEqual({ kind: "idle" }));
     expect(flow.choices).toEqual(BOUNCE_DEFAULTS);
-    expect(useDawStore.getState().pendingJobResults).toEqual({});
+    expect(useDawStore.getState().jobFeedback).toEqual(
+      new Map([["b1", { kind: "unverified" }]]),
+    );
   });
 
   it("ignores a job that resolves after the project changed", async () => {
@@ -445,6 +473,37 @@ describe("BounceFlowProvider", () => {
     expect(flow.run).toEqual({ kind: "idle" });
     expect(flow.choices).toEqual(BOUNCE_DEFAULTS);
   });
+
+  it.each(["start", "follow"] as const)(
+    "keeps the new bounce running after an old %s completes in a reopened project",
+    async (phase) => {
+      const old = deferred<PipelineJobSnapshot>();
+      const next = deferred<PipelineJobSnapshot>();
+      if (phase === "start")
+        vi.mocked(startBounceJob).mockReturnValueOnce(old.promise);
+      else vi.mocked(followJobToOk).mockReturnValueOnce(old.promise);
+      mount();
+      act(() => flow.start());
+      if (phase === "follow")
+        await waitFor(() => expect(flow.run).toMatchObject({ jobId: "b1" }));
+      act(() => {
+        useDawStore.getState().hydrate("/tmp/other.sharecut", minimalProject());
+        useDawStore.getState().hydrate(PATH, minimalProject());
+      });
+      expect(flow.run).toEqual({ kind: "idle" });
+      vi.mocked(startBounceJob).mockResolvedValue({ ...started, id: "b2" });
+      vi.mocked(followJobToOk).mockReturnValueOnce(next.promise);
+      act(() => flow.start());
+      await waitFor(() => expect(flow.run).toMatchObject({ jobId: "b2" }));
+      await act(async () => old.resolve(finished));
+      expect(flow.run).toMatchObject({ kind: "running", jobId: "b2" });
+      await act(async () => next.resolve({ ...finished, id: "b2" }));
+      expect(flow.run).toMatchObject({
+        kind: "done",
+        paths: finished.result?.paths,
+      });
+    },
+  );
 
   it("ignores a failure that arrives after the project changed", async () => {
     let fail!: (e: Error) => void;

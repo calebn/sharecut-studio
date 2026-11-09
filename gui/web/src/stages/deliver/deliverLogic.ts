@@ -1,6 +1,7 @@
 import { capabilityOf } from "../../models";
 import type { StatusRowState } from "../../system/StatusRow";
 import { formatSeconds } from "../../system/seconds";
+import type { LoudnessId } from "../../types/pipeline";
 import type { StageId } from "../../types/stage";
 import type { ModelNeeded } from "../../utils/apiError";
 import { type ClipWord, normaliseWords } from "./clipTrim";
@@ -23,7 +24,7 @@ export const FORMATS: readonly FormatOption[] = [
   { id: "flac", label: "FLAC", bytesPerSecond: LOSSLESS_BYTES_PER_SECOND },
 ];
 
-export type LoudnessId = "podcast" | "broadcast" | "streaming";
+export type { LoudnessId };
 
 export const LOUDNESS: readonly {
   id: LoudnessId;
@@ -247,11 +248,13 @@ export type ExportRequest = {
   clips: readonly Pick<Clip, "id" | "start" | "end" | "title">[];
   chapters: readonly Chapter[];
   range: TimeSpan | null;
-  edits?: string;
-  target?: string;
+  edits?: string | null;
+  namedTarget?: LoudnessId | null;
 };
 
 export type TimeSpan = { start: number; end: number };
+
+export type ExportSettingsStatus = "match" | "different" | "unknown";
 
 export type ExportState =
   | { phase: "never" }
@@ -263,18 +266,22 @@ export type ExportState =
       cancelReason?: string;
       cancelError?: string;
     }
-  | {
-      phase: "done" | "stale";
+  | ({
       when: string;
       exported: ExportRequest;
       summary?: string;
       measured?: string;
-    }
+    } & (
+      | { phase: "done"; settingsStatus?: ExportSettingsStatus }
+      | { phase: "unconfirmed" }
+      | { phase: "stale"; staleReason?: "edits" | "other" }
+    ))
   | {
       phase: "cancelled";
       detail: string;
       when?: string;
       exported?: ExportRequest;
+      measured?: string;
     }
   | { phase: "failed"; cause: string };
 
@@ -310,8 +317,8 @@ export function exportRequest(
   clips: readonly Clip[],
   chapters: readonly Chapter[],
   selection?: TimeSpan | null,
-  edits?: string,
-  target?: string,
+  edits?: string | null,
+  namedTarget?: LoudnessId | null,
 ): ExportRequest {
   return {
     settings,
@@ -321,7 +328,7 @@ export function exportRequest(
     chapters,
     range: planRange(settings.part, selection),
     ...(edits === undefined ? {} : { edits }),
-    ...(target === undefined ? {} : { target }),
+    ...(namedTarget === undefined ? {} : { namedTarget }),
   };
 }
 
@@ -344,24 +351,27 @@ function sameList<T>(
 const sameSpan = (a: TimeSpan | null, b: TimeSpan | null) =>
   a === null || b === null ? a === b : a.start === b.start && a.end === b.end;
 
-/** Whether an export already covers what the page would write now. */
-export function coversRequest(
+function requestDifference(
   exported: ExportRequest,
   now: ExportRequest,
-): boolean {
+  hostedSettings?: ExportSettingsStatus,
+): "same" | "edits" | "other" {
   const a = exported.settings;
   const b = now.settings;
-  return (
-    sameSet([...a.formats], [...b.formats]) &&
-    a.loudness === b.loudness &&
+  const sameSettings =
+    (hostedSettings === undefined
+      ? sameSet(a.formats, b.formats) &&
+        a.loudness === b.loudness &&
+        exported.namedTarget === now.namedTarget
+      : hostedSettings !== "different") &&
     a.part.mode === b.part.mode &&
     (a.part.mode === "whole" ||
       (b.part.mode === "part" &&
         a.part.start === b.part.start &&
         a.part.end === b.part.end)) &&
-    sameSpan(exported.range, now.range) &&
-    exported.edits === now.edits &&
-    exported.target === now.target &&
+    sameSpan(exported.range, now.range);
+  if (!sameSettings) return "other";
+  return exported.edits === now.edits &&
     sameList(
       byId(exported.clips),
       byId(now.clips),
@@ -376,7 +386,16 @@ export function coversRequest(
       now.chapters,
       (x, y) => x.id === y.id && x.at === y.at && x.title === y.title,
     )
-  );
+    ? "same"
+    : "edits";
+}
+
+/** Whether an export already covers what the page would write now. */
+export function coversRequest(
+  exported: ExportRequest,
+  now: ExportRequest,
+): boolean {
+  return requestDifference(exported, now) === "same";
 }
 
 /** A finished export turns stale when anything it wrote has changed since. */
@@ -384,22 +403,43 @@ export function currentExportState(
   state: ExportState,
   ...now: ExportRequest[]
 ): ExportState {
-  const covered = (exported: ExportRequest) =>
-    now.some((request) => coversRequest(exported, request));
-  if (state.phase === "done")
-    return covered(state.exported) ? state : { ...state, phase: "stale" };
-  if (state.phase === "cancelled" && state.exported && state.when)
-    return covered(state.exported)
+  const difference = (
+    exported: ExportRequest,
+    settingsStatus?: ExportSettingsStatus,
+  ) => {
+    const differences = now.map((request) =>
+      requestDifference(exported, request, settingsStatus),
+    );
+    return differences.includes("same")
+      ? "same"
+      : differences.includes("edits")
+        ? "edits"
+        : "other";
+  };
+  if (state.phase === "done") {
+    const reason = difference(state.exported, state.settingsStatus);
+    if (reason !== "same")
+      return { ...state, phase: "stale", staleReason: reason };
+    return state.settingsStatus === "unknown"
+      ? { ...state, phase: "unconfirmed" }
+      : state;
+  }
+  if (state.phase === "cancelled" && state.exported && state.when) {
+    const reason = difference(state.exported);
+    return reason === "same"
       ? state
       : {
           phase: "stale",
           when: state.when,
           exported: state.exported,
+          staleReason: reason,
+          summary: state.detail,
+          measured: state.measured,
         };
+  }
   return state;
 }
 
-/** Why Export cannot start: nothing is chosen, or the part is empty. */
 export function exportBlocker(
   settings: EpisodeSettings,
   state?: ExportState,
@@ -418,6 +458,12 @@ export function exportBlocker(
     return `Needs ${capabilityOf(model.id, model.label).what}.`;
   }
   if (host.loading) return "Wait for the settings to load.";
+  const formats = host.formats;
+  if (
+    formats &&
+    settings.formats.some((key) => !formats.some((format) => format.id === key))
+  )
+    return "Remove unavailable formats before exporting.";
   if (
     settings.formats.length === 0 &&
     !host.wavAlwaysWritten &&
@@ -592,10 +638,14 @@ export type ExportOptions = {
   settingsError?: string;
   blockedReason?: string;
   loudnessNote?: string;
-  loudness?: boolean;
+  loudness?:
+    | false
+    | {
+        choice: LoudnessId | null;
+        onChoice: (choice: LoudnessId | null) => void;
+      };
   range?: boolean;
   edits?: string;
-  target?: string;
   onFormats?: (keys: readonly FormatId[]) => void;
   onExportAgain?: () => void;
 };

@@ -1,3 +1,5 @@
+export type LoudnessId = "podcast" | "broadcast" | "streaming";
+
 /**
  * How many results a step took from the cache and how many it made new.
  * The engine does not report this yet; Prepare shows "1 new · 3 reused" and
@@ -49,14 +51,6 @@ export interface PipelineJobSnapshot {
   skip_steps?: string[];
   steps: PipelineStepTiming[];
 }
-
-/**
- * Result copy owed by jobs whose callers announce their own outcome (Bounce,
- * Export deliverables), keyed by job id: `null` while the job still runs, then
- * its copy (e.g. "Bounced 1 file(s) to export/bounces/") until
- * `useJobStatusAnnouncement` speaks it and drops the entry (#704).
- */
-export type PendingJobResults = Readonly<Record<string, string | null>>;
 
 export interface PipelineStatusResponse {
   running: boolean;

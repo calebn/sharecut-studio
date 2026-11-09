@@ -12,11 +12,14 @@ vi.mock("../../services/offlineQueue/offlineStore", async (importOriginal) => ({
 
 import { clearRegisteredCommands, execute } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
+import { PENDING } from "../../stages/deliver/feedFixture";
 import { useDawStore } from "../../state/dawStore";
+import { deferred } from "../../test/deferred";
 import {
   EXPORT_FINISHED,
   EXPORT_MODEL_NEEDED,
   EXPORT_STARTED,
+  exportEvidence,
   fakeExportServer,
 } from "../../test/fakeExportServer";
 import { minimalProject, sampleTrack } from "../../test/fixtures";
@@ -27,6 +30,7 @@ import {
 } from "../../test/renderWithModels";
 import { stubViewportShell } from "../../test/viewportShell";
 import type { HistoryEntryId } from "../../types/project";
+import { StatusLive } from "../frame/StatusLive";
 import { BounceFlowProvider } from "./bounceFlow";
 import { DeliverStage } from "./DeliverStage";
 import { ExportFlowProvider } from "./exportFlow";
@@ -34,6 +38,18 @@ import { ShareFlowProvider } from "./shareFlow";
 
 const PATH = "/tmp/ep/episode.sharecut";
 const MP3 = { ext: "mp3", codec: "libmp3lame", bitrate_kbps: 128 };
+const FEED_WITHOUT_AUDIO = {
+  ...PENDING,
+  findings: [
+    {
+      key: null,
+      severity: "blocker",
+      platform: "Apple",
+      message: "Export the episode to supply the audio.",
+      fix: { kind: "command", command: "export_episode" },
+    },
+  ],
+} satisfies ReturnType<typeof fakeExportServer>["feed"];
 
 let server: ReturnType<typeof fakeExportServer>;
 
@@ -82,7 +98,7 @@ beforeEach(() => {
   stubViewportShell("desktop");
   clearRegisteredCommands();
   registerDawCommands();
-  useDawStore.setState({ activityJob: null, pendingJobResults: {} });
+  useDawStore.setState({ activityJob: null, jobFeedback: new Map() });
   asHost();
 });
 
@@ -108,14 +124,51 @@ describe("Export on the Deliver stage", () => {
     expect(screen.getByText(/written with every export/)).toBeInTheDocument();
   });
 
-  it("leaves Loudness, Range and Saves to out and says the loudness target", async () => {
+  it("does not promise WAV or admit a named export with wav set to zero and no selected format", async () => {
+    server.config = { config: { export: { wav: 0, formats: [MP3] } } };
     render(<Host />);
     await ready();
-    expect(screen.queryByRole("group", { name: "Loudness" })).toBeNull();
+    const formats = within(screen.getByRole("group", { name: "Formats" }));
+    const mp3 = formats.getByRole("button", { name: /^MP3/ });
+    expect(mp3).toHaveAttribute("aria-pressed", "true");
+    expect
+      .soft(formats.queryByRole("button", { name: "WAV" }))
+      .not.toBeInTheDocument();
+    expect
+      .soft(screen.queryByText(/written with every export/))
+      .not.toBeInTheDocument();
+
+    await userEvent.click(
+      within(screen.getByRole("group", { name: "Loudness" })).getByRole(
+        "button",
+        { name: /^Broadcast/ },
+      ),
+    );
+    await userEvent.click(mp3);
+    expect(mp3).toHaveAttribute("aria-pressed", "false");
+    expect.soft(exportButton()).toBeDisabled();
+    expect
+      .soft(exportButton())
+      .toHaveAttribute("title", "Choose a format first.");
+    await userEvent.click(exportButton());
+    expect(server.exportRequests).toEqual([]);
+  });
+
+  it("shows project-default Loudness and leaves Range and Saves to out", async () => {
+    render(<Host />);
+    await ready();
+    expect(
+      within(screen.getByRole("group", { name: "Loudness" })).getByRole(
+        "button",
+        { name: "Project default" },
+      ),
+    ).toHaveAttribute("aria-pressed", "true");
     expect(screen.queryByRole("group", { name: "Range" })).toBeNull();
     expect(screen.queryByText(/Saves to/)).toBeNull();
     expect(
-      screen.getByText(/Mastered to −16\.0 LUFS, peaks under −1\.5 dBTP/),
+      screen.getByText(
+        /Project target preview is −16\.0 LUFS, peaks under −1\.5 dBTP/,
+      ),
     ).toBeInTheDocument();
   });
 
@@ -130,6 +183,211 @@ describe("Export on the Deliver stage", () => {
       formats: [MP3, { ext: "flac", codec: "flac" }],
     });
   });
+
+  it("explains unreadable formats and requests the saved-format fallback", async () => {
+    server.config = {
+      config: { export: { wav: false, formats: [{ codec: "flac" }] } },
+    };
+    render(<Host />);
+    expect(
+      await screen.findByText(
+        "Export settings did not load: Could not read the configured export formats. Export uses this project's saved formats.",
+      ),
+    ).toBeVisible();
+    await userEvent.click(exportButton());
+    await waitFor(() =>
+      expect(server.exportRequests).toEqual([{ path: PATH, formats: null }]),
+    );
+  });
+
+  it("blocks both Feed export controls until a format is selected", async () => {
+    server.feed = FEED_WITHOUT_AUDIO;
+    server.config = { config: { export: { wav: false, formats: [MP3] } } };
+    render(<Host />);
+    await ready();
+    const user = userEvent.setup();
+    const formats = within(screen.getByRole("group", { name: "Formats" }));
+    const mp3 = formats.getByRole("button", { name: /^MP3 · 128 kbps/ });
+    expect(mp3).toHaveAttribute("aria-pressed", "true");
+    await user.click(mp3);
+    expect(mp3).toHaveAttribute("aria-pressed", "false");
+    expect(exportButton()).toBeDisabled();
+    expect(exportButton()).toHaveAttribute("title", "Choose a format first.");
+
+    const readiness = await screen.findByRole("button", {
+      name: "Export episode",
+    });
+    await user.click(screen.getByText("Checks"));
+    const check = screen.getByRole("button", {
+      name: "Export episode: Export the episode to supply the audio.",
+    });
+    for (const control of [readiness, check]) {
+      expect.soft(control).toBeDisabled();
+      expect
+        .soft(control)
+        .toHaveAccessibleDescription("Choose a format first.");
+      await user.click(control);
+    }
+    expect(server.exportRequests).toEqual([]);
+
+    await user.click(mp3);
+    expect(mp3).toHaveAttribute("aria-pressed", "true");
+    expect(readiness).toBeEnabled();
+    expect(check).toBeEnabled();
+    await user.click(check);
+    await waitFor(() =>
+      expect(server.exportRequests).toEqual([
+        {
+          path: PATH,
+          formats: [{ ext: "mp3", codec: "libmp3lame", bitrate_kbps: 128 }],
+        },
+      ]),
+    );
+  });
+
+  it.each([
+    { shell: "desktop", name: "Export" },
+    { shell: "phone", name: "Export" },
+    { shell: "desktop", name: "Export episode" },
+  ] as const)(
+    "waits for refreshed settings before starting from $name on $shell",
+    async ({ shell, name }) => {
+      stubViewportShell(shell);
+      server.feed = FEED_WITHOUT_AUDIO;
+      const flac = { ext: "flac", codec: "flac" };
+      const configAtLufs = (integrated_lufs: number) => ({
+        config: {
+          export: { wav: true, formats: [flac] },
+          master: { integrated_lufs, true_peak_db: -1.5 },
+        },
+      });
+      const appliedAtLufs = (lufs: number) => ({
+        ...exportEvidence(null, `flac-at-${lufs}`),
+        master_target: { integrated_lufs: lufs, true_peak_db: -1.5, lra: 11 },
+        audio_formats: ["wav", "flac"],
+      });
+      const readAtLufs = (lufs: number) => async () =>
+        Response.json({ status: "available", settings: appliedAtLufs(lufs) });
+      const action = () =>
+        name === "Export"
+          ? waitFor(exportButton)
+          : screen.findByRole("button", { name });
+      const chooseStage = (stage: "edit" | "deliver") =>
+        act(() => useDawStore.setState({ stage }));
+
+      render(
+        <>
+          <Host />
+          <StatusLive />
+        </>,
+      );
+      await ready();
+      expect(
+        await screen.findByText(/Project target preview is −16\.0 LUFS/),
+      ).toBeVisible();
+      expect(
+        screen.getByRole("button", { name: /MP3 · 128 kbps/ }),
+      ).toHaveAttribute("aria-pressed", "true");
+      expect(await action()).toBeEnabled();
+      const previousLoads = server.configRequests.length;
+      chooseStage("edit");
+      expect(screen.getByText("another stage")).toBeVisible();
+
+      const config = deferred();
+      server.config = configAtLufs(-23);
+      server.readSettings = readAtLufs(-23);
+      server.holdConfig = config.promise;
+      chooseStage("deliver");
+      let postsWhilePending = 0;
+      try {
+        await waitFor(() =>
+          expect(server.configRequests).toHaveLength(previousLoads + 1),
+        );
+        const pendingAction = await action();
+        expect(
+          screen.getByText(/Project target preview is −16\.0 LUFS/),
+        ).toBeVisible();
+        expect.soft(pendingAction).toBeDisabled();
+        expect
+          .soft(pendingAction)
+          .toHaveAccessibleDescription("Wait for the settings to load.");
+        await userEvent.click(pendingAction);
+        postsWhilePending = server.exportRequests.length;
+        expect.soft(server.exportRequests).toEqual([]);
+        const reason = [
+          pendingAction.getAttribute("title"),
+          ...screen
+            .queryAllByText(/Loading export settings/)
+            .map((node) => node.textContent),
+        ].join(" ");
+        expect.soft(reason).toMatch(/Loading export settings/);
+      } finally {
+        server.holdConfig = null;
+        await act(async () => config.resolve());
+      }
+
+      expect(
+        await screen.findByText(/Project target preview is −23\.0 LUFS/),
+      ).toBeVisible();
+      expect(screen.getByRole("button", { name: /^FLAC/ })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      const previousPosts = server.exportRequests.length;
+      expect(previousPosts).toBe(postsWhilePending);
+      if (previousPosts > 0) {
+        await waitFor(() => expect(server.watchers()).toBe(1));
+        await act(async () =>
+          server.settle({ ...EXPORT_STARTED, status: "cancelled" }),
+        );
+        expect(await screen.findByText("Export cancelled")).toBeVisible();
+        server.reopen();
+        server.started = { ...EXPORT_STARTED, id: "after-settings-load" };
+      }
+
+      expect(await action()).toBeEnabled();
+      await userEvent.click(await action());
+      await waitFor(() =>
+        expect(server.exportRequests.slice(previousPosts)).toEqual([
+          { path: PATH, formats: [flac] },
+        ]),
+      );
+      await waitFor(() => expect(server.watchers()).toBe(1));
+      await act(async () =>
+        server.settle({
+          ...EXPORT_FINISHED,
+          id: server.started.id,
+          result: {
+            paths: ["/tmp/ep/export/ep.wav", "/tmp/ep/export/ep.flac"],
+            applied_settings: appliedAtLufs(-23),
+            edit_head_id: "root",
+          },
+        }),
+      );
+      expect(await screen.findByText("Exported")).toBeVisible();
+
+      server.config = configAtLufs(-16);
+      server.readSettings = readAtLufs(-16);
+      chooseStage("edit");
+      chooseStage("deliver");
+      expect(
+        await screen.findByText(/Project target preview is −16\.0 LUFS/),
+      ).toBeVisible();
+      expect(await screen.findByText("Export is out of date")).toBeVisible();
+      expect(screen.queryByText("Edited since export")).toBeNull();
+
+      server.config = configAtLufs(-23);
+      server.readSettings = readAtLufs(-23);
+      chooseStage("edit");
+      chooseStage("deliver");
+      expect(
+        await screen.findByText(/Project target preview is −23\.0 LUFS/),
+      ).toBeVisible();
+      expect(screen.getByText("Exported")).toBeVisible();
+      expect(screen.queryByText("Export is out of date")).toBeNull();
+      expect(server.exportRequests).toHaveLength(previousPosts + 1);
+    },
+  );
 
   it("marks Exported as edited after the document changes", async () => {
     render(<Host />);
@@ -304,7 +562,13 @@ describe("Export on the Deliver stage", () => {
   });
 
   it("asks again with the target the page has now, not the failed attempt's", async () => {
+    const appliedAtLufs = (lufs: number) => ({
+      ...exportEvidence(null, `target-${lufs}`),
+      master_target: { integrated_lufs: lufs, true_peak_db: -1.5, lra: 11 },
+    });
     const target = (lufs: number) => {
+      server.readSettings = async () =>
+        Response.json({ status: "available", settings: appliedAtLufs(lufs) });
       server.config = {
         config: {
           export: { wav: true, formats: [MP3] },
@@ -325,16 +589,26 @@ describe("Export on the Deliver stage", () => {
     target(-14);
     revisit();
     expect(
-      await screen.findByText(/Mastered to −14\.0 LUFS/),
+      await screen.findByText(/Project target preview is −14\.0 LUFS/),
     ).toBeInTheDocument();
     server.reopen();
     await userEvent.click(screen.getByRole("button", { name: "Try again" }));
     await waitFor(() => expect(server.exportRequests).toHaveLength(2));
-    await act(async () => server.settle(EXPORT_FINISHED));
+    await act(async () =>
+      server.settle({
+        ...EXPORT_FINISHED,
+        result: {
+          ...EXPORT_FINISHED.result,
+          applied_settings: appliedAtLufs(-14),
+        },
+      }),
+    );
     expect(await screen.findByText("Exported")).toBeInTheDocument();
     target(-16);
     revisit();
-    expect(await screen.findByText("Edited since export")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Export is out of date"),
+    ).toBeInTheDocument();
   });
 
   it("asks again with the formats chosen since the failed attempt", async () => {
@@ -356,7 +630,7 @@ describe("Export on the Deliver stage", () => {
     expect(await screen.findByText("Exported")).toBeInTheDocument();
   });
 
-  it("marks Exported as edited when the loudness target changes afterwards", async () => {
+  it("marks Exported out of date when the loudness target changes afterwards", async () => {
     render(<Host />);
     await pressExport();
     await act(async () => server.settle(EXPORT_FINISHED));
@@ -367,13 +641,23 @@ describe("Export on the Deliver stage", () => {
         master: { integrated_lufs: -23, true_peak_db: -1.5 },
       },
     };
+    server.readSettings = async () =>
+      Response.json({
+        status: "available",
+        settings: {
+          ...exportEvidence(null, "lower-lufs"),
+          master_target: { integrated_lufs: -23, true_peak_db: -1.5, lra: 11 },
+        },
+      });
     act(() => useDawStore.setState({ stage: "edit" }));
     act(() => useDawStore.setState({ stage: "deliver" }));
-    expect(await screen.findByText("Edited since export")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Export is out of date"),
+    ).toBeInTheDocument();
     expect(screen.queryByText("Exported")).toBeNull();
   });
 
-  it("keeps a late-cancelled export Exported until the project is edited", async () => {
+  it("keeps canonical late-cancel details and exact downloads after an edit or format change", async () => {
     const setHead = (head: string) => {
       const project = useDawStore.getState().project;
       if (!project) throw new Error("fixture");
@@ -393,7 +677,27 @@ describe("Export on the Deliver stage", () => {
       );
     };
     setHead("e1");
-    render(<Host />);
+    server.files = [
+      {
+        id: "ep.wav",
+        name: "ep.wav",
+        kind: "audio",
+        label: "Lossless master",
+        bytes: 128,
+        current: true,
+        ticket: "wav-ticket",
+      },
+      {
+        id: "ep.mp3",
+        name: "ep.mp3",
+        kind: "audio",
+        label: "Listening file",
+        bytes: 64,
+        current: true,
+        ticket: "mp3-ticket",
+      },
+    ];
+    const { container } = render(<Host />);
     await pressExport();
     await act(async () =>
       server.settle({
@@ -404,9 +708,48 @@ describe("Export on the Deliver stage", () => {
     );
     expect(await screen.findByText("Exported")).toBeInTheDocument();
     expect(screen.queryByText("Edited since export")).toBeNull();
+    const expectLateReceipt = async () => {
+      expect
+        .soft(
+          screen.queryByText(
+            "Cancel came too late. Exported 2 files to export/",
+          ),
+        )
+        .toBeVisible();
+      expect
+        .soft(screen.queryByText("Measured −16.1 LUFS, true peak −1.6 dBTP."))
+        .toBeVisible();
+      expect(
+        await screen.findByRole("link", { name: "Download ep.wav, 128 B" }),
+      ).toHaveAttribute(
+        "href",
+        "/api/export/files/ep.wav?path=%2Ftmp%2Fep%2Fepisode.sharecut&ticket=wav-ticket",
+      );
+      expect(
+        await screen.findByRole("link", { name: "Download ep.mp3, 64 B" }),
+      ).toHaveAttribute(
+        "href",
+        "/api/export/files/ep.mp3?path=%2Ftmp%2Fep%2Fepisode.sharecut&ticket=mp3-ticket",
+      );
+      expect(
+        container.querySelector("[data-highlight]"),
+      ).not.toBeInTheDocument();
+      expect(server.settingsRequests).toEqual([]);
+    };
+    await expectLateReceipt();
+
     setHead("e2");
     expect(await screen.findByText("Edited since export")).toBeInTheDocument();
     expect(screen.queryByText("Exported")).toBeNull();
+    await expectLateReceipt();
+
+    setHead("e1");
+    expect(await screen.findByText("Exported")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /^FLAC/ }));
+    expect(
+      await screen.findByText("Export is out of date"),
+    ).toBeInTheDocument();
+    await expectLateReceipt();
   });
 
   it("keeps running when the stage is left and shows the outcome on return", async () => {

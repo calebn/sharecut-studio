@@ -235,18 +235,18 @@ describe("stale after an export", () => {
   it("brings Export back when the loudness changes", async () => {
     setup({ exportState: DONE });
     await userEvent.click(screen.getByRole("button", { name: /^Streaming/ }));
-    expect(screen.getByText("Edited since export")).toBeInTheDocument();
+    expect(screen.getByText("Export is out of date")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Export$/ })).toBeEnabled();
   });
 
   it("goes stale when a format or the range changes", async () => {
     setup({ exportState: DONE });
     await userEvent.click(screen.getByRole("button", { name: /^FLAC/ }));
-    expect(screen.getByText("Edited since export")).toBeInTheDocument();
+    expect(screen.getByText("Export is out of date")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /^FLAC/ }));
-    expect(screen.queryByText("Edited since export")).toBeNull();
+    expect(screen.queryByText("Export is out of date")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Part…" }));
-    expect(screen.getByText("Edited since export")).toBeInTheDocument();
+    expect(screen.getByText("Export is out of date")).toBeInTheDocument();
   });
 
   it("goes stale when a clip is approved afterwards, without listing a file that was never written", async () => {
@@ -328,7 +328,7 @@ describe("stale after an export", () => {
 
   it("stays done when loudness or Part is changed and changed back", async () => {
     setup({ exportState: DONE });
-    const stale = () => screen.queryByText("Edited since export") !== null;
+    const stale = () => screen.queryByText("Export is out of date") !== null;
     await userEvent.click(screen.getByRole("button", { name: /^Streaming/ }));
     expect(stale()).toBe(true);
     await userEvent.click(screen.getByRole("button", { name: /^Podcast/ }));
@@ -1148,7 +1148,7 @@ describe("export settings reach the stage", () => {
     setup({ exportState: DONE, layout: "phone" });
     await userEvent.click(screen.getByRole("button", { name: /^Streaming/ }));
     expect(screen.getByRole("button", { name: /^Export$/ })).toBeEnabled();
-    expect(screen.getByText("Edited since export")).toBeInTheDocument();
+    expect(screen.getByText("Export is out of date")).toBeInTheDocument();
   });
 
   it("shows In and Out only for a Part", () => {
@@ -1354,7 +1354,7 @@ describe("more of what the page shows", () => {
     setup({ exportState: DONE });
     await userEvent.click(screen.getByRole("button", { name: /^WAV/ }));
     await userEvent.click(screen.getByRole("button", { name: /^FLAC/ }));
-    expect(screen.getByText("Edited since export")).toBeInTheDocument();
+    expect(screen.getByText("Export is out of date")).toBeInTheDocument();
   });
 
   it("explains an empty chapter list", () => {

@@ -337,7 +337,7 @@ describe("dawStore listen-first transport", () => {
       renderPreviewBusy: true,
       chapterAddPending: true,
       joinMutationInFlight: true,
-      pendingJobResults: { b1: null },
+      jobFeedback: new Map([["b1", { kind: "known" }]]),
       spokenJobResultIds: ["b0"],
     });
     useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
@@ -351,14 +351,14 @@ describe("dawStore listen-first transport", () => {
     expect(same.renderPreviewBusy).toBe(true);
     expect(same.chapterAddPending).toBe(true);
     expect(same.joinMutationInFlight).toBe(true);
-    expect(same.pendingJobResults).toEqual({ b1: null });
+    expect(same.jobFeedback).toEqual(new Map([["b1", { kind: "known" }]]));
     expect(same.spokenJobResultIds).toEqual(["b0"]);
 
     same.hydrate("/tmp/other.json", minimalProject());
     expect(useDawStore.getState().projectEpoch).toBe(epoch + 1);
     expect(useDawStore.getState().chapterAddPending).toBe(false);
     expect(useDawStore.getState().joinMutationInFlight).toBe(false);
-    expect(useDawStore.getState().pendingJobResults).toEqual({});
+    expect(useDawStore.getState().jobFeedback).toEqual(new Map([]));
     expect(useDawStore.getState().spokenJobResultIds).toEqual([]);
   });
 
@@ -381,11 +381,16 @@ describe("dawStore listen-first transport", () => {
 describe("dawStore job result announcements", () => {
   it("markJobResultsSpoken settles pending results and keeps a bounded spoken list (#704)", () => {
     useDawStore.setState({
-      pendingJobResults: { a: "A", b: null },
+      jobFeedback: new Map([
+        ["a", { kind: "known" }],
+        ["b", { kind: "known" }],
+      ]),
       spokenJobResultIds: [],
     });
     useDawStore.getState().markJobResultsSpoken(["a"]);
-    expect(useDawStore.getState().pendingJobResults).toEqual({ b: null });
+    expect(useDawStore.getState().jobFeedback).toEqual(
+      new Map([["b", { kind: "known" }]]),
+    );
     expect(useDawStore.getState().spokenJobResultIds).toEqual(["a"]);
 
     useDawStore

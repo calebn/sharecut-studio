@@ -235,6 +235,17 @@ controls.
 - **Failed** vs **cancelled** are distinct status labels
 - **Stale:** if `now − last_progress_at > 15s` while running, the Deliver export and bounce rows show “last update Ns ago” next to the headline (dim companion, not accent). The pulse stays; elapsed still ticks as a companion; no determinate bar movement. A new domain event or job-reporter heartbeat clears the copy. Deliver speaks the stall once, not the ticking text: `stage/hosts/useStallAnnouncement` calls `announceStatus(msg, { toast: false })` into the shell's one live region, saying "Progress stalled" when a running job goes stale and "Progress resumed" when updates return, never on mount and never while the state holds. A run speaks a stall only after it was seen running and fresh at least once (a skewed or never-fresh run stays silent), \"resumed\" only if a stall was spoken, and a cancelling run counts as not running. The hook speaks on the aggregate edge: a second job going stale while another is already stale says nothing. A job that ends resets silently; its end is spoken by the frame's job-status announcement only when it is the chip job, otherwise only by the job's own result copy. If another job takes the single activity slot the state is unknown and nothing is said. A heartbeat flapping around the 15s threshold speaks on each transition. No Pipeline-tab or chip stall announcement exists. `last_progress_at` is wall-clock `time.time()` on the Studio host vs client `Date.now()` — same-machine Studio is fine; a remote client clock ahead by more than 15s can show a false visual stale (never a spoken one).
 
+Export and Bounce reserve result feedback before their start POST. The returned
+job ID binds to their owned follow record for the current project lifetime.
+Prepare uses the separate known-ID expectation. Generic successes that might
+belong to an unresolved start wait. Errors, cancellations, and other known job
+kinds keep their ordinary feedback.
+The announcement hook retains unmatched success copy after chip movement and
+releases it when its original possible owners resolve. Later starts do not extend
+that wait. Ready generic and verified copies share one live-region write, while
+the toast contains verified copy only. Abort releases a hung start immediately;
+late responses and cleanup cannot affect a newer project or Bounce attempt.
+
 Fan-out of in-process **host MCP** onto this job/SSE plane uses `compose_progress`. Studio `create_app` registers a wrap-level **agent job** sink next to the publish-only SSE sink: the first `update` / `message` / heartbeat or elapsed ≥ 1s creates a `kind=agent` job (`tool_id`, headline) so StatusBar / phone chip show it without a prior `POST /api/pipeline/run`. Instant tools never flash a chip. Host MCP `pipeline_run` in the Studio process goes through `JobManager.start()` (same single-flight lock as `POST /api/pipeline/run`; busy is an error). Other agent jobs do not take that lock; the manager may hold one pipeline-slot job (`pipeline` / `render_preview` / `bounce` / `export` / `analyze` / `split_speakers`) plus N agent jobs. StatusBar shows the most recent running job and a count badge (“2 activities”) when more than one is live. Chip copy is **Pipeline** only for `kind=pipeline`; otherwise **Activity**. The Pipeline tab lists pipeline jobs in the summary; while bounce/export/`render_preview` occupy the slot it disables Run, shows Cancel, and a slot-busy notice (no Cancel surface for agent jobs); while **Analyze** (`kind=analyze`) runs it disables Run and shows Cancel plus Analyze's own progress (phase headline, `n/N tracks` bar, elapsed) instead of the notice. `fail` shows a short first-line headline (no stack traces or host paths). Typer `install_cli_progress` is not installed by the GUI — **cross-process CLI adopt remains ROADMAP**; GUI-started pipeline/bootstrap jobs are live today.
 
 Guest-initiated long work (remote MCP / guest tools) does **not** use host `/api/pipeline/events`. `install_guest_tool_progress` composes MCP `notifications/progress` (when `params._meta.progressToken` is set — Streamable HTTP SSE, then the JSON-RPC result) with a live guest-WS sink keyed by **that** share token. ShareCut Studio share mode demuxes `plane: "progress"` on `daw/ws` into the StatusBar activity job (phone Listen shows the chip for guests; the chip is non-interactive because the Pipeline tab is host-only). Payloads are whitelisted (no host paths); updates coalesce ≤4/s; instant tools never flash.
@@ -251,11 +262,10 @@ and Clips: inside the existing left column on desktop, and after the phone's
 outside-column Chapters and Clips. This moves Transcript later than the earlier
 shipped order so its loading and preview growth no longer inserts content above
 those controls. The section keeps its existing state, files and compact preview.
-Episode file's automatic-caption explanation depends only on whether the host
-includes a Transcript section, never on its asynchronous preview kind. It says
-available captions and transcript are included with audio export; it points to
-more formats below only when that section exists. This does not claim files
-already exist or promise captions when the project has no transcript.
+With Project default selected, Episode file explains that canonical export
+includes available captions and transcript. It points to more formats below
+when the host includes a Transcript section, independent of the preview state.
+A named loudness choice says the export includes audio only.
 Bounce starts through its existing command, without a native anchoring lease or
 scroll writes. The original disabled Bounce button remains below the running
 row. Application qualification holds the real Transcript dry-run response until

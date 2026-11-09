@@ -54,6 +54,8 @@ Each thing is declared once. A second map from the same key is a bug.
 | Selection kind and its surface | `gui/web/src/inspector/selectionSurface.tsx` (`SelectionKind`, `SELECTION_SURFACES` with `body`, `screens`, `related` and `more`) | `selectionSurface` tests, `stage/edit/useInspectorOpen.test.tsx` |
 | Capability (GUI, command, keys, touch, MCP, CLI, skill) | `contracts/capabilities.manifest.json` | `make generated-check`, `commands/manifestSurfaces.test.ts` |
 | Term | `docs/communication-philosophy.md` § Terminology | review (advisory docs-sync row `user-facing-copy-and-controls`) |
+| Job result feedback | `state/uiSlice.ts` owns unidentified start tokens and one tagged feedback record per real ID. `runAnnouncedJob` binds and hands off owned outcomes. One shell transaction observes, publishes and consumes feedback. | `state/runAnnouncedJob.test.ts`, `hooks/useJobStatusAnnouncement.test.tsx`, `stage/hosts/DeliverHostAnnouncements.test.tsx` |
+| Deliver loudness | Episode file uses the shared toggle buttons and the host export provider holds the next choice. Export snapshots it. Feed repair always uses Project default. | `stage/hosts/DeliverHostLoudness.test.tsx` |
 | Token (color, space, type, z role) | `gui/web/src/styles/theme/`, `deploy/brand/brand-tokens.css` | Stylelint, `tests/test_css_policy.py` |
 
 ## Selection
@@ -172,8 +174,8 @@ There are three overlay primitives.
 
 ## Feedback
 
-1. **One channel.** `announceStatus` (`state/uiSlice.ts`) is the only way to
-   tell the person what happened. It renders the toast
+1. **One channel.** `announceStatus` (`state/uiSlice.ts`) owns ordinary
+   feedback. Job result batches use the same private feedback writer. It renders the toast
    (`feedback/FeedbackToast.tsx`) and speaks through the one shell live
    region (`ui/StatusLiveRegion.tsx`). A panel does not mount its own toast or
    its own `aria-live` region. The comment Undo toast and the Needs attention
@@ -183,6 +185,19 @@ There are three overlay primitives.
    #2199, #2221). If no clear position fits, the existing fallback can cover a
    control. See [Feedback toast](gui-mobile.md#feedback-toast) for the measured
    320x300 limit and the Dismiss or resize workaround.
+   Export and Bounce reserve result ownership before their start POST. Generic
+   success waits only on the original potentially matching starts. Exact-ID
+   binding replaces that generic candidate with an owned follow; only a verified
+   result can then announce success for that ID.
+   Released external successes keep their observed copy after chip movement.
+   Fresh chip copy and ready outcomes share one live-region write. A receipt
+   failure replaces progress for its own job, while unrelated copy survives.
+   Only verified result fragments enter the success toast. Receipt failures
+   use the existing failure row while mounted and reach the shell live region
+   even away from Deliver. Each distinct owned outcome is delivered even when its text matches
+   the previous outcome. Resource changes do not replay an unchanged chip.
+   Bound abort and follower failure keep the exact ID unverified until project
+   reset. Spoken-history eviction cannot make that ID eligible for success.
 2. **Undo rides with the result.** Every mutating command passes `undo` to
    `announceStatus`. The toast's Undo is the same History step the Undo button
    runs. A change History does not record (a comment resolve) passes `reverse`
@@ -328,6 +343,11 @@ not apply is answered "n/a" with the reason in the PR.
       `announceStatus` with `undo`.
 - [ ] Its feedback clears with its surface. Its error copy names the next
       step and contains no internals.
+- [ ] A caller-owned job result reserves ownership before start, binds only the
+      returned ID, and cannot announce generic success before verification,
+      including after abort, follower failure and spoken-history rollover.
+- [ ] A job batch retains fresh chip copy and unrelated ready outcomes, replaces
+      same-job progress with receipt failure, and toasts only verified results.
 - [ ] Its controls meet 44 px on coarse pointers or are a named dense-target
       exception.
 - [ ] It has a manifest row with every GUI surface it appears on.
@@ -337,6 +357,13 @@ not apply is answered "n/a" with the reason in the PR.
 - [ ] Tests lock the command, the key, the gesture, the surface row and the
       feedback. For UI under `gui/web/`, Vitest with axe; for shells and
       overlays, Playwright in `gui/web/e2e/`.
+
+Episode file's Loudness buttons set local export intent. They use native
+keyboard and touch activation and have no dedicated command, gesture or undo
+step. The existing Export command starts the job, and the existing job
+announcement carries the verified publication. The named file actions belong
+to the receipt and are available only after the current listing resolves all
+its IDs.
 
 ## Enforcement
 
@@ -396,6 +423,7 @@ consistency epic tracks them.
 
 | Rule | Shipped today |
 | --- | --- |
+| Result ownership and coincident feedback | Export and Bounce retain original start blockers, bind the returned ID, and keep bound unverified outcomes through abort or follower failure until reset. One shell transaction joins fresh chip copy and ready outcomes. Receipt failure is live-only; verified fragments alone enter the toast. Unclaimed outcomes keep their observed copy. |
 | Menus: one primitive, context menus from one descriptor | `stages/edit/CreateMenu.tsx` (hosted by `timeline/TimelineCreateMenu.tsx`) and `stages/edit/TargetChooser.tsx` (hosted by `timeline/TimelineChooser.tsx`) hand-roll `role="menu"` (in the top layer). The create menu now opens on right click and on the Menu key or Shift+F10 over a focused target (`hitRouting.ts` `openCreate`, #1793); marker buttons are focusable, while a keyboard user without a focused target reaches the create actions through the palette and keys. |
 | Confirms: one primitive | The model download is a Model need row (`stages/prepare/ReadyList.tsx`, the Deliver Episode file and Bounce sections, the Review Queue's job slot, `JobModelBanner`), not an `askConfirm`; hand fixes are asked on the Re-transcribe row. |
 | Confirms: model not downloaded | No modal. `ModelNeedRow` (`models/ModelNeedRow.tsx`) shows in place inside the job that needs the model: "Needs {what} · {size}" with **Get**, a progress bar with **Cancel**, a plain failure with **Try again**, and **Manage** for the Models sheet. It appears in the Review Queue's job slot (Find more), the Deliver Episode file and Bounce sections, and under the header for a job that failed for a model (`JobModelBanner`). `useModelResume` runs the stopped step again once, by itself, when the model lands; a model refused again after it landed fails the step instead of looping. In the Models sheet the same row is the 64 px list row. Focus moves to the row's Get when it appears on Deliver and stays on the row's control as Get gives way to Cancel. |

@@ -98,6 +98,8 @@ export {
   updateSocialClipDetails,
   waiveTranscriptRefine,
 } from "./api/documentEdits";
+export type { ExportEvidence } from "./api/exportEvidence";
+export { parseExportEvidence } from "./api/exportEvidence";
 export type {
   ExportedFileEntry,
   ExportedFileKind,
@@ -108,13 +110,16 @@ export {
   listExportedFiles,
   revealExportedFile,
 } from "./api/exportedFiles";
+export type { ExportFormats } from "./api/exportJobs";
 export {
   bounceAudio,
   exportDeliverables,
+  readExportSettings,
   startBounceJob,
   startExportJob,
 } from "./api/exportJobs";
 export { loadFeed, sendFeedEdit, sendFeedWrite } from "./api/feed";
+export { isHostProjectKey } from "./api/http";
 export { openJobStream } from "./api/jobStream";
 export {
   audioUrl,

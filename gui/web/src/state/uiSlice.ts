@@ -31,13 +31,18 @@ import {
   noteZoomPointerClientX,
   peekZoomPointerClientX,
 } from "../utils/zoomPointer";
+import { joinJobCopy } from "./jobCopy";
 import { inspectKeyOf } from "./selection";
 import { timelineViewportRegistry } from "./timelineViewportRegistry";
 import type {
+  AnnouncedJobKind,
+  AnnounceOptions,
   ChromeFlags,
   CommentDraft,
   DawStore,
   FeedbackToast,
+  JobFeedback,
+  JobStartToken,
   LaneHeightMode,
   LayerVisibility,
   PointerKind,
@@ -99,6 +104,79 @@ export function resetFeedbackRepeatForTests(): void {
   lastSpoken = null;
 }
 
+type FeedbackInput =
+  | { kind: "public"; rawMessage: string; options: AnnounceOptions }
+  | {
+      kind: "jobs";
+      message: string;
+      verifiedToast: string;
+      failure: boolean;
+      ownedOutcome: boolean;
+    };
+
+function feedbackPatch(s: DawStore, input: FeedbackInput): Partial<DawStore> {
+  const options: AnnounceOptions =
+    input.kind === "public"
+      ? input.options
+      : input.verifiedToast
+        ? {}
+        : { toast: false, tone: input.failure ? "error" : "status" };
+  const id = s.statusAnnouncementSeq + 1;
+  const tone = options.tone ?? "status";
+  const message =
+    input.kind === "jobs"
+      ? input.message
+      : tone === "error"
+        ? plainError(input.rawMessage)
+        : input.rawMessage;
+  const showToast = message !== "" && options.toast !== false;
+  if (
+    !(input.kind === "jobs" && input.ownedOutcome) &&
+    message !== "" &&
+    !options.undo &&
+    !options.reverse &&
+    !options.gesture &&
+    repeatsStanding(message, tone, s.feedbackToast)
+  )
+    return {};
+  if (message !== "")
+    lastSpoken = {
+      message,
+      at: Date.now(),
+      toastId: showToast ? id : null,
+      tone,
+    };
+  return {
+    statusAnnouncement: message,
+    statusAnnouncementSeq: id,
+    ...(showToast
+      ? {
+          feedbackToast: {
+            id,
+            message: input.kind === "jobs" ? input.verifiedToast : message,
+            tone,
+            undo: options.undo ?? null,
+            baseHead: s.project?.history?.head_id ?? null,
+            reverse: options.reverse ?? null,
+            onUndone: options.onUndone,
+            returnFocus: options.returnFocus ?? null,
+            gesture: options.gesture === true,
+          },
+        }
+      : {}),
+  };
+}
+
+function spokenResultsPatch(s: DawStore, jobIds: readonly string[]) {
+  const spoken = new Set(jobIds);
+  return {
+    spokenJobResultIds: [
+      ...s.spokenJobResultIds.filter((id) => !spoken.has(id)),
+      ...jobIds,
+    ].slice(-SPOKEN_JOB_RESULT_LIMIT),
+  };
+}
+
 /** A toast that narrates a gesture ends with the gesture or the mode. */
 function endGestureToast(
   s: Pick<DawStore, "feedbackToast">,
@@ -126,7 +204,13 @@ type UiSlice = Pick<
   | "statusAnnouncement"
   | "statusAnnouncementSeq"
   | "feedbackToast"
-  | "pendingJobResults"
+  | "jobFeedback"
+  | "jobResultStarts"
+  | "beginJobResultStart"
+  | "bindJobResultStart"
+  | "releaseJobResultStart"
+  | "finishJobResult"
+  | "reconcileJobAnnouncements"
   | "spokenJobResultIds"
   | "setHighlightStaleRender"
   | "setRenderPreviewBusy"
@@ -137,7 +221,6 @@ type UiSlice = Pick<
   | "dismissFeedbackToast"
   | "dropFeedbackUndo"
   | "expectJobResult"
-  | "announceJobResult"
   | "settleJobResult"
   | "markJobResultsSpoken"
   | "zoomPxPerSec"
@@ -261,7 +344,8 @@ export function uiProjectInitial() {
     bounceRangeTarget: null,
     prepareFocusTrackId: null,
     feedbackToast: null,
-    pendingJobResults: {},
+    jobFeedback: new Map<string, JobFeedback>(),
+    jobResultStarts: new Map<JobStartToken, AnnouncedJobKind>(),
     spokenJobResultIds: [] as readonly string[],
   };
 }
@@ -298,44 +382,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     setIngestDropTrackId: (ingestDropTrackId) => set({ ingestDropTrackId }),
     announceStatus: (rawMessage, options = {}) =>
       set((s) => {
-        const id = s.statusAnnouncementSeq + 1;
-        const tone = options.tone ?? "status";
-        const message = tone === "error" ? plainError(rawMessage) : rawMessage;
-        const showToast = message !== "" && options.toast !== false;
-        if (
-          message !== "" &&
-          !options.undo &&
-          !options.reverse &&
-          !options.gesture &&
-          repeatsStanding(message, tone, s.feedbackToast)
-        )
-          return {};
-        if (message !== "")
-          lastSpoken = {
-            message,
-            at: Date.now(),
-            toastId: showToast ? id : null,
-            tone,
-          };
-        return {
-          statusAnnouncement: message,
-          statusAnnouncementSeq: id,
-          ...(showToast
-            ? {
-                feedbackToast: {
-                  id,
-                  message,
-                  tone,
-                  undo: options.undo ?? null,
-                  baseHead: s.project?.history?.head_id ?? null,
-                  reverse: options.reverse ?? null,
-                  onUndone: options.onUndone,
-                  returnFocus: options.returnFocus ?? null,
-                  gesture: options.gesture === true,
-                },
-              }
-            : {}),
-        };
+        return feedbackPatch(s, { kind: "public", rawMessage, options });
       }),
     endGestureFeedback: () => {
       lastSpoken = null;
@@ -351,37 +398,156 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       ),
     expectJobResult: (jobId) =>
       set((s) => ({
-        pendingJobResults: { ...s.pendingJobResults, [jobId]: null },
-      })),
-    announceJobResult: (jobId, message) =>
-      set((s) => ({
-        pendingJobResults: { ...s.pendingJobResults, [jobId]: message },
+        jobFeedback: new Map(s.jobFeedback).set(jobId, { kind: "known" }),
       })),
     settleJobResult: (jobId) =>
-      set((s) =>
-        jobId in s.pendingJobResults
-          ? {
-              pendingJobResults: Object.fromEntries(
-                Object.entries(s.pendingJobResults).filter(
-                  ([id]) => id !== jobId,
-                ),
-              ),
-            }
-          : {},
-      ),
+      set((s) => {
+        if (s.jobFeedback.get(jobId)?.kind !== "known") return {};
+        const jobFeedback = new Map(s.jobFeedback);
+        jobFeedback.delete(jobId);
+        return { jobFeedback };
+      }),
     markJobResultsSpoken: (jobIds) =>
       set((s) => {
-        const spoken = new Set(jobIds);
+        const jobFeedback = new Map(s.jobFeedback);
+        for (const id of jobIds) {
+          if (jobFeedback.get(id)?.kind === "known") jobFeedback.delete(id);
+        }
+        return { jobFeedback, ...spokenResultsPatch(s, jobIds) };
+      }),
+    beginJobResultStart: (kind) => {
+      const token = { identity: Symbol(), projectEpoch: get().projectEpoch };
+      set((s) => ({
+        jobResultStarts: new Map(s.jobResultStarts).set(token, kind),
+      }));
+      return token;
+    },
+    bindJobResultStart: (owner) => {
+      let bound = false;
+      set((s) => {
+        if (
+          owner.start.projectEpoch !== s.projectEpoch ||
+          !s.jobResultStarts.has(owner.start)
+        )
+          return {};
+        const jobResultStarts = new Map(s.jobResultStarts);
+        jobResultStarts.delete(owner.start);
+        bound = true;
         return {
-          pendingJobResults: Object.fromEntries(
-            Object.entries(s.pendingJobResults).filter(
-              ([id]) => !spoken.has(id),
-            ),
-          ),
-          spokenJobResultIds: [
-            ...s.spokenJobResultIds.filter((id) => !spoken.has(id)),
-            ...jobIds,
-          ].slice(-SPOKEN_JOB_RESULT_LIMIT),
+          jobResultStarts,
+          jobFeedback: new Map(s.jobFeedback).set(owner.jobId, {
+            kind: "following",
+            owner,
+          }),
+        };
+      });
+      return bound;
+    },
+    finishJobResult: (owner, outcome) => {
+      let finished = false;
+      set((s) => {
+        const record = s.jobFeedback.get(owner.jobId);
+        if (
+          owner.start.projectEpoch !== s.projectEpoch ||
+          record?.kind !== "following" ||
+          record.owner !== owner
+        )
+          return {};
+        const jobFeedback = new Map(s.jobFeedback);
+        if (outcome.kind === "cancelled-empty") jobFeedback.delete(owner.jobId);
+        else jobFeedback.set(owner.jobId, { kind: "ready", outcome });
+        finished = true;
+        return { jobFeedback };
+      });
+      return finished;
+    },
+    releaseJobResultStart: (start, owner) =>
+      set((s) => {
+        if (start.projectEpoch !== s.projectEpoch) return {};
+        if (s.jobResultStarts.has(start)) {
+          const jobResultStarts = new Map(s.jobResultStarts);
+          jobResultStarts.delete(start);
+          return { jobResultStarts };
+        }
+        if (!owner) return {};
+        const record = s.jobFeedback.get(owner.jobId);
+        if (record?.kind !== "following" || record.owner !== owner) return {};
+        return {
+          jobFeedback: new Map(s.jobFeedback).set(owner.jobId, {
+            kind: "unverified",
+          }),
+        };
+      }),
+    reconcileJobAnnouncements: (observation, chipId, chipTerminal) =>
+      set((s) => {
+        const jobFeedback = new Map(s.jobFeedback);
+        const live = new Map<string | undefined, string>();
+        if (observation) {
+          const { id, kind, status, copy } = observation;
+          const spoken = id !== undefined && s.spokenJobResultIds.includes(id);
+          if (status === "ok" && id !== undefined) {
+            const previous = jobFeedback.get(id);
+            if (!spoken && !previous) {
+              const blockers = new Set(
+                [...s.jobResultStarts]
+                  .filter(
+                    ([token, startKind]) =>
+                      token.projectEpoch === s.projectEpoch &&
+                      (kind === undefined || startKind === kind),
+                  )
+                  .map(([token]) => token),
+              );
+              jobFeedback.set(id, { kind: "deferred", copy, blockers });
+            }
+          } else if (
+            (!spoken || !chipTerminal) &&
+            (id === undefined ||
+              jobFeedback.get(id)?.kind !== "failure-delivered")
+          ) {
+            live.set(id, copy);
+          }
+        }
+        const verified: string[] = [];
+        const delivered: string[] = [];
+        let failure = false;
+        for (const [id, record] of jobFeedback) {
+          if (record.kind === "deferred") {
+            if (
+              [...record.blockers].some((token) => s.jobResultStarts.has(token))
+            )
+              continue;
+            live.set(id, record.copy);
+            jobFeedback.delete(id);
+          } else if (record.kind === "ready") {
+            if (record.outcome.kind === "verified") {
+              if (id === chipId && !chipTerminal) continue;
+              verified.push(record.outcome.copy);
+              delivered.push(id);
+              jobFeedback.delete(id);
+              live.set(id, record.outcome.copy);
+            } else {
+              failure = true;
+              jobFeedback.set(id, { kind: "failure-delivered" });
+              live.set(id, plainError(record.outcome.copy));
+            }
+          }
+        }
+        const changed =
+          jobFeedback.size !== s.jobFeedback.size ||
+          [...jobFeedback].some(
+            ([id, record]) => record !== s.jobFeedback.get(id),
+          );
+        if (live.size === 0) return changed ? { jobFeedback } : {};
+        return {
+          ...feedbackPatch(s, {
+            kind: "jobs",
+            message: joinJobCopy([...live.values()]),
+            verifiedToast: joinJobCopy(verified),
+            failure,
+            ownedOutcome: failure || delivered.length > 0,
+          }),
+          ...spokenResultsPatch(s, delivered),
+          ...(changed ? { jobFeedback } : {}),
         };
       }),
 

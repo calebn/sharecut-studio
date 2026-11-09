@@ -1,5 +1,7 @@
-import type { PipelineJobSnapshot } from "../types/pipeline";
+import type { LoudnessId, PipelineJobSnapshot } from "../types/pipeline";
 import type { ExactRangeTarget } from "../types/project";
+import type { ExportDeliverablesRequest } from "../types/project.generated";
+import { type ExportEvidence, parseExportSettingsRead } from "./exportEvidence";
 import { apiFetch, HOST_KEY } from "./http";
 import { followExportJob } from "./pipeline";
 
@@ -71,18 +73,52 @@ export async function exportDeliverables(
   return followExportJob(job.id, "Export failed", opts);
 }
 
+export type ExportFormats =
+  | readonly Readonly<
+      NonNullable<ExportDeliverablesRequest["formats"]>[number]
+    >[]
+  | null;
+
+function exportPost(
+  path: string,
+  formats: ExportFormats,
+  target: LoudnessId | null,
+): RequestInit {
+  return {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      path,
+      formats,
+      ...(target === null ? {} : { target }),
+    }),
+  };
+}
+
+export async function readExportSettings(
+  projectPath: string,
+  formats: ExportFormats,
+  target: LoudnessId | null,
+  signal: AbortSignal,
+): Promise<ExportEvidence | null> {
+  const res = await apiFetch(
+    projectPath,
+    { host: "/api/export/deliverables/settings" },
+    { ...exportPost(projectPath, formats, target), signal },
+  );
+  const data: unknown = await res.json();
+  return parseExportSettingsRead(data, target);
+}
+
 export async function startExportJob(
   projectPath: string,
-  formats?: Record<string, unknown>[] | null,
+  formats: ExportFormats = null,
+  target: LoudnessId | null = null,
 ): Promise<PipelineJobSnapshot> {
   const res = await apiFetch(
-    HOST_KEY,
+    projectPath,
     { host: "/api/export/deliverables" },
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path: projectPath, formats: formats ?? null }),
-    },
+    exportPost(projectPath, formats, target),
   );
   const data = (await res.json()) as {
     job?: PipelineJobSnapshot;
