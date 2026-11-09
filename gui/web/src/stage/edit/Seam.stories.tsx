@@ -9,6 +9,7 @@ import {
 } from "../../system/InspectorSheet";
 import { AnchorMark, Framed } from "../../system/inspectorSheetFixtures";
 import { episode, MIRA, selections } from "../../test/episodeFixture";
+import { editBoundaries } from "../../test/fixtures";
 import { episodeBeforeEach, withEpisode } from "../../test/withEpisode";
 import type { ProjectView } from "../../types/project";
 import { EditActionBar } from "./EditActionBar";
@@ -71,6 +72,18 @@ function withRecords(
         restore,
       })),
     },
+  };
+}
+
+function withSplit(): ProjectView {
+  const base = episode();
+  const [first, second] = base.clips.tracks[MIRA];
+  const lane = [first, { ...second, source_start: first.source_end }];
+  return {
+    ...base,
+    clips: { ...base.clips, tracks: { ...base.clips.tracks, [MIRA]: lane } },
+    edit_boundaries: editBoundaries(lane),
+    applied_edits: { ...base.applied_edits, count: 0, records: [] },
   };
 }
 
@@ -147,6 +160,23 @@ export const Blocked: Story = {
     await expect(
       await within(canvasElement).findByRole("button", { name: "Keep" }),
     ).toBeDisabled();
+  },
+};
+
+export const SplitSeam: Story = {
+  parameters: {
+    episode: {
+      project: withSplit(),
+      role: "editor",
+      selection: selections.seam,
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByRole("group", { name: "Join type" }),
+    ).toBeVisible();
+    await expect(canvas.queryByRole("button", { name: "Keep" })).toBeNull();
   },
 };
 

@@ -5,7 +5,6 @@ import {
   appliedEditTicks,
   appliedEditTitle,
   appliedRecordOnTimeline,
-  seamTickAtJoin,
 } from "./appliedEditTicks";
 
 const TRACK = "mira-voice";
@@ -655,27 +654,5 @@ describe("appliedRecordOnTimeline", () => {
     expect(appliedRecordOnTimeline(record, { [TRACK]: [clipRow()] })).toBe(
       false,
     );
-  });
-});
-
-describe("seamTickAtJoin", () => {
-  const tick = (recordId: string, sec: number, over = {}) => ({
-    key: recordId,
-    recordId,
-    kind: "seam" as const,
-    mute: false,
-    sec,
-    ...over,
-  });
-
-  it("picks the nearest seam when two sit within the tolerance", () => {
-    const ticks = [tick("a", 2), tick("b", 2.0167)];
-    expect(seamTickAtJoin(ticks, { sec: 2.0167 })?.recordId).toBe("b");
-    expect(seamTickAtJoin(ticks, { sec: 2 })?.recordId).toBe("a");
-  });
-
-  it("skips edge ticks and anything past the tolerance", () => {
-    const ticks = [tick("edge", 2, { kind: "edge" }), tick("far", 2.05)];
-    expect(seamTickAtJoin(ticks, { sec: 2 })).toBeUndefined();
   });
 });

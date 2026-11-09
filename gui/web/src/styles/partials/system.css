@@ -4016,12 +4016,11 @@ button.sys-picker-option:focus-visible {
   inset-block-start: 0;
   inset-inline-start: 0;
   z-index: var(--z-timeline-popover);
+  flex-direction: column;
+  align-items: stretch;
   max-inline-size: calc(100dvw - 2 * var(--space-3));
-  overflow-x: auto;
   gap: var(--space-0);
-  block-size: var(--action-bar-height);
   box-sizing: border-box;
-  padding: 0 var(--space-1);
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-xl);
   background: var(--color-bg-overlay);
@@ -4029,7 +4028,17 @@ button.sys-picker-option:focus-visible {
   color: var(--color-text-on-overlay);
 }
 
-.sys-actions--floating > .sys-scope {
+.sys-actions--floating > .sys-actions-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-0);
+  block-size: var(--action-bar-height);
+  box-sizing: border-box;
+  padding: 0 var(--space-1);
+  overflow-x: auto;
+}
+
+.sys-actions-row > .sys-scope {
   margin-inline-end: var(--space-1);
 }
 
@@ -4283,7 +4292,7 @@ button.sys-scope:hover {
 }
 
 @media (pointer: coarse) {
-  .sys-actions--floating {
+  .sys-actions--floating > .sys-actions-row {
     block-size: var(--action-bar-height-touch);
   }
 

@@ -7,6 +7,7 @@ import { useDawKeymapListener } from "../../keymap/listener";
 import { useDawStore } from "../../state/dawStore";
 import {
   clipRow,
+  editBoundaries,
   minimalProject,
   pendingEditView,
   sampleTrack,
@@ -211,6 +212,48 @@ describe("the Inspector card on the desktop and the tablet", () => {
         .setSelection({ kind: "clip", id: "c1", trackId: "host" }),
     );
     expect(screen.queryByRole("dialog")).toBeNull();
+    expect(from).toHaveFocus();
+    from.remove();
+  });
+
+  it("returns focus to the opener when the sheet of a split seam closes", async () => {
+    stubViewportShell("desktop");
+    const lane = [
+      clipRow({
+        id: "a",
+        track_id: "host",
+        source_start: 0,
+        source_end: 2,
+        timeline_start: 0,
+        timeline_end: 2,
+      }),
+      clipRow({
+        id: "b",
+        track_id: "host",
+        source_start: 2,
+        source_end: 4,
+        timeline_start: 2,
+        timeline_end: 4,
+        join_left_clip_id: "a",
+      }),
+    ];
+    useDawStore.getState().hydrate(
+      "/tmp/inspector-host/split.sharecut",
+      minimalProject({
+        tracks: [sampleTrack({ id: "host" })],
+        clips: { tracks: { host: lane }, clip_count: 2 },
+        edit_boundaries: editBoundaries(lane),
+      }),
+    );
+    useDawStore.setState({
+      selection: { kind: "seam", id: "eb:a:b", trackId: "host" },
+    });
+    render(<EditWorkspace />);
+    const from = opener();
+    await inspect();
+    const card = screen.getByRole("dialog", { name: "Inspector" });
+    expect(card).toContainElement(document.activeElement as HTMLElement);
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
     expect(from).toHaveFocus();
     from.remove();
   });
