@@ -14,6 +14,12 @@ import {
   trackDocumentDrain,
   trackEditSave,
 } from "../state/documentSendOrder";
+import {
+  type InspectorCardProps,
+  type InspectorPhoneProps,
+  type InspectorSection,
+  InspectorSheet,
+} from "../system/InspectorSheet";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
 import type { HistoryEntryId } from "../types/project";
@@ -117,6 +123,122 @@ describe("FeedbackToast", () => {
     document.body.append(panel);
     return { panel, close, host };
   }
+
+  const inspectorSections: InspectorSection[] = [
+    { id: "fields", rows: [{ id: "field", control: <button>Field</button> }] },
+  ];
+
+  function renderCurrentInspector(form: "card" | "phone") {
+    const onClose = vi.fn();
+    const common = {
+      icon: "sliders-horizontal" as const,
+      name: "Current Inspector",
+      sections: inspectorSections,
+      onClose,
+    };
+    if (form === "card") {
+      const props: InspectorCardProps = {
+        ...common,
+        form,
+        anchor: { x: 600, y: 100, width: 80, height: 40 },
+        bounds: { width: 1280, height: 720 },
+      };
+      render(<InspectorSheet {...props} />);
+    } else {
+      const props: InspectorPhoneProps = {
+        ...common,
+        form,
+        detent: "full",
+        onDetentChange: vi.fn(),
+        onDismiss: vi.fn(),
+      };
+      render(
+        <div style={{ height: 844 }}>
+          <InspectorSheet {...props} />
+        </div>,
+      );
+    }
+    const dialog = screen.getByRole("dialog", { name: "Current Inspector" });
+    const close = screen.getByRole("button", { name: "Close" });
+    expect(dialog).toBeVisible();
+    expect(close).toBeVisible();
+    return { dialog, close };
+  }
+
+  it.each(["card", "phone"] as const)(
+    "returns invalidated focused Undo to the actual current %s Inspector Close",
+    (form) => {
+      const { close } = renderCurrentInspector(form);
+      render(<FeedbackToast />);
+      act(() =>
+        useDawStore.getState().announceStatus("Saved envelope level", {
+          undo: entry("host-reorder"),
+        }),
+      );
+      const undo = screen.getByRole("button", { name: "Undo" });
+      expect(undo).toBeEnabled();
+      act(() => undo.focus());
+      expect(undo).toHaveFocus();
+      act(() => atHead("peer-chapter"));
+      expect(screen.getByText("Saved envelope level")).toBeVisible();
+      expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+      expect(close).toHaveFocus();
+    },
+  );
+
+  it.each(["card", "phone"] as const)(
+    "does not move outside focus after Undo invalidation on the current %s Inspector",
+    (form) => {
+      const { close } = renderCurrentInspector(form);
+      const elsewhere = document.createElement("button");
+      elsewhere.textContent = "Elsewhere";
+      document.body.append(elsewhere);
+      render(<FeedbackToast />);
+      act(() =>
+        useDawStore.getState().announceStatus("Saved envelope level", {
+          undo: entry("host-reorder"),
+        }),
+      );
+      const undo = screen.getByRole("button", { name: "Undo" });
+      expect(undo).toBeEnabled();
+      act(() => undo.focus());
+      expect(undo).toHaveFocus();
+      act(() => elsewhere.focus());
+      expect(elsewhere).toHaveFocus();
+      act(() => atHead("peer-chapter"));
+      expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+      expect(elsewhere).toHaveFocus();
+      expect(close).not.toHaveFocus();
+      elsewhere.remove();
+    },
+  );
+
+  it.each(["card", "phone"] as const)(
+    "leaves modal focus alone when Undo is invalidated over the current %s Inspector",
+    (form) => {
+      const { close } = renderCurrentInspector(form);
+      const modalFocus = document.createElement("button");
+      modalFocus.textContent = "Modal action";
+      document.body.append(modalFocus);
+      render(<FeedbackToast />);
+      act(() =>
+        useDawStore.getState().announceStatus("Saved envelope level", {
+          undo: entry("host-reorder"),
+        }),
+      );
+      const undo = screen.getByRole("button", { name: "Undo" });
+      expect(undo).toBeEnabled();
+      act(() => undo.focus());
+      expect(undo).toHaveFocus();
+      layers.push(openOverlay(true));
+      act(() => modalFocus.focus());
+      act(() => atHead("peer-chapter"));
+      expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+      expect(modalFocus).toHaveFocus();
+      expect(close).not.toHaveFocus();
+      modalFocus.remove();
+    },
+  );
 
   it("hands refused native action restoration to the usable current Close", () => {
     const old = compactHost();
