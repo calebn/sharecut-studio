@@ -112,7 +112,7 @@ On a short screen with enlarged text, scroll the expanded inspector to reach
 its fields. The compact header keeps its close spacing at every height, and
 Tab reveals the field and its label below the pinned actions when they fit.
 
-The selection sheet holds the inspector for what you selected. Its commands sit in the Action bar, and the bar's **More** offers Copy for a clip or a word and Move track up/down for a track.
+The selection sheet holds the inspector for what you selected. Its commands sit in the Action bar, and the bar's **More** offers Copy for a word and Move track up/down for a track.
 
 The phone and the tablet build this sheet from one table of selection kinds, so what you can do with a selection is the same on both. While a sheet is open, no range control sits behind it. On a tablet, a clip sheet with an agent session range includes its In/Out fields, selected-track checkboxes and explicit **Use agent range on selected tracks** action; opening the sheet does not adopt the agent range.
 

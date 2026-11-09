@@ -57,6 +57,8 @@ export const EDIT_ORDER: readonly BarId[] = [
 ];
 
 const READ_ONLY_BAR: readonly BarId[] = ["hear", "comment"];
+const READ_ONLY_WORD_BAR: readonly BarId[] = ["hear", "comment", "more"];
+const READ_ONLY_WORD_MORE: readonly MoreRowId[] = ["copy"];
 
 const bar = (id: BarId, when?: Guard): Rule<BarId> => ({ id, when });
 const row = (id: MoreRowId, when?: Guard): Rule<MoreRowId> => ({ id, when });
@@ -153,7 +155,7 @@ export const ACTION_SETS: Readonly<Record<EditKind, ActionSet>> = {
   },
   track: {
     bar: [bar("hear"), bar("remove"), bar("more"), bar("inspect")],
-    more: [row("mute"), row("moveTrackUp"), row("moveTrackDown")],
+    more: [row("moveTrackUp"), row("moveTrackDown")],
   },
   envelope: {
     bar: [bar("inspect")],
@@ -215,7 +217,14 @@ function primaryOf(facts: EditFacts): VerbId | null {
 
 export function resolveBar(facts: EditFacts): ResolvedBar {
   if (facts.role === "readOnly")
-    return { leading: null, bar: READ_ONLY_BAR, more: [], primary: null };
+    return facts.kind === "words"
+      ? {
+          leading: null,
+          bar: READ_ONLY_WORD_BAR,
+          more: READ_ONLY_WORD_MORE,
+          primary: null,
+        }
+      : { leading: null, bar: READ_ONLY_BAR, more: [], primary: null };
   const set = ACTION_SETS[facts.kind];
   const allowed = <Id extends string>(rule: Rule<Id>) =>
     !rule.when || GUARDS[rule.when](facts);

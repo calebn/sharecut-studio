@@ -892,6 +892,21 @@ describe("Hear and Seek on a suggestion", () => {
     expect(seek.mock.calls.map((call) => call[0])).toEqual([{ sec: 3 }]);
   });
 
+  it("offers a read-only guest Copy on a word", () => {
+    host(EDIT_SELECTIONS.liveWords, {
+      projectPath: "share:tok",
+      guestMode: "view",
+      shareCapabilities: ["view", "play"],
+    });
+    const model = barModelOf(factsOf()!, useDawStore.getState());
+    expect(model.items.map((item) => item.id)).toEqual([
+      "hear",
+      "comment",
+      "more",
+    ]);
+    expect(model.more).toEqual([{ id: "copy" }]);
+  });
+
   it("does not offer Seek to a read-only guest", () => {
     host(EDIT_SELECTIONS.suggestion, {
       projectPath: "share:tok",
@@ -1262,6 +1277,19 @@ describe("barModelOf", () => {
       { id: "moveTrackUp" },
       { id: "moveTrackDown", disabledReason: "This track is already last." },
     ]);
+  });
+
+  it("names the ingest gate before the list end on a track Move row", () => {
+    expect(
+      model(
+        { kind: "track", trackId: MIRA },
+        {
+          projectPath: "share:tok",
+          guestMode: "edit",
+          shareCapabilities: ["view", "play", "suggest"],
+        },
+      ).more.map((row) => row.disabledReason),
+    ).toEqual(["Media ingest not allowed", "Media ingest not allowed"]);
   });
 
   it("removes the selected track from the bar with an Undo toast, and refuses two tracks", async () => {

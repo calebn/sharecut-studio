@@ -522,11 +522,11 @@ The sheet body is the same on both touch shells: the Range fields (In, Out, Leng
 
 A selection sheet holds the selection's inspector and nothing else. Its commands live on the Action bar, docked under the sheet on the phone:
 
-- A clip or a single transcript word offers Copy in the bar's More, and a clip offers Cut as a bar verb. Transcript and timeline ranges use the shared Play/Cut/Mute/Comment/Bounce sheet, with capability reasons on disabled actions.
+- A single transcript word offers Copy in the bar's More, including on a view-only share link, and a clip offers Cut as a bar verb. Transcript and timeline ranges use the shared Play/Cut/Mute/Comment/Bounce sheet, with capability reasons on disabled actions.
 - A track offers Remove on the bar and, in More, Move track up and Move track down. A direction that does not exist stays in the list, disabled, with the reason "This track is already first." or "This track is already last.". Remove runs at once and the toast offers Undo.
 - View-only guests do not see edit actions.
 
-Example: Clip selected gives Copy in More, and Cut on the bar. Fades and Ripple delete remain clip-inspector controls, and Seek join and Play across join are rows under the sheet's More section.
+Example: Clip selected gives Cut on the bar and its clip rows in More. Fades and Ripple delete remain clip-inspector controls, and Seek join and Play across join are rows under the sheet's More section.
 
 In Timeline, **Select range** arms touch selection on clip bodies and empty
 lanes. Numeric In/Out with lane checkboxes offers precision without dragging.

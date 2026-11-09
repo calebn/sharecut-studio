@@ -888,20 +888,13 @@ export function barModelOf(facts: EditFacts, s: DawState): BarModel {
         COMMANDS[up ? "track.moveUp" : "track.moveDown"].when,
         buildCommandContext(),
       );
-      const tracks = project?.tracks ?? [];
-      const chosen = s.selection;
-      const at =
-        chosen?.kind === "track"
-          ? tracks.findIndex((track) => track.id === chosen.trackId)
-          : -1;
-      const atEnd = up ? at === 0 : at >= 0 && at === tracks.length - 1;
       const reason = gate.ok
         ? null
-        : atEnd
-          ? up
-            ? "This track is already first."
-            : "This track is already last."
-          : gate.reason;
+        : gate.reason === "Already at top"
+          ? "This track is already first."
+          : gate.reason === "Already at bottom"
+            ? "This track is already last."
+            : gate.reason;
       more.push(reason ? { id, disabledReason: reason } : { id });
     } else if (id === "fillRoomTone") {
       const reason = descriptor("fillRoomTone")?.reason;
