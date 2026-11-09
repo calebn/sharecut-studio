@@ -380,6 +380,7 @@ def test_native_contract_readers_and_dynamic_manifest_are_classified() -> None:
         "trim-edge-limits.json",
         "join-length-limits.json",
         "ripple-scope.json",
+        "roll-join-limits.json",
     }
     assert native.select_native([exporter.OUT.relative_to(ROOT).as_posix()]).required == frozenset(
         (native.NativeFamily.WEB,)
