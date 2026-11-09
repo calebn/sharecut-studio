@@ -136,7 +136,7 @@ export function rangeActionDescriptors(
 
 let previewUrl: string | null = null;
 
-/** Submits a cut or mute of `targets` (one per speaker) as one document command, so one Undo restores them all. */
+/** One command for all targets, so one Undo restores them. */
 export function submitRangeEdit(
   action: "cut" | "mute",
   targets: readonly ExactRangeTarget[],
