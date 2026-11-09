@@ -123,6 +123,9 @@ describe("AppHeader as a guest", () => {
     expect(screen.getAllByRole("note")).toHaveLength(1);
     await userEvent.click(screen.getByRole("button", { name: "Dismiss hint" }));
     expect(onDismiss).toHaveBeenCalledOnce();
+    expect(
+      screen.getByRole("button", { name: "Explain Commenter role" }),
+    ).toHaveFocus();
     again({
       guest: {
         version: "v3",
@@ -148,12 +151,213 @@ describe("AppHeader as a guest", () => {
       },
     });
 
-    await userEvent.click(
+    const trigger = screen.getByRole("button", {
+      name: "Explain Commenter role",
+    });
+    expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
+    await userEvent.click(trigger);
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveTextContent("You can comment.");
+    expect(screen.getByText("You can comment.")).toBeVisible();
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(trigger).toHaveAttribute("aria-controls", dialog.id);
+
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(
       screen.getByRole("button", { name: "Explain Commenter role" }),
-    );
+    ).toHaveFocus();
+  });
+
+  it("keeps the first-visit tip passive and does not reopen it on the dismissing activation", async () => {
+    const onDismiss = vi.fn();
+    setup({
+      guest: {
+        version: "v3",
+        role: "commenter",
+        hint: { text: "You can comment.", shown: true, onDismiss },
+      },
+    });
+    const trigger = screen.getByRole("button", {
+      name: "Explain Commenter role",
+    });
+    expect(screen.getByRole("note")).toBeVisible();
+    expect(trigger).not.toHaveFocus();
+
+    await userEvent.click(trigger);
+
+    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(trigger).toHaveFocus();
+  });
+
+  it.each([
+    ["Enter", "{Enter}"],
+    ["Space", " "],
+  ])("opens the manual explanation with %s", async (_name, key) => {
+    const user = userEvent.setup();
+    setup({
+      guest: {
+        version: "v3",
+        role: "commenter",
+        hint: {
+          text: "You can comment.",
+          shown: false,
+          onDismiss: vi.fn(),
+        },
+      },
+    });
+    const trigger = screen.getByRole("button", {
+      name: "Explain Commenter role",
+    });
+    trigger.focus();
+
+    await user.keyboard(key);
 
     expect(screen.getByRole("dialog")).toHaveTextContent("You can comment.");
-    expect(screen.getByText("You can comment.")).toBeVisible();
+    await user.keyboard("{Escape}");
+    expect(trigger).toHaveFocus();
+  });
+
+  it("dismisses an automatic tip outside without stealing focus", async () => {
+    const onDismiss = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <>
+        <button type="button">Outside</button>
+        <AppHeader
+          title="Episode"
+          guest={{
+            version: "v3",
+            role: "commenter",
+            hint: { text: "You can comment.", shown: true, onDismiss },
+          }}
+        />
+      </>,
+    );
+    const outside = screen.getByRole("button", { name: "Outside" });
+
+    await user.click(outside);
+
+    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(outside).toHaveFocus();
+  });
+
+  it("keeps a manual explanation open across eligibility changes", async () => {
+    const hint = {
+      text: "You can comment.",
+      shown: false,
+      onDismiss: vi.fn(),
+    };
+    const { again } = setup({
+      guest: { version: "v3", role: "commenter", hint },
+    });
+    const trigger = screen.getByRole("button", {
+      name: "Explain Commenter role",
+    });
+    await userEvent.click(trigger);
+    expect(screen.getByRole("dialog")).toBeVisible();
+
+    again({
+      guest: {
+        version: "v3",
+        role: "commenter",
+        hint: { ...hint, shown: true },
+      },
+    });
+    expect(screen.getByRole("dialog")).toBeVisible();
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(trigger).toHaveFocus();
+  });
+
+  it("closes a manual explanation outside and leaves focus on the outside target", async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <button type="button">Outside</button>
+        <AppHeader
+          title="Episode"
+          guest={{
+            version: "v3",
+            role: "commenter",
+            hint: {
+              text: "You can comment.",
+              shown: false,
+              onDismiss: vi.fn(),
+            },
+          }}
+        />
+      </>,
+    );
+    const trigger = screen.getByRole("button", {
+      name: "Explain Commenter role",
+    });
+    await user.click(trigger);
+    expect(screen.getByRole("dialog")).toBeVisible();
+
+    const outside = screen.getByRole("button", { name: "Outside" });
+    await user.click(outside);
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(outside).toHaveFocus();
+  });
+
+  it("returns focus to the role button when the manual explanation closes", async () => {
+    setup({
+      guest: {
+        version: "v3",
+        role: "commenter",
+        hint: {
+          text: "You can comment.",
+          shown: false,
+          onDismiss: vi.fn(),
+        },
+      },
+    });
+    const trigger = screen.getByRole("button", {
+      name: "Explain Commenter role",
+    });
+    await userEvent.click(trigger);
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(trigger).toHaveFocus();
+  });
+
+  it("starts a fresh hint lifetime when the guest role changes", () => {
+    const hint = { text: "Role details.", shown: true, onDismiss: vi.fn() };
+    const { again } = setup({
+      guest: { version: "v3", role: "commenter", hint },
+    });
+    expect(screen.getByRole("note")).toBeVisible();
+
+    again({
+      guest: {
+        version: "v3",
+        role: "viewer",
+        hint: { ...hint, shown: false },
+      },
+    });
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Explain Viewer role" }),
+    ).toBeInTheDocument();
+
+    again({
+      guest: {
+        version: "v3",
+        role: "commenter",
+        hint: { ...hint, shown: true },
+      },
+    });
+    expect(screen.getByRole("note")).toBeVisible();
   });
 });
 

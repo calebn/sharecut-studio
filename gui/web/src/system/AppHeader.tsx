@@ -1,19 +1,21 @@
-import { type ReactNode, type RefObject, useRef, useState } from "react";
+import { type ReactNode, type RefObject, useId, useRef, useState } from "react";
 import { useLongPress } from "../hooks/useLongPress";
 import type { ThemePreference } from "../hooks/useTheme";
 import {
   Avatar,
   BrandSymbol,
+  Dialog,
   Menu,
   MenuItem,
   MenuSection,
   SegmentedControl,
   ToggleButton,
+  useOutsidePointerDown,
   useResizeObserver,
 } from "../ui";
 import { CoachTip } from "./CoachTip";
 import type { SystemIconName } from "./icons";
-import type { LinkRole } from "./linkRoles";
+import { type LinkRole, ROLES } from "./linkRoles";
 import { RenameProjectPopover } from "./RenameProjectPopover";
 import { RoleChip } from "./RoleChip";
 import { SaveIndicator, type SaveIndicatorProps } from "./SaveIndicator";
@@ -83,14 +85,75 @@ export type AppHeaderProps = {
 
 const MAX_AVATARS = 3;
 
+type RoleHintMode = "automatic" | "closed" | "manual";
+
 function RoleHint({ guest }: { guest: NonNullable<AppHeaderProps["guest"]> }) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const outsideRef = useRef<HTMLSpanElement>(null);
+  const panelId = useId();
+  const eligible = guest.hint?.shown ?? false;
+  const [mode, setMode] = useState<RoleHintMode>(() =>
+    eligible ? "automatic" : "closed",
+  );
+  const previousEligibility = useRef(eligible);
+  if (previousEligibility.current !== eligible) {
+    previousEligibility.current = eligible;
+    if (!eligible && mode === "automatic") {
+      setMode("closed");
+    }
+  }
+  const label =
+    ROLES.find((role) => role.id === guest.role)?.label ?? guest.role;
+
+  const dismissAutomatic = () => {
+    setMode("closed");
+    guest.hint?.onDismiss();
+  };
+  useOutsidePointerDown([outsideRef], dismissAutomatic, mode === "automatic");
+
   const chip = <RoleChip access={guest.role} compact={guest.compact} />;
-  return guest.hint ? (
-    <CoachTip edge {...guest.hint}>
-      {chip}
-    </CoachTip>
-  ) : (
-    chip
+  if (!guest.hint) return chip;
+
+  return (
+    <>
+      <span ref={outsideRef}>
+        <CoachTip
+          edge
+          text={guest.hint.text}
+          shown={mode === "automatic"}
+          onDismiss={dismissAutomatic}
+        >
+          <button
+            ref={triggerRef}
+            type="button"
+            className="sys-icon-btn"
+            aria-label={`Explain ${label} role`}
+            aria-haspopup="dialog"
+            aria-expanded={mode === "manual"}
+            aria-controls={mode === "manual" ? panelId : undefined}
+            onClick={() => {
+              if (mode !== "automatic") {
+                setMode(mode === "manual" ? "closed" : "manual");
+              }
+            }}
+          >
+            {chip}
+          </button>
+        </CoachTip>
+      </span>
+      <Dialog
+        open={mode === "manual"}
+        onClose={() => setMode("closed")}
+        title={`${label} role`}
+        panelId={panelId}
+        anchor={{
+          reason: "The guest role explanation stays beside its header control.",
+          ref: triggerRef,
+        }}
+      >
+        {guest.hint.text}
+      </Dialog>
+    </>
   );
 }
 
@@ -359,7 +422,7 @@ export function AppHeader({
                   followsLatest={guest.followsLatest}
                   update={guest.update}
                 />
-                <RoleHint guest={guest} />
+                <RoleHint key={guest.role} guest={guest} />
               </span>
             </div>
           ) : (
