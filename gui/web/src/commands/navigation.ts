@@ -10,6 +10,10 @@ import { registerCommand } from "./execute";
 import { shuttleBack, shuttleForward } from "./shuttle";
 import type { ExecuteResult } from "./types";
 
+// Module scope: HomeScreen re-registers the commands on every mount, which
+// replaces the handler; the hold-A restore must outlive that.
+let heldFrom: AuditionMode | null = null;
+
 export function registerNavigationCommands(): void {
   registerCommand("transport.togglePlay", () => {
     const s = useDawStore.getState();
@@ -68,7 +72,6 @@ export function registerNavigationCommands(): void {
     return { status: "ok" };
   });
 
-  let heldFrom: AuditionMode | null = null;
   registerCommand("transport.hearOriginal", (args) => {
     const s = useDawStore.getState();
     if (args.on !== true) {
