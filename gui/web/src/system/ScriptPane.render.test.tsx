@@ -4,6 +4,7 @@ import type { ScriptPaneProps } from "./ScriptPane";
 import { ScriptPane } from "./ScriptPane";
 import {
   CUT,
+  MUTED,
   patchWords,
   SCRIPT_TURNS,
   spanPatch,
@@ -151,5 +152,92 @@ describe("ScriptPane hallucination marker", () => {
       "aria-label",
       `${word.textContent} (unsure, possible transcription with no matching speech)`,
     );
+  });
+});
+
+describe("ScriptPane locked marker", () => {
+  const LOCK_TIP =
+    "Suppression locked: set directly, not by a heuristic pass. Reconcile and auto-suppress leave it alone.";
+  const HALLUCINATION_TIP = "Possible transcription with no matching speech";
+  const locked = patchWords(SCRIPT_TURNS, { 37: { locked: true } });
+
+  it("marks a locked word with the attribute, the title, the aria note and one glyph", () => {
+    const { container } = render(<ScriptPane {...props({ turns: locked })} />);
+    const marked = container.querySelectorAll("[data-locked]");
+    expect(marked).toHaveLength(1);
+    const word = marked[0] as HTMLElement;
+    expect(word).toHaveAttribute("title", LOCK_TIP);
+    expect(word).toHaveAttribute(
+      "aria-label",
+      `${word.textContent} (suppression locked)`,
+    );
+    const glyphs = word.querySelectorAll(
+      'svg.sys-script-lock[aria-hidden="true"]',
+    );
+    expect(glyphs).toHaveLength(1);
+    expect(word.querySelectorAll("svg")).toHaveLength(1);
+    expect(container.querySelectorAll(".sys-script-lock")).toHaveLength(1);
+    expect(container.querySelectorAll("[title]")).toHaveLength(1);
+  });
+
+  it("leaves the word's text alone", () => {
+    const plain = render(<ScriptPane {...props({ turns: SCRIPT_TURNS })} />);
+    const before =
+      plain.container.querySelector(".sys-script-body")?.textContent;
+    plain.unmount();
+    const { container } = render(<ScriptPane {...props({ turns: locked })} />);
+    const word = container.querySelector("[data-locked]") as HTMLElement;
+    expect(word.textContent).toBe(
+      SCRIPT_TURNS.flatMap((t) => t.words).find((w) => w.index === 37)?.text,
+    );
+    expect(container.querySelector(".sys-script-body")?.textContent).toBe(
+      before,
+    );
+  });
+
+  it("keeps a muted run one run when one of its words is locked", () => {
+    const { container } = render(
+      <ScriptPane
+        {...props({
+          turns: patchWords(SCRIPT_TURNS, {
+            ...spanPatch(12, 14, { mark: MUTED }),
+            13: { mark: MUTED, locked: true },
+          }),
+        })}
+      />,
+    );
+    expect(container.querySelectorAll(".sys-script-muted")).toHaveLength(1);
+    expect(container.querySelectorAll("[data-locked]")).toHaveLength(1);
+    expect(container.querySelectorAll(".sys-script-muted > svg")).toHaveLength(
+      1,
+    );
+    expect(
+      container.querySelector("[data-locked]")?.getAttribute("aria-label"),
+    ).toMatch(/\(muted, suppression locked\)$/);
+  });
+
+  it("gives both tips and both notes to a locked word that is also flagged", () => {
+    const { container } = render(
+      <ScriptPane
+        {...props({
+          turns: patchWords(SCRIPT_TURNS, {
+            26: { locked: true, hallucination: true },
+          }),
+        })}
+      />,
+    );
+    const word = container.querySelector("[data-locked]") as HTMLElement;
+    expect(word).toHaveAttribute("data-hallucination");
+    expect(word).toHaveAttribute("title", `${LOCK_TIP}\n${HALLUCINATION_TIP}`);
+    expect(word).toHaveAttribute(
+      "aria-label",
+      `${word.textContent} (suppression locked, possible transcription with no matching speech)`,
+    );
+  });
+
+  it("gives an unlocked word no attribute and no glyph", () => {
+    const { container } = render(<ScriptPane {...props()} />);
+    expect(container.querySelector("[data-locked]")).toBeNull();
+    expect(container.querySelector(".sys-script-lock")).toBeNull();
   });
 });
