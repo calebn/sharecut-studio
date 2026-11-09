@@ -1,5 +1,6 @@
 // The editor's only door into record/: its store, wire, host room and helpers.
 
+export { clippingGate } from "./alertGates";
 export { recordingClockMs } from "./clock";
 export {
   deviceMic,

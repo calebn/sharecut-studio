@@ -16,7 +16,7 @@ export type RoomAlertSource = {
   monitorError: string | null;
   transportError: string | null;
   hydrateError: string | null;
-  clipped: number;
+  clipping: boolean;
   muted: boolean;
   micCheckFailed?: boolean;
 };
@@ -69,7 +69,7 @@ export function roomAlerts(
   if (source.monitorError) {
     alerts.push({ kind: "monitor-failed", onAction: actions.retryMonitor });
   }
-  if (source.clipped > 0 && state === "recording") {
+  if (source.clipping && state === "recording") {
     alerts.push({ kind: "clipping" });
   }
   if (source.muted && onAir) {

@@ -10,6 +10,7 @@ import { useViewportClass } from "../../hooks/useViewportClass";
 import { slugText, uniqueTrackId } from "../../ingest/ingestFiles";
 import {
   clippingFromRows,
+  clippingGate,
   copyForMicStatus,
   deviceMic,
   deviceTone,
@@ -369,7 +370,7 @@ function RecordStageBody({
       monitorError: cap.monitorError,
       transportError: room.transportError,
       hydrateError: room.hydrateError,
-      clipped: room.takeClipping?.regions.length ?? 0,
+      clipping: clippingGate(room.takeClipping?.regions ?? []),
       muted: host?.muted ?? false,
       micCheckFailed: cap.micCheckFailed,
     },

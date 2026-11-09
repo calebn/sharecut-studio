@@ -252,7 +252,7 @@ describe("roomAlerts", () => {
     monitorError: null,
     transportError: null,
     hydrateError: null,
-    clipped: 0,
+    clipping: false,
     muted: false,
   };
 
@@ -293,7 +293,7 @@ describe("roomAlerts", () => {
         uploadError: "stalled",
         recoverable: true,
         monitorError: "m",
-        clipped: 3,
+        clipping: true,
         muted: true,
         transportError: "nope",
       },
