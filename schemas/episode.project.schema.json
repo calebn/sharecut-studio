@@ -173,6 +173,10 @@
           "title": "Artifact Id",
           "type": "string"
         },
+        "bakes_mutes": {
+          "title": "Bakes Mutes",
+          "type": "boolean"
+        },
         "output_track_id": {
           "title": "Output Track Id",
           "type": "string"
@@ -180,7 +184,8 @@
       },
       "required": [
         "artifact_id",
-        "output_track_id"
+        "output_track_id",
+        "bakes_mutes"
       ],
       "title": "ProxyOccurrenceBinding",
       "type": "object"

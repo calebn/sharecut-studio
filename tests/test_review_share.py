@@ -1483,6 +1483,69 @@ def test_proxy_manifest_local_fallback(minimal_project, sample_wav, tmp_workspac
     assert "immutable" in chunk.headers.get("cache-control", "")
 
 
+def test_proxy_manifest_binds_second_recording_for_review_link(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    import wave
+
+    import numpy as np
+
+    from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole
+    from podcast_mcp.models.episode import SourceRecording
+    from podcast_mcp.services.media import proxy_media as pm
+
+    monkeypatch.setattr(
+        "podcast_mcp.services.media.proxy_media.load_object_store_config",
+        lambda config_path=None: None,
+    )
+    ws = _seed_premix(minimal_project, sample_wav)
+    second = ws.project.workspace_path() / "raw/host_src1.wav"
+    with wave.open(str(second), "wb") as output:
+        output.setnchannels(1)
+        output.setsampwidth(2)
+        output.setframerate(48000)
+        output.writeframes(np.full(96000, 12000, dtype="<i2").tobytes())
+    ws.project.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=2.0),
+        )
+    ]
+    ws.project.sources = [
+        SourceRecording(id="host_src0", path="raw/host.wav"),
+        SourceRecording(id="host_src1", path="raw/host_src1.wav"),
+    ]
+    ws.project.clips = [
+        Clip(
+            id="second",
+            track_id="host",
+            source_id="host_src1",
+            source_start=0.5,
+            source_end=1.5,
+            timeline_start=1,
+        )
+    ]
+    ws.save()
+
+    def encode(_engine, wav, output, start, duration, **_kwargs):
+        with wave.open(str(wav), "rb") as handle:
+            samples = np.frombuffer(handle.readframes(handle.getnframes()), dtype="<i2")
+        output.write_bytes(f"{int(np.abs(samples).max())}".encode())
+
+    monkeypatch.setattr(pm, "_encode_chunk", encode)
+    ver = ReviewService(ws).publish(label="TwoRecordings")
+    share = ShareService(ws).create(review_version_id=ver["id"], capabilities=["play", "view"])
+    client = TestClient(create_app())
+    body = client.get(f"/api/review/{share['token']}/daw/proxy/manifest").json()
+    binding = body["occurrences"]["second"]
+    assert binding["bakesMutes"] is False
+    chunk = client.get(body["artifacts"][binding["artifactId"]]["urls"][0])
+    assert chunk.status_code == 200
+    assert abs(int(chunk.content) - 12000) < 200
+
+
 def test_proxy_manifest_requires_view(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     ws = _seed_premix(minimal_project, sample_wav)
     _seed_track_for_proxy(ws)

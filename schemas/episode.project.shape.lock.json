@@ -1877,13 +1877,17 @@
               "pattern": "^[0-9a-f]{64}$",
               "type": "string"
             },
+            "bakes_mutes": {
+              "type": "boolean"
+            },
             "output_track_id": {
               "type": "string"
             }
           },
           "required": [
             "artifact_id",
-            "output_track_id"
+            "output_track_id",
+            "bakes_mutes"
           ],
           "type": "object"
         },
@@ -5990,13 +5994,17 @@
               "pattern": "^[0-9a-f]{64}$",
               "type": "string"
             },
+            "bakes_mutes": {
+              "type": "boolean"
+            },
             "output_track_id": {
               "type": "string"
             }
           },
           "required": [
             "artifact_id",
-            "output_track_id"
+            "output_track_id",
+            "bakes_mutes"
           ],
           "type": "object"
         },

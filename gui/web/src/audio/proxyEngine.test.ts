@@ -772,7 +772,9 @@ describe("immutable playback snapshots", () => {
       ...next.manifest,
       tracks: {},
       artifacts: { [id]: { ...next.manifest.tracks.host, hash: id } },
-      occurrences: { c: { artifactId: id, outputTrackId: "host" } },
+      occurrences: {
+        c: { artifactId: id, outputTrackId: "host", bakesMutes: true },
+      },
     };
     next.tracks[0].gain_db = -6;
     engine.setSnapshot(next);

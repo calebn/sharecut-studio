@@ -55,7 +55,7 @@ SHARED_FIELDS: dict[str, str] = {
         "origin_track_id source_end source_id source_start timeline_end timeline_start track_id"
     ),
     "ProxyManifestGeneration": ("artifacts occurrences project_basis revision tracks"),
-    "ProxyOccurrenceBinding": ("artifact_id output_track_id"),
+    "ProxyOccurrenceBinding": ("artifact_id bakes_mutes output_track_id"),
     "ProxyProjectBasis": ("clips history_head_id render_hashes"),
     "ProxyPublishedArtifact": (
         "bitrate_kbps chunk_count chunk_sec chunk_sha256 codec context_track_id duration_sec "

@@ -358,7 +358,9 @@ describe("useProxyTransport", () => {
               artifacts: {
                 [id]: { ...fixture.manifest.tracks.host, hash: id },
               },
-              occurrences: { c: { artifactId: id, outputTrackId: "host" } },
+              occurrences: {
+                c: { artifactId: id, outputTrackId: "host", bakesMutes: true },
+              },
             }
           : fixture.manifest;
       vi.mocked(loadProxyManifest).mockResolvedValue(manifest);
@@ -648,7 +650,9 @@ describe("useProxyTransport", () => {
         manifest = {
           ...manifest,
           artifacts: { [id]: { ...manifest.tracks.host, hash: id } },
-          occurrences: { c: { artifactId: id, outputTrackId: "host" } },
+          occurrences: {
+            c: { artifactId: id, outputTrackId: "host", bakesMutes: true },
+          },
         };
       }
       vi.mocked(loadProxyManifest).mockRejectedValue(new Error("offline"));
@@ -888,7 +892,9 @@ describe("useProxyTransport", () => {
     const manifest = {
       ...fixture.manifest,
       artifacts: { [id]: { ...fixture.manifest.tracks.host, hash: id } },
-      occurrences: { c: { artifactId: id, outputTrackId: "host" } },
+      occurrences: {
+        c: { artifactId: id, outputTrackId: "host", bakesMutes: true },
+      },
     };
     vi.mocked(loadProxyManifest).mockRejectedValue(new Error("offline"));
     vi.mocked(loadOfflineSnapshot).mockResolvedValue({ manifest, saved_at: 1 });
@@ -896,7 +902,7 @@ describe("useProxyTransport", () => {
     await ready();
     expect(
       engine.setSnapshot.mock.calls.at(-1)?.[0].manifest.occurrences.c,
-    ).toEqual({ artifactId: id, outputTrackId: "host" });
+    ).toEqual({ artifactId: id, outputTrackId: "host", bakesMutes: true });
     expect(useDawStore.getState().audioError).toBe("Preview failed");
     expect(loadCommandQueue).not.toHaveBeenCalled();
   });
