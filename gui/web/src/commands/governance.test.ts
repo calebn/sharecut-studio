@@ -312,6 +312,47 @@ describe("command bus", () => {
   });
 });
 
+type PlayheadWriter = { prefix: string; reason: string; followUp?: true };
+
+/** Files that may call `setPlayheadSec(`. Every other playhead jump goes through `seekTransport`. */
+const PLAYHEAD_WRITERS: PlayheadWriter[] = [
+  { prefix: "state/", reason: "the store owns the setter" },
+  {
+    prefix: "hooks/useAudioTransport",
+    reason: "playback advances the playhead",
+  },
+  {
+    prefix: "hooks/useProxyTransport",
+    reason: "proxy playback advances the playhead",
+  },
+  {
+    prefix: "hooks/useFollowTransport.ts",
+    reason: "mirrors the followed editor's playhead",
+  },
+  { prefix: "commands/seek.ts", reason: "the shared seek entry" },
+  {
+    prefix: "commands/navigation.ts",
+    reason: "transport.seek and the step and jump commands",
+  },
+  { prefix: "commands/shuttle.ts", reason: "shuttle steps the playhead" },
+  {
+    prefix: "commands/playSpan.ts",
+    reason: "injects seekTransport as the setter",
+  },
+  {
+    prefix: "timeline/useFixedPlayheadScroll.ts",
+    reason: "scroll follows playback and writes with origin playback",
+  },
+  {
+    prefix: "utils/playRange.ts",
+    reason:
+      "calls an injected setter; comments/playComment.ts and stage/hosts/useReviewQueue.ts Hear still inject the raw store setter instead of seekTransport",
+    followUp: true,
+  },
+];
+
+const PLAYHEAD_WRITE = /\bsetPlayheadSec\(/;
+
 describe("command governance", () => {
   it("centralizes pointer gate bypasses", () => {
     const pointerPolicyExceptions = new Set([
@@ -565,6 +606,22 @@ describe("command governance", () => {
       }
       const text = readFileSync(file, "utf8");
       if (re.test(text) && !ON_KEY_DOWN_ALLOWLIST.has(rel)) {
+        offenders.push(rel);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("writes the playhead only through the shared seek path", () => {
+    const offenders: string[] = [];
+    for (const { rel, text } of sourceFiles()) {
+      if (/\.(test|stories)\.tsx?$/.test(rel)) {
+        continue;
+      }
+      if (
+        PLAYHEAD_WRITE.test(text) &&
+        !PLAYHEAD_WRITERS.some(({ prefix }) => rel.startsWith(prefix))
+      ) {
         offenders.push(rel);
       }
     }
