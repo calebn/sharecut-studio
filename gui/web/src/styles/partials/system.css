@@ -6809,6 +6809,10 @@ input.sys-edit-fix {
   flex: none;
 }
 
+.sys-inspector-header .sys-person-avatar {
+  flex: none;
+}
+
 .sys-inspector-header .ui-control.dialog-close {
   inline-size: var(--control-height);
   block-size: var(--control-height);

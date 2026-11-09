@@ -26,6 +26,7 @@ import {
   steppedDetent,
   toggledDetent,
 } from "./inspectorSheetMath";
+import { PersonAvatar, type PersonData } from "./Person";
 import { SystemIcon } from "./SystemIcon";
 import { useGrab } from "./useGrab";
 
@@ -46,6 +47,7 @@ export type InspectorSection = {
 
 type InspectorBase = {
   icon: SystemIconName;
+  mark?: PersonData;
   name: string;
   /** The dialog's accessible name when the host keeps a fixed one; the name is then the visible title. */
   label?: string;
@@ -116,13 +118,18 @@ function Name({ name, onRename }: Pick<InspectorBase, "name" | "onRename">) {
 
 function Header({
   icon,
+  mark,
   name,
   onRename,
   onClose,
-}: Pick<InspectorBase, "icon" | "name" | "onRename" | "onClose">) {
+}: Pick<InspectorBase, "icon" | "mark" | "name" | "onRename" | "onClose">) {
   return (
     <div className="sys-sheet-header sys-inspector-header">
-      <SystemIcon name={icon} size={16} />
+      {mark ? (
+        <PersonAvatar person={mark} size={24} />
+      ) : (
+        <SystemIcon name={icon} size={16} />
+      )}
       <h2 className="sys-sheet-title">
         <Name name={name} onRename={onRename} />
       </h2>
@@ -206,6 +213,7 @@ function closeOnEscape(onClose: () => void) {
 
 function Card({
   icon,
+  mark,
   name,
   label,
   onRename,
@@ -245,7 +253,13 @@ function Card({
           className="sys-inspector-anchor"
           data-inspector-anchor
         />
-        <Header icon={icon} name={name} onRename={onRename} onClose={onClose} />
+        <Header
+          icon={icon}
+          mark={mark}
+          name={name}
+          onRename={onRename}
+          onClose={onClose}
+        />
         <Sections sections={sections} />
       </div>
     </section>
@@ -269,6 +283,7 @@ type Drag = {
 
 function Phone({
   icon,
+  mark,
   name,
   label,
   onRename,
@@ -406,6 +421,7 @@ function Phone({
           >
             <Header
               icon={icon}
+              mark={mark}
               name={name}
               onRename={onRename}
               onClose={onClose}
