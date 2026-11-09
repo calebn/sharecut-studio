@@ -132,6 +132,29 @@ describe("AppHeader as a guest", () => {
     });
     expect(screen.queryByRole("note")).toBeNull();
   });
+
+  it("reopens a dismissed role explanation from its role control", async () => {
+    const onDismiss = vi.fn();
+    const hint = { text: "You can comment.", shown: true, onDismiss };
+    const { again } = setup({
+      guest: { version: "v3", role: "commenter", hint },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss hint" }));
+    again({
+      guest: {
+        version: "v3",
+        role: "commenter",
+        hint: { ...hint, shown: false },
+      },
+    });
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Explain Commenter role" }),
+    );
+
+    expect(screen.getByRole("dialog")).toHaveTextContent("You can comment.");
+    expect(screen.getByText("You can comment.")).toBeVisible();
+  });
 });
 
 describe("AppHeader Project menu", () => {
