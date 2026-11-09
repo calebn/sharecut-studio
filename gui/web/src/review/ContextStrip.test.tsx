@@ -45,7 +45,9 @@ describe("ContextStrip", () => {
 
     it("seeks the transport to the clicked spot, even for a guest", async () => {
       render(<ContextStrip items={[]} duration={60} selectedId={null} />);
-      const strip = screen.getByRole("slider", { name: "Episode overview" });
+      const strip = screen.getByRole("slider", {
+        name: "Episode overview, queue markers",
+      });
       vi.spyOn(strip, "getBoundingClientRect").mockReturnValue({
         left: 0,
         width: 200,
@@ -63,7 +65,9 @@ describe("ContextStrip", () => {
 
     it("puts a comment clip's playhead and auto-stop bound back when a drag is cancelled", async () => {
       render(<ContextStrip items={[]} duration={60} selectedId={null} />);
-      const strip = screen.getByRole("slider", { name: "Episode overview" });
+      const strip = screen.getByRole("slider", {
+        name: "Episode overview, queue markers",
+      });
       vi.spyOn(strip, "getBoundingClientRect").mockReturnValue({
         left: 0,
         width: 200,

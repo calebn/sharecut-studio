@@ -68,7 +68,7 @@ async function withGuest(
           await page.getByRole("button", { name: /Expand player/ }).tap();
         const strip = page
           .locator(".sys-player--expanded")
-          .getByRole("slider", { name: "Episode overview" });
+          .getByRole("slider", { name: "Episode overview", exact: true });
         await expect(strip).toBeVisible();
         await run({
           page,
@@ -130,8 +130,8 @@ async function proof(guest: Guest, name: string): Promise<void> {
 }
 
 /**
- * Post a comment anchored at the playhead. The posted comment is selected, and
- * its thread card (not the queue row, which only selects) plays the clip.
+ * Post a comment anchored at the playhead. The posted comment is selected; its
+ * queue row and its thread card each play the clip.
  */
 async function postCommentAt(guest: Guest, seconds: number) {
   await clickStrip(guest, seconds / DURATION_SEC);
@@ -147,6 +147,7 @@ async function postCommentAt(guest: Guest, seconds: number) {
   await expect(row).toHaveCount(1);
   return {
     at,
+    row: row.locator(".sys-queue-main"),
     card: guest.page.locator(".sys-comment-main"),
   };
 }
@@ -208,11 +209,11 @@ test("ArrowRight and ArrowLeft move the clock exactly one second", async ({
   });
 });
 
-test("a comment seeks to its time and its clip plays and stops 2 s after it, unless a strip click or Pause overrides the stop", async ({
+test("a comment row seeks to its time and its clip plays and stops 2 s after it, unless a strip click or Pause overrides the stop", async ({
   browser,
 }) => {
   await withGuest(browser, DESKTOP, "light", async (guest) => {
-    const { at, card } = await postCommentAt(guest, COMMENT_AT_SEC);
+    const { at, row, card } = await postCommentAt(guest, COMMENT_AT_SEC);
     const pause = guest.page.getByRole("button", {
       name: "Pause",
       exact: true,
@@ -220,7 +221,7 @@ test("a comment seeks to its time and its clip plays and stops 2 s after it, unl
     const play = playButton(guest.page);
 
     await clickStrip(guest, 0.8);
-    await card.click();
+    await row.click();
     await expect(pause).toBeVisible();
     expect(await now(guest)).toBeGreaterThan(at - 2 - SEEK_SLACK_SEC);
     expect(await now(guest)).toBeLessThan(at + 2 + SEEK_SLACK_SEC);
@@ -249,12 +250,12 @@ test("Pause during a comment clip stops it, and the next Play is not cut at the 
   browser,
 }) => {
   await withGuest(browser, DESKTOP, "light", async (guest) => {
-    const { card } = await postCommentAt(guest, COMMENT_AT_SEC);
+    const { row } = await postCommentAt(guest, COMMENT_AT_SEC);
     const pause = guest.page.getByRole("button", {
       name: "Pause",
       exact: true,
     });
-    await card.click();
+    await row.click();
     await expect(pause).toBeVisible();
     await pause.click();
     await expect(playButton(guest.page)).toBeVisible();

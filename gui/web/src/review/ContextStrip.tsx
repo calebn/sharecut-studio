@@ -28,7 +28,7 @@ export function ContextStrip({
   return (
     <OverviewStrip
       height={32}
-      label="Episode overview"
+      label="Episode overview, queue markers"
       peaks={peaks}
       ticks={ticks}
       playhead={duration > 0 ? playheadSec / duration : 0}

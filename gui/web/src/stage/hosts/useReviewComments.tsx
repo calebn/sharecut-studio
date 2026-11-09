@@ -467,6 +467,10 @@ export function useReviewComments(guest: boolean) {
     stageProps: {
       thread,
       composer,
+      onPlayComment: (id: string) => {
+        const c = comments?.find((x) => x.id === commentIdOf(id));
+        if (c) void playComment(c);
+      },
       onReply: () => replyRef.current?.focus(),
     },
     onComment: mayComment ? open : undefined,

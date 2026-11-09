@@ -135,6 +135,8 @@ export type ReviewQueueProps = {
   /** Without it the queue shows no sort control. */
   onSort?: (sort: ReviewSort) => void;
   onSelect: (id: string) => void;
+  /** A comment row was activated by click or Enter: audition its clip. */
+  onPlayComment?: (id: string) => void;
   onVerb?: (id: string) => void;
   onKeep?: (id: string) => void;
   onBulk?: (group: ReviewGroup) => void;
@@ -401,6 +403,7 @@ export function ReviewQueue({
   onSpeaker,
   onSort,
   onSelect,
+  onPlayComment,
   onVerb,
   onKeep,
   onBulk,
@@ -550,6 +553,11 @@ export function ReviewQueue({
     </header>
   );
 
+  const activate = (item: ReviewItem) => {
+    onSelect(item.id);
+    if (item.kind === "comment") onPlayComment?.(item.id);
+  };
+
   const renderItem = (item: ReviewItem, running?: BulkProgress) => {
     const { row, check, card } = content(item);
     const selected = item.id === selectedId;
@@ -580,7 +588,7 @@ export function ReviewQueue({
         kind={item.kind}
         {...row}
         selected={selected}
-        onSelect={() => onSelect(item.id)}
+        onSelect={() => activate(item)}
         onVerb={
           !canDecide ||
           unavailableWord ||
@@ -745,9 +753,7 @@ export function ReviewQueue({
                   }}
                   selected={item.id === selectedId}
                   onSelect={
-                    item.kind === "comment"
-                      ? () => onSelect(item.id)
-                      : undefined
+                    item.kind === "comment" ? () => activate(item) : undefined
                   }
                 />
               ))
