@@ -506,9 +506,7 @@ describe("AppHeader as a guest", () => {
       screen.getByRole("button", { name: "Explain Editor role" }),
     );
     await waitFor(() =>
-      expect(
-        screen.getByRole("button", { name: "Close", exact: true }),
-      ).toHaveFocus(),
+      expect(screen.getByRole("button", { name: "Close" })).toHaveFocus(),
     );
     const field = screen.getByRole("spinbutton", { name: "Outside value" });
     for (let n = 0; n < 24 && document.activeElement !== field; n++)
