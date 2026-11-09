@@ -206,7 +206,11 @@ test("the Fix text field fits every word without clipping at either end", async 
     }
   }
   await field.fill("a");
-  expect((await fit()).clientWidth).toBe(56);
+  // The minimum is 3rem plus the field's padding and border on both sides. The
+  // border box is the stable measure: newer Chromium reports an input's clientWidth
+  // without its padding.
+  const box = await field.boundingBox();
+  expect(box?.width).toBe(58);
 });
 
 test("Esc in the middle of a drag cancels it and the earlier selection stays", async ({
