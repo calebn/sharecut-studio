@@ -121,6 +121,20 @@ describe("ScriptPane hallucination marker", () => {
     expect(label(flagged)).toEqual({ text: null, shown: null });
   });
 
+  it("keeps the mark on a flagged word that is also selected", () => {
+    const { container } = render(
+      <ScriptPane
+        {...props({
+          turns: flagged,
+          selection: { kind: "words", anchor: 26, head: 26 },
+        })}
+      />,
+    );
+    const word = container.querySelector("[data-hallucination]") as HTMLElement;
+    expect(word).toHaveAttribute("data-selected");
+    expect(word).toHaveAttribute("title", TIP);
+  });
+
   it("names both notes when a word is also unsure", () => {
     const { container } = render(
       <ScriptPane
