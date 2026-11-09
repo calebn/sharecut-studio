@@ -31,6 +31,28 @@ const solo = () => screen.getByRole("button", { name: "Solo Maya" });
 const select = () => screen.getByRole("button", { name: "Maya" });
 
 describe("TrackHeader controls", () => {
+  it("explains that an editable mute changes the mix for everyone", () => {
+    const { rerender } = render(<TrackHeader {...base} />);
+    expect(mute()).toHaveAccessibleDescription(
+      "Mute. Mutes the track in the mix, for everyone",
+    );
+    rerender(<TrackHeader {...base} form="wide" />);
+    expect(mute()).toHaveAccessibleDescription(
+      "Mute. Mutes the track in the mix, for everyone",
+    );
+  });
+
+  it("explains that a read-only listener mute affects only them", () => {
+    const { rerender } = render(<TrackHeader {...base} readOnly />);
+    expect(mute()).toHaveAccessibleDescription(
+      "Mute. Mutes the track for you only",
+    );
+    rerender(<TrackHeader {...base} readOnly form="wide" />);
+    expect(mute()).toHaveAccessibleDescription(
+      "Mute. Mutes the track for you only",
+    );
+  });
+
   it("names each control for its track and acts on a click", async () => {
     const user = userEvent.setup();
     const { onSelect, onMute, onSolo } = setup();
