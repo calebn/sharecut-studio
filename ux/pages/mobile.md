@@ -30,12 +30,13 @@ Resizing or turning the screen preserves playback position and Follow. If a
 tablet view has less room to pan, returning to the phone restores the prior
 view until you navigate, seek, use Fit, switch projects, or end the preview.
 
-While a take is recording or paused, an aggregate band labelled Recording · Take N or
-Paused · Take N, with a record-red needle, shows its provisional timeline span even when the Record room sheet is closed. On phones,
-the pan range grows with the take so you can scroll to the live needle beyond
-saved media; that visual-only pan leaves playback position and saved-media seek
-bounds unchanged, including while you pinch to zoom or leave Timeline and return. An explicit seek returns to
-normal playback follow. Stop clears the preview, and landing shows the finalized clips.
+While a take is recording or paused, an aggregate band labeled Recording ·
+Take N or Paused · Take N, with a record-red needle, shows its provisional
+timeline span even when the Record room sheet is closed. On phones, the pan
+range grows with the take so you can scroll to the live needle beyond saved
+media; that visual-only pan leaves playback position and saved-media seek
+bounds unchanged, including while you pinch to zoom or leave Timeline and
+return. An explicit seek returns to normal playback follow. Stop clears the preview, and landing shows the finalized clips.
 
 The ring around each track's avatar follows its live output level. A clipped
 track keeps a danger ring and badge on its avatar after playback stops. The
