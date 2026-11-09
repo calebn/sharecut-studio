@@ -31,6 +31,7 @@ import {
   sortChapters,
 } from "./playerModel";
 import { TAB_LABELS } from "./tabLabels";
+import { useSeekFraction } from "./useSeekFraction";
 
 const NONE: never[] = [];
 
@@ -94,6 +95,7 @@ export function usePlayerProps(
 
   const breakdown = useStaleRenderBreakdown(project);
   const duration = project?.timeline_duration_sec ?? 0;
+  const onSeek = useSeekFraction(duration);
   const chapterMarkers = project?.chapters ?? NONE;
   const sortedMarkers = useMemo(
     () => sortChapters(chapterMarkers),
@@ -185,6 +187,8 @@ export function usePlayerProps(
     chapter: chapterIndexAt(sortedMarkers, playheadSec),
     ticks,
     playhead: duration > 0 ? playheadSec / duration : 0,
+    duration,
+    onSeek,
     hearMenu: guest
       ? undefined
       : {

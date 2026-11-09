@@ -879,7 +879,11 @@ describe("ReviewStage host seams", () => {
       onHear,
       content: withoutWave({ start: 10, end: 11 }),
     });
-    expect(screen.queryAllByRole("slider")).toHaveLength(0);
+    expect(
+      screen.queryAllByRole("slider", {
+        name: (name) => name !== "Episode overview",
+      }),
+    ).toHaveLength(0);
     await userEvent.click(screen.getByRole("button", { name: "A" }));
     expect(onHear).toHaveBeenLastCalledWith("f1", "A");
     await userEvent.click(screen.getByRole("button", { name: "B" }));

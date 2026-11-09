@@ -1,12 +1,14 @@
+import { seekTransport } from "../commands/seek";
 import { useDawStore } from "../state/dawStore";
 import type { TimelineComment } from "../types/project";
 import { playTimelineRange } from "../utils/playRange";
 
 const PAD_SEC = 2;
 
-export function playComment(c: TimelineComment): void {
+export async function playComment(c: TimelineComment): Promise<void> {
+  useDawStore.getState().setSelection({ kind: "comment", id: c.id });
+  await seekTransport(c.timeline_start);
   const s = useDawStore.getState();
-  s.setSelection({ kind: "comment", id: c.id });
   playTimelineRange({
     start: c.timeline_start,
     end: c.timeline_end ?? c.timeline_start,
