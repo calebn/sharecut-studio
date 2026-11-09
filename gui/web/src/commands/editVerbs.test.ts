@@ -33,6 +33,7 @@ vi.mock("../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api")>()),
   deleteClips: vi.fn(async () => "h-delete"),
   deleteChapter: vi.fn(async () => undefined),
+  removeTrackCommand: vi.fn(async () => ({ history_head_id: "h-remove" })),
   setEnvelope: vi.fn(async () => "h-env"),
   approveEdits: vi.fn(),
   rejectEdits: vi.fn(),
@@ -1245,6 +1246,39 @@ describe("barModelOf", () => {
       expect(row?.label ?? barDisplay("mute").label).toBe(expected);
     },
   );
+
+  it("puts Remove, More and Inspect on a track, with the reorder rows in More and no Mute", () => {
+    const first = model({ kind: "track", trackId: MIRA });
+    expect(first.items.map((item) => item.id)).toEqual([
+      "remove",
+      "more",
+      "inspect",
+    ]);
+    expect(first.more).toEqual([
+      { id: "moveTrackUp", disabledReason: "This track is already first." },
+      { id: "moveTrackDown" },
+    ]);
+    expect(model({ kind: "track", trackId: JONAS }).more).toEqual([
+      { id: "moveTrackUp" },
+      { id: "moveTrackDown", disabledReason: "This track is already last." },
+    ]);
+  });
+
+  it("removes the selected track from the bar with an Undo toast, and refuses two tracks", async () => {
+    host({ kind: "track", trackId: MIRA });
+    await runEditVerb("remove", factsOf()!);
+    expect(api.removeTrackCommand).toHaveBeenCalledWith("/tmp/episode", MIRA);
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      message: "Removed Mira",
+      undo: "h-remove",
+    });
+    vi.mocked(api.removeTrackCommand).mockClear();
+    host(null);
+    useDawStore.getState().selectTracks([MIRA, JONAS]);
+    await runEditVerb("remove", factsOf()!);
+    expect(api.removeTrackCommand).not.toHaveBeenCalled();
+    expect(announced()).toBe("Select one track to remove");
+  });
 
   it("offers Split on a words selection", () => {
     expect(model(EDIT_SELECTIONS.liveWords).items.map((i) => i.id)).toContain(

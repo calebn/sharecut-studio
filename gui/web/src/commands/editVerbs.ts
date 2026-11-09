@@ -52,6 +52,8 @@ import {
   siblingSplitLanes,
   speakerLaneMoveTarget,
 } from "../utils/speakerSplit";
+import { COMMANDS } from "./catalog";
+import { buildCommandContext, evaluateWhen } from "./context";
 import { runDeleteClips } from "./editing";
 import { inProject, removeEnvelopePoint } from "./envelopes";
 import { registerCommand } from "./execute";
@@ -630,6 +632,8 @@ async function dispatch(
     case "remove": {
       const selection = useDawStore.getState().selection;
       if (selection?.kind === "social") return removeSocial(selection.id);
+      if (selection?.kind === "track")
+        return executePointerCommand("track.remove");
       return selection?.kind === "chapter" ||
         selection?.kind === "envelopePoint"
         ? removeMarker(selection)
@@ -653,6 +657,10 @@ async function dispatch(
       return executePointerCommand("edit.inspect", { open: true });
     case "joinType":
       return setJoinType(arg);
+    case "moveTrackUp":
+      return executePointerCommand("track.moveUp");
+    case "moveTrackDown":
+      return executePointerCommand("track.moveDown");
     case "approve":
       return approveSocial();
     case "resolve":
@@ -683,7 +691,7 @@ export const WIRED_VERBS: Readonly<Record<EditKind, readonly BarId[]>> = {
   chapter: ["hear", "fixText", "remove", "inspect"],
   social: ["hear", "comment", "remove", "inspect"],
   comment: ["inspect"],
-  track: ["inspect"],
+  track: ["remove", "more", "inspect"],
   envelope: ["inspect"],
   envelopePoint: ["hear", "remove", "inspect"],
   bleed: ["inspect"],
@@ -698,6 +706,8 @@ const WIRED_MORE: ReadonlySet<string> = new Set([
   "seek",
   "fade",
   "moveToTrack",
+  "moveTrackUp",
+  "moveTrackDown",
 ]);
 
 const WIRED_PRIMARY: ReadonlySet<string> = new Set([
@@ -855,6 +865,7 @@ export function barModelOf(facts: EditFacts, s: DawState): BarModel {
   for (const id of resolved.more) {
     if (!WIRED_MORE.has(id)) continue;
     if (id === "mute") {
+      if (facts.kind === "track") continue;
       if (facts.kind === "clip" && selectedClipIdsOf(s.selection).length !== 1)
         continue;
       const d = descriptor("mute");
@@ -871,6 +882,27 @@ export function barModelOf(facts: EditFacts, s: DawState): BarModel {
         ...(label ? { label } : {}),
         ...(reason ? { disabledReason: reason } : {}),
       });
+    } else if (id === "moveTrackUp" || id === "moveTrackDown") {
+      const up = id === "moveTrackUp";
+      const gate = evaluateWhen(
+        COMMANDS[up ? "track.moveUp" : "track.moveDown"].when,
+        buildCommandContext(),
+      );
+      const tracks = project?.tracks ?? [];
+      const chosen = s.selection;
+      const at =
+        chosen?.kind === "track"
+          ? tracks.findIndex((track) => track.id === chosen.trackId)
+          : -1;
+      const atEnd = up ? at === 0 : at >= 0 && at === tracks.length - 1;
+      const reason = gate.ok
+        ? null
+        : atEnd
+          ? up
+            ? "This track is already first."
+            : "This track is already last."
+          : gate.reason;
+      more.push(reason ? { id, disabledReason: reason } : { id });
     } else if (id === "fillRoomTone") {
       const reason = descriptor("fillRoomTone")?.reason;
       more.push(reason ? { id, disabledReason: reason } : { id });

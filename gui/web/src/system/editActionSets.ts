@@ -10,6 +10,8 @@ import { VERBS, type VerbId } from "./verbs";
 export type MoreCommandId =
   | "paste"
   | "copy"
+  | "moveTrackUp"
+  | "moveTrackDown"
   | "moveToSpeaker"
   | "fillRoomTone"
   | "gain"
@@ -151,7 +153,7 @@ export const ACTION_SETS: Readonly<Record<EditKind, ActionSet>> = {
   },
   track: {
     bar: [bar("hear"), bar("remove"), bar("more"), bar("inspect")],
-    more: [row("mute")],
+    more: [row("mute"), row("moveTrackUp"), row("moveTrackDown")],
   },
   envelope: {
     bar: [bar("inspect")],
@@ -237,6 +239,8 @@ const MORE_COMMANDS: Readonly<
 > = {
   paste: { label: "Paste", icon: "clipboard-paste" },
   copy: { label: "Copy", icon: "copy" },
+  moveTrackUp: { label: "Move track up", icon: null },
+  moveTrackDown: { label: "Move track down", icon: null },
   moveToSpeaker: { label: "Move to speaker", icon: null },
   fillRoomTone: { label: "Fill room tone", icon: null },
   gain: { label: "Gain", icon: null },

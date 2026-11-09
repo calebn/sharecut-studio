@@ -398,10 +398,10 @@ describe("track content", () => {
     expect(screen.getByText(warning)).toHaveAttribute("role", "status");
   });
 
-  it("offers Remove track and Import or Replace audio to an editor", () => {
+  it("offers Import or Replace audio to an editor and leaves Remove track to the Action bar", () => {
     const { unmount } = open();
     expect(screen.getByRole("button", { name: "Import audio…" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Remove track" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Remove track" })).toBeNull();
     unmount();
     open(withAudio);
     expect(

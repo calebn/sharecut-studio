@@ -413,21 +413,6 @@ export function useTrackSections(
             />
           ),
         },
-        ...(mayIngest
-          ? [
-              {
-                id: "remove",
-                control: (
-                  <CommandButton
-                    commandId="track.remove"
-                    args={{ trackId: track.id }}
-                    className="track-sheet-action"
-                    disabledReason={busyReason}
-                  />
-                ),
-              },
-            ]
-          : []),
       ],
     },
     ...(selection?.kind === "track"

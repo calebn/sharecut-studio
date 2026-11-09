@@ -47,13 +47,13 @@ async function expectInspectorFooterTouchTargets(page: Page) {
     page.getByRole("button", { name: "Replace audio…" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Remove track", exact: true }),
+    page.getByRole("button", { name: "Remove", exact: true }),
   ).toBeVisible();
   const sheet = page.getByRole("dialog", { name: "Inspector" });
   const all = [
     ...(await controls.all()),
     sheet.getByRole("button", { name: "Replace audio…" }),
-    sheet.getByRole("button", { name: "Remove track", exact: true }),
+    page.getByRole("button", { name: "Remove", exact: true }),
     sheet.getByRole("button", { name: "Smooth all joins" }),
     ...(await sheet.getByRole("button", { name: /^Split speakers/ }).all()),
   ];
@@ -198,12 +198,6 @@ test.describe("ShareCut Studio mobile smoke", () => {
     const sheet = page.getByRole("dialog", { name: "Inspector" });
     await page.locator(TRACK_HEADER_SELECT).first().click();
     await expect(sheet).toBeVisible();
-    await expect(
-      sheet.getByRole("button", { name: "Move track down" }),
-    ).toBeVisible();
-    await expect(
-      sheet.getByRole("button", { name: "Move track up" }),
-    ).toHaveCount(0);
     expect(
       await page.evaluate(() => matchMedia("(pointer: fine)").matches),
     ).toBe(true);
@@ -212,6 +206,17 @@ test.describe("ShareCut Studio mobile smoke", () => {
       sheet.getByRole("button", { name: "Smooth all joins" }),
     ).toBeAttached();
     await expectPageAxeClean(page);
+    await sheet
+      .locator(".sys-actions--dock")
+      .getByRole("button", { name: "More" })
+      .click();
+    await expect(
+      page.getByRole("menuitem", { name: "Move track down" }),
+    ).toBeEnabled();
+    await expect(
+      page.getByRole("menuitem", { name: "Move track up" }),
+    ).toBeDisabled();
+    await page.keyboard.press("Escape");
   });
 
   test.describe("fixed playhead at fit zoom (#385)", () => {
