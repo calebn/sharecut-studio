@@ -40,7 +40,7 @@ export type SeamRoll = {
   onCommit: (deltaMs: number) => void;
 };
 
-/** Transcript density: a pixel of drag is 12.5 ms, and 1 ms with Shift held. */
+/** Transcript density: a pixel of drag is 12.5 ms, and 1 ms with Alt held. */
 export const SEAM_PX_PER_SEC = 80;
 export const SEAM_FINE_SCALE = 12.5;
 const SEAM_DRAG_THRESHOLD_PX = 4;
@@ -127,7 +127,7 @@ function RollEdges({
     )
       return;
     d.moved = true;
-    const scale = SEAM_PX_PER_SEC * (event.shiftKey ? SEAM_FINE_SCALE : 1);
+    const scale = SEAM_PX_PER_SEC * (event.altKey ? SEAM_FINE_SCALE : 1);
     d.ms = Math.min(
       d.hi,
       Math.max(d.lo, d.ms + ((event.clientX - d.lastX) / scale) * 1000),
