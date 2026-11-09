@@ -1,6 +1,13 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setClipJoin } from "../../api";
+import { rollSeam } from "../../commands/seamCommands";
 import { useDawStore } from "../../state/dawStore";
 import { inspectKeyOf } from "../../state/selection";
 import {
@@ -16,6 +23,10 @@ import { SectionsBody } from "./SectionsBody";
 vi.mock("../../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../api")>()),
   setClipJoin: vi.fn(async () => undefined),
+}));
+vi.mock("../../commands/seamCommands", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../commands/seamCommands")>()),
+  rollSeam: vi.fn(async () => ({ status: "done" }) as const),
 }));
 const hearAcross = vi.hoisted(() => vi.fn());
 vi.mock("../../utils/playRange", () => ({ playTimelineRange: hearAcross }));
@@ -101,6 +112,7 @@ const drag = (pixels: number) => {
 };
 
 beforeEach(() => {
+  vi.mocked(rollSeam).mockReset().mockResolvedValue({ status: "done" });
   vi.mocked(setClipJoin).mockReset().mockResolvedValue(undefined);
   hearAcross.mockClear();
 });
@@ -198,5 +210,249 @@ describe("seam sheet", () => {
       });
     });
     expect(screen.getByText("Seam not found")).toBeTruthy();
+  });
+});
+
+const rolled = (leftEnd: number) => {
+  const l = clipRow({
+    id: "c1",
+    track_id: "host",
+    source_id: "long",
+    source_start: 6,
+    source_end: leftEnd,
+    source_duration_sec: 30,
+    timeline_start: 0,
+    timeline_end: leftEnd - 6,
+  });
+  const r = clipRow({
+    id: "c2",
+    track_id: "host",
+    source_id: "long",
+    source_start: leftEnd,
+    source_end: 14,
+    source_duration_sec: 30,
+    timeline_start: leftEnd - 6,
+    timeline_end: leftEnd - 6 + (14 - leftEnd),
+    join_left_clip_id: "c1",
+  });
+  return [l, r];
+};
+
+function projectOf(lane: ClipRow[]) {
+  return minimalProject({
+    tracks: [sampleTrack({ id: "host", speaker: "Mira" })],
+    clips: { tracks: { host: lane }, clip_count: lane.length },
+    edit_boundaries: editBoundaries(lane),
+  });
+}
+
+function openRolled(leftEnd = 10) {
+  useDawStore.getState().hydrate("/tmp/ep.json", projectOf(rolled(leftEnd)));
+  useDawStore.setState({
+    selection: SEAM,
+    inspectorKey: inspectKeyOf(SEAM),
+    joinMutationInFlight: false,
+    isPlaying: false,
+    joinDraft: null,
+    guestMode: null,
+    shareCapabilities: null,
+  });
+  return render(<SectionsBody withRange={false} />);
+}
+
+const offset = () => screen.getByRole("spinbutton", { name: "Offset" });
+
+const pointerDrag = (pixels: number, modifiers = {}) => {
+  fireEvent.pointerDown(offset(), { clientX: 100, pointerId: 1, button: 0 });
+  fireEvent.pointerMove(offset(), { clientX: 110, pointerId: 1 });
+  fireEvent.pointerMove(offset(), {
+    clientX: 110 + pixels,
+    pointerId: 1,
+    ...modifiers,
+  });
+};
+
+const release = async (x: number) => {
+  await act(async () => {
+    fireEvent.pointerUp(offset(), { clientX: x, pointerId: 1 });
+  });
+};
+
+const typeOffset = async (text: string) => {
+  await act(async () => {
+    fireEvent.keyDown(offset(), { key: "Enter" });
+  });
+  const input = screen.getByRole("textbox", { name: "Offset" });
+  fireEvent.change(input, { target: { value: text } });
+  await act(async () => {
+    fireEvent.keyDown(input, { key: "Enter" });
+  });
+};
+
+const moveStoreTo = (leftEnd: number) =>
+  act(() => {
+    useDawStore.setState({ project: projectOf(rolled(leftEnd)) });
+  });
+
+describe("seam sheet Offset", () => {
+  it("opens at zero with the legal range around it, in ms to one decimal", () => {
+    openRolled();
+    expect(offset()).toHaveAttribute("aria-valuenow", "0");
+    expect(offset()).toHaveAttribute("aria-valuemin", "-3950");
+    expect(offset()).toHaveAttribute("aria-valuemax", "3950");
+    expect(offset()).toHaveTextContent("0.0ms");
+  });
+
+  it("reads the roll since the sheet opened and keeps the legal range on the same sources", () => {
+    openRolled();
+    moveStoreTo(10.0123);
+    expect(Number(offset().getAttribute("aria-valuenow"))).toBeCloseTo(12.3, 9);
+    expect(Number(offset().getAttribute("aria-valuemin"))).toBeCloseTo(
+      -3950,
+      9,
+    );
+    expect(Number(offset().getAttribute("aria-valuemax"))).toBeCloseTo(3950, 9);
+  });
+
+  it("re-derives the range from the live interval when a neighbor closes it", () => {
+    openRolled();
+    const [l, r] = rolled(10.0123);
+    if (!l || !r) throw new Error("no clips");
+    const next = clipRow({
+      id: "c3",
+      track_id: "host",
+      source_id: "long",
+      source_start: 12,
+      source_end: 13,
+      timeline_start: r.timeline_end,
+      timeline_end: r.timeline_end + 1,
+    });
+    act(() => {
+      useDawStore.setState({ project: projectOf([l, r, next]) });
+    });
+    expect(Number(offset().getAttribute("aria-valuemin"))).toBeCloseTo(
+      -3950,
+      9,
+    );
+    expect(Number(offset().getAttribute("aria-valuemax"))).toBeCloseTo(
+      12.3 + 1987.7,
+      9,
+    );
+  });
+
+  it("drags a pixel to a millisecond, ten with Shift, a tenth with Alt", () => {
+    openRolled();
+    pointerDrag(3);
+    expect(offset()).toHaveAttribute("aria-valuenow", "3");
+    fireEvent.pointerUp(offset(), { clientX: 113, pointerId: 1 });
+    cleanup();
+    openRolled();
+    pointerDrag(3, { shiftKey: true });
+    expect(offset()).toHaveAttribute("aria-valuenow", "30");
+    cleanup();
+    openRolled();
+    pointerDrag(3, { altKey: true });
+    expect(offset()).toHaveAttribute("aria-valuenow", "0.3");
+  });
+
+  it("rolls once on release and not at all on Escape", async () => {
+    openRolled();
+    pointerDrag(3);
+    expect(rollSeam).not.toHaveBeenCalled();
+    await release(113);
+    expect(rollSeam).toHaveBeenCalledTimes(1);
+    const [snapshot, deltaMs] = vi.mocked(rollSeam).mock.calls[0] ?? [];
+    expect(snapshot?.id).toBe("eb:c1:c2");
+    expect(deltaMs).toBeCloseTo(3, 9);
+
+    vi.mocked(rollSeam).mockClear();
+    pointerDrag(3);
+    fireEvent.keyDown(offset(), { key: "Escape" });
+    await release(113);
+    expect(rollSeam).not.toHaveBeenCalled();
+  });
+
+  it("sends only the change from the displayed offset when a value is typed", async () => {
+    openRolled();
+    moveStoreTo(10.005);
+    await typeOffset("12.3");
+    expect(rollSeam).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(rollSeam).mock.calls[0]?.[1]).toBeCloseTo(7.3, 9);
+  });
+
+  it("resets to where the seam was when the sheet opened", async () => {
+    openRolled();
+    moveStoreTo(10.0123);
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Reset Offset to 0.0 ms" }),
+      );
+    });
+    expect(rollSeam).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(rollSeam).mock.calls[0]?.[1]).toBeCloseTo(-12.3, 9);
+  });
+
+  it("sends the geometry of the first preview when the store moves before release", async () => {
+    openRolled();
+    pointerDrag(3);
+    moveStoreTo(10.02);
+    await release(113);
+    const [snapshot, deltaMs] = vi.mocked(rollSeam).mock.calls[0] ?? [];
+    expect(snapshot?.left.source_end).toBe(10);
+    expect(deltaMs).toBeCloseTo(3, 9);
+  });
+
+  it("says the clips do not touch and offers no Offset across a gap", () => {
+    const [l, r] = rolled(10);
+    if (!l || !r) throw new Error("no clips");
+    useDawStore
+      .getState()
+      .hydrate(
+        "/tmp/ep.json",
+        projectOf([l, { ...r, timeline_start: 6, timeline_end: 10 }]),
+      );
+    useDawStore.setState({ selection: SEAM, inspectorKey: inspectKeyOf(SEAM) });
+    render(<SectionsBody withRange={false} />);
+    expect(screen.queryByRole("spinbutton", { name: "Offset" })).toBeNull();
+    expect(screen.getByText("The clips do not touch")).toBeTruthy();
+  });
+
+  it("is read-only with a reason when the clips leave no room", () => {
+    const l = clipRow({
+      id: "c1",
+      track_id: "host",
+      source_id: "long",
+      source_start: 0,
+      source_end: 0.05,
+      source_duration_sec: 0.05,
+      timeline_start: 0,
+      timeline_end: 0.05,
+    });
+    const r = clipRow({
+      id: "c2",
+      track_id: "host",
+      source_id: "long",
+      source_start: 0.05,
+      source_end: 0.1,
+      timeline_start: 0.05,
+      timeline_end: 0.1,
+      join_left_clip_id: "c1",
+    });
+    useDawStore.getState().hydrate("/tmp/ep.json", projectOf([l, r]));
+    useDawStore.setState({ selection: SEAM, inspectorKey: inspectKeyOf(SEAM) });
+    render(<SectionsBody withRange={false} />);
+    expect(offset()).toHaveAttribute("aria-readonly", "true");
+    expect(screen.getByText("The clips leave no room to roll")).toBeTruthy();
+  });
+
+  it("is read-only for a guest without edit", () => {
+    useDawStore.getState().hydrate("share:tok", projectOf(rolled(10)));
+    useDawStore.setState({
+      selection: SEAM,
+      inspectorKey: inspectKeyOf(SEAM),
+      shareCapabilities: [],
+    });
+    render(<SectionsBody withRange={false} />);
+    expect(offset()).toHaveAttribute("aria-readonly", "true");
   });
 });

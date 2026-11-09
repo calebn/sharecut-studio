@@ -1,11 +1,12 @@
-import { useEffect, useState } from "react";
-import { setSeamJoin } from "../../commands/seamCommands";
+import { useEffect, useRef, useState } from "react";
+import { rollSeam, setSeamJoin } from "../../commands/seamCommands";
 import { clampClipFades } from "../../edit/fadeLimits";
 import {
   appliedJoinLength,
   joinRenderNote,
   projectJoinDraft,
 } from "../../edit/joinRender";
+import { rollJoinInterval } from "../../edit/rollLimits";
 import { type Seam, seamById, seamTitle } from "../../edit/seam";
 import { canApplyPass12 } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
@@ -22,6 +23,8 @@ import { note } from "./sheetNote";
 import { useSeamReplay } from "./useSeamReplay";
 
 export const MAX_JOIN_LENGTH_MS = 500;
+const NO_ROOM_NOTE = "The clips leave no room to roll";
+const NOT_TOUCHING_NOTE = "The clips do not touch";
 
 const CROSSFADE_BLOCKED_REASON: Record<string, string> = {
   not_abutting: "the clips do not touch",
@@ -51,6 +54,11 @@ export function useSeamSections(
     }),
   );
   const [draftMs, setDraftMs] = useState<number | null>(null);
+  const [draftOffsetMs, setDraftOffsetMs] = useState<number | null>(null);
+  const [origin, setOrigin] = useState<{ id: string; end: number } | null>(
+    null,
+  );
+  const gesture = useRef<Seam | null>(null);
   const [error, setError] = useState<string | null>(null);
   const replay = useSeamReplay();
   const seamId = selection?.kind === "seam" ? selection.id : null;
@@ -59,7 +67,13 @@ export function useSeamSections(
 
   useEffect(() => {
     setDraftMs(null);
+    setDraftOffsetMs(null);
     setError(null);
+    gesture.current = null;
+    const live = useDawStore.getState();
+    const opened =
+      live.project && seamId ? seamById(live.project, seamId) : null;
+    setOrigin(opened ? { id: opened.id, end: opened.left.source_end } : null);
     return () => {
       const live = useDawStore.getState();
       if (live.joinDraft?.id === rightId) live.setJoinDraft(null);
@@ -95,6 +109,14 @@ export function useSeamSections(
       right.join_crossfade_blocked)
     : null;
   const appliedBy = seam.kind === "cut" ? appliedByLine(seam) : null;
+  const originEnd = origin?.id === seam.id ? origin.end : left.source_end;
+  const interval = rollJoinInterval(
+    project.clips.tracks[seam.trackId] ?? [],
+    left.id,
+    right.id,
+  );
+  const offsetMs = (left.source_end - originEnd) * 1000;
+  const roomToRoll = interval !== null && interval.hi > interval.lo;
 
   const clearDraft = () => {
     setDraftMs(null);
@@ -117,6 +139,27 @@ export function useSeamSections(
     if (result.status === "failed") setError(result.message);
   };
 
+  const clearOffsetDraft = () => {
+    gesture.current = null;
+    setDraftOffsetMs(null);
+  };
+  const previewOffset = (value: number) => {
+    replay.supersede();
+    gesture.current ??= seam;
+    setDraftOffsetMs(value);
+  };
+  const commitOffset = async (value: number) => {
+    const snapshot = gesture.current ?? seam;
+    clearOffsetDraft();
+    setError(null);
+    const deltaMs =
+      (originEnd + value / 1000 - snapshot.left.source_end) * 1000;
+    const result = await replay.commit(seam.id, () =>
+      rollSeam(snapshot, deltaMs),
+    );
+    if (result.status === "failed") setError(result.message);
+  };
+
   const notes = [
     drafting && !right.join_crossfade_blocked
       ? `Draft overlap ${projectJoinDraft(left, right, draftMs).join_crossfade_ms ?? 0} ms.`
@@ -130,6 +173,33 @@ export function useSeamSections(
       rows: [
         { id: "title", control: note(seamTitle(seam), "status") },
         ...(appliedBy ? [{ id: "appliedBy", control: note(appliedBy) }] : []),
+        ...(interval
+          ? [
+              {
+                id: "offset",
+                label: "Offset",
+                control: (
+                  <ScrubField
+                    label="Offset"
+                    value={draftOffsetMs ?? offsetMs}
+                    unit="ms"
+                    step={1}
+                    decimals={1}
+                    min={offsetMs + interval.lo * 1000}
+                    max={offsetMs + interval.hi * 1000}
+                    defaultValue={0}
+                    readOnly={!editable || busy || !roomToRoll}
+                    onPreview={previewOffset}
+                    onCommit={(value) => void commitOffset(value)}
+                    onCancel={clearOffsetDraft}
+                  />
+                ),
+              },
+              ...(roomToRoll
+                ? []
+                : [{ id: "offsetNote", control: note(NO_ROOM_NOTE) }]),
+            ]
+          : [{ id: "offsetNote", control: note(NOT_TOUCHING_NOTE) }]),
         ...(mode === "cut" || max < range.min
           ? []
           : [

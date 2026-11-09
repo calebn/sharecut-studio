@@ -202,6 +202,16 @@ export const WORD_TIMING_SECTIONS: readonly InspectorSection[] = [
   },
 ];
 
+const seamOffset = scrub("Offset", {
+  value: 0,
+  unit: "ms",
+  step: 1,
+  decimals: 1,
+  min: -3950,
+  max: 3950,
+  defaultValue: 0,
+});
+
 const seamLength = scrub("Length", {
   value: 40,
   unit: "ms",
@@ -219,6 +229,7 @@ export const SEAM_SECTIONS: readonly InspectorSection[] = [
         id: "title",
         control: <p className="inspector-body">Split at 10:12.4</p>,
       },
+      { id: "offset", label: "Offset", control: seamOffset },
       { id: "length", label: "Length", control: seamLength },
     ],
   },
@@ -240,6 +251,7 @@ export const CUT_SEAM_SECTIONS: readonly InspectorSection[] = [
           </p>
         ),
       },
+      { id: "offset", label: "Offset", control: seamOffset },
       { id: "length", label: "Length", control: seamLength },
     ],
   },

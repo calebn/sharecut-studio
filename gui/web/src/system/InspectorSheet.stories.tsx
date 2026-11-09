@@ -201,9 +201,14 @@ export const Seam: Story = {
     />
   ),
   play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
     await expect(
-      within(canvasElement).getByRole("spinbutton", { name: "Length" }),
+      canvas.getByRole("spinbutton", { name: "Length" }),
     ).toHaveAttribute("aria-valuenow", "40");
+    const offset = canvas.getByRole("spinbutton", { name: "Offset" });
+    await expect(offset).toHaveAttribute("aria-valuenow", "0");
+    await expect(offset).toHaveAttribute("aria-valuemin", "-3950");
+    await expect(offset).toHaveAttribute("aria-valuemax", "3950");
   },
 };
 
