@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { useDawStore } from "../../state/dawStore";
-import { minimalProject, sampleTrack } from "../../test/fixtures";
+import { clipRow, minimalProject, sampleTrack } from "../../test/fixtures";
 import { closeOverlay, openOverlay } from "../../ui/modalGate";
 import { EditCorner } from "./EditCorner";
 import { EditCornerView, type ViewPopoverSlotProps } from "./EditCornerView";
@@ -13,9 +13,20 @@ import { EditCornerView, type ViewPopoverSlotProps } from "./EditCornerView";
 beforeEach(() => {
   clearRegisteredCommands();
   registerDawCommands();
-  useDawStore
-    .getState()
-    .hydrate("/tmp/corner/p.json", minimalProject({ tracks: [sampleTrack()] }));
+  useDawStore.getState().hydrate(
+    "/tmp/corner/p.json",
+    minimalProject({
+      tracks: [sampleTrack()],
+      clips: {
+        tracks: {
+          [sampleTrack().id]: [
+            clipRow({ track_id: sampleTrack().id, timeline_end: 5 }),
+          ],
+        },
+        clip_count: 1,
+      },
+    }),
+  );
   useDawStore.setState({
     guestMode: null,
     openSheet: null,

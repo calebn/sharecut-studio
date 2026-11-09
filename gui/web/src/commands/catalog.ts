@@ -286,7 +286,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     when: "editStage",
     announcesRefusal: true,
     notes:
-      "I: open (or close) the Inspector for the selection; a double-click on a clip opens it ({ open: true }). Selecting alone never opens it; Esc, Close or another selection shuts it",
+      "I: open (or close) the Inspector for the selection, or with nothing selected seed a 5 s range draft at the playhead (again drops it); a double-click on a clip opens it ({ open: true }). Selecting alone never opens it; Esc, Close or another selection shuts it",
   },
   "edit.more": {
     id: "edit.more",
@@ -334,7 +334,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Clear selection",
     when: "hasInspectorSelection",
     notes:
-      "Escape: close the Inspector if it is open, else clear the selection, track targeting included",
+      "Escape: close the Inspector if it is open, else drop an armed range draft, else clear the selection, track targeting included",
   },
   "edit.rippleDelete": {
     id: "edit.rippleDelete",

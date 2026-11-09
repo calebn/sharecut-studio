@@ -291,6 +291,10 @@ export function registerPrimaryEditingCommands(): void {
       s.setInspectorOpen(false);
       return { status: "ok" };
     }
+    if (s.rangeArmed) {
+      s.setRangeArmed(false);
+      return { status: "ok" };
+    }
     s.setSelection(null);
     return { status: "ok" };
   });

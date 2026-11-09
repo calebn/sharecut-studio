@@ -61,6 +61,7 @@ import { decideThroughSheet, sheetBusyReason } from "./pendingDecision";
 import { playSpan } from "./playSpan";
 import { executePointerCommand } from "./pointer";
 import {
+  armRangeDraft,
   PLAY_FULL_MIX_LABEL,
   rangeActionDescriptors,
   runRangeAction,
@@ -743,7 +744,7 @@ export function registerEditVerbCommands(): void {
   });
   registerCommand("edit.inspect", (args) => {
     const s = useDawStore.getState();
-    if (!s.selection) return disabled("Select something to inspect");
+    if (!s.selection) return armRangeDraft();
     // open: true is a double-click, which never closes it
     s.setInspectorOpen(
       args.open === true || !inspectorOpenFor(s.selection, s.inspectorKey),

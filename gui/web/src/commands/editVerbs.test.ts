@@ -1181,11 +1181,25 @@ describe("Inspect and More", () => {
     },
   );
 
-  it("needs a selection to inspect", async () => {
+  it("seeds a range draft at the playhead with nothing selected, and drops it when pressed again", async () => {
     host(null);
+    expect(await execute("edit.inspect")).toEqual({ status: "ok" });
+    expect(useDawStore.getState()).toMatchObject({
+      rangeArmed: true,
+      rangeDraft: { start: 1, end: 6, trackIds: [MIRA, JONAS] },
+    });
+    expect(await execute("edit.inspect")).toEqual({ status: "ok" });
+    expect(useDawStore.getState()).toMatchObject({
+      rangeArmed: false,
+      rangeDraft: null,
+    });
+  });
+
+  it("refuses to inspect on an empty timeline", async () => {
+    host(null, { project: minimalProject() });
     expect(await execute("edit.inspect")).toEqual({
       status: "disabled",
-      reason: "Select something to inspect",
+      reason: "Nothing to select yet",
     });
   });
 

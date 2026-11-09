@@ -106,12 +106,62 @@ describe("useInspectorOpen open state", () => {
       selection: null,
       inspectorKey: null,
       rangeArmed: true,
-      sessionRegion: { start_sec: 1, end_sec: 2 },
+      rangeDraft: { start: 0, end: 5, trackIds: ["host"] },
     });
     const { result } = renderHook(() => useInspectorOpen("tablet", "timeline"));
     expect(result.current.open).toBe(true);
     act(() => result.current.close());
     expect(useDawStore.getState().rangeArmed).toBe(false);
+  });
+});
+
+describe("useInspectorOpen with a range draft", () => {
+  beforeEach(() => {
+    useDawStore.setState({
+      selection: null,
+      inspectorKey: null,
+      sessionRegion: null,
+    });
+    useDawStore.getState().armRange({ start: 0, end: 5, trackIds: ["host"] });
+  });
+
+  it.each(["phone", "tablet", "desktop"] as const)(
+    "opens with the range fields on the %s",
+    (shell) => {
+      const { result } = renderHook(() => useInspectorOpen(shell, "timeline"));
+      expect(result.current.open).toBe(true);
+      expect(result.current.rangeActionsInSheet).toBe(true);
+    },
+  );
+
+  it("stays visible beside a clip selected mid-draft", () => {
+    useDawStore
+      .getState()
+      .setSelection({ kind: "clip", id: "c2", trackId: "host" });
+    const { result } = renderHook(() =>
+      useInspectorOpen("desktop", "timeline"),
+    );
+    expect(result.current.open).toBe(true);
+    expect(result.current.rangeActionsInSheet).toBe(true);
+  });
+
+  it("hides once a range is selected", () => {
+    useDawStore.setState({ selection: EVERY_KIND.range });
+    const { result } = renderHook(() =>
+      useInspectorOpen("desktop", "timeline"),
+    );
+    expect(result.current.open).toBe(false);
+  });
+
+  it("closes to nothing armed and no draft", () => {
+    const { result } = renderHook(() =>
+      useInspectorOpen("desktop", "timeline"),
+    );
+    act(() => result.current.close());
+    expect(useDawStore.getState()).toMatchObject({
+      rangeArmed: false,
+      rangeDraft: null,
+    });
   });
 });
 
@@ -185,13 +235,10 @@ describe("the Inspector opens by reading one table on the phone and the tablet",
     }
   });
 
-  it("keeps an armed range alone closed until an agent range waits (the lanes are dragged on)", () => {
-    expect(isOpen("phone", "timeline", null, true)).toBe(false);
-    expect(isOpen("tablet", "timeline", null, true)).toBe(false);
+  it("keeps an armed range with no draft closed, agent range or not", () => {
     useDawStore.setState({ sessionRegion: { start_sec: 1, end_sec: 2 } });
-    expect(isOpen("phone", "timeline", null, true)).toBe(true);
-    expect(isOpen("tablet", "timeline", null, true)).toBe(true);
-    expect(isOpen("desktop", "timeline", null, true)).toBe(false);
+    for (const shell of ["phone", "tablet", "desktop"] as const)
+      expect(isOpen(shell, "timeline", null, true)).toBe(false);
   });
 
   it("carries the range fields in the sheet for a range, an armed range and a tablet region", () => {
