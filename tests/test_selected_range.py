@@ -871,6 +871,7 @@ def test_one_bad_target_changes_nothing(tmp_path):
             "cut",
             propose=False,
             reason="host:range",
+            action_id="range_action",
             defaults=load_defaults(),
         )
     assert project.clips == before
