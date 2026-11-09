@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { registerDawCommands } from "../commands/register";
+import { seekTransport } from "../commands/seek";
 import {
   currentServerClockOffsetMs,
   resetServerClock,
   setServerClockOffsetForTests,
 } from "../presence/clock";
-import { registerDawCommands } from "../commands/register";
-import { seekTransport } from "../commands/seek";
 import { minimalProject, pendingEditView, sampleTrack } from "../test/fixtures";
 import type { SessionState } from "../types/session";
 import { LANE_HEIGHT_STORAGE_KEY } from "../utils/laneHeightPref";
