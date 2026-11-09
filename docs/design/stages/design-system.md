@@ -279,7 +279,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 - Story: `System/Seam`.
 
 **21. A/B audition**
-- A two-segment control: "A" (before or original) and "B" (after or edited). Each plays 1.5 s pre-roll through 1.5 s post-roll (Review: 3 s). Press-and-hold A with nothing selected plays the original at the playhead.
+- A two-segment control: "A" (before or original) and "B" (after or edited). Each plays 1.5 s pre-roll through 1.5 s post-roll (Review: 3 s). Press-and-hold A with no suggestion selected (a clip, word, seam or track selection still counts as none) plays the original at the playhead and returns on release; with a suggestion selected, A plays that suggestion's before.
 - Adjusting a handle switches it to B.
 - Used: Decision card, Seam, Suggestion, Player (Hear original), the Prepare align check, Source card voice check.
 - Replaces: "Hear original" (edit, the O key) and Hear before and after (rdp).
@@ -496,7 +496,7 @@ Decision (owner): `SystemIcon` stroke 2.1. Lucide draws on a 24 grid, so the 1.7
 | Play / Pause | `play` / `pause` (ink-filled circle) | Space | Tap Play | Player (all stages), expanded Player |
 | Shuttle | none | J back, K pause and return, L forward (repeat 1×, 2×, 4×) | Swipe the timeline | Player, every stage |
 | Hear (play the selection) | `ear` | Shift+Space | Tap Hear | Action bar on any selection, Decision card, Take rows, Source card voice, Status rows (align move) |
-| Hear before / after | "A" / "B" segmented | A / B (hold A with nothing selected = original) | Tap A or B, press-and-hold A | A/B audition: Decision card, Seam, Suggestion, Player |
+| Hear before / after | "A" / "B" segmented | A / B (hold A with no suggestion selected = original) | Tap A or B, press-and-hold A | A/B audition: Decision card, Seam, Suggestion, Player |
 | Cut | `scissors` | Backspace or Delete (Mod+X also copies) | Swipe right on a cut suggestion; dock button | Action bar (words, range, clip, cut suggestion), Decision card, queue group bulk, Find bar "Cut all", toast "Cut all" |
 | Keep | `shield-check` | X | Swipe left | Action bar (suggestion, cut seam, cut words), Decision card, queue rows, auto-reduction region |
 | Shorten | `fold-horizontal` | Enter (primary) | Swipe right | Pause suggestions |
@@ -666,7 +666,7 @@ Every place the specs disagreed or collided with each other or with themselves. 
 | K3 | J/K/L: E has shuttle. D has J/K next and previous and L Later | J/K/L are shuttle everywhere. Review moves with ↓/↑ or Tab/Shift+Tab. Later is Tab or ↓ | The Player persists across stages, so its keys must too. Later is "next without deciding" |
 | K4 | C: today it is Blade, E makes it Comment, R uses M for Marker and N for notes | C is Comment everywhere: marker, note, reply | A marker is a comment without text. Reply is commenting on a comment |
 | K5 | B: E moves Blade to B, while A/B uses B for "after" | The Blade tool is removed. B is "after". Alt-click splits at the pointer | Removes a mode (E removed modes from the Script for the same reason) and frees B |
-| K6 | O (E: hold to hear the original) next to A/B | Hold A with nothing selected plays the original. O is unused | One audition control |
+| K6 | O (E: hold to hear the original) next to A/B | Hold A with no suggestion selected (a clip, word, seam or track selection still counts as none) plays the original and returns on release. O is unused | One audition control |
 | K7 | M: E has Mute track, R has Marker, R has Mod+D mute self | M is Mute everywhere (track in Edit, your mic in Record). Mod+D is dropped | One key per verb. Mod+D is the browser's bookmark key |
 | K8 | Shift+M add chapter (E) clashes with the M = Mute meaning | Shift+C | The C family pins things to the marker lane |
 | K9 | R: D has reply, R has record start, D has Home ⌘R | R is Record everywhere. Reply is C | Recording is the higher-consequence verb and owns its letter |

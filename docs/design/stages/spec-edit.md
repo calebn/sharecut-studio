@@ -523,7 +523,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
     - Drag across words, Shift-click, or double-click (word) / triple-click (sentence): selects; the action bar appears above the selection.
     - Typing with a selection or pressing F2: Fix text on that selection.
     - Backspace with a selection: Cut. Backspace with only a caret: nothing (protects against accidental cuts).
-  - Rendering of state: playing word gets a 2 px accent underline; cut words collapse into an Edit boundary pill (CMP-EDITBOUNDARY) unless the eye is on, then they show struck in the cut token; suggested cuts show struck with hatch background (Suggestion); muted words show greyed with a speaker-slash glyph before the run; low-confidence words get a dotted underline.
+  - Rendering of state: playing word gets a 2 px accent underline; cut words collapse into an Edit boundary pill (CMP-EDITBOUNDARY) unless the eye is on, then they show struck in the cut token; suggested cuts show struck with hatch background (Suggestion); muted words show greyed with a speaker-slash glyph before the run; low-confidence words get a dotted underline. A word the transcriber flagged as a possible hallucination (and that is not suppressed, ignored or cut) gets a dotted line under it, with the tooltip "Possible transcription with no matching speech" and the same line in the word sheet; it is separate from the low-confidence underline and is not counted in the unsure count.
   - Follow: pin on by default. Scrolling by hand turns it off and shows a "Back to playhead" pill at the bottom center; clicking it scrolls and re-pins.
 - **Primary action:** select words.
 - **Anticipated next action:** after selecting, Cut; after cutting, the next occurrence (INT-WORD-CUT).
@@ -814,7 +814,7 @@ Each interaction uses the object selection model above. Every edit is one undo s
 
 - **Today:** CMP-TRANSPORT shots. Language: "Full mix / Edited stems / Original".
 - **Fate:** replace with Hear original (hold O or the A/B button) and A/B on any change.
-- **Spec:** hold O: hear original at the same source position; release returns. A and B on a selected suggestion or seam: hear before / after with 1.5 s pre-roll.
+- **Spec:** hold O: hear original at the same source position; release returns. A and B on a selected suggestion or seam: hear before / after with 1.5 s pre-roll. Hold A with no suggestion selected plays the original, as hold O does.
 - **Story to build:** `Shell/PlayerBar` story `HearOriginalHeld`.
 
 ### INT-SCRUB · Scrub
