@@ -65,9 +65,22 @@ def spans(project, tid):
 def apply(project, selection, action="cut", propose=False):
     return edit_selected_range(
         project,
-        selection,
+        [selection],
         action,
         propose=propose,
+        reason="host:range",
+        action_id="range_action",
+        boundary_intent=CutIntent.HUMAN_BOUNDARIES,
+        defaults=load_defaults(),
+    )
+
+
+def apply_many(project, selections):
+    return edit_selected_range(
+        project,
+        selections,
+        "cut",
+        propose=False,
         reason="host:range",
         action_id="range_action",
         boundary_intent=CutIntent.HUMAN_BOUNDARIES,
@@ -113,7 +126,7 @@ def test_bulk_exact_approval_composes_same_clip_baseline_and_one_undo(
     for action_id, interval, action in [("one", (11, 12), "cut"), ("two", (13, 14), second_action)]:
         edit_selected_range(
             ws.project,
-            target(ws.project, (interval,), ("a", "b")),
+            [target(ws.project, (interval,), ("a", "b"))],
             action,
             propose=True,
             reason="guest:range",
@@ -264,7 +277,7 @@ def test_gap_cannot_mutate(tmp_path):
 def command(selection, action="cut"):
     return DocumentCommand(
         type="EditSelectedRange",
-        payload={"action": action, "target": selection.model_dump(mode="json")},
+        payload={"action": action, "targets": [selection.model_dump(mode="json")]},
         client_id="test-range",
         client_seq=None,
         role="viewer",
@@ -420,7 +433,7 @@ def test_only_trusted_context_marks_selected_boundaries_human(minimal_project):
 @pytest.mark.parametrize("command_type", ["EditSelectedRange", "UpdatePendingEdit"])
 def test_payload_cannot_forge_internal_boundary_intent(command_type):
     payload = (
-        {"action": "cut", "target": {}}
+        {"action": "cut", "targets": [{}]}
         if command_type == "EditSelectedRange"
         else {"id": "pending", "start": 1.0, "end": 2.0, "snap": False}
     )
@@ -604,7 +617,7 @@ def test_manual_range_and_exact_only_approval_work_with_pending_refinement(minim
     REFINE_GATE.mark_pending(ws.project)
     service = EditService(ws)
     service.edit_selected_range(
-        target(ws.project),
+        [target(ws.project)],
         "mute",
         propose=False,
         reason="host:range",
@@ -612,7 +625,7 @@ def test_manual_range_and_exact_only_approval_work_with_pending_refinement(minim
         boundary_intent=CutIntent.HUMAN_BOUNDARIES,
     )
     service.edit_selected_range(
-        target(ws.project), "cut", propose=True, reason="guest:range", action_id="exact"
+        [target(ws.project)], "cut", propose=True, reason="guest:range", action_id="exact"
     )
     ws.project.edit_decisions.append(
         EditDecision(id="source", track_id="a", type="remove", start=0, end=1, applied=False)
@@ -745,7 +758,7 @@ def test_propose_range_cut_tool_assesses_edges_and_human_approval_overrides(mini
     save_project(ws.project)
     before = deepcopy(ws.project.clips)
     out = json.loads(propose_range_cut_tool(str(minimal_project), 1.2, 1.4, "agent-cut-1", ["a"]))
-    assert (out["action_id"], out["proposed"]) == ("agent-cut-1", True)
+    assert (out["action_ids"], out["proposed"]) == (["agent-cut-1"], True)
     saved = load_project(minimal_project)
     assert saved.clips == before
     (proposal,) = saved.edit_decisions
@@ -813,3 +826,64 @@ def test_cli_proposal_needs_trusted_human_approval_when_audio_is_unavailable(min
     cut = load_project(minimal_project)
     assert spans(cut, "b") == [(30, 31, 10), (32, 35, 12)]
     assert spans(cut, "c") == [(0, 20, 0)]
+
+
+def test_per_speaker_targets_cut_each_track_only_and_undo_as_one_step(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    fixture(ws.project)
+    save_project(ws.project)
+    svc = DocumentSyncService.open(minimal_project)
+    before = deepcopy(svc.ws.project.clips)
+    host_hit = target(svc.ws.project, ((11, 12),), ("a",))
+    guest_hit = target(svc.ws.project, ((11.5, 12.5),), ("b",))
+    cmd = DocumentCommand(
+        type="EditSelectedRange",
+        payload={
+            "action": "cut",
+            "targets": [host_hit.model_dump(mode="json"), guest_hit.model_dump(mode="json")],
+        },
+        client_id="test-range",
+        client_seq=None,
+        role="viewer",
+    )
+    result = svc.submit(cmd, range_policy="apply", trusted_context=INTERACTIVE_COMMAND)
+    assert result["ok"]
+    assert spans(svc.ws.project, "a") == [(0, 1, 10), (0, 5, 0), (2, 5, 12), (21, 23, 12)]
+    assert spans(svc.ws.project, "b") == [(30, 31.5, 10), (32.5, 35, 12.5)]
+    assert spans(svc.ws.project, "c") == [(0, 20, 0)]
+    assert [e.params["action_id"] for e in svc.ws.project.editorial.edit_log] == [
+        cmd.command_id,
+        f"{cmd.command_id}:1",
+    ]
+    HistoryService(svc.ws).undo()
+    assert svc.ws.project.clips == before
+
+
+def test_two_proposed_targets_get_stable_ids(tmp_path):
+    project = fixture(EpisodeProject.create("range", str(tmp_path)))
+    result = edit_selected_range(
+        project,
+        [target(project, ((11, 12),), ("a",)), target(project, ((11, 12),), ("b",))],
+        "cut",
+        propose=True,
+        reason="agent:range",
+        action_id="batch",
+        defaults=load_defaults(),
+    )
+    assert result["action_ids"] == ["batch", "batch:1"]
+    assert [e.id for e in project.edit_decisions] == ["batch", "batch:1"]
+
+
+def test_one_bad_target_changes_nothing(tmp_path):
+    project = fixture(EpisodeProject.create("range", str(tmp_path)))
+    before = deepcopy(project.clips)
+    with pytest.raises(ValueError, match="No audible media"):
+        apply_many(project, [target(project, ((11, 12),), ("a",)), target(project, ((6, 8),))])
+    assert project.clips == before
+
+
+def test_the_old_single_target_key_is_refused():
+    with pytest.raises(ValidationError):
+        validate_payload("EditSelectedRange", {"action": "cut", "target": {}})
+    with pytest.raises(ValidationError):
+        validate_payload("EditSelectedRange", {"action": "cut", "targets": []})

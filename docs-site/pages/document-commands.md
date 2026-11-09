@@ -56,7 +56,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `DeleteComment` | `comment_id` (string) | — |
 | `DeleteSocialClip` | `id` (string) | — |
 | `DuplicateSegment` | `insert_at` (number), `source_end` (number), `source_start` (number) | — |
-| `EditSelectedRange` | `action` (cut \| mute), `target` (object) | `override_audio_checks` (boolean) |
+| `EditSelectedRange` | `action` (cut \| mute), `targets` (array[object]) | `override_audio_checks` (boolean) |
 | `FadeJoins` | — | `dry_run` (boolean \| null), `fade_ms` (integer \| null), `speaker` (string \| null), `track_id` (string \| null) |
 | `FillRoomTone` | — | `end_sec` (number \| null), `speaker` (string \| null), `start_sec` (number \| null), `track_id` (string \| null) |
 | `InsertGap` | `at_time` (number) | `duration_sec` (number) |

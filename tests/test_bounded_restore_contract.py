@@ -192,7 +192,7 @@ async def test_exact_range_restore_uses_same_coded_refusal(tmp_path, delivery):
     service = EditService(ws)
     target = service.selected_range_target(1, 2, ["host"])
     service.edit_selected_range(
-        target, "cut", propose=False, reason="nl:range", action_id="exact-action"
+        [target], "cut", propose=False, reason="nl:range", action_id="exact-action"
     )
     assert [(c.source_start, c.source_end, c.timeline_start) for c in ws.project.clips] == [
         (0, 1, 0),

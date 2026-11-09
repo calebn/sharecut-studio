@@ -662,7 +662,11 @@ class EditSelectedRangePayload(BaseModel):
     model_config = {"extra": "forbid"}
 
     action: Literal["cut", "mute"]
-    target: ExactRangeTarget
+    targets: list[ExactRangeTarget] = Field(
+        min_length=1,
+        max_length=64,
+        description="One target per speaker (track set), applied together as one history step.",
+    )
     override_audio_checks: bool = Field(
         default=False,
         description=OVERRIDE_DESCRIPTION,

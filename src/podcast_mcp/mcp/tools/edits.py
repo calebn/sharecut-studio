@@ -34,7 +34,7 @@ def propose_range_mute_tool(project_path: str, target: dict[str, Any], command_i
         submit_host_document_command(
             project_path,
             "EditSelectedRange",
-            {"target": target, "action": "mute"},
+            {"targets": [target], "action": "mute"},
             command_id=command_id,
         )
     )
@@ -63,7 +63,7 @@ def propose_range_cut_tool(
     reply = submit_host_document_command(
         project_path,
         "EditSelectedRange",
-        {"target": target.model_dump(mode="json"), "action": "cut"},
+        {"targets": [target.model_dump(mode="json")], "action": "cut"},
         command_id=command_id,
     )
     return to_json(host_command_result(reply))

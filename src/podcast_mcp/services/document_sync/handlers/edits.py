@@ -491,7 +491,7 @@ def edit_selected_range(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, An
 
     return dict(
         EditService(ws).edit_selected_range(
-            ExactRangeTarget.model_validate(p["target"]),
+            [ExactRangeTarget.model_validate(t) for t in p["targets"]],
             p["action"],
             propose=p.get("_range_policy") != "apply",
             reason=p.get("_range_reason", "agent:range"),
