@@ -424,6 +424,8 @@ with axe before the collected results are asserted.
 | keeps Next, its selection and the following Script line reachable | `gui/web/e2e-compat/words-actionbar-header.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | phone Mix native edits and touch geometry across engines | `gui/web/e2e-compat/phone-mix.spec.ts` | Core flow | Pass | Pass | Not run |
 | comment recovery keeps native disabled-button focus and sticky controls | `gui/web/e2e-compat/comment-undo.spec.ts` | Core flow | Not run | Pass | Not run |
+| returns invalidated Undo focus to the visible current Inspector Close | `gui/web/e2e-compat/feedback-inspector-focus.spec.ts` | Core flow | Pass | Pass | Not run |
+| outside focus stays on header Undo when a peer invalidates toast Undo | `gui/web/e2e-compat/feedback-inspector-focus.spec.ts` | Core flow | Pass | Pass | Not run |
 | native envelope owner cancels locally and ignores synthetic foreign events | `gui/web/e2e-compat/envelope-recovery.spec.ts` | Core flow | Pass | Pass | Not run |
 | Invite touch affordances work in the compatibility browser | `gui/web/e2e-compat/touch-affordances.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | clip Inspector touch affordances work in the compatibility browser | `gui/web/e2e-compat/touch-affordances.spec.ts` | CSS / layout | Pass | Pass | Not run |
