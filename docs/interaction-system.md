@@ -84,7 +84,7 @@ Each thing is declared once. A second map from the same key is a bug.
 Shipped: `state/selectionSlice.ts` is the only writer of `selection`, and
 `state/selection.ts` derives the clip and track sets from it. `selectionSurface.tsx`
 is the one table for phone, tablet and desktop (#1792).
-The Script keeps an open Fix text field when the shell remounts (a held pin, per project), so rotating across the phone and tablet shells keeps the word and its field (#1870). A blur saves the correction and leaves focus on the destination the user chose. Enter and Escape return focus to the edited word while the field still owns focus; Tab saves and moves focus and selection to the next unsure word. `ScriptHost.fix.test.tsx` covers these focus rules.
+The Script keeps an open Fix text field when the shell remounts (a held pin, per project), so rotating across the phone and tablet shells keeps the word and its field (#1870). A blur saves the correction and leaves focus on the destination the user chose. Enter and Escape return focus to the edited word while the field still owns focus. Tab advances focus and selection to the next unsure word only when it saves a change; unchanged Tab keeps the existing close-to-current-word behavior. `ScriptHost.fix.test.tsx` covers these focus rules.
 In a word's Inspector body, the correction fields and Apply precede the
 secondary word controls and metadata. The full word remains the accessible
 heading even when its visible title is shortened to one line. The range's verbs live on the Action bar (floating beside the selection on desktop and tablet, docked above the Player on a phone); the Range fields keep In and Out and the word handles, first in Select mode.
