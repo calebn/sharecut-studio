@@ -629,7 +629,6 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "transcript.findReplace": "daw.transcript.findReplace",
   "transcript.wordbar": "daw.transcript.adjustTiming",
   "home.help": "daw.ui.toggleCommandPalette",
-  GesturesSheet: "daw.ui.toggleCommandPalette",
   deliverShare: "daw.render.refreshMix",
   deliverBounce: "daw.export.bounce",
   inviteSheet: "daw.share.manage",

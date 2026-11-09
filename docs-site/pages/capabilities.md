@@ -82,7 +82,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Decrease track height | view | `view.trackHeightDecrease` | `Alt+-` | — | — | — | — | — | — | none · none |
 | Undo | project | `history.undo` | `Mod+Z` | `two-finger-tap` | `historyPanel`, `transcript.findReplace`, `transcript.wordbar` | `history_undo` | `podcast undo` | `podcast-history` | — | none · none |
 | Redo | project | `history.redo` | `Mod+Shift+Z` | — | `historyPanel` | `history_redo` | `podcast redo` | `podcast-history` | — | none · none |
-| Commands and shortcuts | view | `ui.toggleCommandPalette` | `?` | — | `home.help`, `GesturesSheet` | — | — | — | — | none · none |
+| Commands and shortcuts | view | `ui.toggleCommandPalette` | `?` | — | `home.help` | — | — | — | — | none · none |
 | Refresh mix | project | `render.refreshMix` | — (Mod+B belongs to the browser (bookmarks, bold); Refresh mix is in the palette and the mix ring) | — | `deliverShare` | `render_preview` | `podcast render-preview` | `podcast-play-audition` | — | none · none |
 | Bounce… | project | `export.bounce` | — (Mod+E opens Deliver with Bounce focused and the selected range filled in; Bounce is also in the palette and on Deliver) | — | `deliverBounce` | `bounce_audio_tool` | `podcast pipeline bounce` | `podcast-bounce-export` | yes | none · none |
 | Share… | project | `share.manage` | — (Invite, or Menu) | — | `inviteSheet` | — | `podcast review share` | — | yes | none · none |

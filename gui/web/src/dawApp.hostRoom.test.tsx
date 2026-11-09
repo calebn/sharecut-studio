@@ -29,8 +29,8 @@ vi.mock("./stage/frame/StageFrame", () => ({
     children({ kind: "available" }),
 }));
 vi.mock("./stage/frame/useLandingStage", () => ({ useLandingStage: () => {} }));
-vi.mock("./stage/dialogs/CheatsheetDialogs", () => ({
-  CheatsheetDialogs: () => null,
+vi.mock("./stage/dialogs/CommandPalette", () => ({
+  CommandPalette: () => null,
 }));
 vi.mock("./stage/hosts/bounceFlow", () => ({
   BounceFlowProvider: ({ children }: { children: ReactNode }) => children,

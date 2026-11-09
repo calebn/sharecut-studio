@@ -614,7 +614,6 @@
           "gui/web/src/hooks/useViewportClass.ts",
           "gui/web/src/hooks/usePointerType.ts",
           "gui/web/src/ui/BottomSheet*",
-          "gui/web/src/ui/GesturesSheet.tsx",
           "gui/web/src/commands/gestures.ts",
           "gui/web/src/styles/partials/responsive.css",
           "gui/web/src/styles/partials/bottom-sheet.css"

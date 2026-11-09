@@ -178,7 +178,7 @@ The checks (#1096) live with the code:
   command. `make generated-check` keeps its vocabulary equal to
   `TOUCH_GESTURES`, and `inputContract.manifest.test.ts` derives each
   command's column from the grammar (the create menu, the kinds' commands
-  and the Gestures sheet).
+  and the palette's Gestures rows).
 
 ### Superseded decision: Transcript word ranges follow the touch grammar
 
@@ -390,7 +390,7 @@ evidence:
 - docs/gui-audit-decisions.tsv: the 2026-09-30 audit trail for edit-boundary touch drag (reflow, cancel, precision)
 - #2294 (W1a): Alt-click Split is mouse only; touch has no Alt, so its visible Split equivalent is the palette and create menu until the action bar's Split verb (W1b)
 enforced-by:
-- gui/web/src/ui/GesturesSheet.test.tsx::describes two-finger Undo as an optional ShareCut shortcut
+- gui/web/src/stage/dialogs/CommandPaletteView.test.tsx::lists two-finger Undo as an optional ShareCut shortcut among the gesture rows
 - gui/web/src/ui/BottomSheet.test.tsx::keeps fixed sheets closable without a resize action or drag cue
 - gui/web/e2e/touch-affordances.spec.ts::sheet affordances remain available at 200% text scale
 - docs-sync: decision-touch-input
@@ -446,7 +446,7 @@ or named test owns that behavior; it does not certify unrun combinations.
 | Transcript words: transcript views and correction flow | Tap seeks; double tap or long press opens correction; visible Correct/Select modes | First tap seeks immediately. Correction opens only for a host with hydrated words; current sheet lifecycle restores mode on close. Submission uses `submitWordCorrection`; failure/permission behavior stays there. Phone uses the sheet for keyboard room; desktop has its current inline path. | **Keep.** `transcript-wordbar.spec.ts` is the retained evidence. No delayed tap-to-seek recognizer. |
 | Comment rows: Review queue | Visible Resolve/Reopen and Undo toast | The Comments panel's own swipe-to-resolve is gone, but a phone queue row swipes right for its verb, which resolves a comment; swipe left does nothing on a comment. Resolve is also the action-bar verb, host only; latest-only Undo toast remains. | **Panel swipe removed; queue-row swipe kept.** |
 | BottomSheet: `ui/BottomSheet.tsx` | **Only the phone Inspector sheet drags and flicks** (its grip; the drawer header was removed in #2294 W3c2b); every other sheet has no drag gesture. Expand/Collapse and Close are visible single-pointer actions on all of them | Controlled `expanded` updates half/full view state only (dock/half/full for the phone Inspector sheet; the grip toggles dock and half; it no longer stows during a timeline drag). There is no command/failure/History path for resize. Close and Escape dismiss; the interactive inspector scrim never takes a touch, and it no longer dims the timeline (retired with the drawer, #2294 W3c2b); confirmation scrim dismisses. Shell CSS keeps phone nav and tablet chrome clear. | **Remove inert grip; retain and enlarge the resize button.** `BottomSheet.test.tsx` and new touch E2E exercise the existing callback and layout. No global button changes. |
-| Transport, Gestures help and History: phone More hub (removed in #2292), command catalog | Two-finger tap is an optional ShareCut Undo shortcut; visible command routes remain | Existing recognizer dispatches `history.undo` and reports failure through the shared status path. It runs only when enabled by current project/command availability. It does not make a platform convention or modal-body guarantee. History is an Edit sheet and Gestures is in the Project menu. | **Modify attribution only.** `useTwoFingerTap.test.tsx` stays unchanged; `GesturesSheet.test.tsx` asserts the rendered optional ShareCut copy. |
+| Transport, Gestures help and History: phone More hub (removed in #2292), command catalog | Two-finger tap is an optional ShareCut Undo shortcut; visible command routes remain | Existing recognizer dispatches `history.undo` and reports failure through the shared status path. It runs only when enabled by current project/command availability. It does not make a platform convention or modal-body guarantee. History is an Edit sheet and Gestures is a touch-only result group in Commands and shortcuts. | **Modify attribution only.** `useTwoFingerTap.test.tsx` stays unchanged; `CommandPaletteView.test.tsx` asserts the rendered optional ShareCut copy on the Undo gesture row. |
 
 ## Explicit disposition
 

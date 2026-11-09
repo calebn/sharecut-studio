@@ -749,27 +749,6 @@ html[data-shell="phone"] .ui-menu-shortcut {
     transform: scale(1);
   }
 }
-/* GesturesSheet: gesture → command reference list */
-.gesture-list {
-  display: grid;
-  gap: var(--space-3);
-  margin: 0;
-}
-
-.gesture-item {
-  display: grid;
-  gap: var(--space-1);
-}
-
-.gesture-name {
-  font-weight: 600;
-}
-
-.gesture-detail {
-  margin: 0;
-  color: var(--color-text-secondary);
-}
-
 /* Toast: polite status with optional Undo (theme tokens only).
    A panel's toast is sticky in its nearest scrolling ancestor
    (`.stage-host-panel`, overflow-y: auto in stage-hosts.css); if scrolling moves to a

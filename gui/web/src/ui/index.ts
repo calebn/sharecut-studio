@@ -18,7 +18,6 @@ export { ErrorScreen } from "./ErrorScreen";
 export { Field } from "./Field";
 export { FieldRow } from "./FieldRow";
 export { FocusPull } from "./FocusPull";
-export { GesturesSheet } from "./GesturesSheet";
 export { Icon, type IconName } from "./Icon";
 export { InlineConfirm } from "./InlineConfirm";
 export { InlineError } from "./InlineError";
