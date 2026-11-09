@@ -420,7 +420,7 @@ text captured when the word was selected or End index last changed, and only whe
 word in that range is loaded and its loaded copies agree (otherwise it sends none and
 shows a hint under Apply); Suppress and Ignore send the word's currently rendered text,
 or no guard when that text can't be confirmed (a word in the range isn't loaded, or two
-loaded copies of an index disagree), same as Apply. When Select-mode Ignore/Restore or the
+loaded copies of an index disagree), same as Apply. When the Script's Ignore/Restore or the
 hover Restore sends no guard, its status message says "text not verified".
 The Correct inspector captures once per word (#746): the draft is seeded when the
 word first loads (a different word remounts the inspector), never on a text change, so a
@@ -448,8 +448,8 @@ MCP/CLI callers (`correct_transcript_tool`, `correct_transcript_phrase_tool`,
 Ignore do not re-capture: the fix for a rejected edit there is to re-read the transcript
 and redo it against its current text.
 
-**Ignore vs. suppress (#633):** `set_words_ignored_tool` (MCP), the Select-mode
-Ignore/Restore button, and the Correct word inspector's Ignore action all call
+**Ignore vs. suppress (#633):** `set_words_ignored_tool` (MCP), the Script's
+Ignore/Restore action, and the word Inspector's Ignore action all call
 `set_words_ignored` — a text-and-audio hide for review passes. The word (or word
 range) stays struck through in the transcript and in `combined.json`; only its
 audio is muted, computed from the transcript at render time and never written to

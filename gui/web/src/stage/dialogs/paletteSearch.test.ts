@@ -38,7 +38,7 @@ const COMMANDS: PaletteCommand[] = [
   cmd("help.diagnosticsBundle", "Export diagnostics…", "ui", {
     disabledReason: "Project create/open is host-only",
   }),
-  cmd("view.transcriptAnnotate", "Annotate transcript", "view"),
+  cmd("daw.transcript.findReplace", "Transcript find and replace", "view"),
 ];
 
 const ids = (rows: PaletteCommand[]) => rows.map((r) => r.id);
@@ -69,7 +69,7 @@ describe("searchPaletteCommands", () => {
 
   it("ranks a label word match above a category match", () => {
     expect(ids(searchPaletteCommands(COMMANDS, "tran"))).toEqual([
-      "view.transcriptAnnotate",
+      "daw.transcript.findReplace",
       "transport.togglePlay",
     ]);
   });
@@ -104,7 +104,7 @@ describe("groupPaletteCommands", () => {
         "ui",
         ["export.bounce", "export.deliverables", "help.diagnosticsBundle"],
       ],
-      ["view", ["view.transcriptAnnotate"]],
+      ["view", ["daw.transcript.findReplace"]],
     ]);
   });
 });

@@ -86,7 +86,7 @@ Inspector action buttons, including **Replace audio…**, **Remove track**,
 touch devices and in the phone layout, including when you use a mouse.
 Transcript **Find and replace** row wraps its
 controls on a coarse pointer so landscape panels stay inside the panel. At large text
-or in a short window, the Transcript panel scrolls as a whole so its chrome does
+or in a short window, the Script pane scrolls as a whole so its chrome does
 not cover the rows under it.
 The envelope point's Time and Level, the effect **Bypass** toggles and the comment fields and track picks are 44 CSS px tall on touch too.
 
@@ -171,7 +171,7 @@ Tap outside a confirmation sheet to dismiss it. Hear original sits in the player
 |---------|--------------|
 | **Two-finger tap** | Optional ShareCut shortcut for Undo |
 | **Pinch** | Zoom the timeline in/out |
-| **Long-press** | Open the selection sheet for a comment, or correct a transcript word (hosts). In Select mode, hold a word and drag across more to select a range; Range actions also add or drop a word at either end. On the timeline, a long press arms a target so it can be dragged (on a clip's body, the clip, which then slides in time), or on empty space opens a menu to split here, add a comment or a chapter, (host) record here, add a volume point on a lane, or paste |
+| **Long-press** | Open the selection sheet for a comment, or fix a transcript word (hosts). Hold a word in the Script and drag across more to select a range; Range actions also add or drop a word at either end. On the timeline, a long press arms a target so it can be dragged (on a clip's body, the clip, which then slides in time), or on empty space opens a menu to split here, add a comment or a chapter, (host) record here, add a volume point on a lane, or paste |
 | **Double-tap word** | Open word correction (hosts) in the sheet; the transcript hint says so on touch; closing it returns to your previous mode (touch keeps the sheet rather than desktop's inline editor so the keyboard has room) |
 
 A full list is in the app: **Commands and shortcuts → Gestures** (tap the search button in the header).
