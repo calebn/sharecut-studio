@@ -494,24 +494,19 @@ describe("which sections a transcript range gets", () => {
   });
 
   it("gives a host's single word its facts and actions after the range, with no text form", () => {
-    expect(ids(word)?.map((s) => s.id)).toEqual([
-      "range",
-      "word",
-      "actions",
-      "related",
-    ]);
+    expect(ids(word)?.map((s) => s.id)).toEqual(["range", "word", "actions"]);
   });
 
   it("gives a guest on a share link the range only", () => {
     useDawStore.setState({ projectPath: "share:tok" });
-    expect(ids(word)?.map((s) => s.id)).toEqual(["range", "related"]);
+    expect(ids(word)?.map((s) => s.id)).toEqual(["range"]);
   });
 
   it("gives words that are not hydrated the range only", () => {
     const cold = project();
     cold.meta = { ...cold.meta, hydration: { transcript_words: false } };
     useDawStore.setState({ project: cold });
-    expect(ids(word)?.map((s) => s.id)).toEqual(["range", "related"]);
+    expect(ids(word)?.map((s) => s.id)).toEqual(["range"]);
   });
 
   it("gives several words no word fields", () => {
@@ -523,7 +518,7 @@ describe("which sections a transcript range gets", () => {
     useDawStore.setState({
       project: minimalProject({ transcript: { utterances: [] } }),
     });
-    expect(ids(word)?.map((s) => s.id)).toEqual(["range", "gone", "related"]);
+    expect(ids(word)?.map((s) => s.id)).toEqual(["range", "gone"]);
   });
 
   it("leaves other kinds to their own bodies", () => {
@@ -546,17 +541,5 @@ describe("focus when a word opens", () => {
     focusFirstControl(container as HTMLElement);
     expect(screen.getByRole("button", { name: "Suppress" })).toHaveFocus();
     expect(screen.queryByLabelText("Corrected text")).toBeNull();
-  });
-});
-
-describe("related commands in the sheet host path", () => {
-  it("shows the Selection actions zone once for a word", () => {
-    useDawStore.setState({
-      project: project(),
-      projectPath: "/tmp/ep",
-      rangeArmed: false,
-    });
-    render(<Word trackId="host" wordIndex={0} />);
-    expect(screen.getAllByLabelText("Selection actions")).toHaveLength(1);
   });
 });

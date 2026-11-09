@@ -5,7 +5,7 @@ import { inspectSelection } from "../e2e/stageNav";
 
 test.use({ hasTouch: true, actionTimeout: 15_000 });
 
-test("the phone sheet shows its rows and leaves the related commands to the dock", async ({
+test("the phone sheet shows its rows and leaves its commands to the dock", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -17,11 +17,10 @@ test("the phone sheet shows its rows and leaves the related commands to the dock
   await expect(
     sheet.getByRole("spinbutton", { name: "Source start", exact: true }),
   ).toBeVisible();
-  await expect(sheet.locator(".related-commands-zone")).toHaveCount(0);
   await expect(sheet.locator(".sys-actions--dock")).toBeVisible();
 });
 
-test("the tablet clip sheet shows its rows and leaves the related commands to the Action bar", async ({
+test("the tablet clip sheet shows its rows and leaves its commands to the Action bar", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 820, height: 1180 });
@@ -32,5 +31,4 @@ test("the tablet clip sheet shows its rows and leaves the related commands to th
   await expect(
     sheet.getByRole("spinbutton", { name: "Source start", exact: true }),
   ).toBeVisible();
-  await expect(sheet.locator(".related-commands-zone")).toHaveCount(0);
 });

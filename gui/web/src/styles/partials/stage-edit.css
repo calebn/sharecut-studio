@@ -236,11 +236,6 @@ html[data-frame-short] .edit-dock {
   max-block-size: var(--sheet-lane-cap, 100%);
 }
 
-.edit-inspector-body > .related-commands {
-  padding-inline: var(--space-5);
-  padding-block-end: var(--space-5);
-}
-
 .edit-workspace .sys-inspector-dock:empty {
   display: none;
 }

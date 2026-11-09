@@ -1,4 +1,3 @@
-import { RelatedCommands } from "../../inspector/RelatedCommands";
 import { canHostMutate } from "../../shareMode";
 import { useDaw } from "../../state/useDaw";
 import type { InspectorSection } from "../../system/InspectorSheet";
@@ -15,31 +14,15 @@ const keyOf = ({ trackId, sourceId, wordIndex }: WordRef) =>
 export function useWordSections(
   selection: Selection,
 ): readonly InspectorSection[] | null {
-  const { project, projectPath, hydrated, rangeArmed } = useDaw((s) => ({
+  const { project, projectPath, hydrated } = useDaw((s) => ({
     project: s.project,
     projectPath: s.projectPath,
     hydrated: s.project?.meta.hydration?.transcript_words !== false,
-    rangeArmed: s.rangeArmed,
   }));
   if (selection?.kind !== "transcriptRange") return null;
   const word = oneWordOf(selection);
-  const related: InspectorSection[] =
-    rangeArmed || !word
-      ? []
-      : [
-          {
-            id: "related",
-            rows: [
-              {
-                id: "related",
-                control: <RelatedCommands selection={selection} />,
-              },
-            ],
-          },
-        ];
-  if (!word) return [passageRangeSection, ...related];
-  if (!hydrated || !canHostMutate(projectPath))
-    return [rangeSection, ...related];
+  if (!word) return [passageRangeSection];
+  if (!hydrated || !canHostMutate(projectPath)) return [rangeSection];
   if (
     !project ||
     !findTranscriptWord(project, word.trackId, word.wordIndex, word.sourceId)
@@ -55,7 +38,6 @@ export function useWordSections(
           },
         ],
       },
-      ...related,
     ];
   const ref: WordRef = {
     trackId: word.trackId,
@@ -74,5 +56,5 @@ export function useWordSections(
       { id: "timing", control: <WordTiming key={key} {...ref} /> },
     ],
   };
-  return [rangeSection, facts, rest, ...related];
+  return [rangeSection, facts, rest];
 }

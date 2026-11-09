@@ -7,7 +7,6 @@ import {
 import { seekTransport } from "../../commands/seek";
 import { useTrackMetaMutation } from "../../hooks/useTrackMetaMutation";
 import { ingestFiles, pickAudioFiles } from "../../ingest/ingestFiles";
-import { RelatedCommands } from "../../inspector/RelatedCommands";
 import {
   canApplyPass12,
   canEditMix,
@@ -415,18 +414,5 @@ export function useTrackSections(
         },
       ],
     },
-    ...(selection?.kind === "track"
-      ? [
-          {
-            id: "related",
-            rows: [
-              {
-                id: "related",
-                control: <RelatedCommands selection={selection} />,
-              },
-            ],
-          },
-        ]
-      : []),
   ];
 }

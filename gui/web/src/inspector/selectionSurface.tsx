@@ -1,17 +1,9 @@
 import type { ReactNode } from "react";
-import type { CommandContext } from "../commands/context";
 import { EnvelopePointBody } from "../stage/edit/EnvelopePointBody";
 import { PendingEditBody } from "../stage/edit/PendingEditBody";
 import { SectionsBody } from "../stage/edit/SectionsBody";
 import { RangeFields } from "../timeline/RangeFields";
 import type { ProjectView, Selection } from "../types/project";
-import {
-  moreCutClip,
-  moreMoveTrack,
-  type RelatedCommandDescriptor,
-  relatedCopy,
-  relatedCopyWord,
-} from "./relatedRows";
 
 export type SelectionKind = NonNullable<Selection>["kind"];
 type SelectionOf<K extends SelectionKind> = Extract<
@@ -36,29 +28,16 @@ const notFound = (what: string) => <aside className="inspector">{what}</aside>;
  * the touch sheet, with the selection's fields and actions. `screens` are the
  * Edit surfaces, on the phone and the tablet alike, where the selection opens
  * the sheet: the lanes always, the Script only where the selection belongs.
- * `related` and `more` are the Related and More commands under the body.
  */
 export interface SelectionSurface<K extends SelectionKind> {
   body: (selection: SelectionOf<K>, ctx: SurfaceContext) => ReactNode;
   screens: readonly SheetScreen[];
-  related: (selection: SelectionOf<K>) => readonly RelatedCommandDescriptor[];
-  more: (
-    selection: SelectionOf<K>,
-    project: ProjectView,
-    context: CommandContext,
-  ) => readonly RelatedCommandDescriptor[];
 }
 
 const ANYWHERE: readonly SheetScreen[] = ["timeline"];
 const WITH_TEXT: readonly SheetScreen[] = ["timeline", "text"];
 
-const noRelated = () => [];
-const noMore = () => [];
-/** A kind with no Related or More commands. */
-const plain = { related: noRelated, more: noMore } as const;
-
 const rangeSurface = {
-  ...plain,
   body: () => <RangeFields sheet always />,
   screens: WITH_TEXT,
 } as const;
@@ -69,27 +48,21 @@ export const SELECTION_SURFACES: {
   range: rangeSurface,
   transcriptRange: {
     screens: WITH_TEXT,
-    related: relatedCopyWord,
-    more: noMore,
     body: (_sel, { placement }) => (
       <SectionsBody withRange={placement === "sheet"} />
     ),
   },
   clip: {
     screens: ANYWHERE,
-    related: relatedCopy,
-    more: moreCutClip,
     body: (_sel, { placement }) => (
       <SectionsBody withRange={placement === "sheet"} />
     ),
   },
   bleedAttenuation: {
-    ...plain,
     screens: ANYWHERE,
     body: () => <SectionsBody withRange={false} />,
   },
   pending: {
-    ...plain,
     screens: ANYWHERE,
     body: (sel, { project }) => {
       const edit = project.pending_edits.find((e) => e.id === sel.id);
@@ -101,34 +74,28 @@ export const SELECTION_SURFACES: {
     },
   },
   seam: {
-    ...plain,
     screens: ANYWHERE,
     body: () => <SectionsBody withRange={false} />,
   },
   track: {
-    ...plain,
     screens: ANYWHERE,
-    more: moreMoveTrack,
     body: (_sel, { placement }) => (
       <SectionsBody withRange={placement === "sheet"} />
     ),
   },
   chapter: {
-    ...plain,
     screens: ANYWHERE,
     body: (_sel, { placement }) => (
       <SectionsBody withRange={placement === "sheet"} />
     ),
   },
   social: {
-    ...plain,
     screens: ANYWHERE,
     body: (_sel, { placement }) => (
       <SectionsBody withRange={placement === "sheet"} />
     ),
   },
   comment: {
-    ...plain,
     screens: ANYWHERE,
     body: (sel, { project }) => {
       const comment = (project.comments ?? []).find((c) => c.id === sel.id);
@@ -144,14 +111,12 @@ export const SELECTION_SURFACES: {
     },
   },
   envelope: {
-    ...plain,
     screens: ANYWHERE,
     body: (_sel, { placement }) => (
       <SectionsBody withRange={placement === "sheet"} />
     ),
   },
   envelopePoint: {
-    ...plain,
     screens: ANYWHERE,
     body: () => <EnvelopePointBody />,
   },
