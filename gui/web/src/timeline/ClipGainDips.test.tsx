@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { dbToY, gainToDb } from "../system/envelopeMath";
 import { clipRow } from "../test/fixtures";
 import { ClipGainDips } from "./ClipGainDips";
@@ -32,6 +32,14 @@ const coords = (el: Element) =>
     .getAttribute("points")!
     .split(" ")
     .map((pair) => pair.split(",").map(Number) as [number, number]);
+
+const pathEnds = (el: Element) => {
+  const points = el
+    .querySelector("polyline")!
+    .getAttribute("points")!
+    .split(" ");
+  return [points[0], points.at(-1)];
+};
 
 describe("ClipGainDips", () => {
   it("draws a clip's fade-in dashed, read-only, with the first dip labelled", () => {
@@ -84,5 +92,111 @@ describe("ClipGainDips", () => {
     view.unmount();
     draw({ clips: [clip, later], start: 100, width: 100 });
     expect(screen.queryByTestId("clip-gain-dip")).toBeNull();
+  });
+
+  it("keeps coincident dips distinct while culling and restoring them on pan", () => {
+    const withMutes = clipRow({
+      id: "pan-clip",
+      timeline_start: 0,
+      timeline_end: 10,
+      source_start: 0,
+      fade_in_ms: 500,
+      fade_out_ms: 0,
+      mute_regions: [
+        { start_s: 0, end_s: 1 },
+        { start_s: 5, end_s: 6 },
+      ],
+    });
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    try {
+      const view = render(
+        <ClipGainDips
+          clips={[withMutes]}
+          points={[]}
+          start={0}
+          pxPerSecond={20}
+          width={200}
+          height={LANE}
+        />,
+      );
+      const groupsAtStart = screen.getAllByTestId("clip-gain-dip");
+      expect(groupsAtStart).toHaveLength(3);
+      expect(groupsAtStart.map(pathEnds)).toEqual([
+        ["0,68", "10,68"],
+        ["0,68", "20,7.548336511877917"],
+        ["100,7.548336511877924", "120,7.5483365118781105"],
+      ]);
+      expect(screen.getAllByText("clip fade or mute")).toHaveLength(1);
+
+      view.rerender(
+        <ClipGainDips
+          clips={[withMutes]}
+          points={[]}
+          start={4}
+          pxPerSecond={20}
+          width={200}
+          height={LANE}
+        />,
+      );
+      const pannedGroups = screen.getAllByTestId("clip-gain-dip");
+      expect(pannedGroups).toHaveLength(1);
+      expect(pathEnds(pannedGroups[0]!)).toEqual([
+        "20,7.548336511877924",
+        "40,7.5483365118781105",
+      ]);
+      expect(screen.getAllByText("clip fade or mute")).toHaveLength(1);
+
+      view.rerender(
+        <ClipGainDips
+          clips={[withMutes]}
+          points={[]}
+          start={0}
+          pxPerSecond={20}
+          width={200}
+          height={LANE}
+        />,
+      );
+      const restoredGroups = screen.getAllByTestId("clip-gain-dip");
+      expect(restoredGroups).toHaveLength(3);
+      expect(restoredGroups.map(pathEnds)).toEqual([
+        ["0,68", "10,68"],
+        ["0,68", "20,7.548336511877917"],
+        ["100,7.548336511877924", "120,7.5483365118781105"],
+      ]);
+      expect(screen.getAllByText("clip fade or mute")).toHaveLength(1);
+      expect(consoleError).not.toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it("keeps separate dips with identical bounds as separate rendered groups", () => {
+    const sameBounds = clipRow({
+      id: "same-bounds-clip",
+      timeline_start: 0,
+      timeline_end: 10,
+      source_start: 0,
+      fade_in_ms: 500,
+      fade_out_ms: 0,
+      mute_regions: [{ start_s: 0, end_s: 0.5 }],
+    });
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    try {
+      draw({ clips: [sameBounds], width: 200 });
+      const groups = screen.getAllByTestId("clip-gain-dip");
+      expect(groups).toHaveLength(2);
+      expect(groups.map(pathEnds)).toEqual([
+        ["0,68", "10,7.548336511877917"],
+        ["0,68", "10,7.548336511877917"],
+      ]);
+      expect(screen.getAllByText("clip fade or mute")).toHaveLength(1);
+      expect(consoleError).not.toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 });
