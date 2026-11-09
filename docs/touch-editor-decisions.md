@@ -1204,13 +1204,9 @@ chooser lab until the owner made it the default (2026-10-07).
   without a failing test. The conformance test now fails when a kind with an
   axis has no element that owns its drag, or when a drag sits behind a plain
   surface. The scan reads `onPointerDown` props and spread handler bags. It
-  found no other kind without a touch path. The crossfade endpoint grip, in
-  its own rail below the lanes, dragged at once without a long press. It is
-  now the `crossfade-end` kind, and the timeline's one router adopts its rail
-  (`HitRouter.adopt`, reached through `useHitRouter`), so a finger arms it
-  before it drags and a second finger on the lanes rolls it back; a mouse
-  drags it as before. The rail first ran a second router, whose finger count
-  could not see the lanes'. The conformance test also fails when any kind with an axis drags
+  found no other kind without a touch path. The crossfade endpoint grip was
+  once such a kind; the grip and its rail are gone (the seam sheet's Length
+  field sets the overlap). The conformance test also fails when any kind with an axis drags
   on touch before a long press arms it, selected or not.
 - **The crossfade rail on a phone held sideways.** Opening a crossfade join
   opens its popover, which in a 390 px tall screen covers the rail's grip

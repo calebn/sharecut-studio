@@ -9,7 +9,7 @@ import {
 } from "react";
 import { capabilityTooltip } from "../../capabilities/copy";
 import { joinSeamLabel } from "../../edit/joinRender";
-import { useDawStore } from "../../state/dawStore";
+import { seamIdOf } from "../../edit/seam";
 import { useDaw } from "../../state/useDaw";
 import { useResizeObserver } from "../../ui";
 import { EDIT_GLYPH_PATH, EDIT_MARKERS } from "../../utils/editMarkerRegistry";
@@ -18,7 +18,6 @@ import {
   chipCount,
   chipLabel,
   type JoinMark,
-  joinPopoverId,
   type LanePlan,
   type PlacedChip,
   type PlacedSymbol,
@@ -122,14 +121,14 @@ function MarkLabel({
 
 function Glyph({
   symbol,
-  open,
+  selected,
   onClick,
   register,
   track,
   epoch,
 }: {
   symbol: PlacedSymbol;
-  open: boolean;
+  selected: boolean;
   onClick: () => void;
   register: Register;
   track: Track;
@@ -146,15 +145,13 @@ function Glyph({
         className={`edit-mark edit-mark--${type}${blocked ? " edit-mark--blocked" : ""}`}
         data-tier={tier}
         {...hitTargetProps("join", mark.clipId, mark.sec, {
-          selected: open,
+          selected,
           detail: type,
         })}
         {...track(mark.id)}
         style={{ left: xPx }}
         aria-label={`${joinSeamLabel(mark.kind, mark.sec, symbol.label)}${blocked ? ", will not blend" : ""}`}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        aria-controls={open ? joinPopoverId(mark.clipId) : undefined}
+        aria-pressed={selected}
         title={capabilityTooltip("timeline.join.badge")}
         onClick={onClick}
       >
@@ -186,18 +183,9 @@ export function EditMarkerLayer({
   onZoomChip,
   onSelectJoin,
 }: EditMarkerLayerProps) {
-  const { openJoinId, setOpenJoinId } = useDaw((s) => ({
-    openJoinId: s.openJoinId,
-    setOpenJoinId: s.setOpenJoinId,
-  }));
-  const popoverMark = useRef<string | null>(null);
-  const toggle = (clipId: string) => {
-    if (useDawStore.getState().joinMutationInFlight) {
-      return;
-    }
-    popoverMark.current = openJoinId === clipId ? null : `join-${clipId}`;
-    setOpenJoinId(openJoinId === clipId ? null : clipId);
-  };
+  const selectedSeamId = useDaw((s) =>
+    s.selection?.kind === "seam" ? s.selection.id : null,
+  );
   const { probe, epoch } = useTypographyEpoch();
   const elements = useRef(new Map<string, HTMLElement>());
   const register: Register = (key) => (el) => {
@@ -244,10 +232,8 @@ export function EditMarkerLayer({
       });
     },
   });
-  // Opening a join popover moves focus into the dialog, which clears
-  // `focused`; the mark whose glyph opened it stands in for it until the popover closes.
   useEffect(() => {
-    const id = focused.current ?? popoverMark.current;
+    const id = focused.current;
     if (id == null || document.activeElement !== document.body) {
       return;
     }
@@ -268,13 +254,6 @@ export function EditMarkerLayer({
       elements.current.get(target)?.focus({ preventScroll: true });
     }
   }, [items]);
-  // After the restore effect above, so a fold that closes the popover in the
-  // same commit still finds its mark.
-  useEffect(() => {
-    if (openJoinId == null) {
-      popoverMark.current = null;
-    }
-  }, [openJoinId]);
   return (
     <>
       <span ref={probe} className="edit-mark-probe" aria-hidden="true" />
@@ -283,13 +262,11 @@ export function EditMarkerLayer({
           <Glyph
             key={item.symbol.mark.id}
             symbol={item.symbol}
-            open={openJoinId === item.symbol.mark.clipId}
-            onClick={() => {
-              if (!useDawStore.getState().joinMutationInFlight) {
-                onSelectJoin?.(item.symbol.mark);
-              }
-              toggle(item.symbol.mark.clipId);
-            }}
+            selected={
+              selectedSeamId ===
+              seamIdOf(item.symbol.mark.left, item.symbol.mark.right)
+            }
+            onClick={() => onSelectJoin?.(item.symbol.mark)}
             register={register}
             track={track}
             epoch={epoch}

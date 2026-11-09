@@ -763,8 +763,8 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
   const onSelectPending = useStableCallback((trackId: string, id: string) =>
     setSelection({ kind: "pending", id, trackId }),
   );
-  const onSelectApplied = useStableCallback((trackId: string, id: string) =>
-    setSelection({ kind: "applied", id, trackId }),
+  const onSelectSeam = useStableCallback((trackId: string, id: string) =>
+    setSelection({ kind: "seam", id, trackId }),
   );
   const onClipMovePreview = useStableCallback(
     (clipId: string, info: ClipMovePointerInfo) => {
@@ -1106,7 +1106,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                             onSelectBleed={onSelectBleed}
                             onSelectClip={onSelectClip}
                             onSelectPending={onSelectPending}
-                            onSelectApplied={onSelectApplied}
+                            onSelectSeam={onSelectSeam}
                             prosody={prosodyByTrack.get(track.id) ?? null}
                           />
                         );

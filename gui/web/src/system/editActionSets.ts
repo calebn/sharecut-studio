@@ -15,12 +15,14 @@ export type MoreCommandId =
   | "gain"
   | "fade"
   | "moveToTrack"
-  | "joinType"
   | "adjustBounds"
   | "seek";
 
+/** Not a verb and not a More row: a choice drawn as a segmented control in the bar itself. */
+export type SegmentedBarId = "joinType";
+
 /** `paste` is the one command that sits in the bar itself, on the playhead. */
-export type BarId = VerbId | MoreCommandId;
+export type BarId = VerbId | MoreCommandId | SegmentedBarId;
 
 export type MoreRowId = MoreCommandId | "mute";
 
@@ -36,6 +38,7 @@ export type ActionSet = {
 /** Design-system element 7 order, with the ids it leaves unplaced put where every set reads in spec order. */
 export const EDIT_ORDER: readonly BarId[] = [
   "hear",
+  "joinType",
   "hearBefore",
   "hearAfter",
   "keep",
@@ -111,15 +114,11 @@ export const ACTION_SETS: Readonly<Record<EditKind, ActionSet>> = {
   seam: {
     bar: [
       bar("hear"),
+      bar("joinType"),
       bar("keep", "holdsCut"),
       bar("comment"),
-      bar("more"),
       bar("inspect"),
     ],
-    more: [row("joinType")],
-  },
-  appliedEdge: {
-    bar: [bar("hear"), bar("comment"), bar("inspect")],
     more: [],
   },
   suggestion: {
@@ -244,13 +243,21 @@ const MORE_COMMANDS: Readonly<
   gain: { label: "Gain", icon: null },
   fade: { label: "Fade", icon: null },
   moveToTrack: { label: "Move to track", icon: null },
-  joinType: { label: "Join type", icon: null },
   adjustBounds: { label: "Adjust bounds", icon: null },
   seek: { label: "Seek to start", icon: null },
 };
 
+const SEGMENTED_DISPLAY: Readonly<
+  Record<SegmentedBarId, { label: string; icon: SystemIconName | null }>
+> = {
+  joinType: { label: "Join type", icon: null },
+};
+
 const isVerbId = (id: BarId): id is VerbId =>
   VERBS.some((verb) => verb.id === id);
+
+const isSegmentedId = (id: BarId): id is SegmentedBarId =>
+  id in SEGMENTED_DISPLAY;
 
 export type BarDisplay = {
   readonly label: string;
@@ -261,6 +268,7 @@ export type BarDisplay = {
 };
 
 export function barDisplay(id: BarId): BarDisplay {
+  if (isSegmentedId(id)) return { ...SEGMENTED_DISPLAY[id], hint: "" };
   if (!isVerbId(id)) return { ...MORE_COMMANDS[id], hint: "" };
   const def = verbOf(id);
   const shortcut = ariaShortcutOf(def);

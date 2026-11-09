@@ -17,6 +17,7 @@ import {
   appliedEditRecord,
   COMMENTER_CAPABILITIES,
   clipRow,
+  editBoundaries,
   minimalProject,
   pendingEditView,
   pipelineJobSnapshot,
@@ -134,22 +135,38 @@ function buildUtterances(): CombinedUtterance[] {
 
 export const EPISODE_DURATION_SEC = SCRIPT.length * TURN_SEC;
 
+const CUT_START_SEC = 20.4;
+const CUT_END_SEC = 21.2;
+
 function buildClips(): Record<string, ClipRow[]> {
-  return Object.fromEntries(
-    [MIRA, TOMAS].map((trackId) => [
-      trackId,
-      [
-        clipRow({
-          id: `clip-${trackId}`,
-          track_id: trackId,
-          source_end: EPISODE_DURATION_SEC,
-          timeline_end: EPISODE_DURATION_SEC,
-          source_duration_sec: EPISODE_DURATION_SEC,
-          recording_key: `${trackId}-take-1`,
-        }),
-      ],
-    ]),
-  );
+  const whole = (trackId: string) =>
+    clipRow({
+      id: `clip-${trackId}`,
+      track_id: trackId,
+      source_end: EPISODE_DURATION_SEC,
+      timeline_end: EPISODE_DURATION_SEC,
+      source_duration_sec: EPISODE_DURATION_SEC,
+      recording_key: `${trackId}-take-1`,
+    });
+  const before = whole(MIRA);
+  return {
+    [MIRA]: [
+      {
+        ...before,
+        source_end: CUT_START_SEC,
+        timeline_end: CUT_START_SEC,
+      },
+      {
+        ...before,
+        id: `clip-${MIRA}-after`,
+        source_start: CUT_END_SEC,
+        timeline_start: CUT_START_SEC,
+        timeline_end: EPISODE_DURATION_SEC - (CUT_END_SEC - CUT_START_SEC),
+        join_left_clip_id: before.id,
+      },
+    ],
+    [TOMAS]: [whole(TOMAS)],
+  };
 }
 
 const TRACKS: TrackView[] = [
@@ -226,10 +243,10 @@ const HISTORY_GROUPS: HistoryGroup[] = [
 const APPLIED = appliedEditRecord({
   id: "applied-1",
   track_ids: [MIRA],
-  timeline_start: 20.4,
-  timeline_end: 21.2,
-  source_start: 20.4,
-  source_end: 21.2,
+  timeline_start: CUT_START_SEC,
+  timeline_end: CUT_START_SEC,
+  source_start: CUT_START_SEC,
+  source_end: CUT_END_SEC,
   reason: "Trim the false start",
 });
 
@@ -301,6 +318,7 @@ const COMMENTS = [
 ];
 
 export function episode(overrides: Partial<ProjectView> = {}): ProjectView {
+  const clips = buildClips();
   return minimalProject({
     project_path: "/episodes/after-hours/episode.sharecut",
     meta: {
@@ -309,7 +327,8 @@ export function episode(overrides: Partial<ProjectView> = {}): ProjectView {
     },
     timeline_duration_sec: EPISODE_DURATION_SEC,
     tracks: TRACKS,
-    clips: { tracks: buildClips(), clip_count: TRACKS.length },
+    clips: { tracks: clips, clip_count: 3 },
+    edit_boundaries: editBoundaries(clips[MIRA]),
     chapters: CHAPTERS,
     pending_edits: [PENDING],
     applied_edits: { count: 1, records: [APPLIED] },
@@ -429,7 +448,11 @@ export const selections = {
   none: null,
   clip: { kind: "clip", id: `clip-${MIRA}`, trackId: MIRA },
   pendingEdit: { kind: "pending", id: "pending-1", trackId: MIRA },
-  appliedEdit: { kind: "applied", id: "applied-1", trackId: MIRA },
+  seam: {
+    kind: "seam",
+    id: `eb:clip-${MIRA}:clip-${MIRA}-after`,
+    trackId: MIRA,
+  },
   track: { kind: "track", trackId: MIRA },
   chapter: { kind: "chapter", id: "The harbor depot", time: 64 },
   social: { kind: "social", id: "social-1" },

@@ -38,8 +38,8 @@ const visible = appliedEditRecord({
   source_end: null,
   params: { per_track_source: { "mira-voice": [2, 3] } },
 });
-const selected = appliedEditRecord({
-  id: "selected-edit",
+const second = appliedEditRecord({
+  id: "second-edit",
   operation: "remove",
   timeline_start: 5,
   timeline_end: 6,
@@ -96,11 +96,10 @@ const meta: Meta<typeof AppliedEditOverlay> = {
   },
   decorators: [timelineLaneStoryDecorator],
   args: {
-    records: [visible, selected],
+    records: [visible, second],
     clips,
     trackId: "mira-voice",
     zoomPxPerSec: 40,
-    selectedId: null,
   },
 };
 
@@ -116,14 +115,6 @@ export const Visible: Story = {
     const ticks = canvasElement.querySelectorAll(".applied-tick--seam");
     await expect(ticks).toHaveLength(2);
     await expect(ticks[0]).toHaveStyle({ left: "80px" });
-  },
-};
-
-export const Selected: Story = {
-  args: { selectedId: selected.id },
-  play: async ({ canvasElement }) => {
-    const ticks = canvasElement.querySelectorAll(".applied-tick.selected");
-    await expect(ticks).toHaveLength(1);
   },
 };
 

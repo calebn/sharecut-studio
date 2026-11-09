@@ -109,8 +109,18 @@ const matrix: [string, Partial<EditFacts>, ResolvedBar][] = [
     { kind: "seam", holdsCut: true },
     {
       leading: null,
-      bar: ["hear", "keep", "comment", "more", "inspect"],
-      more: ["joinType"],
+      bar: ["hear", "joinType", "keep", "comment", "inspect"],
+      more: [],
+      primary: null,
+    },
+  ],
+  [
+    "split seam",
+    { kind: "seam", holdsCut: false },
+    {
+      leading: null,
+      bar: ["hear", "joinType", "comment", "inspect"],
+      more: [],
       primary: null,
     },
   ],
@@ -230,16 +240,6 @@ const matrix: [string, Partial<EditFacts>, ResolvedBar][] = [
     { leading: null, bar: ["inspect"], more: [], primary: null },
   ],
   [
-    "applied mute or trim",
-    { kind: "appliedEdge" },
-    {
-      leading: null,
-      bar: ["hear", "comment", "inspect"],
-      more: [],
-      primary: null,
-    },
-  ],
-  [
     "envelope point",
     { kind: "envelopePoint" },
     {
@@ -311,6 +311,7 @@ describe("EDIT_ORDER", () => {
   it("is the element 7 sequence, literally", () => {
     expect([...EDIT_ORDER]).toEqual([
       "hear",
+      "joinType",
       "hearBefore",
       "hearAfter",
       "keep",

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  appliedEditRecord,
+  clipRow,
+  editBoundaries,
   minimalProject,
   pendingEditView,
   sampleComment,
@@ -21,13 +22,23 @@ const envelopes = [
   },
 ];
 
+const wireClips = [
+  clipRow({ id: "a", track_id: "host", source_end: 4, timeline_end: 4 }),
+  clipRow({
+    id: "b",
+    track_id: "host",
+    source_start: 4,
+    source_end: 8,
+    timeline_start: 4,
+    timeline_end: 8,
+  }),
+];
+
 const project = minimalProject({
   tracks: [sampleTrack({ id: "host" })],
   envelopes,
-  applied_edits: {
-    count: 1,
-    records: [appliedEditRecord({ id: "alog_1" })],
-  },
+  clips: { tracks: { host: wireClips }, clip_count: 2 },
+  edit_boundaries: editBoundaries(wireClips),
   pending_edits: [pendingEditView({ id: "cut_1", track_id: "host" })],
   comments: [sampleComment({ id: "c1" })],
 });
@@ -49,19 +60,18 @@ describe("selection wire", () => {
       pendingWireSelection: null,
     });
   });
-  it("sends a session-wide applied selection without a track id", () => {
-    const local = { kind: "applied" as const, id: "alog_1" };
-    const wire = selectionToWire(local);
-    expect(wire).toStrictEqual({ kind: "applied", id: "alog_1" });
-    expect(selectionFromWire(wire, project)).toStrictEqual(local);
+  it("reads an unknown selection kind as nothing", () => {
+    expect(
+      selectionFromWire({ kind: "applied", id: "alog_1" }, project),
+    ).toBeNull();
   });
 
-  it("round-trips an applied selection on a track", () => {
-    const local = { kind: "applied" as const, id: "alog_1", trackId: "host" };
+  it("round-trips a seam selection on a track", () => {
+    const local = { kind: "seam" as const, id: "eb:a:b", trackId: "host" };
     const wire = selectionToWire(local);
     expect(wire).toStrictEqual({
-      kind: "applied",
-      id: "alog_1",
+      kind: "seam",
+      id: "eb:a:b",
       track_id: "host",
     });
     expect(selectionFromWire(wire, project)).toStrictEqual(local);
@@ -139,7 +149,10 @@ describe("selection wire", () => {
       selectionFromWire({ kind: "comment", id: "c_gone" }, project),
     ).toBeNull();
     expect(
-      selectionFromWire({ kind: "applied", id: "alog_gone" }, project),
+      selectionFromWire(
+        { kind: "seam", id: "eb:gone:gone", track_id: "host" },
+        project,
+      ),
     ).toBeNull();
     expect(
       selectionFromWire({ kind: "clip", id: "g9", track_id: "host" }, project),

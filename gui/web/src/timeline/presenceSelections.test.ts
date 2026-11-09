@@ -17,7 +17,26 @@ const clip = (over: Partial<ClipRow> = {}): ClipRow =>
 function project() {
   return minimalProject({
     tracks: [sampleTrack({ id: "host" }), sampleTrack({ id: "guest" })],
-    clips: { tracks: { host: [], guest: [clip()] }, clip_count: 1 },
+    clips: {
+      tracks: {
+        host: [
+          clip({
+            id: "h1",
+            track_id: "host",
+            timeline_start: 0,
+            timeline_end: 5,
+          }),
+          clip({
+            id: "h2",
+            track_id: "host",
+            timeline_start: 5,
+            timeline_end: 9,
+          }),
+        ],
+        guest: [clip()],
+      },
+      clip_count: 3,
+    },
     envelopes: [
       {
         track_id: "guest",
@@ -54,14 +73,15 @@ describe("presenceSelections", () => {
     ]);
   });
 
-  it("widens pending and applied points to 2 px and an envelope point to 5 px", () => {
+  it("widens pending and seam points to 2 px and an envelope point to 5 px", () => {
     const sel = (s: SessionSelection) =>
       presenceSelections([client(s)], project(), 10)[0]!;
     const pending = sel({ kind: "pending", track_id: "host", time: 3 });
     expect(pending.start).toBe(3);
     expect(pending.end).toBeCloseTo(3 + 2 / 10);
-    const applied = sel({ kind: "applied", track_id: "host", time: 4 });
-    expect(applied.end).toBeCloseTo(4 + 2 / 10);
+    const seam = sel({ kind: "seam", track_id: "host", id: "eb:h1:h2" });
+    expect(seam.start).toBe(5);
+    expect(seam.end).toBeCloseTo(5 + 2 / 10);
     const point = sel({ kind: "envelopePoint", track_id: "guest", id: "p1" });
     expect(point.laneId).toBe("guest");
     expect(point.start).toBe(7);
@@ -102,7 +122,7 @@ describe("presenceSelections", () => {
       { kind: "clip", id: "missing" },
       { kind: "envelopePoint", track_id: "guest", id: "nope" },
       { kind: "pending", track_id: "ghost", time: 1 },
-      { kind: "applied", track_id: "host" },
+      { kind: "seam", track_id: "host", id: "eb:gone:gone" },
       { kind: "comment", id: "x" },
     ];
     for (const s of gone) {

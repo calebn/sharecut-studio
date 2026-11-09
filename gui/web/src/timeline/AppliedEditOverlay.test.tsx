@@ -39,7 +39,6 @@ describe("AppliedEditOverlay", () => {
         clips={clips}
         trackId="mira-voice"
         zoomPxPerSec={20}
-        selectedId="ripple"
       />,
     );
     const layer = container.querySelector(".applied-edit-layer");
@@ -49,7 +48,6 @@ describe("AppliedEditOverlay", () => {
     expect(tick).not.toBeNull();
     expect(tick).toHaveStyle({ left: "40px" });
     expect(tick?.style.width).toBe("");
-    expect(tick).toHaveClass("selected");
   });
 
   it("colors a mute record's ticks by type, apart from a cut's", () => {
@@ -76,7 +74,6 @@ describe("AppliedEditOverlay", () => {
         clips={clips}
         trackId="mira-voice"
         zoomPxPerSec={20}
-        selectedId={null}
       />,
     );
     expect(container.querySelectorAll(".applied-tick--mute")).toHaveLength(2);
@@ -99,7 +96,6 @@ describe("AppliedEditOverlay", () => {
         clips={clips}
         trackId="mira-voice"
         zoomPxPerSec={20}
-        selectedId={null}
       />,
     );
     expect(container.querySelector(".applied-edit-layer")).toBeNull();
@@ -122,7 +118,6 @@ describe("AppliedEditOverlay", () => {
         clips={clips}
         trackId="mira-voice"
         zoomPxPerSec={20}
-        selectedId={null}
       />,
     );
     const tick = container.querySelector(".applied-tick");
@@ -145,7 +140,6 @@ describe("AppliedEditOverlay", () => {
         clips={clips}
         trackId="mira-voice"
         zoomPxPerSec={20}
-        selectedId={null}
       />,
     );
     const tick = container.querySelector<HTMLElement>(".applied-tick");
@@ -153,7 +147,7 @@ describe("AppliedEditOverlay", () => {
     expect(queryByRole("button")).toBeNull();
   });
 
-  it("has no axe violations with a selected seam tick", async () => {
+  it("has no axe violations with a seam tick", async () => {
     const { container } = render(
       <AppliedEditOverlay
         records={[
@@ -168,7 +162,6 @@ describe("AppliedEditOverlay", () => {
         clips={clips}
         trackId="mira-voice"
         zoomPxPerSec={20}
-        selectedId="ripple"
       />,
     );
     expect(container.querySelector(".applied-tick")).not.toBeNull();

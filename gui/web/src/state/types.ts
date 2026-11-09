@@ -324,17 +324,16 @@ export interface DawState {
   setBounceRangeTarget: (target: ExactRangeTarget | null) => void;
   /** Source Prepare shows its split prompt for, set by "Split speakers…"; null otherwise. */
   prepareFocusTrackId: string | null;
-  /** The drawn join whose popover is open (its right clip's id), or null. One at a time (timeline/editMarkers/EditMarkerLayer.tsx). */
-  openJoinId: string | null;
   /**
-   * A join popover's SetClipJoin is in flight: no join popover dismisses, opens or switches until it settles
-   * (timeline/JoinPopover.tsx); a project switch clears it. Store state lets the edit marker glyphs render from it.
+   * A seam's SetClipJoin is in flight: clip edge handles and range gestures wait until it settles
+   * (commands/seamCommands.ts); a project switch clears it.
    */
   joinMutationInFlight: boolean;
   /**
-   * The open join's right clip as a length drag or the slider is drafting it,
-   * or null: the edit marker reads its tier and label from the drawn draft
-   * (timeline/JoinEditor.tsx sets it, timeline/editMarkers/plan.ts reads it).
+   * The selected seam's right clip as the length Scrub is drafting it, or
+   * null: the join blend and the edit marker read their tier and label from the
+   * drawn draft (stage/edit/seamSections.tsx sets it, timeline/JoinEditor.tsx
+   * and timeline/editMarkers/plan.ts read it).
    */
   joinDraft: ClipRow | null;
   /**
@@ -505,7 +504,6 @@ export interface DawState {
   setHostMcpDialogOpen: (on: boolean) => void;
   setHelpDialogOpen: (on: boolean) => void;
   setModelsSheetOpen: (on: boolean) => void;
-  setOpenJoinId: (id: string | null) => void;
   setJoinMutationInFlight: (on: boolean) => void;
   setJoinDraft: (draft: ClipRow | null) => void;
   setRippleTrim: (trim: RippleTrim | null) => void;

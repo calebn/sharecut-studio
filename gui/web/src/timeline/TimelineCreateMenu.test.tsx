@@ -86,7 +86,6 @@ beforeEach(() => {
     choose: vi.fn(),
     openCreate: vi.fn(),
     close: vi.fn(),
-    adopt: vi.fn(() => vi.fn()),
     disarm: vi.fn(),
   };
   view = {

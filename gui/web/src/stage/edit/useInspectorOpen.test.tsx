@@ -140,7 +140,7 @@ const EVERY_KIND: Record<SelectionKind, NonNullable<Selection>> = {
     regionKey: null,
   },
   pending: { kind: "pending", id: "p1", trackId: "host" },
-  applied: { kind: "applied", id: "a1" },
+  seam: { kind: "seam", id: "eb:a:b", trackId: "host" },
   track: { kind: "track", trackId: "host" },
   chapter: { kind: "chapter", id: "Intro", time: 3 },
   social: { kind: "social", id: "s1" },

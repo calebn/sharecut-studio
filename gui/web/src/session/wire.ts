@@ -1,3 +1,4 @@
+import { seamById } from "../edit/seam";
 import type {
   AutomationEnvelope,
   ProjectView,
@@ -20,10 +21,8 @@ export function selectionToWire(
   if (sel.kind === "pending") {
     return { kind: "pending", id: sel.id, track_id: sel.trackId };
   }
-  if (sel.kind === "applied") {
-    return sel.trackId
-      ? { kind: "applied", id: sel.id, track_id: sel.trackId }
-      : { kind: "applied", id: sel.id };
+  if (sel.kind === "seam") {
+    return { kind: "seam", id: sel.id, track_id: sel.trackId };
   }
   if (sel.kind === "track" || sel.kind === "envelope") {
     return { kind: "track", track_id: sel.trackId };
@@ -97,8 +96,8 @@ function selectionExists(
       );
     case "pending":
       return project.pending_edits.some((e) => e.id === sel.id);
-    case "applied":
-      return project.applied_edits.records.some((r) => r.id === sel.id);
+    case "seam":
+      return seamById(project, sel.id) !== null;
     case "social":
       return (project.social_clips ?? []).some((c) => c.id === sel.id);
     case "comment":
@@ -127,10 +126,8 @@ function parseWireSelection(
   if (sel.kind === "pending" && sel.id) {
     return { kind: "pending", id: sel.id, trackId: sel.track_id ?? "" };
   }
-  if (sel.kind === "applied" && sel.id) {
-    return sel.track_id
-      ? { kind: "applied", id: sel.id, trackId: sel.track_id }
-      : { kind: "applied", id: sel.id };
+  if (sel.kind === "seam" && sel.id && sel.track_id) {
+    return { kind: "seam", id: sel.id, trackId: sel.track_id };
   }
   if (sel.kind === "track" && sel.track_id) {
     return { kind: "track", trackId: sel.track_id };

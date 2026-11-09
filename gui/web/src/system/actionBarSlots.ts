@@ -1,4 +1,12 @@
 import type { BarId } from "./editActionSets";
+import type { SystemIconName } from "./icons";
+
+export type BarOption = {
+  readonly value: string;
+  readonly label: string;
+  readonly icon: SystemIconName;
+  readonly pressed: boolean;
+};
 
 export type BarItem = {
   readonly id: BarId;
@@ -10,6 +18,8 @@ export type BarItem = {
   readonly tone?: "link";
   readonly arg?: string;
   readonly disabledReason?: string;
+  /** A segmented choice: one icon button per option, each sending its `value` as the verb's `arg`. */
+  readonly options?: readonly BarOption[];
 };
 
 /** Verb slots in the phone dock, the primary's included. Design-system element 7 and spec-edit. */

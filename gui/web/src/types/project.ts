@@ -552,8 +552,8 @@ export type Selection =
       regionKey: string | null;
     }
   | { kind: "pending"; id: string; trackId: string }
-  /** `trackId` is omitted for a session-wide record (`track_ids: []`). */
-  | { kind: "applied"; id: string; trackId?: string }
+  /** `id` is the server's edit boundary id (`eb:{left}:{right}`). */
+  | { kind: "seam"; id: string; trackId: string }
   /** `trackIds` holds every selected track, `trackId` included, when more than one is selected. */
   | { kind: "track"; trackId: string; trackIds?: readonly string[] }
   | { kind: "chapter"; id: string; time: number }

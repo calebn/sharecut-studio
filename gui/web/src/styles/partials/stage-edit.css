@@ -184,12 +184,6 @@
   margin-block-start: calc(var(--touch-min) - var(--space-4));
 }
 
-/* An open join's length rail sits at the foot of the timeline; it stays above the
-   floating corner so its grip is never covered. */
-.stage-frame .join-edit-rail {
-  z-index: calc(var(--z-timeline-chrome) + 1);
-}
-
 /* A frame under 20 rem (a small phone at 200% text) has a 4 rem header column
    (layout.css, timeline under 30 rem); the corner wraps in the lanes beside it. */
 @container app (max-width: 20rem) {

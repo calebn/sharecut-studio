@@ -1,4 +1,5 @@
 import {
+  ArrowLeftRight,
   ArrowLeftToLine,
   ArrowRight,
   ArrowRightToLine,
@@ -71,6 +72,7 @@ import {
   TextCursorInput,
   TextSearch,
   Trash2,
+  TrendingDown,
   TriangleAlert,
   Undo2,
   Unlink,
@@ -161,6 +163,8 @@ export const LUCIDE_ICONS = {
   unlink: Unlink,
   user: User,
   minus: Minus,
+  fade: TrendingDown,
+  crossfade: ArrowLeftRight,
   plus: Plus,
   lock: Lock,
   mic: Mic,

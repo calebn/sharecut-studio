@@ -11,6 +11,5 @@ export function hitRouterStub(): HitRouter {
     openCreate: fn(() => true),
     close: fn(),
     disarm: fn(),
-    adopt: fn(() => () => undefined),
   };
 }

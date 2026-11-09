@@ -100,7 +100,7 @@ export const SELECTION_SURFACES: {
       );
     },
   },
-  applied: {
+  seam: {
     ...plain,
     screens: ANYWHERE,
     body: () => <SectionsBody withRange={false} />,
