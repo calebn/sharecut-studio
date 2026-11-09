@@ -154,3 +154,32 @@ def test_generation_without_bakes_mutes_is_dropped_on_load(two_recording_track):
     save_project(reloaded, ws.path)
     rebuilt = pv.ensure_proxy_manifest(ProjectWorkspace.open(ws.path))
     assert rebuilt.occurrences["second"].bakes_mutes is False
+
+
+def test_mixed_valid_and_invalid_generations_keep_the_valid_one(two_recording_track):
+    ws = two_recording_track
+    older = pv.ensure_proxy_manifest(ws)
+    _write_wav(ws.project.workspace_path() / "raw/host_src1.wav", -9000)
+    newer = pv.ensure_proxy_manifest(ProjectWorkspace.open(ws.path))
+    assert newer.revision != older.revision
+    document = json.loads(ws.path.read_text())
+    generations = document["render"]["proxy_manifests"]
+    assert [g["revision"] for g in generations] == [newer.revision, older.revision]
+    for binding in generations[1]["occurrences"].values():
+        del binding["bakes_mutes"]
+    ws.path.write_text(json.dumps(document))
+    reloaded = load_project(ws.path)
+    assert [g.revision for g in reloaded.render.proxy_manifests] == [newer.revision]
+    assert reloaded.render.proxy_manifests[0].occurrences["second"].bakes_mutes is False
+
+
+def test_tracks_only_generation_is_kept_on_load(two_recording_track):
+    ws = two_recording_track
+    for clip in ws.project.clips:
+        clip.source_id = "host_src0"
+    ws.save()
+    generation = pv.ensure_proxy_manifest(ws)
+    assert generation.occurrences == {}
+    reloaded = load_project(ws.path)
+    assert [g.revision for g in reloaded.render.proxy_manifests] == [generation.revision]
+    assert list(reloaded.render.proxy_manifests[0].tracks) == ["host"]

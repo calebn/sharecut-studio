@@ -352,6 +352,7 @@ def test_all_nonempty_choices_bind_inactive_and_unity_occurrences(workspace, fas
     assert "input_hash" not in str(payload)
     assert payload["occurrences"]["selected"]["outputTrackId"] == "host"
     assert payload["occurrences"]["selected"]["bakesMutes"] is True
+    assert payload["occurrences"]["repeat"]["bakesMutes"] is False
 
 
 def test_selected_move_uses_origin_context_and_preserves_plain_refs(workspace, fast_encode):
