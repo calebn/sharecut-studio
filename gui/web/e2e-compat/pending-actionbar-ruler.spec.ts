@@ -41,6 +41,7 @@ const VIEWPORTS: Record<
   "desktop-1195": { width: 1195, height: 820, outcome: "floating" },
   "desktop-360": { width: 1280, height: 360, outcome: "floating" },
   "desktop-500": { width: 1280, height: 500, outcome: "floating" },
+  "desktop-short": { width: 1280, height: 220, outcome: "inline" },
 };
 
 let projectPath: string;
