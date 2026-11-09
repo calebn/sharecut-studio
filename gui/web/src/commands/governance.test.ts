@@ -310,7 +310,7 @@ describe("command bus", () => {
   });
 });
 
-type PlayheadWriter = { prefix: string; reason: string; followUp?: true };
+type PlayheadWriter = { prefix: string; reason: string };
 
 /** Files that may call `setPlayheadSec(`. Every other playhead jump goes through `seekTransport`. */
 const PLAYHEAD_WRITERS: PlayheadWriter[] = [
@@ -345,7 +345,6 @@ const PLAYHEAD_WRITERS: PlayheadWriter[] = [
     prefix: "utils/playRange.ts",
     reason:
       "calls an injected setter; comments/playComment.ts and stage/hosts/useReviewQueue.ts Hear still inject the raw store setter instead of seekTransport",
-    followUp: true,
   },
 ];
 
