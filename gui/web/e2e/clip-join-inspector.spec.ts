@@ -21,10 +21,12 @@ test.describe("Clip inspector join control", () => {
     try {
       // The split leaves both dialogue clips selected and the multi-clip Inspector
       // has no join row, so drop the selection and pick the one clip.
+      const actions = page.getByRole("group", {
+        name: /^(Selection|Edit) actions$/,
+      });
+      await expect(actions).toBeVisible();
       await page.keyboard.press("Escape");
-      await expect(
-        page.getByRole("group", { name: /^(Selection|Edit) actions$/ }),
-      ).toHaveCount(0);
+      await expect(actions).toHaveCount(0);
       await lanes.first().locator(".clip-block").nth(1).click();
       await inspectSelection(page);
       const joinMode = page.getByLabel("Incoming transition");
