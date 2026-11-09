@@ -1249,7 +1249,7 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   inset-inline-start: 0;
   min-block-size: 2rem;
   pointer-events: none;
-  z-index: var(--z-status-overlay);
+  z-index: var(--z-playhead);
 }
 
 .recording-scroll-extent {
