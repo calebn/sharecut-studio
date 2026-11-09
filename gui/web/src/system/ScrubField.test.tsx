@@ -65,6 +65,53 @@ const dragBy = (
   });
 };
 
+const pointerTap = (
+  target: HTMLElement,
+  pointerType: "mouse" | "touch",
+  pointerId = 1,
+) => {
+  const contact = {
+    pointerId,
+    pointerType,
+    isPrimary: true,
+    button: 0,
+    clientX: 100,
+    clientY: 10,
+  };
+  fireEvent.pointerDown(target, contact);
+  fireEvent.pointerUp(target, contact);
+};
+
+const beginMouseSecondContact = (target: HTMLElement, pointerId = 2) => {
+  fireEvent.pointerDown(target, {
+    pointerId,
+    pointerType: "mouse",
+    isPrimary: true,
+    button: 0,
+    clientX: 100,
+    clientY: 10,
+  });
+  fireEvent.mouseDown(target, {
+    detail: 2,
+    button: 0,
+    clientX: 100,
+    clientY: 10,
+  });
+};
+
+const finishMouseSecondContact = (target: HTMLElement, pointerId = 2) => {
+  fireEvent.pointerUp(target, {
+    pointerId,
+    pointerType: "mouse",
+    isPrimary: true,
+    button: 0,
+    clientX: 100,
+    clientY: 10,
+  });
+  fireEvent.click(target, { detail: 2, clientX: 100, clientY: 10 });
+  fireEvent.doubleClick(target, { detail: 2, clientX: 100, clientY: 10 });
+};
+
 describe("ScrubField drag", () => {
   it("changes by one step per pixel and commits once on release", () => {
     const { calls, field } = setup();
@@ -332,38 +379,13 @@ describe("ScrubField typing", () => {
       unit: "dB",
     });
     const initial = field();
-    fireEvent.pointerDown(initial, {
-      pointerId: 1,
-      pointerType: "mouse",
-      button: 0,
-      clientX: 100,
-      clientY: 10,
-    });
-    fireEvent.pointerUp(initial, {
-      pointerId: 1,
-      pointerType: "mouse",
-      clientX: 100,
-      clientY: 10,
-    });
+    pointerTap(initial, "mouse");
     fireEvent.click(initial, { detail: 1, clientX: 100, clientY: 10 });
     const input = screen.getByRole("textbox", { name: "Offset" });
     expect(input).toHaveFocus();
 
-    fireEvent.pointerDown(input, {
-      pointerId: 2,
-      pointerType: "mouse",
-      button: 0,
-      clientX: 100,
-      clientY: 10,
-    });
-    fireEvent.pointerUp(input, {
-      pointerId: 2,
-      pointerType: "mouse",
-      clientX: 100,
-      clientY: 10,
-    });
-    fireEvent.click(input, { detail: 2, clientX: 100, clientY: 10 });
-    fireEvent.doubleClick(input, { detail: 2, clientX: 100, clientY: 10 });
+    beginMouseSecondContact(input);
+    finishMouseSecondContact(input);
 
     expect(screen.queryByRole("textbox", { name: "Offset" })).toBeNull();
     expect(field()).toHaveAttribute("aria-valuenow", "0");
@@ -381,31 +403,21 @@ describe("ScrubField typing", () => {
       decimals: 1,
       unit: "dB",
     });
-    fireEvent.pointerDown(field(), {
-      pointerId: 1,
-      pointerType: "touch",
-      button: 0,
-      clientX: 100,
-      clientY: 10,
-    });
-    fireEvent.pointerUp(field(), {
-      pointerId: 1,
-      pointerType: "touch",
-      clientX: 100,
-      clientY: 10,
-    });
+    pointerTap(field(), "touch");
     const input = screen.getByRole("textbox", { name: "Offset" });
     expect(input).toHaveFocus();
 
     fireEvent.click(input, {
       detail: 1,
       pointerType: "touch",
+      isPrimary: true,
       clientX: 100,
       clientY: 10,
     });
     fireEvent.pointerDown(input, {
       pointerId: 2,
       pointerType: "touch",
+      isPrimary: true,
       button: 0,
       clientX: 100,
       clientY: 10,
@@ -413,12 +425,14 @@ describe("ScrubField typing", () => {
     fireEvent.pointerUp(input, {
       pointerId: 2,
       pointerType: "touch",
+      isPrimary: true,
       clientX: 100,
       clientY: 10,
     });
     fireEvent.click(input, {
       detail: 1,
       pointerType: "touch",
+      isPrimary: true,
       clientX: 100,
       clientY: 10,
     });
@@ -427,6 +441,496 @@ describe("ScrubField typing", () => {
     expect(field()).toHaveAttribute("aria-valuenow", "0");
     expect(field()).toHaveFocus();
     expect(calls.onCommit).toHaveBeenCalledExactlyOnceWith(0);
+  });
+
+  it("keeps the touch reset candidate through retargeted compatibility mouse coordinates", () => {
+    const { calls, field } = setup({
+      variant: "level",
+      value: -6,
+      min: -60,
+      max: 12,
+      defaultValue: 0,
+      decimals: 1,
+      unit: "dB",
+    });
+
+    const initial = field();
+    fireEvent.pointerDown(initial, {
+      pointerId: 1,
+      pointerType: "touch",
+      isPrimary: true,
+      button: 0,
+      clientX: 279,
+      clientY: 38,
+    });
+    fireEvent.pointerUp(initial, {
+      pointerId: 1,
+      pointerType: "touch",
+      isPrimary: true,
+      button: 0,
+      clientX: 279,
+      clientY: 38,
+    });
+    const input = screen.getByRole("textbox", { name: "Offset" });
+    fireEvent.mouseDown(input, {
+      detail: 1,
+      button: 0,
+      clientX: 266,
+      clientY: 25,
+    });
+    fireEvent.pointerDown(input, {
+      pointerId: 2,
+      pointerType: "touch",
+      isPrimary: true,
+      button: 0,
+      clientX: 279,
+      clientY: 38,
+    });
+    fireEvent.pointerUp(input, {
+      pointerId: 2,
+      pointerType: "touch",
+      isPrimary: true,
+      button: 0,
+      clientX: 279,
+      clientY: 38,
+    });
+
+    expect(screen.queryByRole("textbox", { name: "Offset" })).toBeNull();
+    expect(field()).toHaveAttribute("aria-valuenow", "0");
+    expect(field()).toHaveFocus();
+    expect(calls.onCommit).toHaveBeenCalledExactlyOnceWith(0);
+  });
+
+  it("keeps an empty level available for ordinary typing instead of resetting it", async () => {
+    const user = userEvent.setup();
+    const { calls, field } = setup({
+      variant: "level",
+      value: null,
+      min: 0,
+      max: 1,
+      defaultValue: 1,
+      decimals: 2,
+    });
+    fireEvent.pointerDown(field(), {
+      pointerId: 1,
+      pointerType: "mouse",
+      isPrimary: true,
+      button: 0,
+      clientX: 100,
+      clientY: 10,
+    });
+    fireEvent.pointerUp(field(), {
+      pointerId: 1,
+      pointerType: "mouse",
+      isPrimary: true,
+      clientX: 100,
+      clientY: 10,
+    });
+    const input = screen.getByRole("textbox", { name: "Offset" });
+    fireEvent.doubleClick(input, { detail: 2, clientX: 100, clientY: 10 });
+
+    expect(screen.getByRole("textbox", { name: "Offset" })).toBe(input);
+    expect(calls.onCommit).not.toHaveBeenCalled();
+    await user.type(input, "0.7{Enter}");
+    expect(field()).toHaveAttribute("aria-valuenow", "0.7");
+    expect(calls.onCommit).toHaveBeenCalledExactlyOnceWith(0.7);
+  });
+
+  it("consumes a level reset at its configured default without committing", () => {
+    const { calls, field } = setup({
+      variant: "level",
+      value: 0,
+      min: -60,
+      max: 12,
+      defaultValue: 0,
+    });
+    pointerTap(field(), "mouse");
+    const input = screen.getByRole("textbox", { name: "Offset" });
+    beginMouseSecondContact(input);
+    finishMouseSecondContact(input);
+
+    expect(screen.queryByRole("textbox", { name: "Offset" })).toBeNull();
+    expect(field()).toHaveAttribute("aria-valuenow", "0");
+    expect(calls.onCommit).not.toHaveBeenCalled();
+  });
+
+  it("commits a configured nonzero level default once", () => {
+    const { calls, field } = setup({
+      variant: "level",
+      value: 0.5,
+      min: 0,
+      max: 1,
+      defaultValue: 1,
+      decimals: 2,
+    });
+    pointerTap(field(), "mouse");
+    const input = screen.getByRole("textbox", { name: "Offset" });
+    beginMouseSecondContact(input);
+    finishMouseSecondContact(input);
+
+    expect(screen.queryByRole("textbox", { name: "Offset" })).toBeNull();
+    expect(field()).toHaveAttribute("aria-valuenow", "1");
+    expect(calls.onCommit).toHaveBeenCalledExactlyOnceWith(1);
+  });
+
+  it.each(["move", "cancel"] as const)(
+    "does not reset after the second mouse contact %s",
+    (ending) => {
+      const { calls, field } = setup({
+        variant: "level",
+        value: -6,
+        min: -60,
+        max: 12,
+        defaultValue: 0,
+      });
+      fireEvent.pointerDown(field(), {
+        pointerId: 1,
+        pointerType: "mouse",
+        isPrimary: true,
+        button: 0,
+        clientX: 100,
+        clientY: 10,
+      });
+      fireEvent.pointerUp(field(), {
+        pointerId: 1,
+        pointerType: "mouse",
+        isPrimary: true,
+        button: 0,
+        clientX: 100,
+        clientY: 10,
+      });
+      const input = screen.getByRole("textbox", { name: "Offset" });
+      fireEvent.pointerDown(input, {
+        pointerId: 2,
+        pointerType: "mouse",
+        isPrimary: true,
+        button: 0,
+        clientX: 100,
+        clientY: 10,
+      });
+      fireEvent.mouseDown(input, {
+        detail: 2,
+        button: 0,
+        clientX: 100,
+        clientY: 10,
+      });
+      if (ending === "move") {
+        fireEvent.pointerMove(input, {
+          pointerId: 2,
+          pointerType: "mouse",
+          isPrimary: true,
+          clientX: 104,
+          clientY: 10,
+        });
+        fireEvent.pointerUp(input, {
+          pointerId: 2,
+          pointerType: "mouse",
+          isPrimary: true,
+          button: 0,
+          clientX: 104,
+          clientY: 10,
+        });
+        fireEvent.doubleClick(input, { detail: 2, clientX: 104, clientY: 10 });
+      } else {
+        fireEvent.pointerCancel(input, {
+          pointerId: 2,
+          pointerType: "mouse",
+        });
+        fireEvent.doubleClick(input, { detail: 2, clientX: 100, clientY: 10 });
+      }
+
+      expect(screen.getByRole("textbox", { name: "Offset" })).toBe(input);
+      expect(calls.onCommit).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    {
+      name: "secondary button",
+      pointerType: "mouse",
+      isPrimary: true,
+      button: 1,
+    },
+    { name: "mixed pointer", pointerType: "touch", isPrimary: true, button: 0 },
+    {
+      name: "nonprimary contact",
+      pointerType: "mouse",
+      isPrimary: false,
+      button: 0,
+    },
+  ])("ignores a $name second contact", ({ pointerType, isPrimary, button }) => {
+    const { calls, field } = setup({
+      variant: "level",
+      value: -6,
+      min: -60,
+      max: 12,
+      defaultValue: 0,
+    });
+    fireEvent.pointerDown(field(), {
+      pointerId: 1,
+      pointerType: "mouse",
+      isPrimary: true,
+      button: 0,
+      clientX: 100,
+      clientY: 10,
+    });
+    fireEvent.pointerUp(field(), {
+      pointerId: 1,
+      pointerType: "mouse",
+      isPrimary: true,
+      button: 0,
+      clientX: 100,
+      clientY: 10,
+    });
+    const input = screen.getByRole("textbox", { name: "Offset" });
+    fireEvent.pointerDown(input, {
+      pointerId: 2,
+      pointerType,
+      isPrimary,
+      button,
+      clientX: 100,
+      clientY: 10,
+    });
+    fireEvent.mouseDown(input, {
+      detail: 2,
+      button,
+      clientX: 100,
+      clientY: 10,
+    });
+    fireEvent.pointerUp(input, {
+      pointerId: 2,
+      pointerType,
+      isPrimary,
+      button,
+      clientX: 100,
+      clientY: 10,
+    });
+    fireEvent.doubleClick(input, { detail: 2, clientX: 100, clientY: 10 });
+
+    expect(screen.getByRole("textbox", { name: "Offset" })).toBe(input);
+    expect(calls.onCommit).not.toHaveBeenCalled();
+  });
+
+  it("keeps an edited level as text instead of treating its next double-click as reset", async () => {
+    const user = userEvent.setup();
+    const { calls, field } = setup({
+      variant: "level",
+      value: -6,
+      min: -60,
+      max: 12,
+      defaultValue: 0,
+      decimals: 1,
+      unit: "dB",
+    });
+    fireEvent.pointerDown(field(), {
+      pointerId: 1,
+      pointerType: "mouse",
+      isPrimary: true,
+      button: 0,
+      clientX: 100,
+      clientY: 10,
+    });
+    fireEvent.pointerUp(field(), {
+      pointerId: 1,
+      pointerType: "mouse",
+      isPrimary: true,
+      clientX: 100,
+      clientY: 10,
+    });
+    const input = screen.getByRole("textbox", { name: "Offset" });
+    await user.clear(input);
+    await user.type(input, "-4.5");
+    fireEvent.doubleClick(input, { detail: 2, clientX: 100, clientY: 10 });
+
+    expect(screen.getByRole("textbox", { name: "Offset" })).toHaveValue("-4.5");
+    expect(calls.onCommit).not.toHaveBeenCalled();
+    await user.tab();
+    expect(calls.onCommit).toHaveBeenCalledExactlyOnceWith(-4.5);
+  });
+
+  it("rejects a moved second touch without closing the level input", () => {
+    const { calls, field } = setup({
+      variant: "level",
+      value: -6,
+      min: -60,
+      max: 12,
+      defaultValue: 0,
+    });
+    fireEvent.pointerDown(field(), {
+      pointerId: 1,
+      pointerType: "touch",
+      isPrimary: true,
+      button: 0,
+      clientX: 100,
+      clientY: 10,
+    });
+    fireEvent.pointerUp(field(), {
+      pointerId: 1,
+      pointerType: "touch",
+      isPrimary: true,
+      clientX: 100,
+      clientY: 10,
+    });
+    const input = screen.getByRole("textbox", { name: "Offset" });
+    fireEvent.pointerDown(input, {
+      pointerId: 2,
+      pointerType: "touch",
+      isPrimary: true,
+      button: 0,
+      clientX: 100,
+      clientY: 10,
+    });
+    fireEvent.pointerMove(input, {
+      pointerId: 2,
+      pointerType: "touch",
+      isPrimary: true,
+      clientX: 111,
+      clientY: 10,
+    });
+    fireEvent.pointerUp(input, {
+      pointerId: 2,
+      pointerType: "touch",
+      isPrimary: true,
+      clientX: 111,
+      clientY: 10,
+    });
+
+    expect(screen.getByRole("textbox", { name: "Offset" })).toBe(input);
+    expect(calls.onCommit).not.toHaveBeenCalled();
+  });
+
+  it("expires a touch reset when the second contact starts after its window", () => {
+    const clock = vi.spyOn(Date, "now").mockReturnValue(1_000);
+    const { calls, field } = setup({
+      variant: "level",
+      value: -6,
+      min: -60,
+      max: 12,
+      defaultValue: 0,
+    });
+    fireEvent.pointerDown(field(), {
+      pointerId: 1,
+      pointerType: "touch",
+      isPrimary: true,
+      button: 0,
+      clientX: 100,
+      clientY: 10,
+    });
+    fireEvent.pointerUp(field(), {
+      pointerId: 1,
+      pointerType: "touch",
+      isPrimary: true,
+      button: 0,
+      clientX: 100,
+      clientY: 10,
+    });
+    const input = screen.getByRole("textbox", { name: "Offset" });
+    clock.mockReturnValue(1_350);
+    fireEvent.pointerDown(input, {
+      pointerId: 2,
+      pointerType: "touch",
+      isPrimary: true,
+      button: 0,
+      clientX: 100,
+      clientY: 10,
+    });
+    fireEvent.pointerUp(input, {
+      pointerId: 2,
+      pointerType: "touch",
+      isPrimary: true,
+      button: 0,
+      clientX: 100,
+      clientY: 10,
+    });
+    clock.mockRestore();
+
+    expect(screen.getByRole("textbox", { name: "Offset" })).toBe(input);
+    expect(calls.onCommit).not.toHaveBeenCalled();
+  });
+
+  it("leaves mouse double-click timing to the native event", () => {
+    const clock = vi.spyOn(Date, "now").mockReturnValue(1_000);
+    const { calls, field } = setup({
+      variant: "level",
+      value: -6,
+      min: -60,
+      max: 12,
+      defaultValue: 0,
+    });
+    fireEvent.pointerDown(field(), {
+      pointerId: 1,
+      pointerType: "mouse",
+      isPrimary: true,
+      button: 0,
+      clientX: 100,
+      clientY: 10,
+    });
+    fireEvent.pointerUp(field(), {
+      pointerId: 1,
+      pointerType: "mouse",
+      isPrimary: true,
+      button: 0,
+      clientX: 100,
+      clientY: 10,
+    });
+    const input = screen.getByRole("textbox", { name: "Offset" });
+    fireEvent.pointerDown(input, {
+      pointerId: 2,
+      pointerType: "mouse",
+      isPrimary: true,
+      button: 0,
+      clientX: 100,
+      clientY: 10,
+    });
+    clock.mockReturnValue(2_000);
+    fireEvent.mouseDown(input, {
+      detail: 2,
+      button: 0,
+      clientX: 100,
+      clientY: 10,
+    });
+    fireEvent.pointerUp(input, {
+      pointerId: 2,
+      pointerType: "mouse",
+      isPrimary: true,
+      button: 0,
+      clientX: 100,
+      clientY: 10,
+    });
+    fireEvent.doubleClick(input, { detail: 2, clientX: 100, clientY: 10 });
+    clock.mockRestore();
+
+    expect(screen.queryByRole("textbox", { name: "Offset" })).toBeNull();
+    expect(calls.onCommit).toHaveBeenCalledExactlyOnceWith(0);
+  });
+
+  it("does not arm a level reset without a configured default", () => {
+    const { calls, field } = setup({
+      variant: "level",
+      value: -6,
+      min: -60,
+      max: 12,
+    });
+    fireEvent.pointerDown(field(), {
+      pointerId: 1,
+      pointerType: "mouse",
+      isPrimary: true,
+      button: 0,
+      clientX: 100,
+      clientY: 10,
+    });
+    fireEvent.pointerUp(field(), {
+      pointerId: 1,
+      pointerType: "mouse",
+      isPrimary: true,
+      clientX: 100,
+      clientY: 10,
+    });
+    const input = screen.getByRole("textbox", { name: "Offset" });
+    fireEvent.doubleClick(input, { detail: 2, clientX: 100, clientY: 10 });
+
+    expect(screen.getByRole("textbox", { name: "Offset" })).toBe(input);
+    expect(calls.onCommit).not.toHaveBeenCalled();
   });
 
   it("opens an input on click, commits a typed number on Enter and returns focus", async () => {
@@ -552,6 +1056,30 @@ describe("ScrubField states", () => {
       screen.getByRole("button", { name: "Reset Offset to 0 ms" }),
     );
     expect(screen.getByRole("spinbutton")).toHaveFocus();
+  });
+
+  it("discards an edited level draft when its reset dot is used", async () => {
+    const user = userEvent.setup();
+    const { calls } = setup({
+      variant: "level",
+      value: -6,
+      min: -60,
+      max: 12,
+      defaultValue: 0,
+      decimals: 1,
+      unit: "dB",
+    });
+    await user.click(screen.getByRole("spinbutton", { name: "Offset" }));
+    const input = screen.getByRole("textbox", { name: "Offset" });
+    await user.clear(input);
+    await user.type(input, "-3.5");
+    await user.click(
+      screen.getByRole("button", { name: "Reset Offset to 0.0 dB" }),
+    );
+
+    expect(calls.onCommit.mock.calls).toEqual([[0]]);
+    expect(screen.queryByRole("textbox", { name: "Offset" })).toBeNull();
+    expect(screen.getByRole("spinbutton", { name: "Offset" })).toHaveFocus();
   });
 
   it("draws the empty state and steps from the default", async () => {
