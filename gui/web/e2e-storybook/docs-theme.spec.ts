@@ -11,12 +11,16 @@ test("manager Docs toolbar themes reach isolated previews and follow System", as
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
   await page.goto(
-    "/?path=/docs/templates-joinpopover--docs&globals=theme:light",
+    "/?path=/docs/templates-commandpalette--docs&globals=theme:light",
   );
   const docs = page.frameLocator("#storybook-preview-iframe");
-  const iframe = docs.locator("#story--templates-joinpopover--fade iframe");
+  const iframe = docs.locator(
+    "#story--templates-commandpalette--browse iframe",
+  );
   await iframe.scrollIntoViewIfNeeded();
-  const story = docs.frameLocator("#story--templates-joinpopover--fade iframe");
+  const story = docs.frameLocator(
+    "#story--templates-commandpalette--browse iframe",
+  );
   await expectPreviewBoot(
     story.locator(".command-palette-panel"),
   ).toBeVisible();

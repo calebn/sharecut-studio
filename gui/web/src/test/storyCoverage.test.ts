@@ -40,7 +40,7 @@ const COVERED: Record<string, string[]> = {
     "System/Marker",
   ],
   "INS-TRACK": ["Stages/Edit/TrackInspector", "System/ScrubField"],
-  "INS-APPLIED": ["System/InspectorSheet", "System/Seam"],
+  "INS-APPLIED": ["System/InspectorSheet", "Stages/Edit/Seam"],
   "INS-PENDING": [
     "System/InspectorSheet",
     "System/ScrubField",
@@ -68,7 +68,7 @@ const COVERED: Record<string, string[]> = {
     "System/Clip",
     "Stages/Edit/Tracks",
   ],
-  "POP-JOIN": ["System/Seam"],
+  "POP-JOIN": ["Stages/Edit/Seam"],
   "OVL-PENDING": ["Templates/PendingEditOverlay"],
   "OVL-APPLIED": ["Templates/AppliedEditOverlay", "System/Seam"],
   "OVL-EDITMARKERS": ["Templates/EditMarkerLayer", "System/Seam"],
