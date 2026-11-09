@@ -150,6 +150,26 @@ describe("track content", () => {
     expect(screen.getByRole("button", { name: "Add person" })).toHaveFocus();
   });
 
+  it("sends nothing when Add person is given the track's own speaker", async () => {
+    const user = userEvent.setup();
+    open({ ...hostTrack, speaker: "Mira" });
+    await user.click(screen.getByRole("button", { name: "Add person" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "Name of the new person" }),
+      "mira{Enter}",
+    );
+    expect(setTrackMetaCommand).not.toHaveBeenCalled();
+  });
+
+  it("has no empty Person row when the episode has no people", () => {
+    const { container } = open({ ...hostTrack, speaker: null });
+    expect(screen.queryByRole("radiogroup")).toBeNull();
+    expect(screen.getByRole("button", { name: "Add person" })).toBeVisible();
+    const rows = [...container.querySelectorAll(".sys-inspector-row")];
+    expect(rows.filter((row) => row.children.length === 0)).toEqual([]);
+    expect(rows.filter((row) => row.textContent?.trim() === "").length).toBe(0);
+  });
+
   it("picks the existing person when the typed name matches one, ignoring case", async () => {
     const user = userEvent.setup();
     setTrackMetaCommand.mockResolvedValue({});
