@@ -49,12 +49,26 @@ describe("rangeDraft", () => {
     expect(s.rangeDraft).toBeNull();
   });
 
-  it("drops the draft when a range selection is set", () => {
+  it("drops the draft and the arm when a range selection is set", () => {
     const project = useDawStore.getState().project!;
     const target = makeRangeTarget(project, [draft], [MIRA])!;
     useDawStore.getState().setSelection({ kind: "range", target });
-    useDawStore.getState().setSelection(null);
     expect(useDawStore.getState().rangeDraft).toBeNull();
+    expect(useDawStore.getState().rangeArmed).toBe(false);
+  });
+
+  it("keeps the draft and the arm for a non-range selection", () => {
+    useDawStore.getState().setSelection(null);
+    expect(useDawStore.getState().rangeDraft).toEqual(draft);
+    expect(useDawStore.getState().rangeArmed).toBe(true);
+  });
+
+  it("drops the draft and the arm when a remote range selection is adopted", () => {
+    const project = useDawStore.getState().project!;
+    const target = makeRangeTarget(project, [draft], [MIRA])!;
+    useDawStore.getState().adoptRemoteSelection({ kind: "range", target });
+    expect(useDawStore.getState().rangeDraft).toBeNull();
+    expect(useDawStore.getState().rangeArmed).toBe(false);
   });
 
   it("leaves the undo stack alone across arm, edit and disarm", () => {

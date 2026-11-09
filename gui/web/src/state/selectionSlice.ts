@@ -1,9 +1,9 @@
 import type { StateCreator } from "zustand";
-import { isRangeSelection } from "../edit/rangeSelection";
 import type { Selection } from "../types/project";
 import {
   clipClickSelection,
   inspectKeyOf,
+  isRangeSelection,
   settleSelection,
   trackClickSelection,
   tracksSelection,
@@ -48,12 +48,16 @@ export function selectionPatch(
   current: Selection,
   next: Selection,
   inspectorKey: string | null,
-): Pick<DawStore, "selection" | "pendingWireSelection" | "inspectorKey"> {
+): Pick<DawStore, "selection" | "pendingWireSelection" | "inspectorKey"> &
+  Partial<Pick<DawStore, "rangeArmed" | "rangeDraft">> {
   const settled = settleSelection(current, next);
   return {
     selection: settled,
     pendingWireSelection: null,
     inspectorKey: inspectorKeyAfter(settled, inspectorKey),
+    ...(isRangeSelection(settled)
+      ? { rangeArmed: false, rangeDraft: null }
+      : {}),
   };
 }
 
@@ -93,10 +97,7 @@ export const createSelectionSlice: StateCreator<
   selection: null as Selection,
   setSelection: (selection) => {
     invalidateLocalSelection(get);
-    set((s) => ({
-      ...selectionPatch(s.selection, selection, s.inspectorKey),
-      ...(isRangeSelection(selection) ? { rangeDraft: null } : {}),
-    }));
+    set((s) => selectionPatch(s.selection, selection, s.inspectorKey));
   },
   selectClip: (clipId, trackId, mods) => {
     invalidateLocalSelection(get);

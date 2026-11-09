@@ -212,3 +212,8 @@ export function inspectorOpenFor(
 ): boolean {
   return inspectorKey !== null && inspectorKey === inspectKeyOf(selection);
 }
+
+/** A timeline range or a transcript word range: the selections Range actions act on. */
+export function isRangeSelection(selection: Selection): boolean {
+  return selection?.kind === "range" || selection?.kind === "transcriptRange";
+}
