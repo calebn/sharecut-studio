@@ -56,6 +56,7 @@ export function registerNavigationCommands(): void {
     const s = useDawStore.getState();
     const duration = s.project?.timeline_duration_sec ?? Number.NaN;
     s.setPlayheadSec(clampToSession(sec, duration));
+    s.setPlayUntilSec(null);
     return { status: "ok" };
   });
 
