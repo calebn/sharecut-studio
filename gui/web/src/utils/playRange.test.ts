@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import { registerDawCommands } from "../commands/register";
+import { seekTransport } from "../commands/seek";
 import { useDawStore } from "../state/dawStore";
 import { paddedAuditionWindow, playTimelineRange } from "./playRange";
 
@@ -45,6 +47,24 @@ describe("playTimelineRange", () => {
     const s = useDawStore.getState();
     expect(s.isPlaying).toBe(true);
     expect(s.playheadSec).toBe(9.5);
+    expect(s.playUntilSec).toBe(12.5);
+  });
+
+  it("arms the stop bound after a seek through the transport.seek command", () => {
+    registerDawCommands();
+    useDawStore.setState({ isPlaying: false, playUntilSec: null });
+    const { setIsPlaying, setPlayUntilSec } = useDawStore.getState();
+    playTimelineRange({
+      start: 10,
+      end: 12,
+      padSec: 0.5,
+      setPlayheadSec: (sec) => void seekTransport(sec),
+      setIsPlaying,
+      setPlayUntilSec,
+    });
+    const s = useDawStore.getState();
+    expect(s.playheadSec).toBe(9.5);
+    expect(s.isPlaying).toBe(true);
     expect(s.playUntilSec).toBe(12.5);
   });
 });
