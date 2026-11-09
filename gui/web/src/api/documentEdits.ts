@@ -394,12 +394,12 @@ export async function updatePendingEdit(
 
 export async function restoreAppliedEdit(
   projectPath: string,
-  id: string,
+  ids: readonly string[],
 ): Promise<void> {
   const reply = await submitDocumentCommand(
     projectPath,
     DocumentCommand.RestoreAppliedEdit,
-    { ids: [id], dry_run: false },
+    { ids: [...ids], dry_run: false },
   );
   // A guest's reply drops the command payload, so the server also sends the
   // conflicts at the top level.
