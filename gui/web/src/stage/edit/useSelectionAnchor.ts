@@ -1,5 +1,6 @@
 import {
   type RefObject,
+  useCallback,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -9,6 +10,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useDawStore } from "../../state/dawStore";
 import type { Selection } from "../../types/project";
 import type { AnchorExclusion } from "../../ui/useAnchoredPanel";
+import { timelineChromeBottom } from "../../utils/timelineChrome";
 
 const esc = (value: string) => CSS.escape(value);
 
@@ -90,6 +92,7 @@ type SelectionAnchor = {
   readonly ref: RefObject<HTMLElement | null>;
   readonly exclusion: AnchorExclusion;
   readonly moves: readonly unknown[];
+  readonly clearTop: () => number;
   readonly visible: boolean;
 };
 
@@ -169,8 +172,15 @@ export function useSelectionAnchor(
     [zoomPxPerSec, node, selection, excluded, root],
   );
 
+  const clearTop = useCallback(
+    () =>
+      ref.current?.closest(".timeline-scroll") ? timelineChromeBottom() : 0,
+    [],
+  );
+
   return {
     ref,
+    clearTop,
     exclusion: { ref: excludeRef, withinRef },
     moves,
     visible: enabled && node !== null && visible,

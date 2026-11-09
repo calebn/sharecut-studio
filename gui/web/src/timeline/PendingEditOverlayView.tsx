@@ -37,6 +37,7 @@ import {
 import { pendingEditTimingFieldId } from "../utils/pendingEditTimingField";
 import { formatTimeMs } from "../utils/time";
 import { clipsForOriginTrack } from "../utils/timebase";
+import { timelineChromeBottom } from "../utils/timelineChrome";
 import { hitTargetProps, OWN_TAP_HIT_SURFACE_PROPS } from "./hitTargets";
 import {
   type PendingActionPlacement,
@@ -116,17 +117,6 @@ const LABEL_INLINE_WIDTH_REM = 9;
 function rootRem(): number {
   return (
     Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 1
-  );
-}
-
-/** Viewport y where the sticky ruler and marker lane end; 0 when neither shows. */
-function timelineChromeBottom(): number {
-  return Math.max(
-    0,
-    ...[".timeline-ruler", ".marker-lane"].flatMap((selector) => {
-      const chrome = document.querySelector(selector);
-      return chrome ? [chrome.getBoundingClientRect().bottom] : [];
-    }),
   );
 }
 

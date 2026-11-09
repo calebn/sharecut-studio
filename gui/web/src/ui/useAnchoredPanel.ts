@@ -30,6 +30,8 @@ export type DialogAnchor = {
   moves?: unknown;
   /** The side tried first; below unless the subject asks to be covered less from above. */
   prefer?: "below" | "above";
+  /** Viewport y of chrome the panel must not cover when it sits above the subject. */
+  clearTop?: () => number;
 };
 
 /**
@@ -48,6 +50,7 @@ export function useAnchoredPanel(
   const withinRef = anchor?.exclusion?.withinRef;
   const moves = anchor?.moves;
   const prefer = anchor?.prefer;
+  const clearTop = anchor?.clearTop;
   const active = enabled && anchorRef != null;
 
   const place = useStableCallback(() => {
@@ -71,6 +74,7 @@ export function useAnchoredPanel(
       gap: 0.5 * rootPx,
       align: "center",
       prefer,
+      clearTop: clearTop?.(),
     } as const;
     const excludedEl = excludeRef?.current;
     const withinEl = withinRef?.current;

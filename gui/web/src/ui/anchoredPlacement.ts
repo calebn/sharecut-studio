@@ -27,6 +27,8 @@ export interface PlacementOptions {
   align: "start" | "center" | "end";
   /** The side tried first. It stands while the panel fits there or that side has more room. */
   prefer?: "below" | "above";
+  /** Viewport y of chrome the panel must stay below when it sits above the anchor. */
+  clearTop?: number;
 }
 
 export interface AnchoredPlacement {
@@ -50,7 +52,7 @@ export function placeAnchored(
   anchor: AnchorRect,
   panel: PanelSize,
   viewport: PlacementViewport,
-  { margin, gap, align, prefer = "below" }: PlacementOptions,
+  { margin, gap, align, prefer = "below", clearTop = 0 }: PlacementOptions,
 ): AnchoredPlacement {
   const minLeft = viewport.left + margin;
   const maxWidth = Math.max(0, viewport.width - 2 * margin);
@@ -63,7 +65,7 @@ export function placeAnchored(
         : (anchor.left + anchor.right) / 2 - width / 2;
   const left = Math.max(minLeft, Math.min(wanted, minLeft + maxWidth - width));
 
-  const floor = viewport.top + margin;
+  const floor = Math.max(viewport.top, clearTop) + margin;
   const ceiling = viewport.top + viewport.height - margin;
   const room = {
     below: Math.max(0, ceiling - anchor.bottom - gap),

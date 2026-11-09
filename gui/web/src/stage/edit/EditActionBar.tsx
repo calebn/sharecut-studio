@@ -137,7 +137,7 @@ function EditActionBarImpl({
               anchorRef: anchor.ref,
               exclusion: anchor.exclusion,
               moves: anchor.moves,
-              prefer: selection?.kind === "transcriptRange" ? "above" : "below",
+              clearTop: anchor.clearTop,
             }
           : { form: "dock" }
       }
