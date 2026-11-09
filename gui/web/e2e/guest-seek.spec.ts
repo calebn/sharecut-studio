@@ -8,7 +8,7 @@ import {
   test,
 } from "@playwright/test";
 import { newFinger } from "./finger";
-import { PAUSE_HOLD_MS, playButton } from "./playback";
+import { playButton } from "./playback";
 import { withShareableProject } from "./shareableProject";
 import {
   createReviewShare,
@@ -152,6 +152,24 @@ async function postCommentAt(guest: Guest, seconds: number) {
   };
 }
 
+/** Lets the page paint a run of frames, so a "stays put" check observes real rendering, not a clock. */
+const SETTLE_FRAMES = 30;
+function settleFrames(page: Page): Promise<void> {
+  return page.evaluate(
+    (count) =>
+      new Promise<void>((resolve) => {
+        let left = count;
+        const tick = () => {
+          left -= 1;
+          if (left <= 0) resolve();
+          else requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }),
+    SETTLE_FRAMES,
+  );
+}
+
 test("a click on the strip at 73% puts the clock at 73% of the episode", async ({
   browser,
 }) => {
@@ -171,7 +189,7 @@ test("a mouse drag from 25% to 60% moves the clock with it and release keeps it"
     await mouseDragStrip(guest, 0.25, 0.6);
     await expectClockNear(guest, 0.6 * DURATION_SEC);
     await guest.page.mouse.up();
-    await guest.page.waitForTimeout(400);
+    await settleFrames(guest.page);
     await expectClockNear(guest, 0.6 * DURATION_SEC);
   });
 });
@@ -186,7 +204,7 @@ test("Escape during a drag puts the clock back where the drag began", async ({
     await guest.page.keyboard.press("Escape");
     await expectClockNear(guest, 0.1 * DURATION_SEC);
     await guest.page.mouse.up();
-    await guest.page.waitForTimeout(400);
+    await settleFrames(guest.page);
     await expectClockNear(guest, 0.1 * DURATION_SEC);
   });
 });
@@ -200,11 +218,11 @@ test("ArrowRight and ArrowLeft move the clock exactly one second", async ({
     await guest.strip.focus();
     await guest.page.keyboard.press("ArrowRight");
     await expect.poll(() => now(guest)).toBeCloseTo(from + 1, 2);
-    await guest.page.waitForTimeout(300);
+    await settleFrames(guest.page);
     expect(await now(guest)).toBeCloseTo(from + 1, 2);
     await guest.page.keyboard.press("ArrowLeft");
     await expect.poll(() => now(guest)).toBeCloseTo(from, 2);
-    await guest.page.waitForTimeout(300);
+    await settleFrames(guest.page);
     expect(await now(guest)).toBeCloseTo(from, 2);
   });
 });
@@ -241,7 +259,7 @@ test("a comment row seeks to its time and its clip plays and stops 2 s after it,
     await pause.click();
     await expect(play).toBeVisible();
     const held = await now(guest);
-    await guest.page.waitForTimeout(PAUSE_HOLD_MS);
+    await settleFrames(guest.page);
     expect(await now(guest)).toBe(held);
   });
 });
@@ -260,7 +278,7 @@ test("Pause during a comment clip stops it, and the next Play is not cut at the 
     await pause.click();
     await expect(playButton(guest.page)).toBeVisible();
     const held = await now(guest);
-    await guest.page.waitForTimeout(PAUSE_HOLD_MS);
+    await settleFrames(guest.page);
     expect(await now(guest)).toBe(held);
     await clickStrip(guest, 0.5);
     await playButton(guest.page).click();
@@ -298,7 +316,7 @@ test("a finger drag from 25% to 60% moves the clock with it and lifting keeps it
     await finger.slide(to, 12, 16);
     await expectClockNear(guest, 0.6 * DURATION_SEC);
     await finger.up();
-    await guest.page.waitForTimeout(400);
+    await settleFrames(guest.page);
     await expectClockNear(guest, 0.6 * DURATION_SEC);
   });
 });
