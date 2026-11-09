@@ -79,6 +79,41 @@ for (const mod of Object.values(modules)) {
 }
 
 describe("viewport policy", () => {
+  it("runs the composed ActionBar PhoneDock story at phone width only", () => {
+    const phoneDock = stories.find(
+      (story) => story.id === "system-actionbar--phone-dock",
+    );
+
+    expect(phoneDock).toBeDefined();
+    expect(widthsFor(phoneDock!)).toEqual([PHONE]);
+  });
+
+  it("runs the composed ActionBar PhoneDockPlayhead story at phone width only", () => {
+    const phoneDockPlayhead = stories.find(
+      (story) => story.id === "system-actionbar--phone-dock-playhead",
+    );
+
+    expect(phoneDockPlayhead).toBeDefined();
+    expect(widthsFor(phoneDockPlayhead!)).toEqual([PHONE]);
+  });
+
+  it("keeps the explicitly named Phone Dock 390 story at phone width only", () => {
+    const phoneDock390 = stories.find(
+      (story) => story.id === "system-actionbar--phone-dock-390",
+    );
+
+    expect(phoneDock390).toBeDefined();
+    expect(widthsFor(phoneDock390!)).toEqual([PHONE]);
+  });
+
+  it("keeps the ordinary ActionBar Words story at both viewport widths", () => {
+    const phoneDockWords = stories.find(
+      (story) => story.id === "system-actionbar--phone-dock-words",
+    );
+
+    expect(phoneDockWords).toBeDefined();
+    expect(widthsFor(phoneDockWords!)).toEqual([PHONE, WIDE]);
+  });
   it("prioritizes wide-only tags while preserving Frame, phone, and default widths", () => {
     const recordingLive = stories.find(
       (story) =>
