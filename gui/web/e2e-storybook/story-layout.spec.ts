@@ -84,40 +84,6 @@ for (const width of [1440, 360]) {
       await expectInside(host.getByRole("menu"), "viewport");
     });
 
-    test(`JoinPopover Docs contains every fixed panel at ${width} in ${theme}`, async ({
-      page,
-    }) => {
-      await page.setViewportSize({ width, height: 740 });
-      await page.emulateMedia({
-        colorScheme: theme === "light" ? "light" : "dark",
-        reducedMotion: "reduce",
-      });
-      await page.goto(
-        storyUrl("templates-joinpopover--docs", { theme, viewMode: "docs" }),
-      );
-      const docs = page;
-      for (const story of [
-        "fade",
-        "crossfade",
-        "cut",
-        "blocked-crossfade",
-        "read-only",
-        "busy-with-error",
-      ]) {
-        const iframe = docs.locator(
-          `#story--templates-joinpopover--${story} iframe`,
-        );
-        await expect(iframe).toBeAttached();
-        await iframe.scrollIntoViewIfNeeded();
-        const frame = docs.frameLocator(
-          `#story--templates-joinpopover--${story} iframe`,
-        );
-        await expectInside(frame.locator(".command-palette-panel"), "viewport");
-        await expect(frame.locator("html")).toHaveCSS("color-scheme", theme);
-      }
-      await expect(docs.getByRole("dialog")).toHaveCount(0);
-    });
-
     for (const [family, story] of [
       ["organisms-dialog", "default"],
       ["organisms-bottomsheet", "default"],

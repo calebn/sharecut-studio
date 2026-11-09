@@ -10,6 +10,7 @@ import {
   AUTO_REDUCTION_SECTIONS,
   CLIP_SECTIONS,
   COMMENT_SECTIONS,
+  CUT_SEAM_SECTIONS,
   ENVELOPE_POINT_SECTIONS,
   LONG_SECTIONS,
   PENDING_SECTIONS,
@@ -193,21 +194,34 @@ export const WordTiming: Story = {
 export const Seam: Story = {
   render: () => (
     <CardDemo
-      icon="scissors"
-      name="Seam at 10:12.4"
+      icon="split"
+      name="Split"
       sections={SEAM_SECTIONS}
       anchorAt={nearTop}
     />
   ),
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
     await expect(
-      canvas.getByRole("spinbutton", { name: "Offset" }),
-    ).toHaveAttribute("aria-valuenow", "12");
-    await expect(canvas.getByRole("button", { name: "A" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+      within(canvasElement).getByRole("spinbutton", { name: "Length" }),
+    ).toHaveAttribute("aria-valuenow", "40");
+  },
+};
+
+export const CutSeam: Story = {
+  render: () => (
+    <CardDemo
+      icon="scissors"
+      name="Cut"
+      sections={CUT_SEAM_SECTIONS}
+      anchorAt={nearTop}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText(/applied 3 min ago/)).toBeVisible();
+    await expect(
+      canvas.getByRole("spinbutton", { name: "Length" }),
+    ).toBeVisible();
   },
 };
 

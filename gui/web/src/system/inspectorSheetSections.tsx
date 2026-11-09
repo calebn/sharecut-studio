@@ -1,13 +1,6 @@
 import { Button, DefItem, DefinitionList } from "../ui";
 import type { InspectorSection } from "./InspectorSheet";
-import {
-  JoinType,
-  LiveScrub,
-  LiveTime,
-  Mute,
-  SeamAudition,
-  Wave,
-} from "./inspectorSheetFixtures";
+import { LiveScrub, LiveTime, Mute, Wave } from "./inspectorSheetFixtures";
 import type { ScrubFieldProps } from "./ScrubField";
 
 type ScrubSpec =
@@ -209,45 +202,45 @@ export const WORD_TIMING_SECTIONS: readonly InspectorSection[] = [
   },
 ];
 
+const seamLength = scrub("Length", {
+  value: 40,
+  unit: "ms",
+  step: 1,
+  decimals: 0,
+  min: 0,
+  max: 500,
+});
+
 export const SEAM_SECTIONS: readonly InspectorSection[] = [
   {
-    id: "offset",
-    title: "Offset",
+    id: "seam",
     rows: [
       {
-        id: "offset",
-        label: "Offset",
-        control: scrub("Offset", {
-          variant: "track",
-          value: 12,
-          unit: "ms",
-          step: 1,
-          decimals: 1,
-          min: -200,
-          max: 200,
-          defaultValue: 0,
-        }),
+        id: "title",
+        control: <p className="inspector-body">Split at 10:12.4</p>,
       },
-      { id: "ab", control: <SeamAudition /> },
+      { id: "length", label: "Length", control: seamLength },
     ],
   },
+];
+
+export const CUT_SEAM_SECTIONS: readonly InspectorSection[] = [
   {
-    id: "join",
-    title: "Join",
+    id: "seam",
     rows: [
-      { id: "type", label: "Type", control: <JoinType /> },
       {
-        id: "length",
-        label: "Length",
-        control: scrub("Join length", {
-          value: 40,
-          unit: "ms",
-          step: 1,
-          min: 0,
-          max: 500,
-          defaultValue: 40,
-        }),
+        id: "title",
+        control: <p className="inspector-body">2.4 s cut · filler</p>,
       },
+      {
+        id: "appliedBy",
+        control: (
+          <p className="inspector-body">
+            Remove filler · applied 3 min ago · +1 more
+          </p>
+        ),
+      },
+      { id: "length", label: "Length", control: seamLength },
     ],
   },
 ];

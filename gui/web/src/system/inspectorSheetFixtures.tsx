@@ -5,11 +5,9 @@ import {
   useRef,
   useState,
 } from "react";
-import { SegmentedControl, ToggleButton } from "../ui";
+import { ToggleButton } from "../ui";
 import { useResizeObserver } from "../ui/useResizeObserver";
-import { AbAudition } from "./AbAudition";
 import { ActionBar } from "./ActionBar";
-import type { AuditionSide } from "./auditionWindow";
 import type { InspectorBounds, InspectorRect } from "./inspectorSheetMath";
 import { ScrubField, type ScrubFieldProps } from "./ScrubField";
 import { TimeField } from "./TimeField";
@@ -35,35 +33,6 @@ export function LiveTime({ label, start }: { label: string; start: number }) {
   const [value, setValue] = useState(start);
   return (
     <TimeField label={label} value={value} step={0.1} onChange={setValue} />
-  );
-}
-
-export function JoinType() {
-  const [kind, setKind] = useState("crossfade");
-  return (
-    <SegmentedControl label="Join type">
-      {["hard", "fade", "crossfade"].map((id) => (
-        <ToggleButton
-          key={id}
-          quiet
-          pressed={kind === id}
-          onClick={() => setKind(id)}
-        >
-          {id[0]?.toUpperCase() + id.slice(1)}
-        </ToggleButton>
-      ))}
-    </SegmentedControl>
-  );
-}
-
-export function SeamAudition() {
-  const [side, setSide] = useState<AuditionSide>("A");
-  return (
-    <AbAudition
-      side={side}
-      change={{ start: 612.4, end: 612.9 }}
-      onSelect={setSide}
-    />
   );
 }
 
