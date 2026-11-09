@@ -523,7 +523,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
     - Drag across words, Shift-click, or double-click (word) / triple-click (sentence): selects; the action bar appears above the selection.
     - Typing with a selection or pressing F2: Fix text on that selection.
     - Backspace with a selection: Cut. Backspace with only a caret: nothing (protects against accidental cuts).
-  - Rendering of state: playing word gets a 2 px accent underline; cut words collapse into an Edit boundary pill (CMP-EDITBOUNDARY) unless the eye is on, then they show struck in the cut token; suggested cuts show struck with hatch background (Suggestion); muted words show greyed with a speaker-slash glyph before the run; low-confidence words get a dotted underline.
+  - Rendering of state: playing word gets a 2 px accent underline; cut words collapse into an Edit boundary pill (CMP-EDITBOUNDARY) unless the eye is on, then they show struck in the cut token; suggested cuts show struck with hatch background (Suggestion); muted words show greyed with a speaker-slash glyph before the run; a word whose suppression is locked (set by hand), muted or not, carries a small lock in its top corner; low-confidence words get a dotted underline.
   - Follow: pin on by default. Scrolling by hand turns it off and shows a "Back to playhead" pill at the bottom center; clicking it scrolls and re-pins.
 - **Primary action:** select words.
 - **Anticipated next action:** after selecting, Cut; after cutting, the next occurrence (INT-WORD-CUT).
