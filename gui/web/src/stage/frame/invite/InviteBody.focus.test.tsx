@@ -62,8 +62,14 @@ describe("Invite confirmed-stop focus", () => {
       follow_latest: false,
     });
     const onStop = vi.fn();
+    const onClose = vi.fn();
     render(
-      <InviteBody options={shareOptionsFixture({ rows: [row], onStop })} />,
+      <InviteSheetView
+        options={shareOptionsFixture({ rows: [row], onStop })}
+        form="centered"
+        open
+        onClose={onClose}
+      />,
     );
 
     await user.click(
@@ -79,6 +85,8 @@ describe("Invite confirmed-stop focus", () => {
     expect(
       screen.getByRole("button", { name: "More for listen link" }),
     ).toBeVisible();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Invite" })).toBeVisible();
   });
 
   it("does not focus Listen while the confirmed target remains after a failed stop", async () => {
