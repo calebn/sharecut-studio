@@ -87,11 +87,15 @@ for (const { cell: viewport, theme, reducedMotion } of withAppearance(
               };
             });
           });
-          const screenshot = await guest!.screenshot({
+          const screenshotPath = testInfo.outputPath(
+            `editor-role-hint-${viewport.name}.png`,
+          );
+          await guest!.screenshot({
+            path: screenshotPath,
             animations: "disabled",
           });
           await testInfo.attach(`editor-role-hint-${viewport.name}.png`, {
-            body: screenshot,
+            path: screenshotPath,
             contentType: "image/png",
           });
           testInfo.annotations.push({

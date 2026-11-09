@@ -5247,6 +5247,7 @@ button.sys-script-speaker {
 
 .sys-app-header-host:has(.sys-coach--edge) {
   position: relative;
+  z-index: var(--z-timeline-popover);
 }
 
 .sys-script-pill[data-in-selection] .sys-seam-hit {
