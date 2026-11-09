@@ -29,7 +29,6 @@ import type {
 } from "./projectSlice";
 import type { StageSliceState } from "./stageSlice";
 
-/** A span in seconds (end after start) and the tracks it covers, typed before any range exists. */
 export type RangeDraft = TimelineSpan & { trackIds: readonly string[] };
 
 /** Open/closed state of the app's dialogs, sheets and inline panels. */

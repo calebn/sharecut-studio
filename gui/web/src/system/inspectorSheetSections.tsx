@@ -173,7 +173,7 @@ export const RANGE_SECTIONS: readonly InspectorSection[] = [
   },
 ];
 
-const draftScrub = (label: string, value: number, max: number, min: number) =>
+const draftScrub = (label: string, value: number, min: number, max: number) =>
   scrub(label, {
     value,
     unit: "s",
@@ -188,12 +188,12 @@ export const RANGE_DRAFT_SECTIONS: readonly InspectorSection[] = [
   {
     id: "range",
     rows: [
-      { id: "in", label: "In", control: draftScrub("In", 12, 59.99, 0) },
-      { id: "out", label: "Out", control: draftScrub("Out", 17, 60, 12.01) },
+      { id: "in", label: "In", control: draftScrub("In", 12, 0, 59.99) },
+      { id: "out", label: "Out", control: draftScrub("Out", 17, 12.01, 60) },
       {
         id: "length",
         label: "Length",
-        control: draftScrub("Length", 5, 48, 0.01),
+        control: draftScrub("Length", 5, 0.01, 48),
       },
     ],
   },
