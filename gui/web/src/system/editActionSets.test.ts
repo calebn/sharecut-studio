@@ -220,7 +220,7 @@ const matrix: [string, Partial<EditFacts>, ResolvedBar][] = [
     {
       leading: null,
       bar: ["hear", "remove", "more", "inspect"],
-      more: ["mute", "moveTrackUp", "moveTrackDown"],
+      more: ["moveTrackUp", "moveTrackDown"],
       primary: null,
     },
   ],
@@ -230,7 +230,7 @@ const matrix: [string, Partial<EditFacts>, ResolvedBar][] = [
     {
       leading: "count",
       bar: ["hear", "remove", "more", "inspect"],
-      more: ["mute", "moveTrackUp", "moveTrackDown"],
+      more: ["moveTrackUp", "moveTrackDown"],
       primary: null,
     },
   ],
@@ -292,7 +292,12 @@ const matrix: [string, Partial<EditFacts>, ResolvedBar][] = [
   [
     "words, read-only guest",
     { kind: "words", role: "readOnly", holdsCut: true },
-    { leading: null, bar: ["hear", "comment"], more: [], primary: null },
+    {
+      leading: null,
+      bar: ["hear", "comment", "more"],
+      more: ["copy"],
+      primary: null,
+    },
   ],
   [
     "open comment, read-only guest",
