@@ -386,12 +386,15 @@ for (const {
               receipts,
               "track-clear-clip-full-control",
             );
-            for (const name of ["Name", "Kind", "Who is this voice?"]) {
-              await exposeControl(
-                page,
-                trackInspector.getByLabel(name, { exact: true }),
-                receipts,
-              );
+            for (const control of [
+              trackInspector.getByLabel("Name", { exact: true }),
+              trackInspector
+                .getByRole("radiogroup", { name: "Who is this voice?" })
+                .getByRole("radio")
+                .first(),
+              trackInspector.getByLabel("Kind", { exact: true }),
+            ]) {
+              await exposeControl(page, control, receipts);
             }
             expect(envelopeSnapshot(projectPath, track.id)).toEqual(origin);
             await pointerControl(
