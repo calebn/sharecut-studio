@@ -50,8 +50,9 @@ the first activation, that activation dismisses it. The next activation opens
 the explanation dialog beside the control. After a remembered dismissal, the
 first activation opens the dialog directly. Close and Escape close the dialog
 and return focus to its trigger. An outside pointer press closes the dialog and
-leaves the outside control's pointer behavior and click intact. It dismisses an
-automatic hint while leaving focus on the outside control.
+leaves the outside control's pointer behavior and click intact, including an
+already-focused scrub field's uncommitted draft. It dismisses an automatic
+hint while leaving focus on the outside control.
 
 **Comment field on a phone:** on the phone layout only (a landscape phone wider than 767 px uses the tablet shell and is not docked), a Commenter's Review comment field (with its "at 0:12" chip) comes last in the card and stays docked at the bottom of the panel, above the Player, while the card scrolls (on a viewport 480 px tall or shorter, such as a landscape phone, it is not docked and stays at the top of the card as on a tablet; an on-screen keyboard or a pinch zoom does not change this); on a tablet, a desktop and for the host it stays at the top of the card.
 
