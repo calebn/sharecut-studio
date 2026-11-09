@@ -250,11 +250,10 @@ choice; phone and tablet keep their existing editing rail and compact inspector.
   only in More or the overflow menu, as long as that path exists on
   every shell. (Surfaces 3, 5 — Apple HIG.)
 - **Defaults are opt-in (least privilege).** A control that mints
-  externally visible artifacts (e.g. "Allow AI assistants (MCP)" minting an
-  MCP URL on every share) starts OFF. The consequence is disclosed
-  adjacent to the control so the opt-in is informed: in the Deliver Share
-  section the helper text sits under the toggle and is its accessible
-  description.
+  externally visible artifacts, such as "Allow AI assistants" minting an
+  MCP URL with a review link, starts OFF. The consequence must be disclosed
+  adjacent to the control so the opt-in is informed. Its helper text must
+  be the control's accessible description.
   (Surface 2; maintainer decision 2026-09-21: MCP stays opt-in.)
 
 ## Empty states

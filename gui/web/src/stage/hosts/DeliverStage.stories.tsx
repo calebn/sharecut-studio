@@ -190,7 +190,10 @@ export const GuestCommenter: Story = {
     ).toBeVisible();
     await expect(canvas.queryByRole("button", { name: "Export" })).toBeNull();
     await expect(
-      canvas.queryByRole("button", { name: "Share a listen link" }),
+      canvas.queryByRole("button", { name: /^(Copy|Share) listen link$/ }),
     ).toBeNull();
+    await expect(
+      canvas.getByRole("button", { name: "Go to Review" }),
+    ).toBeVisible();
   },
 };
