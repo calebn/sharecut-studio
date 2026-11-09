@@ -314,9 +314,8 @@ describe("command bus", () => {
 
 type PlayheadWriter = { prefix: string; reason: string };
 
-/** Files that may call `setPlayheadSec(`. Every other playhead jump goes through `seekTransport`. */
+/** Files outside the store that may reference `setPlayheadSec`. Every other playhead jump goes through `seekTransport`. */
 const PLAYHEAD_WRITERS: PlayheadWriter[] = [
-  { prefix: "state/", reason: "the store owns the setter" },
   {
     prefix: "hooks/useAudioTransport",
     reason: "playback advances the playhead",
@@ -329,24 +328,30 @@ const PLAYHEAD_WRITERS: PlayheadWriter[] = [
     prefix: "hooks/useFollowTransport.ts",
     reason: "mirrors the followed editor's playhead",
   },
-  { prefix: "commands/seek.ts", reason: "the shared seek entry" },
   {
     prefix: "commands/navigation.ts",
     reason: "transport.seek and the step and jump commands",
   },
   { prefix: "commands/shuttle.ts", reason: "shuttle steps the playhead" },
   {
-    prefix: "commands/playSpan.ts",
-    reason: "injects seekTransport as the setter",
+    prefix: "timeline/useFixedPlayheadScroll.ts",
+    reason:
+      "writes the playhead with the default seek origin, bypassing the transport.seek command",
   },
   {
-    prefix: "timeline/useFixedPlayheadScroll.ts",
-    reason: "scroll follows playback and writes with origin playback",
+    prefix: "comments/playComment.ts",
+    reason:
+      "injects the raw store setter into playTimelineRange instead of seekTransport (follow-up)",
+  },
+  {
+    prefix: "stage/hosts/useReviewQueue.ts",
+    reason:
+      "Hear injects the raw store setter into playTimelineRange instead of seekTransport (follow-up)",
   },
   {
     prefix: "utils/playRange.ts",
     reason:
-      "calls an injected setter; comments/playComment.ts and stage/hosts/useReviewQueue.ts Hear still inject the raw store setter instead of seekTransport",
+      "calls an injected setter; playComment and useReviewQueue pass the raw store setter (follow-up)",
   },
 ];
 
