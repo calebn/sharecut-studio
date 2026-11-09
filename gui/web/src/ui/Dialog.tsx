@@ -8,6 +8,8 @@ import { useOutsidePointerDown } from "./useOutsidePointerDown";
 import { useTopLayerPanel } from "./useTopLayerPanel";
 
 type Props = {
+  /** Anchored outside dismissal keeps current focus; the default restores the anchor. */
+  outsideDismissal?: "restore-anchor" | "preserve-focus";
   open: boolean;
   onClose: () => void;
   title: string;
@@ -47,6 +49,7 @@ type Props = {
  * Uses useDialogModal (trap, inert chrome, Escape, restore).
  */
 export function Dialog({
+  outsideDismissal = "restore-anchor",
   open,
   onClose,
   title,
@@ -80,7 +83,10 @@ export function Dialog({
     onClose: dismiss,
     panelRef,
     initialFocusRef: initialFocusRef ?? closeRef,
-    returnFocusRef: anchor?.ref,
+    returnFocusRef:
+      anchored && outsideDismissal === "preserve-focus"
+        ? undefined
+        : anchor?.ref,
     mode: anchored ? "sheet" : "modal",
     shortcuts,
   });
@@ -93,6 +99,7 @@ export function Dialog({
     ],
     dismiss,
     open && anchored,
+    { capture: anchored && outsideDismissal === "preserve-focus" },
   );
 
   if (!open) {

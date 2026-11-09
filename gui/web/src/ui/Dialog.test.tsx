@@ -135,6 +135,111 @@ it("keeps an anchored dialog non-modal, beside its anchor, closing on an outside
   expect(onClose).toHaveBeenCalledTimes(1);
 });
 
+it("restores an anchored dialog's anchor by default after an outside press", async () => {
+  function Anchored() {
+    const anchorRef = useRef<HTMLButtonElement>(null);
+    const [open, setOpen] = useState(true);
+    return (
+      <>
+        <button ref={anchorRef} type="button">
+          Anchor
+        </button>
+        <button type="button">Outside</button>
+        <Dialog
+          open={open}
+          onClose={() => setOpen(false)}
+          title="Anchored"
+          anchor={{ reason: "test anchor focus restoration", ref: anchorRef }}
+        >
+          <p>Body</p>
+        </Dialog>
+      </>
+    );
+  }
+  render(<Anchored />);
+  const anchor = screen.getByRole("button", { name: "Anchor" });
+  fireEvent.pointerDown(screen.getByRole("button", { name: "Outside" }));
+  expect(screen.queryByRole("dialog", { name: "Anchored" })).toBeNull();
+  await waitFor(() => expect(anchor).toHaveFocus());
+});
+
+it("preserves focus on an outside control for an opted-in anchored dialog", async () => {
+  function Anchored() {
+    const anchorRef = useRef<HTMLButtonElement>(null);
+    const avoidRef = useRef<HTMLButtonElement>(null);
+    const [open, setOpen] = useState(true);
+    return (
+      <>
+        <button ref={anchorRef} type="button">
+          Anchor
+        </button>
+        <button ref={avoidRef} type="button">
+          Avoid
+        </button>
+        <button type="button">Outside</button>
+        <Dialog
+          outsideDismissal="preserve-focus"
+          open={open}
+          onClose={() => setOpen(false)}
+          title="Anchored"
+          anchor={{
+            reason: "test outside focus preservation",
+            ref: anchorRef,
+            avoidRef,
+          }}
+        >
+          <p>Body</p>
+        </Dialog>
+      </>
+    );
+  }
+  render(<Anchored />);
+  const dialog = screen.getByRole("dialog", { name: "Anchored" });
+  const anchor = screen.getByRole("button", { name: "Anchor" });
+  const avoid = screen.getByRole("button", { name: "Avoid" });
+  fireEvent.pointerDown(dialog);
+  fireEvent.pointerDown(anchor);
+  fireEvent.pointerDown(avoid);
+  expect(screen.getByRole("dialog", { name: "Anchored" })).toBeInTheDocument();
+  const outside = screen.getByRole("button", { name: "Outside" });
+  outside.focus();
+  fireEvent.pointerDown(outside);
+  expect(screen.queryByRole("dialog", { name: "Anchored" })).toBeNull();
+  await waitFor(() => expect(outside).toHaveFocus());
+});
+
+it("ignores preserve-focus for non-anchored dialogs", async () => {
+  function Modal() {
+    const [open, setOpen] = useState(false);
+    return (
+      <>
+        <button type="button" onClick={() => setOpen(true)}>
+          Open modal
+        </button>
+        <button type="button">Outside</button>
+        <Dialog
+          outsideDismissal="preserve-focus"
+          open={open}
+          onClose={() => setOpen(false)}
+          title="Modal"
+        >
+          <p>Body</p>
+        </Dialog>
+      </>
+    );
+  }
+  const user = userEvent.setup();
+  render(<Modal />);
+  const opener = screen.getByRole("button", { name: "Open modal" });
+  await user.click(opener);
+  const outside = screen.getByRole("button", { name: "Outside" });
+  fireEvent.pointerDown(outside);
+  expect(screen.getByRole("dialog", { name: "Modal" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Close Modal" }));
+  expect(screen.queryByRole("dialog", { name: "Modal" })).toBeNull();
+  await waitFor(() => expect(opener).toHaveFocus());
+});
+
 it("closes an anchored dialog when a modal opens over it", () => {
   function Both({ modal }: { modal: boolean }) {
     const anchorRef = useRef<HTMLButtonElement>(null);

@@ -9,6 +9,7 @@ export function useOutsidePointerDown(
   refs: readonly RefObject<HTMLElement | null>[],
   onOutside: () => void,
   enabled = true,
+  { capture = false }: { capture?: boolean } = {},
 ): void {
   const onPointerDown = useEffectEvent((target: Node) => {
     if (refs.some((r) => r.current?.contains(target))) {
@@ -21,7 +22,8 @@ export function useOutsidePointerDown(
       return;
     }
     const listener = (e: PointerEvent) => onPointerDown(e.target as Node);
-    window.addEventListener("pointerdown", listener);
-    return () => window.removeEventListener("pointerdown", listener);
-  }, [enabled]);
+    window.addEventListener("pointerdown", listener, { capture });
+    return () =>
+      window.removeEventListener("pointerdown", listener, { capture });
+  }, [enabled, capture]);
 }

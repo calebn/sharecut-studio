@@ -549,6 +549,47 @@ describe("AppHeader as a guest", () => {
     expect(trigger).toHaveFocus();
   });
 
+  it.each(["Close", "Escape"])(
+    "returns focus to the role button after manual %s even when another control held focus",
+    async (dismiss) => {
+      render(
+        <>
+          <button type="button">Previously focused</button>
+          <AppHeader
+            title="Episode"
+            guest={{
+              version: "v3",
+              role: "commenter",
+              hint: {
+                text: "You can comment.",
+                shown: false,
+                onDismiss: vi.fn(),
+              },
+            }}
+          />
+        </>,
+      );
+      const previous = screen.getByRole("button", {
+        name: "Previously focused",
+      });
+      previous.focus();
+      const trigger = screen.getByRole("button", {
+        name: "Explain Commenter role",
+      });
+      fireEvent.click(trigger);
+      expect(screen.getByRole("dialog")).toBeVisible();
+      expect(trigger).toHaveFocus();
+
+      if (dismiss === "Close") {
+        fireEvent.click(screen.getByRole("button", { name: "Close" }));
+      } else {
+        fireEvent.keyDown(window, { key: "Escape" });
+      }
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(trigger).toHaveFocus();
+    },
+  );
+
   it("starts a fresh hint lifetime when the guest role changes", () => {
     const hint = { text: "Role details.", shown: true, onDismiss: vi.fn() };
     const { again } = setup({

@@ -1,11 +1,4 @@
-import {
-  type ReactNode,
-  type RefObject,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-} from "react";
+import { type ReactNode, type RefObject, useId, useRef, useState } from "react";
 import { useLongPress } from "../hooks/useLongPress";
 import type { ThemePreference } from "../hooks/useTheme";
 import {
@@ -102,15 +95,12 @@ function RoleHint({ guest }: { guest: NonNullable<AppHeaderProps["guest"]> }) {
   const [mode, setMode] = useState<RoleHintMode>(() =>
     eligible ? "automatic" : "closed",
   );
-  useEffect(() => {
-    if (!eligible) {
-      setMode((current) => (current === "automatic" ? "closed" : current));
-    }
-  }, [eligible]);
+  if (!eligible && mode === "automatic") setMode("closed");
   const label =
     ROLES.find((role) => role.id === guest.role)?.label ?? guest.role;
 
   const dismissAutomatic = () => {
+    if (mode !== "automatic") return;
     setMode("closed");
     guest.hint?.onDismiss();
   };
@@ -118,7 +108,9 @@ function RoleHint({ guest }: { guest: NonNullable<AppHeaderProps["guest"]> }) {
     dismissAutomatic();
     triggerRef.current?.focus({ preventScroll: true });
   };
-  useOutsidePointerDown([outsideRef], dismissAutomatic, mode === "automatic");
+  useOutsidePointerDown([outsideRef], dismissAutomatic, mode === "automatic", {
+    capture: true,
+  });
 
   const chip = <RoleChip access={guest.role} compact={guest.compact} />;
   if (!guest.hint) return chip;
@@ -145,8 +137,11 @@ function RoleHint({ guest }: { guest: NonNullable<AppHeaderProps["guest"]> }) {
           onClick={() => {
             if (mode === "automatic") {
               dismissAutomatic();
+            } else if (mode === "manual") {
+              setMode("closed");
             } else {
-              setMode(mode === "manual" ? "closed" : "manual");
+              triggerRef.current?.focus({ preventScroll: true });
+              setMode("manual");
             }
           }}
         >
@@ -154,6 +149,7 @@ function RoleHint({ guest }: { guest: NonNullable<AppHeaderProps["guest"]> }) {
         </button>
       </span>
       <Dialog
+        outsideDismissal="preserve-focus"
         open={mode === "manual"}
         onClose={() => setMode("closed")}
         title={`${label} role`}

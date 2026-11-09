@@ -6,13 +6,17 @@ import { useOutsidePointerDown } from "./useOutsidePointerDown";
 function Harness({
   onOutside,
   enabled = true,
+  capture = false,
 }: {
   onOutside: () => void;
   enabled?: boolean;
+  capture?: boolean;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  useOutsidePointerDown([panelRef, triggerRef], onOutside, enabled);
+  useOutsidePointerDown([panelRef, triggerRef], onOutside, enabled, {
+    capture,
+  });
   return (
     <div>
       <button ref={triggerRef} type="button">
@@ -60,5 +64,54 @@ describe("useOutsidePointerDown", () => {
     fireEvent.pointerDown(document.body);
     expect(first).not.toHaveBeenCalled();
     expect(second).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([false, true])(
+    "registers and removes the matching capture listener (%s)",
+    (capture) => {
+      const onOutside = vi.fn();
+      const add = vi.spyOn(window, "addEventListener");
+      const remove = vi.spyOn(window, "removeEventListener");
+      const { unmount } = render(
+        <Harness onOutside={onOutside} capture={capture} />,
+      );
+      const registration = add.mock.calls.find(
+        ([type]) => type === "pointerdown",
+      );
+      expect(registration?.[2]).toEqual({ capture });
+      unmount();
+      const cleanup = remove.mock.calls.find(
+        ([type]) => type === "pointerdown",
+      );
+      expect(cleanup?.[1]).toBe(registration?.[1]);
+      expect(cleanup?.[2]).toEqual({ capture });
+      add.mockRestore();
+      remove.mockRestore();
+    },
+  );
+
+  it("rebinds when capture changes and keeps the latest callback", () => {
+    const first = vi.fn();
+    const next = vi.fn();
+    const add = vi.spyOn(window, "addEventListener");
+    const remove = vi.spyOn(window, "removeEventListener");
+    const view = render(<Harness onOutside={first} />);
+    view.rerender(<Harness onOutside={next} capture />);
+    const registrations = add.mock.calls.filter(
+      ([type]) => type === "pointerdown",
+    );
+    const removals = remove.mock.calls.filter(
+      ([type]) => type === "pointerdown",
+    );
+    expect(registrations).toHaveLength(2);
+    expect(removals).toHaveLength(1);
+    expect(removals[0][1]).toBe(registrations[0][1]);
+    expect(removals[0][2]).toEqual({ capture: false });
+    fireEvent.pointerDown(document.body);
+    expect(first).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledOnce();
+    view.unmount();
+    add.mockRestore();
+    remove.mockRestore();
   });
 });
