@@ -246,15 +246,20 @@ const mixSheet: Probe = async () => {
   ).toBeInTheDocument();
 };
 
-const gesturesButton: Probe = async () => {
+const gesturesRows: Probe = async () => {
   asHost("edit");
+  useDawStore.setState({ pointerKind: "coarse" });
   useDawStore.getState().setCommandPaletteOpen(true);
   render(
     <DawProvider projectPath={HOST_PATH} initialProject={minimalProject()}>
       <CommandPalette />
     </DawProvider>,
   );
-  expect(button("Gestures")).toBeInTheDocument();
+  expect(
+    within(screen.getByRole("group", { name: "Gestures" })).getAllByRole(
+      "listitem",
+    ),
+  ).toHaveLength(5);
 };
 
 const exportButton: Probe = async (user) => {
@@ -451,7 +456,7 @@ const REMOVED_SURFACES: Entry[] = [
   entry("More hub", "Add chapter", "edit.addChapter", [
     plusMenuRow(/Add chapter at playhead/, "edit.addChapter"),
   ]),
-  component("More hub", "Gestures", [gesturesButton]),
+  component("More hub", "Gestures", [gesturesRows]),
   component("More hub", "People", [peopleSlot]),
 
   // Tool rail and the transport bar's own tool buttons.

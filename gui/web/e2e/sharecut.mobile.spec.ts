@@ -398,16 +398,17 @@ test.describe("ShareCut Studio mobile smoke", () => {
       "",
     );
     const gestures = palette.getByRole("group", { name: "Gestures" });
-    await expect(gestures.getByRole("option")).toHaveCount(5);
+    await expect(gestures.getByRole("listitem")).toHaveCount(5);
+    await expect(gestures.getByRole("option")).toHaveCount(0);
     for (const name of ["Two-finger tap", "Long-press", "Pinch"]) {
       await expect(
-        gestures.getByRole("option", { name: new RegExp(name) }),
+        gestures.getByRole("listitem").filter({ hasText: name }),
       ).not.toContainText("Soon");
     }
     await expect(
-      gestures.getByRole("option", {
-        name: "Undo Two-finger tap Undo the last action. Optional ShareCut shortcut.",
-      }),
+      gestures
+        .getByRole("listitem")
+        .filter({ hasText: "Optional ShareCut shortcut." }),
     ).toBeVisible();
     await expect(page.getByRole("dialog", { name: "Gestures" })).toHaveCount(0);
   });

@@ -30,8 +30,7 @@ import {
 /** One option in render order, in Recent or its own group. */
 type Row =
   | { kind: "command"; key: string; command: PaletteCommand }
-  | { kind: "entry"; key: string; entry: PaletteEntry }
-  | { kind: "gesture"; key: string; gesture: PaletteGesture };
+  | { kind: "entry"; key: string; entry: PaletteEntry };
 
 type Section = { key: string; label: string | null; rows: Row[] };
 
@@ -75,10 +74,11 @@ export interface CommandPaletteViewProps {
  * ones included so their reasons are read, and Enter runs it. Typing makes the
  * first runnable match active. The status line names the command Enter runs.
  * With Search empty, Recent comes first, then the commands by category, then
- * the Stages group (the Go to <stage> commands), Projects, People, Chapters,
- * Gestures (touch only, one row per gesture; Enter does nothing) and Help
- * (`help.*` commands), as labelled groups left out while empty. Searching lists
- * commands flat, ranked, with the entry groups and Gestures after them. Command rows show their verb icon.
+ * the Stages group (the Go to <stage> commands), Projects, People, Chapters
+ * and Help (`help.*` commands), as labelled groups left out while empty.
+ * Searching lists commands flat, ranked, with the entry groups after them.
+ * Command rows show their verb icon. Touch gestures follow as a labelled,
+ * non-interactive list, one item per gesture, outside the listbox.
  */
 export function CommandPaletteView({
   open,
@@ -94,7 +94,7 @@ export function CommandPaletteView({
 }: CommandPaletteViewProps) {
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<string | null>(null);
-  const [remapOpenId, setRemapOpenId] = useState<string | null>(null);
+  const [remapRowKey, setRemapRowKey] = useState<string | null>(null);
   const [wasOpen, setWasOpen] = useState(open);
   const searchRef = useRef<HTMLInputElement>(null);
   const baseId = useId();
@@ -105,7 +105,7 @@ export function CommandPaletteView({
     setWasOpen(open);
     if (open) {
       setQuery("");
-      setRemapOpenId(null);
+      setRemapRowKey(null);
       setPicked(null);
     }
   }
@@ -174,17 +174,6 @@ export function CommandPaletteView({
       rows: rows.map((entry) => entryRow(entry)),
     });
   }
-  if (gesturesShown.length > 0) {
-    sections.push({
-      key: "gestures",
-      label: PALETTE_GESTURES_LABEL,
-      rows: gesturesShown.map((gesture) => ({
-        kind: "gesture",
-        key: gesture.id,
-        gesture,
-      })),
-    });
-  }
   if (!searching && !leadGroup) {
     sections.push(...grouped("help"));
   }
@@ -193,9 +182,7 @@ export function CommandPaletteView({
   const extra = entriesShown.length + gesturesShown.length;
   const total = shown.length + extra;
 
-  const remapRow = rows.find(
-    (r) => r.kind === "command" && r.command.id === remapOpenId,
-  );
+  const remapRow = rows.find((r) => r.key === remapRowKey);
   const remapping = remapRow != null;
   const listed = !remapping && rows.length > 0;
   const rowDisabled = (row: Row) =>
@@ -227,12 +214,14 @@ export function CommandPaletteView({
     }
   }
 
-  function finishRemap(trimmedKey: string | undefined) {
-    if (remapOpenId != null && trimmedKey !== undefined) {
-      onRemap(remapOpenId, trimmedKey);
+  function finishRemap(trimmedKey: string | undefined, refocusSearch: boolean) {
+    if (remapRow?.kind === "command" && trimmedKey !== undefined) {
+      onRemap(remapRow.command.id, trimmedKey);
     }
-    setRemapOpenId(null);
-    searchRef.current?.focus();
+    setRemapRowKey(null);
+    if (refocusSearch) {
+      searchRef.current?.focus();
+    }
   }
 
   function onSearchKeyDown(e: KeyboardEvent<HTMLInputElement>) {
@@ -254,24 +243,23 @@ export function CommandPaletteView({
       e.key === "Tab" &&
       !e.shiftKey &&
       active?.kind === "command" &&
+      active.command.disabledReason == null &&
       active.command.defaultKey != null
     ) {
       e.preventDefault();
       // The dialog's Tab trap must not also move focus.
       e.stopPropagation();
-      setRemapOpenId(active.command.id);
+      setRemapRowKey(active.key);
     }
   }
 
   const activeStatus = !active
     ? ""
-    : active.kind === "gesture"
-      ? `${active.gesture.gesture}: ${active.gesture.action}`
-      : active.kind === "entry"
-        ? `Enter: ${active.entry.verb} ${active.entry.label}`
-        : active.command.disabledReason == null
-          ? `Enter runs ${active.command.label}${active.command.defaultKey != null ? ". Tab remaps" : ""}`
-          : `${active.command.label} is unavailable: ${active.command.disabledReason}`;
+    : active.kind === "entry"
+      ? `Enter: ${active.entry.verb} ${active.entry.label}`
+      : active.command.disabledReason == null
+        ? `Enter runs ${active.command.label}${active.command.defaultKey != null ? ". Tab remaps" : ""}`
+        : `${active.command.label} is unavailable: ${active.command.disabledReason}`;
   const status = [
     searching
       ? `${total} ${extra > 0 ? (total === 1 ? "result" : "results") : total === 1 ? "command" : "commands"}`
@@ -375,6 +363,37 @@ export function CommandPaletteView({
           })}
         </div>
       ) : null}
+      {gesturesShown.length > 0 ? (
+        <div
+          role="group"
+          aria-labelledby={`${baseId}-gestures`}
+          className="command-palette-group"
+        >
+          <div
+            id={`${baseId}-gestures`}
+            className="command-palette-group-label"
+          >
+            {PALETTE_GESTURES_LABEL}
+          </div>
+          <ul className="command-palette-gesture-list">
+            {gesturesShown.map((gesture) => (
+              <li key={gesture.id} className="command-palette-gesture-item">
+                <span className="command-palette-option-main">
+                  <span className="command-palette-label">
+                    {gesture.action}
+                  </span>{" "}
+                  <span className="command-palette-gesture">
+                    {gesture.gesture}
+                  </span>
+                </span>{" "}
+                <span className="command-palette-note">
+                  {gesture.description}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </Dialog>
   );
 }
@@ -399,27 +418,15 @@ function PaletteOption({
 }) {
   const disabled = row.kind === "command" && row.command.disabledReason != null;
   const command = row.kind === "command" ? row.command : undefined;
-  const label =
-    row.kind === "command"
-      ? row.command.label
-      : row.kind === "entry"
-        ? row.entry.label
-        : row.gesture.action;
+  const label = row.kind === "command" ? row.command.label : row.entry.label;
   const note =
     row.kind === "command"
       ? (row.command.disabledReason ?? row.command.note)
-      : row.kind === "entry"
-        ? row.entry.context
-        : row.gesture.description;
+      : row.entry.context;
   const keys = row.kind === "command" ? row.command.shortcut : null;
   const keysId = `${id}-keys`;
   const noteId = `${id}-note`;
-  const labelledBy = [
-    `${id}-label`,
-    keys ? keysId : null,
-    row.kind === "gesture" ? keysId : null,
-    note ? noteId : null,
-  ]
+  const labelledBy = [`${id}-label`, keys ? keysId : null, note ? noteId : null]
     .filter(Boolean)
     .join(" ");
   const run = () => {
@@ -428,6 +435,7 @@ function PaletteOption({
     }
   };
   return (
+    // oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- an option except while a key field is open inside the row
     <div
       id={id}
       role={plain ? undefined : "option"}
@@ -484,14 +492,6 @@ function PaletteOption({
             <kbd id={keysId}>{keys}</kbd>
           </>
         ) : null}
-        {row.kind === "gesture" ? (
-          <>
-            {" "}
-            <span id={keysId} className="command-palette-gesture">
-              {row.gesture.gesture}
-            </span>
-          </>
-        ) : null}
       </span>
       {note ? (
         <>
@@ -512,7 +512,7 @@ function RemapField({
 }: {
   command: PaletteCommand;
   /** undefined cancels; a string commits that trimmed key, "" restoring the default. */
-  onDone: (trimmedKey: string | undefined) => void;
+  onDone: (trimmedKey: string | undefined, refocusSearch: boolean) => void;
 }) {
   const ref = useRef<HTMLInputElement>(null);
   const dirty = useRef(false);
@@ -521,10 +521,10 @@ function RemapField({
     ref.current?.focus();
   }, []);
   // Leaving the field blurs it too; the first outcome wins.
-  const finish = (trimmedKey: string | undefined) => {
+  const finish = (trimmedKey: string | undefined, refocusSearch = true) => {
     if (!done.current) {
       done.current = true;
-      onDone(trimmedKey);
+      onDone(trimmedKey, refocusSearch);
     }
   };
   const typed = (input: HTMLInputElement) =>
@@ -542,7 +542,7 @@ function RemapField({
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             e.preventDefault();
-            finish(e.currentTarget.value.trim());
+            finish(typed(e.currentTarget));
           } else if (e.key === "Escape") {
             if (claimEscape(e.nativeEvent)) {
               e.preventDefault();
@@ -554,7 +554,7 @@ function RemapField({
             finish(typed(e.currentTarget));
           }
         }}
-        onBlur={(e) => finish(typed(e.currentTarget))}
+        onBlur={(e) => finish(typed(e.currentTarget), false)}
       />
     </label>
   );

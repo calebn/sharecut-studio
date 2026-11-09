@@ -393,15 +393,62 @@ describe("CommandPaletteView", () => {
       expect(search).toHaveFocus();
     });
 
-    it("saves nothing when Tab leaves an untouched field, and restores the default from an empty one", async () => {
-      const { user, props } = await openBladeField();
+    it("saves nothing when Tab or Enter leaves an untouched field, and restores the default from a cleared one", async () => {
+      const { user, search, props } = await openBladeField();
       await user.keyboard("{Tab}");
       expect(props.onRemap).not.toHaveBeenCalled();
       expect(screen.queryByLabelText("Remap Blade cut")).toBeNull();
       await user.keyboard("{Tab}");
       await user.keyboard("{Enter}");
+      expect(props.onRemap).not.toHaveBeenCalled();
+      expect(search).toHaveFocus();
+      await user.keyboard("{Tab}");
+      await user.keyboard("B{Backspace}{Enter}");
       expect(props.onRemap).toHaveBeenCalledTimes(1);
       expect(props.onRemap).toHaveBeenCalledWith("edit.bladeCut", "");
+    });
+
+    it("opens the field in the row Tab was pressed on when the command is also in Recent", async () => {
+      const user = userEvent.setup();
+      renderPalette({ recent: ["edit.bladeCut"] });
+      await waitForDialogFocus();
+      const search = screen.getByRole("combobox");
+      const edit = within(screen.getByRole("group", { name: "Edit" }));
+      const inCategory = edit.getByRole("option", { name: /^Blade cut/ });
+      for (
+        let i = 0;
+        i < 6 && search.getAttribute("aria-activedescendant") !== inCategory.id;
+        i++
+      ) {
+        await user.keyboard("{ArrowDown}");
+      }
+      expect(search).toHaveAttribute("aria-activedescendant", inCategory.id);
+      await user.keyboard("{Tab}");
+      const field = screen.getByLabelText("Remap Blade cut");
+      expect(field.closest('[role="group"]')).toHaveAccessibleName("Edit");
+      expect(
+        within(screen.getByRole("group", { name: "Recent" })).queryByLabelText(
+          "Remap Blade cut",
+        ),
+      ).toBeNull();
+    });
+
+    it("does not pull focus back to Search when a click elsewhere blurs the field", async () => {
+      const { user, search, props } = await openBladeField();
+      await user.click(screen.getByRole("button", { name: "Close" }));
+      expect(props.onRemap).not.toHaveBeenCalled();
+      expect(screen.queryByLabelText("Remap Blade cut")).toBeNull();
+      expect(search).not.toHaveFocus();
+    });
+
+    it("does not open a field on an unavailable command", async () => {
+      const user = userEvent.setup();
+      renderPalette({
+        commands: [{ ...COMMANDS[1], disabledReason: "Needs a selection" }],
+      });
+      await waitForDialogFocus();
+      await user.keyboard("{ArrowDown}{Tab}");
+      expect(screen.queryByLabelText("Remap Blade cut")).toBeNull();
     });
 
     it("commits a typed key when Tab leaves the field", async () => {
@@ -675,7 +722,7 @@ describe("CommandPaletteView", () => {
   });
 
   describe("Gestures rows", () => {
-    it("lists one row per gesture after Chapters, before Help, only when passed", () => {
+    it("lists one non-option row per gesture after the listbox, only when passed", () => {
       const { unmount } = renderPalette({
         commands: [COMMANDS[0], HELP_COMMAND],
         entries: ENTRIES,
@@ -686,14 +733,14 @@ describe("CommandPaletteView", () => {
         "Projects",
         "People",
         "Chapters",
-        "Gestures",
         "Help",
+        "Gestures",
       ]);
-      const rows = within(
-        screen.getByRole("group", { name: "Gestures" }),
-      ).getAllByRole("option");
+      const group = screen.getByRole("group", { name: "Gestures" });
+      expect(within(group).queryAllByRole("option")).toHaveLength(0);
+      const rows = within(group).getAllByRole("listitem");
       expect(
-        rows.map((r) => r.querySelector("[id$=-label]")?.textContent),
+        rows.map((r) => r.querySelector(".command-palette-label")?.textContent),
       ).toEqual([
         "Undo",
         "Open inspector",
@@ -720,30 +767,31 @@ describe("CommandPaletteView", () => {
     it("lists two-finger Undo as an optional ShareCut shortcut among the gesture rows", () => {
       renderPalette({ gestures: PALETTE_GESTURES });
       expect(
-        screen.getByRole("option", {
-          name: "Undo Two-finger tap Undo the last action. Optional ShareCut shortcut.",
-        }),
-      ).toBeTruthy();
+        within(screen.getByRole("group", { name: "Gestures" })).getAllByRole(
+          "listitem",
+        )[0],
+      ).toHaveTextContent(
+        "Undo Two-finger tap Undo the last action. Optional ShareCut shortcut.",
+      );
     });
 
-    it("finds a gesture by name and does nothing on Enter or click", async () => {
+    it("finds a gesture by name; the row is not an option, is skipped by the arrows and Enter does nothing", async () => {
       const user = userEvent.setup();
       const { props } = renderPalette({
         entries: ENTRIES,
         gestures: PALETTE_GESTURES,
       });
       await user.type(screen.getByRole("combobox"), "pinch");
-      expect(screen.getAllByRole("option")).toHaveLength(1);
-      expect(screen.getByRole("status").textContent).toBe(
-        "1 result. Pinch: Zoom in / Zoom out",
-      );
-      await user.keyboard("{Enter}");
-      await user.click(screen.getByRole("option"));
+      expect(screen.queryAllByRole("option")).toHaveLength(0);
+      expect(screen.getAllByRole("listitem")).toHaveLength(1);
+      expect(screen.getByRole("status").textContent).toBe("1 result");
+      await user.keyboard("{ArrowDown}{Enter}");
+      await user.click(screen.getByRole("listitem"));
       expect(props.onRun).not.toHaveBeenCalled();
       expect(props.onClose).not.toHaveBeenCalled();
     });
 
-    it("leads with Help on Home and keeps Gestures after the entries", () => {
+    it("leads with Help on Home and keeps Gestures last", () => {
       renderPalette({
         commands: [COMMANDS[0], HELP_COMMAND],
         leadGroup: "help",
