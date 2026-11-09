@@ -9,7 +9,7 @@ import {
   minimalProject,
   sampleTrack,
 } from "../../test/fixtures";
-import type { ClipRow } from "../../types/project";
+import type { ClipRow, HistoryEntryId, ProjectView } from "../../types/project";
 import { ApiError } from "../../utils/apiError";
 import { AB_CLAMPED_REASON, useSeamAudition } from "./useSeamAudition";
 
@@ -278,7 +278,53 @@ describe("useSeamAudition", () => {
     await waitFor(() => expect(api.auditionBoundary).toHaveBeenCalledTimes(2));
   });
 
-  it("fetches a fresh comparison after the track gain changes", async () => {
+  it.each([
+    [
+      "the track fader",
+      (p: ProjectView) => ({
+        ...p,
+        tracks: p.tracks.map((t) => ({ ...t, gain_db: -6 })),
+      }),
+    ],
+    [
+      "an fx parameter with the chain length unchanged",
+      (p: ProjectView) => ({
+        ...p,
+        tracks: p.tracks.map((t) => ({ ...t, stem_is_fresh: false })),
+      }),
+    ],
+    [
+      "the volume envelope",
+      (p: ProjectView) => ({
+        ...p,
+        envelopes: [
+          ...p.envelopes,
+          { id: "env", track_id: "host", points: [] } as never,
+        ],
+      }),
+    ],
+    [
+      "a neighbouring clip inside the window",
+      (p: ProjectView) => {
+        const lane = p.clips.tracks.host ?? [];
+        const neighbour = clipRow({
+          id: "N",
+          track_id: "host",
+          source_start: 14,
+          source_end: 15,
+          timeline_start: 8,
+          timeline_end: 9,
+        });
+        return {
+          ...p,
+          clips: {
+            ...p.clips,
+            tracks: { ...p.clips.tracks, host: [...lane, neighbour] },
+          },
+        };
+      },
+    ],
+  ])("fetches a fresh comparison after %s is edited", async (_name, change) => {
     const seam = load(10.0123);
     const { result } = renderHook(() => useSeamAudition(seam, 10));
     act(() => result.current.play("B"));
@@ -290,8 +336,11 @@ describe("useSeamAudition", () => {
       if (!project) throw new Error("no project");
       useDawStore.setState({
         project: {
-          ...project,
-          tracks: project.tracks.map((t) => ({ ...t, gain_db: -6 })),
+          ...change(project),
+          history: {
+            ...project.history,
+            head_id: "next-head" as HistoryEntryId,
+          },
         },
       });
     });

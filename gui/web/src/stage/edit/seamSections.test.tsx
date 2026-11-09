@@ -692,13 +692,19 @@ describe("seam sheet A/B", () => {
 
   it("says a roll refused for another save and a queued roll", async () => {
     openRolled();
-    vi.mocked(rollSeam).mockResolvedValueOnce({ status: "skipped" });
+    vi.mocked(rollSeam).mockImplementationOnce(async () => {
+      useDawStore.setState({ joinMutationInFlight: true });
+      return { status: "skipped" };
+    });
     await typeOffset("20");
     expect(
       screen.getByText(
         "Another seam save is still running. Try the roll again in a moment.",
       ),
     ).toBeTruthy();
+    act(() => {
+      useDawStore.setState({ joinMutationInFlight: false });
+    });
     vi.mocked(rollSeam).mockResolvedValueOnce({ status: "queued" });
     await typeOffset("30");
     expect(

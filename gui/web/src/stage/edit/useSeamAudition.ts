@@ -8,7 +8,6 @@ import { rollFailure, seamGeometry } from "../../commands/seamCommands";
 import type { Seam } from "../../edit/seam";
 import { useDawStore } from "../../state/dawStore";
 import type { AuditionSide } from "../../system/auditionWindow";
-import type { TrackView } from "../../types/project";
 
 export type SeamAbAudio = {
   key: string;
@@ -27,15 +26,8 @@ const RETURN_TOLERANCE_SEC = 1e-6;
 
 class ClampedReturn extends Error {}
 
-function renderKey(
-  { left, right }: Seam,
-  track: Pick<TrackView, "gain_db" | "muted" | "fx_count"> | undefined,
-): string {
-  return JSON.stringify([
-    left,
-    right,
-    track && [track.gain_db, track.muted, track.fx_count],
-  ]);
+function renderKey({ left, right }: Seam, head: string | undefined): string {
+  return JSON.stringify([left, right, head]);
 }
 
 /**
@@ -51,10 +43,8 @@ export function useSeamAudition(seam: Seam | null, originEnd: number | null) {
   const held = useRef<SeamAbAudio | null>(null);
   const request = useRef<AbortController | null>(null);
   const wanted = useRef<AuditionSide>("B");
-  const track = useDawStore((s) =>
-    s.project?.tracks.find((t) => t.id === seam?.trackId),
-  );
-  const key = seam ? renderKey(seam, track) : null;
+  const head = useDawStore((s) => s.project?.history.head_id);
+  const key = seam ? renderKey(seam, head) : null;
   const owner = seam ? `seam-ab:${seam.id}` : null;
 
   useEffect(() => {

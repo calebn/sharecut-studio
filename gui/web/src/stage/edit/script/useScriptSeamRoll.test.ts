@@ -116,6 +116,7 @@ describe("useScriptSeamRoll", () => {
     expect(say).toHaveBeenLastCalledWith(
       "The roll is queued. It saves when you reconnect.",
     );
+    useDawStore.setState({ joinMutationInFlight: true });
     rollSeam.mockResolvedValueOnce({ status: "skipped" });
     result.current.commit("eb:L:R", 5);
     await vi.waitFor(() => expect(say).toHaveBeenCalledTimes(2));

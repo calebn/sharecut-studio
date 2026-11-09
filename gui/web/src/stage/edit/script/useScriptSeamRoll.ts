@@ -49,7 +49,7 @@ export function useScriptSeamRoll(say: (message: string) => void) {
             say(`Could not roll the seam. ${result.message}`);
           else if (result.status === "queued") say(ROLL_QUEUED_MESSAGE);
           else if (result.status === "skipped") {
-            const reason = rollSkipMessage(deltaMs);
+            const reason = rollSkipMessage(seam, deltaMs);
             if (reason) say(reason);
           } else replayIfInspected(id);
         });

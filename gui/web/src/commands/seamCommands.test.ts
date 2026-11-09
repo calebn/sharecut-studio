@@ -20,6 +20,7 @@ import {
   replayIfInspected,
   restoreSeam,
   rollSeam,
+  rollSkipMessage,
   setSeamJoin,
 } from "./seamCommands";
 
@@ -315,6 +316,30 @@ describe("rollSeam", () => {
       message: "disk full",
     });
     expect(useDawStore.getState().joinMutationInFlight).toBe(false);
+  });
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY])(
+    "skips a non-finite delta (%s) without a request",
+    async (deltaMs) => {
+      const seam = load();
+      expect(await rollSeam(seam, deltaMs)).toEqual({ status: "skipped" });
+      expect(api.loadBoundaryContext).not.toHaveBeenCalled();
+    },
+  );
+
+  it("explains a skip by what stopped it", () => {
+    const seam = load();
+    expect(rollSkipMessage(seam, 5)).toBeNull();
+    useDawStore.setState({ joinMutationInFlight: true });
+    expect(rollSkipMessage(seam, 5)).toBe(
+      "Another seam save is still running. Try the roll again in a moment.",
+    );
+    expect(rollSkipMessage(seam, 0.01)).toBeNull();
+    useDawStore.setState({ joinMutationInFlight: false });
+    load({ ...R, timeline_start: 5, timeline_end: 8.6 });
+    expect(rollSkipMessage(seam, 5)).toBe(
+      "The clips no longer touch, so the seam cannot roll. Nothing changed.",
+    );
   });
 
   it("never announces a failure itself", async () => {
