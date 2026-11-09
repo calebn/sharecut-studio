@@ -47,8 +47,8 @@ async function expectInspectorFooterTouchTargets(page: Page) {
     page.getByRole("button", { name: "Replace audio…" }),
   ).toBeVisible();
   const sheet = page.getByRole("dialog", { name: "Inspector" });
-  const remove = sheet
-    .locator(".sys-actions--dock")
+  const remove = page
+    .locator(".sys-actions")
     .getByRole("button", { name: "Remove", exact: true });
   await expect(remove).toBeVisible();
   const all = [
