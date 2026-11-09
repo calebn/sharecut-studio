@@ -62,14 +62,13 @@ describe("README rule: api.ts is the facade", () => {
     "record/upload/http.ts -> api/http",
     "services/commandQueue.ts -> api/documentTransport",
     "stage/edit/PendingEditBody.tsx -> api/documentEdits",
-    "stage/edit/script/useScriptSeamRoll.ts -> api/boundary",
     "stage/edit/usePendingCutSuggestion.ts -> api/documentEdits",
     "stage/hosts/useTunnelStatus.ts -> api/tunnelStatus",
     "timeline/ClipBlock.tsx -> api/boundary",
     "transcript/TranscriptWordbar.tsx -> api/transcriptTiming",
   ];
-  const ALLOWLIST_PAIRS = 28;
-  const ALLOWLIST_FILES = 24;
+  const ALLOWLIST_PAIRS = 27;
+  const ALLOWLIST_FILES = 23;
 
   it("imports an api/ adapter directly only from the allowlist", () => {
     expect(adapterImports(sourceFiles())).toEqual(ALLOWLIST);
