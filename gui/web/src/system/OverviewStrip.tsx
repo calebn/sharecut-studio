@@ -1,6 +1,6 @@
 import { type KeyboardEvent, type MouseEvent, useRef } from "react";
 import { clamp } from "../utils/math";
-import { formatTime } from "../utils/time";
+import { formatTimeShort } from "../utils/time";
 import { swallowsDuringDrag, useGrab } from "./useGrab";
 import { pointerRatio } from "./wavePointer";
 
@@ -98,16 +98,17 @@ export function OverviewStrip({
     event.stopPropagation();
     onSeek(clamp(target, 0, 1));
   };
-  const seconds = clamp(playhead ?? 0, 0, 1) * duration;
-  const seekProps = onSeek
+  const seconds = Math.round(clamp(playhead ?? 0, 0, 1) * duration);
+  const seekable = onSeek !== undefined && duration > 0;
+  const seekProps = seekable
     ? {
         role: "slider",
         tabIndex: 0,
         "aria-orientation": "horizontal" as const,
         "aria-valuemin": 0,
-        "aria-valuemax": duration,
+        "aria-valuemax": Math.round(duration),
         "aria-valuenow": seconds,
-        "aria-valuetext": formatTime(seconds),
+        "aria-valuetext": `${formatTimeShort(seconds)} of ${formatTimeShort(duration)}`,
         onClick: click,
         onKeyDown: key,
         ...grab.handlers("scrub"),
@@ -116,7 +117,7 @@ export function OverviewStrip({
   return (
     <div
       ref={root}
-      className={`sys-overview sys-overview--${height}${onSeek ? " sys-overview--seek" : ""}`}
+      className={`sys-overview sys-overview--${height}${seekable ? " sys-overview--seek" : ""}`}
       aria-label={label}
       {...seekProps}
     >

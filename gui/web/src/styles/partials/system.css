@@ -1327,7 +1327,7 @@ html[data-frame-short] .sys-header-project .sys-header-title {
 
 .sys-overview--seek {
   cursor: pointer;
-  touch-action: none;
+  touch-action: pan-y;
 }
 
 .sys-overview--seek:focus-visible {
