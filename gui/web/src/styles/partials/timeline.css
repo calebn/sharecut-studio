@@ -1262,7 +1262,11 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   position: absolute;
   inset-block-start: 0;
   block-size: 1.5rem;
-  background: var(--color-record-subtle);
+  background-color: var(--color-timeline-lane);
+  background-image: linear-gradient(
+    var(--color-record-subtle),
+    var(--color-record-subtle)
+  );
   color: var(--color-text-primary);
   border: 1px dashed var(--color-record);
   font-size: var(--font-size-small);
