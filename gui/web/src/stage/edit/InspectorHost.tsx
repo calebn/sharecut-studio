@@ -24,6 +24,7 @@ import type {
   InspectorDetent,
   InspectorRect,
 } from "../../system/inspectorSheetMath";
+import { openerControl } from "../../ui/pressedControl";
 import { useResizeObserver } from "../../ui/useResizeObserver";
 import { CommentPopover } from "./CommentPopover";
 import { commentTarget } from "./commentSections";
@@ -49,6 +50,7 @@ function useInspectorFocus(box: RefObject<HTMLElement | null>, ready: boolean) {
   const opener = useRef<HTMLElement | null>(null);
   const entered = useRef(false);
   const captured = useRef(false);
+  const preserveOutsideFocus = useRef(false);
   const dismissal = useRef<{
     pointerId: number;
     control: HTMLButtonElement;
@@ -87,6 +89,15 @@ function useInspectorFocus(box: RefObject<HTMLElement | null>, ready: boolean) {
       const receipt = dismissal.current;
       const next = event.relatedTarget;
       if (
+        !receipt &&
+        next instanceof HTMLElement &&
+        next !== document.body &&
+        !box.current?.contains(next)
+      ) {
+        preserveOutsideFocus.current = true;
+        return;
+      }
+      if (
         !receipt ||
         !(next instanceof HTMLElement) ||
         !next.isConnected ||
@@ -98,6 +109,9 @@ function useInspectorFocus(box: RefObject<HTMLElement | null>, ready: boolean) {
     },
     [box],
   );
+  const onFocusCapture = useCallback(() => {
+    preserveOutsideFocus.current = false;
+  }, []);
   const onClickCapture = useCallback((event: MouseEvent<HTMLElement>) => {
     const receipt = dismissal.current;
     const target = (event.target as Element).closest<HTMLButtonElement>(
@@ -136,27 +150,41 @@ function useInspectorFocus(box: RefObject<HTMLElement | null>, ready: boolean) {
     const was = opener.current;
     if ((ownsFocus || matchedPointerDismissal) && was?.isConnected)
       was.focus({ preventScroll: true });
+    else if (
+      now instanceof HTMLElement &&
+      now !== document.body &&
+      !box.current?.contains(now)
+    )
+      preserveOutsideFocus.current = true;
   }, [box]);
   useEffect(() => {
     if (!captured.current) {
       captured.current = true;
-      const active = document.activeElement;
-      opener.current =
-        active instanceof HTMLElement && active !== document.body
-          ? active
-          : null;
+      opener.current = openerControl();
     }
     return () => {
       const was = opener.current;
       const now = document.activeElement;
-      if (was?.isConnected && now === document.body)
+      if (
+        !preserveOutsideFocus.current &&
+        was?.isConnected &&
+        (now === document.body ||
+          (now instanceof HTMLElement && now.contains(was)))
+      )
         was.focus({ preventScroll: true });
     };
   }, []);
   useEffect(() => {
     if (!ready || entered.current) return;
     const active = document.activeElement;
-    if (opener.current ? active !== opener.current : active !== document.body)
+    const was = opener.current;
+    if (
+      was
+        ? active !== was &&
+          active !== document.body &&
+          !(active instanceof HTMLElement && active.contains(was))
+        : active !== document.body
+    )
       return;
     entered.current = true;
     if (active?.closest(".ui-toast, .ui-toast-region--app")) return;
@@ -166,6 +194,7 @@ function useInspectorFocus(box: RefObject<HTMLElement | null>, ready: boolean) {
     close,
     onBlurCapture,
     onClickCapture,
+    onFocusCapture,
     onKeyDownCapture,
     onPointerCancelCapture,
     onPointerDownCapture,
@@ -348,6 +377,7 @@ function Card({
       hidden={!shown}
       onBlurCapture={focus.onBlurCapture}
       onClickCapture={focus.onClickCapture}
+      onFocusCapture={focus.onFocusCapture}
       onKeyDownCapture={focus.onKeyDownCapture}
       onPointerCancelCapture={focus.onPointerCancelCapture}
       onPointerDownCapture={focus.onPointerDownCapture}
@@ -418,6 +448,7 @@ function Phone({
       className="edit-inspector-slot"
       onBlurCapture={focus.onBlurCapture}
       onClickCapture={focus.onClickCapture}
+      onFocusCapture={focus.onFocusCapture}
       onKeyDownCapture={focus.onKeyDownCapture}
       onPointerCancelCapture={focus.onPointerCancelCapture}
       onPointerDownCapture={focus.onPointerDownCapture}
