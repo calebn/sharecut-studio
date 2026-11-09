@@ -5101,7 +5101,7 @@ button.sys-script-speaker {
   inset-block-end: 0.125rem;
 }
 
-/* Inside the word's own box and taken out of flow, so a locked word is the same box as an unlocked one; the top-trailing corner sits above the x-height and punctuation and below the previous line's accent bar, flag line and unsure underline. */
+/* Out of flow in the word's own box, so a locked word keeps an unlocked word's size; the top corner clears the previous line's accent bar, flag line and unsure underline. */
 .sys-script-word > .sys-script-lock {
   position: absolute;
   inset-block-start: 0;
