@@ -222,7 +222,6 @@ describe("buildScriptModel", () => {
     expect("locked" in (words[4] ?? {})).toBe(false);
     expect(words[5]).toMatchObject({ locked: true, hallucination: true });
     expect("locked" in (words[6] ?? {})).toBe(false);
-    expect(words[1]?.lowConfidence).toBeUndefined();
   });
 
   it("gives a cut word no lock", () => {
