@@ -238,7 +238,7 @@ old value would still matter.
 directory: `npm` in `gui/web` and `gui/desktop`, `cargo` in `gui/desktop/src-tauri`,
 and `uv` and `github-actions` at the repo root. Each ecosystem groups `minor`/`patch`
 bumps into a single PR so they land together (`applies-to: version-updates`); `major`
-bumps always arrive as their own PR for review. A second group per ecosystem
+bumps arrive as their own PR for review, except the two held below. A second group per ecosystem
 (`applies-to: security-updates`, all packages) batches security fixes into one PR
 instead of one per package. It only takes effect while Dependabot security updates are
 enabled in the repository settings (see below). PR commit messages use the `chore(deps)` / `chore(deps-dev)`
@@ -247,6 +247,13 @@ fails the build if a tracked lockfile's directory has no matching entry, so a ne
 lockfile location needs a new `updates` entry in the same change. Workflow and
 Dependabot YAML contract tests load files through `tests/github_yaml.py`
 (`load_github_yaml`), which restores the `on:` key PyYAML 1.1 parses as `True`.
+
+The `/gui/web` npm entry holds the `stylelint` and `stylelint-config-standard` majors
+back with an `ignore` block. `stylelint-declaration-strict-value` peers `stylelint
+>=16 <=17`, and `stylelint-config-standard` 41 needs `stylelint` 18, so `npm ci`
+would fail with ERESOLVE. Those two majors do not arrive as PRs until the plugin
+allows 18; then delete both `ignore` entries. Check with `npm view
+stylelint-declaration-strict-value peerDependencies`.
 
 The `frontend-suite` job in `.github/workflows/test.yml` runs `npm audit --omit=dev
 --audit-level=high` right after `npm ci`. It is advisory only (`continue-on-error:

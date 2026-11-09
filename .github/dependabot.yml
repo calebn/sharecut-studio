@@ -18,7 +18,8 @@ updates:
       include: scope
     # stylelint 18 cannot install yet: stylelint-declaration-strict-value
     # (1.12.1, latest) peers stylelint >=16 <=17, so npm ci fails with
-    # ERESOLVE. Hold the stylelint majors until that plugin allows 18, then
+    # ERESOLVE. Hold the stylelint majors until that plugin allows 18 (check:
+    # npm view stylelint-declaration-strict-value peerDependencies), then
     # delete these entries so Dependabot proposes the pair again.
     ignore:
       - dependency-name: stylelint
