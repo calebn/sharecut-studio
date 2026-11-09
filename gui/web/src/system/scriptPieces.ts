@@ -27,6 +27,8 @@ export type ScriptWord = {
   lowConfidence?: boolean;
   /** The pipeline found no matching speech under the word. Marked apart from `lowConfidence`; it is not counted or walked. */
   hallucination?: boolean;
+  /** A person or agent set the word's suppression directly; the automatic pass leaves it alone. */
+  locked?: boolean;
   /** Just brought back: a static highlight that clears on the next action. */
   restored?: boolean;
   /** Where another person's cursor or selection finds this word (a `data-presence-anchor` id). */
@@ -295,6 +297,8 @@ export function continuesSpeaker(
 const SUSPECT_HALLUCINATION_NOTE =
   TRANSCRIPT_SUSPECT_HALLUCINATION_TIP.toLowerCase();
 
+const LOCKED_NOTE = "suppression locked";
+
 export type WordFound = "match" | "current";
 
 /**
@@ -309,6 +313,7 @@ export function wordLabel(
   const notes = [
     word.mark?.kind === "cut" ? "cut" : null,
     word.mark?.kind === "muted" ? "muted" : null,
+    word.locked ? LOCKED_NOTE : null,
     word.lowConfidence ? "unsure" : null,
     word.hallucination ? SUSPECT_HALLUCINATION_NOTE : null,
     word.restored ? "restored" : null,

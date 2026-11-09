@@ -127,6 +127,18 @@ describe("piecesOf", () => {
       "can",
     ]);
   });
+
+  it("keeps one muted run across locked and unlocked words", () => {
+    const [turn] = patchWords([first], {
+      ...spanPatch(12, 14, { mark: MUTED }),
+      12: { mark: MUTED, locked: true },
+      14: { mark: MUTED, locked: true },
+    });
+    const pieces = piecesOf(turn.words, false);
+    expect(pieces.filter((p) => p.kind === "muted")).toHaveLength(1);
+    const run = pieces[12];
+    expect([pieceStart(run), pieceEnd(run)]).toEqual([12, 14]);
+  });
 });
 
 describe("linkCuts", () => {
@@ -264,6 +276,31 @@ describe("wordLabel", () => {
     ).toBe("word (unsure, restored, current match, selected)");
     expect(wordLabel(plain, { selected: false, found: "match" })).toBe(
       "word (match)",
+    );
+  });
+
+  it("names a locked word after muted and before the other notes", () => {
+    expect(wordLabel({ ...plain, locked: true }, off)).toBe(
+      "word (suppression locked)",
+    );
+    expect(wordLabel({ ...plain, mark: MUTED, locked: true }, off)).toBe(
+      "word (muted, suppression locked)",
+    );
+    expect(
+      wordLabel(
+        { ...plain, locked: true, lowConfidence: true, hallucination: true },
+        { selected: true },
+      ),
+    ).toBe(
+      "word (suppression locked, unsure, possible transcription with no matching speech, selected)",
+    );
+    expect(
+      wordLabel(
+        { ...plain, locked: true, hallucination: true },
+        { selected: true },
+      ),
+    ).toBe(
+      "word (suppression locked, possible transcription with no matching speech, selected)",
     );
   });
 });

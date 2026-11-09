@@ -146,6 +146,7 @@ type DraftWord = {
   mark?: ScriptMark;
   lowConfidence: boolean;
   hallucination: boolean;
+  locked: boolean;
   /** A word an applied cut took out: shown, never seeked or addressed. */
   cut: boolean;
 };
@@ -175,6 +176,7 @@ function cutWordsOf(boundary: EditBoundaryView): DraftWord[] {
     mark: { kind: "cut", id: boundary.id, seconds },
     lowConfidence: false,
     hallucination: false,
+    locked: false,
     cut: true,
   }));
 }
@@ -210,6 +212,7 @@ export function buildScriptModel(input: ScriptModelInput): ScriptModel {
           ...(mark ? { mark } : {}),
           lowConfidence: isLowConfidenceWord(word),
           hallucination: isSuspectHallucinationWord(word),
+          locked: word.audibility_locked === true,
           cut: false,
         });
       }
@@ -302,6 +305,7 @@ export function buildScriptModel(input: ScriptModelInput): ScriptModel {
         ...(word.mark ? { mark: word.mark } : {}),
         ...(word.lowConfidence ? { lowConfidence: true } : {}),
         ...(word.hallucination ? { hallucination: true } : {}),
+        ...(word.locked ? { locked: true } : {}),
       });
     }
     const startSec = draft.startSec ?? turnStart;
