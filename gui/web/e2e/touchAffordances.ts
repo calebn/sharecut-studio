@@ -7,6 +7,7 @@ import { openHostProject } from "./overlayReachability";
 import { openPhoneTimeline } from "./phoneTimeline";
 import {
   inspectSelection,
+  openPaletteAsTouch,
   openProjectDialog,
   projectMenuButton,
 } from "./stageNav";
@@ -181,7 +182,7 @@ export async function exerciseInviteAffordances(run: TouchRun): Promise<void> {
       await expect(dialog).toHaveCount(0);
       await expect(expectedOpener).toBeFocused();
       inviteEvidence.focusAfterClose = await activeElement(page);
-      await openProjectDialog(page, "palette");
+      await openPaletteAsTouch(page);
       const palette = page.getByRole("dialog", {
         name: "Commands and shortcuts",
       });
