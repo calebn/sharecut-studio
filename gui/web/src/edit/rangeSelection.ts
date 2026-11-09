@@ -30,6 +30,15 @@ export function clampSpan(
   return { start, end };
 }
 
+/** The tracks a range covers when none were ticked: the targeted tracks, else every track. */
+export function defaultScope(
+  project: ProjectView,
+  selection: Selection,
+): readonly string[] {
+  const targeted = selectedTrackIdsOf(selection);
+  return targeted.length ? targeted : project.tracks.map((t) => t.id);
+}
+
 /** The draft arming a range starts with: DRAFT_SPAN_SEC from the playhead on the targeted tracks, else on every track. Null when there is nothing to select. */
 export function seedRangeDraft(
   project: ProjectView,
@@ -42,11 +51,7 @@ export function seedRangeDraft(
     timelineEndSec(project),
   );
   if (!span) return null;
-  const targeted = selectedTrackIdsOf(selection);
-  return {
-    ...span,
-    trackIds: targeted.length ? targeted : project.tracks.map((t) => t.id),
-  };
+  return { ...span, trackIds: defaultScope(project, selection) };
 }
 
 export function canonicalIntervals(spans: TimelineSpan[]): TimelineSpan[] {
