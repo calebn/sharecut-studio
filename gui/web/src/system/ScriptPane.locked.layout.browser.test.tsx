@@ -26,10 +26,7 @@ beforeAll(async () => {
 });
 
 afterEach(() => {
-  root?.unmount();
-  host?.remove();
-  root = undefined;
-  host = undefined;
+  release();
   document.documentElement.removeAttribute("data-theme");
 });
 
@@ -39,6 +36,13 @@ type Shot = {
   heights: Array<{ height: number; lineHeight: number }>;
   scrollHeight: number;
 };
+
+function release() {
+  root?.unmount();
+  host?.remove();
+  root = undefined;
+  host = undefined;
+}
 
 const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
 
@@ -109,13 +113,6 @@ async function measure(
     }
   }
   return shot;
-}
-
-function release() {
-  root?.unmount();
-  host?.remove();
-  root = undefined;
-  host = undefined;
 }
 
 const cases = [
