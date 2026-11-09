@@ -441,12 +441,13 @@ test("a soloed track keeps Clear solo tappable at the top of the timeline at 914
     await expect(page.locator(".solo-chip")).toBeVisible();
     await openEnvelope(page);
     const chip = page.locator(".solo-chip");
-    // Opening the sheet can scroll the stacked workspace under the header; the top
-    // of the timeline is every scroller above the chip back at zero.
-    await chip.evaluate((el) => {
-      for (let node = el.parentElement; node; node = node.parentElement)
-        node.scrollTop = 0;
-    });
+    // Playwright's click on the off-screen Show volume envelope button scrolls the
+    // stacked workspace the way a user reaching it would; return to the top.
+    await page
+      .locator(".stage-frame-body, .timeline-scroll")
+      .evaluateAll((els) => {
+        for (const el of els) el.scrollTop = 0;
+      });
     await expect(chip).toBeInViewport();
     const hit = await chip.evaluate((el) => {
       const r = el.getBoundingClientRect();
