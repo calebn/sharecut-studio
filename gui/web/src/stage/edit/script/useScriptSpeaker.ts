@@ -1,41 +1,12 @@
 import { type RefObject, useMemo, useRef, useState } from "react";
-import { setTrackMetaCommand } from "../../../api";
 import { runMoveSpeakerLaneSpan } from "../../../commands/speakerMoveLaneSpan";
-import { redisplayDrafts } from "../../../document/applyDocumentUpdate";
-import { currentDocumentSeq } from "../../../document/cursor";
-import { revertOptimisticIfUnchanged } from "../../../document/optimisticRevert";
+import { sendTrackMeta } from "../../../hooks/trackMeta";
 import { useDawStore } from "../../../state/dawStore";
 import type { PickerPerson } from "../../../system/PersonPicker";
 import { errorMessage } from "../../../utils/apiError";
 import { siblingSplitLanes } from "../../../utils/speakerSplit";
 import { useStableCallback } from "../../../utils/useStableCallback";
 import { type ScriptModel, speakerColorIndex } from "./scriptModel";
-
-/** Rename one track's speaker as one undo step, showing it at once and putting it back if the host refuses. */
-async function renameSpeaker(trackId: string, name: string) {
-  const state = useDawStore.getState();
-  const previous = state.projectEditBasis();
-  const path = state.projectPath;
-  if (!previous)
-    throw new Error("The project is not open, so the name did not change.");
-  const seqAtStart = currentDocumentSeq();
-  const sending = setTrackMetaCommand(path, trackId, { speaker: name });
-  redisplayDrafts();
-  const optimistic = useDawStore.getState().project;
-  try {
-    const result = await sending;
-    if (result.queued && useDawStore.getState().projectPath === path) {
-      useDawStore
-        .getState()
-        .announceStatus("Track metadata change queued. Still sending.");
-    }
-  } catch (error) {
-    if (optimistic) {
-      revertOptimisticIfUnchanged(previous, seqAtStart, path, optimistic);
-    }
-    throw error;
-  }
-}
 
 export type ScriptSpeakerOpen = {
   turnId: string;
@@ -105,7 +76,7 @@ export function useScriptSpeaker(
   });
   const onRename = useStableCallback(async (id: string, name: string) => {
     try {
-      await renameSpeaker(id, name);
+      await sendTrackMeta(id, { speaker: name });
     } catch (error) {
       return errorMessage(error);
     }
