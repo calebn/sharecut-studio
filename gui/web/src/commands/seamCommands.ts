@@ -25,15 +25,21 @@ export const EDITING_OFF_REASON = "Editing is off for this link";
 export type SeamCommit =
   | { status: "done" }
   | { status: "skipped" }
+  | { status: "queued" }
   | { status: "failed"; message: string };
 
 const SKIPPED: SeamCommit = { status: "skipped" };
+
+export const ROLL_QUEUED_MESSAGE =
+  "The roll is queued. It saves when you reconnect.";
+export const ROLL_BUSY_MESSAGE =
+  "Another seam save is still running. Try the roll again in a moment.";
 
 export const ROLL_CONFLICT_MESSAGE =
   "The seam moved before the roll saved. Nothing changed.";
 const MIN_ROLL_MS = 0.05;
 
-function rollFailure(error: unknown): string {
+export function rollFailure(error: unknown): string {
   return error instanceof ApiError && error.code === "document_conflict"
     ? ROLL_CONFLICT_MESSAGE
     : errorMessage(error);
@@ -49,7 +55,9 @@ export function hearAcross(seam: Seam): ExecuteResult {
 
 export function replayIfInspected(seamId: string): void {
   const s = useDawStore.getState();
+  const comparing = s.sourcePreview?.ownerId === `seam-ab:${seamId}`;
   const open =
+    !comparing &&
     s.selection?.kind === "seam" &&
     s.selection.id === seamId &&
     inspectorOpenFor(s.selection, s.inspectorKey);
@@ -119,6 +127,10 @@ export function seamGeometry({ left, right }: Seam): BoundaryGeometryClip[] {
   );
 }
 
+export function rollSkipMessage(deltaMs: number): string | null {
+  return Math.abs(deltaMs) < MIN_ROLL_MS ? null : ROLL_BUSY_MESSAGE;
+}
+
 export async function rollSeam(
   seam: Seam,
   deltaMs: number,
@@ -165,7 +177,7 @@ export async function rollSeam(
         );
       })(),
     );
-    return queued.queued ? SKIPPED : { status: "done" };
+    return { status: queued.queued ? "queued" : "done" };
   } catch (error) {
     return { status: "failed", message: rollFailure(error) };
   } finally {

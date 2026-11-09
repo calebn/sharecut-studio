@@ -1,5 +1,10 @@
 import { useMemo } from "react";
-import { replayIfInspected, rollSeam } from "../../../commands/seamCommands";
+import {
+  ROLL_QUEUED_MESSAGE,
+  replayIfInspected,
+  rollSeam,
+  rollSkipMessage,
+} from "../../../commands/seamCommands";
 import { rollJoinInterval } from "../../../edit/rollLimits";
 import { seamById } from "../../../edit/seam";
 import { canApplyPass12 } from "../../../shareMode";
@@ -42,7 +47,11 @@ export function useScriptSeamRoll(say: (message: string) => void) {
         void rollSeam(seam, deltaMs).then((result) => {
           if (result.status === "failed")
             say(`Could not roll the seam. ${result.message}`);
-          else if (result.status === "done") replayIfInspected(id);
+          else if (result.status === "queued") say(ROLL_QUEUED_MESSAGE);
+          else if (result.status === "skipped") {
+            const reason = rollSkipMessage(deltaMs);
+            if (reason) say(reason);
+          } else replayIfInspected(id);
         });
       },
     }),
