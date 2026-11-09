@@ -285,11 +285,14 @@ export const GuestRoleHint: Story = {
     await expect(canvas.getByRole("note")).toHaveTextContent(
       "You can comment and suggest cuts. The host decides.",
     );
-    await userEvent.click(canvas.getByRole("button", { name: "Dismiss hint" }));
-
     const trigger = canvas.getByRole("button", {
       name: "Explain Commenter role",
     });
+    await userEvent.click(trigger);
+    await expect(canvas.queryByRole("note")).toBeNull();
+    await expect(
+      within(document.body).queryByRole("dialog", { name: "Commenter role" }),
+    ).toBeNull();
     await userEvent.click(trigger);
     const dialog = await within(document.body).findByRole("dialog", {
       name: "Commenter role",

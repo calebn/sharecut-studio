@@ -1,4 +1,11 @@
-import { type ReactNode, type RefObject, useId, useRef, useState } from "react";
+import {
+  type ReactNode,
+  type RefObject,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import { useLongPress } from "../hooks/useLongPress";
 import type { ThemePreference } from "../hooks/useTheme";
 import {
@@ -95,19 +102,21 @@ function RoleHint({ guest }: { guest: NonNullable<AppHeaderProps["guest"]> }) {
   const [mode, setMode] = useState<RoleHintMode>(() =>
     eligible ? "automatic" : "closed",
   );
-  const previousEligibility = useRef(eligible);
-  if (previousEligibility.current !== eligible) {
-    previousEligibility.current = eligible;
-    if (!eligible && mode === "automatic") {
-      setMode("closed");
+  useEffect(() => {
+    if (!eligible) {
+      setMode((current) => (current === "automatic" ? "closed" : current));
     }
-  }
+  }, [eligible]);
   const label =
     ROLES.find((role) => role.id === guest.role)?.label ?? guest.role;
 
   const dismissAutomatic = () => {
     setMode("closed");
     guest.hint?.onDismiss();
+  };
+  const dismissAutomaticFromTip = () => {
+    dismissAutomatic();
+    triggerRef.current?.focus({ preventScroll: true });
   };
   useOutsidePointerDown([outsideRef], dismissAutomatic, mode === "automatic");
 
@@ -121,25 +130,28 @@ function RoleHint({ guest }: { guest: NonNullable<AppHeaderProps["guest"]> }) {
           edge
           text={guest.hint.text}
           shown={mode === "automatic"}
-          onDismiss={dismissAutomatic}
+          onDismiss={dismissAutomaticFromTip}
         >
-          <button
-            ref={triggerRef}
-            type="button"
-            className="sys-icon-btn"
-            aria-label={`Explain ${label} role`}
-            aria-haspopup="dialog"
-            aria-expanded={mode === "manual"}
-            aria-controls={mode === "manual" ? panelId : undefined}
-            onClick={() => {
-              if (mode !== "automatic") {
-                setMode(mode === "manual" ? "closed" : "manual");
-              }
-            }}
-          >
-            {chip}
-          </button>
+          <span aria-hidden="true" />
         </CoachTip>
+        <button
+          ref={triggerRef}
+          type="button"
+          className="sys-icon-btn"
+          aria-label={`Explain ${label} role`}
+          aria-haspopup="dialog"
+          aria-expanded={mode === "manual"}
+          aria-controls={mode === "manual" ? panelId : undefined}
+          onClick={() => {
+            if (mode === "automatic") {
+              dismissAutomatic();
+            } else {
+              setMode(mode === "manual" ? "closed" : "manual");
+            }
+          }}
+        >
+          {chip}
+        </button>
       </span>
       <Dialog
         open={mode === "manual"}
