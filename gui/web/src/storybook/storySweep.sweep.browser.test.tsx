@@ -29,10 +29,10 @@ const modules = import.meta.glob("../**/*.stories.{ts,tsx}", {
 
 const isPhoneStory = (name: string) => /\bphone\b/i.test(name);
 const widthsFor = (story: ComposedStory) =>
-  SHELL_TITLES.includes(story.title)
-    ? [PHONE, WIDE]
-    : story.tags.includes("wide-only")
-      ? [WIDE]
+  story.tags.includes("wide-only")
+    ? [WIDE]
+    : SHELL_TITLES.includes(story.title)
+      ? [PHONE, WIDE]
       : isPhoneStory(story.storyName)
         ? [PHONE]
         : [PHONE, WIDE];
@@ -93,7 +93,11 @@ describe("viewport policy", () => {
       (story) =>
         story.title !== "Stages/Edit/Frame" && story.tags.includes("wide-only"),
     );
-    const phoneStory = stories.find((story) => story.storyName === "PhoneTabs");
+    const phoneStory = stories.find(
+      (story) =>
+        story.title === "Stages/Settings/ModelsSheet" &&
+        story.storyName === "Phone",
+    );
     const ordinaryStory = stories.find(
       (story) =>
         story.title !== "Stages/Edit/Frame" &&
