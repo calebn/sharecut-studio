@@ -1,3 +1,5 @@
+import { selectedTrackIdsOf } from "../state/selection";
+import type { RangeDraft } from "../state/types";
 import type {
   ClipRow,
   ExactRangeTarget,
@@ -7,6 +9,45 @@ import type {
 } from "../types/project";
 import { sourceSecOnClipToTimeline } from "../utils/timebase";
 import { findTranscriptWord } from "../utils/transcript";
+import { timelineEndSec } from "./pickupTarget";
+
+/** The finest span the numeric fields step by, and the shortest range they accept. */
+export const SPAN_STEP_SEC = 0.01;
+
+/** The length of the span a new draft starts with. */
+export const DRAFT_SPAN_SEC = 5;
+
+/** `span` held inside [0, endSec]; one too short to select becomes the last DRAFT_SPAN_SEC. Null on a timeline with no length. */
+export function clampSpan(
+  span: TimelineSpan,
+  endSec: number,
+): TimelineSpan | null {
+  if (!(endSec >= SPAN_STEP_SEC)) return null;
+  const start = Math.min(Math.max(span.start, 0), endSec);
+  const end = Math.min(span.end, endSec);
+  if (end - start < SPAN_STEP_SEC)
+    return { start: Math.max(0, endSec - DRAFT_SPAN_SEC), end: endSec };
+  return { start, end };
+}
+
+/** The draft arming a range starts with: DRAFT_SPAN_SEC from the playhead on the targeted tracks, else on every track. Null when there is nothing to select. */
+export function seedRangeDraft(
+  project: ProjectView,
+  playheadSec: number,
+  selection: Selection,
+): RangeDraft | null {
+  if (!project.tracks.length) return null;
+  const span = clampSpan(
+    { start: playheadSec, end: playheadSec + DRAFT_SPAN_SEC },
+    timelineEndSec(project),
+  );
+  if (!span) return null;
+  const targeted = selectedTrackIdsOf(selection);
+  return {
+    ...span,
+    trackIds: targeted.length ? targeted : project.tracks.map((t) => t.id),
+  };
+}
 
 export function canonicalIntervals(spans: TimelineSpan[]): TimelineSpan[] {
   const ordered = spans

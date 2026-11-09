@@ -1,13 +1,16 @@
 import { useMemo } from "react";
-import { makeRangeTarget, resolveSelectionRange } from "../edit/rangeSelection";
+import {
+  makeRangeTarget,
+  resolveSelectionRange,
+  SPAN_STEP_SEC,
+  seedRangeDraft,
+} from "../edit/rangeSelection";
 import { TrackToggleRow } from "../inspector/TrackToggleRow";
 import { useDawStore } from "../state/dawStore";
-import { inspectorOpenFor, selectedTrackIdsOf } from "../state/selection";
+import { selectedTrackIdsOf } from "../state/selection";
 import { useDaw } from "../state/useDaw";
 import { ScrubField } from "../system/ScrubField";
 import { Button } from "../ui";
-
-const SPAN_STEP_SEC = 0.01;
 
 export function RangeFields({
   sheet = false,
@@ -24,9 +27,11 @@ export function RangeFields({
     rangeArmed: s.rangeArmed,
     rangeBusy: s.rangeBusy,
     sessionRegion: s.sessionRegion,
-    selectedTrackIds: s.rangeScopeTrackIds ?? selectedTrackIdsOf(s.selection),
+    rangeDraft: s.rangeDraft,
+    selectedTrackIds: s.rangeDraft?.trackIds ?? selectedTrackIdsOf(s.selection),
     setSelection: s.setSelection,
-    setRangeScopeTrackIds: s.setRangeScopeTrackIds,
+    commitRange: s.commitRange,
+    setRangeDraft: s.setRangeDraft,
   }));
   const { project, selection, rangeArmed, sessionRegion, selectedTrackIds } =
     state;
@@ -75,7 +80,10 @@ export function RangeFields({
   };
   const commitScope = (ids: string[]) => {
     if (!target) {
-      state.setRangeScopeTrackIds(ids);
+      const base =
+        state.rangeDraft ??
+        seedRangeDraft(project, useDawStore.getState().playheadSec, selection);
+      if (base) state.setRangeDraft({ ...base, trackIds: ids });
       return;
     }
     const next = makeRangeTarget(project, target.intervals, ids);
@@ -174,16 +182,7 @@ export function RangeFields({
                   ],
                   selectedTrackIds,
                 );
-                if (next) {
-                  const held = useDawStore.getState();
-                  const wasOpen = inspectorOpenFor(
-                    held.selection,
-                    held.inspectorKey,
-                  );
-                  state.setSelection({ kind: "range", target: next });
-                  if (wasOpen) held.setInspectorOpen(true);
-                  state.setRangeScopeTrackIds(null);
-                }
+                if (next) state.commitRange(next);
               }}
             >
               Use agent range on selected tracks

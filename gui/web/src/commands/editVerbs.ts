@@ -363,7 +363,12 @@ async function runCutSelection(
 function selectWordUnderPlayhead(): ExecuteResult {
   const s = useDawStore.getState();
   const word = s.project
-    ? wordUnderPlayhead(s.project, s.playheadSec, s.rangeScopeTrackIds, s)
+    ? wordUnderPlayhead(
+        s.project,
+        s.playheadSec,
+        s.rangeDraft?.trackIds ?? null,
+        s,
+      )
     : null;
   if (!word) return disabled("No word under the playhead");
   s.stopFollow("local");
