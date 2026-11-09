@@ -1,11 +1,14 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { StrictMode } from "react";
+import { StrictMode, useRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../../../state/dawStore";
+import type { ScriptPaneHandle } from "../../../system/ScriptPane";
 import { seedScript } from "../../../test/scriptHostKit";
 import { StatusLive } from "../../frame/StatusLive";
 import { ScriptHost } from "./ScriptHost";
+import { useScriptFixText } from "./useScriptFixText";
+import { useScriptModel } from "./useScriptModel";
 
 const submitWordCorrection = vi.hoisted(() => vi.fn());
 vi.mock("../../../transcript/wordCorrection", () => ({ submitWordCorrection }));
@@ -31,6 +34,48 @@ vi.mock("../../../system/ScriptPane", async (original) => {
 const word = (name: string) => screen.getByRole("button", { name });
 const field = () => screen.getByRole("textbox", { name: /^Fix text/ });
 
+function ScriptFixPaneBoundary({ wordVisible }: { wordVisible: boolean }) {
+  const target = useRef<HTMLButtonElement>(null);
+  const pane = useRef<ScriptPaneHandle | null>({
+    scrollToWord: () => false,
+    focusFind: () => false,
+    focusWord: (index) => {
+      if (index !== 5 || target.current === null) return false;
+      target.current.focus();
+      return target.current.ownerDocument.activeElement === target.current;
+    },
+  });
+  const { model, texts } = useScriptModel();
+  const fix = useScriptFixText(
+    model,
+    texts,
+    pane,
+    true,
+    () => {},
+    () => undefined,
+  );
+  return (
+    <>
+      <div className="sys-script-body">
+        <button
+          type="button"
+          onClick={() => fix.onFixText?.({ start: 5, end: 5 }, "enter")}
+        >
+          Open correction
+        </button>
+        {fix.editing !== null ? (
+          fix.renderEditor(fix.editing)
+        ) : wordVisible ? (
+          <button ref={target} type="button" data-stop="5">
+            Returned word
+          </button>
+        ) : null}
+      </div>
+      <button type="button">External control</button>
+    </>
+  );
+}
+
 beforeEach(() => {
   submitWordCorrection.mockReset();
   submitWordCorrection.mockResolvedValue("h1");
@@ -44,6 +89,37 @@ async function openWith(key: string) {
 }
 
 describe("ScriptHost Fix text", () => {
+  it("returns keyboard focus when the word becomes available", async () => {
+    const view = render(<ScriptFixPaneBoundary wordVisible={false} />);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Open correction" }),
+    );
+    const input = screen.getByRole("textbox", { name: "Fix text" });
+    expect(input).toHaveValue("friends");
+    expect(input).toHaveFocus();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(document.activeElement).toBe(document.body);
+    view.rerender(<ScriptFixPaneBoundary wordVisible />);
+    expect(screen.getByRole("button", { name: "Returned word" })).toHaveFocus();
+  });
+
+  it("keeps an external destination when the word becomes available", async () => {
+    const view = render(<ScriptFixPaneBoundary wordVisible={false} />);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Open correction" }),
+    );
+    expect(screen.getByRole("textbox", { name: "Fix text" })).toHaveFocus();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(document.activeElement).toBe(document.body);
+    const external = screen.getByRole("button", { name: "External control" });
+    await userEvent.click(external);
+    expect(external).toHaveFocus();
+    view.rerender(<ScriptFixPaneBoundary wordVisible />);
+    expect(external).toHaveFocus();
+  });
+
   it("keeps the open field and its typing across a remount", async () => {
     const first = render(<ScriptHost />);
     await userEvent.click(word("friends"));
