@@ -17,6 +17,7 @@ import {
   stubResizeObserver,
 } from "../../test/resizeObserver";
 import { stubViewportShell } from "../../test/viewportShell";
+import { usePressedControl } from "../../ui";
 import { EditWorkspace } from "./EditWorkspace";
 import { InspectorHost } from "./InspectorHost";
 
@@ -55,6 +56,11 @@ afterEach(() => {
 
 function Keys() {
   useDawKeymapListener();
+  return null;
+}
+
+function PressedControls() {
+  usePressedControl();
   return null;
 }
 
@@ -194,6 +200,31 @@ describe("the Inspector card on the desktop and the tablet", () => {
 
     const card = screen.getByRole("dialog", { name: "Inspector" });
     expect(card).toContainElement(document.activeElement as HTMLElement);
+  });
+
+  it("returns phone sheet focus to a clicked track header when WebKit leaves focus on body", () => {
+    stubViewportShell("phone");
+    useDawStore.getState().setSelection(null);
+    render(
+      <>
+        <PressedControls />
+        <EditWorkspace />
+      </>,
+    );
+    const header = screen.getByRole("button", { name: "host", exact: true });
+    expect(document.activeElement).toBe(document.body);
+
+    fireEvent.click(header, { detail: 1 });
+
+    const sheet = screen.getByRole("dialog", { name: "Inspector" });
+    expect(sheet).toContainElement(document.activeElement as HTMLElement);
+    act(() => {
+      const state = useDawStore.getState();
+      state.setSelection(null);
+      state.setInspectorOpen(false);
+    });
+
+    expect(header).toHaveFocus();
   });
 
   it("returns focus to the opener on Close and on a new selection", async () => {
