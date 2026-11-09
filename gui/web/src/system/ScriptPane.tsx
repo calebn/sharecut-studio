@@ -20,7 +20,10 @@ import {
 } from "../hooks/useUserScrollIntent";
 import { presenceAnchorProps } from "../presence/anchors";
 import { presenceColorVar } from "../presence/colors";
-import { TRANSCRIPT_SUSPECT_HALLUCINATION_TIP } from "../transcript/transcriptModeCopy";
+import {
+  TRANSCRIPT_AUDIBILITY_LOCKED_TIP,
+  TRANSCRIPT_SUSPECT_HALLUCINATION_TIP,
+} from "../transcript/transcriptModeCopy";
 import { useResizeObserver } from "../ui/useResizeObserver";
 import { Cover } from "./Cover";
 import { PersonAvatar } from "./Person";
@@ -2607,8 +2610,14 @@ const WordView = memo(function WordView({
       data-selected={selected ? "" : undefined}
       data-unsure={word.lowConfidence ? "" : undefined}
       data-hallucination={word.hallucination ? "" : undefined}
+      data-locked={word.locked ? "" : undefined}
       title={
-        word.hallucination ? TRANSCRIPT_SUSPECT_HALLUCINATION_TIP : undefined
+        [
+          word.locked && TRANSCRIPT_AUDIBILITY_LOCKED_TIP,
+          word.hallucination && TRANSCRIPT_SUSPECT_HALLUCINATION_TIP,
+        ]
+          .filter(Boolean)
+          .join("\n") || undefined
       }
       data-restored={word.restored ? "" : undefined}
       data-found={found}
@@ -2619,6 +2628,9 @@ const WordView = memo(function WordView({
       onKeyDown={(event) => actions.key(event, index)}
     >
       {word.text}
+      {word.locked ? (
+        <SystemIcon name="lock" size={8} className="sys-script-lock" />
+      ) : null}
     </button>
   );
 });

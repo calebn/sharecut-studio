@@ -5115,6 +5115,22 @@ button.sys-script-speaker {
   inset-block-end: 0.125rem;
 }
 
+/* Inside the word's own box and taken out of flow, so a locked word is the same box as an unlocked one; the top-trailing corner sits above the x-height and punctuation and below the previous line's accent bar, flag line and unsure underline. */
+.sys-script-word > .sys-script-lock {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  inline-size: 0.45em;
+  block-size: 0.45em;
+  color: var(--color-text-secondary);
+  stroke-width: 3;
+  pointer-events: none;
+}
+
+.sys-script-word > .sys-script-lock rect {
+  fill: var(--color-text-secondary);
+}
+
 .sys-script-word[data-state="cut"] {
   text-decoration-line: line-through;
   text-decoration-style: solid;
