@@ -22,7 +22,6 @@ export function lastClipEndSec(
   return end;
 }
 
-/** The timeline's length: the server's duration, else the end of the last clip, else 0. */
 export function timelineEndSec(project: ProjectView): number {
   return project.clips.timeline_duration_sec ?? lastClipEndSec(project) ?? 0;
 }

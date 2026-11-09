@@ -352,7 +352,6 @@ async function fillRoomToneInRange(
   return { status: "ok" };
 }
 
-/** Arming seeds a draft at the playhead; arming again drops it. */
 export function armRangeDraft(): ExecuteResult {
   const s = useDawStore.getState();
   if (!s.project || s.rangeBusy || s.joinMutationInFlight)

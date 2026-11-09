@@ -11,13 +11,10 @@ import { sourceSecOnClipToTimeline } from "../utils/timebase";
 import { findTranscriptWord } from "../utils/transcript";
 import { timelineEndSec } from "./pickupTarget";
 
-/** The finest span the numeric fields step by, and the shortest range they accept. */
 export const SPAN_STEP_SEC = 0.01;
 
-/** The length of the span a new draft starts with. */
 export const DRAFT_SPAN_SEC = 5;
 
-/** `span` held inside [0, endSec]; one too short to select becomes the last DRAFT_SPAN_SEC. Null on a timeline with no length. */
 export function clampSpan(
   span: TimelineSpan,
   endSec: number,
@@ -30,7 +27,6 @@ export function clampSpan(
   return { start, end };
 }
 
-/** The tracks a range covers when none were ticked: the targeted tracks, else every track. */
 export function defaultScope(
   project: ProjectView,
   selection: Selection,
@@ -39,7 +35,6 @@ export function defaultScope(
   return targeted.length ? targeted : project.tracks.map((t) => t.id);
 }
 
-/** The draft arming a range starts with: DRAFT_SPAN_SEC from the playhead on the targeted tracks, else on every track. Null when there is nothing to select. */
 export function seedRangeDraft(
   project: ProjectView,
   playheadSec: number,
