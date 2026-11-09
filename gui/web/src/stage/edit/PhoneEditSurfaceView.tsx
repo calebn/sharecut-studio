@@ -75,7 +75,7 @@ export function PhoneEditSurfaceView({
             aria-label="Mix"
             onClick={onOpenMix}
           >
-            <SystemIcon name="sliders-horizontal" size={20} />
+            <SystemIcon name="sliders-vertical" size={20} />
           </Button>
         ) : null}
       </div>

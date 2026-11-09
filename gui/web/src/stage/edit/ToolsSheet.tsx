@@ -47,7 +47,7 @@ export function ToolsSheet() {
       ) : null}
       {mixAllowed ? (
         <Button title="Mix" onClick={() => setOpenSheet("mix")}>
-          <SystemIcon name="sliders-horizontal" size={20} />
+          <SystemIcon name="sliders-vertical" size={20} />
           Mix
         </Button>
       ) : null}

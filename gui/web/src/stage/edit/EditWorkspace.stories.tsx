@@ -406,7 +406,11 @@ export const PhoneMix: Story = {
       await canvas.findByRole("group", { name: "Tracks" }),
     ).toBeVisible();
     if (!onPhone(canvasElement)) return;
-    await userEvent.click(canvas.getByRole("button", { name: "Mix" }));
+    const mix = canvas.getByRole("button", { name: "Mix" });
+    await expect(
+      mix.querySelector("svg.lucide-sliders-vertical"),
+    ).not.toBeNull();
+    await userEvent.click(mix);
     await waitFor(() => expect(useDawStore.getState().openSheet).toBe("mix"));
   },
 };

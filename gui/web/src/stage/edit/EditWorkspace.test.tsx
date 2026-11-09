@@ -277,7 +277,10 @@ describe("EditWorkspace arrangements", () => {
     stubViewportShell("phone");
     const user = userEvent.setup();
     render(<EditWorkspace />);
-    await user.click(screen.getByRole("button", { name: "Mix" }));
+    const mix = screen.getByRole("button", { name: "Mix" });
+    expect(mix.querySelector("svg.lucide-sliders-vertical")).not.toBeNull();
+    expect(mix.querySelector("svg.lucide-sliders-horizontal")).toBeNull();
+    await user.click(mix);
     expect(useDawStore.getState().openSheet).toBe("mix");
   });
 
