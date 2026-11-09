@@ -59,11 +59,9 @@ for (const { cell: rootFont, theme, reducedMotion } of withAppearance([
           await expect(page.locator(".sys-inspector")).toHaveCount(1);
 
           const body = dialog.locator(".sys-inspector-scroll");
-          const name = body.getByRole("textbox", {
-            name: "Name",
-            exact: true,
-          });
-          await name.scrollIntoViewIfNeeded();
+          const name = dialog
+            .locator(".sys-inspector-header")
+            .getByRole("textbox", { name: "Name", exact: true });
           await expect(name).toHaveValue(track.label);
 
           const speaker = body.getByRole("textbox", {
