@@ -174,14 +174,14 @@ test("System/InspectorSheet keys: Tab walks header, headings and fields, Escape 
   await page.getByRole("button", { name: "Close" }).focus();
   await page.keyboard.press("Tab");
   await expect(
-    page.getByRole("button", { name: "Offset", exact: true }),
+    page.getByRole("button", { name: "Timing", exact: true }),
   ).toBeFocused();
   await page.keyboard.press("Tab");
-  await expect(page.getByRole("spinbutton", { name: "Offset" })).toBeFocused();
+  await expect(page.getByRole("spinbutton", { name: "Start" })).toBeFocused();
   await page.keyboard.press("Enter");
   await page.keyboard.type("77");
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("spinbutton", { name: "Offset" })).toBeFocused();
+  await expect(page.getByRole("spinbutton", { name: "Start" })).toBeFocused();
   await expect(sheet(page)).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(sheet(page)).toHaveCount(0);

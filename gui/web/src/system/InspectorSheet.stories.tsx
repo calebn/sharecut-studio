@@ -152,8 +152,8 @@ function ClosingDemo() {
             <InspectorSheet
               form="card"
               icon="sliders-horizontal"
-              name="Seam at 10:12.4"
-              sections={SEAM_SECTIONS}
+              name="Clip"
+              sections={CLIP_SECTIONS}
               anchor={anchor}
               bounds={bounds}
               onClose={() => setOpen(false)}
