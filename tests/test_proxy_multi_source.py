@@ -21,15 +21,19 @@ def _granted_writes():
         yield
 
 
+def _write_wav(path, value):
+    with wave.open(str(path), "wb") as output:
+        output.setnchannels(1)
+        output.setsampwidth(2)
+        output.setframerate(48000)
+        output.writeframes(np.full(96000, value, dtype="<i2").tobytes())
+
+
 @pytest.fixture
 def two_recording_track(minimal_project, monkeypatch):
     ws = ProjectWorkspace.open(minimal_project)
     second = ws.project.workspace_path() / "raw/host_src1.wav"
-    with wave.open(str(second), "wb") as output:
-        output.setnchannels(1)
-        output.setsampwidth(2)
-        output.setframerate(48000)
-        output.writeframes(np.full(96000, 12000, dtype="<i2").tobytes())
+    _write_wav(second, 12000)
     ws.project.tracks = [Track(id="host", label="Host", media=MediaAsset(path="raw/host.wav"))]
     ws.project.sources = [
         SourceRecording(id="host_src0", path="raw/host.wav"),
@@ -85,7 +89,8 @@ def test_clip_from_second_recording_plays_its_own_recording(two_recording_track)
     assert abs(int(_bytes(ws, second).split(b":")[1]) - 12000) < 200
 
 
-def _third_clip(ws):
+def test_clips_on_one_recording_share_one_artifact(two_recording_track):
+    ws = two_recording_track
     ws.project.clips.append(
         Clip(
             id="third",
@@ -97,20 +102,6 @@ def _third_clip(ws):
         )
     )
     ws.save()
-
-
-def _rewrite_second(ws):
-    path = ws.project.workspace_path() / "raw/host_src1.wav"
-    with wave.open(str(path), "wb") as output:
-        output.setnchannels(1)
-        output.setsampwidth(2)
-        output.setframerate(48000)
-        output.writeframes(np.full(96000, -9000, dtype="<i2").tobytes())
-
-
-def test_clips_on_one_recording_share_one_artifact(two_recording_track):
-    ws = two_recording_track
-    _third_clip(ws)
     generation = pv.ensure_proxy_manifest(ws)
     assert (
         generation.occurrences["third"].artifact_id == generation.occurrences["second"].artifact_id
@@ -121,7 +112,7 @@ def test_clips_on_one_recording_share_one_artifact(two_recording_track):
 def test_recording_content_is_part_of_the_artifact_hash(two_recording_track):
     ws = two_recording_track
     before = pv.ensure_proxy_manifest(ws)
-    _rewrite_second(ws)
+    _write_wav(ws.project.workspace_path() / "raw/host_src1.wav", -9000)
     after = pv.ensure_proxy_manifest(ProjectWorkspace.open(ws.path))
     assert after.occurrences["second"].artifact_id != before.occurrences["second"].artifact_id
     assert after.revision != before.revision
