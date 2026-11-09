@@ -641,7 +641,6 @@
       "advisory": {
         "include": [
           "gui/web/src/inspector/selectionSurface.tsx",
-          "gui/web/src/inspector/relatedCommandDescriptors.ts",
           "gui/web/src/commands/targets.ts",
           "gui/web/src/timeline/inputContract.ts",
           "gui/web/src/timeline/TimelineCreateMenu.tsx",
