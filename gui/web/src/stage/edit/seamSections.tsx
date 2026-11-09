@@ -131,7 +131,7 @@ export function useSeamSections(
   );
   const openEnd = originEnd ?? left.source_end;
   const sinceOpenSec = left.source_end - openEnd;
-  const offsetMs = sinceOpenSec * 1000;
+  const offsetMs = Math.round(sinceOpenSec * 1e6) / 1e3;
   const abReason = !canHostMutate(projectPath)
     ? AB_GUEST_REASON
     : Math.abs(sinceOpenSec) <= ROLLED_EPS_SEC
