@@ -33,7 +33,6 @@ import {
   utteranceTimelineEnd,
   utteranceTimelineSpans,
   utteranceTimelineStart,
-  visibleTranscriptUtterances,
   wordSeekSec,
   wordsForUtterance,
 } from "./transcript";
@@ -809,33 +808,6 @@ describe("isTranscriptUtteranceVisible", () => {
     expect(isTranscriptUtteranceVisible(mapped, true, false)).toBe(true);
     expect(isTranscriptUtteranceVisible(mapped, false, true)).toBe(true);
     expect(isTranscriptUtteranceVisible(mapped, false, false)).toBe(true);
-  });
-});
-
-describe("visibleTranscriptUtterances", () => {
-  const mapped = u({ start: 0, end: 1, text: "hi", mappable: true });
-  const cutAway = u({ start: 1, end: 2, text: "bye", mappable: false });
-  const utterances = [mapped, cutAway];
-
-  it("keeps cut-away utterances only when annotate and showCutAway are both on", () => {
-    expect(visibleTranscriptUtterances(utterances, true, true)).toEqual(
-      utterances,
-    );
-    expect(visibleTranscriptUtterances(utterances, true, false)).toEqual([
-      mapped,
-    ]);
-    expect(visibleTranscriptUtterances(utterances, false, true)).toEqual([
-      mapped,
-    ]);
-    expect(visibleTranscriptUtterances(utterances, false, false)).toEqual([
-      mapped,
-    ]);
-  });
-
-  it("returns the same array reference when both are on", () => {
-    expect(visibleTranscriptUtterances(utterances, true, true)).toBe(
-      utterances,
-    );
   });
 });
 

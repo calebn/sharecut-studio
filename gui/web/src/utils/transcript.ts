@@ -346,19 +346,6 @@ export function isTranscriptUtteranceVisible(
   return (annotate && showCutAway) || isMappedUtterance(u);
 }
 
-/** Utterances the Script lists: cut-away ones only when `annotate` and Show cut away are both on. */
-export function visibleTranscriptUtterances(
-  utterances: CombinedUtterance[],
-  annotate: boolean,
-  showCutAway: boolean,
-): CombinedUtterance[] {
-  return annotate && showCutAway
-    ? utterances
-    : utterances.filter((u) =>
-        isTranscriptUtteranceVisible(u, annotate, showCutAway),
-      );
-}
-
 /** Display turn: consecutive same-speaker (same track) utterances. */
 export interface TranscriptTurn {
   speaker: string;
