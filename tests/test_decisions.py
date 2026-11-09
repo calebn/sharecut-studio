@@ -1034,7 +1034,7 @@ def test_impact_uses_exact_range_intervals_once_across_tracks(
     selection = build_range_target(proj, intervals, ["host", "guest"])
     edit_selected_range(
         proj,
-        selection,
+        [selection],
         action,
         propose=True,
         reason="host:range",

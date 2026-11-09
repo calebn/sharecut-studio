@@ -708,13 +708,13 @@ def test_exact_occurrence_and_direct_clip_actions_preserve_the_other_source_copy
     if action == "exact":
         target = service.selected_range_target(3, 4, ["host"])
         applied = service.edit_selected_range(
-            target,
+            [target],
             "cut",
             propose=False,
             reason="manual exact occurrence",
             action_id="selected-occurrence",
         )
-        assert applied["action_id"] == "selected-occurrence"
+        assert applied["action_ids"] == ["selected-occurrence"]
         assert applied["proposed"] is False
     else:
         applied = TimelineService(service.ws).delete_clips(["selected-copy"], mode=EditMode.GAP)

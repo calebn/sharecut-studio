@@ -792,7 +792,7 @@ def edit_propose_range_cut_cmd(
     reply = submit_host_document_command(
         project,
         "EditSelectedRange",
-        {"target": target.model_dump(mode="json"), "action": "cut"},
+        {"targets": [target.model_dump(mode="json")], "action": "cut"},
         client_id="cli",
         command_id=command_id or f"cli-range-cut-{uuid4().hex}",
     )

@@ -3764,13 +3764,20 @@
             "title": "Override Audio Checks",
             "type": "boolean"
           },
-          "target": {
-            "$ref": "#/components/schemas/ExactRangeTarget"
+          "targets": {
+            "description": "One target per speaker (track set), applied together as one history step.",
+            "items": {
+              "$ref": "#/components/schemas/ExactRangeTarget"
+            },
+            "maxItems": 64,
+            "minItems": 1,
+            "title": "Targets",
+            "type": "array"
           }
         },
         "required": [
           "action",
-          "target"
+          "targets"
         ],
         "title": "EditSelectedRangePayload",
         "type": "object"

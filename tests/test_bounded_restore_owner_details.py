@@ -19,7 +19,9 @@ def test_history_only_restore_refuses_before_recording_any_history(tmp_path, mon
     ws = ProjectWorkspace.open(save_project(project))
     service = EditService(ws)
     target = service.selected_range_target(1, 2, ["host"])
-    service.edit_selected_range(target, "cut", propose=False, reason="nl:range", action_id="exact")
+    service.edit_selected_range(
+        [target], "cut", propose=False, reason="nl:range", action_id="exact"
+    )
     before = ws.project.model_dump(mode="json")
     disk = ws.path.read_bytes()
 

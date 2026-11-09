@@ -189,7 +189,7 @@ def test_pending_then_host_approved_mute_changes_only_reviewed_caleb_scope(
     )
     action_id = f"lab-bleed-{case['name']}"
     EditService(ws).edit_selected_range(
-        target,
+        [target],
         "mute",
         propose=True,
         reason="owner-reviewed fixture scope",

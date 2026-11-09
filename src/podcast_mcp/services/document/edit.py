@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from dataclasses import asdict, replace
 from typing import Any, TypeVar
 
@@ -269,7 +270,7 @@ class EditService(CutMutatingService):
 
     def edit_selected_range(
         self,
-        target: ExactRangeTarget,
+        targets: Sequence[ExactRangeTarget],
         action: RangeAction,
         *,
         propose: bool,
@@ -285,7 +286,7 @@ class EditService(CutMutatingService):
             "after selected range",
             lambda p: edit_selected_range(
                 p,
-                target,
+                targets,
                 action,
                 propose=propose,
                 reason=reason,

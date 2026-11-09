@@ -89,7 +89,7 @@ def test_exact_window_keeps_the_hole_before_a_seeked_clip_to_the_sample(
     if action == "pending_suggested":
         edit_selected_range(
             ws.project,
-            target,
+            [target],
             "cut",
             propose=True,
             reason="guest:range",
@@ -101,7 +101,7 @@ def test_exact_window_keeps_the_hole_before_a_seeked_clip_to_the_sample(
     else:
         edit_selected_range(
             ws.project,
-            target,
+            [target],
             "cut",
             propose=False,
             reason="host:range",
@@ -194,7 +194,7 @@ def test_full_cut_retains_authoritative_extent_in_full_stem(minimal_project, tmp
     )
     edit_selected_range(
         ws.project,
-        selection,
+        [selection],
         "cut",
         propose=False,
         reason="host:range",
@@ -225,7 +225,7 @@ def test_exact_pending_preview_invalidates_after_peer_mix_change(minimal_project
     )
     edit_selected_range(
         ws.project,
-        target,
+        [target],
         "cut",
         propose=True,
         reason="guest:suggest",
@@ -266,7 +266,7 @@ def test_exact_pending_all_muted_mix_is_duration_correct_silence(minimal_project
     ws.project.tracks[0].muted = True
     edit_selected_range(
         ws.project,
-        target,
+        [target],
         "cut",
         propose=True,
         reason="guest:range",
@@ -347,7 +347,7 @@ def test_host_exact_pending_preview_http_keeps_islands_and_full_window(
     ws, target, raw = seed(minimal_project)
     edit_selected_range(
         ws.project,
-        target,
+        [target],
         action,
         propose=True,
         reason="guest:suggest",
@@ -423,7 +423,7 @@ def test_a_preview_the_warm_rendered_is_served_without_a_render_or_the_lock(
     ws, target, _raw = seed(minimal_project)
     edit_selected_range(
         ws.project,
-        target,
+        [target],
         "cut",
         propose=True,
         reason="guest:suggest",

@@ -124,7 +124,10 @@ def test_detail_words_follow_capabilities_and_never_include_suppressed(guest, ca
 def test_edit_guest_cut_applies(guest):
     client, open_share, path = guest
     reply = _command(
-        client, open_share(EDIT), "EditSelectedRange", {"action": "cut", "target": _um_target(path)}
+        client,
+        open_share(EDIT),
+        "EditSelectedRange",
+        {"action": "cut", "targets": [_um_target(path)]},
     )
     assert reply.status_code == 200
     project = load_project(path)
@@ -137,7 +140,7 @@ def test_suggest_guest_cut_is_a_pending_suggestion_and_direct_edits_are_refused(
     client, open_share, path = guest
     token = open_share(SUGGEST)
     reply = _command(
-        client, token, "EditSelectedRange", {"action": "cut", "target": _um_target(path)}
+        client, token, "EditSelectedRange", {"action": "cut", "targets": [_um_target(path)]}
     )
     assert reply.status_code == 200
     [proposal] = load_project(path).edit_decisions
@@ -167,7 +170,7 @@ def test_suggest_guest_cut_is_a_pending_suggestion_and_direct_edits_are_refused(
 )
 def test_view_guest_can_neither_edit_nor_suggest(guest, command_type, payload):
     client, open_share, path = guest
-    body = payload if payload is not None else {"action": "cut", "target": _um_target(path)}
+    body = payload if payload is not None else {"action": "cut", "targets": [_um_target(path)]}
     reply = _command(client, open_share(VIEW), command_type, body)
     assert reply.status_code == 403
     assert load_project(path).edit_decisions == []
