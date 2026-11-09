@@ -5072,10 +5072,14 @@ button.sys-script-speaker {
   text-underline-offset: 0.2em;
 }
 
-/* A border, not text-decoration: a word that is also unsure keeps both marks, and line height does not change. */
-.sys-script-word[data-hallucination] {
-  border-bottom: var(--focus-ring-width) dotted var(--color-text-secondary);
-  border-radius: 0;
+/* Drawn by a pseudo-element, not text-decoration or a border: a word that is also unsure keeps both marks, and the word's box, and so its line, is the same size as an unflagged word's. */
+.sys-script-word[data-hallucination]::after {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline: 0;
+  border-block-end: var(--focus-ring-width) dotted var(--color-text-secondary);
+  pointer-events: none;
+  content: "";
 }
 
 .sys-script-word[data-state="cut"] {
