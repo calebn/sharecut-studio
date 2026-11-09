@@ -24,6 +24,7 @@ import {
   executePointerCommand,
   runPointerCommand,
 } from "../../commands/pointer";
+import { seekTransport } from "../../commands/seek";
 import { refreshDocumentProject } from "../../document/applyDocumentUpdate";
 import { currentDocumentSeq } from "../../document/cursor";
 import { useTranscriptDetail } from "../../document/useTranscriptDetail";
@@ -868,7 +869,7 @@ export function useReviewQueue(guestShare = false) {
     },
   );
 
-  const onOpenInEdit = useStableCallback((id: string) => {
+  const onOpenInEdit = useStableCallback(async (id: string) => {
     if (id.startsWith("word:")) {
       const word = currentWord(id);
       if (!word) {
@@ -885,7 +886,7 @@ export function useReviewQueue(guestShare = false) {
         startWordIndex: word.wordIndex,
         endWordIndex: word.wordIndex,
       });
-      if (word.at !== null) state.setPlayheadSec(word.at);
+      if (word.at !== null) await seekTransport(word.at);
       const request = state.requestEditWordReveal({
         trackId: word.trackId,
         sourceId: word.sourceId,
@@ -907,7 +908,7 @@ export function useReviewQueue(guestShare = false) {
     if (suggestionId) {
       const row = sessions?.find((s) => s.id === suggestionId);
       const at = row ? sessionStartSec(row) : null;
-      if (at !== null) useDawStore.getState().setPlayheadSec(at);
+      if (at !== null) await seekTransport(at);
       return runPointerCommand("stage.edit");
     }
     const editId = editIdOf(id);
