@@ -32,7 +32,7 @@ const meta: Meta<typeof RoomTile> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "The live-room form of the person tile: 4:3, an avatar whose ring is the live level (3 px at silence, 8 px at peak, set from a 0 to 1 `level`), the name bottom-left, a 16 px glyph cluster bottom-right (muted, signal, ear for listeners) and badges top-right (clip count, alert triangle). Every state is also in words or the tile's accessible name; the level is never announced. Presentational: state in, nothing out except Invite.\n\n**Motion.** Animations come later. The ring follows `level` as given, with no easing, no speaking pulse and no clip tick.",
+          "The live-room form of the person tile: 4:3, an avatar whose ring is the live level (3 px at silence, 8 px at peak, set from a 0 to 1 `level`), the name bottom-left, a 16 px glyph cluster bottom-right (muted, signal, ear for listeners) and a neutral Record glyph top-left on the host's tile, and badges top-right (clip count, alert triangle). Every state is also in words or the tile's accessible name; the level is never announced. Presentational: state in, nothing out except Invite.\n\n**Motion.** Animations come later. The ring follows `level` as given, with no easing, no speaking pulse and no clip tick.",
       },
     },
   },
@@ -171,6 +171,32 @@ export const Self: Story = {
   },
 };
 
+export const Host: Story = {
+  args: { ...LIVE, host: true, level: 0.4, isMe: true },
+  play: async ({ canvasElement }) => {
+    await expect(tileByName(canvasElement, "Maya Okafor, host")).toBeVisible();
+    await expect(canvasElement.querySelector(".sys-room-host")).not.toBeNull();
+  },
+};
+
+export const HostSpeaking: Story = {
+  args: { ...LIVE, host: true, level: 0.8, speaking: true },
+  play: async ({ canvasElement }) => {
+    await expect(
+      tileByName(canvasElement, "Maya Okafor, host, speaking"),
+    ).toBeVisible();
+  },
+};
+
+export const HostLeft: Story = {
+  args: { presence: "left", person: MAYA, host: true },
+  play: async ({ canvasElement }) => {
+    await expect(
+      tileByName(canvasElement, "Maya Okafor, host, Left"),
+    ).toBeVisible();
+  },
+};
+
 export const ListenerRowStory: Story = {
   name: "ListenerRow",
   render: () => (
@@ -191,7 +217,7 @@ export const ListenerRowStory: Story = {
 
 const FOUR = (
   <div className="sys-room-grid">
-    <RoomTile presence="live" person={MAYA} isMe level={0.5} speaking />
+    <RoomTile presence="live" person={MAYA} host isMe level={0.5} speaking />
     <RoomTile presence="live" person={ANNEKE} level={0.2} connection="weak" />
     <RoomTile presence="live" person={JOSS} muted clipped={2} />
     <RoomTile presence="joining" person={JON} />

@@ -118,12 +118,14 @@ function ownFirst(people: RoomPerson[]): RoomPerson[] {
  * ring and the speaking flag match what the tile itself would draw.
  */
 export function tileProps(entry: RoomPerson): RoomTileProps {
+  const host = entry.role === "host";
   if (entry.presence !== "live") {
-    return { presence: entry.presence, person: entry.person };
+    return { presence: entry.presence, person: entry.person, host };
   }
   const flags = {
     presence: "live" as const,
     person: entry.person,
+    host,
     level: entry.level,
     speaking: entry.speaking,
     muted: entry.muted,

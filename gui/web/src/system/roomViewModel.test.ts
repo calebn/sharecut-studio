@@ -341,7 +341,36 @@ describe("tileProps", () => {
     expect(tileProps(guest(JON, { presence: "declined" }))).toEqual({
       presence: "declined",
       person: JON,
+      host: false,
     });
+  });
+
+  it("marks the host's tile, live or away, and no other role's", () => {
+    expect(tileProps(host())).toMatchObject({ presence: "live", host: true });
+    expect(tileProps(host({ presence: "left" }))).toEqual({
+      presence: "left",
+      person: MAYA,
+      host: true,
+    });
+    expect(tileProps(guest(JON))).toMatchObject({ host: false });
+    expect(tileProps(producer())).toMatchObject({ host: false });
+  });
+
+  it("badges the host for a guest and a producer viewing the room", () => {
+    for (const role of ["guest", "producer"] as const) {
+      const view = roomViewModel({
+        role,
+        phase: LIVE,
+        viewerWidth: "desktop",
+        people: [host(), guest(JON), producer()],
+      });
+      const badged = view.tiles.flatMap((tile) =>
+        tile.kind === "person" && "host" in tile.props && tile.props.host
+          ? [tile.props.person.name]
+          : [],
+      );
+      expect(badged).toEqual(["Maya Okafor"]);
+    }
   });
 });
 

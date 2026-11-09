@@ -792,6 +792,15 @@ On the host Record stage those levels reach the tiles through
 count for the take, counted from the clipping spans on their uploaded segments
 (`clippingFromRows`): it appears as segments upload, not live, and the host's
 own count stays the live one.
+**Person tiles.** Every tile rings its avatar in the person's own colour, and the ring's
+thickness follows the live level (3 px at silence, 8 px at peak). The colour never changes with the
+level, and accent is not used: accent means selection. The host's tile, on every seat (the host's,
+a guest's and a producer's), carries a small neutral Record glyph in its top-left corner and says
+"host" after the name in its accessible name ("Maya Okafor, host, speaking"); the glyph is hidden
+from assistive tech so it is not announced twice. A joining, left, declined or lost person keeps
+the glyph and gets a dimmed ring, like the dimmed avatar, so away does not read as live. Host-ness
+comes from the participant's role (`RoomPerson.role`), not from who is viewing.
+
 Surfaces: the Join sheet's microphone row, the person's own room tile and the
 host Record stage. The room-full Cover never calls `getUserMedia`, so it has no
 meter. Producers have no meter and no clipping alert.
