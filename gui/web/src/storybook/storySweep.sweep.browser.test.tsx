@@ -107,12 +107,12 @@ describe("viewport policy", () => {
   });
 
   it("keeps the ordinary ActionBar Words story at both viewport widths", () => {
-    const phoneDockWords = stories.find(
-      (story) => story.id === "system-actionbar--phone-dock-words",
+    const words = stories.find(
+      (story) => story.id === "system-actionbar--words",
     );
 
-    expect(phoneDockWords).toBeDefined();
-    expect(widthsFor(phoneDockWords!)).toEqual([PHONE, WIDE]);
+    expect(words).toBeDefined();
+    expect(widthsFor(words!)).toEqual([PHONE, WIDE]);
   });
   it("prioritizes wide-only tags while preserving Frame, phone, and default widths", () => {
     const recordingLive = stories.find(
