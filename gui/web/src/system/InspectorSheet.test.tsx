@@ -246,6 +246,19 @@ describe("InspectorSheet card", () => {
     expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Maya");
   });
 
+  it("puts the mark's avatar in the header in place of the icon", () => {
+    const plain = card();
+    const icons = plain.container.querySelectorAll(
+      ".sys-inspector-header svg",
+    ).length;
+    expect(plain.container.querySelector(".sys-person-avatar")).toBeNull();
+    plain.unmount();
+    const marked = card({ mark: { name: "Mira Vale", colorIndex: 2 } });
+    const header = marked.container.querySelector(".sys-inspector-header");
+    expect(header?.querySelector(".sys-person-avatar")).toHaveTextContent("MV");
+    expect(header?.querySelectorAll("svg")).toHaveLength(icons - 1);
+  });
+
   it("renames on Enter and on blur, trimmed, and puts the name back on Escape or an empty name", async () => {
     const onRename = vi.fn();
     const { onClose } = card({ onRename });

@@ -20,6 +20,7 @@ import {
   TRACK_SECTIONS,
   WORD_TIMING_SECTIONS,
 } from "./inspectorSheetSections";
+import type { PersonData } from "./Person";
 
 const meta: Meta<typeof InspectorSheet> = {
   title: "System/InspectorSheet",
@@ -43,13 +44,14 @@ type Story = StoryObj<typeof InspectorSheet>;
 
 type CardProps = {
   icon: SystemIconName;
+  mark?: PersonData;
   name: string;
   sections: readonly InspectorSection[];
   anchorAt: (width: number, height: number) => InspectorRect;
   rename?: boolean;
 };
 
-function CardDemo({ icon, name, sections, anchorAt, rename }: CardProps) {
+function CardDemo({ icon, mark, name, sections, anchorAt, rename }: CardProps) {
   const [label, setLabel] = useState(name);
   return (
     <Framed>
@@ -61,6 +63,7 @@ function CardDemo({ icon, name, sections, anchorAt, rename }: CardProps) {
             <InspectorSheet
               form="card"
               icon={icon}
+              mark={mark}
               name={label}
               onRename={rename ? setLabel : undefined}
               sections={sections}
@@ -107,6 +110,28 @@ export const DesktopCard: Story = {
     );
     await expect(canvas.getByRole("button", { name: "Close" })).toBeVisible();
     await expect(canvas.queryByRole("button", { name: /apply/i })).toBeNull();
+  },
+};
+
+export const MarkedCard: Story = {
+  render: () => (
+    <CardDemo
+      icon="volume-1"
+      mark={{ name: "Mira Vale", colorIndex: 2 }}
+      name="Mira Vale"
+      sections={TRACK_SECTIONS}
+      anchorAt={nearTop}
+      rename
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("textbox", { name: "Name" })).toHaveValue(
+      "Mira Vale",
+    );
+    await expect(
+      canvasElement.querySelector(".sys-person-avatar"),
+    ).toHaveTextContent("MV");
   },
 };
 
