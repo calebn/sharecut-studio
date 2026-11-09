@@ -6,7 +6,11 @@ import { openDialogViaLauncher } from "../../storybook/openDialog";
 import { isolatedStoryParameters } from "../../storybook/storyLayout";
 import { Button } from "../../ui";
 import { CommandPaletteView } from "./CommandPaletteView";
-import type { PaletteCommand, PaletteEntry } from "./paletteSearch";
+import {
+  PALETTE_GESTURES,
+  type PaletteCommand,
+  type PaletteEntry,
+} from "./paletteSearch";
 
 /** Fixed, representative rows (the live adapter builds them from the catalog and keymap); commandPaletteRows.test.ts checks ids, labels, categories and default keys against both. */
 const COMMANDS: PaletteCommand[] = [
@@ -147,10 +151,6 @@ function PalettePreview({
           setOpen(false);
           args.onClose();
         }}
-        onOpenGestures={() => {
-          setOpen(false);
-          args.onOpenGestures();
-        }}
       />
     </>
   );
@@ -165,7 +165,6 @@ const meta: Meta<typeof CommandPaletteView> = {
     open: false,
     commands: COMMANDS,
     onClose: fn(),
-    onOpenGestures: fn(),
     onRun: fn(),
     onRemap: fn(),
     onRunEntry: fn(),
@@ -178,7 +177,7 @@ const meta: Meta<typeof CommandPaletteView> = {
 export default meta;
 type Story = StoryObj<typeof CommandPaletteView>;
 
-export const Browse: Story = {
+export const Empty: Story = {
   play: async ({ args, canvasElement, viewMode }) => {
     if (viewMode === "docs") return;
     const dialog = await openDialogViaLauncher(canvasElement, LAUNCHER, TITLE);
@@ -198,7 +197,7 @@ export const Browse: Story = {
 };
 
 export const Groups: Story = {
-  args: { entries: ENTRIES },
+  args: { entries: ENTRIES, gestures: PALETTE_GESTURES },
   play: async ({ args, canvasElement, viewMode }) => {
     if (viewMode === "docs") return;
     const dialog = await openDialogViaLauncher(canvasElement, LAUNCHER, TITLE);
@@ -227,6 +226,16 @@ export const Groups: Story = {
       within(dialog).getByRole("option", { name: "Cold open 1:02" }),
     );
     await expect(args.onRunEntry).toHaveBeenCalledWith(ENTRIES[2]);
+    const gestures = within(dialog).getByRole("group", { name: "Gestures" });
+    await expect(
+      within(gestures).getByRole("option", {
+        name: "Undo Two-finger tap Undo the last action. Optional ShareCut shortcut.",
+      }),
+    ).toBeVisible();
+    await userEvent.click(
+      within(gestures).getByRole("option", { name: /^Undo/ }),
+    );
+    await expect(args.onRun).toHaveBeenCalledTimes(1);
   },
 };
 
@@ -305,7 +314,7 @@ export const Search: Story = {
       "export",
     );
     await expect(within(dialog).getByRole("status")).toHaveTextContent(
-      "2 commands. Enter runs Export deliverables…",
+      "2 commands. Enter runs Export deliverables…. Tab remaps",
     );
     await expect(within(dialog).queryByText("Split at playhead")).toBeNull();
     await userEvent.keyboard("{Enter}");
@@ -329,44 +338,32 @@ export const NoMatch: Story = {
   },
 };
 
-export const ShowRemaps: Story = {
+export const Remap: Story = {
   play: async ({ args, canvasElement, viewMode }) => {
     if (viewMode === "docs") return;
     const dialog = await openDialogViaLauncher(canvasElement, LAUNCHER, TITLE);
-    await userEvent.click(
-      await within(dialog).findByRole("checkbox", { name: "Show remaps" }),
+    const search = within(dialog).getByRole("combobox", {
+      name: "Search commands",
+    });
+    await userEvent.type(search, "split");
+    await expect(within(dialog).getByRole("status")).toHaveTextContent(
+      "1 command. Enter runs Split at playhead. Tab remaps",
     );
-    await waitFor(() =>
-      expect(
-        within(dialog).getByRole("checkbox", { name: "Show remaps" }),
-      ).toBeChecked(),
-    );
+    await userEvent.keyboard("{Tab}");
     const input = await within(dialog).findByRole("textbox", {
       name: "Remap Split at playhead",
     });
-    await userEvent.click(input);
     await waitFor(() => expect(input).toHaveFocus());
-    await userEvent.type(input, " B ");
-    await userEvent.tab();
+    await userEvent.type(input, " B {Enter}");
     await waitFor(() =>
       expect(args.onRemap).toHaveBeenCalledWith("edit.bladeCut", "B"),
     );
-  },
-};
-
-export const GesturesHandoff: Story = {
-  play: async ({ args, canvasElement, viewMode }) => {
-    if (viewMode === "docs") return;
-    const dialog = await openDialogViaLauncher(canvasElement, LAUNCHER, TITLE);
-    await userEvent.click(
-      within(dialog).getByRole("button", { name: "Gestures" }),
-    );
-    await expect(args.onOpenGestures).toHaveBeenCalledOnce();
-    await expect(within(document.body).queryByRole("dialog")).toBeNull();
+    await waitFor(() => expect(search).toHaveFocus());
   },
 };
 
 export const Phone: Story = {
+  args: { gestures: PALETTE_GESTURES },
   parameters: recordMobileViewport.parameters,
   globals: recordMobileViewport.globals,
   play: async ({ canvasElement, viewMode }) => {
@@ -375,5 +372,8 @@ export const Phone: Story = {
     await waitFor(() =>
       expect(within(dialog).getByText("Play / pause")).toBeVisible(),
     );
+    await expect(
+      within(dialog).getByRole("group", { name: "Gestures" }),
+    ).toBeInTheDocument();
   },
 };

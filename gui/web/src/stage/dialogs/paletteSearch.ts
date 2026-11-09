@@ -3,7 +3,7 @@
  * shortcut when it has one, and why it cannot run here. `commandPaletteRows.ts`
  * builds the rows from the live catalog and keymap; the view searches them.
  */
-import { MOBILE_GESTURES } from "../../commands/gestures";
+import { gestureLabel, MOBILE_GESTURES } from "../../commands/gestures";
 import type { CommandCategory } from "../../commands/types";
 import type { SystemIconName } from "../../system/icons";
 
@@ -184,21 +184,61 @@ export function groupPaletteEntries(
   })).filter((g) => g.rows.length > 0);
 }
 
-/** The Gestures group's one row: it opens the Gestures sheet (touch cheatsheet). */
+/** One touch gesture shown as a palette result row. */
+export type PaletteGesture = {
+  /** Stable row key, e.g. "gesture:Two-finger tap". */
+  id: string;
+  /** What the hand does, drawn where a command shows its keys. */
+  gesture: string;
+  /** What it does: the catalog label(s), or the gesture's own label. */
+  action: string;
+  description: string;
+};
+
+/** The touch-only Gestures result group's label. */
 export const PALETTE_GESTURES_LABEL = "Gestures";
 
-const GESTURES_HAYSTACK = [
-  PALETTE_GESTURES_LABEL,
-  "touch",
-  ...MOBILE_GESTURES.map((g) => g.gesture),
-]
-  .join(" ")
-  .toLowerCase();
+export const PALETTE_GESTURES: readonly PaletteGesture[] = MOBILE_GESTURES.map(
+  (g) => ({
+    id: `gesture:${g.gesture}`,
+    gesture: g.gesture,
+    action: gestureLabel(g),
+    description: g.description,
+  }),
+);
 
-/** Whether the Gestures row matches: every query word is in "Gestures", "touch" or a gesture name. */
-export function paletteGesturesMatch(query: string): boolean {
+/**
+ * Gestures whose action, gesture name, "gestures" or "touch" contains every
+ * query word, action matches first. The description stays out: its prose
+ * would match nearly any query.
+ */
+export function searchPaletteGestures(
+  gestures: readonly PaletteGesture[],
+  query: string,
+): PaletteGesture[] {
   const q = query.trim().toLowerCase();
-  return !q || q.split(/\s+/).every((word) => GESTURES_HAYSTACK.includes(word));
+  if (!q) {
+    return [...gestures];
+  }
+  const words = q.split(/\s+/);
+  return gestures
+    .map((gesture, index) => {
+      const action = gesture.action.toLowerCase();
+      const haystack = `${action} ${gesture.gesture.toLowerCase()} ${PALETTE_GESTURES_LABEL.toLowerCase()} touch`;
+      return {
+        gesture,
+        index,
+        action,
+        hit: words.every((w) => haystack.includes(w)),
+      };
+    })
+    .filter((r) => r.hit)
+    .sort(
+      (a, b) =>
+        Number(!a.action.startsWith(q)) - Number(!b.action.startsWith(q)) ||
+        a.index - b.index,
+    )
+    .map((r) => r.gesture);
 }
 
 /** How many Recent rows an empty query shows. */

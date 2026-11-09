@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useReducer, useState } from "react";
 import { listRecentProjects, type RecentProject } from "../../api";
 import { buildCommandContext } from "../../commands/context";
 import { execute } from "../../commands/execute";
@@ -15,24 +15,27 @@ import type { SessionClient } from "../../types/session";
 import { CommandPaletteView } from "./CommandPaletteView";
 import { paletteCommands, paletteEntries } from "./commandPaletteRows";
 import { readPaletteRecent, rememberPaletteRecent } from "./paletteRecent";
-import type { PaletteEntry } from "./paletteSearch";
+import { PALETTE_GESTURES, type PaletteEntry } from "./paletteSearch";
 
 const NO_CLIENTS: SessionClient[] = [];
+const NO_GESTURES: readonly never[] = [];
 
 /**
  * Command palette (Commands and shortcuts): every runnable catalog command,
  * searchable, with its keys. Open via ?, Transport Menu → Help, or the phone
  * More hub. Rows are rebuilt each time it opens so their reasons match now.
  * On Home (`scope="home"`) it lists only the commands that make sense with no
- * project open, and opens on its Help group.
+ * project open, and opens on its Help group. A touch pointer adds the Gestures
+ * rows, except on Home, which has no timeline to gesture on.
  */
 export function CommandPalette({ scope }: { scope?: "home" }) {
-  const { commandPaletteOpen, setCommandPaletteOpen, setGesturesSheetOpen } =
-    useDaw((s) => ({
-      commandPaletteOpen: s.chrome.commandPaletteOpen,
-      setCommandPaletteOpen: s.setCommandPaletteOpen,
-      setGesturesSheetOpen: s.setGesturesSheetOpen,
-    }));
+  const { commandPaletteOpen, setCommandPaletteOpen, coarse } = useDaw((s) => ({
+    commandPaletteOpen: s.chrome.commandPaletteOpen,
+    setCommandPaletteOpen: s.setCommandPaletteOpen,
+    coarse: s.pointerKind === "coarse",
+  }));
+  // A remap writes localStorage only; this re-reads the shown key.
+  const [, keymapChanged] = useReducer((n: number) => n + 1, 0);
 
   const {
     sessionClients,
@@ -110,6 +113,7 @@ export function CommandPalette({ scope }: { scope?: "home" }) {
     <CommandPaletteView
       open={commandPaletteOpen}
       entries={entries}
+      gestures={scope !== "home" && coarse ? PALETTE_GESTURES : NO_GESTURES}
       recent={recent}
       onRunEntry={(entry: PaletteEntry) => {
         setRecent(rememberPaletteRecent(entry.id));
@@ -122,10 +126,6 @@ export function CommandPalette({ scope }: { scope?: "home" }) {
       }
       leadGroup={scope === "home" ? "help" : undefined}
       onClose={() => setCommandPaletteOpen(false)}
-      onOpenGestures={() => {
-        setCommandPaletteOpen(false);
-        setGesturesSheetOpen(true);
-      }}
       onRun={(id) => {
         setRecent(rememberPaletteRecent(id));
         // Close first: a command may open its own dialog, and dialogs never stack.
@@ -135,6 +135,7 @@ export function CommandPalette({ scope }: { scope?: "home" }) {
       onRemap={(id, trimmedKey) => {
         if (!trimmedKey) {
           clearKeymapOverride(id);
+          keymapChanged();
           return;
         }
         const conflict = bareKeyConflict(id, trimmedKey);
@@ -145,6 +146,7 @@ export function CommandPalette({ scope }: { scope?: "home" }) {
           return;
         }
         setKeymapOverride(id, [trimmedKey]);
+        keymapChanged();
       }}
     />
   );

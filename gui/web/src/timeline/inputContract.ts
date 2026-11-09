@@ -382,7 +382,7 @@ export function softMover(
  * name (`contracts/capabilities.manifest.json`). `make generated-check`
  * keeps the manifest schema's enum equal to these keys, and
  * `inputContract.manifest.test.ts` derives each command's column from the
- * grammar: the create menu, the kinds' commands and the Gestures sheet.
+ * grammar: the create menu, the kinds' commands and the palette's Gestures rows.
  */
 export const TOUCH_GESTURES = {
   "long-press-arm-drag": "Long-press to arm, then drag",

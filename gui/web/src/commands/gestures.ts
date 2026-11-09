@@ -18,7 +18,7 @@ type LabelGesture = {
 export type GestureDef = CatalogGesture | LabelGesture;
 
 /**
- * Shipped touch affordances shown in the mobile cheatsheet. Command-backed
+ * Shipped touch affordances shown as the palette's Gestures rows on touch. Command-backed
  * actions refer to the shared catalog.
  */
 export const MOBILE_GESTURES: readonly GestureDef[] = [

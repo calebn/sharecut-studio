@@ -51,10 +51,10 @@ const recentProject: RecentProject = {
   folder_missing: false,
 };
 
-function renderPalette(path = "/tmp/p.json") {
+function renderPalette(path = "/tmp/p.json", scope?: "home") {
   return render(
     <DawProvider projectPath={path} initialProject={minimalProject()}>
-      <CommandPalette />
+      <CommandPalette scope={scope} />
     </DawProvider>,
   );
 }
@@ -77,7 +77,8 @@ describe("CommandPalette", () => {
     registerDawCommands();
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
     useDawStore.getState().setCommandPaletteOpen(true);
-    setChrome({ exportRequested: false, gesturesSheetOpen: false });
+    setChrome({ exportRequested: false });
+    useDawStore.setState({ pointerKind: "fine" });
     useDawStore.setState({
       stage: "edit",
       statusAnnouncement: "",
@@ -153,17 +154,17 @@ describe("CommandPalette", () => {
     expect(useDawStore.getState().stage).toBe("deliver");
   });
 
-  it("stores a remap on blur and clears it when emptied", async () => {
+  it("remaps a key with Tab and Enter, shows it in the row, and restores the default when emptied", async () => {
     const user = userEvent.setup();
     renderPalette();
     await waitForDialogFocus();
-    await user.click(screen.getByLabelText("Show remaps"));
-    const input = screen.getByLabelText("Remap Fit session width");
-    await user.type(input, "Q");
-    await user.tab();
+    await user.type(screen.getByRole("combobox"), "Fit session width");
+    await user.keyboard("{Tab}Q{Enter}");
     expect(getKeymapOverride("view.fit")).toEqual(["Q"]);
-    await user.clear(input);
-    await user.tab();
+    expect(
+      screen.getByRole("option", { name: /^Fit session width/ }),
+    ).toHaveTextContent(/Q/);
+    await user.keyboard("{Tab}{Enter}");
     expect(getKeymapOverride("view.fit")).toBeUndefined();
   });
 
@@ -340,14 +341,18 @@ describe("CommandPalette", () => {
     await waitFor(() => expect(useDawStore.getState().stage).toBe("deliver"));
   });
 
-  it("opens the Gestures sheet from the Gestures row", async () => {
-    renderPalette();
-    await userEvent
-      .setup()
-      .click(screen.getByRole("option", { name: /^Gestures/ }));
-    expect(useDawStore.getState().chrome.commandPaletteOpen).toBe(false);
-    expect(useDawStore.getState().chrome.gesturesSheetOpen).toBe(true);
-  });
+  it.each([
+    ["coarse", undefined, true],
+    ["fine", undefined, false],
+    ["coarse", "home" as const, false],
+  ] as const)(
+    "with a %s pointer on %s shows the Gestures rows: %s",
+    (kind, scope, shown) => {
+      useDawStore.setState({ pointerKind: kind });
+      renderPalette("/tmp/p.json", scope);
+      expect(!!screen.queryByRole("group", { name: "Gestures" })).toBe(shown);
+    },
+  );
 
   it("hides Projects, People and Chapters when there is no data", () => {
     renderPalette();
