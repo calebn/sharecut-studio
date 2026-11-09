@@ -188,9 +188,8 @@ is the fix, enforced in copy review.
   Find's Replace and All ("No matches to replace. Change the search
   first.", "Enter text to find first.", "Enter replacement text with a letter or a number to replace."),
   the track inspector's Clear clip light ("No clipping to clear."), the
-  Track Inspector's play action in **Tools** ("Preview effects at track start" for a guest
-  who hears the full mix only, or a share that cannot play audio; the note shows below the action, and not while
-  the preview is only preparing) and a
+  Inspector footer's play action (for a guest who hears the full mix only, or a share that cannot play audio; the
+  note shows below the action, and not while the preview is only preparing) and a
   boundary mark a viewer cannot edit (its reason shows on focus and on tap).
   Native `disabled` stays for a short wait the control itself caused, such as
   a boundary edit saving; the footer's play action is the exception, which

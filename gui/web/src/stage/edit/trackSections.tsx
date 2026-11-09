@@ -1,10 +1,6 @@
 import { type KeyboardEvent, useEffect, useState } from "react";
 import { setEffectBypass } from "../../api";
-import {
-  executePointerCommand,
-  runPointerCommand,
-} from "../../commands/pointer";
-import { seekTransport } from "../../commands/seek";
+import { executePointerCommand } from "../../commands/pointer";
 import { useTrackMetaMutation } from "../../hooks/useTrackMetaMutation";
 import { ingestFiles, pickAudioFiles } from "../../ingest/ingestFiles";
 import {
@@ -12,7 +8,6 @@ import {
   canEditMix,
   canIngestMedia,
   canManageProjects,
-  guestHearsMixOnly,
 } from "../../shareMode";
 import { useDaw } from "../../state/useDaw";
 import type { InspectorSection } from "../../system/InspectorSheet";
@@ -20,7 +15,7 @@ import { ScrubField } from "../../system/ScrubField";
 import { TrackMuteSoloButtons } from "../../tracks/TrackMuteSoloButtons";
 import { TrackPlaybackMeter } from "../../tracks/TrackPlaybackMeter";
 import type { Selection } from "../../types/project";
-import { Button, CommandButton, InspectorSeekFooterView } from "../../ui";
+import { Button, CommandButton } from "../../ui";
 import { BUSY_REASON } from "../../ui/disabledReason";
 import {
   FADER_MAX_DB,
@@ -28,20 +23,12 @@ import {
   FADER_STEP_DB,
   trackFaderDb,
 } from "../../utils/audio";
-import { GUESTS_HEAR_FULL_MIX } from "../../utils/auditionModes";
 import { formatEffectParams } from "../../utils/effectParams";
-import { playTimelineRange } from "../../utils/playRange";
 import { splitSpeakersBlocker } from "../../utils/speakerSplit";
 import { note } from "./sheetNote";
 import { TrackLevelNote } from "./TrackLevelNote";
 
 const ROLES = ["dialogue", "music", "sfx", "intro", "outro"] as const;
-
-function stemText(fresh: boolean | null | undefined): string {
-  if (fresh === true) return "Up to date";
-  if (fresh === false) return "Out of date";
-  return "Unknown";
-}
 
 export function useTrackSections(
   selection: Selection,
@@ -53,8 +40,6 @@ export function useTrackSections(
     shareCapabilities,
     layers,
     setLayerVisible,
-    setPlayUntilSec,
-    setIsPlaying,
     rangeArmed,
   } = useDaw((s) => ({
     project: s.project,
@@ -63,8 +48,6 @@ export function useTrackSections(
     shareCapabilities: s.shareCapabilities,
     layers: s.layers,
     setLayerVisible: s.setLayerVisible,
-    setPlayUntilSec: s.setPlayUntilSec,
-    setIsPlaying: s.setIsPlaying,
     rangeArmed: s.rangeArmed,
   }));
   const trackId =
@@ -98,7 +81,6 @@ export function useTrackSections(
   const editable = canApplyPass12(projectPath, guestMode, shareCapabilities);
   const mixEditable = canEditMix(projectPath, guestMode, shareCapabilities);
   const mayIngest = canIngestMedia(projectPath, guestMode, shareCapabilities);
-  const mixOnly = guestHearsMixOnly(guestMode);
   const hostCanSplit = canManageProjects(projectPath);
   const splitBlocker = splitSpeakersBlocker(track, hostCanSplit);
   const busyReason = busy ? BUSY_REASON : undefined;
@@ -136,18 +118,6 @@ export function useTrackSections(
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  };
-
-  const playFxAround = () => {
-    runPointerCommand("transport.audition", { mode: "fx" });
-    playTimelineRange({
-      start: 0,
-      end: 0,
-      padSec: 1.5,
-      setPlayheadSec: (sec) => void seekTransport(sec),
-      setPlayUntilSec,
-      setIsPlaying,
-    });
   };
 
   const importAudio = async () => {
@@ -266,16 +236,6 @@ export function useTrackSections(
             </Button>
           ),
         },
-        {
-          id: "stem",
-          label: "Stem",
-          control: stemText(track.stem_is_fresh),
-        },
-        {
-          id: "media",
-          label: "Media",
-          control: track.media_path ?? "none",
-        },
         ...(mayIngest
           ? [
               {
@@ -375,23 +335,5 @@ export function useTrackSections(
           },
         ]
       : []),
-    {
-      id: "tools",
-      title: "Tools",
-      rows: [
-        {
-          id: "seek",
-          control: (
-            <InspectorSeekFooterView
-              seekLabel="Go to start"
-              playLabel="Preview effects at track start"
-              playDisabledReason={mixOnly ? GUESTS_HEAR_FULL_MIX : undefined}
-              onSeek={() => void seekTransport(0)}
-              onPlay={playFxAround}
-            />
-          ),
-        },
-      ],
-    },
   ];
 }

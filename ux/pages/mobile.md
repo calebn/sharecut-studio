@@ -83,7 +83,7 @@ Selecting a word in Text can open a word sheet. The comment list in Review seeks
 the comment; comment actions are on that comment's card in the Review queue.
 
 Inspector action buttons, including **Replace audio…**,
-**Go to start**, and preview controls, keep at least 44 CSS px of height on
+the footer's seek and preview controls, keep at least 44 CSS px of height on
 touch devices and in the phone layout, including when you use a mouse.
 Transcript **Find and replace** row wraps its
 controls on a coarse pointer so landscape panels stay inside the panel. At large text

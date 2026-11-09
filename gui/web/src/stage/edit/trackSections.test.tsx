@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setEffectBypass } from "../../api";
-import { clearRegisteredCommands, execute } from "../../commands/execute";
+import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { refreshDocumentDisplay } from "../../document/applyDocumentUpdate";
 import {
@@ -14,7 +14,6 @@ import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { minimalProject, sampleTrack } from "../../test/fixtures";
 import type { ProjectView, TrackView } from "../../types/project";
-import { GUESTS_HEAR_FULL_MIX } from "../../utils/auditionModes";
 import { inspectorHeading } from "./inspectorHeading";
 import { SectionsBody } from "./SectionsBody";
 
@@ -283,45 +282,6 @@ describe("track content", () => {
     expect(screen.getByRole("button", { name: /^Solo/ })).toBeVisible();
   });
 
-  it("does not switch a guest to FX via Preview effects at track start", async () => {
-    open(hostTrack, [], "view");
-    const playFx = screen.getByRole("button", {
-      name: "Preview effects at track start",
-    });
-    expect(playFx).toHaveAttribute("aria-disabled", "true");
-    expect(playFx).toHaveAccessibleDescription(GUESTS_HEAR_FULL_MIX);
-    expect(await execute("transport.audition", { mode: "fx" })).toEqual({
-      status: "disabled",
-      reason: GUESTS_HEAR_FULL_MIX,
-    });
-    expect(useDawStore.getState().auditionMode).toBe("mix");
-  });
-
-  it("Go to start moves the playhead to 0", async () => {
-    const user = userEvent.setup();
-    open();
-    useDawStore.getState().setPlayheadSec(5);
-    await user.click(screen.getByRole("button", { name: "Go to start" }));
-    expect(useDawStore.getState().playheadSec).toBe(0);
-  });
-
-  it("stem freshness reads Up to date / Out of date / Unknown", () => {
-    for (const [fresh, text] of [
-      [true, "Up to date"],
-      [false, "Out of date"],
-      [null, "Unknown"],
-    ] as const) {
-      const { unmount } = open({ ...hostTrack, stem_is_fresh: fresh });
-      expect(screen.getByText(text)).toBeInTheDocument();
-      unmount();
-    }
-  });
-
-  it("names the media path or none", () => {
-    open(withAudio);
-    expect(screen.getByText("raw/host.wav")).toBeVisible();
-  });
-
   it("effect params read as text, not JSON", async () => {
     const { container } = open(hostTrack, [
       { effect: "acompressor", params: { threshold_db: -18, ratio: 3 } },
@@ -431,6 +391,9 @@ describe("track content", () => {
     expect(screen.queryByRole("combobox", { name: "Role" })).toBeNull();
     expect(screen.queryByRole("textbox", { name: "Name" })).toBeNull();
     expect(screen.queryByRole("textbox", { name: "Speaker" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Go to start" })).toBeNull();
+    expect(screen.queryByText("Stem")).toBeNull();
+    expect(screen.queryByText("Media")).toBeNull();
     expect(screen.queryByRole("button", { name: "Replace audio…" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Remove track" })).toBeNull();
     expect(

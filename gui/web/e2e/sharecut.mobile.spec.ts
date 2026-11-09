@@ -18,7 +18,7 @@ import {
 import { parseTimecodeSec } from "./timecode";
 import { TRACK_HEADER_SELECT } from "./trackHeader";
 
-async function expectInspectorFooterTouchTargets(page: Page) {
+async function expectClipFooterTouchTargets(page: Page) {
   const controls = page.locator(".modifier-footer-actions button");
   await expect(controls.first()).toBeVisible();
   expect(await page.evaluate(() => document.doctype?.name)).toBe("html");
@@ -43,6 +43,15 @@ async function expectInspectorFooterTouchTargets(page: Page) {
   } finally {
     await cdp.detach();
   }
+  for (const control of await controls.all()) {
+    await control.scrollIntoViewIfNeeded();
+    const box = await control.boundingBox();
+    expect(box?.height, await control.innerText()).toBeGreaterThanOrEqual(44);
+    expect(box?.width, await control.innerText()).toBeGreaterThanOrEqual(44);
+  }
+}
+
+async function expectTrackSheetTouchTargets(page: Page) {
   await expect(
     page.getByRole("button", { name: "Replace audio…" }),
   ).toBeVisible();
@@ -52,7 +61,6 @@ async function expectInspectorFooterTouchTargets(page: Page) {
     .getByRole("button", { name: "Remove", exact: true });
   await expect(remove).toBeVisible();
   const all = [
-    ...(await controls.all()),
     sheet.getByRole("button", { name: "Replace audio…" }),
     remove,
     ...(await sheet.getByRole("button", { name: /^Split speakers/ }).all()),
@@ -184,6 +192,7 @@ test.describe("ShareCut Studio mobile smoke", () => {
     await inspectSelection(page);
     const drawer = page.locator(".sys-inspector--phone");
     await expect(drawer).toBeVisible();
+    await expectClipFooterTouchTargets(page);
     await expect(drawer.getByRole("button", { name: "Cut" })).toBeVisible();
     await drawer
       .locator(".sys-actions--dock")
@@ -201,7 +210,7 @@ test.describe("ShareCut Studio mobile smoke", () => {
     expect(
       await page.evaluate(() => matchMedia("(pointer: fine)").matches),
     ).toBe(true);
-    await expectInspectorFooterTouchTargets(page);
+    await expectTrackSheetTouchTargets(page);
     await expectPageAxeClean(page);
     await sheet
       .locator(".sys-actions--dock")
@@ -562,8 +571,12 @@ test.describe("Inspector footer with a desktop coarse pointer", () => {
     expect(
       await page.evaluate(() => matchMedia("(pointer: coarse)").matches),
     ).toBe(true);
+    await page.locator(".lane-row .clip-block").first().click();
+    await inspectSelection(page);
+    await expectClipFooterTouchTargets(page);
+    await page.keyboard.press("Escape");
     await page.locator(TRACK_HEADER_SELECT).first().press("Enter");
-    await expectInspectorFooterTouchTargets(page);
+    await expectTrackSheetTouchTargets(page);
     await openSuggestedPendingEdit(page, e2eProjectPath);
     const inspector = page
       .locator(".modifier-inspector")
