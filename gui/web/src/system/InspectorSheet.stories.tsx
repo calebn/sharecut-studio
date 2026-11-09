@@ -209,6 +209,10 @@ export const Seam: Story = {
     await expect(offset).toHaveAttribute("aria-valuenow", "0");
     await expect(offset).toHaveAttribute("aria-valuemin", "-3950");
     await expect(offset).toHaveAttribute("aria-valuemax", "3950");
+    await expect(canvas.getByText("1.5 s before and after")).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "B", pressed: true }),
+    ).toBeVisible();
   },
 };
 

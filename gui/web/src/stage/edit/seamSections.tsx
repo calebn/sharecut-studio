@@ -8,9 +8,10 @@ import {
 } from "../../edit/joinRender";
 import { rollJoinInterval } from "../../edit/rollLimits";
 import { type Seam, seamById, seamTitle } from "../../edit/seam";
-import { canApplyPass12 } from "../../shareMode";
+import { canApplyPass12, canHostMutate } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
+import { AbAudition } from "../../system/AbAudition";
 import type { InspectorSection } from "../../system/InspectorSheet";
 import { ScrubField } from "../../system/ScrubField";
 import { appliedEditTitle } from "../../timeline/appliedEditTicks";
@@ -20,11 +21,20 @@ import { BUSY_REASON } from "../../ui/disabledReason";
 import { joinModeOf } from "../../utils/editMarkerRegistry";
 import { relativeTime } from "../../utils/relativeTime";
 import { note } from "./sheetNote";
+import {
+  AB_CLAMPED_REASON,
+  AB_PREPARING_NOTE,
+  useSeamAudition,
+} from "./useSeamAudition";
 import { useSeamReplay } from "./useSeamReplay";
 
 export const MAX_JOIN_LENGTH_MS = 500;
 const NO_ROOM_NOTE = "The clips leave no room to roll";
 const NOT_TOUCHING_NOTE = "The clips do not touch";
+const AB_NOTE = "1.5 s before and after";
+const AB_GUEST_REASON = "A/B needs the host app";
+const AB_UNROLLED_REASON = "Roll the seam to compare";
+const ROLLED_EPS_SEC = 1e-9;
 
 const CROSSFADE_BLOCKED_REASON: Record<string, string> = {
   not_abutting: "the clips do not touch",
@@ -64,6 +74,11 @@ export function useSeamSections(
   const seamId = selection?.kind === "seam" ? selection.id : null;
   const seam = project && seamId ? seamById(project, seamId) : null;
   const rightId = seam?.right.id ?? null;
+  const originEnd =
+    seam && origin?.id === seam.id
+      ? origin.end
+      : (seam?.left.source_end ?? null);
+  const audition = useSeamAudition(seam, originEnd);
 
   useEffect(() => {
     setDraftMs(null);
@@ -109,13 +124,23 @@ export function useSeamSections(
       right.join_crossfade_blocked)
     : null;
   const appliedBy = seam.kind === "cut" ? appliedByLine(seam) : null;
-  const originEnd = origin?.id === seam.id ? origin.end : left.source_end;
   const interval = rollJoinInterval(
     project.clips.tracks[seam.trackId] ?? [],
     left.id,
     right.id,
   );
-  const offsetMs = (left.source_end - originEnd) * 1000;
+  const openEnd = originEnd ?? left.source_end;
+  const sinceOpenSec = left.source_end - openEnd;
+  const offsetMs = sinceOpenSec * 1000;
+  const abReason = !canHostMutate(projectPath)
+    ? AB_GUEST_REASON
+    : Math.abs(sinceOpenSec) <= ROLLED_EPS_SEC
+      ? AB_UNROLLED_REASON
+      : audition.error === AB_CLAMPED_REASON
+        ? AB_CLAMPED_REASON
+        : null;
+  const auditionFailure =
+    audition.error === AB_CLAMPED_REASON ? null : audition.error;
   const roomToRoll = interval !== null && interval.hi > interval.lo;
 
   const clearDraft = () => {
@@ -152,8 +177,7 @@ export function useSeamSections(
     const snapshot = gesture.current ?? seam;
     clearOffsetDraft();
     setError(null);
-    const deltaMs =
-      (originEnd + value / 1000 - snapshot.left.source_end) * 1000;
+    const deltaMs = (openEnd + value / 1000 - snapshot.left.source_end) * 1000;
     const result = await replay.commit(seam.id, () =>
       rollSeam(snapshot, deltaMs),
     );
@@ -200,6 +224,28 @@ export function useSeamSections(
                 : [{ id: "offsetNote", control: note(NO_ROOM_NOTE) }]),
             ]
           : [{ id: "offsetNote", control: note(NOT_TOUCHING_NOTE) }]),
+        ...(interval
+          ? [
+              {
+                id: "ab",
+                label: "A/B",
+                control: abReason ? (
+                  note(abReason)
+                ) : (
+                  <AbAudition
+                    side={audition.side}
+                    change={{ start: seam.joinSec, end: seam.joinSec }}
+                    note={audition.pending ? AB_PREPARING_NOTE : AB_NOTE}
+                    shortcuts={false}
+                    onSelect={(next) => {
+                      replay.supersede();
+                      audition.play(next);
+                    }}
+                  />
+                ),
+              },
+            ]
+          : []),
         ...(mode === "cut" || max < range.min
           ? []
           : [
@@ -241,8 +287,15 @@ export function useSeamSections(
         ...(editable && busy
           ? [{ id: "busy", control: note(BUSY_REASON, "status") }]
           : []),
-        ...(error
-          ? [{ id: "error", control: <InlineError message={error} /> }]
+        ...((error ?? auditionFailure)
+          ? [
+              {
+                id: "error",
+                control: (
+                  <InlineError message={error ?? auditionFailure ?? ""} />
+                ),
+              },
+            ]
           : []),
       ],
     },

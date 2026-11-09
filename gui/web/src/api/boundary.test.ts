@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { loadBoundaryContext } from "./boundary";
+import { auditionBoundary, loadBoundaryContext } from "./boundary";
 import { DOCUMENT_COMMAND_TIMEOUT_MS } from "./documentTransport";
 
 describe("boundary API", () => {
@@ -278,6 +278,80 @@ describe("boundary API", () => {
       });
       caller.abort(new DOMException("Cancelled", "AbortError"));
       await failure;
+      vi.useRealTimers();
+    });
+  });
+
+  describe("auditionBoundary", () => {
+    const roll = {
+      kind: "roll",
+      left_clip_id: "c1",
+      right_clip_id: "c2",
+    } as const;
+    const windowOf = (side: string) => ({
+      url: `/api/boundary/audition/opaque/${side}?expected_token=tok`,
+      window_start_sec: 8.5,
+      window_end_sec: 11.5,
+      duration_sec: 3,
+      seam_offset_sec: 1.5,
+    });
+    const answer = () =>
+      new Response(
+        JSON.stringify({
+          token: "tok",
+          actual_edit: { ...roll, delta_sec: -0.0123 },
+          current: windowOf("current"),
+          proposed: windowOf("proposed"),
+        }),
+        { status: 200 },
+      );
+
+    it("asks for the padding the caller names and defaults to 0.8 s", async () => {
+      vi.mocked(fetch).mockImplementation(async () => answer());
+      const edit = { ...roll, delta_sec: -0.0123 };
+      await auditionBoundary("/tmp/episode.json", roll, edit, "tok");
+      await auditionBoundary(
+        "/tmp/episode.json",
+        roll,
+        edit,
+        "tok",
+        undefined,
+        1.5,
+      );
+      const pads = vi
+        .mocked(fetch)
+        .mock.calls.map(
+          ([, init]) =>
+            (JSON.parse(init?.body as string) as { pad_sec: number }).pad_sec,
+        );
+      expect(pads).toEqual([0.8, 1.5]);
+    });
+
+    it("gives up after the document command timeout with a plain message", async () => {
+      vi.useFakeTimers();
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(
+          (_url: string, init?: RequestInit) =>
+            new Promise<Response>((_resolve, reject) => {
+              init?.signal?.addEventListener("abort", () =>
+                reject(init.signal?.reason),
+              );
+            }),
+        ),
+      );
+      const pending = auditionBoundary(
+        "/tmp/episode.json",
+        roll,
+        { ...roll, delta_sec: 0.01 },
+        "tok",
+      );
+      const failure = expect(pending).rejects.toThrow(
+        "The server didn't answer. Try again.",
+      );
+      await vi.advanceTimersByTimeAsync(DOCUMENT_COMMAND_TIMEOUT_MS);
+      await failure;
+      expect(vi.getTimerCount()).toBe(0);
       vi.useRealTimers();
     });
   });

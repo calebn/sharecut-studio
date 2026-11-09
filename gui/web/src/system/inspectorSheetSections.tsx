@@ -1,6 +1,12 @@
 import { Button, DefItem, DefinitionList } from "../ui";
 import type { InspectorSection } from "./InspectorSheet";
-import { LiveScrub, LiveTime, Mute, Wave } from "./inspectorSheetFixtures";
+import {
+  LiveAb,
+  LiveScrub,
+  LiveTime,
+  Mute,
+  Wave,
+} from "./inspectorSheetFixtures";
 import type { ScrubFieldProps } from "./ScrubField";
 
 type ScrubSpec =
@@ -230,6 +236,11 @@ export const SEAM_SECTIONS: readonly InspectorSection[] = [
         control: <p className="inspector-body">Split at 10:12.4</p>,
       },
       { id: "offset", label: "Offset", control: seamOffset },
+      {
+        id: "ab",
+        label: "A/B",
+        control: <LiveAb note="1.5 s before and after" />,
+      },
       { id: "length", label: "Length", control: seamLength },
     ],
   },
@@ -252,6 +263,11 @@ export const CUT_SEAM_SECTIONS: readonly InspectorSection[] = [
         ),
       },
       { id: "offset", label: "Offset", control: seamOffset },
+      {
+        id: "ab",
+        label: "A/B",
+        control: <LiveAb note="1.5 s before and after" />,
+      },
       { id: "length", label: "Length", control: seamLength },
     ],
   },

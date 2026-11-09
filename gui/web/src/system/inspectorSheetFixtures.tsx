@@ -7,7 +7,9 @@ import {
 } from "react";
 import { ToggleButton } from "../ui";
 import { useResizeObserver } from "../ui/useResizeObserver";
+import { AbAudition } from "./AbAudition";
 import { ActionBar } from "./ActionBar";
+import type { AuditionSide } from "./auditionWindow";
 import type { InspectorBounds, InspectorRect } from "./inspectorSheetMath";
 import { ScrubField, type ScrubFieldProps } from "./ScrubField";
 import { TimeField } from "./TimeField";
@@ -25,6 +27,19 @@ export function LiveScrub(props: ScrubFieldProps) {
         setShown(next);
       }}
       onCancel={() => setShown(committed)}
+    />
+  );
+}
+
+export function LiveAb({ note }: { note: string }) {
+  const [side, setSide] = useState<AuditionSide>("B");
+  return (
+    <AbAudition
+      side={side}
+      change={{ start: 0, end: 0 }}
+      note={note}
+      shortcuts={false}
+      onSelect={setSide}
     />
   );
 }

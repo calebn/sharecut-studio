@@ -35,7 +35,7 @@ export type {
 } from "./api/boundary";
 export {
   auditionBoundary,
-  boundaryAudioUrl,
+  fetchBoundaryAudio,
   loadBoundaryContext,
 } from "./api/boundary";
 export {
