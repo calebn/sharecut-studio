@@ -488,3 +488,51 @@ describe("fill range with room tone", () => {
     });
   });
 });
+
+describe("range.arm", () => {
+  beforeEach(() => {
+    useDawStore.setState({
+      selection: null,
+      rangeArmed: false,
+      rangeDraft: null,
+      playheadSec: 2,
+    });
+  });
+  it("seeds a 5 s draft at the playhead on every track", async () => {
+    expect(await execute("range.arm")).toEqual({ status: "ok" });
+    expect(useDawStore.getState().rangeArmed).toBe(true);
+    expect(useDawStore.getState().rangeDraft).toEqual({
+      start: 2,
+      end: 7,
+      trackIds: ["a"],
+    });
+  });
+  it("disarms and drops the draft when armed again", async () => {
+    await execute("range.arm");
+    expect(await execute("range.arm")).toEqual({ status: "ok" });
+    expect(useDawStore.getState().rangeArmed).toBe(false);
+    expect(useDawStore.getState().rangeDraft).toBeNull();
+  });
+  it("refuses an empty timeline", async () => {
+    useDawStore.setState({ project: minimalProject() });
+    expect(await execute("range.arm")).toEqual({
+      status: "disabled",
+      reason: "Nothing to select yet",
+    });
+    expect(useDawStore.getState().rangeArmed).toBe(false);
+  });
+  it("refuses while an edit is in flight", async () => {
+    useDawStore.setState({ rangeBusy: true });
+    expect(await execute("range.arm")).toEqual({
+      status: "disabled",
+      reason: "Open a project and wait for the current edit",
+    });
+  });
+  it("refuses a range verb over silence with a reason", async () => {
+    const silent = makeRangeTarget(p, [{ start: 0, end: 1 }], ["a"])!;
+    expect(silent.clips).toEqual([]);
+    useDawStore.setState({ selection: { kind: "range", target: silent } });
+    const result = await runRangeAction("cut");
+    expect(result.status).toBe("disabled");
+  });
+});

@@ -144,7 +144,7 @@ export function buildCommandContext(): CommandContext {
         : undefined,
       canManageProjects(s.projectPath),
     ),
-    hasInspectorSelection: selection != null,
+    hasInspectorSelection: selection != null || s.rangeArmed,
     suggestionSelected: selection?.kind === "pending",
     following: s.followingClientId != null,
     recordStageActive: s.stage === "record",

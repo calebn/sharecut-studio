@@ -9,7 +9,7 @@ import {
   EDIT_SELECTIONS,
   editFixtureProject,
 } from "../../test/actionBarFixtures";
-import { minimalProject, sampleTrack } from "../../test/fixtures";
+import { clipRow, minimalProject, sampleTrack } from "../../test/fixtures";
 import { ToolsButton } from "./ToolsButton";
 import { ToolsSheet } from "./ToolsSheet";
 
@@ -23,9 +23,20 @@ beforeEach(() => {
   viewport.shell = "phone";
   clearRegisteredCommands();
   registerDawCommands();
-  useDawStore
-    .getState()
-    .hydrate("/tmp/tools/p.json", minimalProject({ tracks: [sampleTrack()] }));
+  useDawStore.getState().hydrate(
+    "/tmp/tools/p.json",
+    minimalProject({
+      tracks: [sampleTrack()],
+      clips: {
+        tracks: {
+          [sampleTrack().id]: [
+            clipRow({ track_id: sampleTrack().id, timeline_end: 5 }),
+          ],
+        },
+        clip_count: 1,
+      },
+    }),
+  );
   useDawStore.setState({
     guestMode: null,
     rangeArmed: false,

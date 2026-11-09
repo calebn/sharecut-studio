@@ -3,7 +3,11 @@ import { hostFetch } from "../api/documentTransport";
 import { apiSend } from "../api/http";
 import { commentDraftFromRange } from "../comments/commentAnchor";
 import { setClipboard } from "../edit/clipboard";
-import { rangeIsCurrent, resolveSelectionRange } from "../edit/rangeSelection";
+import {
+  rangeIsCurrent,
+  resolveSelectionRange,
+  seedRangeDraft,
+} from "../edit/rangeSelection";
 import { roomToneGaps } from "../edit/roomToneGaps";
 import { extractClipsInRange } from "../edit/selectionClipboard";
 import {
@@ -348,17 +352,26 @@ async function fillRoomToneInRange(
   return { status: "ok" };
 }
 
+/** Arming seeds a draft at the playhead; arming again drops it. */
+export function armRangeDraft(): ExecuteResult {
+  const s = useDawStore.getState();
+  if (!s.project || s.rangeBusy || s.joinMutationInFlight)
+    return {
+      status: "disabled",
+      reason: "Open a project and wait for the current edit",
+    };
+  if (s.rangeArmed) {
+    s.setRangeArmed(false);
+    return { status: "ok" };
+  }
+  const draft = seedRangeDraft(s.project, s.playheadSec, s.selection);
+  if (!draft) return { status: "disabled", reason: "Nothing to select yet" };
+  s.armRange(draft);
+  return { status: "ok" };
+}
+
 export function registerRangeCommands(): void {
   for (const action of RANGE_ACTIONS)
     registerCommand(`range.${action}`, () => runRangeAction(action));
-  registerCommand("range.arm", () => {
-    const s = useDawStore.getState();
-    if (!s.project || s.rangeBusy || s.joinMutationInFlight)
-      return {
-        status: "disabled",
-        reason: "Open a project and wait for the current edit",
-      };
-    s.setRangeArmed(!s.rangeArmed);
-    return { status: "ok" };
-  });
+  registerCommand("range.arm", () => armRangeDraft());
 }

@@ -405,6 +405,11 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
       "Split and Record read the playhead when the verb runs, not in render",
   },
   {
+    file: "commands/rangeActions.ts",
+    reason:
+      "arming a range seeds its draft from the playhead when the command runs, not in render",
+  },
+  {
     file: "commands/shuttle.ts",
     reason:
       "J steps back from the live playhead when the key runs, not in render",

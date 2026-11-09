@@ -339,18 +339,19 @@ describe("selection surfaces reach every kind on every shell", () => {
   }
 
   for (const shell of SHELLS) {
-    it(`Select range over a clip opens no form: the range is dragged on the lanes (${shell})`, () => {
+    it(`Select range over a clip opens the draft form with In, Out and Length (${shell})`, () => {
       mount(shell);
       select(SELECTIONS.clip);
-      act(() => useDawStore.getState().setRangeArmed(true));
+      act(() =>
+        useDawStore.getState().armRange({ start: 0, end: 5, trackIds: ["a"] }),
+      );
+      const regions = rangeRegions();
+      expect(regions).toHaveLength(1);
       expect(
-        rangeRegions().flatMap((region) =>
-          within(region).queryAllByRole("spinbutton"),
-        ),
-      ).toEqual([]);
-      expect(
-        screen.queryByRole("button", { name: "Cancel range selection" }),
-      ).toBeNull();
+        within(regions[0]!)
+          .getAllByRole("spinbutton")
+          .map((field) => field.getAttribute("aria-label")),
+      ).toEqual(["In", "Out", "Length"]);
     });
 
     it(`a made range puts In, Out and Length where the ${shell} shell can reach them`, () => {
@@ -381,7 +382,11 @@ describe("selection surfaces reach every kind on every shell", () => {
         expect(bar?.contains(rangeRegions()[0]!)).toBe(true);
       }
       if (shell !== "desktop") {
-        act(() => useDawStore.getState().setRangeArmed(true));
+        act(() =>
+          useDawStore
+            .getState()
+            .armRange({ start: 0, end: 5, trackIds: ["a"] }),
+        );
       }
       const home = shell === "desktop" ? bar : sheet();
       const regions = rangeRegions();

@@ -18,24 +18,27 @@ export interface InspectorOpen {
 /**
  * Is the Inspector open? Inspect opened it for the selection still held
  * (selecting alone never does). The phone and the tablet also list the
- * screens a kind opens on, and arming a range opens them alone so the In and
- * Out fields sit in the bottom zone, never in a card at the top (#1793).
+ * screens a kind opens on. A range draft opens it on every shell with nothing
+ * selected, so the In and Out fields sit in the bottom zone on touch, never in a
+ * card at the top (#1793).
  */
 export function useInspectorOpen(
   shell: InspectorShell,
   screen: SheetScreen,
 ): InspectorOpen {
-  const { selection, rangeArmed, sessionRegion, inspectorKey } = useDaw(
-    (s) => ({
+  const { selection, rangeArmed, rangeDraft, sessionRegion, inspectorKey } =
+    useDaw((s) => ({
       selection: s.selection,
       rangeArmed: s.rangeArmed,
+      rangeDraft: s.rangeDraft,
       sessionRegion: s.sessionRegion,
       inspectorKey: s.inspectorKey,
-    }),
-  );
+    }));
   const touch = shell !== "desktop";
+  const drafting =
+    rangeArmed && rangeDraft != null && !isRangeSelection(selection);
   const open =
-    (touch && rangeArmed && sessionRegion != null) ||
+    drafting ||
     (selection != null &&
       inspectorOpenFor(selection, inspectorKey) &&
       (!touch || opensSheet(selection, screen)));
@@ -55,11 +58,12 @@ export function useInspectorOpen(
     open,
     rangeActionsInSheet:
       open &&
-      (touch
-        ? isRangeSelection(selection) ||
-          rangeArmed ||
-          (shell === "tablet" && sessionRegion != null)
-        : isRangeSelection(selection)),
+      (drafting ||
+        (touch
+          ? isRangeSelection(selection) ||
+            rangeArmed ||
+            (shell === "tablet" && sessionRegion != null)
+          : isRangeSelection(selection))),
     close,
     dismiss,
   };
