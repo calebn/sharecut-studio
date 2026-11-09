@@ -18,7 +18,6 @@ export type MoreCommandId =
   | "adjustBounds"
   | "seek";
 
-/** Not a verb and not a More row: a choice drawn as a segmented control in the bar itself. */
 export type SegmentedBarId = "joinType";
 
 /** `paste` is the one command that sits in the bar itself, on the playhead. */

@@ -331,9 +331,7 @@ export interface DawState {
   joinMutationInFlight: boolean;
   /**
    * The selected seam's right clip as the length Scrub is drafting it, or
-   * null: the join blend and the edit marker read their tier and label from the
-   * drawn draft (stage/edit/seamSections.tsx sets it, timeline/JoinEditor.tsx
-   * and timeline/editMarkers/plan.ts read it).
+   * null: the join blend and the edit marker read their tier and label from it.
    */
   joinDraft: ClipRow | null;
   /**

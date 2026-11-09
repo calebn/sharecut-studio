@@ -18,7 +18,6 @@ export type BarItem = {
   readonly tone?: "link";
   readonly arg?: string;
   readonly disabledReason?: string;
-  /** A segmented choice: one icon button per option, each sending its `value` as the verb's `arg`. */
   readonly options?: readonly BarOption[];
 };
 

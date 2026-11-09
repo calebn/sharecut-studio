@@ -53,7 +53,6 @@ export interface EditFacts {
   readonly role: EditRole;
 }
 
-/** A seam is a join between two neighbouring clips, a cut or a split. */
 export function selectionKind(selection: Selection): EditKind {
   if (selection === null) return "playhead";
   switch (selection.kind) {

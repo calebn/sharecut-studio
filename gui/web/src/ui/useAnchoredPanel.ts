@@ -3,9 +3,7 @@ import { useStableCallback } from "../utils/useStableCallback";
 import {
   inlineSizeCaps,
   placeAnchored,
-  placeAnchoredClear,
   placeAnchoredExcluding,
-  unionRect,
   visualViewportBox,
 } from "./anchoredPlacement";
 import { useResizeObserver } from "./useResizeObserver";
@@ -25,10 +23,8 @@ export type DialogAnchor = {
   reason: string;
   /** The element the dialog is about, which stays visible and unobscured. */
   ref: RefObject<HTMLElement | null>;
-  /** Chrome the panel must not cover (the timeline's endpoint rail). */
+  /** Chrome the panel must not cover (a bottom bar or rail). */
   avoidRef?: RefObject<HTMLElement | null>;
-  /** A control the panel must never cover (the join popover's length grip). */
-  clearRef?: RefObject<HTMLElement | null>;
   exclusion?: AnchorExclusion;
   /** A value that moves the anchor without a scroll or resize, such as the seam time. */
   moves?: unknown;
@@ -48,7 +44,6 @@ export function useAnchoredPanel(
 ): void {
   const anchorRef = anchor?.ref;
   const avoidRef = anchor?.avoidRef;
-  const clearRef = anchor?.clearRef;
   const excludeRef = anchor?.exclusion?.ref;
   const withinRef = anchor?.exclusion?.withinRef;
   const moves = anchor?.moves;
@@ -77,19 +72,10 @@ export function useAnchoredPanel(
       align: "center",
       prefer,
     } as const;
-    const clearEl = clearRef?.current;
     const excludedEl = excludeRef?.current;
     const withinEl = withinRef?.current;
-    const placed = clearEl
-      ? placeAnchoredClear(
-          anchorRect,
-          size,
-          visualViewportBox(null),
-          avoidRef?.current?.getBoundingClientRect().top ?? null,
-          unionRect(anchorRect, clearEl.getBoundingClientRect()),
-          { ...options, minWidth: 12 * rootPx },
-        )
-      : excludedEl && withinEl
+    const placed =
+      excludedEl && withinEl
         ? placeAnchoredExcluding(
             anchorRect,
             size,
@@ -120,7 +106,6 @@ export function useAnchoredPanel(
       return;
     }
     place();
-    const frame = clearRef ? requestAnimationFrame(place) : 0;
     window.addEventListener("resize", place);
     const onScroll = (event: Event) => {
       const target = event.target;
@@ -129,14 +114,12 @@ export function useAnchoredPanel(
     };
     window.addEventListener("scroll", onScroll, true);
     return () => {
-      if (frame) cancelAnimationFrame(frame);
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", onScroll, true);
     };
-  }, [active, moves, place, clearRef, excludeRef, withinRef, panelRef]);
+  }, [active, moves, place, excludeRef, withinRef, panelRef]);
   useResizeObserver(panelRef, place, active);
   useResizeObserver(avoidRef, place, active);
-  useResizeObserver(clearRef, place, active);
   useResizeObserver(excludeRef, place, active);
   useResizeObserver(withinRef, place, active);
 }
