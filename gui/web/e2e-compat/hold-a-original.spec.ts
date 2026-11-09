@@ -2,7 +2,6 @@ import { expect, type Page, test } from "@playwright/test";
 import { e2eProjectPath } from "../e2e/env";
 import { openProject } from "../e2e/stageNav";
 
-// A is "Hear the original" in the Player; its pressed state is the audition mode.
 const original = (page: Page) => page.locator(".sys-player-a").first();
 
 async function holdA(page: Page) {

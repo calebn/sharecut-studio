@@ -61,7 +61,6 @@ export type CommandContext = {
   splitSpeakersBlocker: string | null;
   /** Any inspector selection (clip, track, comment, …). */
   hasInspectorSelection: boolean;
-  /** A pending suggestion is the selection. */
   suggestionSelected: boolean;
   following: boolean;
   recordStageActive: boolean;
