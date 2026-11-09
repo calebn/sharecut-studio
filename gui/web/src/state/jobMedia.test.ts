@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { recordJobMedia, runIncludesTranscribe } from "./jobMedia";
+import type { PipelineJobSnapshot } from "../types/pipeline";
+import {
+  recordJobMedia,
+  runIncludesTranscribe,
+  transcribeProgress,
+} from "./jobMedia";
 
 const STEPS = [
   "ingest_tracks",
@@ -85,5 +90,72 @@ describe("the audio a job covered", () => {
     );
     expect(Object.keys(saved)).toHaveLength(20);
     expect(saved.j24).toBe("k24");
+  });
+});
+
+describe("transcribeProgress", () => {
+  const PATH = "/tmp/ep";
+  const run = (overrides: Partial<PipelineJobSnapshot> = {}) =>
+    ({
+      id: "j1",
+      project_path: PATH,
+      from_step: null,
+      only_step: null,
+      status: "running",
+      current: 1,
+      total: 4,
+      message: null,
+      error: null,
+      elapsed_sec: 0,
+      steps: [],
+      ...overrides,
+    }) satisfies PipelineJobSnapshot;
+  const transcribed = [
+    { name: "transcribe_tracks", status: "ok", elapsed_sec: 3, error: null },
+  ];
+
+  it.each([
+    ["a full run, one of four", run(), false, 0.25],
+    [
+      "a queued run with no total",
+      run({ status: "queued", current: null, total: null }),
+      false,
+      0,
+    ],
+    [
+      "a transcribe-only run, one of two",
+      run({ only_step: "transcribe_tracks", total: 2 }),
+      true,
+      0.5,
+    ],
+    [
+      "a finished transcribe step before words arrive",
+      run({ steps: transcribed, current: 3, total: 5 }),
+      false,
+      0.6,
+    ],
+  ] as const)(
+    "is the run's fraction for %s",
+    (_name, job, hasWords, expected) => {
+      expect(transcribeProgress(job, PATH, hasWords)).toBe(expected);
+    },
+  );
+
+  it.each([
+    ["no run", null],
+    ["another project's run", run({ project_path: "/tmp/other" })],
+    ["an analyze run", run({ kind: "analyze" })],
+    ["a run that starts after transcribing", run({ from_step: "clean_audio" })],
+    ["a finished run", run({ status: "ok" })],
+    [
+      "a run that skips transcribing",
+      run({ skip_steps: ["transcribe_tracks"] }),
+    ],
+    [
+      "a finished transcribe step with words in",
+      run({ steps: transcribed, current: 3, total: 5 }),
+    ],
+  ] as const)("is null for %s", (_name, job) => {
+    expect(transcribeProgress(job, PATH, true)).toBeNull();
   });
 });

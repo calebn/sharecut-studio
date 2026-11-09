@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  requestAutoRun,
   takeAutoRoom,
   takeAutoRun,
   takeOpenStage,
@@ -36,6 +37,14 @@ describe("open intent", () => {
     writeOpenIntent(PATH, { autoRun: true });
     expect(takeAutoRun("/other/episode.sharecut")).toBe(false);
     expect(takeAutoRun(PATH)).toBe(true);
+  });
+
+  it("adds a run request beside the stage and room already asked for", () => {
+    writeOpenIntent(PATH, { stage: "edit", autoRoom: true });
+    requestAutoRun(PATH);
+    expect(takeAutoRun(PATH)).toBe(true);
+    expect(takeAutoRoom(PATH)).toBe(true);
+    expect(takeOpenStage(PATH)).toBe("edit");
   });
 
   it("ignores an unknown stage and a damaged value", () => {

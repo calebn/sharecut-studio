@@ -13,6 +13,7 @@ import {
   scriptUtterances,
   scriptWord,
   seedScript,
+  transcribeRun,
 } from "../../../test/scriptHostKit";
 import { ScriptHost } from "./ScriptHost";
 import { useScriptModel } from "./useScriptModel";
@@ -107,18 +108,10 @@ describe("ScriptHost statuses", () => {
     expect(onTranscribe).toHaveBeenCalledOnce();
   });
 
-  it("shows transcribing with its progress", () => {
-    render(
-      <ScriptHost
-        status={{
-          kind: "transcribing",
-          progress: 0.4,
-          notYet: "12:00 to 52:10",
-        }}
-      />,
-    );
-    expect(screen.getByText("40%")).toBeInTheDocument();
-    expect(screen.getByText(/Not transcribed yet/)).toBeInTheDocument();
+  it("shows transcribing with the run's progress over the words", () => {
+    useDawStore.setState({ pipelineJob: transcribeRun() });
+    render(<ScriptHost />);
+    expect(screen.getByText("25%")).toBeInTheDocument();
     expect(word("Welcome")).toBeInTheDocument();
   });
 
@@ -128,11 +121,6 @@ describe("ScriptHost statuses", () => {
     expect(screen.getByText("Transcript out of date")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Update" }));
     expect(onUpdate).toHaveBeenCalledOnce();
-  });
-
-  it("takes an explicit ready status like the default", () => {
-    render(<ScriptHost status={{ kind: "ready" }} />);
-    expect(word("Welcome")).toBeInTheDocument();
   });
 });
 

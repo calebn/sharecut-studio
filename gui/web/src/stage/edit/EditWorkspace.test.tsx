@@ -1,12 +1,20 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { clearRegisteredCommands, execute } from "../../commands/execute";
+import {
+  clearRegisteredCommands,
+  execute,
+  registerCommand,
+} from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { useDawStore } from "../../state/dawStore";
 import { minimalProject, sampleTrack } from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
-import { takeAutoRun } from "../../utils/openIntent";
+import {
+  takeAutoRoom,
+  takeAutoRun,
+  writeOpenIntent,
+} from "../../utils/openIntent";
 import { EditWorkspace } from "./EditWorkspace";
 
 const PROJECT_PATH = "/tmp/edit-workspace/episode.sharecut";
@@ -322,17 +330,88 @@ describe("EditWorkspace focus regions", () => {
 });
 
 describe("EditWorkspace Transcribe", () => {
-  it("hands the empty Script to Prepare, which starts the run", async () => {
-    const user = userEvent.setup();
-    useDawStore
-      .getState()
-      .hydrate(PROJECT_PATH, minimalProject({ tracks: [sampleTrack()] }));
-    useDawStore.setState({ stage: "edit" });
+  const open = (tracks = [sampleTrack()]) => {
+    useDawStore.getState().hydrate(PROJECT_PATH, minimalProject({ tracks }));
+    useDawStore.setState({ stage: "edit", pipelineJob: null });
+    sessionStorage.clear();
     render(<EditWorkspace />);
-    await user.click(
-      screen.getByRole("button", { name: "Transcribe this episode" }),
-    );
+  };
+  const transcribeButton = () =>
+    screen.queryByRole("button", { name: "Transcribe this episode" });
+
+  it("hands the empty Script to Prepare, which starts the run", async () => {
+    open();
+    await userEvent.setup().click(transcribeButton()!);
     expect(useDawStore.getState().stage).toBe("prepare");
     expect(takeAutoRun(PROJECT_PATH)).toBe(true);
+    expect(takeAutoRun(PROJECT_PATH)).toBe(false);
+  });
+
+  it("stays in Edit and says so when another job holds the slot", async () => {
+    open();
+    useDawStore.setState({
+      pipelineJob: {
+        id: "bounce-1",
+        kind: "bounce",
+        project_path: PROJECT_PATH,
+        from_step: null,
+        only_step: null,
+        status: "running",
+        current: null,
+        total: null,
+        message: null,
+        error: null,
+        elapsed_sec: 0,
+        steps: [],
+      },
+    });
+    await userEvent.setup().click(transcribeButton()!);
+    expect(useDawStore.getState().stage).toBe("edit");
+    expect(takeAutoRun(PROJECT_PATH)).toBe(false);
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Another job is running. Try again when it finishes.",
+    );
+  });
+
+  it("drops only the run when Prepare refuses, keeping the room request", async () => {
+    open();
+    writeOpenIntent(PROJECT_PATH, { autoRoom: true });
+    registerCommand("stage.prepare", () => ({
+      status: "disabled",
+      reason: "no",
+    }));
+    await userEvent.setup().click(transcribeButton()!);
+    expect(useDawStore.getState().stage).toBe("edit");
+    expect(takeAutoRun(PROJECT_PATH)).toBe(false);
+    expect(takeAutoRoom(PROJECT_PATH)).toBe(true);
+  });
+
+  it("offers no Transcribe when no track has source audio", () => {
+    open([sampleTrack({ media_path: undefined })]);
+    expect(screen.getByText("No transcript yet")).toBeInTheDocument();
+    expect(transcribeButton()).toBeNull();
+  });
+
+  it("shows Transcribing, not the button, while a run makes the transcript", () => {
+    open();
+    act(() =>
+      useDawStore.setState({
+        pipelineJob: {
+          id: "run-1",
+          project_path: PROJECT_PATH,
+          from_step: null,
+          only_step: null,
+          status: "running",
+          current: 1,
+          total: 4,
+          message: null,
+          error: null,
+          elapsed_sec: 0,
+          steps: [],
+        },
+      }),
+    );
+    expect(transcribeButton()).toBeNull();
+    expect(screen.getByText("25%")).toBeInTheDocument();
   });
 });

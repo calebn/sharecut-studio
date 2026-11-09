@@ -8,6 +8,7 @@ import {
 } from "../../../storybook/storyLayout";
 import { episode } from "../../../test/episodeFixture";
 import { episodeBeforeEach } from "../../../test/withEpisode";
+import type { PipelineJobSnapshot } from "../../../types/pipeline";
 import { ScriptHost, type ScriptHostProps } from "./ScriptHost";
 import {
   loadingEpisode,
@@ -237,17 +238,9 @@ export const Empty: Story = {
   },
 };
 
-export const Transcribing: Story = {
-  args: {
-    status: { kind: "transcribing", progress: 0.42, notYet: "12:00 to 52:10" },
-  },
-  play: async ({ canvasElement }) => {
-    await expect(await within(canvasElement).findByText(/42/)).toBeVisible();
-  },
-};
-
-export const TranscribingRun: Story = {
-  beforeEach: () => {
+const liveRun =
+  (overrides: Partial<PipelineJobSnapshot> = {}) =>
+  () => {
     useDawStore.getState().setPipelineJob({
       id: "story-run",
       project_path: useDawStore.getState().projectPath,
@@ -260,11 +253,48 @@ export const TranscribingRun: Story = {
       error: null,
       elapsed_sec: 0,
       steps: [],
+      ...overrides,
     });
     return () => useDawStore.getState().setPipelineJob(null);
+  };
+
+export const Transcribing: Story = {
+  args: { onTranscribe: fn() },
+  parameters: { episode: { project: noTranscriptEpisode(episode()) } },
+  beforeEach: liveRun(),
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByText("25%")).toBeVisible();
+    await expect(
+      canvas.queryByRole("button", { name: /Transcribe/ }),
+    ).toBeNull();
+    await expect(args.onTranscribe).not.toHaveBeenCalled();
   },
+};
+
+export const TranscribingOverWords: Story = {
+  beforeEach: liveRun({ only_step: "transcribe_tracks", current: 1, total: 2 }),
   play: async ({ canvasElement }) => {
-    await expect(await within(canvasElement).findByText(/25/)).toBeVisible();
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByText("50%")).toBeVisible();
+    await userEvent.click(await word(canvas, /^Welcome/));
+    await userEvent.keyboard("{Enter}");
+    await expect(
+      canvas.queryByRole("textbox", { name: /^Fix text/ }),
+    ).toBeNull();
+  },
+};
+
+export const NoTranscriptBusy: Story = {
+  args: { onTranscribe: fn() },
+  parameters: { episode: { project: noTranscriptEpisode(episode()) } },
+  beforeEach: liveRun({ project_path: "/tmp/another-episode.sharecut" }),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByRole("button", { name: /Transcribe/ }),
+    ).toBeVisible();
+    await expect(canvas.queryByText("25%")).toBeNull();
   },
 };
 

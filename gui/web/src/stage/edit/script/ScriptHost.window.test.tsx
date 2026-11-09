@@ -14,6 +14,7 @@ import {
   scriptUtterance,
   scriptWord,
   seedScript,
+  setTranscriptLoading,
 } from "../../../test/scriptHostKit";
 import type { CombinedUtterance } from "../../../types/project";
 import { ScriptHost } from "./ScriptHost";
@@ -127,11 +128,12 @@ describe("ScriptHost unsure words", () => {
       wordIndex: 350,
     });
     useDawStore.setState({ stage: "edit" });
-    const view = render(<ScriptHost status={{ kind: "loading" }} />);
+    setTranscriptLoading(true);
+    render(<ScriptHost />);
     expect(useDawStore.getState().pendingEditWordReveal).toBe(request);
     expect(scrolling.calls).toEqual([]);
 
-    view.rerender(<ScriptHost status={{ kind: "ready" }} />);
+    act(() => setTranscriptLoading(false));
     expect(scrolling.calls).toContain(700);
     await waitFor(() => expect(hasWord("a350")).toBe(true));
     expect(useDawStore.getState().pendingEditWordReveal).toBeNull();
@@ -516,8 +518,9 @@ describe("ScriptHost window", () => {
   });
 
   it("binds the body's scroll again when the pane turns from loading to ready", () => {
-    const { rerender } = render(<ScriptHost status={{ kind: "loading" }} />);
-    rerender(<ScriptHost status={{ kind: "ready" }} />);
+    setTranscriptLoading(true);
+    render(<ScriptHost />);
+    act(() => setTranscriptLoading(false));
     expect(hasWord(`a${WINDOW_MARGIN + 20}`)).toBe(false);
     scrollBody(49500);
     expect(hasWord(`a${WINDOW_MARGIN + 20}`)).toBe(true);
