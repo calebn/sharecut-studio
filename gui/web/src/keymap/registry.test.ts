@@ -155,7 +155,10 @@ describe("keymap registry", () => {
     expect(first({ key: "x", code: "KeyX" })).toEqual(["edit.keep"]);
     expect(first({ key: "i", code: "KeyI" })).toEqual(["edit.inspect"]);
     expect(first({ key: ".", code: "Period" })).toEqual(["edit.more"]);
-    expect(first({ key: "a", code: "KeyA" })).toEqual(["edit.hearBefore"]);
+    expect(first({ key: "a", code: "KeyA" })).toEqual([
+      "edit.hearBefore",
+      "transport.hearOriginal",
+    ]);
     expect(first({ key: "b", code: "KeyB" })).toEqual(["edit.hearAfter"]);
     expect(first({ key: "s", code: "KeyS" })).toEqual(["edit.split"]);
     expect(first({ key: "S", code: "KeyS", shiftKey: true })).toEqual([

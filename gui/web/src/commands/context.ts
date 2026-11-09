@@ -61,6 +61,8 @@ export type CommandContext = {
   splitSpeakersBlocker: string | null;
   /** Any inspector selection (clip, track, comment, …). */
   hasInspectorSelection: boolean;
+  /** A pending suggestion is the selection. */
+  suggestionSelected: boolean;
   following: boolean;
   recordStageActive: boolean;
   roomKeys: RoomKeyHandlers | null;
@@ -144,6 +146,7 @@ export function buildCommandContext(): CommandContext {
       canManageProjects(s.projectPath),
     ),
     hasInspectorSelection: selection != null,
+    suggestionSelected: selection?.kind === "pending",
     following: s.followingClientId != null,
     recordStageActive: s.stage === "record",
     roomKeys: roomKeys(),
@@ -211,6 +214,13 @@ export function evaluateWhen(
       return ctx.stage === "edit"
         ? { ok: true }
         : { ok: false, reason: "Open Edit to change the timeline" };
+    case "suggestionSelected": {
+      const inEdit = evaluateWhen("editStage", ctx);
+      if (!inEdit.ok) return inEdit;
+      return ctx.suggestionSelected
+        ? { ok: true }
+        : { ok: false, reason: "Select a suggestion to hear it" };
+    }
     case "editStageOrRangeSuggest":
       if (!ctx.hasProject) {
         return { ok: false, reason: "No project loaded" };

@@ -31,6 +31,10 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Audition Full mix / Edited stems / Original",
     tooltip: "Audition Full mix, Edited stems, or Original",
   },
+  "daw.transport.hearOriginal": {
+    label: "Hear the original while held",
+    tooltip: "Hold A with no suggestion selected to hear the original",
+  },
   "daw.presence.follow": {
     label: "Follow",
     tooltip: "Follow this person",
@@ -604,6 +608,7 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
 export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "transport.play": "daw.transport.togglePlay",
   "transport.audition": "daw.transport.audition",
+  Player: "daw.transport.hearOriginal",
   "presence.avatarStack": "daw.presence.follow",
   "presence.followPill": "daw.presence.unfollow",
   timeline: "daw.edit.bladeCut",

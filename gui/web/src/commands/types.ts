@@ -22,6 +22,7 @@ export type ContextPredicateId =
   | "timelineFocused"
   | "canSuggestStructural"
   | "editStage"
+  | "suggestionSelected"
   | "editStageStructural"
   | "editStagePass12"
   | "editStageIngest"

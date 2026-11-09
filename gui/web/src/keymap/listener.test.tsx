@@ -562,7 +562,7 @@ async function press(
   return vi.mocked(execute).mock.calls.map(([id]) => id);
 }
 
-it("binds the Action bar's keys: S, X, I, ., A, B, C, Shift+C and Shift+S", async () => {
+it("binds the Action bar's keys: S, X, I, ., B, C, Shift+C and Shift+S", async () => {
   render(<KeymapHost />);
   const canvas = screen.getByTestId("canvas");
   const keys: [KeyboardEventInit & { key: string }, string][] = [
@@ -571,7 +571,6 @@ it("binds the Action bar's keys: S, X, I, ., A, B, C, Shift+C and Shift+S", asyn
     [{ key: "x", code: "KeyX" }, "edit.keep"],
     [{ key: "i", code: "KeyI" }, "edit.inspect"],
     [{ key: ".", code: "Period" }, "edit.more"],
-    [{ key: "a", code: "KeyA" }, "edit.hearBefore"],
     [{ key: "b", code: "KeyB" }, "edit.hearAfter"],
     [{ key: "c", code: "KeyC" }, "comment.draftAt"],
     [{ key: "C", code: "KeyC", shiftKey: true }, "edit.addChapter"],
@@ -912,4 +911,106 @@ it("keeps the R hold through other keyups and drops it when the take ends mid-ho
   vi.useRealTimers();
   expect(calls).toEqual(["stop"]);
   setRoomKeys(null);
+});
+
+const pendingSelection = {
+  kind: "pending" as const,
+  id: "cut_1",
+  trackId: "host",
+};
+
+function keyUp(target: Element, init: KeyboardEventInit & { key: string }) {
+  return act(async () => {
+    fireEvent.keyUp(target, init);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+}
+
+const A = { key: "a", code: "KeyA" };
+
+function runs(): unknown[][] {
+  return vi
+    .mocked(execute)
+    .mock.calls.filter(([id]) => id === "transport.hearOriginal")
+    .map(([, args]) => [args]);
+}
+
+it("A with a suggestion selected hears it and never touches the original", async () => {
+  useDawStore.setState({ selection: pendingSelection });
+  render(<KeymapHost />);
+  const canvas = screen.getByTestId("canvas");
+  expect(await press(canvas, A)).toEqual(["edit.hearBefore"]);
+  await keyUp(canvas, A);
+  expect(runs()).toEqual([]);
+});
+
+it("holds A with nothing selected to hear the original and lets go to restore", async () => {
+  render(<KeymapHost />);
+  const canvas = screen.getByTestId("canvas");
+  expect(await press(canvas, A)).toEqual(["transport.hearOriginal"]);
+  expect(runs()).toEqual([[{ on: true }]]);
+  await keyUp(canvas, A);
+  expect(runs()).toEqual([[{ on: true }], [{ on: false }]]);
+  await keyUp(canvas, A);
+  expect(runs()).toHaveLength(2);
+});
+
+it("drops key repeats while A is held", async () => {
+  render(<KeymapHost />);
+  const canvas = screen.getByTestId("canvas");
+  await press(canvas, A);
+  await press(canvas, { ...A, repeat: true });
+  expect(runs()).toEqual([]);
+});
+
+it("restores when the window blurs or the tab hides", async () => {
+  render(<KeymapHost />);
+  const canvas = screen.getByTestId("canvas");
+  await press(canvas, A);
+  await act(async () => {
+    window.dispatchEvent(new Event("blur"));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  expect(runs()).toEqual([[{ on: true }], [{ on: false }]]);
+
+  await press(canvas, A);
+  vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+  await act(async () => {
+    document.dispatchEvent(new Event("visibilitychange"));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  expect(runs()).toEqual([[{ on: true }], [{ on: false }]]);
+  vi.restoreAllMocks();
+});
+
+it("restores when the selection changes or a dialog opens mid-hold", async () => {
+  const { rerender } = render(<KeymapHost />);
+  const canvas = screen.getByTestId("canvas");
+  await press(canvas, A);
+  useDawStore.setState({ selection: pendingSelection });
+  await keyUp(canvas, A);
+  expect(runs()).toEqual([[{ on: true }], [{ on: false }]]);
+
+  useDawStore.setState({ selection: null });
+  await press(canvas, A);
+  rerender(
+    <>
+      <KeymapHost />
+      <Dialog open title="Remove track?" onClose={() => undefined}>
+        <p>Remove it?</p>
+      </Dialog>
+    </>,
+  );
+  await waitFor(() =>
+    expect(runs()).toEqual([[{ on: true }], [{ on: false }]]),
+  );
+});
+
+it("restores when the listener unmounts mid-hold", async () => {
+  const { unmount } = render(<KeymapHost />);
+  await press(screen.getByTestId("canvas"), A);
+  unmount();
+  await waitFor(() =>
+    expect(runs()).toEqual([[{ on: true }], [{ on: false }]]),
+  );
 });

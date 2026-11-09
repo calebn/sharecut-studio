@@ -68,6 +68,24 @@ export function registerNavigationCommands(): void {
     return { status: "ok" };
   });
 
+  let heldFrom: AuditionMode | null = null;
+  registerCommand("transport.hearOriginal", (args) => {
+    const s = useDawStore.getState();
+    if (guestHearsMixOnly(s.guestMode)) return { status: "ok" };
+    if (args.on === true) {
+      if (heldFrom === null && s.auditionMode !== "raw") {
+        heldFrom = s.auditionMode;
+        s.setAuditionMode("raw");
+      }
+    } else {
+      if (heldFrom !== null && s.auditionMode === "raw") {
+        s.setAuditionMode(heldFrom);
+      }
+      heldFrom = null;
+    }
+    return { status: "ok" };
+  });
+
   registerCommand("presence.follow", (args) => {
     const clientId = typeof args.clientId === "string" ? args.clientId : "";
     if (!clientId) {

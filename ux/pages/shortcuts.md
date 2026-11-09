@@ -24,6 +24,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | `K` | Pause and return (`transport.stop`) | Always (when not typing in a field or on a focused Scrub field) | K alone pauses and returns; Mod+K splits at the playhead |
 | `J` | Jump back (`transport.shuttleBack`) | Always (when not typing in a field or on a focused Scrub field) | Jumps back 3, 6, 12 s on quick repeats; no reverse audio |
 | `L` | Speed up (1×/2×/4×) (`transport.shuttleForward`) | Always (when not typing in a field or on a focused Scrub field) | Plays at 1×, then 2× and 4× on repeats; J, K or Space returns to 1× |
+| `A` | Hear the original while held (`transport.hearOriginal`) | editStage | A with no suggestion selected: hold to hear the original |
 | Palette only | Refresh mix (`render.refreshMix`) | Refresh mix allowed | Palette only: rebuild stems/premix when host or Docs Editor |
 
 ## navigation
@@ -74,7 +75,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | `Shift+S` | Toggle track solo (`track.soloToggle`) | Project loaded | Shift+S: S is Split |
 | `S` | Split (`edit.split`) | editStageStructural | S: split at the playhead, or at both edges of the selected words or range, as one undo step — S splits; Shift+S solos the targeted track; Mod+K splits at the playhead |
 | `Shift+Space` | Hear (`edit.hear`) | editStage | Shift+Space: hear the selection |
-| `A` | Hear before (`edit.hearBefore`) | editStage | A: the suggestion as it is now |
+| `A` | Hear before (`edit.hearBefore`) | suggestionSelected | A: the suggestion as it is now |
 | `B` | Hear after (`edit.hearAfter`) | editStage | B: the suggestion applied |
 | `X` | Keep (`edit.keep`) | editStage | X: keep what is cut or reject the selected suggestion; Mod+X is Cut to the clipboard |
 | `I` | Inspect (`edit.inspect`) | editStage | I: open or close the Inspector for the selection; Mod+I is Import |
