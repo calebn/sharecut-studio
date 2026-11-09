@@ -15,6 +15,7 @@ import {
   type ActionPromptProps,
 } from "./ActionBarInline";
 import type { AuditionSide } from "./auditionWindow";
+import { ConfidenceMeter } from "./ConfidenceMeter";
 import { type DecisionKind, KIND_META } from "./decisionKinds";
 import { Skeleton } from "./Skeleton";
 import { StatusRow } from "./StatusRow";
@@ -44,6 +45,10 @@ export type DecisionCardProps = {
   waveform?: Omit<SuggestionWaveformProps, "icon" | "readOnly">;
   change?: TimeRange;
   why?: string;
+  /** 0 to 1; drawn as a five-dot meter under the reason. */
+  confidence?: number;
+  /** Fields and notes that belong to the item, after the reason and before the verbs. */
+  children?: ReactNode;
   verb?: VerbId;
   /** Why the primary cannot be used; it is also off by swipe. */
   verbDisabledReason?: string;
@@ -84,6 +89,10 @@ export type DecisionCardProps = {
   readOnly?: boolean;
   /** Editor guests and the owner. Defaults to everyone but a read-only guest. */
   canEdit?: boolean;
+  /** False where the Action bar already carries the verbs, as in an Edit Sheet. */
+  inlineActions?: boolean;
+  /** The word on the Keep side when the kind's own does not fit: "Reject". */
+  keepLabel?: string;
   /** `phone` fills the screen, swipes, and moves the Action bar into a dock. `compact` is the 320 px card in an Edit Sheet: no Open in Edit, no swipes, a shorter waveform; a guest gets A/B in the bar beside Comment. */
   layout?: "card" | "phone" | "compact";
   state?: DecisionCardState;
@@ -247,6 +256,8 @@ export function DecisionCard(props: DecisionCardProps) {
     excerpt,
     waveform,
     why,
+    confidence,
+    children,
     verb,
     verbDisabledReason,
     savedSeconds,
@@ -258,6 +269,8 @@ export function DecisionCard(props: DecisionCardProps) {
     prompt,
     readOnly = false,
     canEdit,
+    inlineActions = true,
+    keepLabel,
     layout = "card",
     state = "ready",
     emptyAction,
@@ -436,6 +449,10 @@ export function DecisionCard(props: DecisionCardProps) {
           </>
         ) : null}
         {why ? <p className="sys-decision-why">{why}</p> : null}
+        {confidence === undefined ? null : (
+          <ConfidenceMeter confidence={confidence} />
+        )}
+        {children}
         {takes && !readOnly ? <TakeSwitcher {...takes} /> : null}
         {verbReason && !readOnly ? (
           <p id={verbNoteId} className="sys-decision-why">
@@ -476,26 +493,28 @@ export function DecisionCard(props: DecisionCardProps) {
         {abInBar ? null : ab}
       </div>
       {prompt && !readOnly ? <ActionPrompt {...prompt} /> : null}
-      <ActionBarInline
-        form={phone ? "dock" : "inline"}
-        verb={verb ?? meta.verb}
-        verbLabel={verb && verb !== meta.verb ? undefined : meta.verbLabel}
-        verbNoteId={verbNoteId}
-        verbDisabledReason={verbReason}
-        readOnly={readOnly}
-        canEdit={canEdit}
-        showOpenInEdit={!compact}
-        promptOpen={prompt !== undefined}
-        keepLabel={meta.keepLabel}
-        center={abInBar ? ab : undefined}
-        onKeep={onKeep}
-        onVerb={onVerb}
-        onLater={onLater}
-        onOpenInEdit={onOpenInEdit}
-        openInEditDisabledReason={openInEditDisabledReason}
-        openInEditNoteId={openInEditDisabledReason ? unsureNoteId : undefined}
-        onComment={onComment}
-      />
+      {inlineActions ? (
+        <ActionBarInline
+          form={phone ? "dock" : "inline"}
+          verb={verb ?? meta.verb}
+          verbLabel={verb && verb !== meta.verb ? undefined : meta.verbLabel}
+          verbNoteId={verbNoteId}
+          verbDisabledReason={verbReason}
+          readOnly={readOnly}
+          canEdit={canEdit}
+          showOpenInEdit={!compact}
+          promptOpen={prompt !== undefined}
+          keepLabel={keepLabel ?? meta.keepLabel}
+          center={abInBar ? ab : undefined}
+          onKeep={onKeep}
+          onVerb={onVerb}
+          onLater={onLater}
+          onOpenInEdit={onOpenInEdit}
+          openInEditDisabledReason={openInEditDisabledReason}
+          openInEditNoteId={openInEditDisabledReason ? unsureNoteId : undefined}
+          onComment={onComment}
+        />
+      ) : null}
       {layout === "card" && !readOnly ? (
         <p
           className="sys-decision-keys"

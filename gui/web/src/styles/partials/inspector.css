@@ -107,7 +107,6 @@
     block-size: var(--touch-min);
   }
 
-  .pending-cut-suggestion .ui-control,
   .modifier-footer-actions .ui-control {
     min-block-size: var(--touch-min);
   }
@@ -130,7 +129,6 @@ html[data-shell="phone"] .inspector dd select {
   block-size: var(--touch-min);
 }
 
-html[data-shell="phone"] .pending-cut-suggestion .ui-control,
 html[data-shell="phone"] .modifier-footer-actions .ui-control {
   min-block-size: var(--touch-min);
 }
@@ -168,16 +166,6 @@ html[data-shell="phone"] .modifier-footer-actions .ui-segmented {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-}
-
-.pending-snap-option {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  min-block-size: var(--touch-min);
-  min-inline-size: 0;
-  max-inline-size: 100%;
-  white-space: normal;
 }
 
 .track-fader {
@@ -314,22 +302,6 @@ html[data-shell="phone"] select.track-sheet-field {
   font-size: var(--font-size-small);
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
-}
-
-.pending-cut-suggestion {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin-block-start: var(--space-5);
-  padding: var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-}
-
-.pending-cut-suggestion h3 {
-  margin: 0;
-  font-size: var(--font-size-small);
-  color: var(--color-text-secondary);
 }
 
 .envelope-workspace {

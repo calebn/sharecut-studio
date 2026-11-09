@@ -79,8 +79,8 @@ interruption cells remain gaps; aggregate success does not invent those cells.
 focused Find-input refusal, and host/view-only existing-point inspection. The
 minimum-scale observation is the rendered clip floor; it does not measure the
 underlying zoom minimum. In the representative tablet fixture, the Inspector
-covered the selected pending edge; its inventory row checks Source end/Apply
-timing with the existing Snap to silence option disabled and exact Undo. That
+covered the selected pending edge; its inventory row checks Source end
+with Alt held (snap to silence off) and exact Undo. That
 row does not claim native edge preview on tablet.
 `clip-marker-lifecycle.spec.ts`,
 `range-passage-lifecycle.spec.ts`, `edge-envelope-lifecycle.spec.ts` and

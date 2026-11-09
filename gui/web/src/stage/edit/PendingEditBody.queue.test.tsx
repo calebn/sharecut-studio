@@ -1,10 +1,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  type PendingCutProposal,
-  pendingEditBaseline,
-} from "../../api/documentEdits";
+import { pendingEditBaseline } from "../../api/documentEdits";
 import { executePointerCommand } from "../../commands/pointer";
 import { registerDawCommands } from "../../commands/register";
 import { QUEUED_NOTICE_POLL_MS } from "../../inspector/useQueuedReviewNotice";
@@ -18,7 +15,6 @@ const mocks = vi.hoisted(() => ({
   approveEdits: vi.fn(),
   applySuggestedActions: vi.fn(),
   updatePendingEdit: vi.fn(),
-  loadPendingCutSuggestion: vi.fn(),
   loadHostCommandQueue: vi.fn(),
   loadHostConflicts: vi.fn(),
 }));
@@ -27,7 +23,6 @@ vi.mock("../../api", async (importOriginal) => ({
   approveEdits: mocks.approveEdits,
   applySuggestedActions: mocks.applySuggestedActions,
   updatePendingEdit: mocks.updatePendingEdit,
-  loadPendingCutSuggestion: mocks.loadPendingCutSuggestion,
 }));
 vi.mock("../../services/offlineQueue/offlineStore", async (importOriginal) => ({
   ...(await importOriginal<
@@ -53,19 +48,6 @@ const command = {
   type: "UpdatePendingEdit",
   payload: { id: edit.id, start: 10.01, end: 12.01 },
 };
-const proposal: PendingCutProposal = {
-  editId: edit.id,
-  trackId: edit.track_id,
-  expected: pendingEditBaseline(edit),
-  original: { start: 10, end: 12 },
-  suggested: { start: 9.97525, end: 12.03525 },
-  mode: "waveform_only",
-  confidence: 0.5,
-  startShiftMs: -24.75,
-  endShiftMs: 35.25,
-  durationDeltaMs: 60,
-};
-
 const clickUser = () =>
   userEvent.setup({ advanceTimers: (ms) => vi.advanceTimersByTime(ms) });
 
@@ -87,7 +69,6 @@ describe("pending timing queue settlement", () => {
     });
     mocks.loadHostCommandQueue.mockReset().mockResolvedValue([]);
     mocks.loadHostConflicts.mockReset().mockResolvedValue([]);
-    mocks.loadPendingCutSuggestion.mockReset().mockResolvedValue(proposal);
     mocks.updatePendingEdit
       .mockReset()
       .mockResolvedValue({ queued: true, commandId: command.command_id });
@@ -146,21 +127,11 @@ describe("pending timing queue settlement", () => {
     await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
   });
 
-  it.each([
-    { snap: false, rejected: false },
-    { snap: true, rejected: false },
-    { snap: false, rejected: true },
-    { snap: true, rejected: true },
-  ])(
-    "settles unchanged bounds with $snap Snap and $rejected rejection",
-    async ({ snap, rejected }) => {
+  it.each([{ rejected: false }, { rejected: true }])(
+    "settles unchanged bounds with $rejected rejection",
+    async ({ rejected }) => {
       const user = clickUser();
       render(<PendingEditBody edit={edit} />);
-      await screen.findByText("0:09.97525 to 0:12.03525");
-      if (!snap)
-        await user.click(
-          screen.getByRole("checkbox", { name: "Snap to silence" }),
-        );
       const start = screen.getByRole("spinbutton", { name: "Source start" });
       mocks.loadHostCommandQueue.mockResolvedValue([command]);
       await commitField(user, "Source start", "10.01");
@@ -184,9 +155,6 @@ describe("pending timing queue settlement", () => {
         expect(
           screen.getByRole("spinbutton", { name: "Source end" }),
         ).toHaveAttribute("aria-valuetext", "12.000000 s");
-        expect(
-          screen.getByRole("button", { name: "Use suggestion" }),
-        ).toBeEnabled();
       });
     },
   );
@@ -194,7 +162,6 @@ describe("pending timing queue settlement", () => {
   it("preserves later typing when a queued no-op is acknowledged", async () => {
     const user = clickUser();
     render(<PendingEditBody edit={edit} />);
-    await screen.findByText("0:09.97525 to 0:12.03525");
     mocks.loadHostCommandQueue.mockResolvedValue([command]);
     await commitField(user, "Source start", "10.01");
     expect(await screen.findByRole("status")).toHaveTextContent(

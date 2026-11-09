@@ -219,7 +219,7 @@ const REACH: Record<SelectionKind, Reach[]> = {
   bleedAttenuation: [{ role: "button", name: "Restore original audio" }],
   pending: [
     { role: "spinbutton", name: "Source start" },
-    { role: "checkbox", name: "Snap to silence" },
+    { role: "spinbutton", name: "Source end" },
   ],
   seam: [{ role: "spinbutton", name: "Length" }],
   track: [{ role: "button", name: "Show volume envelope" }],

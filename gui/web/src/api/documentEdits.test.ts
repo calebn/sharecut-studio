@@ -24,7 +24,6 @@ import {
   approveEdits,
   correctTranscriptPhrase,
   correctTranscriptWord,
-  loadPendingCutSuggestion,
   moveClips,
   restoreAppliedEdit,
   selectSessionTakeCommand,
@@ -437,125 +436,7 @@ describe("transcript correction 409 refresh (#746)", () => {
   });
 });
 
-describe("pending cut suggestions", () => {
-  const edit = {
-    id: "pending/id",
-    track_id: "host",
-    type: "remove",
-    timebase: "source",
-    source_start: 2,
-    source_end: 8,
-  };
-  const payload = {
-    edit_id: edit.id,
-    track_id: "host",
-    original_start: 2,
-    original_end: 8,
-    optimized: {
-      start: 1.97525,
-      end: 8.03525,
-      mode: "waveform_only",
-      shifted_start_ms: -24.75,
-      shifted_end_ms: 35.25,
-      confidence: 0.625,
-    },
-  };
-  beforeEach(() => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => new Response(JSON.stringify(payload))),
-    );
-  });
-  afterEach(() => vi.unstubAllGlobals());
-
-  it("loads the complete host suggestion with finite source ranges and derived duration", async () => {
-    const signal = new AbortController().signal;
-    const proposal = await loadPendingCutSuggestion(
-      { projectPath: "/tmp/p.json", edit },
-      signal,
-    );
-    expect(proposal).toEqual({
-      editId: "pending/id",
-      trackId: "host",
-      original: { start: 2, end: 8 },
-      expected: {
-        track_id: "host",
-        type: "remove",
-        timebase: "source",
-        start: 2,
-        end: 8,
-      },
-      suggested: { start: 1.97525, end: 8.03525 },
-      mode: "waveform_only",
-      confidence: 0.625,
-      startShiftMs: -24.75,
-      endShiftMs: 35.25,
-      durationDeltaMs: expect.closeTo(60, 8),
-    });
-    expect(fetch).toHaveBeenCalledWith(
-      "/api/pending-edits/pending%2Fid/cut-suggestion?path=%2Ftmp%2Fp.json",
-      expect.objectContaining({ signal }),
-    );
-  });
-
-  it("uses the review route without a host path for a guest", async () => {
-    const result = await loadPendingCutSuggestion(
-      { projectPath: "share:guest-token", edit },
-      new AbortController().signal,
-    );
-    expect(result.suggested).toEqual({ start: 1.97525, end: 8.03525 });
-    expect(fetch).toHaveBeenCalledWith(
-      "/api/review/guest-token/daw/pending-edits/pending%2Fid/cut-suggestion",
-      expect.any(Object),
-    );
-  });
-
-  it.each([
-    null,
-    { ...payload, edit_id: "another" },
-    { ...payload, track_id: "guest" },
-    { ...payload, original_end: 7 },
-    { ...payload, original_start: -1 },
-    { ...payload, original_start: 8 },
-    { ...payload, optimized: null },
-    ...[
-      { start: -1 },
-      { end: 0 },
-      { end: Infinity },
-      { start: "2" },
-      { shifted_start_ms: NaN },
-      { shifted_end_ms: "0" },
-      { mode: "" },
-      { mode: 1 },
-      { confidence: 2 },
-      { confidence: -1 },
-    ].map((optimized) => ({
-      ...payload,
-      optimized: { ...payload.optimized, ...optimized },
-    })),
-  ])("rejects malformed, stale, or mismatched JSON %#", async (value) => {
-    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify(value)));
-    await expect(
-      loadPendingCutSuggestion(
-        { projectPath: "/tmp/p.json", edit },
-        new AbortController().signal,
-      ),
-    ).rejects.toThrow(/suggestion/i);
-  });
-
-  it("reports a failed read without submitting a document command", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ detail: "Not allowed" }), { status: 403 }),
-    );
-    await expect(
-      loadPendingCutSuggestion(
-        { projectPath: "/tmp/p.json", edit },
-        new AbortController().signal,
-      ),
-    ).rejects.toThrow("Not allowed");
-    expect(submitQueuedDocumentCommand).not.toHaveBeenCalled();
-  });
-
+describe("updatePendingEdit", () => {
   it("persists the complete captured baseline with exact suggestion endpoints", async () => {
     const expected = {
       track_id: "host",

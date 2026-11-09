@@ -669,9 +669,6 @@ for (const profile of profiles) {
           const before = saved(projectPath);
           const end = page.getByLabel("Source end", { exact: true });
           await expect(end).toBeVisible();
-          await page
-            .getByRole("checkbox", { name: "Snap to silence", exact: true })
-            .uncheck();
           await end.press("Enter");
           await page
             .getByRole("textbox", { name: "Source end", exact: true })
@@ -680,7 +677,7 @@ for (const profile of profiles) {
           expect(commands).toEqual([]);
           await page
             .getByRole("textbox", { name: "Source end", exact: true })
-            .press("Enter");
+            .press("Alt+Enter");
           await expect
             .poll(
               () =>

@@ -50,7 +50,7 @@ const meta: Meta = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "The live pending edit body (`PendingEditBody`) in an Inspector card, read from the hydrated episode: the host sees Approve and Reject and the Ask thread with Resolve; a Commenter link asks and replies but cannot resolve or tick action items.",
+          "The live pending edit body (`PendingEditBody`) in an Inspector card, read from the hydrated episode: the host sees a compact Decision card (kind, reason, five-dot confidence, Start and End) and the Ask thread with Resolve; a Commenter link asks and replies but cannot resolve or tick action items.",
       },
     },
   },
@@ -74,7 +74,9 @@ export const SuggestionLowConfidence: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(await canvas.findByText("0.31")).toBeVisible();
+    await expect(
+      await canvas.findByRole("img", { name: "Confidence 2 of 5" }),
+    ).toBeVisible();
     await expect(
       await canvas.findByRole("spinbutton", { name: "Source start" }),
     ).toBeVisible();

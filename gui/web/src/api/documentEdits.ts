@@ -14,7 +14,6 @@ import {
   submitLiveHistoryCommand,
   submitQueuedDocumentCommand,
 } from "../services/commandQueue";
-import { isShareProjectKey, shareTokenFromKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import {
   DocumentCommand,
@@ -262,106 +261,8 @@ export function pendingEditBaseline(
   };
 }
 
-export type PendingCutProposal = Readonly<{
-  editId: PendingEditView["id"];
-  trackId: PendingEditView["track_id"];
-  original: SourceRange;
-  expected: PendingEditBaseline;
-  suggested: SourceRange;
-  mode: string;
-  confidence: number;
-  startShiftMs: number;
-  endShiftMs: number;
-  durationDeltaMs: number;
-}>;
-
 function isSuggestionRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function suggestionNumber(value: unknown): number {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    throw new Error("Invalid cut suggestion response");
-  }
-  return value;
-}
-
-function suggestionRange(start: unknown, end: unknown): SourceRange {
-  const range = { start: suggestionNumber(start), end: suggestionNumber(end) };
-  if (range.start < 0 || range.end <= range.start) {
-    throw new Error("Invalid cut suggestion bounds");
-  }
-  return range;
-}
-
-type PendingCutIdentity = Pick<
-  PendingEditView,
-  "id" | "track_id" | "type" | "timebase" | "source_start" | "source_end"
->;
-
-function parsePendingCutSuggestion(
-  value: unknown,
-  edit: PendingCutIdentity,
-): PendingCutProposal {
-  if (!isSuggestionRecord(value) || !isSuggestionRecord(value.optimized)) {
-    throw new Error("Invalid cut suggestion response");
-  }
-  if (value.edit_id !== edit.id || value.track_id !== edit.track_id) {
-    throw new Error("Cut suggestion belongs to another edit");
-  }
-  const original = suggestionRange(value.original_start, value.original_end);
-  if (
-    original.start !== edit.source_start ||
-    original.end !== edit.source_end
-  ) {
-    throw new Error("Cut suggestion is out of date. Reload the current edit.");
-  }
-  const optimized = value.optimized;
-  const suggested = suggestionRange(optimized.start, optimized.end);
-  const confidence = suggestionNumber(optimized.confidence);
-  if (
-    typeof optimized.mode !== "string" ||
-    !optimized.mode ||
-    confidence < 0 ||
-    confidence > 1
-  ) {
-    throw new Error("Invalid cut suggestion response");
-  }
-  return {
-    editId: edit.id,
-    trackId: edit.track_id,
-    original,
-    expected: { ...pendingEditBaseline(edit), ...original },
-    suggested,
-    mode: optimized.mode,
-    confidence,
-    startShiftMs: suggestionNumber(optimized.shifted_start_ms),
-    endShiftMs: suggestionNumber(optimized.shifted_end_ms),
-    durationDeltaMs:
-      (suggested.end - suggested.start - (original.end - original.start)) *
-      1000,
-  };
-}
-
-export async function loadPendingCutSuggestion(
-  request: { projectPath: string; edit: PendingCutIdentity },
-  signal: AbortSignal,
-): Promise<PendingCutProposal> {
-  const { projectPath, edit } = request;
-  if (isShareProjectKey(projectPath) && !shareTokenFromKey(projectPath)) {
-    throw new Error("Invalid guest cut suggestion project key");
-  }
-  const endpoint = `/pending-edits/${encodeURIComponent(edit.id)}/cut-suggestion`;
-  const response = await apiFetch(
-    projectPath,
-    {
-      host: `/api${endpoint}?${new URLSearchParams({ path: projectPath })}`,
-      guest: `/daw${endpoint}`,
-    },
-    { signal },
-  );
-  const value: unknown = await response.json();
-  return parsePendingCutSuggestion(value, edit);
 }
 
 export async function updatePendingEdit(

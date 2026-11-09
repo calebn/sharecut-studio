@@ -17,7 +17,6 @@ vi.mock("../../api", () => ({
   rejectEdits: vi.fn(),
   updatePendingEdit: vi.fn(),
   createComment: vi.fn(),
-  loadPendingCutSuggestion: vi.fn(() => new Promise(() => {})),
 }));
 
 const edit = pendingEditView({ id: "edit-1", suggested_action: "cut" });

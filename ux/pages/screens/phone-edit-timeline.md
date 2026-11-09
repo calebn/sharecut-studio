@@ -20,7 +20,7 @@
 │ ┌ sheet: track / Pending cut ── X ┐ │
 │ │ Track: Name/Level/M/S + Tools     │ │
 │ │ Clip: paired fades / transition │ │
-│ │ Pending: Snap to silence + review │ │
+│ │ Pending: Decision card │ │
 │ └────────────────────────────────┘ │
 ```
 
