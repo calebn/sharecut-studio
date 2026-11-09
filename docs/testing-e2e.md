@@ -78,7 +78,14 @@ as native drag targets. Native movement allows one CSS pixel of engine coordinat
 rounding; cancellation and Undo restore exact geometry and saved points.
 Foreign pointer ID 99 move/up events are explicitly synthetic. They exercise real
 app handlers while the native mouse owner remains held. This does not prove
-native second-touch routing. `gui/web/e2e-compat/envelope-recovery.spec.ts` shares
+native second-touch routing. `gui/web/e2e-compat/envelope-short-phone.spec.ts`
+runs one 568×320 phone envelope journey in Chromium and WebKit. It reaches Time,
+Level, and Remove in sequence through ordinary browser wheel input on the
+Inspector body, checks actual scroll progress and a clipped-to-reachable control
+transition, then checks the literal saved Level value and removal of the selected
+point while preserving companion points. It does not prove physical touch,
+device behavior, software-keyboard behavior, or audio playback.
+`gui/web/e2e-compat/envelope-recovery.spec.ts` shares
 that flow in Chromium and WebKit at desktop width. Physical touch, stylus, Safari,
 and assistive technology remain unverified. Focused component tests cover all
 foreign terminal events, non-left mouse admission, capture cleanup, setup failure,
