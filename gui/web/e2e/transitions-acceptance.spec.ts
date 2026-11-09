@@ -305,7 +305,7 @@ test("the seam line rolls one join and Undo restores both clip bounds", async ({
     })
     .toEqual(beforePair);
 });
-test("crossfade endpoint saves block competing pointer fades until acknowledged", async ({
+test("crossfade length saves block competing pointer fades until acknowledged", async ({
   page,
 }) => {
   await openProject(page, projectPath);
@@ -316,13 +316,14 @@ test("crossfade endpoint saves block competing pointer fades until acknowledged"
   await page.keyboard.press("ControlOrMeta+K");
   await expect(lane.locator(".clip-block")).toHaveCount(2);
   await lane.locator(".edit-mark").click();
-  const panel = page.getByRole("dialog", { name: /join at/ });
-  await panel.getByRole("button", { name: "Crossfade", exact: true }).click();
-  const length = panel.getByRole("slider", { name: /Length/ });
-  await expect(length).toBeEnabled();
-  const grip = page.getByRole("button", {
-    name: /Drag crossfade right endpoint/,
-  });
+  await page
+    .getByRole("group", { name: /^(Selection|Edit) actions$/ })
+    .getByRole("group", { name: "Join type" })
+    .getByRole("button", { name: "Crossfade", exact: true })
+    .click();
+  await inspectSelection(page);
+  const length = page.getByRole("spinbutton", { name: "Length" });
+  await expect(length).toBeVisible();
   let release: () => void = () => {};
   const held = new Promise<void>((resolve) => {
     release = resolve;
@@ -342,11 +343,8 @@ test("crossfade endpoint saves block competing pointer fades until acknowledged"
     await route.fulfill({ response });
   });
   try {
-    const g = (await grip.boundingBox())!;
-    await page.mouse.move(g.x + g.width / 2, g.y + g.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(g.x + g.width / 2 + 8, g.y + g.height / 2);
-    await page.mouse.up();
+    await length.focus();
+    await page.keyboard.press("ArrowUp");
     await expect.poll(() => received).toBe(true);
     const fade = lane.locator(".clip-block").nth(0).locator(".fade-corner.in");
     await fade.focus();
@@ -376,7 +374,9 @@ test("crossfade endpoint saves block competing pointer fades until acknowledged"
     release();
   }
   await expect(
-    page.getByRole("button", { name: /Drag crossfade right endpoint/ }),
+    page
+      .getByRole("group", { name: "Join type" })
+      .getByRole("button", { name: "Fade", exact: true }),
   ).toBeEnabled();
   expect(commands.filter((type) => type === "SetClipJoin")).toHaveLength(1);
 });

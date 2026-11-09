@@ -271,7 +271,7 @@ export async function visiblePoint(
 
 export const lane = `.lane-row[data-track-id="${TRACK}"]`;
 
-/** What a press changes: selection, open join popover, focus, sheets. */
+/** What a press changes: selection, selected join, focus, sheets. */
 export async function pickState(page: Page) {
   return page.evaluate(() => ({
     pressedPoint:
@@ -282,16 +282,16 @@ export async function pickState(page: Page) {
       document
         .querySelector('.sys-env-point[aria-current="true"]')
         ?.getAttribute("data-hit-id") ?? null,
-    openJoinId:
+    selectedJoinId:
       document
-        .querySelector('.edit-mark[aria-expanded="true"]')
+        .querySelector('.edit-mark[aria-pressed="true"]')
         ?.getAttribute("data-hit-id") ?? null,
     selectedClips: [...document.querySelectorAll(".clip-block.selected")].map(
       (el) => el.getAttribute("data-clip-id"),
     ),
-    openJoin:
+    selectedJoin:
       document
-        .querySelector('.edit-mark[aria-expanded="true"]')
+        .querySelector('.edit-mark[aria-pressed="true"]')
         ?.getAttribute("aria-label") ?? null,
     focused: document.activeElement?.getAttribute("aria-label") ?? null,
     sheet: document.querySelector(".bottom-sheet-root") != null,
