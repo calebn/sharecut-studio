@@ -1,7 +1,7 @@
 const SLOTS = [1, 2, 3, 4, 5] as const;
 const CONFIDENCE_DOTS = SLOTS.length;
 
-export function confidenceDots(confidence: number): number {
+function confidenceDots(confidence: number): number {
   if (!Number.isFinite(confidence)) return 0;
   return Math.round(Math.min(1, Math.max(0, confidence)) * CONFIDENCE_DOTS);
 }
