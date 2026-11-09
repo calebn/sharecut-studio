@@ -312,6 +312,119 @@ describe("ScriptHost Fix text", () => {
     expect(word("friends (selected)")).toHaveFocus();
   });
 
+  it("saves a blur commit once and keeps the external destination focused", async () => {
+    let resolveCorrection!: (head: string) => void;
+    submitWordCorrection.mockImplementationOnce(
+      () => new Promise<string>((resolve) => (resolveCorrection = resolve)),
+    );
+    render(
+      <>
+        <ScriptHost />
+        <button type="button">Project destination</button>
+      </>,
+    );
+    await userEvent.click(word("friends"));
+    await userEvent.keyboard("{Enter}");
+    await userEvent.clear(field());
+    await userEvent.type(field(), "friend");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Project destination" }),
+    );
+    expect(submitWordCorrection).toHaveBeenCalledTimes(1);
+    expect(submitWordCorrection).toHaveBeenCalledWith(
+      "/tmp/ep",
+      "host",
+      5,
+      5,
+      "friend",
+      "friends",
+      null,
+    );
+
+    await act(async () => resolveCorrection("h1"));
+
+    expect(
+      screen.getByRole("button", { name: "Project destination" }),
+    ).toHaveFocus();
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      message: "Text fixed: friend",
+      undo: "h1",
+    });
+    expect(submitWordCorrection).toHaveBeenCalledTimes(1);
+  });
+
+  it("retires an unchanged blur without submitting or stealing focus", async () => {
+    render(
+      <>
+        <ScriptHost />
+        <button type="button">Project destination</button>
+      </>,
+    );
+    await userEvent.click(word("friends"));
+    await userEvent.keyboard("{Enter}");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Project destination" }),
+    );
+
+    expect(submitWordCorrection).not.toHaveBeenCalled();
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Project destination" }),
+    ).toHaveFocus();
+  });
+
+  it.each([
+    ["Enter", "{Enter}"],
+    ["Tab", "{Tab}"],
+  ])(
+    "keeps an external destination after a deferred %s correction",
+    async (_name, key) => {
+      let resolveCorrection!: (head: string) => void;
+      submitWordCorrection.mockImplementationOnce(
+        () => new Promise<string>((resolve) => (resolveCorrection = resolve)),
+      );
+      render(
+        <>
+          <ScriptHost />
+          <button type="button">External destination</button>
+        </>,
+      );
+      await userEvent.click(word("friends"));
+      await userEvent.keyboard("{Enter}");
+      await userEvent.clear(field());
+      await userEvent.type(field(), "friend");
+      await userEvent.keyboard(key);
+      const selectionBeforeCompletion = useDawStore.getState().selection;
+      await userEvent.click(
+        screen.getByRole("button", { name: "External destination" }),
+      );
+
+      await act(async () => resolveCorrection("h1"));
+
+      expect(
+        screen.getByRole("button", { name: "External destination" }),
+      ).toHaveFocus();
+      expect(submitWordCorrection).toHaveBeenCalledTimes(1);
+      expect(submitWordCorrection).toHaveBeenCalledWith(
+        "/tmp/ep",
+        "host",
+        5,
+        5,
+        "friend",
+        "friends",
+        null,
+      );
+      expect(useDawStore.getState().feedbackToast).toMatchObject({
+        undo: "h1",
+      });
+      if (key === "{Tab}") {
+        expect(useDawStore.getState().selection).toEqual(
+          selectionBeforeCompletion,
+        );
+      }
+    },
+  );
+
   it("jumps to the next unsure word on Tab after saving", async () => {
     await openWith("{Enter}");
     await userEvent.type(field(), "!{Tab}");
@@ -321,6 +434,7 @@ describe("ScriptHost Fix text", () => {
       trackId: "host",
       startWordIndex: 2,
     });
+    expect(word("to (unsure, selected)")).toHaveFocus();
   });
 
   it("announces the fix as a toast with Undo for its history step", async () => {
