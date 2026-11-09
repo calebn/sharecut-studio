@@ -5,6 +5,7 @@ import { type CutSeam, keepPlan, type Seam, seamById } from "../edit/seam";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { trackEditSave } from "../state/documentSendOrder";
+import { inspectorOpenFor } from "../state/selection";
 import type { JoinMode } from "../types/project";
 import { errorMessage } from "../utils/apiError";
 import { joinModeOf } from "../utils/editMarkerRegistry";
@@ -12,6 +13,7 @@ import { playSpan } from "./playSpan";
 import type { ExecuteResult } from "./types";
 
 export const HEAR_ACROSS_SEC = 2;
+export const EDITING_OFF_REASON = "Editing is off for this link";
 
 export type SeamCommit =
   | { status: "done" }
@@ -26,6 +28,16 @@ export function hearAcross(seam: Seam): ExecuteResult {
     seam.joinSec + HEAR_ACROSS_SEC,
     0,
   );
+}
+
+export function replayIfInspected(seamId: string): void {
+  const s = useDawStore.getState();
+  const open =
+    s.selection?.kind === "seam" &&
+    s.selection.id === seamId &&
+    inspectorOpenFor(s.selection, s.inspectorKey);
+  const seam = s.project ? seamById(s.project, seamId) : null;
+  if (open && seam && !s.isPlaying) hearAcross(seam);
 }
 
 export async function setSeamJoin(
@@ -50,7 +62,7 @@ export async function setSeamJoin(
   const range = appliedJoinLength(left, right, fadeMax);
   let sent: number | null = null;
   if (mode === "crossfade") {
-    if (range.max < 1) return SKIPPED;
+    if (range.max < 1 || right.join_crossfade_blocked) return SKIPPED;
     sent = Math.min(range.max, Math.max(1, lengthMs ?? range.saved));
   } else if (mode === "fade" && lengthMs != null) {
     sent = Math.min(range.max, Math.max(0, lengthMs));
@@ -93,7 +105,7 @@ export async function restoreSeam(seam: CutSeam): Promise<ExecuteResult> {
     !project ||
     !canApplyPass12(projectPath, store.guestMode, store.shareCapabilities)
   ) {
-    return { status: "disabled", reason: "Editing is off for this link" };
+    return { status: "disabled", reason: EDITING_OFF_REASON };
   }
   const current = seamById(project, seam.id);
   if (current?.kind !== "cut") {

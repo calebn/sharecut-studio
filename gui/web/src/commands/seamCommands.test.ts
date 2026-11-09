@@ -139,6 +139,14 @@ describe("setSeamJoin", () => {
     expect(useDawStore.getState().joinMutationInFlight).toBe(false);
   });
 
+  it("refuses a crossfade the join cannot blend", async () => {
+    const seam = load({ ...R, join_crossfade_blocked: "no_headroom" });
+    expect(await setSeamJoin(seam, "crossfade", 80)).toEqual({
+      status: "skipped",
+    });
+    expect(api.setClipJoin).not.toHaveBeenCalled();
+  });
+
   it("reports a rejected save and says it", async () => {
     const seam = load();
     vi.mocked(api.setClipJoin).mockRejectedValueOnce(
