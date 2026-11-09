@@ -152,7 +152,7 @@ describe("ToolsSheet", () => {
 
   it("holds the touch range toggle with the corner a short frame takes off the lanes", async () => {
     const user = userEvent.setup();
-    useDawStore.setState({ pointerKind: "coarse" });
+    useDawStore.setState({ pointerKind: "coarse", selection: null });
     render(<ToolsSheet />);
     await user.click(screen.getByRole("button", { name: "Select range" }));
     expect(useDawStore.getState().rangeArmed).toBe(true);

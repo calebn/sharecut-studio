@@ -4,6 +4,7 @@ import { apiSend } from "../api/http";
 import { commentDraftFromRange } from "../comments/commentAnchor";
 import { setClipboard } from "../edit/clipboard";
 import {
+  isRangeSelection,
   rangeIsCurrent,
   resolveSelectionRange,
   seedRangeDraft,
@@ -363,6 +364,8 @@ export function armRangeDraft(): ExecuteResult {
     s.setRangeArmed(false);
     return { status: "ok" };
   }
+  if (isRangeSelection(s.selection))
+    return { status: "disabled", reason: "A range is already selected" };
   const draft = seedRangeDraft(s.project, s.playheadSec, s.selection);
   if (!draft) return { status: "disabled", reason: "Nothing to select yet" };
   s.armRange(draft);

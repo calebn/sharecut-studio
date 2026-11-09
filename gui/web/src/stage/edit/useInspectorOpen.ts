@@ -44,7 +44,6 @@ export function useInspectorOpen(
       (!touch || opensSheet(selection, screen)));
   const close = useCallback(() => {
     const s = useDawStore.getState();
-    if (s.rangeArmed) s.setSelection(null);
     s.setRangeArmed(false);
     s.setInspectorOpen(false);
   }, []);

@@ -153,6 +153,18 @@ describe("useInspectorOpen with a range draft", () => {
     expect(result.current.open).toBe(false);
   });
 
+  it("closing a draft over a clip keeps the clip selected", () => {
+    useDawStore
+      .getState()
+      .setSelection({ kind: "clip", id: "c2", trackId: "host" });
+    const { result } = renderHook(() =>
+      useInspectorOpen("desktop", "timeline"),
+    );
+    act(() => result.current.close());
+    expect(useDawStore.getState().selection).toMatchObject({ kind: "clip" });
+    expect(useDawStore.getState().rangeArmed).toBe(false);
+  });
+
   it("closes to nothing armed and no draft", () => {
     const { result } = renderHook(() =>
       useInspectorOpen("desktop", "timeline"),

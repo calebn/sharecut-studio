@@ -222,6 +222,21 @@ describe("track.remove / nav / Escape fall-through", () => {
     });
   });
 
+  it("the first Escape drops an armed draft even with a clip selected", async () => {
+    useDawStore.setState({
+      selection: { kind: "clip", id: "c1", trackId: "host" },
+      inspectorKey: "clip:c1",
+      rangeArmed: true,
+      rangeDraft: { start: 0, end: 5, trackIds: ["host"] },
+    });
+    expect((await execute("edit.clearSelection")).status).toBe("ok");
+    expect(useDawStore.getState()).toMatchObject({
+      rangeArmed: false,
+      rangeDraft: null,
+      selection: { kind: "clip", id: "c1", trackId: "host" },
+    });
+  });
+
   it("Home / End and Mod+arrows seek session bounds", async () => {
     useDawStore.setState({ playheadSec: 12 });
     expect((await execute("navigation.goToStart")).status).toBe("ok");
