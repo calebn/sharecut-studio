@@ -114,6 +114,7 @@ test("568x320 phone envelope controls scroll into reach and preserve saved point
       let clippedToReachable = false;
       const reach = async (control: Locator) => {
         let geometry = await controlGeometry(control);
+        const initialGeometry = geometry;
         const fullyAdmitted = () => {
           const measured = geometry.measured[0];
           return (
@@ -128,7 +129,14 @@ test("568x320 phone envelope controls scroll into reach and preserve saved point
             measured.rect.bottom <= measured.clip.bottom + 1
           );
         };
-        const wasClipped = !fullyAdmitted();
+        const initialMeasurement = initialGeometry.measured[0];
+        const wasClipped =
+          initialMeasurement.admission.state === "admitted" &&
+          (initialMeasurement.rect.left < initialMeasurement.clip.left - 1 ||
+            initialMeasurement.rect.right > initialMeasurement.clip.right + 1 ||
+            initialMeasurement.rect.top < initialMeasurement.clip.top - 1 ||
+            initialMeasurement.rect.bottom >
+              initialMeasurement.clip.bottom + 1);
         let movedTowardReach = false;
         for (let attempt = 0; !fullyAdmitted() && attempt < 12; attempt++) {
           expect(
@@ -158,7 +166,12 @@ test("568x320 phone envelope controls scroll into reach and preserve saved point
         if (wasClipped && movedTowardReach) clippedToReachable = true;
         receipts.push({
           checkpoint: "envelope-control-reached-after-body-wheel",
-          observation: { wasClipped, movedTowardReach, geometry },
+          observation: {
+            wasClipped,
+            movedTowardReach,
+            initialGeometry,
+            geometry,
+          },
         });
         return geometry;
       };
