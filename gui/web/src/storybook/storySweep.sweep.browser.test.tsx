@@ -78,6 +78,37 @@ for (const mod of Object.values(modules)) {
   }
 }
 
+describe("viewport policy", () => {
+  it("prioritizes wide-only tags while preserving Frame, phone, and default widths", () => {
+    const recordingLive = stories.find(
+      (story) =>
+        story.title === "Stages/Edit/Frame" &&
+        story.storyName === "RecordingLive",
+    );
+    const untaggedFrame = stories.find(
+      (story) =>
+        story.title === "Stages/Edit/Frame" && story.storyName === "Tablet",
+    );
+    const taggedNonFrame = stories.find(
+      (story) =>
+        story.title !== "Stages/Edit/Frame" && story.tags.includes("wide-only"),
+    );
+    const phoneStory = stories.find((story) => story.storyName === "PhoneTabs");
+    const ordinaryStory = stories.find(
+      (story) =>
+        story.title !== "Stages/Edit/Frame" &&
+        !story.tags.includes("wide-only") &&
+        !isPhoneStory(story.storyName),
+    );
+
+    expect(recordingLive && widthsFor(recordingLive)).toEqual([WIDE]);
+    expect(untaggedFrame && widthsFor(untaggedFrame)).toEqual([PHONE, WIDE]);
+    expect(taggedNonFrame && widthsFor(taggedNonFrame)).toEqual([WIDE]);
+    expect(phoneStory && widthsFor(phoneStory)).toEqual([PHONE]);
+    expect(ordinaryStory && widthsFor(ordinaryStory)).toEqual([PHONE, WIDE]);
+  });
+});
+
 let host: HTMLElement | undefined;
 
 beforeAll(async () => {
