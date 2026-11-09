@@ -390,6 +390,14 @@ describe("dawStore listen-first transport", () => {
     expect(useDawStore.getState().playUntilSec).toBe(14);
   });
 
+  it("a store playhead write with the default origin keeps the stop bound", () => {
+    useDawStore.getState().beginAudition({ playheadSec: 10, untilSec: 14 });
+    useDawStore.getState().setPlayheadSec(12);
+    const s = useDawStore.getState();
+    expect(s.playheadSec).toBe(12);
+    expect(s.playUntilSec).toBe(14);
+  });
+
   it("pausing an audition stops playback", () => {
     useDawStore.getState().beginAudition({ playheadSec: 10, untilSec: 14 });
     useDawStore.getState().setIsPlaying(false);
