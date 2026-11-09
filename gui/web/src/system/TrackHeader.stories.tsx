@@ -50,7 +50,12 @@ const press = async (canvas: ReturnType<typeof within>, name: string) => {
 export const Default: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    await press(canvas, "Mute Maya Okafor");
+    const mute = canvas.getByRole("button", { name: "Mute Maya Okafor" });
+    await expect(mute).toHaveAccessibleDescription(
+      "Mute. Mutes the track in the mix, for everyone",
+    );
+    mute.focus();
+    await userEvent.keyboard("{Enter}");
     await press(canvas, "Solo Maya Okafor");
     await press(canvas, "Maya Okafor");
     await expect(args.onMute).toHaveBeenCalledWith("track-maya");
@@ -214,5 +219,19 @@ export const ReadOnly: Story = {
     await expect(
       canvas.getByRole("spinbutton", { name: "Maya Okafor level" }),
     ).toHaveAttribute("aria-readonly", "true");
+  },
+};
+
+export const ReadOnlyUnmuted: Story = {
+  args: { readOnly: true, mute: "off", level: -3 },
+  play: async ({ canvasElement, args }) => {
+    const mute = within(canvasElement).getByRole("button", {
+      name: "Mute Maya Okafor",
+    });
+    await expect(mute).toHaveAccessibleDescription(
+      "Mute. Mutes the track for you only",
+    );
+    await userEvent.click(mute);
+    await expect(args.onMute).toHaveBeenCalledWith("track-maya");
   },
 };
