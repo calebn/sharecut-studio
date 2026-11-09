@@ -8,7 +8,7 @@ import { useOutsidePointerDown } from "./useOutsidePointerDown";
 import { useTopLayerPanel } from "./useTopLayerPanel";
 
 type Props = {
-  /** Anchored outside dismissal keeps current focus; the default restores the anchor. */
+  /** Anchored outside dismissal may preserve an outside control's focus. Close and Escape use the opener; the default restores the anchor. */
   outsideDismissal?: "restore-anchor" | "preserve-focus";
   open: boolean;
   onClose: () => void;
