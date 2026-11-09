@@ -14,6 +14,7 @@ import {
   ENVELOPE_POINT_SECTIONS,
   LONG_SECTIONS,
   PENDING_SECTIONS,
+  RANGE_DRAFT_SECTIONS,
   RANGE_SECTIONS,
   SEAM_SECTIONS,
   TRACK_SECTIONS,
@@ -322,6 +323,29 @@ export const Range: Story = {
   ),
 };
 
+const draftPlay: Story["play"] = async ({ canvasElement }) => {
+  const canvas = within(canvasElement);
+  const field = (name: string) => canvas.getByRole("spinbutton", { name });
+  await expect(field("In")).toHaveAttribute("aria-valuenow", "12");
+  await expect(field("Out")).toHaveAttribute("aria-valuenow", "17");
+  await expect(field("Length")).toHaveAttribute("aria-valuenow", "5");
+  field("Out").focus();
+  await userEvent.keyboard("{Enter}{Enter}");
+  await expect(field("Out")).toHaveFocus();
+};
+
+export const RangeDraftCard: Story = {
+  render: () => (
+    <CardDemo
+      icon="flag"
+      name="Range"
+      sections={RANGE_DRAFT_SECTIONS}
+      anchorAt={nearTop}
+    />
+  ),
+  play: draftPlay,
+};
+
 function PhoneDemo({
   initial,
   sections,
@@ -397,4 +421,11 @@ export const PhoneFull: Story = {
       within(canvasElement).getByRole("slider", { name: "Sheet height" }),
     ).toHaveAttribute("aria-valuetext", "Full height");
   },
+};
+
+export const RangeDraftPhone: Story = {
+  render: () => (
+    <PhoneDemo initial="half" sections={RANGE_DRAFT_SECTIONS} name="Range" />
+  ),
+  play: draftPlay,
 };

@@ -89,8 +89,8 @@ secondary word controls and metadata. The full word remains the accessible
 heading even when its visible title is shortened to one line. The range's verbs live on the Action bar (floating beside the selection on desktop and tablet, docked above the Player on a phone); the Range fields keep In and Out and the word handles, first in Select mode.
 Reordering these sections preserves their component identity and local drafts
 (`#2163`, `stage/edit/selectionSurface.test.tsx`).
-The tracks ticked for a range not yet formed live in `rangeScopeTrackIds`; they
-are draft UI state, not a selection.
+The span and tracks typed for a range not yet formed live in `rangeDraft`; it is
+draft UI state, not a selection, and `commitRange` turns it into one.
 `utils/pendingReviewPass.ts` owns single-review completion for the inspector and
 timeline overlay. `timeline/PendingEditOverlay.test.tsx` covers delayed document
 adoption and reply-head Undo through both entry points.
