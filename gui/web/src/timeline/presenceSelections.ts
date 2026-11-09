@@ -1,3 +1,4 @@
+import { seamIdOf } from "../edit/seam";
 import type { PresenceSelection } from "../system/Presence";
 import type { ProjectView } from "../types/project";
 import type { SessionClient, SessionSelection } from "../types/session";
@@ -6,7 +7,7 @@ import { transcriptWordRange } from "../utils/transcript";
 
 /** Narrowest remote span (px): a clip or a one-word transcript selection stays visible at any zoom. */
 export const SPAN_MIN_PX = 2;
-/** Width of a remote pending or applied point selection (px). */
+/** Width of a remote pending or seam point selection (px). */
 export const POINT_PX = 2;
 /** Width of a remote envelope-point selection (px). */
 export const ENVELOPE_POINT_PX = 5;
@@ -28,6 +29,27 @@ function clipSpan(project: PresenceProject, id: string): Span | null {
         start: clip.timeline_start,
         end: clip.timeline_end,
         minPx: SPAN_MIN_PX,
+      };
+    }
+  }
+  return null;
+}
+
+function seamSpan(
+  project: PresenceProject,
+  trackId: string,
+  id: string,
+): Span | null {
+  const lane = [...(project.clips.tracks[trackId] ?? [])].sort(
+    (a, b) => a.timeline_start - b.timeline_start,
+  );
+  for (let i = 0; i + 1 < lane.length; i += 1) {
+    if (seamIdOf(lane[i], lane[i + 1]) === id) {
+      return {
+        laneId: trackId,
+        start: lane[i].timeline_end,
+        end: lane[i].timeline_end,
+        minPx: POINT_PX,
       };
     }
   }
@@ -65,11 +87,10 @@ function transcriptSpan(
 
 function selectionSpan(project: PresenceProject, sel: SessionSelection) {
   if (sel.kind === "clip" && sel.id) return clipSpan(project, sel.id);
-  if (
-    (sel.kind === "pending" || sel.kind === "applied") &&
-    sel.track_id &&
-    sel.time != null
-  ) {
+  if (sel.kind === "seam" && sel.id && sel.track_id) {
+    return seamSpan(project, sel.track_id, sel.id);
+  }
+  if (sel.kind === "pending" && sel.track_id && sel.time != null) {
     return {
       laneId: sel.track_id,
       start: sel.time,

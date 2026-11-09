@@ -188,7 +188,7 @@ export function inspectKeyOf(selection: Selection): string | null {
       return selection.kind;
     case "clip":
     case "pending":
-    case "applied":
+    case "seam":
     case "chapter":
     case "social":
     case "comment":

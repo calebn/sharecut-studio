@@ -8,6 +8,7 @@ import type {
 import { isRemovalRecord } from "../utils/appliedRecords";
 import { findTranscriptWord } from "../utils/transcript";
 import { roomToneGaps } from "./roomToneGaps";
+import { seamById } from "./seam";
 import { rangeTimelineSpan } from "./selectionClipboard";
 
 export type EditKind =
@@ -16,7 +17,6 @@ export type EditKind =
   | "range"
   | "clip"
   | "seam"
-  | "appliedEdge"
   | "suggestion"
   | "chapter"
   | "social"
@@ -42,7 +42,7 @@ export interface EditFacts {
   /** Clips, tracks or words held; 1 for any other object, 0 for the playhead. */
   readonly count: number;
   readonly span: EditSpan | null;
-  /** Words: any selected word is suppressed. Range: it overlaps an applied removal. Seam: always. */
+  /** Words: any selected word is suppressed. Range: it overlaps an applied removal. Seam: it is a cut, not a split. */
   readonly holdsCut: boolean;
   /** A room-tone fill would cover time between clips in this range. */
   readonly hasGap: boolean;
@@ -53,11 +53,8 @@ export interface EditFacts {
   readonly role: EditRole;
 }
 
-/** A removal record is a seam. A mute, trim, split, roll, fill or move is an edge with no cut to restore. */
-export function selectionKind(
-  selection: Selection,
-  project: ProjectView,
-): EditKind {
+/** A seam is a join between two neighbouring clips, a cut or a split. */
+export function selectionKind(selection: Selection): EditKind {
   if (selection === null) return "playhead";
   switch (selection.kind) {
     case "transcriptRange":
@@ -66,12 +63,8 @@ export function selectionKind(
       return "range";
     case "clip":
       return "clip";
-    case "applied": {
-      const record = project.applied_edits.records.find(
-        (entry) => entry.id === selection.id,
-      );
-      return record && isRemovalRecord(record) ? "seam" : "appliedEdge";
-    }
+    case "seam":
+      return "seam";
     case "pending":
       return "suggestion";
     case "chapter":
@@ -141,17 +134,11 @@ export function selectionSpan(
         [...new Set(clips.map((clip) => clip.track_id))],
       );
     }
-    case "applied": {
-      const record = project.applied_edits.records.find(
-        (entry) => entry.id === selection.id,
-      );
-      if (record?.timeline_start == null || record.timeline_end == null)
-        return null;
-      return {
-        start: record.timeline_start,
-        end: record.timeline_end,
-        trackIds: record.track_ids,
-      };
+    case "seam": {
+      const seam = seamById(project, selection.id);
+      return seam
+        ? { start: seam.joinSec, end: seam.joinSec, trackIds: [seam.trackId] }
+        : null;
     }
     case "pending": {
       const edit = project.pending_edits.find(
@@ -236,7 +223,8 @@ function holdsCutOf(
   span: EditSpan | null,
   project: ProjectView,
 ): boolean {
-  if (selection?.kind === "applied") return kind === "seam";
+  if (selection?.kind === "seam")
+    return seamById(project, selection.id)?.kind === "cut";
   if (selection?.kind === "transcriptRange")
     return holdsCutWord(selection, project);
   return kind === "range" && span !== null && overlapsAppliedCut(span, project);
@@ -262,7 +250,7 @@ export function editFacts(
   project: ProjectView,
   ctx: { readonly role: EditRole; readonly clipboardHasAudio: boolean },
 ): EditFacts {
-  const kind = selectionKind(selection, project);
+  const kind = selectionKind(selection);
   const span = selectionSpan(selection, project);
   const range = selection?.kind === "range" ? selection.target : null;
   return {

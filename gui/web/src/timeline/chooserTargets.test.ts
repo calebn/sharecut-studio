@@ -86,7 +86,6 @@ describe("chooserTargetsOf", () => {
       clip: "clip",
       "trim-in": "clip",
       "fade-out": "clip",
-      "crossfade-end": "clip",
       roll: "seam",
       join: "seam",
       "edit-chip": "seam",

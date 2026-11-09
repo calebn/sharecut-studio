@@ -8,7 +8,6 @@ interface AppliedEditOverlayProps {
   clips: readonly ClipRow[];
   trackId: string;
   zoomPxPerSec: number;
-  selectedId: string | null;
 }
 
 /**
@@ -24,7 +23,6 @@ export function AppliedEditOverlay({
   clips,
   trackId,
   zoomPxPerSec,
-  selectedId,
 }: AppliedEditOverlayProps) {
   // `appliedEditTicks` still filters by `trackId` on purpose, though
   // TimelineView passes this lane its own slice (see PendingEditOverlay).
@@ -42,9 +40,7 @@ export function AppliedEditOverlay({
       {ticks.map((t) => (
         <div
           key={t.key}
-          className={`applied-tick applied-tick--${markerVariant(appliedKind(t))}${
-            selectedId === t.recordId ? " selected" : ""
-          }`}
+          className={`applied-tick applied-tick--${markerVariant(appliedKind(t))}`}
           style={{ left: t.sec * zoomPxPerSec }}
         />
       ))}

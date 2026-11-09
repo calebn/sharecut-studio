@@ -9,6 +9,7 @@ import type {
 } from "../edit/clipMove";
 import { clipsAbut } from "../edit/joinRender";
 import { laneRipple, rippleMoves, rippleTrackIds } from "../edit/ripplePreview";
+import { seamIdOf } from "../edit/seam";
 import { trimNeighborBounds } from "../edit/trimLimits";
 import {
   audioFilesFromDrop,
@@ -38,7 +39,6 @@ import { sessionSecOf } from "../utils/zoom";
 import { clipMediaRef } from "../waveform/mediaRef";
 import { useLaneWaveformStatus } from "../waveform/statusStore";
 import { AppliedEditOverlay } from "./AppliedEditOverlay";
-import { appliedEditTicks, seamTickAtJoin } from "./appliedEditTicks";
 import { BleedAttenuationOverlay } from "./BleedAttenuationOverlay";
 import { ClipBlock } from "./ClipBlock";
 import {
@@ -98,7 +98,7 @@ interface TrackLaneProps {
   bleedInspection?: ClipBleedSnapshot;
   onSelectBleed?: (trackId: string, clipId: string, key: string) => void;
   onSelectPending: (trackId: string, id: string) => void;
-  onSelectApplied: (trackId: string, id: string) => void;
+  onSelectSeam: (trackId: string, id: string) => void;
   canMoveClips?: boolean;
   selectedClipIds?: readonly string[];
   previewStartById?: Readonly<Record<string, number>>;
@@ -131,7 +131,7 @@ export function TrackLaneView({
   bleedInspection = null,
   onSelectBleed,
   onSelectPending,
-  onSelectApplied,
+  onSelectSeam,
   canMoveClips = false,
   selectedClipIds = EMPTY_ARR,
   previewStartById = EMPTY_OBJ,
@@ -220,16 +220,9 @@ export function TrackLaneView({
       onSelectClip(trackId, clipId, mods),
     [onSelectClip, trackId],
   );
-  const appliedTicks = useMemo(
-    () => appliedEditTicks(appliedRecords, trackId, clips),
-    [appliedRecords, trackId, clips],
-  );
   const onSelectJoin = useCallback(
-    (mark: JoinMark) => {
-      const tick = seamTickAtJoin(appliedTicks, mark);
-      if (tick) onSelectApplied(trackId, tick.recordId);
-    },
-    [appliedTicks, onSelectApplied, trackId],
+    (mark: JoinMark) => onSelectSeam(trackId, seamIdOf(mark.left, mark.right)),
+    [onSelectSeam, trackId],
   );
   const selectPending = useCallback(
     (id: string) => onSelectPending(trackId, id),
@@ -478,10 +471,7 @@ export function TrackLaneView({
               key={id}
               left={left}
               right={right}
-              seamSec={right.timeline_start}
               zoomPxPerSec={zoomPxPerSec}
-              trackFadeMaxMs={track.fade_max_ms ?? null}
-              rolling={rollPreview != null}
               leftRef={clipMediaRef(left, track, "raw")}
               rightRef={clipMediaRef(right, track, "raw")}
               role={track.role}
@@ -536,7 +526,6 @@ export function TrackLaneView({
             clips={clips}
             trackId={track.id}
             zoomPxPerSec={zoomPxPerSec}
-            selectedId={selection?.kind === "applied" ? selection.id : null}
           />
           <PendingEditOverlay
             edits={pendingEdits}

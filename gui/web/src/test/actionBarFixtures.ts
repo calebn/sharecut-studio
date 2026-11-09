@@ -11,6 +11,7 @@ import type { ProjectView, Selection } from "../types/project";
 import {
   appliedEditRecord,
   clipRow,
+  editBoundaries,
   minimalProject,
   pendingEditView,
   sampleComment,
@@ -69,8 +70,15 @@ export function editFixtureProject(): ProjectView {
     },
     applied_edits: {
       count: 1,
-      records: [appliedEditRecord({ track_ids: [MIRA] })],
+      records: [
+        appliedEditRecord({
+          track_ids: [MIRA],
+          source_start: 4,
+          source_end: 6,
+        }),
+      ],
     },
+    edit_boundaries: editBoundaries(miraClips),
     pending_edits: [
       pendingEditView({
         id: "pending-cut",
@@ -112,7 +120,7 @@ export const EDIT_SELECTIONS = {
   rangeOverGap: range([{ start: 4.5, end: 5.5 }], [MIRA]),
   clip: { kind: "clip", id: "a", trackId: MIRA },
   clips: { kind: "clip", id: "a", trackId: MIRA, ids: ["a", "b", "c"] },
-  seam: { kind: "applied", id: "edit-1", trackId: MIRA },
+  seam: { kind: "seam", id: "eb:a:b", trackId: MIRA },
   suggestion: { kind: "pending", id: "pending-cut", trackId: MIRA },
   comment: { kind: "comment", id: "open" },
 } as const satisfies Record<string, Selection>;

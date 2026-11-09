@@ -294,7 +294,6 @@ describe("dawStore listen-first transport", () => {
       playUntilSec: 10,
       highlightStaleRender: true,
       renderPreviewBusy: true,
-      openJoinId: "c1",
       joinMutationInFlight: true,
     });
     useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
@@ -311,7 +310,6 @@ describe("dawStore listen-first transport", () => {
     expect(s.playUntilSec).toBeNull();
     expect(s.highlightStaleRender).toBe(false);
     expect(s.renderPreviewBusy).toBe(false);
-    expect(s.openJoinId).toBeNull();
     expect(s.joinMutationInFlight).toBe(false);
   });
 

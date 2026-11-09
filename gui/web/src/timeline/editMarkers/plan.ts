@@ -63,10 +63,6 @@ export interface LanePlan {
   chips: readonly PlacedChip[];
 }
 
-export function joinPopoverId(clipId: string): string {
-  return `join-popover-${clipId}`;
-}
-
 export function collectJoinMarks(
   clips: readonly ClipRow[],
   roll: RollPreview | null,

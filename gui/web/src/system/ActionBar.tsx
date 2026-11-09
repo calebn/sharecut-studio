@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Button, Menu, MenuItem } from "../ui";
+import { Button, Menu, MenuItem, SegmentedControl, ToggleButton } from "../ui";
 import { disabledAttrs } from "../ui/disabledReason";
 import { type AnchorExclusion, useAnchoredPanel } from "../ui/useAnchoredPanel";
 import { type BarItem, foldDock, slotsOf } from "./actionBarSlots";
@@ -164,6 +164,35 @@ function PrimaryButton({
   );
 }
 
+function SegmentedItem({
+  look,
+  item,
+  onVerb,
+}: {
+  look: Look;
+  item: BarItem;
+  onVerb: ActionBarProps["onVerb"];
+}) {
+  const size = look === "dock" ? 20 : 16;
+  return (
+    <SegmentedControl label={labelOf(item)}>
+      {(item.options ?? []).map((option) => (
+        <ToggleButton
+          key={option.value}
+          quiet
+          pressed={option.pressed}
+          title={option.label}
+          aria-label={option.label}
+          disabledReason={item.disabledReason}
+          onClick={() => onVerb(item.id, option.value)}
+        >
+          <SystemIcon name={option.icon} size={size} />
+        </ToggleButton>
+      ))}
+    </SegmentedControl>
+  );
+}
+
 function MoreMenu({
   look,
   rows,
@@ -244,6 +273,15 @@ function Items({
             />
           ))}
         </span>
+      );
+    if (first.options)
+      return (
+        <SegmentedItem
+          key={first.id}
+          look={look}
+          item={first}
+          onVerb={onVerb}
+        />
       );
     return first.id === "more" ? (
       <MoreMenu

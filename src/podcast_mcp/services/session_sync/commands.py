@@ -140,7 +140,7 @@ PresenceSelectionKind = Literal[
     "chapter",
     "marker",
     "pending",
-    "applied",
+    "seam",
     "transcriptWord",
     "transcriptRange",
     "envelopePoint",
@@ -203,7 +203,7 @@ class PresenceTransport(BaseModel):
 class PresenceSelection(BaseModel):
     model_config = ConfigDict(extra="ignore")
     kind: PresenceSelectionKind
-    id: str | None = Field(default=None, max_length=64)
+    id: str | None = Field(default=None, max_length=160)
     track_id: str | None = Field(default=None, max_length=64)
     source_id: str | None = Field(default=None, max_length=64)
     time: PresenceSec | None = None

@@ -63,7 +63,7 @@ const baseProps = {
   appliedRecords: [],
   pendingEdits: [],
   onSelectPending: vi.fn(),
-  onSelectApplied: vi.fn(),
+  onSelectSeam: vi.fn(),
 };
 
 describe("TrackLane", () => {
@@ -456,13 +456,16 @@ describe("TrackLane join marks", () => {
     ).toHaveLength(1);
   });
 
-  it("opens the join popover from the glyph", () => {
-    lane();
-    const badge = screen.getByRole("button", { name: "Fade join at 0:05.0" });
-    fireEvent.click(badge);
-    expect(
-      screen.getByRole("dialog", { name: "Fade join at 0:05.0" }),
-    ).toBeInTheDocument();
+  it("selects the seam of a join when its glyph is pressed", () => {
+    const onSelectSeam = vi.fn();
+    lane({ onSelectSeam });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Fade join at 0:05.0" }),
+    );
+    expect(onSelectSeam).toHaveBeenCalledExactlyOnceWith(
+      "host",
+      expect.stringMatching(/^eb:.+:.+$/),
+    );
   });
 });
 

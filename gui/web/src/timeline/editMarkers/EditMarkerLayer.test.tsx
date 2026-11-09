@@ -1,10 +1,8 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { setClipJoin } from "../../api";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
-import { waitForDialogFocus } from "../../test/dialogFocus";
 import { clipRow, minimalProject, sampleTrack } from "../../test/fixtures";
 import {
   FakeResizeObserver,
@@ -16,9 +14,6 @@ import { JoinEditor } from "../JoinEditor";
 import { EditMarkerLayer } from "./EditMarkerLayer";
 import { collectJoinMarks, planLaneMarks } from "./plan";
 
-vi.mock("../../api", () => ({
-  setClipJoin: vi.fn(async () => undefined),
-}));
 vi.mock("../WaveformLayer", () => ({ WaveformLayer: () => null }));
 
 function pair(prefix: string, startSec: number, mode: ClipRow["join_in_mode"]) {
@@ -52,10 +47,10 @@ function planOf(clips: ClipRow[], zoom: number) {
 
 describe("EditMarkerLayer glyphs", () => {
   beforeEach(() => {
-    useDawStore.setState({ openJoinId: null, joinMutationInFlight: false });
+    useDawStore.setState({ joinMutationInFlight: false });
   });
 
-  it("hands the join to onSelectJoin when its glyph is pressed, so a cut can select its applied record", () => {
+  it("hands the join to onSelectJoin each time its glyph is pressed", () => {
     const { left, right } = pair("s", 2, "cut");
     const onSelectJoin = vi.fn();
     render(
@@ -72,26 +67,8 @@ describe("EditMarkerLayer glyphs", () => {
       sec: 2,
       kind: "join-cut",
     });
-    expect(useDawStore.getState().openJoinId).toBe("s1");
     fireEvent.click(screen.getByRole("button", { name: /join at 0:02\.0$/ }));
     expect(onSelectJoin).toHaveBeenCalledTimes(2);
-    expect(useDawStore.getState().openJoinId).toBeNull();
-  });
-
-  it("leaves the selection alone while a join change is saving", () => {
-    useDawStore.setState({ joinMutationInFlight: true });
-    const { left, right } = pair("s", 2, "cut");
-    const onSelectJoin = vi.fn();
-    render(
-      <EditMarkerLayer
-        plan={planOf([left, right], 50)}
-        onZoomChip={vi.fn()}
-        onSelectJoin={onSelectJoin}
-      />,
-    );
-    fireEvent.click(screen.getByRole("button", { name: /join at 0:02\.0$/ }));
-    expect(onSelectJoin).not.toHaveBeenCalled();
-    expect(useDawStore.getState().openJoinId).toBeNull();
   });
 
   it.each([
@@ -139,41 +116,11 @@ describe("EditMarkerLayer glyphs", () => {
     ).toHaveClass("edit-mark--blocked");
     await expectNoA11yViolations(container);
   });
-
-  it("opens its join's popover on click and closes it on a second click", async () => {
-    const { left, right } = pair("a", 2, "fade");
-    render(
-      <EditMarkerLayer plan={planOf([left, right], 50)} onZoomChip={vi.fn()} />,
-    );
-    const glyph = screen.getByRole("button", {
-      name: "Fade 10 ms join at 0:02.0",
-    });
-    expect(glyph).toHaveAttribute("aria-haspopup", "dialog");
-    expect(glyph).toHaveAttribute("aria-expanded", "false");
-    fireEvent.click(glyph);
-    expect(useDawStore.getState().openJoinId).toBe("a1");
-    expect(glyph).toHaveAttribute("aria-expanded", "true");
-    expect(glyph).toHaveAttribute("aria-controls", "join-popover-a1");
-    fireEvent.click(glyph);
-    expect(useDawStore.getState().openJoinId).toBeNull();
-  });
-
-  it("leaves the open join alone while SetClipJoin is in flight", () => {
-    const { left, right } = pair("a", 2, "fade");
-    useDawStore.setState({ openJoinId: "a1", joinMutationInFlight: true });
-    render(
-      <EditMarkerLayer plan={planOf([left, right], 50)} onZoomChip={vi.fn()} />,
-    );
-    fireEvent.click(
-      screen.getByRole("button", { name: "Fade 10 ms join at 0:02.0" }),
-    );
-    expect(useDawStore.getState().openJoinId).toBe("a1");
-  });
 });
 
 describe("EditMarkerLayer tiers and labels", () => {
   beforeEach(() => {
-    useDawStore.setState({ openJoinId: null, joinMutationInFlight: false });
+    useDawStore.setState({ joinMutationInFlight: false });
   });
 
   const withLength = (right: ClipRow, ms: number): ClipRow => ({
@@ -291,7 +238,7 @@ describe("EditMarkerLayer label refit", () => {
   const fonts = new EventTarget();
 
   beforeEach(() => {
-    useDawStore.setState({ openJoinId: null, joinMutationInFlight: false });
+    useDawStore.setState({ joinMutationInFlight: false });
     stubResizeObserver();
     Object.defineProperty(document, "fonts", {
       value: fonts,
@@ -379,7 +326,7 @@ describe("EditMarkerLayer label refit", () => {
 
 describe("EditMarkerLayer chips", () => {
   beforeEach(() => {
-    useDawStore.setState({ openJoinId: null, joinMutationInFlight: false });
+    useDawStore.setState({ joinMutationInFlight: false });
   });
 
   function threeJoins(gapSec = 0.1) {
@@ -566,8 +513,6 @@ describe("EditMarkerLayer with its join editors", () => {
         },
       }),
     );
-    useDawStore.setState({ openJoinId: null, joinMutationInFlight: false });
-    vi.mocked(setClipJoin).mockClear();
   });
 
   function Lane({ zoom = 50 }: { zoom?: number }) {
@@ -581,9 +526,7 @@ describe("EditMarkerLayer with its join editors", () => {
               key={mark.id}
               left={pairOf.left}
               right={pairOf.right}
-              seamSec={pairOf.right.timeline_start}
               zoomPxPerSec={50}
-              trackFadeMaxMs={null}
             />
           );
         })}
@@ -592,43 +535,40 @@ describe("EditMarkerLayer with its join editors", () => {
     );
   }
 
-  it("opens and closes the popover, and closes on Escape with focus restored", async () => {
-    const user = userEvent.setup();
+  it("presses the glyph of the selected seam and no other", () => {
     render(<Lane />);
-    const [glyph] = screen.getAllByRole("button", {
+    const first = screen.getByRole("button", {
       name: "Fade 10 ms join at 0:05.0",
     });
-    await user.click(glyph);
-    expect(glyph).toHaveAttribute("aria-expanded", "true");
-    const dialog = screen.getByRole("dialog", { name: "Fade join at 0:05.0" });
-    expect(glyph.getAttribute("aria-controls")).toBe(dialog.id);
-    await user.click(glyph);
-    expect(screen.queryByRole("dialog")).toBeNull();
-    await user.click(glyph);
-    await user.keyboard("{Escape}");
-    expect(screen.queryByRole("dialog")).toBeNull();
-    expect(glyph).toHaveFocus();
+    const second = screen.getByRole("button", {
+      name: "Fade 10 ms join at 0:25.0",
+    });
+    expect(first).toHaveAttribute("aria-pressed", "false");
+    act(() =>
+      useDawStore
+        .getState()
+        .setSelection({ kind: "seam", id: "eb:a0:a1", trackId: "host" }),
+    );
+    expect(first).toHaveAttribute("aria-pressed", "true");
+    expect(second).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("moves focus to the chip a join folds into while its popover holds focus", async () => {
+  it("moves focus to the chip a focused join folds into", async () => {
     const user = userEvent.setup();
     const view = render(<Lane />);
     await user.click(
       screen.getByRole("button", { name: "Fade 10 ms join at 0:05.0" }),
     );
-    await waitForDialogFocus();
     view.rerender(<Lane zoom={1} />);
-    expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.getByRole("button", { name: /^2 edits/ })).toHaveFocus();
   });
 
-  it("leaves focus alone when a join folds after its popover closed", async () => {
+  it("leaves focus alone when a join folds after its glyph lost focus", async () => {
     const user = userEvent.setup();
     const view = render(<Lane />);
     const glyph = screen.getByRole("button", {
       name: "Fade 10 ms join at 0:05.0",
     });
-    await user.click(glyph);
     await user.click(glyph);
     glyph.blur();
     await act(async () => {});
@@ -636,84 +576,13 @@ describe("EditMarkerLayer with its join editors", () => {
     expect(document.body).toHaveFocus();
   });
 
-  it("has no axe violations while open", async () => {
+  it("has no axe violations with a seam selected", async () => {
     render(<Lane />);
-    fireEvent.click(
-      screen.getByRole("button", { name: "Fade 10 ms join at 0:05.0" }),
+    act(() =>
+      useDawStore
+        .getState()
+        .setSelection({ kind: "seam", id: "eb:a0:a1", trackId: "host" }),
     );
     await expectNoA11yViolations(document.body);
-  });
-
-  it("keeps one popover open: opening another join by keyboard closes the first", async () => {
-    const user = userEvent.setup();
-    render(<Lane />);
-    const first = screen.getByRole("button", {
-      name: "Fade 10 ms join at 0:05.0",
-    });
-    const second = screen.getByRole("button", {
-      name: "Fade 10 ms join at 0:25.0",
-    });
-    await user.click(first);
-    await waitForDialogFocus();
-    second.focus();
-    await user.keyboard("{Enter}");
-    expect(screen.getAllByRole("dialog")).toHaveLength(1);
-    expect(first).toHaveAttribute("aria-expanded", "false");
-    expect(second).toHaveAttribute("aria-expanded", "true");
-  });
-
-  it("closes the popover when the join unmounts", async () => {
-    const user = userEvent.setup();
-    const { unmount } = render(<Lane />);
-    await user.click(
-      screen.getByRole("button", { name: "Fade 10 ms join at 0:05.0" }),
-    );
-    expect(useDawStore.getState().openJoinId).toBe("a1");
-    unmount();
-    expect(useDawStore.getState().openJoinId).toBeNull();
-  });
-
-  it("does not close the popover from the glyph while SetClipJoin is in flight", async () => {
-    vi.mocked(setClipJoin).mockImplementationOnce(() => new Promise(() => {}));
-    const user = userEvent.setup();
-    render(<Lane />);
-    const glyph = screen.getByRole("button", {
-      name: "Fade 10 ms join at 0:05.0",
-    });
-    await user.click(glyph);
-    await user.click(screen.getByRole("button", { name: "Crossfade" }));
-    await user.click(glyph);
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-  });
-
-  it("opens no other popover while SetClipJoin is in flight, so the failure shows", async () => {
-    let reject: (e: Error) => void = () => {};
-    vi.mocked(setClipJoin).mockImplementationOnce(
-      () =>
-        new Promise((_, r) => {
-          reject = r;
-        }),
-    );
-    const user = userEvent.setup();
-    render(<Lane />);
-    const first = screen.getByRole("button", {
-      name: "Fade 10 ms join at 0:05.0",
-    });
-    const second = screen.getByRole("button", {
-      name: "Fade 10 ms join at 0:25.0",
-    });
-    await user.click(first);
-    await user.click(screen.getByRole("button", { name: "Crossfade" }));
-    second.focus();
-    await user.keyboard("{Enter}");
-    expect(first).toHaveAttribute("aria-expanded", "true");
-    expect(second).toHaveAttribute("aria-expanded", "false");
-    await act(async () => {
-      reject(new Error("nope"));
-    });
-    expect(await screen.findByRole("alert")).toBeInTheDocument();
-    await user.click(second);
-    expect(first).toHaveAttribute("aria-expanded", "false");
-    expect(second).toHaveAttribute("aria-expanded", "true");
   });
 });

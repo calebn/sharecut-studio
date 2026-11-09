@@ -10,7 +10,12 @@ import {
   JONAS,
   MIRA,
 } from "../test/actionBarFixtures";
-import { minimalProject } from "../test/fixtures";
+import {
+  appliedEditRecord,
+  clipRow,
+  editBoundaries,
+  minimalProject,
+} from "../test/fixtures";
 import { HISTORY_ROOT_ID } from "../types/project";
 import {
   barModelOf,
@@ -1306,5 +1311,136 @@ describe("barModelOf", () => {
       shareCapabilities: ["view", "play", "comment", "suggest", "edit"],
     });
     expect(guest.items.map((item) => item.id)).not.toContain("record");
+  });
+});
+
+describe("seam bar", () => {
+  const lane = (overrides: Record<string, unknown> = {}) => [
+    clipRow({
+      id: "x",
+      track_id: MIRA,
+      source_start: 0,
+      source_end: 4,
+      timeline_start: 0,
+      timeline_end: 4,
+    }),
+    clipRow({
+      id: "y",
+      track_id: MIRA,
+      source_start: 6,
+      source_end: 10,
+      timeline_start: 4,
+      timeline_end: 8,
+      ...overrides,
+    }),
+  ];
+
+  function seamProject(
+    clips: ReturnType<typeof lane>,
+    records: ReturnType<typeof appliedEditRecord>[] = [],
+  ) {
+    return minimalProject({
+      tracks: editFixtureProject().tracks,
+      clips: { tracks: { [MIRA]: clips }, clip_count: clips.length },
+      applied_edits: { count: records.length, records },
+      edit_boundaries: editBoundaries(clips),
+    });
+  }
+
+  const cut = () =>
+    appliedEditRecord({
+      track_ids: [MIRA],
+      source_start: 4,
+      source_end: 6,
+      restore: { state: "ready" },
+    });
+
+  const bar = (project: ReturnType<typeof seamProject>, extra = {}) => {
+    host({ kind: "seam", id: "eb:x:y", trackId: MIRA }, { project, ...extra });
+    return barModelOf(factsOf()!, useDawStore.getState());
+  };
+
+  it("lists Hear, Join type, Keep, Comment, Inspect on a cut seam", () => {
+    const { items } = bar(seamProject(lane(), [cut()]));
+    expect(items.map((item) => item.id)).toEqual([
+      "hear",
+      "joinType",
+      "keep",
+      "comment",
+      "inspect",
+    ]);
+    const join = items.find((item) => item.id === "joinType");
+    expect(join?.options?.map((option) => option.value)).toEqual([
+      "cut",
+      "fade",
+      "crossfade",
+    ]);
+    expect(join?.options?.filter((o) => o.pressed)).toHaveLength(1);
+  });
+
+  it("has no Keep on a split seam", () => {
+    const { items } = bar(seamProject(lane({ source_start: 4 })));
+    expect(items.map((item) => item.id)).toEqual([
+      "hear",
+      "joinType",
+      "comment",
+      "inspect",
+    ]);
+  });
+
+  it("has no Join type on a gapped seam", () => {
+    const { items } = bar(
+      seamProject(lane({ timeline_start: 5, timeline_end: 9 }), [cut()]),
+    );
+    expect(items.map((item) => item.id)).not.toContain("joinType");
+  });
+
+  it("omits Crossfade when the join cannot blend", () => {
+    const { items } = bar(
+      seamProject(lane({ join_crossfade_blocked: "no_headroom" }), [cut()]),
+    );
+    expect(
+      items
+        .find((item) => item.id === "joinType")
+        ?.options?.map((option) => option.value),
+    ).toEqual(["cut", "fade"]);
+  });
+
+  it("keeps Crossfade offered while the join is already a crossfade", () => {
+    const { items } = bar(
+      seamProject(
+        lane({
+          join_in_mode: "crossfade",
+          join_crossfade_blocked: "no_headroom",
+        }),
+        [cut()],
+      ),
+    );
+    const options = items.find((item) => item.id === "joinType")?.options;
+    expect(options?.find((option) => option.pressed)?.value).toBe("crossfade");
+  });
+
+  it("has no Join type for a guest without edit capability", () => {
+    const { items } = bar(seamProject(lane(), [cut()]), {
+      projectPath: "share:tok",
+      guestMode: "comment",
+      shareCapabilities: ["view", "play", "comment"],
+    });
+    expect(items.map((item) => item.id)).not.toContain("joinType");
+  });
+
+  it("shows Keep disabled with the reason when the cut is only in History", () => {
+    const history = { ...cut(), restore: { state: "history_only" as const } };
+    const keep = bar(seamProject(lane(), [history])).items.find(
+      (item) => item.id === "keep",
+    );
+    expect(keep?.disabledReason).toBe("Undo this in History");
+  });
+
+  it("leaves Keep enabled when every record is ready", () => {
+    const keep = bar(seamProject(lane(), [cut()])).items.find(
+      (item) => item.id === "keep",
+    );
+    expect(keep?.disabledReason).toBeUndefined();
   });
 });

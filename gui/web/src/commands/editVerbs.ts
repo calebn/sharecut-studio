@@ -14,6 +14,7 @@ import {
   type EditRole,
   editFacts,
 } from "../edit/editSelection";
+import { appliedJoinLength } from "../edit/joinRender";
 import {
   lastClipEndSec,
   replaceableSpan,
@@ -25,7 +26,9 @@ import {
   rangeIsCurrent,
   resolveSelectionRange,
 } from "../edit/rangeSelection";
+import { keepPlan, type Seam, seamById } from "../edit/seam";
 import {
+  canApplyPass12,
   canManageProjects,
   canReviewPendingEdit,
   hasShareCapability,
@@ -34,11 +37,12 @@ import {
 import { useDawStore } from "../state/dawStore";
 import { inspectorOpenFor, selectedClipIdsOf } from "../state/selection";
 import type { PendingRecordTarget } from "../state/stageSlice";
-import type { BarItem } from "../system/actionBarSlots";
+import type { BarItem, BarOption } from "../system/actionBarSlots";
 import { type BarId, resolveBar } from "../system/editActionSets";
-import type { ProjectView, Selection } from "../types/project";
+import type { JoinMode, ProjectView, Selection } from "../types/project";
 import { BUSY_REASON } from "../ui/disabledReason";
 import { errorMessage } from "../utils/apiError";
+import { joinModeOf } from "../utils/editMarkerRegistry";
 import {
   capturePendingReview,
   finishPendingReview,
@@ -60,6 +64,7 @@ import {
   runRangeAction,
 } from "./rangeActions";
 import { announceRefusal } from "./refusal";
+import { hearAcross, restoreSeam, setSeamJoin } from "./seamCommands";
 import { seekTransport } from "./seek";
 import { ignoreWouldRestore } from "./transcriptIgnore";
 import { requestInlineEdit } from "./transcriptWord";
@@ -107,6 +112,58 @@ export function currentEditFacts(
 const HEAR_PAD_SEC = 1;
 const MARKER_HEAR_SEC = 3;
 
+function currentSeam(): Seam | null {
+  const { project, selection } = useDawStore.getState();
+  return project && selection?.kind === "seam"
+    ? seamById(project, selection.id)
+    : null;
+}
+
+const JOIN_MODES: readonly JoinMode[] = ["cut", "fade", "crossfade"];
+
+async function setJoinType(arg: VerbArg): Promise<ExecuteResult> {
+  const mode = JOIN_MODES.find((candidate) => candidate === arg);
+  const seam = currentSeam();
+  if (!mode || !seam) return disabled("Select a seam to change its join type");
+  const result = await setSeamJoin(seam, mode, null);
+  return result.status === "failed"
+    ? { status: "disabled", reason: result.message, told: true }
+    : OK;
+}
+
+const JOIN_TYPE_OPTIONS: readonly (Omit<BarOption, "pressed"> & {
+  value: JoinMode;
+})[] = [
+  { value: "cut", label: "Hard edge", icon: "minus" },
+  { value: "fade", label: "Fade", icon: "fade" },
+  { value: "crossfade", label: "Crossfade", icon: "crossfade" },
+];
+
+function joinTypeItem(s: DawState): BarItem | null {
+  const { project, selection } = s;
+  if (
+    !project ||
+    selection?.kind !== "seam" ||
+    !canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities)
+  )
+    return null;
+  const seam = seamById(project, selection.id);
+  if (!seam?.abuts) return null;
+  const mode = joinModeOf(seam.right);
+  const fadeMax =
+    project.tracks.find((t) => t.id === seam.trackId)?.fade_max_ms ?? null;
+  const room = appliedJoinLength(seam.left, seam.right, fadeMax).max;
+  const crossfadeOk = !seam.right.join_crossfade_blocked && room >= 1;
+  return {
+    id: "joinType",
+    ...(s.joinMutationInFlight ? { disabledReason: BUSY_REASON } : {}),
+    options: JOIN_TYPE_OPTIONS.filter(
+      (option) =>
+        option.value !== "crossfade" || crossfadeOk || mode === "crossfade",
+    ).map((option) => ({ ...option, pressed: option.value === mode })),
+  };
+}
+
 async function hearVerb(facts: EditFacts): Promise<ExecuteResult> {
   switch (facts.kind) {
     case "words":
@@ -116,11 +173,10 @@ async function hearVerb(facts: EditFacts): Promise<ExecuteResult> {
       return facts.span
         ? playSpan(facts.span.start, facts.span.end, 0)
         : disabled("Select a clip to hear it");
-    case "seam":
-    case "appliedEdge":
-      return facts.span
-        ? playSpan(facts.span.start, facts.span.end, HEAR_PAD_SEC)
-        : disabled("This edit has no place on the timeline to hear");
+    case "seam": {
+      const seam = currentSeam();
+      return seam ? hearAcross(seam) : disabled("This seam is gone");
+    }
     case "chapter":
     case "social":
     case "comment":
@@ -242,7 +298,12 @@ async function decidePending(
 
 async function keep(facts: EditFacts): Promise<ExecuteResult> {
   if (facts.kind === "suggestion") return decidePending("reject");
-  if (facts.kind === "words" || facts.kind === "seam") {
+  if (facts.kind === "seam") {
+    const seam = currentSeam();
+    if (seam?.kind !== "cut") return disabled("Nothing was cut here");
+    return restoreSeam(seam);
+  }
+  if (facts.kind === "words") {
     if (!facts.holdsCut) return disabled("Nothing was cut here");
     // The server restores a mute but not a removal; a removal comes back with
     // History's Undo, which is the honest way to say Keep.
@@ -407,6 +468,11 @@ async function split(facts: EditFacts): Promise<ExecuteResult> {
 async function comment(facts: EditFacts): Promise<ExecuteResult> {
   if (facts.kind === "words" || facts.kind === "range")
     return executePointerCommand("range.comment");
+  if (facts.kind === "seam" && facts.span)
+    return executePointerCommand("comment.draftAt", {
+      atTime: facts.span.start,
+      trackId: facts.span.trackIds[0],
+    });
   return executePointerCommand("comment.draftAt", {});
 }
 
@@ -577,6 +643,8 @@ async function dispatch(
     case "fade":
     case "moveToTrack":
       return executePointerCommand("edit.inspect", { open: true });
+    case "joinType":
+      return setJoinType(arg);
     case "approve":
       return approveSocial();
     case "resolve":
@@ -602,8 +670,7 @@ export const WIRED_VERBS: Readonly<Record<EditKind, readonly BarId[]>> = {
   ],
   range: ["hear", "split", "comment", "record", "export", "more", "inspect"],
   clip: ["hear", "split", "comment", "cut", "more", "inspect"],
-  seam: ["hear", "keep", "comment", "inspect"],
-  appliedEdge: ["hear", "comment", "inspect"],
+  seam: ["hear", "joinType", "keep", "comment", "inspect"],
   suggestion: ["hearBefore", "hearAfter", "keep", "comment", "more", "inspect"],
   chapter: ["hear", "fixText", "remove", "inspect"],
   social: ["hear", "comment", "remove", "inspect"],
@@ -743,7 +810,12 @@ export function barModelOf(facts: EditFacts, s: DawState): BarModel {
       (id) =>
         id !== "record" || !rangeLike || replaceableSpan(facts.span, project),
     )
-    .map((id): BarItem => {
+    .map(
+      (id) => (id === "joinType" ? joinTypeItem(s) : { id }) as BarItem | null,
+    )
+    .filter((item): item is BarItem => item !== null)
+    .map((item): BarItem => {
+      const { id } = item;
       const guestMix =
         id === "hear" && descriptor("play")?.label === PLAY_FULL_MIX_LABEL;
       if (guestMix) return { id, label: PLAY_FULL_MIX_LABEL };
@@ -753,9 +825,16 @@ export function barModelOf(facts: EditFacts, s: DawState): BarModel {
         !hasShareCapability(s.shareCapabilities, "comment")
       )
         return { id, disabledReason: "This share cannot add comments" };
+      if (id === "keep" && facts.kind === "seam") {
+        const seam = currentSeam();
+        const plan = seam?.kind === "cut" ? keepPlan(seam) : null;
+        return plan?.kind === "disabled"
+          ? { id, disabledReason: plan.reason }
+          : item;
+      }
       if (id === "record")
         return { id, label: rangeLike ? "Re-record" : "Record here" };
-      return { id };
+      return item;
     });
 
   const more: BarItem[] = [];

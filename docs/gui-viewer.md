@@ -266,7 +266,7 @@ own undo removes or disables, or that another client's edit removes, falls
 back to a usable current Close. A selection adopted from the agent or a
 followed leader (`remoteSelectionRevision`) is not navigation; no other client's
 selection reaches this tab (see [session-sync.md](session-sync.md) § Transport authority). A sheet opened
-or remounted behind an open modal or a later non-modal (JoinPopover) stays
+or remounted behind an open modal or a later non-modal stays
 below it in `ui/modalGate`: the inner overlay keeps Escape and entry focus,
 and when it closes without a usable return target the sheet's Close takes
 focus. Restore skips a disabled, inert, or hidden return target. A remounted
@@ -902,7 +902,7 @@ The person's own navigation clears the intent; a selection adopted from the agen
 return-focus ref, validated when this tab's own undo removes or disables the
 focused action, including when a peer edit removes it. `ui/modalGate` keeps a
 modal above every non-modal, and ranks remount-stable peek sheets below later
-non-modals (JoinPopover), so a sheet opened or remounted behind a modal or
+non-modals, so a sheet opened or remounted behind a modal or
 popover takes neither Escape nor entry focus; it takes entry focus when the
 inner overlay closes without a usable return target. A remounted inspector
 does not steal focus from a docked Cut anyway button. A new sheet still takes

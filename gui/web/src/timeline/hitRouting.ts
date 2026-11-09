@@ -29,8 +29,8 @@
  * resting never grabs (`chipGesture.ts`).
  *
  * Pinch never edits: the moment a second finger lands after one that began on
- * the timeline, on a chooser chip, on a create item, on the Inspector sheet or on an
- * adopted part (the crossfade rail), anywhere on the page, every
+ * the timeline, on a chooser chip, on a create item or on the Inspector sheet,
+ * anywhere on the page, every
  * pointer's uncommitted action (an armed drag, trim, fade, chip grab, range,
  * create menu or a press still deciding) gets a `pointercancel`, which each
  * owner already treats as "drop the draft, save nothing", and the selection
@@ -260,12 +260,6 @@ export interface HitRouter {
   close: () => void;
   /** Drops the armed drag on `element`, whose owner already cancelled it. */
   disarm: (element: Element) => void;
-  /**
-   * Routes the presses inside `part` too: a part of the timeline mounted
-   * outside the root (a portaled rail). Its fingers count with the rest for
-   * a pinch. Returns the release.
-   */
-  adopt: (part: Element) => () => void;
 }
 
 type Phase =
@@ -345,11 +339,6 @@ export function attachHitRouting(
   const doc = root.ownerDocument;
   // The whole timeline, ruler and headers included: a pinch can start there.
   const scope = root.closest(".timeline-scroll") ?? root;
-  const parts = new Set<Element>([root]);
-  const partOf = (target: Node): Element | null => {
-    for (const part of parts) if (part.contains(target)) return part;
-    return null;
-  };
   /**
    * A finger here counts toward a pinch: on the timeline, a chip, a menu item
    * or the Inspector sheet. Two fingers never edit, so a finger resting on the sheet
@@ -357,7 +346,7 @@ export function attachHitRouting(
    */
   const ownsTouch = (target: Node) =>
     scope.contains(target) ||
-    partOf(target) != null ||
+    root.contains(target) ||
     (target instanceof Element &&
       target.closest(
         `[${TARGET_ID_ATTR}],[${CREATE_ITEM_ATTR}],.${PHONE_SHEET_CLASS}`,
@@ -649,12 +638,11 @@ export function attachHitRouting(
     // Only the primary button routes: a right press is the context menu's, and
     // replaying it as a left press would start a drag (#1793).
     if (event.pointerType === "mouse" && event.button !== 0) return;
-    const part = partOf(event.target);
-    if (!part) return;
+    if (!root.contains(event.target)) return;
     const hit = closestHitTarget(event.target);
     if (!hit && !closestHitSurface(event.target)) return;
     const origin = pointOf(event);
-    const hits = resolveHits(part, origin, event.pointerType, hit);
+    const hits = resolveHits(root, origin, event.pointerType, hit);
     const directKind = targetOf(hit)?.kind;
     // A target with no box yet is ranked nowhere, so the press stays its own.
     const winner =
@@ -675,7 +663,7 @@ export function attachHitRouting(
         winner,
         tap:
           !hit && !ownsTap(event.target)
-            ? (surfaceTapTarget(part, origin) ?? winner)
+            ? (surfaceTapTarget(root, origin) ?? winner)
             : winner,
       };
       return;
@@ -712,7 +700,7 @@ export function attachHitRouting(
       event.preventDefault();
       return;
     }
-    if (!partOf(target)) return;
+    if (!root.contains(target)) return;
     // A right click on the timeline while a menu is open moves the menu.
     if (phase.kind !== "idle" && phase.kind !== "create") return;
     if (!closestHitTarget(target) && !closestHitSurface(target)) return;
@@ -1069,24 +1057,10 @@ export function attachHitRouting(
     dispose() {
       cancelClicks();
       setPhase(IDLE);
-      for (const part of parts) {
-        part.removeEventListener("touchmove", onTouchMove as EventListener);
-      }
+      root.removeEventListener("touchmove", onTouchMove as EventListener);
       for (const [type, listener] of listeners) {
         doc.removeEventListener(type, listener as EventListener, true);
       }
-    },
-    adopt(part) {
-      parts.add(part);
-      part.addEventListener(
-        "touchmove",
-        onTouchMove as EventListener,
-        touchOptions,
-      );
-      return () => {
-        parts.delete(part);
-        part.removeEventListener("touchmove", onTouchMove as EventListener);
-      };
     },
     claimsClick(event) {
       if (isReplayed(event) || Date.now() >= redirectedUntil) return false;

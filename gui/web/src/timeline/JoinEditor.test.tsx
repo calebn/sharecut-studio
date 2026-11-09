@@ -1,26 +1,14 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
-import { type ReactNode, useCallback, useState } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { setClipJoin } from "../api";
-import { LONG_PRESS_MS } from "../hooks/gestureConstants";
-import { shareProjectKey } from "../shareMode";
+import { act, render } from "@testing-library/react";
+import type { ComponentProps } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { projectJoinDraft } from "../edit/joinRender";
 import { useDawStore } from "../state/dawStore";
-import { useDaw } from "../state/useDaw";
 import { expectNoA11yViolations } from "../test/a11y";
-import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
-import { place } from "../test/hitDom";
-import {
-  collectJoinMarks,
-  EditMarkerLayer,
-  planLaneMarks,
-} from "./editMarkers";
-import { HitRouterProvider } from "./hitRouterContext";
-import { attachHitRouting, type HitRouter } from "./hitRouting";
+import { clipRow } from "../test/fixtures";
 import { JoinEditor } from "./JoinEditor";
-import { useTouchPress } from "./useTouchPress";
 
-vi.mock("../api", () => ({ setClipJoin: vi.fn(async () => undefined) }));
 vi.mock("./WaveformLayer", () => ({ WaveformLayer: () => null }));
+
 const left = clipRow({
   id: "left",
   source_start: 0,
@@ -42,704 +30,106 @@ const right = clipRow({
   join_crossfade_ms: 20,
   source_duration_sec: 100,
 });
-const releaseCapture = vi.fn();
-const base = {
-  left,
-  right,
-  seamSec: 5,
-  zoomPxPerSec: 50,
-  trackFadeMaxMs: null as number | null,
-};
-function JoinWithGlyph(props: typeof base) {
-  const joinDraft = useDaw((s) => s.joinDraft);
-  const plan = planLaneMarks(
-    collectJoinMarks([props.left, props.right], null, () => false),
-    props.zoomPxPerSec,
-    600,
-    joinDraft,
-  );
-  return (
-    <>
-      <JoinEditor {...props} />
-      <EditMarkerLayer plan={plan} onZoomChip={vi.fn()} />
-    </>
+
+const waves = {
+  leftRef: "source:a",
+  rightRef: "source:b",
+  role: "dialogue",
+  gainDb: 0,
+} satisfies Partial<ComponentProps<typeof JoinEditor>>;
+
+const WAVE_SELECTOR = ".join-blend-waves, .join-blend-seam";
+
+function mount(props: Partial<ComponentProps<typeof JoinEditor>> = {}) {
+  return render(
+    <JoinEditor left={left} right={right} zoomPxPerSec={50} {...props} />,
   );
 }
-/** The timeline's lanes with their one hit router, as `TimelineView` mounts it. */
-function RoutedLanes({ children }: { children: ReactNode }) {
-  const [router, setRouter] = useState<HitRouter | null>(null);
-  const press = useTouchPress(router);
-  const lanes = useCallback((el: HTMLDivElement | null) => {
-    if (!el) return;
-    const attached = attachHitRouting(el);
-    setRouter(attached);
-    return () => {
-      attached.dispose();
-      setRouter(null);
-    };
-  }, []);
-  return (
-    <HitRouterProvider value={router}>
-      <main className="timeline-area">
-        <div ref={lanes} className="lane-row" {...press}>
-          {children}
-        </div>
-      </main>
-    </HitRouterProvider>
+
+function draft(ms: number, base = right, from = left) {
+  act(() =>
+    useDawStore.getState().setJoinDraft(projectJoinDraft(from, base, ms)),
   );
 }
-function mount(overrides: Partial<typeof base> = {}) {
-  const props = { ...base, ...overrides };
-  useDawStore.getState().setProject(
-    minimalProject({
-      tracks: [sampleTrack({ fade_max_ms: props.trackFadeMaxMs })],
-      clips: { tracks: { host: [props.left, props.right] }, clip_count: 2 },
-    }),
-  );
-  const view = render(
-    <RoutedLanes>
-      <JoinWithGlyph {...props} />
-    </RoutedLanes>,
-  );
-  fireEvent.click(screen.getByRole("button", { name: /join at/ }));
-  return { ...view, props };
-}
-function pointer(el: HTMLElement, type: string, x: number) {
-  fireEvent(el, new MouseEvent(type, { bubbles: true, clientX: x, button: 0 }));
-}
-function grip() {
-  return screen.getByRole("button", { name: /Drag crossfade/ });
-}
-function move(x = 1010) {
-  pointer(grip(), "pointerdown", 1000);
-  pointer(grip(), "pointermove", x);
-}
+
 beforeEach(() => {
-  vi.mocked(setClipJoin).mockReset().mockResolvedValue(undefined);
-  useDawStore.getState().hydrate(
-    "/tmp/episode.json",
-    minimalProject({
-      tracks: [sampleTrack()],
-      clips: { tracks: { host: [left, right] }, clip_count: 2 },
-    }),
-  );
-  useDawStore.setState({
-    openJoinId: null,
-    joinMutationInFlight: false,
-    zoomPxPerSec: 50,
-  });
-  HTMLElement.prototype.setPointerCapture = vi.fn();
-  HTMLElement.prototype.hasPointerCapture = vi.fn(() => true);
-  releaseCapture.mockClear();
-  HTMLElement.prototype.releasePointerCapture = releaseCapture;
+  useDawStore.setState({ joinDraft: null });
 });
-describe("JoinEditor coupled length", () => {
-  it("previews a centered X, submits one doubled relative delta and restores authoritative paint", async () => {
+
+describe("JoinEditor", () => {
+  it("paints the saved overlap as a centred 1 px box", () => {
     const { container } = mount();
     expect(container.querySelector(".join-blend")).toHaveStyle({
       left: "249.5px",
       width: "1px",
     });
-    move();
+  });
+
+  it("paints the drafted length from the store and returns to the saved one", () => {
+    const { container } = mount();
+    draft(420);
     expect(container.querySelector(".join-blend")).toHaveStyle({
       left: "239.5px",
       width: "21px",
     });
-    pointer(grip(), "pointerup", 1010);
-    expect(setClipJoin).toHaveBeenCalledExactlyOnceWith(
-      "/tmp/episode.json",
-      "left",
-      "right",
-      "crossfade",
-      420,
-    );
+    expect(container.querySelectorAll(".join-blend path")).toHaveLength(1);
+    act(() => useDawStore.getState().setJoinDraft(null));
     expect(container.querySelector(".join-blend")).toHaveStyle({
       left: "249.5px",
       width: "1px",
     });
-    await act(async () => {});
-    await expectNoA11yViolations(document.body);
+    expect(container.querySelectorAll(".join-blend path")).toHaveLength(0);
   });
-  it("draws the X from the dragged width, not the saved one", () => {
-    const { container } = mount();
-    const xPaths = () => container.querySelectorAll(".join-blend path").length;
-    expect(xPaths()).toBe(0);
-    move();
-    expect(container.querySelector(".join-blend")).toHaveStyle({
-      width: "21px",
-    });
-    expect(xPaths()).toBe(1);
-    move(1000);
-    expect(container.querySelector(".join-blend")).toHaveStyle({
-      width: "1px",
-    });
-    expect(xPaths()).toBe(0);
-  });
-  it("tiers the glyph from the dragged width and settles back on release", () => {
-    mount();
-    const glyph = () => screen.getByRole("button", { name: /join at/ });
-    expect(glyph()).toHaveAttribute("data-tier", "narrow");
-    move(1010);
-    expect(glyph()).toHaveAttribute("data-tier", "middle");
-    move(1012);
-    expect(glyph()).toHaveAttribute("data-tier", "wide");
-    expect(document.querySelector(".edit-mark-label")).toHaveTextContent(
-      "Crossfade 500 ms",
-    );
-    move(1000);
-    expect(glyph()).toHaveAttribute("data-tier", "narrow");
-    move(1012);
-    pointer(grip(), "pointerup", 1012);
-    expect(glyph()).toHaveAttribute("data-tier", "narrow");
-    expect(useDawStore.getState().joinDraft).toBeNull();
-  });
-  it("leaves another editor's live draft alone when its own row changes or it mounts", () => {
-    const { rerender, props } = mount();
-    const other = { ...right, id: "elsewhere", join_crossfade_ms: 300 };
-    act(() => useDawStore.getState().setJoinDraft(other));
-    const seen: unknown[] = [];
-    const stop = useDawStore.subscribe((s) => seen.push(s.joinDraft));
-    rerender(
-      <RoutedLanes>
-        <JoinWithGlyph {...props} right={{ ...right }} />
-      </RoutedLanes>,
-    );
-    stop();
-    expect(seen).toEqual([]);
-    expect(useDawStore.getState().joinDraft?.id).toBe("elsewhere");
-  });
-  it("clears only the draft it published when its drag ends", () => {
-    mount();
-    move(1012);
-    expect(useDawStore.getState().joinDraft?.id).toBe("right");
-    pointer(grip(), "pointerup", 1012);
-    expect(useDawStore.getState().joinDraft).toBeNull();
-  });
-  it("caps the draft box at the render headroom and draws no waves for a blocked join", () => {
+
+  it("caps the drafted box at the render headroom", () => {
     const tight = { ...right, source_start: 0.05, source_end: 10 };
-    const { container, unmount } = mount({
-      right: tight,
-      leftRef: "source:a",
-      rightRef: "source:b",
-      role: "dialogue",
-      gainDb: 0,
-    } as Partial<typeof base>);
-    expect(
-      container.querySelector(".join-blend-waves, .join-blend-seam"),
-    ).not.toBeNull();
-    move(1500);
+    const { container } = mount({ right: tight });
+    draft(5000, tight);
     expect(container.querySelector(".join-blend")).toHaveStyle({
       width: "5px",
     });
-    unmount();
-    const blocked = mount({
-      right: { ...right, join_crossfade_blocked: "no_headroom" },
-      leftRef: "source:a",
-      rightRef: "source:b",
-      role: "dialogue",
-      gainDb: 0,
-    } as Partial<typeof base>);
-    move();
-    expect(
-      blocked.container.querySelector(".join-blend-waves, .join-blend-seam"),
-    ).toBeNull();
   });
-  it("draws no blend overlap while dragging a join whose left recording is unmeasured", () => {
-    const { container } = mount({
-      left: { ...left, source_duration_sec: null },
-    });
-    move();
-    expect(container.querySelector(".join-blend")).toBeNull();
-  });
-  it("captions and notes the drawn overlap, not the dragged length, when render headroom caps it", () => {
+
+  it("ignores a draft for another join", () => {
     const { container } = mount();
-    move(1300);
-    expect(screen.getByText(/Draft overlap 2500 ms/)).toBeInTheDocument();
-    expect(screen.queryByText(/Draft overlap 5000/)).toBeNull();
-    expect(container.querySelector(".join-blend")).toHaveStyle({
-      width: "125px",
-    });
-    expect(
-      screen.getByText("Renders as a 2500 ms crossfade overlap."),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/Renders as a 20 ms/)).toBeNull();
-    expect(screen.getByText("5000 ms")).toBeInTheDocument();
-  });
-  it("captions a zero overlap while dragging a join whose left recording is unmeasured", () => {
-    const { container } = mount({
-      left: { ...left, source_duration_sec: null },
-    });
-    move(1300);
-    expect(screen.getByText(/Draft overlap 0 ms/)).toBeInTheDocument();
-    expect(
-      screen.getByText("Renders as a 0 ms crossfade overlap."),
-    ).toBeInTheDocument();
-    expect(container.querySelector(".join-blend")).toBeNull();
-  });
-  it.each(["no_headroom", "not_abutting"] as const)(
-    "keeps a saved %s join blocked and unblended mid-drag, and still commits on release",
-    (reason) => {
-      const { container } = mount({
-        right: {
-          ...right,
-          join_crossfade_ms: 0,
-          join_crossfade_blocked: reason,
-        },
-      });
-      move();
-      expect(screen.queryByText(/Draft overlap [1-9]/)).toBeNull();
-      expect(screen.getByText(/overlap 0 ms/)).toBeInTheDocument();
-      expect(container.querySelector(".join-blend")).toBeNull();
-      expect(screen.getByText(/Crossfade will not blend/)).toBeInTheDocument();
-      expect(screen.queryByText(/Renders as a \d+ ms crossfade/)).toBeNull();
-      pointer(grip(), "pointerup", 1010);
-      expect(setClipJoin).toHaveBeenCalledTimes(1);
-    },
-  );
-  it("still projects a saved no_fade_in join mid-drag (a drag cures it)", () => {
-    const { container } = mount({
-      right: {
-        ...right,
-        join_crossfade_ms: 0,
-        join_crossfade_blocked: "no_fade_in",
-      },
-    });
-    move();
-    expect(screen.getByText(/Draft overlap 420 ms/)).toBeInTheDocument();
-    expect(container.querySelector(".join-blend")).not.toBeNull();
-    expect(screen.queryByText(/Crossfade will not blend/)).toBeNull();
-    pointer(grip(), "pointerup", 1010);
-    expect(setClipJoin).toHaveBeenCalledTimes(1);
-  });
-  it("draws waves mid-drag for a saved no_fade_in join, not for a saved no_headroom one", () => {
-    const sel = ".join-blend-waves, .join-blend-seam";
-    const props = {
-      leftRef: "source:a",
-      rightRef: "source:b",
-      role: "dialogue",
-      gainDb: 0,
-    } as Partial<typeof base>;
-    const fade = mount({
-      right: {
-        ...right,
-        join_crossfade_ms: 0,
-        join_crossfade_blocked: "no_fade_in",
-      },
-      ...props,
-    });
-    move();
-    expect(fade.container.querySelector(sel)).not.toBeNull();
-    fade.unmount();
-    const room = mount({
-      right: {
-        ...right,
-        join_crossfade_ms: 0,
-        join_crossfade_blocked: "no_headroom",
-      },
-      ...props,
-    });
-    move();
-    expect(room.container.querySelector(sel)).toBeNull();
-  });
-  it("uses final release coordinates even without a move event", () => {
-    mount();
-    pointer(grip(), "pointerdown", 1000);
-    pointer(grip(), "pointerup", 1005);
-    expect(setClipJoin).toHaveBeenCalledWith(
-      "/tmp/episode.json",
-      "left",
-      "right",
-      "crossfade",
-      220,
+    act(() =>
+      useDawStore
+        .getState()
+        .setJoinDraft({ ...right, id: "elsewhere", join_crossfade_ms: 300 }),
     );
-  });
-  it.each(["pointercancel", "lostpointercapture"])(
-    "cancels %s without a command",
-    (event) => {
-      const { container } = mount();
-      move();
-      pointer(grip(), event, 1010);
-      pointer(grip(), "pointerup", 1010);
-      expect(setClipJoin).not.toHaveBeenCalled();
-      expect(container.querySelector(".join-blend")).toHaveStyle({
-        width: "1px",
-      });
-    },
-  );
-  it("cancels Escape and unmount without a command", () => {
-    const view = mount();
-    move();
-    fireEvent.keyDown(grip(), { key: "Escape" });
-    expect(setClipJoin).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: /join at/ }));
-    move();
-    view.unmount();
-    expect(setClipJoin).not.toHaveBeenCalled();
-  });
-  it("does not mutate on a click, tiny motion or returning to the original equal length", () => {
-    mount();
-    pointer(grip(), "pointerdown", 1000);
-    pointer(grip(), "pointerup", 1001);
-    move();
-    pointer(grip(), "pointerup", 1000);
-    expect(setClipJoin).not.toHaveBeenCalled();
-  });
-  it("does not normalize asymmetric saved paint until an intentional edit", () => {
-    const r = { ...right, fade_in_ms: 80, join_crossfade_ms: 40 };
-    const { container } = mount({ right: r });
-    expect(
-      screen.getByText(/Stored fades 20 ms out \/ 80 ms in/),
-    ).toBeInTheDocument();
-    pointer(grip(), "pointerdown", 1000);
-    pointer(grip(), "pointerup", 1000);
-    expect(setClipJoin).not.toHaveBeenCalled();
-    expect(container.querySelector(".join-blend")).toHaveStyle({
-      width: "2px",
-      left: "249px",
-    });
-    move();
-    pointer(grip(), "pointerup", 1000);
-    expect(setClipJoin).toHaveBeenCalledWith(
-      "/tmp/episode.json",
-      "left",
-      "right",
-      "crossfade",
-      40,
-    );
-  });
-  it.each([
-    "fade_in_ms",
-    "fade_out_ms",
-    "source_end",
-    "timeline_start",
-    "source_id",
-  ] as const)("rejects a stale right %s change before release", (field) => {
-    mount();
-    move();
-    act(() => {
-      const p = useDawStore.getState().project!;
-      useDawStore.getState().setProject({
-        ...p,
-        clips: {
-          ...p.clips,
-          tracks: {
-            host: [
-              left,
-              { ...right, [field]: field === "source_id" ? "other" : 99 },
-            ],
-          },
-        },
-      });
-    });
-    pointer(grip(), "pointerup", 1010);
-    expect(setClipJoin).not.toHaveBeenCalled();
-  });
-  it.each([
-    "left_fade",
-    "zoom",
-    "cap",
-    "adjacency",
-    "capability",
-    "roll",
-    "project",
-  ] as const)("cancels an active draft for %s", (change) => {
-    if (change === "capability")
-      useDawStore.setState({
-        projectPath: shareProjectKey("token"),
-        shareCapabilities: ["view", "edit"],
-      });
-    const view = mount(),
-      target = grip();
-    move();
-    expect(view.container.querySelector(".join-blend")).toHaveStyle({
-      width: "21px",
-    });
-    act(() => {
-      const store = useDawStore.getState(),
-        p = store.project!;
-      if (change === "zoom") useDawStore.setState({ zoomPxPerSec: 100 });
-      if (change === "capability")
-        useDawStore.setState({ shareCapabilities: ["view"] });
-      if (change === "project")
-        store.hydrate("/tmp/other.json", minimalProject());
-      if (change === "left_fade")
-        store.setProject({
-          ...p,
-          clips: {
-            ...p.clips,
-            tracks: { host: [{ ...left, fade_in_ms: 10 }, right] },
-          },
-        });
-      if (change === "cap")
-        store.setProject({
-          ...p,
-          tracks: p.tracks.map((t) => ({ ...t, fade_max_ms: 30 })),
-        });
-      if (change === "adjacency")
-        store.setProject({
-          ...p,
-          clips: { ...p.clips, tracks: { host: [right, left] } },
-        });
-    });
-    if (change === "roll")
-      view.rerender(
-        <main className="timeline-area">
-          <div className="lane-row">
-            <JoinEditor {...base} rolling />
-          </div>
-        </main>,
-      );
-    pointer(target, "pointerup", 1010);
-    expect(setClipJoin).not.toHaveBeenCalled();
-    if (change === "project") expect(releaseCapture).toHaveBeenCalled();
-  });
-  it("shares native range input and the direct grip mutation lock", () => {
-    vi.mocked(setClipJoin).mockImplementationOnce(() => new Promise(() => {}));
-    mount();
-    const range = screen.getByRole("slider", { name: "Length" });
-    fireEvent.input(range, { target: { value: "30" } });
-    fireEvent.change(range, { target: { value: "30" } });
-    move();
-    pointer(grip(), "pointerup", 1010);
-    expect(setClipJoin).toHaveBeenCalledExactlyOnceWith(
-      "/tmp/episode.json",
-      "left",
-      "right",
-      "crossfade",
-      30,
-    );
-  });
-  it("keeps mutation failure visible and restores saved paint", async () => {
-    vi.mocked(setClipJoin).mockRejectedValueOnce(new Error("join rejected"));
-    const { container } = mount();
-    move();
-    pointer(grip(), "pointerup", 1010);
-    expect(await screen.findByRole("alert")).toHaveTextContent("join rejected");
     expect(container.querySelector(".join-blend")).toHaveStyle({
       width: "1px",
     });
   });
-  it("restores saved paint for queued completion without a saved announcement", async () => {
-    vi.mocked(setClipJoin).mockResolvedValueOnce({ queued: true } as never);
-    const { container } = mount();
-    move();
-    pointer(grip(), "pointerup", 1010);
-    await act(async () => {});
-    expect(container.querySelector(".join-blend")).toHaveStyle({
-      width: "1px",
-    });
-    expect(screen.queryByText(/saved/i)).toBeNull();
-  });
-  it("ignores an old project rejection and preserves a new project lock", async () => {
-    let reject: (e: Error) => void = () => {};
-    vi.mocked(setClipJoin).mockImplementationOnce(
-      () =>
-        new Promise((_, r) => {
-          reject = r;
-        }),
-    );
-    mount();
-    move();
-    pointer(grip(), "pointerup", 1010);
-    act(() => {
-      useDawStore.getState().hydrate("/tmp/new.json", minimalProject());
-      useDawStore.getState().setJoinMutationInFlight(true);
-    });
-    await act(async () => reject(new Error("old error")));
-    expect(screen.queryByRole("alert")).toBeNull();
-    expect(useDawStore.getState().joinMutationInFlight).toBe(true);
-  });
-  it.each([0, 1])(
-    "keeps max %s legal and fixed without an enabled resizing control",
-    (max) => {
-      mount({ trackFadeMaxMs: max });
-      expect(grip()).toBeDisabled();
-      if (max === 1)
-        expect(screen.getByRole("slider", { name: "Length" })).toBeDisabled();
-      else expect(screen.queryByRole("slider", { name: "Length" })).toBeNull();
-      if (max === 0)
-        expect(
-          screen.getByRole("button", { name: /^Crossfade$/ }),
-        ).toBeDisabled();
-    },
-  );
-  it.each(["reorder", "remove", "mode", "cap", "capability"] as const)(
-    "rejects %s changes even before a prop refresh",
-    (change) => {
-      if (change === "capability")
-        useDawStore.setState({
-          projectPath: shareProjectKey("token"),
-          shareCapabilities: ["view", "edit"],
-        });
-      const { container } = mount();
-      act(() => {
-        const store = useDawStore.getState(),
-          p = store.project!;
-        if (change === "capability") {
-          useDawStore.setState({
-            guestMode: "view",
-            shareCapabilities: ["view"],
-          });
-          return;
-        }
-        const rows =
-          change === "reorder"
-            ? [right, left]
-            : change === "remove"
-              ? [right]
-              : [
-                  left,
-                  change === "mode" ? { ...right, join_in_mode: "cut" } : right,
-                ];
-        store.setProject({
-          ...p,
-          tracks:
-            change === "cap"
-              ? p.tracks.map((t) => ({ ...t, fade_max_ms: 30 }))
-              : p.tracks,
-          clips: { ...p.clips, tracks: { host: rows } },
-        });
-      });
-      const target = screen.queryByRole("button", { name: /Drag crossfade/ });
-      if (target) {
-        pointer(target, "pointerdown", 1000);
-        pointer(target, "pointerup", 1010);
-      }
-      expect(setClipJoin).not.toHaveBeenCalled();
-      expect(container.querySelector(".join-blend")).toHaveStyle({
-        width: "1px",
-      });
-    },
-  );
-  it.each(["scroll", "resize"] as const)(
-    "cancels %s during a draft",
-    (type) => {
-      mount();
-      move();
-      fireEvent(window, new Event(type));
-      pointer(grip(), "pointerup", 1010);
-      expect(setClipJoin).not.toHaveBeenCalled();
-    },
-  );
-  it("cancels a native range draft without applying it", () => {
-    mount();
-    const range = screen.getByRole("slider", { name: "Length" });
-    fireEvent.input(range, { target: { value: "30" } });
-    fireEvent.pointerCancel(range);
-    fireEvent.change(range, { target: { value: "30" } });
-    expect(setClipJoin).not.toHaveBeenCalled();
-  });
-  it("holds asymmetric authoritative paint above the coupled maximum until intentional motion", () => {
-    const { container } = mount({
-      right: { ...right, fade_in_ms: 80, join_crossfade_ms: 40 },
-      trackFadeMaxMs: 30,
-    });
-    pointer(grip(), "pointerdown", 1000);
-    pointer(grip(), "pointermove", 1001);
-    expect(container.querySelector(".join-blend")).toHaveStyle({
-      width: "2px",
-    });
-    pointer(grip(), "pointerup", 1001);
-    expect(setClipJoin).not.toHaveBeenCalled();
-  });
-  it("warns about reducing the right fade-out without projecting neighboring rows", () => {
-    mount({
-      right: { ...right, source_end: 5.5, timeline_end: 5.5, fade_out_ms: 300 },
-      trackFadeMaxMs: null,
-    });
-    move();
-    expect(
-      screen.getByText(/right clip fade-out to 80 ms/),
-    ).toBeInTheDocument();
-  });
-  it("does not paint a blocked contradictory projected overlap", () => {
-    const { container } = mount({
-      right: {
-        ...right,
-        join_crossfade_ms: 50,
-        join_crossfade_blocked: "no_fade_in",
-      },
-    });
+
+  it("draws no blend for a draft whose left recording is unmeasured", () => {
+    const unmeasured = { ...left, source_duration_sec: null };
+    const { container } = mount({ left: unmeasured });
+    draft(420, right, unmeasured);
     expect(container.querySelector(".join-blend")).toBeNull();
   });
-});
-describe("JoinEditor crossfade grip on touch", () => {
-  const touch = {
-    pointerType: "touch",
-    pointerId: 4,
-    isPrimary: true,
-    button: 0,
-    clientY: 20,
-  };
-  beforeEach(() => {
-    vi.useFakeTimers();
-    document.elementFromPoint = () => null;
-  });
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-  function placedGrip() {
-    mount();
-    const el = grip();
-    place(el, { left: 978, top: 0, right: 1022, bottom: 44 });
-    return el;
-  }
 
-  it("a finger sliding on the grip edits nothing", () => {
-    const el = placedGrip();
-    fireEvent.pointerDown(el, { ...touch, clientX: 1000 });
-    fireEvent.pointerMove(el, { ...touch, clientX: 1040 });
-    fireEvent.pointerUp(el, { ...touch, clientX: 1040 });
-    act(() => {
-      vi.advanceTimersByTime(LONG_PRESS_MS * 2);
-    });
+  it.each([
+    ["no_headroom", false],
+    ["not_abutting", false],
+    ["no_fade_in", true],
+  ] as const)(
+    "draws waves for a draft of a saved %s join: %s",
+    (reason, drawn) => {
+      const saved = {
+        ...right,
+        join_crossfade_ms: 0,
+        join_crossfade_blocked: reason,
+      };
+      const { container } = mount({ right: saved, ...waves });
+      draft(420, saved);
+      expect(container.querySelector(WAVE_SELECTOR) !== null).toBe(drawn);
+    },
+  );
 
-    expect(el.hasAttribute("data-hit-armed")).toBe(false);
-    expect(screen.queryByText(/Draft overlap/)).toBeNull();
-    expect(setClipJoin).not.toHaveBeenCalled();
-  });
-
-  it("a long press arms the grip, which then drags and saves on lift", () => {
-    const el = placedGrip();
-    fireEvent.pointerDown(el, { ...touch, clientX: 1000 });
-    act(() => {
-      vi.advanceTimersByTime(LONG_PRESS_MS);
-    });
-    expect(el.hasAttribute("data-hit-armed")).toBe(true);
-    fireEvent.pointerMove(el, { ...touch, clientX: 1010 });
-    expect(screen.getByText(/Draft overlap 420/)).toBeInTheDocument();
-    fireEvent.pointerUp(el, { ...touch, clientX: 1010 });
-
-    expect(el.hasAttribute("data-hit-armed")).toBe(false);
-    expect(setClipJoin).toHaveBeenCalledExactlyOnceWith(
-      "/tmp/episode.json",
-      "left",
-      "right",
-      "crossfade",
-      420,
-    );
-  });
-
-  it("rolls the armed drag back, saving nothing, when a second finger lands on the lanes", () => {
-    const el = placedGrip();
-    fireEvent.pointerDown(el, { ...touch, clientX: 1000 });
-    act(() => {
-      vi.advanceTimersByTime(LONG_PRESS_MS);
-    });
-    fireEvent.pointerMove(el, { ...touch, clientX: 1010 });
-    expect(screen.getByText(/Draft overlap 420/)).toBeInTheDocument();
-
-    const badge = screen.getByRole("button", { name: /join at/ });
-    const second = { ...touch, pointerId: 5, isPrimary: false };
-    fireEvent.pointerDown(badge, second);
-    fireEvent.pointerUp(el, { ...touch, clientX: 1010 });
-    fireEvent.pointerUp(badge, second);
-    act(() => {
-      vi.runAllTimers();
-    });
-
-    expect(screen.queryByText(/Draft overlap/)).toBeNull();
-    expect(setClipJoin).not.toHaveBeenCalled();
-    expect(badge).toHaveAttribute("aria-expanded", "true");
+  it("has no accessibility violations while a draft is drawn", async () => {
+    const { container } = mount({ ...waves });
+    draft(420);
+    await expectNoA11yViolations(container);
   });
 });

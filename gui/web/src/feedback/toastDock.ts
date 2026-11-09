@@ -3,13 +3,12 @@ import { lastPressedRect } from "../ui/pressedControl";
 
 /**
  * Phone chrome docked to the bottom edge. The toast sits above the highest of
- * these that is shown: the tab bar, the Player, an open join's crossfade rail,
+ * these that is shown: the tab bar, the Player,
  * the precision jog pad, or an open sheet (its grip, whose hit area rises above the sheet edge).
  */
 const FLOOR_SELECTORS = [
   ".stage-frame-tabs",
   ".stage-frame-player",
-  ".join-edit-rail",
   ".precision-jog",
   ".bottom-sheet:not(.bottom-sheet--column)",
   ".sys-inspector--phone .sys-inspector-grip",

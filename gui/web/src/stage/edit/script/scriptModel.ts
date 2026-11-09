@@ -376,15 +376,13 @@ function modelHasMark(
 /**
  * What the pane shows for the store's selection once the seam and suggestion
  * the Script draws are counted. Words and ranges come first; a selected pending
- * edit is the suggestion with that id; an open join popover (it opens by the
- * join's right clip) is the cut seam of that join. Anything the Script does not
+ * edit is the suggestion with that id; a selected seam is the cut seam with that
+ * id. Anything the Script does not
  * draw selects nothing.
  */
 export function scriptReviewSelectionOf(
   model: ScriptModel,
   selection: Selection | null,
-  boundaries: readonly EditBoundaryView[],
-  openJoinId: string | null,
 ): ScriptSelection | null {
   const words = scriptSelectionOf(model, selection);
   if (words) return words;
@@ -394,11 +392,10 @@ export function scriptReviewSelectionOf(
   ) {
     return { kind: "suggestion", id: selection.id };
   }
-  if (selection !== null || openJoinId === null) return null;
-  const seam = boundaries.find((b) => b.right_clip_id === openJoinId);
-  return seam && modelHasMark(model, "cut", seam.id)
-    ? { kind: "cut", id: seam.id }
-    : null;
+  if (selection?.kind === "seam" && modelHasMark(model, "cut", selection.id)) {
+    return { kind: "cut", id: selection.id };
+  }
+  return null;
 }
 
 /** How far a word's time may stray from a stored range edge and still lie inside it. */

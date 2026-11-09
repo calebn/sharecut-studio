@@ -1,3 +1,4 @@
+import { seamById } from "../../edit/seam";
 import type { SystemIconName } from "../../system/icons";
 import type { ProjectView, Selection } from "../../types/project";
 import {
@@ -103,8 +104,12 @@ export function inspectorHeading(
       };
     case "pending":
       return { icon: "wand-sparkles", name: "Suggestion" };
-    case "applied":
-      return { icon: "scissors", name: "Cut" };
+    case "seam": {
+      const seam = project ? seamById(project, selection.id) : null;
+      return seam?.kind === "split"
+        ? { icon: "split", name: "Split" }
+        : { icon: "scissors", name: "Cut" };
+    }
     case "chapter":
       return { icon: "flag", name: "Chapter" };
     case "social":

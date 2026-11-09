@@ -14,6 +14,7 @@ import type { ShellBreakpoint } from "../../state/types";
 import {
   appliedEditRecord,
   clipRow,
+  editBoundaries,
   minimalProject,
   pendingEditView,
   sampleComment,
@@ -69,20 +70,27 @@ vi.mock("../../waveform/statusStore", async (importOriginal) => ({
   useLaneWaveformStatus: () => "idle",
 }));
 
+const hostClips = [
+  clipRow({ id: "h1", track_id: "host", source_end: 2, timeline_end: 2 }),
+  clipRow({
+    id: "h2",
+    track_id: "host",
+    source_start: 2,
+    source_end: 4,
+    timeline_start: 2,
+    timeline_end: 4,
+    join_left_clip_id: "h1",
+  }),
+];
+
 const project = () =>
   minimalProject({
     tracks: [sampleTrack({ id: "host" }), sampleTrack({ id: "guest" })],
+    edit_boundaries: editBoundaries(hostClips),
     clips: {
-      clip_count: 2,
+      clip_count: 3,
       tracks: {
-        host: [
-          clipRow({
-            id: "h1",
-            track_id: "host",
-            source_end: 2,
-            timeline_end: 2,
-          }),
-        ],
+        host: hostClips,
         guest: [
           clipRow({
             id: "c1",
@@ -179,7 +187,7 @@ const SELECTIONS: Record<SelectionKind, NonNullable<Selection>> = {
     regionKey: null,
   },
   pending: { kind: "pending", id: "p1", trackId: "host" },
-  applied: { kind: "applied", id: "a1", trackId: "host" },
+  seam: { kind: "seam", id: "eb:h1:h2", trackId: "host" },
   track: { kind: "track", trackId: "host" },
   chapter: { kind: "chapter", id: "Intro", time: 3 },
   social: { kind: "social", id: "s1" },
@@ -213,7 +221,7 @@ const REACH: Record<SelectionKind, Reach[]> = {
     { role: "spinbutton", name: "Source start" },
     { role: "checkbox", name: "Snap to silence" },
   ],
-  applied: [{ role: "button", name: "Open History" }],
+  seam: [{ role: "spinbutton", name: "Length" }],
   track: [
     { role: "button", name: "Show volume envelope" },
     { role: "button", name: "Move track down" },
@@ -245,7 +253,7 @@ const AGENT_RANGE_ADOPTION: Record<SelectionKind, boolean> = {
   clip: true,
   bleedAttenuation: true,
   pending: true,
-  applied: true,
+  seam: true,
   track: true,
   chapter: true,
   social: true,

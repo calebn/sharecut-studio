@@ -462,12 +462,12 @@ def test_agent_play_with_selection(minimal_project) -> None:
         source="premix",
         tier="premix",
         dry_run=True,
-        selection={"kind": "applied", "id": "rec-1", "track_id": "host"},
+        selection={"kind": "seam", "id": "eb:a:b", "track_id": "host"},
     )
     snap = r["snapshot"]
     assert snap["region"]["start_sec"] == 3.0
-    assert snap["selection"]["kind"] == "applied"
-    assert snap["selection"]["id"] == "rec-1"
+    assert snap["selection"]["kind"] == "seam"
+    assert snap["selection"]["id"] == "eb:a:b"
 
 
 def test_ack_and_presence(minimal_project) -> None:

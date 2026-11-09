@@ -75,7 +75,7 @@ function findSelectionAnchor(
           `[data-hit-kind="comment"][data-hit-id="${esc(selection.id)}"]`,
         ) ?? timeline()
       );
-    case "applied":
+    case "seam":
     case "bleedAttenuation":
     case "track":
     case "envelope":

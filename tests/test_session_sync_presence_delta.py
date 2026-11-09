@@ -825,3 +825,22 @@ def test_hub_overflow_a_second_time_while_a_marker_is_buffered_keeps_one_marker(
     hub.unsubscribe(key, q)
     assert hub.listener_count(key) == 0
     loop.close()
+
+
+def test_presence_selection_names_a_seam_by_its_long_boundary_id() -> None:
+    seam_id = "eb:" + "clip_" + "a" * 40 + "_full:" + "clip_" + "b" * 40 + "_full"
+    assert len(seam_id) == 104
+    kept = normalize_presence_meta(
+        {"selection": {"kind": "seam", "id": seam_id, "track_id": "host"}}
+    )
+    assert kept is not None
+    assert kept["selection"]["kind"] == "seam"
+    assert kept["selection"]["id"] == seam_id
+
+
+def test_presence_selection_drops_the_retired_applied_kind() -> None:
+    assert normalize_presence_meta({"selection": {"kind": "applied", "id": "rec-1"}}) is None
+
+
+def test_presence_selection_rejects_an_id_past_the_limit() -> None:
+    assert normalize_presence_meta({"selection": {"kind": "seam", "id": "e" * 161}}) is None

@@ -376,7 +376,6 @@ describe("stable callback source governance", () => {
       "system/useGrab.ts:onStart",
       "system/useGrab.ts:slopOf",
       "system/useGrab.ts:stopWatching",
-      "timeline/JoinEditor.tsx:place",
       "timeline/TimelineView.tsx:fitFromRuler",
       "timeline/TimelineView.tsx:measure",
       "timeline/TimelineView.tsx:onClipBodyEnd",
@@ -385,9 +384,9 @@ describe("stable callback source governance", () => {
       "timeline/TimelineView.tsx:onClipMoveCommit",
       "timeline/TimelineView.tsx:onClipMovePreview",
       "timeline/TimelineView.tsx:onSeek",
-      "timeline/TimelineView.tsx:onSelectApplied",
       "timeline/TimelineView.tsx:onSelectClip",
       "timeline/TimelineView.tsx:onSelectPending",
+      "timeline/TimelineView.tsx:onSelectSeam",
       "timeline/TimelineView.tsx:seekFromRuler",
       "ui/useAnchoredPanel.ts:place",
     ]);

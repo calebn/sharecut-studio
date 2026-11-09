@@ -411,7 +411,7 @@ holds Escape: `overlayOpen()` skips keymap `edit.clearSelection`. Every `Dialog`
 42rem measure) with its primary pinned in the footer; the People list on the
 phone More sheet is a `Menu` behind a "People · n" button.
 Inspector dismiss still clears the clip selection. A remounted Inspector
-sheet stays under a still-open JoinPopover and does not steal focus from
+sheet stays under a still-open non-modal and does not steal focus from
 a docked Cut anyway button. A new sheet still takes Close after deferred
 first-entry focus.
 Typing, Tab and Enter inside
@@ -769,6 +769,6 @@ The native labeled inputs and preview list wrap within the panel and scroll with
 
 ### Crossfade length on Timeline
 
-Open a crossfade join glyph to reveal a reserved endpoint row below the scrolling lanes. The right-endpoint grip has a target at least 44 px in both dimensions. Its leader connects to the centered overlap X, and its caption shows the seam and effective or draft length. The grip stays outside clip move, seek, fade and roll targets, with the popover above its reserved row. Dragging saves one coupled join change on release. The grip follows the touch grammar like every timeline target (kind `crossfade-end`): a finger sliding on it scrolls, and only a long press arms it to drag. A mouse drags it at once. Use the native Length range for keyboard editing. Canceling restores the saved overlap. Stored unequal fades remain visible in the popover until an intentional edit sets both edges equally.
+Select a join glyph to set its length in the seam sheet: the **Length** Scrub field (0 to 500 ms). On a phone the sheet docks above the bar; a drag shows the draft overlap on the timeline and release saves one coupled join change. Canceling restores the saved overlap. Stored unequal fades stay until an intentional edit sets both edges equally.
 
 Moving a clip without dragging, and the panel size controls, are described in [daw-editing.md § Move clips without dragging](daw-editing.md#move-clips-without-dragging).

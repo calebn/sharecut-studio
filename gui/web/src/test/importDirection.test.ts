@@ -189,6 +189,7 @@ const BACK_EDGE_ALLOWLIST: Record<string, readonly string[]> = {
     "state/types.ts -> waveform/types (type)",
   ],
   "state -> commands/edit": [
+    "session/wire.ts -> edit/seam (static)",
     "state/projectSlice.ts -> edit/clipEdgePreview (type)",
     "state/projectSlice.ts -> edit/ripplePreview (static)",
     "state/types.ts -> edit/ripplePreview (type)",
@@ -248,6 +249,7 @@ const BACK_EDGE_ALLOWLIST: Record<string, readonly string[]> = {
     "commands/transcriptIgnore.ts -> transcript/transcriptModeCopy (static)",
     "edit/clipMove.ts -> timeline/snapOverlay (static)",
     "edit/nudge.ts -> timeline/pendingEdgeDrag (static)",
+    "edit/seam.ts -> timeline/appliedEditTicks (static)",
   ],
   "hooks -> views": [
     "hooks/useHostSync.ts -> record (static)",
@@ -273,7 +275,7 @@ const ALLOWLIST_SIZE_BY_PAIR = {
   "state -> document": 3,
   "state -> api": 1,
   "state -> services": 2,
-  "state -> commands/edit": 3,
+  "state -> commands/edit": 4,
   "state -> hooks": 2,
   "state -> views": 1,
   "document -> api": 2,
@@ -284,10 +286,10 @@ const ALLOWLIST_SIZE_BY_PAIR = {
   "api -> views": 3,
   "services -> commands/edit": 2,
   "commands/edit -> hooks": 2,
-  "commands/edit -> views": 14,
+  "commands/edit -> views": 15,
   "hooks -> views": 6,
 };
-const ALLOWLIST_SIZE = 57;
+const ALLOWLIST_SIZE = 59;
 
 const ID_SHAPE = /^(.+) -> (.+) \((static|type|dynamic)\)$/;
 

@@ -99,7 +99,6 @@ const TARGET: Record<HitKind, { id: string; sec: number }> = {
   roll: { id: "c2", sec: 10 },
   "fade-in": { id: "c2", sec: 10.3 },
   "fade-out": { id: "c2", sec: 39.7 },
-  "crossfade-end": { id: "c2", sec: 10.15 },
   "trim-in": { id: "c2", sec: 10 },
   "trim-out": { id: "c2", sec: 40 },
   chapter: { id: "30-Middle", sec: 30 },

@@ -12,10 +12,7 @@ import { importSpecifiers } from "../test/storyGovernance";
  * reaches the store transitively; this guard checks only each view's own
  * direct imports.
  */
-const VIEW_FILES = [
-  "timeline/CommentPlaybackBubbleView.tsx",
-  "timeline/JoinPopoverView.tsx",
-];
+const VIEW_FILES = ["timeline/CommentPlaybackBubbleView.tsx"];
 
 const FORBIDDEN = [
   /^\.\.\/state(\/|$)/,

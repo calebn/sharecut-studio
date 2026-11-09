@@ -68,7 +68,7 @@ const COVERED: Record<string, string[]> = {
     "System/Clip",
     "Stages/Edit/Tracks",
   ],
-  "POP-JOIN": ["Templates/JoinPopover", "System/Seam"],
+  "POP-JOIN": ["System/Seam"],
   "OVL-PENDING": ["Templates/PendingEditOverlay"],
   "OVL-APPLIED": ["Templates/AppliedEditOverlay", "System/Seam"],
   "OVL-EDITMARKERS": ["Templates/EditMarkerLayer", "System/Seam"],

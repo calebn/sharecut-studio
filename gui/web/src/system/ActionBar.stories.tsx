@@ -242,9 +242,9 @@ export const Seam: Story = {
   play: async ({ canvasElement }) => {
     await expect(barNames(canvasElement)).toEqual([
       "Hear",
+      "Join type",
       "Keep",
       "Comment",
-      "More",
       "Inspect",
     ]);
   },

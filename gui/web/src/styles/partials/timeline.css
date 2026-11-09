@@ -694,27 +694,6 @@ button.join-seam:focus-visible {
   pointer-events: none;
 }
 
-/* The join editor body (#691). Its panel is an anchored Dialog
-   (ui-dialog-root--anchored, command-palette.css). */
-.join-popover-mode {
-  margin: 0;
-}
-
-.join-popover-length {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.join-popover-length input {
-  flex: 1 1 auto;
-  min-inline-size: 0;
-}
-
-.join-popover-length-value {
-  font-variant-numeric: tabular-nums;
-}
-
 .pending-overlay {
   position: absolute;
   top: 0;
@@ -985,10 +964,6 @@ html[data-shell="phone"] .pending-actions > .ui-control {
 
 .applied-tick--mute::before {
   border-block-start-color: var(--color-mark-mute);
-}
-
-.applied-tick.selected {
-  outline: var(--focus-ring-width) solid var(--color-warning);
 }
 
 .lane-envelope-window {
@@ -1326,73 +1301,12 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   vector-effect: non-scaling-stroke;
 }
 
-.join-edit-rail {
-  position: relative;
-  flex: none;
-  background: var(--color-bg-base);
-  border-top: 1px solid var(--color-border);
-  z-index: var(--z-join);
-  user-select: none;
-  -webkit-touch-callout: none;
-}
-
-.join-edit-track {
-  position: relative;
-  height: max(var(--touch-min), calc(2 * var(--join-hit-min)));
-}
-
-.join-length-grip {
-  position: absolute;
-  top: 0;
-  width: max(var(--touch-min), calc(2 * var(--join-hit-min)));
-  height: max(var(--touch-min), calc(2 * var(--join-hit-min)));
-  padding: 0;
-  border: 1px solid var(--color-accent);
-  border-radius: var(--radius-md);
-  background: var(--color-bg-overlay);
-  color: var(--color-text-on-overlay);
-  cursor: ew-resize;
-  touch-action: none;
-}
-
-.join-length-grip:focus-visible {
-  outline: var(--focus-ring-width) solid var(--color-accent);
-  outline-offset: var(--focus-ring-offset);
-}
-
-.join-edit-caption {
-  display: block;
-  padding: var(--space-1) var(--space-3);
-  font-size: var(--font-size-micro);
-  color: var(--color-text-secondary);
-  pointer-events: none;
-}
-
-.join-endpoint-leader {
-  position: fixed;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  z-index: var(--z-join);
-  pointer-events: none;
-  fill: none;
-  stroke: var(--color-accent);
-  stroke-width: 1;
-}
-
-.join-draft-warning {
-  display: block;
-  padding: var(--space-1) var(--space-3);
-  color: var(--color-warning);
-  font-size: var(--font-size-micro);
-}
-
 .join-blend path {
   vector-effect: non-scaling-stroke;
 }
 
 /* Touch grammar: a finger may scroll from any target that is not
-   selected, in the lanes or on the crossfade rail. The press layer then
+   selected, in the lanes. The press layer then
    decides tap or hold, and only a long press arms a target to drag. */
 [data-touch-press] [data-hit-kind]:not([data-hit-selected]) {
   touch-action: pan-x pan-y;

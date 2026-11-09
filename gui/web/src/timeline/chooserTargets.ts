@@ -14,7 +14,6 @@ const CHOOSER_KIND: Record<HitKind, ChooserKind> = {
   "trim-out": "clip",
   "fade-in": "clip",
   "fade-out": "clip",
-  "crossfade-end": "clip",
   roll: "seam",
   join: "seam",
   "edit-chip": "seam",

@@ -1,12 +1,12 @@
 import type { InspectorSection } from "../../system/InspectorSheet";
 import type { Selection } from "../../types/project";
-import { useAppliedSections } from "./appliedSections";
 import { useBleedSections } from "./bleedSections";
 import { useChapterSections } from "./chapterSections";
 import { useClipSections } from "./clipSections";
 import { useCommentSections } from "./commentSections";
 import { usePendingSections } from "./pendingSections";
 import { rangeSection } from "./rangeSection";
+import { useSeamSections } from "./seamSections";
 import { useSocialSections } from "./socialSections";
 import { useTrackSections } from "./trackSections";
 import { useWordSections } from "./wordSections";
@@ -17,7 +17,7 @@ export function useSelectionSections(
   barShown = false,
 ): readonly InspectorSection[] | null {
   const word = useWordSections(selection);
-  const applied = useAppliedSections(selection);
+  const seam = useSeamSections(selection);
   const bleed = useBleedSections(selection);
   const clip = useClipSections(selection);
   const comment = useCommentSections(selection);
@@ -27,14 +27,7 @@ export function useSelectionSections(
   const social = useSocialSections(selection);
   if (word) return word;
   const rest =
-    applied ??
-    bleed ??
-    clip ??
-    comment ??
-    pending ??
-    track ??
-    chapter ??
-    social;
+    seam ?? bleed ?? clip ?? comment ?? pending ?? track ?? chapter ?? social;
   if (!rest) return null;
   return rangeActionsInSheet ? [rangeSection, ...rest] : rest;
 }

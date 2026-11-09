@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   appliedEditRecord,
   clipRow,
+  editBoundaries,
   minimalProject,
   pendingEditView,
   sampleComment,
@@ -47,6 +48,7 @@ function project(overrides: Partial<ProjectView> = {}): ProjectView {
   return minimalProject({
     tracks: [sampleTrack({ id: "host", range_media_seal: "s" })],
     clips: { tracks: { host: clips }, clip_count: clips.length },
+    edit_boundaries: editBoundaries(clips),
     transcript: {
       utterances: [
         {
@@ -83,10 +85,7 @@ describe("selectionKind", () => {
     [words(0, 1), "words"],
     [{ kind: "range", target: range }, "range"],
     [{ kind: "clip", id: "a", trackId: "host" }, "clip"],
-    [{ kind: "applied", id: "edit-1", trackId: "host" }, "seam"],
-    [{ kind: "applied", id: "mute-1", trackId: "host" }, "appliedEdge"],
-    [{ kind: "applied", id: "trim-1", trackId: "host" }, "appliedEdge"],
-    [{ kind: "applied", id: "gone", trackId: "host" }, "appliedEdge"],
+    [{ kind: "seam", id: "eb:a:b", trackId: "host" }, "seam"],
     [{ kind: "pending", id: "pending-1", trackId: "host" }, "suggestion"],
     [{ kind: "chapter", id: "ch", time: 5 }, "chapter"],
     [{ kind: "social", id: "s" }, "social"],
@@ -104,22 +103,8 @@ describe("selectionKind", () => {
       "bleed",
     ],
   ];
-  const withRecords = project({
-    applied_edits: {
-      count: 3,
-      records: [
-        appliedEditRecord({ track_ids: ["host"] }),
-        appliedEditRecord({
-          id: "mute-1",
-          operation: "edit_selected_range",
-          params: { action: "mute" },
-        }),
-        appliedEditRecord({ id: "trim-1", operation: "trim_clip_edge" }),
-      ],
-    },
-  });
   it.each(cases)("%j is %s", (selection, kind) => {
-    expect(selectionKind(selection, withRecords)).toBe(kind);
+    expect(selectionKind(selection)).toBe(kind);
   });
 });
 
@@ -157,8 +142,8 @@ describe("selectionSpan", () => {
     ],
     [
       "seam",
-      { kind: "applied", id: "edit-1", trackId: "host" },
-      { start: 2, end: 3, trackIds: ["host"] },
+      { kind: "seam", id: "eb:a:b", trackId: "host" },
+      { start: 4, end: 4, trackIds: ["host"] },
     ],
     [
       "suggestion",
@@ -350,23 +335,35 @@ describe("editFacts", () => {
       expect(holds([trim, mute])).toBe(false);
     });
 
-    it("is true at a removal seam and false at a mute", () => {
-      const p = project({
-        applied_edits: {
-          count: 2,
-          records: [
-            appliedEditRecord({ track_ids: ["host"] }),
-            appliedEditRecord({ id: "m", params: { mute: true } }),
-          ],
-        },
+    it("is true at a cut seam and false at a split", () => {
+      const left = clipRow({
+        id: "l",
+        track_id: "host",
+        source_end: 4,
+        timeline_end: 4,
+      });
+      const right = clipRow({
+        id: "r",
+        track_id: "host",
+        source_start: 4,
+        source_end: 8,
+        timeline_start: 4,
+        timeline_end: 8,
+      });
+      const split = project({
+        clips: { tracks: { host: [left, right] }, clip_count: 2 },
+        edit_boundaries: editBoundaries([left, right]),
       });
       expect(
-        editFacts({ kind: "applied", id: "edit-1" }, p, ctx).holdsCut,
+        editFacts(
+          { kind: "seam", id: "eb:a:b", trackId: "host" },
+          project(),
+          ctx,
+        ).holdsCut,
       ).toBe(true);
-      expect(editFacts({ kind: "applied", id: "m" }, p, ctx)).toMatchObject({
-        kind: "appliedEdge",
-        holdsCut: false,
-      });
+      expect(
+        editFacts({ kind: "seam", id: "eb:l:r", trackId: "host" }, split, ctx),
+      ).toMatchObject({ kind: "seam", holdsCut: false });
     });
   });
 
