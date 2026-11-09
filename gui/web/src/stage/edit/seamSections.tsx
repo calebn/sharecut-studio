@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ROLL_QUEUED_MESSAGE,
   rollSeam,
@@ -16,8 +16,6 @@ import { type Seam, seamById, seamTitle } from "../../edit/seam";
 import { canApplyPass12, canHostMutate } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
-import { AbAudition } from "../../system/AbAudition";
-import type { AuditionSide } from "../../system/auditionWindow";
 import type { InspectorSection } from "../../system/InspectorSheet";
 import { ScrubField } from "../../system/ScrubField";
 import { appliedEditTitle } from "../../timeline/appliedEditTicks";
@@ -26,18 +24,14 @@ import { InlineError } from "../../ui";
 import { BUSY_REASON } from "../../ui/disabledReason";
 import { joinModeOf } from "../../utils/editMarkerRegistry";
 import { relativeTime } from "../../utils/relativeTime";
+import { SeamAbRow } from "./SeamAbRow";
 import { note } from "./sheetNote";
-import {
-  AB_CLAMPED_REASON,
-  AB_PREPARING_NOTE,
-  useSeamAudition,
-} from "./useSeamAudition";
+import { AB_CLAMPED_REASON, useSeamAudition } from "./useSeamAudition";
 import { useSeamReplay } from "./useSeamReplay";
 
 export const MAX_JOIN_LENGTH_MS = 500;
 const NO_ROOM_NOTE = "The clips leave no room to roll";
 const NOT_TOUCHING_NOTE = "The clips do not touch";
-const AB_NOTE = "1.5 s before and after";
 const AB_GUEST_REASON = "A/B needs the host app";
 const AB_UNROLLED_REASON = "Roll the seam to compare";
 const AB_BUSY_REASON = "A/B is ready once the roll saves";
@@ -56,53 +50,6 @@ function appliedByLine(seam: Extract<Seam, { kind: "cut" }>): string | null {
   const more = seam.records.length - 1;
   const age = relativeTime(first.applied_at, new Date());
   return `${appliedEditTitle(first)} · applied ${age}${more > 0 ? ` · +${more} more` : ""}`;
-}
-
-function SeamAbRow({
-  reason,
-  side,
-  pending,
-  joinSec,
-  onSelect,
-}: {
-  reason: string | null;
-  side: AuditionSide;
-  pending: boolean;
-  joinSec: number;
-  onSelect: (side: AuditionSide) => void;
-}) {
-  const box = useRef<HTMLDivElement>(null);
-  const held = useRef(false);
-  useLayoutEffect(() => {
-    if (reason && held.current && document.activeElement === document.body) {
-      held.current = false;
-      box.current?.focus();
-    }
-  }, [reason]);
-  return (
-    <div
-      ref={box}
-      tabIndex={-1}
-      onFocus={() => {
-        held.current = reason === null;
-      }}
-      onBlur={(event) => {
-        if (event.relatedTarget) held.current = false;
-      }}
-    >
-      {reason ? (
-        note(reason)
-      ) : (
-        <AbAudition
-          side={side}
-          change={{ start: joinSec, end: joinSec }}
-          note={pending ? AB_PREPARING_NOTE : AB_NOTE}
-          shortcuts={false}
-          onSelect={onSelect}
-        />
-      )}
-    </div>
-  );
 }
 
 export function useSeamSections(
