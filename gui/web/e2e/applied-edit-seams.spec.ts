@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
+import { expectPageAxeClean } from "./axe";
 import { postDocumentCommand } from "./documentCommand";
 import { e2eProjectPath } from "./env";
 import {
@@ -6,7 +7,14 @@ import {
   removeRelocatedE2eProject,
 } from "./liveProject";
 import { switchE2eProject } from "./shareableProject";
-import { goToStage, inspectSelection, openProject, phone } from "./stageNav";
+import {
+  goToStage,
+  inspectSelection,
+  openPanel,
+  openProject,
+  phone,
+  setScrub,
+} from "./stageNav";
 import { projectJson } from "./touchTimeline";
 
 let projectPath: string;
@@ -217,5 +225,113 @@ test.describe("Seam selection", () => {
     await expect(sheet.getByRole("spinbutton", { name: "Length" })).toHaveCount(
       1,
     );
+  });
+});
+
+async function leftSourceEnd(page: Page): Promise<number> {
+  const lane = (await projectJson(page, projectPath)).clips.tracks.reference;
+  const first = [...(lane ?? [])].sort(
+    (a, b) => a.timeline_start - b.timeline_start,
+  )[0];
+  if (!first) throw new Error("no clip");
+  return first.source_end;
+}
+
+test.describe("Seam roll from the sheet", () => {
+  test("an Offset roll is one History entry, Undo restores it and A/B plays", async ({
+    page,
+  }) => {
+    await openEdit(page);
+    await splitAtPlayhead(page);
+    await glyphs(page).first().click();
+    await inspectSelection(page);
+    const offset = page.getByRole("spinbutton", { name: "Offset" });
+    await expect(offset).toBeVisible();
+    await expect(offset).toHaveAttribute("aria-valuenow", "0");
+    await expect(page.getByText("Roll the seam to compare")).toBeVisible();
+    await expectPageAxeClean(page, ".sys-inspector");
+
+    const origin = await leftSourceEnd(page);
+    const before = await historyLength(page);
+    await setScrub(page, offset, "20");
+    await expect.poll(() => historyLength(page)).toBe(before + 1);
+    await expect.poll(() => leftSourceEnd(page)).toBeCloseTo(origin + 0.02, 6);
+    await expect(offset).toHaveAttribute("aria-valuenow", "20");
+
+    const audition = page.waitForResponse(
+      (r) =>
+        r.url().includes("/api/boundary/audition") &&
+        r.request().method() === "POST",
+    );
+    await page
+      .locator(".sys-inspector")
+      .getByRole("button", { name: "A", exact: true })
+      .click();
+    expect((await audition).ok()).toBe(true);
+    await expectPageAxeClean(page, ".sys-inspector");
+
+    await blurFocus(page);
+    await page.keyboard.press("ControlOrMeta+Z");
+    await expect.poll(() => leftSourceEnd(page)).toBeCloseTo(origin, 6);
+    await expect(offset).toHaveAttribute("aria-valuenow", "0");
+    await expect(page.getByText("Roll the seam to compare")).toBeVisible();
+  });
+
+  test("rolling a cut seam from its Script pill still saves one entry", async ({
+    page,
+  }) => {
+    await openEdit(page);
+    await cutTwoRanges(page);
+    await openProject(page, projectPath);
+    await goToStage(page, "edit");
+    await openPanel(page, "transcript");
+    const before = await historyLength(page);
+    const pill = page.locator("[data-seam-id]").first();
+    await pill.scrollIntoViewIfNeeded();
+    const box = await pill
+      .locator('.sys-seam-edge[data-side="right"]')
+      .boundingBox();
+    if (!box) throw new Error("no pill edge");
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + 40, y, { steps: 5 });
+    await page.mouse.up();
+    await expect.poll(() => historyLength(page)).toBe(before + 1);
+  });
+
+  test.describe("on a phone", () => {
+    test.use({ hasTouch: true });
+
+    test("a tap-typed Offset rolls once and the sheet passes axe", async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 390, height: 780 });
+      await openEdit(page);
+      await phone.show(page, "timeline");
+      await splitAtPlayhead(page);
+      await glyphs(page).first().click();
+      await inspectSelection(page);
+      const sheet = page.getByRole("dialog", {
+        name: "Inspector",
+        exact: true,
+      });
+      const offset = sheet.getByRole("spinbutton", { name: "Offset" });
+      await expect(offset).toBeVisible();
+      const box = await offset.boundingBox();
+      expect(box?.height ?? 0).toBeGreaterThanOrEqual(24);
+      const before = await historyLength(page);
+      await offset.tap();
+      const input = sheet.getByRole("textbox", { name: "Offset" });
+      await input.fill("15");
+      await input.press("Enter");
+      await expect.poll(() => historyLength(page)).toBe(before + 1);
+      await expect(offset).toHaveAttribute("aria-valuenow", "15");
+      await expect(
+        sheet.getByRole("button", { name: "A", exact: true }),
+      ).toBeVisible();
+      await expectPageAxeClean(page, '[role="dialog"]');
+    });
   });
 });
