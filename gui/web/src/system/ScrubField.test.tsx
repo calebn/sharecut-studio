@@ -321,6 +321,114 @@ describe("ScrubField window keys", () => {
 });
 
 describe("ScrubField typing", () => {
+  it("resets a level on a native mouse double-click after opening the input", () => {
+    const { calls, field } = setup({
+      variant: "level",
+      value: -6,
+      min: -60,
+      max: 12,
+      defaultValue: 0,
+      decimals: 1,
+      unit: "dB",
+    });
+    const initial = field();
+    fireEvent.pointerDown(initial, {
+      pointerId: 1,
+      pointerType: "mouse",
+      button: 0,
+      clientX: 100,
+      clientY: 10,
+    });
+    fireEvent.pointerUp(initial, {
+      pointerId: 1,
+      pointerType: "mouse",
+      clientX: 100,
+      clientY: 10,
+    });
+    fireEvent.click(initial, { detail: 1, clientX: 100, clientY: 10 });
+    const input = screen.getByRole("textbox", { name: "Offset" });
+    expect(input).toHaveFocus();
+
+    fireEvent.pointerDown(input, {
+      pointerId: 2,
+      pointerType: "mouse",
+      button: 0,
+      clientX: 100,
+      clientY: 10,
+    });
+    fireEvent.pointerUp(input, {
+      pointerId: 2,
+      pointerType: "mouse",
+      clientX: 100,
+      clientY: 10,
+    });
+    fireEvent.click(input, { detail: 2, clientX: 100, clientY: 10 });
+    fireEvent.doubleClick(input, { detail: 2, clientX: 100, clientY: 10 });
+
+    expect(screen.queryByRole("textbox", { name: "Offset" })).toBeNull();
+    expect(field()).toHaveAttribute("aria-valuenow", "0");
+    expect(field()).toHaveFocus();
+    expect(calls.onCommit).toHaveBeenCalledExactlyOnceWith(0);
+  });
+
+  it("resets a level on a second touch after opening the input", () => {
+    const { calls, field } = setup({
+      variant: "level",
+      value: -6,
+      min: -60,
+      max: 12,
+      defaultValue: 0,
+      decimals: 1,
+      unit: "dB",
+    });
+    fireEvent.pointerDown(field(), {
+      pointerId: 1,
+      pointerType: "touch",
+      button: 0,
+      clientX: 100,
+      clientY: 10,
+    });
+    fireEvent.pointerUp(field(), {
+      pointerId: 1,
+      pointerType: "touch",
+      clientX: 100,
+      clientY: 10,
+    });
+    const input = screen.getByRole("textbox", { name: "Offset" });
+    expect(input).toHaveFocus();
+
+    fireEvent.click(input, {
+      detail: 1,
+      pointerType: "touch",
+      clientX: 100,
+      clientY: 10,
+    });
+    fireEvent.pointerDown(input, {
+      pointerId: 2,
+      pointerType: "touch",
+      button: 0,
+      clientX: 100,
+      clientY: 10,
+    });
+    fireEvent.pointerUp(input, {
+      pointerId: 2,
+      pointerType: "touch",
+      clientX: 100,
+      clientY: 10,
+    });
+    fireEvent.click(input, {
+      detail: 1,
+      pointerType: "touch",
+      clientX: 100,
+      clientY: 10,
+    });
+
+    expect(screen.queryByRole("textbox", { name: "Offset" })).toBeNull();
+    expect(field()).toHaveAttribute("aria-valuenow", "0");
+    expect(field()).toHaveFocus();
+    expect(calls.onCommit).toHaveBeenCalledExactlyOnceWith(0);
+  });
+
   it("opens an input on click, commits a typed number on Enter and returns focus", async () => {
     const user = userEvent.setup();
     const { calls, field } = setup();
