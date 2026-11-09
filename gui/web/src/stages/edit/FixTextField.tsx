@@ -62,9 +62,10 @@ const messageOf = (reason: unknown) =>
 /**
  * The inline field the selected words become (spec POP-WORD-EDIT): sized to
  * its content, 1 px accent outline, the text's own font. It takes focus and
- * selects its text on mount, and the Script pane hands focus back to the first
- * word it covered when the host closes it. Text changes never move audio, so
- * the field reports words only.
+ * selects its text on mount. The host returns focus to a word only when this
+ * field still owns focus as it closes; a blur save leaves focus on the
+ * destination the user chose. Text changes never move audio, so the field
+ * reports words only.
  *
  * A commit the host refuses leaves the field open, read only while the host
  * works, with the reason under it. Only Enter, Tab and a leaving click or
