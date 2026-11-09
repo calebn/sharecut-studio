@@ -295,7 +295,7 @@ export const Multi: Story = {
 export const ReadOnly: Story = {
   ...floating(EDIT_SELECTIONS.cutWords, { role: "readOnly" }),
   play: async ({ canvasElement }) => {
-    await expect(barNames(canvasElement)).toEqual(["Hear", "Comment"]);
+    await expect(barNames(canvasElement)).toEqual(["Hear", "Comment", "More"]);
     await expect(canvasElement.querySelector(".sys-scope")).toBeNull();
   },
 };
