@@ -767,6 +767,34 @@ describe("Review queue for a guest", () => {
     });
   });
 
+  it("plays a comment's clip with 2 s of lead and tail when its queue row is clicked", async () => {
+    join("comment", [
+      sampleComment({
+        id: "c9",
+        body: "The podcast restarts",
+        timeline_start: 323,
+      }),
+    ]);
+    render(<ReviewHost guestShare />);
+    await userEvent.click(
+      document.querySelector(".sys-queue-row[data-kind=comment] button")!,
+    );
+    await waitFor(() => expect(useDawStore.getState().playheadSec).toBe(321));
+    expect(useDawStore.getState().playUntilSec).toBe(325);
+    expect(useDawStore.getState().isPlaying).toBe(true);
+  });
+
+  it("selects without playing when the queue is stepped by arrow keys", async () => {
+    join("comment", [
+      sampleComment({ id: "c8", timeline_start: 50 }),
+      sampleComment({ id: "c9", timeline_start: 323 }),
+    ]);
+    render(<ReviewHost guestShare />);
+    fireEvent.keyDown(document.querySelector(".rv-stage")!, { key: "ArrowDown" });
+    expect(useDawStore.getState().isPlaying).toBe(false);
+    expect(useDawStore.getState().playheadSec).toBe(0);
+  });
+
   it("is axe-clean with the field and a comment", async () => {
     join("comment");
     const { container } = render(<ReviewHost guestShare />);
