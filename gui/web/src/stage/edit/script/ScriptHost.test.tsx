@@ -108,10 +108,11 @@ describe("ScriptHost statuses", () => {
     expect(onTranscribe).toHaveBeenCalledOnce();
   });
 
-  it("shows transcribing with the run's progress over the words", () => {
+  it("shows Transcribing, with no percent, over the words", () => {
     useDawStore.setState({ pipelineJob: transcribeRun() });
     render(<ScriptHost />);
-    expect(screen.getByText("25%")).toBeInTheDocument();
+    expect(screen.getByText("Transcribing")).toBeInTheDocument();
+    expect(screen.queryByText(/%/)).toBeNull();
     expect(word("Welcome")).toBeInTheDocument();
   });
 

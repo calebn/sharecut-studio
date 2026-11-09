@@ -26,6 +26,8 @@ export const FIX_ACROSS_TRACKS =
 export const FIX_CUT_TEXT = "Text that was cut out cannot be fixed.";
 export const FIX_MOVED = "That text changed. Close this and try again.";
 export const FIX_OFF = "Fix text is not available now.";
+export const FIX_CLOSED =
+  "Fix text closed because the Script changed. Your edit was not saved.";
 
 export type ScriptFixTextProps = {
   editing: ScriptSpan | null;
@@ -120,7 +122,16 @@ export function useScriptFixText(
   // Script that mounts before its words settle keeps the field it was handed.
   const wasEnabled = useRef(enabled);
   if (enabled) wasEnabled.current = true;
-  if (!enabled && wasEnabled.current && pinned !== null) setPinned(null);
+  const closedUnsaved = useRef(false);
+  if (!enabled && wasEnabled.current && pinned !== null) {
+    closedUnsaved.current = true;
+    setPinned(null);
+  }
+  useEffect(() => {
+    if (!closedUnsaved.current) return;
+    closedUnsaved.current = false;
+    say(FIX_CLOSED);
+  });
   const enabledNow = useRef(enabled);
   enabledNow.current = enabled;
   const mounted = useRef(false);

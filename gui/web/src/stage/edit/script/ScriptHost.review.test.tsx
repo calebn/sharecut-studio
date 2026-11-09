@@ -178,6 +178,20 @@ describe("ScriptHost while the words are not settled", () => {
     expect(screen.queryByRole("textbox")).toBeNull();
   });
 
+  it("says the open fix was not saved when a run starts under it", async () => {
+    render(<ScriptHost />);
+    await userEvent.click(word("friends"));
+    await userEvent.keyboard("{Enter}");
+    await userEvent.type(field(), "!");
+    act(() => useDawStore.setState({ pipelineJob: transcribeRun() }));
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(
+      screen.getByText(
+        "Fix text closed because the Script changed. Your edit was not saved.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("closes the speaker popover for good when the Script stops being ready", async () => {
     render(<ScriptHost />);
     await userEvent.click(

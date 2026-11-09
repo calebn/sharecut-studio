@@ -28,12 +28,32 @@ describe("useScriptStatus", () => {
     expect(status(true).result.current).toEqual({ kind: "loading" });
   });
 
-  it("is transcribing, with the run's progress, over existing words", () => {
+  it("is transcribing, with no progress number, over existing words", () => {
     useDawStore.setState({ pipelineJob: transcribeRun() });
-    expect(status(true).result.current).toEqual({
-      kind: "transcribing",
-      progress: 0.25,
+    expect(status(true).result.current).toEqual({ kind: "transcribing" });
+  });
+
+  it("is ready once transcribe_tracks is ok although later steps still run", () => {
+    useDawStore.setState({
+      pipelineJob: transcribeRun({
+        steps: [
+          { name: "ingest_tracks", status: "ok", elapsed_sec: 1, error: null },
+          {
+            name: "transcribe_tracks",
+            status: "ok",
+            elapsed_sec: 90,
+            error: null,
+          },
+          {
+            name: "align_tracks",
+            status: "running",
+            elapsed_sec: 3,
+            error: null,
+          },
+        ],
+      }),
     });
+    expect(status(true).result.current).toEqual({ kind: "ready" });
   });
 
   it("follows the run to its end", () => {
