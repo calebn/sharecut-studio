@@ -23,7 +23,6 @@ import type {
   InspectorDetent,
   InspectorRect,
 } from "../../system/inspectorSheetMath";
-import { type AnchorRect, unionRect } from "../../ui/anchoredPlacement";
 import { useResizeObserver } from "../../ui/useResizeObserver";
 import { compactTarget } from "./compactTarget";
 import { EditActionBar } from "./EditActionBar";
@@ -247,14 +246,10 @@ function Card({
   const measure = useCallback(() => {
     if (!root) return;
     const frame = root.getBoundingClientRect();
-    const rects = [
-      anchor.ref.current,
-      // The card clears the Action bar that floats beside the same selection.
-      root.querySelector(".sys-actions--floating"),
-    ].flatMap((el) => (el ? [el.getBoundingClientRect()] : []));
-    const target = rects.length
-      ? rects.slice(1).reduce<AnchorRect>(unionRect, rects[0])
-      : null;
+    const target =
+      root.querySelector<HTMLElement>(".sys-actions--floating") ??
+      anchor.ref.current;
+    const targetRect = target?.getBoundingClientRect();
     const next: Placement = {
       bounds: {
         width: Math.round(frame.width),
@@ -262,12 +257,12 @@ function Card({
       },
       // Armed with nothing selected there is no object to sit beside: the bottom edge.
       anchor: rounded(
-        target
+        targetRect
           ? {
-              x: target.left - frame.left,
-              y: target.top - frame.top,
-              width: target.right - target.left,
-              height: target.bottom - target.top,
+              x: targetRect.left - frame.left,
+              y: targetRect.top - frame.top,
+              width: targetRect.right - targetRect.left,
+              height: targetRect.bottom - targetRect.top,
             }
           : { x: frame.width / 2, y: frame.height, width: 0, height: 0 },
       ),
