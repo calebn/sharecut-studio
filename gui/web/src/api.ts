@@ -59,7 +59,6 @@ export {
   deleteSocialClip,
   duplicateSegment,
   HISTORY_STALE_CODE,
-  loadPendingCutSuggestion,
   moveClips,
   moveSegment,
   pasteSegment,

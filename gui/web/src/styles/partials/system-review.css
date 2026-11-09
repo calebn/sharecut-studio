@@ -437,6 +437,48 @@ button.sys-queue-row--decided {
   font-size: var(--font-size-body);
 }
 
+.sys-confidence {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+}
+
+.sys-confidence-label {
+  margin-inline-end: var(--space-1);
+}
+
+.sys-confidence-dot {
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+
+.sys-confidence-dot[data-filled] {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+}
+
+.sys-decision-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.sys-decision-field {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+}
+
 .sys-take-switcher {
   display: flex;
   flex-direction: column;

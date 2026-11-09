@@ -42,12 +42,11 @@ import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
 import { CommentCard } from "../../system/CommentCard";
 import { Composer } from "../../system/Composer";
-import { KIND_META } from "../../system/decisionKinds";
+import { DecisionCard } from "../../system/DecisionCard";
 import { ScrubField } from "../../system/ScrubField";
-import { SystemIcon } from "../../system/SystemIcon";
 import { formatSeconds } from "../../system/seconds";
 import type { PendingEditView } from "../../types/project";
-import { Button, DefItem, DefinitionList, InlineError } from "../../ui";
+import { InlineError } from "../../ui";
 import { BUSY_REASON } from "../../ui/disabledReason";
 import {
   errorMessage,
@@ -70,25 +69,7 @@ import type { PreviewMode } from "../../utils/playRange";
 import { formatTimeMs } from "../../utils/time";
 import { commentCardOf } from "../hosts/commentCardData";
 import { PendingPreview } from "./PendingPreview";
-import { usePendingCutSuggestion } from "./usePendingCutSuggestion";
 import { usePendingEditWarm } from "./usePendingEditWarm";
-
-function signedMilliseconds(value: number): string {
-  return `${value >= 0 ? "+" : ""}${Number(value.toFixed(3))} ms`;
-}
-
-function exactSourceTime(seconds: number | null): string {
-  if (seconds === null) return "Unavailable";
-  const decimal = seconds.toString();
-  const [whole = "0", fraction = ""] = decimal.split(".");
-  const wholeSeconds = Number(whole);
-  if (decimal.includes("e") || !Number.isSafeInteger(wholeSeconds)) {
-    return `${decimal} s`;
-  }
-  const minutes = Math.floor(wholeSeconds / 60);
-  const secondField = String(wholeSeconds % 60).padStart(2, "0");
-  return `${minutes}:${secondField}.${fraction.padEnd(3, "0")}`;
-}
 
 type TimingCapture = Readonly<{
   projectPath: string;
@@ -158,20 +139,11 @@ export function PendingEditBody({
     setQueued,
   } = useQueuedReviewNotice(projectPath, edit.id);
   const isSplit = edit.type === "split";
-  const canSuggestBounds =
-    canNudge &&
-    !edit.applied &&
-    (edit.type === "remove" || edit.type === "mute") &&
-    (edit.timebase == null || edit.timebase === "source");
-  const suggestion = usePendingCutSuggestion(
-    edit,
-    canSuggestBounds && !queued && !checkingQueue,
-  );
   const timingBusy = busy || queued || checkingQueue;
   const [previewMode, setPreviewMode] = useState<PreviewMode>(
     edit.suggest_reason ? "current" : "suggested",
   );
-  const [snapToSilence, setSnapToSilence] = useState(true);
+  const altHeld = useRef(false);
   const [enteredEdge, setEnteredEdge] = useState<Readonly<{
     edge: "start" | "end";
     value: number;
@@ -227,7 +199,6 @@ export function PendingEditBody({
     previousTiming.current = { identity: timingIdentity };
     if (!sameIdentity) {
       setAskBody("");
-      setSnapToSilence(true);
     }
     setPreviewMode(edit.suggest_reason ? "current" : "suggested");
   }, [timingIdentity, edit.id, edit.suggest_reason]);
@@ -420,39 +391,14 @@ export function PendingEditBody({
       setError("Source start/end must be valid with end > start");
       return;
     }
+    const snap = !altHeld.current;
+    altHeld.current = false;
     await saveTiming({
       capture,
       start,
       end,
-      snap: snapToSilence,
+      snap,
       entered: { edge, value },
-    });
-  };
-
-  const recheckSnap = async (checked: boolean) => {
-    if (timingBusy) return;
-    setSnapToSilence(checked);
-    if (!checked || snapToSilence) return;
-    const capture = captureTiming();
-    if (!capture) return;
-    await saveTiming({
-      capture,
-      start: capture.expected.start,
-      end: capture.expected.end,
-      snap: true,
-    });
-  };
-
-  const acceptSuggestion = async () => {
-    if (timingBusy) return;
-    const proposal = suggestion.currentProposal();
-    const capture = captureTiming();
-    if (!proposal || !capture) return;
-    await saveTiming({
-      capture: { ...capture, expected: proposal.expected },
-      start: proposal.suggested.start,
-      end: proposal.suggested.end,
-      snap: false,
     });
   };
 
@@ -504,31 +450,19 @@ export function PendingEditBody({
       : edge === "start"
         ? edit.source_start
         : edit.source_end;
-  const kindMeta = KIND_META[decisionKindOf(edit.kind)];
   const speaker = project?.tracks.find((t) => t.id === edit.track_id)?.label;
   const length =
     isSplit || edit.source_start == null || edit.source_end == null
       ? null
       : formatSeconds(edit.source_end - edit.source_start);
-  const kindLine = [kindMeta.label, speaker, length]
+  const time = [tlStart != null ? formatTimeMs(tlStart) : null, length]
     .filter(Boolean)
     .join(" · ");
   const barHasVerbs = verbsOnBar && pendingOffersCut(edit);
-  const primaryActions =
-    !barHasVerbs && (canApply || edit.exact_range)
-      ? [
-          {
-            label: "Approve",
-            variant: "primary" as const,
-            action: "approve" as const,
-          },
-          {
-            label: "Reject",
-            variant: "default" as const,
-            action: "reject" as const,
-          },
-        ]
-      : [];
+  const inlineActions = !barHasVerbs && (canApply || edit.exact_range != null);
+  const holdAlt = (event: { altKey: boolean }) => {
+    altHeld.current = event.altKey;
+  };
   const askComposer = {
     body: askBody,
     onBodyChange: setAskBody,
@@ -541,240 +475,109 @@ export function PendingEditBody({
       ? REFINE_GATE_GUI_MESSAGE
       : combinedError;
 
+  const timingFields = edit.exact_range ? (
+    <p className="sys-decision-why sys-mono">
+      {edit.exact_range.intervals
+        .map((r) => `${formatTimeMs(r.start)} – ${formatTimeMs(r.end)}`)
+        .join(" · ")}
+    </p>
+  ) : !canNudge ? (
+    <p className="sys-decision-why sys-mono">
+      {`${sourceTime(edit.source_start)} – ${sourceTime(edit.source_end)}`}
+    </p>
+  ) : isSplit ? (
+    <div className="sys-decision-fields">
+      <div className="sys-decision-field">
+        <span>Cut time</span>
+        <span id={pendingEditTimingFieldId(edit.id, "start")}>
+          <ScrubField
+            label="Cut time"
+            value={edit.source_start}
+            unit="s"
+            step={0.01}
+            decimals={6}
+            min={0}
+            skipUnchanged
+            readOnly={timingBusy}
+            onCommit={(value) => void commitSplit(value)}
+          />
+        </span>
+      </div>
+      <div className="sys-decision-field">
+        <span>Tracks</span>
+        <TrackToggleRow
+          label="Tracks"
+          tracks={(project?.tracks ?? []).map((track) => ({
+            id: track.id,
+            label: track.label,
+          }))}
+          value={edit.track_ids ?? [edit.track_id]}
+          disabled={timingBusy}
+          onChange={(ids) => void commitSplit(null, ids)}
+        />
+      </div>
+    </div>
+  ) : (
+    <div
+      className="sys-decision-fields"
+      onKeyDownCapture={holdAlt}
+      onKeyUpCapture={holdAlt}
+      onPointerDownCapture={holdAlt}
+      onPointerMoveCapture={holdAlt}
+      onPointerUpCapture={holdAlt}
+    >
+      {(["start", "end"] as const).map((edge) => (
+        <div key={edge} className="sys-decision-field">
+          <span>{edge === "start" ? "Start" : "End"}</span>
+          <span id={pendingEditTimingFieldId(edit.id, edge)}>
+            <ScrubField
+              label={edge === "start" ? "Source start" : "Source end"}
+              value={shownEdge(edge)}
+              unit="s"
+              step={0.01}
+              decimals={6}
+              min={0}
+              skipUnchanged
+              readOnly={timingBusy}
+              onCommit={(value) => void commitEdge(edge, value)}
+            />
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <aside className="inspector modifier-inspector">
-      <header className="modifier-header">
-        <div className="modifier-titles">
-          <h3>{title}</h3>
-          <p className="modifier-subtitle">
-            <SystemIcon name={kindMeta.icon} size={14} />
-            {kindLine}
-          </p>
-        </div>
-      </header>
-      {primaryActions.length > 0 ? (
-        <div className="modifier-primary-actions">
-          {primaryActions.map(({ label, variant, action }) => (
-            <Button
-              key={label}
-              variant={variant}
-              disabledReason={
-                timingBusy
-                  ? BUSY_REASON
-                  : !canApply
-                    ? "Only the host or an Editor can review exact range proposals."
-                    : undefined
-              }
-              onClick={() => void runAction(action)}
-            >
-              {label}
-            </Button>
-          ))}
-        </div>
-      ) : null}
       <div className="modifier-body">
         {edit.exact_range && !canApply ? (
           <p className="ui-field-hint">
             Only the host or an Editor can review exact range proposals.
           </p>
         ) : null}
-        <DefinitionList>
-          <DefItem label="Why">
-            {edit.why ?? pendingReasonLabel(edit.reason, edit.kind)}
-          </DefItem>
-          {!edit.exact_range ? (
-            <DefItem label="Type">{pendingTypeLabel(edit.type)}</DefItem>
-          ) : null}
-          {edit.exact_range ? (
-            <>
-              <DefItem label="Timeline islands">
-                {edit.exact_range.intervals
-                  .map(
-                    (r) => `${formatTimeMs(r.start)} – ${formatTimeMs(r.end)}`,
-                  )
-                  .join(" · ")}
-              </DefItem>
-              <DefItem label="Tracks">
-                {edit.exact_range.track_ids.join(", ")}
-              </DefItem>
-            </>
-          ) : isSplit ? (
-            <>
-              <DefItem label="Cut time (source)">
-                {canNudge ? (
-                  <span id={pendingEditTimingFieldId(edit.id, "start")}>
-                    <ScrubField
-                      label="Cut time"
-                      value={edit.source_start}
-                      unit="s"
-                      step={0.01}
-                      decimals={6}
-                      min={0}
-                      skipUnchanged
-                      readOnly={timingBusy}
-                      onCommit={(value) => void commitSplit(value)}
-                    />
-                  </span>
-                ) : (
-                  sourceTime(edit.source_start)
-                )}
-              </DefItem>
-              <DefItem label="Tracks">
-                {canNudge ? (
-                  <TrackToggleRow
-                    label="Tracks"
-                    tracks={(project?.tracks ?? []).map((track) => ({
-                      id: track.id,
-                      label: track.label,
-                    }))}
-                    value={edit.track_ids ?? [edit.track_id]}
-                    disabled={timingBusy}
-                    onChange={(ids) => void commitSplit(null, ids)}
-                  />
-                ) : (
-                  (edit.track_ids ?? [edit.track_id]).join(", ")
-                )}
-              </DefItem>
-            </>
-          ) : (
-            <>
-              {canNudge ? (
-                <>
-                  <DefItem label="Start">
-                    <span id={pendingEditTimingFieldId(edit.id, "start")}>
-                      <ScrubField
-                        label="Source start"
-                        value={shownEdge("start")}
-                        unit="s"
-                        step={0.01}
-                        decimals={6}
-                        min={0}
-                        skipUnchanged
-                        readOnly={timingBusy}
-                        onCommit={(value) => void commitEdge("start", value)}
-                      />
-                    </span>
-                  </DefItem>
-                  <DefItem label="End">
-                    <span id={pendingEditTimingFieldId(edit.id, "end")}>
-                      <ScrubField
-                        label="Source end"
-                        value={shownEdge("end")}
-                        unit="s"
-                        step={0.01}
-                        decimals={6}
-                        min={0}
-                        skipUnchanged
-                        readOnly={timingBusy}
-                        onCommit={(value) => void commitEdge("end", value)}
-                      />
-                    </span>
-                  </DefItem>
-                  <DefItem label="Snap">
-                    <label className="pending-snap-option">
-                      <input
-                        type="checkbox"
-                        aria-label="Snap to silence"
-                        checked={snapToSilence}
-                        disabled={timingBusy}
-                        onChange={(event) =>
-                          void recheckSnap(event.currentTarget.checked)
-                        }
-                      />
-                      to silence
-                    </label>
-                  </DefItem>
-                </>
-              ) : (
-                <DefItem label="Source">
-                  {`${sourceTime(edit.source_start)} – ${sourceTime(edit.source_end)}`}
-                </DefItem>
-              )}
-            </>
-          )}
-          {!isSplit && !edit.exact_range ? (
-            <DefItem label="Timeline">
-              {edit.mappable && edit.timeline_start != null
-                ? `${formatTimeMs(edit.timeline_start)} – ${formatTimeMs(edit.timeline_end ?? edit.timeline_start)}`
-                : "Not mappable (cut away)"}
-            </DefItem>
-          ) : null}
-          {edit.crossfade_ms != null && !isSplit && !edit.exact_range ? (
-            <DefItem label="Join fade">{edit.crossfade_ms} ms</DefItem>
-          ) : null}
-          {edit.boundary_mode ? (
-            <DefItem label="Boundary">{edit.boundary_mode}</DefItem>
-          ) : null}
-          <DefItem label="Review">
-            {edit.review_required ? "required" : "no"}
-          </DefItem>
-          {edit.cut_confidence != null ? (
-            <DefItem label="Confidence">
-              {edit.cut_confidence.toFixed(2)}
-            </DefItem>
-          ) : null}
-        </DefinitionList>
-        {canSuggestBounds ? (
-          <section
-            className="pending-cut-suggestion"
-            aria-label="Suggested bounds"
-          >
-            <h3>Suggested bounds</h3>
-            <DefinitionList>
-              <DefItem label="Original source">
-                {exactSourceTime(edit.source_start)} to{" "}
-                {exactSourceTime(edit.source_end)}
-              </DefItem>
-              {suggestion.state?.kind === "ready" ? (
-                <>
-                  <DefItem label="Suggested source">
-                    {exactSourceTime(suggestion.state.proposal.suggested.start)}{" "}
-                    to{" "}
-                    {exactSourceTime(suggestion.state.proposal.suggested.end)}
-                  </DefItem>
-                  <DefItem label="Start shift">
-                    {signedMilliseconds(suggestion.state.proposal.startShiftMs)}
-                  </DefItem>
-                  <DefItem label="End shift">
-                    {signedMilliseconds(suggestion.state.proposal.endShiftMs)}
-                  </DefItem>
-                  <DefItem label="Edit duration change">
-                    {signedMilliseconds(
-                      suggestion.state.proposal.durationDeltaMs,
-                    )}
-                  </DefItem>
-                </>
-              ) : null}
-            </DefinitionList>
-            {suggestion.state?.kind === "unavailable" ? (
-              <>
-                <p className="ui-field-hint">
-                  Suggestion unavailable. {suggestion.state.message}
-                </p>
-                <Button
-                  disabledReason={timingBusy ? BUSY_REASON : undefined}
-                  onClick={suggestion.retry}
-                >
-                  Retry suggestion
-                </Button>
-              </>
-            ) : !queued && suggestion.state?.kind !== "ready" ? (
-              <p className="ui-field-hint">Loading suggested bounds…</p>
-            ) : null}
-            <Button
-              disabledReason={
-                timingBusy
-                  ? BUSY_REASON
-                  : suggestion.state?.kind !== "ready"
-                    ? "Wait for the suggested bounds to load."
-                    : undefined
-              }
-              onClick={() => void acceptSuggestion()}
-            >
-              Use suggestion
-            </Button>
-          </section>
-        ) : null}
+        <DecisionCard
+          layout="compact"
+          kind={decisionKindOf(edit.kind)}
+          title={title}
+          time={time}
+          speaker={speaker ? { name: speaker } : undefined}
+          why={edit.why ?? pendingReasonLabel(edit.reason, edit.kind)}
+          confidence={edit.cut_confidence ?? undefined}
+          inlineActions={inlineActions}
+          verb="approve"
+          keepLabel="Reject"
+          verbDisabledReason={
+            timingBusy
+              ? BUSY_REASON
+              : !canApply
+                ? "Only the host or an Editor can review exact range proposals."
+                : undefined
+          }
+          onVerb={() => void runAction("approve")}
+          onKeep={() => void runAction("reject")}
+        >
+          {timingFields}
+        </DecisionCard>
         {queuedNotice}
         {!isShareProjectKey(projectPath) ? (
           <TranscriptRefineRecovery

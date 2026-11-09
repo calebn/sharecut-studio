@@ -224,18 +224,7 @@ test("phone pending controls stay clear of handles and dense labels follow layou
   await expect(
     page.getByRole("heading", { name: "Pending edit" }),
   ).toBeVisible();
-  const snapOption = page.getByLabel("Snap to silence");
-  await expect(snapOption).toBeVisible();
-  await expect(snapOption).toBeChecked();
-  const snapOptionGeometry = await page
-    .locator(".pending-snap-option")
-    .evaluate((node) => ({
-      clientWidth: node.clientWidth,
-      scrollWidth: node.scrollWidth,
-    }));
-  expect(snapOptionGeometry.scrollWidth).toBeLessThanOrEqual(
-    snapOptionGeometry.clientWidth,
-  );
+  await expect(page.getByLabel("Snap to silence")).toHaveCount(0);
   // Docked above the drawer, the card leaves timing to the drawer's fields.
   await expect(page.locator(".pending-actionbar")).toBeVisible();
   await expect(

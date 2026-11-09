@@ -132,7 +132,9 @@ export function ActionBarInline({
     <ActionBar
       placement={placement}
       leading={dock ? undefined : openInEdit}
-      items={dock ? keeps : [...keeps, { id: "later", tone: "link" }]}
+      items={
+        dock || !onLater ? keeps : [...keeps, { id: "later", tone: "link" }]
+      }
       center={center}
       primary={primary}
       onVerb={onBarVerb}

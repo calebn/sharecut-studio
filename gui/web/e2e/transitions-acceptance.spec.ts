@@ -43,7 +43,7 @@ async function pendingSnapshot(page: Page) {
   };
 }
 
-test("pending suggestions preserve drafts and save the displayed full range once", async ({
+test("pending suggestions show a compact card, keep drafts and save a typed start", async ({
   page,
   browser,
 }, testInfo) => {
@@ -68,59 +68,14 @@ test("pending suggestions preserve drafts and save the displayed full range once
   const sourceStart = page.getByLabel("Source start", { exact: true });
   await expect(sourceStart).toHaveAttribute("aria-valuetext", "2.000000 s");
   const before = fs.readFileSync(projectPath, "utf8");
-  const response = await page.request.get(
-    `/api/pending-edits/${encodeURIComponent(editId)}/cut-suggestion?path=${encodeURIComponent(projectPath)}`,
-  );
-  expect(response.ok()).toBe(true);
-  const suggestion = await response.json();
-  expect(suggestion).toMatchObject({
-    edit_id: editId,
-    original_start: 2,
-    original_end: 8,
-  });
-  expect(fs.readFileSync(projectPath, "utf8")).toBe(before);
-  const useSuggestion = page.getByRole("button", { name: "Use suggestion" });
-  await expect(useSuggestion).toBeEnabled();
   await sourceStart.press("Enter");
   const startInput = page.getByRole("textbox", {
     name: "Source start",
     exact: true,
   });
   await startInput.fill("2.25");
-  await startInput.press("Enter");
-  await expect(useSuggestion).toBeDisabled();
-  await expectPageAxeClean(page, ".inspector");
-  await sourceStart.press("Enter");
-  await startInput.fill("0:02.000");
-  await startInput.press("Enter");
-  await expect(useSuggestion).toBeEnabled();
-  const refreshed = await (
-    await page.request.get(
-      `/api/pending-edits/${encodeURIComponent(editId)}/cut-suggestion?path=${encodeURIComponent(projectPath)}`,
-    )
-  ).json();
-  const updateRequests: { type: string; payload: Record<string, unknown> }[] =
-    [];
-  page.on("request", (request) => {
-    if (!request.url().includes("/api/document/command")) return;
-    const command = request.postDataJSON();
-    if (command.type === "UpdatePendingEdit") updateRequests.push(command);
-  });
-  const snap = page.getByLabel("Snap to silence");
-  await expect(snap).toBeChecked();
-  await snap.uncheck();
-  expect(updateRequests).toHaveLength(0);
-  await useSuggestion.click();
-  await expect.poll(() => updateRequests.length).toBe(1);
-  expect(updateRequests[0]).toMatchObject({
-    type: "UpdatePendingEdit",
-    payload: {
-      id: editId,
-      start: refreshed.optimized.start,
-      end: refreshed.optimized.end,
-      snap: false,
-    },
-  });
+  expect(fs.readFileSync(projectPath, "utf8")).toBe(before);
+  await startInput.press("Alt+Enter");
   await expect
     .poll(async () => {
       const current = (await pendingSnapshot(page)).pending_edits.find(
@@ -130,33 +85,15 @@ test("pending suggestions preserve drafts and save the displayed full range once
         current && { start: current.source_start, end: current.source_end }
       );
     })
-    .toEqual({
-      start: refreshed.optimized.start,
-      end: refreshed.optimized.end,
-    });
-  const current = (await pendingSnapshot(page)).pending_edits.find(
-    (edit) => edit.id === editId,
-  )!;
-  await snap.uncheck();
-  expect(updateRequests).toHaveLength(1);
-  await snap.check();
-  await expect.poll(() => updateRequests.length).toBe(2);
-  expect(updateRequests[1]).toMatchObject({
-    type: "UpdatePendingEdit",
-    payload: {
-      id: editId,
-      start: current.source_start,
-      end: current.source_end,
-      snap: true,
-    },
-  });
+    .toEqual({ start: 2.25, end: 8 });
+  await expectPageAxeClean(page, ".inspector");
+  await expect(page.getByLabel("Snap to silence")).toHaveCount(0);
   await expect(
-    page.getByRole("button", { name: "Approve", exact: true }).first(),
-  ).toBeEnabled();
-  await expect(useSuggestion).toBeEnabled();
-  await page
-    .getByRole("region", { name: "Suggested bounds" })
-    .scrollIntoViewIfNeeded();
+    page.getByRole("button", { name: "Use suggestion" }),
+  ).toHaveCount(0);
+  await expect(
+    page.locator('.inspector .sys-decision[data-layout="compact"]'),
+  ).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("pending-desktop.png") });
   const phoneContext = await browser.newContext({
     viewport: { width: 390, height: 844 },
@@ -178,12 +115,9 @@ test("pending suggestions preserve drafts and save the displayed full range once
     await inspectSelection(phone);
     const expand = phone.getByRole("button", { name: "Expand", exact: true });
     if (await expand.isVisible()) await expand.click();
-    await phone
-      .getByRole("region", { name: "Suggested bounds" })
-      .scrollIntoViewIfNeeded();
-    const phoneUse = phone.getByRole("button", { name: "Use suggestion" });
-    await expect(phoneUse).toBeVisible();
-    expect((await phoneUse.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+    const phoneStart = phone.getByLabel("Source start", { exact: true });
+    await expect(phoneStart).toBeVisible();
+    expect((await phoneStart.boundingBox())?.height).toBeGreaterThanOrEqual(44);
     await expectPageAxeClean(phone);
     await phone.screenshot({ path: testInfo.outputPath("pending-phone.png") });
   } finally {

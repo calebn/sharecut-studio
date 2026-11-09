@@ -825,3 +825,49 @@ it("retains a Fix draft while unknown detail disables every word write", async (
   await userEvent.click(screen.getByRole("button", { name: "Save" }));
   expect(onFix).toHaveBeenCalledWith("valid draft");
 });
+
+describe("DecisionCard compact fields", () => {
+  it("draws a confidence meter and the children between the reason and the verbs", () => {
+    render(
+      <DecisionCard {...base()} layout="compact" confidence={0.9}>
+        <p>Start and End fields</p>
+      </DecisionCard>,
+    );
+    const why = screen.getByText("Jon restarts the sentence.");
+    const meter = screen.getByRole("img", { name: "Confidence 5 of 5" });
+    const fields = screen.getByText("Start and End fields");
+    expect(
+      why.compareDocumentPosition(meter) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      meter.compareDocumentPosition(fields) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("draws no meter without a confidence", () => {
+    render(<DecisionCard {...base()} layout="compact" />);
+    expect(screen.queryByRole("img", { name: /^Confidence/ })).toBeNull();
+  });
+
+  it("leaves the verbs to the Action bar when inlineActions is off", () => {
+    render(<DecisionCard {...base()} layout="compact" inlineActions={false} />);
+    expect(screen.queryByRole("group", { name: "Actions" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Cut" })).toBeNull();
+  });
+
+  it("names the Keep side with keepLabel and drops Later without a handler", () => {
+    render(
+      <DecisionCard
+        {...base()}
+        layout="compact"
+        verb="approve"
+        keepLabel="Reject"
+        onLater={undefined}
+      />,
+    );
+    const names = within(screen.getByRole("group", { name: "Actions" }))
+      .getAllByRole("button")
+      .map((button) => button.textContent);
+    expect(names).toEqual(["Reject", "Approve"]);
+  });
+});
