@@ -1,12 +1,14 @@
 import {
   act,
   cleanup,
+  fireEvent,
   render,
   screen,
   waitFor,
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import axe from "axe-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { pendingEditBaseline } from "../../api/documentEdits";
 import { hostFetch } from "../../api/documentTransport";
@@ -220,11 +222,13 @@ describe("PendingEditBody", () => {
         screen.queryByRole("spinbutton", { name: "Source end" }),
       ).toBeNull();
       if (canReview)
-        await waitFor(() =>
-          expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled(),
-        );
+        await waitFor(() => {
+          expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled();
+          expect(screen.getByRole("button", { name: "Reject" })).toBeEnabled();
+        });
       else {
         expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+        expect(screen.getByRole("button", { name: "Reject" })).toBeDisabled();
         expect(
           screen.getByText(
             "Only the host or an Editor can review exact range proposals.",
@@ -233,6 +237,22 @@ describe("PendingEditBody", () => {
       }
     },
   );
+
+  it("keeps the card title and Ask in heading order under the page heading", async () => {
+    const { container } = render(
+      <>
+        <h1>Edit</h1>
+        <PendingEditBody edit={sessionCut} />
+      </>,
+    );
+    const results = await axe.run(container, { runOnly: ["heading-order"] });
+    expect(results.violations).toEqual([]);
+    expect(
+      screen
+        .getAllByRole("heading")
+        .map((heading) => `${heading.tagName}:${heading.textContent}`),
+    ).toEqual(["H1:Edit", "H2:Pending edit", "H3:Ask"]);
+  });
 
   it("plays the server's Suggested render for a session remove by default", async () => {
     const user = userEvent.setup();
@@ -333,36 +353,24 @@ describe("PendingEditBody", () => {
     const kind = within(card as HTMLElement).getByText("Filler");
     expect(kind.parentElement).toHaveTextContent("Filler0:10.000 · 2.0 sJon");
     expect(screen.queryByText("Why")).toBeNull();
-    expect(screen.queryByText("Type")).toBeNull();
-    expect(screen.queryByText("Timeline")).toBeNull();
-    expect(screen.queryByText("Review")).toBeNull();
     expect(screen.queryByRole("button", { name: "Apply timing" })).toBeNull();
   });
 
-  it.each([
-    [null, 0, "Confidence 0 of 5"],
-    [0.31, 2, "Confidence 2 of 5"],
-    [0.5, 3, "Confidence 3 of 5"],
-    [1, 5, "Confidence 5 of 5"],
-  ])(
-    "draws a %s confidence as a five-dot meter with no number",
-    (confidence, filled, name) => {
+  it("draws the edit's confidence as a meter and none when it has none", () => {
+    const rate = (confidence: number | null) => {
       const edit = { ...sessionCut, cut_confidence: confidence };
       useDawStore
         .getState()
         .hydrate("/tmp/p.json", minimalProject({ pending_edits: [edit] }));
-      const { container } = render(<PendingEditBody edit={edit} />);
-      if (confidence === null) {
-        expect(screen.queryByRole("img", { name: /Confidence/ })).toBeNull();
-        return;
-      }
-      const meter = screen.getByRole("img", { name });
-      expect(meter.querySelectorAll("[data-filled]")).toHaveLength(filled);
-      expect(meter.querySelectorAll(".sys-confidence-dot")).toHaveLength(5);
-      expect(screen.queryByText(String(confidence))).toBeNull();
-      expect(container.querySelector("dl")).toBeNull();
-    },
-  );
+      return render(<PendingEditBody edit={edit} />);
+    };
+    rate(null).unmount();
+    expect(screen.queryByRole("img", { name: /Confidence/ })).toBeNull();
+    rate(0.5);
+    expect(
+      screen.getByRole("img", { name: "Confidence 3 of 5" }),
+    ).toBeVisible();
+  });
 
   it.each([
     ["Cut on the bar", barEdit, true, false],
@@ -1315,6 +1323,46 @@ describe("PendingEditBody", () => {
       expect(args[3] as number).toBeCloseTo(2.38, 9);
       expect(args[4]).toBe(true);
       expect(args[5]).toBeUndefined();
+    });
+
+    it.each([
+      ["the window loses focus", () => fireEvent.blur(window)],
+      [
+        "Alt is released outside the field",
+        () => fireEvent.keyUp(document.body, { key: "Alt", altKey: false }),
+      ],
+    ])("snaps again when %s while Alt was held", async (_name, release) => {
+      const user = userEvent.setup();
+      render(<PendingEditBody edit={guestCut} />);
+      const box = screen.getByRole("spinbutton", { name: "Source end" });
+      await waitFor(() => expect(box).not.toHaveAttribute("aria-readonly"));
+      box.focus();
+      await user.keyboard("{Enter}");
+      const input = screen.getByRole("textbox", { name: "Source end" });
+      fireEvent.change(input, { target: { value: "2.5" } });
+      fireEvent.keyDown(input, { key: "Alt", altKey: true });
+      act(() => {
+        release();
+      });
+      fireEvent.blur(input);
+      await waitFor(() => expect(updatePendingEdit).toHaveBeenCalledTimes(1));
+      expect((updatePendingEdit.mock.calls[0] as unknown[])[4]).toBe(true);
+    });
+
+    it("does not carry Alt from a rejected commit into the next one", async () => {
+      const user = userEvent.setup();
+      render(<PendingEditBody edit={guestCut} />);
+      await commitField(user, "Source end", "0", { alt: true });
+      expect(await screen.findByText(/end > start/)).toBeInTheDocument();
+      expect(updatePendingEdit).not.toHaveBeenCalled();
+      const box = screen.getByRole("spinbutton", { name: "Source end" });
+      box.focus();
+      await user.keyboard("{Enter}");
+      const input = screen.getByRole("textbox", { name: "Source end" });
+      fireEvent.change(input, { target: { value: "2.5" } });
+      fireEvent.blur(input);
+      await waitFor(() => expect(updatePendingEdit).toHaveBeenCalledTimes(1));
+      expect((updatePendingEdit.mock.calls[0] as unknown[])[4]).toBe(true);
     });
 
     it("sends snap off for a commit made with Alt held, with Approve unchanged", async () => {

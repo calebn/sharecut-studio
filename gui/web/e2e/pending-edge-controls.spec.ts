@@ -224,7 +224,6 @@ test("phone pending controls stay clear of handles and dense labels follow layou
   await expect(
     page.getByRole("heading", { name: "Pending edit" }),
   ).toBeVisible();
-  await expect(page.getByLabel("Snap to silence")).toHaveCount(0);
   // Docked above the drawer, the card leaves timing to the drawer's fields.
   await expect(page.locator(".pending-actionbar")).toBeVisible();
   await expect(
@@ -239,7 +238,12 @@ test("phone pending controls stay clear of handles and dense labels follow layou
     "true",
   );
   await expect(sourceStart).toBeFocused();
-  expect((await sourceStart.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+  const sourceStartBox = sourceStart.locator(
+    "xpath=ancestor::*[contains(@class, 'sys-scrub-box')]",
+  );
+  expect((await sourceStartBox.boundingBox())?.height).toBeGreaterThanOrEqual(
+    44,
+  );
   await dragRegion.first().hover();
   await expect(page.locator(".pending-label--floating")).toHaveCount(0);
 

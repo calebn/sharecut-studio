@@ -855,6 +855,28 @@ describe("DecisionCard compact fields", () => {
     expect(screen.queryByRole("button", { name: "Cut" })).toBeNull();
   });
 
+  it("disables the Keep side with its reason and ignores it", async () => {
+    const onKeep = vi.fn();
+    render(
+      <DecisionCard
+        {...base()}
+        layout="compact"
+        verb="approve"
+        keepLabel="Reject"
+        keepDisabledReason="Wait for the current action to finish."
+        onKeep={onKeep}
+      />,
+    );
+    const reject = screen.getByRole("button", { name: "Reject" });
+    expect(reject).toBeDisabled();
+    expect(reject).toHaveAttribute(
+      "title",
+      "Wait for the current action to finish.",
+    );
+    await userEvent.click(reject);
+    expect(onKeep).not.toHaveBeenCalled();
+  });
+
   it("names the Keep side with keepLabel and drops Later without a handler", () => {
     render(
       <DecisionCard
