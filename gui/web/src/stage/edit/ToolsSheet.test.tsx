@@ -70,7 +70,10 @@ describe("ToolsSheet", () => {
     await expectNoA11yViolations(container);
     await user.click(screen.getByRole("button", { name: "Script" }));
     expect(useDawStore.getState().editSurface).toBe("text");
-    await user.click(screen.getByRole("button", { name: "Mix" }));
+    const mix = screen.getByRole("button", { name: "Mix" });
+    expect(mix.querySelector("svg.lucide-sliders-vertical")).not.toBeNull();
+    expect(mix.querySelector("svg.lucide-sliders-horizontal")).toBeNull();
+    await user.click(mix);
     expect(useDawStore.getState().openSheet).toBe("mix");
   });
 
