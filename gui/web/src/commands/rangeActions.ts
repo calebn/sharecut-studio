@@ -136,6 +136,18 @@ export function rangeActionDescriptors(
 
 let previewUrl: string | null = null;
 
+/** Submits a cut or mute of `targets` (one per speaker) as one document command, so one Undo restores them all. */
+export function submitRangeEdit(
+  action: "cut" | "mute",
+  targets: readonly ExactRangeTarget[],
+) {
+  return submitDocumentCommand(
+    useDawStore.getState().projectPath,
+    DocumentCommand.EditSelectedRange,
+    { action, targets },
+  );
+}
+
 export async function runRangeAction(
   action: RangeAction,
   override?: ExactRangeTarget,
@@ -179,11 +191,7 @@ export async function runRangeAction(
         selection,
       );
     if (action === "cut" || action === "mute") {
-      const result = await submitDocumentCommand(
-        state.projectPath,
-        DocumentCommand.EditSelectedRange,
-        { action, target },
-      );
+      const result = await submitRangeEdit(action, [target]);
       const live = useDawStore.getState();
       if (live.projectEpoch !== epoch) return { status: "ok" };
       const applies =

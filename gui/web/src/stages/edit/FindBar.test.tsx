@@ -164,6 +164,16 @@ describe("FindBar", () => {
     expect(open.onReplaceAll).toHaveBeenCalledTimes(1);
   });
 
+  it("draws Replace and Replace all as icon buttons with a tooltip", () => {
+    render(<FindBar {...props({ replace: replaceProps() })} />);
+    for (const name of ["Replace", "Replace all"]) {
+      const button = screen.getByRole("button", { name });
+      expect(button).toHaveAttribute("title", name);
+      expect(button).toHaveClass("sys-icon-btn");
+      expect(button).toHaveTextContent("");
+    }
+  });
+
   it("draws no Replace button when the host has no single replace", async () => {
     const user = userEvent.setup();
     const replace = replaceProps({ onReplace: undefined });

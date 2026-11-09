@@ -72,12 +72,13 @@
   font-weight: 500;
 }
 
-.sys-icon-btn:hover:not(:disabled) {
+.sys-icon-btn:hover:not(:disabled, [aria-disabled="true"]) {
   background: var(--color-hover);
   color: var(--color-text-primary);
 }
 
-.sys-icon-btn:disabled {
+.sys-icon-btn:disabled,
+.sys-icon-btn[aria-disabled="true"] {
   opacity: 0.4;
   cursor: default;
 }

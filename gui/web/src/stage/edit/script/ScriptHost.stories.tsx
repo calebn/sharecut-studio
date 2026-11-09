@@ -129,6 +129,9 @@ export const Find: Story = {
     await waitFor(() =>
       expect(canvas.getByRole("search")).toHaveTextContent(/\d+ of \d+/),
     );
+    await expect(
+      await canvas.findByRole("button", { name: /^Cut all \d+$/ }),
+    ).toBeVisible();
     await userEvent.click(canvas.getByRole("button", { name: "Show replace" }));
     await expect(
       await canvas.findByRole("button", { name: "Replace all" }),

@@ -135,6 +135,7 @@ export function ScriptHost({
   const phone =
     (layoutProp ?? (breakpoint === "phone" ? "phone" : "desktop")) === "phone";
   const mayReplace = hostEditable && ready && loading !== true;
+  const mayCut = mode === "edit" && ready && loading !== true;
 
   return (
     <div ref={hostEl} style={{ display: "contents" }}>
@@ -171,6 +172,7 @@ export function ScriptHost({
               onPrevious={find.previous}
               onClose={find.closeBar}
               onSelectAll={mode === "none" ? undefined : find.selectAll}
+              onCutAll={mayCut ? find.cutAll : undefined}
               replace={
                 mayReplace
                   ? {

@@ -24,6 +24,8 @@ type SurfaceProps = {
   replaceText?: string;
   phone?: boolean;
   guest?: boolean;
+  /** Draw Replace all only, as the Script does until a single Replace has a command. */
+  allOnly?: boolean;
 };
 
 /** These fixtures are one transcript, so a hit's words are contiguous and replaceSpan can take its range. */
@@ -42,7 +44,7 @@ const meta: Meta<SurfaceProps> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "Find and replace (spec CMP-FINDREPLACE): a 44 px bar under the Script header with the Find field, its count (\"3 of 12\"), previous and next, a Match case toggle, a Replace toggle that opens a second row with Replace and All, and two verbs for the common case, Select all and Cut all. Matches take a tint in the text and the current one an outline.\n\nKeys, in the Find field. Enter and Down step to the next hit, Shift+Enter and Up to the previous one, Mod+Shift+Enter (Ctrl or Cmd) cuts all hits as one undo step, and Esc closes from anywhere in the bar. Cut all also has its own button. In the Replace field Enter replaces the current hit. Replace and All wait until there is a hit and the replacement has a letter or a number, as the backend requires. While they wait they stay focusable and a line under the row says what is missing. A reader who cannot edit gets no Replace.\n\nMatching is the backend's: whole words, edge punctuation ignored, case folded, muted and already-cut words skipped (`findMatches`). The bar takes `busy`, `error` and `maxLength` (500) so a slow or refused request has somewhere to show.\n\nMod+F belongs to the host: it opens the bar, and when the bar is open it calls the handle's `focus()`. The count is plain text; the pane's one live region speaks it through `findStatus`. When the bar closes, and after Cut all or Replace all settle, the bar calls `returnFocus`, which the host points at the pane handle's `focusFind()`. The host also passes the hits to the pane as `matches` and `currentMatch` and scrolls the current one into view. Replace all returns how many it replaced, for the host's \"Replaced 12 · Undo\" toast.\n\n**Motion.** None.",
+          "Find and replace (spec CMP-FINDREPLACE): a 44 px bar under the Script header with the Find field, its count (\"3 of 12\"), previous and next, a Match case toggle, a chevron that opens a second row with the Replace field and the Replace and Replace all icon buttons (each with a tooltip), and two verbs for the common case, Select all and Cut all. Matches take a tint in the text and the current one an outline.\n\nKeys, in the Find field. Enter and Down step to the next hit, Shift+Enter and Up to the previous one, Mod+Shift+Enter (Ctrl or Cmd) cuts all hits as one undo step, and Esc closes from anywhere in the bar. Cut all also has its own button. In the Replace field Enter replaces the current hit. Replace and Replace all wait until there is a hit and the replacement has a letter or a number, as the backend requires. While they wait they stay focusable and a line under the row says what is missing. A reader who cannot edit gets no Replace.\n\nMatching is the backend's: whole words, edge punctuation ignored, case folded, muted and already-cut words skipped (`findMatches`). The bar takes `busy`, `error` and `maxLength` (500) so a slow or refused request has somewhere to show.\n\nMod+F belongs to the host: it opens the bar, and when the bar is open it calls the handle's `focus()`. The count is plain text; the pane's one live region speaks it through `findStatus`. When the bar closes, and after Cut all or Replace all settle, the bar calls `returnFocus`, which the host points at the pane handle's `focusFind()`. The host also passes the hits to the pane as `matches` and `currentMatch` and scrolls the current one into view. Replace all returns how many it replaced, for the host's \"Replaced 12 · Undo\" toast.\n\n**Motion.** None.",
       },
     },
   },
@@ -64,6 +66,7 @@ function Surface({
   replaceText: textFirst = "",
   phone = false,
   guest = false,
+  allOnly = false,
 }: SurfaceProps) {
   const [turns, setTurns] = useState<readonly ScriptTurn[]>(SCRIPT_TURNS);
   const [open, setOpen] = useState(true);
@@ -163,13 +166,15 @@ function Surface({
                       onOpenChange: setReplaceOpen,
                       text: replaceText,
                       onTextChange: setReplaceText,
-                      onReplace: () => {
-                        const hit = matches[at];
-                        if (hit)
-                          setTurns(
-                            replaceSpan(turns, spanOf(hit), replaceText),
-                          );
-                      },
+                      onReplace: allOnly
+                        ? undefined
+                        : () => {
+                            const hit = matches[at];
+                            if (hit)
+                              setTurns(
+                                replaceSpan(turns, spanOf(hit), replaceText),
+                              );
+                          },
                       onReplaceAll: replaceAll,
                     }
               }
@@ -228,6 +233,26 @@ export const FindReplace: Story = {
     await expect(canvas.getAllByRole("button", { name: "space" })).toHaveLength(
       2,
     );
+  },
+};
+
+export const FindReplaceAllOnly: Story = {
+  render,
+  args: {
+    query: "room",
+    replaceOpen: true,
+    replaceText: "space",
+    allOnly: true,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.queryByRole("button", { name: "Replace" })).toBeNull();
+    await expect(
+      canvas.getByRole("button", { name: "Replace all" }),
+    ).toHaveAttribute("title", "Replace all");
+    await expect(
+      canvas.getByRole("button", { name: "Show replace" }),
+    ).toHaveAttribute("aria-expanded", "true");
   },
 };
 

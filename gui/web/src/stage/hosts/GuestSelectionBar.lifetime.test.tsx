@@ -76,7 +76,7 @@ describe.each([
         "EditSelectedRange",
         {
           action: "cut",
-          target: expect.objectContaining({ track_ids: ["host"] }),
+          targets: [expect.objectContaining({ track_ids: ["host"] })],
         },
       );
 
