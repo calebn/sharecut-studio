@@ -238,8 +238,8 @@ test("a tap on the chip zooms in and splits it into its joins", async ({
 test.describe("coarse pointer", () => {
   test.use({ isMobile: true });
 
-  const joinDialog = (page: Page) =>
-    page.getByRole("dialog", { name: /join at/ });
+  const selectedSeam = (page: Page) =>
+    page.locator(`${lane} .edit-mark[aria-pressed="true"]`);
 
   async function open(page: Page): Promise<void> {
     await fiveJoins(page);
@@ -251,16 +251,16 @@ test.describe("coarse pointer", () => {
     return (await boxes(page, `${lane} .edit-mark`))[index];
   }
 
-  test("a touch 20 px beside a glyph opens its join", async ({ page }) => {
+  test("a touch 20 px beside a glyph selects its seam", async ({ page }) => {
     await open(page);
     const glyph = page.locator(`${lane} .edit-mark`).last();
     const box = await glyphAt(page, 1);
     await page.touchscreen.tap(box.x + box.width + 20, box.y + box.height / 2);
-    await expect(glyph).toHaveAttribute("aria-expanded", "true");
-    await expect(joinDialog(page)).toBeVisible();
+    await expect(glyph).toHaveAttribute("aria-pressed", "true");
+    await expect(selectedSeam(page)).toBeVisible();
   });
 
-  test("a tap beside a glyph delivered in Mobile Safari's event order opens the join and does not seek", async ({
+  test("a tap beside a glyph delivered in Mobile Safari's event order selects the seam and does not seek", async ({
     page,
   }) => {
     await open(page);
@@ -301,10 +301,10 @@ test.describe("coarse pointer", () => {
         },
         [x, y],
       );
-      await expect(joinDialog(page)).toBeVisible();
+      await expect(selectedSeam(page)).toBeVisible();
       expect(await playheadSec(page)).toBe(before);
       await page.keyboard.press("Escape");
-      await expect(joinDialog(page)).toHaveCount(0);
+      await expect(selectedSeam(page)).toHaveCount(0);
     }
   });
 
@@ -317,7 +317,7 @@ test.describe("coarse pointer", () => {
     const x = box.x + box.width + 13;
     const y = box.y + box.height / 2;
     await page.touchscreen.tap(x, y);
-    await expect(joinDialog(page)).toBeVisible();
+    await expect(selectedSeam(page)).toBeVisible();
     await page.evaluate(
       async ([cx, cy]) => {
         document.elementFromPoint(cx, cy)?.dispatchEvent(
@@ -334,7 +334,7 @@ test.describe("coarse pointer", () => {
       },
       [x, y],
     );
-    await expect(joinDialog(page)).toBeVisible();
+    await expect(selectedSeam(page)).toBeVisible();
     expect(await playheadSec(page)).toBe(before);
   });
 
@@ -342,7 +342,7 @@ test.describe("coarse pointer", () => {
     await open(page);
     const box = await glyphAt(page, 0);
     await page.touchscreen.tap(box.x - 30, box.y + box.height / 2);
-    await expect(joinDialog(page)).toHaveCount(0);
+    await expect(selectedSeam(page)).toHaveCount(0);
     await expect.poll(() => playheadSec(page)).toBeGreaterThan(30);
     await expect.poll(() => playheadSec(page)).toBeLessThan(40);
   });
@@ -357,7 +357,7 @@ test.describe("coarse pointer", () => {
       chip.x + chip.width / 2,
       laneBox.y + laneBox.height - 4,
     );
-    await expect(joinDialog(page)).toHaveCount(0);
+    await expect(selectedSeam(page)).toHaveCount(0);
     await expect.poll(() => playheadSec(page)).toBeGreaterThan(9);
     await expect.poll(() => playheadSec(page)).toBeLessThan(13);
   });
@@ -373,7 +373,7 @@ test.describe("coarse pointer", () => {
       guest.x + guest.width / 2,
       above.y + above.height - 4,
     );
-    await expect(joinDialog(page)).toHaveCount(0);
+    await expect(selectedSeam(page)).toHaveCount(0);
     await expect.poll(() => playheadSec(page)).toBeGreaterThan(25);
     await expect.poll(() => playheadSec(page)).toBeLessThan(35);
   });
@@ -391,10 +391,10 @@ test.describe("coarse pointer", () => {
       page.getByRole("dialog", { name: /^Create at / }),
     ).toBeVisible();
     await touch(cdp, "touchEnd");
-    await expect(joinDialog(page)).toHaveCount(0);
+    await expect(selectedSeam(page)).toHaveCount(0);
   });
 
-  test("a touch on the roll seam at a glyph's join does not open the join", async ({
+  test("a touch on the roll seam at a glyph's join does not select the seam", async ({
     page,
   }) => {
     await open(page);
@@ -403,7 +403,7 @@ test.describe("coarse pointer", () => {
       seam.x + seam.width / 2,
       seam.y + seam.height / 2,
     );
-    await expect(joinDialog(page)).toHaveCount(0);
+    await expect(selectedSeam(page)).toHaveCount(0);
   });
 });
 

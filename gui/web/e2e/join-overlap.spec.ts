@@ -1,7 +1,7 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
 import { openPhoneTimeline } from "./phoneTimeline";
-import { openProject } from "./stageNav";
+import { inspectSelection, openProject } from "./stageNav";
 import { withAppearance } from "./theme";
 
 const VIEWPORTS = [
@@ -89,9 +89,10 @@ for (const { cell: vp, theme } of withAppearance(VIEWPORTS)) {
       if (vp.width < 600) await openPhoneTimeline(page);
       const badge = lane.locator(".edit-mark");
       await badge.click();
-      const panel = page.getByRole("dialog", { name: /join at/ });
-      await panel
-        .getByRole("button", { name: "Crossfade", exact: true })
+      await page
+        .getByRole("group", { name: /^(Selection|Edit) actions$/ })
+        .getByRole("group", { name: "Join type" })
+        .getByRole("button", { name: "Crossfade" })
         .click();
       await expect(badge).toHaveClass(/crossfade/);
       await page.keyboard.press("Escape");
@@ -170,11 +171,10 @@ for (const { cell: vp, theme } of withAppearance(VIEWPORTS)) {
       ).toBe(true);
 
       await badge.click();
-      const grip = page.getByRole("button", {
-        name: /Drag crossfade right endpoint/,
-      });
-      await expect(grip).toBeEnabled();
-      const gripBefore = await box(grip);
+      await inspectSelection(page);
+      const length = page.getByRole("spinbutton", { name: "Length" });
+      await expect(length).toBeVisible();
+      const lengthBefore = await box(length);
       const widthBefore = await blendWidth(blend);
       expectSameBox(await box(badge), badgeBefore, 0.5);
       const badgeWith = await box(badge);
@@ -182,23 +182,16 @@ for (const { cell: vp, theme } of withAppearance(VIEWPORTS)) {
         content: ".join-blend-waves{display:none !important}",
       });
       await expect(waves).toHaveCSS("display", "none");
-      expectSameBox(await box(grip), gripBefore);
+      expectSameBox(await box(length), lengthBefore);
       expectSameBox(await box(badge), badgeWith);
       await hide.evaluate((el) => (el as Element).remove());
       await expect(waves).not.toHaveCSS("display", "none");
-      expectSameBox(await box(grip), gripBefore);
+      expectSameBox(await box(length), lengthBefore);
       expectSameBox(await box(badge), badgeWith);
-      const grab = await page.evaluate(({ x, y, width, height }) => {
-        for (let dy = 0.5; dy < 1; dy += 0.1)
-          for (let dx = 0.5; dx < 1; dx += 0.1) {
-            const px = x + width * dx,
-              py = y + height * dy;
-            if (document.elementFromPoint(px, py)?.closest(".join-length-grip"))
-              return { x: px, y: py };
-          }
-        return null;
-      }, gripBefore);
-      if (!grab) throw new Error("grip is not hit-testable");
+      const grab = {
+        x: lengthBefore.x + lengthBefore.width / 2,
+        y: lengthBefore.y + lengthBefore.height / 2,
+      };
       await page.mouse.move(grab.x, grab.y);
       await page.mouse.down();
       await page.mouse.move(grab.x + 30, grab.y, { steps: 4 });

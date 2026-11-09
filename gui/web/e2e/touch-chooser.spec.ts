@@ -276,7 +276,7 @@ test("unambiguous touches never open the chooser", async ({
   expect(rows.filter((r) => r.opened)).toEqual([]);
 });
 
-/** What a pick changes: selection, open join popover, focus. */
+/** What a pick changes: selection, selected join, focus. */
 test("each chip picks its own target", async ({ page }, info) => {
   const cdp = await page.context().newCDPSession(page);
   await openProject(page, projectPath);
@@ -329,7 +329,7 @@ test("each chip picks its own target", async ({ page }, info) => {
         want.kind === "envelope-point"
           ? after.pressedPointId === id
           : want.kind === "join"
-            ? after.openJoinId === id
+            ? after.selectedJoinId === id
             : after.selectedClips.includes(id);
       results.push({
         cluster,

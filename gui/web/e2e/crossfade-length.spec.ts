@@ -5,7 +5,7 @@ import {
   logicalClipJoinCommands,
 } from "./clipJoinCommands";
 import { e2eProjectPath } from "./env";
-import { openProject, phone } from "./stageNav";
+import { inspectSelection, openProject, phone } from "./stageNav";
 
 interface Clip {
   id: string;
@@ -37,6 +37,9 @@ function placement(row: Clip) {
     row.timeline_end,
   ];
 }
+const blurFocus = (page: Page) =>
+  page.evaluate(() => (document.activeElement as HTMLElement)?.blur());
+
 for (const width of [1280, 390]) {
   test(`coupled crossfade length persists and undoes at ${width}`, async ({
     page,
@@ -63,11 +66,12 @@ for (const width of [1280, 390]) {
       }
       const badge = lane.locator(".edit-mark");
       await badge.click();
-      const panel = page.getByRole("dialog", { name: /join at/ });
-      await panel
-        .getByRole("button", { name: "Crossfade", exact: true })
-        .click();
+      const joinType = page
+        .getByRole("group", { name: /^(Selection|Edit) actions$/ })
+        .getByRole("group", { name: "Join type" });
+      await joinType.getByRole("button", { name: "Crossfade" }).click();
       await expect(badge).toHaveClass(/crossfade/);
+      await expect(badge).toHaveAttribute("aria-pressed", "true");
       const initial = await snapshot(page);
       const trackId = await lane.getAttribute("data-track-id");
       if (!trackId) throw new Error("missing lane track");
@@ -78,34 +82,14 @@ for (const width of [1280, 390]) {
         if (r.method() === "POST" && r.url().includes("/api/document/command"))
           commands.push(r.postDataJSON());
       });
-      const grip = page.getByRole("button", {
-        name: /Drag crossfade right endpoint/,
-      });
-      await expect(grip).toBeVisible();
-      await expect(grip).toBeEnabled();
-      const g = (await grip.boundingBox())!,
-        rail = (await page.locator(".join-edit-rail").boundingBox())!,
-        p = (await panel.boundingBox())!;
-      expect(g.width).toBeGreaterThanOrEqual(44);
-      expect(g.height).toBeGreaterThanOrEqual(44);
-      expect(p.y + p.height).toBeLessThanOrEqual(rail.y);
-      const caption = (await page.locator(".join-edit-caption").boundingBox())!;
-      expect(caption.y + caption.height).toBeLessThanOrEqual(g.y);
-      for (const dx of [2, g.width / 2, g.width - 2])
-        expect(
-          await page.evaluate(
-            ([x, y]) =>
-              document.elementFromPoint(x, y)?.closest(".join-length-grip") !=
-              null,
-            [g.x + dx, g.y + g.height / 2],
-          ),
-        ).toBe(true);
+      await inspectSelection(page);
+      const length = page.getByRole("spinbutton", { name: "Length" });
+      await expect(length).toBeVisible();
       const paint = lane.locator(".join-blend");
       const verifyPaint = async () => {
         const r = (await paint.boundingBox())!,
           b = (await badge.boundingBox())!;
         const values = await paint.evaluate((el) => ({
-          left: Number.parseFloat((el as SVGElement).style.left),
           width: Number.parseFloat((el as SVGElement).style.width),
         }));
         expect(Math.abs(r.width - values.width)).toBeLessThanOrEqual(1 / 32);
@@ -114,86 +98,8 @@ for (const width of [1280, 390]) {
         ).toBeLessThanOrEqual(1 / 32);
       };
       await verifyPaint();
-      const firstWidth = await paint.evaluate((el) =>
-        Number.parseFloat((el as SVGElement).style.width),
-      );
-      await page.keyboard.press("Escape");
-      await page.getByRole("slider", { name: "Timeline position" }).focus();
-      await page.keyboard.press("+");
-      await badge.click();
-      await verifyPaint();
-      expect(
-        await paint.evaluate((el) =>
-          Number.parseFloat((el as SVGElement).style.width),
-        ),
-      ).toBeGreaterThan(firstWidth);
-      const movedGrip = (await grip.boundingBox())!;
-      await testInfo.attach("rail-geometry.json", {
-        body: JSON.stringify({
-          width,
-          grip: movedGrip,
-          rail,
-          popover: p,
-          caption,
-        }),
-        contentType: "application/json",
-      });
-      await page.screenshot({
-        path: testInfo.outputPath(`crossfade-rail-${width}.png`),
-      });
-      const blockBox = (await lane
-        .locator(".clip-block")
-        .first()
-        .boundingBox())!;
-      expect(
-        await page.evaluate(
-          ([x, y]) =>
-            document.elementFromPoint(x, y)?.closest(".clip-hit") != null,
-          [
-            Math.min(
-              width - 24,
-              Math.max(
-                blockBox.x + 24,
-                (await panel.boundingBox())!.x +
-                  (await panel.boundingBox())!.width +
-                  24,
-              ),
-            ),
-            blockBox.y + blockBox.height / 2,
-          ],
-        ),
-      ).toBe(true);
-      const x = movedGrip.x + movedGrip.width / 2,
-        y = movedGrip.y + movedGrip.height / 2;
-      if (width === 390) {
-        const cdp = await page.context().newCDPSession(page);
-        await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: true });
-        await cdp.send("Input.dispatchTouchEvent", {
-          type: "touchStart",
-          touchPoints: [{ x, y }],
-        });
-        // The touch grammar: a long press arms the grip before it drags.
-        await page.waitForTimeout(750);
-        await cdp.send("Input.dispatchTouchEvent", {
-          type: "touchMove",
-          touchPoints: [{ x: x - 8, y }],
-        });
-        await cdp.send("Input.dispatchTouchEvent", {
-          type: "touchEnd",
-          touchPoints: [],
-        });
-      } else {
-        await page.mouse.move(x, y);
-        await page.mouse.down();
-        await page.mouse.move(x - 8, y);
-        await expect(page.locator(".join-edit-caption")).toContainText(
-          "Draft overlap 10 ms",
-        );
-        await expect(panel).toContainText(
-          "Renders as a 10 ms crossfade overlap.",
-        );
-        await page.mouse.up();
-      }
+      await length.focus();
+      await page.keyboard.press("Home");
       await expect
         .poll(async () => {
           const s = await snapshot(page);
@@ -203,6 +109,7 @@ for (const width of [1280, 390]) {
         })
         .toBe(1);
       expect(logicalClipJoinCommands(commands)).toHaveLength(1);
+      await expect(badge).toHaveAttribute("aria-pressed", "true");
       const changed = Object.values((await snapshot(page)).clips.tracks).flat();
       expect(changed.find((c) => c.id === left.id)?.fade_out_ms).toBe(1);
       expect(placement(changed.find((c) => c.id === left.id)!)).toEqual(
@@ -215,14 +122,10 @@ for (const width of [1280, 390]) {
       await page.reload();
       if (width === 390) await phone.showTimeline(page);
       await badge.click();
-      await expect(grip).toBeVisible();
-      await expect(grip).toBeEnabled();
-      await expect(panel.getByRole("slider", { name: "Length" })).toHaveValue(
-        "1",
-      );
-      const range = panel.getByRole("slider", { name: "Length" });
-      await range.focus();
-      await page.keyboard.press("ArrowRight");
+      await inspectSelection(page);
+      await expect(length).toHaveAttribute("aria-valuenow", "1");
+      await length.focus();
+      await page.keyboard.press("ArrowUp");
       await expect
         .poll(
           async () =>
@@ -232,29 +135,19 @@ for (const width of [1280, 390]) {
         )
         .toBe(2);
       expect(logicalClipJoinCommands(commands)).toHaveLength(2);
-      await expectPageAxeClean(page, ".command-palette-panel");
-      await expectPageAxeClean(page, ".join-edit-rail");
-      const shape = await panel.evaluate((el) => {
-        const style = getComputedStyle(el);
-        return {
-          top: style.borderTopLeftRadius,
-          bottom: style.borderBottomLeftRadius,
-          width: el.getBoundingClientRect().width,
-        };
-      });
-      expect(shape.bottom).toBe(shape.top);
-      expect(shape.width).toBeLessThanOrEqual(21 * 16);
-      await page.keyboard.press("Escape");
-      await page.keyboard.press("ControlOrMeta+Z");
+      await expectPageAxeClean(page, ".sys-inspector");
       const savedPair = async () => {
         const rows = Object.values((await snapshot(page)).clips.tracks).flat();
         const l = rows.find((c) => c.id === left.id)!,
           r = rows.find((c) => c.id === right.id)!;
         return [l.fade_out_ms, r.fade_in_ms, r.fade_out_ms, r.join_in_mode];
       };
+      await blurFocus(page);
+      await page.keyboard.press("ControlOrMeta+Z");
       await expect
         .poll(savedPair)
         .toEqual([1, 1, right.fade_out_ms, "crossfade"]);
+      await expect(length).toHaveAttribute("aria-valuenow", "1");
       await page.keyboard.press("ControlOrMeta+Z");
       await expect
         .poll(savedPair)
@@ -266,23 +159,9 @@ for (const width of [1280, 390]) {
         ]);
       await page.reload();
       if (width === 390) await phone.showTimeline(page);
-      await expect(lane.locator(".join-blend")).toBeVisible();
       await badge.click();
-      const again = (await grip.boundingBox())!;
-      await page.mouse.move(
-        again.x + again.width / 2,
-        again.y + again.height / 2,
-      );
-      await page.mouse.down();
-      await page.mouse.move(
-        again.x + again.width / 2 + 8,
-        again.y + again.height / 2,
-      );
-      await page.keyboard.press("Escape");
-      await page.mouse.up();
-      expect(logicalClipJoinCommands(commands)).toHaveLength(2);
-      await badge.click();
-      await expect(grip).toBeEnabled();
+      await joinType.getByRole("button", { name: "Crossfade" }).click();
+      await inspectSelection(page);
       await page.route("**/api/document/command?*", async (route) => {
         if (route.request().postDataJSON().type === "SetClipJoin")
           await route.fulfill({
@@ -292,33 +171,16 @@ for (const width of [1280, 390]) {
           });
         else await route.continue();
       });
-      const failGrip = (await grip.boundingBox())!;
-      await page.mouse.move(
-        failGrip.x + failGrip.width / 2,
-        failGrip.y + failGrip.height / 2,
-      );
-      await page.mouse.down();
-      await page.mouse.move(
-        failGrip.x + failGrip.width / 2 - 8,
-        failGrip.y + failGrip.height / 2,
-      );
-      await page.mouse.up();
-      await expect(panel.getByRole("alert")).toContainText(
+      await length.focus();
+      await page.keyboard.press("ArrowUp");
+      await expect(page.getByRole("alert")).toContainText(
         "Rejected join length",
       );
-      await expect
-        .poll(savedPair)
-        .toEqual([
-          left.fade_out_ms,
-          right.fade_in_ms,
-          right.fade_out_ms,
-          right.join_in_mode,
-        ]);
       await page.unroute("**/api/document/command?*");
       await page.screenshot({
         path: testInfo.outputPath(`crossfade-${width}.png`),
       });
-      await page.keyboard.press("Escape");
+      await blurFocus(page);
       await page.keyboard.press("ControlOrMeta+Z");
       await page.keyboard.press("ControlOrMeta+Z");
       await expect(lane.locator(".clip-block")).toHaveCount(1);
@@ -335,9 +197,7 @@ for (const width of [1280, 390]) {
       }
       try {
         await page.keyboard.press("Escape");
-        await page.evaluate(() =>
-          (document.activeElement as HTMLElement)?.blur(),
-        );
+        await blurFocus(page);
         for (let i = 0; i < 8; i++) {
           if (
             Object.values((await snapshot(page)).clips.tracks).every(

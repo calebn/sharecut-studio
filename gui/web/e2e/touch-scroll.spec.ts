@@ -177,7 +177,7 @@ test("a tap still selects or opens what it lands on", async ({
           start === "clip body"
             ? after.selectedClips.length === 1
             : start === "join glyph"
-              ? after.openJoin != null
+              ? after.selectedJoin != null
               : after.pressedPoint === "Envelope point 3",
         after,
       });
