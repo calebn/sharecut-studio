@@ -85,6 +85,87 @@ describe("the Inspector card on the desktop and the tablet", () => {
     },
   );
 
+  it("anchors the card to the floating Action bar instead of the selected lane", () => {
+    vi.stubGlobal("IntersectionObserver", undefined);
+    const root = document.createElement("div");
+    root.getBoundingClientRect = () => new DOMRect(20, 50, 360, 167);
+    const lane = document.createElement("div");
+    lane.className = "lane-row";
+    lane.dataset.trackId = "host";
+    lane.getBoundingClientRect = () => new DOMRect(200, 100, 40, 60);
+    const bar = document.createElement("div");
+    bar.className = "sys-actions--floating";
+    bar.getBoundingClientRect = () => new DOMRect(100, 177, 200, 40);
+    root.append(lane, bar);
+    document.body.append(root);
+
+    try {
+      render(
+        <InspectorHost
+          shell="desktop"
+          root={root}
+          regionRef={() => undefined}
+          sheet={{
+            open: true,
+            rangeActionsInSheet: false,
+            close: vi.fn(),
+            dismiss: vi.fn(),
+          }}
+        />,
+      );
+
+      const card = screen.getByRole("dialog", { name: "Inspector" });
+      expect(card.style.insetBlockEnd).toBe("48px");
+      expect(card.style.maxBlockSize).toBe("100.2px");
+    } finally {
+      root.remove();
+    }
+  });
+
+  it.each(["no bar", "bar outside the measured root"] as const)(
+    "falls back to the selected lane when there is %s",
+    (barPlacement) => {
+      vi.stubGlobal("IntersectionObserver", undefined);
+      const root = document.createElement("div");
+      root.getBoundingClientRect = () => new DOMRect(20, 50, 360, 167);
+      const lane = document.createElement("div");
+      lane.className = "lane-row";
+      lane.dataset.trackId = "host";
+      lane.getBoundingClientRect = () => new DOMRect(200, 100, 40, 60);
+      root.append(lane);
+      if (barPlacement === "bar outside the measured root") {
+        const bar = document.createElement("div");
+        bar.className = "sys-actions--floating";
+        bar.getBoundingClientRect = () => new DOMRect(100, 177, 200, 40);
+        document.body.append(bar);
+      }
+      document.body.append(root);
+
+      try {
+        render(
+          <InspectorHost
+            shell="desktop"
+            root={root}
+            regionRef={() => undefined}
+            sheet={{
+              open: true,
+              rangeActionsInSheet: false,
+              close: vi.fn(),
+              dismiss: vi.fn(),
+            }}
+          />,
+        );
+
+        const card = screen.getByRole("dialog", { name: "Inspector" });
+        expect(card.style.insetBlockStart).toBe("118px");
+        expect(card.style.maxBlockSize).toBe("41px");
+      } finally {
+        root.remove();
+        document.querySelector("body > .sys-actions--floating")?.remove();
+      }
+    },
+  );
+
   it("moves focus into the card on open and back to the opener on Escape", async () => {
     stubViewportShell("desktop");
     render(<EditWorkspace />);
