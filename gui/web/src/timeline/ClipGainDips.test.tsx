@@ -34,10 +34,7 @@ const coords = (el: Element) =>
     .map((pair) => pair.split(",").map(Number) as [number, number]);
 
 const pathEnds = (el: Element) => {
-  const points = el
-    .querySelector("polyline")!
-    .getAttribute("points")!
-    .split(" ");
+  const points = coords(el.querySelector("polyline")!);
   return [points[0], points.at(-1)];
 };
 
@@ -124,9 +121,18 @@ describe("ClipGainDips", () => {
       const groupsAtStart = screen.getAllByTestId("clip-gain-dip");
       expect(groupsAtStart).toHaveLength(3);
       expect(groupsAtStart.map(pathEnds)).toEqual([
-        ["0,68", "10,68"],
-        ["0,68", "20,7.548336511877917"],
-        ["100,7.548336511877924", "120,7.5483365118781105"],
+        [
+          [0, 68],
+          [10, 68],
+        ],
+        [
+          [0, 68],
+          [20, expect.closeTo(7.55, 2)],
+        ],
+        [
+          [100, expect.closeTo(7.55, 2)],
+          [120, expect.closeTo(7.55, 2)],
+        ],
       ]);
       expect(screen.getAllByText("clip fade or mute")).toHaveLength(1);
 
@@ -143,8 +149,8 @@ describe("ClipGainDips", () => {
       const pannedGroups = screen.getAllByTestId("clip-gain-dip");
       expect(pannedGroups).toHaveLength(1);
       expect(pathEnds(pannedGroups[0]!)).toEqual([
-        "20,7.548336511877924",
-        "40,7.5483365118781105",
+        [20, expect.closeTo(7.55, 2)],
+        [40, expect.closeTo(7.55, 2)],
       ]);
       expect(screen.getAllByText("clip fade or mute")).toHaveLength(1);
 
@@ -161,9 +167,18 @@ describe("ClipGainDips", () => {
       const restoredGroups = screen.getAllByTestId("clip-gain-dip");
       expect(restoredGroups).toHaveLength(3);
       expect(restoredGroups.map(pathEnds)).toEqual([
-        ["0,68", "10,68"],
-        ["0,68", "20,7.548336511877917"],
-        ["100,7.548336511877924", "120,7.5483365118781105"],
+        [
+          [0, 68],
+          [10, 68],
+        ],
+        [
+          [0, 68],
+          [20, expect.closeTo(7.55, 2)],
+        ],
+        [
+          [100, expect.closeTo(7.55, 2)],
+          [120, expect.closeTo(7.55, 2)],
+        ],
       ]);
       expect(screen.getAllByText("clip fade or mute")).toHaveLength(1);
       expect(consoleError).not.toHaveBeenCalled();
@@ -190,8 +205,14 @@ describe("ClipGainDips", () => {
       const groups = screen.getAllByTestId("clip-gain-dip");
       expect(groups).toHaveLength(2);
       expect(groups.map(pathEnds)).toEqual([
-        ["0,68", "10,7.548336511877917"],
-        ["0,68", "10,7.548336511877917"],
+        [
+          [0, 68],
+          [10, expect.closeTo(7.55, 2)],
+        ],
+        [
+          [0, 68],
+          [10, expect.closeTo(7.55, 2)],
+        ],
       ]);
       expect(screen.getAllByText("clip fade or mute")).toHaveLength(1);
       expect(consoleError).not.toHaveBeenCalled();
