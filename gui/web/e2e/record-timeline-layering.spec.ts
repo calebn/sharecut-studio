@@ -278,6 +278,9 @@ for (const viewport of viewports) {
           await page.screenshot({
             path: testInfo.outputPath(`${theme}-paused.png`),
           });
+          process.stdout.write(
+            `Pixel occlusion (${viewport.name}, ${theme}): recording ${recordingPixels.differingPixels}/${recordingPixels.totalPixels}; paused ${pausedPixels.differingPixels}/${pausedPixels.totalPixels}; decoded PNG RGBA comparison in Chromium.\n`,
+          );
 
           send("stopped", 4);
           await expect(overlay).toHaveCount(0);
