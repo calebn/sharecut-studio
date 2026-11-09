@@ -89,6 +89,11 @@ const AXIS_LOOPS: Record<string, { loops: number; reason: string }> = {
     reason:
       "the marks take one themed hue per edit type, so each viewport's screenshot receipt, and the zoom ladder's wide-tier receipt, are taken in both themes",
   },
+  "record-timeline-layering.spec.ts": {
+    loops: 1,
+    reason:
+      "the recording tint and chapter glyph colors differ by theme, so each palette must keep the take label opaque over the marker (#3462)",
+  },
 };
 
 /** A loop is over an axis when its binding is named for one or its list holds the axis values. */
