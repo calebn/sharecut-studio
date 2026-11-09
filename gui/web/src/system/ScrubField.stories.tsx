@@ -64,7 +64,7 @@ const meta: Meta<typeof ScrubField> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "A number with its unit in Plex Mono (design-system element 11). **Drag** sideways to change it, one step per pixel, Shift for ten times and Alt for a tenth. **Click** or press Enter to type; Enter commits, Escape reverts. **Arrow keys** step it with the same modifiers, and Home and End jump to the range ends. A gesture fires `onPreview` as it moves and `onCommit` once when it ends, so one drag, key press or typed value is one undo step; Escape during a drag calls `onCancel`. A reset dot shows while the value differs from its default. The **track** variant draws the allowed range under the number, and the **level** variant fills the field up to the value. A bad number keeps the field open and names the range. Alt needs a decimal place to show: give a whole-number field `decimals` 1. The field is a `spinbutton`, so assistive tech reads the value and unit; drag, hold and the reset dot have the keyboard and typing as their equivalents. Under a coarse pointer the field and the reset dot grow to 44 px, and the text is 16 px so iOS does not zoom.\n\n**Motion.** None. The value follows the pointer without easing.",
+          "A number with its unit in Plex Mono (design-system element 11). **Drag** sideways to change it, one step per pixel, Shift for ten times and Alt for a tenth. **Click** or press Enter to type; Enter commits, Escape reverts. **Arrow keys** step it with the same modifiers, and Home and End jump to the range ends. A gesture fires `onPreview` as it moves and `onCommit` once when it ends, so one drag, key press or typed value is one undo step; Escape during a drag calls `onCancel`. A reset dot shows while the value differs from its default. Level fields also reset to their configured default on a double-click or double-tap of the value. The **track** variant draws the allowed range under the number, and the **level** variant fills the field up to the value. A bad number keeps the field open and names the range. Alt needs a decimal place to show: give a whole-number field `decimals` 1. The field is a `spinbutton`, so assistive tech reads the value and unit; drag, hold and the reset dot have the keyboard and typing as their equivalents. Under a coarse pointer the field and the reset dot grow to 44 px, and the text is 16 px so iOS does not zoom.\n\n**Motion.** None. The value follows the pointer without easing.",
       },
     },
   },
@@ -97,6 +97,7 @@ export const LevelBar: Story = {
     max: 6,
     step: 0.5,
     decimals: 1,
+    defaultValue: 0,
   },
 };
 

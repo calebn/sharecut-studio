@@ -2,12 +2,14 @@ import {
   type CSSProperties,
   type KeyboardEvent,
   type PointerEvent,
+  type MouseEvent as ReactMouseEvent,
   useEffect,
   useId,
   useRef,
   useState,
 } from "react";
 import { isHandleDrag } from "../edit/dragThreshold";
+import { DOUBLE_TAP_MS, TOUCH_SLOP_PX } from "../hooks/gestureConstants";
 import {
   clamp,
   factorScale,
@@ -46,7 +48,7 @@ export type ScrubFieldProps = ScrubRange & {
   pixelsPerStep?: number;
   /** Alt gives a tenth of the step, so a whole-number field that wants Alt needs one more place. */
   decimals?: number;
-  /** Shows the reset dot while the value differs from it. */
+  /** Reset target shown by the dot and, for level fields, a double activation. */
   defaultValue?: number;
   readOnly?: boolean;
   /** A message from outside, such as a rejected value. Typing a bad number sets its own. */
@@ -76,6 +78,20 @@ type Drag = {
   raw: number;
   current: number;
   active: boolean;
+};
+
+type LevelResetSequence = {
+  kind: "mouse" | "touch";
+  at: number;
+  x: number;
+  y: number;
+  draft: string;
+  second: {
+    pointerId: number;
+    x: number;
+    y: number;
+    phase: "pressed" | "released";
+  } | null;
 };
 
 const EMPTY_TEXT = "Not set";
@@ -116,6 +132,7 @@ export function ScrubField({
   const errorId = useId();
   const box = useRef<HTMLSpanElement>(null);
   const drag = useRef<Drag | null>(null);
+  const levelReset = useRef<LevelResetSequence | null>(null);
   const draftRef = useRef<string | null>(null);
   const openedText = useRef<string | null>(null);
   const refocus = useRef(false);
@@ -128,6 +145,42 @@ export function ScrubField({
     if (next === null) setRejected(false);
     setDraftState(next);
   };
+
+  const clearLevelReset = () => {
+    levelReset.current = null;
+  };
+
+  const canResetLevel = () =>
+    variant === "level" &&
+    value !== null &&
+    !readOnly &&
+    defaultValue !== undefined;
+
+  const commitLevelDefault = () => {
+    const next = defaultValue;
+    levelReset.current = null;
+    if (!canResetLevel() || next === undefined) return;
+    draftRef.current = null;
+    setDraft(null);
+    refocus.current = true;
+    if (value !== next) onCommit(next);
+  };
+
+  const resetLevelGesture = () => {
+    const sequence = levelReset.current;
+    if (!sequence || draftRef.current !== sequence.draft) {
+      clearLevelReset();
+      return;
+    }
+    commitLevelDefault();
+  };
+
+  const pointIsNear = (
+    x: number,
+    y: number,
+    originX: number,
+    originY: number,
+  ) => Math.hypot(x - originX, y - originY) <= TOUCH_SLOP_PX;
 
   useEffect(() => {
     latestCancel.current = onCancel;
@@ -182,10 +235,12 @@ export function ScrubField({
     if (!drag.current) return;
     const { active } = drag.current;
     drag.current = null;
+    clearLevelReset();
     if (active) onCancel?.();
   };
 
   const onPointerDown = (event: PointerEvent<HTMLSpanElement>) => {
+    clearLevelReset();
     if (readOnly || event.button !== 0 || drag.current) return;
     event.currentTarget.setPointerCapture?.(event.pointerId);
     drag.current = {
@@ -205,6 +260,7 @@ export function ScrubField({
     if (!gesture.active) {
       if (!isHandleDrag(gesture.originX, event.clientX)) return;
       gesture.active = true;
+      clearLevelReset();
       gesture.lastX = event.clientX;
       return;
     }
@@ -230,7 +286,27 @@ export function ScrubField({
     if (!gesture || event.pointerId !== gesture.pointerId) return;
     drag.current = null;
     if (!gesture.active) {
-      setDraft(value === null ? "" : formatScrub(value, decimals));
+      const nextDraft = value === null ? "" : formatScrub(value, decimals);
+      if (
+        canResetLevel() &&
+        event.isPrimary !== false &&
+        (event.pointerType === "mouse" || event.pointerType === "touch")
+      ) {
+        const activation = {
+          at: Date.now(),
+          x: event.clientX,
+          y: event.clientY,
+          draft: nextDraft,
+        };
+        levelReset.current = {
+          kind: event.pointerType,
+          ...activation,
+          second: null,
+        };
+      } else {
+        clearLevelReset();
+      }
+      setDraft(nextDraft);
       return;
     }
     if (gesture.current === roundTo(gesture.start ?? base, decimals))
@@ -238,11 +314,126 @@ export function ScrubField({
     else onCommit(gesture.current);
   };
 
+  const onEditingPointerDown = (event: PointerEvent<HTMLSpanElement>) => {
+    const sequence = levelReset.current;
+    if (!sequence) return;
+    if (
+      !canResetLevel() ||
+      draftRef.current !== sequence.draft ||
+      (sequence.kind === "touch" && Date.now() - sequence.at >= DOUBLE_TAP_MS)
+    ) {
+      clearLevelReset();
+      return;
+    }
+    if (
+      event.pointerType !== sequence.kind ||
+      event.isPrimary === false ||
+      event.button !== 0 ||
+      sequence.second !== null ||
+      (sequence.kind === "touch" &&
+        !pointIsNear(event.clientX, event.clientY, sequence.x, sequence.y))
+    ) {
+      clearLevelReset();
+      return;
+    }
+    sequence.second = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      phase: "pressed",
+    };
+    if (sequence.kind === "touch") {
+      event.preventDefault();
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+    }
+  };
+
+  const onEditingPointerMove = (event: PointerEvent<HTMLSpanElement>) => {
+    const sequence = levelReset.current;
+    const second = sequence?.second;
+    if (!sequence || second?.pointerId !== event.pointerId) return;
+    const moved =
+      sequence.kind === "touch"
+        ? !pointIsNear(event.clientX, event.clientY, second.x, second.y)
+        : isHandleDrag(second.x, event.clientX);
+    if (moved) clearLevelReset();
+  };
+
+  const onEditingPointerUp = (event: PointerEvent<HTMLSpanElement>) => {
+    const sequence = levelReset.current;
+    if (sequence?.second?.pointerId !== event.pointerId) return;
+    const second = sequence.second;
+    if (sequence.kind === "mouse") {
+      if (event.button === 0 && event.isPrimary !== false)
+        second.phase = "released";
+      else clearLevelReset();
+      return;
+    }
+    if (
+      Date.now() - sequence.at >= DOUBLE_TAP_MS ||
+      event.isPrimary === false ||
+      event.button !== 0 ||
+      !pointIsNear(event.clientX, event.clientY, second.x, second.y) ||
+      draftRef.current !== sequence.draft
+    ) {
+      clearLevelReset();
+      return;
+    }
+    resetLevelGesture();
+  };
+
+  const onEditingPointerCancel = () => clearLevelReset();
+
+  const onEditingLostPointerCapture = (
+    event: PointerEvent<HTMLSpanElement>,
+  ) => {
+    const sequence = levelReset.current;
+    if (sequence?.second?.pointerId === event.pointerId) clearLevelReset();
+    const gesture = drag.current;
+    if (gesture?.pointerId === event.pointerId) cancelDrag();
+  };
+
+  const onEditingMouseDown = (event: ReactMouseEvent<HTMLSpanElement>) => {
+    const sequence = levelReset.current;
+    if (!sequence) return;
+    if (
+      !canResetLevel() ||
+      draftRef.current !== sequence.draft ||
+      (sequence.kind === "touch" && Date.now() - sequence.at >= DOUBLE_TAP_MS)
+    ) {
+      clearLevelReset();
+      return;
+    }
+    if (sequence.kind === "mouse") {
+      if (event.detail === 2) event.preventDefault();
+      else clearLevelReset();
+      return;
+    }
+    event.preventDefault();
+  };
+
+  const onEditingDoubleClick = (event: ReactMouseEvent<HTMLSpanElement>) => {
+    const sequence = levelReset.current;
+    if (sequence?.kind !== "mouse") return;
+    if (
+      event.detail !== 2 ||
+      sequence.second?.phase !== "released" ||
+      !canResetLevel() ||
+      draftRef.current !== sequence.draft
+    ) {
+      clearLevelReset();
+      return;
+    }
+    event.preventDefault();
+    resetLevelGesture();
+  };
+
   const commitStep = (next: number) => {
     if (next !== value) onCommit(next);
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLSpanElement>) => {
+    clearLevelReset();
     if (event.key === "Escape") {
       if (drag.current?.active) {
         event.preventDefault();
@@ -310,6 +501,7 @@ export function ScrubField({
   };
 
   const onInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    clearLevelReset();
     if (event.key === "Enter") {
       event.preventDefault();
       finishEdit("enter");
@@ -330,6 +522,49 @@ export function ScrubField({
     value !== null &&
     defaultValue !== undefined &&
     value !== defaultValue;
+  const editingContents = (
+    <>
+      <ScrubInput
+        label={label}
+        draft={draft ?? ""}
+        invalid={message !== undefined}
+        describedBy={message ? errorId : undefined}
+        onChange={(text) => {
+          clearLevelReset();
+          setRejected(false);
+          setDraft(text);
+        }}
+        onKeyDown={onInputKeyDown}
+        onBlur={() => {
+          clearLevelReset();
+          finishEdit("blur");
+        }}
+      />
+      {unit ? <span className="sys-scrub-unit">{unit}</span> : null}
+    </>
+  );
+  const editingBox =
+    variant === "level" ? (
+      <span
+        ref={box}
+        className="sys-scrub-box"
+        data-editing="true"
+        role="presentation"
+        onPointerDown={onEditingPointerDown}
+        onPointerMove={onEditingPointerMove}
+        onPointerUp={onEditingPointerUp}
+        onPointerCancel={onEditingPointerCancel}
+        onLostPointerCapture={onEditingLostPointerCapture}
+        onMouseDown={onEditingMouseDown}
+        onDoubleClick={onEditingDoubleClick}
+      >
+        {editingContents}
+      </span>
+    ) : (
+      <span ref={box} className="sys-scrub-box" data-editing="true">
+        {editingContents}
+      </span>
+    );
 
   return (
     <span className="sys-scrub" data-variant={variant}>
@@ -358,7 +593,10 @@ export function ScrubField({
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
-            onPointerCancel={cancelDrag}
+            onPointerCancel={() => {
+              clearLevelReset();
+              cancelDrag();
+            }}
             onLostPointerCapture={cancelDrag}
             onKeyDown={onKeyDown}
           >
@@ -376,29 +614,30 @@ export function ScrubField({
             ) : null}
           </span>
         ) : (
-          <span className="sys-scrub-box" data-editing="true">
-            <ScrubInput
-              label={label}
-              draft={draft}
-              invalid={message !== undefined}
-              describedBy={message ? errorId : undefined}
-              onChange={(text) => {
-                setRejected(false);
-                setDraft(text);
-              }}
-              onKeyDown={onInputKeyDown}
-              onBlur={() => finishEdit("blur")}
-            />
-            {unit ? <span className="sys-scrub-unit">{unit}</span> : null}
-          </span>
+          editingBox
         )}
         {showReset ? (
           <button
             type="button"
             className="sys-scrub-reset"
             aria-label={`Reset ${label} to ${formatScrub(defaultValue, decimals)}${unitText}`}
+            onPointerDown={(event) => {
+              if (
+                variant === "level" &&
+                box.current?.contains(document.activeElement)
+              )
+                event.preventDefault();
+            }}
+            onMouseDown={(event) => {
+              if (
+                variant === "level" &&
+                box.current?.contains(document.activeElement)
+              )
+                event.preventDefault();
+            }}
             onClick={() => {
-              onCommit(defaultValue);
+              if (variant === "level") commitLevelDefault();
+              else onCommit(defaultValue);
               box.current?.focus();
             }}
           />
