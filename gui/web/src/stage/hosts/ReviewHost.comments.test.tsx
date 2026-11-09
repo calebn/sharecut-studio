@@ -248,6 +248,27 @@ describe("Review host comments", () => {
     expect(heading()).toBe("Comment from Rosa");
   });
 
+  it("plays the clip of a comment whose queue row is clicked, with 2 s of lead and tail", async () => {
+    mount();
+    const group = screen.getByRole("region", { name: "Comments" });
+    await userEvent.click(
+      within(group).getByRole("button", { name: /Re-level the intro/ }),
+    );
+    await waitFor(() => expect(useDawStore.getState().playheadSec).toBe(88));
+    expect(useDawStore.getState().playUntilSec).toBe(92);
+    expect(useDawStore.getState().isPlaying).toBe(true);
+    expect(heading()).toBe("Comment from Sam");
+  });
+
+  it("does not play a comment that arrow keys step onto", () => {
+    mount();
+    act(() => {
+      press("ArrowDown");
+    });
+    expect(heading()).toBe("Comment from Sam");
+    expect(useDawStore.getState().isPlaying).toBe(false);
+  });
+
   it("shows the thread on the card and posts a reply and an action toggle", async () => {
     mount();
     const card = screen.getByRole("article");
