@@ -1,5 +1,6 @@
 import { composeStories } from "@storybook/react-vite";
 import axe from "axe-core";
+import { storyNameFromExport } from "storybook/internal/csf";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
 import { STORYBOOK_ONLY } from "./storybookOnlyStories";
@@ -27,7 +28,8 @@ const modules = import.meta.glob("../**/*.stories.{ts,tsx}", {
   eager: true,
 }) as Record<string, Record<string, unknown>>;
 
-const isPhoneStory = (name: string) => /\bphone\b/i.test(name);
+const isPhoneStory = (name: string) =>
+  /\bphone\b/i.test(storyNameFromExport(name));
 const widthsFor = (story: ComposedStory) =>
   story.tags.includes("wide-only")
     ? [WIDE]
