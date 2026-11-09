@@ -220,7 +220,7 @@ const matrix: [string, Partial<EditFacts>, ResolvedBar][] = [
     {
       leading: null,
       bar: ["hear", "remove", "more", "inspect"],
-      more: ["moveTrackUp", "moveTrackDown"],
+      more: ["moveTrackUp", "moveTrackDown", "smoothJoins"],
       primary: null,
     },
   ],
@@ -230,7 +230,7 @@ const matrix: [string, Partial<EditFacts>, ResolvedBar][] = [
     {
       leading: "count",
       bar: ["hear", "remove", "more", "inspect"],
-      more: ["moveTrackUp", "moveTrackDown"],
+      more: ["moveTrackUp", "moveTrackDown", "smoothJoins"],
       primary: null,
     },
   ],

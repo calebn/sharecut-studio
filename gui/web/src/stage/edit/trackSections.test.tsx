@@ -20,17 +20,12 @@ import { SectionsBody } from "./SectionsBody";
 
 const setTrackMetaCommand = vi.fn();
 const setTrackFaderCommand = vi.fn(async (..._args: unknown[]) => ({}));
-const applyFadeRecommendations = vi.fn(
-  async (..._args: unknown[]) => undefined,
-);
 
 vi.mock("../../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../api")>()),
   setTrackMetaCommand: (...args: unknown[]) => setTrackMetaCommand(...args),
   setTrackFaderCommand: (...args: unknown[]) => setTrackFaderCommand(...args),
   setEffectBypass: vi.fn(async () => undefined),
-  applyFadeRecommendations: (...args: unknown[]) =>
-    applyFadeRecommendations(...args),
 }));
 
 const hostTrack: TrackView = sampleTrack({
@@ -65,7 +60,6 @@ function open(
 beforeEach(() => {
   setTrackMetaCommand.mockReset();
   setTrackFaderCommand.mockClear();
-  applyFadeRecommendations.mockClear();
   vi.mocked(setEffectBypass).mockClear();
   clearRegisteredCommands();
   registerDawCommands();
@@ -377,16 +371,6 @@ describe("track content", () => {
       screen.getByRole("checkbox", { name: "Bypass acompressor" }),
     );
     expect(await screen.findByRole("alert")).toHaveTextContent("no write");
-  });
-
-  it("smooths every join on the track from the Tools section", async () => {
-    const user = userEvent.setup();
-    open();
-    await user.click(screen.getByRole("button", { name: "Smooth all joins" }));
-    expect(applyFadeRecommendations).toHaveBeenCalledWith(
-      "/tmp/ep.json",
-      "host",
-    );
   });
 
   it("warns when a saved chain contains an unsupported effect", () => {

@@ -1,5 +1,5 @@
 import { type KeyboardEvent, useEffect, useState } from "react";
-import { applyFadeRecommendations, setEffectBypass } from "../../api";
+import { setEffectBypass } from "../../api";
 import {
   executePointerCommand,
   runPointerCommand,
@@ -379,27 +379,6 @@ export function useTrackSections(
       id: "tools",
       title: "Tools",
       rows: [
-        ...(editable
-          ? [
-              {
-                id: "smooth",
-                control: (
-                  <Button
-                    className="track-sheet-action"
-                    title="Apply the recommended fade at every join on this track"
-                    disabledReason={busyReason}
-                    onClick={() =>
-                      void run(() =>
-                        applyFadeRecommendations(projectPath, track.id),
-                      )
-                    }
-                  >
-                    Smooth all joins
-                  </Button>
-                ),
-              },
-            ]
-          : []),
         {
           id: "seek",
           control: (
