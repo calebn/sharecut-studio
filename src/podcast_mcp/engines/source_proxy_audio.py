@@ -606,7 +606,7 @@ def _canonical(value: Any) -> str:
 class SourceProxyInputs:
     """Sealed source inputs shared by semantic identity, rendering, and publication."""
 
-    selector: Literal["legacy", "occurrence"]
+    selector: Literal["legacy", "recording", "occurrence"]
     clip_id: str | None
     context_track_id: str
     source: Path
@@ -655,6 +655,20 @@ class SourceProxyInputs:
         return cls._capture(project, engine, clip_id=clip_id, defaults=defaults)
 
     @classmethod
+    def capture_recording(
+        cls,
+        project: EpisodeProject,
+        track_id: str,
+        source_id: str,
+        engine: FFmpegEngine,
+        *,
+        defaults: EffectiveConfig,
+    ) -> SourceProxyInputs:
+        return cls._capture(
+            project, engine, track_id=track_id, source_id=source_id, defaults=defaults
+        )
+
+    @classmethod
     def _capture(
         cls,
         project: EpisodeProject,
@@ -662,6 +676,7 @@ class SourceProxyInputs:
         *,
         track_id: str | None = None,
         clip_id: str | None = None,
+        source_id: str | None = None,
         defaults: EffectiveConfig,
     ) -> SourceProxyInputs:
         snapshot = snapshot_project(project)
@@ -689,8 +704,14 @@ class SourceProxyInputs:
                 raise _inputs_changed()
             return snapshot.workspace_path() / Path(recording.path).expanduser()
 
+        recording_id = clip.source_id if affected and clip else source_id
         if affected and clip is not None:
             source = resolve_clip_audio_path(snapshot, destination, clip)
+        elif source_id is not None:
+            selected = snapshot.source_by_id(source_id)
+            if selected is None:
+                raise _inputs_changed()
+            source = resolve_under_workspace(snapshot, selected.path)
         elif context.media is not None:
             source = resolve_under_workspace(snapshot, context.media.path)
         else:
@@ -701,10 +722,7 @@ class SourceProxyInputs:
         regions = active_restore_regions(clip, source) if affected and clip is not None else ()
         bindings: tuple[tuple[Path, Path], ...] = (
             (
-                recording_path(
-                    destination if affected else context,
-                    clip.source_id if affected and clip else None,
-                ),
+                recording_path(destination if affected else context, recording_id),
                 source,
             ),
         )
@@ -823,8 +841,8 @@ class SourceProxyInputs:
             "binaries": [content(path) for path in binaries],
             "context_track_id": context.id,
             "recording": {
-                "source_id": clip.source_id if affected and clip else None,
-                "primary_track_id": None if affected and clip and clip.source_id else context.id,
+                "source_id": recording_id,
+                "primary_track_id": None if recording_id else context.id,
                 "sha256": content(source),
             },
             "context_primary": content(primary) if context.media is not None else None,
@@ -857,7 +875,7 @@ class SourceProxyInputs:
                 ],
             }
         captured = cls(
-            "occurrence" if clip is not None else "legacy",
+            "occurrence" if clip is not None else "recording" if source_id else "legacy",
             clip_id,
             context.id,
             source,

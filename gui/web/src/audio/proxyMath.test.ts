@@ -238,7 +238,9 @@ describe("proxyMath", () => {
           urls: ["variant0"],
         },
       },
-      occurrences: { c1: { artifactId, outputTrackId: "host" } },
+      occurrences: {
+        c1: { artifactId, outputTrackId: "host", bakesMutes: true },
+      },
     };
     const [slice] = buildSchedule(
       [
@@ -252,6 +254,49 @@ describe("proxyMath", () => {
       m,
     );
     expect(slice.envelope.mute).toEqual([]);
+  });
+
+  it("keeps the clip's mutes on a recording proxy that does not bake them", () => {
+    const artifactId = "c".repeat(64);
+    const base = manifest();
+    const m: ProxyManifest = {
+      ...base,
+      artifacts: {
+        [artifactId]: {
+          hash: artifactId,
+          chunk_sec: 60,
+          overlap_ms: 0,
+          chunk_count: 1,
+          duration_sec: 60,
+          urls: ["recording0"],
+        },
+      },
+      occurrences: {
+        c1: { artifactId, outputTrackId: "host", bakesMutes: false },
+      },
+    };
+    const [slice] = buildSchedule(
+      [
+        clip({
+          id: "c1",
+          mute_regions: [{ start_s: 1, end_s: 2 }],
+          off_speaker_mute_regions: [
+            { start_s: 3, end_s: 4, fade_out_ms: 20, fade_in_ms: 30 },
+          ],
+        }),
+      ],
+      0,
+      30,
+      m,
+    );
+    expect(slice.chunk.kind).toBe("artifact");
+    expect(slice.chunk.artifactId).toBe(artifactId);
+    expect(slice.envelope.mute.map((span) => [span.start, span.end])).toEqual([
+      [1, 2],
+    ]);
+    expect(slice.envelope.automaticMute).toEqual([
+      { start: 3, end: 4, fadeOutSec: 0.02, fadeInSec: 0.03 },
+    ]);
   });
 
   it("marks equalPower for crossfade joins", () => {
@@ -436,7 +481,9 @@ describe("proxyMath", () => {
     const baked = {
       ...m,
       artifacts: { [artifactId]: m.tracks.host },
-      occurrences: { c1: { artifactId, outputTrackId: "host" } },
+      occurrences: {
+        c1: { artifactId, outputTrackId: "host", bakesMutes: true },
+      },
     };
     const [slice] = buildSchedule(
       [clip({ id: "c1", off_speaker_mute_regions: regions })],
@@ -516,6 +563,39 @@ describe("manifest boundary and occurrence scheduling", () => {
     ).toHaveLength(64);
   });
 
+  it("rejects an occurrence binding that does not say whether it bakes mutes", () => {
+    const artifactId = "b".repeat(64);
+    const base = manifest();
+    const valid: ProxyManifest = {
+      ...base,
+      project_basis: {
+        ...base.project_basis,
+        clips: {
+          c1: {
+            track_id: "host",
+            origin_track_id: "host",
+            source_id: null,
+            source_start: 0,
+            source_end: 1,
+            timeline_start: 0,
+            timeline_end: 1,
+          },
+        },
+      },
+      artifacts: { [artifactId]: { ...base.tracks.host, hash: artifactId } },
+      occurrences: {
+        c1: { artifactId, outputTrackId: "host", bakesMutes: false },
+      },
+    };
+    expect(parseProxyManifest(valid)).toEqual(valid);
+    expect(() =>
+      parseProxyManifest({
+        ...valid,
+        occurrences: { c1: { artifactId, outputTrackId: "host" } },
+      }),
+    ).toThrow();
+  });
+
   it("resolves only the bound occurrence before geometry and routes to the clip's lane", () => {
     const selected = clip({
       id: "selected",
@@ -547,7 +627,11 @@ describe("manifest boundary and occurrence scheduling", () => {
         },
       },
       occurrences: {
-        selected: { artifactId, outputTrackId: "secondary-output" },
+        selected: {
+          artifactId,
+          outputTrackId: "secondary-output",
+          bakesMutes: true,
+        },
       },
     };
     const slices = buildSchedule([selected, unselected], 0, 30, m);

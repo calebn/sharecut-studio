@@ -184,6 +184,7 @@ class ProxyProjectBasis(BaseModel):
 class ProxyOccurrenceBinding(BaseModel):
     artifact_id: str = Field(pattern=r"^[0-9a-f]{64}$")
     output_track_id: str
+    bakes_mutes: bool
 
 
 class ProxyPublishedArtifact(TrackProxy):
@@ -1297,6 +1298,21 @@ class RenderSection(BaseModel):
     reconciliation_stale: bool = False
     last_reconciliation_hash: str | None = None
     invalidations: list[RenderInvalidation] = Field(default_factory=list)
+
+    @field_validator("proxy_manifests", mode="before")
+    @classmethod
+    def _drop_unreadable_generations(cls, value: Any) -> Any:
+        """Generations are a rebuildable cache, so one written by an older shape is dropped."""
+        if not isinstance(value, list):
+            return value
+        kept = []
+        for entry in value:
+            try:
+                ProxyManifestGeneration.model_validate(entry)
+            except ValidationError:
+                continue
+            kept.append(entry)
+        return kept
 
 
 class SocialSection(BaseModel):

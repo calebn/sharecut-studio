@@ -45,12 +45,13 @@ export interface ProxyManifest {
   readonly project_basis: ProxyProjectBasis;
   readonly tracks: Readonly<Record<string, ProxyArtifactManifest>>;
   readonly artifacts: Readonly<Record<string, ProxyArtifactManifest>>;
-  readonly occurrences: Readonly<
-    Record<
-      string,
-      { readonly artifactId: string; readonly outputTrackId: string }
-    >
-  >;
+  readonly occurrences: Readonly<Record<string, ProxyOccurrence>>;
+}
+
+export interface ProxyOccurrence {
+  readonly artifactId: string;
+  readonly outputTrackId: string;
+  readonly bakesMutes: boolean;
 }
 
 export type ImmutableChunkRef = Readonly<{
@@ -93,6 +94,12 @@ function record(value: unknown): Record<string, unknown> {
 function text(value: unknown): string {
   if (typeof value !== "string" || value.length === 0)
     throw new Error("Invalid proxy manifest string");
+  return value;
+}
+
+function flag(value: unknown): boolean {
+  if (typeof value !== "boolean")
+    throw new Error("Invalid proxy manifest flag");
   return value;
 }
 
@@ -177,9 +184,10 @@ export function parseProxyManifest(value: unknown): ProxyManifest {
     const binding = record(value);
     const artifactId = text(binding.artifactId);
     const outputTrackId = text(binding.outputTrackId);
+    const bakesMutes = flag(binding.bakesMutes);
     if (!artifacts[artifactId] || !project_basis.clips[id])
       throw new Error("Invalid proxy occurrence binding");
-    return { artifactId, outputTrackId };
+    return { artifactId, outputTrackId, bakesMutes };
   });
   return {
     revision: text(raw.revision),
@@ -376,14 +384,15 @@ export function buildSchedule(
       timelineStartSec: clip.timeline_start,
       timelineEndSec: clip.timeline_end,
       sourceStartSec: clip.source_start,
-      // An occurrence proxy already has its mutes baked in (`source_proxy_audio.py`).
-      mute: binding
+      // A bleed-restore occurrence has its mutes baked in (`source_proxy_audio.py`);
+      // a plain recording proxy does not.
+      mute: binding?.bakesMutes
         ? []
         : muteSpansOf([
             ...(clip.mute_regions ?? []),
             ...(clip.ignored_word_regions ?? []),
           ]),
-      automaticMute: binding
+      automaticMute: binding?.bakesMutes
         ? []
         : automaticSpansOf(clip.off_speaker_mute_regions),
       // A blending join replaces both edge fades with the overlap's ramps.

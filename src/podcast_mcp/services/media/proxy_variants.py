@@ -12,9 +12,10 @@ from typing import Any
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.play_audit import proxy_render_hash, track_render_hash
-from podcast_mcp.engines.session_timeline import origin_resolver
+from podcast_mcp.engines.session_timeline import origin_resolver, origin_track_id_for_clip
 from podcast_mcp.engines.source_proxy_audio import SourceProxyInputs, render_source_proxy_inputs
 from podcast_mcp.models.episode import (
+    Clip,
     EpisodeProject,
     ProxyClipBasis,
     ProxyManifestGeneration,
@@ -369,6 +370,15 @@ def _save_confirmed(ws: ProjectWorkspace, expected: EpisodeProject) -> None:
             raise
 
 
+def _recording_key(project: EpisodeProject, clip: Clip) -> tuple[str, str] | None:
+    if clip.source_id is None:
+        return None
+    origin = origin_track_id_for_clip(project, clip)
+    if None in project.equivalent_source_ids(origin, clip.source_id):
+        return None
+    return origin, clip.source_id
+
+
 def _ensure(ws: ProjectWorkspace, track_id: str | None) -> ProxyManifestGeneration | TrackProxy:
     with render_lock(ws.project):
         engine = FFmpegEngine()
@@ -404,6 +414,20 @@ def _ensure(ws: ProjectWorkspace, track_id: str | None) -> ProxyManifestGenerati
                     and clip.bleed_restore is not None
                     and clip.bleed_restore.regions
                 ]
+                restored = {clip_id for clip_id, _ in choices}
+                clip_keys = {
+                    clip.id: key
+                    for clip in snapshot.clips
+                    if track_id is None
+                    and clip.id not in restored
+                    and (key := _recording_key(snapshot, clip)) is not None
+                }
+                recordings = {
+                    key: SourceProxyInputs.capture_recording(
+                        snapshot, *key, engine, defaults=ws.effective_config()
+                    )
+                    for key in dict.fromkeys(clip_keys.values())
+                }
             with tempfile.TemporaryDirectory(prefix="proxy-wav-") as temporary:
                 tracks = {}
                 artifacts = {}
@@ -437,7 +461,23 @@ def _ensure(ws: ProjectWorkspace, track_id: str | None) -> ProxyManifestGenerati
                         prepared.append(candidate)
                     artifacts[candidate.artifact.hash] = candidate.artifact
                     occurrences[clip_id] = ProxyOccurrenceBinding(
-                        artifact_id=candidate.artifact.hash, output_track_id=inputs.context_track_id
+                        artifact_id=candidate.artifact.hash,
+                        output_track_id=inputs.context_track_id,
+                        bakes_mutes=True,
+                    )
+                prepared_recordings = {}
+                for key, inputs in recordings.items():
+                    item = _prepare(
+                        snapshot, inputs, engine, Path(temporary), legacy=False, defaults=defaults
+                    )
+                    prepared.append(item)
+                    prepared_recordings[key] = item.artifact
+                    artifacts[item.artifact.hash] = item.artifact
+                for clip_id, key in clip_keys.items():
+                    occurrences[clip_id] = ProxyOccurrenceBinding(
+                        artifact_id=prepared_recordings[key].hash,
+                        output_track_id=key[0],
+                        bakes_mutes=False,
                     )
                 payload = {
                     "project_basis": basis.model_dump(mode="json"),
@@ -457,7 +497,7 @@ def _ensure(ws: ProjectWorkspace, track_id: str | None) -> ProxyManifestGenerati
                         raise CodedValueError(
                             "Proxy inputs changed; retry", code="proxy_inputs_changed"
                         )
-                    for _, inputs in [*captures, *choices]:
+                    for _, inputs in [*captures, *choices, *recordings.items()]:
                         inputs.validate(current, engine, defaults=ws.effective_config())
                     for item in prepared:
                         item.publish(current)
@@ -570,7 +610,11 @@ def proxy_manifest_payload(
         },
         "artifacts": {key: descriptor(artifact) for key, artifact in generation.artifacts.items()},
         "occurrences": {
-            key: {"artifactId": value.artifact_id, "outputTrackId": value.output_track_id}
+            key: {
+                "artifactId": value.artifact_id,
+                "outputTrackId": value.output_track_id,
+                "bakesMutes": value.bakes_mutes,
+            }
             for key, value in generation.occurrences.items()
         },
     }
