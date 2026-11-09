@@ -175,6 +175,26 @@ describe("lane range gestures", () => {
     fireEvent.pointerCancel(view.getByTestId("lanes"));
     expect(useDawStore.getState().selection).toEqual(previous);
   });
+  it("restores the armed draft when a drag is cancelled", () => {
+    const seeded = { start: 1, end: 2, trackIds: ["destination"] };
+    useDawStore.setState({ rangeArmed: true, rangeDraft: seeded });
+    const view = setup();
+    fireEvent.pointerDown(view.getByTestId("clip"), {
+      clientX: 120,
+      clientY: 20,
+      pointerType: "touch",
+    });
+    fireEvent.pointerMove(view.getByTestId("lanes"), {
+      clientX: 180,
+      clientY: 75,
+      pointerType: "touch",
+    });
+    expect(useDawStore.getState().rangeDraft).toBeNull();
+    fireEvent.pointerCancel(view.getByTestId("lanes"));
+    expect(useDawStore.getState().selection).toBeNull();
+    expect(useDawStore.getState().rangeArmed).toBe(true);
+    expect(useDawStore.getState().rangeDraft).toEqual(seeded);
+  });
   it("preserves edge control ownership and respects the join busy guard", () => {
     useDawStore.setState({ rangeArmed: true });
     const view = setup();
@@ -395,7 +415,7 @@ describe("range select with a second pointer (#1034)", () => {
       clientY: 20,
     });
     expect(useDawStore.getState().selection).toBe(owned);
-    expect(useDawStore.getState().rangeArmed).toBe(true);
+    expect(useDawStore.getState().rangeArmed).toBe(false);
     fireEvent.pointerUp(lanes, {
       ...touch,
       pointerId: 1,

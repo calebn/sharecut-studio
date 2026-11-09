@@ -4,7 +4,6 @@ import { apiSend } from "../api/http";
 import { commentDraftFromRange } from "../comments/commentAnchor";
 import { setClipboard } from "../edit/clipboard";
 import {
-  isRangeSelection,
   rangeIsCurrent,
   resolveSelectionRange,
   seedRangeDraft,
@@ -17,6 +16,7 @@ import {
   rangeEditMode,
 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { isRangeSelection } from "../state/selection";
 import type { DawState } from "../state/types";
 import { DocumentCommand } from "../types/documentCommands.generated";
 import type { ExactRangeTarget } from "../types/project";

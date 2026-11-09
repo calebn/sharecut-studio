@@ -2,6 +2,7 @@ import { type PointerEvent, type RefObject, useCallback, useRef } from "react";
 import { makeRangeTarget } from "../edit/rangeSelection";
 import { useInterruptCancel } from "../hooks/useInterruptCancel";
 import { useDawStore } from "../state/dawStore";
+import type { RangeDraft } from "../state/types";
 import type { ProjectView, Selection } from "../types/project";
 import { isSplitModifier } from "./useSplitAtPointer";
 
@@ -23,6 +24,7 @@ export function useRangeGesture(
     origin: RangePoint;
     project: ProjectView;
     previous: Selection;
+    previousDraft: RangeDraft | null;
     drawing: boolean;
     epoch: number;
     painted: Selection;
@@ -37,8 +39,10 @@ export function useRangeGesture(
       active?.drawing &&
       active.epoch === state.projectEpoch &&
       active.painted === state.selection
-    )
+    ) {
       state.setSelection(active.previous);
+      if (active.previousDraft) state.armRange(active.previousDraft);
+    }
   }, []);
   useInterruptCancel(cancel);
   const gesture = useCallback<RangeGesture>(
@@ -60,6 +64,7 @@ export function useRangeGesture(
           origin: point,
           project: state.project,
           previous: state.selection,
+          previousDraft: state.rangeDraft,
           drawing: false,
           epoch: state.projectEpoch,
           painted: state.selection,

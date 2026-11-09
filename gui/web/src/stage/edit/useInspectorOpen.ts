@@ -1,8 +1,7 @@
 import { useCallback } from "react";
-import { isRangeSelection } from "../../edit/rangeSelection";
 import { opensSheet, type SheetScreen } from "../../inspector/selectionSurface";
 import { useDawStore } from "../../state/dawStore";
-import { inspectorOpenFor } from "../../state/selection";
+import { inspectorOpenFor, isRangeSelection } from "../../state/selection";
 import { useDaw } from "../../state/useDaw";
 
 export type InspectorShell = "desktop" | "tablet" | "phone";

@@ -3,12 +3,12 @@ import { timelineEndSec } from "../edit/pickupTarget";
 import {
   clampSpan,
   defaultScope,
-  isRangeSelection,
   makeRangeTarget,
   resolveSelectionRange,
   SPAN_STEP_SEC,
 } from "../edit/rangeSelection";
 import { TrackToggleRow } from "../inspector/TrackToggleRow";
+import { isRangeSelection } from "../state/selection";
 import { useDaw } from "../state/useDaw";
 import { ScrubField } from "../system/ScrubField";
 import { Button } from "../ui";
