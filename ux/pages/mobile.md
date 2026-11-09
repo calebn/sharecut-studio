@@ -18,7 +18,7 @@ At the bottom of the screen you'll see five tabs, one for each stage of making a
 
 You won't see everything at once, and that's intentional. Each screen shows what you need for the task at hand. Timeline clip labels lead with the speaker name when one is set, then show a readable duration such as "Avery · 17m 26s"; narrow labels clip visually while their accessible names keep the full identity.
 
-Select a clip to open its inspector sheet. The two fade sliders preview while you move and save together on release, key release, or leaving the control. Escape during a fade preview cancels it and leaves the inspector open. Idle Escape on a fade slider still dismisses the sheet. The opposite edge stays fixed, and the controls clamp to the track cap and clip length. The selected track's sheet holds **Smooth all joins** under **Tools**. Pending timing keeps **Snap to silence** as a separate checked option; turn it off to apply the exact times you entered.
+Select a clip to open its inspector sheet. The two fade sliders preview while you move and save together on release, key release, or leaving the control. Escape during a fade preview cancels it and leaves the inspector open. Idle Escape on a fade slider still dismisses the sheet. The opposite edge stays fixed, and the controls clamp to the track cap and clip length. The selected track's sheet holds **Smooth all joins** under **Tools**. Pending timing snaps to silence on every Start or End commit. Holding Alt while committing skips the snap; touch has no way to turn it off.
 
 In Timeline, the time ruler and marker rows stay visible when you scroll through
 tracks. They move with the waveforms when you pan horizontally; the playhead
