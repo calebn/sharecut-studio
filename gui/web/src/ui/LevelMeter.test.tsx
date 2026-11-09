@@ -58,9 +58,9 @@ describe("LevelMeter", () => {
 
   it("fills proportionally: -30 dBFS reveals half the track on a -60 scale", () => {
     const { container } = render(<LevelMeter levelDb={-30} />);
-    expect(
-      container.querySelector(".ui-meter-fill")?.getAttribute("style"),
-    ).toContain("inset(0 50% 0 0)");
+    expect(container.querySelector(".ui-meter-fill")).toHaveStyle({
+      clipPath: "inset(0 50% 0 0)",
+    });
   });
 
   it("renders the peak-hold tick above the current level", () => {
@@ -97,9 +97,9 @@ describe("LevelMeter", () => {
     );
     expect(getByRole("meter").getAttribute("aria-valuenow")).toBe("-60");
     expect(getByRole("meter").getAttribute("aria-valuetext")).toBe("-∞ dBFS");
-    expect(
-      container.querySelector(".ui-meter-fill")?.getAttribute("style"),
-    ).toContain("inset(0 100% 0 0)");
+    expect(container.querySelector(".ui-meter-fill")).toHaveStyle({
+      clipPath: "inset(0 100% 0 0)",
+    });
   });
 
   it("supports an external clip control and explicit unavailable evidence", async () => {

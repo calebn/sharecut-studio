@@ -96,9 +96,9 @@ describe("TrackMix", () => {
     expect(rows[0].querySelector(".track-mix-identity")).toHaveTextContent(
       "MV",
     );
-    expect(rows[1]).toHaveStyle({
-      "--track-identity-color": "var(--color-clip-music)",
-    });
+    expect(rows[1].style.getPropertyValue("--track-identity-color")).toBe(
+      "var(--color-clip-music)",
+    );
     expect(
       screen.getByRole("spinbutton", { name: "Volume Mira voice" }),
     ).toHaveAttribute("aria-valuenow", "-3");

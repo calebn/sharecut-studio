@@ -43,6 +43,11 @@ const stories = Object.entries(modules).flatMap(([path, module]) =>
 
 const STORY_TIMEOUT_MS = 20_000;
 
+const pointerMarkerStories = new Map([
+  ["../system/MarkerLane.stories.tsx", ["Selecting", "Moving", "ReadOnly"]],
+  ["../timeline/MarkerLaneHost.stories.tsx", ["AllMarkers"]],
+]);
+
 describe("all Storybook stories", () => {
   it("discovers colocated stories", () => {
     expect(stories.length).toBeGreaterThan(0);
@@ -50,11 +55,33 @@ describe("all Storybook stories", () => {
 
   it.each(stories)(
     "$path: $name renders, plays, and passes axe",
-    async ({ Story }) => {
+    async ({ path, name, Story }) => {
       const canvasElement = document.body.appendChild(
         document.createElement("div"),
       );
       try {
+        if (pointerMarkerStories.get(path)?.includes(name)) {
+          // jsdom gives mouse focus the same :focus-visible state as Tab.
+          canvasElement.addEventListener(
+            "mousedown",
+            ({ target }) => {
+              const marker =
+                target instanceof Element
+                  ? target.closest(".sys-marker-hit")
+                  : null;
+              if (!marker) return;
+              const matches = marker.matches.bind(marker);
+              const pointerFocus = vi
+                .spyOn(marker, "matches")
+                .mockImplementation(
+                  (selector) =>
+                    selector !== ":focus-visible" && matches(selector),
+                );
+              queueMicrotask(() => pointerFocus.mockRestore());
+            },
+            { capture: true, once: true },
+          );
+        }
         await Story.run({ canvasElement });
         if (!canvasElement.querySelector("main")) {
           canvasElement.setAttribute("role", "main");

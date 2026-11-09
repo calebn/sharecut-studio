@@ -39,7 +39,9 @@ describe("SuggestionWaveform", () => {
     setup();
     expect(end()).toHaveAttribute("aria-valuemin", "100");
     expect(end()).toHaveAttribute("aria-valuemax", "112");
-    expect(end().style.insetInlineStart).toBe(`${(5 / 12) * 100}%`);
+    const position = end().style.insetInlineStart;
+    expect(position).toMatch(/^\d+(?:\.\d+)?%$/);
+    expect(Number(position.slice(0, -1))).toBeCloseTo((5 / 12) * 100, 4);
   });
 
   it("does not start an adjustment on a tap", () => {
