@@ -441,8 +441,11 @@ test("a soloed track keeps Clear solo tappable at the top of the timeline at 914
     await expect(page.locator(".solo-chip")).toBeVisible();
     await openEnvelope(page);
     const chip = page.locator(".solo-chip");
-    await page.locator(".timeline-scroll").evaluate((el) => {
-      el.scrollTop = 0;
+    // Opening the sheet can scroll the stacked workspace under the header; the top
+    // of the timeline is every scroller above the chip back at zero.
+    await chip.evaluate((el) => {
+      for (let node = el.parentElement; node; node = node.parentElement)
+        node.scrollTop = 0;
     });
     await expect(chip).toBeInViewport();
     const hit = await chip.evaluate((el) => {
