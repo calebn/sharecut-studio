@@ -292,7 +292,6 @@ export function continuesSpeaker(
   );
 }
 
-/** The screen-reader note for a word the pipeline flagged as possibly not spoken. */
 const SUSPECT_HALLUCINATION_NOTE =
   TRANSCRIPT_SUSPECT_HALLUCINATION_TIP.toLowerCase();
 
