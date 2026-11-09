@@ -525,6 +525,8 @@ with axe before the collected results are asserted.
 | a document state load the server never answers shows the project failure cover whose Try again recovers | `gui/web/e2e-compat/initial-load-recovery.spec.ts` | Core flow | Pass | Pass | Not run |
 | the failure cover sits in view, not under the fixed shell, and its Try again recovers | `gui/web/e2e-compat/initial-load-recovery.spec.ts` | Core flow | Pass | Pass | Not run |
 | saved feedback stays clear of the sheet's dock and grip at half and full | `gui/web/e2e-compat/compact-feedback-detents.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| automatic Full returns to Half after a short phone returns to portrait | `gui/web/e2e-compat/inspector-auto-fit.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| manual Full remains Full after a short phone returns to portrait | `gui/web/e2e-compat/inspector-auto-fit.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Undo and Redo stay reachable in the App header with the Inspector sheet open | `gui/web/e2e-compat/compact-history-persistence.spec.ts` | CSS / layout | Pass | Pass | Not run |
 
 Two compat Chromium specs have exact main Chromium owners:
