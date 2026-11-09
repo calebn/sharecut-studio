@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.cut_application import approve_edits
 from podcast_mcp.edits.decisions import update_pending_edit
+from podcast_mcp.edits.edit_log import plan_restores
 from podcast_mcp.edits.range_edits import edit_selected_range
 from podcast_mcp.edits.range_target import RangeChangedError, range_geometry, range_media_seal
 from podcast_mcp.models import (
@@ -882,3 +883,100 @@ def test_the_old_single_target_key_is_refused():
         validate_payload("EditSelectedRange", {"action": "cut", "target": {}})
     with pytest.raises(ValidationError):
         validate_payload("EditSelectedRange", {"action": "cut", "targets": []})
+
+
+def one_speaker_project(tmp_path):
+    project = EpisodeProject.create("range", str(tmp_path))
+    project.tracks = [Track(id="a", label="a"), Track(id="b", label="b")]
+    project.clips = [
+        Clip(id="host", track_id="a", source_start=0, source_end=60, timeline_start=0),
+        Clip(id="guest", track_id="b", source_start=0, source_end=60, timeline_start=0),
+    ]
+    project.timeline.duration_sec = 60
+    return project
+
+
+def cut_targets(project, targets, action_id="batch"):
+    return edit_selected_range(
+        project,
+        targets,
+        "cut",
+        propose=False,
+        reason="host:range",
+        action_id=action_id,
+        boundary_intent=CutIntent.HUMAN_BOUNDARIES,
+        defaults=load_defaults(),
+    )
+
+
+@pytest.mark.parametrize(
+    "first_tracks, second_tracks",
+    [(("a",), ("a",)), (("a",), ("a", "b")), (("a", "b"), ("b",))],
+)
+def test_targets_overlapping_on_a_shared_track_are_refused(tmp_path, first_tracks, second_tracks):
+    project = one_speaker_project(tmp_path)
+    before = deepcopy(project.clips)
+    with pytest.raises(ValueError, match="Two targets cover the same audio") as refused:
+        cut_targets(
+            project,
+            [
+                target(project, ((10, 12),), first_tracks),
+                target(project, ((11, 13),), second_tracks),
+            ],
+        )
+    assert refused.value.code == "overlapping_targets"
+    assert project.clips == before
+    assert project.editorial.edit_log == []
+
+
+def test_targets_that_only_touch_or_share_no_track_are_cut(tmp_path):
+    project = one_speaker_project(tmp_path)
+    cut_targets(
+        project,
+        [
+            target(project, ((10, 12),), ("a",)),
+            target(project, ((12, 13),), ("a",)),
+            target(project, ((10, 12),), ("b",)),
+        ],
+    )
+    assert spans(project, "a") == [(0, 10, 0), (13, 60, 13)]
+    assert spans(project, "b") == [(0, 10, 0), (12, 60, 12)]
+    assert len(project.editorial.edit_log) == 3
+
+
+def test_a_derived_id_cannot_reuse_an_id_another_command_chose(tmp_path):
+    project = one_speaker_project(tmp_path)
+    edit_selected_range(
+        project,
+        [target(project, ((10, 11),), ("a",))],
+        "cut",
+        propose=True,
+        reason="agent:range",
+        action_id="batch:1",
+        defaults=load_defaults(),
+    )
+    with pytest.raises(ValueError, match="batch:1 is already used") as refused:
+        edit_selected_range(
+            project,
+            [target(project, ((20, 21),), ("a",)), target(project, ((20, 21),), ("b",))],
+            "cut",
+            propose=True,
+            reason="agent:range",
+            action_id="batch",
+            defaults=load_defaults(),
+        )
+    assert refused.value.code == "edit_id_taken"
+    assert [e.id for e in project.edit_decisions] == ["batch:1"]
+
+
+def test_a_cut_all_record_is_restored_through_history_like_a_hand_cut(tmp_path):
+    hand = one_speaker_project(tmp_path / "hand")
+    cut_targets(hand, [target(hand, ((10, 11),), ("a",))])
+    many = one_speaker_project(tmp_path / "many")
+    cut_targets(many, [target(many, ((10, 11), (20, 21)), ("a",))])
+    states = []
+    for project in (hand, many):
+        (record,) = project.editorial.edit_log
+        _, conflicts = plan_restores(project, [record.id], defaults=load_defaults())
+        states.append([c.code for c in conflicts])
+    assert states == [["local_restore_requires_history"]] * 2

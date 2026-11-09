@@ -13,6 +13,7 @@ import {
   scriptWord,
   seedScript,
 } from "../../../test/scriptHostKit";
+import { ApiError } from "../../../utils/apiError";
 import { ScriptHost } from "./ScriptHost";
 
 const preview = vi.hoisted(() => vi.fn());
@@ -103,7 +104,12 @@ beforeEach(() => {
     type: "Applied",
     history_head_id: "head-1",
   });
-  useDawStore.setState({ statusAnnouncement: "", feedbackToast: null });
+  useDawStore.setState({
+    statusAnnouncement: "",
+    feedbackToast: null,
+    rangeBusy: false,
+    joinMutationInFlight: false,
+  });
   seedScript();
 });
 
@@ -397,6 +403,118 @@ describe("ScriptHost Find", () => {
       await screen.findByText("Selected audio changed."),
     ).toBeInTheDocument();
     expect(useDawStore.getState().statusAnnouncement).not.toMatch(/^Cut/);
+  });
+
+  it("names held matches and says nothing was cut when the server holds a hit", async () => {
+    seedScript({ project: { clips: CLIPS } });
+    vi.mocked(submitDocumentCommand).mockRejectedValue(
+      new ApiError(
+        "A selected cut was not applied because the held edges need audio review. Repeat the call with the audio-check override (CLI --override-audio-checks).",
+        "cut_scope_changed",
+        409,
+      ),
+    );
+    await openFind();
+    await userEvent.type(findField(), "maya");
+    await userEvent.click(screen.getByRole("button", { name: "Cut all 1" }));
+    expect(
+      await screen.findByText(
+        "Some of these matches are held for an audio check. Nothing was cut.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/override/)).toBeNull();
+    expect(useDawStore.getState().rangeBusy).toBe(false);
+  });
+
+  it("does not say Cut when the server did not apply the edit", async () => {
+    seedScript({ project: { clips: CLIPS } });
+    vi.mocked(submitDocumentCommand).mockResolvedValue({ type: "Proposed" });
+    await openFind();
+    await userEvent.type(findField(), "maya");
+    await userEvent.click(screen.getByRole("button", { name: "Cut all 1" }));
+    await waitFor(() =>
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "Nothing was cut. The edit was not applied.",
+      ),
+    );
+    expect(useDawStore.getState().feedbackToast?.undo ?? null).toBeNull();
+  });
+
+  it("tells an offline editing guest the cut is queued as a suggestion", async () => {
+    seedScript({
+      projectPath: "share:abc",
+      guestMode: "edit",
+      shareCapabilities: EDITOR_CAPABILITIES,
+      project: { clips: CLIPS },
+    });
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    vi.mocked(submitDocumentCommand).mockResolvedValue({ queued: true });
+    await openFind();
+    await userEvent.type(findField(), "maya");
+    await userEvent.click(screen.getByRole("button", { name: "Cut all 1" }));
+    await waitFor(() =>
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "Cut all queued as a suggestion for host review. Reconnect to send it.",
+      ),
+    );
+    vi.restoreAllMocks();
+  });
+
+  it("queues a Cut all once and refuses a second click until the project changes", async () => {
+    seedScript({ project: { clips: CLIPS } });
+    vi.mocked(submitDocumentCommand).mockResolvedValue({ queued: true });
+    await openFind();
+    await userEvent.type(findField(), "maya");
+    const button = screen.getByRole("button", { name: "Cut all 1" });
+    await userEvent.click(button);
+    await waitFor(() =>
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "Cut all queued. Still sending.",
+      ),
+    );
+    await userEvent.click(button);
+    expect(
+      await screen.findByText(
+        "Cut all is already queued. Wait for it to send.",
+      ),
+    ).toBeInTheDocument();
+    expect(submitDocumentCommand).toHaveBeenCalledTimes(1);
+    expect(useDawStore.getState().rangeBusy).toBe(false);
+  });
+
+  it.each([
+    ["rangeBusy", { rangeBusy: true }],
+    ["joinMutationInFlight", { joinMutationInFlight: true }],
+  ])(
+    "refuses Cut all while %s is set and leaves it alone",
+    async (_name, busy) => {
+      seedScript({ project: { clips: CLIPS } });
+      await openFind();
+      await userEvent.type(findField(), "maya");
+      useDawStore.setState(busy);
+      await userEvent.click(screen.getByRole("button", { name: "Cut all 1" }));
+      expect(
+        await screen.findByText("Wait for the current edit to finish."),
+      ).toBeInTheDocument();
+      expect(submitDocumentCommand).not.toHaveBeenCalled();
+      expect(useDawStore.getState()).toMatchObject(busy);
+    },
+  );
+
+  it("releases rangeBusy after a cut lands and after one fails", async () => {
+    seedScript({ project: { clips: CLIPS } });
+    await openFind();
+    await userEvent.type(findField(), "maya");
+    const button = screen.getByRole("button", { name: "Cut all 1" });
+    await userEvent.click(button);
+    await waitFor(() =>
+      expect(useDawStore.getState().statusAnnouncement).toBe("Cut 1 match"),
+    );
+    expect(useDawStore.getState().rangeBusy).toBe(false);
+    vi.mocked(submitDocumentCommand).mockRejectedValue(new Error("Nope."));
+    await userEvent.click(button);
+    expect(await screen.findByText("Nope.")).toBeInTheDocument();
+    expect(useDawStore.getState().rangeBusy).toBe(false);
   });
 
   it("offers no Cut all to a suggesting guest", async () => {

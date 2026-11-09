@@ -589,7 +589,8 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             mcp=named("propose_range_cut_tool", "propose_range_mute_tool"),
             cli=gap(
                 "The GUI applies a host's cut or mute directly; the CLI only proposes one for review "
-                "(propose-range-cut for a cut, and podcast doc submit EditSelectedRange for a mute), "
+                "(propose-range-cut for one range of a cut, and podcast doc submit EditSelectedRange "
+                "for a mute or for several speakers' targets at once), "
                 "so the host-applied mute of daw.range.mute has no agent path",
                 "podcast edit propose-range-cut",
                 GENERIC_CLI,

@@ -141,6 +141,67 @@ describe("matchCutOf", () => {
     });
   });
 
+  it("counts hits on a track the project no longer has as skipped, not cut", () => {
+    const { project, model, hits } = setup(
+      [
+        scriptUtterance("host", "Maya", [scriptWord("um", 0, 10)]),
+        scriptUtterance("guest", "Anneke", [
+          scriptWord("um", 0, 20),
+          scriptWord("um", 1, 30),
+        ]),
+      ],
+      "um",
+    );
+    const dropped = {
+      ...project,
+      tracks: project.tracks.filter((track) => track.id !== "guest"),
+    };
+    const cut = matchCutOf(dropped, model, hits);
+    expect({ cut: cut.cut, skipped: cut.skipped, spans: spans(cut) }).toEqual({
+      cut: 1,
+      skipped: 2,
+      spans: [[["host"], [{ start: 10, end: 10.4 }]]],
+    });
+  });
+
+  it("refuses more targets than the server takes in one command", () => {
+    const ids = Array.from({ length: 65 }, (_, i) => `t${i}`);
+    const utterances = ids.map((id, i) =>
+      scriptUtterance(id, id, [scriptWord("um", 0, i * 2)]),
+    );
+    const project: ProjectView = minimalProject({
+      tracks: ids.map((id) => sampleTrack({ id })),
+      clips: {
+        clip_count: 65,
+        tracks: Object.fromEntries(
+          ids.map((id) => [
+            id,
+            [
+              clipRow({
+                id: `${id}-clip`,
+                track_id: id,
+                source_end: 200,
+                timeline_end: 200,
+              }),
+            ],
+          ]),
+        ),
+      },
+      transcript: { utterances },
+    });
+    const model = buildScriptModel({
+      utterances,
+      boundaries: [],
+      pending: [],
+      person: () => ({ name: "x", colorIndex: 0 }),
+    });
+    expect(() =>
+      matchCutOf(project, model, findMatches(model.turns, "um", false)),
+    ).toThrow(
+      "These matches are spread over too many tracks to cut at once. Narrow the search.",
+    );
+  });
+
   it("refuses more intervals than the server takes in one target", () => {
     const words = Array.from({ length: 1001 }, (_, i) =>
       scriptWord("um", i, i * 2),
@@ -165,7 +226,7 @@ describe("cutAllMessage", () => {
     ]).toEqual([
       "Cut 1 match",
       "Cut 12 matches",
-      "Cut 10 of 12 matches. 2 could not be placed. Cut those by hand.",
+      "Cut 10 of 12 matches. 2 could not be placed. Cut those in the timeline.",
     ]);
   });
 });

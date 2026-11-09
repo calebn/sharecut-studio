@@ -1,4 +1,4 @@
-import { type RefObject, useMemo, useState } from "react";
+import { type RefObject, useMemo, useRef, useState } from "react";
 import {
   previewTranscriptReplacement,
   replaceTranscriptMatches,
@@ -6,6 +6,7 @@ import {
 import { replyHistoryHead } from "../../../api/documentEdits";
 import { submitRangeEdit } from "../../../commands/rangeActions";
 import { makeRangeTarget } from "../../../edit/rangeSelection";
+import { isShareProjectKey } from "../../../shareMode";
 import type { FindBarHandle } from "../../../stages/edit/FindBar";
 import {
   findCountText,
@@ -14,6 +15,7 @@ import {
 } from "../../../stages/edit/findMatches";
 import { useDawStore } from "../../../state/dawStore";
 import type { FindHit } from "../../../system/scriptPieces";
+import { ApiError } from "../../../utils/apiError";
 import { useStableCallback } from "../../../utils/useStableCallback";
 import { cutAllMessage, matchCutOf } from "./findCut";
 import type { ScriptModel } from "./scriptModel";
@@ -49,6 +51,19 @@ export type ScriptFind = ScriptFindState & {
   replaceAll: () => Promise<number>;
 };
 
+function cutAllFailure(error: unknown): unknown {
+  if (!(error instanceof ApiError)) return error;
+  if (error.code === "cut_scope_changed")
+    return new Error(
+      "Some of these matches are held for an audio check. Nothing was cut.",
+    );
+  if (error.code === "overlapping_targets")
+    return new Error(
+      "Some matches overlap the same audio on one track. Narrow the search.",
+    );
+  return error;
+}
+
 /**
  * Find over the whole transcript (the model's turns, not the window), the
  * hits the pane highlights, and the host's Replace all through the backend's
@@ -69,6 +84,7 @@ export function useScriptFind(
     replaceOpen: false,
     replaceText: "",
   });
+  const queuedAgainst = useRef<unknown>(null);
   const [at, setAt] = useState(0);
   const [stepped, setStepped] = useState(0);
   const { query, caseSensitive, replaceText } = state;
@@ -129,6 +145,7 @@ export function useScriptFind(
   const cutAll = async () => {
     const {
       project,
+      projectPath,
       rangeBusy,
       joinMutationInFlight,
       announceStatus,
@@ -141,12 +158,29 @@ export function useScriptFind(
     const plan = matchCutOf(project, model, matches);
     if (plan.targets.length === 0)
       throw new Error("No audible words in these matches.");
+    if (queuedAgainst.current === project)
+      throw new Error("Cut all is already queued. Wait for it to send.");
     setRangeBusy(true);
     try {
-      const result = await submitRangeEdit("cut", plan.targets);
+      const result = await submitRangeEdit("cut", plan.targets).catch(
+        (error: unknown) => {
+          throw cutAllFailure(error);
+        },
+      );
       if (useDawStore.getState().projectEpoch !== epoch) return;
       if (result.queued === true) {
-        announceStatus("Cut all queued. Still sending.");
+        queuedAgainst.current = project;
+        announceStatus(
+          isShareProjectKey(projectPath) && navigator.onLine === false
+            ? "Cut all queued as a suggestion for host review. Reconnect to send it."
+            : "Cut all queued. Still sending.",
+        );
+        return;
+      }
+      if (result.type !== "Applied") {
+        announceStatus("Nothing was cut. The edit was not applied.", {
+          tone: "error",
+        });
         return;
       }
       announceStatus(cutAllMessage(plan.cut, plan.skipped), {

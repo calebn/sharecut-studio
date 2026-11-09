@@ -13,10 +13,13 @@ import type { ScriptModel } from "./scriptModel";
 /** The server accepts this many intervals in one target. */
 export const MAX_CUT_INTERVALS = 1000;
 
+/** The server accepts this many targets in one command. */
+export const MAX_CUT_TARGETS = 64;
+
 export type MatchCut = {
   targets: ExactRangeTarget[];
   cut: number;
-  /** Hits with no audible words or more than one placement, left alone. */
+  /** Hits with no audible words, no placement or no track left, not sent. */
   skipped: number;
 };
 
@@ -33,9 +36,8 @@ export function matchCutOf(
 ): MatchCut {
   const groups = new Map<
     string,
-    { trackIds: string[]; spans: TimelineSpan[] }
+    { trackIds: string[]; spans: TimelineSpan[]; hits: number }
   >();
-  let cut = 0;
   let skipped = 0;
   for (const hit of hits) {
     const refs = hit.indices.map((index) => model.refs[index]);
@@ -59,16 +61,30 @@ export function matchCutOf(
       skipped++;
       continue;
     }
-    cut++;
     const key = target.track_ids.join("\0");
-    const group = groups.get(key) ?? { trackIds: target.track_ids, spans: [] };
+    const group = groups.get(key) ?? {
+      trackIds: target.track_ids,
+      spans: [],
+      hits: 0,
+    };
     group.spans.push(...target.intervals);
+    group.hits++;
     groups.set(key, group);
   }
-  const targets = [...groups.values()].flatMap(({ trackIds, spans }) => {
+  let cut = 0;
+  const targets = [...groups.values()].flatMap(({ trackIds, spans, hits }) => {
     const target = makeRangeTarget(project, spans, trackIds);
-    return target ? [target] : [];
+    if (!target) {
+      skipped += hits;
+      return [];
+    }
+    cut += hits;
+    return [target];
   });
+  if (targets.length > MAX_CUT_TARGETS)
+    throw new Error(
+      "These matches are spread over too many tracks to cut at once. Narrow the search.",
+    );
   if (targets.some((target) => target.intervals.length > MAX_CUT_INTERVALS))
     throw new Error("Too many matches to cut at once. Narrow the search.");
   return { targets, cut, skipped };
@@ -77,5 +93,5 @@ export function matchCutOf(
 export function cutAllMessage(cut: number, skipped: number): string {
   const matches = (n: number) => `${n} ${n === 1 ? "match" : "matches"}`;
   if (skipped === 0) return `Cut ${matches(cut)}`;
-  return `Cut ${cut} of ${matches(cut + skipped)}. ${skipped} could not be placed. Cut those by hand.`;
+  return `Cut ${cut} of ${matches(cut + skipped)}. ${skipped} could not be placed. Cut those in the timeline.`;
 }
