@@ -529,6 +529,9 @@ with axe before the collected results are asserted.
 | automatic Full returns to Half after a short phone returns to portrait | `gui/web/e2e-compat/inspector-auto-fit.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | manual Full remains Full after a short phone returns to portrait | `gui/web/e2e-compat/inspector-auto-fit.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Undo and Redo stay reachable in the App header with the Inspector sheet open | `gui/web/e2e-compat/compact-history-persistence.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| holding A with nothing selected plays the original and restores on keyup | `gui/web/e2e-compat/hold-a-original.spec.ts` | Core flow | Pass | Pass | Not run |
+| A restores the original when the window loses focus | `gui/web/e2e-compat/hold-a-original.spec.ts` | Core flow | Pass | Pass | Not run |
+| A restores the original when the tab is hidden | `gui/web/e2e-compat/hold-a-original.spec.ts` | Core flow | Pass | Pass | Not run |
 
 Two compat Chromium specs have exact main Chromium owners:
 
