@@ -20,7 +20,7 @@ export type Panel =
   | "pipeline"
   | "comments";
 
-export type ProjectDialog = "share" | "record" | "palette" | "gestures";
+export type ProjectDialog = "share" | "record" | "palette";
 
 export type Audition = "mix" | "fx" | "raw";
 
@@ -368,13 +368,6 @@ export async function openProjectDialog(
         .click();
       return;
     }
-    case "gestures":
-      await openProjectDialog(page, "palette");
-      await page
-        .getByRole("dialog")
-        .getByRole("button", { name: "Gestures", exact: true })
-        .click();
-      return;
   }
 }
 
