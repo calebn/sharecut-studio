@@ -421,9 +421,11 @@ the desktop icon button reuses `--control-height`, and keyboard focus keeps
 mode nav (#2292), and `--frame-bottom-chrome` sums the tab bar and Player for
 sheet, jog and toast offsets.
 
-`--color-record` is the one new colour role, declared in all three theme views
-next to `--color-danger` and starting on the same primitive. Record red marks
-things that record; danger red marks failures.
+`--color-record` and `--color-record-subtle` are the two new colour roles,
+declared in all three theme views next to `--color-danger`. `--color-record`
+starts on the same primitive as danger. `--color-record-subtle` is the fill for
+the provisional take band, a `color-mix` of `--color-record` at 28% in light and
+35% in dark. Record red marks things that record; danger red marks failures.
 
 ### Top layer
 
