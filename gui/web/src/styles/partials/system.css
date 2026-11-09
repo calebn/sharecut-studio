@@ -4126,14 +4126,14 @@ button.sys-picker-option:focus-visible {
 
 .sys-actions--dock .sys-actions-dock-btn {
   display: inline-flex;
-  flex: 0 1 var(--target-dock-button);
+  flex: 0 0 auto;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: var(--space-0);
-  min-inline-size: 2.75rem;
+  min-inline-size: var(--target-dock-button);
   min-block-size: var(--target-dock-button);
-  padding: 0 var(--space-0);
+  padding: 0 var(--space-1);
   border: 0;
   border-radius: var(--radius-md);
   background: transparent;
@@ -4168,12 +4168,17 @@ button.sys-picker-option:focus-visible {
 }
 
 .sys-actions-dock-label {
-  max-inline-size: 100%;
-  overflow: hidden;
   font-size: var(--font-size-micro);
   line-height: 1;
-  text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.sys-actions-reason {
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  border-block-start: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-micro);
 }
 
 .sys-actions--dock .sys-menu {

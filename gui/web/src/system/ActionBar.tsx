@@ -7,7 +7,7 @@ import {
   useState,
 } from "react";
 import { Button, Menu, MenuItem, SegmentedControl, ToggleButton } from "../ui";
-import { disabledAttrs } from "../ui/disabledReason";
+import { disabledAttrs, useDisabledReasonNote } from "../ui/disabledReason";
 import { type AnchorExclusion, useAnchoredPanel } from "../ui/useAnchoredPanel";
 import { type BarItem, foldDock, slotsOf } from "./actionBarSlots";
 import { type BarId, barDisplay } from "./editActionSets";
@@ -37,11 +37,7 @@ export type ActionBarProps = {
   readonly items: readonly BarItem[];
   readonly more?: readonly BarItem[];
   /** Trailing and accent filled. Only a real gate sets `disabledReason`. */
-  readonly primary?: BarItem & {
-    readonly disabledReason?: string;
-    /** Id of the visible note that gives `disabledReason`. */
-    readonly describedBy?: string;
-  };
+  readonly primary?: BarItem & { readonly disabledReason?: string };
   /** Review's A/B, in the middle of the dock. */
   readonly center?: ReactNode;
   /** After the verbs where a guest has no primary. */
@@ -80,6 +76,7 @@ function LookButton({ look, item, ...rest }: LookButtonProps) {
     title: titleOf(item),
     "aria-keyshortcuts": display.shortcut,
     "aria-pressed": item.pressed,
+    "aria-describedby": item.describedBy,
     ...disabledAttrs(item.disabledReason),
     ...rest,
   } as const;
@@ -359,40 +356,53 @@ function Dock({
 }: FormProps) {
   const grip = items.some((item) => item.id === "inspect");
   const folded = foldDock(items, more, primary !== undefined);
+  const gated = folded.items.find((item) => item.disabledReason);
+  const { note, describedBy } = useDisabledReasonNote(
+    gated?.disabledReason,
+    "sys-actions-reason",
+  );
+  const noted = folded.items.map((item) =>
+    item === gated
+      ? { ...item, describedBy: describedBy["aria-describedby"] }
+      : item,
+  );
   const classes = ["sys-actions", "sys-actions--dock"];
   if (center) classes.push("sys-actions--dock-center");
   if (grip) classes.push("sys-actions--dock-grip");
   return (
-    <div className={classes.join(" ")} role="group" aria-label={ariaLabel}>
-      {grip ? (
-        <button
-          type="button"
-          className="sys-actions-grip"
-          aria-label="Inspect"
-          title={titleOf({ id: "inspect" })}
-          onClick={() => onVerb("inspect")}
-        />
-      ) : null}
-      <div className="sys-dock-slot sys-dock-slot--start">
-        {leading}
-        <Items look="dock" items={folded.items} more={[]} onVerb={onVerb} />
-        {folded.more.length > 0 ? (
-          <MoreMenu
-            look="dock"
-            rows={folded.more}
-            onVerb={onVerb}
-            request={moreRequest}
+    <>
+      {note}
+      <div className={classes.join(" ")} role="group" aria-label={ariaLabel}>
+        {grip ? (
+          <button
+            type="button"
+            className="sys-actions-grip"
+            aria-label="Inspect"
+            title={titleOf({ id: "inspect" })}
+            onClick={() => onVerb("inspect")}
           />
         ) : null}
+        <div className="sys-dock-slot sys-dock-slot--start">
+          {leading}
+          <Items look="dock" items={noted} more={[]} onVerb={onVerb} />
+          {folded.more.length > 0 ? (
+            <MoreMenu
+              look="dock"
+              rows={folded.more}
+              onVerb={onVerb}
+              request={moreRequest}
+            />
+          ) : null}
+        </div>
+        {center ? <div className="sys-dock-slot">{center}</div> : null}
+        <div className="sys-dock-slot sys-dock-slot--end">
+          {trailing}
+          {primary ? (
+            <PrimaryButton look="dock" item={primary} onVerb={onVerb} />
+          ) : null}
+        </div>
       </div>
-      {center ? <div className="sys-dock-slot">{center}</div> : null}
-      <div className="sys-dock-slot sys-dock-slot--end">
-        {trailing}
-        {primary ? (
-          <PrimaryButton look="dock" item={primary} onVerb={onVerb} />
-        ) : null}
-      </div>
-    </div>
+    </>
   );
 }
 
