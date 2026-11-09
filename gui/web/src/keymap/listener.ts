@@ -3,7 +3,11 @@ import { COMMANDS } from "../commands/catalog";
 import { buildCommandContext, evaluateWhen } from "../commands/context";
 import { execute } from "../commands/execute";
 import { useDawStore } from "../state/dawStore";
-import { keymapHandoff, overlayOpen } from "../ui/modalGate";
+import {
+  keymapHandoff,
+  overlayOpen,
+  subscribeModalOpen,
+} from "../ui/modalGate";
 import {
   argsFromKeyEvent,
   ignoresKeyRepeat,
@@ -38,13 +42,33 @@ export function useDawKeymapListener(): void {
       if (holdTimer) clearTimeout(holdTimer);
       holdTimer = null;
     };
+    let held: { key: string; id: string } | null = null;
+    const release = () => {
+      if (!held) return;
+      const { id } = held;
+      held = null;
+      void execute(id, { on: false }, { skipWhen: true });
+    };
+    const onBlur = () => {
+      cancelHold();
+      release();
+    };
+    const onHidden = () => {
+      if (document.visibilityState === "hidden") release();
+    };
+    const onOverlay = () => {
+      if (overlayOpen()) release();
+    };
+    const unsubscribeOverlay = subscribeModalOpen(onOverlay);
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.key.toLowerCase() === holdKey) cancelHold();
+      if (held && e.key.toLowerCase() === held.key) release();
       if (e.key !== " " || !hearHeld) return;
       hearHeld = false;
       e.preventDefault();
     };
     const onKey = (e: KeyboardEvent) => {
+      onOverlay();
       if (e.isComposing || e.keyCode === 229) {
         return;
       }
@@ -84,6 +108,11 @@ export function useDawKeymapListener(): void {
           if (ignoresKeyRepeat(e, cmd)) {
             return;
           }
+          if (cmd.release) {
+            held ??= { key: e.key.toLowerCase(), id: cmd.id };
+            await execute(cmd.id, { on: true }, { ctx, skipWhen: true });
+            return;
+          }
           if (cmd.holdMs) {
             if (!e.repeat && !holdTimer) {
               holdKey = e.key.toLowerCase();
@@ -114,10 +143,14 @@ export function useDawKeymapListener(): void {
     };
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onKeyUp);
-    window.addEventListener("blur", cancelHold);
+    window.addEventListener("blur", onBlur);
+    document.addEventListener("visibilitychange", onHidden);
     return () => {
       cancelHold();
-      window.removeEventListener("blur", cancelHold);
+      release();
+      unsubscribeOverlay();
+      window.removeEventListener("blur", onBlur);
+      document.removeEventListener("visibilitychange", onHidden);
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("keyup", onKeyUp);
     };

@@ -60,6 +60,11 @@ export type KeymapCommand = {
   noRepeat?: boolean;
   /** The command runs after the key is held this long; a shorter press does nothing. */
   holdMs?: number;
+  /**
+   * The command runs with `{ on: true }` as the key goes down and `{ on: false }`
+   * when it comes up, the window blurs, the tab hides or an overlay opens.
+   */
+  release?: boolean;
   /** Keyboard when-clause: must match command catalog when for that id. */
   when: ContextPredicateId;
   notes?: string;
@@ -552,8 +557,20 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: true,
     requireShift: false,
     noRepeat: true,
-    when: "editStage",
+    when: "suggestionSelected",
     notes: "A: the suggestion as it is now",
+  },
+  {
+    id: "transport.hearOriginal",
+    category: "transport",
+    label: "Hear the original while held",
+    keys: ["A"],
+    bareKey: true,
+    requireShift: false,
+    noRepeat: true,
+    release: true,
+    when: "editStage",
+    notes: "A with no suggestion selected: hold to hear the original",
   },
   {
     id: "edit.hearAfter",
@@ -868,6 +885,11 @@ export const SHARED_KEY_ORDER: readonly SharedKeyOrder[] = [
     key: "R",
     order: ["room.take", "room.stop"],
     why: "with no take open R starts one; with a take open the first row's when-clause fails and holding R stops it",
+  },
+  {
+    key: "A",
+    order: ["edit.hearBefore", "transport.hearOriginal"],
+    why: "with a suggestion selected A hears it as it is now; with none the first row's when-clause fails and holding A plays the original",
   },
   {
     key: "C",

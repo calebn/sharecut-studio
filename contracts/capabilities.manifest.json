@@ -173,6 +173,29 @@
       }
     },
     {
+      "id": "daw.transport.hearOriginal",
+      "label": "Hear the original while held",
+      "effect": "session",
+      "service": "ShareCut Studio command bus",
+      "industry_standard_key": false,
+      "gates": [
+        "editStage"
+      ],
+      "surfaces": {
+        "command": "transport.hearOriginal",
+        "gui": [
+          "Player"
+        ],
+        "keyboard": "A"
+      },
+      "omit": {},
+      "tooltip": "Hold A with no suggestion selected to hear the original",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
       "id": "daw.presence.follow",
       "label": "Follow",
       "effect": "session",
@@ -3651,7 +3674,7 @@
       "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
-        "editStage"
+        "suggestionSelected"
       ],
       "surfaces": {
         "command": "edit.hearBefore",

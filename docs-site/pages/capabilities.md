@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**147** capabilities · **113** ShareCut Studio commands · **63** keyed · **213** MCP tools · **17** skills on rows (+ **19** hub skills).
+**148** capabilities · **114** ShareCut Studio commands · **64** keyed · **213** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -35,6 +35,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Jump back | session | `transport.shuttleBack` | `J` | — | — | `seek_session_tool` | `podcast session seek` | — | — | anchor · look |
 | Speed up (1×/2×/4×) | session | `transport.shuttleForward` | `L` | — | — | `set_session_playing_tool` | — | — | — | anchor · look |
 | Audition Full mix / Edited stems / Original | session | `transport.audition` | — (not industry-standard; Full mix/Edited stems/Original toggle) | — | `transport.audition` | — | — | `podcast-play-audition` | — | anchor · hear |
+| Hear the original while held | session | `transport.hearOriginal` | `A` | — | `Player` | — | — | — | — | none · none |
 | Follow | session | `presence.follow` | — (not industry-standard; avatar click) | — | `presence.avatarStack` | `get_session_presence_tool` | — | — | — | none · none |
 | Stop following | session | `presence.unfollow` | `Escape` | — | `presence.followPill` | — | — | — | — | none · none |
 | Clear selection | session | `edit.clearSelection` | `Escape` | — | — | — | — | — | — | — |

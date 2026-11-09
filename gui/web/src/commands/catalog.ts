@@ -39,6 +39,15 @@ export const COMMANDS: Record<string, CommandDef> = {
     paletteRunnable: false,
     notes: "Args: { mode: mix | fx | raw }",
   },
+  "transport.hearOriginal": {
+    id: "transport.hearOriginal",
+    category: "transport",
+    label: "Hear the original while held",
+    when: "editStage",
+    paletteRunnable: false,
+    notes:
+      "A with no suggestion selected: plays the original while held and goes back on release. Args: { on: boolean }",
+  },
   "transport.stop": {
     id: "transport.stop",
     category: "transport",
@@ -246,7 +255,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "edit",
     label: "Hear before",
     keywords: ["original", "current"],
-    when: "editStage",
+    when: "suggestionSelected",
     announcesRefusal: true,
     notes: "A: the selected suggestion as it is now",
   },
