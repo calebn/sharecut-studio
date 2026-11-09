@@ -144,7 +144,11 @@ for (const mode of ["native", "fallback"] as const) {
       await openPhoneTimeline(page);
       await page.locator(".sys-track-main").first().tap();
       const sheet = page.getByRole("dialog", { name: "Inspector" });
-      await sheet.getByRole("button", { name: "Move track down" }).tap();
+      await sheet
+        .locator(".sys-actions--dock")
+        .getByRole("button", { name: "More" })
+        .tap();
+      await page.getByRole("menuitem", { name: "Move track down" }).tap();
     }
 
     const toastCard = (page: Page) =>
