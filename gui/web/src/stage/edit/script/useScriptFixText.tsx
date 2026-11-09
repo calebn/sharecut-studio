@@ -45,7 +45,7 @@ type Pinned = {
 
 type FocusClaim = {
   input: HTMLInputElement;
-  body: HTMLElement;
+  scriptBody: HTMLElement;
 } | null;
 
 type FocusAfter =
@@ -53,7 +53,7 @@ type FocusAfter =
       kind: "retirement";
       index: number;
       input: HTMLInputElement;
-      body: HTMLElement;
+      scriptBody: HTMLElement;
       tries: number;
     }
   | {
@@ -157,11 +157,12 @@ export function useScriptFixText(
       const active = want.input.ownerDocument.activeElement;
       const retiredToScriptStop =
         active instanceof Element &&
-        want.body.contains(active) &&
+        want.scriptBody.contains(active) &&
         active.closest("[data-stop]") !== null;
       if (
         active !== want.input &&
-        active !== want.body &&
+        active !== want.input.ownerDocument.body &&
+        active !== want.scriptBody &&
         !retiredToScriptStop
       ) {
         focusAfter.current = null;
@@ -229,8 +230,8 @@ export function useScriptFixText(
         active instanceof HTMLInputElement &&
         active.classList.contains("sys-edit-fix")
       ) {
-        const body = active.closest<HTMLElement>(".sys-script-body");
-        if (body) claim = { input: active, body };
+        const scriptBody = active.closest<HTMLElement>(".sys-script-body");
+        if (scriptBody) claim = { input: active, scriptBody };
       }
       if (text === null) {
         close(where, claim);
