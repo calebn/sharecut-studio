@@ -154,12 +154,7 @@ Dependabot PRs (`.github/dependabot.yml`) are ordinary PRs against the base bran
 package or a new Rust/uv root) needs a new `updates` entry in the same change
 that adds the lockfile — `tests/test_dependabot_config.py` enforces this.
 
-The `/gui/web` npm entry ignores the `stylelint` and `stylelint-config-standard`
-majors because `stylelint-declaration-strict-value` peers `stylelint >=16 <=17`
-and `stylelint-config-standard` 41 needs `stylelint` 18. Those majors do not
-arrive as PRs until the plugin allows 18 (check `npm view
-stylelint-declaration-strict-value peerDependencies`); then delete the two
-`ignore` entries.
+The `/gui/web` npm entry ignores the `stylelint` and `stylelint-config-standard` majors until `stylelint-declaration-strict-value` allows stylelint 18. The reason and the removal check are in the comment above that `ignore` block in `.github/dependabot.yml`.
 
 The `frontend` CI job also runs `npm audit --omit=dev --audit-level=high` as an
 advisory, non-blocking step; ignoring a real finding it surfaces still needs

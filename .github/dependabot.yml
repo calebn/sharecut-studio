@@ -16,11 +16,11 @@ updates:
     commit-message:
       prefix: chore
       include: scope
-    # stylelint 18 cannot install yet: stylelint-declaration-strict-value
-    # (1.12.1, latest) peers stylelint >=16 <=17, so npm ci fails with
-    # ERESOLVE. Hold the stylelint majors until that plugin allows 18 (check:
-    # npm view stylelint-declaration-strict-value peerDependencies), then
-    # delete these entries so Dependabot proposes the pair again.
+    # Hold the stylelint and stylelint-config-standard majors. stylelint 18 cannot
+    # install yet: stylelint-declaration-strict-value peers stylelint >=16 <=17,
+    # and stylelint-config-standard 41 needs stylelint 18, so npm ci fails with
+    # ERESOLVE. Check the plugin with `npm view stylelint-declaration-strict-value
+    # peerDependencies`, then delete both entries so Dependabot proposes the pair again.
     ignore:
       - dependency-name: stylelint
         update-types:
