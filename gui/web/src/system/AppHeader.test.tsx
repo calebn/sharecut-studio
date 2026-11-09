@@ -277,6 +277,36 @@ describe("AppHeader as a guest", () => {
     expect(trigger).toHaveFocus();
   });
 
+  it("does not revive an automatic hint when eligibility returns", async () => {
+    const hint = { text: "You can comment.", shown: true, onDismiss: vi.fn() };
+    const { again } = setup({
+      guest: { version: "v3", role: "commenter", hint },
+    });
+    expect(screen.getByRole("note")).toBeVisible();
+
+    again({
+      guest: {
+        version: "v3",
+        role: "commenter",
+        hint: { ...hint, shown: false },
+      },
+    });
+    expect(screen.queryByRole("note")).toBeNull();
+    again({
+      guest: {
+        version: "v3",
+        role: "commenter",
+        hint: { ...hint, shown: true },
+      },
+    });
+
+    expect(screen.queryByRole("note")).toBeNull();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Explain Commenter role" }),
+    );
+    expect(screen.getByRole("dialog")).toHaveTextContent("You can comment.");
+  });
+
   it("closes a manual explanation outside and leaves focus on the outside target", async () => {
     const user = userEvent.setup();
     render(
