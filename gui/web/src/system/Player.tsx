@@ -528,7 +528,7 @@ export function Player(props: PlayerProps) {
         duration={props.duration}
         onSeek={props.onSeek}
         onScrub={props.onScrub}
-        label={`Episode overview, ${time} of ${total}`}
+        label="Episode overview"
       />
       <p className="sys-player-readout">
         <span className="sys-player-now">{time}</span>
