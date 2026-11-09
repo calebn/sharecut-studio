@@ -215,6 +215,7 @@ test("editor guest cuts a range and one host Undo restores every occurrence", as
         await expect.poll(() => geometry(projectPath)).toEqual(before);
       } finally {
         await guestContext.close();
+        await page.unrouteAll({ behavior: "ignoreErrors" });
       }
     },
     undefined,
