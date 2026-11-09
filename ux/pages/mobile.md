@@ -44,7 +44,7 @@ avatar stays free for opening track details. To reset the light, tap the
 track's avatar, then choose **Clear clip light** in the track inspector. With reduced motion enabled, the
 meter bar stays still while clip detection continues.
 
-Joins stay visible at any zoom as a small marker at the top of the lane: `|` cut, `╲╱` fade, `✕` crossfade. When you zoom in far enough that a crossfade draws as a real overlap, its marker shrinks to a small tag so the shape reads, and past 24 px of overlap a label such as "Crossfade 120 ms" appears beside it when there is room. On a phone held upright most joins sit closer than 24 px, so they fold into a count; tap it to zoom until they separate, then tap a marker to edit its join. Applied edits stay thin, untappable ticks.
+Joins stay visible at any zoom as a small marker at the top of the lane: `|` cut, `╲╱` fade, `✕` crossfade. When you zoom in far enough that a crossfade draws as a real overlap, its marker shrinks to a small tag so the shape reads, and past 24 px of overlap a label such as "Crossfade 120 ms" appears beside it when there is room. On a phone held upright most joins sit closer than 24 px, so they fold into a count; tap it to zoom until they separate, then tap a marker to select its seam. The action bar offers Hear, Join type (Hard edge, Fade, Crossfade) and, on a cut, Keep; Inspect opens the seam sheet with a Length field. Applied edits stay thin, untappable ticks.
 
 Pending edit regions fill their lane. Select one to reveal its label and review
 actions above or below the lane; they stay clear of the edge controls, and a
@@ -159,9 +159,7 @@ Completed edits retain their existing command and Undo behavior.
 
 Use Close or Escape to dismiss an inspector sheet. Closing the inspector
 clears that clip selection. While the sheet is open, Escape does not also
-run the timeline's clear-selection shortcut. If a join popover is open,
-Escape closes that popover first, even if the inspector sheet remounts
-behind it. A compact-to-regular inspector remount keeps the Cut anyway button
+run the timeline's clear-selection shortcut. A compact-to-regular inspector remount keeps the Cut anyway button
 focused.
 
 Tap outside a confirmation sheet to dismiss it. Hear original sits in the player on every stage; press and hold it to choose Full mix, Without mix processing or Original. Export and Bounce are in Deliver, and project actions such as All projects, Settings and Connect agent are in the Project menu (the project title at the top). Timeline selection, track order, waveform and zoom controls stay in the Edit stage. Phone menu rows are at least 44 CSS px tall and hide keyboard hints.

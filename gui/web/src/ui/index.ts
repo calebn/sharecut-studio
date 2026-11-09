@@ -1,7 +1,6 @@
 export { Avatar } from "./Avatar";
 export {
   placeAnchored,
-  placeAnchoredClear,
   visualViewportBox,
 } from "./anchoredPlacement";
 export { BottomSheet, type BottomSheetSize } from "./BottomSheet";

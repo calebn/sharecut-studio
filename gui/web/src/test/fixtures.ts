@@ -383,7 +383,6 @@ export function editBoundary(
   };
 }
 
-/** One boundary row per neighbouring pair on a lane. */
 export function editBoundaries(lane: readonly ClipRow[]): EditBoundaryView[] {
   return lane.slice(1).map((right, i) => editBoundary(lane[i], right));
 }

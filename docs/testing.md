@@ -862,7 +862,7 @@ at least 95 percent.
 
 ### Frontend dialog tests and initial focus
 
-`useDialogModal` (behind `Dialog`, the Mix sheet, and the join popover) moves
+`useDialogModal` (behind `Dialog` and the Mix sheet) moves
 focus into the panel one animation frame after it opens. A Vitest test that
 focuses a field and types before that frame lands races it: the late focus
 takes the caret away and the keystrokes are lost (#1117, #1112). Right after
