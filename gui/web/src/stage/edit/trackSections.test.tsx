@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setEffectBypass } from "../../api";
@@ -74,27 +74,46 @@ describe("track content", () => {
       ).name,
     ).toBe("Host");
     expect(screen.getByRole("textbox", { name: "Speaker" })).toBeVisible();
-    expect(screen.getByRole("combobox", { name: "Role" })).toBeVisible();
+    expect(screen.getByRole("group", { name: "Kind" })).toBeVisible();
     expect(screen.getByRole("spinbutton", { name: "Level" })).toBeVisible();
     await expectNoA11yViolations(container);
   });
 
-  it("offers the same five roles and saves a role on change", async () => {
+  it("shows Kind as a group with Voice pressed on a dialogue track and sends the role for Music", async () => {
     const user = userEvent.setup();
     setTrackMetaCommand.mockResolvedValue({});
     open();
-    const select = screen.getByRole("combobox", { name: "Role" });
-    expect([...select.querySelectorAll("option")].map((o) => o.value)).toEqual([
-      "dialogue",
-      "music",
-      "sfx",
-      "intro",
-      "outro",
-    ]);
-    await user.selectOptions(select, "music");
-    expect(setTrackMetaCommand).toHaveBeenCalledWith("/tmp/ep.json", "host", {
-      role: "music",
-    });
+    const group = screen.getByRole("group", { name: "Kind" });
+    expect(
+      within(group).getByRole("button", { name: "Voice" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(
+      within(group).getByRole("button", { name: "Music" }),
+    ).toHaveAttribute("aria-pressed", "false");
+    await user.click(within(group).getByRole("button", { name: "Music" }));
+    expect(setTrackMetaCommand).toHaveBeenCalledExactlyOnceWith(
+      "/tmp/ep.json",
+      "host",
+      { role: "music" },
+    );
+  });
+
+  it("keeps an intro track on Music and sends nothing for Music, but writes dialogue for Voice", async () => {
+    const user = userEvent.setup();
+    setTrackMetaCommand.mockResolvedValue({});
+    open({ ...hostTrack, role: "intro" });
+    const group = screen.getByRole("group", { name: "Kind" });
+    expect(
+      within(group).getByRole("button", { name: "Music" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await user.click(within(group).getByRole("button", { name: "Music" }));
+    expect(setTrackMetaCommand).not.toHaveBeenCalled();
+    await user.click(within(group).getByRole("button", { name: "Voice" }));
+    expect(setTrackMetaCommand).toHaveBeenCalledExactlyOnceWith(
+      "/tmp/ep.json",
+      "host",
+      { role: "dialogue" },
+    );
   });
 
   it("opens the same sheet for the track-level envelope selection", () => {
@@ -311,10 +330,11 @@ describe("track content", () => {
     });
   });
 
-  it("shows the role as plain text and hides the name, speaker, role, import, split and remove controls for a viewer", () => {
+  it("shows the kind as plain text and hides the kind group, name, speaker, import, split and remove controls for a viewer", () => {
     open(withAudio, [], "view");
-    expect(screen.getByText("Role")).toBeVisible();
-    expect(screen.getByText("dialogue")).toBeVisible();
+    expect(screen.getByText("Kind")).toBeVisible();
+    expect(screen.getByText("Voice")).toBeVisible();
+    expect(screen.queryByRole("group", { name: "Kind" })).toBeNull();
     expect(screen.queryByRole("combobox", { name: "Role" })).toBeNull();
     expect(screen.queryByRole("textbox", { name: "Name" })).toBeNull();
     expect(screen.queryByRole("textbox", { name: "Speaker" })).toBeNull();

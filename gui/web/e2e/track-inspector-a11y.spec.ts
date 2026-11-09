@@ -71,12 +71,11 @@ for (const { cell: rootFont, theme, reducedMotion } of withAppearance([
           await speaker.scrollIntoViewIfNeeded();
           await expect(speaker).toBeVisible();
 
-          const role = body.getByRole("combobox", {
-            name: "Role",
-            exact: true,
-          });
-          await role.scrollIntoViewIfNeeded();
-          await expect(role).toBeVisible();
+          const kind = body.getByRole("group", { name: "Kind", exact: true });
+          await kind.scrollIntoViewIfNeeded();
+          await expect(
+            kind.getByRole("button", { name: "Voice", exact: true }),
+          ).toHaveAttribute("aria-pressed", "true");
 
           for (const label of [`Mute ${track.label}`, `Solo ${track.label}`]) {
             const control = dialog.getByRole("button", {
