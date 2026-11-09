@@ -224,6 +224,45 @@ export const WithActionBar: Story = {
   },
 };
 
+function blockedKeepProject() {
+  const base = episode();
+  return {
+    ...base,
+    applied_edits: {
+      ...base.applied_edits,
+      records: base.applied_edits.records.map((record) => ({
+        ...record,
+        restore: {
+          state: "blocked" as const,
+          code: "overlaps" as const,
+          message: "Restore the later cut first",
+          blocked_by: ["later-edit"],
+        },
+      })),
+    },
+  };
+}
+
+export const SeamKeepBlocked: Story = {
+  tags: ["wide-only"],
+  parameters: {
+    wideOnlyReason: WIDE_ONLY_REASON,
+    episode: { project: blockedKeepProject(), selection: selections.seam },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const bar = await canvas.findByRole("group", {
+      name: "Selection actions",
+    });
+    await expect(
+      within(bar).getByRole("button", { name: "Keep" }),
+    ).toHaveAccessibleDescription("Restore the later cut first");
+    await expect(
+      within(bar).getByText("Restore the later cut first"),
+    ).toBeVisible();
+  },
+};
+
 export const ScriptCollapsed: Story = {
   tags: ["wide-only"],
   parameters: {
