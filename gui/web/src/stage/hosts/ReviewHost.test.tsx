@@ -839,7 +839,11 @@ describe("Review host transcript check", () => {
 describe("Review host hearing and editing", () => {
   it("plays B with mode suggested and 3 s of padding, with no waveform handles", async () => {
     mount();
-    expect(screen.queryAllByRole("slider")).toHaveLength(0);
+    expect(
+      screen.queryAllByRole("slider", {
+        name: (name) => name !== "Episode overview",
+      }),
+    ).toHaveLength(0);
     await userEvent.click(screen.getByRole("button", { name: "B" }));
     await waitFor(() => expect(wire.preview).toHaveBeenCalled());
     const url = String(wire.preview.mock.calls[0][0]);

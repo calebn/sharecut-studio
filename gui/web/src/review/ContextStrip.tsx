@@ -1,3 +1,5 @@
+import { useSeekFraction } from "../stage/frame/useSeekFraction";
+import { useDawStore } from "../state/dawStore";
 import { OverviewStrip, type OverviewTick } from "../system/OverviewStrip";
 import type { ReviewItem } from "./reviewQueueModel";
 
@@ -14,6 +16,8 @@ export function ContextStrip({
   selectedId: string | null;
   peaks?: readonly number[];
 }) {
+  const playheadSec = useDawStore((s) => s.playheadSec);
+  const onSeek = useSeekFraction(duration);
   const ticks: OverviewTick[] = items
     .filter((item) => item.result === undefined && Number.isFinite(item.at))
     .map((item) => ({
@@ -27,6 +31,9 @@ export function ContextStrip({
       label="Episode overview"
       peaks={peaks}
       ticks={ticks}
+      playhead={duration > 0 ? playheadSec / duration : 0}
+      duration={duration}
+      onSeek={onSeek}
     />
   );
 }

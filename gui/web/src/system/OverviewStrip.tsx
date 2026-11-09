@@ -1,3 +1,9 @@
+import { type KeyboardEvent, type MouseEvent, useRef } from "react";
+import { clamp } from "../utils/math";
+import { formatTime } from "../utils/time";
+import { useGrab } from "./useGrab";
+import { pointerRatio } from "./wavePointer";
+
 export type OverviewTick = {
   /** 0 to 1 across the episode. */
   at: number;
@@ -15,10 +21,18 @@ export type OverviewStripProps = {
   selection?: readonly [number, number];
   ticks?: readonly OverviewTick[];
   label: string;
+  /** Seeks to a 0 to 1 fraction of the episode. Without it the strip is a picture. */
+  onSeek?: (fraction: number) => void;
+  /** Episode length in seconds; sizes the arrow-key steps and the slider value. */
+  duration?: number;
 };
 
+const KEY_STEP_SEC = 1;
+const KEY_STEP_BIG_SEC = 10;
+
 /**
- * A whole-episode miniature. Static: seeking is wired where it is used.
+ * A whole-episode miniature. With `onSeek` it is a slider: a click or a drag
+ * seeks, Escape puts a drag back, the arrows step by seconds.
  * Comments are dots, every other tick is a line.
  */
 export function OverviewStrip({
@@ -29,15 +43,71 @@ export function OverviewStrip({
   selection,
   ticks = [],
   label,
+  onSeek,
+  duration = 0,
 }: OverviewStripProps) {
+  const root = useRef<HTMLDivElement>(null);
+  const dragFrom = useRef(0);
+  const grab = useGrab<"scrub">({
+    canGrab: () => onSeek !== undefined,
+    captureOnStart: () => root.current,
+    onStart: () => {
+      dragFrom.current = playhead ?? 0;
+      return true;
+    },
+    onMove: (_, move) => onSeek?.(pointerRatio(root.current, move.clientX)),
+    onEnd: (_, committed) => {
+      if (!committed) onSeek?.(dragFrom.current);
+    },
+  });
   const count = Math.max(peaks.length, 1);
   const lines = ticks.filter((tick) => tick.kind !== "comment");
   const dots = ticks.filter((tick) => tick.kind === "comment");
+  const click = (event: MouseEvent<HTMLElement>) => {
+    if (grab.consumeClick(event)) return;
+    onSeek?.(pointerRatio(root.current, event.clientX));
+  };
+  const key = (event: KeyboardEvent<HTMLElement>) => {
+    if (!onSeek || duration <= 0) return;
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    if (grab.dragging()) return;
+    const from = playhead ?? 0;
+    const step = (event.shiftKey ? KEY_STEP_BIG_SEC : KEY_STEP_SEC) / duration;
+    const target =
+      event.key === "ArrowLeft"
+        ? from - step
+        : event.key === "ArrowRight"
+          ? from + step
+          : event.key === "Home"
+            ? 0
+            : event.key === "End"
+              ? 1
+              : null;
+    if (target === null) return;
+    event.preventDefault();
+    onSeek(clamp(target, 0, 1));
+  };
+  const seconds = clamp(playhead ?? 0, 0, 1) * duration;
+  const seekProps = onSeek
+    ? {
+        role: "slider",
+        tabIndex: 0,
+        "aria-orientation": "horizontal" as const,
+        "aria-valuemin": 0,
+        "aria-valuemax": duration,
+        "aria-valuenow": seconds,
+        "aria-valuetext": formatTime(seconds),
+        onClick: click,
+        onKeyDown: key,
+        ...grab.handlers("scrub"),
+      }
+    : { role: "img" };
   return (
     <div
-      className={`sys-overview sys-overview--${height}`}
-      role="img"
+      ref={root}
+      className={`sys-overview sys-overview--${height}${onSeek ? " sys-overview--seek" : ""}`}
       aria-label={label}
+      {...seekProps}
     >
       <svg
         viewBox={`0 0 ${count} 1`}

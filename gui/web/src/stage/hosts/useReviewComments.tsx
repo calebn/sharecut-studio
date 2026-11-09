@@ -417,7 +417,7 @@ export function useReviewComments(guest: boolean) {
       <>
         <CommentCard
           comment={commentCardOf(c, resolved, duration)}
-          onSelect={() => playComment(c)}
+          onSelect={() => void playComment(c)}
           onResolve={
             !guest && resolved ? () => void resolve(c.id, false) : undefined
           }

@@ -65,6 +65,10 @@ export type PlayerProps = {
   peaks?: readonly number[];
   ticks?: readonly OverviewTick[];
   playhead?: number;
+  /** Episode length in seconds, for the overview strip's slider value and key steps. */
+  duration?: number;
+  /** Seeks to a 0 to 1 fraction of the episode from the expanded overview strip. */
+  onSeek?: (fraction: number) => void;
   onPlayPause: () => void;
   onSkip?: (seconds: number) => void;
   /**
@@ -520,6 +524,8 @@ export function Player(props: PlayerProps) {
         peaks={peaks}
         ticks={ticks}
         playhead={playhead}
+        duration={props.duration}
+        onSeek={props.onSeek}
         label={`Episode overview, ${time} of ${total}`}
       />
       <p className="sys-player-readout">
