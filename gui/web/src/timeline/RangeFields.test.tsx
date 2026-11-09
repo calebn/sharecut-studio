@@ -194,13 +194,13 @@ describe("range fields", () => {
     });
     render(<RangeFields sheet />);
     await user.click(screen.getByRole("button", { name: "Speaker" }));
-    expect(useDawStore.getState().rangeScopeTrackIds).toEqual(["a"]);
+    expect(useDawStore.getState().rangeDraft?.trackIds).toEqual(["a"]);
     await user.click(
       screen.getByRole("button", {
         name: "Use agent range on selected tracks",
       }),
     );
-    expect(useDawStore.getState().rangeScopeTrackIds).toBeNull();
+    expect(useDawStore.getState().rangeDraft).toBeNull();
   });
   it("keeps an open Inspector open on the range it adopts", async () => {
     const user = userEvent.setup();

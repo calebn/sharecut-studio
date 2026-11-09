@@ -45,7 +45,7 @@ const RESET_ON_SWITCH: Reset = {
   joinDraft: null,
   rippleTrim: null,
   rangeArmed: false,
-  rangeScopeTrackIds: null,
+  rangeDraft: null,
   rangeBusy: false,
   bounceRangeTarget: null,
   prepareFocusTrackId: null,

@@ -46,6 +46,7 @@ import type {
   LaneHeightMode,
   LayerVisibility,
   PointerKind,
+  RangeDraft,
   ShellBreakpoint,
   ToastTone,
   TranscriptInlineEditFailure,
@@ -242,8 +243,9 @@ type UiSlice = Pick<
   | "moreRequest"
   | "requestMore"
   | "setRangeArmed"
-  | "rangeScopeTrackIds"
-  | "setRangeScopeTrackIds"
+  | "rangeDraft"
+  | "armRange"
+  | "setRangeDraft"
   | "setRangeBusy"
   | "userZoomed"
   | "layers"
@@ -334,7 +336,7 @@ export function uiProjectInitial() {
     joinDraft: null,
     rippleTrim: null,
     rangeArmed: false,
-    rangeScopeTrackIds: null as readonly string[] | null,
+    rangeDraft: null as RangeDraft | null,
     rangeBusy: false,
     inspectorKey: null as string | null,
     bounceRangeTarget: null,
@@ -574,9 +576,9 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       get().setTimelineViewportWidth(
         estimateTimelineViewportWidth(get().shellBreakpoint),
       ),
-    setRangeArmed: (rangeArmed) =>
-      set({ rangeArmed, rangeScopeTrackIds: null }),
-    setRangeScopeTrackIds: (rangeScopeTrackIds) => set({ rangeScopeTrackIds }),
+    setRangeArmed: (rangeArmed) => set({ rangeArmed, rangeDraft: null }),
+    armRange: (rangeDraft) => set({ rangeArmed: true, rangeDraft }),
+    setRangeDraft: (rangeDraft) => set({ rangeDraft }),
     setRangeBusy: (rangeBusy) => set({ rangeBusy }),
     inspectorKey: null as string | null,
     setInspectorOpen: (open) =>

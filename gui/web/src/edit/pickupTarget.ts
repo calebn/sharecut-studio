@@ -22,6 +22,11 @@ export function lastClipEndSec(
   return end;
 }
 
+/** The timeline's length: the server's duration, else the end of the last clip, else 0. */
+export function timelineEndSec(project: ProjectView): number {
+  return project.clips.timeline_duration_sec ?? lastClipEndSec(project) ?? 0;
+}
+
 /**
  * The selection as a span a Record take can replace: it covers time on at
  * least one track and ends inside the timeline. Null otherwise, which is when
@@ -32,8 +37,7 @@ export function replaceableSpan(
   project: ProjectView | null,
 ): EditSpan | null {
   if (!span || !project) return null;
-  const timelineEnd =
-    project.clips.timeline_duration_sec ?? lastClipEndSec(project) ?? 0;
+  const timelineEnd = timelineEndSec(project);
   return span.end > span.start &&
     span.trackIds.length > 0 &&
     span.end <= timelineEnd + TIMELINE_EPSILON

@@ -35,6 +35,7 @@ type SelectionSlice = Pick<
   | "selectClip"
   | "toggleTrackSelected"
   | "selectTracks"
+  | "commitRange"
 >;
 
 /**
@@ -110,6 +111,15 @@ export const createSelectionSlice: StateCreator<
         s.inspectorKey,
       ),
     );
+  },
+  commitRange: (target) => {
+    invalidateLocalSelection(get);
+    set((s) => ({
+      ...selectionPatch(s.selection, { kind: "range", target }, s.inspectorKey),
+      inspectorKey: "range",
+      rangeArmed: false,
+      rangeDraft: null,
+    }));
   },
   selectTracks: (trackIds) => {
     invalidateLocalSelection(get);

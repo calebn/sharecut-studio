@@ -81,7 +81,7 @@ function host(selection: unknown, extra: Record<string, unknown> = {}) {
     stage: "edit",
     selection: selection as never,
     inspectorKey: null,
-    rangeScopeTrackIds: null,
+    rangeDraft: null,
     rangeBusy: false,
     joinMutationInFlight: false,
     playheadSec: 1,
@@ -145,6 +145,12 @@ beforeEach(() => {
   vi.clearAllMocks();
   clearRegisteredCommands();
   registerDawCommands();
+});
+
+const draftOn = (trackId: string) => ({
+  start: 0,
+  end: 5,
+  trackIds: [trackId],
 });
 
 describe("host words Restore", () => {
@@ -327,7 +333,7 @@ describe("splitPlan", () => {
   });
 
   it("uses the tracks the selection covers, whatever unconfirmed ticks say", () => {
-    useDawStore.setState({ rangeScopeTrackIds: [MIRA] });
+    useDawStore.setState({ rangeDraft: draftOn(MIRA) });
     const f = facts(EDIT_SELECTIONS.rangeOnAllTracks);
     expect(
       splitPlan(f, EDIT_SELECTIONS.rangeOnAllTracks, project, 9),
@@ -689,7 +695,7 @@ describe("Backspace while playing with nothing selected", () => {
   it("prefers the word at the playhead on a lower track over a stale word above", async () => {
     const project = timelined();
     project.transcript!.utterances.push(jonasUtterance(7, 8));
-    playing({ project, playheadSec: 7.5, rangeScopeTrackIds: null });
+    playing({ project, playheadSec: 7.5, rangeDraft: null });
     const mira = project.transcript!.utterances[0]!.words!;
     for (const w of mira) {
       w.timeline_start = 2;
@@ -706,7 +712,7 @@ describe("Backspace while playing with nothing selected", () => {
       w.timeline_start = 6.6;
       w.timeline_end = 6.8;
     }
-    playing({ project, playheadSec: 7.5, rangeScopeTrackIds: [MIRA] });
+    playing({ project, playheadSec: 7.5, rangeDraft: draftOn(MIRA) });
     await execute("edit.delete");
     expect(useDawStore.getState().selection).toMatchObject({ trackId: MIRA });
   });
@@ -716,7 +722,7 @@ describe("Backspace while playing with nothing selected", () => {
     project.transcript!.utterances.push(jonasUtterance(7, 8));
     playing({
       project,
-      rangeScopeTrackIds: [MIRA],
+      rangeDraft: draftOn(MIRA),
       viewerMute: { [MIRA]: true },
     });
     await execute("edit.delete");
@@ -743,7 +749,7 @@ describe("Backspace while playing with nothing selected", () => {
         },
       ],
     });
-    playing({ project, rangeScopeTrackIds: [JONAS] });
+    playing({ project, rangeDraft: draftOn(JONAS) });
     await execute("edit.delete");
     expect(useDawStore.getState().selection).toMatchObject({ trackId: JONAS });
     playing({ project, viewerMute: { [MIRA]: true } });

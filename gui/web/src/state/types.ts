@@ -8,6 +8,7 @@ import type {
   HistoryEntryId,
   ProjectView,
   Selection,
+  TimelineSpan,
   TranscriptWordBooleanFlag,
 } from "../types/project";
 import type {
@@ -27,6 +28,9 @@ import type {
   HeldTrimResult,
 } from "./projectSlice";
 import type { StageSliceState } from "./stageSlice";
+
+/** A span in seconds (end after start) and the tracks it covers, typed before any range exists. */
+export type RangeDraft = TimelineSpan & { trackIds: readonly string[] };
 
 /** Open/closed state of the app's dialogs, sheets and inline panels. */
 export interface ChromeFlags {
@@ -256,8 +260,8 @@ export interface DawState {
   /** The one selection: every selected target, one kind. `selection.ts` derives the track and clip sets from it. */
   selection: Selection;
   rangeArmed: boolean;
-  /** The tracks ticked for a range not yet formed; null follows the selection. */
-  rangeScopeTrackIds: readonly string[] | null;
+  /** The span and tracks typed for a range not yet formed; UI only, never in history or on the wire. Non-null implies `rangeArmed`. */
+  rangeDraft: RangeDraft | null;
   rangeBusy: boolean;
   /**
    * The selection the Inspector was opened for (`inspectKeyOf`), or null. It
@@ -269,7 +273,8 @@ export interface DawState {
   moreRequest: number;
   requestMore: () => void;
   setRangeArmed: (armed: boolean) => void;
-  setRangeScopeTrackIds: (trackIds: readonly string[] | null) => void;
+  armRange: (draft: RangeDraft) => void;
+  setRangeDraft: (draft: RangeDraft) => void;
   setRangeBusy: (busy: boolean) => void;
   userZoomed: boolean;
   layers: LayerVisibility;
@@ -477,6 +482,7 @@ export interface DawState {
   setLayerVisible: (key: keyof LayerVisibility, visible: boolean) => void;
   setCommentDraft: (draft: CommentDraft | null) => void;
   selectTracks: (trackIds: readonly string[]) => void;
+  commitRange: (target: ExactRangeTarget) => void;
   toggleTrackSelected: (trackId: string, additive: boolean) => void;
   fitToWindow: (viewportWidth: number) => void;
   measureTimelineViewport: () => number;
