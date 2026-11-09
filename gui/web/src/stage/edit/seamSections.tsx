@@ -186,7 +186,8 @@ export function useSeamSections(
     );
     if (result.status === "failed") setError(result.message);
     else if (result.status === "queued") setError(ROLL_QUEUED_MESSAGE);
-    else if (result.status === "skipped") setError(rollSkipMessage(deltaMs));
+    else if (result.status === "skipped")
+      setError(rollSkipMessage(snapshot, deltaMs));
   };
 
   const notes = [
@@ -202,6 +203,44 @@ export function useSeamSections(
       rows: [
         { id: "title", control: note(seamTitle(seam), "status") },
         ...(appliedBy ? [{ id: "appliedBy", control: note(appliedBy) }] : []),
+        ...(mode === "cut" || max < range.min
+          ? []
+          : [
+              {
+                id: "length",
+                label: "Length",
+                control: (
+                  <ScrubField
+                    label="Length"
+                    value={drafting ? draftMs : range.saved}
+                    unit="ms"
+                    step={1}
+                    decimals={0}
+                    integerOnly
+                    min={range.min}
+                    max={max}
+                    readOnly={!editable || busy}
+                    onPreview={preview}
+                    onCommit={(value) => void commit(value)}
+                    onCancel={clearDraft}
+                  />
+                ),
+              },
+            ]),
+        ...(notes.length
+          ? [{ id: "notes", control: note(notes.join(" "), "status") }]
+          : []),
+        ...(drafting && reducedOut < right.fade_out_ms
+          ? [
+              {
+                id: "fadeWarning",
+                control: note(
+                  `This length also reduces the right clip fade-out to ${reducedOut} ms.`,
+                  "status",
+                ),
+              },
+            ]
+          : []),
         ...(interval
           ? [
               {
@@ -245,44 +284,6 @@ export function useSeamSections(
                       audition.play(next);
                     }}
                   />
-                ),
-              },
-            ]
-          : []),
-        ...(mode === "cut" || max < range.min
-          ? []
-          : [
-              {
-                id: "length",
-                label: "Length",
-                control: (
-                  <ScrubField
-                    label="Length"
-                    value={drafting ? draftMs : range.saved}
-                    unit="ms"
-                    step={1}
-                    decimals={0}
-                    integerOnly
-                    min={range.min}
-                    max={max}
-                    readOnly={!editable || busy}
-                    onPreview={preview}
-                    onCommit={(value) => void commit(value)}
-                    onCancel={clearDraft}
-                  />
-                ),
-              },
-            ]),
-        ...(notes.length
-          ? [{ id: "notes", control: note(notes.join(" "), "status") }]
-          : []),
-        ...(drafting && reducedOut < right.fade_out_ms
-          ? [
-              {
-                id: "fadeWarning",
-                control: note(
-                  `This length also reduces the right clip fade-out to ${reducedOut} ms.`,
-                  "status",
                 ),
               },
             ]

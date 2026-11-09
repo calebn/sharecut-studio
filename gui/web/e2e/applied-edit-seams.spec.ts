@@ -45,6 +45,13 @@ async function historyLength(page: Page): Promise<number> {
   return body.history?.entries?.length ?? 0;
 }
 
+async function historyCursor(page: Page): Promise<number> {
+  const body = (await projectJson(page, projectPath)) as unknown as {
+    history: { cursor: number };
+  };
+  return body.history.cursor;
+}
+
 async function waiveRefineGate(page: Page): Promise<void> {
   await page.request.post("/api/transcript/refine/waive", {
     data: { path: projectPath, reason: "e2e seams" },
@@ -268,10 +275,31 @@ test.describe("Seam roll from the sheet", () => {
       .getByRole("button", { name: "A", exact: true })
       .click();
     expect((await audition).ok()).toBe(true);
+    const reaudition = page.waitForResponse(
+      (r) =>
+        r.url().includes("/api/boundary/audition") &&
+        r.request().method() === "POST",
+    );
+    await postDocumentCommand(
+      page,
+      "e2e-seams",
+      "SetTrackFader",
+      { track_id: "reference", fader_db: -9 },
+      projectPath,
+    );
+    await page
+      .locator(".sys-inspector")
+      .getByRole("button", { name: "A", exact: true })
+      .click();
+    expect((await reaudition).ok()).toBe(true);
     await expectPageAxeClean(page, ".sys-inspector");
 
-    await blurFocus(page);
-    await page.keyboard.press("ControlOrMeta+Z");
+    for (let undone = 0; undone < 2; undone++) {
+      const cursor = await historyCursor(page);
+      await blurFocus(page);
+      await page.keyboard.press("ControlOrMeta+Z");
+      await expect.poll(() => historyCursor(page)).toBeLessThan(cursor);
+    }
     await expect.poll(() => leftSourceEnd(page)).toBeCloseTo(origin, 6);
     await expect(offset).toHaveAttribute("aria-valuenow", "0");
     await expect(page.getByText("Roll the seam to compare")).toBeVisible();

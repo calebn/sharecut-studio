@@ -32,6 +32,8 @@ const SKIPPED: SeamCommit = { status: "skipped" };
 
 export const ROLL_QUEUED_MESSAGE =
   "The roll is queued. It saves when you reconnect.";
+export const ROLL_GAP_MESSAGE =
+  "The clips no longer touch, so the seam cannot roll. Nothing changed.";
 export const ROLL_BUSY_MESSAGE =
   "Another seam save is still running. Try the roll again in a moment.";
 
@@ -127,8 +129,18 @@ export function seamGeometry({ left, right }: Seam): BoundaryGeometryClip[] {
   );
 }
 
-export function rollSkipMessage(deltaMs: number): string | null {
-  return Math.abs(deltaMs) < MIN_ROLL_MS ? null : ROLL_BUSY_MESSAGE;
+export function rollSkipMessage(seam: Seam, deltaMs: number): string | null {
+  if (!Number.isFinite(deltaMs) || Math.abs(deltaMs) < MIN_ROLL_MS) return null;
+  const { joinMutationInFlight, project } = useDawStore.getState();
+  if (joinMutationInFlight) return ROLL_BUSY_MESSAGE;
+  const touching =
+    project &&
+    rollJoinInterval(
+      project.clips.tracks[seam.trackId] ?? [],
+      seam.left.id,
+      seam.right.id,
+    );
+  return touching ? null : ROLL_GAP_MESSAGE;
 }
 
 export async function rollSeam(
@@ -141,6 +153,7 @@ export async function rollSeam(
     !project ||
     !canApplyPass12(projectPath, store.guestMode, store.shareCapabilities) ||
     store.joinMutationInFlight ||
+    !Number.isFinite(deltaMs) ||
     Math.abs(deltaMs) < MIN_ROLL_MS
   ) {
     return SKIPPED;
