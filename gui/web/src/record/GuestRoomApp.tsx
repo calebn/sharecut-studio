@@ -14,6 +14,7 @@ import { RoomView } from "../system/RoomView";
 import { TakesTray } from "../system/TakesTray";
 import { LoadingScreen } from "../ui";
 import { dbToFraction } from "../ui/metering";
+import { clippingGate } from "./alertGates";
 import { deviceMic, deviceTone, useSheetMic } from "./deviceSheet";
 import { GuestCovers } from "./GuestCovers";
 import {
@@ -278,7 +279,7 @@ function GuestRoomSession({
       recoverable,
       monitorError: monitor.error,
       transportError: recordSyncErrorCopy(error),
-      clipped: producer ? 0 : clipped,
+      clipping: !producer && clippingGate(takeClipping?.regions ?? []),
       muted: recorded && (me?.muted ?? false),
       dropped,
       micCheckFailed: keeper.micCheckFailed,

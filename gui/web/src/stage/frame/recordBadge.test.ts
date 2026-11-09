@@ -155,6 +155,37 @@ describe("recordBadge", () => {
     expect(recordBadge(roomOf({}), dropped)).toEqual({ kind: "idle" });
   });
 
+  it("dots a live take only once the third clip lands within 30 s", () => {
+    const region = (startMs: number) => ({
+      segmentIndex: 0,
+      startMs,
+      endMs: startMs + 500,
+      segmentStartMs: startMs,
+    });
+    const clipping = (...starts: number[]) => ({
+      takeClipping: {
+        takeIndex: 0,
+        known: true,
+        regions: starts.map(region),
+      },
+    });
+    expect(
+      recordBadge(roomOf({ state: "recording" }, clipping(0, 5000)), source),
+    ).toMatchObject({ kind: "live", alert: false });
+    expect(
+      recordBadge(
+        roomOf({ state: "recording" }, clipping(0, 20000, 40000)),
+        source,
+      ),
+    ).toMatchObject({ kind: "live", alert: false });
+    expect(
+      recordBadge(
+        roomOf({ state: "recording" }, clipping(0, 5000, 30000)),
+        source,
+      ),
+    ).toMatchObject({ kind: "live", alert: true });
+  });
+
   it("adds the alert dot to a live take and stands alone otherwise", () => {
     const failing = { sinkError: "Storage full" };
     expect(

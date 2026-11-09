@@ -360,7 +360,7 @@ describe("guestRoomAlerts", () => {
     recoverable: false,
     monitorError: null,
     transportError: null,
-    clipped: 0,
+    clipping: false,
     muted: false,
   };
 

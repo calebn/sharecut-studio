@@ -353,27 +353,50 @@ describe("GuestRoomApp in the room", () => {
     await expectNoA11yViolations(container);
   });
 
-  it("badges the guest's own tile when the take clipped, not a producer's", () => {
-    const clipping = {
+  it("badges the guest's own tile on the first clip and alerts only after the third within 30 s", () => {
+    const region = (startMs: number) => ({
+      segmentIndex: 0,
+      startMs,
+      endMs: startMs + 500,
+      segmentStartMs: startMs,
+    });
+    const once = { takeIndex: 0, known: true, regions: [region(1000)] };
+    const thrice = {
       takeIndex: 0,
       known: true,
-      regions: [
-        { segmentIndex: 0, startMs: 1000, endMs: 2000, segmentStartMs: 1000 },
-      ],
+      regions: [region(1000), region(10000), region(25000)],
     };
-    fakeRoom({ takeClipping: clipping });
+    const spread = {
+      takeIndex: 0,
+      known: true,
+      regions: [region(1000), region(20000), region(40000)],
+    };
+    fakeRoom({ takeClipping: once });
     const { container, rerender } = render(<GuestRoomApp token="t" />);
     expect(container.querySelector(".sys-room-clip")).toHaveTextContent("1");
+    expect(
+      screen.queryByText("You're clipping. Move back a little."),
+    ).toBeNull();
+    fakeRoom({ takeClipping: spread });
+    rerender(<GuestRoomApp token="t" />);
+    expect(
+      screen.queryByText("You're clipping. Move back a little."),
+    ).toBeNull();
+    fakeRoom({ takeClipping: thrice });
+    rerender(<GuestRoomApp token="t" />);
     expect(
       screen.getByText("You're clipping. Move back a little."),
     ).toBeVisible();
     fakeRoom({
       producer: true,
       me: { ...me, role: "producer" },
-      takeClipping: clipping,
+      takeClipping: thrice,
     });
     rerender(<GuestRoomApp token="t" />);
     expect(container.querySelector(".sys-room-clip")).toBeNull();
+    expect(
+      screen.queryByText("You're clipping. Move back a little."),
+    ).toBeNull();
   });
 
   describe("Devices", () => {

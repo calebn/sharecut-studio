@@ -1,5 +1,6 @@
 import {
   type CaptureHealth,
+  clippingGate,
   type HostRoom,
   hostRoomPhase,
   recordingClockMs,
@@ -81,7 +82,7 @@ export function recordBadge(
         monitorError: room.capture.monitorError ?? null,
         transportError: room.transportError,
         hydrateError: room.hydrateError,
-        clipped: room.takeClipping?.regions.length ?? 0,
+        clipping: clippingGate(room.takeClipping?.regions ?? []),
         muted: room.host?.muted ?? false,
         micCheckFailed: room.capture.micCheckFailed,
       },

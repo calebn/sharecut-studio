@@ -825,7 +825,14 @@ meter. Producers have no meter and no clipping alert.
 **Surfaces.** While a take records and the encoder has seen clipping, the
 person's own tile shows a clipping badge (the host's tiles also show each
 guest's count once their segments upload) and the room shows the alert "You're
-clipping. Move back a little." (guest and host; `useTakeClipping`). The Join
+clipping. Move back a little." only after the third clipped span of the take starts
+within 30 s of the first of those three (`clippingGate` in `record/alertGates.ts`,
+fed the take's clip regions from `useTakeClipping`; guest, host and the away
+badge dot use the same gate). One or two clips, or three spread over more than
+30 s, show the badge but no alert. The alert stays while the take's regions hold
+that condition and starts clean with the next take. The "You're muted." alert
+still shows on mute; its 10 s-of-speech gate is a follow-up that needs a second
+meter on a cloned mic stream, because muting silences the shared track. The Join
 sheet shows a clip indicator while the guest checks their mic. On the host
 Record stage a landed take's row in the Takes tray jumps (Hear) to the earliest clipped span of anyone in the take (source -> timeline via the landed source id
 `rec-{session}-{take}-{participant}-{segment}`), disabled until the take lands. The
@@ -1140,7 +1147,7 @@ stopped." (**Reconnect mic**), "No sound is reaching the recorder." (**Check mic
 "This device couldn't save the recording.", "Saving stopped." (**Resume saving**,
 **Save a copy**), "We found part of your recording." (**Finish saving**),
 "{Host} dropped. You're still recording on this device.", "You're clipping. Move
-back a little." and "You're muted.". Hidden screen-reader lines announce
+back a little." (after the third clip in 30 s) and "You're muted.". Hidden screen-reader lines announce
 "Recording in full quality on this device.", "Hearing the room.", joins, leaves and
 other people's new notes. **Leave** is held until the file ACK. Covers replace the
 room for an invalid link, "The room is full" (**Try again**), "Invite link
@@ -1766,7 +1773,7 @@ it; after sleep/wake or a backgrounded tab, no alarm on a healthy mic.
 Sample-peak clip regions are covered by `keeper/pcm.test.ts`,
 `keeper/clipRegions.test.ts`, `keeper/session.test.ts`,
 `keeper/clipCapture.integration.test.ts` (regions equal an independent scan of
-the written WAV within 1 ms), `keeper/takeClipping.test.ts`,
+the written WAV within 1 ms), `keeper/takeClipping.test.ts`, `alertGates.test.ts` (the clipping alert gate),
 `upload/params.test.ts`, `tests/test_record_upload.py`,
 `tests/test_record_landing.py` and `tests/test_clipping_regions.py`.
 
