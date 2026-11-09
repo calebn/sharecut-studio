@@ -52,6 +52,7 @@ vi.mock("../api", async (importOriginal) => ({
     }),
   ),
   setTranscriptWordsIgnored: vi.fn(async () => "h-ignore"),
+  setClipJoin: vi.fn(async () => undefined),
 }));
 
 const runRangeAction = vi.hoisted(() =>
@@ -1435,6 +1436,58 @@ describe("seam bar", () => {
       (item) => item.id === "keep",
     );
     expect(keep?.disabledReason).toBe("Undo this in History");
+  });
+
+  it("shows Keep disabled when the blocked record names no blocker", () => {
+    const orphan = {
+      ...cut(),
+      restore: {
+        state: "blocked" as const,
+        code: "span_not_present" as const,
+        message: "The audio is no longer there",
+        blocked_by: [],
+      },
+    };
+    const keep = bar(seamProject(lane(), [orphan])).items.find(
+      (item) => item.id === "keep",
+    );
+    expect(keep?.disabledReason).toBe("The audio is no longer there");
+  });
+
+  it("shows Keep disabled on a link that can only suggest", () => {
+    const keep = bar(seamProject(lane(), [cut()]), {
+      projectPath: "share:tok",
+      guestMode: "comment",
+      shareCapabilities: ["view", "play", "comment", "suggest"],
+    }).items.find((item) => item.id === "keep");
+    expect(keep?.disabledReason).toBe("Editing is off for this link");
+  });
+
+  it("replays the seam after a join type change while its sheet is open", async () => {
+    host(
+      { kind: "seam", id: "eb:x:y", trackId: MIRA },
+      {
+        project: seamProject(lane(), [cut()]),
+        inspectorKey: "seam:eb:x:y",
+        isPlaying: false,
+      },
+    );
+    playRange.mockClear();
+    expect(await runEditVerb("joinType", factsOf()!, "crossfade")).toEqual({
+      status: "ok",
+    });
+    expect(api.setClipJoin).toHaveBeenCalled();
+    expect(playRange).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not replay a join type change while the sheet is closed", async () => {
+    host(
+      { kind: "seam", id: "eb:x:y", trackId: MIRA },
+      { project: seamProject(lane(), [cut()]), isPlaying: false },
+    );
+    playRange.mockClear();
+    await runEditVerb("joinType", factsOf()!, "crossfade");
+    expect(playRange).not.toHaveBeenCalled();
   });
 
   it("leaves Keep enabled when every record is ready", () => {

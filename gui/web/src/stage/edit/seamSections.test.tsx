@@ -1,7 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setClipJoin } from "../../api";
-import { hearAcross } from "../../commands/seamCommands";
 import { useDawStore } from "../../state/dawStore";
 import { inspectKeyOf } from "../../state/selection";
 import {
@@ -18,10 +17,8 @@ vi.mock("../../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../api")>()),
   setClipJoin: vi.fn(async () => undefined),
 }));
-vi.mock("../../commands/seamCommands", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../../commands/seamCommands")>()),
-  hearAcross: vi.fn(async () => ({ status: "ok" })),
-}));
+const hearAcross = vi.hoisted(() => vi.fn());
+vi.mock("../../utils/playRange", () => ({ playTimelineRange: hearAcross }));
 
 const left: ClipRow = clipRow({
   id: "c1",
@@ -105,7 +102,7 @@ const drag = (pixels: number) => {
 
 beforeEach(() => {
   vi.mocked(setClipJoin).mockReset().mockResolvedValue(undefined);
-  vi.mocked(hearAcross).mockClear();
+  hearAcross.mockClear();
 });
 
 describe("seam sheet", () => {

@@ -265,6 +265,22 @@ describe("keepPlan", () => {
     });
   });
 
+  it("disables with the record message when a blocked record names no blocker", () => {
+    const orphan = removal("r1", 4, 6.4, {
+      restore: {
+        state: "blocked",
+        code: "span_not_present",
+        message: "The audio is no longer there",
+        blocked_by: [],
+      },
+    });
+    expect(keepPlan(cut([orphan]))).toEqual({
+      kind: "disabled",
+      reason: "The audio is no longer there",
+      openHistory: false,
+    });
+  });
+
   it("sends a history-only record or a record-less cut to History", () => {
     const historyOnly = removal("r1", 4, 6.4, {
       restore: { state: "history_only" },

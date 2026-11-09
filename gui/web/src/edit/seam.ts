@@ -222,7 +222,8 @@ export function keepPlan(seam: CutSeam): KeepPlan {
   for (const record of records) {
     if (
       record.restore.state === "blocked" &&
-      !record.restore.blocked_by.every((id) => ids.includes(id))
+      (record.restore.blocked_by.length === 0 ||
+        !record.restore.blocked_by.every((id) => ids.includes(id)))
     ) {
       return {
         kind: "disabled",

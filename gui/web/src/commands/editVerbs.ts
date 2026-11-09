@@ -64,7 +64,13 @@ import {
   runRangeAction,
 } from "./rangeActions";
 import { announceRefusal } from "./refusal";
-import { hearAcross, restoreSeam, setSeamJoin } from "./seamCommands";
+import {
+  EDITING_OFF_REASON,
+  hearAcross,
+  replayIfInspected,
+  restoreSeam,
+  setSeamJoin,
+} from "./seamCommands";
 import { seekTransport } from "./seek";
 import { ignoreWouldRestore } from "./transcriptIgnore";
 import { requestInlineEdit } from "./transcriptWord";
@@ -126,9 +132,11 @@ async function setJoinType(arg: VerbArg): Promise<ExecuteResult> {
   const seam = currentSeam();
   if (!mode || !seam) return disabled("Select a seam to change its join type");
   const result = await setSeamJoin(seam, mode, null);
-  return result.status === "failed"
-    ? { status: "disabled", reason: result.message, told: true }
-    : OK;
+  if (result.status === "failed") {
+    return { status: "disabled", reason: result.message, told: true };
+  }
+  if (result.status === "done") replayIfInspected(seam.id);
+  return OK;
 }
 
 const JOIN_TYPE_OPTIONS: readonly (Omit<BarOption, "pressed"> & {
@@ -825,6 +833,12 @@ export function barModelOf(facts: EditFacts, s: DawState): BarModel {
         !hasShareCapability(s.shareCapabilities, "comment")
       )
         return { id, disabledReason: "This share cannot add comments" };
+      if (
+        id === "keep" &&
+        facts.kind === "seam" &&
+        !canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities)
+      )
+        return { id, disabledReason: EDITING_OFF_REASON };
       if (id === "keep" && facts.kind === "seam") {
         const seam = currentSeam();
         const plan = seam?.kind === "cut" ? keepPlan(seam) : null;
