@@ -60,7 +60,6 @@ export type ScrubFieldProps = ScrubRange & {
   /** Fires once per gesture, so one drag, key press or typed value is one undo step. */
   onCommit: (value: number) => void;
   skipUnchanged?: boolean;
-  /** Enter on text left as it opened still commits it: the shown value is a default not yet saved. */
   commitUnchanged?: boolean;
   /** Refuses a typed number with a fraction instead of rounding it. */
   integerOnly?: boolean;

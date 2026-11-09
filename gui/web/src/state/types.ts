@@ -259,7 +259,6 @@ export interface DawState {
   /** The one selection: every selected target, one kind. `selection.ts` derives the track and clip sets from it. */
   selection: Selection;
   rangeArmed: boolean;
-  /** The span and tracks typed for a range not yet formed; UI only, never in history or on the wire. Non-null implies `rangeArmed`. */
   rangeDraft: RangeDraft | null;
   rangeBusy: boolean;
   /**
