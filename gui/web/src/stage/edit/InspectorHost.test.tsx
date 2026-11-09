@@ -11,6 +11,10 @@ import {
   pendingEditView,
   sampleTrack,
 } from "../../test/fixtures";
+import {
+  FakeResizeObserver,
+  stubResizeObserver,
+} from "../../test/resizeObserver";
 import { stubViewportShell } from "../../test/viewportShell";
 import { EditWorkspace } from "./EditWorkspace";
 import { InspectorHost } from "./InspectorHost";
@@ -898,6 +902,165 @@ describe("the I key", () => {
 });
 
 describe("the Inspector sheet on the phone", () => {
+  it("returns an automatic Full height to Half as measured room returns", () => {
+    stubViewportShell("phone");
+    stubResizeObserver();
+    const lanes = document.createElement("div");
+    let room = 700;
+    Object.defineProperty(lanes, "clientHeight", { get: () => room });
+    const offsetParent = vi
+      .spyOn(HTMLElement.prototype, "offsetParent", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        return this.classList.contains("sys-inspector") ? lanes : null;
+      });
+
+    try {
+      const { unmount } = render(
+        <InspectorHost
+          shell="phone"
+          root={null}
+          regionRef={() => undefined}
+          sheet={{
+            open: true,
+            rangeActionsInSheet: false,
+            close: vi.fn(),
+            dismiss: vi.fn(),
+          }}
+        />,
+      );
+      const sheet = screen.getByRole("dialog", { name: "Inspector" });
+      expect(sheet).toHaveAttribute("data-detent", "half");
+      const resize = () => act(() => FakeResizeObserver.of(lanes).fire(lanes));
+
+      room = 400;
+      resize();
+      expect(sheet).toHaveAttribute("data-detent", "full");
+      room = 700;
+      resize();
+      expect(sheet).toHaveAttribute("data-detent", "half");
+      room = 400;
+      resize();
+      expect(sheet).toHaveAttribute("data-detent", "full");
+      room = 700;
+      resize();
+      expect(sheet).toHaveAttribute("data-detent", "half");
+      expect(useDawStore.getState().selection).toMatchObject(TRACK);
+      unmount();
+    } finally {
+      offsetParent.mockRestore();
+    }
+  });
+
+  it.each(["dock", "half", "full"] as const)(
+    "keeps a manually chosen %s height while room changes",
+    (detent) => {
+      stubViewportShell("phone");
+      stubResizeObserver();
+      const lanes = document.createElement("div");
+      let room = 700;
+      Object.defineProperty(lanes, "clientHeight", { get: () => room });
+      const offsetParent = vi
+        .spyOn(HTMLElement.prototype, "offsetParent", "get")
+        .mockImplementation(function (this: HTMLElement) {
+          return this.classList.contains("sys-inspector") ? lanes : null;
+        });
+
+      try {
+        const { unmount } = render(
+          <InspectorHost
+            shell="phone"
+            root={null}
+            regionRef={() => undefined}
+            sheet={{
+              open: true,
+              rangeActionsInSheet: false,
+              close: vi.fn(),
+              dismiss: vi.fn(),
+            }}
+          />,
+        );
+        const sheet = screen.getByRole("dialog", { name: "Inspector" });
+        const grip = screen.getByRole("slider", { name: "Sheet height" });
+        if (detent === "dock") fireEvent.keyDown(grip, { key: "Home" });
+        if (detent === "full") fireEvent.keyDown(grip, { key: "End" });
+        if (detent === "half") {
+          fireEvent.keyDown(grip, { key: "End" });
+          fireEvent.keyDown(grip, { key: "ArrowDown" });
+        }
+        expect(sheet).toHaveAttribute("data-detent", detent);
+
+        const resize = () =>
+          act(() => FakeResizeObserver.of(lanes).fire(lanes));
+        room = 400;
+        resize();
+        room = 700;
+        resize();
+
+        expect(sheet).toHaveAttribute("data-detent", detent);
+        unmount();
+      } finally {
+        offsetParent.mockRestore();
+      }
+    },
+  );
+
+  it("keeps its current height when measured room is zero or unavailable", () => {
+    stubViewportShell("phone");
+    stubResizeObserver();
+    const lanes = document.createElement("div");
+    Object.defineProperty(lanes, "clientHeight", { value: 0 });
+    const offsetParent = vi
+      .spyOn(HTMLElement.prototype, "offsetParent", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        return this.classList.contains("sys-inspector") ? lanes : null;
+      });
+
+    try {
+      const { unmount } = render(
+        <InspectorHost
+          shell="phone"
+          root={null}
+          regionRef={() => undefined}
+          sheet={{
+            open: true,
+            rangeActionsInSheet: false,
+            close: vi.fn(),
+            dismiss: vi.fn(),
+          }}
+        />,
+      );
+      const sheet = screen.getByRole("dialog", { name: "Inspector" });
+      expect(sheet).toHaveAttribute("data-detent", "half");
+      act(() => FakeResizeObserver.of(lanes).fire(lanes));
+      expect(sheet).toHaveAttribute("data-detent", "half");
+      unmount();
+      offsetParent.mockRestore();
+
+      vi.spyOn(HTMLElement.prototype, "offsetParent", "get").mockReturnValue(
+        null,
+      );
+      render(
+        <InspectorHost
+          shell="phone"
+          root={null}
+          regionRef={() => undefined}
+          sheet={{
+            open: true,
+            rangeActionsInSheet: false,
+            close: vi.fn(),
+            dismiss: vi.fn(),
+          }}
+        />,
+      );
+      expect(screen.getByRole("dialog", { name: "Inspector" })).toHaveAttribute(
+        "data-detent",
+        "half",
+      );
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
   it("returns focus to the opener when a new selection replaces the one it opened for", async () => {
     stubViewportShell("phone");
     render(<EditWorkspace />);
