@@ -148,7 +148,11 @@ export function Dialog({
           <h2 id={titleId}>{title}</h2>
           <CloseButton
             ref={closeRef}
-            onClick={dismiss}
+            onClick={(event) => {
+              if (anchored && outsideDismissal === "preserve-focus")
+                event.currentTarget.focus({ preventScroll: true });
+              dismiss();
+            }}
             disabled={closeDisabled}
           />
         </div>

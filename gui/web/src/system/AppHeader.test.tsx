@@ -527,6 +527,41 @@ describe("AppHeader as a guest", () => {
     expect(input).toHaveFocus();
   });
 
+  it("returns focus to the role button after Close activation from outside focus", async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <AppHeader
+          title="Episode"
+          guest={{
+            version: "v3",
+            role: "commenter",
+            hint: {
+              text: "You can comment.",
+              shown: false,
+              onDismiss: vi.fn(),
+            },
+          }}
+        />
+        <button type="button">Outside action</button>
+      </>,
+    );
+    const trigger = screen.getByRole("button", {
+      name: "Explain Commenter role",
+    });
+    await user.click(trigger);
+    const close = screen.getByRole("button", { name: "Close" });
+    await waitFor(() => expect(close).toHaveFocus());
+    const outside = screen.getByRole("button", { name: "Outside action" });
+    for (let n = 0; n < 24 && document.activeElement !== outside; n++)
+      await user.tab();
+    expect(outside).toHaveFocus();
+    expect(screen.getByRole("dialog")).toBeVisible();
+    fireEvent.click(close);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(trigger).toHaveFocus();
+  });
+
   it("returns focus to the role button when the manual explanation closes", async () => {
     setup({
       guest: {
