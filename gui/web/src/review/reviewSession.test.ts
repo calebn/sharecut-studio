@@ -260,6 +260,47 @@ describe("useReviewSession", () => {
     expect(result.current.props.selectedId).toBe("b");
   });
 
+  it("clears a speaker chip when local revert follows to a hidden row", () => {
+    const host = { id: "host", label: "Host" };
+    const guest = { id: "guest", label: "Guest" };
+    const open = [
+      entry("host-a", 1, { speaker: host }),
+      entry("host-c", 3, { speaker: host }),
+      entry("guest-b", 2, { speaker: guest }),
+    ];
+    const { result } = renderHook(() => useReviewSession(open));
+    act(() => result.current.props.onSpeaker("host"));
+    let plan: ReturnType<typeof result.current.decide> = null;
+    act(() => {
+      plan = result.current.decide({ ids: ["host-a"], result: "applied" });
+    });
+    act(() => result.current.props.onSpeaker("guest"));
+    act(() => result.current.revert(["host-a"], plan?.selectedId));
+    expect(result.current.props.selectedId).toBe("host-a");
+    expect(result.current.props.speaker).toBeNull();
+  });
+
+  it("preserves an explicit selection and speaker chip when revert cannot follow", () => {
+    const host = { id: "host", label: "Host" };
+    const guest = { id: "guest", label: "Guest" };
+    const open = [
+      entry("host-a", 1, { speaker: host }),
+      entry("host-c", 3, { speaker: host }),
+      entry("guest-b", 2, { speaker: guest }),
+    ];
+    const { result } = renderHook(() => useReviewSession(open));
+    act(() => result.current.props.onSpeaker("host"));
+    let plan: ReturnType<typeof result.current.decide> = null;
+    act(() => {
+      plan = result.current.decide({ ids: ["host-a"], result: "applied" });
+    });
+    act(() => result.current.props.onSpeaker("guest"));
+    act(() => result.current.props.onSelect("guest-b"));
+    act(() => result.current.revert(["host-a"], plan?.selectedId));
+    expect(result.current.props.selectedId).toBe("guest-b");
+    expect(result.current.props.speaker).toBe("guest");
+  });
+
   it("sends only unclaimed ids when a group repeats a claimed one", () => {
     const { result } = renderHook(() => useReviewSession(OPEN));
     const plans: (ReturnType<typeof result.current.decide> | null)[] = [];
