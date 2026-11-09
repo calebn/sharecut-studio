@@ -331,7 +331,7 @@ describe("useReviewSession", () => {
     expect(result.current.props.selectedId).toBe("b");
   });
 
-  it("clears a speaker chip when local revert follows to a hidden row", () => {
+  it("clears a speaker chip when Undo reselects a hidden row", () => {
     const host = { id: "host", label: "Host" };
     const guest = { id: "guest", label: "Guest" };
     const open = [
@@ -341,12 +341,12 @@ describe("useReviewSession", () => {
     ];
     const { result } = renderHook(() => useReviewSession(open));
     act(() => result.current.props.onSpeaker("host"));
-    let plan: ReturnType<typeof result.current.decide> = null;
     act(() => {
-      plan = result.current.decide({ ids: ["host-a"], result: "applied" });
+      result.current.decide({ ids: ["host-a"], result: "applied" });
     });
+    expect(result.current.props.selectedId).toBe("host-c");
     act(() => result.current.props.onSpeaker("guest"));
-    act(() => result.current.revert(["host-a"], plan?.selectedId));
+    act(() => result.current.revert(["host-a"]));
     expect(result.current.props.selectedId).toBe("host-a");
     expect(result.current.props.speaker).toBeNull();
   });
