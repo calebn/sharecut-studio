@@ -85,6 +85,122 @@ async function probeBandPaintOrder(page: Page) {
   });
 }
 
+async function compareMarkerOcclusion(page: Page) {
+  await page.evaluate(() => document.fonts.ready);
+  const crop = await page
+    .locator(".recording-overlay-band")
+    .evaluate((band) => {
+      const title = document.querySelector<HTMLElement>(
+        '.sys-marker[data-kind="chapter"] .sys-marker-title',
+      );
+      const marker = title?.closest<HTMLElement>(".sys-marker-hit");
+      if (!title || !marker) throw new Error("chapter marker title is missing");
+
+      const bandRect = band.getBoundingClientRect();
+      const titleRect = title.getBoundingClientRect();
+      const left = Math.ceil(Math.max(bandRect.left, titleRect.left, 0)) + 1;
+      const top = Math.ceil(Math.max(bandRect.top, titleRect.top, 0)) + 1;
+      const right =
+        Math.floor(
+          Math.min(bandRect.right, titleRect.right, window.innerWidth),
+        ) - 1;
+      const bottom =
+        Math.floor(
+          Math.min(bandRect.bottom, titleRect.bottom, window.innerHeight),
+        ) - 1;
+      if (right <= left || bottom <= top) {
+        throw new Error("chapter title does not intersect the band interior");
+      }
+      return {
+        left,
+        top,
+        width: right - left,
+        height: bottom - top,
+        markerValue: marker.style.getPropertyValue("visibility"),
+        markerPriority: marker.style.getPropertyPriority("visibility"),
+      };
+    });
+  const clip = {
+    x: crop.left,
+    y: crop.top,
+    width: crop.width,
+    height: crop.height,
+  };
+  const marker = page.locator(
+    '.sys-marker[data-kind="chapter"] .sys-marker-hit',
+  );
+  const visible = await page.screenshot({ clip, animations: "disabled" });
+  let hidden: Buffer;
+  try {
+    await marker.evaluate((element) => {
+      element.style.setProperty("visibility", "hidden");
+    });
+    hidden = await page.screenshot({ clip, animations: "disabled" });
+  } finally {
+    await marker.evaluate(
+      (element, { value, priority }) => {
+        if (value) element.style.setProperty("visibility", value, priority);
+        else element.style.removeProperty("visibility");
+      },
+      { value: crop.markerValue, priority: crop.markerPriority },
+    );
+  }
+
+  const pixels = await page.evaluate(
+    async ({ visiblePng, hiddenPng }) => {
+      const decode = (png: string) =>
+        new Promise<ImageData>((resolve, reject) => {
+          const image = new Image();
+          image.onload = () => {
+            const canvas = document.createElement("canvas");
+            canvas.width = image.naturalWidth;
+            canvas.height = image.naturalHeight;
+            const context = canvas.getContext("2d");
+            if (!context) {
+              reject(new Error("canvas 2d context is unavailable"));
+              return;
+            }
+            context.drawImage(image, 0, 0);
+            resolve(context.getImageData(0, 0, canvas.width, canvas.height));
+          };
+          image.onerror = () =>
+            reject(new Error("screenshot PNG did not decode"));
+          image.src = `data:image/png;base64,${png}`;
+        });
+      const [visibleImage, hiddenImage] = await Promise.all([
+        decode(visiblePng),
+        decode(hiddenPng),
+      ]);
+      if (
+        visibleImage.width !== hiddenImage.width ||
+        visibleImage.height !== hiddenImage.height
+      ) {
+        throw new Error("occlusion screenshots have different dimensions");
+      }
+      let differingPixels = 0;
+      for (let index = 0; index < visibleImage.data.length; index += 4) {
+        if (
+          visibleImage.data[index] !== hiddenImage.data[index] ||
+          visibleImage.data[index + 1] !== hiddenImage.data[index + 1] ||
+          visibleImage.data[index + 2] !== hiddenImage.data[index + 2] ||
+          visibleImage.data[index + 3] !== hiddenImage.data[index + 3]
+        ) {
+          differingPixels += 1;
+        }
+      }
+      return {
+        differingPixels,
+        totalPixels: visibleImage.width * visibleImage.height,
+      };
+    },
+    {
+      visiblePng: visible.toString("base64"),
+      hiddenPng: hidden!.toString("base64"),
+    },
+  );
+  return { ...pixels, width: crop.width, height: crop.height };
+}
+
 for (const viewport of viewports) {
   for (const theme of ["light", "dark"] as const satisfies readonly Theme[]) {
     test(`recording band paints above chapter markers at ${viewport.name} in ${theme}`, async ({
@@ -147,7 +263,9 @@ for (const viewport of viewports) {
           send("recording", 2);
           await expect(overlay).toHaveAttribute("data-state", "recording");
           await expect(band).toHaveText("Recording · Take 3");
+          await expect(page.locator(".clip-block").first()).toBeVisible();
           const recordingProbe = await probeBandPaintOrder(page);
+          const recordingPixels = await compareMarkerOcclusion(page);
           await page.screenshot({
             path: testInfo.outputPath(`${theme}-recording.png`),
           });
@@ -156,6 +274,7 @@ for (const viewport of viewports) {
           await expect(overlay).toHaveAttribute("data-state", "paused");
           await expect(band).toHaveText("Paused · Take 3");
           const pausedProbe = await probeBandPaintOrder(page);
+          const pausedPixels = await compareMarkerOcclusion(page);
           await page.screenshot({
             path: testInfo.outputPath(`${theme}-paused.png`),
           });
@@ -173,6 +292,23 @@ for (const viewport of viewports) {
             expect(probe.overlayPointerEvents).toBe("none");
             expect(probe.bandPointerEvents).toBe("none");
           }
+          await testInfo.attach("occlusion-pixels.json", {
+            body: JSON.stringify({
+              method: "strict RGBA equality on decoded Chromium PNG crops",
+              limits:
+                "same-browser occlusion proof; not a cross-browser contrast measure",
+              recording: recordingPixels,
+              paused: pausedPixels,
+            }),
+            contentType: "application/json",
+          });
+          expect(
+            {
+              recording: recordingPixels.differingPixels,
+              paused: pausedPixels.differingPixels,
+            },
+            `decoded ${recordingPixels.width}x${recordingPixels.height} PNG crop pixel differences; strict RGBA equality in Chromium, not a cross-browser contrast measure`,
+          ).toEqual({ recording: 0, paused: 0 });
         },
         undefined,
         chapterProject,
