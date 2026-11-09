@@ -55,7 +55,10 @@ offset after a fresh check that the join still matches.
 Keyboard word actions: Enter on a focused timed word seeks through its native
 button action. F2 opens inline correction for a hydrated host project and does
 nothing on guest shares or while a correction is saving. Enter in the inline
-editor saves and Escape cancels.
+editor saves and returns focus to the word while the field still owns focus.
+Tab saves and moves focus and selection to the next unsure word. Escape cancels
+and returns focus while the field still owns focus. A blur saves the correction
+and leaves focus on the destination the user chose.
 
 ```
 ┌─ header      Follow · Edit ────────┐

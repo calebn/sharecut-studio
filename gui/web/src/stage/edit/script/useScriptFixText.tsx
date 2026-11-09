@@ -43,6 +43,27 @@ type Pinned = {
   last: ScriptWordRef & { wordIndex: number };
 };
 
+type FocusClaim = {
+  input: HTMLInputElement;
+  body: HTMLElement;
+} | null;
+
+type FocusAfter =
+  | {
+      kind: "retirement";
+      index: number;
+      input: HTMLInputElement;
+      body: HTMLElement;
+      tries: number;
+    }
+  | {
+      kind: "retry";
+      index: number;
+      doc: Document;
+      anchor: Element | null;
+      tries: number;
+    };
+
 /**
  * The field open on the last Script and what was typed in it, so a shell change
  * that remounts the Script (a rotation to another layout) keeps both, as the
@@ -109,7 +130,7 @@ export function useScriptFixText(
       mounted.current = false;
     };
   }, []);
-  const focusAfter = useRef<{ index: number; tries: number } | null>(null);
+  const focusAfter = useRef<FocusAfter | null>(null);
 
   const editing = useMemo<ScriptSpan | null>(() => {
     if (!pinned) return null;
@@ -120,8 +141,11 @@ export function useScriptFixText(
       : { start, end };
   }, [pinned, model]);
 
-  const close = (focusIndex: number) => {
-    focusAfter.current = { index: focusIndex, tries: 0 };
+  const close = (focusIndex: number, claim: FocusClaim = null) => {
+    focusAfter.current =
+      claim !== null && claim.input.ownerDocument.activeElement === claim.input
+        ? { kind: "retirement", index: focusIndex, ...claim, tries: 0 }
+        : null;
     setPinned(null);
   };
   // The editor's span unmounts, so the host puts focus back on a word. A word
@@ -129,10 +153,41 @@ export function useScriptFixText(
   useLayoutEffect(() => {
     const want = focusAfter.current;
     if (editing !== null || want === null) return;
+    if (want.kind === "retirement") {
+      const active = want.input.ownerDocument.activeElement;
+      const retiredToScriptStop =
+        active instanceof Element &&
+        want.body.contains(active) &&
+        active.closest("[data-stop]") !== null;
+      if (
+        active !== want.input &&
+        active !== want.body &&
+        !retiredToScriptStop
+      ) {
+        focusAfter.current = null;
+        return;
+      }
+      if (pane.current?.focusWord(want.index) || want.tries >= 2) {
+        focusAfter.current = null;
+      } else {
+        focusAfter.current = {
+          kind: "retry",
+          index: want.index,
+          doc: want.input.ownerDocument,
+          anchor: active,
+          tries: want.tries + 1,
+        };
+      }
+      return;
+    }
+    if (want.doc.activeElement !== want.anchor) {
+      focusAfter.current = null;
+      return;
+    }
     if (pane.current?.focusWord(want.index) || want.tries >= 2) {
       focusAfter.current = null;
     } else {
-      want.tries += 1;
+      focusAfter.current = { ...want, tries: want.tries + 1 };
     }
   });
 
@@ -168,8 +223,17 @@ export function useScriptFixText(
       original: string,
     ): Promise<void | string> => {
       const where = model.indexOf(pin.first, "first") ?? 0;
+      const active = via === "blur" ? null : document.activeElement;
+      let claim: FocusClaim = null;
+      if (
+        active instanceof HTMLInputElement &&
+        active.classList.contains("sys-edit-fix")
+      ) {
+        const body = active.closest<HTMLElement>(".sys-script-body");
+        if (body) claim = { input: active, body };
+      }
       if (text === null) {
-        close(where);
+        close(where, claim);
         return;
       }
       if (!enabledNow.current) return FIX_OFF;
@@ -223,11 +287,15 @@ export function useScriptFixText(
       // Script no longer moves the reader.
       if (!enabledNow.current) return;
       if (via === "tab") {
-        const landed = onTab();
-        close(landed ?? where);
+        const landed =
+          claim !== null &&
+          claim.input.ownerDocument.activeElement === claim.input
+            ? onTab()
+            : undefined;
+        close(landed ?? where, claim);
         return;
       }
-      close(where);
+      close(where, claim);
     },
   );
 
