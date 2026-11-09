@@ -46,6 +46,8 @@ the mark explains that this pair has no roll seam and identifies the left
 clip's end trim. The host precision dialog repeats that reason before its
 controls. Gaps within the tolerance and overlaps continue to roll.
 
+Dragging either edge of a cut's pill rolls its seam at 12.5 ms a pixel; hold Alt for 1 ms a pixel (Shift does nothing here). A drag is refused while another seam save is running, and a roll that cannot save says why in the status line. The seam sheet's Offset field is the exact alternative.
+
 Timeline and transcript join rolls use the same recording limits. Rolling later
 stops at the left recording's end; an unknown duration allows no later expansion.
 Outer neighbors constrain the drag only when they play the right recording, so

@@ -665,4 +665,44 @@ describe("seam sheet A/B", () => {
     await act(async () => finish());
     expect(hearAcross).not.toHaveBeenCalled();
   });
+
+  it("holds A/B while a roll is saving", () => {
+    openRolled();
+    moveStoreTo(10.0123);
+    expect(screen.getByRole("button", { name: "A" })).toBeTruthy();
+    act(() => {
+      useDawStore.setState({ joinMutationInFlight: true });
+    });
+    expect(screen.getByText("A/B is ready once the roll saves")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "A" })).toBeNull();
+  });
+
+  it("moves focus to the row when Undo turns A/B into a note", async () => {
+    openRolled();
+    moveStoreTo(10.0123);
+    const a = screen.getByRole("button", { name: "A" });
+    act(() => a.focus());
+    moveStoreTo(10);
+    await vi.waitFor(() =>
+      expect(document.activeElement?.textContent).toBe(
+        "Roll the seam to compare",
+      ),
+    );
+  });
+
+  it("says a roll refused for another save and a queued roll", async () => {
+    openRolled();
+    vi.mocked(rollSeam).mockResolvedValueOnce({ status: "skipped" });
+    await typeOffset("20");
+    expect(
+      screen.getByText(
+        "Another seam save is still running. Try the roll again in a moment.",
+      ),
+    ).toBeTruthy();
+    vi.mocked(rollSeam).mockResolvedValueOnce({ status: "queued" });
+    await typeOffset("30");
+    expect(
+      screen.getByText("The roll is queued. It saves when you reconnect."),
+    ).toBeTruthy();
+  });
 });

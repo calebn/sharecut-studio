@@ -4,6 +4,7 @@ import { seamById } from "../edit/seam";
 import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { trackEditSave } from "../state/documentSendOrder";
+import { inspectKeyOf } from "../state/selection";
 import {
   appliedEditRecord,
   clipRow,
@@ -16,6 +17,7 @@ import { ApiError } from "../utils/apiError";
 import {
   hearAcross,
   ROLL_CONFLICT_MESSAGE,
+  replayIfInspected,
   restoreSeam,
   rollSeam,
   setSeamJoin,
@@ -247,10 +249,10 @@ describe("rollSeam", () => {
     expect(api.rollClipJoin).not.toHaveBeenCalled();
   });
 
-  it("skips a roll the server queued", async () => {
+  it("reports a roll the server queued", async () => {
     const seam = load();
     vi.mocked(api.rollClipJoin).mockResolvedValueOnce({ queued: true });
-    expect(await rollSeam(seam, 5)).toEqual({ status: "skipped" });
+    expect(await rollSeam(seam, 5)).toEqual({ status: "queued" });
   });
 
   it("fails when the project changed during the context load", async () => {
@@ -320,6 +322,33 @@ describe("rollSeam", () => {
     vi.mocked(api.rollClipJoin).mockRejectedValueOnce(new Error("disk full"));
     await rollSeam(seam, 5);
     expect(useDawStore.getState().statusAnnouncement).toBe("");
+  });
+});
+
+describe("replayIfInspected", () => {
+  it("replays an open seam and stays quiet while that seam's A/B comparison plays", () => {
+    load();
+    useDawStore.setState({
+      selection: { kind: "seam", id: "eb:L:R", trackId: TRACK },
+      inspectorKey: inspectKeyOf({
+        kind: "seam",
+        id: "eb:L:R",
+        trackId: TRACK,
+      }),
+      isPlaying: false,
+      sourcePreview: null,
+    });
+    replayIfInspected("eb:L:R");
+    expect(playRange).toHaveBeenCalledTimes(1);
+    playRange.mockClear();
+    useDawStore.getState().beginSourcePreview({
+      ownerId: "seam-ab:eb:L:R",
+      media: { kind: "rendered", url: "blob:ab" },
+      startSec: 0,
+      endSec: 3,
+    });
+    replayIfInspected("eb:L:R");
+    expect(playRange).not.toHaveBeenCalled();
   });
 });
 

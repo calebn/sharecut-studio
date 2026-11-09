@@ -50,7 +50,9 @@ export function AbAudition({
           <span className="sys-ab-glyph">B</span>
         </ToggleButton>
       </SegmentedControl>
-      <span className="sys-ab-note">{note}</span>
+      <span className="sys-ab-note" aria-live="polite">
+        {note}
+      </span>
     </div>
   );
 }

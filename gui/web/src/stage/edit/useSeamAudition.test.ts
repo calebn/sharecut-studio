@@ -10,6 +10,7 @@ import {
   sampleTrack,
 } from "../../test/fixtures";
 import type { ClipRow } from "../../types/project";
+import { ApiError } from "../../utils/apiError";
 import { AB_CLAMPED_REASON, useSeamAudition } from "./useSeamAudition";
 
 vi.mock("../../api", async (importOriginal) => ({
@@ -254,5 +255,62 @@ describe("useSeamAudition", () => {
       expect(result.current.error).toBe("409 boundary preview is stale"),
     );
     expect(result.current.pending).toBe(false);
+  });
+
+  it("fetches a fresh comparison after a fade changes with the geometry fixed", async () => {
+    const first = load(10.0123);
+    const { result, rerender } = renderHook(
+      ({ seam }) => useSeamAudition(seam, 10),
+      { initialProps: { seam: first } },
+    );
+    act(() => result.current.play("B"));
+    await waitFor(() =>
+      expect(useDawStore.getState().sourcePreview).not.toBeNull(),
+    );
+    expect(api.auditionBoundary).toHaveBeenCalledTimes(1);
+    const faded = {
+      ...first,
+      right: { ...first.right, fade_out_ms: 200 },
+    };
+    rerender({ seam: faded });
+    expect(useDawStore.getState().sourcePreview).toBeNull();
+    act(() => result.current.play("B"));
+    await waitFor(() => expect(api.auditionBoundary).toHaveBeenCalledTimes(2));
+  });
+
+  it("fetches a fresh comparison after the track gain changes", async () => {
+    const seam = load(10.0123);
+    const { result } = renderHook(() => useSeamAudition(seam, 10));
+    act(() => result.current.play("B"));
+    await waitFor(() =>
+      expect(useDawStore.getState().sourcePreview).not.toBeNull(),
+    );
+    act(() => {
+      const project = useDawStore.getState().project;
+      if (!project) throw new Error("no project");
+      useDawStore.setState({
+        project: {
+          ...project,
+          tracks: project.tracks.map((t) => ({ ...t, gain_db: -6 })),
+        },
+      });
+    });
+    expect(useDawStore.getState().sourcePreview).toBeNull();
+    act(() => result.current.play("B"));
+    await waitFor(() => expect(api.auditionBoundary).toHaveBeenCalledTimes(2));
+  });
+
+  it("says a stale audition in the roll conflict words", async () => {
+    vi.mocked(api.auditionBoundary).mockRejectedValueOnce(
+      new ApiError("boundary preview is stale", "document_conflict", 409),
+    );
+    const seam = load(10.0123);
+    const { result } = renderHook(() => useSeamAudition(seam, 10));
+    act(() => result.current.play("A"));
+    await waitFor(() =>
+      expect(result.current.error).toBe(
+        "The seam moved before the roll saved. Nothing changed.",
+      ),
+    );
   });
 });

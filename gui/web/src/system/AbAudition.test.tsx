@@ -89,4 +89,19 @@ describe("AbAudition", () => {
       "Hear before",
     );
   });
+
+  it("announces its caption politely", () => {
+    render(
+      <AbAudition
+        side="A"
+        change={change}
+        note="Preparing the comparison…"
+        onSelect={() => undefined}
+      />,
+    );
+    expect(screen.getByText("Preparing the comparison…")).toHaveAttribute(
+      "aria-live",
+      "polite",
+    );
+  });
 });

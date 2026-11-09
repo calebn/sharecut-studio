@@ -106,4 +106,25 @@ describe("useScriptSeamRoll", () => {
     result.current.commit("eb:gone:R", 5);
     expect(rollSeam).not.toHaveBeenCalled();
   });
+
+  it("says a queued roll and a roll refused for another save, but not a sub-threshold one", async () => {
+    const say = vi.fn();
+    const { result } = renderHook(() => useScriptSeamRoll(say));
+    rollSeam.mockResolvedValueOnce({ status: "queued" });
+    result.current.commit("eb:L:R", 5);
+    await vi.waitFor(() => expect(say).toHaveBeenCalledTimes(1));
+    expect(say).toHaveBeenLastCalledWith(
+      "The roll is queued. It saves when you reconnect.",
+    );
+    rollSeam.mockResolvedValueOnce({ status: "skipped" });
+    result.current.commit("eb:L:R", 5);
+    await vi.waitFor(() => expect(say).toHaveBeenCalledTimes(2));
+    expect(say).toHaveBeenLastCalledWith(
+      "Another seam save is still running. Try the roll again in a moment.",
+    );
+    rollSeam.mockResolvedValueOnce({ status: "skipped" });
+    result.current.commit("eb:L:R", 0.01);
+    await vi.waitFor(() => expect(rollSeam).toHaveBeenCalledTimes(3));
+    expect(say).toHaveBeenCalledTimes(2);
+  });
 });

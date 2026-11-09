@@ -1,5 +1,10 @@
-import { useEffect, useRef, useState } from "react";
-import { rollSeam, setSeamJoin } from "../../commands/seamCommands";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  ROLL_QUEUED_MESSAGE,
+  rollSeam,
+  rollSkipMessage,
+  setSeamJoin,
+} from "../../commands/seamCommands";
 import { clampClipFades } from "../../edit/fadeLimits";
 import {
   appliedJoinLength,
@@ -12,6 +17,7 @@ import { canApplyPass12, canHostMutate } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
 import { AbAudition } from "../../system/AbAudition";
+import type { AuditionSide } from "../../system/auditionWindow";
 import type { InspectorSection } from "../../system/InspectorSheet";
 import { ScrubField } from "../../system/ScrubField";
 import { appliedEditTitle } from "../../timeline/appliedEditTicks";
@@ -34,6 +40,7 @@ const NOT_TOUCHING_NOTE = "The clips do not touch";
 const AB_NOTE = "1.5 s before and after";
 const AB_GUEST_REASON = "A/B needs the host app";
 const AB_UNROLLED_REASON = "Roll the seam to compare";
+const AB_BUSY_REASON = "A/B is ready once the roll saves";
 const ROLLED_EPS_SEC = 1e-9;
 
 const CROSSFADE_BLOCKED_REASON: Record<string, string> = {
@@ -49,6 +56,53 @@ function appliedByLine(seam: Extract<Seam, { kind: "cut" }>): string | null {
   const more = seam.records.length - 1;
   const age = relativeTime(first.applied_at, new Date());
   return `${appliedEditTitle(first)} · applied ${age}${more > 0 ? ` · +${more} more` : ""}`;
+}
+
+function SeamAbRow({
+  reason,
+  side,
+  pending,
+  joinSec,
+  onSelect,
+}: {
+  reason: string | null;
+  side: AuditionSide;
+  pending: boolean;
+  joinSec: number;
+  onSelect: (side: AuditionSide) => void;
+}) {
+  const box = useRef<HTMLDivElement>(null);
+  const held = useRef(false);
+  useLayoutEffect(() => {
+    if (reason && held.current && document.activeElement === document.body) {
+      held.current = false;
+      box.current?.focus();
+    }
+  }, [reason]);
+  return (
+    <div
+      ref={box}
+      tabIndex={-1}
+      onFocus={() => {
+        held.current = reason === null;
+      }}
+      onBlur={(event) => {
+        if (event.relatedTarget) held.current = false;
+      }}
+    >
+      {reason ? (
+        note(reason)
+      ) : (
+        <AbAudition
+          side={side}
+          change={{ start: joinSec, end: joinSec }}
+          note={pending ? AB_PREPARING_NOTE : AB_NOTE}
+          shortcuts={false}
+          onSelect={onSelect}
+        />
+      )}
+    </div>
+  );
 }
 
 export function useSeamSections(
@@ -138,7 +192,9 @@ export function useSeamSections(
       ? AB_UNROLLED_REASON
       : audition.error === AB_CLAMPED_REASON
         ? AB_CLAMPED_REASON
-        : null;
+        : busy
+          ? AB_BUSY_REASON
+          : null;
   const auditionFailure =
     audition.error === AB_CLAMPED_REASON ? null : audition.error;
   const roomToRoll = interval !== null && interval.hi > interval.lo;
@@ -182,6 +238,8 @@ export function useSeamSections(
       rollSeam(snapshot, deltaMs),
     );
     if (result.status === "failed") setError(result.message);
+    else if (result.status === "queued") setError(ROLL_QUEUED_MESSAGE);
+    else if (result.status === "skipped") setError(rollSkipMessage(deltaMs));
   };
 
   const notes = [
@@ -229,14 +287,12 @@ export function useSeamSections(
               {
                 id: "ab",
                 label: "A/B",
-                control: abReason ? (
-                  note(abReason)
-                ) : (
-                  <AbAudition
+                control: (
+                  <SeamAbRow
+                    reason={abReason}
                     side={audition.side}
-                    change={{ start: seam.joinSec, end: seam.joinSec }}
-                    note={audition.pending ? AB_PREPARING_NOTE : AB_NOTE}
-                    shortcuts={false}
+                    pending={audition.pending}
+                    joinSec={seam.joinSec}
                     onSelect={(next) => {
                       replay.supersede();
                       audition.play(next);
