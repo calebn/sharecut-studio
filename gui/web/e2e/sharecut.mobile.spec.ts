@@ -55,7 +55,6 @@ async function expectInspectorFooterTouchTargets(page: Page) {
     ...(await controls.all()),
     sheet.getByRole("button", { name: "Replace audio…" }),
     remove,
-    sheet.getByRole("button", { name: "Smooth all joins" }),
     ...(await sheet.getByRole("button", { name: /^Split speakers/ }).all()),
   ];
   for (const control of all) {
@@ -203,9 +202,6 @@ test.describe("ShareCut Studio mobile smoke", () => {
       await page.evaluate(() => matchMedia("(pointer: fine)").matches),
     ).toBe(true);
     await expectInspectorFooterTouchTargets(page);
-    await expect(
-      sheet.getByRole("button", { name: "Smooth all joins" }),
-    ).toBeAttached();
     await expectPageAxeClean(page);
     await sheet
       .locator(".sys-actions--dock")
@@ -217,6 +213,9 @@ test.describe("ShareCut Studio mobile smoke", () => {
     await expect(
       page.getByRole("menuitem", { name: "Move track up" }),
     ).toBeDisabled();
+    await expect(
+      page.getByRole("menuitem", { name: "Smooth all joins" }),
+    ).toBeEnabled();
     await page.keyboard.press("Escape");
   });
 

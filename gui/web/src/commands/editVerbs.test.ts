@@ -28,12 +28,14 @@ import {
 import { clearRegisteredCommands, execute, registerCommand } from "./execute";
 import { executePointerCommand } from "./pointer";
 import { _resetSingleFlightsForTests, registerDawCommands } from "./register";
+import { EDITING_OFF_REASON } from "./seamCommands";
 
 vi.mock("../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api")>()),
   deleteClips: vi.fn(async () => "h-delete"),
   deleteChapter: vi.fn(async () => undefined),
   removeTrackCommand: vi.fn(async () => ({ history_head_id: "h-remove" })),
+  applyFadeRecommendations: vi.fn(async () => undefined),
   setEnvelope: vi.fn(async () => "h-env"),
   approveEdits: vi.fn(),
   rejectEdits: vi.fn(),
@@ -1272,10 +1274,12 @@ describe("barModelOf", () => {
     expect(first.more).toEqual([
       { id: "moveTrackUp", disabledReason: "This track is already first." },
       { id: "moveTrackDown" },
+      { id: "smoothJoins" },
     ]);
     expect(model({ kind: "track", trackId: JONAS }).more).toEqual([
       { id: "moveTrackUp" },
       { id: "moveTrackDown", disabledReason: "This track is already last." },
+      { id: "smoothJoins" },
     ]);
   });
 
@@ -1289,7 +1293,43 @@ describe("barModelOf", () => {
           shareCapabilities: ["view", "play", "suggest"],
         },
       ).more.map((row) => row.disabledReason),
-    ).toEqual(["Media ingest not allowed", "Media ingest not allowed"]);
+    ).toEqual([
+      "Media ingest not allowed",
+      "Media ingest not allowed",
+      EDITING_OFF_REASON,
+    ]);
+  });
+
+  it("smooths every join on the selected track from More", async () => {
+    host({ kind: "track", trackId: MIRA });
+    expect(await runEditVerb("smoothJoins", factsOf()!)).toEqual({
+      status: "ok",
+    });
+    expect(api.applyFadeRecommendations).toHaveBeenCalledExactlyOnceWith(
+      "/tmp/episode",
+      MIRA,
+    );
+  });
+
+  it("refuses Smooth all joins on two tracks and announces a host refusal in the error tone", async () => {
+    host({ kind: "track", trackId: MIRA });
+    useDawStore.getState().selectTracks([MIRA, JONAS]);
+    expect(await runEditVerb("smoothJoins", factsOf()!)).toMatchObject({
+      status: "disabled",
+      reason: "Select one track to smooth its joins",
+    });
+    host({ kind: "track", trackId: MIRA });
+    vi.mocked(api.applyFadeRecommendations).mockRejectedValueOnce(
+      new Error("no fades"),
+    );
+    expect(await runEditVerb("smoothJoins", factsOf()!)).toMatchObject({
+      status: "disabled",
+      reason: "no fades",
+    });
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      message: "no fades",
+      tone: "error",
+    });
   });
 
   it("removes the selected track from the bar with an Undo toast, and refuses two tracks", async () => {

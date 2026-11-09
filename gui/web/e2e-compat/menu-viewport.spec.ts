@@ -73,8 +73,13 @@ for (const mode of ["native", "fallback"] as const) {
           await expect(grip).toHaveAttribute("aria-valuetext", "Full height");
         }
 
-        const smooth = sheet.getByRole("button", { name: "Smooth all joins" });
-        await smooth.scrollIntoViewIfNeeded();
+        await sheet
+          .locator(".sys-actions--dock")
+          .getByRole("button", { name: "More" })
+          .tap();
+        const smooth = page.getByRole("menuitem", {
+          name: "Smooth all joins",
+        });
         await expect(smooth).toBeVisible();
 
         const box = await smooth.boundingBox();
@@ -93,11 +98,11 @@ for (const mode of ["native", "fallback"] as const) {
         const topmost = await page.evaluate(
           ({ x, y }) => {
             const hit = document.elementFromPoint(x, y);
-            return hit?.closest("button")?.textContent ?? null;
+            return hit?.closest("[role=menuitem]")?.textContent ?? null;
           },
           { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 },
         );
-        expect(topmost, where).toBe("Smooth all joins");
+        expect(topmost, where).toContain("Smooth all joins");
 
         const applied = page.waitForRequest(
           (request) =>
@@ -109,7 +114,7 @@ for (const mode of ["native", "fallback"] as const) {
       });
     }
 
-    test("Smooth all joins in the track sheet stays inside a 390 and a 393 wide phone viewport in both detents and works", async ({
+    test("Smooth all joins in the track bar More menu stays inside a 390 and a 393 wide phone viewport in both detents and works", async ({
       page,
     }) => {
       for (const width of [390, 393]) {

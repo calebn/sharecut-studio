@@ -12,6 +12,7 @@ export type MoreCommandId =
   | "copy"
   | "moveTrackUp"
   | "moveTrackDown"
+  | "smoothJoins"
   | "moveToSpeaker"
   | "fillRoomTone"
   | "gain"
@@ -155,7 +156,7 @@ export const ACTION_SETS: Readonly<Record<EditKind, ActionSet>> = {
   },
   track: {
     bar: [bar("hear"), bar("remove"), bar("more"), bar("inspect")],
-    more: [row("moveTrackUp"), row("moveTrackDown")],
+    more: [row("moveTrackUp"), row("moveTrackDown"), row("smoothJoins")],
   },
   envelope: {
     bar: [bar("inspect")],
@@ -250,6 +251,7 @@ const MORE_COMMANDS: Readonly<
   copy: { label: "Copy", icon: "copy" },
   moveTrackUp: { label: "Move track up", icon: null },
   moveTrackDown: { label: "Move track down", icon: null },
+  smoothJoins: { label: "Smooth all joins", icon: null },
   moveToSpeaker: { label: "Move to speaker", icon: null },
   fillRoomTone: { label: "Fill room tone", icon: null },
   gain: { label: "Gain", icon: null },

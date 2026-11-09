@@ -1,4 +1,5 @@
 import {
+  applyFadeRecommendations,
   applySuggestedActions,
   approveEdits,
   deleteChapter,
@@ -404,6 +405,26 @@ async function removeSocial(id: string): Promise<ExecuteResult> {
   }
 }
 
+const SMOOTH_ONE_TRACK = "Select one track to smooth its joins";
+
+async function smoothJoins(): Promise<ExecuteResult> {
+  const s = useDawStore.getState();
+  const selection = s.selection;
+  if (selection?.kind !== "track") return disabled(SMOOTH_ONE_TRACK);
+  if (selection.trackIds && selection.trackIds.length > 1)
+    return disabled(SMOOTH_ONE_TRACK);
+  if (!canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities))
+    return disabled(EDITING_OFF_REASON);
+  try {
+    await applyFadeRecommendations(s.projectPath, selection.trackId);
+    return OK;
+  } catch (error) {
+    const reason = errorMessage(error);
+    useDawStore.getState().announceStatus(reason, { tone: "error" });
+    return { status: "disabled", reason, told: true };
+  }
+}
+
 async function removeMarker(
   selection: Extract<Selection, { kind: "chapter" | "envelopePoint" }>,
 ): Promise<ExecuteResult> {
@@ -661,6 +682,8 @@ async function dispatch(
       return executePointerCommand("track.moveUp");
     case "moveTrackDown":
       return executePointerCommand("track.moveDown");
+    case "smoothJoins":
+      return smoothJoins();
     case "approve":
       return approveSocial();
     case "resolve":
@@ -708,6 +731,7 @@ const WIRED_MORE: ReadonlySet<string> = new Set([
   "moveToTrack",
   "moveTrackUp",
   "moveTrackDown",
+  "smoothJoins",
 ]);
 
 const WIRED_PRIMARY: ReadonlySet<string> = new Set([
@@ -895,6 +919,17 @@ export function barModelOf(facts: EditFacts, s: DawState): BarModel {
           : gate.reason === "Already at bottom"
             ? "This track is already last."
             : gate.reason;
+      more.push(reason ? { id, disabledReason: reason } : { id });
+    } else if (id === "smoothJoins") {
+      const reason = !canApplyPass12(
+        s.projectPath,
+        s.guestMode,
+        s.shareCapabilities,
+      )
+        ? EDITING_OFF_REASON
+        : facts.count > 1
+          ? SMOOTH_ONE_TRACK
+          : null;
       more.push(reason ? { id, disabledReason: reason } : { id });
     } else if (id === "fillRoomTone") {
       const reason = descriptor("fillRoomTone")?.reason;
