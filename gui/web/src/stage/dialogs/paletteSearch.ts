@@ -184,7 +184,6 @@ export function groupPaletteEntries(
   })).filter((g) => g.rows.length > 0);
 }
 
-/** One touch gesture shown as a palette result row. */
 export type PaletteGesture = {
   /** Stable row key, e.g. "gesture:Two-finger tap". */
   id: string;
@@ -195,7 +194,6 @@ export type PaletteGesture = {
   description: string;
 };
 
-/** The touch-only Gestures result group's label. */
 export const PALETTE_GESTURES_LABEL = "Gestures";
 
 export const PALETTE_GESTURES: readonly PaletteGesture[] = MOBILE_GESTURES.map(

@@ -130,7 +130,6 @@ html[data-shell="tablet"]
   box-shadow: var(--shadow-modal);
 }
 
-/* Phone: a full-height sheet with Search first. */
 html[data-shell="phone"]
   .ui-dialog-root:not(.ui-dialog-root--anchored)
   > .command-palette-panel.command-palette-dialog {

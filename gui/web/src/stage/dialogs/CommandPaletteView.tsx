@@ -94,7 +94,6 @@ export function CommandPaletteView({
 }: CommandPaletteViewProps) {
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<string | null>(null);
-  /** Command id whose key field is open in its row; null while browsing. */
   const [remapOpenId, setRemapOpenId] = useState<string | null>(null);
   const [wasOpen, setWasOpen] = useState(open);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -507,7 +506,6 @@ function PaletteOption({
   );
 }
 
-/** A keyed command's key field, open in its row. */
 function RemapField({
   command,
   onDone,
