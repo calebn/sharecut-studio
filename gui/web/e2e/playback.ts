@@ -22,11 +22,9 @@ export async function expectPlaybackAdvancesThenHolds(
 ): Promise<void> {
   const play = playButton(page);
   // The host Player is the bar in the frame; a viewer guest's is the expanded form.
-  const clock = page
-    .locator(
-      ".stage-frame-player .sys-player-now, .sys-player--expanded .sys-player-now",
-    )
-    .first();
+  const clock = page.locator(
+    ".stage-frame-player .sys-player-now, .sys-player--expanded .sys-player-now",
+  );
   const initial = parseTimecodeSec(await clock.innerText());
   await play.click();
   await expect(page.getByRole("button", { name: "Pause" })).toBeVisible();
