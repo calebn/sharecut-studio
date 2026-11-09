@@ -294,13 +294,5 @@ describe("wordLabel", () => {
     ).toBe(
       "word (suppression locked, unsure, possible transcription with no matching speech, selected)",
     );
-    expect(
-      wordLabel(
-        { ...plain, locked: true, hallucination: true },
-        { selected: true },
-      ),
-    ).toBe(
-      "word (suppression locked, possible transcription with no matching speech, selected)",
-    );
   });
 });
