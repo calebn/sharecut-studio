@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { AppHeader, type AppHeaderProps } from "./AppHeader";
 import { ROLES } from "./linkRoles";
@@ -192,6 +193,54 @@ describe("AppHeader as a guest", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(trigger).toHaveFocus();
   });
+
+  it.each([
+    ["pointer", async (trigger: HTMLElement) => userEvent.click(trigger)],
+    [
+      "Enter",
+      async (trigger: HTMLElement) => {
+        trigger.focus();
+        await userEvent.keyboard("{Enter}");
+      },
+    ],
+    [
+      "Space",
+      async (trigger: HTMLElement) => {
+        trigger.focus();
+        await userEvent.keyboard(" ");
+      },
+    ],
+  ])(
+    "does not rebound into a manual dialog on first %s activation when parent dismissal updates eligibility",
+    async (_input, activate) => {
+      function ControlledHeader() {
+        const [shown, setShown] = useState(true);
+        return (
+          <AppHeader
+            title="Episode"
+            guest={{
+              version: "v3",
+              role: "commenter",
+              hint: {
+                text: "You can comment.",
+                shown,
+                onDismiss: () => setShown(false),
+              },
+            }}
+          />
+        );
+      }
+
+      render(<ControlledHeader />);
+      const trigger = screen.getByRole("button", {
+        name: "Explain Commenter role",
+      });
+      await activate(trigger);
+
+      expect(screen.queryByRole("note")).toBeNull();
+      expect(screen.queryByRole("dialog")).toBeNull();
+    },
+  );
 
   it.each([
     ["Enter", "{Enter}"],
