@@ -4,6 +4,7 @@ import { useLayoutEffect } from "react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
+import { makeRangeTarget } from "../../edit/rangeSelection";
 import { useDawStore } from "../../state/dawStore";
 import { clipRow, minimalProject, sampleTrack } from "../../test/fixtures";
 import { closeOverlay, openOverlay } from "../../ui/modalGate";
@@ -177,6 +178,23 @@ describe("EditCorner", () => {
     expect(range).toHaveAttribute("aria-pressed", "true");
     await user.click(range);
     expect(useDawStore.getState().rangeArmed).toBe(false);
+  });
+
+  it("announces why the range toggle refuses over a committed range", async () => {
+    const user = userEvent.setup();
+    useDawStore.setState({ pointerKind: "coarse" });
+    render(<EditCorner />);
+    const project = useDawStore.getState().project!;
+    const target = makeRangeTarget(
+      project,
+      [{ start: 1, end: 3 }],
+      [sampleTrack().id],
+    )!;
+    act(() => useDawStore.getState().commitRange(target));
+    await user.click(screen.getByRole("button", { name: "Select range" }));
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      message: "A range is already selected",
+    });
   });
 
   it("follows the pointer kind live, so a first touch brings the toggle", () => {

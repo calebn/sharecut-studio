@@ -142,7 +142,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: true,
     when: "hasInspectorSelection",
     notes:
-      "Closes the Inspector first, then drops an armed range draft, then clears the selection and track targeting",
+      "Drops an armed range draft first, then closes the Inspector, then clears the selection and track targeting",
   },
   {
     id: "presence.unfollow",

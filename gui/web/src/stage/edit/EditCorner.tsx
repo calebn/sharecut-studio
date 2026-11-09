@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { runPointerCommand } from "../../commands/pointer";
+import {
+  executePointerCommand,
+  runPointerCommand,
+} from "../../commands/pointer";
 import { useDawStore } from "../../state/dawStore";
 import { EditCornerView } from "./EditCornerView";
 import type { ViewAnchorAvailability } from "./useViewAnchor";
@@ -42,7 +45,13 @@ export function EditCorner({
               reason: hasProject
                 ? undefined
                 : "Open a project to select a range",
-              onToggle: () => runPointerCommand("range.arm"),
+              onToggle: () =>
+                void executePointerCommand("range.arm").then((result) => {
+                  if (result.status === "disabled" && !result.told)
+                    useDawStore
+                      .getState()
+                      .announceStatus(result.reason, { tone: "error" });
+                }),
             }
           : undefined
       }

@@ -334,7 +334,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Clear selection",
     when: "hasInspectorSelection",
     notes:
-      "Escape: close the Inspector if it is open, else drop an armed range draft, else clear the selection, track targeting included",
+      "Escape: drop an armed range draft if there is one, else close the Inspector if it is open, else clear the selection, track targeting included",
   },
   "edit.rippleDelete": {
     id: "edit.rippleDelete",
