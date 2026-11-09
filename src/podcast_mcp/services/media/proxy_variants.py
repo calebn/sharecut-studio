@@ -463,7 +463,7 @@ def _ensure(ws: ProjectWorkspace, track_id: str | None) -> ProxyManifestGenerati
                     occurrences[clip_id] = ProxyOccurrenceBinding(
                         artifact_id=candidate.artifact.hash,
                         output_track_id=inputs.context_track_id,
-                        bakes_mutes=True,
+                        bakes_mutes=bool(inputs.regions),
                     )
                 prepared_recordings = {}
                 for key, inputs in recordings.items():

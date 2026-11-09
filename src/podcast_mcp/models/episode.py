@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -30,6 +31,8 @@ from podcast_mcp.util.batch_scope import scoped
 from podcast_mcp.util.coded_error import CodedError, CodedFileNotFoundError
 from podcast_mcp.util.intervals import merge_intervals
 from podcast_mcp.util.media_identity import same_recording
+
+logger = logging.getLogger(__name__)
 
 EPISODE_PROJECT_FILENAME = "episode.sharecut"
 _T = TypeVar("_T")
@@ -1309,7 +1312,11 @@ class RenderSection(BaseModel):
         for entry in value:
             try:
                 ProxyManifestGeneration.model_validate(entry)
-            except ValidationError:
+            except ValidationError as error:
+                logger.warning(
+                    "dropping unreadable proxy manifest generation (%d validation errors)",
+                    error.error_count(),
+                )
                 continue
             kept.append(entry)
         return kept
