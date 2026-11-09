@@ -1,7 +1,14 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import {
+  createEvent,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
+import { ScriptDivider } from "../stage/edit/ScriptDivider";
 import { AppHeader, type AppHeaderProps } from "./AppHeader";
 import { ROLES } from "./linkRoles";
 
@@ -272,10 +279,13 @@ describe("AppHeader as a guest", () => {
 
   it("dismisses an automatic tip outside without stealing focus", async () => {
     const onDismiss = vi.fn();
+    const onOutsideClick = vi.fn();
     const user = userEvent.setup();
     render(
       <>
-        <button type="button">Outside</button>
+        <button type="button" onClick={onOutsideClick}>
+          Outside
+        </button>
         <AppHeader
           title="Episode"
           guest={{
@@ -291,6 +301,7 @@ describe("AppHeader as a guest", () => {
     await user.click(outside);
 
     expect(onDismiss).toHaveBeenCalledOnce();
+    expect(onOutsideClick).toHaveBeenCalledOnce();
     expect(screen.queryByRole("note")).toBeNull();
     expect(outside).toHaveFocus();
   });
@@ -358,9 +369,12 @@ describe("AppHeader as a guest", () => {
 
   it("closes a manual explanation outside and leaves focus on the outside target", async () => {
     const user = userEvent.setup();
+    const onOutsideClick = vi.fn();
     render(
       <>
-        <button type="button">Outside</button>
+        <button type="button" onClick={onOutsideClick}>
+          Outside
+        </button>
         <AppHeader
           title="Episode"
           guest={{
@@ -385,7 +399,34 @@ describe("AppHeader as a guest", () => {
     await user.click(outside);
 
     expect(screen.queryByRole("dialog")).toBeNull();
+    expect(onOutsideClick).toHaveBeenCalledOnce();
     expect(outside).toHaveFocus();
+  });
+
+  it("keeps the real Script divider focused after pointerdown and resizes on the next arrow", () => {
+    const onResize = vi.fn();
+    render(
+      <ScriptDivider widthRem={25} onResize={onResize} onReset={vi.fn()} />,
+    );
+    const divider = screen.getByRole("separator", { name: "Resize Script" });
+    const pointerDown = createEvent.pointerDown(divider, {
+      pointerId: 1,
+      pointerType: "mouse",
+      button: 0,
+    });
+
+    fireEvent(divider, pointerDown);
+    expect(pointerDown.defaultPrevented).toBe(true);
+    expect(divider).toHaveFocus();
+
+    const arrow = new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      key: "ArrowRight",
+    });
+    fireEvent(divider, arrow);
+    expect(arrow.defaultPrevented).toBe(true);
+    expect(onResize).toHaveBeenCalledExactlyOnceWith(24);
   });
 
   it("returns focus to the role button when the manual explanation closes", async () => {

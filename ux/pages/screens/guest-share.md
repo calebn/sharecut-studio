@@ -35,13 +35,23 @@ Step flows: [Guest journeys](#/journeys).
 
 ### ShareCut Studio guest chrome (when `view` is granted)
 
-| Header Role chip (accessible name) | Role (`guest_mode`) |
+| Header role control (button accessible name) | Role (`guest_mode`) |
 |---------------|--------------|
-| *Editor: can edit* | Editor (`edit`) |
-| *Commenter: can comment* | Commenter (`comment`) |
-| *Viewer: can listen* | Viewer (`view`; listen + inspect, not “no audio”) |
+| Explain Editor role | Editor (`edit`) |
+| Explain Commenter role | Commenter (`comment`) |
+| Explain Viewer role | Viewer (`view`; listen + inspect, not “no audio”) |
 
-The first visit shows a passive role hint once for that role. The role chip is a named button, **Explain Commenter role** for example. Its first activation dismisses the hint; activating it again opens the same explanation beside the chip. Close or Escape returns focus to the chip. An outside press dismisses the automatic hint without moving focus from the outside control.
+The separate static role chip is an image whose accessible name starts with
+**Editor: can edit**, **Commenter: can comment** or **Viewer: can listen**.
+
+The automatic role hint is eligible on visits until it is dismissed for that
+browser role; its appearance is not persisted. If the hint is still visible on
+the first activation, that activation dismisses it. The next activation opens
+the explanation dialog beside the control. After a remembered dismissal, the
+first activation opens the dialog directly. Close and Escape close the dialog
+and return focus to its trigger. An outside pointer press closes the dialog and
+leaves the outside control's pointer behavior and click intact. It dismisses an
+automatic hint while leaving focus on the outside control.
 
 **Comment field on a phone:** on the phone layout only (a landscape phone wider than 767 px uses the tablet shell and is not docked), a Commenter's Review comment field (with its "at 0:12" chip) comes last in the card and stays docked at the bottom of the panel, above the Player, while the card scrolls (on a viewport 480 px tall or shorter, such as a landscape phone, it is not docked and stays at the top of the card as on a tablet; an on-screen keyboard or a pinch zoom does not change this); on a tablet, a desktop and for the host it stays at the top of the card.
 
