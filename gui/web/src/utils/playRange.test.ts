@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { useDawStore } from "../state/dawStore";
 import { paddedAuditionWindow, playTimelineRange } from "./playRange";
 
 describe("paddedAuditionWindow", () => {
@@ -27,5 +28,23 @@ describe("playTimelineRange", () => {
       playheadSec: 9.5,
       untilSec: 12.5,
     });
+  });
+
+  it("without beginAudition the stop bound is armed after playback starts", () => {
+    useDawStore.setState({ isPlaying: false, playUntilSec: null });
+    const { setPlayheadSec, setIsPlaying, setPlayUntilSec } =
+      useDawStore.getState();
+    playTimelineRange({
+      start: 10,
+      end: 12,
+      padSec: 0.5,
+      setPlayheadSec,
+      setIsPlaying,
+      setPlayUntilSec,
+    });
+    const s = useDawStore.getState();
+    expect(s.isPlaying).toBe(true);
+    expect(s.playheadSec).toBe(9.5);
+    expect(s.playUntilSec).toBe(12.5);
   });
 });
