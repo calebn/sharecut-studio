@@ -188,7 +188,8 @@ for how store-bound components get hydrated stories.
 the stage body slot, the Player and, on a phone, the tab bar. Its stories
 cover desktop, tablet, phone, guest, loading, empty and error states, and
 the Vitest browser sweep (`npm run test:stories`) checks fit at 360 and 1280
-in both themes.
+in both themes. A `wide-only` tag takes precedence over the Frame title and
+requires a `wideOnlyReason`.
 
 Full-viewport loading, error, and record entry screens share `ui/CoverScreen`.
 It supplies the `main.cover` shell and centered content; callers provide an
