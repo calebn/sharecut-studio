@@ -180,6 +180,26 @@ describe("buildScriptModel", () => {
     expect(words[3]?.lowConfidence).toBeUndefined();
   });
 
+  it("flags suspect-hallucination words apart from unsure ones", () => {
+    const flagged = utterance("host", "Maya", [
+      word("ghost", 0, 1, { suspect_hallucination: true }),
+      word("both", 1, 2, { suspect_hallucination: true, unsure: true }),
+      word("muted", 2, 3, { suspect_hallucination: true, ignored: true }),
+      word("gone", 3, 4, { suspect_hallucination: true, suppressed: true }),
+      word("plain", 4, 5),
+    ]);
+    const words = buildScriptModel(input([flagged])).turns[0]?.words ?? [];
+    expect(words[0]).toMatchObject({ hallucination: true });
+    expect(words[0]?.lowConfidence).toBeUndefined();
+    expect(words[1]).toMatchObject({
+      hallucination: true,
+      lowConfidence: true,
+    });
+    expect(words[2]?.hallucination).toBeUndefined();
+    expect(words[3]?.hallucination).toBeUndefined();
+    expect(words[4]?.hallucination).toBeUndefined();
+  });
+
   it("puts the words an applied cut took out back at its join, as cut words", () => {
     const boundary = {
       id: "b1",
@@ -222,6 +242,7 @@ describe("buildScriptModel", () => {
     expect(words[0]?.mark).toBeUndefined();
     expect(words[1]?.mark).toEqual({ kind: "cut", id: "b1", seconds: 1.5 });
     expect(words[2]?.mark).toEqual({ kind: "cut", id: "b1", seconds: 1.5 });
+    expect(words[1]?.hallucination).toBeUndefined();
     expect(words[3]?.mark).toBeUndefined();
     expect(model.isCut(1)).toBe(true);
     expect(model.seekSecOf(1)).toBeNull();

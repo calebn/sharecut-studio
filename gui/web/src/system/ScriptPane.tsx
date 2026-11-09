@@ -20,6 +20,7 @@ import {
 } from "../hooks/useUserScrollIntent";
 import { presenceAnchorProps } from "../presence/anchors";
 import { presenceColorVar } from "../presence/colors";
+import { TRANSCRIPT_SUSPECT_HALLUCINATION_TIP } from "../transcript/transcriptModeCopy";
 import { useResizeObserver } from "../ui/useResizeObserver";
 import { Cover } from "./Cover";
 import { PersonAvatar } from "./Person";
@@ -2597,6 +2598,10 @@ const WordView = memo(function WordView({
       data-playing={playing ? "" : undefined}
       data-selected={selected ? "" : undefined}
       data-unsure={word.lowConfidence ? "" : undefined}
+      data-hallucination={word.hallucination ? "" : undefined}
+      title={
+        word.hallucination ? TRANSCRIPT_SUSPECT_HALLUCINATION_TIP : undefined
+      }
       data-restored={word.restored ? "" : undefined}
       data-found={found}
       tabIndex={tabbable ? 0 : -1}

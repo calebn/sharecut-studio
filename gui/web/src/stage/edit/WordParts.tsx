@@ -4,12 +4,16 @@ import {
   setTranscriptWordsIgnored,
 } from "../../api";
 import { capabilityTooltip } from "../../capabilities/copy";
-import { isLowConfidenceWord } from "../../transcript/lowConfidence";
+import {
+  isLowConfidenceWord,
+  isSuspectHallucinationWord,
+} from "../../transcript/lowConfidence";
 import { TranscriptWordbar } from "../../transcript/TranscriptWordbar";
 import {
   TRANSCRIPT_AUDIBILITY_LOCKED_TIP,
   TRANSCRIPT_RETURN_TO_AUTOMATIC_TIP,
   TRANSCRIPT_SUPPRESS_TIP,
+  TRANSCRIPT_SUSPECT_HALLUCINATION_TIP,
   TRANSCRIPT_UNSUPPRESS_TIP,
 } from "../../transcript/transcriptModeCopy";
 import {
@@ -141,6 +145,9 @@ export function WordFacts(ref: WordRef) {
         </DefItem>
         <DefItem label="Ignored">{word.ignored ? "yes" : "no"}</DefItem>
       </DefinitionList>
+      {isSuspectHallucinationWord(word) ? (
+        <p className="ui-field-hint">{TRANSCRIPT_SUSPECT_HALLUCINATION_TIP}</p>
+      ) : null}
     </div>
   );
 }

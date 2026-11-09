@@ -8,7 +8,10 @@ import type {
   WordsSelection,
 } from "../../../system/scriptPieces";
 import { placeEditBoundaries } from "../../../transcript/editBoundaryPlacement";
-import { isLowConfidenceWord } from "../../../transcript/lowConfidence";
+import {
+  isLowConfidenceWord,
+  isSuspectHallucinationWord,
+} from "../../../transcript/lowConfidence";
 import type {
   CombinedUtterance,
   EditBoundaryView,
@@ -142,6 +145,7 @@ type DraftWord = {
   end: number | null;
   mark?: ScriptMark;
   lowConfidence: boolean;
+  hallucination: boolean;
   /** A word an applied cut took out: shown, never seeked or addressed. */
   cut: boolean;
 };
@@ -170,6 +174,7 @@ function cutWordsOf(boundary: EditBoundaryView): DraftWord[] {
     end: NO_TIME,
     mark: { kind: "cut", id: boundary.id, seconds },
     lowConfidence: false,
+    hallucination: false,
     cut: true,
   }));
 }
@@ -204,6 +209,7 @@ export function buildScriptModel(input: ScriptModelInput): ScriptModel {
           end: word.timeline_end ?? NO_TIME,
           ...(mark ? { mark } : {}),
           lowConfidence: isLowConfidenceWord(word),
+          hallucination: isSuspectHallucinationWord(word),
           cut: false,
         });
       }
@@ -295,6 +301,7 @@ export function buildScriptModel(input: ScriptModelInput): ScriptModel {
           : {}),
         ...(word.mark ? { mark: word.mark } : {}),
         ...(word.lowConfidence ? { lowConfidence: true } : {}),
+        ...(word.hallucination ? { hallucination: true } : {}),
       });
     }
     const startSec = draft.startSec ?? turnStart;

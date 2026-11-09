@@ -1,3 +1,4 @@
+import { TRANSCRIPT_SUSPECT_HALLUCINATION_TIP } from "../transcript/transcriptModeCopy";
 import type { PersonData } from "./Person";
 import { formatSeconds } from "./seconds";
 
@@ -24,6 +25,8 @@ export type ScriptWord = {
   text: string;
   mark?: ScriptMark;
   lowConfidence?: boolean;
+  /** The pipeline found no matching speech under the word. Marked apart from `lowConfidence`; it is not counted or walked. */
+  hallucination?: boolean;
   /** Just brought back: a static highlight that clears on the next action. */
   restored?: boolean;
   /** Where another person's cursor or selection finds this word (a `data-presence-anchor` id). */
@@ -289,6 +292,10 @@ export function continuesSpeaker(
   );
 }
 
+/** The screen-reader note for a word the pipeline flagged as possibly not spoken. */
+const SUSPECT_HALLUCINATION_NOTE =
+  TRANSCRIPT_SUSPECT_HALLUCINATION_TIP.toLowerCase();
+
 export type WordFound = "match" | "current";
 
 /**
@@ -304,6 +311,7 @@ export function wordLabel(
     word.mark?.kind === "cut" ? "cut" : null,
     word.mark?.kind === "muted" ? "muted" : null,
     word.lowConfidence ? "unsure" : null,
+    word.hallucination ? SUSPECT_HALLUCINATION_NOTE : null,
     word.restored ? "restored" : null,
     state.found === "current" ? "current match" : null,
     state.found === "match" ? "match" : null,
