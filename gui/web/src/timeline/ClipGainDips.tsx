@@ -75,21 +75,24 @@ export const ClipGainDips = memo(function ClipGainDips({
   const lane = clampLaneHeight(height);
   const dips = useMemo(() => clipGainDips(clips, points), [clips, points]);
   const end = start + width / pxPerSecond;
-  const shown = useMemo(
-    () =>
-      dips
-        .filter((d) => {
-          const from = d.points[0]!.time;
-          const to = d.points[d.points.length - 1]!.time;
-          return to >= start && from <= end;
-        })
-        .map((dip) => ({
-          key: `${dip.clipId}:${dip.points[0]!.time}`,
-          x: (dip.points[0]!.time - start) * pxPerSecond,
-          path: dipPath(dip, start, pxPerSecond, lane),
-        })),
-    [dips, start, end, pxPerSecond, lane],
-  );
+  const shown = useMemo(() => {
+    const occurrences = new Map<string, number>();
+    return dips
+      .map((dip) => {
+        const from = dip.points[0]!.time;
+        const to = dip.points[dip.points.length - 1]!.time;
+        const basis = JSON.stringify([dip.clipId, from, to]);
+        const occurrence = occurrences.get(basis) ?? 0;
+        occurrences.set(basis, occurrence + 1);
+        return { dip, from, to, key: `${basis}:${occurrence}` };
+      })
+      .filter(({ from, to }) => to >= start && from <= end)
+      .map(({ dip, key, from }) => ({
+        key,
+        x: (from - start) * pxPerSecond,
+        path: dipPath(dip, start, pxPerSecond, lane),
+      }));
+  }, [dips, start, end, pxPerSecond, lane]);
   if (shown.length === 0) return null;
   return (
     <svg
