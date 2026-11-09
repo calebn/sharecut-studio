@@ -1,8 +1,5 @@
 import { useEffect, useId, useRef } from "react";
-import type {
-  ShareEnd,
-  ShareOptions,
-} from "../../../stages/deliver/shareLogic";
+import type { ShareOptions } from "../../../stages/deliver/shareLogic";
 import { TunnelStatusLine } from "../../../stages/deliver/TunnelStatusLine";
 import type { InviteGroup } from "../../../types/stage";
 import { InlineError } from "../../../ui";
@@ -16,6 +13,10 @@ type Props = {
   /** The group to bring into view and focus on open: the Record links, from the empty Person tile. */
   at?: InviteGroup | null;
 };
+
+type EndedFocus =
+  | { group: "review" | "listen"; kind: "link"; token: string }
+  | { group: "record"; kind: "room"; sessionId: string };
 
 /**
  * The Invite sheet's rows: Review links, Record links, Listen link. Rows act as
@@ -66,7 +67,7 @@ export function InviteBody({ options, at = null }: Props) {
   // Focus goes to the group heading once the ended link or room has left the
   // list: the list reloads after the stop, and a heading focused earlier would
   // be lost with it.
-  const ended = useRef<ShareEnd | null>(null);
+  const ended = useRef<EndedFocus | null>(null);
   useEffect(() => {
     const gone = ended.current;
     if (!gone) return;
@@ -76,13 +77,21 @@ export function InviteBody({ options, at = null }: Props) {
         : rows.some((row) => row.session_id === gone.sessionId);
     if (stillThere) return;
     ended.current = null;
-    (gone.kind === "room" ? recordHeading : reviewHeading).current?.focus();
+    const heading = {
+      review: reviewHeading,
+      record: recordHeading,
+      listen: listenHeading,
+    }[gone.group];
+    heading.current?.focus();
   }, [rows]);
 
   const confirm = () => {
     const pending = end.pending;
-    if (!end.confirm()) return;
-    ended.current = pending;
+    if (!pending || !end.confirm()) return;
+    ended.current =
+      pending.kind === "room"
+        ? { ...pending, group: "record" }
+        : { ...pending, group: "review" };
   };
   const shared = {
     options,
@@ -162,7 +171,13 @@ export function InviteBody({ options, at = null }: Props) {
           For the finished episode: listeners hear the version current when you
           first copy the link.
         </p>
-        <ListenLinkRow options={options} escapeKeeps={false} />
+        <ListenLinkRow
+          options={options}
+          escapeKeeps={false}
+          onConfirmedStop={(token) => {
+            ended.current = { kind: "link", token, group: "listen" };
+          }}
+        />
       </section>
     </div>
   );
