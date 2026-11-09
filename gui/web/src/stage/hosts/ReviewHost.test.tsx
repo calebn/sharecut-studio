@@ -1522,6 +1522,19 @@ describe("Review host unsure words", () => {
     expect(useDawStore.getState().stage).toBe("edit");
   });
 
+  it("clamps the playhead to the timeline when Open in Edit jumps to a word", async () => {
+    setup();
+    await pick(/gnu/);
+    const project = useDawStore.getState().project;
+    if (!project) throw new Error("no project");
+    useDawStore.setState({
+      project: { ...project, timeline_duration_sec: 6 },
+    });
+    await userEvent.click(screen.getByRole("button", { name: /Open in Edit/ }));
+    await waitFor(() => expect(useDawStore.getState().stage).toBe("edit"));
+    expect(useDawStore.getState().playheadSec).toBe(6);
+  });
+
   it("reveals the exact far unsure word from Open in Edit with Follow off", async () => {
     const utterances: CombinedUtterance[] = Array.from(
       { length: 400 },
