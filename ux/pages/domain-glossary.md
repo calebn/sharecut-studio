@@ -71,7 +71,7 @@ Clips are the bridge. The product should rarely ask users to convert clocks manu
 | **Pending edit** | Suggested remove/mute not yet approved (a region in its type's hue: cut red, mute orange, split amber) | `editorial.edit_decisions` | Review queue (host), edit overlay, inspector |
 | **Applied edit** | Committed cut provenance; its timeline tick tracks the adjacent clip pair as later edits move it, and the tick has no hover label (Review carries the description); a mute's tick takes the mute hue, and ticks never fold into an edit group | `editorial.edit_log` | Review/history context, “why was this cut?”; source MUTE Restore or Open History for cuts |
 | **Transcript word** | Timed text + confidence / suppress / ignored / `suspect_hallucination` (below the track's own audibility floor or over digital silence, or when the local forced aligner finds no acoustic evidence (`alignment_score` below `transcribe.forced_alignment.min_word_score`); flag only; Annotate underlines unsuppressed words and names the warning for screen readers); a zero-duration word stamped exactly where a cut begins still maps onto the kept clip's last 1 ms, so it shows mappable rather than missing in the word inspector and export QC; a suppressed word the combined transcript drops from every same-track utterance window (its utterance's first/last word, or a run between two utterances) still shows as a chip, attached to the nearest same-track utterance by the view mapper, so Correct and Unsuppress still reach it (a track that is all-suppressed gets dimmed, view-only suppressed-only rows instead, one per gap-run, so its words are reachable too); a word a person or agent suppressed (or un-suppressed) directly, rather than a heuristic pass, is `audibility_locked` — reconcile and auto-suppress leave it alone, and its chip gets a solid inset box-shadow border and a "Suppression locked" tooltip so a reviewer can tell a pinned decision from a suggestion; the word inspector repeats that explanation as real text next to Suppressed, so keyboard and touch users who cannot see or trigger the chip's hover tooltip still learn why the word is pinned; a "Return to automatic" button sits next to that explanation and clears the lock only — `suppressed` is unchanged until the next reconcile pass recomputes it (toggling Suppress again re-locks it at the new value instead) | `transcripts.per_track[].words[]` (+ `word_aligner` when forced alignment re-timed them, `alignment_score` per word) | Text mode, word inspector |
-| **Ignored** | A word (or run of words) struck through and muted at render, with no cut, pending edit or `EditDecision`; a non-destructive alternative to cut for review passes; restore un-mutes it. Distinct from suppress (text-only, drops the word from the combined transcript). Set via document command `SetTranscriptWordsIgnored` (an Editor link may run it), which sends a `TRANSCRIPT_AUDIO` Applied snapshot so the stem re-renders | `transcripts.per_track[].words[].ignored` | Text mode (Select toolbar, Correct word inspector, hover Restore control) |
+| **Ignored** | A word (or run of words) struck through and muted at render, with no cut, pending edit or `EditDecision`; a non-destructive alternative to cut for review passes; restore un-mutes it. Distinct from suppress (text-only, drops the word from the combined transcript). Set via document command `SetTranscriptWordsIgnored` (an Editor link may run it), which sends a `TRANSCRIPT_AUDIO` Applied snapshot so the stem re-renders | `transcripts.per_track[].words[].ignored` | Text (Action bar on a selected Script range, word Inspector) |
 | **Edited transcript** | A transcript whose words a person or agent corrected, suppressed, ignored or verified through an edit tool (automated passes do not count); re-transcribing it is protected (Studio Re-transcribe names edited tracks and asks first) | `transcripts.per_track[].user_edited`, `audio_sha256`, `audio_size`, `audio_mtime_ns` | Text mode, Re-transcribe |
 | **Combined transcript** | Utterance stream for search/NL | `transcripts.combined` | Search / agent; export captions |
 | **Transcription vocabulary** | Names and terms used for Whisper; Re-transcribe (forces ASR; normal runs reuse transcripts) when any transcript was produced with a different saved revision | `transcript_context.yaml` revision + `transcripts.per_track[].vocabulary_revision` | Pipeline vocabulary editor |
@@ -248,19 +248,18 @@ Commenter and Viewer links can view them but cannot edit.
 If the words a transcript correction, Suppress, or Ignore targets change (another tab, a
 guest, or an agent) before it lands, an edit that carries the text it expected is refused
 as a conflict instead of changing a different word. ShareCut Studio's inline word
-editor always sends that text, and the Correct inspector sends it whenever it can confirm the
+editor always sends that text, and the word Inspector sends it whenever it can confirm the
 current text of every word in the range (otherwise it says so under Apply); Suppress and Ignore
 send the word or range's currently displayed text, or no guard when that text can't be
-confirmed, same as Apply. When that happens, the Script's Ignore/Restore and the hover Restore
-say "text not verified" in their status message.
+confirmed, same as Apply. When that happens, the Action bar's Ignore/Restore says "text not verified" in its status message.
 
-A refusal from the inline editor or the word Inspector shows under the editor. A refusal from the Script's or
-hover Ignore/Restore is announced as a status message instead, since those have no editor
+A refusal from the inline editor or the word Inspector shows under the editor. A refusal from the Action bar's
+Ignore/Restore is announced as a status message instead, since it has no editor
 open. Either way it is also listed in **Needs attention**. A later successful correction of the same word, including one sent from the offline queue after reconnecting, clears it from **Needs attention**.
-The Correct inspector keeps what was typed and re-checks the
+The word Inspector keeps what was typed and re-checks the
 current text on its own, so trying Apply again is enough (if it could not load the current
 text yet, it says to re-read instead); with the inline word editor,
-reopen the word and try again, and after a Script or hover Ignore/Restore refusal,
+reopen the word and try again, and after an Ignore/Restore refusal,
 re-read the selection and try again. Undoing your own correction does not count as a conflict.
 
 ```mermaid
