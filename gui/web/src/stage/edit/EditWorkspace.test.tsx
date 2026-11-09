@@ -6,6 +6,7 @@ import { registerDawCommands } from "../../commands/register";
 import { useDawStore } from "../../state/dawStore";
 import { minimalProject, sampleTrack } from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
+import { takeAutoRun } from "../../utils/openIntent";
 import { EditWorkspace } from "./EditWorkspace";
 
 const PROJECT_PATH = "/tmp/edit-workspace/episode.sharecut";
@@ -317,5 +318,21 @@ describe("EditWorkspace focus regions", () => {
       fireEvent.mouseDown(target as HTMLElement);
       expect(useDawStore.getState().timelineFocused).toBe(false);
     }
+  });
+});
+
+describe("EditWorkspace Transcribe", () => {
+  it("hands the empty Script to Prepare, which starts the run", async () => {
+    const user = userEvent.setup();
+    useDawStore
+      .getState()
+      .hydrate(PROJECT_PATH, minimalProject({ tracks: [sampleTrack()] }));
+    useDawStore.setState({ stage: "edit" });
+    render(<EditWorkspace />);
+    await user.click(
+      screen.getByRole("button", { name: "Transcribe this episode" }),
+    );
+    expect(useDawStore.getState().stage).toBe("prepare");
+    expect(takeAutoRun(PROJECT_PATH)).toBe(true);
   });
 });

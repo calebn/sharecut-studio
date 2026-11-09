@@ -1,5 +1,6 @@
 import { memo, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { execute } from "../../commands/execute";
 import { runPointerCommand } from "../../commands/pointer";
 import {
   matchesMedia,
@@ -13,6 +14,7 @@ import { useDawStore } from "../../state/dawStore";
 import { Skeleton } from "../../system/Skeleton";
 import { RangeFields } from "../../timeline/RangeFields";
 import { TimelineView } from "../../timeline/TimelineView";
+import { writeOpenIntent } from "../../utils/openIntent";
 import { HostBody } from "../hosts/HostBody";
 import type { LoadFailure } from "../hosts/hostModels";
 import { useStageScroll } from "../useStageScroll";
@@ -152,6 +154,12 @@ function EditWorkspaceAdapter({
     [phone, mayIngest, drop.over, drop.fileCount, drop.handlers],
   );
 
+  const transcribe = async () => {
+    writeOpenIntent(projectPath, { autoRun: true });
+    const result = await execute("stage.prepare");
+    if (result.status !== "ok") writeOpenIntent(projectPath, {});
+  };
+
   const state = loading
     ? "loading"
     : emptySession && mayIngest
@@ -182,6 +190,7 @@ function EditWorkspaceAdapter({
       <ScriptHost
         key={projectPath ?? ""}
         layout={phone ? "phone" : "desktop"}
+        onTranscribe={transcribe}
       />
     </div>
   );
