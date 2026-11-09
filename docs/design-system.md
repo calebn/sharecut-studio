@@ -76,7 +76,7 @@ organisms; domain screens are templates, colocated with their domain component
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, ClipLed, Pill, Timecode, EmptyState, SurfaceLadder (token reference), CloseButton |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl, Toast, FocusPull, InlineConfirm |
 | **Organisms** | Complex, generic, reusable components / sections | Dialog, AskDialog, BottomSheet, CoverScreen, LoadingScreen, ErrorScreen |
-| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy; a store-bound one hydrates the shared episode instead (see [Catalog boundary](#catalog-boundary-store-bound-components)) | UploadStatus, Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, AppliedEditOverlay, PendingEditOverlay, MarkerLaneHost, ClipBlock, CommentPlaybackBubble, TrackHeader, CommentCompose, TranscriptTurn, InspectorSeekFooter, HostMcpDialog, GesturesSheet, AvatarStack, CommandPalette |
+| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy; a store-bound one hydrates the shared episode instead (see [Catalog boundary](#catalog-boundary-store-bound-components)) | UploadStatus, Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, AppliedEditOverlay, PendingEditOverlay, MarkerLaneHost, ClipBlock, CommentPlaybackBubble, TrackHeader, CommentCompose, TranscriptTurn, InspectorSeekFooter, HostMcpDialog, AvatarStack, CommandPalette |
 
 **Organisms vs Templates:** an organism is generic and reusable anywhere in the
 app; a template is one specific domain screen or panel (record room, review
@@ -270,8 +270,7 @@ people slot and `ViewPopover` in the Edit corner's eye popover. Stories cover de
 phone, menu-hosted, guest-share, chapter-adding, and loading/overflow/following
 states.
 
-`Templates/HostMcpDialog` and `Templates/GesturesSheet` preview the shipped
-agent-connection and mobile gesture dialogs. The agent dialog's story supplies
+`Templates/HostMcpDialog` previews the shipped agent-connection dialog. Its story supplies
 a fixed loopback URL so its fields and client snippet do not depend on the
 Storybook server port; the live dialog still derives its URL from the host.
 Standalone Canvas stories open their dialogs for visual review. Autodocs
@@ -428,8 +427,8 @@ Chapters rows, each naming a registry command and its args, built by
 (the view lists them as the Stages and Help groups when Search is empty, after
 the category sections, and flat with the group name when searching) and gives a
 row its verb icon (`icon`, from `system/verbs.ts`; the stage icons for Go to
-<stage>) drawn as a decorative `SystemIcon`. The Gestures group is one view row
-that calls `onOpenGestures`.
+<stage>) drawn as a decorative `SystemIcon`. The Gestures group (a `gestures` prop, touch pointer only) is one view row per
+gesture; Tab on a keyed row opens its key field in place.
 The live `EditCorner` and `CommandPalette` adapters read
 DAW state and dispatch through `execute`.
 
