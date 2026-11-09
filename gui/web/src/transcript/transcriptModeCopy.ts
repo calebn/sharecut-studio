@@ -19,6 +19,5 @@ export const TRANSCRIPT_AUDIBILITY_LOCKED_TIP =
 export const TRANSCRIPT_RETURN_TO_AUTOMATIC_TIP =
   "Return to automatic: clear the lock so the next reconcile pass decides this word again. Suppressed is unchanged until then.";
 
-/** Title on a Script word the pipeline flagged `suspect_hallucination`, and the line in its word sheet. */
 export const TRANSCRIPT_SUSPECT_HALLUCINATION_TIP =
   "Possible transcription with no matching speech";
