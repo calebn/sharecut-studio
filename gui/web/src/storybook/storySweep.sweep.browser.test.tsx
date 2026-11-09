@@ -79,6 +79,13 @@ for (const mod of Object.values(modules)) {
 }
 
 describe("viewport policy", () => {
+  it("recognizes phone export names without matching words that contain phone", () => {
+    expect(isPhoneStory("Phone360")).toBe(true);
+    expect(isPhoneStory("PHONE_DOCK")).toBe(true);
+    expect(isPhoneStory("Headphone")).toBe(false);
+    expect(isPhoneStory("Telephone")).toBe(false);
+  });
+
   it("runs the composed ActionBar PhoneDock story at phone width only", () => {
     const phoneDock = stories.find(
       (story) => story.id === "system-actionbar--phone-dock",
