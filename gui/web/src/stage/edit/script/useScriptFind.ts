@@ -127,16 +127,21 @@ export function useScriptFind(
   };
 
   const cutAll = async () => {
-    const { project, rangeBusy, joinMutationInFlight, announceStatus } =
-      useDawStore.getState();
+    const {
+      project,
+      rangeBusy,
+      joinMutationInFlight,
+      announceStatus,
+      projectEpoch: epoch,
+      setRangeBusy,
+    } = useDawStore.getState();
     if (!project) throw new Error("Open a project");
     if (rangeBusy || joinMutationInFlight)
       throw new Error("Wait for the current edit to finish.");
     const plan = matchCutOf(project, model, matches);
     if (plan.targets.length === 0)
       throw new Error("No audible words in these matches.");
-    const epoch = useDawStore.getState().projectEpoch;
-    useDawStore.getState().setRangeBusy(true);
+    setRangeBusy(true);
     try {
       const result = await submitRangeEdit("cut", plan.targets);
       if (useDawStore.getState().projectEpoch !== epoch) return;
@@ -148,8 +153,7 @@ export function useScriptFind(
         undo: replyHistoryHead(result),
       });
     } finally {
-      if (useDawStore.getState().projectEpoch === epoch)
-        useDawStore.getState().setRangeBusy(false);
+      if (useDawStore.getState().projectEpoch === epoch) setRangeBusy(false);
     }
   };
 
