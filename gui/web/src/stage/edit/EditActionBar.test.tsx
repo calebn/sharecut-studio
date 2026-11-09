@@ -419,21 +419,35 @@ describe("EditActionBar against the timeline ruler", () => {
     vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(200);
   });
 
-  function barTop(selectionTop: number) {
+  const BAR = 40;
+  const GAP = 8;
+
+  function barAt(selectionTop: number) {
     host(EDIT_SELECTIONS.rangeOnAllTracks);
     render(<Timeline selectionTop={selectionTop} />);
-    const bar = screen.getByRole("group", { name: "Selection actions" });
+    const bar = screen.getByLabelText("Selection actions");
     return { bar, top: Number.parseFloat(bar.style.top) };
   }
 
-  it("hangs 8 px above a selection that leaves room under the ruler", () => {
-    const { top } = barTop(RULER_BOTTOM + 56);
-    expect(top).toBe(RULER_BOTTOM + 56 - 8 - 40);
+  it("hangs above a selection at the threshold barHeight + gap + margin (56 px for a 40 px bar)", () => {
+    const selectionTop = RULER_BOTTOM + BAR + GAP + GAP;
+    const { bar, top } = barAt(selectionTop);
+    expect(top).toBe(selectionTop - GAP - BAR);
+    expect(top).toBeGreaterThanOrEqual(RULER_BOTTOM);
+    expect(top + BAR).toBeLessThanOrEqual(selectionTop - GAP);
+    expect(bar).toBeVisible();
   });
 
-  it("drops below a selection within 56 px of the ruler so the bar never covers it", () => {
-    const { top } = barTop(RULER_BOTTOM + 55);
-    expect(top).toBe(RULER_BOTTOM + 55 + 40 + 8);
+  it("drops below a selection 1 px inside the threshold so the bar never covers the ruler", () => {
+    const selectionTop = RULER_BOTTOM + BAR + GAP + GAP - 1;
+    const { bar, top } = barAt(selectionTop);
+    expect(top).toBe(selectionTop + BAR + GAP);
     expect(top).toBeGreaterThanOrEqual(RULER_BOTTOM);
+    expect(bar).toBeVisible();
+  });
+
+  it("hides the bar when the selection is scrolled under the ruler", () => {
+    const { bar } = barAt(40);
+    expect(bar).not.toBeVisible();
   });
 });

@@ -39,6 +39,8 @@ export interface AnchoredPlacement {
   /** Widest the panel may be; wider content wraps. */
   maxWidth: number;
   side: "below" | "above";
+  /** True when the panel would sit under `clearTop` chrome on both sides. */
+  covered: boolean;
 }
 
 /**
@@ -80,7 +82,8 @@ export function placeAnchored(
   const height = Math.min(panel.height, maxHeight);
   const top =
     side === "below" ? anchor.bottom + gap : anchor.top - gap - height;
-  return { left, top, maxHeight, maxWidth, side };
+  const covered = clearTop > 0 && top < clearTop;
+  return { left, top, maxHeight, maxWidth, side, covered };
 }
 
 export function placeAnchoredExcluding(

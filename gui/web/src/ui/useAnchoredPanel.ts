@@ -95,6 +95,7 @@ export function useAnchoredPanel(
           );
     panel.style.left = `${placed.left}px`;
     panel.style.top = `${placed.top}px`;
+    panel.style.visibility = placed.covered ? "hidden" : "";
     const caps = inlineSizeCaps(placed, size);
     if (caps) {
       panel.style.maxHeight = `${caps.maxHeight}px`;
