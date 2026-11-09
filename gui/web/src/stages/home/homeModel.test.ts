@@ -3,10 +3,10 @@ import type { BootstrapJobSnapshot, RecentProject } from "../../api";
 import type { ModelView } from "../../models";
 import { downloadRows, overlay } from "../../models/controller";
 import { modelStatus, registryRows } from "../../test/renderWithModels";
+import { dayMonth } from "../../utils/relativeTime";
 import {
   bundleToGet,
   cardOf,
-  dayMonth,
   downloadTotals,
   episodeNameFromFiles,
   formatDuration,

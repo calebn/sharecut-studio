@@ -423,7 +423,7 @@ export function appliedRecordOnTimeline(
 }
 
 /** Frames at 50 fps: a glyph and its seam tick are drawn from the same cut, so they agree this closely. */
-const SEAM_MATCH_SEC = 0.02;
+export const SEAM_MATCH_SEC = 0.02;
 
 export function seamTickAtJoin(
   ticks: readonly AppliedTick[],
