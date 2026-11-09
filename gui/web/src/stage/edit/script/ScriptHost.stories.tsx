@@ -7,6 +7,7 @@ import {
   portaledOverlayParameters,
 } from "../../../storybook/storyLayout";
 import { episode } from "../../../test/episodeFixture";
+import { transcribeRun } from "../../../test/scriptHostKit";
 import { episodeBeforeEach } from "../../../test/withEpisode";
 import type { PipelineJobSnapshot } from "../../../types/pipeline";
 import { ScriptHost, type ScriptHostProps } from "./ScriptHost";
@@ -238,25 +239,10 @@ export const Empty: Story = {
   },
 };
 
-const liveRun =
-  (overrides: Partial<PipelineJobSnapshot> = {}) =>
-  () => {
-    useDawStore.getState().setPipelineJob({
-      id: "story-run",
-      project_path: useDawStore.getState().projectPath,
-      from_step: null,
-      only_step: null,
-      status: "running",
-      current: 1,
-      total: 4,
-      message: null,
-      error: null,
-      elapsed_sec: 0,
-      steps: [],
-      ...overrides,
-    });
-    return () => useDawStore.getState().setPipelineJob(null);
-  };
+const liveRun = (overrides?: Partial<PipelineJobSnapshot>) => () => {
+  useDawStore.getState().setPipelineJob(transcribeRun(overrides));
+  return () => useDawStore.getState().setPipelineJob(null);
+};
 
 export const Transcribing: Story = {
   args: { onTranscribe: fn() },

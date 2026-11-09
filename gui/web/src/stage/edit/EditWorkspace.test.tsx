@@ -9,6 +9,7 @@ import {
 import { registerDawCommands } from "../../commands/register";
 import { useDawStore } from "../../state/dawStore";
 import { minimalProject, sampleTrack } from "../../test/fixtures";
+import { transcribeRun } from "../../test/scriptHostKit";
 import { stubViewportShell } from "../../test/viewportShell";
 import {
   takeAutoRoom,
@@ -394,23 +395,7 @@ describe("EditWorkspace Transcribe", () => {
 
   it("shows Transcribing, not the button, while a run makes the transcript", () => {
     open();
-    act(() =>
-      useDawStore.setState({
-        pipelineJob: {
-          id: "run-1",
-          project_path: PROJECT_PATH,
-          from_step: null,
-          only_step: null,
-          status: "running",
-          current: 1,
-          total: 4,
-          message: null,
-          error: null,
-          elapsed_sec: 0,
-          steps: [],
-        },
-      }),
-    );
+    act(() => useDawStore.setState({ pipelineJob: transcribeRun() }));
     expect(transcribeButton()).toBeNull();
     expect(screen.getByText("25%")).toBeInTheDocument();
   });
