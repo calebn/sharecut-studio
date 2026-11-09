@@ -29,7 +29,8 @@ import { useToastDock } from "./toastDock";
 /** Safari reports a fully shown card a hair under 1 at fractional zoom or toolbar heights. */
 const VISIBLE_RATIO = 0.95;
 
-const SHEET = '.bottom-sheet[role="dialog"]';
+const SHEET =
+  ':is(.bottom-sheet[role="dialog"], .sys-inspector[role="dialog"])';
 
 function currentSheetClose(host: HTMLElement | null): HTMLElement | null {
   if (modalOpen()) return null;
