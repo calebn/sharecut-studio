@@ -859,10 +859,19 @@ Playback meter sources live under `gui/web/src/audio/`. Transports bind one
 runtime source through `playbackMeterSource.ts`; track meter leaves subscribe
 without sending frame readings through the project store. `channelPeakTap.ts`
 measures channels independently so opposite-polarity stereo cannot cancel.
-`ProxyEngine` owns its post-gain taps. `hostPlaybackMeterMonitor.ts` owns silent
-track monitors synchronized to the audible HTMLAudio transport, preserving the
-premix playback path. Shared metering math and the reference-counted frame
-scheduler supply peak hold and clip detection. Transport cleanup owns audio
+`ProxyEngine` owns its post-gain taps. `hostPlaybackMeterMonitor.ts` fetches
+processed PCM16 stems through finite byte ranges checked against each stem's
+ETag. Compatible source sample grids share bounded native WAV readers with
+separate per-track channel taps and gains. Each stem retains its own byte identity;
+a failed member does not disable healthy tracks. The monitor owns the current and
+next windows, aborts obsolete requests and revokes retired local URLs. Readings
+remain unavailable until native progress, tap warmup and current-position checks
+pass. Raw audition retains native decoding for recording formats. Both paths
+follow the audible HTMLAudio transport without changing premix playback. Inactive
+playback retires the private meter context; the transport keeps its close barrier
+across monitor replacements and waits for close completion before opening another.
+Shared metering math and the reference-counted frame scheduler supply peak hold
+and clip detection. Transport cleanup owns audio
 resources; the meter leaf owns presentation. `playbackClipLatches.ts` retains
 clearable clip state across responsive shell remounts, scoped to the current
 project and surviving tracks.

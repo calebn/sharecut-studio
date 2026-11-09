@@ -1,6 +1,10 @@
 import { useEffect, useRef } from "react";
 import { audioUrl } from "../api";
-import { createHostPlaybackMeterMonitor } from "../audio/hostPlaybackMeterMonitor";
+import {
+  createHostPlaybackMeterMonitor,
+  type HostMeterContextBarrier,
+  type HostMeterTrack,
+} from "../audio/hostPlaybackMeterMonitor";
 import { bindPlaybackClock } from "../audio/playbackClock";
 import { bindPlaybackMeterSource } from "../audio/playbackMeterSource";
 import { isShareProjectKey } from "../shareMode";
@@ -146,6 +150,7 @@ function trackPlaybackUrl(
   projectPath: string,
   track: TrackView,
   kind: "stem" | "raw",
+  renderIntent = track.stem_is_fresh === false,
 ): string {
   const trackId = track.id;
   if (kind === "raw") return audioUrl(projectPath, kind, trackId);
@@ -156,7 +161,7 @@ function trackPlaybackUrl(
     .map((effect) => `${effect.effect}:${effect.bypass ? 1 : 0}`)
     .join(",")}`;
   return audioUrl(projectPath, kind, trackId, {
-    rerender: track.stem_is_fresh === false,
+    rerender: renderIntent,
     cacheKey,
   });
 }
@@ -229,6 +234,9 @@ export function useAudioTransport(enabled = true): void {
   previewUrlRef.current = previewUrl;
   const playersRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   const rafRef = useRef<number | null>(null);
+  const meterContextBarrier = useRef<HostMeterContextBarrier>({
+    closing: null,
+  });
   const meterMonitorRef = useRef<ReturnType<
     typeof createHostPlaybackMeterMonitor
   > | null>(null);
@@ -720,6 +728,7 @@ export function useAudioTransport(enabled = true): void {
     )
       return;
     const monitor = createHostPlaybackMeterMonitor({
+      contextBarrier: meterContextBarrier.current,
       clock: () => {
         const state = useDawStore.getState();
         const master = pickMaster(playersRef.current)?.[1];
@@ -731,7 +740,7 @@ export function useAudioTransport(enabled = true): void {
           master.paused ||
           master.ended ||
           master.seeking ||
-          master.readyState < 2
+          master.readyState < 3
         )
           return null;
         return { playbackRate: state.playbackRate };
@@ -750,27 +759,43 @@ export function useAudioTransport(enabled = true): void {
         );
         return currentProject.tracks
           .filter((track) => trackHasAudioContent(track, currentProject))
-          .map((track) => ({
-            id: track.id,
-            url: trackPlaybackUrl(
+          .map((track): HostMeterTrack => {
+            const kind = mode === "raw" ? "raw" : "stem";
+            const url = trackPlaybackUrl(
               currentProject,
               projectPath,
               track,
-              mode === "raw" ? "raw" : "stem",
-            ),
-            gain: trackIsAudible(
+              kind,
+            );
+            const gain = trackIsAudible(
               track.id,
               track.muted,
               state.viewerMute,
               state.soloTracks,
             )
               ? dbToLinear(trackOutputGainDb(track))
-              : 0,
-            mediaSec:
+              : 0;
+            const mediaSec =
               mode === "raw"
                 ? rawSourceSec(currentProject, track.id, timelineSec)
-                : timelineSec,
-          }));
+                : timelineSec;
+            return mode === "raw"
+              ? { id: track.id, url, gain, mediaSec, delivery: "native" }
+              : {
+                  id: track.id,
+                  url,
+                  readUrl: trackPlaybackUrl(
+                    currentProject,
+                    projectPath,
+                    track,
+                    kind,
+                    false,
+                  ),
+                  gain,
+                  mediaSec,
+                  delivery: "wav",
+                };
+          });
       },
     });
     meterMonitorRef.current = monitor;
