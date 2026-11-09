@@ -13,6 +13,8 @@ type Props = {
   access: FileAccess;
   running?: boolean;
   grouped?: boolean;
+  largeFileNote?: string;
+  staleLabel?: string;
   onReveal?: (file: ExportedFile) => void;
   onStarted?: (file: ExportedFile) => void;
 };
@@ -28,9 +30,12 @@ function Row({
   file,
   access,
   running,
+  staleLabel,
   onReveal,
   onStarted,
-}: Omit<Props, "files" | "grouped"> & { file: ExportedFile }) {
+}: Omit<Props, "files" | "grouped" | "largeFileNote"> & {
+  file: ExportedFile;
+}) {
   const verb = access === "reveal" ? "Reveal" : "Download";
   const name = `${verb} ${file.name}, ${formatBytes(file.bytes)}`;
   const icon = (
@@ -52,7 +57,12 @@ function Row({
             {formatBytes(file.bytes)}
           </span>
           {file.current ? null : (
-            <span className="dv-file-stale">Edited since export</span>
+            <span className="dv-file-stale">
+              {staleLabel ??
+                (file.kind === "audio"
+                  ? "Export is out of date"
+                  : "Edited since export")}
+            </span>
           )}
         </span>
       </span>
@@ -87,6 +97,8 @@ export function ExportedFiles({
   access,
   running = false,
   grouped = false,
+  largeFileNote = "The master is large. Use Wi-Fi, or choose the listening file.",
+  staleLabel,
   onReveal,
   onStarted,
 }: Props) {
@@ -99,6 +111,7 @@ export function ExportedFiles({
           file={file}
           access={access}
           running={running}
+          staleLabel={staleLabel}
           onReveal={onReveal}
           onStarted={onStarted}
         />
@@ -116,9 +129,7 @@ export function ExportedFiles({
           ))
         : rows(files)}
       {access === "download" && hasLargeFile(files) ? (
-        <p className="dv-note">
-          The master is large. Use Wi-Fi, or choose the listening file.
-        </p>
+        <p className="dv-note">{largeFileNote}</p>
       ) : null}
       {running ? <p className="dv-note">{RUNNING_REASON}</p> : null}
     </div>

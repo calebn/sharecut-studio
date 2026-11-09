@@ -230,6 +230,40 @@ export const ExportedInBrowser: Story = {
   }),
 };
 
+export const ExportedWithUnconfirmedSettings: Story = {
+  args: {
+    ...ExportedInBrowser.args,
+    files: exportedFilesOf({ ...REQUEST, clips: [] }, "download"),
+    exportState: {
+      ...DONE,
+      phase: "done",
+      settingsStatus: "unknown",
+      summary: "Exported 2 files to export/",
+      measured: "Measured −16.1 LUFS, true peak −2.1 dBTP.",
+    },
+  },
+  play: playInCanvas(async ({ canvasElement }) => {
+    const view = within(canvasElement);
+    await expect(view.getByText("Exported 2 files to export/")).toBeVisible();
+    await expect(
+      view.getByText("Current export settings could not be checked."),
+    ).toBeVisible();
+    await expect(
+      view.getByText("Measured −16.1 LUFS, true peak −2.1 dBTP."),
+    ).toBeVisible();
+    await expect(
+      view.getByRole("link", { name: /^Download field-notes\.mp3/ }),
+    ).toBeVisible();
+    await expect(
+      view.getByRole("link", { name: /^Download field-notes\.wav/ }),
+    ).toBeVisible();
+    await expect(
+      view.getByRole("button", { name: "Copy listen link" }),
+    ).toBeEnabled();
+    await expect(canvasElement.querySelector("[data-highlight]")).toBeNull();
+  }),
+};
+
 export const Stale: Story = {
   args: { exportState: STALE, link: { url: LINK } },
   play: playInCanvas(async ({ canvasElement, args }) => {
@@ -259,8 +293,9 @@ export const EditedAfterExport: Story = {
   play: playInCanvas(async ({ canvasElement }) => {
     const view = within(canvasElement);
     await expect(view.getByRole("button", { name: /^Export$/ })).toBeEnabled();
+    await expect(view.getByText("Exported")).toBeInTheDocument();
     await userEvent.click(view.getByRole("button", { name: /^Streaming/ }));
-    await expect(view.getByText("Edited since export")).toBeInTheDocument();
+    await expect(view.getByText("Export is out of date")).toBeInTheDocument();
     await expect(view.getByRole("button", { name: /^Export$/ })).toBeEnabled();
     await expect(
       view.getByRole("button", { name: /^Reveal field-notes\.mp3/ }),

@@ -13,12 +13,12 @@ import {
 } from "../../utils/pipelineProgress";
 import { formatTimeShort } from "../../utils/time";
 import type { ExportFlow } from "./exportFlowContext";
+import { receiptCopy } from "./exportReceipt";
 import {
   type ExportSettings,
-  exportResultCopy,
   isLossless,
   loudnessTargetCopy,
-  masterTargetKey,
+  masterMeasuredCopy,
 } from "./exportSettings";
 
 function exportFormatOptions(settings: ExportSettings): FormatOption[] {
@@ -28,7 +28,7 @@ function exportFormatOptions(settings: ExportSettings): FormatOption[] {
     bytesPerSecond:
       typeof spec.bitrate_kbps === "number"
         ? spec.bitrate_kbps * 125
-        : isLossless(spec.ext)
+        : isLossless(key)
           ? LOSSLESS_BYTES_PER_SECOND
           : COMPRESSED_BYTES_PER_SECOND,
   }));
@@ -43,9 +43,8 @@ export function exportOptionsOf(flow: ExportFlow): ExportOptions {
     loading: flow.loading,
     settingsError: flow.settingsError ?? undefined,
     loudnessNote:
-      (settings && loudnessTargetCopy(settings.target)) ?? undefined,
-    loudness: false,
-    target: settings ? masterTargetKey(settings.target) : undefined,
+      (settings && loudnessTargetCopy(settings.master)) ?? undefined,
+    loudness: { choice: flow.loudness, onChoice: flow.setLoudness },
     range: false,
     onExportAgain:
       run.kind === "failed" || run.kind === "cancelled"
@@ -70,7 +69,11 @@ const CANCELLING_DETAIL =
 const CANCELLED_NOTHING =
   "Export cancelled. Files from an earlier export are unchanged.";
 
-export function exportStateOf(flow: ExportFlow, nowSec: number): ExportState {
+export function exportStateOf(
+  flow: ExportFlow,
+  nowSec: number,
+  settingsPending = false,
+): ExportState {
   const { run, job, needs } = flow;
   if (needs) {
     return { phase: "needs-model", model: needs };
@@ -112,10 +115,11 @@ export function exportStateOf(flow: ExportFlow, nowSec: number): ExportState {
       return flow.request
         ? {
             phase: "done",
+            settingsStatus: settingsPending ? "unknown" : flow.settingsStatus,
             when: exportWhen(run.finishedAt),
             exported: flow.request,
-            summary: exportResultCopy(run.paths),
-            measured: run.measured ?? undefined,
+            summary: receiptCopy(run.receipt),
+            measured: masterMeasuredCopy(run.receipt.master) ?? undefined,
           }
         : { phase: "never" };
     case "failed":
@@ -123,11 +127,15 @@ export function exportStateOf(flow: ExportFlow, nowSec: number): ExportState {
     case "cancelled":
       return {
         phase: "cancelled",
-        detail: run.paths.length
-          ? lateCancelCopy(exportResultCopy(run.paths))
+        detail: run.receipt
+          ? lateCancelCopy(receiptCopy(run.receipt))
           : CANCELLED_NOTHING,
-        ...(run.paths.length > 0 && flow.request
-          ? { when: exportWhen(run.finishedAt), exported: flow.request }
+        ...(run.receipt && flow.request
+          ? {
+              when: exportWhen(run.finishedAt),
+              exported: flow.request,
+              measured: masterMeasuredCopy(run.receipt.master) ?? undefined,
+            }
           : {}),
       };
   }

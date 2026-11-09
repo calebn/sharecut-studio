@@ -632,8 +632,9 @@ transcript word is corrected and undone with Mod+Z. A viewer review share
 plays the per-track MP3 proxies through Web Audio (a 200 `audio/mpeg` chunk on
 Play). The Bounce section on Deliver passes full-page axe on WebKit (`expectPageAxeClean`) and
 writes one non-silent WAV under `export/bounces/` — its own result copy goes
-through `runAnnouncedJob` (`expectJobResult` → `announceJobResult`), and
-`useJobStatusAnnouncement` speaks it in place of the generic Activity "ok"
+through `runAnnouncedJob` with pre-POST reservation, exact-ID binding before
+Activity seeding, and a verified outcome handoff to `finishJobResult`. The frame's
+`useJobStatusAnnouncement` reconciles and speaks it in place of the generic Activity "ok"
 headline instead of racing it (a real bug, not WebKit-only; `bounceFlow.tsx`
 and `exportFlow.tsx` share the fix, and it covers
 the phone shell too). The stages run serially in one test

@@ -5,7 +5,11 @@ import { Skeleton } from "../../system/Skeleton";
 import { StatusRow } from "../../system/StatusRow";
 import { Button, InlineError, SegmentedControl, ToggleButton } from "../../ui";
 import { DeliverSection } from "./DeliverSection";
-import { type DeliverFiles, filesOfKinds } from "./deliverFiles";
+import {
+  type DeliverFiles,
+  filesOfKinds,
+  type NamedExportFiles,
+} from "./deliverFiles";
 import {
   clampPart,
   type EpisodeSettings,
@@ -30,6 +34,7 @@ type Props = {
   exportState: ExportState;
   /** The audio and chapters files the export folder holds. */
   files?: DeliverFiles;
+  namedFiles?: NamedExportFiles;
   state?: "ready" | "loading";
   /** The Export button lives in the phone dock instead of here. */
   dock?: boolean;
@@ -48,6 +53,7 @@ export function EpisodeFile({
   saveTo = "",
   exportState,
   files,
+  namedFiles,
   state = "ready",
   dock = false,
   options = {},
@@ -57,9 +63,13 @@ export function EpisodeFile({
   onExport,
   onCancel,
 }: Props) {
-  const note =
-    "Available captions and transcript are included with every audio export." +
-    (hasTranscriptSection ? " Choose more files in Transcript below." : "");
+  const hostedLoudness = options.loudness || undefined;
+  const named = hostedLoudness !== undefined && hostedLoudness.choice !== null;
+  const loudnessNote = useId();
+  const note = named
+    ? "This export includes audio only."
+    : "Available captions and transcript are included with every audio export." +
+      (hasTranscriptSection ? " Choose more files in Transcript below." : "");
   const wavNote = useId();
   const runningBlock = useRef<HTMLDivElement>(null);
   const running = exportState.phase === "running";
@@ -80,6 +90,9 @@ export function EpisodeFile({
   }
   const seconds = partSeconds(settings.part, total);
   const formats = options.formats ?? FORMATS;
+  const missing = settings.formats.filter(
+    (key) => !formats.some((format) => format.id === key),
+  );
   const blocker = exportBlocker(settings, exportState, options);
   const toggleFormat = (id: FormatId) =>
     onSettings({
@@ -88,6 +101,41 @@ export function EpisodeFile({
         ? settings.formats.filter((f) => f !== id)
         : [...settings.formats, id],
     });
+  const loudnessButtons =
+    options.loudness === false
+      ? null
+      : LOUDNESS.map((entry) => (
+          <ToggleButton
+            key={entry.id}
+            quiet
+            pressed={
+              (hostedLoudness ? hostedLoudness.choice : settings.loudness) ===
+              entry.id
+            }
+            onClick={() =>
+              hostedLoudness
+                ? hostedLoudness.onChoice(entry.id)
+                : onSettings({ ...settings, loudness: entry.id })
+            }
+          >
+            {entry.label}
+            <span className="sys-mono dv-chip-size">
+              {String(entry.lufs).replace("-", "−")}
+            </span>
+          </ToggleButton>
+        ));
+  const captionNote = (
+    <p className="dv-note" id={loudnessNote}>
+      {note}
+    </p>
+  );
+  const projectLoudnessNote =
+    !named && options.loudnessNote ? (
+      <p className="dv-note">
+        {options.loudnessNote} The target mirrors the loudness setting in
+        Prepare.
+      </p>
+    ) : null;
   return (
     <DeliverSection title="Episode file">
       {options.loading ? (
@@ -105,6 +153,11 @@ export function EpisodeFile({
               WAV
             </ToggleButton>
           ) : null}
+          {missing.map((key) => (
+            <ToggleButton key={key} pressed onClick={() => toggleFormat(key)}>
+              {key.toUpperCase()} · unavailable
+            </ToggleButton>
+          ))}
           {formats.map((format) => (
             <ToggleButton
               key={format.id}
@@ -121,7 +174,9 @@ export function EpisodeFile({
       )}
       {options.wavAlwaysWritten && !options.loading ? (
         <p id={wavNote} className="dv-note">
-          WAV is the lossless master and is written with every export.
+          {named
+            ? "A lossless WAV is included with this export."
+            : "WAV is the lossless master and is written with every export."}
         </p>
       ) : null}
       {options.settingsError ? (
@@ -129,33 +184,45 @@ export function EpisodeFile({
           message={`Export settings did not load: ${options.settingsError}. Export uses this project's saved formats.`}
         />
       ) : null}
-      <p className="dv-note">{note}</p>
-
-      {options.loudnessNote ? (
-        <p className="dv-note">
-          {options.loudnessNote} The target mirrors the loudness setting in
-          Prepare.
-        </p>
-      ) : options.loudness === false ? null : (
+      {hostedLoudness ? null : (
+        <>
+          {captionNote}
+          {projectLoudnessNote}
+        </>
+      )}
+      {options.loudness !== false &&
+      (hostedLoudness ? !options.loading : !options.loudnessNote) ? (
         <div className="dv-field">
           <span className="dv-field-label">Loudness</span>
-          <SegmentedControl label="Loudness">
-            {LOUDNESS.map((entry) => (
+          {hostedLoudness ? (
+            <div
+              className="dv-chips"
+              role="group"
+              aria-label="Loudness"
+              aria-describedby={loudnessNote}
+            >
               <ToggleButton
-                key={entry.id}
                 quiet
-                pressed={settings.loudness === entry.id}
-                onClick={() => onSettings({ ...settings, loudness: entry.id })}
+                pressed={hostedLoudness.choice === null}
+                onClick={() => hostedLoudness.onChoice(null)}
               >
-                {entry.label}
-                <span className="sys-mono dv-chip-size">
-                  {String(entry.lufs).replace("-", "−")}
-                </span>
+                Project default
               </ToggleButton>
-            ))}
-          </SegmentedControl>
+              {loudnessButtons}
+            </div>
+          ) : (
+            <SegmentedControl label="Loudness">
+              {loudnessButtons}
+            </SegmentedControl>
+          )}
         </div>
-      )}
+      ) : null}
+      {hostedLoudness ? (
+        <>
+          {projectLoudnessNote}
+          {captionNote}
+        </>
+      ) : null}
 
       {options.range === false ? null : (
         <>
@@ -322,8 +389,16 @@ export function EpisodeFile({
       {exportState.phase === "stale" ? (
         <StatusRow
           state="needs-you"
-          title="Edited since export"
-          detail={`Last export ${exportState.when}`}
+          title={
+            namedFiles ||
+            exportState.staleReason === "other" ||
+            (hostedLoudness &&
+              hostedLoudness.choice !==
+                (exportState.exported.namedTarget ?? null))
+              ? "Export is out of date"
+              : "Edited since export"
+          }
+          detail={exportState.summary ?? `Last export ${exportState.when}`}
           action={{
             label: "Export again",
             onAction: onExport,
@@ -331,14 +406,21 @@ export function EpisodeFile({
           }}
         />
       ) : null}
-      {exportState.phase === "done" ? (
-        <StatusRow
-          state="done"
-          title="Exported"
-          detail={exportState.summary ?? `Last export ${exportState.when}`}
-        />
+      {exportState.phase === "done" || exportState.phase === "unconfirmed" ? (
+        <>
+          <StatusRow
+            state="done"
+            title="Exported"
+            detail={exportState.summary ?? `Last export ${exportState.when}`}
+          />
+          {exportState.phase === "unconfirmed" ? (
+            <p className="dv-note">
+              Current export settings could not be checked.
+            </p>
+          ) : null}
+        </>
       ) : null}
-      {exportState.phase === "done" && exportState.measured ? (
+      {"measured" in exportState && exportState.measured ? (
         <p className="dv-note">{exportState.measured}</p>
       ) : null}
 
@@ -350,11 +432,56 @@ export function EpisodeFile({
         />
       )}
 
-      {files ? (
-        <ExportedFiles
-          {...filesOfKinds(files, ["audio", "chapters"], running)}
-        />
+      {namedFiles ? (
+        <NamedFiles result={namedFiles} />
+      ) : files ? (
+        <>
+          {files.files.some(
+            (file) => file.kind === "audio" || file.kind === "chapters",
+          ) &&
+          (exportState.phase === "failed" ||
+            (exportState.phase === "cancelled" && !exportState.when)) ? (
+            <h3 className="dv-file-group-title">Previously exported files</h3>
+          ) : null}
+          <ExportedFiles
+            {...filesOfKinds(files, ["audio", "chapters"], running)}
+          />
+        </>
       ) : null}
     </DeliverSection>
+  );
+}
+
+function NamedFiles({ result }: { result: NamedExportFiles }) {
+  const heading = useId();
+  if (result.state === "unpublished") return null;
+  return (
+    <div className="dv-file-group" role="group" aria-labelledby={heading}>
+      <h3 className="dv-file-group-title" id={heading}>
+        {result.label}
+      </h3>
+      {result.state === "ready" ? (
+        <ExportedFiles
+          {...result.rows}
+          staleLabel="Export is out of date"
+          largeFileNote="This export includes a large file. Use Wi-Fi to download it."
+        />
+      ) : result.state === "loading" ? (
+        <p className="dv-note">Loading exported files…</p>
+      ) : (
+        <>
+          <InlineError
+            message={
+              result.state === "missing"
+                ? "Some files from this export are missing."
+                : "Exported files could not be loaded."
+            }
+          />
+          <Button variant="link" onClick={result.reload}>
+            Refresh files
+          </Button>
+        </>
+      )}
+    </div>
   );
 }

@@ -16,6 +16,7 @@ type Props = {
   /** The files the export folder holds; the feed file shows in the listing. */
   files?: DeliverFiles;
   filesRunning?: boolean;
+  exportBlockedReason?: string;
 };
 
 /** The Podcast listing on the real service: loads it, sends each edit and the write, and shows what the service answers. */
@@ -27,6 +28,7 @@ function FeedBody({
   onOpenSource,
   files,
   filesRunning = false,
+  exportBlockedReason,
 }: Props) {
   const feed = useFeed(projectPath, {
     access,
@@ -44,6 +46,7 @@ function FeedBody({
       request={feed.request}
       problem={feed.problem}
       onAction={feed.act}
+      exportBlockedReason={exportBlockedReason}
       onRetry={feed.refresh}
       onDismissProblem={feed.dismissProblem}
       onOpenSource={onOpenSource}

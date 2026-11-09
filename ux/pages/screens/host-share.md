@@ -13,7 +13,13 @@
 
 **Stop sharing** and **End room** confirm in place: the row swaps its actions for the consequence (“Stop sharing this Commenter link? Anyone using it loses access.” / “End this record room? Both guest and producer links will stop working.”) with **Keep link** / **Keep room** first and focused, and the danger action last. Escape keeps the link or room (the same as **Keep**), and focus returns to **More** (or **End room**). In the Invite sheet, a confirmed stop or end moves focus to that group's heading once the refreshed list removes the link or room.
 
-**Deliver** keeps only the **Listen link** row, in the right column after the Episode file (phone: after the Episode file, before Chapters), with the same behavior as the sheet's Listen group. After an export finishes its **Copy** button is outlined as the follow-up; Export stays the only filled button. The design system drops the old ⌘⇧C chord, so Copy listen link has no key and no palette command; the row's **Copy** is the way.
+**Deliver** keeps only the **Listen link** row, in the right column after the Episode file (phone: after the Episode file, before Chapters), with the same behavior as the sheet's Listen group. After Deliver confirms that a Project default export matches the current settings and episode, **Copy** is outlined as the follow-up. While the settings check is unavailable, the successful export still shows its summary and files and **Copy** keeps its usual appearance. A one-off named loudness export keeps the existing Listen link. Export stays the only filled button. The design system drops the old ⌘⇧C chord, so Copy listen link has no key and no palette command; the row's **Copy** is the way.
+
+In Deliver, a selected audio format that becomes unavailable stays checked and
+removable in Episode file, without a size estimate. Export and Feed repair wait
+until that choice is restored or removed. It cannot make an earlier export
+current by silently dropping the missing format. Once compatible choices return,
+Deliver checks current settings again before highlighting the Listen link.
 
 When a participant is removed, the Record stage directs the host to **Copy
 links…**. The Invite sheet marks the affected role's invite closed to new guests, disables

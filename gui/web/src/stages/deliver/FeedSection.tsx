@@ -60,6 +60,7 @@ type Props = {
   request?: WriteRequest;
   /** Every edit and command the section can start, in the vocabulary the CLI and MCP share. */
   onAction: (fix: Fix) => void;
+  exportBlockedReason?: string;
   /** Opens the stage that owns a fact the listing reads but never edits. */
   onOpenSource: (owner: SourceOwner) => void;
   /** The feed file's row, when the export folder holds one. */
@@ -84,6 +85,7 @@ export function FeedSection({
   onDismissProblem,
   request,
   onAction,
+  exportBlockedReason,
   onOpenSource,
   files,
 }: Props) {
@@ -186,8 +188,13 @@ export function FeedSection({
   };
   const focusIn = (selector: string) =>
     root.current?.querySelector<HTMLElement>(selector)?.focus();
+  const blockOf = (fix: Fix) =>
+    fixBlock(access, fix) ??
+    (fix.kind === "command" && fix.command === "export_episode"
+      ? (exportBlockedReason ?? null)
+      : null);
   const runFix = (fix: Fix) => {
-    if (fixBlock(access, fix)) return;
+    if (blockOf(fix)) return;
     const key = needsInput(fix);
     if (key !== null) {
       if (PIN_FIELDS[key]) setEditing(key);
@@ -224,7 +231,11 @@ export function FeedSection({
           ? { label: "Review", onAction: () => focusIn("[data-drift] button") }
           : undefined
         : firstFix && !fixBlock(access, firstFix)
-          ? { label: fixLabel(firstFix), onAction: () => runFix(firstFix) }
+          ? {
+              label: fixLabel(firstFix),
+              onAction: () => runFix(firstFix),
+              disabledReason: blockOf(firstFix) ?? undefined,
+            }
           : undefined;
   return (
     <DeliverSection
@@ -330,7 +341,7 @@ export function FeedSection({
           findings={view.findings}
           summary={checksSummary(view)}
           onFix={runFix}
-          blockOf={(fix) => fixBlock(access, fix)}
+          blockOf={blockOf}
           readOnly={access === "viewer"}
         />
         <div className="fd-foot">

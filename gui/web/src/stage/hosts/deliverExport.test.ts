@@ -37,10 +37,13 @@ function flowOf(over: Partial<ExportFlow> = {}): ExportFlow {
     job: null,
     settings: SETTINGS,
     settingsError: null,
+    settingsStatus: "match",
     loading: false,
     loadedGeneration: 1,
     selected: ["mp3"],
     setSelected: vi.fn(),
+    loudness: null,
+    setLoudness: vi.fn(),
     needs: null,
     request: REQUEST,
     start: vi.fn(),
@@ -98,7 +101,8 @@ describe("format sizes", () => {
 
 describe("exportOptionsOf", () => {
   it("offers the project's formats and the loudness sentence, and hides what has no backend", () => {
-    expect(exportOptionsOf(flowOf())).toEqual({
+    const options = exportOptionsOf(flowOf());
+    expect(options).toEqual({
       formats: [
         { id: "mp3", label: "MP3 · 192 kbps", bytesPerSecond: 24_000 },
         { id: "m4a", label: "M4A (AAC) · 128 kbps", bytesPerSecond: 16_000 },
@@ -108,9 +112,9 @@ describe("exportOptionsOf", () => {
       selected: ["mp3"],
       loading: false,
       settingsError: undefined,
-      loudnessNote: "Mastered to −16.0 LUFS, peaks under −1.5 dBTP.",
-      loudness: false,
-      target: "-16/-1.5",
+      loudnessNote:
+        "Project target preview is −16.0 LUFS, peaks under −1.5 dBTP.",
+      loudness: { choice: null, onChoice: expect.any(Function) },
       range: false,
       onExportAgain: undefined,
     });
@@ -137,7 +141,7 @@ describe("exportOptionsOf", () => {
     const at = (run: ExportRun) =>
       exportOptionsOf(flowOf({ run, again })).onExportAgain;
     expect(at({ kind: "failed", reason: "x" })).toBe(again);
-    expect(at({ kind: "cancelled", paths: [], finishedAt: 0 })).toBe(again);
+    expect(at({ kind: "cancelled", receipt: null, finishedAt: 0 })).toBe(again);
     expect(at({ kind: "idle" })).toBeUndefined();
     expect(at(running())).toBeUndefined();
   });
@@ -224,8 +228,14 @@ describe("exportStateOf", () => {
         flowOf({
           run: {
             kind: "done",
-            paths: ["/p/export/ep.wav", "C:\\p\\export\\ep.MP3"],
-            measured: "Measured −16.1 LUFS, true peak −1.6 dBTP.",
+            receipt: {
+              kind: "canonical",
+              appliedSettings: null,
+              paths: ["/p/export/ep.wav", "C:\\p\\export\\ep.MP3"],
+              master: {
+                measured: { integrated_lufs: -16.1, true_peak_db: -1.6 },
+              },
+            },
             finishedAt,
           },
         }),
@@ -233,6 +243,7 @@ describe("exportStateOf", () => {
       ),
     ).toEqual({
       phase: "done",
+      settingsStatus: "match",
       when: expect.stringMatching(/^at \d{1,2}:\d{2}[\s\u202f](AM|PM)$/),
       exported: REQUEST,
       summary: "Exported 2 files to export/",
@@ -247,8 +258,11 @@ describe("exportStateOf", () => {
           request: null,
           run: {
             kind: "done",
-            paths: ["/p/export/ep.wav"],
-            measured: null,
+            receipt: {
+              kind: "canonical",
+              appliedSettings: null,
+              paths: ["/p/export/ep.wav"],
+            },
             finishedAt: 0,
           },
         }),
@@ -266,7 +280,7 @@ describe("exportStateOf", () => {
   it("says a cancel wrote nothing, or came too late", () => {
     expect(
       exportStateOf(
-        flowOf({ run: { kind: "cancelled", paths: [], finishedAt: 0 } }),
+        flowOf({ run: { kind: "cancelled", receipt: null, finishedAt: 0 } }),
         0,
       ),
     ).toEqual({
@@ -278,7 +292,11 @@ describe("exportStateOf", () => {
         flowOf({
           run: {
             kind: "cancelled",
-            paths: ["/p/export/ep.mp3"],
+            receipt: {
+              kind: "canonical",
+              appliedSettings: null,
+              paths: ["/p/export/ep.mp3"],
+            },
             finishedAt: 0,
           },
         }),

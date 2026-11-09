@@ -52,6 +52,8 @@ type BounceModelNeed = ModelNeeded & BounceRequest;
  */
 export function BounceFlowProvider({ children }: { children: ReactNode }) {
   const projectPath = useDawStore((s) => s.projectPath);
+  const projectEpoch = useDawStore((s) => s.projectEpoch);
+  const activeAttempt = useRef<symbol | null>(null);
   const activityJob = useDawStore((s) => s.activityJob);
   const [run, setRun] = useState<BounceRun>({ kind: "idle" });
   const [choices, setChoices] = useState<BounceChoices>(BOUNCE_DEFAULTS);
@@ -69,10 +71,11 @@ export function BounceFlowProvider({ children }: { children: ReactNode }) {
 
   // A new project starts over, and its running bounce is no longer followed.
   useEffect(() => {
+    activeAttempt.current = null;
     setRun({ kind: "idle" });
     setChoices(BOUNCE_DEFAULTS);
     clear();
-  }, [projectPath, clear]);
+  }, [projectPath, projectEpoch, clear]);
 
   // Leaving Deliver ends this visit: a range fixed from Edit, the bounce
   // choices and a failed or cancelled outcome (its retry would bounce the whole
@@ -121,6 +124,18 @@ export function BounceFlowProvider({ children }: { children: ReactNode }) {
           range,
         });
       const scope = projectScopedSignal(path);
+      const attempt = Symbol();
+      activeAttempt.current = attempt;
+      const epoch = s.projectEpoch;
+      const isCurrent = () => {
+        const current = useDawStore.getState();
+        return (
+          activeAttempt.current === attempt &&
+          !scope.signal.aborted &&
+          current.projectPath === path &&
+          current.projectEpoch === epoch
+        );
+      };
       setRun({
         kind: "running",
         jobId: null,
@@ -130,19 +145,27 @@ export function BounceFlowProvider({ children }: { children: ReactNode }) {
       });
       try {
         const done = await runAnnouncedJob(() => startBounceJob(path, body), {
+          kind: "bounce",
           failLabel: "Bounce failed",
-          resultCopy: bounceResultCopy,
+          summarizeResult: (job) => {
+            const paths = jobResultPaths(job);
+            return job.status === "cancelled" && paths.length === 0
+              ? null
+              : { copy: bounceResultCopy(paths) };
+          },
           signal: scope.signal,
-          onStart: (job) =>
-            setRun((r) => (r.kind === "running" ? { ...r, jobId: job.id } : r)),
+          onStart: (job) => {
+            if (!isCurrent()) return;
+            setRun((r) => (r.kind === "running" ? { ...r, jobId: job.id } : r));
+          },
         });
-        if (scope.signal.aborted) return;
+        if (!isCurrent()) return;
         if (useDawStore.getState().bounceRangeTarget === range) {
           useDawStore.getState().setBounceRangeTarget(null);
         }
         setRun({ kind: "done", paths: jobResultPaths(done) });
       } catch (err) {
-        if (scope.signal.aborted) return;
+        if (!isCurrent()) return;
         if (isAbortError(err)) {
           setRun({ kind: "idle" });
         } else if (
@@ -168,6 +191,7 @@ export function BounceFlowProvider({ children }: { children: ReactNode }) {
         }
       } finally {
         scope.dispose();
+        if (activeAttempt.current === attempt) activeAttempt.current = null;
       }
     },
     [stopFor],

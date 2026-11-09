@@ -24,6 +24,7 @@ import { useStaleRenderBreakdown } from "../../hooks/useStaleRenderBreakdown";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import { useOfflineAttention } from "../../services/offlineQueue/offlineAttention";
 import { DeliverStage as DeliverStageBody } from "../../stages/deliver/DeliverStage";
+import type { NamedExportFiles } from "../../stages/deliver/deliverFiles";
 import {
   type Chapter,
   type Clip,
@@ -36,6 +37,7 @@ import { useDawStore } from "../../state/dawStore";
 import { selectedTrackIdsOf } from "../../state/selection";
 import { StatusRow } from "../../system/StatusRow";
 import { lowConfidenceStops } from "../../transcript/lowConfidence";
+import type { LoudnessId } from "../../types/pipeline";
 import type { HistoryEntryId } from "../../types/project";
 import { useCommand } from "../../ui/useCommand";
 import { mediaSignature } from "../../waveform/mediaRef";
@@ -72,7 +74,11 @@ import { openFeedSource } from "./feedSource";
 import { HostBody } from "./HostBody";
 import { hostStateOf, type LoadFailure } from "./hostModels";
 import { useShareFlow } from "./shareFlowContext";
-import { hostFileAccess, useDeliverFiles } from "./useDeliverFiles";
+import {
+  hostFileAccess,
+  namedExportFiles,
+  useDeliverFiles,
+} from "./useDeliverFiles";
 import { useEpisodePeaks } from "./useEpisodePeaks";
 import { useStallAnnouncement } from "./useStallAnnouncement";
 import { useTranscriptFlow } from "./useTranscriptFlow";
@@ -134,10 +140,19 @@ function playFrom(seconds: number) {
   void seekTransport(seconds);
 }
 
+function exportVisitPending(
+  wanted: number | null,
+  served: number,
+  initialLoading: boolean,
+): boolean {
+  return wanted === null || served < wanted || initialLoading;
+}
+
 function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
   const {
     project,
     projectPath,
+    projectEpoch,
     exportRequested,
     setExportRequested,
     bounceRequested,
@@ -153,6 +168,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     useShallow((s) => ({
       project: s.project,
       projectPath: s.projectPath,
+      projectEpoch: s.projectEpoch,
       exportRequested: s.chrome.exportRequested,
       setExportRequested: s.setExportRequested,
       bounceRequested: s.chrome.bounceRequested,
@@ -282,10 +298,18 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
   const files = useDeliverFiles(
     projectPath,
     hostFileAccess(),
-    `${project?.history.head_id}|${exportDoneAt}|${transcriptFlow.written}`,
+    `${projectEpoch}|${project?.history.head_id}|${exportDoneAt}|${transcriptFlow.written}`,
   );
   const exportRunning = exportFlow.run.kind === "running";
-  const exportDone = exportFlow.run.kind === "done";
+  const receipt = "receipt" in exportFlow.run ? exportFlow.run.receipt : null;
+  const exportDone =
+    exportFlow.run.kind === "done" && receipt?.kind === "canonical";
+  const namedFiles: NamedExportFiles | undefined =
+    receipt?.kind === "named"
+      ? namedExportFiles(receipt, files)
+      : exportFlow.request?.namedTarget
+        ? { state: "unpublished" }
+        : undefined;
   useEffect(() => {
     if (exportDone) reloadTranscript();
   }, [exportDone, reloadTranscript]);
@@ -297,31 +321,57 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     setFocusTranscript(true);
   }, [transcriptRequested, state, setTranscriptRequested]);
   const exportOptions = exportOptionsOf(exportFlow);
+  const { loadedGeneration, loading: initialSettingsLoading } = exportFlow;
+  const settingsPending = exportVisitPending(
+    wantedSettings.current,
+    loadedGeneration,
+    initialSettingsLoading,
+  );
   const formatsBlocker =
-    exportFlow.loading || exportFlow.settings === null
+    settingsPending || exportFlow.settings === null
       ? undefined
       : exportBlocker(episodeSettings, undefined, {
           wavAlwaysWritten: exportFlow.settings.wav,
           formats: exportOptions.formats,
         });
+  const feedExportBlockedReason =
+    exportBlockedReason ??
+    (settingsPending
+      ? exportBlocker(episodeSettings, undefined, { loading: true })
+      : formatsBlocker);
   const guardedStart = useCallback(
     (keys: readonly string[], request: ExportRequest) => {
-      if (formatsBlocker || exportBlockedReason) return;
+      if (
+        formatsBlocker ||
+        exportBlockedReason ||
+        exportVisitPending(
+          wantedSettings.current,
+          loadedGeneration,
+          initialSettingsLoading,
+        )
+      )
+        return;
       startExport(keys, request);
     },
-    [formatsBlocker, exportBlockedReason, startExport],
+    [
+      formatsBlocker,
+      exportBlockedReason,
+      loadedGeneration,
+      initialSettingsLoading,
+      startExport,
+    ],
   );
   const currentRequest = useCallback(
-    () =>
+    (namedTarget: LoudnessId | null) =>
       exportRequest(
         episodeSettings,
         page.clips,
         page.chapters,
         undefined,
         edits,
-        exportOptions.target,
+        namedTarget,
       ),
-    [episodeSettings, page.clips, page.chapters, edits, exportOptions.target],
+    [episodeSettings, page.clips, page.chapters, edits],
   );
   useEffect(() => {
     liveHosts += 1;
@@ -335,9 +385,6 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
       }, 0);
     };
   }, []);
-  const settingsCurrent =
-    wantedSettings.current !== null &&
-    exportFlow.loadedGeneration >= wantedSettings.current;
   useEffect(() => {
     if (exportRequested && (unsaved || offline.pending > 0))
       setExportRequested(false);
@@ -346,18 +393,17 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     if (
       !exportRequested ||
       state !== "ready" ||
-      exportFlow.loading ||
-      !settingsCurrent ||
+      settingsPending ||
       exportBlockedReason
     )
       return;
     setExportRequested(false);
-    guardedStart(chosenFormats, currentRequest());
+    guardedStart(chosenFormats, currentRequest(exportFlow.loudness));
   }, [
     exportRequested,
     state,
-    exportFlow.loading,
-    settingsCurrent,
+    exportFlow.loudness,
+    settingsPending,
     exportBlockedReason,
     setExportRequested,
     guardedStart,
@@ -519,9 +565,10 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
           initialSettings={episodeSettings}
           initialChapters={page.chapters}
           initialClips={page.clips}
-          exportState={exportStateOf(exportFlow, nowSec)}
+          exportState={exportStateOf(exportFlow, nowSec, settingsPending)}
           exportOptions={{
             ...exportOptions,
+            loading: settingsPending,
             blockedReason: exportBlockedReason,
             edits,
             onFormats: exportFlow.setSelected,
@@ -544,12 +591,14 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
                 refreshKey={`${project.history.head_id}|${exportDoneAt}`}
                 files={files}
                 filesRunning={exportRunning}
+                exportBlockedReason={feedExportBlockedReason}
                 onCommand={(fix) => {
                   if (
                     fix.kind === "command" &&
                     fix.command === "export_episode"
-                  )
-                    guardedStart(chosenFormats, currentRequest());
+                  ) {
+                    guardedStart(chosenFormats, currentRequest(null));
+                  }
                 }}
                 onOpenSource={openFeedSource}
               />
@@ -583,6 +632,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
               : undefined
           }
           files={files}
+          namedFiles={namedFiles}
           getPlayheadSec={() => useDawStore.getState().playheadSec}
           words={clipWords}
           peaks={peaks}

@@ -1,41 +1,29 @@
-import { useEffect } from "react";
-import { useDawStore } from "../state/dawStore";
+import { useEffect, useMemo, useRef } from "react";
+import { joinJobCopy } from "../state/jobCopy";
+import type { JobChipObservation } from "../state/types";
 import { useDaw } from "../state/useDaw";
 import { modelNeededOfJob, notDownloadedLine } from "../utils/apiError";
-import { joinSentences } from "../utils/format";
 import { isTerminalJobStatus } from "../utils/pipeline";
 import { pipelineStateSentence } from "../utils/pipelineProgress";
 import { plainError } from "../utils/plainError";
 
-/**
- * Speak the Activity/Pipeline chip's status in the shell's polite live region,
- * plus any job's own result copy (Bounce, Export) handed over through
- * `announceJobResult` (#704). Mounted once, by the stage frame's `StatusLive`.
- *
- * - A job registered with `expectJobResult` never gets the generic
- *   "<Kind>: ok" headline. Its caller's copy is spoken instead, so the two
- *   never race in the live region.
- * - A result for the chip's own job waits until that chip reaches a terminal
- *   status. A result for any other job (the chip has moved on) is spoken at
- *   once. Results that are ready in the same pass are joined into one
- *   announcement, because the live region holds a single message.
- * - A spoken result is dropped from the store, and its job id is remembered in the store's bounded list (`spokenJobResultIds`), not in the hook. So neither a later chip update for any spoken job (such as the running count dropping) nor a remount (desktop <-> phone shell) announces the generic headline over it.
- */
 export function useJobStatusAnnouncement(): void {
   const {
     pipelineJob,
     activityJob,
     activityRunningCount,
-    pendingJobResults,
-    announceStatus,
-    markJobResultsSpoken,
+    projectEpoch,
+    jobResultStarts,
+    jobFeedback,
+    reconcileJobAnnouncements,
   } = useDaw((s) => ({
     pipelineJob: s.pipelineJob,
     activityJob: s.activityJob,
     activityRunningCount: s.activityRunningCount,
-    pendingJobResults: s.pendingJobResults,
-    announceStatus: s.announceStatus,
-    markJobResultsSpoken: s.markJobResultsSpoken,
+    projectEpoch: s.projectEpoch,
+    jobResultStarts: s.jobResultStarts,
+    jobFeedback: s.jobFeedback,
+    reconcileJobAnnouncements: s.reconcileJobAnnouncements,
   }));
   const chipJob = activityJob ?? pipelineJob;
   const jobId = chipJob?.id;
@@ -48,68 +36,50 @@ export function useJobStatusAnnouncement(): void {
   const jobKind = chipJob?.kind;
   const chipTerminal = jobStatus != null && isTerminalJobStatus(jobStatus);
 
-  useEffect(() => {
-    if (!jobStatus) {
-      return;
-    }
-    // Read at effect time on purpose, not as dependencies: settling an entry or
-    // recording the spoken id must not re-run this effect and speak the
-    // generic headline over the copy.
-    const { pendingJobResults: pending, spokenJobResultIds } =
-      useDawStore.getState();
-    if (chipTerminal && jobId != null && spokenJobResultIds.includes(jobId)) {
-      return;
-    }
-    if (jobStatus === "ok" && jobId != null && jobId in pending) {
-      return;
-    }
+  const observation = useMemo<JobChipObservation | null>(() => {
+    if (!jobStatus) return null;
     const detail =
       jobStatus === "error"
         ? jobMessage && (modelFailed ? jobMessage : plainError(jobMessage))
         : jobStatus === "cancelled"
           ? ""
           : jobMessage;
-    announceStatus(
-      joinSentences([
+    return {
+      id: jobId,
+      kind: jobKind,
+      status: jobStatus,
+      copy: joinJobCopy([
         pipelineStateSentence({ kind: jobKind, status: jobStatus }),
         detail,
         activityRunningCount > 1 && `${activityRunningCount} activities`,
       ]),
-      { toast: false },
-    );
+    };
   }, [
-    activityRunningCount,
-    announceStatus,
-    chipTerminal,
     jobId,
     jobKind,
     jobStatus,
     jobMessage,
     modelFailed,
+    activityRunningCount,
   ]);
+  const observed = useRef<{
+    epoch: number;
+    observation: JobChipObservation | null;
+  } | null>(null);
 
   useEffect(() => {
-    const readyIds: string[] = [];
-    const messages: string[] = [];
-    for (const [id, message] of Object.entries(pendingJobResults)) {
-      if (message == null || (id === jobId && !chipTerminal)) {
-        continue;
-      }
-      readyIds.push(id);
-      messages.push(message);
-    }
-    if (readyIds.length === 0) {
-      return;
-    }
-    // One write: `statusAnnouncement` is a single field, so one write per
-    // result would keep only the last.
-    announceStatus(joinSentences(messages));
-    markJobResultsSpoken(readyIds);
+    const fresh =
+      observed.current?.epoch !== projectEpoch ||
+      observed.current.observation !== observation;
+    observed.current = { epoch: projectEpoch, observation };
+    reconcileJobAnnouncements(fresh ? observation : null, jobId, chipTerminal);
   }, [
-    announceStatus,
-    chipTerminal,
+    projectEpoch,
+    observation,
     jobId,
-    markJobResultsSpoken,
-    pendingJobResults,
+    chipTerminal,
+    jobResultStarts,
+    jobFeedback,
+    reconcileJobAnnouncements,
   ]);
 }

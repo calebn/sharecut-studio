@@ -130,6 +130,9 @@ to UX partners; for UI copy, this table wins.
 | Unsure stretch | Time in a split where the speaker is unclear. The dialog says how long and asks the host to listen there before relying on the tracks | "low confidence" in UI copy (that term is for transcript words) |
 | Bounce | Render the current mix | "export mix" |
 | Deliverables | Mastered export set | "final export" |
+| Project default | Deliver's loudness choice that uses the project's configured master for the next Episode file export | "Podcast" for the configured default |
+| Unavailable export format | A previously selected format no longer offered by the current catalog. Episode file keeps its toggle checked and removable, labels it "unavailable", and omits the size estimate. Export explains "Remove unavailable formats before exporting." | Silently removing the choice or exporting only the remaining files |
+| Named loudness export | A separate audio export using Podcast, Broadcast or Streaming loudness. The result carries the name of the choice used for that run | "Master" for a named result |
 | Stop sharing | Revoke a review link. Links don't expire, so this is how a review link ends (a date set on the CLI or MCP is the one exception) | "delete link" |
 | End room | Shut down a record room (kills guest + producer links) | "close room" |
 | Online sharing | Making this computer's review and record links reachable from the internet while it runs. Share's status line says what guests can do now, with any fix behind "How to fix" and the online sharing guide | "tunnel", "relay", "host token", "relay URL", a CLI command in UI copy |
@@ -313,7 +316,7 @@ the empty state, not a separate discovery task.
   live region speaks it, once per announcement, even when the same text
   repeats.
   Only a status that a persistent control already shows (the job chip,
-  the presence avatars, the Needs attention summary) passes
+  the presence avatars, the Needs attention summary, or a job failure row) passes
   `{ toast: false }`. Resolving a comment in the Review queue uses the same toast, with
   a `reverse` Undo that reopens the comment. A failure passes
   `{ tone: "error" }` and reads in the error look: it names what failed and the
@@ -321,6 +324,23 @@ the empty state, not a separate discovery task.
   gesture (a target armed) passes `{ gesture: true }` and clears when the
   gesture ends or the mode changes. A multi-minute
   export whose only "done" signal is invisible is a high-severity bug.
+  A receipt that cannot be verified says "Export failed. The export result
+  could not be verified. Try exporting again." The existing row shows it and
+  the shell speaks it once, including after leaving Deliver. A coincident
+  verified result keeps its own success toast; the failure does not enter it.
+  Changing the formats, encoding settings or loudness target makes the
+  Episode file "Export is out of date". "Edited since export" remains for
+  canonical edit-only staleness, including approved clips and chapters.
+  Restoring the exported choices checks the settings again. When the check
+  cannot confirm current settings, the Episode file keeps the success summary
+  and measurements and says "Current export settings could not be checked."
+  The Listen link stays unhighlighted until a check confirms a current
+  canonical export. A settings check does not announce a second success.
+  A refused Feed repair keeps the next loudness choice. An admitted repair
+  selects Project default.
+  Delayed running feedback cannot replace a delivered receipt failure. Ordinary
+  progress from a detached follower remains eligible, but cannot claim success
+  without verification. Failures are sanitized before joining unrelated progress.
   (Surface 6.)
 - **A press answers at once, and a long one says it is working.** Make the
   action fast first: a slow command is a defect to fix, not a state to
@@ -598,6 +618,11 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
 
 ## Changelog
 
+- 2026-11-08 Job receipt failures use the existing failure row and the shared
+  live region. Coincident outcomes keep their own copy, and only verified
+  results enter the success toast. Target-only export staleness uses neutral
+  wording.
+
 - 2026-10-30 Unavailable controls say what is missing (#1686): the clip and pending-edit nudges, Find's Replace and All, the track inspector's Clear clip light and a read-only boundary mark in the Script stay focusable, show their reason in text and describe themselves with it, instead of a native `disabled` with a hover title. Two reasons were rewritten to say how to fix: room tone ("Room tone starts once this device has joined the session and can store audio. Wait a moment, then try again; if it stays like this, reload the page.") and the guest audition lock ("Guest links play the Full mix only. Ask the host to play a track on its own.").
 
 - 2026-10-29 Bounce moved from a dialog into the Deliver stage (#2449): the section holds the Source choice, the region and MP3 toggles and a range fixed in Edit, shows progress with Cancel, and lists the files it wrote. **Bounce…**, `Mod+E` with a range selected, and Range actions → Bounce go to Deliver and focus it.
@@ -759,3 +784,8 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
 - 2026-10-31 — Create menu names (#2294 S7b W1): the stage's Create here menu replaces the old one, so its rows read Split here, Comment here, Add chapter here, Add volume point and Paste; "Add comment" and "Add envelope point" no longer name menu rows (the commands keep their catalog labels), and the line naming the tracks Split here cuts is gone.
 - 2026-11-01 — Prepare re-run (#2908 slice 1): audio added after a run shows its plan on the Getting ready rows ("Priya only · 3 kept", "All 4 tracks, Priya joins", "All 4 tracks" for Clean and level, "Whole episode") and the hand-off reads "Process new audio" until the run is done. Skip is for one run only and Advanced states that its switches reset when ShareCut restarts. "Apply sound actions" joins Advanced with its cost in plain units, and a finished run says "1 new · 3 reused" and "Done in 1 min 12 s. 9 of 13 results were reused, so this run did less." Terms added: Process new audio, Skip (a plan row), Apply sound actions.
 - 2026-11-05 — Record More sheet (PR 3277): More no longer has Stop take or Land. Hold the Record button to stop; Enter or Space asks once. Landing runs on its own once a recording is saved, and a failed land shows Retry on the take row in the Takes tray.
+
+- 2026-11-08 Deliver export feedback (#2455). Settings-only staleness uses
+  "Export is out of date"; canonical edit-only staleness includes approved clips
+  and chapters. A delivered receipt failure survives delayed running feedback.
+  Feed changes the next loudness choice only after a fresh export is admitted.

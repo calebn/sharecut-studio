@@ -11,6 +11,14 @@ export type DeliverFiles = {
   onStarted?: (file: ExportedFile) => void;
 };
 
+export type NamedExportFiles =
+  | { state: "unpublished" }
+  | ({ label: string } & (
+      | { state: "ready"; rows: DeliverFiles }
+      | { state: "loading" }
+      | { state: "error" | "missing"; reload: () => void }
+    ));
+
 export type FileListProps = ComponentProps<typeof ExportedFiles>;
 
 export function filesOfKinds(

@@ -1,57 +1,92 @@
 import { followJobToOk, JobCancelledError } from "../api";
 import type { PipelineJobSnapshot } from "../types/pipeline";
-import { jobResultPaths, lateCancelCopy } from "../utils/pipeline";
+import { errorMessage } from "../utils/apiError";
+import { joinSentences } from "../utils/format";
+import { lateCancelCopy } from "../utils/pipeline";
+import { plainError } from "../utils/plainError";
 import { useDawStore } from "./dawStore";
 import { seedStudioJob } from "./seedStudioJob";
+import type { AnnouncedJobKind, JobResultOwner } from "./types";
 
-/**
- * Start a job that reports its own result copy (Bounce, Export deliverables),
- * seed it onto the Activity chip, follow it to a terminal status, and hand the
- * copy to `useJobStatusAnnouncement` (#704). The job is registered with
- * `expectJobResult` before the chip sees it, so the generic "ok" headline
- * never races the copy. `onStart` receives the started job (for Cancel and
- * live progress). Resolves with the `ok` snapshot. A failure, a cancel
- * (`JobCancelledError`) or an abort settles that registration and rethrows for
- * the caller; a cancel that came after the job wrote its files announces them
- * as a late cancel instead. An abort only stops this client following the job. The server job
- * is not cancelled: it keeps running, may still write files to `export/`, and its
- * result is never announced. An abort that lands while `start()` runs throws
- * before anything is registered or seeded.
- */
 export async function runAnnouncedJob(
   start: () => Promise<PipelineJobSnapshot>,
   opts: {
+    kind: AnnouncedJobKind;
     failLabel: string;
-    resultCopy: (paths: string[]) => string;
+    summarizeResult: (job: PipelineJobSnapshot) => { copy: string } | null;
     signal?: AbortSignal;
     onStart?: (job: PipelineJobSnapshot) => void;
   },
 ): Promise<PipelineJobSnapshot> {
-  const job = await start();
-  // A project switch (or dialog close) while the start POST was in flight: the
-  // server job keeps running, but do not put it on the chip that now belongs to
-  // another project.
-  if (opts.signal?.aborted) {
-    throw new DOMException("Aborted", "AbortError");
-  }
   const s = useDawStore.getState();
-  s.expectJobResult(job.id);
-  seedStudioJob(job);
-  opts.onStart?.(job);
+  if (opts.signal?.aborted) throw new DOMException("Aborted", "AbortError");
+  const token = s.beginJobResultStart(opts.kind);
+  let owner: JobResultOwner | undefined;
+  const isCurrent = () => {
+    const current = useDawStore.getState();
+    if (opts.signal?.aborted || token.projectEpoch !== current.projectEpoch)
+      return false;
+    if (!owner) return current.jobResultStarts.has(token);
+    const record = current.jobFeedback.get(owner.jobId);
+    return record?.kind === "following" && record.owner === owner;
+  };
+  const assertCurrent = () => {
+    if (!isCurrent()) throw new DOMException("Aborted", "AbortError");
+  };
+  const release = () => s.releaseJobResultStart(token, owner);
+  opts.signal?.addEventListener("abort", release, { once: true });
   try {
-    const done = await followJobToOk(job.id, opts.failLabel, {
+    assertCurrent();
+    const job = await start();
+    assertCurrent();
+    owner = { start: token, jobId: job.id };
+    if (!s.bindJobResultStart(owner))
+      throw new DOMException("Aborted", "AbortError");
+    assertCurrent();
+    seedStudioJob(job);
+    assertCurrent();
+    opts.onStart?.(job);
+    assertCurrent();
+    const { done, cancellation } = await followJobToOk(job.id, opts.failLabel, {
       signal: opts.signal,
-    });
-    s.announceJobResult(job.id, opts.resultCopy(jobResultPaths(done)));
-    return done;
-  } catch (err) {
-    const written =
-      err instanceof JobCancelledError ? jobResultPaths(err.job) : [];
-    if (written.length) {
-      s.announceJobResult(job.id, lateCancelCopy(opts.resultCopy(written)));
-    } else {
-      s.settleJobResult(job.id);
+    }).then(
+      (done) => ({ done, cancellation: null }),
+      (err: unknown) => {
+        if (err instanceof JobCancelledError) {
+          return { done: err.job, cancellation: err };
+        }
+        throw err;
+      },
+    );
+    if (cancellation && !isCurrent()) throw cancellation;
+    assertCurrent();
+
+    let summary: { copy: string } | null;
+    try {
+      summary = opts.summarizeResult(done);
+      if (!summary && !cancellation) throw new Error(opts.failLabel);
+    } catch (error) {
+      assertCurrent();
+      s.finishJobResult(owner, {
+        kind: "failure",
+        copy: plainError(joinSentences([opts.failLabel, errorMessage(error)])),
+      });
+      throw error;
     }
-    throw err;
+    assertCurrent();
+    s.finishJobResult(
+      owner,
+      summary
+        ? {
+            kind: "verified",
+            copy: cancellation ? lateCancelCopy(summary.copy) : summary.copy,
+          }
+        : { kind: "cancelled-empty" },
+    );
+    if (cancellation) throw cancellation;
+    return done;
+  } finally {
+    opts.signal?.removeEventListener("abort", release);
+    release();
   }
 }

@@ -11,7 +11,7 @@ import { ChaptersList } from "./ChaptersList";
 import { ClipsRow } from "./ClipsRow";
 import type { ClipWord } from "./clipTrim";
 import { DeliverSection } from "./DeliverSection";
-import type { DeliverFiles } from "./deliverFiles";
+import type { DeliverFiles, NamedExportFiles } from "./deliverFiles";
 import {
   addChapterAt,
   approveClip,
@@ -57,6 +57,7 @@ export type DeliverStageProps = {
   exportState: ExportState;
   /** The files the export folder holds, shown as rows in the section that owns each. */
   files?: DeliverFiles;
+  namedFiles?: NamedExportFiles;
   clock?: { time: string; total: string };
   /** Playhead in seconds, where Add at playhead puts a chapter. */
   getPlayheadSec: () => number;
@@ -121,6 +122,7 @@ export function DeliverStage({
   saveTo,
   exportState,
   files,
+  namedFiles,
   clock = NO_CLOCK,
   getPlayheadSec,
   words,
@@ -187,14 +189,14 @@ export function DeliverStage({
     ? "Still loading."
     : exportBlocker(settings, exportState, exportOptions);
   const edits = exportOptions?.edits;
-  const target = exportOptions?.target;
+  const hostedLoudness = exportOptions?.loudness;
   const request = exportRequest(
     settings,
     clips,
     chapters,
     undefined,
     edits,
-    target,
+    hostedLoudness ? hostedLoudness.choice : undefined,
   );
   const shownState = currentExportState(exportState, request);
   const exporting = shownState.phase === "running";
@@ -373,6 +375,7 @@ export function DeliverStage({
               saveTo={saveTo}
               exportState={shownState}
               files={files}
+              namedFiles={namedFiles}
               state={sharedState}
               dock={phone}
               hasTranscriptSection={Boolean(transcript)}
@@ -404,7 +407,7 @@ export function DeliverStage({
             ) : (
               <DeliverSection title="Listen link">
                 {listen({
-                  highlight: shownState.phase === "done",
+                  highlight: shownState.phase === "done" && !namedFiles,
                   phone,
                 })}
               </DeliverSection>

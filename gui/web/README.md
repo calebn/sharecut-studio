@@ -196,6 +196,16 @@ alert roles on the caller's content so each screen retains its own semantics.
 
 ## API adapters
 
+The hosted Deliver controls live in `stage/hosts/exportFlow.tsx`. One private
+control record distinguishes configured formats from keys selected by the operator.
+Catalog reloads update availability and encoder records without replacing operator
+choices. A fresh submission captures the input owner once. Model resume carries
+that submission unchanged. Admission can update loudness only while that owner
+still holds the controls. Read invalidation retains its separate lifecycle guards.
+Unavailable selected keys stay visible in Episode file and block fresh exports.
+`Stages/Deliver/EpisodeFile/UnavailableFormat` exercises removal through the
+existing toggle callback without inventing a size estimate.
+
 `src/api.ts` is the stable named export facade used by components and tests. Domain adapters live in `src/api/`: project and media, waveform, document edits, pipeline and export jobs, shares and recording, bootstrap and diagnostics, comments, and session media. Internal adapters import each other directly rather than importing the facade. Files outside `src/api/` import the facade, not an `api/*` module; `state/readmeRuleGovernance.test.ts` fails a new direct import and allowlists today's 26 file and adapter pairs (24 files). Document commands pass through `src/services/commandQueue.ts` and `src/api/documentTransport.ts` so host and guest queue semantics stay shared.
 
 `src/commands/register.ts` is the stable DAW command registration facade. It calls focused registrars for navigation, editing, view, history, host operations, and project/media in the original order. Each registrar adds handlers to the one map in `src/commands/execute.ts`; `src/keymap/listener.ts` remains the only window shortcut listener inside a project; Home is not a project, so `src/stages/home/useHomeKeys.ts` (Mod+I, R, Mod+O, ?) is the one window listener there; its `?` and the Help button open the command palette that `CheatsheetDialogs scope="home"` mounts on Home, which lists only the catalog commands marked `home: true` and opens on its Help group (`help.diagnosticsBundle`, `help.guides`, Gestures). `src/commands/stageHandoff.ts` holds the open stage's hand-off button action for `stage.handoff` (Mod+Enter): a stage offers it with `offerStageHandoff`, Prepare today. The Edit stage's Action bar verbs (Hear, Split, Keep, Mute, Inspect, More, Cut) are registered by `src/commands/editVerbs.ts`, which also holds the bar's wording and gates (`barModelOf`); `src/stage/edit/EditActionBar.tsx` only renders them. The track/clip mutation queue is shared through `src/commands/trackMutation.ts`. `src/commands/singleFlight.ts` supplies one-slot guards for transcript ignore, Tighten mutations, and deliverables export. Each registrar keeps its own validation order and busy result. Project open/new retain their bespoke guards because they return success while busy and New holds its guard through a retry window. Tests reset the shared guards through the registration facade.
@@ -518,6 +528,36 @@ Store reads: read the DAW store only through `useDaw(selector)` (`state/useDaw.t
 Hot fields (`playheadSec`, `scrollLeft`, `sessionClients`, `pointerTrackId`, `splitHoverSec`) change every playhead/scroll/presence frame; only a memoized leaf may select one directly (e.g. a leaf under `stage/frame/`), and a handler that only needs the value at call time reads `useDawStore.getState()` inside the callback instead. `state/storeGovernance.test.ts`'s `HOT_FIELD_ALLOWLIST` names every file allowed to select one, each with a reason; a whole-source scan fails on any other file that does (any `s.<field>` read, or a selector that reads one off its parameter under any name or destructures it, nested patterns included: an arrow or `function` (with or without a return-type annotation) passed inline to `useDaw`/`useDawStore`/`useShallow`, or a hoisted one whose parameter's type names `DawState`; brackets inside strings, template literals and comments are ignored). See `docs/gui-integration.md` § Render isolation for the full leaf list, the per-lane overlay slices (`timeline/laneOverlaySlices.ts`), and `document/reuseUnchanged.ts`.
 
 The DAW state is one Zustand store (`state/dawStore.ts`) composed from project, transport, presence, and UI slice creators. Cross-slice actions such as `hydrate()` and `applyAgentSession()` use one store update so subscribers see a consistent snapshot. Mounted timeline and lane elements and the fixed-playhead lead pad live in `state/timelineViewportRegistry.ts`, outside reactive state; timeline mount/unmount code registers and clears them. Keep new DOM refs out of store slices, and keep `timelineViewportWidth` as the reactive measured/estimated value. Create no other Zustand store; `state/readmeRuleGovernance.test.ts` allows `state/dawStore.ts` plus the two stores that exist today (`feedback/ask.ts`, `record/hostStore.ts`). Only `document/` and `state/projectSlice.ts` call `setProject(`; `state/setProjectGovernance.test.ts` allowlists the one call in one other file (`timeline/precision/precisionDrivers.ts`). Queued envelope, track metadata, track reorder and clip move edits show through the pending drafts instead: the queue begins the draft before its first await, and the writer calls `redisplayDrafts()` (`document/applyDocumentUpdate.ts`). Layer order and back edges are pinned by `test/importDirection.test.ts`. The editor reaches `record/` only through `record/index.ts` (store, wire, transport chip, helpers); `record/boundary.test.ts` fails any other import from outside `record/` (tests, stories, `test/` support and the `api/sharesRecord.ts` leaf types are exempt).
+
+Job result ownership stays in `state/uiSlice.ts`. `runAnnouncedJob` keeps its
+`export` or `bounce` kind and reserves a token before the POST. Only the returned
+ID binds that token, before Activity is seeded. Each ID has one `jobFeedback`
+record: deferred generic success, Prepare's known-ID expectation, an owned follow,
+a ready verified result or receipt failure, a delivered receipt failure, or an
+unverified outcome.
+
+`useJobStatusAnnouncement` submits fresh chip copy and the current chip position
+to one `reconcileJobAnnouncements` transaction. Resource changes submit no new
+chip observation. Deferred successes retain their original blockers and observed
+copy, including the count. Reconciliation collects, publishes and consumes ready
+copy in one live-region write. A failure replaces progress for that job while
+other jobs' copy survives. A delivered receipt failure suppresses later generic
+chip copy for that job until project reset, including progress, success, errors
+and cancellation.
+Each failure fragment is sanitized before joining trusted progress, with one
+sentence boundary between fragments. Only verified fragments enter the success toast.
+Failures use their existing row while mounted and reach the shell's live region
+even away from Deliver. Distinct owned outcomes advance the live sequence even
+when their text matches; public `announceStatus` retains its repeat policy.
+
+Prepare keeps `expectJobResult`, `markJobResultsSpoken` and `settleJobResult`.
+The spoken history, bounded to 16 IDs, records delivered verified results and Prepare
+acknowledgements. Generic delivery does not enter it. Abort releases an unknown-ID
+token immediately, including during a hung POST. Bound abort and follower failure
+leave that ID unverified until project reset, independent of spoken-history
+rollover. Ready copy survives cleanup. Exact owner and project-epoch checks keep
+old callbacks from publishing or releasing a newer run. A captured cancellation
+keeps its original error object if abort or reset precedes its continuation.
 
 Mutations: prefer `hooks/useProjectMutation()` (`busy` / `error` / `run` / `refresh`) over local try/catch boilerplate. A file that declares its own `[error, setError] = useState` and also calls the API fails `state/readmeRuleGovernance.test.ts` unless it is one of the 13 allowlisted files.
 
