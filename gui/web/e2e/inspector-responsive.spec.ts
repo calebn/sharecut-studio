@@ -165,18 +165,19 @@ test.describe("root32 phone envelope keyboard restoration", () => {
           await page.keyboard.press("Enter");
           await expect(dialog).toBeHidden();
           await expect(point).toBeFocused();
+          await visibleFocus(point, receipts, "keyboard-point-returned");
+          await captureInspector(
+            page,
+            info,
+            receipts,
+            "keyboard-restoration-terminal",
+          );
           expect(observer.commands).toHaveLength(terminalCommands);
           expect(envelopeSnapshot(projectPath, track.id).history).toEqual(
             terminalHistory,
           );
           expect(envelopeSnapshot(projectPath, track.id).points).toEqual(
             saved.points,
-          );
-          await captureInspector(
-            page,
-            info,
-            receipts,
-            "keyboard-restoration-terminal",
           );
         } finally {
           await observer.retain();
