@@ -64,12 +64,14 @@ for (const { cell: rootFont, theme, reducedMotion } of withAppearance([
             .getByRole("textbox", { name: "Name", exact: true });
           await expect(name).toHaveValue(track.label);
 
-          const speaker = body.getByRole("textbox", {
-            name: "Speaker",
+          const people = body.getByRole("radiogroup", {
+            name: "Who is this voice?",
             exact: true,
           });
-          await speaker.scrollIntoViewIfNeeded();
-          await expect(speaker).toBeVisible();
+          await people.scrollIntoViewIfNeeded();
+          await expect(
+            people.getByRole("radio", { checked: true }),
+          ).toHaveCount(1);
 
           const kind = body.getByRole("group", { name: "Kind", exact: true });
           await kind.scrollIntoViewIfNeeded();

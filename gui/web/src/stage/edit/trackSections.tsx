@@ -1,4 +1,4 @@
-import { type KeyboardEvent, useEffect, useState } from "react";
+import { useEffect } from "react";
 import { setEffectBypass } from "../../api";
 import { executePointerCommand } from "../../commands/pointer";
 import { useTrackMetaMutation } from "../../hooks/useTrackMetaMutation";
@@ -28,6 +28,7 @@ import { splitSpeakersBlocker } from "../../utils/speakerSplit";
 import { note } from "./sheetNote";
 import { TrackKindControl } from "./TrackKindControl";
 import { TrackLevelNote } from "./TrackLevelNote";
+import { AddTrackPerson, TrackPerson } from "./TrackPerson";
 import { kindOf, roleForKind, TRACK_KINDS } from "./trackKind";
 
 export function useTrackSections(
@@ -58,9 +59,7 @@ export function useTrackSections(
   const { busy, error, setError, run, saveMetaFields } = useTrackMetaMutation(
     trackId ?? "",
   );
-  const [speaker, setSpeaker] = useState(track?.speaker ?? "");
   useEffect(() => {
-    setSpeaker(track?.speaker ?? "");
     setError(null);
   }, [track?.id, track?.speaker, setError]);
   if (trackId === null) return null;
@@ -81,18 +80,35 @@ export function useTrackSections(
   const splitBlocker = splitSpeakersBlocker(track, hostCanSplit);
   const busyReason = busy ? BUSY_REASON : undefined;
 
-  const saveSpeaker = async () => {
-    const next = speaker.trim() || undefined;
-    if (next === (track.speaker ?? undefined)) return;
-    await saveMetaFields({ speaker: next });
-  };
-
-  const commitText = {
-    onBlur: () => void saveSpeaker(),
-    onKeyDown: (e: KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Enter") e.currentTarget.blur();
-    },
-  };
+  const sendSpeaker = (speaker: string) => void saveMetaFields({ speaker });
+  const voice = kindOf(track.role) === "voice";
+  const personRows = !voice
+    ? []
+    : mayIngest
+      ? [
+          {
+            id: "person",
+            control: (
+              <TrackPerson
+                track={track}
+                tracks={project?.tracks ?? []}
+                onPick={sendSpeaker}
+              />
+            ),
+          },
+          {
+            id: "addPerson",
+            control: (
+              <AddTrackPerson
+                tracks={project?.tracks ?? []}
+                onPick={sendSpeaker}
+              />
+            ),
+          },
+        ]
+      : track.speaker
+        ? [{ id: "person", label: "Person", control: track.speaker }]
+        : [];
 
   const kindRow = {
     id: "kind",
@@ -134,24 +150,8 @@ export function useTrackSections(
     {
       id: "track",
       rows: [
+        ...personRows,
         kindRow,
-        ...(mayIngest
-          ? [
-              {
-                id: "speaker",
-                label: "Speaker",
-                control: (
-                  <input
-                    className="track-sheet-field"
-                    aria-label="Speaker"
-                    value={speaker}
-                    onChange={(e) => setSpeaker(e.target.value)}
-                    {...commitText}
-                  />
-                ),
-              },
-            ]
-          : []),
         {
           id: "level",
           label: "Level",

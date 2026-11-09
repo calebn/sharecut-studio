@@ -6949,6 +6949,10 @@ input.sys-edit-fix {
   min-inline-size: 0;
 }
 
+.sys-inspector-slot > .sys-picker {
+  flex: 1 1 auto;
+}
+
 .sys-inspector--phone {
   position: absolute;
   z-index: 1;
