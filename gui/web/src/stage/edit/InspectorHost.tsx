@@ -352,7 +352,7 @@ function Phone({
       16;
     const short = room * SHEET_FULL < DOCK_ROOM_REM * rootPx;
     setTight(short);
-    if (short && room > 0 && !chosen.current) setDetent("full");
+    if (room > 0 && !chosen.current) setDetent(short ? "full" : "half");
   }, [lanes]);
   useLayoutEffect(fit, [fit]);
   useResizeObserver(lanes, fit);
