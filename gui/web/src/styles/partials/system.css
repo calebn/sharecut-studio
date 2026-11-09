@@ -5388,7 +5388,12 @@ input.sys-edit-fix {
 }
 
 .sys-picker-renaming {
+  flex-wrap: wrap;
   cursor: default;
+}
+
+.sys-picker-renaming .inline-error {
+  flex: 1 1 100%;
 }
 
 .ui-dialog-root--anchored > .command-palette-panel.sys-speaker-panel {

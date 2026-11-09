@@ -8,7 +8,7 @@ import { openPhoneTimeline, rememberInspectorDetent } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
 import { openHostShare } from "./shareNavigation";
 import { setTheme, withAppearance } from "./theme";
-import { trackHeaderButton } from "./trackHeader";
+import { trackHeaderButton, trackHeaderButtons } from "./trackHeader";
 
 const SHELLS = [
   { shell: "phone", viewport: { width: 360, height: 800 } },
@@ -32,12 +32,18 @@ for (const { shell, viewport } of SHELLS) {
           async (projectPath) => {
             const track = envelopeTrack(projectPath);
             const metaWrites: string[] = [];
+            const reorderWrites: string[] = [];
             page.on("request", (request: Request) => {
               if (
                 request.method() === "POST" &&
                 (request.postData() ?? "").includes("SetTrackMeta")
               )
                 metaWrites.push(request.postData() ?? "");
+              if (
+                request.method() === "POST" &&
+                (request.postData() ?? "").includes("ReorderTrack")
+              )
+                reorderWrites.push(request.postData() ?? "");
             });
             if (shell === "phone") await rememberInspectorDetent(page, "full");
             await openHostShare(page, projectPath);
@@ -91,10 +97,17 @@ for (const { shell, viewport } of SHELLS) {
             const current = people.getByRole("radio", { name: /reference/ });
             await expect(current).toHaveAttribute("aria-checked", "true");
             await expect(current).toBeFocused();
+            const laneOrder = () => trackHeaderButtons(page).allTextContents();
+            const lanesBefore = await laneOrder();
             await page.keyboard.press("ArrowDown");
             await expect(
               people.getByRole("radio", { name: /guest/ }),
             ).toBeFocused();
+            await page.keyboard.press("ArrowUp");
+            await expect(current).toBeFocused();
+            await page.keyboard.press("ArrowDown");
+            expect(await laneOrder()).toEqual(lanesBefore);
+            expect(reorderWrites).toEqual([]);
             await expect(current).toHaveAttribute("aria-checked", "true");
             expect(metaWrites).toEqual([]);
             await expectPageAxeClean(page, ".sys-inspector");

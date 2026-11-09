@@ -166,6 +166,26 @@ describe("PersonPicker apply on activate", () => {
     expect(screen.getByRole("radio", { name: /^Maya/ })).toHaveFocus();
   });
 
+  it("keeps the ring-moving keys from bubbling to shortcuts above the picker", async () => {
+    const reached = vi.fn();
+    render(
+      <div onKeyDown={(event) => reached(event.key)}>
+        <PersonPicker
+          apply="activate"
+          people={PEOPLE}
+          currentId="maya"
+          onPick={vi.fn()}
+        />
+      </div>,
+    );
+    await userEvent.tab();
+    reached.mockClear();
+    await userEvent.keyboard("{ArrowDown}{ArrowUp}{Home}{End}");
+    expect(reached).not.toHaveBeenCalled();
+    await userEvent.keyboard("a");
+    expect(reached).toHaveBeenCalledWith("a");
+  });
+
   it("moves the focus ring with the arrows, Home and End and picks nobody", async () => {
     const { onPick } = setup();
     await userEvent.tab();
