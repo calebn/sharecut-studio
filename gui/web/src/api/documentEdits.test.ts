@@ -43,7 +43,7 @@ beforeEach(() => {
 
 describe("restoreAppliedEdit", () => {
   it("sends the id list and a real run", async () => {
-    await restoreAppliedEdit("/tmp/ep", "alog_1");
+    await restoreAppliedEdit("/tmp/ep", ["alog_1"]);
     expect(submitQueuedDocumentCommand).toHaveBeenCalledWith(
       "/tmp/ep",
       "RestoreAppliedEdit",
@@ -63,7 +63,7 @@ describe("restoreAppliedEdit", () => {
         },
       },
     });
-    await expect(restoreAppliedEdit("/tmp/ep", "alog_1")).rejects.toThrow(
+    await expect(restoreAppliedEdit("/tmp/ep", ["alog_1"])).rejects.toThrow(
       "Track gone.",
     );
   });
@@ -75,7 +75,7 @@ describe("restoreAppliedEdit", () => {
         { code: "overlapped_by_later", message: "A later mute overlaps." },
       ],
     });
-    await expect(restoreAppliedEdit("/tmp/ep", "alog_1")).rejects.toThrow(
+    await expect(restoreAppliedEdit("/tmp/ep", ["alog_1"])).rejects.toThrow(
       "A later mute overlaps.",
     );
   });

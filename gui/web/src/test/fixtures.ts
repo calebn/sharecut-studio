@@ -11,6 +11,7 @@ import type { PipelineJobSnapshot } from "../types/pipeline";
 import {
   type AppliedEditRecord,
   type ClipRow,
+  type EditBoundaryView,
   HISTORY_ROOT_ID,
   type PendingEditView,
   type ProjectView,
@@ -359,4 +360,30 @@ export function sessionSuggestionView(
     selected_take: null,
     ...overrides,
   };
+}
+
+/** The boundary row the server derives for a neighbouring clip pair (`mapper.map_edit_boundaries`). */
+export function editBoundary(
+  left: ClipRow,
+  right: ClipRow,
+  overrides: Partial<EditBoundaryView> = {},
+): EditBoundaryView {
+  const cutaway = right.source_start - left.source_end;
+  return {
+    id: `eb:${left.id}:${right.id}`,
+    track_id: left.track_id,
+    left_clip_id: left.id,
+    right_clip_id: right.id,
+    timeline_join_sec: left.timeline_end,
+    cutaway_source_start: left.source_end,
+    cutaway_source_end: Math.max(left.source_end, right.source_start),
+    has_cutaway: cutaway > 1e-9,
+    cutaway_word_ids: [],
+    ...overrides,
+  };
+}
+
+/** One boundary row per neighbouring pair on a lane. */
+export function editBoundaries(lane: readonly ClipRow[]): EditBoundaryView[] {
+  return lane.slice(1).map((right, i) => editBoundary(lane[i], right));
 }

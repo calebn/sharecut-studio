@@ -32,7 +32,7 @@ export function AppliedEdit({ rec }: { rec: AppliedEditRecord }) {
   const restore = () =>
     run(async () => {
       try {
-        await restoreAppliedEdit(projectPath, rec.id);
+        await restoreAppliedEdit(projectPath, [rec.id]);
       } catch (e) {
         // The server's view of this record moved; re-project so Restore is not stale.
         await refresh().catch(() => undefined);

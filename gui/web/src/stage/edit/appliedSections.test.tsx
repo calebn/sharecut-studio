@@ -45,7 +45,7 @@ describe("applied edit sheet content", () => {
     );
     await expectNoA11yViolations(container);
     await user.click(screen.getByRole("button", { name: "Restore" }));
-    expect(restoreAppliedEdit).toHaveBeenCalledWith("/tmp/p.json", "edit-1");
+    expect(restoreAppliedEdit).toHaveBeenCalledWith("/tmp/p.json", ["edit-1"]);
     expect(useDawStore.getState().selection).toBeNull();
   });
 
@@ -111,7 +111,7 @@ describe("applied edit sheet content", () => {
       <AppliedEdit rec={appliedEditRecord({ restore: { state: "ready" } })} />,
     );
     await user.click(screen.getByRole("button", { name: "Restore" }));
-    expect(restoreAppliedEdit).toHaveBeenCalledWith("share:token", "edit-1");
+    expect(restoreAppliedEdit).toHaveBeenCalledWith("share:token", ["edit-1"]);
     expect(screen.queryByText(/current access/)).not.toBeInTheDocument();
   });
 
@@ -155,7 +155,7 @@ describe("applied edit sheet content", () => {
       />,
     );
     await user.click(screen.getByRole("button", { name: "Restore" }));
-    expect(restoreAppliedEdit).toHaveBeenCalledWith("/tmp/p.json", "edit-1");
+    expect(restoreAppliedEdit).toHaveBeenCalledWith("/tmp/p.json", ["edit-1"]);
     expect(useDawStore.getState().selection).toBeNull();
   });
 

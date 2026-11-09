@@ -29,13 +29,11 @@ import {
   canManageProjects,
   canReviewPendingEdit,
   hasShareCapability,
-  isShareProjectKey,
   rangeEditMode,
 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { inspectorOpenFor, selectedClipIdsOf } from "../state/selection";
 import type { PendingRecordTarget } from "../state/stageSlice";
-import { transportAvailability } from "../state/transportAvailability";
 import type { BarItem } from "../system/actionBarSlots";
 import { type BarId, resolveBar } from "../system/editActionSets";
 import type { ProjectView, Selection } from "../types/project";
@@ -45,22 +43,19 @@ import {
   capturePendingReview,
   finishPendingReview,
 } from "../utils/pendingReviewPass";
-import { playTimelineRange } from "../utils/playRange";
 import { oneWordOf, wordSelection } from "../utils/rangeSelect";
 import {
   siblingSplitLanes,
   speakerLaneMoveTarget,
 } from "../utils/speakerSplit";
-import { staleRenderBreakdown } from "../utils/staleRender";
 import { runDeleteClips } from "./editing";
 import { inProject, removeEnvelopePoint } from "./envelopes";
 import { registerCommand } from "./execute";
 import { decideThroughSheet, sheetBusyReason } from "./pendingDecision";
+import { playSpan } from "./playSpan";
 import { executePointerCommand } from "./pointer";
 import {
-  PLAY_DENIED_REASON,
   PLAY_FULL_MIX_LABEL,
-  PLAY_STALE_REASON,
   rangeActionDescriptors,
   runRangeAction,
 } from "./rangeActions";
@@ -107,32 +102,6 @@ export function currentEditFacts(
   s: DawState = useDawStore.getState(),
 ): EditFacts | null {
   return editFactsOf(s);
-}
-
-function playGate(s: DawState): string | null {
-  const reason = transportAvailability(s).togglePlay;
-  if (reason !== undefined) return reason;
-  const guest = isShareProjectKey(s.projectPath) || s.guestMode !== null;
-  if (guest && !hasShareCapability(s.shareCapabilities, "play"))
-    return PLAY_DENIED_REASON;
-  if (guest && staleRenderBreakdown(s.project).stale) return PLAY_STALE_REASON;
-  return null;
-}
-
-function playSpan(start: number, end: number, padSec: number): ExecuteResult {
-  const s = useDawStore.getState();
-  const reason = playGate(s);
-  if (reason) return disabled(reason);
-  playTimelineRange({
-    start,
-    end,
-    padSec,
-    beginAudition: s.beginAudition,
-    setPlayheadSec: (sec) => void seekTransport(sec),
-    setPlayUntilSec: s.setPlayUntilSec,
-    setIsPlaying: s.setIsPlaying,
-  });
-  return OK;
 }
 
 const HEAR_PAD_SEC = 1;

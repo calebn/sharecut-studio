@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { appliedEditRecord, clipRow, minimalProject } from "../test/fixtures";
+import {
+  appliedEditRecord,
+  clipRow,
+  editBoundary,
+  minimalProject,
+} from "../test/fixtures";
 import type {
   AppliedEditRecord,
   ClipRow,
@@ -10,33 +15,12 @@ import {
   type CutSeam,
   keepPlan,
   seamById,
-  seamIdOf,
   seamsOnTrack,
   seamTitle,
   UNDO_IN_HISTORY,
 } from "./seam";
 
 const TRACK = "mira-voice";
-
-function boundary(
-  left: ClipRow,
-  right: ClipRow,
-  overrides: Partial<EditBoundaryView> = {},
-): EditBoundaryView {
-  const cut = right.source_start - left.source_end;
-  return {
-    id: seamIdOf(left, right),
-    track_id: TRACK,
-    left_clip_id: left.id,
-    right_clip_id: right.id,
-    timeline_join_sec: left.timeline_end,
-    cutaway_source_start: left.source_end,
-    cutaway_source_end: Math.max(left.source_end, right.source_start),
-    has_cutaway: cut > 1e-9,
-    cutaway_word_ids: [],
-    ...overrides,
-  };
-}
 
 function removal(
   id: string,
@@ -63,7 +47,8 @@ function project(
   boundaries?: EditBoundaryView[],
 ): ProjectView {
   const rows =
-    boundaries ?? clips.slice(1).map((right, i) => boundary(clips[i], right));
+    boundaries ??
+    clips.slice(1).map((right, i) => editBoundary(clips[i], right));
   return minimalProject({
     clips: { tracks: { [TRACK]: clips }, clip_count: clips.length },
     edit_boundaries: rows,
@@ -184,9 +169,9 @@ describe("seamsOnTrack", () => {
         [A, B, c, d],
         [record],
         [
-          boundary(A, B),
-          boundary(B, c, { has_cutaway: false }),
-          boundary(c, d),
+          editBoundary(A, B),
+          editBoundary(B, c, { has_cutaway: false }),
+          editBoundary(c, d),
         ],
       ),
       TRACK,
@@ -211,7 +196,7 @@ describe("seamsOnTrack", () => {
   });
 
   it("takes the join second from the clip rows when the boundary row is stale", () => {
-    const stale = boundary(SPLIT_L, SPLIT_R, { timeline_join_sec: 1 });
+    const stale = editBoundary(SPLIT_L, SPLIT_R, { timeline_join_sec: 1 });
     const rolled = { ...SPLIT_L, timeline_end: 5.2 };
     const seams = seamsOnTrack(project([rolled, SPLIT_R], [], [stale]), TRACK);
     expect(seams[0].joinSec).toBe(5.2);
@@ -227,7 +212,7 @@ describe("seamById", () => {
   it("finds a seam and drops one whose pair is gone", () => {
     const view = project([SPLIT_L, SPLIT_R]);
     expect(seamById(view, "eb:s1:s2")?.kind).toBe("split");
-    const merged = project([SPLIT_L], [], [boundary(SPLIT_L, SPLIT_R)]);
+    const merged = project([SPLIT_L], [], [editBoundary(SPLIT_L, SPLIT_R)]);
     expect(seamById(merged, "eb:s1:s2")).toBeNull();
     expect(seamById(view, "eb:nope:nope")).toBeNull();
   });
