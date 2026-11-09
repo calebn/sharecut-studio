@@ -955,6 +955,32 @@ it("holds A with nothing selected to hear the original and lets go to restore", 
   expect(runs()).toHaveLength(2);
 });
 
+it.each([
+  ["clip", { kind: "clip", id: "c1", trackId: "host" }],
+  [
+    "word",
+    {
+      kind: "transcriptRange",
+      trackId: "host",
+      startWordIndex: 1,
+      endWordIndex: 2,
+    },
+  ],
+  ["seam", { kind: "applied", id: "edit-1", trackId: "host" }],
+  ["track", { kind: "track", trackId: "host" }],
+] as const)(
+  "holds A with a %s selected to hear the original",
+  async (_name, selection) => {
+    useDawStore.setState({ selection: selection as never });
+    render(<KeymapHost />);
+    const canvas = screen.getByTestId("canvas");
+    expect(await press(canvas, A)).toEqual(["transport.hearOriginal"]);
+    expect(runs()).toEqual([[{ on: true }]]);
+    await keyUp(canvas, A);
+    expect(runs()).toEqual([[{ on: true }], [{ on: false }]]);
+  },
+);
+
 it("releases A on the physical key even when Option changes the key to a symbol", async () => {
   render(<KeymapHost />);
   const canvas = screen.getByTestId("canvas");
