@@ -109,18 +109,49 @@ html[data-shell="phone"]
   font-size: var(--font-size-heading);
 }
 
-.command-palette-hint {
-  margin: 0 0 var(--space-4);
-  font-size: var(--font-size-body);
-  color: var(--color-text-secondary);
+/* DLG-PALETTE: a 560 px card 20% from the top. The compound selector keeps
+   every other Dialog on the shared placement. */
+.command-palette-panel.command-palette-dialog {
+  align-self: start;
+  width: min(35rem, calc(100vw - 2rem));
+  margin-block-start: calc(20dvh);
+  max-height: min(40rem, calc(80dvh - var(--space-5)));
 }
 
-.command-palette-hint kbd {
-  font-size: var(--font-size-small);
+/* Tablet keeps the card instead of the shared bottom sheet. */
+html[data-shell="tablet"]
+  .ui-dialog-root:not(.ui-dialog-root--anchored)
+  > .command-palette-panel.command-palette-dialog {
+  width: min(35rem, calc(100vw - 2rem));
+  max-height: min(40rem, calc(80dvh - var(--space-5)));
+  padding-bottom: var(--space-6);
+  border-width: 1px;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-modal);
 }
 
-.command-palette-dialog {
-  width: min(36rem, calc(100vw - 2rem));
+/* Phone: a full-height sheet with Search first. */
+html[data-shell="phone"]
+  .ui-dialog-root:not(.ui-dialog-root--anchored)
+  > .command-palette-panel.command-palette-dialog {
+  align-self: stretch;
+  margin: 0;
+  width: 100%;
+  height: 100dvh;
+  max-height: none;
+  padding-top: calc(var(--space-4) + env(safe-area-inset-top));
+  border-width: 0;
+  border-radius: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html[data-shell="tablet"]
+    .ui-dialog-root:not(.ui-dialog-root--anchored)
+    > .command-palette-panel.command-palette-dialog {
+    animation:
+      fade-in var(--motion-panel) var(--motion-ease-out) both,
+      rise-in var(--motion-panel) var(--motion-ease-out) both;
+  }
 }
 
 .command-palette-search {
@@ -141,29 +172,10 @@ html[data-shell="phone"]
   outline-offset: var(--focus-ring-offset);
 }
 
-.command-palette-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin-bottom: var(--space-3);
-}
-
 .command-palette-count {
   margin: 0;
   font-size: var(--font-size-small);
   color: var(--color-text-secondary);
-}
-
-.command-palette-remap-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-block-size: var(--touch-min);
-  font-size: var(--font-size-ui);
-  opacity: 0.85;
-  cursor: pointer;
 }
 
 .command-palette-empty {
@@ -186,26 +198,6 @@ html[data-shell="phone"]
   opacity: 0.7;
 }
 
-.command-palette-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.command-palette-list li {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1) var(--space-3);
-  min-block-size: var(--touch-min);
-  padding: var(--space-1) var(--space-3);
-  border-bottom: 1px solid var(--color-border-subtle);
-}
-
-.command-palette-remap-row .command-palette-label {
-  flex: 1 1 12rem;
-}
-
 .command-palette-option {
   display: flex;
   flex-wrap: wrap;
@@ -217,6 +209,14 @@ html[data-shell="phone"]
   cursor: pointer;
 }
 
+/* 36 px rows for a fine pointer; touch keeps --touch-min. */
+@media (pointer: fine) {
+  .command-palette-dialog .command-palette-option {
+    min-block-size: 2.25rem;
+    padding-block: var(--space-1);
+  }
+}
+
 @media (hover: hover) and (pointer: fine) {
   .command-palette-option:hover:not([aria-disabled="true"]) {
     background: var(--color-hover);
@@ -224,7 +224,8 @@ html[data-shell="phone"]
 }
 
 /* The command Enter runs: Search keeps focus, so mark it like a focused row. */
-.command-palette-option[aria-selected="true"] {
+.command-palette-option[aria-selected="true"],
+.command-palette-option[data-remap-open] {
   background: var(--color-hover);
   box-shadow: inset 0 0 0 var(--focus-ring-width) var(--color-accent);
 }
@@ -267,7 +268,7 @@ html[data-shell="phone"]
 }
 
 .command-palette-option-main kbd,
-.command-palette-remap-row kbd {
+.command-palette-gesture {
   flex: none;
   font-size: var(--font-size-ui);
   color: var(--color-text-secondary);
@@ -286,6 +287,10 @@ html[data-shell="phone"]
   gap: var(--space-3);
   font-size: var(--font-size-small);
   opacity: 0.85;
+}
+
+.command-palette-option[data-remap-open] .command-palette-remap {
+  flex: 1 1 100%;
 }
 
 .command-palette-remap input {
