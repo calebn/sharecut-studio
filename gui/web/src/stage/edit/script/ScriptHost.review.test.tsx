@@ -8,6 +8,7 @@ import {
   scriptUtterances,
   scriptWord,
   seedScript,
+  transcribeRun,
 } from "../../../test/scriptHostKit";
 import type { EditBoundaryView } from "../../../types/project";
 import { ScriptHost } from "./ScriptHost";
@@ -153,35 +154,39 @@ describe("ScriptHost click", () => {
 });
 
 describe("ScriptHost while the words are not settled", () => {
-  it.each([
-    ["transcribing", { kind: "transcribing", progress: 0.4 }],
-    ["out of date", { kind: "outOfDate", onUpdate: () => {} }],
-  ] as const)("offers no Fix text or speaker change while %s", (_n, status) => {
-    render(<ScriptHost status={status} />);
+  it("offers no Fix text or speaker change while a run transcribes", () => {
+    useDawStore.setState({ pipelineJob: transcribeRun() });
+    render(<ScriptHost />);
+    expect(lastProps.current?.onFixText).toBeUndefined();
+    expect(lastProps.current?.onSpeaker).toBeUndefined();
+  });
+
+  it("offers no Fix text or speaker change while the transcript is out of date", () => {
+    render(<ScriptHost status={{ kind: "outOfDate", onUpdate: () => {} }} />);
     expect(lastProps.current?.onFixText).toBeUndefined();
     expect(lastProps.current?.onSpeaker).toBeUndefined();
   });
 
   it("closes an open field when the Script stops being ready, and does not bring it back", async () => {
-    const { rerender } = render(<ScriptHost status={{ kind: "ready" }} />);
+    render(<ScriptHost />);
     await userEvent.click(word("friends"));
     await userEvent.keyboard("{Enter}");
     expect(field()).toBeInTheDocument();
-    rerender(<ScriptHost status={{ kind: "transcribing", progress: 0.2 }} />);
+    act(() => useDawStore.setState({ pipelineJob: transcribeRun() }));
     expect(screen.queryByRole("textbox")).toBeNull();
-    rerender(<ScriptHost status={{ kind: "ready" }} />);
+    act(() => useDawStore.setState({ pipelineJob: null }));
     expect(screen.queryByRole("textbox")).toBeNull();
   });
 
   it("closes the speaker popover for good when the Script stops being ready", async () => {
-    const { rerender } = render(<ScriptHost status={{ kind: "ready" }} />);
+    render(<ScriptHost />);
     await userEvent.click(
       screen.getAllByRole("button", { name: /Maya, change speaker/ })[0]!,
     );
     expect(screen.getAllByRole("radio").length).toBeGreaterThan(0);
-    rerender(<ScriptHost status={{ kind: "transcribing", progress: 0.2 }} />);
+    act(() => useDawStore.setState({ pipelineJob: transcribeRun() }));
     expect(screen.queryAllByRole("radio")).toHaveLength(0);
-    rerender(<ScriptHost status={{ kind: "ready" }} />);
+    act(() => useDawStore.setState({ pipelineJob: null }));
     expect(screen.queryAllByRole("radio")).toHaveLength(0);
   });
 
@@ -192,11 +197,11 @@ describe("ScriptHost while the words are not settled", () => {
         finish = resolve;
       }),
     );
-    const { rerender } = render(<ScriptHost status={{ kind: "ready" }} />);
+    render(<ScriptHost />);
     await userEvent.click(word("friends"));
     await userEvent.keyboard("{Enter}");
     await userEvent.type(field(), "!{Tab}");
-    rerender(<ScriptHost status={{ kind: "transcribing", progress: 0.2 }} />);
+    act(() => useDawStore.setState({ pipelineJob: transcribeRun() }));
     await act(async () => finish("h1"));
     expect(useDawStore.getState().selection).toMatchObject({
       startWordIndex: 5,

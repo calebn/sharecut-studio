@@ -11,10 +11,12 @@ import { useTimelineFocusRegion } from "../../hooks/useTimelineFocusRegion";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import { canEditMix, canIngestMedia } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
+import { mediaKeyOf } from "../../state/jobMedia";
 import { Skeleton } from "../../system/Skeleton";
 import { RangeFields } from "../../timeline/RangeFields";
 import { TimelineView } from "../../timeline/TimelineView";
-import { writeOpenIntent } from "../../utils/openIntent";
+import { requestAutoRun, takeAutoRun } from "../../utils/openIntent";
+import { isPipelineSlotBusy } from "../../utils/pipeline";
 import { HostBody } from "../hosts/HostBody";
 import type { LoadFailure } from "../hosts/hostModels";
 import { useStageScroll } from "../useStageScroll";
@@ -154,11 +156,20 @@ function EditWorkspaceAdapter({
     [phone, mayIngest, drop.over, drop.fileCount, drop.handlers],
   );
 
-  const transcribe = async () => {
-    writeOpenIntent(projectPath, { autoRun: true });
+  const hasAudio = project != null && mediaKeyOf(project.tracks) !== "";
+  const startTranscribe = async () => {
+    const { pipelineJob, activityJob, announceStatus } = useDawStore.getState();
+    if (isPipelineSlotBusy(pipelineJob) || isPipelineSlotBusy(activityJob)) {
+      announceStatus("Another job is running. Try again when it finishes.", {
+        tone: "error",
+      });
+      return;
+    }
+    requestAutoRun(projectPath);
     const result = await execute("stage.prepare");
-    if (result.status !== "ok") writeOpenIntent(projectPath, {});
+    if (result.status !== "ok") takeAutoRun(projectPath);
   };
+  const transcribe = hasAudio ? () => void startTranscribe() : undefined;
 
   const state = loading
     ? "loading"

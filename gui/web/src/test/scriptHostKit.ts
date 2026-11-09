@@ -1,5 +1,6 @@
 import { forgetHeldFixText } from "../stage/edit/script/useScriptFixText";
 import { useDawStore } from "../state/dawStore";
+import type { PipelineJobSnapshot } from "../types/pipeline";
 import type {
   CombinedUtterance,
   ProjectView,
@@ -111,6 +112,40 @@ export function seedScript(seed: ScriptSeed = {}) {
     playheadSec: seed.playheadSec ?? 0,
     transcriptFollowPlayhead: seed.transcriptFollowPlayhead ?? false,
     showCutAwayUtterances: false,
+    pipelineJob: null,
   });
   useDawStore.getState().setTranscriptFindReplaceOpen(false);
+}
+
+/** A live full run on the seeded project, a quarter of the way through. */
+export function transcribeRun(
+  overrides: Partial<PipelineJobSnapshot> = {},
+): PipelineJobSnapshot {
+  return {
+    id: "run-1",
+    project_path: useDawStore.getState().projectPath ?? "/tmp/ep",
+    from_step: null,
+    only_step: null,
+    status: "running",
+    current: 1,
+    total: 4,
+    message: null,
+    error: null,
+    elapsed_sec: 0,
+    steps: [],
+    ...overrides,
+  };
+}
+
+/** Turn the transcript's hydration flag on or off in the seeded project. */
+export function setTranscriptLoading(loading: boolean) {
+  useDawStore.setState((s) => ({
+    project: s.project && {
+      ...s.project,
+      meta: {
+        ...s.project.meta,
+        hydration: { transcript_words: !loading },
+      } as typeof s.project.meta,
+    },
+  }));
 }

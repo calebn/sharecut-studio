@@ -26,12 +26,8 @@ import { useScriptWindow } from "./useScriptWindow";
 export type ScriptHostProps = {
   /** Where the Script is drawn. Left out, it follows the shell. */
   layout?: "desktop" | "phone";
-  /**
-   * The Script's state when the store cannot tell: out of date has no store
-   * source yet. Left out, the host reads the store: words still loading, a
-   * run transcribing, no words, or ready.
-   */
-  status?: ScriptStatus;
+  /** Out of date has no store source yet; every other state comes from the store. */
+  status?: Extract<ScriptStatus, { kind: "outOfDate" }>;
   /** The empty state's "Transcribe this episode". */
   onTranscribe?: () => void;
 };

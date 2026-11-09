@@ -1,6 +1,7 @@
 /**
  * What Home asked of the project it is about to open: the stage a card named,
- * and whether to start processing the audio Home just imported. One-shot and
+ * and whether to start processing the audio Home just imported. Edit's empty
+ * Script also writes `autoRun` when it hands the episode to Prepare. One-shot and
  * per tab (`sessionStorage`), keyed by project path: the studio takes each part
  * once after the project loads, so a reload or a later open never replays it.
  * Not project state (see `docs/persistence.md`).
@@ -50,6 +51,11 @@ export function writeOpenIntent(projectPath: string, intent: OpenIntent): void {
   if (projectPath) write(projectPath, intent);
 }
 
+/** Ask Prepare to start processing on arrival, keeping what else the intent holds. */
+export function requestAutoRun(projectPath: string): void {
+  if (projectPath) write(projectPath, { ...read(projectPath), autoRun: true });
+}
+
 /** The stage Home named, removed so it applies once. */
 export function takeOpenStage(projectPath: string): StageId | null {
   const intent = read(projectPath);
@@ -61,7 +67,7 @@ export function takeOpenStage(projectPath: string): StageId | null {
   return intent.stage;
 }
 
-/** True once when Home imported audio into this project and wants it processed. */
+/** True once when Home or Edit's empty Script wants this project's audio processed on arrival. */
 export function takeAutoRun(projectPath: string): boolean {
   const intent = read(projectPath);
   if (!intent.autoRun) return false;
