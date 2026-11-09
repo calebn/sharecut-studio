@@ -281,31 +281,39 @@ export async function auditionBoundary(
   edit: BoundaryEdit,
   expectedToken: string,
   signal?: AbortSignal,
+  padSec = 0.8,
 ): Promise<BoundaryAudition> {
-  const response = await hostFetch("/api/boundary/audition", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      path,
-      target,
-      edit,
-      expected_token: expectedToken,
-      pad_sec: 0.8,
-    }),
+  return withAbortTimeout(
+    DOCUMENT_COMMAND_TIMEOUT_MS,
+    "The server didn't answer. Try again.",
+    async (requestSignal) => {
+      const response = await hostFetch("/api/boundary/audition", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          path,
+          target,
+          edit,
+          expected_token: expectedToken,
+          pad_sec: padSec,
+        }),
+        signal: requestSignal,
+      });
+      if (!response.ok) {
+        const failure = await readApiFailure(response);
+        throw new ApiError(
+          `${response.status} ${failure.message}`,
+          failure.code,
+          failure.status,
+        );
+      }
+      const audition = parseAudition((await response.json()) as unknown);
+      if (!sameTarget(audition.actual_edit, target))
+        throw new Error("Invalid boundary response: audition target mismatch");
+      return audition;
+    },
     signal,
-  });
-  if (!response.ok) {
-    const failure = await readApiFailure(response);
-    throw new ApiError(
-      `${response.status} ${failure.message}`,
-      failure.code,
-      failure.status,
-    );
-  }
-  const audition = parseAudition((await response.json()) as unknown);
-  if (!sameTarget(audition.actual_edit, target))
-    throw new Error("Invalid boundary response: audition target mismatch");
-  return audition;
+  );
 }
 
 /** Resolves only server-issued host API paths and keeps audio auth separate from the preview token. */
@@ -315,4 +323,30 @@ export function boundaryAudioUrl(path: string, expectedToken: string): string {
   const url = new URL(path, window.location.origin);
   url.searchParams.set("expected_token", expectedToken);
   return withSessionTokenQuery(`${url.pathname}${url.search}${url.hash}`);
+}
+
+export async function fetchBoundaryAudio(
+  path: string,
+  expectedToken: string,
+  signal?: AbortSignal,
+): Promise<Blob> {
+  return withAbortTimeout(
+    DOCUMENT_COMMAND_TIMEOUT_MS,
+    "The server didn't answer. Try again.",
+    async (requestSignal) => {
+      const response = await hostFetch(boundaryAudioUrl(path, expectedToken), {
+        signal: requestSignal,
+      });
+      if (!response.ok) {
+        const failure = await readApiFailure(response);
+        throw new ApiError(
+          `${response.status} ${failure.message}`,
+          failure.code,
+          failure.status,
+        );
+      }
+      return response.blob();
+    },
+    signal,
+  );
 }

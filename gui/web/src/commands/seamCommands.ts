@@ -1,4 +1,5 @@
 import {
+  type BoundaryGeometryClip,
   loadBoundaryContext,
   restoreAppliedEdit,
   rollClipJoin,
@@ -106,6 +107,18 @@ export async function setSeamJoin(
   }
 }
 
+export function seamGeometry({ left, right }: Seam): BoundaryGeometryClip[] {
+  return [left, right].map(
+    ({ id, source_start, source_end, timeline_start, source_id }) => ({
+      id,
+      source_start,
+      source_end,
+      timeline_start,
+      source_id,
+    }),
+  );
+}
+
 export async function rollSeam(
   seam: Seam,
   deltaMs: number,
@@ -135,15 +148,7 @@ export async function rollSeam(
         const context = await loadBoundaryContext(
           projectPath,
           { kind: "roll", left_clip_id: left.id, right_clip_id: right.id },
-          [left, right].map(
-            ({ id, source_start, source_end, timeline_start, source_id }) => ({
-              id,
-              source_start,
-              source_end,
-              timeline_start,
-              source_id,
-            }),
-          ),
+          seamGeometry(seam),
         );
         const now = useDawStore.getState();
         if (

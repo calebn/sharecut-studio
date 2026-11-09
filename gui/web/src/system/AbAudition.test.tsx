@@ -52,4 +52,41 @@ describe("AbAudition", () => {
       "B",
     );
   });
+
+  it("says 3 s before and after unless the caller says otherwise", () => {
+    const { rerender } = render(
+      <AbAudition side="A" change={change} onSelect={() => undefined} />,
+    );
+    expect(screen.getByText("3 s before and after")).toBeTruthy();
+    rerender(
+      <AbAudition
+        side="A"
+        change={change}
+        note="1.5 s either side"
+        onSelect={() => undefined}
+      />,
+    );
+    expect(screen.getByText("1.5 s either side")).toBeTruthy();
+    expect(screen.queryByText("3 s before and after")).toBeNull();
+  });
+
+  it("drops the key hints when the keys do not reach the object", () => {
+    render(
+      <AbAudition
+        side="A"
+        change={change}
+        shortcuts={false}
+        onSelect={() => undefined}
+      />,
+    );
+    for (const name of ["A", "B"]) {
+      const button = screen.getByRole("button", { name });
+      expect(button).not.toHaveAttribute("aria-keyshortcuts");
+      expect(button.getAttribute("title")).not.toMatch(/\(.\)|\[.\]/);
+    }
+    expect(screen.getByRole("button", { name: "A" })).toHaveAttribute(
+      "title",
+      "Hear before",
+    );
+  });
 });

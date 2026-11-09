@@ -5,8 +5,13 @@ import {
   render,
   screen,
 } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { setClipJoin } from "../../api";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  auditionBoundary,
+  fetchBoundaryAudio,
+  loadBoundaryContext,
+  setClipJoin,
+} from "../../api";
 import { rollSeam } from "../../commands/seamCommands";
 import { useDawStore } from "../../state/dawStore";
 import { inspectKeyOf } from "../../state/selection";
@@ -23,6 +28,9 @@ import { SectionsBody } from "./SectionsBody";
 vi.mock("../../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../api")>()),
   setClipJoin: vi.fn(async () => undefined),
+  loadBoundaryContext: vi.fn(),
+  auditionBoundary: vi.fn(),
+  fetchBoundaryAudio: vi.fn(),
 }));
 vi.mock("../../commands/seamCommands", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../commands/seamCommands")>()),
@@ -454,5 +462,207 @@ describe("seam sheet Offset", () => {
     });
     render(<SectionsBody withRange={false} />);
     expect(offset()).toHaveAttribute("aria-readonly", "true");
+  });
+});
+
+describe("seam sheet A/B", () => {
+  const revoke = vi.fn();
+  let nextUrl = 0;
+
+  const windowOf = (side: string) => ({
+    url: `/api/boundary/audition/opaque/${side}`,
+    window_start_sec: 8.5,
+    window_end_sec: 11.5,
+    duration_sec: side === "proposed" ? 3.1 : 3,
+    seam_offset_sec: 1.5,
+  });
+  const answer = (deltaSec: number) => ({
+    token: "ctx-token",
+    actual_edit: {
+      kind: "roll" as const,
+      left_clip_id: "c1",
+      right_clip_id: "c2",
+      delta_sec: deltaSec,
+    },
+    current: windowOf("current"),
+    proposed: windowOf("proposed"),
+  });
+
+  beforeEach(() => {
+    nextUrl = 0;
+    revoke.mockReset();
+    vi.stubGlobal("URL", {
+      ...URL,
+      createObjectURL: vi.fn(() => `blob:ab-${++nextUrl}`),
+      revokeObjectURL: revoke,
+    });
+    vi.mocked(loadBoundaryContext)
+      .mockReset()
+      .mockResolvedValue({ token: "ctx-token" } as Awaited<
+        ReturnType<typeof loadBoundaryContext>
+      >);
+    vi.mocked(auditionBoundary)
+      .mockReset()
+      .mockImplementation(async (_p, _t, edit) =>
+        answer("delta_sec" in edit ? edit.delta_sec : 0),
+      );
+    vi.mocked(fetchBoundaryAudio)
+      .mockReset()
+      .mockResolvedValue(new Blob(["wav"]));
+    useDawStore.setState({ sourcePreview: null });
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  const pressA = async () => {
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "A" }));
+    });
+  };
+
+  it("asks to roll first and makes no request while the seam is where it was", () => {
+    openRolled();
+    expect(screen.getByText("Roll the seam to compare")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "A" })).toBeNull();
+    expect(loadBoundaryContext).not.toHaveBeenCalled();
+    expect(auditionBoundary).not.toHaveBeenCalled();
+  });
+
+  it("needs the host app for a share key, even after a roll, and calls no boundary route", () => {
+    useDawStore.getState().hydrate("share:tok", projectOf(rolled(10)));
+    useDawStore.setState({
+      selection: SEAM,
+      inspectorKey: inspectKeyOf(SEAM),
+      shareCapabilities: ["edit"],
+    });
+    render(<SectionsBody withRange={false} />);
+    moveStoreTo(10.0123);
+    expect(screen.getByText("A/B needs the host app")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "A" })).toBeNull();
+    expect(loadBoundaryContext).not.toHaveBeenCalled();
+    expect(auditionBoundary).not.toHaveBeenCalled();
+    expect(fetchBoundaryAudio).not.toHaveBeenCalled();
+  });
+
+  it("plays the rolled-back window for A and the current one for B from one audition", async () => {
+    openRolled();
+    moveStoreTo(10.0123);
+    expect(screen.getByText("1.5 s before and after")).toBeTruthy();
+    await pressA();
+    await vi.waitFor(() =>
+      expect(useDawStore.getState().sourcePreview?.ownerId).toBe(
+        "seam-ab:eb:c1:c2",
+      ),
+    );
+    expect(auditionBoundary).toHaveBeenCalledTimes(1);
+    const call = vi.mocked(auditionBoundary).mock.calls[0];
+    expect(call?.[2]).toMatchObject({ kind: "roll" });
+    expect((call?.[2] as { delta_sec: number }).delta_sec).toBeCloseTo(
+      -0.0123,
+      9,
+    );
+    expect(call?.[5]).toBe(1.5);
+    expect(useDawStore.getState().sourcePreview).toMatchObject({
+      media: { kind: "rendered", url: "blob:ab-1" },
+      endSec: 3.1,
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "B" }));
+    });
+    expect(auditionBoundary).toHaveBeenCalledTimes(1);
+    expect(useDawStore.getState().sourcePreview).toMatchObject({
+      media: { kind: "rendered", url: "blob:ab-2" },
+      endSec: 3,
+    });
+  });
+
+  it("says the comparison is being prepared while the windows render", async () => {
+    openRolled();
+    moveStoreTo(10.0123);
+    vi.mocked(auditionBoundary).mockImplementationOnce(
+      () => new Promise(() => undefined),
+    );
+    await pressA();
+    expect(screen.getByText("Preparing the comparison…")).toBeTruthy();
+  });
+
+  it("offers A/B on a cut seam rolled by the same offset", async () => {
+    const [l, r] = rolled(10.0123);
+    if (!l || !r) throw new Error("no clips");
+    const lane = [l, { ...r, source_start: 12, source_end: 16 }];
+    useDawStore.getState().hydrate("/tmp/ep.json", projectOf(rolled(10)));
+    useDawStore.setState({ selection: SEAM, inspectorKey: inspectKeyOf(SEAM) });
+    render(<SectionsBody withRange={false} />);
+    act(() => {
+      useDawStore.setState({
+        project: minimalProject({
+          tracks: [sampleTrack({ id: "host", speaker: "Mira" })],
+          clips: { tracks: { host: lane }, clip_count: 2 },
+          edit_boundaries: editBoundaries(lane),
+          applied_edits: {
+            count: 1,
+            records: [
+              appliedEditRecord({
+                track_ids: ["host"],
+                source_start: 10.0123,
+                source_end: 12,
+                reason: "filler",
+                restore: { state: "ready" },
+              }),
+            ],
+          },
+        }),
+      });
+    });
+    expect(screen.getByText(/cut · filler/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "A" })).toBeTruthy();
+  });
+
+  it("says the seam cannot return when the server clamps the reverse roll, and plays nothing", async () => {
+    vi.mocked(auditionBoundary).mockResolvedValueOnce(answer(-0.01));
+    openRolled();
+    moveStoreTo(10.0123);
+    await pressA();
+    await vi.waitFor(() =>
+      expect(
+        screen.getByText("The seam can't return to where it was"),
+      ).toBeTruthy(),
+    );
+    expect(screen.queryByRole("button", { name: "A" })).toBeNull();
+    expect(useDawStore.getState().sourcePreview).toBeNull();
+  });
+
+  it("disables A/B again and revokes the cached windows once Undo returns the seam", async () => {
+    openRolled();
+    moveStoreTo(10.0123);
+    await pressA();
+    await vi.waitFor(() =>
+      expect(useDawStore.getState().sourcePreview).not.toBeNull(),
+    );
+    moveStoreTo(10);
+    expect(screen.getByText("Roll the seam to compare")).toBeTruthy();
+    expect(revoke.mock.calls.map(([url]) => url).sort()).toEqual([
+      "blob:ab-1",
+      "blob:ab-2",
+    ]);
+  });
+
+  it("does not replay over the comparison when A is pressed during a save", async () => {
+    openRolled();
+    moveStoreTo(10.0123);
+    let finish: () => void = () => undefined;
+    vi.mocked(rollSeam).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = () => resolve({ status: "done" });
+        }),
+    );
+    await typeOffset("20");
+    await pressA();
+    await act(async () => finish());
+    expect(hearAcross).not.toHaveBeenCalled();
   });
 });
