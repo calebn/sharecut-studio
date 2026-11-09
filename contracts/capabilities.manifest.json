@@ -1320,8 +1320,7 @@
       "surfaces": {
         "command": "ui.toggleCommandPalette",
         "gui": [
-          "home.help",
-          "GesturesSheet"
+          "home.help"
         ],
         "keyboard": "?"
       },

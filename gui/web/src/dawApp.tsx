@@ -21,7 +21,7 @@ import { useHostKeeperCapture } from "./record/useHostKeeperCapture";
 import { useHostRoom } from "./record/useHostRoom";
 import { useOutputDevice } from "./record/useOutputDevice";
 import { isShareProjectKey } from "./shareMode";
-import { CheatsheetDialogs } from "./stage/dialogs/CheatsheetDialogs";
+import { CommandPalette } from "./stage/dialogs/CommandPalette";
 import { HostMcpDialog } from "./stage/dialogs/HostMcpDialog";
 import { EDIT_SHEETS } from "./stage/edit/editSheets";
 import { StageFrame } from "./stage/frame/StageFrame";
@@ -240,7 +240,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
                   )}
                 </StageFrame>
               </div>
-              <CheatsheetDialogs />
+              <CommandPalette />
               <HostMcpDialog
                 open={hostMcpDialogOpen}
                 onClose={() => setHostMcpDialogOpen(false)}

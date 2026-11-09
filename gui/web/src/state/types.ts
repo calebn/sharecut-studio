@@ -28,12 +28,10 @@ import type {
 } from "./projectSlice";
 import type { StageSliceState } from "./stageSlice";
 
-/** Open/closed state of the app's dialogs, sheets and inline panels; only the palette and gestures sheet exclude each other. */
+/** Open/closed state of the app's dialogs, sheets and inline panels. */
 export interface ChromeFlags {
   /** Command palette (Commands and shortcuts) open. */
   commandPaletteOpen: boolean;
-  /** Mobile gestures cheatsheet open. */
-  gesturesSheetOpen: boolean;
   /** A bounce asked for by a command; the Deliver stage focuses its Bounce button and clears this. */
   bounceRequested: boolean;
   /** An export asked for by a command; the Deliver stage starts it and clears this. */
@@ -492,7 +490,6 @@ export interface DawState {
   stepLaneHeight: (direction: "up" | "down") => void;
   setDrawnLaneHeightPx: (px: number | null) => void;
   setCommandPaletteOpen: (on: boolean) => void;
-  setGesturesSheetOpen: (on: boolean) => void;
   toggleCommandPalette: () => void;
   setBounceRequested: (on: boolean) => void;
   setTranscriptFindReplaceOpen: (on: boolean) => void;

@@ -112,7 +112,7 @@ const COVERED: Record<string, string[]> = {
   "DLG-MCP": ["Templates/HostMcpDialog"],
   "DLG-SPLIT": ["Stages/Prepare/SplitSpeakers"],
   "DLG-PALETTE": ["Templates/CommandPalette"],
-  "DLG-GESTURES": ["Templates/GesturesSheet"],
+  "DLG-GESTURES": ["Templates/CommandPalette"],
   "DLG-ASK-CONFIRM": ["Organisms/AskDialog"],
   "DLG-ASK-TEXT": ["Stages/Home/OpenOther"],
   "CMP-INLINE-CONFIRM": ["Molecules/InlineConfirm"],

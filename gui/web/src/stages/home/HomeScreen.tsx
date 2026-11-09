@@ -16,7 +16,7 @@ import { HelpDialog } from "../../home/HelpDialog";
 import { useWindowFileDrop } from "../../hooks/useWindowFileDrop";
 import { ingestIntoNewProject, pickAudioFiles } from "../../ingest/ingestFiles";
 import { ModelsSheet, useModels } from "../../models";
-import { CheatsheetDialogs } from "../../stage/dialogs/CheatsheetDialogs";
+import { CommandPalette } from "../../stage/dialogs/CommandPalette";
 import { HostMcpDialog } from "../../stage/dialogs/HostMcpDialog";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
@@ -497,7 +497,7 @@ export function HomeScreen() {
         onModels={() => setModelsSheetOpen(true)}
         onConnectAgent={() => setHostMcpDialogOpen(true)}
       />
-      <CheatsheetDialogs scope="home" />
+      <CommandPalette scope="home" />
       <HostMcpDialog
         open={mcpOpen}
         onClose={() => setHostMcpDialogOpen(false)}

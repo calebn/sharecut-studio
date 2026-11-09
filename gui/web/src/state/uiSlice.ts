@@ -293,7 +293,6 @@ type UiSlice = Pick<
   | "stepLaneHeight"
   | "setDrawnLaneHeightPx"
   | "setCommandPaletteOpen"
-  | "setGesturesSheetOpen"
   | "toggleCommandPalette"
   | "bounceRangeTarget"
   | "setBounceRangeTarget"
@@ -350,7 +349,6 @@ export function uiProjectInitial() {
 export function chromeInitial(): ChromeFlags {
   return {
     commandPaletteOpen: false,
-    gesturesSheetOpen: false,
     bounceRequested: false,
     exportRequested: false,
     transcriptRequested: false,
@@ -796,15 +794,6 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
         chrome: {
           ...s.chrome,
           commandPaletteOpen: on,
-          ...(on ? { gesturesSheetOpen: false } : {}),
-        },
-      })),
-    setGesturesSheetOpen: (on) =>
-      set((s) => ({
-        chrome: {
-          ...s.chrome,
-          gesturesSheetOpen: on,
-          ...(on ? { commandPaletteOpen: false } : {}),
         },
       })),
     toggleCommandPalette: () =>
@@ -812,7 +801,6 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
         chrome: {
           ...s.chrome,
           commandPaletteOpen: !s.chrome.commandPaletteOpen,
-          ...(!s.chrome.commandPaletteOpen ? { gesturesSheetOpen: false } : {}),
         },
       })),
     setBounceRangeTarget: (bounceRangeTarget) => set({ bounceRangeTarget }),

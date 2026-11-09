@@ -5,7 +5,6 @@ import { useDawStore } from "./dawStore";
 
 const FLAGS = [
   "commandPaletteOpen",
-  "gesturesSheetOpen",
   "bounceRequested",
   "exportRequested",
   "transcriptRequested",
@@ -18,7 +17,6 @@ type Flag = (typeof FLAGS)[number];
 
 const SETTERS: Record<Flag, string> = {
   commandPaletteOpen: "setCommandPaletteOpen",
-  gesturesSheetOpen: "setGesturesSheetOpen",
   bounceRequested: "setBounceRequested",
   exportRequested: "setExportRequested",
   transcriptRequested: "setTranscriptRequested",
@@ -80,41 +78,17 @@ describe("dawStore chrome flags", () => {
     },
   );
 
-  it("opening the palette closes the gestures sheet, and the reverse", () => {
+  it("toggling the palette opens it, then closes it", () => {
     const s = () => useDawStore.getState();
-    s().setGesturesSheetOpen(true);
-    s().setCommandPaletteOpen(true);
-    expect(read("gesturesSheetOpen")).toBe(false);
-    expect(read("commandPaletteOpen")).toBe(true);
-    s().setGesturesSheetOpen(true);
-    expect(read("commandPaletteOpen")).toBe(false);
-    expect(read("gesturesSheetOpen")).toBe(true);
-  });
-
-  it("closing the palette leaves the gestures sheet alone", () => {
-    const s = () => useDawStore.getState();
-    s().setCommandPaletteOpen(true);
-    setFlag("gesturesSheetOpen", true);
-    s().setCommandPaletteOpen(false);
-    expect(read("gesturesSheetOpen")).toBe(true);
-  });
-
-  it("toggling the palette follows the same exclusion", () => {
-    const s = () => useDawStore.getState();
-    setFlag("gesturesSheetOpen", true);
     s().toggleCommandPalette();
     expect(read("commandPaletteOpen")).toBe(true);
-    expect(read("gesturesSheetOpen")).toBe(false);
-    setFlag("gesturesSheetOpen", true);
     s().toggleCommandPalette();
     expect(read("commandPaletteOpen")).toBe(false);
-    expect(read("gesturesSheetOpen")).toBe(true);
   });
 
   describe("hydrate", () => {
     const OTHER = [
       "commandPaletteOpen",
-      "gesturesSheetOpen",
       "hostMcpDialogOpen",
       "helpDialogOpen",
     ] as const;
