@@ -211,7 +211,7 @@ describe("the Inspector card on the desktop and the tablet", () => {
         <EditWorkspace />
       </>,
     );
-    const header = screen.getByRole("button", { name: "host", exact: true });
+    const header = screen.getByRole("button", { name: "host" });
     expect(document.activeElement).toBe(document.body);
 
     fireEvent.click(header, { detail: 1 });
@@ -225,6 +225,37 @@ describe("the Inspector card on the desktop and the tablet", () => {
     });
 
     expect(header).toHaveFocus();
+  });
+
+  it("restores the phone opener after focus leaves and re-enters before selection changes", () => {
+    stubViewportShell("phone");
+    useDawStore.getState().setSelection(null);
+    render(
+      <>
+        <PressedControls />
+        <EditWorkspace />
+      </>,
+    );
+    const header = screen.getByRole("button", { name: "host" });
+    fireEvent.click(header, { detail: 1 });
+    const sheet = screen.getByRole("dialog", { name: "Inspector" });
+    const outside = document.createElement("button");
+    outside.textContent = "Outside";
+    document.body.append(outside);
+    outside.focus();
+    expect(outside).toHaveFocus();
+    const anchor = sheet.querySelector<HTMLElement>("[data-inspector-anchor]");
+    if (!anchor) throw new Error("Inspector keyboard anchor missing");
+    anchor.focus();
+
+    act(() => {
+      const state = useDawStore.getState();
+      state.setSelection(null);
+      state.setInspectorOpen(false);
+    });
+
+    expect(header).toHaveFocus();
+    outside.remove();
   });
 
   it("returns focus to the opener on Close and on a new selection", async () => {
@@ -287,6 +318,27 @@ describe("the Inspector card on the desktop and the tablet", () => {
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     expect(from).toHaveFocus();
     from.remove();
+  });
+
+  it("keeps the containing stage focused when it owns focus before Close", () => {
+    stubViewportShell("phone");
+    useDawStore.getState().setSelection(null);
+    render(
+      <main className="stage-frame-body" aria-label="Edit" tabIndex={-1}>
+        <PressedControls />
+        <EditWorkspace />
+      </main>,
+    );
+    const header = screen.getByRole("button", { name: "host" });
+    const stage = screen.getByRole("main", { name: "Edit" });
+    fireEvent.click(header, { detail: 1 });
+    expect(screen.getByRole("dialog", { name: "Inspector" })).toBeVisible();
+
+    stage.focus();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+    expect(screen.queryByRole("dialog", { name: "Inspector" })).toBeNull();
+    expect(stage).toHaveFocus();
   });
 
   it.each(["desktop", "phone"] as const)(
