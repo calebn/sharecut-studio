@@ -1307,7 +1307,10 @@ describe("HomeScreen", () => {
         .map((option) => option.textContent ?? "");
       expect(options[0]).toContain("Export diagnostics");
       expect(options.some((text) => text.includes("Guides"))).toBe(true);
-      expect(options.some((text) => text.includes("Gestures"))).toBe(true);
+      expect(options.some((text) => text.includes("Gestures"))).toBe(false);
+      expect(
+        within(palette).queryByRole("group", { name: "Gestures" }),
+      ).toBeNull();
       expect(options.some((text) => text.includes("Manage models"))).toBe(true);
       expect(options.some((text) => text.includes("Connect agent"))).toBe(true);
       expect(options.some((text) => text.includes("Play / pause"))).toBe(false);

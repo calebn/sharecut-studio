@@ -165,6 +165,8 @@ describe("CommandPalette", () => {
       screen.getByRole("option", { name: /^Fit session width/ }),
     ).toHaveTextContent(/Q/);
     await user.keyboard("{Tab}{Enter}");
+    expect(getKeymapOverride("view.fit")).toEqual(["Q"]);
+    await user.keyboard("{Tab}Q{Backspace}{Enter}");
     expect(getKeymapOverride("view.fit")).toBeUndefined();
   });
 

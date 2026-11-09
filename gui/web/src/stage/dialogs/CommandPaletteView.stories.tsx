@@ -227,14 +227,12 @@ export const Groups: Story = {
     );
     await expect(args.onRunEntry).toHaveBeenCalledWith(ENTRIES[2]);
     const gestures = within(dialog).getByRole("group", { name: "Gestures" });
-    await expect(
-      within(gestures).getByRole("option", {
-        name: "Undo Two-finger tap Undo the last action. Optional ShareCut shortcut.",
-      }),
-    ).toBeVisible();
-    await userEvent.click(
-      within(gestures).getByRole("option", { name: /^Undo/ }),
+    await expect(within(gestures).queryAllByRole("option")).toHaveLength(0);
+    const undo = within(gestures).getAllByRole("listitem")[0];
+    await expect(undo).toHaveTextContent(
+      "Undo Two-finger tap Undo the last action. Optional ShareCut shortcut.",
     );
+    await userEvent.click(undo);
     await expect(args.onRun).toHaveBeenCalledTimes(1);
   },
 };
