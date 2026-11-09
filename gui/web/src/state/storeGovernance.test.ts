@@ -420,6 +420,11 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
       "falls back to the current playhead when a blade atTime arg is omitted",
   },
   {
+    file: "review/ContextStrip.tsx",
+    reason:
+      "leaf that isolates the playhead's re-renders to the overview strip",
+  },
+  {
     file: "comments/commentAnchor.ts",
     reason: "pure anchor resolution: a post reads it once",
   },
