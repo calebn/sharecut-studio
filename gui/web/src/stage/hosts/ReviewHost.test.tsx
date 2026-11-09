@@ -841,7 +841,7 @@ describe("Review host hearing and editing", () => {
     mount();
     expect(
       screen.queryAllByRole("slider", {
-        name: (name) => name !== "Episode overview",
+        name: (name) => !name.startsWith("Episode overview"),
       }),
     ).toHaveLength(0);
     await userEvent.click(screen.getByRole("button", { name: "B" }));

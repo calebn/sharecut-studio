@@ -579,6 +579,19 @@ describe("Review queue for a guest", () => {
       expect(docked()).toBe(true);
     });
 
+    it("names the foot strip apart from the Player's Episode overview", () => {
+      stubViewportShell("phone");
+      useDawStore.setState({ shellBreakpoint: "phone" });
+      join("comment");
+      render(<ReviewHost guestShare />);
+      expect(
+        screen.getByRole("slider", { name: "Episode overview, queue markers" }),
+      ).toBeVisible();
+      expect(
+        screen.queryByRole("slider", { name: "Episode overview" }),
+      ).toBeNull();
+    });
+
     it("leaves the field in the card on a short phone", () => {
       stubViewportShell("phone");
       const base = window.matchMedia;
@@ -789,8 +802,11 @@ describe("Review queue for a guest", () => {
       sampleComment({ id: "c8", timeline_start: 50 }),
       sampleComment({ id: "c9", timeline_start: 323 }),
     ]);
+    useDawStore.setState({ isPlaying: false });
     render(<ReviewHost guestShare />);
-    fireEvent.keyDown(document.querySelector(".rv-stage")!, { key: "ArrowDown" });
+    fireEvent.keyDown(document.querySelector(".rv-stage")!, {
+      key: "ArrowDown",
+    });
     expect(useDawStore.getState().isPlaying).toBe(false);
     expect(useDawStore.getState().playheadSec).toBe(0);
   });

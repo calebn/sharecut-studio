@@ -97,6 +97,7 @@ export type ReviewStageProps = {
     takeIndex: number,
   ) => void | Promise<boolean | void>;
   onComment?: (id: string) => void;
+  onPlayComment?: (id: string) => void;
   thread?: (item: ReviewItem) => ReactNode;
   /** The inline comment field, above the card. */
   composer?: ReactNode;
@@ -150,6 +151,7 @@ export function ReviewStage({
   onHear,
   onSelectTake,
   onComment,
+  onPlayComment,
   thread,
   composer,
   centerTop,
@@ -481,6 +483,7 @@ export function ReviewStage({
           onSelect(id);
           setSheetOpen(false);
         }}
+        onPlayComment={onPlayComment}
         onVerb={verb}
         onKeep={keep}
         onBulk={(group) => {
