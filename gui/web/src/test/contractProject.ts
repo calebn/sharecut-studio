@@ -20,8 +20,15 @@ export interface ContractSource {
   duration_sec: number | null;
 }
 
-/** `[id, timeline_start, source_start, source_end, source_id?]`. */
-export type ContractClip = [string, number, number, number, (string | null)?];
+/** `[id, timeline_start, source_start, source_end, source_id?, timing_steps?]`, each step `[at, delta_sec]`. */
+export type ContractClip = [
+  string,
+  number,
+  number,
+  number,
+  (string | null)?,
+  [number, number][]?,
+];
 
 export function contractTrack(track: ContractTrack): TrackView {
   return sampleTrack({
@@ -40,7 +47,14 @@ export function contractTrack(track: ContractTrack): TrackView {
 export function contractClipRow(
   track: ContractTrack,
   sources: readonly ContractSource[],
-  [id, timelineStart, sourceStart, sourceEnd, sourceId = null]: ContractClip,
+  [
+    id,
+    timelineStart,
+    sourceStart,
+    sourceEnd,
+    sourceId = null,
+    steps,
+  ]: ContractClip,
 ): ClipRow {
   const source = sourceId ? sources.find((s) => s.id === sourceId) : undefined;
   const media = contractTrack(track);
@@ -54,5 +68,12 @@ export function contractClipRow(
     source_end: sourceEnd,
     source_duration_sec: source ? source.duration_sec : media.duration_sec,
     recording_key: `rec_${source ? source.path : media.media_path}`,
+    ...(steps && {
+      timing: {
+        steps: steps.map(([at, delta_sec]) => ({ at, delta_sec })),
+        method: "bleed_lag",
+        micro_fade_ms: 0,
+      },
+    }),
   });
 }

@@ -8,6 +8,7 @@ from pathlib import Path
 
 from podcast_mcp.edits import ripple
 from podcast_mcp.engines import clips_ops, ranges
+from podcast_mcp.models import clip_timing
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACTS = ROOT / "contracts"
@@ -33,6 +34,11 @@ def test_ripple_edge_epsilon_constant() -> None:
     assert ripple._EDGE_EPS_SEC == 1e-3
 
 
+def test_roll_step_gap_constant() -> None:
+    assert _constants("roll-join-limits.json") == {"min_step_gap_sec": 1e-6}
+    assert clip_timing.MIN_STEP_GAP_SEC == 1e-6
+
+
 def test_gui_constants_are_the_server_constants() -> None:
     ts = (ROOT / "gui/web/src/types/limits.generated.ts").read_text(encoding="utf-8")
     generated = {
@@ -43,4 +49,5 @@ def test_gui_constants_are_the_server_constants() -> None:
         "TIME_EPS_SEC": ranges.SPAN_EPS_S,
         "JOIN_GAP_TOLERANCE_SEC": clips_ops.JOIN_GAP_TOLERANCE_SEC,
         "RIPPLE_EDGE_EPS_SEC": ripple._EDGE_EPS_SEC,
+        "MIN_STEP_GAP_SEC": clip_timing.MIN_STEP_GAP_SEC,
     }

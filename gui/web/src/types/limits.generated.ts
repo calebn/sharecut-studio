@@ -8,3 +8,5 @@ export const TIME_EPS_SEC = 1e-9;
 export const JOIN_GAP_TOLERANCE_SEC = 0.05;
 /** `ripple-scope.json` `constants.edge_eps_sec` */
 export const RIPPLE_EDGE_EPS_SEC = 0.001;
+/** `roll-join-limits.json` `constants.min_step_gap_sec` */
+export const MIN_STEP_GAP_SEC = 1e-6;
