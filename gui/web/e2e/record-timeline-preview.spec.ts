@@ -70,6 +70,9 @@ for (const phone of [false, true]) {
     send("recording", 1);
     const overlay = page.getByRole("img", { name: /provisional recording/ });
     await expect(overlay).toBeAttached();
+    await expect(page.locator(".recording-overlay-band")).toHaveText(
+      "Recording · Take 3",
+    );
     await expect
       .poll(async () => scroller.evaluate((el) => el.scrollWidth))
       .toBeGreaterThan(before.width);
@@ -140,6 +143,9 @@ for (const phone of [false, true]) {
     }
     send("paused", 2);
     await expect(overlay).toHaveAttribute("data-state", "paused");
+    await expect(page.locator(".recording-overlay-band")).toHaveText(
+      "Paused · Take 3",
+    );
     const frozen = await page
       .locator(".recording-overlay-band")
       .evaluate((el) => el.getBoundingClientRect().width);

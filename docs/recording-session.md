@@ -1918,7 +1918,7 @@ for coverage and platform limits.
 
 Keep the timeline open while recording: a labeled provisional band and a separate
 recording needle show the current take, even off the Record stage or
-with no saved tracks. Pause freezes the band and labels it PAUSED; Stop removes it
+with no saved tracks. Pause freezes the band and labels it Paused · Take N; Stop removes it
 immediately. Land then creates the real clips through the existing document refresh.
 The band represents the aggregate take clock, not participant media or a waveform.
 

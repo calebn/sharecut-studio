@@ -18,6 +18,7 @@ it("grows an aggregate band, freezes paused geometry, corrects and clears with s
   const store = useRecordHostStore.getState();
   store.setSnapshot(
     recordSnapshot({
+      take_index: 1,
       timeline_start_sec: 7,
       recording_ms: 1000,
       server_time_ns: 1,
@@ -31,6 +32,7 @@ it("grows an aggregate band, freezes paused geometry, corrects and clears with s
   const extent = () =>
     view.container.querySelector<HTMLElement>(".recording-overlay")!;
   const staleCallback = requests.mock.calls[0]![0];
+  expect(band().textContent).toBe("Recording · Take 2");
   expect(band().style.left).toBe("70px");
   expect(band().style.width).toBe("10px");
   act(() => raf.fire(60100));
@@ -40,6 +42,7 @@ it("grows an aggregate band, freezes paused geometry, corrects and clears with s
     store.setSnapshot(
       recordSnapshot({
         state: "paused",
+        take_index: 1,
         timeline_start_sec: 7,
         recording_ms: 2000,
         server_time_ns: 2,
@@ -49,6 +52,7 @@ it("grows an aggregate band, freezes paused geometry, corrects and clears with s
   expect(screen.getByRole("img").getAttribute("aria-label")).toContain(
     "paused",
   );
+  expect(band().textContent).toBe("Paused · Take 2");
   expect(band().style.width).toBe("20px");
   expect(raf.pendingCount()).toBe(0);
   act(() => raf.fire(100000));

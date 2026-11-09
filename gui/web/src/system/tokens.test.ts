@@ -210,3 +210,14 @@ describe("--color-record", () => {
     },
   );
 });
+
+describe("--color-record-subtle", () => {
+  it.each(["dark", "light", "light-auto"] as const)(
+    "is declared in the %s view as a mix of --color-record",
+    (theme) => {
+      expect(themeTokens(theme).get("--color-record-subtle")).toMatch(
+        /^color-mix\(\s*in srgb,\s*var\(--color-record\) \d+%,\s*transparent\s*\)$/,
+      );
+    },
+  );
+});

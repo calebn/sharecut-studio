@@ -1287,9 +1287,9 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   position: absolute;
   inset-block-start: 0;
   block-size: 1.5rem;
-  background: var(--color-danger-subtle);
+  background: var(--color-record-subtle);
   color: var(--color-text-primary);
-  border: 1px dashed var(--color-danger);
+  border: 1px dashed var(--color-record);
   font-size: var(--font-size-small);
   white-space: nowrap;
 }
@@ -1306,7 +1306,7 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   position: absolute;
   inset-block: 0;
   inline-size: 1px;
-  background: var(--color-danger);
+  background: var(--color-record);
 }
 
 .lane-inner > .join-blend {
