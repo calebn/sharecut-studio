@@ -1,13 +1,33 @@
 import { act, renderHook } from "@testing-library/react";
 import { useLayoutEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createHostPlaybackMeterMonitor } from "../audio/hostPlaybackMeterMonitor";
 import { playbackPositionSec } from "../audio/playbackClock";
+import { playbackMeterSource } from "../audio/playbackMeterSource";
 import { patchTrackMix } from "../document/projectPatch";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject, sampleTrack } from "../test/fixtures";
 import type { ProjectView, TrackView } from "../types/project";
 import { NO_PREVIEW_ERROR } from "../utils/audioErrorLabel";
 import { useAudioTransport } from "./useAudioTransport";
+
+const meterClock = vi.hoisted(() =>
+  vi.fn<() => { playbackRate: number } | null>(),
+);
+const meterTracks = vi.hoisted(() => vi.fn<() => unknown[]>(() => []));
+
+vi.mock("../audio/hostPlaybackMeterMonitor", () => ({
+  createHostPlaybackMeterMonitor: vi.fn(
+    (options: {
+      clock: () => { playbackRate: number } | null;
+      tracks: () => unknown[];
+    }) => {
+      meterClock.mockImplementation(options.clock);
+      meterTracks.mockImplementation(options.tracks);
+      return { sync: vi.fn(), read: () => null, dispose: vi.fn() };
+    },
+  ),
+}));
 
 class FakeAudio extends EventTarget {
   static instances: FakeAudio[] = [];
@@ -65,6 +85,163 @@ describe("useAudioTransport project transitions", () => {
     vi.unstubAllGlobals();
   });
 
+  it.each(["resolve", "reject", "unmount"])(
+    "serializes real meter replacement across project transitions and close %s",
+    async (outcome) => {
+      const real = await vi.importActual<
+        typeof import("../audio/hostPlaybackMeterMonitor")
+      >("../audio/hostPlaybackMeterMonitor");
+      const factory = vi.mocked(createHostPlaybackMeterMonitor);
+      const original = factory.getMockImplementation()!;
+      factory.mockImplementation(real.createHostPlaybackMeterMonitor);
+      const contexts: MeterContext[] = [];
+      class MeterContext extends EventTarget {
+        state = "running";
+        currentTime = 0;
+        sampleRate = 48000;
+        destination = {};
+        finishClose!: () => void;
+        rejectClose!: (error: Error) => void;
+        analyserCount = 0;
+        close = vi.fn(
+          () =>
+            new Promise<void>((resolve, reject) => {
+              this.finishClose = () => {
+                this.state = "closed";
+                this.dispatchEvent(new Event("statechange"));
+                resolve();
+              };
+              this.rejectClose = reject;
+            }),
+        );
+        resume = vi.fn(async () => {});
+        createGain = () => ({
+          gain: { value: 1 },
+          connect: vi.fn(),
+          disconnect: vi.fn(),
+        });
+        createMediaElementSource = () => ({
+          connect: vi.fn(),
+          disconnect: vi.fn(),
+        });
+        createChannelSplitter = () => ({
+          connect: vi.fn(),
+          disconnect: vi.fn(),
+        });
+        createAnalyser = () => {
+          const value = this.analyserCount++ % 2 === 0 ? 0.25 : -0.125;
+          return {
+            fftSize: 2048,
+            connect: vi.fn(),
+            disconnect: vi.fn(),
+            getFloatTimeDomainData: (samples: Float32Array) =>
+              samples.fill(value),
+          };
+        };
+        constructor() {
+          super();
+          contexts.push(this);
+        }
+      }
+      vi.stubGlobal("AudioContext", MeterContext);
+      let frame: FrameRequestCallback | undefined;
+      vi.stubGlobal(
+        "requestAnimationFrame",
+        vi.fn((callback: FrameRequestCallback) => {
+          frame = callback;
+          return 1;
+        }),
+      );
+      vi.stubGlobal("cancelAnimationFrame", vi.fn());
+      useDawStore.getState().setProject(trackProject("raw/host.wav"));
+      useDawStore.getState().setAuditionMode("raw");
+      const { unmount, rerender } = renderHook(
+        (enabled) => useAudioTransport(enabled),
+        { initialProps: true },
+      );
+      const start = async () => {
+        const audible = FakeAudio.instances.at(-1)!;
+        audible.readyState = 4;
+        act(() => useDawStore.getState().setIsPlaying(true));
+        await act(async () => {});
+        audible.currentTime = 12;
+        act(() => frame?.(0));
+      };
+      const prime = async () => {
+        expect(playbackMeterSource()?.read("host")).toBeNull();
+        const meter = FakeAudio.instances.at(-1)!;
+        meter.readyState = 4;
+        act(() => frame?.(16));
+        await act(async () => {});
+        meter.dispatchEvent(new Event("playing"));
+        meter.currentTime += 0.01;
+        meter.dispatchEvent(new Event("timeupdate"));
+        const samples = playbackMeterSource()?.read("host");
+        expect(samples?.length).toBe(4096);
+        expect([samples?.[0], samples?.[2048]]).toEqual([0.25, -0.125]);
+        return meter;
+      };
+      try {
+        await start();
+        const oldMeter = await prime();
+        const old = contexts[0];
+        act(() => {
+          useDawStore
+            .getState()
+            .hydrate("/tmp/project-next.json", trackProject("raw/host.wav"));
+          useDawStore.getState().setAuditionMode("raw");
+        });
+        expect(old.close).toHaveBeenCalledOnce();
+        expect(oldMeter.src).toBe("");
+        await start();
+        old.state = "closed";
+        old.dispatchEvent(new Event("statechange"));
+        for (let tick = 0; tick < 3; tick++) {
+          act(() => frame?.(32 + tick * 16));
+          expect(playbackMeterSource()?.read("host")).toBeNull();
+          expect(contexts).toHaveLength(1);
+        }
+        if (outcome === "unmount") {
+          unmount();
+          await act(async () => old.finishClose());
+          expect(playbackMeterSource()).toBeNull();
+          expect(contexts).toHaveLength(1);
+        } else if (outcome === "reject") {
+          await act(async () => old.rejectClose(new Error("close failed")));
+          act(() => frame?.(100));
+          expect(playbackMeterSource()?.read("host")).toBeNull();
+          expect(contexts).toHaveLength(1);
+          rerender(false);
+          rerender(true);
+          await start();
+          expect(playbackMeterSource()?.read("host")).toBeNull();
+          expect(contexts).toHaveLength(1);
+          expect(old.close).toHaveBeenCalledOnce();
+        } else {
+          await act(async () => old.finishClose());
+          act(() => frame?.(100));
+          await prime();
+          expect(contexts).toHaveLength(2);
+          old.state = "suspended";
+          old.dispatchEvent(new Event("statechange"));
+          oldMeter.dispatchEvent(new Event("error"));
+          const samples = playbackMeterSource()?.read("host");
+          expect([samples?.[0], samples?.[2048]]).toEqual([0.25, -0.125]);
+          unmount();
+          expect(contexts[1].close).toHaveBeenCalledOnce();
+          await act(async () => contexts[1].finishClose());
+          expect(playbackMeterSource()).toBeNull();
+          expect(contexts).toHaveLength(2);
+        }
+      } finally {
+        unmount();
+        for (const context of contexts) context.finishClose?.();
+        await act(async () => {});
+        factory.mockImplementation(original);
+      }
+    },
+  );
+
   it("applies a small explicit follow seek while playing without chasing clock ticks", async () => {
     useDawStore.getState().setProject(trackProject("raw/host.wav"));
     useDawStore.getState().setAuditionMode("raw");
@@ -85,6 +262,36 @@ describe("useAudioTransport project transitions", () => {
     expect(playbackPositionSec() ?? 9).toBe(9);
     unmount();
     expect(playbackPositionSec() ?? 8).toBe(8);
+  });
+
+  it("withholds meter work until the primary has future data", async () => {
+    meterClock.mockReset();
+    useDawStore.getState().setProject(trackProject("raw/host.wav"));
+    useDawStore.getState().setAuditionMode("raw");
+    const { unmount } = renderHook(() => useAudioTransport());
+    const player = FakeAudio.instances[0];
+    player.readyState = 4;
+    act(() => useDawStore.getState().setIsPlaying(true));
+    await act(async () => {});
+    player.currentTime = 9;
+
+    expect(useDawStore.getState().isPlaying).toBe(true);
+    expect(playbackPositionSec()).toBe(9);
+    expect(meterClock()).toEqual({ playbackRate: 1 });
+
+    player.readyState = 2;
+    expect(playbackPositionSec()).toBe(9);
+    expect(useDawStore.getState().isPlaying).toBe(true);
+    expect(meterClock()).toBeNull();
+
+    player.readyState = 3;
+    expect(playbackPositionSec()).toBe(9);
+    expect(meterClock()).toEqual({ playbackRate: 1 });
+
+    player.readyState = 4;
+    expect(meterClock()).toEqual({ playbackRate: 1 });
+    act(() => useDawStore.getState().setIsPlaying(false));
+    unmount();
   });
 
   it("does not restart clock updates when an old play promise resolves after project change", async () => {
@@ -555,4 +762,71 @@ describe("source preview asset error ownership", () => {
       view.unmount();
     },
   );
+});
+
+describe("useAudioTransport meter URL identity", () => {
+  beforeEach(() => {
+    FakeAudio.instances = [];
+    meterTracks.mockReset();
+    vi.stubGlobal("Audio", FakeAudio);
+    useDawStore.getState().hydrate("/tmp/issue3411.json", minimalProject());
+    useDawStore.getState().setAuditionMode("mix");
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps render intent on a stale stem action and strips it from same-asset reads", () => {
+    const project = mixProject([sampleTrack({ stem_is_fresh: false })], true, {
+      renderHash: { host: "render-17" },
+    });
+    useDawStore.getState().setProject(project);
+    const { unmount } = renderHook(() => useAudioTransport());
+
+    const [track] = meterTracks();
+    expect(track).toEqual({
+      id: "host",
+      url: "/api/audio?path=%2Ftmp%2Fissue3411.json&kind=stem&track_id=host&rerender=true&v=s-render-17-",
+      readUrl:
+        "/api/audio?path=%2Ftmp%2Fissue3411.json&kind=stem&track_id=host&v=s-render-17-",
+      delivery: "wav",
+      gain: 1,
+      mediaSec: 0,
+    });
+    unmount();
+  });
+
+  it("uses stable fresh-stem reads and retains raw media on the native path", () => {
+    useDawStore.getState().setProject(
+      mixProject([sampleTrack()], true, {
+        renderHash: { host: "render-18" },
+      }),
+    );
+    const fresh = renderHook(() => useAudioTransport());
+    const [freshTrack] = meterTracks();
+    expect(freshTrack).toEqual({
+      id: "host",
+      url: "/api/audio?path=%2Ftmp%2Fissue3411.json&kind=stem&track_id=host&v=f-render-18-",
+      readUrl:
+        "/api/audio?path=%2Ftmp%2Fissue3411.json&kind=stem&track_id=host&v=f-render-18-",
+      delivery: "wav",
+      gain: 1,
+      mediaSec: 0,
+    });
+    fresh.unmount();
+
+    useDawStore.getState().setAuditionMode("raw");
+    useDawStore.getState().setProject(trackProject("/tmp/host.wav"));
+    const raw = renderHook(() => useAudioTransport());
+    const [rawTrack] = meterTracks();
+    expect(rawTrack).toEqual({
+      id: "host",
+      url: "/api/audio?path=%2Ftmp%2Fissue3411.json&kind=raw&track_id=host",
+      delivery: "native",
+      gain: 1,
+      mediaSec: 0,
+    });
+    raw.unmount();
+  });
 });
