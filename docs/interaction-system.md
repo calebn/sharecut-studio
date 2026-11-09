@@ -353,7 +353,7 @@ not apply is answered "n/a" with the reason in the PR.
       exception.
 - [ ] It has a manifest row with every GUI surface it appears on.
 - [ ] A new noun is in the Terminology table; a new gesture is in
-      `commands/gestures.ts` and the gestures sheet.
+      `commands/gestures.ts` (the palette's Gestures rows read it).
 - [ ] Marker gestures cover pending refusal, source changes before threshold, held-arrow cancellation, identical-source continuity, exact hidden-comment selection and isolated 44 px horizontal targets in the 24 px row.
 - [ ] Tests lock the command, the key, the gesture, the surface row and the
       feedback. For UI under `gui/web/`, Vitest with axe; for shells and

@@ -10,7 +10,7 @@ The More hub was removed. Its destinations:
 | Review queue | Review → Queue: pending suggestions decided one at a time or by group | `editorial.edit_decisions` |
 | Pipeline | Prepare: Sources · Getting ready · Help the transcriber · Cleanup; Advanced steps behind a button | working-set config + live job |
 | Commands and shortcuts | Header search | command catalog |
-| Gestures | Commands and shortcuts → Gestures | static |
+| Gestures | Commands and shortcuts, Gestures group (touch pointer, in a project) | static |
 | View options | Eye popover | static |
 
 In Commands and shortcuts, each option's accessible name starts with the command
@@ -22,7 +22,7 @@ all commands, including unavailable ones; Enter runs only an available command.
 With Search empty, Commands and shortcuts lists Recent, then the commands by
 category, then a **Stages** group (Go to Record, Prepare, Edit, Review and
 Deliver; a stage the link cannot enter shows its reason), then Projects, People
-and Chapters, a **Gestures** row that opens the Gestures sheet, and a **Help**
+and Chapters, a **Gestures** group (touch pointer, in a project: one row per gesture), and a **Help**
 group (Export diagnostics…, shown disabled with its reason on guest and review
 links). Searching lists matches in one ranked list; "stages" and "help" find
 those rows. Commands with a verb icon, and every stage, show a small decorative
