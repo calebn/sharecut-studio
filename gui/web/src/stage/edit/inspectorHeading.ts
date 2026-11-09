@@ -1,5 +1,7 @@
 import { seamById } from "../../edit/seam";
 import type { SystemIconName } from "../../system/icons";
+import type { PersonData } from "../../system/Person";
+import { laneColorIndex } from "../../timeline/laneColors";
 import type { ProjectView, Selection } from "../../types/project";
 import {
   clipIdentityTrack,
@@ -7,10 +9,13 @@ import {
   clipSpeakerLabel,
 } from "../../utils/clipLabels";
 import { sortedVolumePoints } from "../../utils/envelopes";
+import { inspectorRename } from "./inspectorRename";
 
 export interface InspectorHeading {
   icon: SystemIconName;
+  mark?: PersonData;
   name: string;
+  onRename?: (name: string) => void;
 }
 
 const RANGE: InspectorHeading = {
@@ -86,12 +91,18 @@ export function inspectorHeading(
     }
     case "track": {
       const count = selection.trackIds?.length ?? 1;
+      if (count > 1) return { icon: "volume-1", name: `${count} tracks` };
+      const index =
+        project?.tracks.findIndex((t) => t.id === selection.trackId) ?? -1;
+      const track = project?.tracks[index];
+      const name = trackLabel(project, selection.trackId);
       return {
         icon: "volume-1",
-        name:
-          count > 1
-            ? `${count} tracks`
-            : trackLabel(project, selection.trackId),
+        name,
+        ...(track
+          ? { mark: { name, colorIndex: laneColorIndex(track.role, index) } }
+          : {}),
+        onRename: inspectorRename(selection, project),
       };
     }
     case "transcriptRange":

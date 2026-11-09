@@ -58,15 +58,13 @@ export function useTrackSections(
   const { busy, error, setError, run, saveMetaFields } = useTrackMetaMutation(
     trackId ?? "",
   );
-  const [label, setLabel] = useState(track?.label ?? "");
   const [speaker, setSpeaker] = useState(track?.speaker ?? "");
   const [role, setRole] = useState(track?.role ?? "dialogue");
   useEffect(() => {
-    setLabel(track?.label ?? "");
     setSpeaker(track?.speaker ?? "");
     setRole(track?.role ?? "dialogue");
     setError(null);
-  }, [track?.id, track?.label, track?.speaker, track?.role, setError]);
+  }, [track?.id, track?.speaker, track?.role, setError]);
   if (trackId === null) return null;
   if (rangeArmed && selection?.kind === "track") return [];
   if (!track)
@@ -87,12 +85,10 @@ export function useTrackSections(
 
   const saveMeta = async () => {
     const next = {
-      label: label.trim() || track.id,
       role,
       speaker: speaker.trim() || undefined,
     };
     if (
-      next.label === track.label &&
       next.role === track.role &&
       next.speaker === (track.speaker ?? undefined)
     )
@@ -132,19 +128,6 @@ export function useTrackSections(
       rows: [
         ...(mayIngest
           ? [
-              {
-                id: "name",
-                label: "Name",
-                control: (
-                  <input
-                    className="track-sheet-field"
-                    aria-label="Name"
-                    value={label}
-                    onChange={(e) => setLabel(e.target.value)}
-                    {...commitText}
-                  />
-                ),
-              },
               {
                 id: "speaker",
                 label: "Speaker",

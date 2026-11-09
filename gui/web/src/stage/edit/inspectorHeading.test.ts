@@ -43,10 +43,29 @@ describe("inspectorHeading for the volume envelope", () => {
 });
 
 describe("inspectorHeading for a track selection", () => {
-  it("names one track by its label", () => {
+  it("names one track by its label and marks it with its lane avatar", () => {
+    const heading = inspectorHeading(
+      { kind: "track", trackId: "host" },
+      project,
+    );
+    expect(heading).toMatchObject({
+      icon: "volume-1",
+      name: "Mira",
+      mark: { name: "Mira", colorIndex: 0 },
+    });
+    expect(heading.onRename).toBeTypeOf("function");
+  });
+
+  it("leaves a missing track unmarked and a multi-track selection on the icon", () => {
     expect(
-      inspectorHeading({ kind: "track", trackId: "host" }, project).name,
-    ).toBe("Mira");
+      inspectorHeading({ kind: "track", trackId: "gone" }, project),
+    ).toEqual({ icon: "volume-1", name: "gone" });
+    expect(
+      inspectorHeading(
+        { kind: "track", trackId: "host", trackIds: ["host", "guest"] },
+        project,
+      ),
+    ).toEqual({ icon: "volume-1", name: "2 tracks" });
   });
 
   it("counts a multi-track selection instead of naming one track", () => {

@@ -4,11 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setEffectBypass } from "../../api";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
-import { refreshDocumentDisplay } from "../../document/applyDocumentUpdate";
-import {
-  beginDocumentDraft,
-  finishDocumentDraft,
-} from "../../document/pendingDrafts";
 import { shareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
@@ -78,7 +73,6 @@ describe("track content", () => {
         useDawStore.getState().project,
       ).name,
     ).toBe("Host");
-    expect(screen.getByRole("textbox", { name: "Name" })).toBeVisible();
     expect(screen.getByRole("textbox", { name: "Speaker" })).toBeVisible();
     expect(screen.getByRole("combobox", { name: "Role" })).toBeVisible();
     expect(screen.getByRole("spinbutton", { name: "Level" })).toBeVisible();
@@ -105,7 +99,7 @@ describe("track content", () => {
 
   it("opens the same sheet for the track-level envelope selection", () => {
     open(hostTrack, [], undefined, "envelope");
-    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Host");
+    expect(screen.getByRole("spinbutton", { name: "Level" })).toBeVisible();
     expect(
       screen.getByRole("button", { name: "Show volume envelope" }),
     ).toBeVisible();
@@ -145,73 +139,6 @@ describe("track content", () => {
     );
     expect(useDawStore.getState().layers.showLevels).toBe(false);
     expect(useDawStore.getState().project).toBe(project);
-  });
-
-  it("applies SetTrackMeta locally before the command resolves and reverts on failure", async () => {
-    const user = userEvent.setup();
-    let release!: (err?: Error) => void;
-    const held = new Promise<Record<string, unknown>>((_, reject) => {
-      release = (err?: Error) => {
-        reject(err ?? new Error("network"));
-      };
-    });
-    setTrackMetaCommand.mockImplementation(
-      (_path: string, trackId: string, fields: Record<string, unknown>) => {
-        beginDocumentDraft("meta", "SetTrackMeta", {
-          track_id: trackId,
-          ...fields,
-        });
-        return held.finally(() => {
-          finishDocumentDraft("meta");
-          refreshDocumentDisplay();
-        });
-      },
-    );
-    open();
-    const input = screen.getByRole("textbox", { name: "Name" });
-    await user.clear(input);
-    await user.type(input, "Narrator");
-    expect(useDawStore.getState().project?.tracks[0]?.label).toBe("Host");
-    await user.tab();
-    expect(useDawStore.getState().project?.tracks[0]?.label).toBe("Narrator");
-    expect(setTrackMetaCommand).toHaveBeenCalled();
-
-    release(new Error("network"));
-    await vi.waitFor(() => {
-      expect(useDawStore.getState().project?.tracks[0]?.label).toBe("Host");
-    });
-    expect(await screen.findByRole("alert")).toHaveTextContent("network");
-  });
-
-  it("saves a rename on Enter and not when nothing changed", async () => {
-    const user = userEvent.setup();
-    setTrackMetaCommand.mockResolvedValue({});
-    open();
-    const input = screen.getByRole("textbox", { name: "Name" });
-    await user.click(input);
-    await user.tab();
-    expect(setTrackMetaCommand).not.toHaveBeenCalled();
-    await user.clear(input);
-    await user.type(input, "Narrator{Enter}");
-    expect(setTrackMetaCommand).toHaveBeenCalledTimes(1);
-    expect(setTrackMetaCommand).toHaveBeenCalledWith("/tmp/ep.json", "host", {
-      label: "Narrator",
-      role: "dialogue",
-      speaker: undefined,
-    });
-  });
-
-  it("falls back to the track id for an emptied name", async () => {
-    const user = userEvent.setup();
-    setTrackMetaCommand.mockResolvedValue({});
-    open();
-    await user.clear(screen.getByRole("textbox", { name: "Name" }));
-    await user.tab();
-    expect(setTrackMetaCommand).toHaveBeenCalledWith(
-      "/tmp/ep.json",
-      "host",
-      expect.objectContaining({ label: "host" }),
-    );
   });
 
   it("commits Level once as the fader write", async () => {
