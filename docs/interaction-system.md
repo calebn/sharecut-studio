@@ -248,7 +248,9 @@ There are three overlay primitives.
    scrub) is a line in `SURFACE_GESTURES` in
    `timeline/gestureGovernance.test.ts` naming the decision it keeps.
 5. **Focus is visible and ordered.** Tab order follows reading order; the focus
-   ring is never removed; focus returns to the opener after an overlay closes.
+   ring is never removed; Close and Escape return focus to the opener. An
+   anchored dialog may opt into preserving an outside control's focus when
+   that control dismisses it.
 6. **Targets are 44 px** on coarse pointers. The dense-target exceptions are the
    ones `gui/web/e2e/touch-floor.spec.ts` names and no others.
 
