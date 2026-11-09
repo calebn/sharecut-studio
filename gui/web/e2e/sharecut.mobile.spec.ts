@@ -10,8 +10,8 @@ import {
   collapsePlayer,
   expandPlayer,
   inspectSelection,
+  openPaletteAsTouch,
   openProject,
-  openProjectDialog,
   phone,
   projectMenuButton,
 } from "./stageNav";
@@ -384,7 +384,7 @@ test.describe("ShareCut Studio mobile smoke", () => {
     page,
   }) => {
     await openProject(page, e2eProjectPath);
-    await openProjectDialog(page, "palette");
+    await openPaletteAsTouch(page);
 
     const palette = page.getByRole("dialog", {
       name: "Commands and shortcuts",

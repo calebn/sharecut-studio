@@ -371,6 +371,16 @@ export async function openProjectDialog(
   }
 }
 
+/** Open the palette as a touch user does: the last pointer is a finger, so the Gestures rows show. */
+export async function openPaletteAsTouch(page: Page): Promise<void> {
+  await page.evaluate(() =>
+    window.dispatchEvent(
+      new PointerEvent("pointerdown", { pointerType: "touch" }),
+    ),
+  );
+  await page.keyboard.press("?");
+}
+
 /** Open the Record stage and return its root. */
 export async function openRecordRoom(page: Page): Promise<Locator> {
   await openProjectDialog(page, "record");
