@@ -275,6 +275,18 @@ export async function loadBoundaryContext(
   );
 }
 
+const TRY_AGAIN_MESSAGE = "The server didn't answer. Try again.";
+
+async function assertOk(response: Response): Promise<void> {
+  if (response.ok) return;
+  const failure = await readApiFailure(response);
+  throw new ApiError(
+    `${response.status} ${failure.message}`,
+    failure.code,
+    failure.status,
+  );
+}
+
 export async function auditionBoundary(
   path: string,
   target: BoundaryTarget,
@@ -285,7 +297,7 @@ export async function auditionBoundary(
 ): Promise<BoundaryAudition> {
   return withAbortTimeout(
     DOCUMENT_COMMAND_TIMEOUT_MS,
-    "The server didn't answer. Try again.",
+    TRY_AGAIN_MESSAGE,
     async (requestSignal) => {
       const response = await hostFetch("/api/boundary/audition", {
         method: "POST",
@@ -299,14 +311,7 @@ export async function auditionBoundary(
         }),
         signal: requestSignal,
       });
-      if (!response.ok) {
-        const failure = await readApiFailure(response);
-        throw new ApiError(
-          `${response.status} ${failure.message}`,
-          failure.code,
-          failure.status,
-        );
-      }
+      await assertOk(response);
       const audition = parseAudition((await response.json()) as unknown);
       if (!sameTarget(audition.actual_edit, target))
         throw new Error("Invalid boundary response: audition target mismatch");
@@ -332,19 +337,12 @@ export async function fetchBoundaryAudio(
 ): Promise<Blob> {
   return withAbortTimeout(
     DOCUMENT_COMMAND_TIMEOUT_MS,
-    "The server didn't answer. Try again.",
+    TRY_AGAIN_MESSAGE,
     async (requestSignal) => {
       const response = await hostFetch(boundaryAudioUrl(path, expectedToken), {
         signal: requestSignal,
       });
-      if (!response.ok) {
-        const failure = await readApiFailure(response);
-        throw new ApiError(
-          `${response.status} ${failure.message}`,
-          failure.code,
-          failure.status,
-        );
-      }
+      await assertOk(response);
       return response.blob();
     },
     signal,
