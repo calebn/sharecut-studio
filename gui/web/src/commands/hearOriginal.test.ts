@@ -27,6 +27,14 @@ describe("transport.hearOriginal", () => {
     expect(mode()).toBe("fx");
   });
 
+  it("keeps the restore when the commands are re-registered mid-hold", async () => {
+    useDawStore.setState({ auditionMode: "fx" });
+    await hold(true);
+    registerDawCommands();
+    await hold(false);
+    expect(mode()).toBe("fx");
+  });
+
   it("a release with no hold changes nothing", async () => {
     useDawStore.setState({ auditionMode: "fx" });
     await hold(false);
