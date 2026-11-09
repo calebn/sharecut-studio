@@ -287,12 +287,12 @@ export function registerPrimaryEditingCommands(): void {
 
   registerCommand("edit.clearSelection", () => {
     const s = useDawStore.getState();
-    if (inspectorOpenFor(s.selection, s.inspectorKey)) {
-      s.setInspectorOpen(false);
-      return { status: "ok" };
-    }
     if (s.rangeArmed) {
       s.setRangeArmed(false);
+      return { status: "ok" };
+    }
+    if (inspectorOpenFor(s.selection, s.inspectorKey)) {
+      s.setInspectorOpen(false);
       return { status: "ok" };
     }
     s.setSelection(null);

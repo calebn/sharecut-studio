@@ -513,6 +513,15 @@ describe("range.arm", () => {
     expect(useDawStore.getState().rangeArmed).toBe(false);
     expect(useDawStore.getState().rangeDraft).toBeNull();
   });
+  it("refuses to arm over a committed range and keeps it through close", async () => {
+    useDawStore.setState({ selection: { kind: "range", target } });
+    expect(await execute("range.arm")).toEqual({
+      status: "disabled",
+      reason: "A range is already selected",
+    });
+    expect(useDawStore.getState().rangeArmed).toBe(false);
+    expect(useDawStore.getState().selection).toMatchObject({ kind: "range" });
+  });
   it("refuses an empty timeline", async () => {
     useDawStore.setState({ project: minimalProject() });
     expect(await execute("range.arm")).toEqual({

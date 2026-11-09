@@ -276,7 +276,6 @@ describe("range fields", () => {
       const user = userEvent.setup();
       arm({ start: 1, end: 3, trackIds: [] });
       render(<RangeFields sheet />);
-      expect(screen.getByText("Choose at least one track")).toBeVisible();
       await user.click(field("In"));
       await user.keyboard("2{Enter}");
       expect(useDawStore.getState().selection).toBeNull();
@@ -285,6 +284,9 @@ describe("range fields", () => {
         end: 3,
         trackIds: [],
       });
+      expect(useDawStore.getState().feedbackToast?.message).toBe(
+        "Choose at least one track",
+      );
     });
     it("hides once a range is selected", () => {
       arm();

@@ -13,6 +13,8 @@ import { useDaw } from "../state/useDaw";
 import { ScrubField } from "../system/ScrubField";
 import { Button } from "../ui";
 
+const NO_TRACKS = "Choose at least one track";
+
 export function RangeFields({
   sheet = false,
   always = false,
@@ -80,7 +82,8 @@ export function RangeFields({
   const commitSpan = (start: number, end: number) => {
     const next = makeRangeTarget(project, [{ start, end }], scope);
     if (!next) {
-      state.setRangeDraft({ start, end, trackIds: scope });
+      if (drafting) state.setRangeDraft({ start, end, trackIds: scope });
+      state.announceStatus(NO_TRACKS, { tone: "error" });
       return;
     }
     state.commitRange(next);
@@ -93,8 +96,12 @@ export function RangeFields({
     const spans = target?.intervals ?? (draftSpan ? [draftSpan] : null);
     if (!spans) return;
     const next = makeRangeTarget(project, spans, ids);
-    if (next) state.commitRange(next);
-    else if (draftSpan) state.setRangeDraft({ ...draftSpan, trackIds: ids });
+    if (next) {
+      state.commitRange(next);
+      return;
+    }
+    if (draftSpan) state.setRangeDraft({ ...draftSpan, trackIds: ids });
+    state.announceStatus(NO_TRACKS, { tone: "error" });
   };
   const field = (
     label: string,
@@ -171,9 +178,6 @@ export function RangeFields({
             value={scope}
             onChange={commitScope}
           />
-          {editable && scope.length === 0 ? (
-            <p>Choose at least one track</p>
-          ) : null}
           {agent ? (
             <Button
               type="button"
@@ -190,6 +194,7 @@ export function RangeFields({
                   scope.length ? scope : defaultScope(project, selection),
                 );
                 if (next) state.commitRange(next);
+                else state.announceStatus(NO_TRACKS, { tone: "error" });
               }}
             >
               Use agent range on selected tracks
