@@ -89,15 +89,19 @@ at 360×740, 360×800, 667×360, 820×1180 and 1440×900, with 16px/32px CSS roo
 text, one theme and motion setting per cell from `withAppearance`. It uses native mouse input at
 the visible track identity, measured ordinary body-wheel scrolling, and full
 control rectangles rather than center-only visibility. Envelope saves retain
-matching Applied identity, saved stable-ID points and History receipts; Cancel,
-Escape, Done and Close check visible focus recovery without a canceled write.
-The Clip inspector shares the same scrolling checks. A separate phone journey
-uses native Tabs and Enter for field errors and completion. The 32px root is a
+matching Applied identity, saved stable-ID points and History receipts.
+The Clip inspector shares the same scrolling checks. A separate 360×740 dark
+phone journey uses pointer setup to create an existing envelope point, then
+native Tab (Alt+Tab in WebKit), Enter and Inspect to reach its Inspector. It
+commits a valid Level edit, checks the saved point identity and history, undoes
+the edit with the keyboard, and closes the Inspector without another write,
+checking visible focus and return to the point. It does not cover keyboard point
+creation or invalid input. The 32px root is a
 200% text-size simulation, not browser/OS zoom, physical touch, Safari, assistive
 technology or software-keyboard evidence; those acceptance checks remain #960.
 Run the focused regression after the production E2E build:
 `npm run test:e2e -- e2e/inspector-responsive.spec.ts`.
-See [the baseline and result record](https://github.com/calebn/sharecut-studio/pull/963#issuecomment-5998148488) for qualified failures,
+See [the historical baseline and result record](https://github.com/calebn/sharecut-studio/pull/963#issuecomment-5998148488) for qualified failures,
 selected pixels, and a separate genuine Chromium 200% browser-zoom check. That
 check uses `chrome.tabs.setZoom` with a 16px root and measured halved CSS layout
 on an Xvfb display. It is distinct from this suite's root32 simulation.

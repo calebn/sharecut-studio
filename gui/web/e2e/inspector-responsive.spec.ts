@@ -17,7 +17,9 @@ import {
 import {
   captureInspector,
   exposeControl,
+  nativeTabTo,
   pointerControl,
+  visibleFocus,
   wheelInspector,
 } from "./inspectorResponsiveEvidence";
 import { type InteractionReceipt, test } from "./interactionEvidence";
@@ -27,6 +29,164 @@ import { openHostShare } from "./shareNavigation";
 import { closeTools, inspectSelection, openToolsIfFolded } from "./stageNav";
 import { setTheme, withAppearance } from "./theme";
 import { trackHeaderButton } from "./trackHeader";
+
+test.describe("root32 phone envelope keyboard restoration", () => {
+  test.use({ viewport: { width: 360, height: 740 }, reducedMotion: "reduce" });
+  test("native point entry edits, undoes and closes the Inspector", async ({
+    page,
+    receipts,
+    browserName,
+  }, info) => {
+    await withShareableProject(
+      async (projectPath) => {
+        const track = envelopeTrack(projectPath);
+        const origin = envelopeSnapshot(projectPath, track.id);
+        const observer = observeEnvelopeCommands(
+          page,
+          projectPath,
+          track.id,
+          receipts,
+        );
+        try {
+          await setup(page, projectPath, "dark", 32, receipts);
+          await observer.verifyAssets();
+          await pointerControl(
+            page,
+            trackHeaderButton(page, track.label),
+            receipts,
+            true,
+          );
+          await pointerControl(
+            page,
+            page.getByRole("button", {
+              name: "Show volume envelope",
+              exact: true,
+            }),
+            receipts,
+          );
+          const trackInspector = page.getByRole("dialog", {
+            name: "Inspector",
+          });
+          await trackInspector.getByRole("button", { name: "Close" }).click();
+          await expect(trackInspector).toBeHidden();
+          const created = await acceptedEnvelopeCommand(
+            page,
+            "SetEnvelope",
+            () => addEnvelopePoint(page, { trackId: track.id, share: 0.5 }),
+          );
+          expect(created.command.payload.expected_points).toEqual([]);
+          const saved = envelopeSnapshot(projectPath, track.id);
+          expectEnvelopeMutation(origin, saved, track.id);
+          expect(saved.points).toHaveLength(3);
+          const selectedPoint = saved.points[1]!;
+          expect(selectedPoint.time).toBeCloseTo(30, 6);
+          expect(selectedPoint.value).toBe(1);
+          await inspectEnvelopePoint(page);
+          const dialog = pointSheet(page);
+          const close = dialog.getByRole("button", { name: "Close" });
+          await expect(close).toBeVisible();
+          await close.click();
+          await expect(dialog).toBeHidden();
+
+          const point = page.getByRole("slider", {
+            name: `Envelope point ${saved.points.indexOf(selectedPoint) + 1}`,
+            exact: true,
+          });
+          const tabKey = browserName === "webkit" ? "Alt+Tab" : "Tab";
+          receipts.push({
+            checkpoint: "keyboard-phase-start",
+            observation: {
+              setup:
+                "Pointer-created and selected the visible mid-lane point; pointer-closed its Inspector.",
+              input: "Native keyboard actions only from this point onward.",
+              browserName,
+              tabKey,
+            },
+          });
+          await nativeTabTo(page, point, receipts, tabKey);
+          await page.keyboard.press("Enter");
+          await expect(point).toHaveAttribute("aria-current", "true");
+          await page.keyboard.press("i");
+          await expect(dialog).toBeVisible();
+
+          const level = dialog.getByRole("spinbutton", {
+            name: "Level",
+            exact: true,
+          });
+          const changed = await acceptedEnvelopeCommand(
+            page,
+            "SetEnvelope",
+            async () => {
+              await nativeTabTo(page, level, receipts, tabKey);
+              await page.keyboard.press("Enter");
+              const textbox = dialog.getByRole("textbox", {
+                name: "Level",
+                exact: true,
+              });
+              await expect(textbox).toBeVisible();
+              await page.keyboard.press("ControlOrMeta+A");
+              await page.keyboard.type("0.75");
+              await page.keyboard.press("Enter");
+            },
+          );
+          expect(changed.command.payload.points).toEqual(
+            saved.points.map((savedPoint) =>
+              savedPoint.id === selectedPoint.id
+                ? { ...savedPoint, value: 0.75 }
+                : savedPoint,
+            ),
+          );
+          await expect
+            .poll(() => envelopeSnapshot(projectPath, track.id).points)
+            .toEqual(changed.command.payload.points);
+          const edited = envelopeSnapshot(projectPath, track.id);
+          expectEnvelopeMutation(saved, edited, track.id);
+
+          const focusedClose = dialog.getByRole("button", { name: "Close" });
+          await nativeTabTo(page, focusedClose, receipts, tabKey);
+          const historyBeforeUndo = envelopeSnapshot(projectPath, track.id);
+          const undo = await acceptedEnvelopeCommand(page, "UndoHistory", () =>
+            page.keyboard.press("ControlOrMeta+z"),
+          );
+          expect(undo.reply).toMatchObject({ ok: true });
+          await expect
+            .poll(() => envelopeSnapshot(projectPath, track.id).points)
+            .toEqual(saved.points);
+          const restored = envelopeSnapshot(projectPath, track.id);
+          expect(restored.history?.cursor).toBe(saved.history?.cursor);
+          expect(restored.unchanged).toEqual(historyBeforeUndo.unchanged);
+          expect(restored.otherEnvelopes).toEqual(
+            historyBeforeUndo.otherEnvelopes,
+          );
+
+          const terminalCommands = observer.commands.length;
+          const terminalHistory = restored.history;
+          await visibleFocus(focusedClose, receipts, "keyboard-close-focused");
+          await page.keyboard.press("Enter");
+          await expect(dialog).toBeHidden();
+          await expect(point).toBeFocused();
+          expect(observer.commands).toHaveLength(terminalCommands);
+          expect(envelopeSnapshot(projectPath, track.id).history).toEqual(
+            terminalHistory,
+          );
+          expect(envelopeSnapshot(projectPath, track.id).points).toEqual(
+            saved.points,
+          );
+          await captureInspector(
+            page,
+            info,
+            receipts,
+            "keyboard-restoration-terminal",
+          );
+        } finally {
+          await observer.retain();
+        }
+      },
+      undefined,
+      emptyEnvelopeProject,
+    );
+  });
+});
 
 const viewports = [
   { width: 360, height: 740 },
