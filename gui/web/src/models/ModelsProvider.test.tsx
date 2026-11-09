@@ -8,7 +8,7 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
+import { type ReactNode, useLayoutEffect } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   BootstrapJobSnapshot,
@@ -1402,6 +1402,93 @@ describe("explicit target observations", () => {
 });
 
 describe("target update ownership", () => {
+  it("forces Update after the model state commits while leaving Best selected", async () => {
+    let selected: ReturnType<typeof useModels> | undefined;
+    const observer = new MutationObserver(() => {
+      const update = screen.queryByRole("button", {
+        name: "Update the transcription model",
+      });
+      if (
+        !update?.isConnected ||
+        update.hasAttribute("disabled") ||
+        update.getAttribute("aria-disabled") === "true"
+      ) {
+        return;
+      }
+      observer.disconnect();
+      expect(selected?.whisper.variant).toBe("large-v3-turbo");
+      expect(
+        selected?.lookup({ id: "whisper", variant: "tiny.en" }).row?.state,
+      ).toEqual({ kind: "update_needed" });
+      fireEvent.click(update);
+    });
+
+    try {
+      observer.observe(document.body, {
+        attributes: true,
+        attributeFilter: ["disabled", "aria-disabled"],
+        childList: true,
+        subtree: true,
+      });
+      fetchStatus.mockImplementation((variant) =>
+        Promise.resolve(
+          status(
+            [
+              row({
+                id: "whisper",
+                model: variant ?? "large-v3-turbo",
+                state: variant === "tiny.en" ? "update_needed" : "installed",
+              }),
+            ],
+            {
+              whisper_model: variant ?? "large-v3-turbo",
+              ready: variant !== "tiny.en",
+            },
+          ),
+        ),
+      );
+      run.mockResolvedValue({
+        job: job({ id: "fast-update", whisper_model: "tiny.en" }),
+      });
+      function TestObserve() {
+        const models = useModels();
+        useLayoutEffect(() => {
+          selected = models;
+        }, [models]);
+        return null;
+      }
+      render(
+        <ModelsProvider>
+          <TestObserve />
+          <ModelNeedRow
+            model={{
+              id: "whisper",
+              variant: "tiny.en",
+              label: "Whisper",
+              size: "75 MB",
+            }}
+          />
+        </ModelsProvider>,
+      );
+      await waitFor(() =>
+        expect(run).toHaveBeenCalledExactlyOnceWith({
+          components: ["whisper"],
+          whisper_model: "tiny.en",
+          force: true,
+        }),
+      );
+      expect(selected?.whisper.variant).toBe("large-v3-turbo");
+      expect(selected?.models?.[0]?.state).toEqual({ kind: "installed" });
+      expect(
+        await screen.findByRole("button", {
+          name: "Cancel the transcription model download",
+        }),
+      ).toBeEnabled();
+    } finally {
+      observer.disconnect();
+    }
+  });
+
   it("forces an observed Fast update while leaving Best selected", async () => {
     fetchStatus.mockImplementation((variant) =>
       Promise.resolve(
