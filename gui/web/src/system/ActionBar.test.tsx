@@ -178,6 +178,26 @@ describe("ActionBar dock", () => {
     ).toEqual(["Hear before", "Hear after"]);
   });
 
+  it("shows a gated verb's reason as visible text its button is described by", () => {
+    render(
+      <ActionBar
+        placement={{ form: "dock" }}
+        items={[
+          { id: "hear" },
+          { id: "keep", disabledReason: "Restore the later cut first." },
+        ]}
+        onVerb={vi.fn()}
+      />,
+    );
+    const keep = screen.getByRole("button", { name: /Keep/ });
+    expect(keep).toBeDisabled();
+    expect(keep).toHaveAccessibleDescription("Restore the later cut first.");
+    expect(screen.getByText("Restore the later cut first.")).toBeVisible();
+    expect(screen.getByRole("button", { name: /Hear/ })).not.toHaveAttribute(
+      "aria-describedby",
+    );
+  });
+
   it("shows only Hear and Comment to a read-only guest", () => {
     const scene = barScene(EDIT_SELECTIONS.cutWords, { role: "readOnly" });
     render(

@@ -18,6 +18,7 @@ export type BarItem = {
   readonly tone?: "link";
   readonly arg?: string;
   readonly disabledReason?: string;
+  readonly describedBy?: string;
   readonly options?: readonly BarOption[];
 };
 

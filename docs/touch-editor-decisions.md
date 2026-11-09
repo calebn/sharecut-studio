@@ -311,7 +311,7 @@ enforced-by:
 - gui/web/src/timeline/timelineStyles.test.ts::shrinks the tag as the real overlap grows, keeping the hit box, and motion respects reduced-motion
 - gui/web/src/timeline/hitRouting.grammar.test.ts::stays a seek in the lane above, where the mark's box would reach
 - gui/web/e2e/edit-markers.spec.ts::a touch in the lane above a glyph seeks
-- gui/web/e2e/edit-markers.spec.ts::a tap beside a glyph delivered in Mobile Safari's event order opens the join and does not seek
+- gui/web/e2e/edit-markers.spec.ts::a tap beside a glyph delivered in Mobile Safari's event order selects the seam and does not seek
 - gui/web/src/timeline/hitRouting.grammar.test.ts::opens the join from the browser's click when a finger lands 20 px beside it
 - gui/web/src/timeline/AppliedEditOverlay.test.tsx::has no axe violations with a seam tick
 -->
@@ -320,7 +320,7 @@ Two touch targets join the timeline: a join glyph and an edit chip. Both
 cover joins only. The plan (`timeline/editMarkers/plan.ts`) folds any joins
 whose centres sit closer than 24 px (`CLUSTER_PX`) into one chip, so every
 glyph and chip centre is at least 24 px from the next. A glyph tap acts the
-same at every zoom: it opens the join popover (hit kind `join`). A chip tap
+same at every zoom: it selects the join's seam, which opens the seam bar (hit kind `join`). A chip tap
 zooms to its joins (hit kind `edit-chip`, `zoomToSpan`) until the closest two
 sit 30 px apart, centred on the chip, and the chip splits into glyphs. A chip
 no zoom can split (the zoom ceiling, or joins an instant apart) is a plain
