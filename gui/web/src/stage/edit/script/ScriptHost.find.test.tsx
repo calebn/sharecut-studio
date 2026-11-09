@@ -1,7 +1,13 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { submitDocumentCommand } from "../../../api/documentEdits";
 import { useDawStore } from "../../../state/dawStore";
+import {
+  COMMENTER_CAPABILITIES,
+  clipRow,
+  EDITOR_CAPABILITIES,
+} from "../../../test/fixtures";
 import {
   scriptUtterance,
   scriptWord,
@@ -15,6 +21,10 @@ vi.mock("../../../api", async (original) => ({
   ...(await original<typeof import("../../../api")>()),
   previewTranscriptReplacement: preview,
   replaceTranscriptMatches: replace,
+}));
+vi.mock("../../../api/documentEdits", async (original) => ({
+  ...(await original<typeof import("../../../api/documentEdits")>()),
+  submitDocumentCommand: vi.fn(),
 }));
 vi.mock("../../../commands/seek", () => ({ seekTransport: vi.fn() }));
 const scrolled = vi.hoisted(() => ({ to: [] as number[] }));
@@ -46,6 +56,28 @@ vi.mock("../../../system/ScriptPane", async (original) => {
   };
 });
 
+const CLIPS = {
+  clip_count: 2,
+  tracks: {
+    host: [
+      clipRow({
+        id: "host-clip",
+        track_id: "host",
+        source_end: 60,
+        timeline_end: 60,
+      }),
+    ],
+    guest: [
+      clipRow({
+        id: "guest-clip",
+        track_id: "guest",
+        source_end: 60,
+        timeline_end: 60,
+      }),
+    ],
+  },
+};
+
 const bar = () => screen.getByRole("search", { name: "Find in transcript" });
 const findField = () => screen.getByRole("searchbox", { name: "Find" });
 
@@ -66,6 +98,12 @@ beforeEach(() => {
     preview_token: "tok-1",
   });
   replace.mockResolvedValue({ queued: false });
+  vi.mocked(submitDocumentCommand).mockReset();
+  vi.mocked(submitDocumentCommand).mockResolvedValue({
+    type: "Applied",
+    history_head_id: "head-1",
+  });
+  useDawStore.setState({ statusAnnouncement: "", feedbackToast: null });
   seedScript();
 });
 
@@ -270,9 +308,141 @@ describe("ScriptHost Find", () => {
     expect(screen.getByRole("button", { name: "Replace all" })).toBeVisible();
   });
 
-  it("offers no Cut all", async () => {
+  const twoSpeakersSayUm = () =>
+    seedScript({
+      project: { clips: CLIPS },
+      utterances: [
+        scriptUtterance("host", "Maya", [
+          scriptWord("um", 0, 10),
+          scriptWord("so", 1, 12),
+          scriptWord("um", 2, 20),
+        ]),
+        scriptUtterance("guest", "Anneke", [
+          scriptWord("um", 0, 10.2),
+          scriptWord("yes", 1, 25),
+          scriptWord("um", 2, 30),
+        ]),
+      ],
+    });
+
+  it("cuts every hit as one command that keeps each speaker's audio apart", async () => {
+    twoSpeakersSayUm();
+    await openFind();
+    await userEvent.type(findField(), "um");
+    expect(bar()).toHaveTextContent("1 of 4");
+    await userEvent.click(screen.getByRole("button", { name: "Cut all 4" }));
+    await waitFor(() => expect(submitDocumentCommand).toHaveBeenCalledTimes(1));
+    const [path, type, payload] = vi.mocked(submitDocumentCommand).mock
+      .calls[0] as [string, string, { action: string; targets: unknown[] }];
+    expect([path, type, payload.action]).toEqual([
+      "/tmp/ep",
+      "EditSelectedRange",
+      "cut",
+    ]);
+    expect(
+      payload.targets.map((target) => {
+        const t = target as {
+          track_ids: string[];
+          intervals: { start: number; end: number }[];
+        };
+        return [t.track_ids, t.intervals];
+      }),
+    ).toEqual([
+      [
+        ["host"],
+        [
+          { start: 10, end: 10.4 },
+          { start: 20, end: 20.4 },
+        ],
+      ],
+      [
+        ["guest"],
+        [
+          { start: 10.2, end: 10.6 },
+          { start: 30, end: 30.4 },
+        ],
+      ],
+    ]);
+    await waitFor(() =>
+      expect(useDawStore.getState().statusAnnouncement).toBe("Cut 4 matches"),
+    );
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      message: "Cut 4 matches",
+      undo: "head-1",
+    });
+  });
+
+  it("cuts a phrase another speaker interrupts on the speaker's track only", async () => {
+    seedScript({
+      project: { clips: CLIPS },
+      utterances: [
+        scriptUtterance("host", "Maya", [scriptWord("one", 0, 10)]),
+        scriptUtterance("guest", "Anneke", [scriptWord("yes", 0, 12)]),
+        scriptUtterance("host", "Maya", [scriptWord("thanks", 1, 14)]),
+      ],
+    });
+    await openFind();
+    await userEvent.type(findField(), "one thanks");
+    await userEvent.click(screen.getByRole("button", { name: "Cut all 1" }));
+    await waitFor(() => expect(submitDocumentCommand).toHaveBeenCalledTimes(1));
+    const payload = vi.mocked(submitDocumentCommand).mock.calls[0][2] as {
+      targets: { track_ids: string[]; intervals: unknown[] }[];
+    };
+    expect(payload.targets).toHaveLength(1);
+    expect(payload.targets[0].track_ids).toEqual(["host"]);
+    expect(payload.targets[0].intervals).toEqual([{ start: 10, end: 14.4 }]);
+    await waitFor(() =>
+      expect(useDawStore.getState().statusAnnouncement).toBe("Cut 1 match"),
+    );
+  });
+
+  it("says a queued cut is still sending", async () => {
+    seedScript({ project: { clips: CLIPS } });
+    vi.mocked(submitDocumentCommand).mockResolvedValue({ queued: true });
+    await openFind();
+    await userEvent.type(findField(), "maya");
+    await userEvent.click(screen.getByRole("button", { name: "Cut all 1" }));
+    await waitFor(() =>
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "Cut all queued. Still sending.",
+      ),
+    );
+  });
+
+  it("shows the refusal in the bar and cuts nothing", async () => {
+    seedScript({ project: { clips: CLIPS } });
+    vi.mocked(submitDocumentCommand).mockRejectedValue(
+      new Error("Selected audio changed."),
+    );
+    await openFind();
+    await userEvent.type(findField(), "maya");
+    await userEvent.click(screen.getByRole("button", { name: "Cut all 1" }));
+    expect(
+      await screen.findByText("Selected audio changed."),
+    ).toBeInTheDocument();
+    expect(useDawStore.getState().statusAnnouncement).not.toMatch(/^Cut/);
+  });
+
+  it("offers no Cut all to a suggesting guest", async () => {
+    seedScript({
+      projectPath: "share:abc",
+      guestMode: "comment",
+      shareCapabilities: COMMENTER_CAPABILITIES,
+    });
     await openFind();
     await userEvent.type(findField(), "maya");
     expect(screen.queryByRole("button", { name: /Cut all/ })).toBeNull();
+  });
+
+  it("offers Cut all to an editing guest", async () => {
+    seedScript({
+      projectPath: "share:abc",
+      guestMode: "edit",
+      shareCapabilities: EDITOR_CAPABILITIES,
+      project: { clips: CLIPS },
+    });
+    await openFind();
+    await userEvent.type(findField(), "maya");
+    expect(screen.getByRole("button", { name: "Cut all 1" })).toBeVisible();
   });
 });

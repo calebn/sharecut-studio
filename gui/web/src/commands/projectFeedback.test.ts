@@ -557,7 +557,7 @@ describe("Actionbar selected-range Cut diagnostic", () => {
     expect(apiMocks.submitDocumentCommand.mock.calls[0]).toEqual([
       "/projects/range-origin.sharecut",
       DocumentCommand.EditSelectedRange,
-      { action: "cut", target: target.target },
+      { action: "cut", targets: [target.target] },
     ]);
     useDawStore
       .getState()

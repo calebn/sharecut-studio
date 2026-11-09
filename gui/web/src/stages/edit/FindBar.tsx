@@ -317,7 +317,10 @@ export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
             onClick={() => replace.onOpenChange(!replace.open)}
             onKeyDown={onButtonKey}
           >
-            <SystemIcon name="replace" size={16} />
+            <SystemIcon
+              name={replace.open ? "chevron-down" : "chevron-right"}
+              size={16}
+            />
           </button>
         ) : null}
         {onSelectAll && hits ? (
@@ -371,25 +374,28 @@ export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
           {replace.onReplace ? (
             <button
               type="button"
-              className="sys-text-btn"
+              className="sys-icon-btn"
+              aria-label="Replace"
+              title="Replace"
               aria-disabled={replaceUnavailable || undefined}
               {...replaceDescribedBy}
               onClick={replaceOne}
               onKeyDown={onButtonKey}
             >
-              Replace
+              <SystemIcon name="replace" size={16} />
             </button>
           ) : null}
           <button
             type="button"
-            className="sys-text-btn"
+            className="sys-icon-btn"
             aria-label="Replace all"
+            title="Replace all"
             aria-disabled={replaceUnavailable || undefined}
             {...replaceDescribedBy}
             onClick={replaceAll}
             onKeyDown={onButtonKey}
           >
-            All
+            <SystemIcon name="replace-all" size={16} />
           </button>
         </div>
       ) : null}

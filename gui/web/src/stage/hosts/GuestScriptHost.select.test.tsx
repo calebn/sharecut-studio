@@ -273,7 +273,7 @@ describe("GuestScriptHost range selection", () => {
     expect(submitDocumentCommand).toHaveBeenCalledExactlyOnceWith(
       "share:abc",
       "EditSelectedRange",
-      { action: "cut", target },
+      { action: "cut", targets: [target] },
     );
     expect(getClipboard()).toBeNull();
     expect(useDawStore.getState().selection).toBeNull();

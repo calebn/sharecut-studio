@@ -180,7 +180,7 @@ describe("shared range action policy and commands", () => {
       expect(submitDocumentCommand).toHaveBeenCalledExactlyOnceWith(
         "/tmp/ep",
         "EditSelectedRange",
-        { action, target },
+        { action, targets: [target] },
       );
       expect(useDawStore.getState().selection).toBeNull();
       if (action === "cut")

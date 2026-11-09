@@ -3,6 +3,8 @@ import {
   previewTranscriptReplacement,
   replaceTranscriptMatches,
 } from "../../../api";
+import { replyHistoryHead } from "../../../api/documentEdits";
+import { submitRangeEdit } from "../../../commands/rangeActions";
 import { makeRangeTarget } from "../../../edit/rangeSelection";
 import type { FindBarHandle } from "../../../stages/edit/FindBar";
 import {
@@ -13,6 +15,7 @@ import {
 import { useDawStore } from "../../../state/dawStore";
 import type { FindHit } from "../../../system/scriptPieces";
 import { useStableCallback } from "../../../utils/useStableCallback";
+import { cutAllMessage, matchCutOf } from "./findCut";
 import type { ScriptModel } from "./scriptModel";
 
 export type ScriptFindState = {
@@ -41,6 +44,8 @@ export type ScriptFind = ScriptFindState & {
   next: () => void;
   previous: () => void;
   selectAll: () => void;
+  /** Cuts every hit, each speaker's own audio only, as one undoable edit. Rejects with a message the bar shows. */
+  cutAll: () => Promise<void>;
   replaceAll: () => Promise<number>;
 };
 
@@ -48,8 +53,8 @@ export type ScriptFind = ScriptFindState & {
  * Find over the whole transcript (the model's turns, not the window), the
  * hits the pane highlights, and the host's Replace all through the backend's
  * preview and its token. Replace all is queued when the host is offline, so
- * its toast never carries a count. Cut all and a single Replace have no
- * command yet and are left out.
+ * its toast never carries a count. Cut all sends one target per speaker in one
+ * command. A single Replace is left out until the backend can address one match.
  */
 export function useScriptFind(
   model: ScriptModel,
@@ -121,6 +126,33 @@ export function useScriptFind(
     );
   };
 
+  const cutAll = async () => {
+    const { project, rangeBusy, joinMutationInFlight, announceStatus } =
+      useDawStore.getState();
+    if (!project) throw new Error("Open a project");
+    if (rangeBusy || joinMutationInFlight)
+      throw new Error("Wait for the current edit to finish.");
+    const plan = matchCutOf(project, model, matches);
+    if (plan.targets.length === 0)
+      throw new Error("No audible words in these matches.");
+    const epoch = useDawStore.getState().projectEpoch;
+    useDawStore.getState().setRangeBusy(true);
+    try {
+      const result = await submitRangeEdit("cut", plan.targets);
+      if (useDawStore.getState().projectEpoch !== epoch) return;
+      if (result.queued === true) {
+        announceStatus("Cut all queued. Still sending.");
+        return;
+      }
+      announceStatus(cutAllMessage(plan.cut, plan.skipped), {
+        undo: replyHistoryHead(result),
+      });
+    } finally {
+      if (useDawStore.getState().projectEpoch === epoch)
+        useDawStore.getState().setRangeBusy(false);
+    }
+  };
+
   const replaceAll = async () => {
     const { projectPath, announceStatus } = useDawStore.getState();
     const options = {
@@ -160,6 +192,7 @@ export function useScriptFind(
     next: () => step(1),
     previous: () => step(-1),
     selectAll,
+    cutAll,
     replaceAll,
   };
 }
