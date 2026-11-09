@@ -21,7 +21,10 @@ type ScrubSpec =
 const scrub = (
   label: string,
   spec: ScrubSpec &
-    Pick<ScrubFieldProps, "unit" | "step" | "decimals" | "defaultValue">,
+    Pick<
+      ScrubFieldProps,
+      "unit" | "step" | "decimals" | "defaultValue" | "commitUnchanged"
+    >,
 ) => <LiveScrub label={label} onCommit={() => {}} {...spec} />;
 
 export const CLIP_SECTIONS: readonly InspectorSection[] = [
@@ -166,6 +169,32 @@ export const RANGE_SECTIONS: readonly InspectorSection[] = [
     rows: [
       { id: "start", control: <LiveTime label="Range start" start={724.3} /> },
       { id: "end", control: <LiveTime label="Range end" start={743.1} /> },
+    ],
+  },
+];
+
+const draftScrub = (label: string, value: number, max: number, min: number) =>
+  scrub(label, {
+    value,
+    unit: "s",
+    step: 0.01,
+    decimals: 3,
+    min,
+    max,
+    commitUnchanged: true,
+  });
+
+export const RANGE_DRAFT_SECTIONS: readonly InspectorSection[] = [
+  {
+    id: "range",
+    rows: [
+      { id: "in", label: "In", control: draftScrub("In", 12, 59.99, 0) },
+      { id: "out", label: "Out", control: draftScrub("Out", 17, 60, 12.01) },
+      {
+        id: "length",
+        label: "Length",
+        control: draftScrub("Length", 5, 48, 0.01),
+      },
     ],
   },
 ];

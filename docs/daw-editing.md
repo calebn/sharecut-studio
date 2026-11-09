@@ -555,7 +555,12 @@ occurrences under it and seals on their media. Selected-track range Cut punches 
 Drag empty lane space, Shift-drag a clip body, or arm **Select range** in the
 Edit corner (touch). Ordinary unarmed clip drags still
 move clips; trim, fade, join and envelope handles keep their own gestures.
-Numeric In/Out and lane checkboxes select the same target without dragging.
+Arming **Select range** (the palette, the Edit corner, or Inspect with nothing selected)
+seeds a draft: In at the playhead, Out five seconds later, held inside the timeline,
+on the selected tracks or on every track. The Range fields open for it on every shell,
+and In, Out, Length and the lane toggles commit it as you type, so the first commit
+makes the range selection with no Apply. Focus stays in the field. Esc drops the draft
+and changes nothing in History.
 Selection does not seek or change follow mode.
 The Action bar and Range fields have one home per shell. The desktop shell shows the verbs in the floating Action bar beside the selection. The phone and tablet shells show them as the body of the
 selection sheet (`Inspector` renders them for a timeline or transcript range;
