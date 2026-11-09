@@ -23,6 +23,8 @@ export type OverviewStripProps = {
   label: string;
   /** Seeks to a 0 to 1 fraction of the episode. Without it the strip is a picture. */
   onSeek?: (fraction: number) => void;
+  /** Brackets a drag: `start` before its first seek, `cancel` after Escape has put the playhead back. */
+  onScrub?: (phase: "start" | "cancel") => void;
   /** Episode length in seconds; sizes the arrow-key steps and the slider value. */
   duration?: number;
 };
@@ -44,6 +46,7 @@ export function OverviewStrip({
   ticks = [],
   label,
   onSeek,
+  onScrub,
   duration = 0,
 }: OverviewStripProps) {
   const root = useRef<HTMLDivElement>(null);
@@ -53,11 +56,14 @@ export function OverviewStrip({
     captureOnStart: () => root.current,
     onStart: () => {
       dragFrom.current = playhead ?? 0;
+      onScrub?.("start");
       return true;
     },
     onMove: (_, move) => onSeek?.(pointerRatio(root.current, move.clientX)),
     onEnd: (_, committed) => {
-      if (!committed) onSeek?.(dragFrom.current);
+      if (committed) return;
+      onSeek?.(dragFrom.current);
+      onScrub?.("cancel");
     },
   });
   const count = Math.max(peaks.length, 1);

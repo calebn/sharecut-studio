@@ -13,13 +13,14 @@ const DURATION = 100;
 function Connected() {
   useDawKeymapListener();
   const playheadSec = useDawStore((s) => s.playheadSec);
+  const { onSeek } = useSeekFraction(DURATION);
   return (
     <OverviewStrip
       height={64}
       label="Episode overview"
       playhead={playheadSec / DURATION}
       duration={DURATION}
-      onSeek={useSeekFraction(DURATION)}
+      onSeek={onSeek}
     />
   );
 }
