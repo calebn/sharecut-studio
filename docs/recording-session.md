@@ -792,6 +792,7 @@ On the host Record stage those levels reach the tiles through
 count for the take, counted from the clipping spans on their uploaded segments
 (`clippingFromRows`): it appears as segments upload, not live, and the host's
 own count stays the live one.
+
 **Person tiles.** Every tile rings its avatar in the person's own colour, and the ring's
 thickness follows the live level (3 px at silence, 8 px at peak). The colour never changes with the
 level, and accent is not used: accent means selection. The host's tile, on every seat (the host's,

@@ -1,6 +1,9 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { SRC_ROOT } from "../test/sourceFiles";
 import { ListenerAvatar, ListenerRow, RoomTile } from "./RoomTile";
 import {
   clampLevel,
@@ -66,6 +69,19 @@ describe("RoomTile states in words", () => {
     expect(container.querySelector(".sys-room-host")).not.toBeNull();
     rerender(<RoomTile {...live({})} />);
     expect(container.querySelector(".sys-room-host")).toBeNull();
+  });
+
+  it("rings the face in the person colour and dims the ring when away", () => {
+    const css = readFileSync(
+      join(SRC_ROOT, "styles/partials/system-record.css"),
+      "utf8",
+    );
+    const face = css.match(/\.sys-room-face\s*\{[^}]*\}/)?.[0] ?? "";
+    expect(face).toMatch(/var\(--sys-room-ring, var\(--sys-person-color\)\)/);
+    expect(face).not.toContain("--color-accent-muted");
+    expect(css).toMatch(
+      /\[data-presence="joining"\]\s*\)\s*\.sys-room-face\s*\{[^}]*--sys-room-ring:\s*var\(--sys-room-dim\)/,
+    );
   });
 
   it("never announces speaking the tile does not show", () => {
