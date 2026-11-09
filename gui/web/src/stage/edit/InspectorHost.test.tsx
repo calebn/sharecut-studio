@@ -930,6 +930,8 @@ describe("the Inspector sheet on the phone", () => {
       );
       const sheet = screen.getByRole("dialog", { name: "Inspector" });
       expect(sheet).toHaveAttribute("data-detent", "half");
+      const grip = screen.getByRole("slider", { name: "Sheet height" });
+      grip.focus();
       const resize = () => act(() => FakeResizeObserver.of(lanes).fire(lanes));
 
       room = 400;
@@ -945,6 +947,7 @@ describe("the Inspector sheet on the phone", () => {
       resize();
       expect(sheet).toHaveAttribute("data-detent", "half");
       expect(useDawStore.getState().selection).toMatchObject(TRACK);
+      expect(grip).toHaveFocus();
       unmount();
     } finally {
       offsetParent.mockRestore();
