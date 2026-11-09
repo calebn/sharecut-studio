@@ -169,7 +169,7 @@ describe("PersonPicker apply on activate", () => {
   it("keeps the ring-moving keys from bubbling to shortcuts above the picker", async () => {
     const reached = vi.fn();
     render(
-      <div onKeyDown={(event) => reached(event.key)}>
+      <div role="presentation" onKeyDown={(event) => reached(event.key)}>
         <PersonPicker
           apply="activate"
           people={PEOPLE}
