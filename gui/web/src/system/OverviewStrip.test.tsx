@@ -35,8 +35,28 @@ describe("OverviewStrip seeking", () => {
     expect(strip).toHaveAttribute("aria-valuemin", "0");
     expect(strip).toHaveAttribute("aria-valuemax", "200");
     expect(strip).toHaveAttribute("aria-valuenow", "50");
-    expect(strip).toHaveAttribute("aria-valuetext", "00:50.000");
+    expect(strip).toHaveAttribute("aria-valuetext", "0:50 of 3:20");
     expect(strip).toHaveAttribute("tabindex", "0");
+  });
+
+  it("reads whole seconds so the value does not churn every frame", () => {
+    const { strip } = setup({ playhead: 0.123456, duration: 200.4 });
+    expect(strip).toHaveAttribute("aria-valuenow", "25");
+    expect(strip).toHaveAttribute("aria-valuemax", "200");
+    expect(strip).toHaveAttribute("aria-valuetext", "0:25 of 3:20");
+  });
+
+  it("is a plain image when it could seek but has no duration yet", () => {
+    render(
+      <OverviewStrip
+        height={64}
+        label="Episode overview"
+        duration={0}
+        onSeek={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("img", { name: "Episode overview" })).toBeVisible();
+    expect(screen.queryByRole("slider")).toBeNull();
   });
 
   it("stays a plain image without onSeek", () => {

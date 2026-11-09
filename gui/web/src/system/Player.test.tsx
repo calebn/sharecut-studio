@@ -28,7 +28,7 @@ describe("Player", () => {
       />,
     );
     fireEvent.keyDown(
-      screen.getByRole("slider", { name: /Episode overview/ }),
+      screen.getByRole("slider", { name: "Episode overview" }),
       {
         key: "End",
       },
