@@ -1,13 +1,19 @@
-import { restoreAppliedEdit, setClipJoin } from "../api";
+import {
+  loadBoundaryContext,
+  restoreAppliedEdit,
+  rollClipJoin,
+  setClipJoin,
+} from "../api";
 import { refreshDocumentProject } from "../document/applyDocumentUpdate";
 import { appliedJoinLength } from "../edit/joinRender";
+import { rollJoinInterval } from "../edit/rollLimits";
 import { type CutSeam, keepPlan, type Seam, seamById } from "../edit/seam";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { trackEditSave } from "../state/documentSendOrder";
 import { inspectorOpenFor } from "../state/selection";
 import type { JoinMode } from "../types/project";
-import { errorMessage } from "../utils/apiError";
+import { ApiError, errorMessage } from "../utils/apiError";
 import { joinModeOf } from "../utils/editMarkerRegistry";
 import { playSpan } from "./playSpan";
 import type { ExecuteResult } from "./types";
@@ -21,6 +27,16 @@ export type SeamCommit =
   | { status: "failed"; message: string };
 
 const SKIPPED: SeamCommit = { status: "skipped" };
+
+export const ROLL_CONFLICT_MESSAGE =
+  "The seam moved before the roll saved. Nothing changed.";
+const MIN_ROLL_MS = 0.05;
+
+function rollFailure(error: unknown): string {
+  return error instanceof ApiError && error.code === "document_conflict"
+    ? ROLL_CONFLICT_MESSAGE
+    : errorMessage(error);
+}
 
 export function hearAcross(seam: Seam): ExecuteResult {
   return playSpan(
@@ -83,6 +99,70 @@ export async function setSeamJoin(
       useDawStore.getState().announceStatus(message, { tone: "error" });
     }
     return { status: "failed", message };
+  } finally {
+    if (useDawStore.getState().projectEpoch === projectEpoch) {
+      useDawStore.getState().setJoinMutationInFlight(false);
+    }
+  }
+}
+
+export async function rollSeam(
+  seam: Seam,
+  deltaMs: number,
+): Promise<SeamCommit> {
+  const store = useDawStore.getState();
+  const { projectPath, projectEpoch, project } = store;
+  if (
+    !project ||
+    !canApplyPass12(projectPath, store.guestMode, store.shareCapabilities) ||
+    store.joinMutationInFlight ||
+    Math.abs(deltaMs) < MIN_ROLL_MS
+  ) {
+    return SKIPPED;
+  }
+  const live = rollJoinInterval(
+    project.clips.tracks[seam.trackId] ?? [],
+    seam.left.id,
+    seam.right.id,
+  );
+  if (!live) return SKIPPED;
+  const { left, right } = seam;
+  store.setJoinMutationInFlight(true);
+  try {
+    const queued = await trackEditSave(
+      projectPath,
+      (async () => {
+        const context = await loadBoundaryContext(
+          projectPath,
+          { kind: "roll", left_clip_id: left.id, right_clip_id: right.id },
+          [left, right].map(
+            ({ id, source_start, source_end, timeline_start, source_id }) => ({
+              id,
+              source_start,
+              source_end,
+              timeline_start,
+              source_id,
+            }),
+          ),
+        );
+        const now = useDawStore.getState();
+        if (
+          now.projectPath !== projectPath ||
+          now.projectEpoch !== projectEpoch
+        )
+          throw new Error("The project changed during the roll");
+        return rollClipJoin(
+          projectPath,
+          left.id,
+          right.id,
+          deltaMs / 1000,
+          context.token,
+        );
+      })(),
+    );
+    return queued.queued ? SKIPPED : { status: "done" };
+  } catch (error) {
+    return { status: "failed", message: rollFailure(error) };
   } finally {
     if (useDawStore.getState().projectEpoch === projectEpoch) {
       useDawStore.getState().setJoinMutationInFlight(false);

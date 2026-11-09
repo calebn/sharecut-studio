@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api";
 import { seamById } from "../edit/seam";
+import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { trackEditSave } from "../state/documentSendOrder";
 import {
   appliedEditRecord,
   clipRow,
@@ -10,13 +12,28 @@ import {
   sampleTrack,
 } from "../test/fixtures";
 import type { AppliedEditRecord, ClipRow } from "../types/project";
-import { hearAcross, restoreSeam, setSeamJoin } from "./seamCommands";
+import { ApiError } from "../utils/apiError";
+import {
+  hearAcross,
+  ROLL_CONFLICT_MESSAGE,
+  restoreSeam,
+  rollSeam,
+  setSeamJoin,
+} from "./seamCommands";
 
 vi.mock("../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api")>()),
   setClipJoin: vi.fn(async () => undefined),
   restoreAppliedEdit: vi.fn(async () => undefined),
+  loadBoundaryContext: vi.fn(async () => ({ token: "ctx-token" })),
+  rollClipJoin: vi.fn(async () => ({ queued: false })),
 }));
+
+vi.mock("../state/documentSendOrder", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("../state/documentSendOrder")>();
+  return { ...original, trackEditSave: vi.fn(original.trackEditSave) };
+});
 
 const playRange = vi.hoisted(() => vi.fn());
 vi.mock("../utils/playRange", () => ({ playTimelineRange: playRange }));
@@ -80,6 +97,9 @@ function load(right: ClipRow = R, records: AppliedEditRecord[] = []) {
 beforeEach(() => {
   vi.mocked(api.setClipJoin).mockClear();
   vi.mocked(api.restoreAppliedEdit).mockClear();
+  vi.mocked(api.loadBoundaryContext).mockClear();
+  vi.mocked(api.rollClipJoin).mockClear();
+  vi.mocked(trackEditSave).mockClear();
   playRange.mockClear();
 });
 
@@ -157,6 +177,149 @@ describe("setSeamJoin", () => {
       message: "No room to blend.",
     });
     expect(useDawStore.getState().statusAnnouncement).toBe("No room to blend.");
+  });
+});
+
+describe("rollSeam", () => {
+  it("sends the delta with the context token and the snapshot geometry", async () => {
+    const seam = load();
+    expect(await rollSeam(seam, 12.3)).toEqual({ status: "done" });
+    expect(api.loadBoundaryContext).toHaveBeenCalledWith(
+      PATH,
+      { kind: "roll", left_clip_id: "L", right_clip_id: "R" },
+      [
+        {
+          id: "L",
+          source_start: 0,
+          source_end: 4,
+          timeline_start: 0,
+          source_id: L.source_id,
+        },
+        {
+          id: "R",
+          source_start: 6.4,
+          source_end: 10,
+          timeline_start: 4,
+          source_id: R.source_id,
+        },
+      ],
+    );
+    expect(api.rollClipJoin).toHaveBeenCalledTimes(1);
+    const [path, left, right, deltaSec, token] =
+      vi.mocked(api.rollClipJoin).mock.calls[0] ?? [];
+    expect([path, left, right, token]).toEqual([PATH, "L", "R", "ctx-token"]);
+    expect(deltaSec).toBeCloseTo(0.0123, 9);
+    expect(trackEditSave).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    [
+      "a guest without edit",
+      () => {
+        const seam = load();
+        useDawStore.setState({
+          projectPath: shareProjectKey("tok"),
+          shareCapabilities: [],
+        });
+        return { seam, deltaMs: 5 };
+      },
+    ],
+    [
+      "a roll already in flight",
+      () => {
+        const seam = load();
+        useDawStore.setState({ joinMutationInFlight: true });
+        return { seam, deltaMs: 5 };
+      },
+    ],
+    [
+      "a gap seam",
+      () => {
+        const seam = load({ ...R, timeline_start: 5, timeline_end: 8.6 });
+        return { seam, deltaMs: 5 };
+      },
+    ],
+    ["a delta under 0.05 ms", () => ({ seam: load(), deltaMs: 0.04 })],
+  ])("skips %s without a request", async (_name, arrange) => {
+    const { seam, deltaMs } = arrange();
+    expect(await rollSeam(seam, deltaMs)).toEqual({ status: "skipped" });
+    expect(api.loadBoundaryContext).not.toHaveBeenCalled();
+    expect(api.rollClipJoin).not.toHaveBeenCalled();
+  });
+
+  it("skips a roll the server queued", async () => {
+    const seam = load();
+    vi.mocked(api.rollClipJoin).mockResolvedValueOnce({ queued: true });
+    expect(await rollSeam(seam, 5)).toEqual({ status: "skipped" });
+  });
+
+  it("fails when the project changed during the context load", async () => {
+    const seam = load();
+    vi.mocked(api.loadBoundaryContext).mockImplementationOnce(async () => {
+      useDawStore.setState({
+        projectEpoch: useDawStore.getState().projectEpoch + 1,
+      });
+      return { token: "ctx-token" } as Awaited<
+        ReturnType<typeof api.loadBoundaryContext>
+      >;
+    });
+    expect(await rollSeam(seam, 5)).toEqual({
+      status: "failed",
+      message: "The project changed during the roll",
+    });
+    expect(api.rollClipJoin).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["context", () => vi.mocked(api.loadBoundaryContext)],
+    ["roll", () => vi.mocked(api.rollClipJoin)],
+  ])(
+    "maps a %s 409 document_conflict to the conflict message",
+    async (_n, mock) => {
+      const seam = load();
+      mock().mockRejectedValueOnce(
+        new ApiError("boundary preview is stale", "document_conflict", 409),
+      );
+      expect(await rollSeam(seam, 5)).toEqual({
+        status: "failed",
+        message: "The seam moved before the roll saved. Nothing changed.",
+      });
+      expect(ROLL_CONFLICT_MESSAGE).toBe(
+        "The seam moved before the roll saved. Nothing changed.",
+      );
+    },
+  );
+
+  it("holds the in-flight flag during the save and clears it on done and on failed", async () => {
+    const seam = load();
+    let release: () => void = () => undefined;
+    vi.mocked(api.rollClipJoin).mockImplementationOnce(
+      () =>
+        new Promise<{ queued: boolean }>((resolve) => {
+          release = () => resolve({ queued: false });
+        }),
+    );
+    const pending = rollSeam(seam, 5);
+    await vi.waitFor(() =>
+      expect(useDawStore.getState().joinMutationInFlight).toBe(true),
+    );
+    release();
+    expect(await pending).toEqual({ status: "done" });
+    expect(useDawStore.getState().joinMutationInFlight).toBe(false);
+
+    vi.mocked(api.rollClipJoin).mockRejectedValueOnce(new Error("disk full"));
+    expect(await rollSeam(seam, 5)).toEqual({
+      status: "failed",
+      message: "disk full",
+    });
+    expect(useDawStore.getState().joinMutationInFlight).toBe(false);
+  });
+
+  it("never announces a failure itself", async () => {
+    const seam = load();
+    vi.mocked(api.rollClipJoin).mockRejectedValueOnce(new Error("disk full"));
+    await rollSeam(seam, 5);
+    expect(useDawStore.getState().statusAnnouncement).toBe("");
   });
 });
 
