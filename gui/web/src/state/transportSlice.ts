@@ -157,8 +157,6 @@ export const createTransportSlice: StateCreator<
       playheadSeekRevision:
         s.playheadSeekRevision + (origin === "seek" ? 1 : 0),
       ...playStartPatch(s, s.isPlaying, playheadSec),
-      // A listener's seek ends the comment clip's auto-stop; clock ticks keep it.
-      playUntilSec: origin === "seek" ? null : s.playUntilSec,
     })),
   setIsPlaying: (isPlaying) =>
     set((s) => ({
