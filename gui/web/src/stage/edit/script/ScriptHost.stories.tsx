@@ -263,7 +263,17 @@ export const TranscribingOverWords: Story = {
   beforeEach: liveRun({ only_step: "transcribe_tracks" }),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(await canvas.findByText("Transcribing")).toBeVisible();
+    const label = await canvas.findByText("Transcribing");
+    await expect(label).toBeVisible();
+    const glyph = label
+      .closest(".sys-status-line")!
+      .querySelector(".sys-glyph")!;
+    const [row, mark] = [label, glyph].map((el) => el.getBoundingClientRect());
+    await expect(
+      Math.abs(row!.top + row!.height / 2 - (mark!.top + mark!.height / 2)),
+    ).toBeLessThan(4);
+    const header = label.closest(".sys-script-header")!.getBoundingClientRect();
+    await expect(row!.bottom).toBeLessThanOrEqual(header.bottom);
     await userEvent.click(await word(canvas, /^Welcome/));
     await userEvent.keyboard("{Enter}");
     await expect(

@@ -4931,6 +4931,20 @@ button.sys-scope:hover {
   min-inline-size: 0;
 }
 
+/* One row in the header: the shared status line would wrap its label under the glyph. */
+.sys-script-notice .sys-status {
+  align-self: center;
+}
+
+.sys-script-notice .sys-status-line {
+  flex-wrap: nowrap;
+  min-block-size: 0;
+}
+
+.sys-script-notice .sys-status-text {
+  flex: 0 1 auto;
+}
+
 .sys-script-body {
   position: relative;
   flex: 1;
