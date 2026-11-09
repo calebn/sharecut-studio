@@ -417,3 +417,81 @@ export const ReadOnly: Story = {
     });
   },
 };
+
+export const Moving: Story = {
+  render: Trimming.render,
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    const user = userEvent.setup();
+    const body = canvas.getByRole("button", { name: args.name });
+    const clip = body.closest("[data-clip-id]");
+    const start = slider(canvas, /^Trim start/);
+    const box = body.getBoundingClientRect();
+    const origin = {
+      clientX: box.left + box.width / 2,
+      clientY: box.top + box.height / 2,
+    };
+    const moved = { ...origin, clientX: origin.clientX + PX_PER_SECOND };
+    const preview = { ...moved, clientX: moved.clientX + PX_PER_SECOND / 2 };
+
+    await expect(body).toHaveAttribute("aria-pressed", "false");
+    await expect(start).toHaveAttribute("aria-valuenow", "4");
+    await user.pointer([
+      { keys: "[MouseLeft>]", target: body, coords: origin },
+      { target: body, coords: moved },
+    ]);
+    await expect(body).toHaveAttribute("aria-pressed", "true");
+    await expect(clip).toHaveAttribute("data-selected", "true");
+    await expect(clip).toHaveAttribute("data-dragging", "move");
+    await expect(start).toHaveAttribute("aria-valuenow", "5");
+    await expect(canvas.getByText("5000 ms")).toBeVisible();
+    await expect(args.onDragStart).toHaveBeenCalledWith("clip-take-2", "move", {
+      ...moved,
+      shift: false,
+      alt: false,
+    });
+    await expect(args.onDrag).toHaveBeenCalledWith("clip-take-2", "move", {
+      ...moved,
+      dx: PX_PER_SECOND,
+      dy: 0,
+      shift: false,
+      alt: false,
+    });
+
+    await user.pointer({ keys: "[/MouseLeft]", target: body, coords: moved });
+    await expect(args.onDragEnd).toHaveBeenCalledTimes(1);
+    await expect(args.onDragEnd).toHaveBeenNthCalledWith(
+      1,
+      "clip-take-2",
+      "move",
+      true,
+    );
+    await expect(start).toHaveAttribute("aria-valuenow", "5");
+    await expect(clip).not.toHaveAttribute("data-dragging");
+    await expect(canvas.queryByText("5000 ms")).toBeNull();
+
+    await user.pointer([
+      { keys: "[MouseLeft>]", target: body, coords: moved },
+      { target: body, coords: preview },
+    ]);
+    await expect(clip).toHaveAttribute("data-dragging", "move");
+    await expect(start).toHaveAttribute("aria-valuenow", "5.5");
+    await expect(canvas.getByText("5500 ms")).toBeVisible();
+
+    await user.keyboard("{Escape}");
+    await expect(args.onDragEnd).toHaveBeenCalledTimes(2);
+    await expect(args.onDragEnd).toHaveBeenNthCalledWith(
+      2,
+      "clip-take-2",
+      "move",
+      false,
+    );
+    await expect(start).toHaveAttribute("aria-valuenow", "5");
+    await expect(clip).not.toHaveAttribute("data-dragging");
+    await expect(canvas.queryByText("5500 ms")).toBeNull();
+
+    await user.pointer({ keys: "[/MouseLeft]", target: body, coords: preview });
+    await expect(args.onDragEnd).toHaveBeenCalledTimes(2);
+    await expect(start).toHaveAttribute("aria-valuenow", "5");
+  },
+};
