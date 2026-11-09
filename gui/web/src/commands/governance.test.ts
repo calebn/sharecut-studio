@@ -350,7 +350,23 @@ const PLAYHEAD_WRITERS: PlayheadWriter[] = [
   },
 ];
 
-const PLAYHEAD_WRITE = /\bsetPlayheadSec\(/;
+const PLAYHEAD_KEY = /\bsetPlayheadSec\??\s*:/g;
+const PLAYHEAD_REFERENCE = /\bsetPlayheadSec\b/;
+
+function referencesPlayheadSetter(text: string): boolean {
+  return PLAYHEAD_REFERENCE.test(text.replace(PLAYHEAD_KEY, ""));
+}
+
+function playheadSetterFiles(): string[] {
+  const files: string[] = [];
+  for (const { rel, text } of sourceFiles()) {
+    if (/\.(test|stories)\.tsx?$/.test(rel) || rel.startsWith("state/")) {
+      continue;
+    }
+    if (referencesPlayheadSetter(text)) files.push(rel);
+  }
+  return files;
+}
 
 describe("command governance", () => {
   it("centralizes pointer gate bypasses", () => {
@@ -612,19 +628,18 @@ describe("command governance", () => {
   });
 
   it("writes the playhead only through the shared seek path", () => {
-    const offenders: string[] = [];
-    for (const { rel, text } of sourceFiles()) {
-      if (/\.(test|stories)\.tsx?$/.test(rel)) {
-        continue;
-      }
-      if (
-        PLAYHEAD_WRITE.test(text) &&
-        !PLAYHEAD_WRITERS.some(({ prefix }) => rel.startsWith(prefix))
-      ) {
-        offenders.push(rel);
-      }
-    }
+    const offenders = playheadSetterFiles().filter(
+      (rel) => !PLAYHEAD_WRITERS.some(({ prefix }) => rel.startsWith(prefix)),
+    );
     expect(offenders).toEqual([]);
+  });
+
+  it("keeps every playhead writer allowlist entry matching a file", () => {
+    const files = playheadSetterFiles();
+    const dead = PLAYHEAD_WRITERS.filter(
+      ({ prefix }) => !files.some((rel) => rel.startsWith(prefix)),
+    ).map(({ prefix }) => prefix);
+    expect(dead).toEqual([]);
   });
 
   it("evaluateWhen editorFocused matches buildCommandContext", () => {
