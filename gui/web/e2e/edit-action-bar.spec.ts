@@ -682,30 +682,35 @@ test.describe("Keys and focus", () => {
 test.describe("Action bar follows and stays clear", () => {
   test.use({ viewport: { width: 1280, height: 800 } });
 
-  test("follows the next clip, hanging above it or below near the ruler, when the selection moves to another lane", async ({
+  test("follows the next clip when the selection moves to another lane", async ({
     page,
   }) => {
     await openEdit(page);
     await selectFirstClip(page);
     const bar = selectionBar(page);
     await expect(bar).toBeVisible();
+    const first = await bar.boundingBox();
     const last = page.locator(".clip-hit").last();
     await last.click();
     await expect(last).toHaveAttribute("aria-pressed", "true");
-    // The bar hangs above its selection and drops below only when it would cross
-    // the ruler (#3489); either way it sits within one gap of the clip and clear of it.
+    // The bar hangs above its selection and drops below only where hanging would
+    // cross the ruler (#3489); the last lane is well clear of it, so it stays above.
+    await expect(bar).toBeVisible();
     await expect
       .poll(async () => {
         const [clip, box] = await Promise.all([
           last.boundingBox(),
           bar.boundingBox(),
         ]);
-        if (!clip || !box) return null;
-        const above = clip.y - (box.y + box.height);
-        const below = box.y - (clip.y + clip.height);
-        return (above >= -1 && above < 40) || (below >= -1 && below < 40);
+        if (!clip || !box || !first || box.y === first.y) return null;
+        return clip.y - (box.y + box.height);
       })
-      .toBe(true);
+      .toBeGreaterThanOrEqual(-1);
+    const [clip, box] = await Promise.all([
+      last.boundingBox(),
+      bar.boundingBox(),
+    ]);
+    expect(clip!.y - (box!.y + box!.height)).toBeLessThanOrEqual(16);
   });
 
   test("hangs above a selected word so the next lines stay clickable", async ({
