@@ -106,6 +106,15 @@ See [the historical baseline and result record](https://github.com/calebn/sharec
 selected pixels, and a separate genuine Chromium 200% browser-zoom check. That
 check uses `chrome.tabs.setZoom` with a 16px root and measured halved CSS layout
 on an Xvfb display. It is distinct from this suite's root32 simulation.
+`gui/web/e2e/track-inspector-a11y.spec.ts` opens a disposable host project,
+clicks a Track header, verifies Track metadata and controls in the full phone
+Inspector, and runs the standard full-sheet axe check. It has exactly two
+360×800 cases: 16px root/light/ordinary motion and 32px root/dark/reduced motion.
+The standard Studio axe rules still exclude color contrast and page landmarks.
+Scrolled controls being visible does not establish full viewport geometry or
+unclipped reachability. The 32px CSS root-size simulation does not establish
+browser or OS zoom, a physical-device result, Safari behavior, assistive
+technology behavior, or contrast compliance.
 `gui/web/e2e/touch-affordances.spec.ts` runs separate Invite and clip Inspector
 journeys over the phone, short-landscape, tablet, desktop, and 200% root-text
 cells. Invite checks its generic Sheet detents and `.sys-sheet-scroll` owner.
