@@ -23,6 +23,8 @@ function fixture() {
   sheet.style.overflowY = "auto";
   const label = document.createElement("label");
   const input = document.createElement("input");
+  input.style.outlineWidth = "0px";
+  input.style.outlineOffset = "0px";
   label.append(input);
   sheet.append(label);
   shell.append(sheet);

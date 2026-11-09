@@ -64,6 +64,11 @@ function setup(
 }
 
 function scriptGeometry(lineHeight = 20) {
+  const fixtureStyle = document.head.appendChild(
+    document.createElement("style"),
+  );
+  fixtureStyle.dataset.readingPositionFixture = "true";
+  fixtureStyle.textContent = ".sys-script-word { outline-style: none; }";
   let currentLineHeight = lineHeight;
   let width = 200;
   let height = 200;
@@ -132,23 +137,17 @@ function stubNativeFocusScroll() {
 }
 
 function nestedScrollGeometry(paneTop: number) {
+  const fixtureStyle = document.head.appendChild(
+    document.createElement("style"),
+  );
+  fixtureStyle.dataset.readingPositionFixture = "true";
+  fixtureStyle.textContent = `
+    .sys-script-body, .rv-main { overflow-x: auto; overflow-y: auto; }
+    .sys-script-word { outline-style: solid; outline-width: 2px; outline-offset: 2px; }
+  `;
   let paneHeight = 400;
   let outerHeight = 600;
   let bodyPresent = true;
-  const computedStyle = window.getComputedStyle.bind(window);
-  vi.spyOn(window, "getComputedStyle").mockImplementation((element) => {
-    const style = computedStyle(element);
-    if (element.matches(".sys-script-body, .rv-main")) {
-      style.overflowY = "auto";
-      style.overflowX = "auto";
-    }
-    if (element.matches(".sys-script-word")) {
-      style.outlineStyle = "solid";
-      style.outlineWidth = "2px";
-      style.outlineOffset = "2px";
-    }
-    return style;
-  });
   vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(
     function (this: HTMLElement) {
       return this.matches(".rv-main") ? outerHeight : paneHeight;
@@ -257,6 +256,9 @@ function nestedScrollGeometry(paneTop: number) {
 describe("ScriptPane reading position", () => {
   afterEach(() => {
     cleanup();
+    document.head
+      .querySelectorAll('style[data-reading-position-fixture="true"]')
+      .forEach((style) => style.remove());
     vi.restoreAllMocks();
     if (scrollIntoViewDescriptor)
       Object.defineProperty(
