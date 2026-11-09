@@ -415,25 +415,25 @@ a mismatch too; a mismatch means another edit (a
 remote host, a guest, or an agent) shifted or changed those words since the caller last
 read them. A document command mismatch is a 409 conflict, same shape as other stale-state
 conflicts, and nothing is applied; an MCP tool mismatch is a `ValueError` tool error. In Studio the
-inline editor always sends the text it opened with; the Correct inspector sends the span
+inline editor always sends the text it opened with; the word Inspector sends the span
 text captured when the word was selected or End index last changed, and only when every
 word in that range is loaded and its loaded copies agree (otherwise it sends none and
 shows a hint under Apply); Suppress and Ignore send the word's currently rendered text,
 or no guard when that text can't be confirmed (a word in the range isn't loaded, or two
-loaded copies of an index disagree), same as Apply. When the Script's Ignore/Restore or the
-hover Restore sends no guard, its status message says "text not verified".
-The Correct inspector captures once per word (#746): the draft is seeded when the
-word first loads (a different word remounts the inspector), never on a text change, so a
+loaded copies of an index disagree), same as Apply. When the Action bar's Ignore/Restore sends no guard, its status message says
+"text not verified".
+The word Inspector captures once per word (#746): the draft is seeded when the
+word first loads (a different word remounts the word Inspector), never on a text change, so a
 peer's edit to the word under correction (including its own successful Apply) does not
 reset what the user is typing. A successful Apply re-captures from the words the host
 returned — the End index moves to match a phrase's applied word count — so the next Apply
 guards against the correction just made; if those words do not read as the applied text,
-it sends none and shows the hint under Apply. An Undo or Redo of the inspector's own Apply
+it sends none and shows the hint under Apply. An Undo or Redo of the word Inspector's own Apply
 (the words go back to a span it applied or replaced) moves the captured text and End index
 with them, so the next Apply does not conflict. An Undo of an Apply that went out without
-span text (the hint was showing) returns the inspector to sending none, with the hint under
+span text (the hint was showing) returns the word Inspector to sending none, with the hint under
 Apply, rather than a stale baseline. After a 409, Studio loads the host's
-current transcript words (the `detail` phase) before reporting the refusal; the inspector
+current transcript words (the `detail` phase) before reporting the refusal; the word Inspector
 keeps the typed draft, re-captures the span text from them, and, when that text differs from
 the refused text, says Apply again retries against the current text. If the load failed and
 no live update has arrived yet, it keeps the host's re-read wording instead.
@@ -448,8 +448,8 @@ MCP/CLI callers (`correct_transcript_tool`, `correct_transcript_phrase_tool`,
 Ignore do not re-capture: the fix for a rejected edit there is to re-read the transcript
 and redo it against its current text.
 
-**Ignore vs. suppress (#633):** `set_words_ignored_tool` (MCP), the Script's
-Ignore/Restore action, and the word Inspector's Ignore action all call
+**Ignore vs. suppress (#633):** `set_words_ignored_tool` (MCP), the Action bar's
+Ignore/Restore on a selected Script range, and the word Inspector's Ignore action all call
 `set_words_ignored` — a text-and-audio hide for review passes. The word (or word
 range) stays struck through in the transcript and in `combined.json`; only its
 audio is muted, computed from the transcript at render time and never written to
