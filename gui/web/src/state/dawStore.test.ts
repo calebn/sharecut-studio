@@ -4,6 +4,8 @@ import {
   resetServerClock,
   setServerClockOffsetForTests,
 } from "../presence/clock";
+import { registerDawCommands } from "../commands/register";
+import { seekTransport } from "../commands/seek";
 import { minimalProject, pendingEditView, sampleTrack } from "../test/fixtures";
 import type { SessionState } from "../types/session";
 import { LANE_HEIGHT_STORAGE_KEY } from "../utils/laneHeightPref";
@@ -367,6 +369,31 @@ describe("dawStore listen-first transport", () => {
     expect(s.playheadSec).toBe(1);
     expect(s.playStartSec).toBe(1);
     expect(s.playUntilSec).toBe(3);
+  });
+
+  it("a transport seek during an audition clears the stop bound and keeps playing", async () => {
+    registerDawCommands();
+    useDawStore.setState({
+      project: { ...minimalProject(), timeline_duration_sec: 60 },
+    });
+    useDawStore.getState().beginAudition({ playheadSec: 10, untilSec: 14 });
+    await seekTransport(30);
+    const s = useDawStore.getState();
+    expect(s.playheadSec).toBe(30);
+    expect(s.isPlaying).toBe(true);
+    expect(s.playUntilSec).toBeNull();
+  });
+
+  it("playback ticks keep the audition stop bound", () => {
+    useDawStore.getState().beginAudition({ playheadSec: 10, untilSec: 14 });
+    useDawStore.getState().setPlayheadSec(11, "playback");
+    expect(useDawStore.getState().playUntilSec).toBe(14);
+  });
+
+  it("pausing an audition stops playback", () => {
+    useDawStore.getState().beginAudition({ playheadSec: 10, untilSec: 14 });
+    useDawStore.getState().setIsPlaying(false);
+    expect(useDawStore.getState().isPlaying).toBe(false);
   });
 
   it("applyAgentSession replaces a local audition with the agent's region", () => {
