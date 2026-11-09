@@ -198,7 +198,6 @@
 }
 
 .sys-room-tile[data-speaking] {
-  --sys-room-ring: var(--sys-person-color);
   border-color: var(--sys-person-color);
 }
 
@@ -248,7 +247,7 @@
   aspect-ratio: 1;
   border-radius: 50%;
   box-shadow: 0 0 0 calc(0.1875rem + 0.3125rem * var(--sys-room-level))
-    var(--sys-room-ring, var(--color-accent-muted));
+    var(--sys-room-ring, var(--sys-person-color));
 }
 
 .sys-room-face .sys-person-avatar {
@@ -264,12 +263,22 @@
     [data-presence="declined"],
     [data-presence="joining"]
   )
-  .sys-person-avatar {
+  .sys-room-face {
   --sys-room-dim: color-mix(
     in srgb,
     var(--sys-person-color) 40%,
     var(--color-bg-elevated)
   );
+  --sys-room-ring: var(--sys-room-dim);
+}
+
+.sys-room-tile:is(
+    [data-presence="lost"],
+    [data-presence="left"],
+    [data-presence="declined"],
+    [data-presence="joining"]
+  )
+  .sys-person-avatar {
   background: var(--sys-room-dim);
   color: var(--color-text-primary);
 }
@@ -284,6 +293,14 @@
   color: var(--color-text-secondary);
   font-size: var(--font-size-small);
   text-align: center;
+}
+
+.sys-room-host {
+  position: absolute;
+  inset-block-start: var(--space-3);
+  inset-inline-start: var(--space-3);
+  display: inline-flex;
+  color: var(--color-text-secondary);
 }
 
 .sys-room-badges {

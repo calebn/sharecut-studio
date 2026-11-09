@@ -42,6 +42,32 @@ describe("RoomTile states in words", () => {
     expect(roomTileLabel(live({ clipped: 1 }))).toContain("1 clip");
   });
 
+  it("names the host after the name, live or away", () => {
+    expect(roomTileLabel(live({ host: true }))).toBe("Maya Okafor, host");
+    expect(
+      roomTileLabel(live({ host: true, muted: true, speaking: false })),
+    ).toBe("Maya Okafor, host, muted");
+    expect(roomTileLabel({ presence: "left", person: MAYA, host: true })).toBe(
+      "Maya Okafor, host, Left",
+    );
+    expect(roomTileLabel(live({ host: false }))).toBe("Maya Okafor");
+  });
+
+  it("badges the host with a hidden Record glyph and no one else", () => {
+    const { container, rerender } = render(
+      <RoomTile {...live({ host: true })} />,
+    );
+    const badge = container.querySelector(".sys-room-host");
+    expect(badge).not.toBeNull();
+    expect(badge).toHaveAttribute("aria-hidden", "true");
+    expect(badge?.querySelector("svg")).not.toBeNull();
+    expect(screen.getByRole("group")).toHaveAccessibleName("Maya Okafor, host");
+    rerender(<RoomTile presence="declined" person={MAYA} host />);
+    expect(container.querySelector(".sys-room-host")).not.toBeNull();
+    rerender(<RoomTile {...live({})} />);
+    expect(container.querySelector(".sys-room-host")).toBeNull();
+  });
+
   it("never announces speaking the tile does not show", () => {
     for (const rest of [
       { muted: true },

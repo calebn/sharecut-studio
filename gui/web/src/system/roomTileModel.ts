@@ -5,7 +5,12 @@ import { percentOf } from "./progress";
 export type RoomConnection = "good" | "weak" | "lost";
 export type RoomSaving = { done: number; total: number } | "saved" | "failed";
 
-type Away = { presence: "joining" | "declined" | "left"; person: PersonData };
+type Away = {
+  presence: "joining" | "declined" | "left";
+  person: PersonData;
+  /** The room's host: a Record glyph on the tile and "host" in its name. */
+  host?: boolean;
+};
 
 export type RoomTileProps =
   | { presence: "placeholder"; onInvite: () => void }
@@ -13,6 +18,8 @@ export type RoomTileProps =
   | {
       presence: "live";
       person: PersonData;
+      /** The room's host: a Record glyph on the tile and "host" in its name. */
+      host?: boolean;
       /** 0..1 local meter. Out of range values are clamped. */
       level?: number;
       speaking?: boolean;
@@ -100,7 +107,10 @@ export function roomTileStatus(props: RoomTileProps): string | null {
 /** Every state in words, for assistive tech. Static: it is not a live region. */
 export function roomTileLabel(props: RoomTileProps): string {
   if (props.presence === "placeholder") return ROOM_TILE_TEXT.invite;
-  const parts: (string | null)[] = [props.person.name];
+  const parts: (string | null)[] = [
+    props.person.name,
+    props.host ? ROOM_TILE_TEXT.host : null,
+  ];
   if (props.presence !== "live") {
     parts.push(roomTileStatus(props));
     return parts.filter(Boolean).join(", ");
@@ -115,5 +125,5 @@ export function roomTileLabel(props: RoomTileProps): string {
   if (props.connection === "weak") parts.push(ROOM_TILE_TEXT.weak);
   if (clips) parts.push(`${clips} ${clips === 1 ? "clip" : "clips"}`);
   if (props.alert) parts.push("needs attention");
-  return parts.join(", ");
+  return parts.filter(Boolean).join(", ");
 }

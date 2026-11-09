@@ -37,6 +37,7 @@ export const ROOM_TILE_TEXT = {
   weak: PERSON_STATES.weak.text,
   saved: PERSON_STATES.saved.text,
   failed: "Couldn't save",
+  host: "host",
   invite: "Invite",
   devices: "Devices",
 } as const;

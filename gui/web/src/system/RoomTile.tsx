@@ -66,7 +66,7 @@ function SavingRing({ saving }: { saving: RoomSaving }) {
 }
 
 type TileBodyProps = {
-  props: RoomTileProps & { person: PersonData };
+  props: Exclude<RoomTileProps, { presence: "placeholder" }>;
   level?: number;
   speaking?: boolean;
   saving?: RoomSaving | null;
@@ -107,6 +107,11 @@ function TileBody({
         } as CSSProperties
       }
     >
+      {props.host ? (
+        <span className="sys-room-host" aria-hidden="true">
+          <SystemIcon name="record" size={12} />
+        </span>
+      ) : null}
       {badges}
       {onPress ? (
         <button

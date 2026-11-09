@@ -49,6 +49,15 @@ const names = () =>
     .map((b) => b.getAttribute("aria-label"));
 
 describe("RoomView", () => {
+  it("names the host's tile as the host to a guest, and only theirs", () => {
+    renderRoom();
+    expect(
+      screen.getByRole("group", { name: "Maya Okafor, host" }),
+    ).toBeVisible();
+    expect(screen.getByRole("group", { name: "Jon" })).toBeVisible();
+    expect(document.querySelectorAll(".sys-room-host")).toHaveLength(1);
+  });
+
   it("shows the target slot in the header, full and embedded", () => {
     const { rerender } = renderRoom({
       target: <span>Starts the episode</span>,
