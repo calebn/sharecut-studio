@@ -47,8 +47,7 @@ export function RecordingOverlay({
     >
       <div ref={band} className="recording-overlay-band">
         <span>
-          Take {snapshot.take_index + 1} ·{" "}
-          {snapshot.state === "paused" ? "PAUSED" : "Recording"}
+          {`${snapshot.state === "paused" ? "Paused" : "Recording"} · Take ${snapshot.take_index + 1}`}
         </span>
       </div>
       <div ref={needle} className="recording-overlay-needle" />
