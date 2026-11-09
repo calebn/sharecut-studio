@@ -1,9 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
-import { ConfidenceMeter, confidenceDots } from "./ConfidenceMeter";
+import { ConfidenceMeter } from "./ConfidenceMeter";
 
-describe("confidenceDots", () => {
+describe("ConfidenceMeter dot count", () => {
   it.each([
     [0, 0],
     [0.09, 0],
@@ -16,7 +16,11 @@ describe("confidenceDots", () => {
     [-1, 0],
     [Number.NaN, 0],
   ])("maps %s to %s filled dots", (confidence, filled) => {
-    expect(confidenceDots(confidence)).toBe(filled);
+    render(<ConfidenceMeter confidence={confidence} />);
+    const meter = screen.getByRole("img", {
+      name: `Confidence ${filled} of 5`,
+    });
+    expect(meter.querySelectorAll("[data-filled]")).toHaveLength(filled);
   });
 });
 
