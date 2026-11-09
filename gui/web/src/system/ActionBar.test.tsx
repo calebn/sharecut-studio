@@ -274,6 +274,33 @@ describe("ActionBar floating", () => {
     return screen.getByRole("group", { name: "Actions" });
   }
 
+  it("shows a gated verb's reason as visible text inside the bar its button is described by", () => {
+    sizes.mockReturnValue(40);
+    widths.mockReturnValue(200);
+    const anchor = document.createElement("div");
+    anchor.getBoundingClientRect = () =>
+      ({ left: 100, right: 300, top: 300, bottom: 330 }) as DOMRect;
+    render(
+      <ActionBar
+        placement={{ form: "floating", anchorRef: { current: anchor } }}
+        items={[
+          { id: "hear" },
+          { id: "keep", disabledReason: "Restore the later cut first." },
+        ]}
+        onVerb={vi.fn()}
+      />,
+    );
+    const bar = screen.getByRole("group", { name: "Actions" });
+    const reason = within(bar).getByText("Restore the later cut first.");
+    expect(reason).toBeVisible();
+    const keep = within(bar).getByRole("button", { name: "Keep" });
+    expect(keep).toBeDisabled();
+    expect(keep).toHaveAccessibleDescription("Restore the later cut first.");
+    expect(
+      within(bar).getByRole("button", { name: "Hear" }),
+    ).not.toHaveAttribute("aria-describedby");
+  });
+
   it("sits 8 px above the selection", () => {
     const bar = floatAt(300, 330);
     expect(bar.style.top).toBe("252px");

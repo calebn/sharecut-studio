@@ -171,6 +171,22 @@ describe("restoreSeam", () => {
     expect(useDawStore.getState().statusAnnouncement).toBe("Restored 2.4 s");
   });
 
+  it.each([
+    ["no capabilities", null],
+    ["comment only", ["comment"]],
+  ])("refuses a share guest with %s and sends nothing", async (_name, caps) => {
+    const seam = load(R, [removal("r1", 4, 6.4)]);
+    if (seam.kind !== "cut") throw new Error("expected a cut");
+    useDawStore.setState({
+      projectPath: "share:tok",
+      shareCapabilities: caps,
+    });
+    const result = await restoreSeam(seam);
+    expect(result.status).toBe("disabled");
+    expect(api.restoreAppliedEdit).not.toHaveBeenCalled();
+    expect(useDawStore.getState().selection).not.toBeNull();
+  });
+
   it("says why Keep is off without calling the server", async () => {
     const seam = load(R, []);
     if (seam.kind !== "cut") throw new Error("expected a cut");

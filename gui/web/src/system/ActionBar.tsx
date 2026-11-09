@@ -419,6 +419,16 @@ function Floating({
   placement: Extract<ActionBarPlacement, { form: "floating" }>;
 }) {
   const barRef = useRef<HTMLDivElement>(null);
+  const gated = items.find((item) => item.disabledReason);
+  const { note, describedBy } = useDisabledReasonNote(
+    gated?.disabledReason,
+    "sys-actions-reason",
+  );
+  const noted = items.map((item) =>
+    item === gated
+      ? { ...item, describedBy: describedBy["aria-describedby"] }
+      : item,
+  );
   useAnchoredPanel(
     barRef,
     {
@@ -437,17 +447,20 @@ function Floating({
       role="group"
       aria-label={ariaLabel}
     >
-      {leading}
-      <Items
-        look="floating"
-        items={items}
-        more={more}
-        onVerb={onVerb}
-        moreRequest={moreRequest}
-      />
-      {primary ? (
-        <PrimaryButton look="floating" item={primary} onVerb={onVerb} />
-      ) : null}
+      <div className="sys-actions-row">
+        {leading}
+        <Items
+          look="floating"
+          items={noted}
+          more={more}
+          onVerb={onVerb}
+          moreRequest={moreRequest}
+        />
+        {primary ? (
+          <PrimaryButton look="floating" item={primary} onVerb={onVerb} />
+        ) : null}
+      </div>
+      {note}
     </div>
   );
 }
