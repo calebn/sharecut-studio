@@ -380,43 +380,36 @@ test.describe("ShareCut Studio mobile smoke", () => {
     });
   });
 
-  test("the Palette opens a truthful, app-level gestures cheatsheet", async ({
+  test("the Palette lists the touch gestures as result rows, not a separate sheet", async ({
     page,
   }) => {
     await openProject(page, e2eProjectPath);
-    await openProjectDialog(page, "gestures");
+    await openProjectDialog(page, "palette");
 
-    const gestures = page.getByRole("dialog", { name: "Gestures" });
-    await expect(gestures).toBeVisible();
+    const palette = page.getByRole("dialog", {
+      name: "Commands and shortcuts",
+    });
+    await expect(palette).toBeVisible();
     await expect(
-      gestures.locator("xpath=ancestor::*[@data-daw-app-chrome]"),
+      palette.locator("xpath=ancestor::*[@data-daw-app-chrome]"),
     ).toHaveCount(0);
     await expect(page.locator("[data-daw-app-chrome]")).toHaveAttribute(
       "inert",
       "",
     );
+    const gestures = palette.getByRole("group", { name: "Gestures" });
+    await expect(gestures.getByRole("option")).toHaveCount(5);
+    for (const name of ["Two-finger tap", "Long-press", "Pinch"]) {
+      await expect(
+        gestures.getByRole("option", { name: new RegExp(name) }),
+      ).not.toContainText("Soon");
+    }
     await expect(
-      gestures.getByText("Two-finger tap").locator("xpath=.."),
-    ).not.toContainText("Soon");
-    await expect(
-      gestures.getByText("Long-press").locator("xpath=.."),
-    ).not.toContainText("Soon");
-    await expect(
-      gestures.getByText("Pinch").locator("xpath=.."),
-    ).not.toContainText("Soon");
-
-    await gestures
-      .getByRole("button", { name: "Commands and shortcuts" })
-      .click();
-    const keyboard = page.getByRole("dialog", {
-      name: "Commands and shortcuts",
-    });
-    await expect(keyboard).toBeVisible();
-    await expect(gestures).toHaveCount(0);
-
-    await keyboard.getByRole("button", { name: "Gestures" }).click();
-    await expect(page.getByRole("dialog", { name: "Gestures" })).toBeVisible();
-    await expect(keyboard).toHaveCount(0);
+      gestures.getByRole("option", {
+        name: "Undo Two-finger tap Undo the last action. Optional ShareCut shortcut.",
+      }),
+    ).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Gestures" })).toHaveCount(0);
   });
 
   test("a sequential two-finger tap sends UndoHistory through the command bus", async ({

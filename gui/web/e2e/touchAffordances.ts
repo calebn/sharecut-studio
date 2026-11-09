@@ -181,13 +181,17 @@ export async function exerciseInviteAffordances(run: TouchRun): Promise<void> {
       await expect(dialog).toHaveCount(0);
       await expect(expectedOpener).toBeFocused();
       inviteEvidence.focusAfterClose = await activeElement(page);
-      await openProjectDialog(page, "gestures");
-      const gestures = page.getByRole("dialog", { name: "Gestures" });
-      await expect(gestures).toContainText(
-        "Undo: Undo the last action. Optional ShareCut shortcut.",
-      );
+      await openProjectDialog(page, "palette");
+      const palette = page.getByRole("dialog", {
+        name: "Commands and shortcuts",
+      });
+      await expect(
+        palette.getByRole("option", {
+          name: "Undo Two-finger tap Undo the last action. Optional ShareCut shortcut.",
+        }),
+      ).toBeVisible();
       await page.keyboard.press("Escape");
-      await expect(gestures).toHaveCount(0);
+      await expect(palette).toHaveCount(0);
       await assertBoundary(page, boundary);
       inviteEvidence.nonmutation = mutationEvidence(boundary);
       await attachEvidence("invite", inviteEvidence);
