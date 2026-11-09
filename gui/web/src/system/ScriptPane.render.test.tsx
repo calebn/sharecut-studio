@@ -87,7 +87,9 @@ describe("ScriptPane hallucination marker", () => {
   const flagged = patchWords(SCRIPT_TURNS, { 26: { hallucination: true } });
 
   it("marks a flagged word with the attribute, the title and the aria note", () => {
-    const { container } = render(<ScriptPane {...props({ turns: flagged })} />);
+    const { container, queryByRole } = render(
+      <ScriptPane {...props({ turns: flagged })} />,
+    );
     const marked = container.querySelectorAll("[data-hallucination]");
     expect(marked).toHaveLength(1);
     const word = marked[0] as HTMLElement;
@@ -97,6 +99,8 @@ describe("ScriptPane hallucination marker", () => {
       `${word.textContent} (possible transcription with no matching speech)`,
     );
     expect(word).not.toHaveAttribute("data-unsure");
+    expect(container.querySelectorAll("[title]")).toHaveLength(1);
+    expect(queryByRole("button", { name: /unsure/ })).toBeNull();
   });
 
   it("names both notes when a word is also unsure", () => {
@@ -115,13 +119,5 @@ describe("ScriptPane hallucination marker", () => {
       "aria-label",
       `${word.textContent} (unsure, possible transcription with no matching speech)`,
     );
-  });
-
-  it("gives only the flagged word a title and leaves the unsure count alone", () => {
-    const { container, queryByRole } = render(
-      <ScriptPane {...props({ turns: flagged })} />,
-    );
-    expect(container.querySelectorAll("[title]")).toHaveLength(1);
-    expect(queryByRole("button", { name: /unsure/ })).toBeNull();
   });
 });
