@@ -26,9 +26,9 @@ import {
 import { formatEffectParams } from "../../utils/effectParams";
 import { splitSpeakersBlocker } from "../../utils/speakerSplit";
 import { note } from "./sheetNote";
+import { TrackKindControl } from "./TrackKindControl";
 import { TrackLevelNote } from "./TrackLevelNote";
-
-const ROLES = ["dialogue", "music", "sfx", "intro", "outro"] as const;
+import { kindOf, roleForKind, TRACK_KINDS } from "./trackKind";
 
 export function useTrackSections(
   selection: Selection,
@@ -59,12 +59,10 @@ export function useTrackSections(
     trackId ?? "",
   );
   const [speaker, setSpeaker] = useState(track?.speaker ?? "");
-  const [role, setRole] = useState(track?.role ?? "dialogue");
   useEffect(() => {
     setSpeaker(track?.speaker ?? "");
-    setRole(track?.role ?? "dialogue");
     setError(null);
-  }, [track?.id, track?.speaker, track?.role, setError]);
+  }, [track?.id, track?.speaker, setError]);
   if (trackId === null) return null;
   if (rangeArmed && selection?.kind === "track") return [];
   if (!track)
@@ -83,24 +81,34 @@ export function useTrackSections(
   const splitBlocker = splitSpeakersBlocker(track, hostCanSplit);
   const busyReason = busy ? BUSY_REASON : undefined;
 
-  const saveMeta = async () => {
-    const next = {
-      role,
-      speaker: speaker.trim() || undefined,
-    };
-    if (
-      next.role === track.role &&
-      next.speaker === (track.speaker ?? undefined)
-    )
-      return;
-    await saveMetaFields(next);
+  const saveSpeaker = async () => {
+    const next = speaker.trim() || undefined;
+    if (next === (track.speaker ?? undefined)) return;
+    await saveMetaFields({ speaker: next });
   };
 
   const commitText = {
-    onBlur: () => void saveMeta(),
+    onBlur: () => void saveSpeaker(),
     onKeyDown: (e: KeyboardEvent<HTMLInputElement>) => {
       if (e.key === "Enter") e.currentTarget.blur();
     },
+  };
+
+  const kindRow = {
+    id: "kind",
+    label: "Kind",
+    control: mayIngest ? (
+      <TrackKindControl
+        role={track.role}
+        disabledReason={busyReason}
+        onPick={(kind) => {
+          const role = roleForKind(track.role, kind);
+          if (role) void saveMetaFields({ role });
+        }}
+      />
+    ) : (
+      TRACK_KINDS.find((k) => k.kind === kindOf(track.role))?.label
+    ),
   };
 
   const setLevel = async (db: number) => {
@@ -126,6 +134,7 @@ export function useTrackSections(
     {
       id: "track",
       rows: [
+        kindRow,
         ...(mayIngest
           ? [
               {
@@ -141,29 +150,8 @@ export function useTrackSections(
                   />
                 ),
               },
-              {
-                id: "role",
-                label: "Role",
-                control: (
-                  <select
-                    className="track-sheet-field"
-                    aria-label="Role"
-                    value={role}
-                    onChange={(e) => {
-                      setRole(e.target.value);
-                      void saveMetaFields({ role: e.target.value });
-                    }}
-                  >
-                    {ROLES.map((r) => (
-                      <option key={r} value={r}>
-                        {r}
-                      </option>
-                    ))}
-                  </select>
-                ),
-              },
             ]
-          : [{ id: "role", label: "Role", control: track.role }]),
+          : []),
         {
           id: "level",
           label: "Level",
