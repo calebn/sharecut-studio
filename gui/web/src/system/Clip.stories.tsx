@@ -456,12 +456,11 @@ export const Moving: Story = {
     const user = userEvent.setup();
     const body = canvas.getByRole("button", { name: args.name });
     const clip = body.closest("[data-clip-id]");
-    if (!clip) throw new Error("Moving story clip host was not rendered");
+    const host = clip?.parentElement;
+    if (!clip || !host)
+      throw new Error("Moving story clip host was not rendered");
     const start = slider(canvas, /^Trim start/);
     const box = body.getBoundingClientRect();
-    const left = () => body.getBoundingClientRect().left;
-    const movedLeft = box.left + PX_PER_SECOND;
-    const previewLeft = movedLeft + PX_PER_SECOND / 2;
     const origin = {
       clientX: box.left + box.width / 2,
       clientY: box.top + box.height / 2,
@@ -471,6 +470,7 @@ export const Moving: Story = {
 
     await expect(body).toHaveAttribute("aria-pressed", "false");
     await expect(start).toHaveAttribute("aria-valuenow", "4");
+    await expect(host.style.transform).toBe("translateX(0px)");
     await user.pointer([
       { keys: "[MouseLeft>]", target: body, coords: origin },
       { target: body, coords: moved },
@@ -480,7 +480,7 @@ export const Moving: Story = {
     await expect(clip).toHaveAttribute("data-dragging", "move");
     await expect(start).toHaveAttribute("aria-valuenow", "5");
     await expect(canvas.getByText("5000 ms")).toBeVisible();
-    await expect(left()).toBe(movedLeft);
+    await expect(host.style.transform).toBe("translateX(40px)");
     await expect(args.onDragStart).toHaveBeenCalledWith("clip-take-2", "move", {
       ...moved,
       shift: false,
@@ -504,7 +504,7 @@ export const Moving: Story = {
     );
     await expect(start).toHaveAttribute("aria-valuenow", "5");
     await expect(clip).not.toHaveAttribute("data-dragging");
-    await expect(left()).toBe(movedLeft);
+    await expect(host.style.transform).toBe("translateX(40px)");
     await expect(canvas.queryByText("5000 ms")).toBeNull();
 
     await user.pointer([
@@ -514,7 +514,7 @@ export const Moving: Story = {
     await expect(clip).toHaveAttribute("data-dragging", "move");
     await expect(start).toHaveAttribute("aria-valuenow", "5.5");
     await expect(canvas.getByText("5500 ms")).toBeVisible();
-    await expect(left()).toBe(previewLeft);
+    await expect(host.style.transform).toBe("translateX(60px)");
 
     await user.keyboard("{Escape}");
     await expect(args.onDragEnd).toHaveBeenCalledTimes(2);
@@ -526,12 +526,12 @@ export const Moving: Story = {
     );
     await expect(start).toHaveAttribute("aria-valuenow", "5");
     await expect(clip).not.toHaveAttribute("data-dragging");
-    await expect(left()).toBe(movedLeft);
+    await expect(host.style.transform).toBe("translateX(40px)");
     await expect(canvas.queryByText("5500 ms")).toBeNull();
 
     await user.pointer({ keys: "[/MouseLeft]", target: body, coords: preview });
     await expect(args.onDragEnd).toHaveBeenCalledTimes(2);
     await expect(start).toHaveAttribute("aria-valuenow", "5");
-    await expect(left()).toBe(movedLeft);
+    await expect(host.style.transform).toBe("translateX(40px)");
   },
 };
