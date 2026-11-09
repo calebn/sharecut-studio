@@ -183,9 +183,6 @@
       ],
       "surfaces": {
         "command": "transport.hearOriginal",
-        "gui": [
-          "Player"
-        ],
         "keyboard": "A"
       },
       "omit": {},

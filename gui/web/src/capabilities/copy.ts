@@ -608,7 +608,6 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
 export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "transport.play": "daw.transport.togglePlay",
   "transport.audition": "daw.transport.audition",
-  Player: "daw.transport.hearOriginal",
   "presence.avatarStack": "daw.presence.follow",
   "presence.followPill": "daw.presence.unfollow",
   timeline: "daw.edit.bladeCut",

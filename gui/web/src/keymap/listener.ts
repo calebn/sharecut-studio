@@ -42,7 +42,7 @@ export function useDawKeymapListener(): void {
       if (holdTimer) clearTimeout(holdTimer);
       holdTimer = null;
     };
-    let held: { key: string; id: string } | null = null;
+    let held: { code: string; id: string } | null = null;
     const release = () => {
       if (!held) return;
       const { id } = held;
@@ -62,7 +62,7 @@ export function useDawKeymapListener(): void {
     const unsubscribeOverlay = subscribeModalOpen(onOverlay);
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.key.toLowerCase() === holdKey) cancelHold();
-      if (held && e.key.toLowerCase() === held.key) release();
+      if (held && e.code === held.code) release();
       if (e.key !== " " || !hearHeld) return;
       hearHeld = false;
       e.preventDefault();
@@ -108,7 +108,7 @@ export function useDawKeymapListener(): void {
             return;
           }
           if (cmd.release) {
-            held ??= { key: e.key.toLowerCase(), id: cmd.id };
+            held ??= { code: e.code, id: cmd.id };
             await execute(cmd.id, { on: true }, { ctx, skipWhen: true });
             return;
           }

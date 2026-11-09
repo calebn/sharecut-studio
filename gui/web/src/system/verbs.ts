@@ -118,7 +118,7 @@ export const VERBS = [
     surfaces: ["decision-card", "seam", "suggestion", "player"],
     status: "bound",
     commandId: "edit.hearBefore",
-    note: "Hold A with nothing selected to hear the original (the hold is not built yet; A on a suggestion plays it as it is).",
+    note: "Hold A with nothing selected to hear the original (A on a suggestion plays it as it is).",
   },
   {
     id: "hearAfter",

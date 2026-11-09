@@ -955,6 +955,14 @@ it("holds A with nothing selected to hear the original and lets go to restore", 
   expect(runs()).toHaveLength(2);
 });
 
+it("releases A on the physical key even when Option changes the key to a symbol", async () => {
+  render(<KeymapHost />);
+  const canvas = screen.getByTestId("canvas");
+  await press(canvas, A);
+  await keyUp(canvas, { key: "å", code: "KeyA" });
+  expect(runs()).toEqual([[{ on: true }], [{ on: false }]]);
+});
+
 it("drops key repeats while A is held", async () => {
   render(<KeymapHost />);
   const canvas = screen.getByTestId("canvas");
