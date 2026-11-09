@@ -3,26 +3,8 @@ import { formatBytes, type ModelView, type useModels } from "../../models";
 import type { ProjectCardData } from "../../system/ProjectCard";
 import { STATUS_TEXT } from "../../system/statusText";
 import { plural } from "../../utils/format";
+import { dayMonth, relativeTime } from "../../utils/relativeTime";
 import type { SetupData } from "./HomeView";
-
-const MONTHS = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
-] as const;
-
-export function dayMonth(date: Date): string {
-  return `${date.getDate()} ${MONTHS[date.getMonth()]}`;
-}
 
 export function formatDuration(seconds: number): string {
   const whole = Math.max(0, Math.round(seconds));
@@ -33,26 +15,10 @@ export function formatDuration(seconds: number): string {
   return h > 0 ? `${h}:${pair(m)}:${pair(s)}` : `${m}:${pair(s)}`;
 }
 
-function startOfDay(date: Date): number {
-  return new Date(
-    date.getFullYear(),
-    date.getMonth(),
-    date.getDate(),
-  ).getTime();
-}
-
 export function formatEdited(editedAt: string | null, now: Date): string {
-  const at = editedAt ? new Date(editedAt) : null;
-  if (!at || Number.isNaN(at.getTime())) return "";
-  const minutes = Math.floor((now.getTime() - at.getTime()) / 60_000);
-  if (minutes < 1) return "edited just now";
-  if (minutes < 60) return `edited ${minutes} min ago`;
-  const days = Math.round((startOfDay(now) - startOfDay(at)) / 86_400_000);
-  if (days < 1) return `edited ${Math.floor(minutes / 60)} h ago`;
-  if (days === 1) return "edited yesterday";
-  if (days < 7) return `edited ${days} days ago`;
-  if (days < 14) return "edited last week";
-  return `edited ${dayMonth(at)}`;
+  const ago = relativeTime(editedAt, now);
+  if (!ago) return "";
+  return ago === "just now" ? "edited just now" : `edited ${ago}`;
 }
 
 const STATE_OF = new Set<string>(Object.keys(STATUS_TEXT));
