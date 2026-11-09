@@ -180,6 +180,10 @@ for (const viewport of viewports) {
   test.describe(`Transcript Follow with overlapping lanes, ${viewport.name}`, () => {
     test.use({ viewport: { width: viewport.width, height: viewport.height } });
 
+    test.afterEach(async ({ page }) => {
+      await page.unrouteAll({ behavior: "wait" });
+    });
+
     test("the playing word stays in view while Follow is on", async ({
       page,
     }) => {
