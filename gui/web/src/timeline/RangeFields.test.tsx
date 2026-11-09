@@ -156,7 +156,7 @@ describe("range fields", () => {
     expect(screen.queryByRole("group", { name: /word/i })).toBeNull();
     expect(screen.queryByRole("button")).toBeNull();
   });
-  it("requires deliberate lane selection for numeric and agent ranges", async () => {
+  it("adopts the agent range on the tracks nothing narrowed", async () => {
     const user = userEvent.setup();
     useDawStore.setState({
       selection: null,
@@ -166,14 +166,6 @@ describe("range fields", () => {
       followingClientId: "agent",
     });
     render(<RangeFields sheet />);
-    expect(
-      screen.getByRole("button", {
-        name: "Use agent range on selected tracks",
-      }),
-    ).toHaveAccessibleDescription(
-      "Select at least one track to use the agent range.",
-    );
-    await user.click(screen.getByRole("button", { name: "Speaker" }));
     await user.click(
       screen.getByRole("button", {
         name: "Use agent range on selected tracks",
@@ -186,21 +178,21 @@ describe("range fields", () => {
     expect(useDawStore.getState().playheadSec).toBe(9);
     expect(useDawStore.getState().followingClientId).toBe("agent");
   });
-  it("clears the ticked scope once the agent range is adopted", async () => {
+  it("drops the draft once the agent range is adopted", async () => {
     const user = userEvent.setup();
     useDawStore.setState({
       selection: null,
       sessionRegion: { start_sec: 3, end_sec: 4 },
     });
+    useDawStore.getState().armRange({ start: 0, end: 5, trackIds: ["a"] });
     render(<RangeFields sheet />);
-    await user.click(screen.getByRole("button", { name: "Speaker" }));
-    expect(useDawStore.getState().rangeDraft?.trackIds).toEqual(["a"]);
     await user.click(
       screen.getByRole("button", {
         name: "Use agent range on selected tracks",
       }),
     );
     expect(useDawStore.getState().rangeDraft).toBeNull();
+    expect(useDawStore.getState().rangeArmed).toBe(false);
   });
   it("keeps an open Inspector open on the range it adopts", async () => {
     const user = userEvent.setup();
@@ -217,5 +209,88 @@ describe("range fields", () => {
     );
     expect(useDawStore.getState().selection).toMatchObject({ kind: "range" });
     expect(useDawStore.getState().inspectorKey).toBe("range");
+  });
+  describe("draft", () => {
+    const field = (name: string) => screen.getByRole("spinbutton", { name });
+    const arm = (draft = { start: 1, end: 3, trackIds: ["a"] }) => {
+      useDawStore.setState({ selection: null });
+      useDawStore.getState().armRange(draft);
+    };
+    it("shows the seeded In, Out and Length", () => {
+      arm();
+      render(<RangeFields sheet />);
+      expect(field("In")).toHaveAttribute("aria-valuenow", "1");
+      expect(field("Out")).toHaveAttribute("aria-valuenow", "3");
+      expect(field("Length")).toHaveAttribute("aria-valuenow", "2");
+    });
+    it("commits the seeded span when Enter accepts Out unchanged", async () => {
+      const user = userEvent.setup();
+      arm();
+      render(<RangeFields sheet />);
+      await user.click(field("Out"));
+      await user.keyboard("{Enter}");
+      const s = useDawStore.getState();
+      expect(s.selection).toMatchObject({
+        kind: "range",
+        target: { intervals: [{ start: 1, end: 3 }], track_ids: ["a"] },
+      });
+      expect(s.rangeArmed).toBe(false);
+      expect(s.rangeDraft).toBeNull();
+      expect(s.inspectorKey).toBe("range");
+    });
+    it("commits a typed In with the draft's Out", async () => {
+      const user = userEvent.setup();
+      arm();
+      render(<RangeFields sheet />);
+      await user.click(field("In"));
+      await user.keyboard("2{Enter}");
+      expect(useDawStore.getState().selection).toMatchObject({
+        kind: "range",
+        target: { intervals: [{ start: 2, end: 3 }] },
+      });
+    });
+    it("announces the first commit", async () => {
+      const user = userEvent.setup();
+      arm();
+      render(<RangeFields sheet />);
+      await user.click(field("In"));
+      await user.keyboard("2{Enter}");
+      expect(useDawStore.getState().feedbackToast?.message).toBe(
+        "Range 2.00–3.00 s selected",
+      );
+    });
+    it("refuses an Out past the timeline end inline", async () => {
+      const user = userEvent.setup();
+      arm();
+      render(<RangeFields sheet />);
+      await user.click(field("Out"));
+      await user.keyboard("9{Enter}");
+      expect(useDawStore.getState().selection).toBeNull();
+      expect(useDawStore.getState().rangeDraft).toEqual({
+        start: 1,
+        end: 3,
+        trackIds: ["a"],
+      });
+    });
+    it("keeps a typed span and asks for a track when the scope is empty", async () => {
+      const user = userEvent.setup();
+      arm({ start: 1, end: 3, trackIds: [] });
+      render(<RangeFields sheet />);
+      expect(screen.getByText("Choose at least one track")).toBeVisible();
+      await user.click(field("In"));
+      await user.keyboard("2{Enter}");
+      expect(useDawStore.getState().selection).toBeNull();
+      expect(useDawStore.getState().rangeDraft).toEqual({
+        start: 2,
+        end: 3,
+        trackIds: [],
+      });
+    });
+    it("hides once a range is selected", () => {
+      arm();
+      useDawStore.setState({ selection: { kind: "range", target } });
+      render(<RangeFields />);
+      expect(screen.queryByRole("spinbutton")).toBeNull();
+    });
   });
 });

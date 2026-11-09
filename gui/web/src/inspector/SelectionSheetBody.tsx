@@ -1,4 +1,3 @@
-import { isRangeSelection } from "../edit/rangeSelection";
 import { useDaw } from "../state/useDaw";
 import { RangeFields } from "../timeline/RangeFields";
 import { Inspector } from "./Inspector";
@@ -12,11 +11,16 @@ export function SelectionSheetBody({
     selection: s.selection,
     rangeArmed: s.rangeArmed,
   }));
-  const rangeFields = rangeActionsInSheet && !isRangeSelection(selection);
+  const rangeFields =
+    rangeActionsInSheet && selection?.kind !== "transcriptRange";
   return (
     <>
-      {rangeFields ? <RangeFields sheet /> : null}
-      {selection != null && !(rangeArmed && selection.kind === "track") ? (
+      {rangeFields ? (
+        <RangeFields sheet always={selection?.kind === "range"} />
+      ) : null}
+      {selection != null &&
+      selection.kind !== "range" &&
+      !(rangeArmed && selection.kind === "track") ? (
         <Inspector placement="sheet" />
       ) : null}
     </>

@@ -1,13 +1,14 @@
 import { useMemo } from "react";
+import { timelineEndSec } from "../edit/pickupTarget";
 import {
+  clampSpan,
+  defaultScope,
+  isRangeSelection,
   makeRangeTarget,
   resolveSelectionRange,
   SPAN_STEP_SEC,
-  seedRangeDraft,
 } from "../edit/rangeSelection";
 import { TrackToggleRow } from "../inspector/TrackToggleRow";
-import { useDawStore } from "../state/dawStore";
-import { selectedTrackIdsOf } from "../state/selection";
 import { useDaw } from "../state/useDaw";
 import { ScrubField } from "../system/ScrubField";
 import { Button } from "../ui";
@@ -28,13 +29,12 @@ export function RangeFields({
     rangeBusy: s.rangeBusy,
     sessionRegion: s.sessionRegion,
     rangeDraft: s.rangeDraft,
-    selectedTrackIds: s.rangeDraft?.trackIds ?? selectedTrackIdsOf(s.selection),
+    announceStatus: s.announceStatus,
     setSelection: s.setSelection,
     commitRange: s.commitRange,
     setRangeDraft: s.setRangeDraft,
   }));
-  const { project, selection, rangeArmed, sessionRegion, selectedTrackIds } =
-    state;
+  const { project, selection, rangeArmed, rangeDraft, sessionRegion } = state;
   const resolution = useMemo(
     () =>
       project
@@ -53,10 +53,18 @@ export function RangeFields({
   )
     return null;
   const chooser = resolution.targets.length > 1;
-  const single = target !== null && target.intervals.length === 1;
-  const inSec = target?.intervals[0]!.start ?? 0;
-  const outSec = target?.intervals.at(-1)!.end ?? 0;
-  const editable = showNumeric && always && target !== null;
+  const timelineEnd = timelineEndSec(project);
+  const drafting =
+    rangeArmed && rangeDraft != null && !isRangeSelection(selection);
+  const draftSpan = drafting ? clampSpan(rangeDraft, timelineEnd) : null;
+  const span = target
+    ? { start: target.intervals[0]!.start, end: target.intervals.at(-1)!.end }
+    : draftSpan;
+  const single = target ? target.intervals.length === 1 : span !== null;
+  const inSec = span?.start ?? 0;
+  const outSec = span?.end ?? 0;
+  const scope = target?.track_ids ?? (drafting ? rangeDraft.trackIds : []);
+  const editable = showNumeric && span !== null && (always || drafting);
   const agent = showNumeric && sessionRegion && (rangeArmed || !target);
   const unresolved =
     selection?.kind === "transcriptRange" &&
@@ -69,25 +77,24 @@ export function RangeFields({
     id: track.id,
     label: track.label,
   }));
-  // Each field commits the range it describes; the selection is the range.
   const commitSpan = (start: number, end: number) => {
-    const next = makeRangeTarget(
-      project,
-      [{ start, end }],
-      target?.track_ids ?? selectedTrackIds,
-    );
-    if (next) state.setSelection({ kind: "range", target: next });
-  };
-  const commitScope = (ids: string[]) => {
-    if (!target) {
-      const base =
-        state.rangeDraft ??
-        seedRangeDraft(project, useDawStore.getState().playheadSec, selection);
-      if (base) state.setRangeDraft({ ...base, trackIds: ids });
+    const next = makeRangeTarget(project, [{ start, end }], scope);
+    if (!next) {
+      state.setRangeDraft({ start, end, trackIds: scope });
       return;
     }
-    const next = makeRangeTarget(project, target.intervals, ids);
-    if (next) state.setSelection({ kind: "range", target: next });
+    state.commitRange(next);
+    if (!target)
+      state.announceStatus(
+        `Range ${start.toFixed(2)}–${end.toFixed(2)} s selected`,
+      );
+  };
+  const commitScope = (ids: string[]) => {
+    const spans = target?.intervals ?? (draftSpan ? [draftSpan] : null);
+    if (!spans) return;
+    const next = makeRangeTarget(project, spans, ids);
+    if (next) state.commitRange(next);
+    else if (draftSpan) state.setRangeDraft({ ...draftSpan, trackIds: ids });
   };
   const field = (
     label: string,
@@ -103,7 +110,8 @@ export function RangeFields({
         unit="s"
         step={SPAN_STEP_SEC}
         decimals={3}
-        skipUnchanged
+        skipUnchanged={!drafting}
+        commitUnchanged={drafting}
         readOnly={!single}
         min={bounds.min}
         max={bounds.max}
@@ -147,30 +155,29 @@ export function RangeFields({
               })}
               {field("Out", outSec, (v) => commitSpan(inSec, v), {
                 min: inSec + SPAN_STEP_SEC,
+                max: timelineEnd,
               })}
               {field(
                 "Length",
                 outSec - inSec,
                 (v) => commitSpan(inSec, inSec + v),
-                { min: SPAN_STEP_SEC },
+                { min: SPAN_STEP_SEC, max: timelineEnd - inSec },
               )}
             </>
           ) : null}
           <TrackToggleRow
             label="Scope"
             tracks={tracks}
-            value={target?.track_ids ?? selectedTrackIds}
+            value={scope}
             onChange={commitScope}
           />
+          {editable && scope.length === 0 ? (
+            <p>Choose at least one track</p>
+          ) : null}
           {agent ? (
             <Button
               type="button"
               className="ui-control--compact"
-              disabledReason={
-                selectedTrackIds.length === 0
-                  ? "Select at least one track to use the agent range."
-                  : undefined
-              }
               onClick={() => {
                 const next = makeRangeTarget(
                   project,
@@ -180,7 +187,7 @@ export function RangeFields({
                       end: sessionRegion!.end_sec,
                     },
                   ],
-                  selectedTrackIds,
+                  scope.length ? scope : defaultScope(project, selection),
                 );
                 if (next) state.commitRange(next);
               }}

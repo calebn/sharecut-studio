@@ -60,6 +60,8 @@ export type ScrubFieldProps = ScrubRange & {
   /** Fires once per gesture, so one drag, key press or typed value is one undo step. */
   onCommit: (value: number) => void;
   skipUnchanged?: boolean;
+  /** Enter on text left as it opened still commits it: the shown value is a default not yet saved. */
+  commitUnchanged?: boolean;
   /** Refuses a typed number with a fraction instead of rounding it. */
   integerOnly?: boolean;
   /** Moves a dragged value to a nearby mark. Arrow keys and typed values are not snapped. */
@@ -115,6 +117,7 @@ export function ScrubField({
   onCommit,
   onCancel,
   skipUnchanged = false,
+  commitUnchanged = false,
   integerOnly = false,
   snap,
   commitOnUnmount = false,
@@ -497,7 +500,7 @@ export function ScrubField({
     if (how === "escape" || parsed === null || !valid) return;
     if (skipUnchanged && text === openedText.current) return;
     const next = clamp(roundTo(parsed, decimals), bounds);
-    if (next !== value) onCommit(next);
+    if (next !== value || (commitUnchanged && how === "enter")) onCommit(next);
   };
 
   const onInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {

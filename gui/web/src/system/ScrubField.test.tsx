@@ -969,6 +969,30 @@ describe("ScrubField typing", () => {
     expect(onCommit).toHaveBeenCalledOnce();
   });
 
+  it("with commitUnchanged Enter on the shown value commits it, and leaving by blur does not", async () => {
+    const user = userEvent.setup();
+    const onCommit = vi.fn();
+    render(
+      <ScrubField
+        label="Offset"
+        unit="s"
+        value={2}
+        onCommit={onCommit}
+        commitUnchanged
+      />,
+    );
+    const open = () => {
+      screen.getByRole("spinbutton", { name: "Offset" }).focus();
+      return user.keyboard("{Enter}");
+    };
+    await open();
+    await user.tab();
+    expect(onCommit).not.toHaveBeenCalled();
+    await open();
+    await user.keyboard("{Enter}");
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith(2);
+  });
+
   it("opens the input from the keyboard with Enter", async () => {
     const user = userEvent.setup();
     const { field } = setup();
