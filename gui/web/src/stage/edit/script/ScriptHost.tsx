@@ -19,6 +19,7 @@ import { useScriptPlayback } from "./useScriptPlayback";
 import { useScriptSeamRoll } from "./useScriptSeamRoll";
 import { useScriptSelection } from "./useScriptSelection";
 import { useScriptSpeaker } from "./useScriptSpeaker";
+import { useScriptStatus } from "./useScriptStatus";
 import { useScriptUnsure } from "./useScriptUnsure";
 import { useScriptWindow } from "./useScriptWindow";
 
@@ -26,9 +27,9 @@ export type ScriptHostProps = {
   /** Where the Script is drawn. Left out, it follows the shell. */
   layout?: "desktop" | "phone";
   /**
-   * The Script's state when the store cannot tell: transcribing and out of
-   * date have no store source yet. Left out, the host reads the store: words
-   * still loading, no words, or ready.
+   * The Script's state when the store cannot tell: out of date has no store
+   * source yet. Left out, the host reads the store: words still loading, a
+   * run transcribing, no words, or ready.
    */
   status?: ScriptStatus;
   /** The empty state's "Transcribe this episode". */
@@ -64,13 +65,8 @@ export function ScriptHost({
   const mayIngest = canIngestMedia(projectPath, guestMode, capabilities);
   // Only a person who may add media starts a transcription from the empty state.
   const transcribe = mayIngest ? onTranscribe : undefined;
-  const status: ScriptStatus =
-    statusProp ??
-    (loading
-      ? { kind: "loading" }
-      : hasWords
-        ? { kind: "ready" }
-        : { kind: "empty", onTranscribe: transcribe });
+  const derived = useScriptStatus(hasWords, transcribe);
+  const status: ScriptStatus = statusProp ?? derived;
   // Words are written only while the Script shows settled words: not while
   // they load, are still being made, or no longer match the audio.
   const ready = status.kind === "ready";
