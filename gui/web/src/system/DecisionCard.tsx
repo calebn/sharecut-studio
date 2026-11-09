@@ -45,9 +45,7 @@ export type DecisionCardProps = {
   waveform?: Omit<SuggestionWaveformProps, "icon" | "readOnly">;
   change?: TimeRange;
   why?: string;
-  /** 0 to 1; drawn as a five-dot meter under the reason. */
   confidence?: number;
-  /** Fields and notes that belong to the item, after the reason and before the verbs. */
   children?: ReactNode;
   verb?: VerbId;
   /** Why the primary cannot be used; it is also off by swipe. */
@@ -93,6 +91,8 @@ export type DecisionCardProps = {
   inlineActions?: boolean;
   /** The word on the Keep side when the kind's own does not fit: "Reject". */
   keepLabel?: string;
+  /** Why Keep cannot be used; it is also off by swipe. */
+  keepDisabledReason?: string;
   /** `phone` fills the screen, swipes, and moves the Action bar into a dock. `compact` is the 320 px card in an Edit Sheet: no Open in Edit, no swipes, a shorter waveform; a guest gets A/B in the bar beside Comment. */
   layout?: "card" | "phone" | "compact";
   state?: DecisionCardState;
@@ -271,6 +271,7 @@ export function DecisionCard(props: DecisionCardProps) {
     canEdit,
     inlineActions = true,
     keepLabel,
+    keepDisabledReason,
     layout = "card",
     state = "ready",
     emptyAction,
@@ -300,7 +301,11 @@ export function DecisionCard(props: DecisionCardProps) {
     keysIntroSeen = true;
   }, []);
   const swipe = useSwipeDecision(
-    { verb: verbHeld ? undefined : onVerb, keep: onKeep, next: onLater },
+    {
+      verb: verbHeld ? undefined : onVerb,
+      keep: keepDisabledReason === undefined ? onKeep : undefined,
+      next: onLater,
+    },
     { disabled: !phone || readOnly || state !== "ready" },
   );
 
@@ -505,6 +510,7 @@ export function DecisionCard(props: DecisionCardProps) {
           showOpenInEdit={!compact}
           promptOpen={prompt !== undefined}
           keepLabel={keepLabel ?? meta.keepLabel}
+          keepDisabledReason={keepDisabledReason}
           center={abInBar ? ab : undefined}
           onKeep={onKeep}
           onVerb={onVerb}

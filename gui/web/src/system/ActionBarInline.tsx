@@ -2,6 +2,7 @@ import { type ReactNode, useId, useState } from "react";
 import { Button } from "../ui";
 import { useDisabledReasonNote } from "../ui/disabledReason";
 import { ActionBar, type ActionBarProps } from "./ActionBar";
+import type { BarItem } from "./actionBarSlots";
 import type { BarId } from "./editActionSets";
 import { isImeKey } from "./imeKey";
 import { SystemIcon } from "./SystemIcon";
@@ -29,6 +30,8 @@ export type ActionBarInlineProps = {
   showOpenInEdit?: boolean;
   /** The word on the Keep side when it is not Keep: "Skip" for a pickup. */
   keepLabel?: string;
+  /** Why Keep cannot be used yet. */
+  keepDisabledReason?: string;
   /** The primary is replaced by the prompt while one is open. */
   promptOpen?: boolean;
   onKeep?: () => void;
@@ -66,6 +69,7 @@ export function ActionBarInline({
   showOpenInEdit = true,
   promptOpen = false,
   keepLabel,
+  keepDisabledReason,
   onKeep,
   onVerb,
   onLater,
@@ -113,10 +117,16 @@ export function ActionBarInline({
     else if (id === "comment") onComment?.();
   };
   const placement = { form: dock ? "dock" : "inline" } as const;
-  const keeps: readonly { id: BarId }[] =
+  const keeps: readonly BarItem[] =
     verb === "keep" || !onKeep
       ? []
-      : [{ id: "keep", ...(keepLabel ? { label: keepLabel } : {}) }];
+      : [
+          {
+            id: "keep",
+            ...(keepLabel ? { label: keepLabel } : {}),
+            disabledReason: keepDisabledReason,
+          },
+        ];
   if (readOnly)
     return (
       <ActionBar

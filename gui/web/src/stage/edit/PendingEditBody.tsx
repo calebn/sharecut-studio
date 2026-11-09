@@ -144,6 +144,21 @@ export function PendingEditBody({
     edit.suggest_reason ? "current" : "suggested",
   );
   const altHeld = useRef(false);
+  useEffect(() => {
+    const follow = (event: KeyboardEvent | PointerEvent) => {
+      altHeld.current = event.altKey;
+    };
+    const release = () => {
+      altHeld.current = false;
+    };
+    const events = ["keydown", "keyup", "pointerdown", "pointerup"] as const;
+    for (const name of events) window.addEventListener(name, follow, true);
+    window.addEventListener("blur", release);
+    return () => {
+      for (const name of events) window.removeEventListener(name, follow, true);
+      window.removeEventListener("blur", release);
+    };
+  }, []);
   const [enteredEdge, setEnteredEdge] = useState<Readonly<{
     edge: "start" | "end";
     value: number;
@@ -382,6 +397,8 @@ export function PendingEditBody({
   };
 
   const commitEdge = async (edge: "start" | "end", value: number) => {
+    const snap = !altHeld.current;
+    altHeld.current = false;
     if (timingBusy) return;
     const capture = captureTiming();
     if (!capture) return;
@@ -391,8 +408,6 @@ export function PendingEditBody({
       setError("Source start/end must be valid with end > start");
       return;
     }
-    const snap = !altHeld.current;
-    altHeld.current = false;
     await saveTiming({
       capture,
       start,
@@ -460,9 +475,6 @@ export function PendingEditBody({
     .join(" · ");
   const barHasVerbs = verbsOnBar && pendingOffersCut(edit);
   const inlineActions = !barHasVerbs && (canApply || edit.exact_range != null);
-  const holdAlt = (event: { altKey: boolean }) => {
-    altHeld.current = event.altKey;
-  };
   const askComposer = {
     body: askBody,
     onBodyChange: setAskBody,
@@ -475,77 +487,84 @@ export function PendingEditBody({
       ? REFINE_GATE_GUI_MESSAGE
       : combinedError;
 
-  const timingFields = edit.exact_range ? (
-    <p className="sys-decision-why sys-mono">
-      {edit.exact_range.intervals
-        .map((r) => `${formatTimeMs(r.start)} – ${formatTimeMs(r.end)}`)
-        .join(" · ")}
-    </p>
-  ) : !canNudge ? (
-    <p className="sys-decision-why sys-mono">
-      {`${sourceTime(edit.source_start)} – ${sourceTime(edit.source_end)}`}
-    </p>
-  ) : isSplit ? (
-    <div className="sys-decision-fields">
-      <div className="sys-decision-field">
-        <span>Cut time</span>
-        <span id={pendingEditTimingFieldId(edit.id, "start")}>
-          <ScrubField
-            label="Cut time"
-            value={edit.source_start}
-            unit="s"
-            step={0.01}
-            decimals={6}
-            min={0}
-            skipUnchanged
-            readOnly={timingBusy}
-            onCommit={(value) => void commitSplit(value)}
-          />
-        </span>
-      </div>
-      <div className="sys-decision-field">
-        <span>Tracks</span>
-        <TrackToggleRow
-          label="Tracks"
-          tracks={(project?.tracks ?? []).map((track) => ({
-            id: track.id,
-            label: track.label,
-          }))}
-          value={edit.track_ids ?? [edit.track_id]}
-          disabled={timingBusy}
-          onChange={(ids) => void commitSplit(null, ids)}
-        />
-      </div>
-    </div>
-  ) : (
-    <div
-      className="sys-decision-fields"
-      onKeyDownCapture={holdAlt}
-      onKeyUpCapture={holdAlt}
-      onPointerDownCapture={holdAlt}
-      onPointerMoveCapture={holdAlt}
-      onPointerUpCapture={holdAlt}
-    >
-      {(["start", "end"] as const).map((edge) => (
-        <div key={edge} className="sys-decision-field">
-          <span>{edge === "start" ? "Start" : "End"}</span>
-          <span id={pendingEditTimingFieldId(edit.id, edge)}>
-            <ScrubField
-              label={edge === "start" ? "Source start" : "Source end"}
-              value={shownEdge(edge)}
-              unit="s"
-              step={0.01}
-              decimals={6}
-              min={0}
-              skipUnchanged
-              readOnly={timingBusy}
-              onCommit={(value) => void commitEdge(edge, value)}
+  const reviewBlockedReason = timingBusy
+    ? BUSY_REASON
+    : !canApply
+      ? "Only the host or an Editor can review exact range proposals."
+      : undefined;
+
+  const renderTimingFields = () => {
+    if (edit.exact_range)
+      return (
+        <p className="sys-decision-why sys-mono">
+          {edit.exact_range.intervals
+            .map((r) => `${formatTimeMs(r.start)} – ${formatTimeMs(r.end)}`)
+            .join(" · ")}
+        </p>
+      );
+    if (!canNudge)
+      return (
+        <p className="sys-decision-why sys-mono">
+          {`${sourceTime(edit.source_start)} – ${sourceTime(edit.source_end)}`}
+        </p>
+      );
+    if (isSplit)
+      return (
+        <div className="sys-decision-fields">
+          <div className="sys-decision-field">
+            <span>Cut time</span>
+            <span id={pendingEditTimingFieldId(edit.id, "start")}>
+              <ScrubField
+                label="Cut time"
+                value={edit.source_start}
+                unit="s"
+                step={0.01}
+                decimals={6}
+                min={0}
+                skipUnchanged
+                readOnly={timingBusy}
+                onCommit={(value) => void commitSplit(value)}
+              />
+            </span>
+          </div>
+          <div className="sys-decision-field">
+            <span>Tracks</span>
+            <TrackToggleRow
+              label="Tracks"
+              tracks={(project?.tracks ?? []).map((track) => ({
+                id: track.id,
+                label: track.label,
+              }))}
+              value={edit.track_ids ?? [edit.track_id]}
+              disabled={timingBusy}
+              onChange={(ids) => void commitSplit(null, ids)}
             />
-          </span>
+          </div>
         </div>
-      ))}
-    </div>
-  );
+      );
+    return (
+      <div className="sys-decision-fields">
+        {(["start", "end"] as const).map((edge) => (
+          <div key={edge} className="sys-decision-field">
+            <span>{edge === "start" ? "Start" : "End"}</span>
+            <span id={pendingEditTimingFieldId(edit.id, edge)}>
+              <ScrubField
+                label={edge === "start" ? "Source start" : "Source end"}
+                value={shownEdge(edge)}
+                unit="s"
+                step={0.01}
+                decimals={6}
+                min={0}
+                skipUnchanged
+                readOnly={timingBusy}
+                onCommit={(value) => void commitEdge(edge, value)}
+              />
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <aside className="inspector modifier-inspector">
@@ -566,17 +585,12 @@ export function PendingEditBody({
           inlineActions={inlineActions}
           verb="approve"
           keepLabel="Reject"
-          verbDisabledReason={
-            timingBusy
-              ? BUSY_REASON
-              : !canApply
-                ? "Only the host or an Editor can review exact range proposals."
-                : undefined
-          }
+          verbDisabledReason={reviewBlockedReason}
+          keepDisabledReason={reviewBlockedReason}
           onVerb={() => void runAction("approve")}
           onKeep={() => void runAction("reject")}
         >
-          {timingFields}
+          {renderTimingFields()}
         </DecisionCard>
         {queuedNotice}
         {!isShareProjectKey(projectPath) ? (

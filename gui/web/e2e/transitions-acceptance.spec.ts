@@ -87,10 +87,6 @@ test("pending suggestions show a compact card, keep drafts and save a typed star
     })
     .toEqual({ start: 2.25, end: 8 });
   await expectPageAxeClean(page, ".inspector");
-  await expect(page.getByLabel("Snap to silence")).toHaveCount(0);
-  await expect(
-    page.getByRole("button", { name: "Use suggestion" }),
-  ).toHaveCount(0);
   await expect(
     page.locator('.inspector .sys-decision[data-layout="compact"]'),
   ).toBeVisible();

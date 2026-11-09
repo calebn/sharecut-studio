@@ -211,6 +211,19 @@ describe("pending timing queue settlement", () => {
     expect(mocks.approveEdits).toHaveBeenCalledTimes(1);
   });
 
+  it("disables Approve and Reject while this edit's timing is queued", async () => {
+    mocks.loadHostCommandQueue.mockResolvedValue([command]);
+    render(<PendingEditBody edit={edit} />);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Reject" })).toHaveAttribute(
+        "title",
+        "Wait for the current action to finish.",
+      ),
+    );
+    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Reject" })).toBeDisabled();
+  });
+
   it("blocks a shorten or lower Cut from the bar while this edit's timing is queued", async () => {
     const shorten = { ...edit, suggested_action: "shorten" as const };
     useDawStore
