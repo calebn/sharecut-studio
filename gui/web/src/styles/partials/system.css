@@ -7086,3 +7086,10 @@ textarea.sys-inline-edit {
 .sys-inline-edit:hover {
   border-color: var(--color-border-subtle);
 }
+
+/* Forced colors keep SVG fill authored, so the padlock body is drawn as an outline over the Canvas. */
+@media (forced-colors: active) {
+  .sys-script-word > .sys-script-lock rect {
+    fill: none;
+  }
+}
