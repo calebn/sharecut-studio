@@ -66,8 +66,8 @@ describe("README rule: api.ts is the facade", () => {
     "timeline/ClipBlock.tsx -> api/boundary",
     "transcript/TranscriptWordbar.tsx -> api/transcriptTiming",
   ];
-  const ALLOWLIST_PAIRS = 27;
-  const ALLOWLIST_FILES = 23;
+  const ALLOWLIST_PAIRS = 26;
+  const ALLOWLIST_FILES = 22;
 
   it("imports an api/ adapter directly only from the allowlist", () => {
     expect(adapterImports(sourceFiles())).toEqual(ALLOWLIST);
