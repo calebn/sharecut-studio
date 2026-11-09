@@ -224,20 +224,52 @@ describe("buildScriptModel", () => {
     expect("locked" in (words[6] ?? {})).toBe(false);
   });
 
+  it("keeps a locked word's unsure state computed as before", () => {
+    const locked = utterance("host", "Maya", [
+      word("maybe", 0, 1, { unsure: true, audibility_locked: true }),
+      word("gone", 1, 2, {
+        suppressed: true,
+        unsure: true,
+        audibility_locked: true,
+      }),
+      word("sure", 2, 3, { audibility_locked: true }),
+    ]);
+    const words = buildScriptModel(input([locked])).turns[0]?.words ?? [];
+    expect(words[0]).toMatchObject({ locked: true, lowConfidence: true });
+    expect(words[1]?.lowConfidence).toBeUndefined();
+    expect(words[2]?.lowConfidence).toBeUndefined();
+  });
+
   it("gives a cut word no lock", () => {
     const boundary = {
       id: "b1",
+      track_id: "host",
+      timeline_join_sec: 12.5,
       has_cutaway: true,
-      cutaway_word_ids: [{ track_id: "host", word_index: 5 }],
+      cutaway_source_start: 12.5,
+      cutaway_source_end: 14,
+      cutaway_word_ids: [
+        {
+          track_id: "host",
+          source_id: null,
+          word_index: -3,
+          text: "uh",
+          start: 12.5,
+          end: 12.9,
+          audibility_locked: true,
+        },
+      ],
     } as unknown as EditBoundaryView;
-    const model = buildScriptModel({
-      ...input([HOST]),
-      boundaries: [boundary],
-    });
-    const cut = model.turns
-      .flatMap((t) => t.words)
-      .filter((w) => w.mark?.kind === "cut");
-    for (const w of cut) expect("locked" in w).toBe(false);
+    const joined = utterance("host", "Maya", [
+      word("Welcome", 0, 12, { audibility_locked: true }),
+      word("friends", 3, 12.5),
+    ]);
+    const model = buildScriptModel(input([joined], { boundaries: [boundary] }));
+    const all = model.turns.flatMap((t) => t.words);
+    const cut = all.filter((w) => w.mark?.kind === "cut");
+    expect(cut.map((w) => w.text)).toEqual(["uh"]);
+    expect("locked" in (cut[0] ?? {})).toBe(false);
+    expect(all.find((w) => w.text === "Welcome")?.locked).toBe(true);
   });
 
   it("puts the words an applied cut took out back at its join, as cut words", () => {
