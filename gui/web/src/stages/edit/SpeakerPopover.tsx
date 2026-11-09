@@ -1,9 +1,9 @@
 import { type RefObject, useEffect, useRef, useState } from "react";
 import { PersonPicker, type PickerPerson } from "../../system/PersonPicker";
 import { Sheet } from "../../system/Sheet";
-import { SystemIcon } from "../../system/SystemIcon";
-import { Button, Dialog } from "../../ui";
+import { Dialog } from "../../ui";
 import { InlineError } from "../../ui/InlineError";
+import { AddPerson } from "./AddPerson";
 import { type FixTextAnswer, FixTextField } from "./FixTextField";
 
 type Common = {
@@ -75,12 +75,9 @@ export function SpeakerPopover({
   initialRenamingId,
 }: SpeakerPopoverProps) {
   const [renamingId, setRenamingId] = useState(initialRenamingId);
-  const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const body = useRef<HTMLDivElement>(null);
   const initialFocus = useRef<HTMLElement | null>(null);
-  const addButton = useRef<HTMLButtonElement>(null);
-  const wasAdding = useRef(false);
 
   useEffect(() => {
     if (!open) return;
@@ -91,10 +88,6 @@ export function SpeakerPopover({
       ) ??
       null;
   }, [open]);
-  useEffect(() => {
-    if (wasAdding.current && !adding) addButton.current?.focus();
-    wasAdding.current = adding;
-  }, [adding]);
 
   const nameError = (text: string, except?: string) => {
     if (text === "") return NAME_REQUIRED;
@@ -169,37 +162,12 @@ export function SpeakerPopover({
         )}
       />
       {onAddSpeaker ? (
-        adding ? (
-          <div className="sys-picker-row">
-            <div className="sys-picker-option sys-picker-renaming">
-              <SystemIcon name="user-plus" size={16} />
-              <FixTextField
-                value=""
-                label="Name of the new speaker"
-                commitOnBlur={false}
-                validate={(text) => nameError(text)}
-                onDone={async (name) => {
-                  if (name === null) {
-                    setAdding(false);
-                    return;
-                  }
-                  const reason = await addSpeaker(name);
-                  if (reason) return reason;
-                  setAdding(false);
-                }}
-              />
-            </div>
-          </div>
-        ) : (
-          <Button
-            ref={addButton}
-            className="sys-picker-add"
-            onClick={() => setAdding(true)}
-          >
-            <SystemIcon name="user-plus" size={14} />
-            Add speaker
-          </Button>
-        )
+        <AddPerson
+          label="Add speaker"
+          fieldLabel="Name of the new speaker"
+          validate={(text) => nameError(text)}
+          onAdd={addSpeaker}
+        />
       ) : null}
       <InlineError message={error} />
     </div>

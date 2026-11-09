@@ -211,10 +211,6 @@ html[data-shell="phone"] .modifier-footer-actions .ui-segmented {
   min-block-size: var(--control-height);
 }
 
-select.track-sheet-field {
-  block-size: var(--control-height);
-}
-
 .track-sheet-bypass {
   display: flex;
   align-items: center;
@@ -229,20 +225,12 @@ select.track-sheet-field {
   .track-sheet-action {
     min-block-size: var(--touch-min);
   }
-
-  select.track-sheet-field {
-    block-size: var(--touch-min);
-  }
 }
 
 html[data-shell="phone"] .track-sheet-field,
 html[data-shell="phone"] .track-sheet-bypass,
 html[data-shell="phone"] .track-sheet-action {
   min-block-size: var(--touch-min);
-}
-
-html[data-shell="phone"] select.track-sheet-field {
-  block-size: var(--touch-min);
 }
 
 .inspector-body {

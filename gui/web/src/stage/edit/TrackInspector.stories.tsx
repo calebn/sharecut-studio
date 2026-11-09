@@ -1,19 +1,23 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, within } from "storybook/test";
+import { useDawStore } from "../../state/dawStore";
 import { viewportStoryParameters } from "../../storybook/storyLayout";
 import {
   type InspectorSection,
   InspectorSheet,
 } from "../../system/InspectorSheet";
 import { AnchorMark, Framed } from "../../system/inspectorSheetFixtures";
-import { episode, selections } from "../../test/episodeFixture";
+import { episode, MIRA, selections } from "../../test/episodeFixture";
 import { episodeBeforeEach, withEpisode } from "../../test/withEpisode";
+import { inspectorHeading } from "./inspectorHeading";
 import { useTrackSections } from "./trackSections";
 
 function TrackCard({ phone = false }: { phone?: boolean }) {
   const sections: readonly InspectorSection[] =
     useTrackSections(selections.track) ?? [];
+  const project = useDawStore((s) => s.project);
+  const heading = inspectorHeading(selections.track, project);
   const [detent, setDetent] = useState<"half" | "full" | "dock">("half");
   return (
     <Framed>
@@ -22,8 +26,7 @@ function TrackCard({ phone = false }: { phone?: boolean }) {
         return phone ? (
           <InspectorSheet
             form="phone"
-            icon="volume-1"
-            name="Mira"
+            {...heading}
             sections={sections}
             detent={detent}
             onDetentChange={setDetent}
@@ -35,8 +38,7 @@ function TrackCard({ phone = false }: { phone?: boolean }) {
             <AnchorMark anchor={anchor} />
             <InspectorSheet
               form="card"
-              icon="volume-1"
-              name="Mira"
+              {...heading}
               sections={sections}
               anchor={anchor}
               bounds={bounds}
@@ -65,7 +67,7 @@ const meta: Meta = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "The live track body (`useTrackSections`) in an Inspector card, read from the hydrated episode: Level is a Scrub field, Mute, Solo and the effect Bypass rows write as before; a Viewer link sees the same values read-only.",
+          "The live track body (`useTrackSections`) under the real heading (`inspectorHeading`) in an Inspector card, read from the hydrated episode: the header holds the track's avatar and its name as an inline field, Person and Kind come first, Level is a Scrub field, Mute, Solo and the effect Bypass rows write as before; a Viewer link sees the same values read-only.",
       },
     },
   },
@@ -83,7 +85,42 @@ export const Track: Story = {
     await expect(canvas.getByRole("textbox", { name: "Name" })).toHaveValue(
       "Mira",
     );
-    await expect(canvas.getByRole("combobox", { name: "Role" })).toBeVisible();
+    const kind = canvas.getByRole("group", { name: "Kind" });
+    await expect(
+      within(kind).getByRole("button", { name: "Voice" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(canvas.getByRole("radio", { name: /Mira/ })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+  },
+};
+
+export const TrackMusic: Story = {
+  parameters: {
+    episode: {
+      project: episode({
+        tracks: episode().tracks.map((track) =>
+          track.id === MIRA ? { ...track, role: "music" } : track,
+        ),
+      }),
+      role: "editor",
+      selection: selections.track,
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByRole("spinbutton", { name: "Level" }),
+    ).toBeVisible();
+    const kind = canvas.getByRole("group", { name: "Kind" });
+    await expect(
+      within(kind).getByRole("button", { name: "Music" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(canvas.queryByRole("radiogroup")).toBeNull();
+    await expect(
+      canvas.queryByRole("button", { name: "Add person" }),
+    ).toBeNull();
   },
 };
 
@@ -105,8 +142,10 @@ export const TrackReadOnly: Story = {
     await expect(
       await canvas.findByRole("spinbutton", { name: "Level" }),
     ).toBeVisible();
-    await expect(canvas.queryByRole("combobox", { name: "Role" })).toBeNull();
     await expect(canvas.queryByRole("textbox", { name: "Name" })).toBeNull();
+    await expect(canvas.queryByRole("group", { name: "Kind" })).toBeNull();
+    await expect(canvas.queryByRole("radiogroup")).toBeNull();
+    await expect(canvas.getByText("Voice")).toBeVisible();
     await expect(
       canvas.queryByRole("button", { name: "Remove track" }),
     ).toBeNull();

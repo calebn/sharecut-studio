@@ -36,9 +36,10 @@ function open(
   effects: Effects = [],
   access?: "view" | "edit",
   kind: "track" | "envelope" = "track",
+  others: readonly TrackView[] = [],
 ) {
   const project = minimalProject({
-    tracks: [track],
+    tracks: [track, ...others],
     effects_by_track: { [track.id]: effects },
   });
   if (access)
@@ -73,7 +74,6 @@ describe("track content", () => {
         useDawStore.getState().project,
       ).name,
     ).toBe("Host");
-    expect(screen.getByRole("textbox", { name: "Speaker" })).toBeVisible();
     expect(screen.getByRole("group", { name: "Kind" })).toBeVisible();
     expect(screen.getByRole("spinbutton", { name: "Level" })).toBeVisible();
     await expectNoA11yViolations(container);
@@ -96,6 +96,101 @@ describe("track content", () => {
       "host",
       { role: "music" },
     );
+  });
+
+  it("lists the episode's people with this track's speaker checked and sends the picked name", async () => {
+    const user = userEvent.setup();
+    setTrackMetaCommand.mockResolvedValue({});
+    const { container } = open(
+      { ...hostTrack, speaker: "Mira" },
+      [],
+      undefined,
+      "track",
+      [sampleTrack({ id: "guest", label: "Guest", speaker: "Tomas" })],
+    );
+    await expectNoA11yViolations(container);
+    const people = screen.getByRole("radiogroup", {
+      name: "Who is this voice?",
+    });
+    expect(
+      within(people)
+        .getAllByRole("radio")
+        .map((radio) => [
+          radio.querySelector(".sys-picker-name")?.textContent,
+          radio.getAttribute("aria-checked"),
+        ]),
+    ).toEqual([
+      ["Mira", "true"],
+      ["Tomas", "false"],
+    ]);
+    await user.click(within(people).getByRole("radio", { name: /Tomas/ }));
+    expect(setTrackMetaCommand).toHaveBeenCalledExactlyOnceWith(
+      "/tmp/ep.json",
+      "host",
+      { speaker: "Tomas" },
+    );
+    await user.click(within(people).getByRole("radio", { name: /Mira/ }));
+    expect(setTrackMetaCommand).toHaveBeenCalledTimes(1);
+  });
+
+  it("adds a new person from Add person on Enter", async () => {
+    const user = userEvent.setup();
+    setTrackMetaCommand.mockResolvedValue({});
+    open({ ...hostTrack, speaker: "Mira" });
+    await user.click(screen.getByRole("button", { name: "Add person" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "Name of the new person" }),
+      "Priya{Enter}",
+    );
+    expect(setTrackMetaCommand).toHaveBeenCalledExactlyOnceWith(
+      "/tmp/ep.json",
+      "host",
+      { speaker: "Priya" },
+    );
+    expect(screen.getByRole("button", { name: "Add person" })).toHaveFocus();
+  });
+
+  it("picks the existing person when the typed name matches one, ignoring case", async () => {
+    const user = userEvent.setup();
+    setTrackMetaCommand.mockResolvedValue({});
+    open({ ...hostTrack, speaker: null }, [], undefined, "track", [
+      sampleTrack({ id: "guest", label: "Guest", speaker: "Mira" }),
+    ]);
+    await user.click(screen.getByRole("button", { name: "Add person" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "Name of the new person" }),
+      "mira{Enter}",
+    );
+    expect(setTrackMetaCommand).toHaveBeenCalledExactlyOnceWith(
+      "/tmp/ep.json",
+      "host",
+      { speaker: "Mira" },
+    );
+  });
+
+  it("refuses an empty name and returns focus to Add person on Escape", async () => {
+    const user = userEvent.setup();
+    open({ ...hostTrack, speaker: "Mira" });
+    await user.click(screen.getByRole("button", { name: "Add person" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "Name of the new person" }),
+      "{Enter}",
+    );
+    expect(screen.getByText("Enter a person's name.")).toBeVisible();
+    expect(setTrackMetaCommand).not.toHaveBeenCalled();
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("button", { name: "Add person" })).toHaveFocus();
+  });
+
+  it("has no Person row or Add person on a music track", () => {
+    open({ ...hostTrack, role: "music", speaker: "Mira" });
+    expect(screen.queryByRole("radiogroup")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add person" })).toBeNull();
+    expect(
+      within(screen.getByRole("group", { name: "Kind" })).getByRole("button", {
+        name: "Music",
+      }),
+    ).toHaveAttribute("aria-pressed", "true");
   });
 
   it("keeps an intro track on Music and sends nothing for Music, but writes dialogue for Voice", async () => {
@@ -331,9 +426,12 @@ describe("track content", () => {
   });
 
   it("shows the kind as plain text and hides the kind group, name, speaker, import, split and remove controls for a viewer", () => {
-    open(withAudio, [], "view");
+    open({ ...withAudio, speaker: "Mira" }, [], "view");
     expect(screen.getByText("Kind")).toBeVisible();
     expect(screen.getByText("Voice")).toBeVisible();
+    expect(screen.getByText("Mira")).toBeVisible();
+    expect(screen.queryByRole("radiogroup")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add person" })).toBeNull();
     expect(screen.queryByRole("group", { name: "Kind" })).toBeNull();
     expect(screen.queryByRole("combobox", { name: "Role" })).toBeNull();
     expect(screen.queryByRole("textbox", { name: "Name" })).toBeNull();

@@ -386,7 +386,7 @@ for (const {
               receipts,
               "track-clear-clip-full-control",
             );
-            for (const name of ["Name", "Speaker", "Kind"]) {
+            for (const name of ["Name", "Kind", "Who is this voice?"]) {
               await exposeControl(
                 page,
                 trackInspector.getByLabel(name, { exact: true }),
