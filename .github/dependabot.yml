@@ -16,6 +16,17 @@ updates:
     commit-message:
       prefix: chore
       include: scope
+    # stylelint 18 cannot install yet: stylelint-declaration-strict-value
+    # (1.12.1, latest) peers stylelint >=16 <=17, so npm ci fails with
+    # ERESOLVE. Hold the stylelint majors until that plugin allows 18, then
+    # delete these entries so Dependabot proposes the pair again.
+    ignore:
+      - dependency-name: stylelint
+        update-types:
+          - version-update:semver-major
+      - dependency-name: stylelint-config-standard
+        update-types:
+          - version-update:semver-major
     groups:
       npm-minor-patch:
         applies-to: version-updates
