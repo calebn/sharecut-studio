@@ -49,6 +49,14 @@ describe("rangeDraft", () => {
     expect(s.rangeDraft).toBeNull();
   });
 
+  it("drops the draft when a range selection is set", () => {
+    const project = useDawStore.getState().project!;
+    const target = makeRangeTarget(project, [draft], [MIRA])!;
+    useDawStore.getState().setSelection({ kind: "range", target });
+    useDawStore.getState().setSelection(null);
+    expect(useDawStore.getState().rangeDraft).toBeNull();
+  });
+
   it("leaves the undo stack alone across arm, edit and disarm", () => {
     const before = useDawStore.getState().project?.history;
     useDawStore.getState().setRangeDraft({ ...draft, start: 13 });

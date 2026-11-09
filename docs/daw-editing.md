@@ -559,7 +559,7 @@ Arming **Select range** (the palette, the Edit corner, or Inspect with nothing s
 seeds a draft: In at the playhead, Out five seconds later, held inside the timeline,
 on the selected tracks or on every track. The Range fields open for it on every shell,
 and In, Out, Length and the lane toggles commit it as you type, so the first commit
-makes the range selection with no Apply. Focus stays in the field. Esc drops the draft
+makes the range selection with no Apply. On the phone and tablet focus stays in the field; on the desktop it leaves the field after the first commit until #3471. Esc drops the draft
 and changes nothing in History.
 Selection does not seek or change follow mode.
 The Action bar and Range fields have one home per shell. The desktop shell shows the verbs in the floating Action bar beside the selection. The phone and tablet shells show them as the body of the

@@ -1,4 +1,5 @@
 import type { StateCreator } from "zustand";
+import { isRangeSelection } from "../edit/rangeSelection";
 import type { Selection } from "../types/project";
 import {
   clipClickSelection,
@@ -92,7 +93,10 @@ export const createSelectionSlice: StateCreator<
   selection: null as Selection,
   setSelection: (selection) => {
     invalidateLocalSelection(get);
-    set((s) => selectionPatch(s.selection, selection, s.inspectorKey));
+    set((s) => ({
+      ...selectionPatch(s.selection, selection, s.inspectorKey),
+      ...(isRangeSelection(selection) ? { rangeDraft: null } : {}),
+    }));
   },
   selectClip: (clipId, trackId, mods) => {
     invalidateLocalSelection(get);
