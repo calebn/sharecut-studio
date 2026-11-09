@@ -1,4 +1,7 @@
 {
+  "constants": {
+    "min_step_gap_sec": 1e-06
+  },
   "tracks": [
     {
       "id": "host",
@@ -1087,6 +1090,104 @@
         [
           3,
           3
+        ]
+      ]
+    },
+    {
+      "name": "right-first-timing-step",
+      "clips": [
+        [
+          "left",
+          0,
+          6,
+          10,
+          "long"
+        ],
+        [
+          "right",
+          4,
+          10,
+          14,
+          "right",
+          [
+            [
+              11.0,
+              0.2
+            ]
+          ]
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        -3.95,
+        0.999999
+      ],
+      "clamps": [
+        [
+          -9,
+          -3.95
+        ],
+        [
+          -2,
+          -2
+        ],
+        [
+          2,
+          0.999999
+        ],
+        [
+          9,
+          0.999999
+        ]
+      ]
+    },
+    {
+      "name": "left-last-timing-step",
+      "clips": [
+        [
+          "left",
+          0,
+          6,
+          10,
+          "long",
+          [
+            [
+              9.0,
+              0.3
+            ]
+          ]
+        ],
+        [
+          "right",
+          4,
+          10,
+          14,
+          "right"
+        ]
+      ],
+      "left_clip_id": "left",
+      "right_clip_id": "right",
+      "limits": [
+        -0.999999,
+        3.95
+      ],
+      "clamps": [
+        [
+          -9,
+          -0.999999
+        ],
+        [
+          -2,
+          -0.999999
+        ],
+        [
+          2,
+          2
+        ],
+        [
+          9,
+          3.95
         ]
       ]
     }

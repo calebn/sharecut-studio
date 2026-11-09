@@ -1,4 +1,4 @@
-import { MIN_EDGE_SPAN_SEC } from "../types/limits.generated";
+import { MIN_EDGE_SPAN_SEC, MIN_STEP_GAP_SEC } from "../types/limits.generated";
 import type { ClipRow } from "../types/project";
 import { clipsAbut } from "./joinRender";
 import { sameRecording } from "./recordingIdentity";
@@ -8,6 +8,21 @@ export interface RollJoinInterval {
   right: ClipRow;
   lo: number;
   hi: number;
+}
+
+function firstStepClearance(clip: ClipRow): number {
+  const first = clip.timing?.steps[0];
+  if (!first) return Number.POSITIVE_INFINITY;
+  return Math.max(clip.source_start, first.at - MIN_STEP_GAP_SEC);
+}
+
+function lastStepClearance(clip: ClipRow): number {
+  const last = clip.timing?.steps.at(-1);
+  if (!last) return Number.NEGATIVE_INFINITY;
+  return Math.min(
+    clip.source_end,
+    last.at + Math.max(0, -last.delta_sec) + MIN_STEP_GAP_SEC,
+  );
 }
 
 export function rollJoinInterval(
@@ -39,10 +54,12 @@ export function rollJoinInterval(
   );
   if (next && sameRecording(right, next))
     maxPos = Math.min(maxPos, next.source_start - right.source_start);
+  maxPos = Math.min(maxPos, firstStepClearance(right) - right.source_start);
   const rightFloor = prev && sameRecording(right, prev) ? prev.source_end : 0;
   const maxNeg = Math.min(
     left.source_end - left.source_start - MIN_EDGE_SPAN_SEC,
     right.source_start - rightFloor,
+    left.source_end - lastStepClearance(left),
   );
   return { left, right, lo: -Math.max(0, maxNeg), hi: Math.max(0, maxPos) };
 }
