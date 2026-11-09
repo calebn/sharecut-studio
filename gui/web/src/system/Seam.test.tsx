@@ -218,6 +218,27 @@ describe("Seam pill rolling", () => {
     expect(onCommit).toHaveBeenCalledWith(-100);
   });
 
+  it("Alt drags 1 ms a pixel and Shift is not a fine modifier", () => {
+    const onCommit = vi.fn();
+    const { container } = render(
+      <Seam
+        {...pill}
+        roll={{ limits: () => ({ minMs: -500, maxMs: 500 }), onCommit }}
+      />,
+    );
+    const right = edge(container, "right");
+    const drag = (pointerId: number, modifiers: object) => {
+      fireEvent.pointerDown(right, { pointerId, button: 0, clientX: 100 });
+      fireEvent.pointerMove(right, { pointerId, clientX: 104, ...modifiers });
+      fireEvent.pointerMove(right, { pointerId, clientX: 108, ...modifiers });
+      fireEvent.pointerUp(right, { pointerId });
+    };
+    drag(1, { altKey: true });
+    expect(onCommit).toHaveBeenLastCalledWith(8);
+    drag(2, { shiftKey: true });
+    expect(onCommit).toHaveBeenLastCalledWith(100);
+  });
+
   it("Escape drops the roll, and a press without a move selects the seam", () => {
     const onCommit = vi.fn();
     const onSelect = vi.fn();
