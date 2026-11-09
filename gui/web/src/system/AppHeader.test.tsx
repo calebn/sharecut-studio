@@ -11,6 +11,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ScriptDivider } from "../stage/edit/ScriptDivider";
 import { AppHeader, type AppHeaderProps } from "./AppHeader";
 import { ROLES } from "./linkRoles";
+import { ScrubField } from "./ScrubField";
 
 const SAVE = { state: "saved" } as const;
 
@@ -403,22 +404,78 @@ describe("AppHeader as a guest", () => {
     expect(outside).toHaveFocus();
   });
 
-  it("keeps the real Script divider focused after pointerdown and resizes on the next arrow", () => {
+  it.each([true, false])(
+    "dismisses outside capture interception (automatic %s)",
+    async (automatic) => {
+      const user = userEvent.setup();
+      const clicked = vi.fn();
+      render(
+        <>
+          <AppHeader
+            title="Episode"
+            guest={{
+              version: "v3",
+              role: "editor",
+              hint: {
+                text: "You can edit.",
+                shown: automatic,
+                onDismiss: vi.fn(),
+              },
+            }}
+          />
+          <button
+            type="button"
+            onPointerDownCapture={(e) => e.stopPropagation()}
+            onClick={clicked}
+          >
+            Routed outside surface
+          </button>
+        </>,
+      );
+      if (!automatic)
+        await user.click(
+          screen.getByRole("button", { name: "Explain Editor role" }),
+        );
+      expect(screen.getByRole(automatic ? "note" : "dialog")).toBeVisible();
+      await user.click(
+        screen.getByRole("button", { name: "Routed outside surface" }),
+      );
+      expect(clicked).toHaveBeenCalledOnce();
+      expect(screen.queryByRole("note")).toBeNull();
+      expect(screen.queryByRole("dialog")).toBeNull();
+    },
+  );
+
+  it("keeps the real Script divider focused after dismissing a manual explanation", async () => {
+    const user = userEvent.setup();
     const onResize = vi.fn();
     render(
-      <ScriptDivider widthRem={25} onResize={onResize} onReset={vi.fn()} />,
+      <>
+        <AppHeader
+          title="Episode"
+          guest={{
+            version: "v3",
+            role: "editor",
+            hint: { text: "You can edit.", shown: false, onDismiss: vi.fn() },
+          }}
+        />
+        <ScriptDivider widthRem={25} onResize={onResize} onReset={vi.fn()} />
+      </>,
     );
+    await user.click(
+      screen.getByRole("button", { name: "Explain Editor role" }),
+    );
+    expect(screen.getByRole("dialog")).toBeVisible();
     const divider = screen.getByRole("separator", { name: "Resize Script" });
-    const pointerDown = createEvent.pointerDown(divider, {
+    const down = createEvent.pointerDown(divider, {
       pointerId: 1,
       pointerType: "mouse",
       button: 0,
     });
-
-    fireEvent(divider, pointerDown);
-    expect(pointerDown.defaultPrevented).toBe(true);
+    fireEvent(divider, down);
+    expect(down.defaultPrevented).toBe(true);
+    expect(screen.queryByRole("dialog")).toBeNull();
     expect(divider).toHaveFocus();
-
     const arrow = new KeyboardEvent("keydown", {
       bubbles: true,
       cancelable: true,
@@ -427,6 +484,49 @@ describe("AppHeader as a guest", () => {
     fireEvent(divider, arrow);
     expect(arrow.defaultPrevented).toBe(true);
     expect(onResize).toHaveBeenCalledExactlyOnceWith(24);
+  });
+
+  it("does not commit a focused ScrubField draft when its pointer dismisses the explanation", async () => {
+    const user = userEvent.setup();
+    const onCommit = vi.fn();
+    render(
+      <>
+        <AppHeader
+          title="Episode"
+          guest={{
+            version: "v3",
+            role: "editor",
+            hint: { text: "You can edit.", shown: false, onDismiss: vi.fn() },
+          }}
+        />
+        <ScrubField label="Outside value" value={1} onCommit={onCommit} />
+      </>,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Explain Editor role" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Close", exact: true }),
+      ).toHaveFocus(),
+    );
+    const field = screen.getByRole("spinbutton", { name: "Outside value" });
+    for (let n = 0; n < 24 && document.activeElement !== field; n++)
+      await user.tab();
+    expect(field).toHaveFocus();
+    await user.keyboard("{Enter}");
+    const input = screen.getByRole("textbox", { name: "Outside value" });
+    await user.clear(input);
+    await user.keyboard("12");
+    expect(screen.getByRole("dialog")).toBeVisible();
+    expect(onCommit).not.toHaveBeenCalled();
+    await user.click(input);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(screen.getByRole("textbox", { name: "Outside value" })).toHaveValue(
+      "12",
+    );
+    expect(input).toHaveFocus();
   });
 
   it("returns focus to the role button when the manual explanation closes", async () => {
