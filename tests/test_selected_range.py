@@ -75,19 +75,6 @@ def apply(project, selection, action="cut", propose=False):
     )
 
 
-def apply_many(project, selections):
-    return edit_selected_range(
-        project,
-        selections,
-        "cut",
-        propose=False,
-        reason="host:range",
-        action_id="range_action",
-        boundary_intent=CutIntent.HUMAN_BOUNDARIES,
-        defaults=load_defaults(),
-    )
-
-
 def test_exact_cut_keeps_repeated_source_unselected_tracks_and_gaps(tmp_path):
     project = fixture(EpisodeProject.create("range", str(tmp_path)))
     first, other = deepcopy(project.clips[0]), deepcopy(project.clips[-1])
@@ -878,7 +865,14 @@ def test_one_bad_target_changes_nothing(tmp_path):
     project = fixture(EpisodeProject.create("range", str(tmp_path)))
     before = deepcopy(project.clips)
     with pytest.raises(ValueError, match="No audible media"):
-        apply_many(project, [target(project, ((11, 12),), ("a",)), target(project, ((6, 8),))])
+        edit_selected_range(
+            project,
+            [target(project, ((11, 12),), ("a",)), target(project, ((6, 8),))],
+            "cut",
+            propose=False,
+            reason="host:range",
+            defaults=load_defaults(),
+        )
     assert project.clips == before
 
 

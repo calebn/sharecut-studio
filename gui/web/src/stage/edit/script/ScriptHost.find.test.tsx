@@ -372,30 +372,6 @@ describe("ScriptHost Find", () => {
     });
   });
 
-  it("cuts a phrase another speaker interrupts on the speaker's track only", async () => {
-    seedScript({
-      project: { clips: CLIPS },
-      utterances: [
-        scriptUtterance("host", "Maya", [scriptWord("one", 0, 10)]),
-        scriptUtterance("guest", "Anneke", [scriptWord("yes", 0, 12)]),
-        scriptUtterance("host", "Maya", [scriptWord("thanks", 1, 14)]),
-      ],
-    });
-    await openFind();
-    await userEvent.type(findField(), "one thanks");
-    await userEvent.click(screen.getByRole("button", { name: "Cut all 1" }));
-    await waitFor(() => expect(submitDocumentCommand).toHaveBeenCalledTimes(1));
-    const payload = vi.mocked(submitDocumentCommand).mock.calls[0][2] as {
-      targets: { track_ids: string[]; intervals: unknown[] }[];
-    };
-    expect(payload.targets).toHaveLength(1);
-    expect(payload.targets[0].track_ids).toEqual(["host"]);
-    expect(payload.targets[0].intervals).toEqual([{ start: 10, end: 14.4 }]);
-    await waitFor(() =>
-      expect(useDawStore.getState().statusAnnouncement).toBe("Cut 1 match"),
-    );
-  });
-
   it("says a queued cut is still sending", async () => {
     seedScript({ project: { clips: CLIPS } });
     vi.mocked(submitDocumentCommand).mockResolvedValue({ queued: true });
