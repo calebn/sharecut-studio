@@ -414,9 +414,12 @@ describe("EditActionBar against the timeline ruler", () => {
     );
   }
 
-  function barTop(selectionTop: number) {
+  beforeEach(() => {
     vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(40);
     vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(200);
+  });
+
+  function barTop(selectionTop: number) {
     host(EDIT_SELECTIONS.rangeOnAllTracks);
     render(<Timeline selectionTop={selectionTop} />);
     const bar = screen.getByRole("group", { name: "Selection actions" });

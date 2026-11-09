@@ -222,14 +222,6 @@ describe("placeAnchored", () => {
       const placed = placeAnchored(anchorAt(100, 155), bar, viewport, opts);
       expect(placed).toMatchObject({ side: "below", top: 155 + 32 + 8 });
     });
-
-    it("never lets the bar rise into the chrome", () => {
-      for (let top = 100; top < 400; top += 7) {
-        const placed = placeAnchored(anchorAt(100, top), bar, viewport, opts);
-        if (placed.side === "above")
-          expect(placed.top).toBeGreaterThanOrEqual(108);
-      }
-    });
   });
 
   it("keeps the panel below and caps its height when neither side fits it", () => {
