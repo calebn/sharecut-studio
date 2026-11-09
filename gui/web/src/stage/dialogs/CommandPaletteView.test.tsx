@@ -45,6 +45,24 @@ const COMMANDS: PaletteCommand[] = [
   },
 ];
 
+const groupNames = () =>
+  screen
+    .queryAllByRole("group")
+    .map(
+      (g) =>
+        document.getElementById(g.getAttribute("aria-labelledby") ?? "")
+          ?.textContent,
+    );
+
+const HELP_COMMAND: PaletteCommand = {
+  id: "help.diagnosticsBundle",
+  label: "Export diagnostics…",
+  category: "ui",
+  shortcut: null,
+  group: "help",
+  disabledReason: null,
+};
+
 const ENTRIES: PaletteEntry[] = [
   {
     id: "project:/p/Show",
@@ -569,14 +587,6 @@ describe("CommandPaletteView", () => {
         disabledReason: null,
       },
     ];
-    const groupNames = () =>
-      screen
-        .getAllByRole("group")
-        .map(
-          (g) =>
-            document.getElementById(g.getAttribute("aria-labelledby") ?? "")
-              ?.textContent,
-        );
 
     it("lists Stages after the categories and Help last, off the category sections", () => {
       renderPalette({ commands: GROUPED, entries: ENTRIES });
@@ -665,26 +675,9 @@ describe("CommandPaletteView", () => {
   });
 
   describe("Gestures rows", () => {
-    const groupNames = () =>
-      screen
-        .queryAllByRole("group")
-        .map(
-          (g) =>
-            document.getElementById(g.getAttribute("aria-labelledby") ?? "")
-              ?.textContent,
-        );
-
     it("lists one row per gesture after Chapters, before Help, only when passed", () => {
-      const help: PaletteCommand = {
-        id: "help.diagnosticsBundle",
-        label: "Export diagnostics…",
-        category: "ui",
-        shortcut: null,
-        group: "help",
-        disabledReason: null,
-      };
       const { unmount } = renderPalette({
-        commands: [COMMANDS[0], help],
+        commands: [COMMANDS[0], HELP_COMMAND],
         entries: ENTRIES,
         gestures: PALETTE_GESTURES,
       });
@@ -752,17 +745,7 @@ describe("CommandPaletteView", () => {
 
     it("leads with Help on Home and keeps Gestures after the entries", () => {
       renderPalette({
-        commands: [
-          COMMANDS[0],
-          {
-            id: "help.diagnosticsBundle",
-            label: "Export diagnostics…",
-            category: "ui",
-            shortcut: null,
-            group: "help",
-            disabledReason: null,
-          },
-        ],
+        commands: [COMMANDS[0], HELP_COMMAND],
         leadGroup: "help",
         gestures: PALETTE_GESTURES,
       });
