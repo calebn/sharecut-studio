@@ -35,7 +35,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Jump back | session | `transport.shuttleBack` | `J` | — | — | `seek_session_tool` | `podcast session seek` | — | — | anchor · look |
 | Speed up (1×/2×/4×) | session | `transport.shuttleForward` | `L` | — | — | `set_session_playing_tool` | — | — | — | anchor · look |
 | Audition Full mix / Edited stems / Original | session | `transport.audition` | — (not industry-standard; Full mix/Edited stems/Original toggle) | — | `transport.audition` | — | — | `podcast-play-audition` | — | anchor · hear |
-| Hear the original while held | session | `transport.hearOriginal` | `A` | — | `Player` | — | — | — | — | none · none |
+| Hear the original while held | session | `transport.hearOriginal` | `A` | — | — | — | — | — | — | none · none |
 | Follow | session | `presence.follow` | — (not industry-standard; avatar click) | — | `presence.avatarStack` | `get_session_presence_tool` | — | — | — | none · none |
 | Stop following | session | `presence.unfollow` | `Escape` | — | `presence.followPill` | — | — | — | — | none · none |
 | Clear selection | session | `edit.clearSelection` | `Escape` | — | — | — | — | — | — | — |

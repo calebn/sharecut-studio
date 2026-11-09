@@ -61,10 +61,23 @@ describe("transport.hearOriginal", () => {
   });
 
   it("is gated to the Edit stage", async () => {
-    useDawStore.setState({ stage: "review" });
-    expect(await execute("transport.hearOriginal", { on: true })).toMatchObject(
-      { status: "disabled" },
-    );
-    useDawStore.setState({ stage: "edit" });
+    try {
+      useDawStore.setState({ stage: "review" });
+      expect(
+        await execute("transport.hearOriginal", { on: true }),
+      ).toMatchObject({ status: "disabled" });
+    } finally {
+      useDawStore.setState({ stage: "edit" });
+    }
+  });
+
+  it("clears the hold when released as a guest, so the next press works", async () => {
+    await hold(true);
+    expect(mode()).toBe("raw");
+    useDawStore.setState({ guestMode: "view" });
+    await hold(false);
+    useDawStore.setState({ guestMode: null, auditionMode: "mix" });
+    await hold(true);
+    expect(mode()).toBe("raw");
   });
 });
