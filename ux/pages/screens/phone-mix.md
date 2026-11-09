@@ -1,6 +1,6 @@
 ## Phone — Mix
 
-The Mix button on the Edit stage opens a full-height sheet for all roles. Each ordered row has lane
+The Mix button on the Edit stage (vertical faders glyph, distinct from the Inspect glyph) opens a full-height sheet for all roles. Each ordered row has lane
 initials, a track name, M, S, and Volume. Hosts and editors save M and Volume;
 listeners use local M and see why Volume is read-only. S is always local.
 Shared playback uses Full mix, so local listen controls may not be audible.
