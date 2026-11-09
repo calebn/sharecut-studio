@@ -30,6 +30,7 @@ import { TrackKindControl } from "./TrackKindControl";
 import { TrackLevelNote } from "./TrackLevelNote";
 import { AddTrackPerson, TrackPerson } from "./TrackPerson";
 import { kindOf, roleForKind, TRACK_KINDS } from "./trackKind";
+import { episodePeople } from "./trackPeople";
 
 export function useTrackSections(
   selection: Selection,
@@ -82,24 +83,30 @@ export function useTrackSections(
 
   const sendSpeaker = (speaker: string) => void saveMetaFields({ speaker });
   const voice = kindOf(track.role) === "voice";
+  const hasPeople = episodePeople(project?.tracks ?? []).length > 0;
   const personRows = !voice
     ? []
     : mayIngest
       ? [
-          {
-            id: "person",
-            control: (
-              <TrackPerson
-                track={track}
-                tracks={project?.tracks ?? []}
-                onPick={sendSpeaker}
-              />
-            ),
-          },
+          ...(hasPeople
+            ? [
+                {
+                  id: "person",
+                  control: (
+                    <TrackPerson
+                      track={track}
+                      tracks={project?.tracks ?? []}
+                      onPick={sendSpeaker}
+                    />
+                  ),
+                },
+              ]
+            : []),
           {
             id: "addPerson",
             control: (
               <AddTrackPerson
+                track={track}
                 tracks={project?.tracks ?? []}
                 onPick={sendSpeaker}
               />

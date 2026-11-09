@@ -30,9 +30,11 @@ export function TrackPerson({
 }
 
 export function AddTrackPerson({
+  track,
   tracks,
   onPick,
 }: {
+  track: TrackView;
   tracks: readonly TrackView[];
   onPick: (speaker: string) => void;
 }) {
@@ -42,9 +44,11 @@ export function AddTrackPerson({
       label="Add person"
       fieldLabel="Name of the new person"
       validate={(text) => (text === "" ? NAME_REQUIRED : undefined)}
-      onAdd={(name) =>
-        onPick(people.find((p) => p.id === personId(name))?.name ?? name.trim())
-      }
+      onAdd={(name) => {
+        const id = personId(name);
+        if (id === personId(track.speaker)) return;
+        onPick(people.find((p) => p.id === id)?.name ?? name.trim());
+      }}
     />
   );
 }
