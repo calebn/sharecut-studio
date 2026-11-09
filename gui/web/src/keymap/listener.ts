@@ -68,7 +68,6 @@ export function useDawKeymapListener(): void {
       e.preventDefault();
     };
     const onKey = (e: KeyboardEvent) => {
-      onOverlay();
       if (e.isComposing || e.keyCode === 229) {
         return;
       }
