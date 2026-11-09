@@ -262,6 +262,24 @@ export const LowConfidence: Story = {
   },
 };
 
+export const SuspectHallucination: Story = {
+  ...live,
+  args: {
+    turns: patchWords(SCRIPT_TURNS, {
+      26: { lowConfidence: true, hallucination: true },
+      37: { hallucination: true },
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const marked = canvasElement.querySelectorAll("[data-hallucination]");
+    await expect(marked).toHaveLength(2);
+    await expect(marked[1]).toHaveAttribute(
+      "title",
+      "Possible transcription with no matching speech",
+    );
+  },
+};
+
 export const FindMatches: Story = {
   ...live,
   args: {

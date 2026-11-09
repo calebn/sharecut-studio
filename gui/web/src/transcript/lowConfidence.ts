@@ -17,6 +17,23 @@ export function isLowConfidenceWord(
   return w.unsure === true && w.suppressed !== true;
 }
 
+/**
+ * The pipeline's `suspect_hallucination` flag (no matching speech under the word), a separate signal from low confidence:
+ * it never joins the unsure count or the walkthrough. A suppressed or ignored word is already out of the text, so it is not marked.
+ */
+export function isSuspectHallucinationWord(
+  w: Pick<
+    TranscriptWordView,
+    "suspect_hallucination" | "suppressed" | "ignored"
+  >,
+): boolean {
+  return (
+    w.suspect_hallucination === true &&
+    w.suppressed !== true &&
+    w.ignored !== true
+  );
+}
+
 /** One stop of the low-confidence walkthrough (#634). */
 export interface LowConfidenceStop {
   trackId: string;
