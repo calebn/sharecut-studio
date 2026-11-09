@@ -16,6 +16,7 @@ import {
 } from "./envelopeCreationEvidence";
 import {
   captureInspector,
+  controlGeometry,
   exposeControl,
   nativeTabTo,
   pointerControl,
@@ -166,6 +167,11 @@ test.describe("root32 phone envelope keyboard restoration", () => {
           await expect(dialog).toBeHidden();
           await expect(point).toBeFocused();
           await visibleFocus(point, receipts, "keyboard-point-returned");
+          const returnedGeometry = await controlGeometry(point);
+          expect(
+            returnedGeometry.focusIndicator,
+            JSON.stringify(returnedGeometry),
+          ).toMatchObject({ state: "outline", full: true });
           await captureInspector(
             page,
             info,

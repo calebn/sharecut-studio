@@ -95,8 +95,8 @@ phone journey uses pointer setup to create an existing envelope point, then
 native Tab (Alt+Tab in WebKit), Enter and Inspect to reach its Inspector. It
 commits a valid Level edit, checks the saved point identity and history, undoes
 the edit with the keyboard, and closes the Inspector. It checks visible returned
-point focus and no further command or saved-state change at the final rendered
-checkpoint. It does not cover keyboard point
+point focus and no further command, history change or envelope-point change at
+the final rendered checkpoint. It does not cover keyboard point
 creation or invalid input. The 32px root is a
 200% text-size simulation, not browser/OS zoom, physical touch, Safari, assistive
 technology or software-keyboard evidence; those acceptance checks remain #960.
