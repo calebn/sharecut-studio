@@ -7,6 +7,7 @@ import {
   useRef,
 } from "react";
 import { presenceColorVar } from "../presence/colors";
+import { muteButtonTitle } from "../tracks/trackMuteCopy";
 import type { MuteState } from "../utils/audio";
 import { clamp } from "../utils/math";
 import { useStableCallback } from "../utils/useStableCallback";
@@ -72,16 +73,6 @@ export type TrackHeaderProps = {
   onDragStart?: (id: string, event: DragEvent<HTMLDivElement>) => void;
   onDragEnd?: (id: string, event: DragEvent<HTMLDivElement>) => void;
 };
-
-const MUTE_TIPS: Record<MuteState, string> = {
-  saved: "Unmute. Muted in the mix, for everyone and every export",
-  listen: "Unmute. Muted for you only",
-  implied:
-    "Mute. Not muted: silent because you soloed another track, and only you hear it that way",
-  off: "Mute",
-};
-const MUTE_GUEST_TIP =
-  "Muted in the mix. Only the host and editors can unmute it";
 
 /** Memoised on its props: pass a stable `anchorProps` object, not a fresh literal. */
 export const TrackHeader = memo(function TrackHeader({
@@ -209,9 +200,7 @@ export const TrackHeader = memo(function TrackHeader({
             aria-pressed={muted}
             aria-disabled={readOnly && mute === "saved" ? true : undefined}
             aria-label={`Mute ${name}`}
-            title={
-              readOnly && mute === "saved" ? MUTE_GUEST_TIP : MUTE_TIPS[mute]
-            }
+            title={muteButtonTitle(mute, !readOnly)}
             onClick={
               readOnly && mute === "saved" ? undefined : () => onMute(id)
             }

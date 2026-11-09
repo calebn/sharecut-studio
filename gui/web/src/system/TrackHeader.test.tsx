@@ -53,6 +53,41 @@ describe("TrackHeader controls", () => {
     );
   });
 
+  it("describes every mute state for editors and listeners", () => {
+    const { rerender } = render(<TrackHeader {...base} />);
+    const outcomes = [
+      ["off", false, "Mute. Mutes the track in the mix, for everyone"],
+      ["off", true, "Mute. Mutes the track for you only"],
+      [
+        "saved",
+        false,
+        "Unmute. Muted in the mix, for everyone and every export",
+      ],
+      [
+        "saved",
+        true,
+        "Muted in the mix. Only the host and editors can unmute it",
+      ],
+      ["listen", false, "Unmute. Muted for you only"],
+      ["listen", true, "Unmute. Muted for you only"],
+      [
+        "implied",
+        false,
+        "Mute. Not muted: silent because you soloed another track, and only you hear it that way",
+      ],
+      [
+        "implied",
+        true,
+        "Mute. Not muted: silent because you soloed another track, and only you hear it that way",
+      ],
+    ] as const;
+
+    for (const [state, readOnly, title] of outcomes) {
+      rerender(<TrackHeader {...base} mute={state} readOnly={readOnly} />);
+      expect(mute()).toHaveAccessibleDescription(title);
+    }
+  });
+
   it("names each control for its track and acts on a click", async () => {
     const user = userEvent.setup();
     const { onSelect, onMute, onSolo } = setup();
