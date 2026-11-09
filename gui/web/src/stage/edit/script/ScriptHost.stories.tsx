@@ -250,7 +250,8 @@ export const Transcribing: Story = {
   beforeEach: liveRun(),
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    await expect(await canvas.findByText("25%")).toBeVisible();
+    await expect(await canvas.findByText("Transcribing")).toBeVisible();
+    await expect(canvas.queryByText(/%/)).toBeNull();
     await expect(
       canvas.queryByRole("button", { name: /Transcribe/ }),
     ).toBeNull();
@@ -259,10 +260,10 @@ export const Transcribing: Story = {
 };
 
 export const TranscribingOverWords: Story = {
-  beforeEach: liveRun({ only_step: "transcribe_tracks", current: 1, total: 2 }),
+  beforeEach: liveRun({ only_step: "transcribe_tracks" }),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(await canvas.findByText("50%")).toBeVisible();
+    await expect(await canvas.findByText("Transcribing")).toBeVisible();
     await userEvent.click(await word(canvas, /^Welcome/));
     await userEvent.keyboard("{Enter}");
     await expect(
@@ -280,7 +281,7 @@ export const NoTranscriptBusy: Story = {
     await expect(
       await canvas.findByRole("button", { name: /Transcribe/ }),
     ).toBeVisible();
-    await expect(canvas.queryByText("25%")).toBeNull();
+    await expect(canvas.queryByText("Transcribing")).toBeNull();
   },
 };
 

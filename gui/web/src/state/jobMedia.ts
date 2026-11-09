@@ -1,7 +1,6 @@
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import type { TrackView } from "../types/project";
 import { isPipelineKindJob, isPipelineRunning } from "../utils/pipeline";
-import { pipelineProgressPercent } from "../utils/pipelineProgress";
 import { useDawStore } from "./dawStore";
 
 const keys = new Map<string, string>();
@@ -37,28 +36,31 @@ export function runIncludesTranscribe(run: {
 }
 
 /**
- * How far a live run on this project is while it is still making the
- * transcript: 0 to 1, or null when no such run is live.
+ * Whether a live run on this project is still making the transcript. The
+ * backend lists a step when it starts, and skipped or later-only steps are
+ * never listed, so the run is past transcribing once the step has settled or
+ * a step after it has begun. It reports progress per step, not within one,
+ * so there is no percent to offer.
  */
-export function transcribeProgress(
+export function isTranscribing(
   job: PipelineJobSnapshot | null,
   projectPath: string | null,
-  hasWords: boolean,
-): number | null {
+): boolean {
   if (
     !job ||
     !isPipelineKindJob(job) ||
     !isPipelineRunning(job) ||
     job.project_path !== projectPath ||
-    !runIncludesTranscribe({ fromStep: job.from_step, onlyStep: job.only_step })
+    !runIncludesTranscribe({
+      fromStep: job.from_step,
+      onlyStep: job.only_step,
+    }) ||
+    job.skip_steps?.includes(TRANSCRIBE_STEP)
   )
-    return null;
-  if (job.skip_steps?.includes(TRANSCRIBE_STEP)) return null;
-  const done = job.steps.some(
-    (step) => step.name === TRANSCRIBE_STEP && step.status === "ok",
-  );
-  if (done && hasWords) return null;
-  return (pipelineProgressPercent(job) ?? 0) / 100;
+    return false;
+  const transcribe = job.steps.find((step) => step.name === TRANSCRIBE_STEP);
+  if (transcribe) return transcribe.status === "running";
+  return job.steps.every((step) => STEPS_BEFORE_TRANSCRIBE.includes(step.name));
 }
 
 /** Remember the audio a job was started on; a job nobody here started has no key. */

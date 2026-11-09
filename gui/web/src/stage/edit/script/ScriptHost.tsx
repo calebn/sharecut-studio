@@ -19,7 +19,7 @@ import { useScriptPlayback } from "./useScriptPlayback";
 import { useScriptSeamRoll } from "./useScriptSeamRoll";
 import { useScriptSelection } from "./useScriptSelection";
 import { useScriptSpeaker } from "./useScriptSpeaker";
-import { useScriptStatus } from "./useScriptStatus";
+import { selectTranscriptLoading, useScriptStatus } from "./useScriptStatus";
 import { useScriptUnsure } from "./useScriptUnsure";
 import { useScriptWindow } from "./useScriptWindow";
 
@@ -50,9 +50,7 @@ export function ScriptHost({
   const guestMode = useDawStore((s) => s.guestMode);
   const capabilities = useDawStore((s) => s.shareCapabilities);
   const breakpoint = useDawStore((s) => s.shellBreakpoint);
-  const loading = useDawStore(
-    (s) => s.project?.meta.hydration?.transcript_words === false,
-  );
+  const loading = useDawStore(selectTranscriptLoading);
   const showCut = useDawStore((s) => s.showCutAwayUtterances);
 
   const hostEditable = !isShareProjectKey(projectPath);

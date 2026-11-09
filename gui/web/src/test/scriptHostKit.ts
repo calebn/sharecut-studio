@@ -117,7 +117,7 @@ export function seedScript(seed: ScriptSeed = {}) {
   useDawStore.getState().setTranscriptFindReplaceOpen(false);
 }
 
-/** A live full run on the seeded project, a quarter of the way through. */
+/** A live full run on the seeded project: sources added, transcribe_tracks running. */
 export function transcribeRun(
   overrides: Partial<PipelineJobSnapshot> = {},
 ): PipelineJobSnapshot {
@@ -132,7 +132,15 @@ export function transcribeRun(
     message: null,
     error: null,
     elapsed_sec: 0,
-    steps: [],
+    steps: [
+      { name: "ingest_tracks", status: "ok", elapsed_sec: 1, error: null },
+      {
+        name: "transcribe_tracks",
+        status: "running",
+        elapsed_sec: 2,
+        error: null,
+      },
+    ],
     ...overrides,
   };
 }

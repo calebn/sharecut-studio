@@ -2083,8 +2083,16 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
                   density="inline"
                   state="running"
                   title="Transcribing"
-                  detail={`${percentOf(status.progress)}%`}
-                  valueText={`${percentOf(status.progress)} percent`}
+                  detail={
+                    status.progress === undefined
+                      ? undefined
+                      : `${percentOf(status.progress)}%`
+                  }
+                  valueText={
+                    status.progress === undefined
+                      ? undefined
+                      : `${percentOf(status.progress)} percent`
+                  }
                   progress={status.progress}
                 />
               ) : null}

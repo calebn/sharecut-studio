@@ -73,8 +73,8 @@ export type ScriptStatus =
   | { kind: "empty"; onTranscribe?: () => void }
   | {
       kind: "transcribing";
-      /** 0 to 1. */
-      progress: number;
+      /** 0 to 1; left out when only the stage, not the fraction, is known. */
+      progress?: number;
       /** The time still to come, "12:00 to 52:10". */
       notYet?: string;
     }

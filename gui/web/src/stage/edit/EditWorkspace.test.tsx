@@ -387,6 +387,29 @@ describe("EditWorkspace Transcribe", () => {
     expect(takeAutoRoom(PROJECT_PATH)).toBe(true);
   });
 
+  it("drops the run request when Prepare says ok but the stage never switches", async () => {
+    open();
+    writeOpenIntent(PROJECT_PATH, { autoRoom: true });
+    registerCommand("stage.prepare", () => ({ status: "ok" }));
+    await userEvent.setup().click(transcribeButton()!);
+    expect(useDawStore.getState().stage).toBe("edit");
+    expect(takeAutoRun(PROJECT_PATH)).toBe(false);
+    expect(takeAutoRoom(PROJECT_PATH)).toBe(true);
+  });
+
+  it("drops the run request when the switch to Prepare throws", async () => {
+    open();
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    registerCommand("stage.prepare", () => {
+      throw new Error("boom");
+    });
+    await userEvent.setup().click(transcribeButton()!);
+    await act(async () => {});
+    process.off("unhandledRejection", unhandled);
+    expect(takeAutoRun(PROJECT_PATH)).toBe(false);
+  });
+
   it("offers no Transcribe when no track has source audio", () => {
     open([sampleTrack({ media_path: undefined })]);
     expect(screen.getByText("No transcript yet")).toBeInTheDocument();
@@ -397,6 +420,7 @@ describe("EditWorkspace Transcribe", () => {
     open();
     act(() => useDawStore.setState({ pipelineJob: transcribeRun() }));
     expect(transcribeButton()).toBeNull();
-    expect(screen.getByText("25%")).toBeInTheDocument();
+    expect(screen.getByText("Transcribing")).toBeInTheDocument();
+    expect(screen.queryByText(/%/)).toBeNull();
   });
 });

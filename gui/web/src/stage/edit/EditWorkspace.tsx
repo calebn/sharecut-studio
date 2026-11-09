@@ -166,8 +166,13 @@ function EditWorkspaceAdapter({
       return;
     }
     requestAutoRun(projectPath);
-    const result = await execute("stage.prepare");
-    if (result.status !== "ok") takeAutoRun(projectPath);
+    let landed = false;
+    try {
+      await execute("stage.prepare");
+      landed = useDawStore.getState().stage === "prepare";
+    } finally {
+      if (!landed) takeAutoRun(projectPath);
+    }
   };
   const transcribe = hasAudio ? () => void startTranscribe() : undefined;
 
