@@ -5082,6 +5082,11 @@ button.sys-script-speaker {
   content: "";
 }
 
+/* The playing accent bar is the louder signal and owns the bottom 0.125rem; the flag line sits just above it so the bar stays unbroken. */
+.sys-script-word[data-hallucination][data-playing]::after {
+  inset-block-end: 0.125rem;
+}
+
 .sys-script-word[data-state="cut"] {
   text-decoration-line: line-through;
   text-decoration-style: solid;
