@@ -30,7 +30,6 @@ export type DialogAnchor = {
   moves?: unknown;
   /** The side tried first; below unless the subject asks to be covered less from above. */
   prefer?: "below" | "above";
-  /** Viewport y of chrome the panel must not cover when it sits above the subject. */
   clearTop?: () => number;
 };
 

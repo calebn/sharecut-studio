@@ -88,7 +88,7 @@ function FloatingScene({
   const scene = barScene(selection, { role, clipboardHasAudio });
   return (
     <div style={stage}>
-      <div ref={anchorRef} style={selected} />
+      <div ref={anchorRef} data-testid="ruler-selection" style={selected} />
       <ActionBar
         placement={{ form: "floating", anchorRef }}
         leading={leadingFor(scene, ripple)}
@@ -115,7 +115,7 @@ function RulerScene({ selection, gap, onVerb }: SceneProps & { gap: string }) {
         }}
       />
       <div style={{ paddingBlockStart: gap, paddingInline: "var(--space-5)" }}>
-        <div ref={anchorRef} style={selected} />
+        <div ref={anchorRef} data-testid="ruler-selection" style={selected} />
       </div>
       <ActionBar
         placement={{
@@ -219,53 +219,35 @@ export const Words: Story = {
   },
 };
 
-const bounds = (element: Element) => element.getBoundingClientRect();
-
-export const AboveSelectionClearOfRuler: Story = {
+const rulerStory = (gap: string, side: "above" | "below"): Story => ({
   render: (args) => (
     <RulerScene
       selection={EDIT_SELECTIONS.rangeOnAllTracks}
-      gap="6rem"
+      gap={gap}
       onVerb={args.onVerb}
     />
   ),
   play: async ({ canvasElement }) => {
-    const bar = within(canvasElement).getByRole("group", {
-      name: "Actions",
-    });
-    const ruler = canvasElement.querySelector(".timeline-ruler");
-    const selection = canvasElement.querySelector("[style*='border']");
-    await expect(bounds(bar).bottom).toBeLessThanOrEqual(
-      bounds(selection as Element).top,
-    );
-    await expect(bounds(bar).top).toBeGreaterThanOrEqual(
-      bounds(ruler as Element).bottom,
-    );
+    const canvas = within(canvasElement);
+    const bar = canvas
+      .getByRole("group", { name: "Actions" })
+      .getBoundingClientRect();
+    const selection = canvas
+      .getByTestId("ruler-selection")
+      .getBoundingClientRect();
+    const ruler = canvasElement
+      .getElementsByClassName("timeline-ruler")[0]
+      .getBoundingClientRect();
+    await expect(bar.top).toBeGreaterThanOrEqual(ruler.bottom);
+    if (side === "above")
+      await expect(bar.bottom).toBeLessThanOrEqual(selection.top);
+    else await expect(bar.top).toBeGreaterThanOrEqual(selection.bottom);
   },
-};
+});
 
-export const BelowSelectionNearRuler: Story = {
-  render: (args) => (
-    <RulerScene
-      selection={EDIT_SELECTIONS.rangeOnAllTracks}
-      gap="1rem"
-      onVerb={args.onVerb}
-    />
-  ),
-  play: async ({ canvasElement }) => {
-    const bar = within(canvasElement).getByRole("group", {
-      name: "Actions",
-    });
-    const ruler = canvasElement.querySelector(".timeline-ruler");
-    const selection = canvasElement.querySelector("[style*='border']");
-    await expect(bounds(bar).top).toBeGreaterThanOrEqual(
-      bounds(selection as Element).bottom,
-    );
-    await expect(bounds(bar).top).toBeGreaterThanOrEqual(
-      bounds(ruler as Element).bottom,
-    );
-  },
-};
+export const AboveSelectionClearOfRuler = rulerStory("6rem", "above");
+
+export const BelowSelectionNearRuler = rulerStory("1rem", "below");
 
 export const Range: Story = {
   ...floating(EDIT_SELECTIONS.rangeOnAllTracks),
