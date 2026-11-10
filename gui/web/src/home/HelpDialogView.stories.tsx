@@ -72,7 +72,7 @@ function PopoverPreview(
         ref={anchorRef}
         type="button"
         data-story-anchor
-        style={{ marginLeft: "6rem" }}
+        style={{ marginLeft: "var(--space-8)" }}
       >
         ShareCut app menu
       </button>
