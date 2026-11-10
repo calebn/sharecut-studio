@@ -148,4 +148,4 @@ belongs only to producing a new dependency release when its inputs change.
 See `docs/setup.md`. If `podcast` is not found, activate `.venv` or use `uv run`.
 If transcription fails, confirm `faster-whisper` is installed and the cache dir is
 writable (`~/.cache/podcast_mcp`). For bug reports, `podcast doctor --bundle`
-(or Home → Help) writes a sanitized zip — nothing is uploaded.
+(or Home → ShareCut app menu → Help → Report a problem → Export) writes a sanitized zip — nothing is uploaded.
