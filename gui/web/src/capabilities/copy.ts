@@ -657,7 +657,6 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "transcript.seam": "daw.edit.rollClipJoin",
   "timeline.clip.fadeHandle": "daw.edit.setClipFade",
   "inspector.clip.joinType": "daw.edit.setClipJoin",
-  "timeline.join.badge": "daw.edit.setClipJoin",
 };
 
 export function capabilityTooltip(

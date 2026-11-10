@@ -134,7 +134,7 @@
   --clip-inset-top: 12px;
   /* stylelint-disable-next-line meowtec/no-px -- user-approved: canvas clip inset vs lane height */
   --clip-inset-bottom: 8px;
-  /* WCAG 2.5.8 24 px target for the join marks' hit areas (.edit-mark::before, .edit-chip::before):
+  /* WCAG 2.5.8 24 px target for the seam diamond's hit area (.seam-mark):
      two --clip-inset-top gutters, so it stays canvas px at any root font size. */
   --join-hit-min: calc(2 * var(--clip-inset-top));
   --header-width: 10.5rem;

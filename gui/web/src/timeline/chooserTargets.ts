@@ -15,8 +15,6 @@ const CHOOSER_KIND: Record<HitKind, ChooserKind> = {
   "fade-in": "clip",
   "fade-out": "clip",
   roll: "seam",
-  join: "seam",
-  "edit-chip": "seam",
   "pending-start": "suggestion",
   "pending-end": "suggestion",
   "pending-flag": "suggestion",

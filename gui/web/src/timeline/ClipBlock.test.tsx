@@ -1,17 +1,8 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  loadWaveformSnap,
-  rollClipJoin,
-  setClipFade,
-  trimClipEdge,
-  undoHistory,
-} from "../api";
+import { loadWaveformSnap, setClipFade, trimClipEdge } from "../api";
 import { clearRegisteredCommands } from "../commands/execute";
-import {
-  _resetHistoryMovesForTests,
-  runHistoryAction,
-} from "../commands/history";
+import { _resetHistoryMovesForTests } from "../commands/history";
 import { registerDawCommands } from "../commands/register";
 import { useDawKeymapListener } from "../keymap/listener";
 import { useDawStore } from "../state/dawStore";
@@ -119,12 +110,10 @@ describe("ClipBlock waveform", () => {
     color: "var(--color-clip-dialogue-0)",
     selected: false,
     mediaRef: "track:host",
-    prevClip: null,
     nextClip: null,
     neighborSourceLo: 0,
     neighborSourceHi: 10,
     rollPreview: null,
-    onRollPreview: vi.fn(),
     onSelect: vi.fn(),
     onSelectClip: vi.fn(),
     onMovePreview: vi.fn(),
@@ -712,11 +701,7 @@ describe("ClipBlock waveform", () => {
       view.rerender(
         <>
           <KeymapHarness />
-          <ClipBlock
-            {...base}
-            clip={{ ...row, join_in_mode: "cut" }}
-            prevClip={previous}
-          />
+          <ClipBlock {...base} clip={{ ...row, join_in_mode: "cut" }} />
         </>,
       );
       expect(view.container.querySelector("button.fade-corner.in")).toBeNull();
@@ -919,7 +904,6 @@ describe("ClipBlock waveform", () => {
           timeline_start: 1,
           timeline_end: 3,
         }}
-        onRollPreview={vi.fn()}
         onSelect={vi.fn()}
       />,
     );
@@ -949,7 +933,6 @@ describe("ClipBlock waveform", () => {
           timeline_start: 1,
           timeline_end: 3,
         }}
-        onRollPreview={vi.fn()}
         onSelect={vi.fn()}
       />,
     );
@@ -996,11 +979,10 @@ describe("ClipBlock waveform", () => {
     );
   });
 
-  it("hides only the fades at a cut join and keeps trim and roll", () => {
+  it("hides only the fades at a cut join and keeps trim", () => {
     const faded = { ...clip, fade_in_ms: 20, fade_out_ms: 20 };
-    const prev = { ...clip, id: "c0" };
     const { container, rerender } = render(
-      <ClipBlock {...base} clip={faded} prevClip={prev} />,
+      <ClipBlock {...base} clip={faded} />,
     );
     expect(container.querySelectorAll(".clip-fade-line")).toHaveLength(2);
     // Incoming join is a cut: the fade-in goes, the fade-out stays.
@@ -1008,7 +990,6 @@ describe("ClipBlock waveform", () => {
       <ClipBlock
         {...base}
         clip={{ ...faded, join_in_mode: "cut", join_left_clip_id: "c0" }}
-        prevClip={prev}
       />,
     );
     expect(container.querySelectorAll(".clip-fade-line")).toHaveLength(1);
@@ -1018,13 +999,11 @@ describe("ClipBlock waveform", () => {
     expect(container.querySelector("button.fade-corner.in")).toBeNull();
     expect(container.querySelector("button.fade-corner.out")).not.toBeNull();
     expect(container.querySelectorAll(".trim-handle")).toHaveLength(2);
-    expect(container.querySelector("button.join-seam")).not.toBeNull();
     // Outgoing join is a cut: the fade-out goes, the fade-in stays.
     rerender(
       <ClipBlock
         {...base}
         clip={faded}
-        prevClip={prev}
         nextClip={{
           ...clip,
           id: "c2",
@@ -1052,7 +1031,6 @@ describe("ClipBlock waveform", () => {
           join_in_mode: "cut",
           join_left_clip_id: null,
         }}
-        prevClip={null}
       />,
     );
     expect(container.querySelector(".clip-fade-line")).not.toBeNull();
@@ -1465,20 +1443,17 @@ describe("ClipBlock waveform", () => {
     }
   });
 
-  it.each([".fade-corner.in", ".trim-handle.out", ".join-seam", ".clip-hit"])(
+  it.each([".fade-corner.in", ".trim-handle.out", ".clip-hit"])(
     "keeps %s idle while a coupled join save is in flight",
     async (selector) => {
       vi.mocked(setClipFade).mockClear();
       vi.mocked(trimClipEdge).mockClear();
-      vi.mocked(rollClipJoin).mockClear();
-      base.onRollPreview.mockClear();
       base.onMovePreview.mockClear();
       base.onMoveCommit.mockClear();
       const { container } = render(
         <ClipBlock
           {...base}
           canMove
-          prevClip={{ ...clip, id: "left", source_start: 0, source_end: 1 }}
           clip={{ ...clip, source_start: 1, source_end: 2 }}
         />,
       );
@@ -1491,22 +1466,19 @@ describe("ClipBlock waveform", () => {
         expect(
           container.querySelector(".fade-dragging, .trim-dragging"),
         ).toBeNull();
-        expect(base.onRollPreview).not.toHaveBeenCalled();
         expect(base.onMovePreview).not.toHaveBeenCalled();
         expect(base.onMoveCommit).not.toHaveBeenCalled();
         expect(setClipFade).not.toHaveBeenCalled();
         expect(trimClipEdge).not.toHaveBeenCalled();
-        expect(rollClipJoin).not.toHaveBeenCalled();
       } finally {
         useDawStore.getState().setJoinMutationInFlight(false);
       }
     },
   );
 
-  describe("trim and roll handle clicks", () => {
+  describe("trim handle clicks", () => {
     beforeEach(() => {
       vi.mocked(trimClipEdge).mockClear();
-      vi.mocked(rollClipJoin).mockClear();
     });
 
     it("a click on a trim handle only selects", async () => {
@@ -1706,23 +1678,10 @@ describe("ClipBlock waveform", () => {
 
       expect(trimClipEdge).not.toHaveBeenCalled();
     });
-
-    it("a click on the join seam never rolls", async () => {
-      const { container } = render(
-        <ClipBlock {...base} prevClip={{ ...clip, id: "c0" }} />,
-      );
-      const d = container.querySelector("button.join-seam") as HTMLElement;
-      fireEvent.pointerDown(d, { clientX: 100, pointerId: 6 });
-      fireEvent.pointerUp(d, { clientX: 101, pointerId: 6 });
-      await new Promise((r) => setTimeout(r, 0));
-      expect(rollClipJoin).not.toHaveBeenCalled();
-    });
   });
 
   it("gives the trim ghost its own layer over the ghost source range", () => {
-    const { container } = render(
-      <ClipBlock {...base} onRollPreview={vi.fn()} onSelect={vi.fn()} />,
-    );
+    const { container } = render(<ClipBlock {...base} onSelect={vi.fn()} />);
     const handle = container.querySelector(".trim-handle.out");
     expect(handle).toBeTruthy();
     fireEvent.pointerDown(handle as Element, { clientX: 100, pointerId: 1 });
@@ -1758,7 +1717,6 @@ describe("ClipBlock waveform", () => {
         canMove
         onSelectClip={onSelectClip}
         onMovePreview={onMovePreview}
-        onRollPreview={vi.fn()}
         onSelect={vi.fn()}
       />,
     );
@@ -1783,7 +1741,6 @@ describe("ClipBlock waveform", () => {
         onSelectClip={vi.fn()}
         onMovePreview={onMovePreview}
         onMoveCommit={onMoveCommit}
-        onRollPreview={vi.fn()}
         onSelect={vi.fn()}
       />,
     );
@@ -1967,7 +1924,6 @@ describe("ClipBlock waveform", () => {
         {...base}
         canMove
         onMovePreview={onMovePreview}
-        onRollPreview={vi.fn()}
         onSelect={onSelect}
         onSelectClip={onSelectClip}
       />,
@@ -1999,7 +1955,6 @@ describe("ClipBlock waveform", () => {
         {...base}
         canMove
         onSelectClip={onSelectClip}
-        onRollPreview={vi.fn()}
         onSelect={vi.fn()}
       />,
     );
@@ -2309,7 +2264,6 @@ describe("ClipBlock waveform", () => {
         onMovePreview={onMovePreview}
         onMoveCommit={onMoveCommit}
         onMoveCancel={onMoveCancel}
-        onRollPreview={vi.fn()}
         onSelect={vi.fn()}
       />,
     );
@@ -2352,18 +2306,11 @@ describe("ClipBlock waveform", () => {
 
   it("hides ghost clips from the accessibility tree", () => {
     const { container } = render(
-      <ClipBlock
-        {...base}
-        interactive={false}
-        prevClip={clip}
-        onRollPreview={vi.fn()}
-        onSelect={vi.fn()}
-      />,
+      <ClipBlock {...base} interactive={false} onSelect={vi.fn()} />,
     );
     expect(
       container.querySelector(".clip-block")?.getAttribute("aria-hidden"),
     ).toBe("true");
-    expect(container.querySelector(".join-seam")).toBeNull();
     expect(container.querySelector(".clip-hit")).toBeNull();
   });
 
@@ -2375,7 +2322,6 @@ describe("ClipBlock waveform", () => {
           ...clip,
           mute_regions: [{ start_s: 0.5, end_s: 1.0 }],
         }}
-        onRollPreview={vi.fn()}
         onSelect={vi.fn()}
       />,
     );
@@ -2395,7 +2341,6 @@ describe("ClipBlock waveform", () => {
             { start_s: 5, end_s: 6 },
           ],
         }}
-        onRollPreview={vi.fn()}
         onSelect={vi.fn()}
       />,
     );
@@ -2411,7 +2356,6 @@ describe("ClipBlock waveform", () => {
         {...base}
         canMove
         onMovePreview={onMovePreview}
-        onRollPreview={vi.fn()}
         onSelect={vi.fn()}
       />,
     );
@@ -2435,179 +2379,6 @@ describe("ClipBlock waveform", () => {
     const block = container.querySelector(".clip-block") as HTMLElement;
     expect(block.title).toBe("Select Dialogue clip at 00:01.235, 2s");
   });
-
-  describe("join roll", () => {
-    const prevClip: ClipRow = {
-      ...clip,
-      id: "c0",
-      source_start: 0,
-      source_end: 2,
-      timeline_start: 0,
-      timeline_end: 2,
-    };
-    const right: ClipRow = {
-      ...clip,
-      source_start: 4,
-      source_end: 6,
-      timeline_start: 2,
-      timeline_end: 4,
-    };
-    const rollBy = (zoom: number, dxPx: number) => {
-      useDawStore.setState({
-        project: projectWithClip(right, {
-          clips: { tracks: { host: [prevClip, right] }, clip_count: 2 },
-        }),
-      });
-      const { container } = render(
-        <ClipBlock
-          {...base}
-          clip={right}
-          prevClip={prevClip}
-          zoomPxPerSec={zoom}
-        />,
-      );
-      const seam = container.querySelector("button.join-seam") as HTMLElement;
-      fireEvent.pointerDown(seam, { clientX: 100, pointerId: 7 });
-      fireEvent.pointerUp(seam, { clientX: 100 + dxPx, pointerId: 7 });
-    };
-
-    beforeEach(() => {
-      vi.mocked(rollClipJoin).mockClear();
-      loadBoundaryContext.mockClear();
-    });
-
-    it.each([
-      {
-        name: "longer recording",
-        duration: 30,
-        neighborSource: "other",
-        expected: 3,
-      },
-      {
-        name: "shorter recording",
-        duration: 3,
-        neighborSource: "other",
-        expected: 1,
-      },
-      {
-        name: "same-recording successor",
-        duration: 30,
-        neighborSource: "right",
-        expected: 1,
-      },
-      {
-        name: "unknown recording",
-        duration: null,
-        neighborSource: "other",
-        expected: 0,
-      },
-    ])(
-      "previews and submits the same recording limit for $name",
-      async ({ duration, neighborSource, expected }) => {
-        const left = {
-          ...prevClip,
-          source_id: "left",
-          source_duration_sec: duration,
-        };
-        const r = {
-          ...right,
-          source_id: "right",
-          source_end: 10,
-          timeline_end: 8,
-        };
-        const next = {
-          ...clip,
-          id: "next",
-          source_id: neighborSource,
-          source_start: 5,
-          source_end: 9,
-          timeline_start: 8,
-          timeline_end: 12,
-        };
-        useDawStore.setState({
-          project: projectWithClip(r, {
-            clips: { tracks: { host: [next, r, left] }, clip_count: 3 },
-          }),
-          projectPath: "/tmp/roll.project.json",
-        });
-        const preview = vi.fn();
-        const { container } = render(
-          <ClipBlock
-            {...base}
-            clip={r}
-            prevClip={left}
-            nextClip={next}
-            onRollPreview={preview}
-          />,
-        );
-        const seam = container.querySelector("button.join-seam");
-        if (!seam) throw new Error("missing seam");
-        fireEvent.pointerDown(seam, { clientX: 100, pointerId: 7 });
-        expect(loadBoundaryContext).not.toHaveBeenCalled();
-        fireEvent.pointerMove(seam, { clientX: 250, pointerId: 7 });
-        expect(preview).toHaveBeenLastCalledWith({
-          leftClipId: "c0",
-          rightClipId: "c1",
-          deltaSec: expected,
-        });
-        fireEvent.pointerUp(seam, { clientX: 250, pointerId: 7 });
-        if (expected === 0) {
-          expect(rollClipJoin).not.toHaveBeenCalled();
-          expect(preview).toHaveBeenLastCalledWith(null);
-        } else {
-          await waitFor(() =>
-            expect(rollClipJoin).toHaveBeenCalledWith(
-              "/tmp/roll.project.json",
-              "c0",
-              "c1",
-              expected,
-              "boundary-token",
-            ),
-          );
-          expect(preview).toHaveBeenLastCalledWith(null);
-        }
-      },
-    );
-
-    it("commits a 3 px roll at deep zoom (a 62 µs join move)", async () => {
-      rollBy(48000, 3);
-      await waitFor(() => expect(rollClipJoin).toHaveBeenCalledTimes(1));
-      const delta = vi.mocked(rollClipJoin).mock.calls[0]?.[3];
-      expect(delta).toBeCloseTo(3 / 48000, 12);
-    });
-
-    it("holds an Undo pressed while the roll loads its boundary token until the roll is sent", async () => {
-      clearRegisteredCommands();
-      registerDawCommands();
-      _resetHistoryMovesForTests();
-      useDawStore
-        .getState()
-        .hydrate("/tmp/roll.project.json", projectWithClip(right));
-      vi.mocked(undoHistory).mockClear();
-      let release!: () => void;
-      loadBoundaryContext.mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            release = () => resolve({ token: "boundary-token" });
-          }),
-      );
-      rollBy(48000, 3);
-      runHistoryAction("undo");
-      await new Promise((r) => setTimeout(r, 20));
-      expect(undoHistory).not.toHaveBeenCalled();
-      release();
-      await waitFor(() => expect(undoHistory).toHaveBeenCalledTimes(1));
-      expect(vi.mocked(rollClipJoin).mock.invocationCallOrder[0]).toBeLessThan(
-        vi.mocked(undoHistory).mock.invocationCallOrder[0] ?? 0,
-      );
-    });
-
-    it("skips a roll under the drag threshold", async () => {
-      rollBy(50, 0.4);
-      await new Promise((r) => setTimeout(r, 0));
-      expect(rollClipJoin).not.toHaveBeenCalled();
-    });
-  });
 });
 
 describe("ClipBlock snap points", () => {
@@ -2630,12 +2401,10 @@ describe("ClipBlock snap points", () => {
     color: "var(--color-clip-dialogue-0)",
     selected: false,
     mediaRef: "track:host",
-    prevClip: null,
     nextClip: null,
     neighborSourceLo: 0,
     neighborSourceHi: 10,
     rollPreview: null,
-    onRollPreview: vi.fn(),
     onSelect: vi.fn(),
     onSelectClip: vi.fn(),
     onMovePreview: vi.fn(),
@@ -2675,13 +2444,6 @@ describe("ClipBlockView", () => {
   // A non-literal value keeps Biome's ARIA-role-name check from reading this
   // domain prop (speaker role, not an ARIA role) as an invalid role="dialogue".
   const dialogueRole = "dialogue";
-  const prev = clipRow({
-    id: "prev",
-    source_start: 0,
-    source_end: 2,
-    timeline_start: -2,
-    timeline_end: 0,
-  });
   const restGeometry = clipBlockGeometry({
     clip,
     zoomPxPerSec: 50,
@@ -2700,19 +2462,17 @@ describe("ClipBlockView", () => {
         color="var(--lane-1)"
         selected={false}
         geometry={restGeometry}
-        prevClip={prev}
         nextClip={null}
         showHandles
         hitHandlers={{ onClick: vi.fn() }}
       />,
     );
     expect(container.querySelectorAll(".trim-handle")).toHaveLength(2);
-    expect(container.querySelector("button.join-seam")).not.toBeNull();
     expect(getByRole("button", { name: /^Select .+ clip at / })).not.toBeNull();
     await expectNoA11yViolations(container);
   });
 
-  it("read-only clip shows the join as decoration and no handles", () => {
+  it("read-only clip shows no handles", () => {
     const { container } = render(
       <ClipBlockView
         clip={clip}
@@ -2721,15 +2481,12 @@ describe("ClipBlockView", () => {
         color="var(--lane-1)"
         selected={false}
         geometry={restGeometry}
-        prevClip={prev}
         nextClip={null}
         showHandles={false}
         hitHandlers={{ onClick: vi.fn() }}
       />,
     );
     expect(container.querySelector(".trim-handle")).toBeNull();
-    const seam = container.querySelector("span.join-seam");
-    expect(seam?.getAttribute("aria-hidden")).toBe("true");
   });
 
   it("routes handle pointerdowns by kind", () => {
@@ -2742,7 +2499,6 @@ describe("ClipBlockView", () => {
         color="var(--lane-1)"
         selected={false}
         geometry={restGeometry}
-        prevClip={null}
         nextClip={null}
         showHandles
         hitHandlers={{ onClick: vi.fn() }}
@@ -2775,7 +2531,6 @@ describe("ClipBlockView", () => {
         color="var(--lane-1)"
         selected={false}
         geometry={restGeometry}
-        prevClip={null}
         nextClip={null}
         showHandles
         hitHandlers={{ onClick }}
@@ -2807,7 +2562,6 @@ describe("ClipBlockView", () => {
         color="var(--lane-1)"
         selected={false}
         geometry={ghostGeometry}
-        prevClip={null}
         nextClip={null}
         showHandles
         hitHandlers={{ onClick: vi.fn() }}
@@ -2829,7 +2583,6 @@ describe("ClipBlockView", () => {
         color="var(--lane-1)"
         selected={false}
         geometry={restGeometry}
-        prevClip={null}
         nextClip={null}
         showHandles
         hitHandlers={{ onClick: vi.fn() }}
@@ -2856,7 +2609,6 @@ describe("ClipBlockView", () => {
         color="var(--lane-1)"
         selected={false}
         geometry={fadeGeometry}
-        prevClip={null}
         nextClip={null}
         showHandles
         hitHandlers={{ onClick: vi.fn() }}

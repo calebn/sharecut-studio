@@ -87,14 +87,14 @@ for (const { cell: vp, theme } of withAppearance(VIEWPORTS)) {
       await expect(lane.locator(".clip-block")).toHaveCount(2);
       await page.setViewportSize({ width: vp.width, height: vp.height });
       if (vp.width < 600) await openPhoneTimeline(page);
-      const badge = lane.locator(".edit-mark");
+      const badge = lane.locator(".seam-mark .sys-seam-hit");
       await badge.click();
       await page
         .getByRole("group", { name: /^(Selection|Edit) actions$/ })
         .getByRole("group", { name: "Join type" })
         .getByRole("button", { name: "Crossfade" })
         .click();
-      await expect(badge).toHaveClass(/crossfade/);
+      await expect(badge).toHaveAccessibleName(/Crossfade join/);
       await page.keyboard.press("Escape");
 
       const blend = lane.locator(".join-blend");
@@ -165,7 +165,7 @@ for (const { cell: vp, theme } of withAppearance(VIEWPORTS)) {
       expect(
         await page.evaluate(
           ({ x, y }) =>
-            document.elementFromPoint(x, y)?.closest(".edit-mark") != null,
+            document.elementFromPoint(x, y)?.closest(".seam-mark") != null,
           centre,
         ),
       ).toBe(true);

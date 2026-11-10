@@ -90,8 +90,6 @@ const project = minimalProject({
 /** The id and time each kind's target has in `project`. */
 const TARGET: Record<HitKind, { id: string; sec: number }> = {
   "bleed-attenuation": { id: "region-key", sec: 20 },
-  join: { id: "c2", sec: 10 },
-  "edit-chip": { id: "join-c2", sec: 10 },
   "envelope-point": { id: "e1", sec: 16 },
   "pending-start": { id: "p1", sec: 20 },
   "pending-end": { id: "p1", sec: 24 },
@@ -195,6 +193,7 @@ const LEAF_OWNED: Partial<Record<HitKind, { host: string; leaf: string }>> = {
     host: "timeline/LaneEnvelope.tsx",
     leaf: "system/Envelope.tsx",
   },
+  roll: { host: "timeline/SeamLayer.tsx", leaf: "system/Seam.tsx" },
 };
 
 const sourceOf = (rel: string) => readFileSync(join(SRC_ROOT, rel), "utf8");

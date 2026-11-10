@@ -231,8 +231,6 @@
     transparent
   );
   --color-mark-cut: var(--color-danger);
-  --color-mark-fade: var(--primitive-blue-600);
-  --color-mark-crossfade: var(--primitive-teal-700);
   --color-mark-mute: var(--color-accent);
   --color-mark-split: var(--color-warning);
   --color-envelope-line: var(--primitive-teal-600);
@@ -612,8 +610,6 @@
       transparent
     );
     --color-mark-cut: var(--color-danger);
-    --color-mark-fade: var(--primitive-blue-600);
-    --color-mark-crossfade: var(--primitive-teal-700);
     --color-mark-mute: var(--color-accent);
     --color-mark-split: var(--color-warning);
     --color-envelope-line: var(--primitive-teal-600);

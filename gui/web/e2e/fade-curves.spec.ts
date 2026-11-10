@@ -214,7 +214,7 @@ test.describe("Timeline fade curves", () => {
     await expectPageAxeClean(page, ".lane-row .clip-block");
   });
 
-  test("keeps the join glyph clear of the fade corners, the roll seam and the marker lane at any root font size", async ({
+  test("keeps the seam diamond clear of the fade corners and the marker lane at any root font size", async ({
     page,
   }) => {
     await openProject(page, e2eProjectPath);
@@ -230,15 +230,12 @@ test.describe("Timeline fade curves", () => {
     await page.keyboard.press("ControlOrMeta+K");
     await expect(clips).toHaveCount(2);
     try {
-      const badge = lane.locator(".edit-mark");
+      const badge = lane.locator(".seam-mark .sys-seam-hit");
       await expect(badge).toHaveCount(1);
 
       const expectBadgeClear = async () => {
         const badgeBox = await badge.boundingBox();
-        if (!badgeBox) throw new Error("join glyph has no box");
-        const seamBox = await lane.locator(".join-seam").boundingBox();
-        if (!seamBox) throw new Error("roll seam has no box");
-        expect(intersects(badgeBox, seamBox)).toBe(false);
+        if (!badgeBox) throw new Error("seam diamond has no box");
         // The first track sits right under the marker lane; the glyph must not paint over it.
         const markerBox = await page
           .locator(".marker-lane")
@@ -259,23 +256,6 @@ test.describe("Timeline fade curves", () => {
         const outBox = await cornerOut.boundingBox();
         if (!outBox) throw new Error("fade-out corner has no box");
         expect(intersects(badgeBox, outBox)).toBe(false);
-        // The glyph stays inside its button (it fills the gutter's content box).
-        // Re-read the button box here: the two clip selects above can scroll the
-        // lane (the join glyph is now a real button, part of the tab/click
-        // order), and the button's own box would otherwise be stale.
-        const glyphBadgeBox = await badge.boundingBox();
-        if (!glyphBadgeBox) throw new Error("join glyph has no box");
-        const glyphBox = await badge.locator(".edit-mark-glyph").boundingBox();
-        if (!glyphBox) throw new Error("join glyph glyph has no box");
-        const eps = 0.01;
-        expect(glyphBox.x).toBeGreaterThanOrEqual(glyphBadgeBox.x - eps);
-        expect(glyphBox.y).toBeGreaterThanOrEqual(glyphBadgeBox.y - eps);
-        expect(glyphBox.x + glyphBox.width).toBeLessThanOrEqual(
-          glyphBadgeBox.x + glyphBadgeBox.width + eps,
-        );
-        expect(glyphBox.y + glyphBox.height).toBeLessThanOrEqual(
-          glyphBadgeBox.y + glyphBadgeBox.height + eps,
-        );
       };
 
       await expectBadgeClear();
@@ -299,9 +279,9 @@ test.describe("Timeline fade curves", () => {
         .toBe(true);
       await expectBadgeClear();
 
-      // Two clips with a drawn join glyph and the seam clip's revealed zero fade corners.
+      // Two clips with a drawn seam diamond and the seam clip's revealed zero fade corners.
       await expectPageAxeClean(page, ".lane-row .clip-block");
-      await expectPageAxeClean(page, ".lane-row .edit-mark");
+      await expectPageAxeClean(page, ".lane-row .seam-mark");
     } finally {
       await page.evaluate(() => {
         document.documentElement.style.fontSize = "";

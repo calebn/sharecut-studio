@@ -23,7 +23,7 @@ export type HitTargetAttrs = {
   "data-hit-selected"?: "true";
   /** Timeline seconds, for the chooser's label. */
   "data-hit-time": string;
-  /** Envelope gain, or the join glyph / pending edit type. */
+  /** Envelope gain, or the Seam id / pending edit type. */
   "data-hit-detail"?: string;
   /** A body's length in seconds from `data-hit-time`, its start. */
   "data-hit-span"?: string;
@@ -54,7 +54,7 @@ export const HIT_SURFACE_PROPS = { [SURFACE_ATTR]: "" } as const;
 /**
  * A surface whose tap is its own (a pending region selects its edit, the
  * envelope strip adds a point), so a finger's tap on it never redirects to a
- * join glyph or chip beside it.
+ * Seam diamond beside it.
  */
 export const OWN_TAP_HIT_SURFACE_PROPS = {
   [SURFACE_ATTR]: "",

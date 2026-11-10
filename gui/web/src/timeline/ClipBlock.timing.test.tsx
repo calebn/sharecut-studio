@@ -61,12 +61,10 @@ const props = {
   color: "var(--color-clip-dialogue-0)",
   selected: false,
   mediaRef: "track:host",
-  prevClip: null,
   nextClip: null,
   neighborSourceLo: 0,
   neighborSourceHi: 10,
   rollPreview: null,
-  onRollPreview: vi.fn(),
   onSelect: vi.fn(),
   onSelectClip: vi.fn(),
   onMovePreview: vi.fn(),
@@ -232,7 +230,6 @@ describe("ClipBlockView snap ticks on a timed clip", () => {
         color="var(--color-clip-dialogue-0)"
         selected={false}
         geometry={geometry}
-        prevClip={null}
         nextClip={null}
         showHandles={false}
         snapTicks={[1, 3]}

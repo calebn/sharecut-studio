@@ -975,7 +975,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     when: "canApplyPass12",
     paletteRunnable: false,
     notes:
-      "Join type on the Seam bar and in the clip inspector, Length in the clip inspector and the Seam sheet",
+      "Join type on the Seam bar and in the clip inspector, Length in the clip inspector and the Seam sheet; the timeline Seam diamond opens the bar",
   },
   "edit.moveClips": {
     id: "edit.moveClips",

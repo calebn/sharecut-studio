@@ -11,12 +11,11 @@ import { sourceSecInClipToTimeline } from "../utils/timebase";
 /** Source-clock slack when matching a record's edge to a clip edge. */
 export const APPLIED_EDGE_EPS_SEC = 1e-3;
 
-export type AppliedTickKind = "seam" | "edge";
+type AppliedTickKind = "seam" | "edge";
 
 export interface AppliedTick {
   key: string;
   recordId: string;
-  kind: AppliedTickKind;
   mute: boolean;
   sec: number;
 }
@@ -281,34 +280,6 @@ export function anchorToTimeline(
   return nearest(secs, (t) => t, anchor.nearSec);
 }
 
-/**
- * Timeline seconds of the join an `end` → `start` anchor pair describes: a clip whose
- * source_end matches `end`, immediately followed in timeline order by a clip whose
- * source_start matches `start`. Prefers that adjacent pair over matching each edge on
- * its own, so duplicated material elsewhere cannot capture the tick.
- */
-export function seamPairToTimeline(
-  end: Anchor,
-  start: Anchor,
-  clips: readonly ClipRow[],
-): [number, number] | null {
-  const ordered = [...clips].sort(
-    (a, b) => a.timeline_start - b.timeline_start,
-  );
-  const pairs: [number, number][] = [];
-  for (let i = 0; i + 1 < ordered.length; i += 1) {
-    const left = ordered[i];
-    const right = ordered[i + 1];
-    if (
-      Math.abs(left.source_end - end.sourceSec) <= APPLIED_EDGE_EPS_SEC &&
-      Math.abs(right.source_start - start.sourceSec) <= APPLIED_EDGE_EPS_SEC
-    ) {
-      pairs.push([left.timeline_end, right.timeline_start]);
-    }
-  }
-  return nearest(pairs, (p) => p[0], end.nearSec);
-}
-
 const OPERATION_LABELS: Record<string, string> = {
   ripple_delete: "Ripple delete",
   punch_delete: "Punch delete",
@@ -342,29 +313,23 @@ export function appliedEditTitle(record: AppliedEditRecord): string {
   return reason ? `${label}: ${reason}` : label;
 }
 
-/** Timeline seconds one record projects to on a track, before de-duplication. */
-function recordSecs(
+/** Timeline seconds one edge record projects to on a track, before de-duplication. */
+function edgeSecs(
   record: AppliedEditRecord,
   trackId: string,
   clips: readonly ClipRow[],
-): { kind: AppliedTickKind; secs: number[] } {
+): number[] {
   const { kind, anchors, clipIds, timelineSecs } = recordAnchors(
     record,
     trackId,
   );
-  if (timelineSecs) return { kind, secs: timelineSecs };
-  const [first, second] = anchors;
-  const pair =
-    anchors.length === 2 && first.side === "end" && second.side === "start"
-      ? seamPairToTimeline(first, second, clips)
-      : null;
-  const secs: number[] = pair ? [...pair] : [];
-  if (!pair) {
-    for (const anchor of anchors) {
-      const sec = anchorToTimeline(anchor, clips);
-      if (sec != null) {
-        secs.push(sec);
-      }
+  if (kind !== "edge") return [];
+  if (timelineSecs) return timelineSecs;
+  const secs: number[] = [];
+  for (const anchor of anchors) {
+    const sec = anchorToTimeline(anchor, clips);
+    if (sec != null) {
+      secs.push(sec);
     }
   }
   for (const clipId of clipIds ?? []) {
@@ -373,10 +338,10 @@ function recordSecs(
       secs.push(clip.timeline_start);
     }
   }
-  return { kind, secs };
+  return secs;
 }
 
-/** Ticks for one track's lane, projected through its current clips. */
+/** Edge ticks (trims, splits, rolls, moves, mutes) for one track's lane, projected through its current clips. Seams are drawn by the Seam diamond. */
 export function appliedEditTicks(
   records: readonly AppliedEditRecord[],
   trackId: string,
@@ -387,10 +352,8 @@ export function appliedEditTicks(
     if (!record.track_ids.includes(trackId)) {
       continue;
     }
-    const { kind, secs } = recordSecs(record, trackId, clips);
+    const secs = edgeSecs(record, trackId, clips);
     const mute = isMuteRecord(record);
-    // De-dup by position alone: every anchor of a record shares its one `kind`.
-    // An operation that mixes seam and edge anchors must key this on (kind, sec).
     const deduped: number[] = [];
     for (const sec of secs) {
       if (!deduped.some((s) => Math.abs(s - sec) <= APPLIED_EDGE_EPS_SEC)) {
@@ -401,7 +364,6 @@ export function appliedEditTicks(
       out.push({
         key: `${record.id}:${i}`,
         recordId: record.id,
-        kind,
         mute,
         sec,
       });
@@ -410,17 +372,5 @@ export function appliedEditTicks(
   return out;
 }
 
-/** Whether a record maps to any tick on any of its tracks against the current clips. */
-export function appliedRecordOnTimeline(
-  record: AppliedEditRecord,
-  clipsByTrack: Record<string, ClipRow[]>,
-): boolean {
-  return record.track_ids.some(
-    (trackId) =>
-      appliedEditTicks([record], trackId, clipsByTrack[trackId] ?? []).length >
-      0,
-  );
-}
-
-/** Frames at 50 fps: a glyph and its seam tick are drawn from the same cut, so they agree this closely. */
+/** Frames at 50 fps: how closely a seam and its applied record agree. */
 export const SEAM_MATCH_SEC = 0.02;

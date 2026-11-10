@@ -7,9 +7,7 @@ import type {
   ClipSelectMods,
   MoveGhost,
 } from "../edit/clipMove";
-import { clipsAbut } from "../edit/joinRender";
 import { laneRipple, rippleMoves, rippleTrackIds } from "../edit/ripplePreview";
-import { seamIdOf } from "../edit/seam";
 import { trimNeighborBounds } from "../edit/trimLimits";
 import {
   audioFilesFromDrop,
@@ -35,28 +33,22 @@ import { trackOutputGainDb } from "../utils/audio";
 import { clipIdentityTrack, clipSpeakerLabel } from "../utils/clipLabels";
 import { EMPTY_ARR, EMPTY_OBJ } from "../utils/empty";
 import { originTrackId } from "../utils/timebase";
-import { sessionSecOf } from "../utils/zoom";
 import { clipMediaRef } from "../waveform/mediaRef";
 import { useLaneWaveformStatus } from "../waveform/statusStore";
 import { AppliedEditOverlay } from "./AppliedEditOverlay";
 import { BleedAttenuationOverlay } from "./BleedAttenuationOverlay";
 import { ClipBlock } from "./ClipBlock";
-import {
-  collectJoinMarks,
-  EditMarkerLayer,
-  type JoinMark,
-  type PlacedChip,
-  planLaneMarks,
-} from "./editMarkers";
 import { useHitRouter } from "./hitRouterContext";
 import { HIT_SURFACE_PROPS } from "./hitTargets";
 import { JoinEditor } from "./JoinEditor";
+import { joinPairs } from "./joinPairs";
 import { LaneEnvelope } from "./LaneEnvelope";
 import { laneColor, laneColorIndex } from "./laneColors";
 import { laneProps } from "./laneProps";
 import { PendingEditOverlay } from "./PendingEditOverlay";
 import { ProsodyOverlay } from "./ProsodyOverlay";
 import { RippleArrow } from "./RippleArrow";
+import { SeamLayer } from "./SeamLayer";
 import { timelineTestIds } from "./selectors";
 import type { RangeGesture } from "./useRangeGesture";
 
@@ -74,7 +66,7 @@ interface TrackLaneProps {
   trackIndex: number;
   /**
    * Sorted by `timeline_start`, as every backend clip list returns them:
-   * ClipBlock's `prevClip`/`nextClip` and the join glyphs take `clips[i ± 1]`
+   * ClipBlock's `nextClip` and the seam marks take `clips[i ± 1]`
    * as a clip's neighbours.
    */
   clips: readonly ClipRow[];
@@ -154,8 +146,6 @@ export function TrackLaneView({
     setIngestDropTrackId,
     setPointerTrackId,
     rippleTrim,
-    zoomToSpan,
-    sessionSec,
   } = useDaw((s) => ({
     tracks: s.project?.tracks ?? EMPTY_ARR,
     rippleTrim: s.rippleTrim,
@@ -164,8 +154,6 @@ export function TrackLaneView({
     shareCapabilities: s.shareCapabilities,
     setIngestDropTrackId: s.setIngestDropTrackId,
     setPointerTrackId: s.setPointerTrackId,
-    zoomToSpan: s.zoomToSpan,
-    sessionSec: sessionSecOf(s),
   }));
   const muteState = useTrackMuteState(track.id, track.muted);
   const [dropOver, setDropOver] = useState(false);
@@ -220,8 +208,8 @@ export function TrackLaneView({
       onSelectClip(trackId, clipId, mods),
     [onSelectClip, trackId],
   );
-  const onSelectJoin = useCallback(
-    (mark: JoinMark) => onSelectSeam(trackId, seamIdOf(mark.left, mark.right)),
+  const selectSeam = useCallback(
+    (seamId: string) => onSelectSeam(trackId, seamId),
     [onSelectSeam, trackId],
   );
   const selectPending = useCallback(
@@ -233,26 +221,9 @@ export function TrackLaneView({
       Boolean(hideClipIds?.has(id) || previewStartById[id] != null),
     [hideClipIds, previewStartById],
   );
-  const marks = useMemo(
-    () => collectJoinMarks(clips, rollPreview, isMoving),
+  const joins = useMemo(
+    () => joinPairs(clips, rollPreview, isMoving),
     [clips, rollPreview, isMoving],
-  );
-  const joinDraft = useDaw((s) =>
-    s.joinDraft && marks.some((m) => m.clipId === s.joinDraft?.id)
-      ? s.joinDraft
-      : null,
-  );
-  const plan = useMemo(
-    () => planLaneMarks(marks, zoomPxPerSec, sessionSec, joinDraft),
-    [marks, zoomPxPerSec, sessionSec, joinDraft],
-  );
-  const onZoomChip = useCallback(
-    (chip: PlacedChip) => {
-      if (chip.zoomTo != null) {
-        zoomToSpan(chip.startSec, chip.endSec, chip.zoomTo);
-      }
-    },
-    [zoomToSpan],
   );
 
   const clearDrop = () => {
@@ -362,7 +333,6 @@ export function TrackLaneView({
               ))
             : null}
           {clips.map((clip, i) => {
-            const prev = clips[i - 1];
             const next = clips[i + 1];
             const trimBounds = trimNeighborBounds(clips, i, TRIM_MODE);
             const originId = originTrackId(clip);
@@ -387,7 +357,6 @@ export function TrackLaneView({
                   (selection?.kind === "clip" && selection.id === clip.id)
                 }
                 mediaRef={mediaRefs[i]!}
-                prevClip={prev && clipsAbut(prev, clip) ? prev : null}
                 nextClip={next ?? null}
                 neighborSourceLo={trimBounds.neighborLo}
                 neighborSourceHi={trimBounds.neighborHi}
@@ -398,7 +367,6 @@ export function TrackLaneView({
                     ? rollPreview
                     : null
                 }
-                onRollPreview={setRollPreview}
                 onSelect={selectClip}
                 onSelectClip={selectClip}
                 canMove={canMoveClips}
@@ -466,7 +434,7 @@ export function TrackLaneView({
           ))}
           {/* A live roll reshapes both sides, so the seam reads the rolled rows
               ClipBlock draws. */}
-          {plan.symbols.map(({ mark: { id, left, right } }) => (
+          {joins.map(({ id, left, right }) => (
             <JoinEditor
               key={id}
               left={left}
@@ -478,10 +446,13 @@ export function TrackLaneView({
               gainDb={trackOutputGainDb(track)}
             />
           ))}
-          <EditMarkerLayer
-            plan={plan}
-            onZoomChip={onZoomChip}
-            onSelectJoin={onSelectJoin}
+          <SeamLayer
+            trackId={track.id}
+            zoomPxPerSec={zoomPxPerSec}
+            rollPreview={rollPreview}
+            onRollPreview={setRollPreview}
+            isMoving={isMoving}
+            onSelectSeam={selectSeam}
           />
           {/* Move ghosts draw raw media on purpose. A stem is per lane and on
               the timeline clock, so the destination lane's stem read at the
@@ -499,12 +470,10 @@ export function TrackLaneView({
               gainDb={trackOutputGainDb(track)}
               selected={selectedClipIds.includes(ghost.clip.id)}
               mediaRef={clipMediaRef(ghost.clip, track, "raw")}
-              prevClip={null}
               nextClip={null}
               neighborSourceLo={0}
               neighborSourceHi={Number.POSITIVE_INFINITY}
               rollPreview={null}
-              onRollPreview={NOOP}
               onSelect={NOOP}
               interactive={false}
               moving

@@ -262,100 +262,109 @@ instead of opening word correction, because Fix text now has its own gestures.
 A finger may drift a few pixels, inside the 10 px slop, before the hold arms
 without losing the drag.
 
-### Decision: A plain grab at a join rolls it
+### Superseded decision: A plain grab at a join rolls it
 
 <!-- decision
 id: D-join-grab-rolls
-status: accepted
+status: superseded
 date: 2026-10-07
 decided-by: calebn
 evidence:
 - #1135 reproduction: on the 4a branch the 8 px trim strip covers the 24 px roll seam, the resolver ranked the strip nearest, and a grab at a join ripple-trimmed the right clip's head; on main the same grab rolls the join
 - Coordinator default, roll as on main with ripple trims through the chooser, which the owner approved: a grab at a join rolls the join
-enforced-by:
-- gui/web/src/timeline/inputContract.conformance.test.ts::takes a plain mouse grab though the other is nearer
-- gui/web/src/timeline/inputContract.conformance.test.ts::leaves the other in the chooser for a long press
-- gui/web/e2e-compat/touch-grammar.spec.ts::#1135: a plain mouse grab at a join rolls it, as on main
+superseded-by: D-seam-diamond-rolls
 -->
 
-`HIT_KINDS.roll.outranks` names the trim strips, so the resolver puts the
-roll first wherever both are in reach, however near the strip is. The grabbed
-edge moves, the neighbour's edge follows, and nothing later shifts. A touch
-long press at a join still opens the chooser, which offers each side's ripple
-trim. A touch trim drag commits like a mouse one. Both carry trusted manual intent
-under D-manual-cut-intent, while structural limits remain mandatory
-(`e2e-compat/touch-grammar.spec.ts`, #1154, #1403).
+A roll strip on each clip's start outranked the trim strips, so a plain grab
+at a join rolled it. The Seam diamond replaced that strip (see the next
+decision), which leaves the trim strips as the only handles on a clip edge.
 
-### Proposed decision: Edit chips zoom, join glyphs act, applied ticks stay inert
+### Proposed decision: The Seam diamond rolls its seam
+
+<!-- decision
+id: D-seam-diamond-rolls
+status: proposed
+date: 2026-11-10
+decided-by: calebn
+evidence:
+- docs/design/stages/spec-edit.md INT-JOIN and INT-ROLL: "Drag a Seam diamond left or right to roll the seam; Alt fine; readout chip"
+- #2294 (C3b): one Seam object on the timeline, so the clip-edge roll strip, the join glyph and the applied tick are gone
+enforced-by:
+- gui/web/src/system/Seam.test.tsx::rolls with the drag at the timeline's pixels per second and saves once on release
+- gui/web/src/system/Seam.test.tsx::Alt with an arrow key rolls 1 ms by key
+- gui/web/src/timeline/SeamLayer.test.tsx::previews a drag on the lane's clips and saves one roll through the sheet's command on release
+- gui/web/src/timeline/SeamLayer.test.tsx::registers as the roll hit target of its right clip for touch
+supersedes: D-join-grab-rolls
+-->
+
+The diamond is the one roll target (`HIT_KINDS.roll`, command
+`edit.rollClipJoin`). A mouse drag on it, or a touch long press and then a
+drag, previews the roll on both clips and the diamond, shows the ms readout,
+and saves one roll on release through `rollSeam`, the command the Seam
+sheet's Offset field uses. Alt drags at a twelfth and a half of the pace (a
+tenth of a millisecond at the finest), Escape drops the roll, and Alt with an
+arrow key rolls 1 ms. A press that does not move selects the seam. A touch
+long press on a clip edge still offers each side's ripple trim in the
+chooser, and a trim strip is a trim handle only.
+
+### Superseded decision: Edit chips zoom, join glyphs act, applied ticks stay inert
 
 <!-- decision
 id: D-edit-chip-zooms
-status: proposed
+status: superseded
 date: 2026-10-22
 decided-by: calebn
 evidence:
 - #2076: every edit type stays visible at any zoom, and joins that crowd each other fold into a count
 - WCAG 2.5.8 Target Size (Minimum), the Equivalent exception: the 12 px glyph is under the 24 px target and its hit box is 24 px wide but only as tall as the gutter, so the same function (a join's mode and length) is also offered by the inspector's Join control at full size
-- WCAG 1.4.11 Non-text Contrast: a glyph is the only visual identity of its button, so every type's hue must reach 3:1 against the tag face at every tier in both themes; the tiers shrink size and stroke weight and never dim
-- WCAG 2.5.3 Label in Name and 2.4.3 Focus Order: the visible text leads the accessible name, Tab follows time, and focus survives a zoom that removes the focused mark
-- The shipped rule in AppliedEditOverlay.tsx and gui-viewer.md: applied ticks are decorative because dense stacks cannot meet 2.5.8 as 24 px buttons
-enforced-by:
-- gui/web/src/timeline/editMarkers/plan.test.ts::keeps adjacent placed marks at least 24 px apart across zooms
-- gui/web/src/timeline/editMarkers/EditMarkerLayer.test.tsx::names the group by count and type, and zooms to its span on click
-- gui/web/src/timeline/editMarkers/EditMarkerLayer.test.tsx::draws a chip that cannot split as a count with no button to press
-- gui/web/src/timeline/editMarkers/markContrast.test.ts::keeps every mark hue at 3:1 or better on the tag face in both themes
-- gui/web/src/timeline/editMarkers/EditMarkerLayer.test.tsx::renders glyphs and chips in one time-ordered sequence so Tab follows time
-- gui/web/src/timeline/editMarkers/EditMarkerLayer.test.tsx::moves focus to the chip a focused glyph merges into on zoom out
-- gui/web/src/timeline/editMarkers/EditMarkerLayer.test.tsx::moves focus to the nearest remaining mark when a focused chip goes inert
-- gui/web/src/timeline/editMarkers/EditMarkerLayer.test.tsx::shows 'Crossfade 120 ms' beside a wide glyph, hidden from assistive tech and leading the glyph's name
-- gui/web/src/timeline/timelineStyles.test.ts::shrinks the tag as the real overlap grows, keeping the hit box, and motion respects reduced-motion
-- gui/web/src/timeline/hitRouting.grammar.test.ts::stays a seek in the lane above, where the mark's box would reach
-- gui/web/e2e/edit-markers.spec.ts::a touch in the lane above a glyph seeks
-- gui/web/e2e/edit-markers.spec.ts::a tap beside a glyph delivered in Mobile Safari's event order selects the seam and does not seek
-- gui/web/src/timeline/hitRouting.grammar.test.ts::opens the join from the browser's click when a finger lands 20 px beside it
-- gui/web/src/timeline/AppliedEditOverlay.test.tsx::has no axe violations with a seam tick
+superseded-by: D-seam-diamond
 -->
 
-Two touch targets join the timeline: a join glyph and an edit chip. Both
-cover joins only. The plan (`timeline/editMarkers/plan.ts`) folds any joins
-whose centres sit closer than 24 px (`CLUSTER_PX`) into one chip, so every
-glyph and chip centre is at least 24 px from the next. A glyph tap acts the
-same at every zoom: it selects the join's seam, which opens the seam bar (hit kind `join`). A chip tap
-zooms to its joins (hit kind `edit-chip`, `zoomToSpan`) until the closest two
-sit 30 px apart, centred on the chip, and the chip splits into glyphs. A chip
-no zoom can split (the zoom ceiling, or joins an instant apart) is a plain
-count, not a button. One target never has two meanings by zoom: a glyph's tag
-may shrink as its crossfade draws at real scale (the wide tier), by size and
-stroke weight only and never by opacity, so its hue keeps 3:1 against the tag
-face in both themes; its button and 24 px hit area stay the same size and a
-tap does the same. Glyphs and chips share one time-ordered tab sequence. When
-a zoom merges the focused glyph into a chip, or a chip goes inert at the zoom
-ceiling, focus moves to the chip now holding it, else the nearest remaining
-mark. A glyph that draws a label is named with that text first ("Crossfade
-120 ms join at 0:05.0"). The touch chooser names a chip "Edit
-group".
+A join glyph per seam and a count chip for crowded joins were replaced by the
+Seam diamond. The join type no longer shows on the timeline; it lives in the
+Seam action bar. Applied cuts are diamonds too, so the inert applied tick for
+a cut is gone and only mute edges keep a tick.
 
-A finger's tap that lands on no target (a bare lane or a non-movable clip) goes
-to a glyph or chip within 22 px beside it and 44 px down from its top. It
-never reaches the lane above, never applies to a clip that cannot move, never applies to a pending region or the envelope lane (they own their tap), and a
-tap on any target (a trim handle, fade corner, roll seam or clip body) is
-ranked as before, with a focused glyph no longer counting as selected. The
-mark opens from the browser's own click, not from replayed pointer events
-(#2148). A tap that has no target under the finger and is sent to a mark
-(`tap` differs from `winner`) waits for the browser's click, which the iPhone
-Simulator delivers on the lane after the press layer's press:
-the router then replays one click on the mark, and the lane's seek ignores
-that browser click once (`HitRouter.claimsClick`, a claim window of
-`GHOST_CLICK_MS`). A browser click on the mark itself is left to the mark.
-If no click arrives within `GHOST_CLICK_MS` the mark opens anyway, and a
-browser click that comes after that window opens nothing more but does seek.
-A new press within the window drops the pending open. A tap on a target (a
-trim handle, fade corner, roll seam or clip body) keeps the pointer replay.
+### Proposed decision: Every seam is a Seam diamond on the lane's top edge
 
-Applied ticks stay as the earlier decision left them: inert, `aria-hidden`,
-and never inside a chip. Counting applied edits in a chip would make a count
-that looks tappable and answers to nothing, so chips show joins only. The
-owner can still ask for an inert "+n applied" count. Pending regions keep
+<!-- decision
+id: D-seam-diamond
+status: proposed
+date: 2026-11-10
+decided-by: calebn
+evidence:
+- docs/design/stages/spec-edit.md INT-JOIN and the Seam element: "6 px diamond on the lane's top edge (filled = cut, hollow = split)"
+- #2294 (C3b): the join glyph, the edit chip and the applied seam tick are one object now
+- WCAG 2.5.8 Target Size (Minimum): the diamond's button is 24 px wide at any root font size and 44 px square under a coarse pointer
+enforced-by:
+- gui/web/src/timeline/SeamLayer.test.tsx::draws a hollow diamond per touching pair, 6 px on the lane's top edge
+- gui/web/src/timeline/TrackLane.test.tsx::draws a filled diamond where a cut left the clips touching
+- gui/web/src/timeline/timelineStyles.test.ts::draws seam marks at the top of the seam, above the clips
+- gui/web/src/timeline/AppliedEditOverlay.test.tsx::draws no tick for a cut, which is a Seam diamond
+- gui/web/src/timeline/hitRouting.grammar.test.ts::stays a seek in the lane above, where the mark's box would reach
+- gui/web/src/timeline/hitRouting.grammar.test.ts::opens the Seam from the browser's click when a finger lands 20 px beside it
+supersedes: D-edit-chip-zooms
+-->
+
+Every pair of touching clips, and every pair a cut separated, draws one
+diamond (`timeline/SeamLayer.tsx`, the shared `system/Seam.tsx` in its
+diamond form): filled for a cut, hollow for a split. A tap or click selects
+the seam and opens the Seam action bar and sheet; the join type is in the bar.
+Diamonds are not folded into counts; where several sit closer than their hit
+areas, zoom in. A finger's tap that lands on no target (a bare lane or a
+non-movable clip) goes to a diamond within 22 px beside it and 44 px down from
+its top. It never reaches the lane above, never applies to a pending region or
+the envelope lane (they own their tap), and a tap on any target (a trim
+handle, fade corner or clip body) is ranked as before. The mark opens from the
+browser's own click, not from replayed pointer events (#2148). A tap that has
+no target under the finger and is sent to a mark waits for the browser's
+click, which the iPhone Simulator delivers on the lane after the press
+layer's press: the router then replays one click on the mark, and the lane's
+seek ignores that browser click once (`HitRouter.claimsClick`, a claim window
+of `GHOST_CLICK_MS`). If no click arrives within `GHOST_CLICK_MS` the mark
+opens anyway. A new press within the window drops the pending open.
+
+Applied mute edges stay inert, `aria-hidden` ticks. Pending regions keep
 their real scale and their 0.75rem floor at every zoom and their own touch
 chooser (#1051).
 
@@ -440,7 +449,7 @@ or named test owns that behavior; it does not certify unrun combinations.
 | Clip move: `ClipBlockView.tsx`, clip move owner | Drag visible clip body/grip; click selects and modifier click extends selection | Owner previews destination before `MoveClips`; accepted changed release commits once; Escape, capture loss, blur, unmount cancel. Existing command permission and Undo apply. The inspector's Start Scrub field and Track row preview and save the move; there is no Apply or Cancel. | **Keep drag and add inspector placement.** `ClipBlock.test.tsx`, `edit/clipMove.test.ts`, and `inventory-audit.spec.ts` are the cited coverage. Exact 7/27-second persistence remained failed in the #878 record. |
 | Trim, fade, roll and crossfade: clip handles, join controls, inspector | Drag visible edge/seam; native numeric/range fields and keyboard nudges | Local preview follows the active owner. Accepted changes use existing commands; Escape/cancel does not save. Save failures stay in current inspector error routes; accepted edits use document History. Touch and dense-target behavior vary by timeline width. | **Keep.** `fade-curves.spec.ts`, `crossfade-length.spec.ts`, and `transitions-acceptance.spec.ts` retain existing evidence. Do not add another gesture system. |
 | Pending range, chapter, social markers: `MarkerLane`, pending inspector | Drag eligible visible handles/body; inspector numeric timing and Edit timing | Draft remains local before the existing command. Escape, lost ownership, blur, and unmount cancel owned previews. Host/guest permissions remain at current command boundaries; accepted edits are undoable. Phone dense pending handles can give way to Edit timing. | **Keep.** `pending-edge-controls.spec.ts`, `MarkerLaneHost.test.tsx`, `system/MarkerLane.test.tsx`, and #878 inventory cover named paths; not every interruption combination. |
-| Join endpoint / join length: join glyph and inspector | Select join; numeric join length | Endpoint row is separated from neighboring actions. Numeric field is the exact visible equivalent; preview/save/failure follow current inspector command. Existing History applies to accepted edit. | **Keep.** `transitions-acceptance.spec.ts` checks saved bounds and Undo. Do not add rotate or hidden pinch. |
+| Join endpoint / join length: Seam diamond and inspector | Select join; numeric join length | Endpoint row is separated from neighboring actions. Numeric field is the exact visible equivalent; preview/save/failure follow current inspector command. Existing History applies to accepted edit. | **Keep.** `transitions-acceptance.spec.ts` checks saved bounds and Undo. Do not add rotate or hidden pinch. |
 | Envelope points and creation: envelope overlay / #950 inspector | Existing point editing; creation is missing | Point selection/edit behavior remains in #950's ownership. Its future edit contract must define preview, apply/cancel, save failure, permission, History and narrow responsive behavior at that boundary. | **Keep point editing; route creation to #950.** This patch touches none of the #950-owned files or claims. |
 | Script divider: `stage/edit/ScriptDivider.tsx` (replaced `BottomTabsSplitterView.tsx` and its Shorter/Taller/Reset buttons in #2292) | Drag separator; Arrow keys (Shift for 4 rem), Home/End, Enter or double-click reset | Existing separator owns preview and Escape cancellation; accepted view sizing may persist its preference but creates no document History. It remains a desktop/tablet surface with a 10 CSS-pixel measured pointer strip in #878. | **Keep drag and add native size buttons.** Keyboard resizing is the non-drag route; `ScriptDivider.test.tsx` is the evidence now that `splitter-recovery.spec.ts` and the size buttons are gone. |
 | Track order and gutter: track Action bar More, track reorder controller | Move track up and Move track down rows in the track bar's More; reorder grip drag remains available where permitted | Move up/down are single-pointer menu rows that invoke current track-order commands, disabled with a reason at the ends of the list; command permission and Undo paths remain authoritative. The reorder grip owns drag preview/drop. No new gutter drag ownership, auto-scroll, or selection model. | **Keep Move up/down as the non-drag route and keep the reorder grip.** Source confirms the alternate action already exists; task-path comparison between the buttons and drag remains open. |
@@ -714,12 +723,12 @@ mobile and assistive-technology acceptance remains #960.
 
 Dense timeline targets no longer compete by CSS z-index and DOM order. Each
 small target marks itself with `hitTargetProps` (`timeline/hitTargets.ts`):
-envelope points, fade corners, trim strips, roll seams, join glyphs, edit chips, pending
+envelope points, fade corners, trim strips, Seam diamonds, pending
 edit edges and split flags, and chapter markers. Plain hit areas behind them
 (lane seek, envelope lane, wide pending region, and the body of a clip that
 cannot move) carry `HIT_SURFACE_PROPS`; the wide pending region and the
 envelope lane carry `OWN_TAP_HIT_SURFACE_PROPS`, so a finger's tap on them stays
-theirs and never redirects to a join glyph beside it. A movable clip's body is the `clip`
+theirs and never redirects to a Seam diamond beside it. A movable clip's body is the `clip`
 kind, a body that counts only when no other target is in reach (round 4b).
 
 The resolver's data shape is `HitCandidate` in `timeline/hitCandidates.ts`:

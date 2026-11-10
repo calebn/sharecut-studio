@@ -89,11 +89,6 @@ const AXIS_LOOPS: Record<string, { loops: number; reason: string }> = {
     reason:
       "#2908 requires readable desktop and phone screenshot receipts in light and dark for real selected processing and sound-action/session preferences",
   },
-  "edit-markers.spec.ts": {
-    loops: 2,
-    reason:
-      "the marks take one themed hue per edit type, so each viewport's screenshot receipt, and the zoom ladder's wide-tier receipt, are taken in both themes",
-  },
   "record-timeline-layering.spec.ts": {
     loops: 1,
     reason:

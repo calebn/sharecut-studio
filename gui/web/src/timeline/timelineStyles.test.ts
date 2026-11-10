@@ -201,13 +201,11 @@ describe("timeline styles", () => {
     }
   });
 
-  it("draws edit marks at the top of the seam, a button above the clips", () => {
+  it("draws seam marks at the top of the seam, above the clips", () => {
     const css = partial("timeline.css");
-    const mark = rule(css, ".edit-mark");
+    const mark = rule(css, ".seam-mark");
     expect(mark).toMatch(/top:\s*0/);
     expect(mark).toMatch(/translate:\s*-50%\s+0;/);
-    expect(mark).toMatch(/height:\s*var\(--clip-inset-top\)/);
-    expect(mark).toMatch(/width:\s*var\(--clip-inset-top\)/);
     expect(mark).toMatch(/z-index:\s*var\(--z-join\)/);
     expect(mark).toMatch(/pointer-events:\s*auto/);
     const clip = rule(css, ".clip-block");
@@ -215,37 +213,20 @@ describe("timeline styles", () => {
     expect(clip).toMatch(
       /height:\s*calc\(\s*var\(--lane-height\) -\s*var\(--clip-inset-top\) -\s*var\(--clip-inset-bottom\)\s*\)/,
     );
-    expect(rule(css, ".edit-mark-glyph")).toMatch(
-      /height:\s*calc\(var\(--clip-inset-top\) \* var\(--edit-mark-scale\) - 1px - 1px\)/,
-    );
     expect(
       readFileSync(join(here, "../styles/theme/tokens.css"), "utf8"),
     ).toMatch(/--clip-inset-top:\s*12px;[\s\S]*--clip-inset-bottom:\s*8px;/);
-    expect(rule(css, ".edit-mark--blocked .edit-mark-face")).toMatch(
-      /border-color:\s*var\(--color-warning\)/,
-    );
     // Declared after `.lane-inner > *` (pointer-events: auto) so it wins at equal specificity.
-    expect(css.indexOf(".edit-mark {")).toBeGreaterThan(
+    expect(css.indexOf(".seam-mark {")).toBeGreaterThan(
       css.indexOf(".lane-inner > * {"),
     );
-    // A --join-hit-min (24 px, px canvas) wide hit area (WCAG 2.5.8), never taller than the mark.
-    // Source text only: the negative inset (100% minus the target) is what grows it. e2e/join-popover.spec.ts
-    // (expectHitAreaReaches24px, at the default and a 12px root) is the test that checks the geometry.
-    const hit = rule(css, ".edit-mark::before");
-    expect(hit).toMatch(/inset-block:\s*0/);
-    expect(hit).toMatch(
-      /inset-inline:\s*calc\(\(100% - var\(--join-hit-min\)\) \/ 2\)/,
-    );
+    // A --join-hit-min (24 px, px canvas) wide hit area (WCAG 2.5.8), never taller than the gutter.
+    const hit = rule(css, ".seam-mark .sys-seam-hit");
+    expect(hit).toMatch(/inline-size:\s*var\(--join-hit-min\)/);
+    expect(hit).toMatch(/block-size:\s*var\(--clip-inset-top\)/);
     expect(
       readFileSync(join(here, "../styles/theme/tokens.css"), "utf8"),
     ).toMatch(/--join-hit-min:\s*calc\(2 \* var\(--clip-inset-top\)\);/);
-    const chip = rule(css, ".edit-chip");
-    expect(chip).toMatch(/min-inline-size:\s*var\(--clip-inset-top\)/);
-    expect(chip).toMatch(/height:\s*var\(--clip-inset-top\)/);
-    expect(chip).toMatch(/z-index:\s*var\(--z-join\)/);
-    expect(css.indexOf(".edit-chip {")).toBeGreaterThan(
-      css.indexOf(".lane-inner > * {"),
-    );
   });
 
   it("sizes the bleed pick strip from the bottom clip inset, not the top gutter", () => {
@@ -253,32 +234,6 @@ describe("timeline styles", () => {
     const pick = rule(css, ".bleed-attenuation-pick.ui-control");
     expect(pick).toMatch(/block-size:\s*var\(--clip-inset-bottom\)/);
     expect(css).not.toMatch(/--clip-inset-top/);
-  });
-
-  it("shrinks the tag as the real overlap grows, keeping the hit box, and motion respects reduced-motion", () => {
-    const css = partial("timeline.css");
-    const mark = rule(css, ".edit-mark");
-    expect(mark).toMatch(/--edit-mark-scale:\s*1;/);
-    expect(mark).not.toMatch(/border:\s*1px/);
-    expect(rule(css, '.edit-mark[data-tier="middle"]')).toMatch(
-      /--edit-mark-scale:\s*0\.85;[^}]*--edit-mark-weight:\s*1\.5;/,
-    );
-    expect(rule(css, '.edit-mark[data-tier="wide"]')).toMatch(
-      /--edit-mark-scale:\s*0\.75;[^}]*--edit-mark-weight:\s*1\.25;/,
-    );
-    const face = rule(css, ".edit-mark-face");
-    expect(face).toMatch(
-      /width:\s*calc\(var\(--clip-inset-top\) \* var\(--edit-mark-scale\)\)/,
-    );
-    expect(face).not.toMatch(/opacity/);
-    expect(face).not.toMatch(/transition/);
-    expect(rule(css, ".edit-mark-label")).toMatch(/pointer-events:\s*none/);
-    expect(css.indexOf(".edit-mark-label {")).toBeGreaterThan(
-      css.indexOf(".lane-inner > * {"),
-    );
-    expect(css).toMatch(
-      /@media \(prefers-reduced-motion: no-preference\) \{\s*\.edit-mark-face \{\s*transition:\s*width[^}]*height[^}]*\}\s*\.edit-mark-glyph \{\s*transition:[^}]*stroke-width[^}]*\}\s*\}/,
-    );
   });
 
   it("keeps the join editor's anchored dialog fixed at the menu layer", () => {

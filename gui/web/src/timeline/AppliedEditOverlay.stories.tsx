@@ -31,49 +31,18 @@ const clips = [
 
 const visible = appliedEditRecord({
   id: "visible-edit",
-  operation: "ripple_delete",
-  timeline_start: 2,
-  timeline_end: 3,
-  source_start: null,
-  source_end: null,
-  params: { per_track_source: { "mira-voice": [2, 3] } },
+  operation: "approve_edits",
+  source_start: 3.5,
+  source_end: 4,
+  params: { mute: true },
 });
 const second = appliedEditRecord({
   id: "second-edit",
-  operation: "remove",
-  timeline_start: 5,
-  timeline_end: 6,
-  source_start: 5,
-  source_end: 6,
-  reason: "Keep the entrance tight",
+  operation: "approve_edits",
+  source_start: 6.5,
+  source_end: 7,
+  params: { mute: true },
 });
-// A contiguous 5-clip chain (source and timeline both 0-5) so each record's
-// [i+1, i+1] pair matches one clip's source_end and the next clip's
-// source_start, giving one seam per boundary.
-const denseSeamClips = [0, 1, 2, 3, 4].map((index) =>
-  clipRow({
-    id: `dense-clip-${index}`,
-    source_start: index,
-    source_end: index + 1,
-    timeline_start: index,
-    timeline_end: index + 1,
-  }),
-);
-const dense = [0, 1, 2, 3].map((index) =>
-  appliedEditRecord({
-    id: `dense-edit-${index}`,
-    operation: "ripple_delete",
-    timeline_start: index + 1,
-    timeline_end: index + 1,
-    source_start: null,
-    source_end: null,
-    params: {
-      per_track_source: {
-        "mira-voice": [index + 1, index + 1],
-      },
-    },
-  }),
-);
 const filtered = [
   visible,
   appliedEditRecord({ id: "other-track", track_ids: ["ari-voice"] }),
@@ -112,20 +81,9 @@ export const Visible: Story = {
       "aria-label",
       "Applied edit marker preview",
     );
-    const ticks = canvasElement.querySelectorAll(".applied-tick--seam");
-    await expect(ticks).toHaveLength(2);
-    await expect(ticks[0]).toHaveStyle({ left: "80px" });
-  },
-};
-
-export const DenseSeams: Story = {
-  args: { records: dense, clips: denseSeamClips },
-  play: async ({ canvasElement }) => {
-    const ticks = canvasElement.querySelectorAll(".applied-tick");
+    const ticks = canvasElement.querySelectorAll(".applied-tick--mute");
     await expect(ticks).toHaveLength(4);
-    for (const tick of ticks) {
-      await expect(tick).not.toHaveAttribute("width");
-    }
+    await expect(ticks[0]).toHaveStyle({ left: "100px" });
   },
 };
 
@@ -135,7 +93,7 @@ export const PhoneFiltered: Story = {
   args: { records: filtered },
   play: async ({ canvasElement }) => {
     await expect(canvasElement.querySelectorAll(".applied-tick")).toHaveLength(
-      1,
+      2,
     );
     await expect(canvasElement.querySelector(".lane-row")).toHaveStyle({
       width: "360px",

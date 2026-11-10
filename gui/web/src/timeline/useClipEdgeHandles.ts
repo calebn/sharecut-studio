@@ -224,7 +224,7 @@ export function useClipEdgeHandles(context: Context) {
     );
   };
   const begin = (handle: ClipHandle, input: Input): Draft | null => {
-    if (handle === "roll" || draftRef.current) return null;
+    if (draftRef.current) return null;
     const s = useDawStore.getState();
     if (
       s.joinMutationInFlight ||
@@ -553,7 +553,6 @@ export function useClipEdgeHandles(context: Context) {
     trimPreview: draft?.kind === "trim" ? draft.preview : null,
     active: draft != null,
     onFocus: (handle: ClipHandle, event: FocusEvent<HTMLButtonElement>) => {
-      if (handle === "roll") return;
       const s = useDawStore.getState();
       focusRef.current?.dispose();
       const dispose = registerFocusedClipHandle({

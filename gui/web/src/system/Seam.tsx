@@ -32,23 +32,30 @@ type SeamFormProps =
       continues?: boolean;
     };
 
-/** What a drag on a pill's edge may do: roll the seam, within the room the clips leave. */
+/** What a drag on a seam may do: roll it, within the room the clips leave. */
 export type SeamRoll = {
   /** The roll's reach in ms either way, read when a drag starts; null when the seam cannot roll. */
   limits: () => { minMs: number; maxMs: number } | null;
-  /** One roll of `deltaMs`, saved on release. */
-  onCommit: (deltaMs: number) => void;
+  /** One roll of `deltaMs`, saved on release. A promise keeps the preview up until the save settles. */
+  onCommit: (deltaMs: number) => void | Promise<unknown>;
+  /** Diamond only: the timeline's pixels per second, so the diamond follows the pointer. The pill rolls at the transcript's density. */
+  pxPerSec?: number;
+  /** The roll in progress in ms, or null when it ends. */
+  onPreview?: (deltaMs: number | null) => void;
 };
 
 /** Transcript density: a pixel of drag is 12.5 ms, and 1 ms with Alt held. */
 export const SEAM_PX_PER_SEC = 80;
 export const SEAM_FINE_SCALE = 12.5;
 const SEAM_DRAG_THRESHOLD_PX = 4;
+const NO_ROLL: SeamRoll = { limits: () => null, onCommit: () => undefined };
 
 export type SeamProps = SeamFormProps & {
-  /** Pill only: drag either edge to roll the seam, Alt with an arrow key to roll it 1 ms. */
+  /** Drag a pill's either edge or the diamond itself to roll the seam, Alt with an arrow key to roll it 1 ms. */
   roll?: SeamRoll;
   selected?: boolean;
+  /** Data attributes the host marks the button with, such as the timeline's hit-target props. */
+  hit?: Readonly<Record<`data-${string}`, string>>;
   onSelect: () => void;
   /** For a host that moves focus among its marks, as the Script pane does among its words. */
   onKeyDown?: (event: KeyboardEvent<HTMLButtonElement>) => void;
@@ -67,20 +74,14 @@ function pillName(props: Extract<SeamProps, { form: "pill" }>): string {
     : `Cut, ${props.removed} removed`;
 }
 
-const readout = (ms: number) =>
-  `${ms < 0 ? "−" : "+"}${Math.round(Math.abs(ms))} ms`;
+const readout = (ms: number, stepMs: number) => {
+  const digits = stepMs < 1 && Math.abs(ms) < 10 ? 1 : 0;
+  return `${ms < 0 ? "−" : "+"}${Math.abs(ms).toFixed(digits)} ms`;
+};
 
-function RollEdges({
-  roll,
-  onSelect,
-  cancel,
-}: {
-  roll: SeamRoll;
-  onSelect: () => void;
-  /** Filled with the way to drop a roll in progress, for Escape on the pill. */
-  cancel: { current: (() => boolean) | null };
-}) {
+function useRollGesture(roll: SeamRoll, onTap?: () => void) {
   const [shown, setShown] = useState<number | null>(null);
+  const stepMs = roll.pxPerSec ? 0.1 : 1;
   const drag = useRef<{
     id: number;
     originX: number;
@@ -90,24 +91,27 @@ function RollEdges({
     lo: number;
     hi: number;
   } | null>(null);
+  const moved = useRef(false);
   const end = () => {
     drag.current = null;
     setShown(null);
+    roll.onPreview?.(null);
   };
-  cancel.current = () => {
+  const cancel = () => {
     if (!drag.current) return false;
     end();
     return true;
   };
-  const down = (event: PointerEvent<HTMLSpanElement>) => {
+  const down = (event: PointerEvent<HTMLElement>) => {
     if (event.button !== 0 || drag.current) return;
     const limits = roll.limits();
     if (!limits) return;
     event.currentTarget.setPointerCapture?.(event.pointerId);
-    // Escape reaches the pill, which holds focus while its edge is dragged.
-    event.currentTarget.parentElement
+    event.currentTarget
+      .closest(".sys-seam")
       ?.querySelector<HTMLElement>(".sys-seam-hit")
       ?.focus({ preventScroll: true });
+    moved.current = false;
     drag.current = {
       id: event.pointerId,
       originX: event.clientX,
@@ -118,7 +122,7 @@ function RollEdges({
       hi: limits.maxMs,
     };
   };
-  const move = (event: PointerEvent<HTMLSpanElement>) => {
+  const move = (event: PointerEvent<HTMLElement>) => {
     const d = drag.current;
     if (!d || d.id !== event.pointerId) return;
     if (
@@ -127,21 +131,69 @@ function RollEdges({
     )
       return;
     d.moved = true;
-    const scale = SEAM_PX_PER_SEC * (event.altKey ? SEAM_FINE_SCALE : 1);
+    const scale =
+      (roll.pxPerSec ?? SEAM_PX_PER_SEC) * (event.altKey ? SEAM_FINE_SCALE : 1);
     d.ms = Math.min(
       d.hi,
       Math.max(d.lo, d.ms + ((event.clientX - d.lastX) / scale) * 1000),
     );
     d.lastX = event.clientX;
-    setShown(d.ms);
+    const rounded = Math.round(d.ms / stepMs) * stepMs;
+    setShown(rounded);
+    roll.onPreview?.(rounded);
   };
-  const up = (event: PointerEvent<HTMLSpanElement>) => {
+  const up = (event: PointerEvent<HTMLElement>) => {
     const d = drag.current;
     if (!d || d.id !== event.pointerId) return;
-    end();
-    if (!d.moved) onSelect();
-    else if (Math.round(d.ms) !== 0) roll.onCommit(Math.round(d.ms));
+    drag.current = null;
+    setShown(null);
+    moved.current = d.moved;
+    const ms = Math.round(d.ms / stepMs) * stepMs;
+    if (!d.moved) {
+      roll.onPreview?.(null);
+      onTap?.();
+    } else if (ms !== 0) {
+      const saving = roll.onCommit(Math.round(ms * 10) / 10);
+      Promise.resolve(saving).finally(() => roll.onPreview?.(null));
+    } else roll.onPreview?.(null);
   };
+  const consumeMoved = () => {
+    const was = moved.current;
+    moved.current = false;
+    return was;
+  };
+  return {
+    shown,
+    stepMs,
+    cancel,
+    consumeMoved,
+    handlers: {
+      onPointerDown: down,
+      onPointerMove: move,
+      onPointerUp: up,
+      onPointerCancel: end,
+    },
+  };
+}
+
+function RollReadout({ ms, stepMs }: { ms: number; stepMs: number }) {
+  return (
+    <>
+      <span className="sys-seam-readout" aria-hidden="true">
+        {readout(ms, stepMs)}
+      </span>
+      <span className="sr-only" role="status">
+        {`Roll seam ${readout(ms, stepMs)}`}
+      </span>
+    </>
+  );
+}
+
+function RollEdges({
+  gesture,
+}: {
+  gesture: ReturnType<typeof useRollGesture>;
+}) {
   return (
     <>
       {(["left", "right"] as const).map((side) => (
@@ -150,33 +202,24 @@ function RollEdges({
           className="sys-seam-edge"
           data-side={side}
           aria-hidden="true"
-          onPointerDown={down}
-          onPointerMove={move}
-          onPointerUp={up}
-          onPointerCancel={end}
+          {...gesture.handlers}
         />
       ))}
-      {shown !== null ? (
-        <>
-          <span className="sys-seam-readout" aria-hidden="true">
-            {readout(shown)}
-          </span>
-          <span className="sr-only" role="status">
-            {`Roll seam ${readout(shown)}`}
-          </span>
-        </>
-      ) : null}
     </>
   );
 }
 
 export function Seam(props: SeamProps) {
-  const { selected = false, onSelect, onKeyDown, tabIndex, roll } = props;
+  const { selected = false, onSelect, onKeyDown, tabIndex, roll, hit } = props;
   const { open, id, anchor, setAnchor, handlers } =
     useHoverTip<HTMLButtonElement>();
   const wordsId = useId();
-  const cancelRoll = useRef<(() => boolean) | null>(null);
   const diamond = props.form === "diamond";
+  const gesture = useRollGesture(
+    roll ?? NO_ROLL,
+    diamond ? undefined : onSelect,
+  );
+  const rollHandlers = diamond && roll ? gesture.handlers : undefined;
   const words = props.form === "pill" ? props.words : undefined;
   const name = diamond
     ? props.detail
@@ -199,16 +242,22 @@ export function Seam(props: SeamProps) {
         aria-pressed={selected}
         aria-describedby={words ? wordsId : undefined}
         tabIndex={tabIndex}
-        onClick={onSelect}
+        onClick={() => {
+          if (!(diamond && gesture.consumeMoved())) onSelect();
+        }}
+        {...hit}
+        onPointerDown={rollHandlers?.onPointerDown}
+        onPointerMove={rollHandlers?.onPointerMove}
+        onPointerUp={rollHandlers?.onPointerUp}
+        onPointerCancel={rollHandlers?.onPointerCancel}
         onKeyDown={(event) => {
-          if (event.key === "Escape" && cancelRoll.current?.()) {
+          if (event.key === "Escape" && gesture.cancel()) {
             event.preventDefault();
             event.stopPropagation();
             return;
           }
           if (
             roll &&
-            !diamond &&
             event.altKey &&
             !event.shiftKey &&
             (event.key === "ArrowLeft" || event.key === "ArrowRight")
@@ -236,8 +285,9 @@ export function Seam(props: SeamProps) {
           </>
         )}
       </button>
-      {roll && !diamond ? (
-        <RollEdges roll={roll} onSelect={onSelect} cancel={cancelRoll} />
+      {roll && !diamond ? <RollEdges gesture={gesture} /> : null}
+      {gesture.shown !== null ? (
+        <RollReadout ms={gesture.shown} stepMs={gesture.stepMs} />
       ) : null}
       {words ? (
         <span id={wordsId} className="sr-only">

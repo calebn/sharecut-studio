@@ -71,7 +71,7 @@ const COVERED: Record<string, string[]> = {
   "POP-JOIN": ["Stages/Edit/Seam"],
   "OVL-PENDING": ["Templates/PendingEditOverlay"],
   "OVL-APPLIED": ["Templates/AppliedEditOverlay", "System/Seam"],
-  "OVL-EDITMARKERS": ["Templates/EditMarkerLayer", "System/Seam"],
+  "OVL-EDITMARKERS": ["Templates/SeamLayer", "System/Seam"],
   "OVL-PRESENCE": ["System/Presence", "Stages/Edit/Timeline"],
   "OVL-ENVELOPE": [
     "System/ReadoutChip",

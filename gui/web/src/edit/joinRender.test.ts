@@ -16,7 +16,6 @@ import {
   joinDraftOverlapMs,
   joinLengthMs,
   joinRenderNote,
-  joinSeamLabel,
   joinTier,
   joinVisual,
   joinWaveSpans,
@@ -136,11 +135,6 @@ describe("drawn joins", () => {
     );
     const sliver = { ...clip, source_end: 0.001 };
     expect(isJoin(left, sliver)).toBe(true);
-  });
-
-  it("names the seam by mode and time", () => {
-    expect(joinSeamLabel("join-fade", 5)).toBe("Fade join at 0:05.0");
-    expect(joinSeamLabel("join-crossfade", 0)).toBe("Crossfade join at 0:00.0");
   });
 
   it("reads the join's current length for the popover slider", () => {
