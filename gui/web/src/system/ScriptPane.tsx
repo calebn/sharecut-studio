@@ -1949,7 +1949,8 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
         if (!(el instanceof HTMLElement)) return;
         // Removing the focused element can fire this too; only a live element means focus left.
         queueMicrotask(() => {
-          if (el.isConnected) inside.current = false;
+          if (el.isConnected && !body.contains(document.activeElement))
+            inside.current = false;
         });
       };
       inside.current = body.contains(document.activeElement);

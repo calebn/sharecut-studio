@@ -79,7 +79,7 @@ function editUnsaved(projectPath: string): boolean {
 function scriptBodyFocused(): boolean {
   const el = document.activeElement;
   if (!(el instanceof Element)) return false;
-  if (el.closest(".sys-script-word") !== null) return true;
+  if (el.closest(".sys-script-word, .sys-seam-hit") !== null) return true;
   return el.classList.contains("sys-script-body");
 }
 
