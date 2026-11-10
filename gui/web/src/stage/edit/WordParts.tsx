@@ -4,7 +4,6 @@ import {
 } from "../../api";
 import { TranscriptWordbar } from "../../transcript/TranscriptWordbar";
 import {
-  TRANSCRIPT_AUDIBILITY_LOCKED_TIP,
   TRANSCRIPT_RETURN_TO_AUTOMATIC_TIP,
   TRANSCRIPT_SUPPRESS_TIP,
   TRANSCRIPT_UNSUPPRESS_TIP,
@@ -49,10 +48,7 @@ export function WordActions(ref: WordRef) {
         >
           {suppressed ? "Unsuppress" : "Suppress"}
         </Button>
-      </div>
-      {locked ? (
-        <>
-          <p className="ui-field-hint">{TRANSCRIPT_AUDIBILITY_LOCKED_TIP}</p>
+        {locked ? (
           <Button
             disabledReason={reason}
             title={TRANSCRIPT_RETURN_TO_AUTOMATIC_TIP}
@@ -80,8 +76,8 @@ export function WordActions(ref: WordRef) {
           >
             Return to automatic
           </Button>
-        </>
-      ) : null}
+        ) : null}
+      </div>
       <InlineError message={error} />
     </div>
   );

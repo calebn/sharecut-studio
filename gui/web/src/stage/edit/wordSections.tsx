@@ -3,7 +3,10 @@ import { useDaw } from "../../state/useDaw";
 import { ConfidenceMeter } from "../../system/ConfidenceMeter";
 import type { InspectorSection } from "../../system/InspectorSheet";
 import { isSuspectHallucinationWord } from "../../transcript/lowConfidence";
-import { TRANSCRIPT_SUSPECT_HALLUCINATION_TIP } from "../../transcript/transcriptModeCopy";
+import {
+  TRANSCRIPT_AUDIBILITY_LOCKED_TIP,
+  TRANSCRIPT_SUSPECT_HALLUCINATION_TIP,
+} from "../../transcript/transcriptModeCopy";
 import type { Selection } from "../../types/project";
 import { oneWordOf } from "../../utils/rangeSelect";
 import { findTranscriptWord } from "../../utils/transcript";
@@ -71,6 +74,9 @@ export function useWordSections(
               control: note(TRANSCRIPT_SUSPECT_HALLUCINATION_TIP),
             },
           ]
+        : []),
+      ...(shown.audibility_locked
+        ? [{ id: "locked", control: note(TRANSCRIPT_AUDIBILITY_LOCKED_TIP) }]
         : []),
     ],
   };
