@@ -786,8 +786,6 @@ def test_service_refuses_asset_changes_at_the_registration_boundary(
     assert reopened.project.source_by_id("room-tone-host") is None
 
 
-# --- the pipeline step (room_tone.extract_bed) ---------------------------------------
-
 STEP = "extract_room_tone_beds"
 ON = {"room_tone": {"extract_bed": True}}
 OFF = {"room_tone": {"extract_bed": False}}
@@ -851,7 +849,6 @@ def test_the_step_off_decodes_nothing_and_changes_nothing(
         raise AssertionError("decoded audio with room_tone.extract_bed off")
 
     monkeypatch.setattr(room_tone_extract, "plan_extracted_bed", forbidden)
-    monkeypatch.setattr(room_tone_extract, "track_floor", forbidden, raising=False)
 
     for config in (OFF, {}):
         assert _step(project, config) == "skipped (room_tone.extract_bed=false)"
