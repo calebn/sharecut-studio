@@ -1,4 +1,5 @@
 import { act, render, screen } from "@testing-library/react";
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GuestRoomApp } from "./GuestRoomApp";
 import type { RecordBootstrap } from "./recordBootstrap";
@@ -68,7 +69,7 @@ describe("GuestRoomApp loading", () => {
 
   it("renders the Room shell at once, with no blank Loading studio screen", () => {
     const { container } = render(<GuestRoomApp token="guest-tok" />);
-    expect(container.querySelector(".sys-room-view")).toHaveAttribute(
+    expect(container.querySelector(".sys-room-view-grid")).toHaveAttribute(
       "aria-busy",
       "true",
     );
@@ -87,6 +88,8 @@ describe("GuestRoomApp loading", () => {
     await tick(1);
     expect(connecting()).toBeInTheDocument();
     expect(retry()).toBeInTheDocument();
+    expect(connecting()?.closest("[aria-busy]")).toBeNull();
+    expect(retry()?.closest("[aria-busy]")).toBeNull();
   });
 
   it("Retry aborts the first lookup, runs a second and restarts the 4 s timer", async () => {
@@ -113,6 +116,32 @@ describe("GuestRoomApp loading", () => {
     ).toBeInTheDocument();
     await tick(5000);
     expect(connecting()).toBeNull();
+  });
+
+  it("leaves no alert and no crash when the lookup resolves at exactly 4000 ms", async () => {
+    const { container } = render(<GuestRoomApp token="guest-tok" />);
+    await tick(3999);
+    await act(async () => {
+      pending[0]?.resolve(BOOTSTRAP);
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(container.querySelector("[aria-busy]")).toBeNull();
+    expect(connecting()).toBeNull();
+    expect(retry()).toBeNull();
+    await tick(5000);
+    expect(connecting()).toBeNull();
+  });
+
+  it("mounts under StrictMode and still shows the alert once at 4 s", async () => {
+    render(
+      <StrictMode>
+        <GuestRoomApp token="guest-tok" />
+      </StrictMode>,
+    );
+    await tick(3999);
+    expect(connecting()).toBeNull();
+    await tick(1);
+    expect(screen.getAllByText("Still connecting…")).toHaveLength(1);
   });
 
   it("shows the Cover, not the skeleton, when the lookup fails", async () => {

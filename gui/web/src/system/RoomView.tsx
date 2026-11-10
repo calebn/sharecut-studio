@@ -281,7 +281,6 @@ export function RoomView({
       data-declined={declined ? "" : undefined}
       data-page={page ? "" : undefined}
       data-loading={loading ? "" : undefined}
-      aria-busy={loading ? true : undefined}
     >
       {embedded ? (
         <div className="sys-room-view-header sys-room-view-header--embedded">
@@ -294,7 +293,10 @@ export function RoomView({
           <RoomStatusPill phase={phase} />
         </div>
       ) : (
-        <header className="sys-room-view-header">
+        <header
+          className="sys-room-view-header"
+          aria-busy={loading ? true : undefined}
+        >
           <BrandLockup name="ShareCut" className="sys-room-view-wordmark" />
           <h1 className="sys-room-view-title">
             {loading ? (
@@ -317,6 +319,7 @@ export function RoomView({
           </div>
           <div
             className="sys-room-view-grid"
+            aria-busy={loading ? true : undefined}
             style={
               {
                 "--sys-room-view-columns": loading
@@ -429,7 +432,7 @@ export function RoomView({
           onLeave={onLeave}
         />
       </Dockbar>
-      {loading ? (
+      {loading && model.alerts.length === 0 ? (
         <p className="sr-only" role="status">
           Joining the room…
         </p>

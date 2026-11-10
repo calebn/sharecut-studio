@@ -771,7 +771,14 @@ describe("RoomView as the host", () => {
   describe("loading", () => {
     it("draws the shell with placeholders, a busy root and one status line", () => {
       const { container } = renderRoom({ loading: true, people: [] });
-      expect(container.querySelector(".sys-room-view")).toHaveAttribute(
+      expect(container.querySelector(".sys-room-view")).not.toHaveAttribute(
+        "aria-busy",
+      );
+      expect(container.querySelector("header")).toHaveAttribute(
+        "aria-busy",
+        "true",
+      );
+      expect(container.querySelector(".sys-room-view-grid")).toHaveAttribute(
         "aria-busy",
         "true",
       );
@@ -813,6 +820,13 @@ describe("RoomView as the host", () => {
         alerts: [{ kind: "connecting", onAction }],
       });
       expect(screen.getByText("Still connecting…")).toBeVisible();
+      const live = document.querySelector(".sys-room-alert-live");
+      expect(live?.closest("[aria-busy]")).toBeNull();
+      expect(
+        screen.getByRole("button", { name: "Retry" }).closest("[aria-busy]"),
+      ).toBeNull();
+      // The alert supersedes the join line: one status region, not two.
+      expect(screen.queryByText("Joining the room…")).toBeNull();
       await user.click(screen.getByRole("button", { name: "Retry" }));
       expect(onAction).toHaveBeenCalledOnce();
     });
