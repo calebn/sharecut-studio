@@ -90,7 +90,15 @@ def test_every_closing_keyword_form_counts(keyword: str, form: str) -> None:
 
 
 def test_only_closing_keywords_and_this_repo_count() -> None:
-    text = "Part of #1. Refs #2. See #3. Fixes #4, closes other/repo#5, Resolves CALEBN/Sharecut-Studio#6 prefix #8"
+    text = "\n".join(
+        [
+            "Part of #1. Refs #2. See #3.",
+            "Fixes #4",
+            "closes other/repo#5",
+            f"Resolves {REPO.upper()}#6",
+            "prefix #8",
+        ]
+    )
     assert cod.closing_refs(text, REPO) == {4, 6}
     assert cod.closing_refs(None, REPO) == set()
     assert cod.closing_refs("Fixes#9 and prefixes #10", REPO) == set()
@@ -157,8 +165,46 @@ def test_non_ascii_digits_do_not_close_anything() -> None:
     assert cod.closing_refs("Fixes #12", REPO) == {12}
 
 
-def test_negation_is_not_understood() -> None:
-    assert cod.closing_refs("This does not fix #5", REPO) == {5}
+@pytest.mark.parametrize(
+    "body",
+    [
+        "This does not fix #5",
+        "Fixes #3003 items 3, 4, 9, 10, 11, 12 and the drag-commit announcement",
+        "Fixes #5 is deliberately not in the PR description; the final PR closes it.",
+        "Fixes #5 and #6",
+        "Fixes #5, closes #6",
+        "Fixes #5 (partly)",
+        "Part of #5\n\nFixes #5",
+        "Refs #5\nFixes #5",
+    ],
+)
+def test_partial_negated_and_inline_mentions_close_nothing(body: str) -> None:
+    assert cod.closing_refs(body, REPO) == set()
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "- Fixes #5",
+        "* Fixes #5.",
+        "1. Closes: #5",
+        "**Fixes #5**",
+        "  Fixes #5,",
+        "## Why\n\nFixes #5\n\nMore",
+    ],
+)
+def test_line_start_and_bullet_forms_close(body: str) -> None:
+    assert cod.closing_refs(body, REPO) == {5}
+
+
+def test_real_bodies_that_the_backfill_flagged_close_nothing() -> None:
+    pr_3378 = "Fixes #3003 items 3, 4, 9, 10, 11, 12 and the drag-commit announcement (3b)."
+    pr_3490 = (
+        "Part of #3486 (PR 1 of 2) and #2298. PR 2 closes the rest of #3486.\n\n"
+        "Fixes #3486 is deliberately not in the PR description; the final PR closes it."
+    )
+    assert cod.closing_refs(pr_3378, REPO) == set()
+    assert cod.closing_refs(pr_3490, REPO) == set()
 
 
 def test_title_is_ignored() -> None:
@@ -184,7 +230,7 @@ def test_opt_out_labels_skip(label: str) -> None:
 
 def test_pull_requests_missing_and_closed_issues_skip() -> None:
     client = FakeClient(
-        pr(body="Fixes #5 fixes #6 fixes #404"),
+        pr(body="Fixes #5\nfixes #6\nfixes #404"),
         issues={5: open_issue(is_pr=True), 6: open_issue(state="closed")},
     )
     assert go(client) == 0
@@ -227,7 +273,7 @@ def test_a_comment_without_a_body_is_tolerated() -> None:
 
 
 def test_issues_are_closed_in_ascending_order() -> None:
-    client = FakeClient(pr(body="Fixes #9, fixes #3"), issues={3: open_issue(), 9: open_issue()})
+    client = FakeClient(pr(body="Fixes #9\nfixes #3"), issues={3: open_issue(), 9: open_issue()})
     go(client)
     assert client.closed == [3, 9]
 
@@ -246,7 +292,7 @@ def test_dry_run_writes_nothing() -> None:
 def test_one_failure_does_not_stop_the_rest_and_fails_the_run(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    client = FakeClient(pr(body="Fixes #5, fixes #6"), issues={5: open_issue(), 6: open_issue()})
+    client = FakeClient(pr(body="Fixes #5\nfixes #6"), issues={5: open_issue(), 6: open_issue()})
     client.fail_comment.add(5)
     assert go(client) == 1
     assert client.closed == [6]
@@ -260,7 +306,7 @@ def test_an_unexpected_error_on_one_issue_does_not_abort_the_rest() -> None:
                 raise ValueError("bad")
             super().comment(number, body)
 
-    client = Broken(pr(body="Fixes #5, fixes #6"), issues={5: open_issue(), 6: open_issue()})
+    client = Broken(pr(body="Fixes #5\nfixes #6"), issues={5: open_issue(), 6: open_issue()})
     assert go(client) == 1
     assert client.closed == [6]
 
@@ -281,7 +327,7 @@ def test_unreadable_issue_fails_the_run_but_not_the_others() -> None:
                 raise RuntimeError("HTTP 502")
             return super().issue(number)
 
-    client = Flaky(pr(body="Fixes #5, fixes #6"), issues={6: open_issue()})
+    client = Flaky(pr(body="Fixes #5\nfixes #6"), issues={6: open_issue()})
     assert go(client) == 1
     assert client.closed == [6]
 

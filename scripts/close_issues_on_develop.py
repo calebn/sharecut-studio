@@ -27,8 +27,19 @@ import branches
 
 GH_TIMEOUT_SECONDS = 60
 OPT_OUT_LABELS = frozenset({"needs-user-input", "owner-check"})
+_MARK = r"(?:\*\*|__)?"
 _CLOSING = re.compile(
-    r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b:?[ \t]+(?:([\w.-]+/[\w.-]+))?#(\d+)\b",
+    r"^[ \t]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)?"
+    + _MARK
+    + r"(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b:?"
+    + _MARK
+    + r"[ \t]+(?:([\w.-]+/[\w.-]+))?#(\d+)\b(?P<rest>.*)$",
+    re.IGNORECASE | re.ASCII | re.MULTILINE,
+)
+_CLOSING_TAIL = re.compile(r"[ \t]*(?:[.,;:!)]|\*\*|__)*[ \t]*")
+_PARTIAL = re.compile(
+    r"\b(?:part(?:ly|ially)? of|partial(?:ly)?|refs?|related to|towards?)\b:?[ \t]+"
+    r"(?:([\w.-]+/[\w.-]+))?#(\d+)\b",
     re.IGNORECASE | re.ASCII,
 )
 _FENCE_OPEN = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
@@ -89,16 +100,28 @@ def _without_code_spans(paragraph: str) -> str:
 def _refs(body: str, repo: str, *, fences: bool) -> set[int]:
     text = re.sub(r"<!--.*?(?:-->|\Z)", " ", _visible_lines(body, fences=fences), flags=re.S)
     found: set[int] = set()
+    partial: set[int] = set()
     for paragraph in re.split(r"\n[ \t]*\n", text):
-        for match in _CLOSING.finditer(_without_code_spans(paragraph)):
-            owner_repo = match.group(1)
-            if owner_repo is None or owner_repo.lower() == repo.lower():
+        visible = _without_code_spans(paragraph)
+        for match in _CLOSING.finditer(visible):
+            if _CLOSING_TAIL.fullmatch(match["rest"]) and _same_repo(match.group(1), repo):
                 found.add(int(match.group(2)))
-    return found
+        for match in _PARTIAL.finditer(visible):
+            if _same_repo(match.group(1), repo):
+                partial.add(int(match.group(2)))
+    return found - partial
+
+
+def _same_repo(owner_repo: str | None, repo: str) -> bool:
+    return owner_repo is None or owner_repo.lower() == repo.lower()
 
 
 def closing_refs(body: str | None, repo: str) -> set[int]:
     """Issues in `repo` that `body` closes outside code, comments and quotes.
+
+    A keyword counts only at the start of a line (after a list bullet or bold marks) and directly
+    before `#N`, with nothing but punctuation after it, so "Fixes #3 items 1-4" and "Fixes #3 is
+    not in this PR" close nothing. An issue the body also calls "Part of" or "Refs" stays open.
 
     Fences and inline code interact (a ``` line can open a fence or close a span), so the body is
     read both ways and only issues both readings close count: when in doubt, do not close.
