@@ -220,6 +220,7 @@ class ShareIdentityStore:
             )
         elif by_email is not None and email_verified:
             uid = by_email["id"]
+            self.mark_email_verified(uid)
             self._conn.execute(
                 update_sub,
                 (subject, display_name, uid),
@@ -239,36 +240,59 @@ class ShareIdentityStore:
         self,
         email: str,
         *,
-        password: str | None = None,
         email_verified: bool = False,
         display_name: str | None = None,
     ) -> dict[str, Any]:
         email_n = email.strip().lower()
         existing = self.get_user_by_email(email_n)
         if existing:
-            if password:
-                self.set_password(existing["id"], password)
-                refreshed = self.get_user(existing["id"])
-                assert refreshed is not None
-                return refreshed
             return existing
-        uid = uuid.uuid4().hex
-        pw = hash_password(password) if password else None
         self._conn.execute(
-            "INSERT INTO users (id, email, email_verified, display_name, password_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-            (uid, email_n, 1 if email_verified else 0, display_name, pw, _iso(_now())),
+            "INSERT INTO users (id, email, email_verified, display_name, created_at) "
+            "VALUES (?, ?, ?, ?, ?) ON CONFLICT(email) DO NOTHING",
+            (uuid.uuid4().hex, email_n, 1 if email_verified else 0, display_name, _iso(_now())),
         )
         self._conn.commit()
-        user = self.get_user(uid)
+        user = self.get_user_by_email(email_n)
         assert user is not None
         return user
 
-    def set_password(self, user_id: str, password: str) -> None:
+    def register_email_password(
+        self,
+        email: str,
+        password: str,
+        *,
+        display_name: str | None = None,
+    ) -> tuple[dict[str, Any], bool]:
+        email_n = email.strip().lower()
+        pw_hash = hash_password(password)
+        uid = uuid.uuid4().hex
         self._conn.execute(
-            "UPDATE users SET password_hash = ? WHERE id = ?",
-            (hash_password(password), user_id),
+            "INSERT INTO users (id, email, display_name, password_hash, created_at) "
+            "VALUES (?, ?, ?, ?, ?) ON CONFLICT(email) DO NOTHING",
+            (uid, email_n, display_name, pw_hash, _iso(_now())),
         )
         self._conn.commit()
+        existing = self.get_user_by_email(email_n)
+        assert existing is not None
+        if existing["id"] == uid:
+            return existing, True
+        self._conn.execute(
+            "UPDATE users SET password_hash = ?, display_name = COALESCE(display_name, ?) "
+            "WHERE id = ? AND (password_hash IS NULL OR password_hash = '') "
+            "AND email_verified = 0 AND google_sub IS NULL AND github_sub IS NULL",
+            (pw_hash, display_name, existing["id"]),
+        )
+        self._conn.commit()
+        row = self._conn.execute(
+            "SELECT password_hash FROM users WHERE id = ?", (existing["id"],)
+        ).fetchone()
+        stored = row["password_hash"]
+        if not stored or not verify_password(password, stored):
+            return existing, False
+        updated = self.get_user(existing["id"])
+        assert updated is not None
+        return updated, True
 
     def verify_email_password(self, email: str, password: str) -> dict[str, Any] | None:
         row = self._conn.execute(
@@ -282,7 +306,15 @@ class ShareIdentityStore:
         return self._user_row(row)
 
     def mark_email_verified(self, user_id: str) -> None:
-        self._conn.execute("UPDATE users SET email_verified = 1 WHERE id = ?", (user_id,))
+        cur = self._conn.execute(
+            "UPDATE users SET email_verified = 1, password_hash = NULL "
+            "WHERE id = ? AND email_verified = 0",
+            (user_id,),
+        )
+        if cur.rowcount == 1:
+            self._conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+            self._conn.execute("DELETE FROM passkeys WHERE user_id = ?", (user_id,))
+            self._conn.execute("DELETE FROM agent_credentials WHERE user_id = ?", (user_id,))
         self._conn.commit()
 
     def invite_to_share(
@@ -344,6 +376,16 @@ class ShareIdentityStore:
             (_hash_token(raw), user_id, _iso(expires), _iso(_now())),
         )
         self._conn.commit()
+        return raw
+
+    def create_registration_session(self, user_id: str) -> str | None:
+        raw = self.create_session(user_id)
+        row = self._conn.execute(
+            "SELECT email_verified FROM users WHERE id = ?", (user_id,)
+        ).fetchone()
+        if row["email_verified"]:
+            self.revoke_session(raw)
+            return None
         return raw
 
     def resolve_session(self, raw_token: str | None) -> dict[str, Any] | None:

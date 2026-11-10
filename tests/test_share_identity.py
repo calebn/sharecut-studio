@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 from datetime import UTC
 from pathlib import Path
 
@@ -32,6 +33,15 @@ from podcast_mcp.services.share_auth.store import (
     ShareIdentityStore,
     reset_identity_store_for_tests,
 )
+
+
+def _verified_user(store: ShareIdentityStore, email: str) -> dict:
+    user = store.create_or_get_email_user(email, email_verified=True)
+    store._conn.execute(
+        "UPDATE users SET password_hash = ? WHERE id = ?", (hash_password("password1"), user["id"])
+    )
+    store._conn.commit()
+    return user
 
 
 @pytest.fixture
@@ -394,9 +404,7 @@ def test_body_share_token_auth_faults_use_the_generic_guest_error(
 
 
 def test_passkey_register_and_login(identity_store: ShareIdentityStore) -> None:
-    user = identity_store.create_or_get_email_user(
-        "pk@example.com", password="password1", email_verified=True
-    )
+    user = _verified_user(identity_store, "pk@example.com")
     begin = begin_registration(identity_store, user)
     challenge = begin["publicKey"]["challenge"]
     finish_registration(
@@ -547,9 +555,7 @@ def test_authorization_url_unconfigured(monkeypatch) -> None:
 
 
 def test_store_acl_sessions_revoke(identity_store: ShareIdentityStore) -> None:
-    user = identity_store.create_or_get_email_user(
-        "acl@ex.com", password="password1", email_verified=True
-    )
+    user = _verified_user(identity_store, "acl@ex.com")
     identity_store.invite_to_share("tok-1", email="acl@ex.com", role="editor")
     assert identity_store.acl_allows("tok-1", user["id"])["role"] == "editor"
     assert identity_store.revoke_acl("tok-1", email="acl@ex.com") is True
@@ -571,9 +577,7 @@ def test_passkey_hmac_mode_and_http_routes(identity_store, monkeypatch) -> None:
     import hmac
 
     monkeypatch.setenv("PODCAST_WEBAUTHN_TEST_MODE", "0")
-    user = identity_store.create_or_get_email_user(
-        "pk2@ex.com", password="password1", email_verified=True
-    )
+    user = _verified_user(identity_store, "pk2@ex.com")
     begin = begin_registration(identity_store, user)
     # registration still works in test when attestation omitted (falls through)
     monkeypatch.setenv("PODCAST_WEBAUTHN_TEST_MODE", "1")
@@ -853,7 +857,7 @@ def test_oauth_flow_unconfigured_and_token_failures(monkeypatch) -> None:
 
 def test_passkey_error_paths(identity_store: ShareIdentityStore, monkeypatch) -> None:
 
-    user = identity_store.create_or_get_email_user("err@ex.com", password="password1")
+    user = identity_store.register_email_password("err@ex.com", "password1")[0]
     with pytest.raises(ValueError, match="registration challenge"):
         finish_registration(
             identity_store,
@@ -880,7 +884,7 @@ def test_passkey_error_paths(identity_store: ShareIdentityStore, monkeypatch) ->
             challenge=auth["publicKey"]["challenge"],
         )
     auth = begin_authentication(identity_store, email="err@ex.com")
-    other = identity_store.create_or_get_email_user("other2@ex.com", password="password1")
+    other = identity_store.register_email_password("other2@ex.com", "password1")[0]
     begin2 = begin_registration(identity_store, other)
     finish_registration(
         identity_store,
@@ -913,7 +917,7 @@ def test_passkey_error_paths(identity_store: ShareIdentityStore, monkeypatch) ->
 def test_auth_me_bearer_and_oauth_errors(identity_store, monkeypatch) -> None:
     client = TestClient(create_app())
     store = identity_store
-    user = store.create_or_get_email_user("bear@ex.com", password="password1")
+    user = store.register_email_password("bear@ex.com", "password1")[0]
     session = store.create_session(user["id"])
     me = client.get("/auth/me", headers={"Authorization": f"Bearer {session}"})
     assert me.status_code == 200
@@ -1010,7 +1014,7 @@ def test_magic_link_redirects_to_share(identity_store, monkeypatch) -> None:
 
 def test_passkey_webauthn_stub_paths(identity_store, monkeypatch) -> None:
     monkeypatch.setenv("PODCAST_WEBAUTHN_TEST_MODE", "0")
-    user = identity_store.create_or_get_email_user("wa@ex.com", password="password1")
+    user = identity_store.register_email_password("wa@ex.com", "password1")[0]
     begin = begin_registration(identity_store, user)
     with pytest.raises(RuntimeError, match=r"webauthn|configure"):
         finish_registration(
@@ -1052,7 +1056,7 @@ def test_expired_session_and_policy_bearer(identity_store: ShareIdentityStore) -
 
     from podcast_mcp.services.share_auth.policy import extract_bearer
 
-    user = identity_store.create_or_get_email_user("exp@ex.com", password="password1")
+    user = identity_store.register_email_password("exp@ex.com", "password1")[0]
     raw = identity_store.create_session(user["id"])
     th = __import__("hashlib").sha256(raw.encode()).hexdigest()
     identity_store._conn.execute(
@@ -1187,7 +1191,7 @@ def test_expired_agent_and_require_sign_in_flag(identity_store: ShareIdentitySto
 
     from podcast_mcp.services.share_auth.access import access_required
 
-    user = identity_store.create_or_get_email_user("ag@ex.com", password="password1")
+    user = identity_store.register_email_password("ag@ex.com", "password1")[0]
     raw = identity_store.mint_agent_credential("share-t", user["id"], ttl_hours=1)
     th = __import__("hashlib").sha256(raw.encode()).hexdigest()
     identity_store._conn.execute(
@@ -1207,7 +1211,7 @@ def test_resolve_principal_from_headers(identity_store: ShareIdentityStore) -> N
         resolve_principal_from_headers,
     )
 
-    user = identity_store.create_or_get_email_user("hdr@ex.com", password="password1")
+    user = identity_store.register_email_password("hdr@ex.com", "password1")[0]
     raw_agent = identity_store.mint_agent_credential("tok-a", user["id"], ttl_hours=1)
     assert (
         resolve_principal_from_headers(
@@ -1246,3 +1250,279 @@ def test_resolve_principal_from_headers(identity_store: ShareIdentityStore) -> N
     )
     assert session is not None
     assert session.source == "session"
+
+
+def test_register_existing_password_conflict(identity_store: ShareIdentityStore) -> None:
+    client = TestClient(create_app())
+    first = client.post(
+        "/auth/password/register", json={"email": "dup@ex.com", "password": "password1"}
+    )
+    assert first.status_code == 200
+    second = TestClient(create_app()).post(
+        "/auth/password/register", json={"email": "dup@ex.com", "password": "password2"}
+    )
+    assert second.status_code == 409
+    assert second.headers["X-Sharecut-Error-Code"] == "account_exists"
+    login = TestClient(create_app())
+    assert (
+        login.post(
+            "/auth/password/login", json={"email": "dup@ex.com", "password": "password1"}
+        ).status_code
+        == 200
+    )
+    assert (
+        login.post(
+            "/auth/password/login", json={"email": "dup@ex.com", "password": "password2"}
+        ).status_code
+        == 401
+    )
+
+
+def test_register_same_password_signs_in(identity_store: ShareIdentityStore) -> None:
+    body = {"email": "same@ex.com", "password": "password1"}
+    assert TestClient(create_app()).post("/auth/password/register", json=body).status_code == 200
+    again = TestClient(create_app()).post("/auth/password/register", json=body)
+    assert again.status_code == 200
+    assert again.json()["session"]
+
+
+def test_register_claims_invited_passwordless_email(identity_store: ShareIdentityStore) -> None:
+    identity_store.invite_to_share("tok-claim", email="invited@ex.com")
+    client = TestClient(create_app())
+    reg = client.post(
+        "/auth/password/register", json={"email": "invited@ex.com", "password": "password1"}
+    )
+    assert reg.status_code == 200
+    login = TestClient(create_app()).post(
+        "/auth/password/login", json={"email": "invited@ex.com", "password": "password1"}
+    )
+    assert login.status_code == 200
+
+
+def _seed_verified_passwordless(store: ShareIdentityStore, email: str) -> None:
+    store.create_or_get_email_user(email, email_verified=True)
+
+
+def _seed_unverified_oidc(store: ShareIdentityStore, email: str) -> None:
+    store.upsert_user_from_oidc(
+        provider="google", subject="g-unverified", email=email, email_verified=False
+    )
+
+
+def _seed_verified_with_password(store: ShareIdentityStore, email: str) -> None:
+    _verified_user(store, email)
+
+
+@pytest.mark.parametrize(
+    "seed", [_seed_verified_passwordless, _seed_unverified_oidc, _seed_verified_with_password]
+)
+def test_register_existing_account_is_conflict(identity_store: ShareIdentityStore, seed) -> None:
+    email = "existing@ex.com"
+    seed(identity_store, email)
+    before = identity_store.get_user_by_email(email)
+    reg = TestClient(create_app()).post(
+        "/auth/password/register", json={"email": email, "password": "password1"}
+    )
+    assert reg.status_code == 409
+    assert reg.headers["X-Sharecut-Error-Code"] == "account_exists"
+    assert not reg.cookies
+    assert before is not None
+    assert _session_count(identity_store, before["id"]) == 0
+    if seed is not _seed_verified_with_password:
+        assert identity_store.verify_email_password(email, "password1") is None
+
+
+def test_register_concurrent_passwordless_single_winner(tmp_path) -> None:
+    db = tmp_path / "race.sqlite"
+    stores = [ShareIdentityStore(db), ShareIdentityStore(db)]
+    try:
+        stores[0].create_or_get_email_user("race@ex.com")
+        barrier = threading.Barrier(2)
+        results: dict[str, bool] = {}
+
+        def attempt(store: ShareIdentityStore, password: str) -> None:
+            barrier.wait()
+            results[password] = store.register_email_password("race@ex.com", password)[1]
+
+        threads = [
+            threading.Thread(target=attempt, args=(store, pw))
+            for store, pw in zip(stores, ("password1", "password2"), strict=True)
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        assert sorted(results.values()) == [False, True]
+        winner = next(pw for pw, ok in results.items() if ok)
+        assert stores[0].verify_email_password("race@ex.com", winner) is not None
+    finally:
+        for store in stores:
+            store.close()
+
+
+def test_create_or_get_email_user_survives_insert_race(tmp_path, monkeypatch) -> None:
+    db = tmp_path / "ins.sqlite"
+    store = ShareIdentityStore(db)
+    rival = ShareIdentityStore(db)
+    try:
+        original = store.get_user_by_email
+        calls: list[str] = []
+
+        def lookup(email: str):
+            found = original(email)
+            if not calls:
+                calls.append(email)
+                rival.create_or_get_email_user(email, email_verified=True)
+            return found
+
+        monkeypatch.setattr(store, "get_user_by_email", lookup)
+        user = store.create_or_get_email_user("ins@ex.com")
+        assert calls == ["ins@ex.com"]
+        assert user["email"] == "ins@ex.com"
+        assert user["email_verified"] is True
+    finally:
+        store.close()
+        rival.close()
+
+
+def _attacker_account(store: ShareIdentityStore, email: str) -> tuple[dict, str]:
+    user = store.register_email_password(email, "attackerpw1")[0]
+    store.invite_to_share("tok-hijack", email=email, role="commenter")
+    session = store.create_session(user["id"])
+    assert store.resolve_session(session) is not None
+    return user, session
+
+
+def _assert_attacker_locked_out(
+    store: ShareIdentityStore, email: str, user_id: str, session: str
+) -> None:
+    assert store.get_user(user_id)["email_verified"] is True
+    assert store.verify_email_password(email, "attackerpw1") is None
+    assert store.resolve_session(session) is None
+    assert store.acl_allows("tok-hijack", user_id) is not None
+
+
+def test_magic_link_verification_drops_pre_registered_credentials(
+    identity_store: ShareIdentityStore,
+) -> None:
+    email = "victim@ex.com"
+    user, session = _attacker_account(identity_store, email)
+    identity_store.store_passkey(
+        credential_id="cred-x", user_id=user["id"], public_key_b64="a", sign_count=0
+    )
+    agent = identity_store.mint_agent_credential("tok-hijack", user_id=user["id"])
+    raw = identity_store.create_magic_link(email)
+    consumed = identity_store.consume_magic_link(raw)
+    assert consumed is not None
+    assert consumed["user"]["id"] == user["id"]
+    _assert_attacker_locked_out(identity_store, email, user["id"], session)
+    assert identity_store.list_passkeys(user["id"]) == []
+    assert identity_store.resolve_agent_credential(agent) is None
+    fresh = identity_store.create_session(user["id"])
+    assert identity_store.resolve_session(fresh) is not None
+
+
+def test_oidc_email_merge_drops_pre_registered_credentials(
+    identity_store: ShareIdentityStore,
+) -> None:
+    email = "victim2@ex.com"
+    user, session = _attacker_account(identity_store, email)
+    merged = identity_store.upsert_user_from_oidc(
+        provider="google", subject="g-ph", email=email, email_verified=True
+    )
+    assert merged["id"] == user["id"]
+    _assert_attacker_locked_out(identity_store, email, user["id"], session)
+
+
+def test_magic_link_keeps_credentials_of_already_verified_account(
+    identity_store: ShareIdentityStore,
+) -> None:
+    email = "verified@ex.com"
+    user = _verified_user(identity_store, email)
+    session = identity_store.create_session(user["id"])
+    identity_store.store_passkey(
+        credential_id="cred-v", user_id=user["id"], public_key_b64="a", sign_count=0
+    )
+    raw = identity_store.create_magic_link(email)
+    assert identity_store.consume_magic_link(raw) is not None
+    assert identity_store.verify_email_password(email, "password1") is not None
+    assert identity_store.resolve_session(session) is not None
+    assert len(identity_store.list_passkeys(user["id"])) == 1
+
+
+def test_magic_link_for_new_email_creates_verified_user(
+    identity_store: ShareIdentityStore,
+) -> None:
+    raw = identity_store.create_magic_link("brandnew@ex.com", share_token="tok-new")
+    consumed = identity_store.consume_magic_link(raw)
+    assert consumed is not None
+    assert consumed["share_token"] == "tok-new"
+    assert consumed["user"]["email_verified"] is True
+    assert (
+        identity_store.resolve_session(identity_store.create_session(consumed["user"]["id"]))
+        is not None
+    )
+
+
+def _session_count(store: ShareIdentityStore, user_id: str) -> int:
+    row = store._conn.execute(
+        "SELECT COUNT(*) AS n FROM sessions WHERE user_id = ?", (user_id,)
+    ).fetchone()
+    return int(row["n"])
+
+
+def _verify_after_register(monkeypatch) -> None:
+    original = ShareIdentityStore.register_email_password
+
+    def racing(self, email, password, **kwargs):
+        user, ok = original(self, email, password, **kwargs)
+        self.mark_email_verified(user["id"])
+        return user, ok
+
+    monkeypatch.setattr(ShareIdentityStore, "register_email_password", racing)
+
+
+def test_register_signed_in_path_rejects_session_when_verified_mid_flight(
+    identity_store: ShareIdentityStore, monkeypatch
+) -> None:
+    client = TestClient(create_app())
+    body = {"email": "race-in@example.com", "password": "password1"}
+    assert client.post("/auth/password/register", json=body).status_code == 200
+    client.cookies.clear()
+    _verify_after_register(monkeypatch)
+    resp = client.post("/auth/password/register", json=body)
+    assert resp.status_code == 409
+    assert resp.headers["X-Sharecut-Error-Code"] == "account_exists"
+    assert not resp.cookies
+    user = identity_store.get_user_by_email("race-in@example.com")
+    assert user is not None
+    assert _session_count(identity_store, user["id"]) == 0
+
+
+def test_register_password_set_path_rejects_session_when_verified_mid_flight(
+    identity_store: ShareIdentityStore, monkeypatch
+) -> None:
+    invited = identity_store.create_or_get_email_user("race-set@example.com")
+    _verify_after_register(monkeypatch)
+    client = TestClient(create_app())
+    resp = client.post(
+        "/auth/password/register",
+        json={"email": "race-set@example.com", "password": "password1"},
+    )
+    assert resp.status_code == 409
+    assert resp.headers["X-Sharecut-Error-Code"] == "account_exists"
+    assert not resp.cookies
+    assert _session_count(identity_store, invited["id"]) == 0
+
+
+def test_register_normal_flow_returns_working_session(
+    identity_store: ShareIdentityStore,
+) -> None:
+    client = TestClient(create_app())
+    resp = client.post(
+        "/auth/password/register",
+        json={"email": "normal-reg@example.com", "password": "password1"},
+    )
+    assert resp.status_code == 200
+    assert resp.cookies
+    assert identity_store.resolve_session(resp.json()["session"]) is not None
