@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { NoteItem } from "./notesRailModel";
 import type { RoomPhase } from "./roomPhase";
 import type { RoomPerson, RoomViewInput } from "./roomViewModel";
-import { notePeek, roomViewModel, tileProps } from "./roomViewModel";
+import {
+  gridColumns,
+  notePeek,
+  roomViewModel,
+  tileProps,
+} from "./roomViewModel";
 
 const MAYA = { name: "Maya Okafor", colorIndex: 0 };
 const JON = { name: "Jon", colorIndex: 3 };
@@ -586,4 +591,21 @@ describe("roomViewModel host", () => {
       null,
     );
   });
+});
+
+describe("gridColumns", () => {
+  it.each([
+    ["desktop", 1, 1],
+    ["desktop", 4, 2],
+    ["phone", 1, 2],
+    ["phone", 4, 2],
+    ["phone-landscape", 0, 1],
+    ["phone-landscape", 3, 3],
+    ["phone-landscape", 6, 4],
+  ] as const)(
+    "%s with %i tile(s) uses %i column(s)",
+    (width, tiles, columns) => {
+      expect(gridColumns(width, tiles)).toBe(columns);
+    },
+  );
 });

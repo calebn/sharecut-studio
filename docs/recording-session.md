@@ -1089,6 +1089,13 @@ first", "Put on headphones first", "Fix storage first"). A producer sees the nam
 row and **Join to listen** ("You'll listen and take notes. You won't be
 recorded."); producers skip the mic, storage and headphones rows.
 
+While the link is looked up, the guest room shows the Room shell at once instead of a
+blank "Loading studio…" screen: placeholder tiles (`RoomView` with `loading`), a dimmed
+inert dock, no status pill or Notes rail. After 4 s (`SKELETON_RETRY_MS`) the alert slot
+adds "Still connecting…" with **Retry**, which looks the room up again and restarts the
+4 s count. This shell belongs to the guest and producer link; the host's own seat in the
+Record stage is unaffected.
+
 Device permission is an **explicit grant step**: recorded clients click **Allow
 microphone**, which is the only `getUserMedia` call (`useMicPermission` →
 `useMicStream`) and runs directly in that click. The sheet then shows a level fill

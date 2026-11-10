@@ -1663,6 +1663,12 @@ html:not([data-shell="phone"])
   background: var(--color-bg-sunken);
 }
 
+.sys-skeleton-block--circle {
+  aspect-ratio: 1;
+  block-size: auto;
+  border-radius: 50%;
+}
+
 .sys-skeleton-blocks--cards .sys-skeleton-block {
   block-size: 7rem;
 }
