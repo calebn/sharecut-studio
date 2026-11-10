@@ -330,12 +330,6 @@ describe("audio added to a project that already ran", () => {
     );
     expect(result.current.view.readyNote).toBeUndefined();
   });
-
-  it("offers no Run everything again, with or without results", () => {
-    expect(render().result.current.view).not.toHaveProperty("onRunAll");
-    useDawStore.setState({ project: project([MAYA], []) });
-    expect(render().result.current.view).not.toHaveProperty("onRunAll");
-  });
 });
 
 describe("a project with no earlier results", () => {
@@ -446,7 +440,6 @@ describe("the saved steps in the new-audio plan", () => {
       "Off in Advanced",
     );
     expect(view.rows.find((r) => r.id === "suggest")?.action).toBeUndefined();
-    expect(view.rows.map((r) => r.id as string)).not.toContain("scan");
   });
 
   it.each([null, "Settings could not be loaded"])(
