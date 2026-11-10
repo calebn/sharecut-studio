@@ -491,7 +491,7 @@ test("a long-press on empty space opens the create menu; Add volume point adds o
     .toBe(1);
   // The toast rests above the row that was pressed, which is where the
   // selection bar's grip is.
-  await page.getByRole("button", { name: "Dismiss" }).click();
+  await page.getByRole("button", { name: "Dismiss", exact: true }).click();
   await inspectSelection(page);
   await expect(
     page.getByRole("spinbutton", { name: "Level", exact: true }),
