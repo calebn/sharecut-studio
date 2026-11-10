@@ -26,7 +26,8 @@ test("Project menu keeps focus after a blurred Fix text save and Undo restores t
       await script
         .getByRole("button", { name: /^my(?: \(.*\))?$/ })
         .first()
-        .dblclick();
+        .focus();
+      await page.keyboard.press("F2");
       const field = page.getByRole("textbox", {
         name: "Fix text",
         exact: true,

@@ -165,7 +165,8 @@ test.describe("core flow", () => {
               await list
                 .getByRole("button", { name: /^my(?: \(.*\))?$/ })
                 .first()
-                .dblclick();
+                .focus();
+              await host.keyboard.press("F2");
               const input = list.getByRole("textbox", { name: "Fix text" });
               await expect(input).toBeFocused();
               await input.fill("My");

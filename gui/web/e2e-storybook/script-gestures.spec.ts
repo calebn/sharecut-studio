@@ -158,13 +158,16 @@ test("Shift-click extends from the clicked word, and a plain click selects one w
   expect(await selected(page)).toEqual(["small", "room", "can", "sound"]);
 });
 
-test("a double-click starts Fix text and a single click does not", async ({
+test("F2 starts Fix text and neither a click nor a double-click does", async ({
   page,
 }) => {
   await openDesktop(page);
   await stop(page, 12).click();
   await expect(page.getByRole("textbox", { name: "Fix text" })).toHaveCount(0);
   await stop(page, 12).dblclick();
+  await expect(page.getByRole("textbox", { name: "Fix text" })).toHaveCount(0);
+  await stop(page, 12).focus();
+  await page.keyboard.press("F2");
   await expect(page.getByRole("textbox", { name: "Fix text" })).toBeVisible();
 });
 

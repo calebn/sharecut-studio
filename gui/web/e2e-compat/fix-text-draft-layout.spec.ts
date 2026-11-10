@@ -38,7 +38,8 @@ test("a Fix text draft survives tablet-phone-tablet layout changes", async ({
       await list
         .getByRole("button", { name: /^my(?: \(.*\))?$/ })
         .first()
-        .dblclick();
+        .focus();
+      await page.keyboard.press("F2");
       const field = page.getByRole("textbox", {
         name: "Fix text",
         exact: true,
