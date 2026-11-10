@@ -48,6 +48,13 @@ describe("EndedSessionCard", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("titles the group with an h2, a sibling of the stage's own h2", () => {
+    mount();
+    expect(screen.getAllByRole("heading").map((h) => h.tagName)).toEqual([
+      "H2",
+    ]);
+  });
+
   it("falls back to Last session and omits a missing date", () => {
     mount({ number: null, ended_at: null });
     expect(

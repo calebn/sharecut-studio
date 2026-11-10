@@ -134,7 +134,22 @@ describe("SessionGroup", () => {
       screen.queryByRole("button", { name: /Where this session goes/ }),
     ).toBeNull();
     expect(screen.getByRole("region")).not.toHaveAttribute("data-status");
+    expect(
+      screen.getByRole("region").querySelector(".sys-group-status"),
+    ).toBeNull();
     expect(screen.getByText("3 people · 2 takes · 14:20")).toBeVisible();
+  });
+
+  it("titles with an h3 by default and an h2 when asked", () => {
+    const { rerender } = render(<Group />);
+    expect(
+      screen.getByRole("heading", { level: 3, name: "Session 1" }),
+    ).toBeInTheDocument();
+    rerender(<Group headingLevel={2} />);
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Session 1" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 3 })).toBeNull();
   });
 
   it("takes the hand-off variant over the status", () => {
