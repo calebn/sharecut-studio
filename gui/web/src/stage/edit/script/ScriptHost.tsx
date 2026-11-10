@@ -190,6 +190,8 @@ export function ScriptHost({
                       onOpenChange: find.setReplaceOpen,
                       text: find.replaceText,
                       onTextChange: find.setReplaceText,
+                      onReplace: find.replaceOne,
+                      oneReason: find.replaceOneReason,
                       onReplaceAll: find.replaceAll,
                     }
                   : undefined

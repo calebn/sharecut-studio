@@ -136,7 +136,9 @@ export const Find: Story = {
     await expect(
       await canvas.findByRole("button", { name: "Replace all" }),
     ).toBeVisible();
-    await expect(canvas.queryByRole("button", { name: "Replace" })).toBeNull();
+    await expect(
+      await canvas.findByRole("button", { name: "Replace" }),
+    ).toBeVisible();
   },
 };
 

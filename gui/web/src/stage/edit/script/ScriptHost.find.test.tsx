@@ -323,7 +323,7 @@ describe("ScriptHost Find", () => {
     expect(replace).not.toHaveBeenCalled();
   });
 
-  it("offers Replace all only, with no single Replace", async () => {
+  it("offers Replace beside Replace all", async () => {
     await openFind();
     await userEvent.type(findField(), "maya");
     await userEvent.click(screen.getByRole("button", { name: "Show replace" }));
@@ -331,7 +331,7 @@ describe("ScriptHost Find", () => {
       screen.getByRole("textbox", { name: "Replace with" }),
       "Maia",
     );
-    expect(screen.queryByRole("button", { name: "Replace" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Replace" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Replace all" })).toBeVisible();
   });
 

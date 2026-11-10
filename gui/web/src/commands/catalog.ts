@@ -910,7 +910,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     when: "hostProjectLoaded",
     breaksFollow: true,
     notes:
-      "Finds, counts and highlights a phrase even when another speaker's turn sits between its words; only the phrase's own words are highlighted, selected and replaced",
+      "Finds, counts and highlights a phrase even when another speaker's turn sits between its words; only the phrase's own words are highlighted, selected and replaced. Replace changes the current match alone and Replace all changes every match, each as one undo step",
   },
   "transcript.extendRange": {
     id: "transcript.extendRange",

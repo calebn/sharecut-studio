@@ -40,6 +40,8 @@ type FindReplaceProps = {
    * Left out, the bar offers Replace all only.
    */
   onReplace?: () => void | Promise<void>;
+  /** Why Replace waits on the current hit while Replace all can still go. */
+  oneReason?: string;
   /**
    * Replace every hit as one undo step. Returns how many were replaced, which
    * the host shows in its undo toast ("Replaced 12 · Undo"). A promise keeps
@@ -196,6 +198,9 @@ export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
           : undefined;
   const { note: replaceNote, describedBy: replaceDescribedBy } =
     useDisabledReasonNote(replace?.open ? replaceWait : undefined);
+  const oneNote = useDisabledReasonNote(
+    replace?.open && replaceWait === undefined ? replace.oneReason : undefined,
+  );
   const cutNote = useDisabledReasonNote(
     !idle && !replace?.open ? BUSY_REASON : undefined,
   );
@@ -204,6 +209,9 @@ export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
     : cutNote.describedBy;
   const replaceUnavailable =
     replace?.open && unavailableReason(replaceWait) !== undefined;
+  const oneUnavailable =
+    replaceUnavailable ||
+    (replace?.open === true && replace.oneReason !== undefined);
   const closeBar = () => {
     onClose();
     returnFocusRef.current?.();
@@ -219,7 +227,7 @@ export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
     if (hits && idle && onCutAll) void run(onCutAll, true);
   };
   const replaceOne = () => {
-    if (hits && idle && replace?.onReplace && replaceReady)
+    if (hits && idle && replace?.onReplace && replaceReady && !oneUnavailable)
       void run(replace.onReplace, false);
   };
   const replaceAll = () => {
@@ -385,8 +393,10 @@ export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
               className="sys-icon-btn"
               aria-label="Replace"
               title="Replace"
-              aria-disabled={replaceUnavailable || undefined}
-              {...replaceDescribedBy}
+              aria-disabled={oneUnavailable || undefined}
+              {...(replaceUnavailable
+                ? replaceDescribedBy
+                : oneNote.describedBy)}
               onClick={replaceOne}
               onKeyDown={onButtonKey}
             >
@@ -408,6 +418,7 @@ export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
         </div>
       ) : null}
       {replaceNote}
+      {oneNote.note}
       {cutNote.note}
       <InlineError message={error ?? failure} />
     </div>
