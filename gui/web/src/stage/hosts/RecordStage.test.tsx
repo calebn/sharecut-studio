@@ -1359,7 +1359,7 @@ describe("Record stage capture and storage", () => {
     unmount();
     mount(capture);
     await openDevices();
-    expect(screen.getByLabelText("Input")).toBeEnabled();
+    expect(screen.getByRole("button", { name: /^Input:/ })).toBeEnabled();
   });
 
   it("lets the Input change again when the keeper flush failed", async () => {
@@ -1381,7 +1381,7 @@ describe("Record stage capture and storage", () => {
       keeperError: "disk full",
     });
     await openDevices();
-    expect(screen.getByLabelText("Input")).toBeEnabled();
+    expect(screen.getByRole("button", { name: /^Input:/ })).toBeEnabled();
   });
 
   it("closes Devices when the room goes away, so the next room starts without it", async () => {

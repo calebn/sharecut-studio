@@ -278,9 +278,10 @@ export const Phone: Story = {
     await expect(box.right).toBeLessThanOrEqual(window.innerWidth);
     await expect(box.bottom).toBeLessThanOrEqual(window.innerHeight);
     for (const row of within(menu).getAllByRole("menuitemradio")) {
-      await expect(row.getBoundingClientRect().height).toBeGreaterThanOrEqual(
-        44,
-      );
+      // Sub-pixel layout can land at 43.99998; round before comparing.
+      await expect(
+        Math.round(row.getBoundingClientRect().height),
+      ).toBeGreaterThanOrEqual(44);
     }
     await expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(
       document.documentElement.clientWidth,
