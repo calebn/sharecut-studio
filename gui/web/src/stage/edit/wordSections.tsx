@@ -1,6 +1,6 @@
 import { canHostMutate } from "../../shareMode";
 import { useDaw } from "../../state/useDaw";
-import { ConfidenceMeter } from "../../system/ConfidenceMeter";
+import { DotMeter } from "../../system/DotMeter";
 import type { InspectorSection } from "../../system/InspectorSheet";
 import { isSuspectHallucinationWord } from "../../transcript/lowConfidence";
 import {
@@ -63,7 +63,13 @@ export function useWordSections(
         ? [
             {
               id: "confidence",
-              control: <ConfidenceMeter confidence={shown.confidence} />,
+              control: (
+                <DotMeter
+                  label="Confidence"
+                  value={shown.confidence}
+                  showLabel={false}
+                />
+              ),
             },
           ]
         : []),
