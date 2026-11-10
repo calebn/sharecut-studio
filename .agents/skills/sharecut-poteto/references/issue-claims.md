@@ -136,8 +136,8 @@ you do. This applies to every agent and lane, including Codex.
    open issue by fixing it or by step 2. A verification lane with no PR of its
    own hands the owed close to the lane that owns the PR it verified, in its
    report. A close counts only when it meets step 4.
-4. Close an issue only with evidence: the merged PR and the test or proof that
-   shows the behaviour, or the removed control or screen. Never close a
+4. Close an issue only with evidence. The evidence is the merged PR and the
+   test or proof that shows the behaviour, or the removed control or screen. Never close a
    `needs-user-input` issue or an issue with another agent's live claim.
 5. Whoever reverts a fix on `develop` reopens the issues that fix closed, in
    the same step, with a comment that links the revert.
