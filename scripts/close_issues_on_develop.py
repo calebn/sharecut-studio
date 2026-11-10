@@ -38,7 +38,7 @@ _CLOSING_TAIL_BOLD = re.compile(r"[\s.,;:!)_]*\*\*[\s.,;:!)_]*")
 _LABEL = re.compile(r"[ \t]*\((?P<text>[^()\n]{1,40})\)")
 _LABEL_STOP = re.compile(
     r"\b(?:partial(?:ly)?|partly|part|items?|not|only|except|but|until|after|once|if|when|still"
-    r"|some|half)\b",
+    r"|some|half|other|rest|remaining|follow[- ]?up|deferred|later|too|also|then|next|second|first)\b",
     re.IGNORECASE | re.ASCII,
 )
 _HEADING_LINE = re.compile(r"^ {0,3}#{1,6}[ \t]+\S")
@@ -142,7 +142,14 @@ def _closes_cleanly(match: re.Match[str]) -> bool:
     if not label or _LABEL_STOP.search(label["text"]):
         return False
     after = rest[label.end() :]
-    return bool(tail.fullmatch(after)) or (not bold and after[:1] in {".", ";", ":", "!"})
+    if tail.fullmatch(after):
+        return True
+    return (
+        not bold
+        and after[:1] in {".", ";", ":", "!"}
+        and not _LABEL_STOP.search(after)
+        and not _mentions(after)
+    )
 
 
 def _scan_block(lines: Sequence[str], repo: str, found: set[int], partial: set[int]) -> None:
@@ -196,11 +203,8 @@ def _same_repo(owner_repo: str | None, repo: str) -> bool:
 def closing_refs(body: str | None, repo: str) -> set[int]:
     """Issues in `repo` that `body` closes outside code, comments and quotes.
 
-    A keyword counts only on a line that starts a paragraph or follows a blank line, another
-    keyword line or a list bullet, directly before `#N`, with nothing but punctuation after the
-    number (or one short parenthetical label without partial words such as "not" or "items", then
-    punctuation or, after a sentence stop, free prose), and only when the next line in the paragraph is again a keyword line or a bullet.
-    A markdown heading line ends a block like a blank line. An issue the body also names with "Part of", "Refs", "Related to" and the like stays open.
+    A keyword line closes its issue only when nothing on it, bar punctuation and one short label,
+    limits the fix; a line next to prose, or an issue also named as "Part of" or "Refs", does not.
 
     Fences and inline code interact (a ``` line can open a fence or close a span), so the body is
     read both ways and only issues both readings close count: when in doubt, do not close.

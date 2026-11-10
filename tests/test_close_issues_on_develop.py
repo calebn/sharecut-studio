@@ -315,7 +315,7 @@ def test_real_body_with_a_label_and_prose_after_it_closes() -> None:
         "Fixes #5(J4)",
         "- Fixes #5 (x)",
         "**Fixes #5 (x)**",
-        "Fixes #5 (J4). Not the second half.",
+        "Fixes #3481 (beta:blocker). `spec.ts:170` failed 6 of 6 on develop because the story shared a fixture.",
         "Fixes #5 (J4); see the notes below",
         "Fixes #5 (" + "x" * 40 + ")",
         "## Summary\nFixes #5",
@@ -357,6 +357,17 @@ def test_short_label_and_heading_forms_close(body: str) -> None:
         "Fixes #5 (a) more words",
         "**Fixes #5 (a)**. prose",
         "Fixes #5. Not the second half.",
+        "Fixes #5 (J4). Not the second half.",
+        "Fixes #5 (J4). Only the first half",
+        "Fixes #5 (J4); not the second half",
+        "Fixes #5 (J4). Does not fix the second half.",
+        "Fixes #5 (J4); the other half is deferred",
+        "Fixes #5 (J4). Follow-up needed",
+        "Fixes #5 (J4). Followup needed",
+        "Fixes #5 (J4). Remaining work tracked in #9.",
+        "Fixes #5 (J4). Fixes #6 too",
+        "Fixes #5 (J4). See GH-9 for the rest",
+        "Fixes #5 (J4). Tracked at https://github.com/o/r/issues/9",
         "Fixes #5 is not in this PR",
         "Fixes #5 and #6",
         "    ## Next\n    Fixes #5",
@@ -659,3 +670,19 @@ def test_workflow_triggers_permissions_and_untrusted_text_handling() -> None:
         == "${{ github.event_name == 'workflow_dispatch' && inputs.dry-run || 'false' }}"
     )
     assert not re.search(r"github\.event\.pull_request\.(title|body)", text)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "Fixes #5 (J4). " + "word " * 100000,
+        "Fixes #5 (J4). " + "not" * 100000,
+        "Fixes #5 (J4). " + "#" * 100000,
+        "Fixes #5 (J4); " + "a-" * 100000,
+        "\n".join("Fixes #5 (J4). word word" for _ in range(20000)),
+    ],
+)
+def test_prose_after_a_label_parses_in_linear_time(body: str) -> None:
+    start = time.perf_counter()
+    cod.closing_refs(body, REPO)
+    assert time.perf_counter() - start < 1.0
