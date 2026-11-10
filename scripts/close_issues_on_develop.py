@@ -3,20 +3,8 @@
 Usage:
   python3 scripts/close_issues_on_develop.py [--dry-run]
 
-Reads `REPO` (owner/name) and `PR_NUMBER` from the environment and calls the GitHub API through
-the `gh` CLI (`GH_TOKEN`). `--dry-run` (or `DRY_RUN=true`) prints what would happen and writes
-nothing. The PR is fetched through the API and must be merged into the base branch; the event
-payload is not trusted.
-
-GitHub closes an issue from `Fixes #N` only when the PR merges into the default branch, and
-lanes merge into `develop`. This applies the same rule one hop earlier. Only the PR body counts
-(GitHub ignores titles), text in code, HTML comments and quotes is ignored, only `close(s/d)`,
-`fix(es/ed)` and `resolve(s/d)` count (not `Part of` or `Refs`), and only this repository counts.
-Negation ("does not fix #5") is not understood, as on GitHub. A PR body edited after the merge
-is not seen, because the run happens once at merge.
-
-Data shape: `Candidate(issue, pr)` is one closing reference; `Plan` holds the candidates to act
-on (`close`) and, per skipped candidate, the reason (`skipped`). `plan()` is pure over a `Client`.
+Needs `REPO`, `PR_NUMBER` and `GH_TOKEN` (the `gh` CLI); `DRY_RUN=true` is `--dry-run`. Only the
+PR body counts, as read now, not as it was at the merge. See docs/contributing.md.
 """
 
 from __future__ import annotations
@@ -37,44 +25,90 @@ if str(Path(__file__).resolve().parent) not in sys.path:
 
 import branches
 
+GH_TIMEOUT_SECONDS = 60
 OPT_OUT_LABELS = frozenset({"needs-user-input", "owner-check"})
 _CLOSING = re.compile(
     r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b:?[ \t]+(?:([\w.-]+/[\w.-]+))?#(\d+)\b",
     re.IGNORECASE,
 )
+_FENCE_OPEN = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+_BACKTICK_RUN = re.compile(r"`+")
 
 
 def marker(pr: int) -> str:
     return f"<!-- close-on-develop pr={pr} -->"
 
 
-_IGNORED = re.compile(
-    r"(?sm)^[ \t]*(```|~~~).*?(?:^[ \t]*\1[^\n]*$|\Z)"  # fenced code block
-    r"|(?s:<!--.*?-->)"  # HTML comment
-    r"|(?m:^[ \t]*>[^\n]*$)"  # blockquote line
-    r"|(`+)[^\n]*?\2"  # inline code
-)
+def _visible_lines(body: str, *, fences: bool) -> str:
+    """Lines of `body` outside blockquote paragraphs and, if `fences`, fenced code blocks."""
+    kept: list[str] = []
+    fence: tuple[str, int] | None = None
+    quoted = False
+    for line in body.replace("\r\n", "\n").split("\n"):
+        if fence:
+            closer = re.fullmatch(rf" {{0,3}}({re.escape(fence[0])}{{{fence[1]},}})[ \t]*", line)
+            if closer:
+                fence = None
+            continue
+        opener = _FENCE_OPEN.match(line) if fences else None
+        if opener and not (opener[1][0] == "`" and "`" in opener[2]):
+            fence = (opener[1][0], len(opener[1]))
+            quoted = False
+            continue
+        if not line.strip():
+            quoted = False
+        elif line.lstrip(" ").startswith(">") and len(line) - len(line.lstrip(" ")) < 4:
+            quoted = True
+            continue
+        elif quoted:
+            continue
+        kept.append(line)
+    return "\n".join(kept)
 
 
-def closing_refs(body: str | None, repo: str) -> set[int]:
-    """Issue numbers in `repo` that the PR `body` references with a closing keyword."""
+def _without_code_spans(paragraph: str) -> str:
+    """Drop inline code spans: a run of N backticks closes at the next run of exactly N."""
+    runs = list(_BACKTICK_RUN.finditer(paragraph))
+    out, pos, i = [], 0, 0
+    while i < len(runs):
+        opener = runs[i]
+        closing = next(
+            (j for j in range(i + 1, len(runs)) if len(runs[j].group()) == len(opener.group())),
+            None,
+        )
+        if closing is None:
+            i += 1
+            continue
+        out.append(paragraph[pos : opener.start()])
+        pos = runs[closing].end()
+        i = closing + 1
+    out.append(paragraph[pos:])
+    return " ".join(out)
+
+
+def _refs(body: str, repo: str, *, fences: bool) -> set[int]:
+    text = re.sub(r"<!--.*?(?:-->|\Z)", " ", _visible_lines(body, fences=fences), flags=re.S)
     found: set[int] = set()
-    for match in _CLOSING.finditer(_IGNORED.sub(" ", body or "")):
-        owner_repo = match.group(1)
-        if owner_repo is None or owner_repo.lower() == repo.lower():
-            found.add(int(match.group(2)))
+    for paragraph in re.split(r"\n[ \t]*\n", text):
+        for match in _CLOSING.finditer(_without_code_spans(paragraph)):
+            owner_repo = match.group(1)
+            if owner_repo is None or owner_repo.lower() == repo.lower():
+                found.add(int(match.group(2)))
     return found
 
 
-@dataclass(frozen=True)
-class Candidate:
-    issue: int
-    pr: Mapping[str, Any]
+def closing_refs(body: str | None, repo: str) -> set[int]:
+    """Issues in `repo` that `body` closes outside code, comments and quotes.
+
+    Fences and inline code interact (a ``` line can open a fence or close a span), so the body is
+    read both ways and only issues both readings close count: when in doubt, do not close.
+    """
+    return _refs(body or "", repo, fences=True) & _refs(body or "", repo, fences=False)
 
 
 @dataclass
 class Plan:
-    close: list[Candidate] = field(default_factory=list)
+    close: list[int] = field(default_factory=list)
     skipped: list[tuple[int, str]] = field(default_factory=list)
     failed: list[tuple[int, str]] = field(default_factory=list)
 
@@ -108,34 +142,30 @@ def plan(client: Client, pr: Mapping[str, Any], repo: str) -> Plan:
         elif OPT_OUT_LABELS & {label["name"] for label in issue.get("labels", [])}:
             result.skipped.append((number, "opt-out label"))
         else:
-            result.close.append(Candidate(number, pr))
+            result.close.append(number)
     return result
 
 
 def comment_body(pr: Mapping[str, Any]) -> str:
-    sha = pr.get("merge_commit_sha") or ""
+    sha = pr.get("merge_commit_sha")
     commit = f" in {sha}" if sha else ""
-    return f"Closed by #{pr['number']}{commit}, merged to `{pr['base']['ref']}`.\n\n{marker(int(pr['number']))}"
+    return f"Closed by #{pr['number']}{commit}, merged to `{pr['base']['ref']}`.\n\n{marker(pr['number'])}"
 
 
-def apply(client: Client, result: Plan, *, dry_run: bool) -> int:
-    """Comment, then close. A marker already present means the comment was posted: close only.
-
-    Returns the number of candidates that failed; the rest are still attempted.
-    """
+def apply(client: Client, pr: Mapping[str, Any], result: Plan, *, dry_run: bool) -> int:
+    """Comment (unless this PR's marker is there), then close. Returns the number of failures."""
     failures = 0
-    for cand in result.close:
-        number, pr_number = cand.issue, int(cand.pr["number"])
-        print(f"{'would close' if dry_run else 'closing'} #{number} (PR #{pr_number})")
+    for number in result.close:
+        print(f"{'would close' if dry_run else 'closing'} #{number} (PR #{pr['number']})")
         if dry_run:
             continue
         try:
-            if not any(marker(pr_number) in body for body in client.comment_bodies(number)):
-                client.comment(number, comment_body(cand.pr))
+            if not any(marker(pr["number"]) in body for body in client.comment_bodies(number)):
+                client.comment(number, comment_body(pr))
             client.close(number)
-        except RuntimeError as exc:
+        except Exception as exc:
             failures += 1
-            print(f"::error::could not close #{number} for PR #{pr_number}: {exc}")
+            print(f"::error::could not close #{number} for PR #{pr['number']}: {exc}")
     return failures
 
 
@@ -148,7 +178,16 @@ class GhClient:
         self._run = run
 
     def _api(self, *args: str) -> Any:
-        proc = self._run(["gh", "api", *args], capture_output=True, text=True, check=False)
+        try:
+            proc = self._run(
+                ["gh", "api", *args],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=GH_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(f"gh api {args[-1]} timed out after {exc.timeout}s") from exc
         if proc.returncode != 0:
             raise RuntimeError(f"gh api {args[-1]} failed: {proc.stderr.strip()}")
         return json.loads(proc.stdout) if proc.stdout.strip() else None
@@ -186,7 +225,7 @@ class GhClient:
 
 
 def run(client: Client, *, repo: str, pr_number: int, base: str, dry_run: bool) -> int:
-    """Exit status 1 when any issue could not be closed, else 0 (a PR not merged to `base` is a no-op)."""
+    """1 when any issue could not be read or closed, else 0. A PR not merged to `base` is a no-op."""
     pr = client.pull(pr_number)
     if not pr.get("merged_at") or pr["base"]["ref"] != base:
         print(f"PR #{pr_number} is not merged into {base}; nothing to do")
@@ -196,11 +235,12 @@ def run(client: Client, *, repo: str, pr_number: int, base: str, dry_run: bool) 
         print(f"skip #{number}: {reason}")
     for number, error in result.failed:
         print(f"::error::could not read #{number}: {error}")
-    return 1 if apply(client, result, dry_run=dry_run) or result.failed else 0
+    failures = apply(client, pr, result, dry_run=dry_run)
+    return 1 if failures or result.failed else 0
 
 
 def main(argv: Sequence[str] | None = None, *, client: Client | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0] if __doc__ else None)
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
     repo, pr_number = os.environ["REPO"], int(os.environ["PR_NUMBER"])
