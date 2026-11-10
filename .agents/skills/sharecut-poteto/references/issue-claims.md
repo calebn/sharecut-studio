@@ -117,25 +117,30 @@ Filing rules:
 ## Close issues
 
 Closing keywords such as `Fixes #N` close an issue only when the commit reaches
-`main`. Lanes merge to `develop`, so the issue stays open until the next
-promote unless you close it. This applies to every agent and lane, including
-Codex.
+`main`. Lanes merge to `develop`, so nothing closes the issue at merge unless
+you do. This applies to every agent and lane, including Codex.
 
-1. When your PR merges to `develop`, close each issue it fixes yourself, with a
-   comment that links the PR. Keep it open only when the issue names a check
-   still owed, such as an owner listening or device check, and say so in the
-   comment.
-2. Before a PR that changes a screen or stage merges, search the open issues
-   for that screen or stage. Close each one the PR fixed or made moot, with a
-   comment that links the PR and says which. A follow-up list with items left
-   stays open. Note the done items in a comment.
-3. On the day you file an issue, close an existing open issue by fixing it or
-   by step 2. A lane that cannot close one does not file. It adds a Ledger line
-   or holds the finding until it can. Data loss, a security exposure and a
-   `beta:blocker` are filed at once, and the close follows.
-4. Close an issue only with evidence: the merged PR, the test that now covers
-   it, or the reason the screen it describes no longer exists. Never close
-   `needs-user-input` issues or an issue with another agent's live claim.
+1. When your PR merges to `develop`, close each issue it fixes, with a comment
+   that links the PR. Close first, then release the claim. If a check is still
+   owed, such as an owner listening or device check, leave the issue open, add
+   `needs-user-input` and post the **Owner question:** comment.
+2. When a PR that changes a screen or stage merges, search the open issues with
+   that `journey:J#` label and the screen or stage name. Close each one the PR
+   fixed or made moot, with a comment that links the PR and says which. Moot
+   means the control or screen the issue describes was removed or replaced, so
+   its steps can no longer be followed. A defect that may survive in the
+   replacement is not moot. When unsure, leave it open. A follow-up list with
+   items left stays open. Note the done items in a comment.
+3. Filing an issue creates a close you owe. File reachable harm at once under
+   [File follow-ups](#file-follow-ups). Then, the same day, close one existing
+   open issue by fixing it or by step 2. A verification lane with no PR of its
+   own hands the owed close to the lane that owns the PR it verified, in its
+   report. A close counts only when it meets step 4.
+4. Close an issue only with evidence: the merged PR and the test or proof that
+   shows the behaviour, or the removed control or screen. Never close a
+   `needs-user-input` issue or an issue with another agent's live claim.
+5. Whoever reverts a fix on `develop` reopens the issues that fix closed, in
+   the same step, with a comment that links the revert.
 
 ## Ask the owner
 

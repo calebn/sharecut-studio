@@ -24,7 +24,7 @@ Read [docs/beta-plan.md](docs/beta-plan.md) before you choose work. It defines t
 - Pick only `beta:blocker` issues, then `beta:quality` issues. Skip `post-beta` unless the owner names the issue or it is D5 CI-cost work.
 - Label every new issue when you file it: a beta bucket, a `journey:J#`, and a `cause:` label when one fits.
 - Triage every finding per [File follow-ups](.agents/skills/sharecut-poteto/references/issue-claims.md#file-follow-ups), and file an issue only for reachable harm. The six filing rules are in the plan and there.
-- Close what you fix. `Fixes #N` closes nothing on `develop`, so follow [Close issues](.agents/skills/sharecut-poteto/references/issue-claims.md#close-issues): close fixed and moot issues at merge, and close one on the day you file one.
+- Close what you fix. `Fixes #N` closes nothing on `develop`. Follow [Close issues](.agents/skills/sharecut-poteto/references/issue-claims.md#close-issues) at every merge and after every issue you file.
 - Check your work against the bar of the journey the issue carries.
 
 ## Git workflow
