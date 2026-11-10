@@ -864,15 +864,16 @@ logged nor returned.
 `POST /auth/password/register` never replaces an existing password: it returns
 409 `account_exists` unless the password matches the stored one, and that
 matching-password sign-in applies only to unverified password accounts. An
-email-verified account always gets 409, whatever password is sent. Only an account
-that is not email-verified, has no password and has no linked OIDC identity (an
-invited one) can be claimed by registering its email; OIDC and magic-link
-accounts cannot, and there is no email verification for the invite claim yet
-(stub, accounts mode only). Accounts mode (`PODCAST_SHARE_ACCOUNTS`) stays off
-until email verification exists at registration.
-Verifying an email (magic link or OIDC) drops any
-password, sessions, passkeys and agent credentials set before verification;
-share invites stay.
+email-verified account always gets 409, whatever password is sent. Only an
+account that is not email-verified, has no password and has no linked OIDC
+identity (an invited one) can be claimed by registering its email. OIDC and
+magic-link accounts cannot be claimed. Registration does not verify the email,
+so anyone can register an email first, and an invite sent to it later reaches
+that registrant until the real owner verifies. Accounts mode
+(`PODCAST_SHARE_ACCOUNTS`) stays off until email verification exists at
+registration. Verifying an email (magic link or OIDC) drops any password,
+sessions, passkeys and agent credentials set before verification; share invites
+stay.
 
 ## Security notes
 
