@@ -60,7 +60,11 @@ describe("social clip content", () => {
     expect(screen.queryByRole("button", { name: "Apply" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
     expect(screen.getByText("A loaf tells you when it is ready")).toBeVisible();
-    expect(screen.getByText("0.87")).toBeVisible();
+    expect(screen.queryByText("0.87")).toBeNull();
+    expect(screen.queryByText("Score")).toBeNull();
+    expect(screen.queryByText("Approved")).toBeNull();
+    expect(screen.queryByText("Review")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Seek to start" })).toBeNull();
     await expectNoA11yViolations(container);
   });
 

@@ -6,7 +6,6 @@ import { useDaw } from "../../state/useDaw";
 import type { InspectorSection } from "../../system/InspectorSheet";
 import { ScrubField } from "../../system/ScrubField";
 import type { Selection } from "../../types/project";
-import { InspectorSeekFooter } from "../../ui";
 import { note } from "./sheetNote";
 
 const END_BEFORE_START = "End must be greater than start";
@@ -74,20 +73,8 @@ export function useSocialSections(
           label: "Title",
           control: clip.title_suggestion ?? clip.id,
         },
-        { id: "track", label: "Track", control: clip.track_id },
         { id: "start", label: "Start", control: edge("start") },
         { id: "end", label: "End", control: edge("end") },
-        { id: "score", label: "Score", control: clip.score.toFixed(2) },
-        {
-          id: "approved",
-          label: "Approved",
-          control: clip.approved ? "yes" : "no",
-        },
-        {
-          id: "review",
-          label: "Review",
-          control: clip.review_required ? "required" : "no",
-        },
         ...(error
           ? [
               {
@@ -96,18 +83,6 @@ export function useSocialSections(
               },
             ]
           : []),
-        {
-          id: "seek",
-          control: (
-            <InspectorSeekFooter
-              seekSec={clip.start}
-              playStart={clip.start}
-              playEnd={clip.end}
-              seekLabel="Seek to start"
-              showPlay={false}
-            />
-          ),
-        },
       ],
     },
   ];

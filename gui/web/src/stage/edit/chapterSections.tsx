@@ -6,7 +6,6 @@ import { useDaw } from "../../state/useDaw";
 import type { InspectorSection } from "../../system/InspectorSheet";
 import { ScrubField } from "../../system/ScrubField";
 import type { Selection } from "../../types/project";
-import { InspectorSeekFooter } from "../../ui";
 import { note } from "./sheetNote";
 
 export function useChapterSections(
@@ -97,17 +96,6 @@ export function useChapterSections(
               },
             ]
           : []),
-        {
-          id: "seek",
-          control: (
-            <InspectorSeekFooter
-              seekSec={time}
-              playStart={time}
-              playEnd={time}
-              showPlay={false}
-            />
-          ),
-        },
       ],
     },
   ];

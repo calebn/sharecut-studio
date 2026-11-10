@@ -223,14 +223,8 @@ const REACH: Record<SelectionKind, Reach[]> = {
   ],
   seam: [{ role: "spinbutton", name: "Length" }],
   track: [{ role: "button", name: "Show volume envelope" }],
-  chapter: [
-    { role: "spinbutton", name: "Time" },
-    { role: "button", name: "Seek" },
-  ],
-  social: [
-    { role: "spinbutton", name: "End" },
-    { role: "button", name: "Seek to start" },
-  ],
+  chapter: [{ role: "spinbutton", name: "Time" }],
+  social: [{ role: "spinbutton", name: "End" }],
   comment: [{ role: "button", name: "Reply" }],
   envelope: [{ role: "button", name: "Show volume envelope" }],
   envelopePoint: [
