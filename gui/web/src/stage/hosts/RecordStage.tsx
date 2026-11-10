@@ -308,7 +308,10 @@ function RecordStageBody({
     () => new Map((project?.tracks ?? []).map((t) => [t.id, t.label])),
     [project?.tracks],
   );
-  const roundOpen = !!snapshot?.room_tone && state === "stopped";
+  const roundOpen =
+    !!snapshot?.room_tone &&
+    state === "stopped" &&
+    (snapshot.countdown_left_ms ?? 0) > 0;
   const ticking = state === "recording" || state === "lobby" || roundOpen;
   const elapsed = useElapsedSince(receivedAtMs, ticking);
   const meter = useInputPeakDb(cap.stream);
@@ -578,6 +581,9 @@ function RecordStageBody({
         state: snapshot.state,
         noRecorder: (snapshot.start_blockers ?? []).some(
           (blocker) => blocker.code === "no_recorder",
+        ),
+        noAcceptedGuest: !snapshot.participants.some(
+          (p) => p.role === "guest" && p.consented === true && !p.removed,
         ),
         roundLeftMs: roomToneRoundLeftMs(snapshot, elapsed),
         hostCapturing: room.roomTone.status === "capturing",

@@ -337,6 +337,7 @@ const openMoreSheet = async (canvasElement: HTMLElement) => {
 };
 
 export const MoreSheetRoomTone: Story = {
+  ...phone,
   parameters: withRoom(
     room({ state: "lobby", take_index: -1, recording_ms: 0 }),
   ),
@@ -349,6 +350,7 @@ export const MoreSheetRoomTone: Story = {
 };
 
 export const MoreSheetRoomToneDuringTake: Story = {
+  ...phone,
   parameters: withRoom(
     room({ state: "recording", take_index: 0, recording_ms: 5_000 }),
   ),

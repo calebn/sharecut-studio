@@ -131,6 +131,7 @@ export function endGate(
 type MoreRoomToneState = {
   state: RecordRoomState;
   noRecorder: boolean;
+  noAcceptedGuest: boolean;
   roundLeftMs: number;
   hostCapturing: boolean;
 };
@@ -144,6 +145,9 @@ export function moreRoomToneReason(
   }
   if (input.noRecorder) {
     return "Room tone starts once someone has joined the room.";
+  }
+  if (input.noAcceptedGuest) {
+    return "Room tone starts once a guest has accepted recording.";
   }
   if (input.roundLeftMs > 0) {
     return "Room tone is already recording.";
