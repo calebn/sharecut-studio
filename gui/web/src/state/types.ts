@@ -346,7 +346,7 @@ export interface DawState {
   joinMutationInFlight: boolean;
   /**
    * The selected seam's right clip as the length Scrub is drafting it, or
-   * null: the join blend and the edit marker read their tier and label from it.
+   * null: the join blend reads its tier and label from it.
    */
   joinDraft: ClipRow | null;
   /**

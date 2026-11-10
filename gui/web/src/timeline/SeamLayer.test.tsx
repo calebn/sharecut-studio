@@ -198,6 +198,30 @@ describe("SeamLayer", () => {
     });
   });
 
+  it("marks a seam on a view-only link fixed: it selects but never rolls", () => {
+    useDawStore.setState({
+      projectPath: "share:token",
+      shareCapabilities: ["view"],
+    });
+    const { onRollPreview, onSelectSeam } = mount();
+    const hit = screen.getByRole("button", { name: /^Split at 0:04\.0/ });
+    expect(hit).toHaveAttribute("data-hit-fixed", "true");
+    fireEvent.pointerDown(hit, { pointerId: 1, button: 0, clientX: 100 });
+    fireEvent.pointerMove(hit, { pointerId: 1, clientX: 160 });
+    fireEvent.pointerUp(hit, { pointerId: 1 });
+    expect(onRollPreview).not.toHaveBeenCalled();
+    expect(api.rollClipJoin).not.toHaveBeenCalled();
+    fireEvent.click(hit);
+    expect(onSelectSeam).toHaveBeenCalledExactlyOnceWith("eb:L:R");
+  });
+
+  it("does not mark a seam fixed for an editor", () => {
+    mount();
+    expect(
+      screen.getByRole("button", { name: /^Split at 0:04\.0/ }),
+    ).not.toHaveAttribute("data-hit-fixed");
+  });
+
   it("has no axe violations", async () => {
     const { container } = mount();
     await expectNoA11yViolations(container);

@@ -64,6 +64,7 @@ import type { HitPoint } from "./hitCandidates";
 import {
   closestHitSurface,
   closestHitTarget,
+  FIXED_ATTR,
   hitSpanSec,
   hitTimeSec,
   ownsTap,
@@ -85,6 +86,10 @@ const replayed = new WeakSet<Event>();
 /** True for an event this module dispatched. */
 export function isReplayed(event: Event): boolean {
   return replayed.has(event);
+}
+
+function selectsOnLongPress(element: Element, kind: HitKind): boolean {
+  return longPressAction(kind) === "select" || element.hasAttribute(FIXED_ATTR);
 }
 
 /** Whether a drag may start on this press: a touch only after the router armed the target and replayed it. */
@@ -584,7 +589,7 @@ export function attachHitRouting(
   ) => {
     if (phase.kind !== "open") return;
     const { candidate, element } = phase.view.hits[index];
-    if (longPressAction(candidate.kind) === "select") {
+    if (selectsOnLongPress(element, candidate.kind)) {
       router.choose(index, source.pointerType);
       return;
     }
@@ -1094,11 +1099,11 @@ export function attachHitRouting(
       }
       if (hits.length === 1) {
         const [{ candidate, element }] = hits;
-        if (longPressAction(candidate.kind) === "arm") {
-          grab(element, down, candidate, origin);
-        } else {
+        if (selectsOnLongPress(element, candidate.kind)) {
           report(element);
           tapOn(element, down, down, candidate);
+        } else {
+          grab(element, down, candidate, origin);
         }
         return;
       }

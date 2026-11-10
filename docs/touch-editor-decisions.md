@@ -790,7 +790,7 @@ and a 10 px slop, after the iOS and Android long-press defaults it cites.
   object kind's icon (clip, seam, comment, suggestion, envelope point, chapter,
   social clip) in a ring of its track's colour, with no leader line to the real
   position; trims, fades and the crossfade end share the clip icon, and the
-  roll, join and edit group share the seam icon, so the caption and the chip's
+  the seam target shares the seam icon, so the caption and the chip's
   spoken name tell them apart. Chips read left to right by real x. The fan
   draws five: when more crowd the spot it keeps the selected target and the
   best-ranked of each kind before a second of one kind, and says "showing 5 of

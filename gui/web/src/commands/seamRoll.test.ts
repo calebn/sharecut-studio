@@ -7,6 +7,9 @@ import {
   minimalProject,
   sampleTrack,
 } from "../test/fixtures";
+import { clearRegisteredCommands } from "./execute";
+import { _resetHistoryMovesForTests, runHistoryAction } from "./history";
+import { registerDawCommands } from "./register";
 import { ROLL_QUEUED_MESSAGE } from "./seamCommands";
 import { commitSeamRoll, seamRollLimits } from "./seamRoll";
 
@@ -14,6 +17,7 @@ vi.mock("../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api")>()),
   loadBoundaryContext: vi.fn(async () => ({ token: "ctx-token" })),
   rollClipJoin: vi.fn(async () => ({ queued: false })),
+  undoHistory: vi.fn(async () => null),
 }));
 
 const TRACK = "mira-voice";
@@ -134,5 +138,39 @@ describe("seamRollLimits and commitSeamRoll", () => {
     expect(say).toHaveBeenLastCalledWith(
       "Could not roll the seam. The seam moved before the roll saved. Nothing changed.",
     );
+  });
+
+  it("holds an Undo pressed while the roll loads its boundary token until the roll is sent", async () => {
+    clearRegisteredCommands();
+    registerDawCommands();
+    _resetHistoryMovesForTests();
+    vi.mocked(api.undoHistory).mockClear();
+    let release!: () => void;
+    vi.mocked(api.loadBoundaryContext).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve({ token: "ctx-token" } as never);
+        }),
+    );
+    const pending = commitSeamRoll("eb:L:R", 100, vi.fn());
+    runHistoryAction("undo");
+    await new Promise((r) => setTimeout(r, 20));
+    expect(api.undoHistory).not.toHaveBeenCalled();
+    release();
+    await pending;
+    await vi.waitFor(() => expect(api.undoHistory).toHaveBeenCalledTimes(1));
+    expect(
+      vi.mocked(api.rollClipJoin).mock.invocationCallOrder[0],
+    ).toBeLessThan(vi.mocked(api.undoHistory).mock.invocationCallOrder[0] ?? 0);
+  });
+
+  it("has no limits and rolls nothing for a view-only link", async () => {
+    useDawStore.setState({
+      projectPath: "share:token",
+      shareCapabilities: ["view"],
+    });
+    expect(seamRollLimits("eb:L:R")).toBeNull();
+    await commitSeamRoll("eb:L:R", 100, vi.fn());
+    expect(api.rollClipJoin).not.toHaveBeenCalled();
   });
 });
