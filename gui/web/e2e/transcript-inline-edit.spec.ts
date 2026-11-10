@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { postDocumentCommand, postHistoryMove } from "./documentCommand";
 import { e2eProjectPath } from "./env";
+import { expectNoHorizontalScroll } from "./modelsMock";
 import { withShareableProject } from "./shareableProject";
 import { openProject, phone } from "./stageNav";
 import { openScript, withDocumentCommandTypes } from "./transcriptEdit";
@@ -88,6 +89,77 @@ test.describe("Phone Fix text", () => {
     hasTouch: true,
     reducedMotion: "reduce",
   });
+
+  for (const cell of [
+    { name: "small portrait", width: 320, height: 568 },
+    { name: "portrait", width: 390, height: 844 },
+    { name: "landscape", width: 844, height: 390 },
+  ]) {
+    test.describe(cell.name, () => {
+      test.use({ viewport: { width: cell.width, height: cell.height } });
+
+      test(`Fix text fits the ${cell.name} Script, uncovered and without overflow`, async ({
+        page,
+      }) => {
+        await withShareableProject(async (projectPath) => {
+          await openProject(page, projectPath);
+          await phone.showText(page);
+          const list = page.locator(".sys-script-body");
+          const word = list
+            .getByRole("button", { name: /^my(?: \(.*\))?$/ })
+            .first();
+          await word.scrollIntoViewIfNeeded();
+          const point = await word.boundingBox();
+          expect(point).not.toBeNull();
+          const x = point!.x + point!.width / 2;
+          const y = point!.y + point!.height / 2;
+          await page.touchscreen.tap(x, y);
+          await page.touchscreen.tap(x, y);
+
+          const field = list.getByRole("textbox", { name: "Fix text" });
+          await expect(field).toBeFocused();
+          await field.fill("a considerably longer correction ".repeat(6));
+
+          const fit = await page.evaluate(() => {
+            const input = document.querySelector<HTMLElement>(
+              ".sys-script-body [aria-label='Fix text']",
+            )!;
+            const body =
+              document.querySelector<HTMLElement>(".sys-script-body")!;
+            const box = input.getBoundingClientRect();
+            const pane = body.getBoundingClientRect();
+            const hit = document.elementFromPoint(
+              box.x + box.width / 2,
+              box.y + box.height / 2,
+            );
+            return {
+              box,
+              pane,
+              scrollWidth: body.scrollWidth,
+              clientWidth: body.clientWidth,
+              width: window.innerWidth,
+              height: window.innerHeight,
+              hitsField: hit === input || input.contains(hit),
+            };
+          });
+          expect(fit.box.left).toBeGreaterThanOrEqual(fit.pane.left - 1);
+          expect(fit.box.right).toBeLessThanOrEqual(fit.pane.right + 1);
+          expect(fit.box.top).toBeGreaterThanOrEqual(fit.pane.top - 1);
+          expect(fit.box.bottom).toBeLessThanOrEqual(fit.pane.bottom + 1);
+          expect(fit.box.left).toBeGreaterThanOrEqual(-1);
+          expect(fit.box.right).toBeLessThanOrEqual(fit.width + 1);
+          expect(fit.box.top).toBeGreaterThanOrEqual(-1);
+          expect(fit.box.bottom).toBeLessThanOrEqual(fit.height + 1);
+          expect(fit.scrollWidth).toBeLessThanOrEqual(fit.clientWidth);
+          expect(fit.hitsField).toBe(true);
+          await expectNoHorizontalScroll(page);
+          await expectPageAxeClean(page, ".sys-script");
+          await field.press("Escape");
+          await expect(field).toHaveCount(0);
+        });
+      });
+    });
+  }
 
   test("a double tap opens Fix text in the Script and a fix commits there", async ({
     page,
