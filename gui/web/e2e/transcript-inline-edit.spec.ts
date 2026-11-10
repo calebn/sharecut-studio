@@ -130,10 +130,17 @@ test.describe("Phone Fix text", () => {
               document.querySelector<HTMLElement>(".sys-script-body")!;
             const box = input.getBoundingClientRect();
             const pane = body.getBoundingClientRect();
-            const hit = document.elementFromPoint(
-              box.x + box.width / 2,
-              box.y + box.height / 2,
-            );
+            const inset = 2;
+            let covered = 0;
+            for (const fy of [0, 0.5, 1]) {
+              for (const fx of [0, 0.5, 1]) {
+                const hit = document.elementFromPoint(
+                  box.left + inset + fx * (box.width - 2 * inset),
+                  box.top + inset + fy * (box.height - 2 * inset),
+                );
+                if (hit !== input && !input.contains(hit)) covered++;
+              }
+            }
             return {
               box,
               pane,
@@ -141,7 +148,7 @@ test.describe("Phone Fix text", () => {
               clientWidth: body.clientWidth,
               width: window.innerWidth,
               height: window.innerHeight,
-              hitsField: hit === input || input.contains(hit),
+              covered,
             };
           });
           expect(fit.box.left).toBeGreaterThanOrEqual(fit.pane.left - 1);
@@ -153,7 +160,7 @@ test.describe("Phone Fix text", () => {
           expect(fit.box.top).toBeGreaterThanOrEqual(-1);
           expect(fit.box.bottom).toBeLessThanOrEqual(fit.height + 1);
           expect(fit.scrollWidth).toBeLessThanOrEqual(fit.clientWidth);
-          expect(fit.hitsField).toBe(true);
+          expect(fit.covered).toBe(0);
           await expectNoHorizontalScroll(page);
           await expectPageAxeClean(page, ".sys-script");
           await field.press("Escape");
