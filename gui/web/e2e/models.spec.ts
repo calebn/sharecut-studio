@@ -130,6 +130,10 @@ for (const viewport of VIEWPORTS) {
           page.getByRole("region", { name: "Get ShareCut ready" }),
         ).toHaveCount(0);
         await chooseHomeMenuItem(page, "Settings");
+        await page
+          .getByRole("dialog", { name: "Settings" })
+          .getByRole("button", { name: "Models" })
+          .click();
         const dialog = page.getByRole("dialog", { name: "Models" });
         await expect(dialog).toBeVisible();
         await expect(row(dialog, "Transcription")).toContainText(
@@ -190,6 +194,10 @@ for (const viewport of VIEWPORTS) {
         });
         await openHome(page, { dismissSetup: false });
         await chooseHomeMenuItem(page, "Settings");
+        await page
+          .getByRole("dialog", { name: "Settings" })
+          .getByRole("button", { name: "Models" })
+          .click();
         const dialog = page.getByRole("dialog", { name: "Models" });
         await expect(dialog).toBeVisible();
 
