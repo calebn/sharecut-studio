@@ -76,14 +76,17 @@ function subscribe(listener: () => void): () => void {
   };
 }
 
-/** Choose a theme: apply it, remember it, and tell every subscriber. */
+function notify(): void {
+  for (const listener of [...listeners]) {
+    listener();
+  }
+}
+
 export function setThemePreference(p: ThemePreference): void {
   current = p;
   applyTheme(p);
   writeLocal(THEME_STORAGE_KEY, p);
-  for (const listener of [...listeners]) {
-    listener();
-  }
+  notify();
 }
 
 /** Test seam: module state outlives renders, so a test starts from storage again. */
@@ -97,9 +100,7 @@ export function initTheme(): ThemePreference {
   const pref = readStored();
   current = pref;
   applyTheme(pref);
-  for (const listener of [...listeners]) {
-    listener();
-  }
+  notify();
   return pref;
 }
 
