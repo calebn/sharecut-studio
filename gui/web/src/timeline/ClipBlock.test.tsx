@@ -1,6 +1,12 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { rollClipJoin, setClipFade, trimClipEdge, undoHistory } from "../api";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  loadWaveformSnap,
+  rollClipJoin,
+  setClipFade,
+  trimClipEdge,
+  undoHistory,
+} from "../api";
 import { clearRegisteredCommands } from "../commands/execute";
 import {
   _resetHistoryMovesForTests,
@@ -1197,6 +1203,46 @@ describe("ClipBlock waveform", () => {
         );
       },
     );
+  });
+
+  describe("trim snapping", () => {
+    beforeEach(() => {
+      vi.mocked(trimClipEdge).mockClear();
+      loadBoundaryContext.mockClear();
+      useDawStore.setState({ snapEnabled: true });
+    });
+    afterEach(() => useDawStore.setState({ snapEnabled: true }));
+
+    const trimInTo = async (snapEnabled: boolean, altKey: boolean) => {
+      const { container } = renderWithKeymap(clip);
+      useDawStore.setState({ playheadSec: 0.5, snapEnabled });
+      await waitFor(() => expect(loadWaveformSnap).toHaveBeenCalled());
+      await new Promise((r) => setTimeout(r, 0));
+      const handle = container.querySelector(
+        "button.trim-handle.in",
+      ) as HTMLElement;
+      fireEvent.pointerDown(handle, { pointerId: 5, clientX: 150 });
+      fireEvent.pointerMove(handle, { pointerId: 5, clientX: 174, altKey });
+      fireEvent.pointerUp(handle, { pointerId: 5, clientX: 174, altKey });
+      await waitFor(() => expect(trimClipEdge).toHaveBeenCalledOnce());
+      return vi.mocked(trimClipEdge).mock.calls[0]?.[3];
+    };
+
+    it("pulls the edge to a nearby cut point while Snap is on", async () => {
+      expect(await trimInTo(true, false)).toBeCloseTo(0.5, 6);
+    });
+
+    it("keeps the edge under the pointer while Snap is off", async () => {
+      expect(await trimInTo(false, false)).toBeCloseTo(0.48, 6);
+    });
+
+    it("keeps the edge under the pointer while Alt inverts Snap on", async () => {
+      expect(await trimInTo(true, true)).toBeCloseTo(0.48, 6);
+    });
+
+    it("pulls the edge while Alt inverts Snap off", async () => {
+      expect(await trimInTo(false, true)).toBeCloseTo(0.5, 6);
+    });
   });
 
   describe("fade handle drags", () => {

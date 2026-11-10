@@ -146,6 +146,7 @@ describe("PendingEditBody", () => {
 
   beforeEach(() => {
     localStorage.clear();
+    useDawStore.setState({ snapEnabled: true });
     registerDawCommands();
     loadHostCommandCount.mockReset().mockResolvedValue(1);
     createComment.mockReset();
@@ -1380,6 +1381,24 @@ describe("PendingEditBody", () => {
         expectedBaseline(guestCut),
       );
     });
+
+    it.each([
+      [true, false, true],
+      [true, true, false],
+      [false, false, false],
+      [false, true, true],
+    ])(
+      "with Snap %s and Alt %s sends snap %s",
+      async (snapEnabled, alt, expected) => {
+        useDawStore.setState({ snapEnabled });
+        const user = userEvent.setup();
+        render(<PendingEditBody edit={guestCut} />);
+        await commitField(user, "Source end", "2.5", { alt });
+        expect((updatePendingEdit.mock.calls[0] as unknown[])[4]).toBe(
+          expected,
+        );
+      },
+    );
 
     it("rejects a malformed time", async () => {
       const user = userEvent.setup();

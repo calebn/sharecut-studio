@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**148** capabilities · **114** ShareCut Studio commands · **64** keyed · **213** MCP tools · **17** skills on rows (+ **19** hub skills).
+**149** capabilities · **115** ShareCut Studio commands · **64** keyed · **213** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -78,6 +78,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Waveform amplitude zoom in | view | `view.waveformZoomIn` | `Shift+ArrowUp` | — | `viewPopover` | — | — | — | — | time · look |
 | Waveform amplitude zoom out | view | `view.waveformZoomOut` | `Shift+ArrowDown` | — | `viewPopover` | — | — | — | — | time · look |
 | Fit tracks to window height | view | `view.fitTracksHeight` | — (toggle; the palette and agents (Alt+= and Alt+- step the height)) | — | — | — | — | — | — | none · none |
+| Snap to cut points | view | `view.toggleSnap` | — (Toggle in the corner for touch; Alt inverts it for one drag on a keyboard) | — | `editCorner` | — | — | — | — | none · none |
 | Increase track height | view | `view.trackHeightIncrease` | `Alt+=` | — | — | — | — | — | — | none · none |
 | Decrease track height | view | `view.trackHeightDecrease` | `Alt+-` | — | — | — | — | — | — | none · none |
 | Undo | project | `history.undo` | `Mod+Z` | `two-finger-tap` | `historyPanel`, `transcript.findReplace`, `transcript.wordbar` | `history_undo` | `podcast undo` | `podcast-history` | — | none · none |

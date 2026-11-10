@@ -6,6 +6,7 @@ import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { makeRangeTarget } from "../../edit/rangeSelection";
 import { useDawStore } from "../../state/dawStore";
+import { expectNoA11yViolations } from "../../test/a11y";
 import { clipRow, minimalProject, sampleTrack } from "../../test/fixtures";
 import { closeOverlay, openOverlay } from "../../ui/modalGate";
 import { EditCorner } from "./EditCorner";
@@ -211,5 +212,42 @@ describe("EditCorner", () => {
     render(<EditCorner />);
     const range = screen.getByRole("button", { name: "Select range" });
     expect(range).toBeDisabled();
+  });
+
+  describe("Snap toggle", () => {
+    beforeEach(() => {
+      localStorage.clear();
+      useDawStore.setState({ snapEnabled: true });
+    });
+
+    it.each(["fine", "coarse"] as const)(
+      "turns snapping off and on from a %s pointer",
+      async (pointerKind) => {
+        const user = userEvent.setup();
+        useDawStore.setState({ pointerKind });
+        render(<EditCorner />);
+        const snap = screen.getByRole("button", { name: "Snap to cut points" });
+        expect(snap).toHaveAttribute("aria-pressed", "true");
+        await user.click(snap);
+        expect(useDawStore.getState().snapEnabled).toBe(false);
+        expect(snap).toHaveAttribute("aria-pressed", "false");
+        await user.click(snap);
+        expect(useDawStore.getState().snapEnabled).toBe(true);
+        expect(snap).toHaveAttribute("aria-pressed", "true");
+      },
+    );
+
+    it("is unavailable without a project", () => {
+      useDawStore.setState({ project: null });
+      render(<EditCorner />);
+      expect(
+        screen.getByRole("button", { name: "Snap to cut points" }),
+      ).toBeDisabled();
+    });
+
+    it("has no accessibility violations", async () => {
+      const { container } = render(<EditCorner />);
+      await expectNoA11yViolations(container);
+    });
   });
 });

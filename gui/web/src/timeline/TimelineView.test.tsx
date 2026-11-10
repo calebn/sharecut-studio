@@ -1408,6 +1408,71 @@ describe("TimelineView lane fit", () => {
       },
     );
 
+    describe("snapping", () => {
+      afterEach(() => useDawStore.setState({ snapEnabled: true }));
+      const neighbour = {
+        ...hostClip,
+        id: "c2",
+        source_start: 6,
+        source_end: 8,
+        timeline_start: 6,
+        timeline_end: 8,
+      };
+      const dropStart = (snapEnabled: boolean, altKey: boolean): number => {
+        const project = twoTrackProject({
+          clips: {
+            tracks: { host: [hostClip, neighbour], guest: [] },
+            clip_count: 2,
+          },
+        });
+        useDawStore.getState().hydrate("/tmp/p.json", project);
+        useDawStore.setState({
+          zoomPxPerSec: 100,
+          userZoomed: true,
+          snapEnabled,
+        });
+        const { container } = render(
+          <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+            <TimelineView />
+          </DawProvider>,
+        );
+        const hit = container.querySelector(
+          '[data-clip-id="c1"] .clip-hit',
+        ) as HTMLElement;
+        document.elementFromPoint = () =>
+          container.querySelector('.lane-row[data-track-id="host"]');
+        const at = (clientX: number) => ({
+          pointerId: 1,
+          clientX,
+          clientY: 10,
+          altKey,
+        });
+        fireEvent.pointerDown(hit, { ...at(100), altKey: false });
+        fireEvent.pointerMove(hit, at(300));
+        fireEvent.pointerMove(hit, at(496));
+        fireEvent.pointerUp(hit, at(496));
+        const call = execute.mock.calls.find(([id]) => id === "edit.moveClips");
+        return (call?.[1] as { clips: { timeline_start: number }[] }).clips[0]
+          .timeline_start;
+      };
+
+      it("pulls the dropped clip to the neighbour's start while Snap is on", () => {
+        expect(dropStart(true, false)).toBeCloseTo(4, 6);
+      });
+
+      it("drops where the pointer is while Snap is off", () => {
+        expect(dropStart(false, false)).toBeCloseTo(3.96, 6);
+      });
+
+      it("drops where the pointer is while Alt inverts Snap on", () => {
+        expect(dropStart(true, true)).toBeCloseTo(3.96, 6);
+      });
+
+      it("pulls the dropped clip while Alt inverts Snap off", () => {
+        expect(dropStart(false, true)).toBeCloseTo(4, 6);
+      });
+    });
+
     it("holds the lane height while the mode changes mid-drag", () => {
       const withClip = twoTrackProject({
         clips: { tracks: { host: [hostClip], guest: [] }, clip_count: 1 },

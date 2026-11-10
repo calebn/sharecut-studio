@@ -28,6 +28,7 @@ const ICONS = {
   zoomIn: true,
   zoomOut: true,
   range: true,
+  snap: true,
   warning: true,
   ripple: true,
   flatline: true,

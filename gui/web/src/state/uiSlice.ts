@@ -6,6 +6,7 @@ import {
   writeLaneHeightPref,
 } from "../utils/laneHeightPref";
 import { plainError } from "../utils/plainError";
+import { readSnapPref, writeSnapPref } from "../utils/snapPref";
 import {
   fixedLineOffsetPx,
   maxLogicalScrollLeft,
@@ -264,6 +265,7 @@ type UiSlice = Pick<
   | "selectionHit"
   | "inspectorSelection"
   | "timelineDragging"
+  | "snapEnabled"
   | "laneHeightMode"
   | "laneHeightPx"
   | "drawnLaneHeightPx"
@@ -290,6 +292,7 @@ type UiSlice = Pick<
   | "setPointerKind"
   | "setSelectionHit"
   | "setTimelineDragging"
+  | "setSnapEnabled"
   | "setLaneHeightMode"
   | "toggleFitTracksHeight"
   | "stepLaneHeight"
@@ -602,6 +605,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     // Capability baseline; usePointerType() corrects this from matchMedia
     // before first paint and keeps it live from pointer events.
     pointerKind: "fine" as PointerKind,
+    snapEnabled: readSnapPref(),
     laneHeightMode: lanePref.mode,
     laneHeightPx: lanePref.px,
     drawnLaneHeightPx: null as number | null,
@@ -764,6 +768,11 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     setTimelineDragging: (timelineDragging) => {
       if (get().timelineDragging !== timelineDragging)
         set({ timelineDragging });
+    },
+    setSnapEnabled: (snapEnabled) => {
+      if (get().snapEnabled === snapEnabled) return;
+      set({ snapEnabled });
+      writeSnapPref(snapEnabled);
     },
     setLaneHeightMode: (laneHeightMode: LaneHeightMode) => {
       set({ laneHeightMode });

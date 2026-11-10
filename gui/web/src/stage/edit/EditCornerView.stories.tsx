@@ -44,6 +44,7 @@ const meta: Meta<typeof EditCornerView> = {
     viewOpen: false,
     onToggleView: fn(),
     onCloseView: fn(),
+    snap: { on: true, onToggle: fn() },
     script: { shown: true, onToggle: fn() },
   },
   decorators: [
@@ -57,7 +58,7 @@ const meta: Meta<typeof EditCornerView> = {
     docs: {
       description: {
         component:
-          "Fit, zoom out, zoom in, the eye (the View popover) and the Script toggle, bottom-right of the lanes. On a phone it has no Script toggle and pinch stays. On a touch screen (coarse pointer) it also holds the range bracket toggle: a finger cannot drag across empty lane, so arming the toggle makes the next drag draw a range. A mouse or pen drags a range directly and never shows it.\n\n**Motion.** None; the eye's and the range toggle's pressed state show while their mode is on.",
+          "Fit, zoom out, zoom in, the eye (the View popover), the Snap toggle and the Script toggle, bottom-right of the lanes. Snap shows on every pointer: it is the touch twin of holding Alt, which inverts it for one drag on a keyboard. On a phone it has no Script toggle and pinch stays. On a touch screen (coarse pointer) it also holds the range bracket toggle: a finger cannot drag across empty lane, so arming the toggle makes the next drag draw a range. A mouse or pen drags a range directly and never shows it.\n\n**Motion.** None; the eye's, Snap's and the range toggle's pressed state show while their mode is on.",
       },
     },
   },
@@ -85,6 +86,18 @@ export const EyePopoverOpen: Story = {
     await expect(eye).toHaveAttribute("aria-pressed", "true");
     await expect(eye).toHaveAttribute("aria-expanded", "true");
     await expectPopover();
+  },
+};
+
+export const SnapOff: Story = {
+  args: { snap: { on: false, onToggle: fn() } },
+  play: async ({ args, canvasElement }) => {
+    const snap = within(canvasElement).getByRole("button", {
+      name: "Snap to cut points",
+    });
+    await expect(snap).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(snap);
+    await expect(args.snap?.onToggle).toHaveBeenCalledOnce();
   },
 };
 

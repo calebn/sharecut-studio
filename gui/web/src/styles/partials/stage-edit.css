@@ -153,7 +153,7 @@
   }
 }
 
-/* Zoom, the eye and the Script toggle sit over the lanes, bottom right. */
+/* Zoom, the eye, Snap and the Script toggle sit over the lanes, bottom right. */
 .edit-corner {
   position: absolute;
   inset-block-end: var(--space-3);

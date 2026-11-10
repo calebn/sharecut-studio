@@ -551,6 +551,16 @@ export const COMMANDS: Record<string, CommandDef> = {
     when: "always",
     notes: "Toggle: fill the stage height, or a fixed track height",
   },
+  "view.toggleSnap": {
+    id: "view.toggleSnap",
+    category: "view",
+    label: "Snap to cut points",
+    shortLabel: "Snap",
+    keywords: ["magnet", "align", "cut points", "drag"],
+    when: "hasProject",
+    notes:
+      "The Snap toggle in the Edit corner: moves, trims and the suggestion Start/End pull to nearby cut points. Alt inverts it for one gesture",
+  },
   "view.trackHeightIncrease": {
     id: "view.trackHeightIncrease",
     category: "view",

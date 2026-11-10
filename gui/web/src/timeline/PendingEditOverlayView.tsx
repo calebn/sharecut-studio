@@ -54,6 +54,7 @@ import {
   pendingOuterEndpoint,
 } from "./pendingEdgeDrag";
 import { pendingOverlayWidthPx } from "./pendingOverlayWidth";
+import { snapActive } from "./snapOverlay";
 
 type ReviewAction = "approve" | "reject";
 type ReviewResult = { queued: boolean };
@@ -96,6 +97,7 @@ type DragCapture = {
   sourceEnd: number;
   edge: PendingDragEdge;
   originX: number;
+  snap: boolean;
   placement: NonNullable<ReturnType<typeof pendingEdgePlacement>>;
   controller: AbortController;
 };
@@ -324,7 +326,7 @@ function PendingEditRegion({
     dragging ? gesture.projectPath : projectPath,
     dragging ? gesture.trackId : edit.track_id,
     sourceFocus,
-    dragging && canAdjust,
+    gesture.kind !== "idle" && canAdjust && gesture.snap,
   );
   const ticks = snapResource.ticks;
   const livePreview =
@@ -337,7 +339,7 @@ function PendingEditRegion({
             sourceEnd: gesture.sourceEnd,
             sourceDeltaSec: gesture.sourceDeltaSec,
             placement: gesture.placement,
-            ticks,
+            ticks: gesture.snap ? ticks : [],
             zoomPxPerSec,
           })
       : null;
@@ -688,6 +690,7 @@ function PendingEditRegion({
     edge: PendingDragEdge,
     pointerId: number,
     clientX: number,
+    altKey: boolean,
   ) => {
     const placement = edge === "start" ? startPlacement : endPlacement;
     if (
@@ -712,6 +715,7 @@ function PendingEditRegion({
       sourceEnd: edit.source_end,
       edge,
       originX: clientX,
+      snap: snapActive(useDawStore.getState().snapEnabled, altKey),
       placement,
       controller: new AbortController(),
       sourceDeltaSec: 0,
@@ -721,7 +725,7 @@ function PendingEditRegion({
     onSelect(edit.id);
   };
 
-  const moveDrag = (pointerId: number, clientX: number) => {
+  const moveDrag = (pointerId: number, clientX: number, altKey: boolean) => {
     const active = currentGesture.current;
     if (active.kind !== "dragging" || active.pointerId !== pointerId) {
       return;
@@ -729,17 +733,23 @@ function PendingEditRegion({
     const next = {
       ...active,
       sourceDeltaSec: (clientX - active.originX) / zoomPxPerSec,
+      snap: snapActive(useDawStore.getState().snapEnabled, altKey),
     };
     currentGesture.current = next;
     setGesture(next);
   };
 
-  const finishDrag = async (pointerId: number, clientX: number) => {
+  const finishDrag = async (
+    pointerId: number,
+    clientX: number,
+    altKey: boolean,
+  ) => {
     const active = currentGesture.current;
     if (active.kind !== "dragging" || active.pointerId !== pointerId) {
       return;
     }
     const sourceDeltaSec = (clientX - active.originX) / zoomPxPerSec;
+    const snap = snapActive(useDawStore.getState().snapEnabled, altKey);
     const preview = pendingEdgePreview({
       edge: active.edge,
       sourceStart: active.sourceStart,
@@ -768,6 +778,7 @@ function PendingEditRegion({
     }
     const settling: Gesture = {
       ...active,
+      snap,
       kind: "settling",
       sourceDeltaSec,
       preview,
@@ -779,10 +790,9 @@ function PendingEditRegion({
     try {
       const focusSec =
         active.edge === "start" ? preview.sourceStart : preview.sourceEnd;
-      const resolvedTicks = await snapResource.resolveTicks(
-        focusSec,
-        active.controller.signal,
-      );
+      const resolvedTicks = snap
+        ? await snapResource.resolveTicks(focusSec, active.controller.signal)
+        : [];
       if (!gestureIsCurrent(active) || !freshProjectAndEdit(active)) {
         return;
       }
@@ -960,10 +970,14 @@ function PendingEditRegion({
           } catch {
             return;
           }
-          beginDrag(edge, event.pointerId, event.clientX);
+          beginDrag(edge, event.pointerId, event.clientX, event.altKey);
         }}
-        onPointerMove={(event) => moveDrag(event.pointerId, event.clientX)}
-        onPointerUp={(event) => void finishDrag(event.pointerId, event.clientX)}
+        onPointerMove={(event) =>
+          moveDrag(event.pointerId, event.clientX, event.altKey)
+        }
+        onPointerUp={(event) =>
+          void finishDrag(event.pointerId, event.clientX, event.altKey)
+        }
         onPointerCancel={(event) => {
           if (
             currentGesture.current.kind === "dragging" &&

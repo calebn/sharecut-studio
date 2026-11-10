@@ -94,6 +94,7 @@ import { ProsodyStatusAnnouncer } from "./ProsodyStatusAnnouncer";
 import { PrecisionLayer } from "./precision/PrecisionLayer";
 import { precisionHandoff } from "./precision/precisionController";
 import { RecordingOverlay, RecordingScrollExtent } from "./RecordingOverlay";
+import { snapActive } from "./snapOverlay";
 import { TimelineChooser } from "./TimelineChooser";
 import { TimelineCreateMenu } from "./TimelineCreateMenu";
 import { FollowPlayheadChip, SplitGuide } from "./TimelineLeaves";
@@ -377,12 +378,14 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
       trackIdFromPoint(info.clientX, info.clientY) ??
       anchor.track_id;
     snap.destTrackId = destTrackId;
-    const ticks = moveSnapTicks({
-      clips: snap.clips,
-      movingIds: new Set(snap.movingIds),
-      playheadSec: useDawStore.getState().playheadSec,
-      extraTicks: info.extraTicks,
-    });
+    const ticks = snapActive(useDawStore.getState().snapEnabled, info.altKey)
+      ? moveSnapTicks({
+          clips: snap.clips,
+          movingIds: new Set(snap.movingIds),
+          playheadSec: useDawStore.getState().playheadSec,
+          extraTicks: info.extraTicks,
+        })
+      : [];
     const deltaSec = snapMoveDeltaSec({
       anchorStart: anchor.timeline_start,
       anchorEnd: anchor.timeline_end,

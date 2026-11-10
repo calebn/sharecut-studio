@@ -118,6 +118,8 @@ The phone and the tablet build this sheet from one table of selection kinds, so 
 
 An iPad held sideways, 1180 or 1194 points wide (Air or Pro 11″), keeps the tablet shell, so **Select range** stays in the Edit corner and + Track and Import stay in the **+** menu. There is no Select or Blade tool: Split is Mod+K, or Alt-click with a mouse; touch has no Alt, and its Split verb arrives with the action bar.
 
+Drags pull to nearby cut points while **Snap** is on in the Edit corner. A mouse can hold Alt to flip Snap for one drag; touch has no Alt, so the corner's Snap toggle is how you turn it off and on.
+
 Ordinary phone and tablet modifier sheets, and the Select range sheet while it
 is armed, scroll together, including the heading, actions, fields, help, errors,
 and audition controls. **Cancel range selection** stays in that same sheet
