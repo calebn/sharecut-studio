@@ -120,6 +120,17 @@ for (const { cell: width, theme } of withAppearance([667, 767])) {
             seen.add(id);
             await expect(active).toBeFocused();
             await page.waitForTimeout(50);
+            // The takeover dialog's body paints the ring inside the control
+            // as an inset box-shadow (#184), not an outline.
+            const insetRing = await active.evaluate((element) => {
+              const style = getComputedStyle(element);
+              return (
+                Boolean(element.closest(".sys-inspector-takeover")) &&
+                style.outlineStyle === "none" &&
+                style.boxShadow !== "none"
+              );
+            });
+            if (insetRing) continue;
             const geometry = await controlGeometry(active);
             const paint = geometry.focusIndicator;
             const surrogate =
