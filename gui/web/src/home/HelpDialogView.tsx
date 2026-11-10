@@ -93,7 +93,7 @@ export function HelpDialogView({
     <Dialog
       open={open}
       onClose={onClose}
-      title={step === "menu" ? "Help" : "Report a problem"}
+      title={step === "menu" ? "Help" : "Export diagnostics"}
       panelClassName="help-sheet-panel"
       footer={
         step === "menu" ? undefined : (
@@ -113,7 +113,7 @@ export function HelpDialogView({
               aria-busy={busy || undefined}
               onClick={onCreate}
             >
-              {busy ? "Creating…" : "Create diagnostics bundle"}
+              {busy ? "Exporting…" : "Export"}
             </Button>
             {reportAvailable && bundle ? (
               <Button
