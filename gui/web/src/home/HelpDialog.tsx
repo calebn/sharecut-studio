@@ -153,7 +153,10 @@ export function HelpDialog({
         description,
         consent,
       });
-      if (!open || generation !== requestGeneration.current) return;
+      if (!open || generation !== requestGeneration.current) {
+        setDescription("");
+        return;
+      }
       activeReportUrl.current = result.status_url;
       reportSent.current = true;
       setSubmitted(result.status_url);

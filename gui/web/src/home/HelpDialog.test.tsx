@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -6,6 +7,7 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useRef, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createDiagnosticsBundle,
@@ -490,41 +492,110 @@ describe("HelpDialog fallback", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it("keeps a typed description across closing and reopening until a report is sent", async () => {
+  describe.each([
+    ["Escape", false, () => userEvent.keyboard("{Escape}")],
+    [
+      "Escape on an anchored popover",
+      true,
+      () => userEvent.keyboard("{Escape}"),
+    ],
+    [
+      "an outside press on an anchored popover",
+      true,
+      () => userEvent.click(document.body),
+    ],
+  ])("dismissing with %s", (_name, anchored, dismiss) => {
+    it("keeps a typed description across closing and reopening", async () => {
+      createMock.mockResolvedValue(bundleResult);
+      const user = userEvent.setup();
+      function Harness() {
+        const [open, setOpen] = useState(true);
+        const anchor = useRef<HTMLButtonElement>(null);
+        return (
+          <>
+            <button type="button" ref={anchor} onClick={() => setOpen(true)}>
+              Open help
+            </button>
+            <HelpDialog
+              open={open}
+              anchorRef={anchored ? anchor : undefined}
+              initialStep="menu"
+              onClose={() => setOpen(false)}
+            />
+          </>
+        );
+      }
+      render(<Harness />);
+      await waitForDialogFocus();
+      const toReport = async () => {
+        await user.click(
+          await screen.findByRole("button", { name: /Report a problem/ }),
+        );
+        await user.click(screen.getByRole("button", { name: CREATE_LABEL }));
+      };
+      await toReport();
+      await user.type(
+        await screen.findByLabelText("Describe the problem"),
+        "Opening an episode fails",
+      );
+      await dismiss();
+      await waitFor(() =>
+        expect(screen.queryByRole("dialog", { name: REPORT_TITLE })).toBeNull(),
+      );
+      await user.click(screen.getByRole("button", { name: "Open help" }));
+      await toReport();
+      expect(await screen.findByLabelText("Describe the problem")).toHaveValue(
+        "Opening an episode fails",
+      );
+    });
+  });
+
+  it("clears the draft when the dialog closes while the accepted report is still in flight", async () => {
     const user = userEvent.setup();
     createMock.mockResolvedValue(bundleResult);
+    let accept: (value: { status: string; status_url: string }) => void = () =>
+      undefined;
+    submitMock.mockReturnValue(
+      new Promise((resolve) => {
+        accept = resolve;
+      }),
+    );
     const { rerender } = render(
-      <HelpDialog open initialStep="menu" onClose={() => undefined} />,
+      <HelpDialog open initialStep="report" onClose={() => undefined} />,
     );
     await waitForDialogFocus();
-    await user.click(screen.getByRole("button", { name: /Report a problem/ }));
     await user.click(screen.getByRole("button", { name: CREATE_LABEL }));
     await user.type(
       await screen.findByLabelText("Describe the problem"),
       "Opening an episode fails",
     );
-    const reopen = async (dismiss: () => Promise<void> | void) => {
-      await dismiss();
-      rerender(
-        <HelpDialog
-          open={false}
-          initialStep="menu"
-          onClose={() => undefined}
-        />,
-      );
-      rerender(
-        <HelpDialog open initialStep="menu" onClose={() => undefined} />,
-      );
-      await user.click(
-        await screen.findByRole("button", { name: /Report a problem/ }),
-      );
-      await user.click(screen.getByRole("button", { name: CREATE_LABEL }));
-      expect(await screen.findByLabelText("Describe the problem")).toHaveValue(
-        "Opening an episode fails",
-      );
-    };
-    await reopen(() => user.click(document.body));
-    await reopen(() => user.keyboard("{Escape}"));
+    await user.click(screen.getByRole("checkbox"));
+    await user.click(screen.getByRole("button", { name: "Submit report" }));
+    await waitFor(() => expect(submitMock).toHaveBeenCalledOnce());
+    rerender(
+      <HelpDialog
+        open={false}
+        initialStep="report"
+        onClose={() => undefined}
+      />,
+    );
+    await act(async () => {
+      accept({ status: "queued", status_url: "https://relay.example.test/r" });
+    });
+    rerender(
+      <HelpDialog open initialStep="report" onClose={() => undefined} />,
+    );
+    await user.click(await screen.findByRole("button", { name: CREATE_LABEL }));
+    expect(await screen.findByLabelText("Describe the problem")).toHaveValue(
+      "",
+    );
+  });
+
+  it("focuses Export diagnostics when it opens straight on the report step", async () => {
+    render(<HelpDialog open initialStep="report" onClose={() => undefined} />);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: CREATE_LABEL })).toHaveFocus(),
+    );
   });
 
   it("clears the description after a successful submit once the dialog is reopened", async () => {
