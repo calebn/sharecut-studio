@@ -21,6 +21,7 @@ import {
   seedScript,
 } from "../../../test/scriptHostKit";
 import type { HistoryEntryId } from "../../../types/project";
+import { closeOverlay, noteMenuOpen, openOverlay } from "../../../ui/modalGate";
 import { registerAfterCutNav } from "./afterCutNav";
 import { resetQueuedCutsForTests } from "./cutHits";
 import { registerCutToast } from "./cutToast";
@@ -327,15 +328,95 @@ describe("Tab after a words cut", () => {
   it("is left native while a menu holds the keyboard", async () => {
     await startCut();
     cutAway([0, 1], "h1");
-    const menu = document.createElement("div");
-    menu.setAttribute("role", "menu");
-    const item = document.createElement("button");
-    item.setAttribute("role", "menuitem");
-    menu.append(item);
-    document.body.append(menu);
-    item.focus();
+    await waitFor(() =>
+      expect(
+        document.activeElement?.closest(".sys-script-body"),
+      ).not.toBeNull(),
+    );
+    act(() => noteMenuOpen(true));
+    try {
+      expect(tab().defaultPrevented).toBe(false);
+      expect(state().afterCut).not.toBeNull();
+    } finally {
+      act(() => noteMenuOpen(false));
+    }
+    expect(tab().defaultPrevented).toBe(true);
+  });
+
+  it("is left native while a modal holds the keyboard", async () => {
+    await startCut();
+    cutAway([0, 1], "h1");
+    await waitFor(() =>
+      expect(
+        document.activeElement?.closest(".sys-script-body"),
+      ).not.toBeNull(),
+    );
+    const layer = openOverlay(true);
+    try {
+      expect(tab().defaultPrevented).toBe(false);
+      expect(state().afterCut).not.toBeNull();
+    } finally {
+      closeOverlay(layer);
+    }
+    expect(tab().defaultPrevented).toBe(true);
+  });
+
+  it("is left native on a button in the Script that is not a word", async () => {
+    await startCut();
+    cutAway([0, 1], "h1");
+    const other = document.createElement("button");
+    document.querySelector(".sys-script-body")!.append(other);
+    other.focus();
     expect(tab().defaultPrevented).toBe(false);
-    menu.remove();
+    expect(selected()).toBeNull();
+    other.remove();
+  });
+
+  it("carries earlier cuts across a chain so Tab never comes back to them", async () => {
+    const user = await startCut();
+    expect(tab().defaultPrevented).toBe(true);
+    expect(selected()).toEqual([3, 4]);
+    await user.keyboard("{Backspace}");
+    await waitFor(() => expect(submitDocumentCommand).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(selected()).toBeNull());
+    expect(tab().defaultPrevented).toBe(true);
+    expect(selected()).toEqual([6, 7]);
+    expect(tab().defaultPrevented).toBe(false);
+    expect(selected()).toEqual([6, 7]);
+  });
+
+  it("does not move the selection while a later cut is in flight", async () => {
+    const user = await startCut();
+    expect(tab().defaultPrevented).toBe(true);
+    let release: () => void = () => {};
+    vi.mocked(submitDocumentCommand).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = () =>
+            resolve({ type: "Applied", history_head_id: head("h2") });
+        }),
+    );
+    await user.keyboard("{Backspace}");
+    await waitFor(() => expect(state().rangeBusy).toBe(true));
+    expect(tab().defaultPrevented).toBe(false);
+    expect(selected()).toEqual([3, 4]);
+    await act(async () => release());
+  });
+
+  it("keeps the chain through a toolbar Undo and Redo of the cut", async () => {
+    await startCut();
+    cutAway([0, 1], "h1");
+    const { project } = state();
+    useDawStore.setState({
+      project: {
+        ...project!,
+        history: { ...project!.history!, head_id: head("h0") },
+      },
+    });
+    expect(tab().defaultPrevented).toBe(false);
+    useDawStore.setState({ project });
+    expect(tab().defaultPrevented).toBe(true);
+    expect(selected()).toEqual([3, 4]);
   });
 
   it("is never set for someone who may only suggest", async () => {
