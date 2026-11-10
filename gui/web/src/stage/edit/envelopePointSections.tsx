@@ -122,12 +122,6 @@ export function useEnvelopePointSections(
             />
           ),
         },
-        {
-          id: "help",
-          control: note(
-            "Level multiplies this track’s volume: 1.00× is unchanged, 0 is silent, and 1.50× is the maximum.",
-          ),
-        },
         ...(!editable
           ? [
               {
