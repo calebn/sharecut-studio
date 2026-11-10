@@ -128,19 +128,14 @@ export function endGate(
   return { enabled: true };
 }
 
-export type MoreRoomToneState = {
+type MoreRoomToneState = {
   state: RecordRoomState;
   noRecorder: boolean;
-  /** Milliseconds of the guests' round left now, or 0 when none runs. */
   roundLeftMs: number;
   hostCapturing: boolean;
 };
 
-/**
- * Why the More sheet's Room tone cannot run now, or undefined when it can.
- * The server accepts a second round and a host with the mic off; the first
- * would restart every guest's capture, so it waits for the round to end.
- */
+/** Why the More sheet's Room tone cannot run now. A second round would restart every guest's capture. */
 export function moreRoomToneReason(
   input: MoreRoomToneState,
 ): string | undefined {
@@ -159,7 +154,7 @@ export function moreRoomToneReason(
   return undefined;
 }
 
-/** What is left of the guests' room-tone round, given the time since the snapshot. */
+/** What is left of the guests' room-tone round. */
 export function roomToneRoundLeftMs(
   snapshot: RecordSnapshot,
   elapsedSinceSnapshotMs: number,

@@ -1548,6 +1548,12 @@ describe("Record stage Room tone", () => {
   const tone = (dialog: HTMLElement) =>
     within(dialog).getByRole("button", { name: "Room tone" });
   const NO_ONE = "Room tone starts once someone has joined the room.";
+  const ROUND = {
+    round: 1,
+    requested_wall_ms: 1000,
+    duration_ms: 60_000,
+    participant_ids: ["p_g"],
+  };
 
   it("sits right after Devices, before Invite and links", async () => {
     setRoom({ participants: [avaGuest()] });
@@ -1593,12 +1599,7 @@ describe("Record stage Room tone", () => {
       "while a round runs",
       {
         participants: [avaGuest()],
-        room_tone: {
-          round: 1,
-          requested_wall_ms: 1000,
-          duration_ms: 60_000,
-          participant_ids: ["p_g"],
-        },
+        room_tone: ROUND,
         countdown_left_ms: 30_000,
       },
       "Room tone is already recording.",
@@ -1609,12 +1610,7 @@ describe("Record stage Room tone", () => {
         state: "stopped",
         take_index: 0,
         participants: [avaGuest()],
-        room_tone: {
-          round: 1,
-          requested_wall_ms: 1000,
-          duration_ms: 60_000,
-          participant_ids: ["p_g"],
-        },
+        room_tone: ROUND,
         countdown_left_ms: 30_000,
       },
       "Room tone is already recording.",
@@ -1652,12 +1648,7 @@ describe("Record stage Room tone", () => {
       start_blockers: [
         { code: "consent_pending", participant_id: "p_g", display_name: "Ava" },
       ],
-      room_tone: {
-        round: 1,
-        requested_wall_ms: 1000,
-        duration_ms: 60_000,
-        participant_ids: ["p_g"],
-      },
+      room_tone: ROUND,
       countdown_left_ms: 0,
     });
     mount();
