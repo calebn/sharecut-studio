@@ -8,6 +8,9 @@ import { BUSY_REASON } from "../ui/disabledReason";
 
 export type { HelpStep };
 
+export const REPORT_TITLE = "Export diagnostics";
+export const CREATE_LABEL = "Export";
+
 export type HelpDialogViewProps = {
   open: boolean;
   /** Desktop: the app menu button Help sits under as a popover. Left out, a sheet. */
@@ -59,6 +62,7 @@ export function HelpDialogView({
   onSubmit,
 }: HelpDialogViewProps) {
   const reportRowRef = useRef<HTMLButtonElement>(null);
+  const firstRowRef = useRef<HTMLButtonElement>(null);
   const createRef = useRef<HTMLButtonElement>(null);
   const seen = useRef({ open, step });
   const [shown, setShown] = useState({ open, step, changed: false });
@@ -71,18 +75,20 @@ export function HelpDialogView({
     if (!open || !prev.open || prev.step === step) return;
     (step === "report" ? createRef : reportRowRef).current?.focus();
   }, [open, step]);
-  const title = step === "menu" ? "Help" : "Export diagnostics";
+  const title = step === "menu" ? "Help" : REPORT_TITLE;
 
   const rows: {
     label: string;
     icon: SystemIconName;
     onSelect: () => void;
+    ref?: RefObject<HTMLButtonElement | null>;
     ariaLabel?: string;
   }[] = [
     {
       label: "Shortcuts and gestures",
       icon: "keyboard",
       onSelect: onOpenShortcuts,
+      ref: firstRowRef,
     },
     {
       label: "Report a problem",
@@ -120,7 +126,7 @@ export function HelpDialogView({
           aria-busy={busy || undefined}
           onClick={onCreate}
         >
-          {busy ? "Exporting…" : "Export"}
+          {busy ? "Exporting…" : CREATE_LABEL}
         </Button>
         {reportAvailable && bundle ? (
           <Button
@@ -151,9 +157,7 @@ export function HelpDialogView({
           {rows.map((row) => (
             <li key={row.label}>
               <button
-                ref={
-                  row.label === "Report a problem" ? reportRowRef : undefined
-                }
+                ref={row.label === "Report a problem" ? reportRowRef : row.ref}
                 type="button"
                 className="help-sheet-row"
                 aria-label={row.ariaLabel}
@@ -270,6 +274,7 @@ export function HelpDialogView({
     panelClassName: "help-sheet-panel",
     headerStart: back,
     footer,
+    initialFocusRef: firstRowRef,
   };
 
   return anchorRef ? (
@@ -279,6 +284,7 @@ export function HelpDialogView({
         reason:
           "On desktop Help is a popover under the app menu button that opened it (DLG-HELP).",
         ref: anchorRef,
+        align: "start",
       }}
     >
       {body}

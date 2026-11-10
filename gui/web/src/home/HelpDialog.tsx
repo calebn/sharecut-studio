@@ -46,6 +46,7 @@ export function HelpDialog({
   const [consent, setConsent] = useState(false);
   const [submitted, setSubmitted] = useState<string | null>(null);
   const submitting = useRef(false);
+  const reportSent = useRef(false);
   const activeReportUrl = useRef<string | null>(null);
   const requestGeneration = useRef(0);
   const [reportStatus, setReportStatus] = useState<string | null>(null);
@@ -59,7 +60,8 @@ export function HelpDialog({
       setBusy(false);
       setError(null);
       setBundle(null);
-      setDescription("");
+      if (reportSent.current) setDescription("");
+      reportSent.current = false;
       setConsent(false);
       setSubmitted(null);
       submitting.current = false;
@@ -153,6 +155,7 @@ export function HelpDialog({
       });
       if (!open || generation !== requestGeneration.current) return;
       activeReportUrl.current = result.status_url;
+      reportSent.current = true;
       setSubmitted(result.status_url);
       setReportStatus("queued");
     } catch (err) {

@@ -149,6 +149,7 @@ function HomeHeader({
           <button
             type="button"
             className="sys-home-menu"
+            aria-label="ShareCut app menu"
             data-app-menu
             {...props}
           >

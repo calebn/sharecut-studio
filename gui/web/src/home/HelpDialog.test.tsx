@@ -17,6 +17,7 @@ import {
 import { expectNoA11yViolations } from "../test/a11y";
 import { waitForDialogFocus } from "../test/dialogFocus";
 import { HelpDialog } from "./HelpDialog";
+import { CREATE_LABEL, REPORT_TITLE } from "./HelpDialogView";
 
 vi.mock("../api", () => ({
   createDiagnosticsBundle: vi.fn(),
@@ -63,6 +64,16 @@ async function renderOpenHelp() {
   return view;
 }
 
+const bundleResult: DiagnosticsBundleResult = {
+  path: "/Users/ada/Downloads/sharecut-diagnostics-20260919T120000Z-ab12cd.zip",
+  filename: "sharecut-diagnostics-20260919T120000Z-ab12cd.zip",
+  support_url: "https://support.example.test",
+  size_bytes: 12,
+  files: ["report.json"],
+  app_version: "1.0",
+  created_at: "2026-09-26T00:00:00Z",
+};
+
 describe("HelpDialog", () => {
   it("creates a bundle, shows the path, and links to support", async () => {
     const user = userEvent.setup();
@@ -85,7 +96,7 @@ describe("HelpDialog", () => {
     );
     await expectNoA11yViolations(container);
     const create = screen.getByRole("button", {
-      name: "Export",
+      name: CREATE_LABEL,
     });
     expect(create).not.toHaveAttribute("aria-busy");
     await user.click(create);
@@ -129,7 +140,7 @@ describe("HelpDialog", () => {
     );
     await renderOpenHelp();
     const create = screen.getByRole("button", {
-      name: "Export",
+      name: CREATE_LABEL,
     });
     await user.click(create);
     expect(screen.getByRole("button", { name: "Exporting…" })).toHaveAttribute(
@@ -153,7 +164,7 @@ describe("HelpDialog", () => {
     metaMock.mockRejectedValue(new Error("offline"));
     createMock.mockRejectedValue(new Error("disk full"));
     await renderOpenHelp();
-    await user.click(screen.getByRole("button", { name: "Export" }));
+    await user.click(screen.getByRole("button", { name: CREATE_LABEL }));
     expect(await screen.findByText("disk full")).toBeInTheDocument();
   });
 
@@ -189,7 +200,7 @@ describe("HelpDialog", () => {
         : { status: "queued", issue_url: null },
     );
     await renderOpenHelp();
-    await user.click(screen.getByRole("button", { name: "Export" }));
+    await user.click(screen.getByRole("button", { name: CREATE_LABEL }));
     await screen.findByText(/report-a.zip/);
     await user.type(
       screen.getByLabelText("Describe the problem"),
@@ -214,7 +225,7 @@ describe("HelpDialog", () => {
     ).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "Submit report" }));
     expect(submitMock).toHaveBeenCalledTimes(1);
-    await user.click(screen.getByRole("button", { name: "Export" }));
+    await user.click(screen.getByRole("button", { name: CREATE_LABEL }));
     await screen.findByText(/report-b.zip/);
     expect(
       screen.queryByRole("link", { name: "Open published issue" }),
@@ -265,7 +276,7 @@ describe("HelpDialog", () => {
         status_url: "https://relay.test/api/reports/b",
       });
     const { rerender } = await renderOpenHelp();
-    await user.click(screen.getByRole("button", { name: "Export" }));
+    await user.click(screen.getByRole("button", { name: CREATE_LABEL }));
     await screen.findByText(/report-a.zip/);
     await user.type(
       screen.getByLabelText("Describe the problem"),
@@ -279,7 +290,7 @@ describe("HelpDialog", () => {
       <HelpDialog open initialStep="report" onClose={() => undefined} />,
     );
     await waitForDialogFocus();
-    await user.click(screen.getByRole("button", { name: "Export" }));
+    await user.click(screen.getByRole("button", { name: CREATE_LABEL }));
     await screen.findByText(/report-b.zip/);
     await user.type(
       screen.getByLabelText("Describe the problem"),
@@ -323,7 +334,7 @@ describe("HelpDialog fallback", () => {
       created_at: "2026-09-26T00:00:00Z",
     });
     await renderOpenHelp();
-    await user.click(screen.getByRole("button", { name: "Export" }));
+    await user.click(screen.getByRole("button", { name: CREATE_LABEL }));
     fireEvent.change(screen.getByLabelText("Describe the problem"), {
       target: { value: "Episode cannot open" },
     });
@@ -360,7 +371,7 @@ describe("HelpDialog fallback", () => {
       "Report a problem",
       "Guides",
     ]);
-    expect(screen.queryByRole("button", { name: "Export" })).toBeNull();
+    expect(screen.queryByRole("button", { name: CREATE_LABEL })).toBeNull();
     await user.click(
       screen.getByRole("button", { name: /Shortcuts and gestures/ }),
     );
@@ -369,9 +380,11 @@ describe("HelpDialog fallback", () => {
     expect(onGuides).toHaveBeenCalledOnce();
     await user.click(screen.getByRole("button", { name: /Report a problem/ }));
     expect(
-      screen.getByRole("dialog", { name: "Export diagnostics" }),
+      screen.getByRole("dialog", { name: REPORT_TITLE }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Export" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: CREATE_LABEL }),
+    ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("dialog", { name: "Help" })).toBeInTheDocument();
   });
@@ -388,13 +401,13 @@ describe("HelpDialog fallback", () => {
     expect(announced()).toBe("");
     expect(screen.queryByRole("button", { name: "Back" })).toBeNull();
     await user.click(screen.getByRole("button", { name: /Report a problem/ }));
-    const title = screen.getByRole("heading", { name: "Report a problem" });
+    const title = screen.getByRole("heading", { name: REPORT_TITLE });
     const back = screen.getByRole("button", { name: "Back" });
     expect(back.parentElement).toBe(title.parentElement);
     expect(back.compareDocumentPosition(title)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
-    expect(announced()).toBe("Report a problem");
+    expect(announced()).toBe(REPORT_TITLE);
     await user.click(back);
     expect(screen.getByRole("dialog", { name: "Help" })).toBeInTheDocument();
     expect(announced()).toBe("Help");
@@ -407,12 +420,14 @@ describe("HelpDialog fallback", () => {
     );
     await waitForDialogFocus();
     await user.click(screen.getByRole("button", { name: /Report a problem/ }));
-    expect(screen.getByRole("button", { name: "Export" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: CREATE_LABEL }),
+    ).toBeInTheDocument();
     rerender(
       <HelpDialog open={false} initialStep="menu" onClose={() => undefined} />,
     );
     rerender(<HelpDialog open initialStep="menu" onClose={() => undefined} />);
-    expect(screen.queryByRole("button", { name: "Export" })).toBeNull();
+    expect(screen.queryByRole("button", { name: CREATE_LABEL })).toBeNull();
     expect(screen.getByRole("dialog", { name: "Help" })).toBeInTheDocument();
     await waitForDialogFocus();
     expect(
@@ -420,7 +435,7 @@ describe("HelpDialog fallback", () => {
         .getByRole("dialog", { name: "Help" })
         .contains(document.activeElement),
     ).toBe(true);
-    expect(document.activeElement).not.toHaveAccessibleName("Export");
+    expect(document.activeElement).not.toHaveAccessibleName(CREATE_LABEL);
   });
 
   it("keeps the step and description when initialStep changes while open", async () => {
@@ -438,7 +453,7 @@ describe("HelpDialog fallback", () => {
       <HelpDialog open initialStep="report" onClose={() => undefined} />,
     );
     await waitForDialogFocus();
-    await user.click(screen.getByRole("button", { name: "Export" }));
+    await user.click(screen.getByRole("button", { name: CREATE_LABEL }));
     await user.type(
       await screen.findByLabelText("Describe the problem"),
       "Keeps this text",
@@ -456,7 +471,7 @@ describe("HelpDialog fallback", () => {
     await waitForDialogFocus();
     await user.click(screen.getByRole("button", { name: /Report a problem/ }));
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Export" })).toHaveFocus(),
+      expect(screen.getByRole("button", { name: CREATE_LABEL })).toHaveFocus(),
     );
     await user.click(screen.getByRole("button", { name: "Back" }));
     await waitFor(() =>
@@ -473,5 +488,82 @@ describe("HelpDialog fallback", () => {
     await waitForDialogFocus();
     await user.keyboard("{Escape}");
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("keeps a typed description across closing and reopening until a report is sent", async () => {
+    const user = userEvent.setup();
+    createMock.mockResolvedValue(bundleResult);
+    const { rerender } = render(
+      <HelpDialog open initialStep="menu" onClose={() => undefined} />,
+    );
+    await waitForDialogFocus();
+    await user.click(screen.getByRole("button", { name: /Report a problem/ }));
+    await user.click(screen.getByRole("button", { name: CREATE_LABEL }));
+    await user.type(
+      await screen.findByLabelText("Describe the problem"),
+      "Opening an episode fails",
+    );
+    const reopen = async (dismiss: () => Promise<void> | void) => {
+      await dismiss();
+      rerender(
+        <HelpDialog
+          open={false}
+          initialStep="menu"
+          onClose={() => undefined}
+        />,
+      );
+      rerender(
+        <HelpDialog open initialStep="menu" onClose={() => undefined} />,
+      );
+      await user.click(
+        await screen.findByRole("button", { name: /Report a problem/ }),
+      );
+      await user.click(screen.getByRole("button", { name: CREATE_LABEL }));
+      expect(await screen.findByLabelText("Describe the problem")).toHaveValue(
+        "Opening an episode fails",
+      );
+    };
+    await reopen(() => user.click(document.body));
+    await reopen(() => user.keyboard("{Escape}"));
+  });
+
+  it("clears the description after a successful submit once the dialog is reopened", async () => {
+    const user = userEvent.setup();
+    createMock.mockResolvedValue(bundleResult);
+    const { rerender } = render(
+      <HelpDialog open initialStep="report" onClose={() => undefined} />,
+    );
+    await waitForDialogFocus();
+    await user.click(screen.getByRole("button", { name: CREATE_LABEL }));
+    await user.type(
+      await screen.findByLabelText("Describe the problem"),
+      "Opening an episode fails",
+    );
+    await user.click(screen.getByRole("checkbox"));
+    await user.click(screen.getByRole("button", { name: "Submit report" }));
+    await waitFor(() => expect(submitMock).toHaveBeenCalledOnce());
+    rerender(
+      <HelpDialog
+        open={false}
+        initialStep="report"
+        onClose={() => undefined}
+      />,
+    );
+    rerender(
+      <HelpDialog open initialStep="report" onClose={() => undefined} />,
+    );
+    await user.click(await screen.findByRole("button", { name: CREATE_LABEL }));
+    expect(await screen.findByLabelText("Describe the problem")).toHaveValue(
+      "",
+    );
+  });
+
+  it("puts focus on the first row when it opens on the menu step", async () => {
+    render(<HelpDialog open initialStep="menu" onClose={() => undefined} />);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /Shortcuts and gestures/ }),
+      ).toHaveFocus(),
+    );
   });
 });

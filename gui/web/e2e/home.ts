@@ -39,7 +39,9 @@ export async function chooseHomeMenuItem(
   page: Page,
   name: string,
 ): Promise<void> {
-  await page.getByRole("button", { name: "ShareCut", exact: true }).click();
+  await page
+    .getByRole("button", { name: "ShareCut app menu", exact: true })
+    .click();
   await page.getByRole("menuitem", { name }).click();
 }
 
