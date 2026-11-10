@@ -29,12 +29,12 @@ function Harness({
     <div
       ref={ref}
       data-testid="lanes"
-      onPointerDownCapture={(event) => gesture.captureDown(event)}
-      onPointerMoveCapture={(event) => gesture.captureMove(event)}
-      onPointerUpCapture={(event) => gesture.captureUp(event)}
-      onPointerCancelCapture={(event) => gesture.captureCancel(event)}
-      onLostPointerCaptureCapture={(event) => gesture.captureLostCapture(event)}
-      onClickCapture={(event) => gesture.captureClick(event)}
+      onPointerDownCapture={gesture.captureDown}
+      onPointerMoveCapture={gesture.captureMove}
+      onPointerUpCapture={gesture.captureUp}
+      onPointerCancelCapture={gesture.captureCancel}
+      onLostPointerCaptureCapture={gesture.captureLostCapture}
+      onClickCapture={gesture.captureClick}
     >
       <div className="lane-row" data-track-id="destination">
         <div className="lane-seek" data-testid="blank" />

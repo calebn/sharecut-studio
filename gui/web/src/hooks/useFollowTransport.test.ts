@@ -384,7 +384,7 @@ describe("useFollowTransport", () => {
       audioPosition = 4.25;
       await act(() => vi.advanceTimersByTime(250));
       audioPosition = 4.4;
-      await act(async () => {
+      act(() => {
         useDawStore.getState().setPlayheadSec(0, "playback");
         vi.advanceTimersByTime(250);
       });
@@ -433,7 +433,7 @@ describe("useFollowTransport", () => {
       await act(() => vi.advanceTimersByTime(250));
       expect(useDawStore.getState().playheadSeekRevision).toBe(alignedRevision);
       expect(useDawStore.getState().playbackRate).toBe(1.5);
-      await act(async () => useDawStore.getState().stopFollow());
+      act(() => useDawStore.getState().stopFollow());
       audioPosition = 0;
       await act(() => vi.advanceTimersByTime(250));
       expect(useDawStore.getState().playheadSeekRevision).toBe(alignedRevision);
@@ -468,13 +468,9 @@ describe("useFollowTransport", () => {
       expect(useDawStore.getState().playbackRate).toBe(1);
       expect(useDawStore.getState().playheadSeekRevision).toBe(revision);
       ready = false;
-      await act(async () =>
-        useDawStore.getState().setSessionClients([peer(false, 8)]),
-      );
+      act(() => useDawStore.getState().setSessionClients([peer(false, 8)]));
       expect(useDawStore.getState().isPlaying).toBe(false);
-      await act(async () =>
-        useDawStore.getState().setSessionClients([peer(true)]),
-      );
+      act(() => useDawStore.getState().setSessionClients([peer(true)]));
       const resumedRevision = useDawStore.getState().playheadSeekRevision;
       await act(() => vi.advanceTimersByTime(500));
       expect(useDawStore.getState().playheadSeekRevision).toBe(resumedRevision);
@@ -482,7 +478,7 @@ describe("useFollowTransport", () => {
       ready = true;
       await act(() => vi.advanceTimersByTime(250));
       expect(useDawStore.getState().playbackRate).toBe(1.03);
-      await act(async () =>
+      act(() =>
         useDawStore
           .getState()
           .hydrate("/tmp/new-project.json", minimalProject()),
@@ -524,22 +520,20 @@ describe("useFollowTransport", () => {
     try {
       await act(() => vi.advanceTimersByTime(250));
       expect(useDawStore.getState().playbackRate).toBe(1.03);
-      await act(async () =>
-        useDawStore.getState().setSessionClients([peer("lead", 12)]),
-      );
+      act(() => useDawStore.getState().setSessionClients([peer("lead", 12)]));
       expect(useDawStore.getState().playheadSec).toBe(12);
       expect(useDawStore.getState().playbackRate).toBe(1);
       audioPosition = 12.2;
       await act(() => vi.advanceTimersByTime(250));
       expect(useDawStore.getState().playbackRate).toBe(1.03);
-      await act(async () =>
+      act(() =>
         useDawStore.getState().setSessionClients([peer("lead", 12.25, 1.5)]),
       );
       expect(useDawStore.getState().playbackRate).toBe(1.545);
       audioPosition = 12.64;
       await act(() => vi.advanceTimersByTime(250));
       expect(useDawStore.getState().playbackRate).toBe(1.5);
-      await act(async () => {
+      act(() => {
         useDawStore.getState().setSessionClients([peer("other", 20)]);
         useDawStore.getState().startFollow("other");
       });

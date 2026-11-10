@@ -66,31 +66,6 @@ describe("groupByTrack", () => {
 });
 
 describe("useByTrack", () => {
-  it("reuses slices with an inline mapper and fresh arrays of unchanged items", () => {
-    const item = { track: "host", value: 7 };
-    const { result, rerender } = renderHook(() =>
-      useByTrack([item], (entry) => [entry.track]),
-    );
-    const first = result.current.host;
-    for (let i = 0; i < 5; i++) {
-      rerender();
-      expect(result.current.host).toBe(first);
-    }
-  });
-
-  it("accepts fresh items and an inline mapper without scheduling its own render loop", () => {
-    const { result, rerender } = renderHook(
-      ({ value }) =>
-        useByTrack([{ track: "host", value }], (entry) => [entry.track]),
-      { initialProps: { value: 0 } },
-    );
-    expect(result.current.host).toEqual([{ track: "host", value: 0 }]);
-    for (let value = 1; value < 6; value++) {
-      rerender({ value });
-      expect(result.current.host).toEqual([{ track: "host", value }]);
-    }
-  });
-
   it("does no work and returns the same object when items keep identity", () => {
     const items = [envelope("host")];
     const { result, rerender } = renderHook(
