@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, fn, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { viewportStoryParameters } from "../../storybook/storyLayout";
 import {
   type InspectorSection,
@@ -8,7 +8,7 @@ import {
 } from "../../system/InspectorSheet";
 import type { SystemIconName } from "../../system/icons";
 import { AnchorMark, Framed } from "../../system/inspectorSheetFixtures";
-import { episode, selections } from "../../test/episodeFixture";
+import { episode, selections, TOMAS } from "../../test/episodeFixture";
 import { episodeBeforeEach, withEpisode } from "../../test/withEpisode";
 import type { Selection } from "../../types/project";
 import { useSelectionSections } from "./selectionSections";
@@ -95,7 +95,7 @@ const meta: Meta = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "The live chapter and social clip bodies (`useChapterSections`, `useSocialSections`) in an Inspector card, read from the hydrated episode: Title is a text field saved on blur or Enter, Time, Start and End are Scrub fields that save once per commit, and a chapter and a social clip are removed from the Action bar. A Viewer link sees the same values read-only.",
+          "The live chapter and social clip bodies (`useChapterSections`, `useSocialSections`) in an Inspector card, read from the hydrated episode: a chapter's Title is an inline field saved on Enter or blur (Escape puts it back), Time is a Scrub field bounded to the episode, a social clip's Title is a host-only inline field, Start and End are Scrub fields that save once per commit, Quality is a five-dot meter shown when the score is above 0, and a chapter and a social clip are removed from the Action bar. A Viewer link sees the same values read-only.",
       },
     },
   },
@@ -114,6 +114,11 @@ export const Chapter: Story = {
       canvas.getByRole("spinbutton", { name: "Time" }),
     ).toBeVisible();
     await expect(canvas.queryByRole("button", { name: "Apply" })).toBeNull();
+    const title = canvas.getByRole("textbox", { name: "Title" });
+    await userEvent.clear(title);
+    await userEvent.type(title, "Interview");
+    await userEvent.keyboard("{Escape}");
+    await expect(title).toHaveValue("The harbor depot");
   },
 };
 
@@ -151,11 +156,54 @@ export const SocialClip: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      await canvas.findByRole("spinbutton", { name: "Start" }),
+      await canvas.findByRole("textbox", { name: "Title" }),
+    ).toHaveValue("A loaf tells you when it is ready");
+    await expect(
+      canvas.getByRole("spinbutton", { name: "Start" }),
     ).toBeVisible();
     await expect(canvas.getByRole("spinbutton", { name: "End" })).toBeVisible();
+    await expect(
+      canvas.getByRole("img", { name: "Quality 4 of 5" }),
+    ).toBeVisible();
+    await expect(canvas.queryByText("Score")).toBeNull();
+    await expect(
+      canvas.queryByRole("button", { name: "Seek to start" }),
+    ).toBeNull();
     await expect(canvas.queryByRole("button", { name: "Delete" })).toBeNull();
     await expect(canvas.queryByRole("button", { name: "Apply" })).toBeNull();
+  },
+};
+
+const MANUAL_CLIP = "manual_ab12cd34ef";
+
+export const SocialClipManual: Story = {
+  render: () => socialCard(),
+  parameters: {
+    episode: {
+      project: episode({
+        social_clips: [
+          {
+            id: MANUAL_CLIP,
+            track_id: TOMAS,
+            start: 60,
+            end: 75,
+            score: 0,
+            title_suggestion: null,
+            approved: false,
+            review_required: true,
+          },
+        ],
+      }),
+      role: "host",
+      selection: { kind: "social", id: MANUAL_CLIP },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const title = await canvas.findByRole("textbox", { name: "Title" });
+    await expect(title).toHaveValue("");
+    await expect(title).toHaveAttribute("placeholder", "Untitled clip");
+    await expect(canvas.queryByRole("img", { name: /Quality/ })).toBeNull();
   },
 };
 
@@ -185,6 +233,10 @@ export const SocialClipReadOnly: Story = {
     await expect(
       await canvas.findByRole("spinbutton", { name: "Start" }),
     ).toHaveAttribute("aria-readonly", "true");
+    await expect(
+      canvas.getByText("A loaf tells you when it is ready"),
+    ).toBeVisible();
+    await expect(canvas.queryByRole("textbox", { name: "Title" })).toBeNull();
     await expect(canvas.queryByRole("button", { name: "Delete" })).toBeNull();
   },
 };
