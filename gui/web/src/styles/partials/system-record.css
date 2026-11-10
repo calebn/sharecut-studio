@@ -1041,6 +1041,7 @@ html:not([data-shell="phone"], [data-shell="tablet"])
 }
 
 .sys-mic-input-root {
+  --menu-item-min-block-size: var(--touch-min);
   display: block;
   inline-size: 100%;
 }
