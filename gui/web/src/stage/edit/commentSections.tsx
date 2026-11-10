@@ -141,17 +141,16 @@ export function useCommentSections(
     );
   const verbs = [
     error ? <InlineError key="error" message={error} /> : null,
-    role === "guest" ? null : (
+    role === "guest" || !comment.resolved ? null : (
       <Button
-        key="resolve"
-        variant="primary"
+        key="reopen"
         disabledReason={busyReason}
-        onClick={() => void resolve(comment, !comment.resolved)}
+        onClick={() => void resolve(comment, false)}
       >
-        {comment.resolved ? "Reopen" : "Resolve"}
+        Reopen
       </Button>
     ),
   ].filter(Boolean);
-  if (verbs.length) sections.push(section("resolve", ...verbs));
+  if (verbs.length) sections.push(section("reopen", ...verbs));
   return sections;
 }

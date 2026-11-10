@@ -141,13 +141,7 @@ export const ACTION_SETS: Readonly<Record<EditKind, ActionSet>> = {
     more: [],
   },
   social: {
-    bar: [
-      bar("hear"),
-      bar("comment"),
-      bar("fixText"),
-      bar("remove"),
-      bar("inspect"),
-    ],
+    bar: [bar("hear"), bar("comment"), bar("remove"), bar("inspect")],
     more: [],
   },
   comment: {

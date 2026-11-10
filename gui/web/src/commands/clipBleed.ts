@@ -1,6 +1,11 @@
 import { restoreClipBleed } from "../api/clipBleed";
 import { isCurrentDocumentScope } from "../document/authorityState";
 import {
+  type BleedAttenuationRegion,
+  bleedAttenuationRegionKey,
+} from "../edit/bleedAttenuation";
+import { bleedBusyLabel, bleedRestoreReason } from "../edit/bleedRestoreReason";
+import {
   type ClipBleedUndoReceipt,
   clipBleedSession,
 } from "../edit/clipBleedSession";
@@ -39,6 +44,30 @@ export function clipBleedDisabledReason(): string | undefined {
   if (getClipPlacement().kind !== "idle")
     return "Finish or cancel the clip move before restoring audio.";
   return undefined;
+}
+
+export function selectedBleedRegion():
+  | BleedAttenuationRegion<unknown>
+  | undefined {
+  const snapshot = clipBleedSession.getSnapshot();
+  return snapshot?.read.state === "ready"
+    ? snapshot.read.inspection.regions.find(
+        (region) => bleedAttenuationRegionKey(region) === snapshot.selectedKey,
+      )
+    : undefined;
+}
+
+export function bleedKeepReason(): string | undefined {
+  const snapshot = clipBleedSession.getSnapshot();
+  if (!snapshot) return "Refresh regions before restoring audio.";
+  const { action } = snapshot;
+  return bleedRestoreReason({
+    busyLabel: bleedBusyLabel(action),
+    read: snapshot.read,
+    stale: action.state === "error" && action.code === "STALE_TARGET",
+    permissionReason: clipBleedDisabledReason(),
+    selected: selectedBleedRegion(),
+  });
 }
 
 function selectedOccurrence(

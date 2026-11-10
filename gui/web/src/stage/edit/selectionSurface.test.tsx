@@ -216,7 +216,7 @@ const REACH: Record<SelectionKind, Reach[]> = {
     { role: "spinbutton", name: "Start" },
     { role: "button", name: "Ripple delete" },
   ],
-  bleedAttenuation: [{ role: "button", name: "Restore original audio" }],
+  bleedAttenuation: [{ role: "button", name: "Refresh regions" }],
   pending: [
     { role: "spinbutton", name: "Source start" },
     { role: "spinbutton", name: "Source end" },
@@ -231,10 +231,7 @@ const REACH: Record<SelectionKind, Reach[]> = {
     { role: "spinbutton", name: "End" },
     { role: "button", name: "Seek to start" },
   ],
-  comment: [
-    { role: "button", name: "Resolve" },
-    { role: "button", name: "Reply" },
-  ],
+  comment: [{ role: "button", name: "Reply" }],
   envelope: [{ role: "button", name: "Show volume envelope" }],
   envelopePoint: [
     { role: "spinbutton", name: "Time" },
@@ -577,7 +574,7 @@ describe("automatic reduction occurrence lookup", () => {
     render(<SectionsBody withRange={false} />);
     expect(screen.getByText("Clip not found")).toBeVisible();
     expect(
-      screen.queryByRole("button", { name: "Restore original audio" }),
+      screen.queryByRole("button", { name: "Refresh regions" }),
     ).toBeNull();
   });
 });

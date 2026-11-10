@@ -209,7 +209,7 @@ const matrix: [string, Partial<EditFacts>, ResolvedBar][] = [
     { kind: "social" },
     {
       leading: null,
-      bar: ["hear", "comment", "fixText", "remove", "inspect"],
+      bar: ["hear", "comment", "remove", "inspect"],
       more: [],
       primary: "approve",
     },

@@ -1,7 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { deleteSocialClip, updateSocialClip } from "../../api";
+import { updateSocialClip } from "../../api";
 import { shareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
@@ -11,7 +10,6 @@ import { SectionsBody } from "./SectionsBody";
 
 vi.mock("../../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../api")>()),
-  deleteSocialClip: vi.fn(async () => undefined),
   updateSocialClip: vi.fn(async () => undefined),
 }));
 
@@ -60,7 +58,7 @@ describe("social clip content", () => {
     expect(screen.getByRole("spinbutton", { name: "Start" })).toBeVisible();
     expect(screen.getByRole("spinbutton", { name: "End" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Apply" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Delete" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
     expect(screen.getByText("A loaf tells you when it is ready")).toBeVisible();
     expect(screen.getByText("0.87")).toBeVisible();
     await expectNoA11yViolations(container);
@@ -106,19 +104,6 @@ describe("social clip content", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Save failed");
   });
 
-  it("deletes the clip, clears the selection and offers Undo", async () => {
-    const user = userEvent.setup();
-    vi.mocked(deleteSocialClip).mockResolvedValueOnce("e-del" as never);
-    open();
-    await user.click(screen.getByRole("button", { name: "Delete" }));
-    expect(deleteSocialClip).toHaveBeenCalledWith("/tmp/p.json", "social-1");
-    expect(useDawStore.getState().selection).toBeNull();
-    expect(useDawStore.getState().feedbackToast).toMatchObject({
-      message: "Deleted the social clip",
-      undo: "e-del",
-    });
-  });
-
   it("shows the range read-only and offers no mutation on a share", async () => {
     const { container } = open("share");
     expect(screen.getByRole("spinbutton", { name: "Start" })).toHaveAttribute(
@@ -129,9 +114,7 @@ describe("social clip content", () => {
       "aria-readonly",
       "true",
     );
-    expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
     expect(updateSocialClip).not.toHaveBeenCalled();
-    expect(deleteSocialClip).not.toHaveBeenCalled();
     await expectNoA11yViolations(container);
   });
 

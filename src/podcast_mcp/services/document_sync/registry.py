@@ -200,7 +200,7 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             payload=p.DeleteCommentPayload,
             handler=comments.delete_comment,
             family="comments",
-            gui=NO_GUI_SENDER,
+            gui=GUI_SENT,
             mcp=named("delete_comment_tool", GENERIC_MCP),
             cli=named("podcast comment delete"),
         ),

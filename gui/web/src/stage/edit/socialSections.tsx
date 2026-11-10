@@ -1,13 +1,12 @@
 import { useEffect } from "react";
-import { deleteSocialClip, updateSocialClip } from "../../api";
+import { updateSocialClip } from "../../api";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
 import { isShareProjectKey } from "../../shareMode";
 import { useDaw } from "../../state/useDaw";
 import type { InspectorSection } from "../../system/InspectorSheet";
 import { ScrubField } from "../../system/ScrubField";
 import type { Selection } from "../../types/project";
-import { Button, InspectorSeekFooter } from "../../ui";
-import { BUSY_REASON } from "../../ui/disabledReason";
+import { InspectorSeekFooter } from "../../ui";
 import { note } from "./sheetNote";
 
 const END_BEFORE_START = "End must be greater than start";
@@ -15,14 +14,10 @@ const END_BEFORE_START = "End must be greater than start";
 export function useSocialSections(
   selection: Selection,
 ): readonly InspectorSection[] | null {
-  const { project, projectPath, setSelection, announceStatus } = useDaw(
-    (s) => ({
-      project: s.project,
-      projectPath: s.projectPath,
-      setSelection: s.setSelection,
-      announceStatus: s.announceStatus,
-    }),
-  );
+  const { project, projectPath } = useDaw((s) => ({
+    project: s.project,
+    projectPath: s.projectPath,
+  }));
   const { busy, error, setError, run } = useProjectMutation();
   const id = selection?.kind === "social" ? selection.id : null;
   const clip = (project?.social_clips ?? []).find((c) => c.id === id);
@@ -48,14 +43,6 @@ export function useSocialSections(
     }
     await run(async () => {
       await updateSocialClip(projectPath, clip.id, start, end);
-    });
-  };
-
-  const remove = async () => {
-    await run(async () => {
-      const undo = await deleteSocialClip(projectPath, clip.id);
-      setSelection(null);
-      announceStatus("Deleted the social clip", { undo });
     });
   };
 
@@ -121,22 +108,6 @@ export function useSocialSections(
             />
           ),
         },
-        ...(editable
-          ? [
-              {
-                id: "remove",
-                control: (
-                  <Button
-                    className="track-sheet-action"
-                    disabledReason={busy ? BUSY_REASON : undefined}
-                    onClick={() => void remove()}
-                  >
-                    Delete
-                  </Button>
-                ),
-              },
-            ]
-          : []),
       ],
     },
   ];

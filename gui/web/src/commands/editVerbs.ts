@@ -3,6 +3,7 @@ import {
   applySuggestedActions,
   approveEdits,
   deleteChapter,
+  deleteComment,
   deleteSocialClip,
   rejectEdits,
   updateSocialClipDetails,
@@ -32,6 +33,7 @@ import {
   canApplyPass12,
   canManageProjects,
   canReviewPendingEdit,
+  commentRole,
   hasShareCapability,
   rangeEditMode,
 } from "../shareMode";
@@ -43,6 +45,7 @@ import { type BarId, resolveBar } from "../system/editActionSets";
 import type { JoinMode, ProjectView, Selection } from "../types/project";
 import { BUSY_REASON } from "../ui/disabledReason";
 import { errorMessage } from "../utils/apiError";
+import { commitCommentActor } from "../utils/commentAuthor";
 import { joinModeOf } from "../utils/editMarkerRegistry";
 import {
   capturePendingReview,
@@ -54,6 +57,7 @@ import {
   speakerLaneMoveTarget,
 } from "../utils/speakerSplit";
 import { COMMANDS } from "./catalog";
+import { bleedKeepReason, selectedBleedRegion } from "./clipBleed";
 import { buildCommandContext, evaluateWhen } from "./context";
 import { runDeleteClips } from "./editing";
 import { inProject, removeEnvelopePoint } from "./envelopes";
@@ -230,6 +234,7 @@ async function hearSide(
   facts: EditFacts,
   side: "current" | "suggested" | null,
 ): Promise<ExecuteResult> {
+  if (facts.kind === "bleed") return hearBleed(side === "current");
   const s = useDawStore.getState();
   if (facts.kind !== "suggestion" || s.selection?.kind !== "pending")
     return disabled("Select a suggestion to hear it");
@@ -242,6 +247,21 @@ async function hearSide(
   const outcome = await playPendingPreview(s.projectPath, id, mode);
   if (outcome.status === "ok" || outcome.status === "superseded") return OK;
   return disabled(outcome.reason);
+}
+
+/**
+ * Plays the selected automatic region with a second of lead-in: before is the source audio
+ * as recorded, after is the full mix with the reduction applied.
+ */
+async function hearBleed(before: boolean): Promise<ExecuteResult> {
+  const region = selectedBleedRegion();
+  if (!region) return disabled("Select one automatic region below");
+  const mode = await executePointerCommand("transport.audition", {
+    mode: before ? "raw" : "mix",
+  });
+  if (mode.status !== "ok") return mode;
+  const { start, end } = region.timelineSpan;
+  return playSpan(start, end, HEAR_PAD_SEC);
 }
 
 /** Moves the playhead to the start of the selected suggestion. */
@@ -310,6 +330,8 @@ async function decidePending(
 
 async function keep(facts: EditFacts): Promise<ExecuteResult> {
   if (facts.kind === "suggestion") return decidePending("reject");
+  if (facts.kind === "bleed")
+    return executePointerCommand("edit.restoreClipBleed");
   if (facts.kind === "seam") {
     const seam = currentSeam();
     if (seam?.kind !== "cut") return disabled("Nothing was cut here");
@@ -402,13 +424,44 @@ async function removeSocial(id: string): Promise<ExecuteResult> {
   if (!canManageProjects(s.projectPath))
     return disabled("Only the host can remove a social clip");
   try {
-    await deleteSocialClip(s.projectPath, id);
+    const undo = await deleteSocialClip(s.projectPath, id);
     useDawStore.getState().setSelection(null);
-    useDawStore.getState().announceStatus("Social clip removed");
+    useDawStore.getState().announceStatus("Social clip removed", { undo });
     return OK;
   } catch (error) {
     return disabled(errorMessage(error));
   }
+}
+
+async function removeComment(id: string): Promise<ExecuteResult> {
+  const s = useDawStore.getState();
+  if (!canManageProjects(s.projectPath))
+    return disabled("Only the host can remove a comment");
+  try {
+    const undo = await deleteComment(s.projectPath, id);
+    useDawStore.getState().setSelection(null);
+    useDawStore.getState().announceStatus("Comment removed", { undo });
+    return OK;
+  } catch (error) {
+    return disabled(errorMessage(error));
+  }
+}
+
+async function resolveComment(): Promise<ExecuteResult> {
+  const s = useDawStore.getState();
+  if (s.selection?.kind !== "comment") return disabled("Select a comment");
+  const by = commitCommentActor(
+    undefined,
+    commentRole(s.projectPath, s.guestMode),
+  );
+  const result = await executePointerCommand("comment.resolve", {
+    commentId: s.selection.id,
+    resolved: true,
+    by,
+  });
+  if (result.status === "ok")
+    useDawStore.getState().announceStatus("Comment resolved");
+  return result;
 }
 
 const SMOOTH_ONE_TRACK = "Select one track to smooth its joins";
@@ -659,6 +712,7 @@ async function dispatch(
     case "remove": {
       const selection = useDawStore.getState().selection;
       if (selection?.kind === "social") return removeSocial(selection.id);
+      if (selection?.kind === "comment") return removeComment(selection.id);
       if (selection?.kind === "track")
         return executePointerCommand("track.remove");
       return selection?.kind === "chapter" ||
@@ -693,6 +747,7 @@ async function dispatch(
     case "approve":
       return approveSocial();
     case "resolve":
+      return resolveComment();
     default:
       // A mute is a More row of its own id.
       if ((id as string) === "mute") return executePointerCommand("edit.mute");
@@ -719,11 +774,11 @@ export const WIRED_VERBS: Readonly<Record<EditKind, readonly BarId[]>> = {
   suggestion: ["hearBefore", "hearAfter", "keep", "comment", "more", "inspect"],
   chapter: ["hear", "fixText", "remove", "inspect"],
   social: ["hear", "comment", "remove", "inspect"],
-  comment: ["inspect"],
+  comment: ["remove", "inspect"],
   track: ["remove", "more", "inspect"],
   envelope: ["inspect"],
   envelopePoint: ["hear", "remove", "inspect"],
-  bleed: ["inspect"],
+  bleed: ["hearBefore", "hearAfter", "keep", "inspect"],
 };
 
 const WIRED_MORE: ReadonlySet<string> = new Set([
@@ -745,6 +800,7 @@ const WIRED_PRIMARY: ReadonlySet<string> = new Set([
   "shorten",
   "lower",
   "approve",
+  "resolve",
 ]);
 
 export function registerEditVerbCommands(): void {
@@ -886,6 +942,10 @@ export function barModelOf(facts: EditFacts, s: DawState): BarModel {
           ? { id, disabledReason: plan.reason }
           : item;
       }
+      if (id === "keep" && facts.kind === "bleed") {
+        const reason = bleedKeepReason();
+        return reason ? { id, disabledReason: reason } : item;
+      }
       if (id === "record")
         return { id, label: rangeLike ? "Re-record" : "Record here" };
       return item;
@@ -975,7 +1035,9 @@ export function barModelOf(facts: EditFacts, s: DawState): BarModel {
       (facts.kind === "suggestion" &&
       !canReviewPendingEdit(s.projectPath, s.shareCapabilities)
         ? "This link cannot decide suggestions"
-        : undefined);
+        : facts.kind === "comment" && !canManageProjects(s.projectPath)
+          ? "Only the host can resolve a comment"
+          : undefined);
     primary = {
       id,
       ...(cut && cut.label !== "Cut" ? { label: cut.label } : {}),

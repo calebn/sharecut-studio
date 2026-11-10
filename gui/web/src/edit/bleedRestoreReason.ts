@@ -1,7 +1,15 @@
-import type { BleedAttenuationRegion } from "../../edit/bleedAttenuation";
-import type { ClipBleedRead } from "../../edit/clipBleedSession";
+import type { BleedAttenuationRegion } from "./bleedAttenuation";
+import type { ClipBleedAction, ClipBleedRead } from "./clipBleedSession";
 
 export const CHECKING = "Checking automatic regions…";
+export function bleedBusyLabel(
+  action: ClipBleedAction | undefined,
+): string | null {
+  if (action?.state === "saving") return "Saving Restore choice…";
+  if (action?.state === "undoing") return "Undoing Restore choice…";
+  return null;
+}
+
 const REFRESH_FIRST = "Refresh regions before restoring audio.";
 
 export function bleedRestoreReason({

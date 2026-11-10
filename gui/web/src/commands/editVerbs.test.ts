@@ -34,6 +34,9 @@ vi.mock("../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api")>()),
   deleteClips: vi.fn(async () => "h-delete"),
   deleteChapter: vi.fn(async () => undefined),
+  deleteSocialClip: vi.fn(async () => "h-social"),
+  deleteComment: vi.fn(async () => "h-comment"),
+  patchComment: vi.fn(async () => null),
   removeTrackCommand: vi.fn(async () => ({ history_head_id: "h-remove" })),
   applyFadeRecommendations: vi.fn(async () => undefined),
   setEnvelope: vi.fn(async () => "h-env"),
@@ -69,6 +72,18 @@ vi.mock("./rangeActions", async (importOriginal) => ({
 vi.mock("../audio/pendingPreview", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../audio/pendingPreview")>()),
   playPendingPreview: vi.fn(),
+}));
+
+const bleed = vi.hoisted(() => ({
+  region: undefined as
+    | { timelineSpan: { start: number; end: number } }
+    | undefined,
+  reason: undefined as string | undefined,
+}));
+vi.mock("./clipBleed", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./clipBleed")>()),
+  selectedBleedRegion: () => bleed.region,
+  bleedKeepReason: () => bleed.reason,
 }));
 
 const playRange = vi.hoisted(() => vi.fn());
@@ -1232,7 +1247,10 @@ describe("barModelOf", () => {
         expect(WIRED_VERBS[facts.kind], `${name}: ${item.id}`).toContain(
           item.id,
         );
-      if (primary) expect(["cut", "shorten", "lower"]).toContain(primary.id);
+      if (primary)
+        expect(["cut", "shorten", "lower", "approve", "resolve"]).toContain(
+          primary.id,
+        );
     }
   });
 
@@ -1617,5 +1635,142 @@ describe("seam bar", () => {
       (item) => item.id === "keep",
     );
     expect(keep?.disabledReason).toBeUndefined();
+  });
+});
+
+describe("comment, bleed and social verbs", () => {
+  const BLEED = {
+    kind: "bleedAttenuation",
+    id: "a",
+    trackId: MIRA,
+    regionKey: "k",
+  } as const;
+
+  beforeEach(() => {
+    bleed.region = { timelineSpan: { start: 2, end: 4 } };
+    bleed.reason = undefined;
+  });
+
+  it("resolves an open comment from the primary verb and says so", async () => {
+    host(EDIT_SELECTIONS.comment);
+    const facts = factsOf()!;
+    expect(barModelOf(facts, useDawStore.getState()).primary).toMatchObject({
+      id: "resolve",
+    });
+    await runEditVerb("resolve", facts);
+    expect(api.patchComment).toHaveBeenCalledWith(
+      "/tmp/episode",
+      "open",
+      expect.objectContaining({ resolved: true, by: expect.any(String) }),
+    );
+    expect(announced()).toBe("Comment resolved");
+  });
+
+  it("offers no resolve on a resolved comment and refuses it to a non-host", () => {
+    host({ kind: "comment", id: "done" });
+    expect(barModelOf(factsOf()!, useDawStore.getState()).primary).toBeNull();
+    host(EDIT_SELECTIONS.comment, {
+      projectPath: "share:tok",
+      guestMode: "edit",
+      shareCapabilities: ["edit"],
+    });
+    expect(
+      barModelOf(factsOf()!, useDawStore.getState()).primary,
+    ).toMatchObject({
+      id: "resolve",
+      disabledReason: "Only the host can resolve a comment",
+    });
+  });
+
+  it("removes a comment with Undo and clears the selection", async () => {
+    host(EDIT_SELECTIONS.comment);
+    expect(
+      barModelOf(factsOf()!, useDawStore.getState()).items.map((i) => i.id),
+    ).toEqual(["remove", "inspect"]);
+    await runEditVerb("remove", factsOf()!);
+    expect(api.deleteComment).toHaveBeenCalledWith("/tmp/episode", "open");
+    expect(useDawStore.getState().selection).toBeNull();
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      message: "Comment removed",
+      undo: "h-comment",
+    });
+  });
+
+  it("refuses to remove a comment off the host", async () => {
+    host(EDIT_SELECTIONS.comment, {
+      projectPath: "share:tok",
+      guestMode: "edit",
+      shareCapabilities: ["edit"],
+    });
+    const result = await runEditVerb("remove", factsOf()!);
+    expect(result).toMatchObject({
+      status: "disabled",
+      reason: "Only the host can remove a comment",
+    });
+    expect(api.deleteComment).not.toHaveBeenCalled();
+  });
+
+  it("removes a social clip with Undo, as the sheet's Delete did", async () => {
+    host({ kind: "social", id: "s1" });
+    await runEditVerb("remove", factsOf()!);
+    expect(api.deleteSocialClip).toHaveBeenCalledWith("/tmp/episode", "s1");
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      message: "Social clip removed",
+      undo: "h-social",
+    });
+  });
+
+  it("draws Hear before, Hear after and Keep on an automatic region", () => {
+    host(BLEED);
+    expect(barModelOf(factsOf()!, useDawStore.getState()).items).toEqual([
+      { id: "hearBefore" },
+      { id: "hearAfter" },
+      { id: "keep" },
+      { id: "inspect" },
+    ]);
+  });
+
+  it("gives Keep the reason the region cannot be restored", () => {
+    host(BLEED);
+    bleed.reason = "Select one automatic region below.";
+    expect(
+      barModelOf(factsOf()!, useDawStore.getState()).items.find(
+        (i) => i.id === "keep",
+      ),
+    ).toEqual({
+      id: "keep",
+      disabledReason: "Select one automatic region below.",
+    });
+  });
+
+  it("plays the region from the source for Hear before and from the mix for Hear after", async () => {
+    host(BLEED);
+    await runEditVerb("hearBefore", factsOf()!);
+    expect(useDawStore.getState().auditionMode).toBe("raw");
+    expect(playRange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ start: 2, end: 4, padSec: 1 }),
+    );
+    await runEditVerb("hearAfter", factsOf()!);
+    expect(useDawStore.getState().auditionMode).toBe("mix");
+    expect(playRange).toHaveBeenCalledTimes(2);
+  });
+
+  it("asks for a region before Hear", async () => {
+    host(BLEED);
+    bleed.region = undefined;
+    const result = await runEditVerb("hearBefore", factsOf()!);
+    expect(result).toMatchObject({
+      status: "disabled",
+      reason: "Select one automatic region below",
+    });
+    expect(playRange).not.toHaveBeenCalled();
+  });
+
+  it("restores the selected region through the Restore command on Keep", async () => {
+    host(BLEED);
+    const restore = vi.fn(() => ({ status: "ok" as const }));
+    registerCommand("edit.restoreClipBleed", restore);
+    await runEditVerb("keep", factsOf()!);
+    expect(restore).toHaveBeenCalledOnce();
   });
 });

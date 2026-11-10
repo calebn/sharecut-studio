@@ -329,10 +329,6 @@ export const AUTO_REDUCTION_SECTIONS: readonly InspectorSection[] = [
     id: "actions",
     rows: [
       {
-        id: "restore",
-        control: <Button variant="primary">Restore original audio</Button>,
-      },
-      {
         id: "refresh",
         control: <Button>Refresh regions</Button>,
       },
@@ -376,12 +372,6 @@ export const COMMENT_SECTIONS: readonly InspectorSection[] = [
           </div>
         ),
       },
-    ],
-  },
-  {
-    id: "resolve",
-    rows: [
-      { id: "resolve", control: <Button variant="primary">Resolve</Button> },
     ],
   },
 ];
