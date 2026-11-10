@@ -392,7 +392,6 @@ AUDITED_TWINS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
         ("add_comment_action_tool", GENERIC_MCP),
         ("podcast comment add-action",),
     ),
-    "DeleteComment": (("delete_comment_tool", GENERIC_MCP), ("podcast comment delete",)),
     "AddEffect": (("add_effect_tool",), ("podcast doc submit",)),
     "RemoveEffect": (("remove_effect_tool",), ("podcast doc submit",)),
     "ApplyAutoEdits": (("apply_edits",), ("podcast apply-edits",)),
@@ -442,6 +441,13 @@ def test_an_audited_type_records_the_twins_that_submit_it(command_type: str) -> 
     assert spec.gui is NO_GUI_SENDER
     for decision, names in ((spec.mcp, mcp), (spec.cli, cli)):
         assert decision == named(*names)
+
+
+def test_a_comment_delete_is_sent_by_the_bar_and_keeps_its_agent_twins() -> None:
+    spec = COMMANDS["DeleteComment"]
+    assert spec.gui is GUI_SENT
+    assert spec.mcp == named("delete_comment_tool", GENERIC_MCP)
+    assert spec.cli == named("podcast comment delete")
 
 
 def test_no_audit_placeholder_is_left() -> None:
