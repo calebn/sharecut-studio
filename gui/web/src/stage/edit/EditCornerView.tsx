@@ -41,7 +41,7 @@ export interface EditCornerViewProps {
 
 const ZOOM_REASON = { in: "Fully zoomed in", out: "Fully zoomed out" } as const;
 
-/** Fit, zoom, the eye (View popover), the Script toggle and, on touch, the range toggle, bottom-right of the lanes. */
+/** Snap, fit, zoom, the eye (View popover), the Script toggle and, on touch, the range toggle, bottom-right of the lanes. Snap leads so the eye keeps its place at the right edge. */
 export function EditCornerView({
   viewAnchor = AVAILABLE_VIEW_ANCHOR,
   zoom,
@@ -61,6 +61,19 @@ export function EditCornerView({
   useViewAnchor(viewOpen, viewAnchor, panelRef, onCloseView);
   return (
     <div className="edit-corner" role="group" aria-label="Timeline view">
+      {snap ? (
+        <ToggleButton
+          quiet
+          pressed={snap.on}
+          className="edit-corner-btn edit-corner-snap"
+          disabledReason={snap.reason}
+          title={commandLabel("view.toggleSnap")}
+          aria-label={commandLabel("view.toggleSnap")}
+          onClick={snap.onToggle}
+        >
+          <Icon name="snap" />
+        </ToggleButton>
+      ) : null}
       <Button
         className="edit-corner-btn"
         title={commandLabel("view.fit")}
@@ -106,19 +119,6 @@ export function EditCornerView({
           panelRef={panelRef}
           onClose={onCloseView}
         />
-      ) : null}
-      {snap ? (
-        <ToggleButton
-          quiet
-          pressed={snap.on}
-          className="edit-corner-btn edit-corner-snap"
-          disabledReason={snap.reason}
-          title={commandLabel("view.toggleSnap")}
-          aria-label={commandLabel("view.toggleSnap")}
-          onClick={snap.onToggle}
-        >
-          <Icon name="snap" />
-        </ToggleButton>
       ) : null}
       {range ? (
         <ToggleButton
