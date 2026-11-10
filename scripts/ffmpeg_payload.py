@@ -262,12 +262,7 @@ RENAME_FIRST_DELAY_S = 0.2
 
 
 def _rename(source: Path, destination: Path) -> None:
-    """Rename a payload directory, waiting out a transient Windows lock.
-
-    The proof has just run the binaries in the directory, and a scanner or the
-    just-exited process can hold it for a moment, so the rename fails with
-    access denied until the handle closes. Other failures are not retried.
-    """
+    """Rename, waiting out the brief lock a scanner or just-exited proof process holds on Windows."""
     delay = RENAME_FIRST_DELAY_S
     for attempt in range(RENAME_ATTEMPTS):
         try:
