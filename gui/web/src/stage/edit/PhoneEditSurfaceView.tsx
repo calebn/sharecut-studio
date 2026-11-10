@@ -10,7 +10,7 @@ export interface PhoneEditSurfaceViewProps {
   corner: ReactNode;
   lanes: ReactNode;
   script: ReactNode;
-  /** The whole-episode strip, sharing the bar row with the surface switch and Mix. */
+  /** The whole-episode strip. */
   overview?: ReactNode;
   /** Opens the Mix sheet; absent for a link that cannot change the mix. */
   onOpenMix?: () => void;
