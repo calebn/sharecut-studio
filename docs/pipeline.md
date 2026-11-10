@@ -48,7 +48,9 @@ step skips it, as for any step. Turning the switch off does not remove beds alre
 extracted; one History undo of `after extract_room_tone_beds` does, per run, not per bed.
 Music, intro, outro and gated tracks are never given a bed.
 
-There is no per-track extract or clear command yet (slice B of the room-tone work). Until it lands, the step is reached from the CLI (`--set room_tone.extract_bed=true`, `--only`), MCP `pipeline_run` and the GUI Advanced switch under Clean and level, and the History undo above reverts it.
+The step is reached from the CLI (`--set room_tone.extract_bed=true`, `--only`), MCP `pipeline_run` and the GUI Advanced switch under Clean and level, and the History undo above reverts it. One track can also be extracted or cleared on its own with `ExtractRoomToneBed` / `ClearExtractedRoomToneBed` ([audio-engineering.md § Extracted room-tone bed](audio-engineering.md#extracted-room-tone-bed)).
+
+A per-track Clear (`ClearExtractedRoomToneBed`) lasts only until the next pipeline run with `room_tone.extract_bed` on: the step sees a bedless track and cuts a bed again. To keep a track bedless, leave the switch off for runs that include it.
 
 | Setting | Default | Meaning |
 |---|---|---|

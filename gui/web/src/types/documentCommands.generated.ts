@@ -16,6 +16,7 @@ export type DocumentCommandType =
   | "ApplySuggestedActions"
   | "ApplyTranscriptCleanup"
   | "ApproveEdits"
+  | "ClearExtractedRoomToneBed"
   | "ClearFeedField"
   | "CorrectTranscriptPhrase"
   | "CorrectTranscriptWord"
@@ -27,6 +28,7 @@ export type DocumentCommandType =
   | "DeleteSocialClip"
   | "DuplicateSegment"
   | "EditSelectedRange"
+  | "ExtractRoomToneBed"
   | "FadeJoins"
   | "FillRoomTone"
   | "InsertGap"
@@ -106,6 +108,7 @@ export const DocumentCommand = {
   ApplySuggestedActions: "ApplySuggestedActions",
   ApplyTranscriptCleanup: "ApplyTranscriptCleanup",
   ApproveEdits: "ApproveEdits",
+  ClearExtractedRoomToneBed: "ClearExtractedRoomToneBed",
   ClearFeedField: "ClearFeedField",
   CorrectTranscriptPhrase: "CorrectTranscriptPhrase",
   CorrectTranscriptWord: "CorrectTranscriptWord",
@@ -117,6 +120,7 @@ export const DocumentCommand = {
   DeleteSocialClip: "DeleteSocialClip",
   DuplicateSegment: "DuplicateSegment",
   EditSelectedRange: "EditSelectedRange",
+  ExtractRoomToneBed: "ExtractRoomToneBed",
   FadeJoins: "FadeJoins",
   FillRoomTone: "FillRoomTone",
   InsertGap: "InsertGap",

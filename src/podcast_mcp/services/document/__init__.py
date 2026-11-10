@@ -59,6 +59,7 @@ if TYPE_CHECKING:
         PENDING_PREVIEW_PAD_MIN_SEC,
         PendingPreviewSpan,
     )
+    from podcast_mcp.services.document.room_tone_bed import RoomToneBedReply, RoomToneBedService
     from podcast_mcp.services.document.segment_capture import parse_range, save_segment
     from podcast_mcp.services.document.segment_insert import (
         SegmentInsertReport,
@@ -108,6 +109,8 @@ __all__ = [
     "PlayService",
     "PopulatedHistoryDiffResult",
     "RollBoundaryTarget",
+    "RoomToneBedReply",
+    "RoomToneBedService",
     "SegmentInsertReport",
     "ServedFile",
     "SessionSuggestionService",
@@ -186,6 +189,8 @@ _MODULE_BY_NAME = {
     "KitApplyReport": "kit_apply",
     "save_segment": "segment_capture",
     "SessionSuggestionService": "session_suggestion",
+    "RoomToneBedReply": "room_tone_bed",
+    "RoomToneBedService": "room_tone_bed",
     "TimelineService": "timeline",
     "TranscriptService": "transcript",
     "TranscriptEmptyError": "transcript",

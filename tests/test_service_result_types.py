@@ -47,7 +47,6 @@ DICT_RETURNS: dict[str, int] = {
     "document/play_compose.py": 2,
     "document/play_pending.py": 1,
     "document/play_session.py": 5,
-    "document/room_tone_bed.py": 2,
     "document/segment_insert.py": 2,
     "document/service_base.py": 4,
     "document/session_suggestion.py": 9,
