@@ -527,7 +527,7 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
   "daw.transcript.findReplace": {
     label: "Find and replace transcript",
     tooltip:
-      "Preview literal replacements across all source transcripts, then apply them as one undoable pass.",
+      "Preview literal replacements across all source transcripts, then apply all of them, or one chosen match, as one undoable pass.",
   },
   "daw.range.play": {
     label: "Play range",

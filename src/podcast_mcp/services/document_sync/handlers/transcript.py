@@ -25,6 +25,7 @@ def replace_transcript_matches(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[
         str(p["replacement"]),
         str(p["preview_token"]),
         match_case=bool(p["match_case"]),
+        only=p.get("only"),
     )
     return {"replaced": count}
 

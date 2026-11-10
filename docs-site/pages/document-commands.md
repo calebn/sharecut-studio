@@ -74,7 +74,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `RemoveTrack` | `track_id` (string) | — |
 | `RenameProject` | `name` (string) | — |
 | `ReorderTrack` | `index` (integer), `track_id` (string) | — |
-| `ReplaceTranscriptMatches` | `preview_token` (string), `replacement` (string), `search` (string) | `match_case` (boolean) |
+| `ReplaceTranscriptMatches` | `preview_token` (string), `replacement` (string), `search` (string) | `match_case` (boolean), `only` (integer \| null) |
 | `ResolveComment` | `by` (string), `comment_id` (string) | `resolved` (boolean) |
 | `RestoreAppliedEdit` | `ids` (array[string]) | `dry_run` (boolean) |
 | `RestoreClipBleed` | `target` (object) | — |

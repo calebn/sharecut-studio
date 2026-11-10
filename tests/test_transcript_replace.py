@@ -14,6 +14,7 @@ from podcast_mcp.models import Track, Transcript, TranscriptWord, load_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import HistoryService, TranscriptService
 from podcast_mcp.services.document_sync import DocumentSyncService
+from podcast_mcp.util.coded_error import CodedValueError
 
 
 def _word(text: str, start: float, **fields) -> TranscriptWord:
@@ -427,3 +428,78 @@ def test_cli_find_replace_is_one_undo(minimal_project):
     assert _texts(minimal_project) == [["Mira,", "Mira", "Adaline"], ["\u2018Mira\u2019"]]
     assert runner.invoke(app, ["undo", *args]).exit_code == 0
     assert _texts(minimal_project) == [["Ada,", "ADA", "Adaline"], ["\u2018Ada\u2019"]]
+
+
+@pytest.mark.parametrize("only,expected", [(0, 0), (2, 2)])
+def test_only_replaces_that_match_as_one_undo(minimal_project, only, expected):
+    ws = _workspace(minimal_project)
+    svc = TranscriptService(ws)
+    preview = svc.preview_transcript_replacement("Ada", "Mira")
+    before = [transcript.model_dump(mode="json") for transcript in ws.project.transcripts]
+    token = preview["preview_token"]
+    assert svc.replace_transcript_matches("Ada", "Mira", token, only=only) == 1
+    changed = [
+        (row["source_id"], row["start_word_index"])
+        for row in preview["matches"]
+        if ws.project.transcripts[0 if row["source_id"] is None else 1]
+        .words[row["start_word_index"]]
+        .text
+        != row["before"]
+    ]
+    wanted = preview["matches"][expected]
+    assert changed == [(wanted["source_id"], wanted["start_word_index"])]
+    HistoryService(ws).undo(rerender=False)
+    assert [transcript.model_dump(mode="json") for transcript in ws.project.transcripts] == before
+
+
+@pytest.mark.parametrize("only", [-1, 3, 99])
+def test_only_outside_the_preview_is_refused_without_history(minimal_project, only):
+    ws = _workspace(minimal_project)
+    svc = TranscriptService(ws)
+    token = svc.preview_transcript_replacement("Ada", "Mira")["preview_token"]
+    before = ws.project.model_dump(mode="json")
+    with pytest.raises(CodedValueError) as raised:
+        svc.replace_transcript_matches("Ada", "Mira", token, only=only)
+    assert raised.value.code == "replacement_match_out_of_range"
+    assert ws.project.model_dump(mode="json") == before
+
+
+def test_only_on_an_empty_plan_is_out_of_range(minimal_project):
+    ws = _workspace(minimal_project)
+    svc = TranscriptService(ws)
+    token = svc.preview_transcript_replacement("Zebra", "Mira")["preview_token"]
+    with pytest.raises(CodedValueError) as raised:
+        svc.replace_transcript_matches("Zebra", "Mira", token, only=0)
+    assert raised.value.code == "replacement_match_out_of_range"
+    assert svc.replace_transcript_matches("Zebra", "Mira", token) == 0
+
+
+def test_only_checks_the_stale_token_first(minimal_project):
+    ws = _workspace(minimal_project)
+    svc = TranscriptService(ws)
+    token = svc.preview_transcript_replacement("Ada", "Mira")["preview_token"]
+    ws.project.transcripts[0].words.append(_word("Ada", 5))
+    ws.save()
+    with pytest.raises(TranscriptTextChangedError):
+        svc.replace_transcript_matches("Ada", "Mira", token, only=99)
+
+
+def test_find_replace_tool_only_submits_one_match_and_rejects_dry_run(minimal_project):
+    _workspace(minimal_project)
+    out = json.loads(find_replace_transcript_tool(str(minimal_project), "Ada", "Mira", only=1))
+    assert (out["count"], out["replaced"]) == (3, 1)
+    assert _texts(minimal_project) == [["Ada,", "Mira", "Adaline"], ["\u2018Ada\u2019"]]
+    with pytest.raises(CodedValueError):
+        find_replace_transcript_tool(str(minimal_project), "Ada", "Mira", dry_run=True, only=0)
+
+
+def test_cli_find_replace_only_zero_replaces_the_first_match(minimal_project):
+    _workspace(minimal_project)
+    runner = CliRunner()
+    args = ["--project", str(minimal_project), "--search", "Ada", "--replace", "Mira"]
+    result = runner.invoke(app, ["transcript", "find-replace", *args, "--only", "0"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["replaced"] == 1
+    assert _texts(minimal_project) == [["Mira,", "ADA", "Adaline"], ["\u2018Ada\u2019"]]
+    bad = runner.invoke(app, ["transcript", "find-replace", *args, "--dry-run", "--only", "0"])
+    assert bad.exit_code != 0

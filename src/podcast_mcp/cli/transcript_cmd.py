@@ -175,8 +175,13 @@ def transcript_find_replace_cmd(
     replacement: str = typer.Option(..., "--replace", help="Replacement text"),
     match_case: bool = typer.Option(False, "--match-case"),
     dry_run: bool = typer.Option(False, "--dry-run", help="List matches; change nothing"),
+    only: int | None = typer.Option(
+        None, "--only", help="Replace only this match, counted from 0 in the --dry-run list"
+    ),
 ) -> None:
     """Replace a literal word or phrase everywhere in the transcript, in one undo step."""
+    if dry_run and only is not None:
+        raise typer.BadParameter("--only cannot be combined with --dry-run.")
     from podcast_mcp.services.document_sync import (
         host_command_result,
         submit_host_document_command,
@@ -196,6 +201,7 @@ def transcript_find_replace_cmd(
             "replacement": replacement,
             "match_case": match_case,
             "preview_token": preview["preview_token"],
+            **({} if only is None else {"only": only}),
         },
         client_id="cli",
     )

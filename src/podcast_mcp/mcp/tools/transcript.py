@@ -22,6 +22,7 @@ from podcast_mcp.services.media import (
     TranscriptPrecorrectService,
     TranscriptRefineService,
 )
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.progress import resolve_progress
 from podcast_mcp.util.project_state import REQUEST_RENDER_LOCK_TIMEOUT_SEC
 
@@ -325,6 +326,7 @@ def find_replace_transcript_tool(
     replacement: str,
     match_case: bool = False,
     dry_run: bool = False,
+    only: int | None = None,
 ) -> str:
     """Replace a literal word or phrase everywhere in the transcript (Studio Find and replace).
 
@@ -332,8 +334,11 @@ def find_replace_transcript_tool(
     kept. ``dry_run`` returns the preview (``matches``, ``count``, ``skipped_words``)
     and changes nothing. Otherwise every previewed match is replaced through
     ``ReplaceTranscriptMatches`` in one undo step, and ``replaced`` gives the count.
-    For one word use ``correct_transcript_tool``.
+    ``only`` is the 0-based position in the preview's ``matches`` of the one match to
+    replace (the Find bar's Replace); it cannot be combined with ``dry_run``.
     """
+    if dry_run and only is not None:
+        raise CodedValueError("only cannot be combined with dry_run.", code="invalid_arguments")
     ws = ProjectWorkspace.open(project_path)
     preview = TranscriptService(ws).preview_transcript_replacement(
         search, replacement, match_case=match_case
@@ -348,6 +353,7 @@ def find_replace_transcript_tool(
             "replacement": replacement,
             "match_case": match_case,
             "preview_token": preview["preview_token"],
+            **({} if only is None else {"only": only}),
         },
     )
     return to_json({**preview, **host_command_result(reply)})
