@@ -152,9 +152,20 @@ export const Popover: Story = {
     const dialog = await openDialog(canvasElement, "Help");
     const anchor = canvasElement.querySelector("[data-story-anchor]");
     await expect(dialog).toHaveAttribute("aria-modal", "false");
-    await expect(
-      dialog.closest(".help-sheet-panel")?.getBoundingClientRect().left,
-    ).toBeCloseTo(anchor?.getBoundingClientRect().left ?? -1, 0);
+    const panel = dialog.closest(".help-sheet-panel");
+    // Left-aligned under the anchor, clamped to half a rem inside the viewport
+    // when the sweep's 360 px frame leaves too little room to the right of it.
+    const rootPx = Number.parseFloat(
+      getComputedStyle(document.documentElement).fontSize,
+    );
+    const farthestLeft =
+      window.innerWidth -
+      0.5 * rootPx -
+      (panel?.getBoundingClientRect().width ?? 0);
+    await expect(panel?.getBoundingClientRect().left).toBeCloseTo(
+      Math.min(anchor?.getBoundingClientRect().left ?? -1, farthestLeft),
+      0,
+    );
   },
 };
 
