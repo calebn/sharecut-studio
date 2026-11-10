@@ -91,6 +91,7 @@ const LAYER_TABLE: readonly {
       "panels",
       "record",
       "review",
+      "settings",
       "stage",
       "stages",
       "system",

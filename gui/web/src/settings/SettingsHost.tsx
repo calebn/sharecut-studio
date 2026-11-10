@@ -1,11 +1,11 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { useState } from "react";
 import { revealProject } from "../api";
+import { useProjectMutation } from "../hooks/useProjectMutation";
 import { useTheme } from "../hooks/useTheme";
 import { useViewportClass } from "../hooks/useViewportClass";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
-import { errorMessage } from "../utils/apiError";
 import { SettingsSheet } from "./SettingsSheet";
 
 /** The folder that holds a project file, for either path separator. */
@@ -23,25 +23,15 @@ export function SettingsHost() {
   const inProject = useDaw((s) => s.project !== null && s.projectPath !== "");
   const phone = useViewportClass() === "phone";
   const { preference, setPreference } = useTheme();
-  const [revealing, setRevealing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy: revealing, error, setError, run } = useProjectMutation();
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
-    if (!open) {
-      setRevealing(false);
-      setError(null);
-    }
+    if (!open) setError(null);
   }
   const { setSettingsSheetOpen, setModelsSheetOpen, setCommandPaletteOpen } =
     useDawStore.getState();
-  const reveal = () => {
-    setRevealing(true);
-    setError(null);
-    revealProject(projectPath)
-      .catch((err: unknown) => setError(errorMessage(err)))
-      .finally(() => setRevealing(false));
-  };
+  const reveal = () => void run(() => revealProject(projectPath));
   return (
     <SettingsSheet
       open={open}
