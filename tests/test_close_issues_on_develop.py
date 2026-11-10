@@ -152,6 +152,11 @@ def test_text_after_code_comment_or_quote_still_closes(body: str) -> None:
     assert cod.closing_refs(body, REPO) == {29}
 
 
+def test_non_ascii_digits_do_not_close_anything() -> None:
+    assert cod.closing_refs("Fixes #\u0661\u0662", REPO) == set()
+    assert cod.closing_refs("Fixes #12", REPO) == {12}
+
+
 def test_negation_is_not_understood() -> None:
     assert cod.closing_refs("This does not fix #5", REPO) == {5}
 
@@ -206,6 +211,32 @@ def test_rerun_adds_no_second_comment_and_finishes_a_half_done_close() -> None:
     assert client.closed == [5, 5]
 
 
+def test_a_marker_for_another_pr_does_not_suppress_the_comment() -> None:
+    client = FakeClient(
+        pr(body="Fixes #5"),
+        issues={5: open_issue()},
+        comments={5: [cod.marker(99), "close-on-develop"]},
+    )
+    go(client)
+    assert len(client.comments[5]) == 3 and cod.marker(10) in client.comments[5][-1]
+
+
+def test_a_comment_without_a_body_is_tolerated() -> None:
+    runner = Runner({f"repos/{REPO}/issues/5/comments?per_page=100": (0, '[[{"body": null}]]', "")})
+    assert cod.GhClient(REPO, run=runner).comment_bodies(5) == [""]
+
+
+def test_issues_are_closed_in_ascending_order() -> None:
+    client = FakeClient(pr(body="Fixes #9, fixes #3"), issues={3: open_issue(), 9: open_issue()})
+    go(client)
+    assert client.closed == [3, 9]
+
+
+def test_comment_names_the_pr_commit_and_base() -> None:
+    body = cod.comment_body(pr(10))
+    assert "#10" in body and "sha10" in body and f"`{BASE}`" in body
+
+
 def test_dry_run_writes_nothing() -> None:
     client = FakeClient(pr(body="Fixes #5"), issues={5: open_issue()})
     assert go(client, dry_run=True) == 0
@@ -253,6 +284,36 @@ def test_unreadable_issue_fails_the_run_but_not_the_others() -> None:
     client = Flaky(pr(body="Fixes #5, fixes #6"), issues={6: open_issue()})
     assert go(client) == 1
     assert client.closed == [6]
+
+
+def test_pr_fetch_failure_is_an_error_line_not_a_traceback(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    runner = Runner({f"repos/{REPO}/pulls/10": (1, "", "gh: Not Found (HTTP 404)")})
+    client = cod.GhClient(REPO, run=runner)
+    assert cod.run(client, repo=REPO, pr_number=10, base=BASE, dry_run=False) == 1
+    out = capsys.readouterr().out
+    assert "::error::could not read PR #10" in out and "404" in out
+
+
+def test_main_dry_run_flag_writes_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("REPO", REPO)
+    monkeypatch.setenv("PR_NUMBER", "10")
+    monkeypatch.delenv("DRY_RUN", raising=False)
+    client = FakeClient(pr(body="Fixes #5"), issues={5: open_issue()})
+    assert cod.main(["--dry-run"], client=client) == 0
+    assert client.closed == []
+    assert cod.main([], client=client) == 0
+    assert client.closed == [5]
+
+
+def test_main_uses_the_configured_base_branch(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("REPO", REPO)
+    monkeypatch.setenv("PR_NUMBER", "10")
+    monkeypatch.delenv("DRY_RUN", raising=False)
+    client = FakeClient(pr(body="Fixes #5", base=RELEASE), issues={5: open_issue()})
+    assert cod.main([], client=client) == 0
+    assert client.closed == []
 
 
 def test_main_reads_the_pr_from_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -308,6 +369,15 @@ def test_gh_client_pull_feeds_the_merged_and_base_guards() -> None:
     assert not any("PATCH" in call for call in runner.calls)
 
 
+def test_comment_listing_paginates_and_finds_a_marker_on_a_later_page() -> None:
+    pages = [[{"body": "first page"}], [{"body": cod.comment_body(pr(10))}]]
+    runner = Runner({f"repos/{REPO}/issues/5/comments?per_page=100": (0, json.dumps(pages), "")})
+    bodies = cod.GhClient(REPO, run=runner).comment_bodies(5)
+    (argv,) = runner.calls
+    assert argv[:2] == ["gh", "api"] and "--paginate" in argv and "--slurp" in argv
+    assert any(cod.marker(10) in body for body in bodies)
+
+
 def test_gh_client_writes_send_the_documented_payloads() -> None:
     runner = Runner({})
     client = cod.GhClient(REPO, run=runner)
@@ -335,9 +405,15 @@ def test_workflow_triggers_permissions_and_untrusted_text_handling() -> None:
     job = data["jobs"]["close"]
     assert "github.event.pull_request.merged == true" in job["if"]
     assert "head.repo.full_name == github.repository" in job["if"]
+    checkout = job["steps"][0]
+    assert checkout["with"]["ref"] == "${{ github.event.pull_request.base.ref || github.ref }}"
     run_steps = [step for step in job["steps"] if "run" in step]
     assert [step["run"] for step in run_steps] == ["python scripts/close_issues_on_develop.py"]
     env = run_steps[0]["env"]
     assert env["GH_TOKEN"] == "${{ github.token }}"
-    assert {"PR_NUMBER", "REPO", "DRY_RUN"} <= set(env)
+    assert {"PR_NUMBER", "REPO"} <= set(env)
+    assert (
+        env["DRY_RUN"]
+        == "${{ github.event_name == 'workflow_dispatch' && inputs.dry-run || 'false' }}"
+    )
     assert not re.search(r"github\.event\.pull_request\.(title|body)", text)

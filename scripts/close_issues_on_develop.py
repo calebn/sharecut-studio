@@ -29,7 +29,7 @@ GH_TIMEOUT_SECONDS = 60
 OPT_OUT_LABELS = frozenset({"needs-user-input", "owner-check"})
 _CLOSING = re.compile(
     r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b:?[ \t]+(?:([\w.-]+/[\w.-]+))?#(\d+)\b",
-    re.IGNORECASE,
+    re.IGNORECASE | re.ASCII,
 )
 _FENCE_OPEN = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 _BACKTICK_RUN = re.compile(r"`+")
@@ -226,7 +226,11 @@ class GhClient:
 
 def run(client: Client, *, repo: str, pr_number: int, base: str, dry_run: bool) -> int:
     """1 when any issue could not be read or closed, else 0. A PR not merged to `base` is a no-op."""
-    pr = client.pull(pr_number)
+    try:
+        pr = client.pull(pr_number)
+    except RuntimeError as exc:
+        print(f"::error::could not read PR #{pr_number}: {exc}")
+        return 1
     if not pr.get("merged_at") or pr["base"]["ref"] != base:
         print(f"PR #{pr_number} is not merged into {base}; nothing to do")
         return 0
