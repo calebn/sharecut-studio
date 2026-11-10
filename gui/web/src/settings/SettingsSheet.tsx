@@ -33,7 +33,7 @@ const KEEP_START = 14;
 const KEEP_END = 24;
 
 /** A long folder keeps its start and its last folders; the full path stays in `title`. */
-export function middleTruncate(path: string): string {
+function middleTruncate(path: string): string {
   return path.length <= KEEP_START + KEEP_END + 1
     ? path
     : `${path.slice(0, KEEP_START)}…${path.slice(-KEEP_END)}`;
