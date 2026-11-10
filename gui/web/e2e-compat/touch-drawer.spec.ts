@@ -725,7 +725,6 @@ test("a pending edit's review card tops the sheet and its Approve and Reject sta
         ? page.locator(".sys-inspector-takeover")
         : page.locator(".pending-actionbar");
       await expect(card.getByRole("button", { name: "Approve" })).toBeVisible();
-      // Half does not fit a phone held sideways, nor 32 px text: full-only.
       if (takeover) {
         const dialog = page.locator(".sys-inspector-takeover");
         await expect(dialog).toBeVisible();
@@ -733,6 +732,7 @@ test("a pending edit's review card tops the sheet and its Approve and Reject sta
           dialog.getByRole("button", { name: "Done" }),
         ).toBeVisible();
       } else {
+        // Half does not fit a phone held sideways, nor 32 px text: full-only.
         const fullOnly = size === "landscape-636" || rootFont === 32;
         await expect(sheet(page)).toHaveAttribute(
           "data-detent",
@@ -816,8 +816,11 @@ test("a pending edit's review card tops the sheet and its Approve and Reject sta
   const previousIds = (await projectJson(page, projectPath)).pending_edits.map(
     (edit) => edit.id,
   );
-  await page
-    .locator(".pending-actionbar")
+  const takeover = page.locator(".sys-inspector-takeover");
+  await ((await takeover.count()) > 0
+    ? takeover
+    : page.locator(".pending-actionbar")
+  )
     .getByRole("button", { name: "Reject" })
     .click();
   await expect

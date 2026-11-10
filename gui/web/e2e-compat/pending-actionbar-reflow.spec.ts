@@ -23,6 +23,9 @@ let projectPath: string;
 let workspaceDir: string;
 
 const INSPECTOR_SCROLL = ".sys-inspector-scroll";
+// The card scrolls its own body; in the full-screen takeover the Dialog body does.
+const INSPECTOR_SCROLLER =
+  ":is(.sys-inspector--card .sys-inspector-scroll, .sys-inspector-takeover .command-palette-body)";
 
 interface Point {
   x: number;
@@ -217,7 +220,7 @@ async function wheelInspectorToward(page: Page, button: Locator) {
       },
       abort: () => controller.abort(),
     };
-  }, INSPECTOR_SCROLL);
+  }, INSPECTOR_SCROLLER);
 
   try {
     let input: { point: Point; deltaY: number } | undefined;
