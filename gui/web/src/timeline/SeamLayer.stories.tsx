@@ -137,12 +137,12 @@ export const Rolling: Story = {
     const hit = within(canvasElement).getByRole("button", {
       name: /^Split at 0:04\.0/,
     });
-    fireEvent.pointerDown(hit, { pointerId: 1, button: 0, clientX: 160 });
-    fireEvent.pointerMove(hit, { pointerId: 1, clientX: 180 });
+    await fireEvent.pointerDown(hit, { pointerId: 1, button: 0, clientX: 160 });
+    await fireEvent.pointerMove(hit, { pointerId: 1, clientX: 180 });
     await expect(
       canvasElement.querySelector(".sys-seam-readout"),
     ).toHaveTextContent("+500 ms");
-    fireEvent.pointerCancel(hit, { pointerId: 1 });
+    await fireEvent.pointerCancel(hit, { pointerId: 1 });
   },
 };
 
