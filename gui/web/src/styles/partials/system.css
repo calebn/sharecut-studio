@@ -7231,8 +7231,8 @@ textarea.sys-inline-edit {
 }
 
 /* The Inspector taking the whole screen where a card or sheet cannot hold a
-   field (large text on a short frame). The selector outweighs the phone and
-   tablet bottom-sheet rule that gives every dialog a rounded top. */
+   field (large text on a short frame). It must beat the phone and tablet
+   bottom-sheet rule, which rounds the top of every dialog. */
 html
   .ui-dialog-root:not(.ui-dialog-root--anchored)
   > .command-palette-panel.sys-inspector-takeover {

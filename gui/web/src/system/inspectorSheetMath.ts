@@ -30,7 +30,11 @@ export function scaledMinBlock(rootPx: number) {
   return CARD_MIN_BLOCK_PX * ((rootPx || 16) / 16);
 }
 
-/** Whether a card in a frame this tall (a frame not yet measured counts as fitting), or a full sheet in a slot this tall, can hold `minBlock`; below it the Inspector takes the screen. */
+/**
+ * Whether a card in a frame this tall (or a full sheet in a slot this tall)
+ * holds `minBlock`; below that the Inspector takes the screen. A frame not yet
+ * measured counts as fitting.
+ */
 export function cardFits(height: number, minBlock = CARD_MIN_BLOCK_PX) {
   return height <= 0 || height * CARD_MAX_SHARE >= minBlock;
 }

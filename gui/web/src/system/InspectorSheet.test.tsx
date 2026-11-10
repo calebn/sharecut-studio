@@ -7,6 +7,7 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import {
@@ -677,6 +678,30 @@ describe("InspectorSheet takeover", () => {
     screen.getByRole("button", { name: "Done" }).focus();
     await userEvent.keyboard("{Escape}");
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns focus to the control that was focused when it opened", async () => {
+    const opener = document.createElement("button");
+    opener.textContent = "Open";
+    document.body.append(opener);
+    opener.focus();
+    function Host() {
+      const [open, setOpen] = useState(true);
+      return open ? (
+        <InspectorSheet
+          form="takeover"
+          icon="sliders-horizontal"
+          name="Maya"
+          sections={sections}
+          onClose={() => setOpen(false)}
+        />
+      ) : null;
+    }
+    render(<Host />);
+    await userEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(opener).toHaveFocus();
+    opener.remove();
   });
 
   it("has no axe violations", async () => {

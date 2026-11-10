@@ -61,7 +61,9 @@ for (const { cell: width, theme } of withAppearance([667, 767])) {
             html.style.fontSize = "32px";
           });
           await inspectSelection(page);
-          const panel = page.locator(".sys-inspector--phone");
+          const panel = page.locator(
+            ".sys-inspector--phone, .sys-inspector-takeover",
+          );
           await expect(panel).toBeVisible();
           for (const name of ["Close"]) {
             const header = await controlGeometry(
@@ -109,7 +111,9 @@ for (const { cell: width, theme } of withAppearance([667, 767])) {
             await page.keyboard.press(
               browserName === "webkit" ? "Alt+Tab" : "Tab",
             );
-            const active = page.locator(".sys-inspector--phone :focus");
+            const active = page.locator(
+              ".sys-inspector--phone :focus, .sys-inspector-takeover :focus",
+            );
             if (!(await active.count())) continue;
             const id = await active.getAttribute("data-focus-proof");
             if (!id || seen.has(id)) continue;

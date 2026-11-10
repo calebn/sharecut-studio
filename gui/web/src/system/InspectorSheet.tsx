@@ -463,7 +463,7 @@ export function InspectorSheet(props: InspectorSheetProps) {
   return <Phone {...props} />;
 }
 
-/** A field inside took Escape for itself: the dialog's window listener must not close on it as well. */
+/** A field that took Escape for itself must not also close the dialog. */
 function keepEscapeFromField(event: KeyboardEvent<HTMLElement>) {
   if (event.key === "Escape" && event.defaultPrevented) event.stopPropagation();
 }
