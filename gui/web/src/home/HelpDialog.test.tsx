@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -88,7 +94,9 @@ describe("HelpDialog", () => {
     );
     expect(screen.getByRole("status")).toHaveAttribute("aria-live", "polite");
     expect(screen.getByText(/reveal the zip/i)).toBeInTheDocument();
-    expect(screen.getByText(/report.json, README.txt/)).toBeInTheDocument();
+    expect(screen.getByText("Preview what's included")).toBeInTheDocument();
+    expect(screen.getByText("report.json")).toBeInTheDocument();
+    expect(screen.getByText("README.txt")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Submit report" }),
     ).toBeDisabled();
@@ -354,14 +362,13 @@ describe("HelpDialog fallback", () => {
       />,
     );
     await waitForDialogFocus();
-    const rows = screen
+    const rows = within(screen.getByRole("list", { name: "Help" }))
       .getAllByRole("button")
-      .map((button) => button.textContent)
-      .filter((text) => text?.includes("›"));
+      .map((button) => button.textContent);
     expect(rows).toEqual([
-      "Shortcuts and gestures›",
-      "Report a problem›",
-      "Guides›",
+      "Shortcuts and gestures",
+      "Report a problem",
+      "Guides",
     ]);
     expect(
       screen.queryByRole("button", { name: "Create diagnostics bundle" }),
@@ -381,5 +388,90 @@ describe("HelpDialog fallback", () => {
     ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("dialog", { name: "Help" })).toBeInTheDocument();
+  });
+
+  it("reopens on the menu with no stale report step on the first commit", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <HelpDialog open initialStep="menu" onClose={() => undefined} />,
+    );
+    await waitForDialogFocus();
+    await user.click(screen.getByRole("button", { name: /Report a problem/ }));
+    expect(
+      screen.getByRole("button", { name: "Create diagnostics bundle" }),
+    ).toBeInTheDocument();
+    rerender(
+      <HelpDialog open={false} initialStep="menu" onClose={() => undefined} />,
+    );
+    rerender(<HelpDialog open initialStep="menu" onClose={() => undefined} />);
+    expect(
+      screen.queryByRole("button", { name: "Create diagnostics bundle" }),
+    ).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Help" })).toBeInTheDocument();
+    await waitForDialogFocus();
+    expect(
+      screen
+        .getByRole("dialog", { name: "Help" })
+        .contains(document.activeElement),
+    ).toBe(true);
+    expect(document.activeElement).not.toHaveAccessibleName(
+      "Create diagnostics bundle",
+    );
+  });
+
+  it("keeps the step and description when initialStep changes while open", async () => {
+    const user = userEvent.setup();
+    createMock.mockResolvedValue({
+      path: "/tmp/a.zip",
+      filename: "a.zip",
+      support_url: "https://support.example.test",
+      size_bytes: 12,
+      files: ["report.json"],
+      app_version: "1.0",
+      created_at: "2026-09-26T00:00:00Z",
+    });
+    const { rerender } = render(
+      <HelpDialog open initialStep="report" onClose={() => undefined} />,
+    );
+    await waitForDialogFocus();
+    await user.click(
+      screen.getByRole("button", { name: "Create diagnostics bundle" }),
+    );
+    await user.type(
+      await screen.findByLabelText("Describe the problem"),
+      "Keeps this text",
+    );
+    rerender(<HelpDialog open initialStep="menu" onClose={() => undefined} />);
+    expect(screen.getByLabelText("Describe the problem")).toHaveValue(
+      "Keeps this text",
+    );
+    expect(metaMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("moves focus to Create on the report step and back to the row on Back", async () => {
+    const user = userEvent.setup();
+    render(<HelpDialog open initialStep="menu" onClose={() => undefined} />);
+    await waitForDialogFocus();
+    await user.click(screen.getByRole("button", { name: /Report a problem/ }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Create diagnostics bundle" }),
+      ).toHaveFocus(),
+    );
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /Report a problem/ }),
+      ).toHaveFocus(),
+    );
+  });
+
+  it("closes the whole sheet on Escape from the report step", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(<HelpDialog open initialStep="report" onClose={onClose} />);
+    await waitForDialogFocus();
+    await user.keyboard("{Escape}");
+    expect(onClose).toHaveBeenCalledOnce();
   });
 });

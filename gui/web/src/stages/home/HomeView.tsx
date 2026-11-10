@@ -150,7 +150,7 @@ function HomeHeader({
           type="button"
           className="sys-icon-btn"
           aria-label="Help"
-          title="Help (?)"
+          title="Help"
           onClick={onHelp}
         >
           <SystemIcon name="circle-help" size={16} />

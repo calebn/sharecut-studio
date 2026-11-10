@@ -3,8 +3,7 @@ import { registerDawWebMcpTools } from "./agentic/webmcp";
 import { registerDawCommands } from "./commands/register";
 import { useDesktopCloseGuard } from "./desktop/useDesktopCloseGuard";
 import { FeedbackToast } from "./feedback/FeedbackToast";
-import { openGuides } from "./commands/host";
-import { HelpDialog } from "./home/HelpDialog";
+import { HelpHost } from "./home/HelpHost";
 import { useAutoRefreshMix } from "./hooks/useAutoRefreshMix";
 import { useGuestSyncAndProjectPoll } from "./hooks/useGuestSyncAndProjectPoll";
 import { useHostSync } from "./hooks/useHostSync";
@@ -55,7 +54,6 @@ const selectDawAppFields = pickDaw(
   "setActivityJob",
   "setActivityRunningCount",
   "setHostMcpDialogOpen",
-  "setHelpDialogOpen",
   "setModelsSheetOpen",
 );
 
@@ -80,12 +78,9 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     setActivityJob,
     setActivityRunningCount,
     setHostMcpDialogOpen,
-    setHelpDialogOpen,
     setModelsSheetOpen,
   } = useDaw(selectDawAppFields);
   const hostMcpDialogOpen = useDaw((s) => s.chrome.hostMcpDialogOpen);
-  const helpDialogOpen = useDaw((s) => s.chrome.helpDialogOpen);
-  const helpDialogStep = useDaw((s) => s.chrome.helpDialogStep);
   const modelsSheetOpen = useDaw((s) => s.chrome.modelsSheetOpen);
   const { hasProject, projectName, suppressPublish } =
     useDaw(selectDawAppDerived);
@@ -248,16 +243,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
                 onClose={() => setHostMcpDialogOpen(false)}
                 hasProject={hasProject}
               />
-              <HelpDialog
-                open={helpDialogOpen}
-                initialStep={helpDialogStep}
-                onClose={() => setHelpDialogOpen(false)}
-                onOpenShortcuts={() => {
-                  setHelpDialogOpen(false);
-                  useDawStore.getState().setCommandPaletteOpen(true);
-                }}
-                onOpenGuides={openGuides}
-              />
+              <HelpHost />
               {syncEnabled ? (
                 <ModelsSheet
                   open={modelsSheetOpen}

@@ -6,7 +6,7 @@ export type HomeKeyActions = {
   onImport: () => void;
   onRecord: () => void;
   onOpenOther: () => void;
-  onHelp: () => void;
+  onPalette: () => void;
 };
 
 /** The action a Home key press runs, or null when it is not a Home key. */
@@ -21,7 +21,7 @@ export function homeKeyAction(
     if (key === "o") return "onOpenOther";
     return null;
   }
-  if (event.key === "?") return "onHelp";
+  if (event.key === "?") return "onPalette";
   if (key === "r") return "onRecord";
   return null;
 }

@@ -101,7 +101,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Stop take | view | `room.stop` | `R` | — | `RecordStage` | — | — | — | yes | none · none |
 | Pause or resume take | view | `room.pause` | `P` | — | `RecordStage` | — | — | — | yes | none · none |
 | Connect agent… | view | `mcp.connect` | — (dialog from Menu) | — | `HostMcpDialog` | — | — | — | yes | none · none |
-| Export diagnostics… | view | `help.diagnosticsBundle` | — (dialog from Home / Menu) | — | `HelpDialog` | — | `podcast doctor --bundle` | — | yes | none · none |
+| Report a problem… | view | `help.diagnosticsBundle` | — (dialog from Home / Menu) | — | `HelpDialog` | — | `podcast doctor --bundle` | — | yes | none · none |
 | Guides | view | `help.guides` | — (palette Help group) | — | — | — | — | — | — | none · none |
 | Manage models… | view | `models.open` | — (sheet from Home / palette) | — | `home.models`, `ModelsSheet` | `model_download`, `model_download_status` | `podcast setup` | — | yes | none · none |
 | Export deliverables… | project | `export.deliverables` | `Mod+E` | — | `deliverStage` | `export_audio_tool`, `bounce_audio_tool` | `podcast pipeline export-audio` | `podcast-master-export` | yes | none · none |

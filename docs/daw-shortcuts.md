@@ -155,7 +155,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Stop recording | `record.stop` | Host project management |  |
 | Land recording on timeline | `record.land` | Host project management |  |
 | Connect agent… | `mcp.connect` | Host project management | Copy local Streamable HTTP MCP URL for Cursor/Claude |
-| Export diagnostics… | `help.diagnosticsBundle` | Host project management | Host-only sanitized diagnostics zip for bug reports |
+| Report a problem… | `help.diagnosticsBundle` | Host project management | Host-only sanitized diagnostics zip for bug reports |
 | Guides | `help.guides` | Always (when not typing in a field or on a focused Scrub field) | Opens the documentation site in a new tab |
 | Manage models… | `models.open` | Host project management | Host-only sheet listing every model by what it does, with its state, size and a Get |
 | Open project… | `project.open` | Host project management | No key (Mod+O is project.home); OS dialog via local engine; Home's Open other… path field when there is none. Args: { path?: string } opens that episode without the picker (the palette's Projects group) |

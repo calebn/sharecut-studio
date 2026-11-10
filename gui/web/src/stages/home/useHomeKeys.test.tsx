@@ -14,7 +14,7 @@ describe("homeKeyAction", () => {
     ["Cmd+I imports", key("i", { metaKey: true }), "onImport"],
     ["Mod+O opens other", key("o", { ctrlKey: true }), "onOpenOther"],
     ["R records", key("r"), "onRecord"],
-    ["? helps", key("?"), "onHelp"],
+    ["? helps", key("?"), "onPalette"],
   ])("%s", (_name, event, action) => {
     expect(homeKeyAction(event)).toBe(action);
   });
@@ -44,7 +44,7 @@ function setup() {
     onImport: vi.fn(),
     onRecord: vi.fn(),
     onOpenOther: vi.fn(),
-    onHelp: vi.fn(),
+    onPalette: vi.fn(),
   };
   const view = render(<Host {...actions} />);
   return { actions, view, user: userEvent.setup() };
@@ -71,7 +71,7 @@ describe("useHomeKeys", () => {
     await user.keyboard("{Control>}i{/Control}r?{Control>}o{/Control}");
     expect(actions.onImport).toHaveBeenCalledOnce();
     expect(actions.onRecord).toHaveBeenCalledOnce();
-    expect(actions.onHelp).toHaveBeenCalledOnce();
+    expect(actions.onPalette).toHaveBeenCalledOnce();
     expect(actions.onOpenOther).toHaveBeenCalledOnce();
   });
 
@@ -80,7 +80,7 @@ describe("useHomeKeys", () => {
     await user.click(view.getByLabelText("Path"));
     await user.keyboard("r?{Control>}i{/Control}");
     expect(actions.onRecord).not.toHaveBeenCalled();
-    expect(actions.onHelp).not.toHaveBeenCalled();
+    expect(actions.onPalette).not.toHaveBeenCalled();
     expect(actions.onImport).not.toHaveBeenCalled();
   });
 

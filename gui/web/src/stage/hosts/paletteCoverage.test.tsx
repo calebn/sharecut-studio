@@ -406,7 +406,7 @@ const REMOVED_SURFACES: Entry[] = [
   entry("transport Menu", "Move track down", "track.moveDown"),
   entry("transport Menu", "Add chapter", "edit.addChapter"),
   entry("transport Menu", "Refresh mix", "render.refreshMix", [refreshMixRow]),
-  entry("transport Menu", "Export diagnostics", "help.diagnosticsBundle", [
+  entry("transport Menu", "Report a problem", "help.diagnosticsBundle", [
     projectMenuRow("Help", "help.diagnosticsBundle"),
   ]),
   // The palette never lists itself, and audition takes a mode argument.

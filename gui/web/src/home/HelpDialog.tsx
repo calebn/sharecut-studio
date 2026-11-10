@@ -7,7 +7,8 @@ import {
   submitDiagnosticsReport,
 } from "../api";
 import { errorMessage } from "../utils/apiError";
-import { type HelpStep, HelpDialogView } from "./HelpDialogView";
+import type { HelpStep } from "../state/types";
+import { HelpDialogView } from "./HelpDialogView";
 
 type Props = {
   open: boolean;
@@ -26,6 +27,11 @@ export function HelpDialog({
   onOpenGuides,
 }: Props) {
   const [step, setStep] = useState<HelpStep>(initialStep);
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) setStep(initialStep);
+  }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [bundle, setBundle] = useState<DiagnosticsBundleResult | null>(null);
@@ -41,7 +47,6 @@ export function HelpDialog({
   const [supportUrl, setSupportUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    if (open) setStep(initialStep);
     if (!open) {
       requestGeneration.current += 1;
       setBusy(false);
@@ -70,7 +75,7 @@ export function HelpDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, initialStep]);
+  }, [open]);
 
   useEffect(() => {
     if (!open || !submitted || issueUrl || reportStatus === "failed") return;

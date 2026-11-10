@@ -29,6 +29,8 @@ import type {
 } from "./projectSlice";
 import type { StageSliceState } from "./stageSlice";
 
+export type HelpStep = "menu" | "report";
+
 export type RangeDraft = TimelineSpan & { trackIds: readonly string[] };
 
 /** Open/closed state of the app's dialogs, sheets and inline panels. */
@@ -44,7 +46,8 @@ export interface ChromeFlags {
   hostMcpDialogOpen: boolean;
   /** Host Help → diagnostics bundle dialog. */
   helpDialogOpen: boolean;
-  helpDialogStep: "menu" | "report";
+  /** Entry step the opener requests; the sheet owns the step once open. */
+  helpDialogStep: HelpStep;
   /** Models sheet: every model, its state and download. */
   modelsSheetOpen: boolean;
   /** Transcript find/replace panel open. */
@@ -502,7 +505,7 @@ export interface DawState {
   setPrepareFocusTrackId: (trackId: string | null) => void;
   setTranscriptRequested: (on: boolean) => void;
   setHostMcpDialogOpen: (on: boolean) => void;
-  setHelpDialogOpen: (on: boolean, step?: "menu" | "report") => void;
+  setHelpDialogOpen: (on: boolean, step?: HelpStep) => void;
   setModelsSheetOpen: (on: boolean) => void;
   setJoinMutationInFlight: (on: boolean) => void;
   setJoinDraft: (draft: ClipRow | null) => void;

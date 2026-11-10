@@ -733,8 +733,15 @@ export const COMMANDS: Record<string, CommandDef> = {
   "help.diagnosticsBundle": {
     id: "help.diagnosticsBundle",
     category: "ui",
-    label: "Export diagnostics…",
-    keywords: ["logs", "bug report", "support", "debug"],
+    label: "Report a problem…",
+    keywords: [
+      "logs",
+      "bug report",
+      "support",
+      "debug",
+      "diagnostics",
+      "export diagnostics",
+    ],
     home: true,
     when: "canManageProjects",
     notes: "Host-only sanitized diagnostics zip for bug reports",

@@ -581,5 +581,21 @@ html[data-shell="phone"]
 }
 
 .help-sheet-row:hover {
-  background: var(--surface-hover, rgb(0 0 0 / 4%));
+  background: var(--color-hover);
+}
+
+.help-sheet-row:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+}
+
+.help-sheet-row-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+html:not([data-shell="phone"], [data-shell="tablet"])
+  .command-palette-panel.help-sheet-panel {
+  inline-size: min(100%, 20rem);
 }
