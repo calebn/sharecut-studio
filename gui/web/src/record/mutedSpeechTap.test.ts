@@ -114,4 +114,13 @@ describe("createMutedSpeechTap", () => {
     const graph = fakeGraph(0.1, { throwOnClone: true });
     expect(createMutedSpeechTap(graph.ctx, graph.stream)).toBeNull();
   });
+
+  it("reads null and stops the clone when disposed", () => {
+    const graph = fakeGraph(0.1);
+    const tap = createMutedSpeechTap(graph.ctx, graph.stream);
+    tap?.dispose();
+    expect(tap?.readDb()).toBeNull();
+    expect(graph.cloneTrack.stop).toHaveBeenCalledOnce();
+    expect(graph.original.stop).not.toHaveBeenCalled();
+  });
 });
