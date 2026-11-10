@@ -1,6 +1,5 @@
 import { useEffect } from "react";
-import { reviewVersionAtBootstrap } from "../api";
-import { loadReviewPeaks } from "../api/reviewPeaks";
+import { loadReviewPeaks, reviewVersionAtBootstrap } from "../api";
 import { shareTokenFromKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
