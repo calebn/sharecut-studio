@@ -36,8 +36,10 @@ const words = (anchor: number, head: number) => ({
 });
 
 /** Five places to a line, 60 px apart, lines 26 px apart: jsdom has no layout. */
-function layoutInGrid() {
+function layoutInGrid(pane?: { height: number }) {
   const rectOf = (el: HTMLElement) => {
+    if (pane && el.matches(".sys-script, .sys-script-body"))
+      return new DOMRect(0, 0, 300, pane.height);
     const at = Number(el.dataset.stop);
     if (Number.isNaN(at)) return new DOMRect(0, 0, 0, 0);
     return new DOMRect((at % 5) * 60, Math.floor(at / 5) * 26, 50, 20);
@@ -665,5 +667,85 @@ describe("ScriptPane Fix text across turns", () => {
     }
     expect(document.querySelector('[data-stop="17"]')).not.toBeNull();
     expect(document.querySelector('[data-stop="23"]')).not.toBeNull();
+  });
+});
+
+describe("ScriptPane handle hint", () => {
+  const hint = {
+    text: "Drag the handles to adjust",
+    shown: true,
+    onDismiss: vi.fn(),
+  };
+
+  /** jsdom has no layout: the pane and its body are `height` tall, the tip 52 by 100. */
+  function sizeBody(height: number) {
+    layoutInGrid({ height });
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(52);
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(100);
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(300);
+  }
+
+  it("draws the hint beside the grips, hung off the pane", () => {
+    sizeBody(400);
+    const { container } = render(
+      <ScriptPane {...props({ selection: words(12, 14), handleHint: hint })} />,
+    );
+    expect(screen.getByRole("note")).toHaveTextContent(hint.text);
+    expect(container.querySelector(".sys-script")).toContainElement(
+      screen.getByRole("note"),
+    );
+  });
+
+  it("keeps the hint inside a body too short to hang it below the grips", () => {
+    sizeBody(100);
+    render(
+      <ScriptPane {...props({ selection: words(12, 14), handleHint: hint })} />,
+    );
+    const note = screen.getByRole("note");
+    const top = Number.parseFloat(note.style.insetBlockStart);
+    expect(note.style.visibility).toBe("");
+    expect(top).toBeGreaterThanOrEqual(0);
+    expect(top + 52).toBeLessThanOrEqual(100);
+  });
+
+  it("frees the slot without showing or consuming the hint when no room is left", () => {
+    sizeBody(40);
+    const onRelease = vi.fn();
+    const onDismiss = vi.fn();
+    render(
+      <ScriptPane
+        {...props({
+          selection: words(12, 14),
+          handleHint: { ...hint, onDismiss, onRelease },
+        })}
+      />,
+    );
+    expect(onRelease).toHaveBeenCalled();
+    expect(onDismiss).not.toHaveBeenCalled();
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(screen.getByRole("note", { hidden: true }).style.visibility).toBe(
+      "hidden",
+    );
+  });
+
+  it("draws none without a selection to hold", () => {
+    layoutInGrid();
+    render(<ScriptPane {...props({ handleHint: hint })} />);
+    expect(screen.queryByRole("note")).toBeNull();
+  });
+
+  it("closes through its button", async () => {
+    sizeBody(400);
+    const onDismiss = vi.fn();
+    render(
+      <ScriptPane
+        {...props({
+          selection: words(12, 14),
+          handleHint: { ...hint, onDismiss },
+        })}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss hint" }));
+    expect(onDismiss).toHaveBeenCalledOnce();
   });
 });

@@ -1,18 +1,22 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useLayoutEffect } from "react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { makeRangeTarget } from "../../edit/rangeSelection";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { clipRow, minimalProject, sampleTrack } from "../../test/fixtures";
+import { stubMatchMedia } from "../../test/matchMedia";
 import { closeOverlay, openOverlay } from "../../ui/modalGate";
+import { _resetCoachTipsForTests, coachTipOwner } from "../../utils/coachTip";
 import { EditCorner } from "./EditCorner";
 import { EditCornerView, type ViewPopoverSlotProps } from "./EditCornerView";
 
 beforeEach(() => {
+  localStorage.clear();
+  _resetCoachTipsForTests();
   clearRegisteredCommands();
   registerDawCommands();
   useDawStore.getState().hydrate(
@@ -249,5 +253,62 @@ describe("EditCorner", () => {
       const { container } = render(<EditCorner />);
       await expectNoA11yViolations(container);
     });
+  });
+});
+
+describe("EditCorner range tip", () => {
+  const RANGE = { name: "Select range" };
+
+  beforeEach(() => useDawStore.setState({ selection: null }));
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("shows when the toggle arms and goes with the next press", async () => {
+    useDawStore.setState({ pointerKind: "coarse" });
+    const user = userEvent.setup();
+    const { unmount } = render(<EditCorner />);
+    expect(screen.queryByRole("note")).toBeNull();
+    await user.click(screen.getByRole("button", RANGE));
+    expect(await screen.findByRole("note")).toHaveTextContent(
+      "Drag across a lane to select",
+    );
+    await user.pointer({ keys: "[MouseLeft]", target: document.body });
+    expect(screen.queryByRole("note")).toBeNull();
+    unmount();
+    useDawStore.setState({ rangeArmed: false });
+    render(<EditCorner />);
+    await user.click(screen.getByRole("button", RANGE));
+    expect(useDawStore.getState().rangeArmed).toBe(true);
+    await act(async () => {});
+    expect(screen.queryByRole("note")).toBeNull();
+  });
+
+  it("raises nothing on a phone, where the Range sheet opens over the corner", async () => {
+    stubMatchMedia(true);
+    useDawStore.setState({ pointerKind: "coarse" });
+    const user = userEvent.setup();
+    render(<EditCorner />);
+    await user.click(screen.getByRole("button", RANGE));
+    expect(useDawStore.getState().rangeArmed).toBe(true);
+    await act(async () => {});
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(coachTipOwner()).toBeNull();
+    expect(
+      localStorage.getItem("sharecut.coachTipSeen.rangeToggle"),
+    ).toBeNull();
+  });
+
+  it("stays quiet when the toggle disarms", async () => {
+    useDawStore.setState({ pointerKind: "coarse", rangeArmed: true });
+    const user = userEvent.setup();
+    render(<EditCorner />);
+    await user.click(screen.getByRole("button", RANGE));
+    expect(useDawStore.getState().rangeArmed).toBe(false);
+    expect(screen.queryByRole("note")).toBeNull();
+  });
+
+  it("shows nothing to a mouse or pen", () => {
+    render(<EditCorner />);
+    expect(screen.queryByRole("button", RANGE)).toBeNull();
+    expect(screen.queryByRole("note")).toBeNull();
   });
 });

@@ -13,7 +13,7 @@ import {
   useOutsidePointerDown,
   useResizeObserver,
 } from "../ui";
-import { CoachTip } from "./CoachTip";
+import { type CoachHint, CoachTip } from "./CoachTip";
 import type { SystemIconName } from "./icons";
 import { type LinkRole, ROLES } from "./linkRoles";
 import { RenameProjectPopover } from "./RenameProjectPopover";
@@ -69,6 +69,7 @@ export type AppHeaderProps = {
   canUndo?: boolean;
   canRedo?: boolean;
   onUndo?: () => void;
+  undoHint?: CoachHint;
   onRedo?: () => void;
   onInvite?: () => void;
   onPalette?: () => void;
@@ -377,6 +378,7 @@ export function AppHeader({
   canUndo = true,
   canRedo = true,
   onUndo,
+  undoHint,
   onRedo,
   onInvite,
   onPalette,
@@ -460,11 +462,20 @@ export function AppHeader({
                 }
                 {...(onHistory ? historyPress : {})}
               >
-                <VerbButton
-                  verb="undo"
-                  disabled={loading || !canUndo}
-                  onClick={onUndo}
-                />
+                <CoachTip
+                  edge
+                  align="end"
+                  placement="below"
+                  text={undoHint?.text ?? ""}
+                  shown={undoHint?.shown ?? false}
+                  onDismiss={undoHint?.onDismiss}
+                >
+                  <VerbButton
+                    verb="undo"
+                    disabled={loading || !canUndo}
+                    onClick={onUndo}
+                  />
+                </CoachTip>
                 <VerbButton
                   verb="redo"
                   disabled={loading || !canRedo}

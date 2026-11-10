@@ -1,5 +1,6 @@
 import { type ComponentType, type RefObject, useRef } from "react";
 import { commandLabel } from "../../commands/labels";
+import { type CoachHint, CoachTip } from "../../system/CoachTip";
 import { SystemIcon } from "../../system/SystemIcon";
 import { Button, Icon, ToggleButton } from "../../ui";
 import {
@@ -36,7 +37,12 @@ export interface EditCornerViewProps {
    * empty lane, so arming it makes the next drag draw a range. Absent where a
    * mouse or pen drags a range directly.
    */
-  range?: { armed: boolean; reason?: string; onToggle: () => void };
+  range?: {
+    armed: boolean;
+    reason?: string;
+    onToggle: () => void;
+    hint?: CoachHint;
+  };
 }
 
 const ZOOM_REASON = { in: "Fully zoomed in", out: "Fully zoomed out" } as const;
@@ -121,17 +127,25 @@ export function EditCornerView({
         />
       ) : null}
       {range ? (
-        <ToggleButton
-          quiet
-          pressed={range.armed}
-          className="edit-corner-btn edit-corner-range"
-          disabledReason={range.reason}
-          title={commandLabel("range.arm")}
-          aria-label={commandLabel("range.arm", "short")}
-          onClick={range.onToggle}
+        <CoachTip
+          align="end"
+          placement="above"
+          text={range.hint?.text ?? ""}
+          shown={range.hint?.shown ?? false}
+          onDismiss={range.hint?.onDismiss}
         >
-          <Icon name="range" />
-        </ToggleButton>
+          <ToggleButton
+            quiet
+            pressed={range.armed}
+            className="edit-corner-btn edit-corner-range"
+            disabledReason={range.reason}
+            title={commandLabel("range.arm")}
+            aria-label={commandLabel("range.arm", "short")}
+            onClick={range.onToggle}
+          >
+            <Icon name="range" />
+          </ToggleButton>
+        </CoachTip>
       ) : null}
       {script ? (
         <ToggleButton

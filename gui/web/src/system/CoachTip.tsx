@@ -1,5 +1,14 @@
 import { type ReactNode, useRef } from "react";
-import { SystemIcon } from "./SystemIcon";
+import { CoachTipBubble } from "./CoachTipBubble";
+
+/** What a view needs to render one tip it does not own. */
+export type CoachHint = {
+  text: string;
+  shown: boolean;
+  onDismiss: () => void;
+  /** Free the slot, keeping the tip unseen, when its target is gone. */
+  onRelease?: () => void;
+};
 
 export type CoachTipProps = {
   /** The element the hint points at. */
@@ -7,12 +16,14 @@ export type CoachTipProps = {
   /** One line. */
   text: string;
   placement?: "below" | "above";
+  /** Which end of the anchor the tip lines up with. `end` for an anchor near the inline-end edge. */
+  align?: "start" | "end";
   /** The tip anchors to the nearest positioned ancestor, for an anchor too far from the edge to fit it. */
   edge?: boolean;
   /** The caller shows it once. */
   shown: boolean;
   /** Called by the close button and by any click or key activation on the anchor. */
-  onDismiss: () => void;
+  onDismiss?: () => void;
 };
 
 /** A one-line hint anchored to an element at the moment of first need. */
@@ -20,6 +31,7 @@ export function CoachTip({
   children,
   text,
   placement = "below",
+  align = "start",
   edge = false,
   shown,
   onDismiss,
@@ -32,7 +44,7 @@ export function CoachTip({
         "button, a[href], input, select, textarea",
       ) ?? anchorRef.current;
     target?.focus({ preventScroll: true });
-    onDismiss();
+    onDismiss?.();
   };
   return (
     <span className={edge ? "sys-coach sys-coach--edge" : "sys-coach"}>
@@ -46,21 +58,12 @@ export function CoachTip({
         {children}
       </span>
       {shown ? (
-        <span
-          role="note"
-          className={`sys-coach-tip sys-coach-tip--${placement}`}
-        >
-          <span>{text}</span>
-          <button
-            type="button"
-            className="sys-icon-btn sys-coach-close"
-            aria-label="Dismiss hint"
-            title="Dismiss hint"
-            onClick={dismissFromClose}
-          >
-            <SystemIcon name="x" size={16} />
-          </button>
-        </span>
+        <CoachTipBubble
+          text={text}
+          placement={placement}
+          className={align === "end" ? "sys-coach-tip--end" : undefined}
+          onClose={dismissFromClose}
+        />
       ) : null}
     </span>
   );

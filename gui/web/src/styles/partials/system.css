@@ -1915,7 +1915,7 @@ html:not([data-shell="phone"])
   align-items: center;
   gap: var(--space-1);
   inline-size: max-content;
-  max-inline-size: min(20rem, 90vw);
+  max-inline-size: min(15rem, 90vw);
   padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4);
   border-radius: var(--radius-lg);
   background: var(--color-bg-overlay);
@@ -1930,6 +1930,17 @@ html:not([data-shell="phone"])
 
 .sys-coach-tip--above {
   inset-block-end: calc(100% + var(--space-3));
+}
+
+.sys-coach-tip--end {
+  inset-inline-start: auto;
+  inset-inline-end: 0;
+}
+
+/* Pointing at a spot: the caller sets the inset-inline-start and inset-block-start inline. */
+.sys-coach-tip--at {
+  inset-block: 0 auto;
+  max-inline-size: min(15rem, 100%);
 }
 
 .sys-coach-close {
@@ -5339,6 +5350,13 @@ button.sys-script-speaker {
   white-space: normal;
   inset-inline-start: var(--space-3);
   max-inline-size: calc(100% - var(--space-5));
+}
+
+/* The Undo tip hangs below the stage's own control bar, not over its switch, slider or Mix. */
+.sys-coach--edge .sys-coach-tip--end {
+  inset-block-start: calc(100% + var(--touch-min) + var(--space-4));
+  inset-inline: auto var(--space-3);
+  max-inline-size: min(15rem, calc(100% - var(--space-5)));
 }
 
 .sys-app-header-host:has(.sys-coach--edge) {

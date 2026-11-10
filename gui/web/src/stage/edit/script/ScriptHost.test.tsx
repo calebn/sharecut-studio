@@ -15,6 +15,10 @@ import {
   seedScript,
   transcribeRun,
 } from "../../../test/scriptHostKit";
+import {
+  _resetCoachTipsForTests,
+  coachTipOwner,
+} from "../../../utils/coachTip";
 import { ScriptHost } from "./ScriptHost";
 import { useScriptModel } from "./useScriptModel";
 
@@ -40,6 +44,9 @@ const word = (name: string) => screen.getByRole("button", { name });
 const selection = () => useDawStore.getState().selection;
 
 beforeEach(() => {
+  localStorage.clear();
+  _resetCoachTipsForTests();
+  useDawStore.setState({ pointerKind: "fine" });
   seekTransport.mockReset();
   seedScript();
 });
@@ -257,5 +264,48 @@ describe("ScriptHost bleed-only rows", () => {
     });
     const { result } = renderHook(() => useScriptModel());
     expect(result.current.silent.size).toBe(0);
+  });
+});
+
+describe("ScriptHost handles tip", () => {
+  const TIP = "Drag the handles to adjust";
+
+  it("shows in the text after a touch selection and goes when a grip is taken", async () => {
+    useDawStore.setState({ pointerKind: "coarse" });
+    const { container } = render(<ScriptHost />);
+    expect(screen.queryByRole("note")).toBeNull();
+    await userEvent.click(word("Welcome"));
+    const note = await screen.findByRole("note");
+    expect(note).toHaveTextContent(TIP);
+    expect(container.querySelector(".sys-script")).toContainElement(note);
+    const grip = container.querySelector<HTMLElement>(
+      ".sys-handle[data-edge=end]",
+    );
+    if (!grip) throw new Error("No grip");
+    fireEvent.pointerDown(grip, { pointerId: 1, clientX: 0, clientY: 0 });
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(localStorage.getItem("sharecut.coachTipSeen.selectionHandles")).toBe(
+      "1",
+    );
+  });
+
+  it("frees the slot when the selection clears without a press", async () => {
+    useDawStore.setState({ pointerKind: "coarse" });
+    render(<ScriptHost />);
+    await userEvent.click(word("Welcome"));
+    await screen.findByRole("note");
+    expect(coachTipOwner()).not.toBeNull();
+    act(() => useDawStore.getState().setSelection(null));
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(coachTipOwner()).toBeNull();
+    expect(
+      localStorage.getItem("sharecut.coachTipSeen.selectionHandles"),
+    ).toBeNull();
+  });
+
+  it("shows nothing for a mouse selection", async () => {
+    render(<ScriptHost />);
+    await userEvent.click(word("Welcome"));
+    expect(screen.queryByRole("note")).toBeNull();
   });
 });

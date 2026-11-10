@@ -10,6 +10,7 @@ import { canApplyPass12, isGuestSession } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { AppHeader } from "../../system/AppHeader";
 import { StageBar } from "../../system/StageBar";
+import { useUndoCoachTip } from "../../system/useCoachTip";
 import { stageLabel } from "../../system/verbs";
 import type { StageSheet } from "../../types/stage";
 import { ToolsButton } from "../edit/ToolsButton";
@@ -70,7 +71,11 @@ function StageFrameAdapter({
       s.project != null &&
       canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities),
   );
-  useTwoFingerTap(rootRef, { enabled: shell === "phone" && undoEnabled });
+  const twoFingerUndo = shell === "phone" && undoEnabled;
+  useTwoFingerTap(rootRef, { enabled: twoFingerUndo });
+  // The Role chip hint and the Undo tip share the header's edge; Undo waits.
+  const roleHintUp = headerProps.guest?.hint?.shown ?? false;
+  const undoTip = useUndoCoachTip(twoFingerUndo && !roleHintUp);
 
   // Header and Player keep transport keys working after a click (true). Edit
   // sets its own regions inside the body; every other stage's body is not the
@@ -98,6 +103,11 @@ function StageFrameAdapter({
       header={
         <AppHeader
           {...headerProps}
+          undoHint={{
+            text: undoTip.text,
+            shown: undoTip.shown,
+            onDismiss: undoTip.dismiss,
+          }}
           stages={
             headerProps.stages && {
               ...headerProps.stages,

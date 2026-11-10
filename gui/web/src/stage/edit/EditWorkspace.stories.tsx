@@ -9,6 +9,7 @@ import {
 } from "../../storybook/storyLayout";
 import { episode, selections } from "../../test/episodeFixture";
 import { episodeBeforeEach, withEpisode } from "../../test/withEpisode";
+import type { HistoryEntryId } from "../../types/project";
 import { StageFrame } from "../frame/StageFrame";
 import { EditWorkspace, type EditWorkspaceProps } from "./EditWorkspace";
 import { EDIT_SHEETS } from "./editSheets";
@@ -418,6 +419,60 @@ export const PhoneMix: Story = {
     const mix = canvas.getByRole("button", { name: "Mix" });
     await userEvent.click(mix);
     await waitFor(() => expect(useDawStore.getState().openSheet).toBe("mix"));
+  },
+};
+
+const phoneCoachState = {
+  pointerKind: "coarse",
+  editSurface: "lanes",
+} as const;
+
+/** The Undo tip raised by a cut, under the real phone header and above the surface switch. */
+export const PhoneUndoHint: Story = {
+  ...phone,
+  parameters: { episode: { state: phoneCoachState } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByRole("group", { name: "Tracks" }),
+    ).toBeVisible();
+    if (!onPhone(canvasElement)) return;
+    useDawStore
+      .getState()
+      .announceStatus("Cut to clipboard", { undo: "h1" as HistoryEntryId });
+    await expect(
+      await canvas.findByText("Two-finger tap to undo"),
+    ).toBeVisible();
+  },
+};
+
+/** Arming opens the docked Range sheet over the corner, so no tip is raised to be hidden by it. */
+export const PhoneRangeHint: Story = {
+  ...phone,
+  parameters: { episode: { state: phoneCoachState } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByRole("group", { name: "Tracks" }),
+    ).toBeVisible();
+    if (!onPhone(canvasElement)) return;
+    await userEvent.click(canvas.getByRole("button", { name: "Select range" }));
+    await expect(canvas.queryByText("Drag across a lane to select")).toBeNull();
+  },
+};
+
+/** The range tip on a tablet, where arming opens no sheet over the corner. e2e-storybook/coach-tip.spec.ts checks the tip at a tablet width; the sweep's own viewport may be a phone. */
+export const TabletRangeHint: Story = {
+  globals: { viewport: { value: "tablet", isRotated: false } },
+  parameters: { episode: { state: phoneCoachState } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByRole("group", { name: "Tracks" }),
+    ).toBeVisible();
+    await userEvent.click(
+      canvas.getAllByRole("button", { name: "Select range" })[0],
+    );
   },
 };
 

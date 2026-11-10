@@ -311,6 +311,7 @@ describe("stable callback source governance", () => {
         .map(({ source, callback }) => `${source.rel}:${callback}`)
         .sort(),
     ).toEqual([
+      "stage/edit/script/ScriptHost.tsx:onSelect",
       "stage/edit/script/useScriptFind.ts:closeBar",
       "stage/edit/script/useScriptFind.ts:openBar",
       "stage/edit/script/useScriptFixText.tsx:commit",

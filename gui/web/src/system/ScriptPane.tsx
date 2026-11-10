@@ -5,6 +5,7 @@ import {
   type KeyboardEvent,
   memo,
   type ReactNode,
+  type RefObject,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -25,7 +26,10 @@ import {
   TRANSCRIPT_SUSPECT_HALLUCINATION_TIP,
 } from "../transcript/transcriptModeCopy";
 import { useResizeObserver } from "../ui/useResizeObserver";
+import type { CoachHint } from "./CoachTip";
+import { CoachTipBubble } from "./CoachTipBubble";
 import { Cover } from "./Cover";
+import { placeHandleHint } from "./handleHintPlace";
 import { PersonAvatar } from "./Person";
 import { percentOf } from "./progress";
 import { Seam, type SeamRoll } from "./Seam";
@@ -591,6 +595,8 @@ export type ScriptPaneProps = {
   findBar?: ReactNode;
   /** Draw the two grips on a words selection. On whenever `onSelect` is given. */
   handles?: boolean;
+  /** The one-time tip beside the end grip. Drawn only while the grips are. */
+  handleHint?: CoachHint;
   /** Names what the guest's link may do in the header. It gates nothing: the callbacks do. */
   guest?: ScriptGuest;
   /** The chip's count when `turns` is only a window of the transcript. */
@@ -791,6 +797,89 @@ function placeHandles(
   };
 }
 
+/**
+ * Under the end grip's knob, above the start grip's, or pinned inside what is
+ * on screen. It hangs off the pane, not inside the scrolling body, so a body
+ * only a few lines tall (a landscape tablet) does not clip it. With no room
+ * at all it frees the slot unseen, so it is neither shown nor used up.
+ */
+function HandleHint({
+  hint,
+  places,
+  body,
+}: {
+  hint: CoachHint;
+  places: HandlePlaces;
+  body: RefObject<HTMLElement | null>;
+}) {
+  const bubble = useRef<HTMLSpanElement>(null);
+  const [at, setAt] = useState<{ top: number; left: number } | null>(null);
+  const { onRelease } = hint;
+  const place = useCallback(() => {
+    const el = body.current;
+    const tip = bubble.current;
+    const pane = el?.closest<HTMLElement>(".sys-script");
+    if (!el || !tip || !pane) return;
+    const rem = Number.parseFloat(
+      getComputedStyle(document.documentElement).fontSize,
+    );
+    const paneBox = pane.getBoundingClientRect();
+    const bodyBox = el.getBoundingClientRect();
+    // The grips in the pane's own space: the body's offset in, its scroll out.
+    const dy = bodyBox.top - paneBox.top - el.scrollTop;
+    const dx = bodyBox.left - paneBox.left - el.scrollLeft;
+    const band = (b: { y: number; height: number }) => ({
+      y: b.y + dy,
+      height: b.height,
+    });
+    const top = placeHandleHint({
+      start: band(places.start),
+      end: band(places.end),
+      view: {
+        top: Math.max(0, -paneBox.top),
+        height:
+          Math.min(paneBox.bottom, window.innerHeight) -
+          Math.max(paneBox.top, 0),
+      },
+      tipHeight: tip.offsetHeight,
+      reach: 1.25 * rem,
+      gap: 0.25 * rem,
+    });
+    if (top === null) {
+      setAt(null);
+      onRelease?.();
+      return;
+    }
+    const left = Math.max(
+      0,
+      Math.min(places.end.x + dx, pane.clientWidth - tip.offsetWidth),
+    );
+    setAt((prev) =>
+      prev && prev.top === top && prev.left === left ? prev : { top, left },
+    );
+  }, [places, body, onRelease]);
+  useLayoutEffect(place, [place]);
+  useEffect(() => {
+    const el = body.current;
+    el?.addEventListener("scroll", place, { passive: true });
+    return () => el?.removeEventListener("scroll", place);
+  }, [body, place]);
+  return (
+    <CoachTipBubble
+      ref={bubble}
+      className="sys-coach-tip--at"
+      text={hint.text}
+      onClose={hint.onDismiss}
+      style={{
+        insetInlineStart: "auto",
+        left: `${at?.left ?? 0}px`,
+        insetBlockStart: `${at?.top ?? 0}px`,
+        visibility: at === null ? "hidden" : undefined,
+      }}
+    />
+  );
+}
+
 const samePlace = (a: HandlePlaces | null, b: HandlePlaces | null) =>
   a === b ||
   (a !== null &&
@@ -836,6 +925,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       readingPosition,
       findBar,
       handles = true,
+      handleHint,
       guest,
       unsureCount,
       onCaret,
@@ -1938,6 +2028,11 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
         grabbed.current = null;
       };
     }, [gripsPresent]);
+    const hintShown = handleHint?.shown ?? false;
+    const releaseHint = handleHint?.onRelease;
+    useEffect(() => {
+      if (hintShown && span === null) releaseHint?.();
+    }, [hintShown, span, releaseHint]);
     const startStop = span ? stopContaining(stops, span.start) : undefined;
     const endStop = span ? stopContaining(stops, span.end) : undefined;
     const startAt = startStop?.start;
@@ -2362,6 +2457,9 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
             ) : null}
           </div>
         )}
+        {handlesShown && places && handleHint?.shown ? (
+          <HandleHint hint={handleHint} places={places} body={bodyRef} />
+        ) : null}
         <div className="sr-only" role="status" aria-live="polite">
           {spoken}
         </div>

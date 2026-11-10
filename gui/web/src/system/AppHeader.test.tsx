@@ -9,6 +9,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { ScriptDivider } from "../stage/edit/ScriptDivider";
+import { expectNoA11yViolations } from "../test/a11y";
 import { AppHeader, type AppHeaderProps } from "./AppHeader";
 import { ROLES } from "./linkRoles";
 import { ScrubField } from "./ScrubField";
@@ -910,5 +911,28 @@ describe("AppHeader rename", () => {
     expect(field).toHaveValue("Episode 14!");
     expect(field).toHaveAccessibleDescription("Nope, too long.");
     expect(field).toHaveFocus();
+  });
+});
+
+describe("AppHeader undo hint", () => {
+  const HINT = {
+    text: "Two-finger tap to undo",
+    shown: true,
+    onDismiss: vi.fn(),
+  };
+
+  it("undoes once and dismisses when Undo is pressed", async () => {
+    const onUndo = vi.fn();
+    const onDismiss = vi.fn();
+    setup({ onUndo, undoHint: { ...HINT, onDismiss } });
+    expect(screen.getByRole("note")).toHaveTextContent(HINT.text);
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(onUndo).toHaveBeenCalledOnce();
+    expect(onDismiss).toHaveBeenCalledOnce();
+  });
+
+  it("has no accessibility violations while shown", async () => {
+    const { container } = setup({ undoHint: HINT });
+    await expectNoA11yViolations(container);
   });
 });
