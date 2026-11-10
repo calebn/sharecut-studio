@@ -23,10 +23,8 @@ function InputMenu({
   onInputChange?: (inputId: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const picked = devices.some((device) => device.id === inputId) ? inputId : "";
-  const current =
-    devices.find((device) => device.id === picked)?.label ??
-    JOIN_TEXT.defaultInput;
+  const picked = devices.find((device) => device.id === inputId);
+  const current = picked?.label ?? JOIN_TEXT.defaultInput;
   const choices = [{ id: "", label: JOIN_TEXT.defaultInput }, ...devices];
   return (
     <Menu
@@ -50,7 +48,7 @@ function InputMenu({
       {choices.map((choice) => (
         <MenuItem
           key={choice.id}
-          checked={choice.id === picked}
+          checked={choice.id === (picked?.id ?? "")}
           onSelect={() => {
             setOpen(false);
             onInputChange?.(choice.id);
