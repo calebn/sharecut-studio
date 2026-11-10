@@ -72,7 +72,7 @@ to UX partners; for UI copy, this table wins.
 | Process new audio | The Prepare hand-off when audio was added to a project that already ran. It runs the plan and goes back to "Review N suggestions" when done | "Run pipeline", "Reprocess", "Start" |
 | Skip (a plan row) | Leaves one Getting ready row out of the next run only. Saved nowhere; undone with Include and shown as "Skipped this time" | "Disable step" (that is the session switch in Advanced) |
 | Selected work finished | The requested steps finished. Neutral rows still say what did not run; a partial result names only the operations that ran | "Everything is ready", "All audio was transcribed" |
-| Apply sound actions | The optional step that applies suggested actions to non-speech sounds during processing (`apply_sound_actions`), in Advanced under "Listen for sounds". Cost is said as "about 2½ minutes for 30 minutes of audio" | "Scan for sounds", scan-only wording |
+| Apply sound actions | The optional step that applies suggested actions to non-speech sounds during processing (`apply_sound_actions`), in Advanced under "Find suggestions". Cost is said as "about 2½ minutes for 30 minutes of audio" | "Scan for sounds", scan-only wording |
 | Audio tools | The bundled FFmpeg and FFprobe pair needed for media work. Source installs supply a supported matching pair | "Download FFmpeg" in desktop setup |
 | Review link | Async share for follow-along/comment/edit, no live session. It works until the host chooses Stop sharing | "share link"; "share" alone when record rooms also exist |
 | Record room | The live recording room and its lobby/session | "session link", "call" |
@@ -787,3 +787,4 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   "Export is out of date"; canonical edit-only staleness includes approved clips
   and chapters. A delivered receipt failure survives delayed running feedback.
   Feed changes the next loudness choice only after a fresh export is admitted.
+- 2026-11-10 Prepare cleanup (D-hp-23): the ⋯ menu with "Run everything again" is gone; Run again from here on Transcribe re-transcribes. Apply sound actions moves from its own "Listen for sounds" group to the second step under Find suggestions, and a new-audio plan keeps five rows, with the sound cost on Find suggestions.
