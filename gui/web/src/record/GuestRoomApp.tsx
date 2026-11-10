@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
+import { useAfter } from "../hooks/useAfter";
 import { useElapsedSince } from "../hooks/useElapsedSince";
 import {
   matchesMedia,
@@ -11,8 +12,8 @@ import { DeviceSheet } from "../system/DeviceSheet";
 import { JoinSheet } from "../system/JoinSheet";
 import type { JoinMicAction } from "../system/joinSheetModel";
 import { RoomView } from "../system/RoomView";
+import { SKELETON_RETRY_MS } from "../system/Skeleton";
 import { TakesTray } from "../system/TakesTray";
-import { LoadingScreen } from "../ui";
 import { dbToFraction } from "../ui/metering";
 import { clippingGate } from "./alertGates";
 import { deviceMic, deviceTone, useSheetMic } from "./deviceSheet";
@@ -136,6 +137,7 @@ function GuestRoomSession({
     notLandscape,
   );
   const viewerWidth = guestViewerWidth(shell, landscape);
+  const slow = useAfter(bootstrap ? null : SKELETON_RETRY_MS);
   const state = snapshot?.state;
   const onAir = state === "recording" || state === "paused";
   const consented = me?.consented ?? null;
@@ -345,7 +347,21 @@ function GuestRoomSession({
     );
   }
   if (!bootstrap) {
-    return <LoadingScreen label="Loading studio…" />;
+    return (
+      <RoomView
+        loading
+        page
+        seat="guest"
+        title="Recording"
+        people={[]}
+        phase={{ kind: "waiting" }}
+        viewerWidth={viewerWidth}
+        alerts={slow ? [{ kind: "connecting", onAction: onRetry }] : []}
+        notes={[]}
+        selfName=""
+        onSendNote={() => false}
+      />
+    );
   }
 
   const declined = producer

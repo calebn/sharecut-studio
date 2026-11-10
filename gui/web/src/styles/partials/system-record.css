@@ -205,6 +205,34 @@
   border-style: dashed;
 }
 
+.sys-room-tile--skeleton {
+  justify-items: center;
+  align-content: center;
+  gap: var(--space-3);
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.sys-room-tile--skeleton > .sys-skeleton-block--circle {
+  align-self: center;
+  inline-size: min(4rem, 60%);
+}
+
+.sys-room-tile--skeleton
+  > .sys-skeleton-block:not(.sys-skeleton-block--circle) {
+  block-size: var(--space-4);
+  inline-size: 60%;
+}
+
+.sys-room-view-title-skeleton {
+  inline-size: 10rem;
+  max-inline-size: 100%;
+  block-size: var(--space-5);
+}
+
+.sys-room-view[data-loading] .sys-room-view-dock {
+  opacity: 0.5;
+}
+
 .sys-room-tile--placeholder {
   display: flex;
   flex-direction: column;

@@ -14,18 +14,27 @@ import type { NoteDraft, NoteItem } from "./notesRailModel";
 import { RecordDock } from "./RecordDock";
 import { RoomAlert } from "./RoomAlert";
 import { RoomStatusPill } from "./RoomStatusPill";
-import { ListenerAvatar, ListenerRow, RoomTile } from "./RoomTile";
+import {
+  ListenerAvatar,
+  ListenerRow,
+  RoomTile,
+  RoomTileSkeleton,
+} from "./RoomTile";
 import { RoomTileMenu } from "./RoomTileMenu";
 import type { RoomAlertInput } from "./roomAlertModel";
 import { clockText, type RoomPhase } from "./roomPhase";
 import {
+  gridColumns,
   type RoomPerson,
   type RoomRole,
   roomViewModel,
   type ViewerWidth,
 } from "./roomViewModel";
 import { Sheet } from "./Sheet";
+import { SkeletonBlock } from "./Skeleton";
 import { SystemIcon } from "./SystemIcon";
+
+const LOADING_TILE_KEYS = ["a", "b", "c", "d"] as const;
 
 /** The phase's identity for the time chip: a new take or state is a new key. */
 function phaseKey(phase: RoomPhase): string {
@@ -87,6 +96,8 @@ export type RoomViewProps = {
   target?: ReactNode;
   /** A bare page: the room fills 100dvh and clears the top safe area. */
   page?: boolean;
+  /** Placeholder tiles and title, an inert dock, no pill, rail or Notes sheet. */
+  loading?: boolean;
 };
 
 type RailTab = "notes" | "takes";
@@ -171,6 +182,7 @@ export function RoomView({
   noteVisibility,
   target,
   page = false,
+  loading = false,
 }: RoomViewProps) {
   const tabId = useId();
   const [railTab, setRailTab] = useState<RailTab>("notes");
@@ -268,6 +280,7 @@ export function RoomView({
       data-embedded={embedded ? "" : undefined}
       data-declined={declined ? "" : undefined}
       data-page={page ? "" : undefined}
+      data-loading={loading ? "" : undefined}
     >
       {embedded ? (
         <div className="sys-room-view-header sys-room-view-header--embedded">
@@ -280,11 +293,23 @@ export function RoomView({
           <RoomStatusPill phase={phase} />
         </div>
       ) : (
-        <header className="sys-room-view-header">
+        <header
+          className="sys-room-view-header"
+          aria-busy={loading ? true : undefined}
+        >
           <BrandLockup name="ShareCut" className="sys-room-view-wordmark" />
-          <h1 className="sys-room-view-title">{title}</h1>
+          <h1 className="sys-room-view-title">
+            {loading ? (
+              <>
+                <span className="sr-only">{title}</span>
+                <SkeletonBlock className="sys-room-view-title-skeleton" />
+              </>
+            ) : (
+              title
+            )}
+          </h1>
           {target ? <div className="sys-room-view-target">{target}</div> : null}
-          <RoomStatusPill phase={phase} />
+          {loading ? null : <RoomStatusPill phase={phase} />}
         </header>
       )}
       <div className="sys-room-view-body" inert={declined ? true : undefined}>
@@ -294,39 +319,46 @@ export function RoomView({
           </div>
           <div
             className="sys-room-view-grid"
+            aria-busy={loading ? true : undefined}
             style={
-              { "--sys-room-view-columns": model.columns } as CSSProperties
+              {
+                "--sys-room-view-columns": loading
+                  ? gridColumns(viewerWidth, LOADING_TILE_KEYS.length)
+                  : model.columns,
+              } as CSSProperties
             }
           >
-            {model.tiles.map((tile) =>
-              tile.kind === "invite" && onInvite ? (
-                <RoomTile
-                  key={tile.key}
-                  presence="placeholder"
-                  onInvite={onInvite}
-                />
-              ) : tile.kind === "invite" ? null : onRemovePerson &&
-                tile.props.presence !== "placeholder" &&
-                !(tile.props.presence === "live" && tile.props.isMe) ? (
-                <div key={tile.key} className="sys-room-slot">
-                  <RoomTile {...tile.props} />
-                  <RoomTileMenu
-                    id={tile.key}
-                    name={tile.props.person.name}
-                    onRemove={onRemovePerson}
-                  />
-                </div>
-              ) : (
-                <RoomTile
-                  key={tile.key}
-                  {...(tile.props.presence === "live" && tile.props.isMe
-                    ? { ...tile.props, onPress: onSelfPress }
-                    : tile.props)}
-                />
-              ),
-            )}
+            {loading
+              ? LOADING_TILE_KEYS.map((key) => <RoomTileSkeleton key={key} />)
+              : model.tiles.map((tile) =>
+                  tile.kind === "invite" && onInvite ? (
+                    <RoomTile
+                      key={tile.key}
+                      presence="placeholder"
+                      onInvite={onInvite}
+                    />
+                  ) : tile.kind === "invite" ? null : onRemovePerson &&
+                    tile.props.presence !== "placeholder" &&
+                    !(tile.props.presence === "live" && tile.props.isMe) ? (
+                    <div key={tile.key} className="sys-room-slot">
+                      <RoomTile {...tile.props} />
+                      <RoomTileMenu
+                        id={tile.key}
+                        name={tile.props.person.name}
+                        onRemove={onRemovePerson}
+                      />
+                    </div>
+                  ) : (
+                    <RoomTile
+                      key={tile.key}
+                      {...(tile.props.presence === "live" && tile.props.isMe
+                        ? { ...tile.props, onPress: onSelfPress }
+                        : tile.props)}
+                    />
+                  ),
+                )}
           </div>
-          {model.listeners.length > 0 ? (
+          {!loading && model.listeners.length > 0 ? (
             <ListenerRow>
               {model.listeners.map((listener) => (
                 <ListenerAvatar
@@ -338,13 +370,13 @@ export function RoomView({
             </ListenerRow>
           ) : null}
         </Stage>
-        {model.railOpen ? (
+        {!loading && model.railOpen ? (
           <aside className="sys-room-view-rail" aria-label="Notes and takes">
             {railContent}
           </aside>
         ) : null}
       </div>
-      {viewerWidth === "phone" ? (
+      {viewerWidth === "phone" && !loading ? (
         <button
           type="button"
           className="sys-room-view-peek"
@@ -367,7 +399,10 @@ export function RoomView({
           ) : null}
         </button>
       ) : null}
-      <Dockbar embedded={embedded} inert={declined ? true : undefined}>
+      <Dockbar
+        embedded={embedded}
+        inert={declined || loading ? true : undefined}
+      >
         <RecordDock
           seat={model.dockSeat}
           record={
@@ -397,10 +432,15 @@ export function RoomView({
           onLeave={onLeave}
         />
       </Dockbar>
-      {declined ? (
+      {loading && model.alerts.length === 0 ? (
+        <p className="sr-only" role="status">
+          Joining the room…
+        </p>
+      ) : null}
+      {declined && !loading ? (
         <DeclinedScrim phase={phase} onJoin={declined.onJoin} />
       ) : null}
-      {viewerWidth === "desktop" ? null : (
+      {viewerWidth === "desktop" || loading ? null : (
         <Sheet
           form="bottom"
           title="Notes"

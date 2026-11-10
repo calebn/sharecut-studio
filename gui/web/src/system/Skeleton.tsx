@@ -4,6 +4,23 @@ import { Button } from "../ui";
 
 type Phase = "blank" | "blocks" | "slow";
 
+export const SKELETON_RETRY_MS = 4000;
+
+export function SkeletonBlock({
+  circle = false,
+  className,
+}: {
+  circle?: boolean;
+  className?: string;
+}) {
+  return (
+    <span
+      className={`sys-skeleton-block${circle ? " sys-skeleton-block--circle" : ""}${className ? ` ${className}` : ""}`}
+      aria-hidden="true"
+    />
+  );
+}
+
 export type SkeletonProps = {
   /** Nothing is drawn before this. Default 300 ms. */
   blankMs?: number;
@@ -39,7 +56,7 @@ const phaseOf = (elapsed: number, blankMs: number, retryMs: number): Phase =>
  */
 export function Skeleton({
   blankMs = 300,
-  retryMs = 4000,
+  retryMs = SKELETON_RETRY_MS,
   elapsedMs,
   layout = "list",
   rows = 4,
@@ -78,7 +95,7 @@ export function Skeleton({
               ))
             : Array.from({ length: rows }, (_, row) => (
                 // biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
-                <span key={row} className="sys-skeleton-block" />
+                <SkeletonBlock key={row} />
               ))}
         </div>
       )}
