@@ -12,7 +12,8 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
 from podcast_mcp import settings
-from podcast_mcp.gui.routes.deps import coded_exception_error, coded_http_error
+from podcast_mcp.config.runtime import is_loopback_host
+from podcast_mcp.gui.routes.deps import coded_exception_error, coded_http_error, peer_host
 from podcast_mcp.gui.routes.guest_errors import guest_boundary
 from podcast_mcp.services.share_auth import (
     SESSION_COOKIE,
@@ -26,6 +27,7 @@ from podcast_mcp.services.share_auth import (
     make_pkce_pair,
     oauth_providers_available,
 )
+from podcast_mcp.util.proxy_paths import is_relayed_request
 
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["auth"])
@@ -254,17 +256,21 @@ def auth_magic_link(body: MagicLinkRequest, request: Request) -> dict[str, Any]:
     with guest_boundary(log, "magic link"):
         store = get_identity_store()
         raw = store.create_magic_link(body.email, share_token=body.share_token)
+    show_link = (
+        settings.value("PODCAST_MAGIC_LINK_PRINT", "0") == "1"
+        and is_loopback_host(peer_host(request))
+        and not is_relayed_request(request.headers)
+    )
     origin = str(request.base_url).rstrip("/")
     q = urlencode({"token": raw, "next": body.next or "/"})
     link = f"{origin}/auth/magic-link/consume?{q}"
-    # No SMTP yet - print/log for host operators and tests.
-    if settings.value("PODCAST_MAGIC_LINK_PRINT", "1") == "1":
+    if show_link:
         log.info("magic link for %s: %s", body.email, link)
         print(f"PODCAST_MAGIC_LINK {body.email} {link}", flush=True)
     return {
         "ok": True,
         "email": body.email.strip().lower(),
-        "dev_link": link if settings.value("PODCAST_MAGIC_LINK_PRINT", "1") == "1" else None,
+        "dev_link": link if show_link else None,
     }
 
 

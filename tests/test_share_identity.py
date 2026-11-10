@@ -263,7 +263,7 @@ def test_magic_link_and_agent_credential(
     )
     token = share["token"]
     identity_store.invite_to_share(token, email="m@example.com")
-    client = TestClient(create_app())
+    client = TestClient(create_app(), client=("127.0.0.1", 50000))
     ml = client.post(
         "/auth/magic-link",
         json={"email": "m@example.com", "share_token": token},
@@ -288,6 +288,47 @@ def test_magic_link_and_agent_credential(
         headers={"Authorization": f"Bearer {bearer}"},
     )
     assert ok.status_code == 200
+
+
+def _magic_link_post(client, headers=None):
+    return client.post("/auth/magic-link", json={"email": "m@example.com"}, headers=headers or {})
+
+
+def test_magic_link_default_env_hides_link(identity_store, monkeypatch, capsys):
+    monkeypatch.delenv("PODCAST_MAGIC_LINK_PRINT", raising=False)
+    client = TestClient(create_app(), client=("127.0.0.1", 50000))
+    res = _magic_link_post(client)
+    assert res.status_code == 200
+    assert res.json()["dev_link"] is None
+    assert "PODCAST_MAGIC_LINK" not in capsys.readouterr().out
+
+
+def test_magic_link_flag_on_non_loopback_peer_hides_link(identity_store, monkeypatch, capsys):
+    monkeypatch.setenv("PODCAST_MAGIC_LINK_PRINT", "1")
+    client = TestClient(create_app())
+    res = _magic_link_post(client)
+    assert res.status_code == 200
+    assert res.json()["dev_link"] is None
+    assert "PODCAST_MAGIC_LINK" not in capsys.readouterr().out
+
+
+def test_magic_link_flag_on_relayed_loopback_hides_link(identity_store, monkeypatch, capsys):
+    monkeypatch.setenv("PODCAST_MAGIC_LINK_PRINT", "1")
+    client = TestClient(create_app(), client=("127.0.0.1", 50000))
+    res = _magic_link_post(client, headers={"x-sharecut-relayed": "1"})
+    assert res.status_code == 200
+    assert res.json()["dev_link"] is None
+    assert "PODCAST_MAGIC_LINK" not in capsys.readouterr().out
+
+
+def test_magic_link_flag_on_loopback_shows_and_prints_link(identity_store, monkeypatch, capsys):
+    monkeypatch.setenv("PODCAST_MAGIC_LINK_PRINT", "1")
+    client = TestClient(create_app(), client=("127.0.0.1", 50000))
+    res = _magic_link_post(client)
+    assert res.status_code == 200
+    link = res.json()["dev_link"]
+    assert "/auth/magic-link/consume?token=" in link
+    assert f"PODCAST_MAGIC_LINK m@example.com {link}" in capsys.readouterr().out
 
 
 def test_body_share_token_auth_faults_use_the_generic_guest_error(

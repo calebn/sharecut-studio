@@ -211,7 +211,11 @@ VARIABLES: tuple[Variable, ...] = (
         ("PODCAST_SIDECAR_LISTEN_FILE", "File the bound port is written to."),
         ("PODCAST_PUBLIC_ORIGIN", "Public origin used for OAuth redirect URIs."),
         ("PODCAST_AUTH_COOKIE_SECURE", "Mark the sign-in cookie Secure (1, true, yes)."),
-        ("PODCAST_MAGIC_LINK_PRINT", "Print magic sign-in links to the log; 1 prints.", "1"),
+        (
+            "PODCAST_MAGIC_LINK_PRINT",
+            "Print magic sign-in links to the log and return them to loopback callers; 1 prints.",
+            "0",
+        ),
         ("PODCAST_WEBAUTHN_RP_ID", "Passkey relying-party id.", "localhost"),
         ("PODCAST_WEBAUTHN_TEST_MODE", "Skip WebAuthn signature checks; 1 skips them.", "1"),
         ("PODCAST_GOOGLE_OAUTH_CLIENT_ID", "Google OAuth client id."),

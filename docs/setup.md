@@ -774,7 +774,7 @@ read pipeline settings.
 | `PODCAST_SIDECAR_LISTEN_FILE` |  | File the bound port is written to. |
 | `PODCAST_PUBLIC_ORIGIN` |  | Public origin used for OAuth redirect URIs. |
 | `PODCAST_AUTH_COOKIE_SECURE` |  | Mark the sign-in cookie Secure (1, true, yes). |
-| `PODCAST_MAGIC_LINK_PRINT` | `1` | Print magic sign-in links to the log; 1 prints. |
+| `PODCAST_MAGIC_LINK_PRINT` | `0` | Print magic sign-in links to the log and return them to loopback callers; 1 prints. |
 | `PODCAST_WEBAUTHN_RP_ID` | `localhost` | Passkey relying-party id. |
 | `PODCAST_WEBAUTHN_TEST_MODE` | `1` | Skip WebAuthn signature checks; 1 skips them. |
 | `PODCAST_GOOGLE_OAUTH_CLIENT_ID` |  | Google OAuth client id. |

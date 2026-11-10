@@ -857,6 +857,10 @@ Host sqlite `~/.podcast_mcp/share_identity.sqlite` (override
 passkeys, and agent credentials when accounts are enabled. See
 [persistence.md](persistence.md) and `deploy/relay/SECRETS.md`.
 
+The magic sign-in link is printed and returned as `dev_link` only on a loopback,
+non-relayed request with `PODCAST_MAGIC_LINK_PRINT=1`; otherwise it is neither
+logged nor returned.
+
 ## Security notes
 
 - On **link** shares the token **is** the capability set (`play` / `view` /
