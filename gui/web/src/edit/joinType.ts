@@ -18,16 +18,19 @@ export function joinTypeLabel(mode: JoinMode): string {
   return JOIN_TYPE_OPTIONS.find((option) => option.value === mode)?.label ?? "";
 }
 
-/** The types a seam can take now: a crossfade needs room and a fade on both sides, unless it already is one. */
+function crossfadeAvailable(seam: Seam, project: ProjectView): boolean {
+  const fadeMax =
+    project.tracks.find((t) => t.id === seam.trackId)?.fade_max_ms ?? null;
+  const room = appliedJoinLength(seam.left, seam.right, fadeMax).max;
+  return !seam.right.join_crossfade_blocked && room >= 1;
+}
+
 export function joinTypeChoices(
   seam: Seam,
   project: ProjectView,
 ): readonly JoinTypeOption[] {
   const mode = joinModeOf(seam.right);
-  const fadeMax =
-    project.tracks.find((t) => t.id === seam.trackId)?.fade_max_ms ?? null;
-  const room = appliedJoinLength(seam.left, seam.right, fadeMax).max;
-  const crossfadeOk = !seam.right.join_crossfade_blocked && room >= 1;
+  const crossfadeOk = crossfadeAvailable(seam, project);
   return JOIN_TYPE_OPTIONS.filter(
     (option) =>
       option.value !== "crossfade" || crossfadeOk || mode === "crossfade",
