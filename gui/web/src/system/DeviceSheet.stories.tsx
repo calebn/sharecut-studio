@@ -262,13 +262,29 @@ export const RoomToneCapturing: Story = {
 
 export const Phone: Story = {
   args: { viewerWidth: "phone", headphones: true },
+  globals: { viewport: { value: "mobile360", isRotated: false } },
   play: async ({ viewMode }) => {
     if (viewMode === "docs") return;
     const dialog = await sheet();
-    await expect(dialog.getByRole("button", { name: /^Input:/ })).toBeVisible();
+    const chip = dialog.getByRole("button", { name: /^Input:/ });
+    await expect(chip).toBeVisible();
     await expect(
       dialog.getByRole("button", { name: "Record 1 minute of room tone" }),
     ).toBeVisible();
+    await userEvent.click(chip);
+    const menu = await dialog.findByRole("menu", { name: "Input" });
+    const box = menu.getBoundingClientRect();
+    await expect(box.left).toBeGreaterThanOrEqual(0);
+    await expect(box.right).toBeLessThanOrEqual(window.innerWidth);
+    await expect(box.bottom).toBeLessThanOrEqual(window.innerHeight);
+    for (const row of within(menu).getAllByRole("menuitemradio")) {
+      await expect(row.getBoundingClientRect().height).toBeGreaterThanOrEqual(
+        44,
+      );
+    }
+    await expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(
+      document.documentElement.clientWidth,
+    );
   },
 };
 
