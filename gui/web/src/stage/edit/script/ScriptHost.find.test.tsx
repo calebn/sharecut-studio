@@ -18,6 +18,7 @@ import {
   seedScript,
 } from "../../../test/scriptHostKit";
 import { ApiError } from "../../../utils/apiError";
+import { resetQueuedCutsForTests } from "./cutHits";
 import { ScriptHost } from "./ScriptHost";
 
 const preview = vi.hoisted(() => vi.fn());
@@ -105,6 +106,7 @@ async function openFind() {
 }
 
 beforeEach(() => {
+  resetQueuedCutsForTests();
   preview.mockReset();
   replace.mockReset();
   preview.mockResolvedValue({

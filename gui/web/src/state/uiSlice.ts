@@ -138,6 +138,7 @@ function feedbackPatch(s: DawStore, input: FeedbackInput): Partial<DawStore> {
     !options.undo &&
     !options.reverse &&
     !options.gesture &&
+    !options.action &&
     repeatsStanding(message, tone, s.feedbackToast)
   )
     return {};
@@ -163,6 +164,7 @@ function feedbackPatch(s: DawStore, input: FeedbackInput): Partial<DawStore> {
             onUndone: options.onUndone,
             returnFocus: options.returnFocus ?? null,
             gesture: options.gesture === true,
+            action: options.action ?? null,
           },
         }
       : {}),

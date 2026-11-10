@@ -53,6 +53,7 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
   const saving = useDocumentBusy(projectPath);
   const waiting = useWaitingMove(projectPath);
   const [undoing, setUndoing] = useState(false);
+  const [acting, setActing] = useState(false);
   const regionRef = useRef<HTMLDivElement>(null);
   const [portal] = useState(() => {
     const region = document.createElement("section");
@@ -250,6 +251,15 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
     }
   };
 
+  const act = async (run: () => void | Promise<void>) => {
+    setActing(true);
+    try {
+      await run();
+    } finally {
+      setActing(false);
+    }
+  };
+
   const reversal = toast?.reverse ?? null;
   const onUndo =
     toast && undoEntry
@@ -275,6 +285,13 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
         if (held) toast.returnFocus?.()?.focus({ preventScroll: true });
       }}
       onUndo={onUndo}
+      actionLabel={toast?.action?.label}
+      onAction={
+        toast?.action && undoEntry
+          ? () => void act(toast.action!.run)
+          : undefined
+      }
+      actionDisabledReason={acting ? BUSY_REASON : undefined}
       undoDisabledReason={undoing ? BUSY_REASON : undefined}
       undoNote={
         waiting?.action === "undo" &&

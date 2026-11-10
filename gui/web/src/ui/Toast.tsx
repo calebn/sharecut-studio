@@ -53,6 +53,11 @@ type Props = {
   onUndo?: () => void;
   /** The action's name when "Undo" is not enough ("Undo all" on a merged toast). */
   undoLabel?: string;
+  /** A second button before Undo ("Cut all"). Needs `onUndo`: it lives as long as the entry it belongs to. */
+  actionLabel?: string;
+  onAction?: () => void;
+  /** Why the action is unavailable. Disables it and pauses auto-dismiss. */
+  actionDisabledReason?: string;
   /** A decorative glyph before the message (the design system toast leads with an icon). */
   icon?: ReactNode;
   /** Why Undo is unavailable. Disables Undo and pauses auto-dismiss (Undo must never expire while it cannot be clicked). */
@@ -104,6 +109,9 @@ function ToastCard({
   toast,
   onUndo,
   undoLabel = "Undo",
+  actionLabel,
+  onAction,
+  actionDisabledReason,
   icon,
   onDismiss,
   undoDisabledReason,
@@ -132,6 +140,7 @@ function ToastCard({
   const paused =
     hovered ||
     focused ||
+    (onAction != null && actionDisabledReason !== undefined) ||
     (onUndo != null &&
       (undoDisabledReason !== undefined || undoNote !== undefined)) ||
     (visibility === "clipped" && clippedSpentFor !== toast.id);
@@ -226,6 +235,15 @@ function ToastCard({
       <span id={messageId} className="ui-toast-message">
         {toast.message}
       </span>
+      {onAction && actionLabel ? (
+        <Button
+          disabledReason={actionDisabledReason}
+          aria-describedby={messageId}
+          onClick={onAction}
+        >
+          {actionLabel}
+        </Button>
+      ) : null}
       {onUndo ? (
         <Button
           disabledReason={undoDisabledReason}

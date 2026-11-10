@@ -178,6 +178,8 @@ export interface FeedbackToast {
   returnFocus: (() => HTMLElement | null) | null;
   /** Says what a gesture is doing; it clears when the gesture ends or the mode changes. */
   gesture: boolean;
+  /** A second button beside Undo; it shows only while the Undo entry is live. */
+  action: ToastAction | null;
 }
 
 export type AnnouncedJobKind = "export" | "bounce";
@@ -210,7 +212,14 @@ export type JobChipObservation = Readonly<{
   copy: string;
 }>;
 
+export type ToastAction = {
+  label: string;
+  run: () => void | Promise<void>;
+};
+
 export interface AnnounceOptions {
+  /** A button beside Undo, shown while the Undo entry is live. */
+  action?: ToastAction;
   /** Offer Undo on the toast for this entry (the command reply's `replyHistoryHead`). */
   undo?: HistoryEntryId | null;
   /** Offer Undo for a change History does not record. */
