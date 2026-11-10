@@ -18,6 +18,9 @@ export type RecordMoreSheetProps = {
   onGuestsSeeNotesChange: (enabled: boolean) => void;
   guestsSeeNotesError?: string | null;
   onDevices: () => void;
+  onRoomTone: () => void;
+  /** Why Room tone cannot start now, such as a running take. */
+  roomToneReason?: string;
   /** The host's own mic is part of the session. */
   micOn: boolean;
   onMicChange: (on: boolean) => void;
@@ -43,6 +46,8 @@ export function RecordMoreSheet({
   onGuestsSeeNotesChange,
   guestsSeeNotesError,
   onDevices,
+  onRoomTone,
+  roomToneReason,
   micOn,
   onMicChange,
   micReason,
@@ -51,6 +56,7 @@ export function RecordMoreSheet({
 }: RecordMoreSheetProps) {
   const helpId = useId();
   const micHelpId = useId();
+  const toneHelpId = useId();
   return (
     <Sheet form="centered" title="More" open={open} onClose={onClose}>
       <div className="stack">
@@ -111,6 +117,20 @@ export function RecordMoreSheet({
               : "Off: you run the session without recording your own mic. Start needs a guest to have accepted.")}
         </p>
         <Button onClick={onDevices}>Devices…</Button>
+        <Button
+          aria-describedby={toneHelpId}
+          disabledReason={roomToneReason}
+          onClick={() => {
+            onClose();
+            onRoomTone();
+          }}
+        >
+          Room tone
+        </Button>
+        <p id={toneHelpId} className="stage-host-note">
+          {roomToneReason ??
+            "Asks guests for 1 minute of quiet. Record your own in Devices."}
+        </p>
         <Button onClick={onInvite}>Invite and links…</Button>
         {onEndSession ? (
           <Button

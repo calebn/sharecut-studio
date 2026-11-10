@@ -18,7 +18,7 @@ import {
 import { useInputSwitching } from "./useInputSwitching";
 
 const MIC_REASON = "Allow the microphone before recording room tone.";
-const TAKE_REASON = "Record room tone between takes.";
+export const TAKE_REASON = "Record room tone between takes.";
 
 type JoinMicInput = Parameters<typeof joinMic>[0];
 type JoinMicOptions = Parameters<typeof joinMic>[1];

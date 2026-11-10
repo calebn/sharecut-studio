@@ -77,6 +77,15 @@ describe("record transport command failures", () => {
     );
   });
 
+  it("record.roomTone announces the round once the room accepts it", async () => {
+    submit.mockResolvedValue(undefined);
+    expect(await execute("record.roomTone")).toEqual({ status: "ok" });
+    expect(submit).toHaveBeenCalledWith("RoomToneCountdown");
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Room tone started. Quiet please.",
+    );
+  });
+
   it("clears a previous error on success", async () => {
     useRecordHostStore.getState().setTransportError("old");
     submit.mockResolvedValue(undefined);

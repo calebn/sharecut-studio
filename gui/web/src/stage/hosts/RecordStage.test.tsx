@@ -12,6 +12,7 @@ import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { answerQuestion, useAskStore } from "../../feedback/ask";
 import { useDawKeymapListener } from "../../keymap/listener";
+import { TAKE_REASON } from "../../record/deviceSheet";
 import { HostRoomProvider } from "../../record/hostRoomContext";
 import { useRecordHostStore } from "../../record/hostStore";
 import {
@@ -1540,6 +1541,128 @@ describe("Record stage capture and storage", () => {
       { at: "record" },
       { skipWhen: true },
     );
+  });
+});
+
+describe("Record stage Room tone", () => {
+  const tone = (dialog: HTMLElement) =>
+    within(dialog).getByRole("button", { name: "Room tone" });
+  const NO_ONE = "Room tone starts once someone has joined the room.";
+
+  it("sits right after Devices, before Invite and links", async () => {
+    setRoom({ participants: [avaGuest()] });
+    mount();
+    const dialog = await openMore();
+    const names = within(dialog)
+      .getAllByRole("button")
+      .map((button) => button.textContent);
+    expect(names.indexOf("Room tone")).toBe(names.indexOf("Devices…") + 1);
+    expect(names.indexOf("Invite and links…")).toBe(
+      names.indexOf("Room tone") + 1,
+    );
+    expect(tone(dialog)).toBeEnabled();
+    expect(tone(dialog)).toHaveAccessibleDescription(
+      "Asks guests for 1 minute of quiet. Record your own in Devices.",
+    );
+  });
+
+  it("runs the command and closes the sheet", async () => {
+    setRoom({ participants: [avaGuest()] });
+    mount();
+    const dialog = await openMore();
+    await userEvent.click(tone(dialog));
+    expect(exec).toHaveBeenCalledWith(
+      "record.roomTone",
+      {},
+      { skipWhen: true },
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "More" })).toBeNull(),
+    );
+  });
+
+  it.each([
+    ["during a take", { state: "recording", take_index: 0 }, TAKE_REASON],
+    ["while paused", { state: "paused", take_index: 0 }, TAKE_REASON],
+    [
+      "before anyone joined",
+      { participants: [], start_blockers: [{ code: "no_recorder" }] },
+      NO_ONE,
+    ],
+    [
+      "while a round runs",
+      {
+        participants: [avaGuest()],
+        room_tone: {
+          round: 1,
+          requested_wall_ms: 1000,
+          duration_ms: 60_000,
+          participant_ids: ["p_g"],
+        },
+        countdown_left_ms: 30_000,
+      },
+      "Room tone is already recording.",
+    ],
+    [
+      "while a round runs after Stop",
+      {
+        state: "stopped",
+        take_index: 0,
+        participants: [avaGuest()],
+        room_tone: {
+          round: 1,
+          requested_wall_ms: 1000,
+          duration_ms: 60_000,
+          participant_ids: ["p_g"],
+        },
+        countdown_left_ms: 30_000,
+      },
+      "Room tone is already recording.",
+    ],
+  ] as const)(
+    "is unavailable %s, with the reason",
+    async (_name, patch, reason) => {
+      setRoom(patch as Partial<ReturnType<typeof recordSnapshot>>);
+      mount();
+      const dialog = await openMore();
+      expect(tone(dialog)).toBeDisabled();
+      expect(tone(dialog)).toHaveAccessibleDescription(reason);
+      await userEvent.click(tone(dialog));
+      expect(exec).not.toHaveBeenCalledWith(
+        "record.roomTone",
+        expect.anything(),
+        expect.anything(),
+      );
+    },
+  );
+
+  it("is unavailable while the host's own room tone records", async () => {
+    setRoom({ participants: [avaGuest()] });
+    roomTone.status = "capturing";
+    mount({ stream: {} as MediaStream });
+    const dialog = await openMore();
+    expect(tone(dialog)).toHaveAccessibleDescription(
+      "Your own room tone is recording.",
+    );
+  });
+
+  it("stays available while a guest has not yet consented, a finished round is open, or the host mic is off", async () => {
+    setRoom({
+      participants: [avaGuest()],
+      start_blockers: [
+        { code: "consent_pending", participant_id: "p_g", display_name: "Ava" },
+      ],
+      room_tone: {
+        round: 1,
+        requested_wall_ms: 1000,
+        duration_ms: 60_000,
+        participant_ids: ["p_g"],
+      },
+      countdown_left_ms: 0,
+    });
+    mount();
+    const dialog = await openMore();
+    expect(tone(dialog)).toBeEnabled();
   });
 });
 

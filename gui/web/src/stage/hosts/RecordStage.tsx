@@ -23,11 +23,13 @@ import {
   liveTakeOpen,
   MIC_RETRY_LABEL,
   MIC_SAVED_DEVICE_MISSING_COPY,
+  moreRoomToneReason,
   NOTES_CLOSED_REASON,
   noteItems,
   RECORD_ROOM_RECONNECTING_COPY,
   roomAlerts,
   roomPeople,
+  roomToneRoundLeftMs,
   type SessionTarget,
   StorageHeadroomWarning,
   sendRecordHostCommand,
@@ -48,6 +50,7 @@ import { STOP_DETAIL, STOP_TITLE } from "../../system/RecordButton";
 import type { RoomViewProps } from "../../system/RoomView";
 import { TakesTray } from "../../system/TakesTray";
 import { Toast } from "../../ui";
+import { BUSY_REASON } from "../../ui/disabledReason";
 import { dbToFraction } from "../../ui/metering";
 import { takeAutoRoom } from "../../utils/openIntent";
 import { hostStateOf, type LoadFailure } from "./hostModels";
@@ -305,7 +308,8 @@ function RecordStageBody({
     () => new Map((project?.tracks ?? []).map((t) => [t.id, t.label])),
     [project?.tracks],
   );
-  const ticking = state === "recording" || state === "lobby";
+  const roundOpen = !!snapshot?.room_tone && state === "stopped";
+  const ticking = state === "recording" || state === "lobby" || roundOpen;
   const elapsed = useElapsedSince(receivedAtMs, ticking);
   const meter = useInputPeakDb(cap.stream);
   const micStatus = hostMicStatus(cap.micStatus, cap.micLost);
@@ -569,6 +573,16 @@ function RecordStageBody({
   }
 
   const toneAvailable = state === "lobby" || state === "stopped";
+  const roomToneReason = snapshot
+    ? (moreRoomToneReason({
+        state: snapshot.state,
+        noRecorder: (snapshot.start_blockers ?? []).some(
+          (blocker) => blocker.code === "no_recorder",
+        ),
+        roundLeftMs: roomToneRoundLeftMs(snapshot, elapsed),
+        hostCapturing: room.roomTone.status === "capturing",
+      }) ?? (room.transportBusy ? BUSY_REASON : undefined))
+    : undefined;
   const more = snapshot ? (
     <RecordMoreSheet
       open={moreOpen}
@@ -597,6 +611,8 @@ function RecordStageBody({
         setMoreOpen(false);
         setDeviceOpen(true);
       }}
+      onRoomTone={() => room.runCommand("record.roomTone")}
+      roomToneReason={roomToneReason}
       onEndSession={
         room.endSession.ending || room.endSession.busy
           ? undefined

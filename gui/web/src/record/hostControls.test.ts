@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { recordParticipant, recordSnapshot } from "../test/fixtures";
-import { endGate, landGate, startBlockerItems } from "./hostControls";
+import { TAKE_REASON } from "./deviceSheet";
+import {
+  endGate,
+  landGate,
+  moreRoomToneReason,
+  roomToneRoundLeftMs,
+  startBlockerItems,
+} from "./hostControls";
 
 const ready = {
   storageReady: true,
@@ -167,5 +174,63 @@ describe("endGate", () => {
     expect(
       endGate(stopped, [segment({ file_ack: true, landed: true })]),
     ).toEqual({ enabled: true });
+  });
+});
+
+describe("moreRoomToneReason", () => {
+  const open = {
+    state: "lobby" as const,
+    noRecorder: false,
+    roundLeftMs: 0,
+    hostCapturing: false,
+  };
+
+  it("lets a room in the lobby or stopped start a round", () => {
+    expect(moreRoomToneReason(open)).toBeUndefined();
+    expect(moreRoomToneReason({ ...open, state: "stopped" })).toBeUndefined();
+  });
+
+  it("holds a running or paused take first", () => {
+    const all = { noRecorder: true, roundLeftMs: 5, hostCapturing: true };
+    expect(moreRoomToneReason({ ...open, ...all, state: "recording" })).toBe(
+      TAKE_REASON,
+    );
+    expect(moreRoomToneReason({ ...open, ...all, state: "paused" })).toBe(
+      TAKE_REASON,
+    );
+  });
+
+  it("names the first of the remaining reasons", () => {
+    const rest = { noRecorder: true, roundLeftMs: 5, hostCapturing: true };
+    expect(moreRoomToneReason({ ...open, ...rest })).toBe(
+      "Room tone starts once someone has joined the room.",
+    );
+    expect(moreRoomToneReason({ ...open, ...rest, noRecorder: false })).toBe(
+      "Room tone is already recording.",
+    );
+    expect(moreRoomToneReason({ ...open, hostCapturing: true })).toBe(
+      "Your own room tone is recording.",
+    );
+  });
+});
+
+describe("roomToneRoundLeftMs", () => {
+  it("counts the round down from the snapshot and stops at zero", () => {
+    const snap = recordSnapshot({
+      room_tone: {
+        round: 1,
+        requested_wall_ms: 1000,
+        duration_ms: 60_000,
+        participant_ids: ["p_g"],
+      },
+      countdown_left_ms: 4000,
+    });
+    expect(roomToneRoundLeftMs(snap, 1500)).toBe(2500);
+    expect(roomToneRoundLeftMs(snap, 9000)).toBe(0);
+  });
+
+  it("is zero with no round, whatever the countdown field holds", () => {
+    const snap = recordSnapshot({ room_tone: null, countdown_left_ms: 4000 });
+    expect(roomToneRoundLeftMs(snap, 0)).toBe(0);
   });
 });

@@ -1,3 +1,4 @@
+import { TAKE_REASON } from "./deviceSheet";
 import { someoneAccepted } from "./hostRecording";
 import {
   LOCAL_KEEPER_PENDING_COPY,
@@ -125,4 +126,49 @@ export function endGate(
     };
   }
   return { enabled: true };
+}
+
+export type MoreRoomToneState = {
+  state: RecordRoomState;
+  noRecorder: boolean;
+  /** Milliseconds of the guests' round left now, or 0 when none runs. */
+  roundLeftMs: number;
+  hostCapturing: boolean;
+};
+
+/**
+ * Why the More sheet's Room tone cannot run now, or undefined when it can.
+ * The server accepts a second round and a host with the mic off; the first
+ * would restart every guest's capture, so it waits for the round to end.
+ */
+export function moreRoomToneReason(
+  input: MoreRoomToneState,
+): string | undefined {
+  if (input.state === "recording" || input.state === "paused") {
+    return TAKE_REASON;
+  }
+  if (input.noRecorder) {
+    return "Room tone starts once someone has joined the room.";
+  }
+  if (input.roundLeftMs > 0) {
+    return "Room tone is already recording.";
+  }
+  if (input.hostCapturing) {
+    return "Your own room tone is recording.";
+  }
+  return undefined;
+}
+
+/** What is left of the guests' room-tone round, given the time since the snapshot. */
+export function roomToneRoundLeftMs(
+  snapshot: RecordSnapshot,
+  elapsedSinceSnapshotMs: number,
+): number {
+  if (!snapshot.room_tone) {
+    return 0;
+  }
+  return Math.max(
+    0,
+    (snapshot.countdown_left_ms ?? 0) - Math.max(0, elapsedSinceSnapshotMs),
+  );
 }

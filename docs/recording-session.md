@@ -1375,8 +1375,18 @@ cannot. Every button runs the same `record.*` command as the palette.
   take is open.
 - Mute, the Record button and **More** sit in the dock under the room, so they
   stay in reach on a phone; Comment joins them once a take is live. **More** holds the upload
-  status, a note when a removed participant's invite is closed, **Devices…**
-  and, last, **Invite and links…** (opens Share). **Record 1 minute of room
+  status, a note when a removed participant's invite is closed, **Devices…**,
+  **Room tone** and, last before End session, **Invite and links…** (opens
+  Share). **Room tone** runs `record.roomTone` and closes the sheet; the help
+  line under it reads "Asks guests for 1 minute of quiet. Record your own in
+  Devices." because only guests react to a round. It is disabled, with the
+  reason in that line, during a take ("Record room tone between takes."),
+  before anyone has joined ("Room tone starts once someone has joined the
+  room."), while a round runs ("Room tone is already recording."), while the
+  host's own capture records ("Your own room tone is recording.") and while a
+  host command is in flight. It stays enabled with a guest's consent pending
+  or the host mic off. A started round is announced as "Room tone started.
+  Quiet please."; a refusal shows in the Record stage alert. **Record 1 minute of room
   tone** is in the Devices sheet and works only in the lobby or after Stop;
   otherwise it is disabled ("Record room tone between takes."). The same sheet
   has a **Speaker** menu where the browser supports `AudioContext.setSinkId`
