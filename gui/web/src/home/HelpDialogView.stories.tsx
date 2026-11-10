@@ -120,10 +120,6 @@ export const Menu: Story = {
       within(dialog).getByRole("button", { name: /Report a problem/ }),
     ).toHaveFocus();
     await userEvent.click(
-      within(dialog).getByRole("button", { name: /Report a problem/ }),
-    );
-    await userEvent.click(within(dialog).getByRole("button", { name: "Back" }));
-    await userEvent.click(
       within(dialog).getByRole("button", { name: /Guides/ }),
     );
     await expect(args.onOpenGuides).toHaveBeenCalledOnce();

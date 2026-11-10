@@ -13,7 +13,6 @@ import { HelpDialogView } from "./HelpDialogView";
 type Props = {
   open: boolean;
   onClose: () => void;
-  /** Where the sheet opens: the three-row menu, or straight to the report step. */
   initialStep?: HelpStep;
   onOpenShortcuts?: () => void;
   onOpenGuides?: () => void;
