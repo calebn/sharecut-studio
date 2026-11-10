@@ -177,6 +177,8 @@ finished recordings first, then mints; the result adds `landed_first` (the land 
 A bad `target` or `expires_at` is refused before anything lands (a `replace` target is
 checked against the episode after the land, which can change its length).
 
+The dock shows the saving line only in the saving phase after Stop; pause and resume never replace its controls.
+
 "Saving" is bounded. Each browser keeper (guest and host) tells the room how many upload
 segments it opened for a take with a `SegmentReport` command (`take_index`, `segments`):
 at every segment's first saved audio, and at Stop (0 when none had audio). A segment that
