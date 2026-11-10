@@ -1208,6 +1208,32 @@
       }
     },
     {
+      "id": "daw.view.toggleSnap",
+      "label": "Snap to cut points",
+      "effect": "view",
+      "tooltip": "Snap to cut points",
+      "tooltip_pressed": "Snap is on",
+      "toggle": true,
+      "service": "ShareCut Studio UI",
+      "industry_standard_key": false,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "view.toggleSnap",
+        "gui": [
+          "editCorner"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "Toggle in the corner for touch; Alt inverts it for one drag on a keyboard"
+      },
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
       "id": "daw.view.trackHeightIncrease",
       "label": "Increase track height",
       "effect": "view",

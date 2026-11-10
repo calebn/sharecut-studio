@@ -166,6 +166,16 @@ export function registerViewCommands(): void {
     return { status: "ok" };
   });
 
+  registerCommand("view.toggleSnap", () => {
+    const s = useDawStore.getState();
+    if (!s.project) return NO_PROJECT;
+    s.setSnapEnabled(!s.snapEnabled);
+    s.announceStatus(
+      useDawStore.getState().snapEnabled ? "Snap on" : "Snap off",
+    );
+    return { status: "ok" };
+  });
+
   registerCommand("view.trackHeightIncrease", () => {
     const s = useDawStore.getState();
     s.stepLaneHeight("up");

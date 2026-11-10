@@ -19,14 +19,16 @@ export function EditCorner({
 }) {
   const { zoom, onZoomIn, onZoomOut } = useZoomControls();
   const [viewOpen, setViewOpen] = useState(false);
-  const { scriptCollapsed, touch, rangeArmed, hasProject } = useDawStore(
-    useShallow((s) => ({
-      scriptCollapsed: s.scriptCollapsed,
-      touch: s.pointerKind === "coarse",
-      rangeArmed: s.rangeArmed,
-      hasProject: s.project != null,
-    })),
-  );
+  const { scriptCollapsed, touch, rangeArmed, hasProject, snapEnabled } =
+    useDawStore(
+      useShallow((s) => ({
+        scriptCollapsed: s.scriptCollapsed,
+        touch: s.pointerKind === "coarse",
+        rangeArmed: s.rangeArmed,
+        hasProject: s.project != null,
+        snapEnabled: s.snapEnabled,
+      })),
+    );
   return (
     <EditCornerView
       viewAnchor={viewAnchor}
@@ -38,6 +40,11 @@ export function EditCorner({
       onToggleView={() => setViewOpen((open) => !open)}
       onCloseView={() => setViewOpen(false)}
       viewPopover={ViewPopover}
+      snap={{
+        on: snapEnabled,
+        reason: hasProject ? undefined : "Open a project to change snapping",
+        onToggle: () => runPointerCommand("view.toggleSnap"),
+      }}
       range={
         touch
           ? {

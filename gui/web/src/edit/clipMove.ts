@@ -14,6 +14,7 @@ export type ClipMovePointerInfo = {
   clientX: number;
   clientY: number;
   extraTicks: number[];
+  altKey: boolean;
 };
 
 export type ClipSelectMods = {

@@ -561,6 +561,7 @@ export function ClipBlockLive({
       clientX: e.clientX,
       clientY: e.clientY,
       extraTicks: extraTicks(),
+      altKey: e.altKey,
     });
   };
 
@@ -604,6 +605,7 @@ export function ClipBlockLive({
       clientX: e.clientX,
       clientY: e.clientY,
       extraTicks: extraTicks(),
+      altKey: e.altKey,
     });
   };
 

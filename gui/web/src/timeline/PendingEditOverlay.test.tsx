@@ -482,6 +482,34 @@ describe("PendingEditOverlay handles", () => {
     );
   });
 
+  it.each([
+    ["Snap on", true, false, 4.3],
+    ["Snap off", false, false, 5],
+    ["Snap on with Alt", true, true, 5],
+    ["Snap off with Alt", false, true, 4.3],
+  ])(
+    "commits an edge drag with %s at the matching bound",
+    async (_name, snapEnabled, altKey, expected) => {
+      useDawStore.setState({ snapEnabled });
+      vi.mocked(useWaveformSnapTicks).mockReturnValue(snapResource([4.3]));
+      const { container } = setup(10);
+      const end = container.querySelector(".pending-handle.end") as HTMLElement;
+      fireEvent.pointerDown(end, { clientX: 100, pointerId: 3 });
+      fireEvent.pointerMove(end, { clientX: 130, pointerId: 3, altKey });
+      fireEvent.pointerUp(end, { clientX: 130, pointerId: 3, altKey });
+      await waitFor(() =>
+        expect(updatePendingEdit).toHaveBeenCalledWith(
+          "/tmp/p.json",
+          "cut_1",
+          0,
+          expected,
+          false,
+        ),
+      );
+      useDawStore.setState({ snapEnabled: true });
+    },
+  );
+
   it("keeps the preview while resolving ticks, ignores release capture loss, then commits once", async () => {
     const pending = deferred<number[]>();
     const resolveTicks = vi.fn(

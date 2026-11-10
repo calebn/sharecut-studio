@@ -27,6 +27,8 @@ export interface EditCornerViewProps {
   onCloseView: () => void;
   /** The eye popover, mounted while `viewOpen`; it hangs off the eye and closes through `onCloseView`. */
   viewPopover?: ComponentType<ViewPopoverSlotProps>;
+  /** The Snap toggle, on every pointer: Alt inverts it for one gesture, and a finger has no Alt. */
+  snap?: { on: boolean; reason?: string; onToggle: () => void };
   /** Phone has no side-by-side Script pane, so no toggle. */
   script?: { shown: boolean; onToggle: () => void };
   /**
@@ -50,6 +52,7 @@ export function EditCornerView({
   onToggleView,
   onCloseView,
   viewPopover: ViewPopoverSlot,
+  snap,
   script,
   range,
 }: EditCornerViewProps) {
@@ -103,6 +106,19 @@ export function EditCornerView({
           panelRef={panelRef}
           onClose={onCloseView}
         />
+      ) : null}
+      {snap ? (
+        <ToggleButton
+          quiet
+          pressed={snap.on}
+          className="edit-corner-btn edit-corner-snap"
+          disabledReason={snap.reason}
+          title={commandLabel("view.toggleSnap")}
+          aria-label={commandLabel("view.toggleSnap")}
+          onClick={snap.onToggle}
+        >
+          <Icon name="snap" />
+        </ToggleButton>
       ) : null}
       {range ? (
         <ToggleButton

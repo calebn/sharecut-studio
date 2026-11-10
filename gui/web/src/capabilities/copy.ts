@@ -209,6 +209,12 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     tooltip_pressed: "Use a fixed track height",
     toggle: true,
   },
+  "daw.view.toggleSnap": {
+    label: "Snap to cut points",
+    tooltip: "Snap to cut points",
+    tooltip_pressed: "Snap is on",
+    toggle: true,
+  },
   "daw.view.trackHeightIncrease": {
     label: "Increase track height",
     tooltip: "Increase track height",

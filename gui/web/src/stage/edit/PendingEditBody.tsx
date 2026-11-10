@@ -45,6 +45,7 @@ import { Composer } from "../../system/Composer";
 import { DecisionCard } from "../../system/DecisionCard";
 import { ScrubField } from "../../system/ScrubField";
 import { formatSeconds } from "../../system/seconds";
+import { snapActive } from "../../timeline/snapOverlay";
 import type { PendingEditView } from "../../types/project";
 import { InlineError } from "../../ui";
 import { BUSY_REASON } from "../../ui/disabledReason";
@@ -397,7 +398,10 @@ export function PendingEditBody({
   };
 
   const commitEdge = async (edge: "start" | "end", value: number) => {
-    const snap = !altHeld.current;
+    const snap = snapActive(
+      useDawStore.getState().snapEnabled,
+      altHeld.current,
+    );
     altHeld.current = false;
     if (timingBusy) return;
     const capture = captureTiming();

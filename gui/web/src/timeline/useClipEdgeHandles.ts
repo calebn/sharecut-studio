@@ -32,7 +32,7 @@ import {
   driverKey,
   registerPrecisionDriver,
 } from "./precision/precisionDrivers";
-import { magnetSec } from "./snapOverlay";
+import { magnetSec, snapActive } from "./snapOverlay";
 
 type Context = {
   clip: ClipRow;
@@ -128,7 +128,12 @@ function projectEdge(draft: Draft, candidate: number): Draft {
   };
 }
 
-function pointerCandidate(d: Draft, originX: number, clientX: number): number {
+function pointerCandidate(
+  d: Draft,
+  originX: number,
+  event: { clientX: number; altKey: boolean },
+): number {
+  const clientX = event.clientX;
   const delta = (clientX - originX) / d.capture.zoomPxPerSec;
   const clip = d.capture.clip;
   return d.kind === "fade"
@@ -137,7 +142,9 @@ function pointerCandidate(d: Draft, originX: number, clientX: number): number {
       : clip.fade_out_ms - delta * 1000
     : magnetSec(
         (d.edge === "in" ? clip.source_start : clip.source_end) + delta,
-        d.capture.ticks,
+        snapActive(useDawStore.getState().snapEnabled, event.altKey)
+          ? d.capture.ticks
+          : [],
         d.capture.zoomPxPerSec,
       );
 }
@@ -610,7 +617,7 @@ export function useClipEdgeHandles(context: Context) {
         d.input.pointerId !== event.pointerId
       )
         return;
-      drag(d, pointerCandidate(d, d.input.originX, event.clientX));
+      drag(d, pointerCandidate(d, d.input.originX, event));
     },
     onPointerUp: (event: PointerEvent<HTMLButtonElement>) => {
       const d = draftRef.current;
@@ -624,7 +631,7 @@ export function useClipEdgeHandles(context: Context) {
         cancel();
         return;
       }
-      update(d, pointerCandidate(d, d.input.originX, event.clientX));
+      update(d, pointerCandidate(d, d.input.originX, event));
       void finish();
     },
     onPointerCancel: (event: PointerEvent<HTMLButtonElement>) => {

@@ -316,6 +316,8 @@ export interface DawState {
   inspectorSelection: Selection;
   /** A timeline drag is under way; the compact inspector stows itself. */
   timelineDragging: boolean;
+  /** Snap is on: drags and the suggestion Start/End commit pull to nearby cut points. Alt inverts it for one gesture (`snapActive`). */
+  snapEnabled: boolean;
   laneHeightMode: LaneHeightMode;
   laneHeightPx: number;
   /** Lane height the mounted timeline last resolved (fit or fixed); null with no timeline. Stepping from fit mode starts here. */
@@ -489,6 +491,7 @@ export interface DawState {
   setPointerKind: (kind: PointerKind) => void;
   setSelectionHit: (hit: RoutedTarget | null) => void;
   setTimelineDragging: (on: boolean) => void;
+  setSnapEnabled: (enabled: boolean) => void;
   setLaneHeightMode: (mode: LaneHeightMode) => void;
   toggleFitTracksHeight: () => void;
   stepLaneHeight: (direction: "up" | "down") => void;

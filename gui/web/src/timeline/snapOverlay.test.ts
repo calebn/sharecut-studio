@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { magnetSec, uniqueTicks } from "./snapOverlay";
+import { magnetSec, snapActive, uniqueTicks } from "./snapOverlay";
 
 describe("uniqueTicks", () => {
   it("merges ticks within 1 µs, like the server", () => {
@@ -17,5 +17,16 @@ describe("magnetSec", () => {
     expect(magnetSec(1.00001, [1], 48000)).toBe(1);
     // 1 ms is 48 px away: no snap.
     expect(magnetSec(1.001, [1], 48000)).toBe(1.001);
+  });
+});
+
+describe("snapActive", () => {
+  it.each([
+    [true, false, true],
+    [true, true, false],
+    [false, false, false],
+    [false, true, true],
+  ])("snap %s with Alt %s snaps: %s", (enabled, alt, expected) => {
+    expect(snapActive(enabled, alt)).toBe(expected);
   });
 });

@@ -145,6 +145,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Set track volume | `track.setVolume` | Host or shared edit mode | Args: { trackId?, db }: SetTrackFader, the saved volume on top of staging gain (-60 to +12 dB) |
 | Clear solo | `track.clearSolo` | Project loaded | Unsolo every track: the Solo on chip above the track headers, phone status row and Mix sheet (listen-only, no key) |
 | Fit tracks to window height | `view.fitTracksHeight` | Always (when not typing in a field or on a focused Scrub field) | Toggle: fill the stage height, or a fixed track height |
+| Snap to cut points | `view.toggleSnap` | Project loaded | The Snap toggle in the Edit corner: moves, trims and the suggestion Start/End pull to nearby cut points. Alt inverts it for one gesture |
 | Export transcript… | `export.transcript` | Loaded host project | Go to Deliver and focus the Transcript Export → export/ |
 | Share… | `share.manage` | Loaded host project | Open the Invite sheet on any stage: review, record and listen links. Args: at = record to open at the Record links |
 | Create record room | `record.createRoom` | Loaded host project | Mint guest + producer links in place and copy the guest link |

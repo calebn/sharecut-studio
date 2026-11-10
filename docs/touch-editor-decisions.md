@@ -418,6 +418,8 @@ not establish ShareCut's separate two-finger shortcut.
 
 Amended by #2294 (W1a): the Select/Blade tool strip and the ruler comment mode are gone. Alt-click at the pointer splits with a mouse and a touch user has no Alt, so the visible equivalent for touch is the Split verb in the Action bar (the playhead, or both edges of a range or words selection, in one undo step) and the create menu's Split here (W1b, decided by calebn, 2026-10-28). The touch Select range toggle is a 44 px button in the Edit corner.
 
+Amended by #2294 (E3): Alt also inverts snapping for one drag or commit, and a touch user has no Alt, so the visible equivalent is the Snap toggle in the Edit corner (`view.toggleSnap`), shown on every pointer and kept per browser (decided by calebn, 2026-11-10).
+
 Exact seek remains outside this patch. the transport timecode (now the Player bar's time, `System/Player`) uses
 `ui/Timecode.tsx` for the text readout. `commands/seek.ts` dispatches existing
 seek commands. Arbitrary timestamp entry remains a precision candidate for

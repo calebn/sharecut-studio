@@ -25,6 +25,7 @@ export type IconName =
   | "zoomIn"
   | "zoomOut"
   | "range"
+  | "snap"
   | "warning"
   | "ripple"
   | "flatline";
@@ -197,6 +198,13 @@ const PATHS: Record<IconName, ReactElement> = {
       <circle cx="8.5" cy="8.5" r="5" />
       <path d="m12.25 12.25 4.25 4.25" />
       <path d="M6.25 8.5h4.5" />
+    </>
+  ),
+  snap: (
+    <>
+      <path d="M5 3.5V10a5 5 0 0 0 10 0V3.5" />
+      <path d="M5 7h3.5" />
+      <path d="M11.5 7H15" />
     </>
   ),
   range: (
