@@ -73,6 +73,11 @@ const POINTER_ALLOWLIST: { file: string; marker: string; reason: string }[] = [
     reason: "the portaled action card only stops presses reaching the lanes",
   },
   {
+    file: "timeline/TrimHint.tsx",
+    marker: 'role="presentation"',
+    reason: "the portaled trim tip only stops presses reaching the lanes",
+  },
+  {
     file: "timeline/TimelineView.tsx",
     marker: "ref={lanesRef}",
     reason:

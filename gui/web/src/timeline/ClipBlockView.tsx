@@ -1,14 +1,16 @@
-import type {
-  ButtonHTMLAttributes,
-  PointerEventHandler,
-  FocusEvent as ReactFocusEvent,
-  KeyboardEvent as ReactKeyboardEvent,
-  ReactNode,
-  PointerEvent as ReactPointerEvent,
+import {
+  type ButtonHTMLAttributes,
+  type PointerEventHandler,
+  type FocusEvent as ReactFocusEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+  type PointerEvent as ReactPointerEvent,
+  useRef,
 } from "react";
 import { capabilityTooltip } from "../capabilities/copy";
 import { isCrossfadeJoin, isCutJoin } from "../edit/joinRender";
 import { rippleDetail } from "../edit/ripplePreview";
+import type { CoachHint } from "../system/CoachTip";
 import type { ClipRow } from "../types/project";
 import { RippleMark } from "../ui/RippleMark";
 import { clipLabels } from "../utils/clipLabels";
@@ -22,6 +24,7 @@ import { FadeCurves } from "./FadeCurves";
 import { HIT_SURFACE_PROPS, hitTargetProps } from "./hitTargets";
 import { RippleArrow } from "./RippleArrow";
 import { timelineTestIds } from "./selectors";
+import { TrimHint } from "./TrimHint";
 
 /** Clip-local overlay spans for source regions, clamped to the visible window. */
 function RegionSpans({
@@ -111,6 +114,7 @@ export interface ClipBlockViewProps {
   nextClip: ClipRow | null;
   /** Editable project and interactive clip: draw trim and fade handles. */
   showHandles: boolean;
+  trimHint?: CoachHint;
   canMove?: boolean;
   moving?: boolean;
   previewHidden?: boolean;
@@ -161,6 +165,7 @@ export function ClipBlockView({
   geometry,
   nextClip,
   showHandles,
+  trimHint,
   canMove = false,
   moving = false,
   previewHidden = false,
@@ -199,6 +204,7 @@ export function ClipBlockView({
     rippleSec,
   } = geometry;
 
+  const blockRef = useRef<HTMLDivElement>(null);
   const timelineStart = left / zoomPxPerSec;
   // Saved times for the hit targets: the chooser names a target by them.
   const savedStart = clip.timeline_start;
@@ -230,6 +236,7 @@ export function ClipBlockView({
 
   return (
     <div
+      ref={blockRef}
       data-testid={
         interactive ? timelineTestIds.clip : timelineTestIds.moveGhost
       }
@@ -394,6 +401,9 @@ export function ClipBlockView({
             onPointerMove={onHandlePointerMove}
             onPointerUp={onHandlePointerUp}
           />
+          {selected && !moving && trimHint?.shown ? (
+            <TrimHint anchor={blockRef} hint={trimHint} />
+          ) : null}
           <button
             type="button"
             data-testid={timelineTestIds.trimOut}

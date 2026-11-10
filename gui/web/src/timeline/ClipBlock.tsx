@@ -2,6 +2,7 @@ import {
   memo,
   type PointerEvent as ReactPointerEvent,
   useCallback,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -19,6 +20,7 @@ import { MOVE_THRESHOLD_PX } from "../hooks/gestureConstants";
 import { useSnapTicks, useSplitGuideOnClip } from "../hooks/useSnapTicks";
 import { hasShareCapability, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { useCoachTip } from "../system/useCoachTip";
 import type { ClipRow } from "../types/project";
 import { EMPTY_ARR } from "../utils/empty";
 import { clipDrawsPieces, clipMediaStartSec } from "../waveform/mediaRef";
@@ -135,6 +137,11 @@ export function ClipBlockLive({
       !isShareProjectKey(s.projectPath) ||
       hasShareCapability(s.shareCapabilities, "edit"),
   );
+  const trimCoach = useCoachTip("trim");
+  const { release: releaseTrimCoach } = trimCoach;
+  useEffect(() => {
+    if (moving) releaseTrimCoach();
+  }, [moving, releaseTrimCoach]);
   const bodyRef = useRef<BodyDrag | null>(null);
   const bodyMovedRef = useRef(false);
   const pointerHandledRef = useRef(false);
@@ -292,7 +299,10 @@ export function ClipBlockLive({
     if (ownsGesture && onBodyStart?.(clip.id) === false) return;
     if (!rangeCandidate) {
       if (wasSelected) onSelect(clip.id);
-      else onSelectClip?.(clip.id, mods);
+      else {
+        onSelectClip?.(clip.id, mods);
+        if (editable) trimCoach.show();
+      }
     }
     if (
       (!canMove && !rangeCandidate) ||
@@ -474,6 +484,12 @@ export function ClipBlockLive({
       geometry={geometry}
       nextClip={nextClip}
       showHandles={editable && interactive}
+      trimHint={{
+        text: trimCoach.text,
+        shown: trimCoach.shown,
+        onDismiss: trimCoach.dismiss,
+        onRelease: trimCoach.release,
+      }}
       canMove={canMove}
       moving={moving}
       previewHidden={previewHidden}
