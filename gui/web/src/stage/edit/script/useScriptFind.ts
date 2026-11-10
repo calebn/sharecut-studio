@@ -56,12 +56,17 @@ export type ScriptFind = ScriptFindState & {
 
 function cutAllFailure(error: unknown): unknown {
   if (!(error instanceof ApiError)) return error;
-  if (error.code === "cut_scope_changed")
-    return new Error(
-      /need audio review/.test(error.message)
-        ? "Some of these matches are held for an audio check. Nothing was cut."
-        : "Nothing was cut. The edit was not applied.",
-    );
+  if (error.code === "cut_scope_changed") {
+    if (/need audio review/.test(error.message))
+      return new Error(
+        "Some of these matches are held for an audio check. Nothing was cut.",
+      );
+    if (/needs another review/.test(error.message))
+      return new Error(
+        "Nothing was cut. The host has to review this edit first.",
+      );
+    return new Error("Nothing was cut. The edit was not applied.");
+  }
   if (error.code === "overlapping_targets")
     return new Error(
       "Some matches overlap on one track, so nothing was cut. Try a narrower search or cut them in the timeline.",
@@ -76,14 +81,11 @@ function wasProposed(result: Record<string, unknown>): boolean {
   return command?.payload?.result?.proposed === true;
 }
 
-async function stillQueued(
-  projectPath: string,
-  commandId: string,
-): Promise<boolean> {
+async function queuedIds(projectPath: string): Promise<Set<string>> {
   const rows = isShareProjectKey(projectPath)
     ? await loadCommandQueue(shareTokenFromKey(projectPath)!)
     : await loadHostCommandQueue(projectPath);
-  return rows.some((row) => row.command_id === commandId);
+  return new Set(rows.map((row) => row.command_id));
 }
 
 /**
@@ -105,11 +107,9 @@ export function useScriptFind(
     replaceOpen: false,
     replaceText: "",
   });
-  const queued = useRef<{
-    epoch: number;
-    key: string;
-    commandId: string;
-  } | null>(null);
+  const queued = useRef(
+    new Map<string, { epoch: number; commandId: string }>(),
+  );
   const [at, setAt] = useState(0);
   const [stepped, setStepped] = useState(0);
   const { query, caseSensitive, replaceText } = state;
@@ -187,11 +187,17 @@ export function useScriptFind(
     const offline = navigator.onLine === false;
     setRangeBusy(true);
     try {
-      const earlier = queued.current;
-      if (earlier?.epoch === epoch && earlier.key === key) {
-        if (await stillQueued(projectPath, earlier.commandId))
+      const mine = queued.current;
+      for (const [other, entry] of mine)
+        if (entry.epoch !== epoch) mine.delete(other);
+      if (mine.size > 0) {
+        const ids = await queuedIds(projectPath).catch(() => null);
+        if (useDawStore.getState().projectEpoch !== epoch) return;
+        if (!ids) throw new Error("Nothing was cut. Try again.");
+        for (const [other, entry] of mine)
+          if (!ids.has(entry.commandId)) mine.delete(other);
+        if (mine.has(key))
           throw new Error("Cut all is already queued. Wait for it to send.");
-        queued.current = null;
       }
       const result = await submitRangeEdit("cut", plan.targets).catch(
         (error: unknown) => {
@@ -200,11 +206,10 @@ export function useScriptFind(
       );
       if (useDawStore.getState().projectEpoch !== epoch) return;
       if (result.queued === true) {
-        queued.current = {
+        queued.current.set(key, {
           epoch,
-          key,
           commandId: String(result.command_id),
-        };
+        });
         announceStatus(
           isShareProjectKey(projectPath) && offline
             ? "Cut all queued as a suggestion for host review. Reconnect to send it."
