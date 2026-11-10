@@ -7243,3 +7243,9 @@ html
   border-width: 0;
   border-radius: 0;
 }
+
+/* The Dialog body scrolls the takeover, so the sections must not trap the wheel. */
+.sys-inspector--takeover .sys-inspector-scroll {
+  overflow: visible;
+  overscroll-behavior: auto;
+}
