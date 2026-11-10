@@ -1,0 +1,75 @@
+/* Settings sheet (settings/SettingsSheet.tsx): Appearance, Saved in, and the
+   rows that open Models and Keyboard shortcuts. */
+.settings-sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.settings-sheet-section {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.settings-sheet-label {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+  font-weight: 600;
+}
+
+.settings-sheet-saved {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  inline-size: 100%;
+  min-block-size: var(--control-height);
+}
+
+.settings-sheet-path {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  user-select: text;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-small);
+}
+
+.settings-sheet-nav-list {
+  display: flex;
+  flex-direction: column;
+  margin-inline: calc(var(--space-5) * -1);
+}
+
+.settings-sheet-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  inline-size: 100%;
+  min-block-size: var(--touch-min);
+  padding: 0 var(--space-5);
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.settings-sheet-nav:hover {
+  background: var(--color-hover);
+}
+
+.settings-sheet-nav:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+}
+
+.settings-sheet-nav-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}

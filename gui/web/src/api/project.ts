@@ -220,6 +220,19 @@ export async function revealRecentProject(path: string): Promise<void> {
   );
 }
 
+/** Shows the open episode's project file in this computer's file manager (Settings' "Saved in"). */
+export async function revealProject(path: string): Promise<void> {
+  await apiFetch(
+    HOST_KEY,
+    { host: "/api/project/reveal" },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path }),
+    },
+  );
+}
+
 /** Copies the episode into a new "<name> copy" folder; the copy joins the recent list. */
 export async function duplicateRecentProject(
   path: string,

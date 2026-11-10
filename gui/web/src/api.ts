@@ -168,6 +168,7 @@ export {
   loadReviewVersionStatus,
   openEpisodeProject,
   pickEpisodeProject,
+  revealProject,
   revealRecentProject,
   reviewVersionAtBootstrap,
   uploadMediaFile,

@@ -3,6 +3,7 @@ import {
   loadDocumentState,
   loadReviewBootstrap,
   loadReviewVersionStatus,
+  revealProject,
   reviewVersionAtBootstrap,
 } from "./api";
 
@@ -32,6 +33,23 @@ describe("project API facade", () => {
       "/api/document/state?path=%2Ftmp%2Fepisode%20one.project.json&phase=shell",
       "/api/document/state?path=%2Ftmp%2Fepisode%20one.project.json&phase=detail",
     ]);
+  });
+
+  it("posts the project path to the reveal route", async () => {
+    const fetchSpy = vi.fn(
+      async (_url: string, _init?: RequestInit) =>
+        new Response(JSON.stringify({ revealed: true }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await revealProject("/tmp/ep/episode.sharecut");
+
+    const [url, init] = fetchSpy.mock.calls[0] ?? [];
+    expect(url).toBe("/api/project/reveal");
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      path: "/tmp/ep/episode.sharecut",
+    });
   });
 
   it("remembers the version a review link loaded on and reads its status", async () => {

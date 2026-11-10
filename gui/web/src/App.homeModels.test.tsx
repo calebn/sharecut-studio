@@ -69,6 +69,8 @@ function mountHomeModels(refusal?: {
       await screen.findByRole("button", { name: "ShareCut app menu" }),
     );
     await user.click(await screen.findByRole("menuitem", { name: "Settings" }));
+    const settings = await screen.findByRole("dialog", { name: "Settings" });
+    await user.click(within(settings).getByRole("button", { name: "Models" }));
     const sheet = await screen.findByRole("dialog", { name: "Models" });
     expect(within(sheet).getByText("Installed · 0.3 MB")).toBeVisible();
     await user.click(
@@ -114,6 +116,7 @@ describe("App on Home: Models sheet", () => {
     resetFeaturesCache();
     window.history.pushState({}, "", "/");
     useDawStore.getState().setModelsSheetOpen(false);
+    useDawStore.getState().setSettingsSheetOpen(false);
     useDawStore.setState({ statusAnnouncement: "", feedbackToast: null });
   });
 

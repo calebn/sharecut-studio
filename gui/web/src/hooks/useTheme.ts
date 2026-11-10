@@ -107,10 +107,6 @@ export function useTheme(): {
   preference: ThemePreference;
   setPreference: (p: ThemePreference) => void;
 } {
-  const preference = useSyncExternalStore(
-    subscribe,
-    getSnapshot,
-    getSnapshot,
-  );
+  const preference = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   return { preference, setPreference: setThemePreference };
 }
