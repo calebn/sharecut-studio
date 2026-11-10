@@ -162,6 +162,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Report a problem… | `help.diagnosticsBundle` | Host project management | Host-only sanitized diagnostics zip for bug reports |
 | Guides | `help.guides` | Always (when not typing in a field or on a focused Scrub field) | Opens the documentation site in a new tab |
 | Manage models… | `models.open` | Host project management | Host-only sheet listing every model by what it does, with its state, size and a Get |
+| Settings… | `settings.open` | Host project management | Host-only sheet from the app menu: Appearance, Saved in, Models and Keyboard shortcuts |
 | Open project… | `project.open` | Host project management | No key (Mod+O is project.home); OS dialog via local engine; Home's Open other… path field when there is none. Args: { path?: string } opens that episode without the picker (the palette's Projects group) |
 | Split speakers… | `track.splitSpeakers` | editStageSplitSpeakers | Opens Prepare at the split prompt for the inspector track (args { trackId? }); the split runs as a job and is one undo step |
 | Extract room tone | `track.extractRoomTone` | editStageTrackInspector | Cuts a room-tone bed from the inspector track's own quiet stretch (args { trackId? }); later fills use it. ExtractRoomToneBed, one undo step; a recorded bed is left alone |
