@@ -1336,11 +1336,11 @@ html[data-frame-short] .sys-header-project .sys-header-title {
   touch-action: pan-y;
 }
 
-.sys-overview--seek:focus-visible {
+.sys-overview.sys-overview--seek:focus-visible {
   outline: none;
 }
 
-.sys-overview--seek:focus-visible > .sys-overview-face {
+.sys-overview.sys-overview--seek:focus-visible > .sys-overview-face {
   outline: var(--focus-ring-width) solid var(--color-accent);
   outline-offset: calc(var(--focus-ring-width) * -1);
 }
