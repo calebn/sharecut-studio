@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { createEvent, fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { swallowsDuringDrag, useGrab } from "./useGrab";
 
 function Part({
@@ -105,5 +105,66 @@ describe("swallowsDuringDrag", () => {
     for (const name of ["Escape", "Tab", "a"]) {
       expect(swallowsDuringDrag(key(name))).toBe(false);
     }
+  });
+});
+
+describe("useGrab event time", () => {
+  const stamped = (
+    kind: "pointerDown" | "pointerMove" | "pointerUp",
+    part: HTMLElement,
+    clientY: number,
+    timeStamp: number,
+  ) => {
+    const event = createEvent[kind](part, { pointerId: 1, clientY });
+    Object.defineProperty(event, "timeStamp", { value: timeStamp });
+    fireEvent(part, event);
+  };
+
+  function Timed({ seen }: { seen: [string, number][] }) {
+    const grab = useGrab<"a">({
+      axis: "y",
+      canGrab: () => true,
+      onStart: () => true,
+      onMove: (_grip, _move, at) => seen.push(["move", at]),
+      onEnd: (_grip, committed, at) =>
+        seen.push([committed ? "end" : "abort", at]),
+    });
+    return (
+      <button type="button" {...grab.handlers("a")}>
+        part
+      </button>
+    );
+  }
+
+  it("hands onMove and onEnd the events' own timeStamp, not the time the handler ran", () => {
+    const seen: [string, number][] = [];
+    vi.spyOn(performance, "now").mockReturnValue(9000);
+    render(<Timed seen={seen} />);
+    const part = screen.getByRole("button");
+    stamped("pointerDown", part, 0, 10);
+    stamped("pointerMove", part, 20, 40);
+    stamped("pointerMove", part, 60, 100);
+    stamped("pointerUp", part, 60, 160);
+    expect(seen).toEqual([
+      ["move", 40],
+      ["move", 100],
+      ["end", 160],
+    ]);
+    vi.restoreAllMocks();
+  });
+
+  it("reads performance.now for an abort, which has no event", () => {
+    const seen: [string, number][] = [];
+    vi.spyOn(performance, "now").mockReturnValue(9000);
+    render(<Timed seen={seen} />);
+    const part = screen.getByRole("button");
+    stamped("pointerDown", part, 0, 10);
+    stamped("pointerMove", part, 20, 40);
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(seen).toEqual([
+      ["move", 40],
+      ["abort", 9000],
+    ]);
+    vi.restoreAllMocks();
   });
 });
