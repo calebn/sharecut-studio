@@ -27,6 +27,16 @@ vi.mock("../../../api/documentEdits", async (original) => ({
   ...(await original<typeof import("../../../api/documentEdits")>()),
   submitDocumentCommand: vi.fn(),
 }));
+const queueRows = vi.hoisted(() => ({
+  rows: [] as { command_id: string }[],
+}));
+vi.mock("../../../services/offlineQueue/offlineStore", async (original) => ({
+  ...(await original<
+    typeof import("../../../services/offlineQueue/offlineStore")
+  >()),
+  loadHostCommandQueue: vi.fn(async () => queueRows.rows),
+  loadCommandQueue: vi.fn(async () => queueRows.rows),
+}));
 vi.mock("../../../commands/seek", () => ({ seekTransport: vi.fn() }));
 const scrolled = vi.hoisted(() => ({ to: [] as number[] }));
 vi.mock("../../../system/ScriptPane", async (original) => {
@@ -99,6 +109,7 @@ beforeEach(() => {
     preview_token: "tok-1",
   });
   replace.mockResolvedValue({ queued: false });
+  queueRows.rows = [];
   vi.mocked(submitDocumentCommand).mockReset();
   vi.mocked(submitDocumentCommand).mockResolvedValue({
     type: "Applied",
@@ -515,7 +526,11 @@ describe("ScriptHost Find", () => {
 
   it("refuses the same queued cut again after the project object is replaced, but not a different search", async () => {
     seedScript({ project: { clips: CLIPS } });
-    vi.mocked(submitDocumentCommand).mockResolvedValue({ queued: true });
+    vi.mocked(submitDocumentCommand).mockResolvedValue({
+      queued: true,
+      command_id: "c1",
+    });
+    queueRows.rows = [{ command_id: "c1" }];
     await openFind();
     await userEvent.type(findField(), "maya");
     await userEvent.click(screen.getByRole("button", { name: "Cut all 1" }));
@@ -542,7 +557,11 @@ describe("ScriptHost Find", () => {
 
   it("queues a Cut all once and refuses a second click until the project changes", async () => {
     seedScript({ project: { clips: CLIPS } });
-    vi.mocked(submitDocumentCommand).mockResolvedValue({ queued: true });
+    vi.mocked(submitDocumentCommand).mockResolvedValue({
+      queued: true,
+      command_id: "c1",
+    });
+    queueRows.rows = [{ command_id: "c1" }];
     await openFind();
     await userEvent.type(findField(), "maya");
     const button = screen.getByRole("button", { name: "Cut all 1" });
@@ -560,6 +579,99 @@ describe("ScriptHost Find", () => {
     ).toBeInTheDocument();
     expect(submitDocumentCommand).toHaveBeenCalledTimes(1);
     expect(useDawStore.getState().rangeBusy).toBe(false);
+  });
+
+  it("cuts again when the queued Cut all was rejected on replay", async () => {
+    seedScript({ project: { clips: CLIPS } });
+    vi.mocked(submitDocumentCommand).mockResolvedValueOnce({
+      queued: true,
+      command_id: "c1",
+    });
+    queueRows.rows = [{ command_id: "c1" }];
+    await openFind();
+    await userEvent.type(findField(), "maya");
+    const button = screen.getByRole("button", { name: "Cut all 1" });
+    await userEvent.click(button);
+    await waitFor(() =>
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "Cut all queued. Still sending.",
+      ),
+    );
+    queueRows.rows = [];
+    await userEvent.click(button);
+    await waitFor(() =>
+      expect(useDawStore.getState().statusAnnouncement).toBe("Cut 1 match"),
+    );
+    expect(submitDocumentCommand).toHaveBeenCalledTimes(2);
+  });
+
+  it("cuts again when the queued Cut all applied and was then undone", async () => {
+    seedScript({ project: { clips: CLIPS } });
+    vi.mocked(submitDocumentCommand).mockResolvedValueOnce({
+      queued: true,
+      command_id: "c1",
+    });
+    queueRows.rows = [{ command_id: "c1" }];
+    await openFind();
+    await userEvent.type(findField(), "maya");
+    const button = screen.getByRole("button", { name: "Cut all 1" });
+    await userEvent.click(button);
+    await waitFor(() =>
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "Cut all queued. Still sending.",
+      ),
+    );
+    queueRows.rows = [];
+    act(() => {
+      useDawStore.setState({ project: { ...useDawStore.getState().project! } });
+    });
+    await userEvent.click(button);
+    await waitFor(() =>
+      expect(useDawStore.getState().statusAnnouncement).toBe("Cut 1 match"),
+    );
+    expect(submitDocumentCommand).toHaveBeenCalledTimes(2);
+  });
+
+  it("says a host that is offline queued its own cut, not a suggestion", async () => {
+    seedScript({ project: { clips: CLIPS } });
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    vi.mocked(submitDocumentCommand).mockResolvedValue({
+      queued: true,
+      command_id: "c1",
+    });
+    await openFind();
+    await userEvent.type(findField(), "maya");
+    await userEvent.click(screen.getByRole("button", { name: "Cut all 1" }));
+    await waitFor(() =>
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "Cut all queued. Still sending.",
+      ),
+    );
+    vi.restoreAllMocks();
+  });
+
+  it("leaves a new project's busy flag alone when a cut finishes after a project switch", async () => {
+    seedScript({ project: { clips: CLIPS } });
+    let finish!: (value: Record<string, unknown>) => void;
+    vi.mocked(submitDocumentCommand).mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    await openFind();
+    await userEvent.type(findField(), "maya");
+    await userEvent.click(screen.getByRole("button", { name: "Cut all 1" }));
+    await waitFor(() => expect(useDawStore.getState().rangeBusy).toBe(true));
+    act(() => {
+      useDawStore.setState({
+        projectEpoch: useDawStore.getState().projectEpoch + 1,
+        rangeBusy: true,
+      });
+    });
+    await act(async () => {
+      finish({ type: "Applied", history_head_id: "head-1" });
+    });
+    expect(useDawStore.getState().rangeBusy).toBe(true);
   });
 
   it.each([
