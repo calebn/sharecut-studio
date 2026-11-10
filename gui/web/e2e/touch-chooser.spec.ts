@@ -77,8 +77,8 @@ const editedProject = async (page: Page) => {
   const { clips, pending_edits } = await projectJson(page);
   return { clips, pending_edits };
 };
-// Kept pinned: a cluster is targets within one touch radius of each other (a join glyph at a
-// lane's top, its roll seam in the bottom 48 px), which only holds at the 104 px touch lane.
+// Kept pinned: a cluster is targets within one touch radius of each other (a Seam diamond in a
+// lane's top gutter, the trim strips below it), which only holds at the 104 px touch lane.
 const openTimeline = async (
   page: Page,
   viewport: ViewportName,
@@ -98,8 +98,7 @@ const KIND_BY_LABEL: [string, string][] = [
   ["Fade out", "fade-out"],
   ["Trim start", "trim-in"],
   ["Trim end", "trim-out"],
-  ["Roll", "roll"],
-  ["Join", "join"],
+  ["Seam", "roll"],
   ["Chapter", "chapter"],
 ];
 
@@ -139,17 +138,12 @@ async function clusterPoint(page: Page, cluster: Cluster): Promise<Point> {
     const second = (await page.locator(region(24)).first().boundingBox())!;
     return { x: (first.x + first.width + second.x) / 2, y: a.y };
   }
-  // Between the join glyph and the top of its roll seam.
   const time = cluster === "join-point" ? 40 : 50;
-  const badge = await centerOf(
+  const diamond = await centerOf(
     page,
-    `${lane} [data-hit-kind="join"][data-hit-time="${time}"]`,
+    `${lane} [data-hit-kind="roll"][data-hit-time="${time}"]`,
   );
-  const seam = (await page
-    .locator(`${lane} [data-hit-kind="roll"][data-hit-time="${time}"]`)
-    .first()
-    .boundingBox())!;
-  return { x: badge.x, y: (badge.y + seam.y) / 2 };
+  return { x: diamond.x, y: diamond.y + 8 };
 }
 
 /** Holds still until the chooser opens, then lifts at the origin. */
@@ -328,7 +322,7 @@ test("each chip picks its own target", async ({ page }, info) => {
       const picked =
         want.kind === "envelope-point"
           ? after.pressedPointId === id
-          : want.kind === "join"
+          : want.kind === "roll"
             ? after.selectedJoinId === id
             : after.selectedClips.includes(id);
       results.push({

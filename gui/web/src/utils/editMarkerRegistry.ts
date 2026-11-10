@@ -75,12 +75,6 @@ export function pendingKind(type: string): PendingMarkerKind {
   return knownPendingKind(type) ?? "pending-remove";
 }
 
-export function appliedKind(tick: {
-  kind: "seam" | "edge";
-  mute: boolean;
-}): AppliedMarkerKind {
-  if (tick.mute) {
-    return "applied-mute";
-  }
-  return tick.kind === "seam" ? "applied-seam" : "applied-edge";
+export function appliedKind(tick: { mute: boolean }): AppliedMarkerKind {
+  return tick.mute ? "applied-mute" : "applied-edge";
 }

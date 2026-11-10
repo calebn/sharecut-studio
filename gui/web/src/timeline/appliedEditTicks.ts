@@ -313,7 +313,6 @@ export function appliedEditTitle(record: AppliedEditRecord): string {
   return reason ? `${label}: ${reason}` : label;
 }
 
-/** Timeline seconds one edge record projects to on a track, before de-duplication. */
 function edgeSecs(
   record: AppliedEditRecord,
   trackId: string,
@@ -341,7 +340,6 @@ function edgeSecs(
   return secs;
 }
 
-/** Edge ticks (trims, splits, rolls, moves, mutes) for one track's lane, projected through its current clips. Seams are drawn by the Seam diamond. */
 export function appliedEditTicks(
   records: readonly AppliedEditRecord[],
   trackId: string,
@@ -372,5 +370,4 @@ export function appliedEditTicks(
   return out;
 }
 
-/** Frames at 50 fps: how closely a seam and its applied record agree. */
 export const SEAM_MATCH_SEC = 0.02;

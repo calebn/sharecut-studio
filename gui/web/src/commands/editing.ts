@@ -487,7 +487,7 @@ export function registerClipMoveCommands(): void {
   registerCommand("edit.rollClipJoin", () => {
     return {
       status: "disabled",
-      reason: "Use the roll seam line or transcript boundary glyph",
+      reason: "Use the Seam diamond on the timeline or the Script's seam pill",
     };
   });
 
@@ -500,8 +500,7 @@ export function registerClipMoveCommands(): void {
   registerCommand("edit.setClipJoin", () => {
     return {
       status: "disabled",
-      reason:
-        "Use the join glyph on the timeline or the Join control in the clip inspector",
+      reason: "Use the Seam bar or the join controls in the clip inspector",
     };
   });
 

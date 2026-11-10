@@ -965,12 +965,12 @@ test("#1135: a long-press at a join offers the ripple trim, which shows where la
   // the seam's roll and that clip's ripple trim crowd one spot.
   const seam = await centerOf(
     page,
-    `${lane} .join-seam[data-hit-kind="roll"] >> nth=1`,
+    `${lane} .seam-mark .sys-seam-hit[data-hit-kind="roll"] >> nth=1`,
   );
   await tap(page, finger, { x: seam.x + 60, y: seam.y });
   const crowded = await centerOf(
     page,
-    `${lane} .join-seam[data-hit-kind="roll"] >> nth=1`,
+    `${lane} .seam-mark .sys-seam-hit[data-hit-kind="roll"] >> nth=1`,
   );
   await hold(page, finger, crowded);
   const chooser = page.getByRole("menu", { name: "Targets here" });
@@ -1059,12 +1059,12 @@ test("#1154: a touch ripple trim over the guest's speech applies as one manual t
   const before = (await projectJson(page, projectPath)).clips.tracks;
   const seam = await centerOf(
     page,
-    `${lane} .join-seam[data-hit-kind="roll"] >> nth=1`,
+    `${lane} .seam-mark .sys-seam-hit[data-hit-kind="roll"] >> nth=1`,
   );
   await tap(page, finger, { x: seam.x + 20, y: seam.y });
   const crowded = await centerOf(
     page,
-    `${lane} .join-seam[data-hit-kind="roll"] >> nth=1`,
+    `${lane} .seam-mark .sys-seam-hit[data-hit-kind="roll"] >> nth=1`,
   );
   await hold(page, finger, crowded);
   const chooser = page.getByRole("menu", { name: "Targets here" });
@@ -1128,7 +1128,7 @@ test("#1135: a plain mouse grab at a join rolls it, as on main", async ({
   const commands = watchCommands(page);
   const seam = await centerOf(
     page,
-    `${lane} .join-seam[data-hit-kind="roll"] >> nth=1`,
+    `${lane} .seam-mark .sys-seam-hit[data-hit-kind="roll"] >> nth=1`,
   );
   await page.mouse.move(seam.x, seam.y);
   await page.mouse.down();

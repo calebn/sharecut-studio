@@ -32,7 +32,6 @@ type SeamFormProps =
       continues?: boolean;
     };
 
-/** What a drag on a seam may do: roll it, within the room the clips leave. */
 export type SeamRoll = {
   /** The roll's reach in ms either way, read when a drag starts; null when the seam cannot roll. */
   limits: () => { minMs: number; maxMs: number } | null;

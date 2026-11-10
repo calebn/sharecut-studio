@@ -209,8 +209,8 @@ const IN_PLACE: Record<string, string> = {
   "edit.keep": "rejects the suggestion or opens History",
   "edit.mute":
     "runs range.mute, transcript.ignoreWords or track.muteToggle, each proven here",
-  "edit.rollClipJoin": "the join marker moves under the person's hand",
-  "edit.setClipJoin": "the join glyph shows the new mode",
+  "edit.rollClipJoin": "the Seam diamond moves under the person's hand",
+  "edit.setClipJoin": "the Seam bar shows the new join type",
   "track.muteToggle": "the lane and its button show the mute",
   "track.setVolume": "the fader shows the level",
   "track.add": "the new lane appears",

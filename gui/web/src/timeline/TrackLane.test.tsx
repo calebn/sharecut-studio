@@ -352,8 +352,6 @@ describe("TrackLane seam marks", () => {
       '.seam-mark [data-hit-kind="roll"]',
     );
     expect(hit?.getAttribute("data-hit-id")).toBe("c1");
-    expect(container.querySelector(".join-seam")).toBeNull();
-    expect(container.querySelector(".edit-mark")).toBeNull();
   });
 
   it("draws the diamond at a zoom where the clips are a few pixels wide", () => {
@@ -400,7 +398,6 @@ describe("TrackLane seam marks", () => {
   it("moves the diamond and both clips with a live roll", () => {
     const { container } = lane();
     const hit = screen.getByRole("button", { name: /^Split at 0:05\.0/ });
-    // 50 px at 100 px/s rolls the c0 | c1 seam 0.5 s right.
     fireEvent.pointerDown(hit, { clientX: 100, pointerId: 7, button: 0 });
     fireEvent.pointerMove(hit, { clientX: 150, pointerId: 7 });
     expect(diamonds(container)[0]?.style.left).toBe("550px");
