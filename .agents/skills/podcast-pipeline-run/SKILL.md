@@ -18,7 +18,7 @@ Transcript hub: **podcast-transcript-workflow** — [docs/transcript-workflow.md
 2. transcribe_tracks
 3. align_tracks — conversation clock (bleed/gaps); default on; skip for unrelated clips
 4. require_align_accept — hard agent gate (`podcast align done` / waive; auto-waive small moves if `--unattended`, never moves above `align.large_move_sec`)
-5. extract_room_tone_beds (`room_tone.extract_bed`, **off by default**) — cuts a room-tone bed from each dialogue track that has none, from its own quiet stretch, ahead of every step that picks a fill; a recorded bed is never replaced; off, it reads no audio and changes nothing
+5. extract_room_tone_beds (`room_tone.extract_bed`, **on by default**) — cuts a room-tone bed from each dialogue track that has none, from its own quiet stretch, ahead of every step that picks a fill; a recorded bed is never replaced; a recorded bed and music, intro and outro tracks are left alone; switched off, it reads no audio and changes nothing
 6. merge_transcript
 7. render_dialogue_stems — pass-1 stems for audibility
 8. reconcile_transcript — **pass 1** (suppress bleed/inaudible)
