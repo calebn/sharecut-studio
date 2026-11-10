@@ -122,6 +122,18 @@ Scrolled controls being visible does not establish full viewport geometry or
 unclipped reachability. The 32px CSS root-size simulation does not establish
 browser or OS zoom, a physical-device result, Safari behavior, assistive
 technology behavior, or contrast compliance.
+`gui/web/e2e/marker-inspector-a11y.spec.ts` opens a disposable host project with
+one chapter and one social clip, and checks both marker Inspector sheets in the
+phone (360×800) and desktop (1440×900) shells at a 16px root in light with
+ordinary motion and a 32px root in dark with reduced motion. A chapter rename
+keeps the sheet open and the lane button takes the new name, one `UpdateChapter`
+is sent and one undo restores it, Time saves once and undoes, and Escape puts
+the Title back before a second Escape closes the sheet. A social clip shows
+Title and Quality with no Score, Approved, Review or Seek rows, Start and Title
+each send one command and undo, and the phone Title box is at least 44px tall.
+Whole-sheet axe runs before and after the edits. After the rename-and-undo it
+does not assert the sheet, which still names the renamed chapter. The same
+root-size, contrast and device caveats as the Track paragraph apply.
 `gui/web/e2e/touch-affordances.spec.ts` runs separate Invite and clip Inspector
 journeys over the phone, short-landscape, tablet, desktop, and 200% root-text
 cells. Invite checks its generic Sheet detents and `.sys-sheet-scroll` owner.
