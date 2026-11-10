@@ -1,7 +1,6 @@
 import { JOIN_GAP_TOLERANCE_SEC } from "../types/limits.generated";
 import type { ClipRow } from "../types/project";
 import {
-  JOIN_MODE_OPTIONS,
   type JoinMarkerKind,
   joinKind,
   joinModeOf,
@@ -9,10 +8,6 @@ import {
 } from "../utils/editMarkerRegistry";
 import { formatRulerTime } from "../utils/time";
 import { joinLengthMaxMs } from "./fadeLimits";
-
-export function joinModeLabel(mode: string): string {
-  return JOIN_MODE_OPTIONS.find((o) => o.value === mode)?.label ?? mode;
-}
 
 const BLOCKED_REASON: Record<string, string> = {
   not_abutting: "the clips do not touch",

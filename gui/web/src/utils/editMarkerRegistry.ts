@@ -55,16 +55,6 @@ export const JOIN_KINDS: readonly JoinMarkerKind[] = [
   "join-crossfade",
 ];
 
-export const JOIN_MODE_OPTIONS: readonly {
-  value: JoinMode;
-  label: string;
-  short: string;
-}[] = JOIN_KINDS.map((kind) => ({
-  value: EDIT_MARKERS[kind].type,
-  label: EDIT_MARKERS[kind].longLabel,
-  short: EDIT_MARKERS[kind].label,
-}));
-
 export function markerLabel(kind: EditMarkerKind): string {
   return EDIT_MARKERS[kind].label;
 }

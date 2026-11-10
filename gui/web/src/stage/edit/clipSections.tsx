@@ -1,6 +1,4 @@
 import { useEffect } from "react";
-import { setClipJoin } from "../../api";
-import { capabilityTooltip } from "../../capabilities/copy";
 import { commandLabel } from "../../commands/labels";
 import { executePointerCommand } from "../../commands/pointer";
 import { saveClipEdge, TRIM_MODE } from "../../edit/clipEdgeSave";
@@ -8,15 +6,14 @@ import { CLIP_HANDLE_STEPS } from "../../edit/clipHandleSteps";
 import { cancelClipPlacement } from "../../edit/clipPlacement";
 import { edgeFadeMaxMs, maxFadeMs } from "../../edit/fadeLimits";
 import {
-  appliedJoinLength,
   clipIdsBeforeCut,
+  clipsAbut,
   cutFadeHint,
   isCutJoin,
   JOIN_AUDITION_PAD_SEC,
-  joinModeLabel,
-  joinRenderNote,
 } from "../../edit/joinRender";
 import { muteRegionsOverlapping } from "../../edit/muteRegions";
+import { seamsOnTrack } from "../../edit/seam";
 import { trimEdgeLimits } from "../../edit/trimLimits";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
 import { canApplyPass12, canSuggestStructural } from "../../shareMode";
@@ -29,10 +26,25 @@ import { nudgeDriver } from "../../timeline/precision/precisionDrivers";
 import type { Selection } from "../../types/project";
 import { Button, InspectorSeekFooter } from "../../ui";
 import { BUSY_REASON } from "../../ui/disabledReason";
-import { JOIN_MODE_OPTIONS } from "../../utils/editMarkerRegistry";
 import { ClipStartField, ClipTrackRow } from "./clipPlacementFields";
 import { multiClipSections } from "./multiClipSections";
+import {
+  joinLengthRows,
+  joinOffsetRows,
+  joinTypeRows,
+  type SeamJoinFields,
+  useSeamJoinFields,
+} from "./seamJoinFields";
 import { note } from "./sheetNote";
+
+function joinRows(fields: SeamJoinFields | null) {
+  if (!fields || !clipsAbut(fields.seam.left, fields.seam.right)) return [];
+  return [
+    ...joinTypeRows(fields),
+    ...joinLengthRows(fields),
+    ...(fields.interval ? joinOffsetRows(fields) : []),
+  ];
+}
 
 const FADE_LIMIT_LOADING = "The fade limit is still loading. Wait a moment.";
 
@@ -58,6 +70,18 @@ export function useClipSections(
           .find((candidate) => candidate.id === id);
   const track = project?.tracks.find((t) => t.id === clip?.track_id);
   const capMs = track === undefined ? undefined : (track.fade_max_ms ?? null);
+  const seams =
+    project && clip && selectedIds.length <= 1
+      ? seamsOnTrack(project, clip.track_id)
+      : [];
+  const leading = useSeamJoinFields(
+    seams.find((seam) => seam.right.id === clip?.id)?.id ?? null,
+    "start",
+  );
+  const trailing = useSeamJoinFields(
+    seams.find((seam) => seam.left.id === clip?.id)?.id ?? null,
+    "end",
+  );
   useEffect(() => {
     setError(null);
   }, [
@@ -99,7 +123,6 @@ export function useClipSections(
   const index = lane.findIndex((item) => item.id === clip.id);
   const capKnown = capMs !== undefined;
   const clipSec = clip.source_end - clip.source_start;
-  const leftClipId = clip.join_left_clip_id ?? null;
   const cutIn = isCutJoin(clip);
   const cutOut = clipIdsBeforeCut(lane).has(clip.id);
   const played = muteRegionsOverlapping(
@@ -150,14 +173,6 @@ export function useClipSections(
       driver.show(value);
       await driver.commit();
     });
-  };
-
-  const join = async (mode: string, length: number | null) => {
-    if (busy || leftClipId === null) return;
-    cancelClipPlacement();
-    await run(() =>
-      setClipJoin(projectPath, leftClipId, clip.id, mode, length),
-    );
   };
 
   const ripple = async () => {
@@ -253,14 +268,7 @@ export function useClipSections(
     );
   };
 
-  const leftClip =
-    leftClipId === null
-      ? undefined
-      : lane.find((item) => item.id === leftClipId);
-  const joinLength =
-    leftClip === undefined ? null : appliedJoinLength(leftClip, clip, capMs);
   const fadeHint = cutFadeHint(cutIn, cutOut);
-  const joinNote = joinRenderNote(clip);
   const joinSec = clip.timeline_start;
   return [
     {
@@ -306,66 +314,8 @@ export function useClipSections(
               },
             ]
           : []),
-        ...(leftClipId === null
-          ? []
-          : [
-              {
-                id: "join",
-                label: "Incoming transition",
-                control: editable ? (
-                  <select
-                    value={clip.join_in_mode}
-                    disabled={busy}
-                    aria-label="Incoming transition"
-                    title={capabilityTooltip("daw.edit.setClipJoin")}
-                    onChange={(e) => void join(e.target.value, null)}
-                  >
-                    {JOIN_MODE_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  joinModeLabel(clip.join_in_mode)
-                ),
-              },
-              ...(cutIn || !editable || joinLength === null
-                ? []
-                : [
-                    {
-                      id: "joinLength",
-                      label: "Transition length",
-                      control: (
-                        <ScrubField
-                          label="Transition length"
-                          value={joinLength.saved}
-                          unit="ms"
-                          decimals={0}
-                          integerOnly
-                          min={joinLength.min}
-                          max={joinLength.max}
-                          readOnly={locked || !capKnown}
-                          onCommit={(value) =>
-                            void join(clip.join_in_mode, value)
-                          }
-                        />
-                      ),
-                    },
-                  ]),
-              {
-                id: "joinNote",
-                control: note(
-                  [
-                    "Controls the incoming join from the previous clip into this one.",
-                    joinNote,
-                  ]
-                    .filter(Boolean)
-                    .join(" "),
-                  "status",
-                ),
-              },
-            ]),
+        ...joinRows(leading),
+        ...joinRows(trailing),
         ...(played.length === 0
           ? []
           : [
@@ -409,14 +359,12 @@ export function useClipSections(
             </Button>
           ),
         },
-        ...(error
-          ? [
-              {
-                id: "error",
-                control: note(error, "alert"),
-              },
-            ]
-          : []),
+        ...[error, leading?.error, trailing?.error]
+          .filter((message): message is string => !!message)
+          .map((message) => ({
+            id: `error:${message}`,
+            control: note(message, "alert"),
+          })),
       ],
     },
     {

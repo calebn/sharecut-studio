@@ -13,7 +13,7 @@ import {
   MIRA,
   selections,
 } from "../../test/episodeFixture";
-import { clipRow } from "../../test/fixtures";
+import { clipRow, editBoundaries } from "../../test/fixtures";
 import { episodeBeforeEach, withEpisode } from "../../test/withEpisode";
 import type { Selection } from "../../types/project";
 import { useClipSections } from "./clipSections";
@@ -118,13 +118,13 @@ export const ClipReadOnly: Story = {
   },
 };
 
-const HALF_SEC = EPISODE_DURATION_SEC / 2;
+const THIRD_SEC = EPISODE_DURATION_SEC / 3;
 const joinedClips = [
   clipRow({
     id: "clip-mira-a",
     track_id: MIRA,
-    source_end: HALF_SEC,
-    timeline_end: HALF_SEC,
+    source_end: THIRD_SEC,
+    timeline_end: THIRD_SEC,
     source_duration_sec: EPISODE_DURATION_SEC,
     fade_out_ms: 80,
     recording_key: "mira-voice-take-1",
@@ -132,13 +132,26 @@ const joinedClips = [
   clipRow({
     id: "clip-mira-b",
     track_id: MIRA,
-    source_start: HALF_SEC,
-    source_end: EPISODE_DURATION_SEC,
-    timeline_start: HALF_SEC,
-    timeline_end: EPISODE_DURATION_SEC,
+    source_start: THIRD_SEC,
+    source_end: 2 * THIRD_SEC,
+    timeline_start: THIRD_SEC,
+    timeline_end: 2 * THIRD_SEC,
     source_duration_sec: EPISODE_DURATION_SEC,
     fade_in_ms: 120,
+    fade_out_ms: 60,
     join_left_clip_id: "clip-mira-a",
+    recording_key: "mira-voice-take-1",
+  }),
+  clipRow({
+    id: "clip-mira-c",
+    track_id: MIRA,
+    source_start: 2 * THIRD_SEC,
+    source_end: EPISODE_DURATION_SEC,
+    timeline_start: 2 * THIRD_SEC,
+    timeline_end: EPISODE_DURATION_SEC,
+    source_duration_sec: EPISODE_DURATION_SEC,
+    fade_in_ms: 60,
+    join_left_clip_id: "clip-mira-b",
     recording_key: "mira-voice-take-1",
   }),
 ];
@@ -147,32 +160,61 @@ joined.clips = {
   tracks: { ...joined.clips.tracks, [MIRA]: joinedClips },
   clip_count: joinedClips.length + 1,
 };
+joined.edit_boundaries = editBoundaries(joinedClips);
 const joinedSelection: Selection = {
   kind: "clip",
   id: "clip-mira-b",
   trackId: MIRA,
 };
 
-export const ClipTransition: Story = {
+export const ClipJoins: Story = {
   render: () => <ClipCard selection={joinedSelection} />,
   parameters: {
     episode: { project: joined, role: "editor", selection: joinedSelection },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const length = await canvas.findByRole("spinbutton", {
-      name: "Transition length",
+    const start = await canvas.findByRole("spinbutton", {
+      name: "Start join length",
     });
-    await expect(length).toHaveAttribute("aria-valuenow", "120");
-    await expect(length).toHaveAttribute("aria-valuetext", "120 ms");
+    await expect(start).toHaveAttribute("aria-valuenow", "120");
+    await expect(start).toHaveAttribute("aria-valuetext", "120 ms");
+    await expect(
+      canvas.getByRole("spinbutton", { name: "End join length" }),
+    ).toHaveAttribute("aria-valuenow", "60");
+    await expect(
+      within(canvas.getByRole("group", { name: "End join" })).getByRole(
+        "button",
+        { name: "Fade" },
+      ),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      canvas.getByRole("spinbutton", { name: "Start join offset" }),
+    ).toBeVisible();
   },
 };
 
-export const ClipTransitionPhone: Story = {
+export const ClipJoinsPhone: Story = {
   render: () => <ClipCard phone selection={joinedSelection} />,
   globals: { viewport: { value: "mobile360", isRotated: false } },
   parameters: {
     episode: { project: joined, role: "editor", selection: joinedSelection },
+  },
+};
+
+export const ClipJoinsReadOnly: Story = {
+  render: () => <ClipCard selection={joinedSelection} />,
+  parameters: {
+    episode: { project: joined, role: "viewer", selection: joinedSelection },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByRole("spinbutton", { name: "Start join offset" }),
+    ).toHaveAttribute("aria-readonly", "true");
+    await expect(
+      canvas.queryByRole("group", { name: "Start join" }),
+    ).toBeNull();
   },
 };
 

@@ -8,7 +8,6 @@ import {
   EDIT_MARKERS,
   type EditMarkerKind,
   JOIN_KINDS,
-  JOIN_MODE_OPTIONS,
   joinKind,
   joinMarkLabel,
   markerLabel,
@@ -41,18 +40,6 @@ describe("edit marker registry", () => {
     expect(EDIT_GLYPH_PATH.cut).toBe("M6 1V11");
     expect(EDIT_GLYPH_PATH.fade).toBe("M1 2L6 10L11 2");
     expect(EDIT_GLYPH_PATH.crossfade).toBe("M1 1L11 11M11 1L1 11");
-  });
-
-  it("derives the join mode options in cut, fade, crossfade order", () => {
-    expect(JOIN_MODE_OPTIONS).toEqual([
-      { value: "cut", label: "Cut (no fade)", short: "Cut" },
-      { value: "fade", label: "Fade at join (dip)", short: "Fade" },
-      {
-        value: "crossfade",
-        label: "Crossfade (overlap both clips)",
-        short: "Crossfade",
-      },
-    ]);
   });
 
   it.each([

@@ -4,7 +4,6 @@ import { placeLikeRender } from "../audio/renderClock";
 import { clipRow } from "../test/fixtures";
 import { JOIN_GAP_TOLERANCE_SEC } from "../types/limits.generated";
 import type { ClipRow } from "../types/project";
-import { JOIN_MODE_OPTIONS } from "../utils/editMarkerRegistry";
 import {
   appliedJoinLength,
   clipIdsBeforeCut,
@@ -16,7 +15,6 @@ import {
   isJoin,
   joinDraftOverlapMs,
   joinLengthMs,
-  joinModeLabel,
   joinRenderNote,
   joinSeamLabel,
   joinTier,
@@ -46,16 +44,6 @@ const clip: ClipRow = {
 };
 
 describe("joinRender", () => {
-  it("labels every mode in human terms", () => {
-    expect(JOIN_MODE_OPTIONS.map((o) => o.value)).toEqual([
-      "cut",
-      "fade",
-      "crossfade",
-    ]);
-    expect(joinModeLabel("crossfade")).toBe("Crossfade (overlap both clips)");
-    expect(joinModeLabel("weird")).toBe("weird");
-  });
-
   it("describes what render does", () => {
     expect(joinRenderNote({ ...clip, join_left_clip_id: null })).toBeNull();
     expect(joinRenderNote({ ...clip, join_in_mode: "cut" })).toBe(
