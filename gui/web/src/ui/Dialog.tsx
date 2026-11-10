@@ -29,6 +29,14 @@ type Props = {
   footer?: ReactNode;
   /** A control before the title, such as Back on a pushed step. */
   headerStart?: ReactNode;
+  /** Controls after the title, before Close. */
+  headerEnd?: ReactNode;
+  /**
+   * The panel covers the whole screen and brings its own way out (a Done in
+   * `headerEnd`): the title is only the accessible name, the scrim is out of
+   * the tab order and Close is not drawn. Needs `initialFocusRef`.
+   */
+  fullScreen?: boolean;
   /**
    * A dialog about a spot the person must keep seeing (the join under the
    * timeline) stays a non-modal panel beside it on every shell, in the top
@@ -62,6 +70,8 @@ export function Dialog({
   closeDisabled = false,
   footer,
   headerStart,
+  headerEnd,
+  fullScreen = false,
   anchor,
   panelId,
   descriptionId,
@@ -138,6 +148,8 @@ export function Dialog({
           type="button"
           className="command-palette-scrim"
           aria-label={`Close ${title}`}
+          aria-hidden={fullScreen || undefined}
+          tabIndex={fullScreen ? -1 : undefined}
           onClick={dismiss}
           disabled={closeDisabled}
         />
@@ -159,20 +171,29 @@ export function Dialog({
           {headerStart ? (
             <div className="command-palette-heading">
               {headerStart}
-              <h2 id={titleId}>{title}</h2>
+              <h2 id={titleId} className={fullScreen ? "sr-only" : undefined}>
+                {title}
+              </h2>
             </div>
           ) : (
-            <h2 id={titleId}>{title}</h2>
+            <h2 id={titleId} className={fullScreen ? "sr-only" : undefined}>
+              {title}
+            </h2>
           )}
-          <CloseButton
-            ref={closeRef}
-            onClick={(event) => {
-              if (anchored && outsideDismissal === "preserve-focus")
-                event.currentTarget.focus({ preventScroll: true });
-              dismiss();
-            }}
-            disabled={closeDisabled}
-          />
+          {headerEnd ? (
+            <div className="command-palette-header-end">{headerEnd}</div>
+          ) : null}
+          {fullScreen ? null : (
+            <CloseButton
+              ref={closeRef}
+              onClick={(event) => {
+                if (anchored && outsideDismissal === "preserve-focus")
+                  event.currentTarget.focus({ preventScroll: true });
+                dismiss();
+              }}
+              disabled={closeDisabled}
+            />
+          )}
         </div>
         <div
           className="command-palette-body"

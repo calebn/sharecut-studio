@@ -7,7 +7,7 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useRef, useState } from "react";
+import { createRef, useRef, useState } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { Dialog } from "./Dialog";
@@ -66,6 +66,38 @@ it("pins a footer below the scrolling body", async () => {
     screen.getByRole("button", { name: "Create review link" }),
   );
   await expectNoA11yViolations(baseElement);
+});
+
+it("fullScreen draws no Close, hides the title and scrim from the tab order, and takes its controls from headerEnd", () => {
+  const done = createRef<HTMLButtonElement>();
+  render(
+    <Dialog
+      open
+      fullScreen
+      onClose={() => undefined}
+      title="Inspector"
+      initialFocusRef={done}
+      headerStart={<span>Maya</span>}
+      headerEnd={
+        <button ref={done} type="button">
+          Done
+        </button>
+      }
+    >
+      <p>Body</p>
+    </Dialog>,
+  );
+  const dialog = screen.getByRole("dialog", { name: "Inspector" });
+  expect(within(dialog).queryByRole("button", { name: /^Close/ })).toBeNull();
+  const scrim = dialog.querySelector(".command-palette-scrim");
+  expect(scrim).toHaveAttribute("aria-hidden", "true");
+  expect(scrim).toHaveAttribute("tabindex", "-1");
+  expect(
+    within(dialog).getByRole("heading", { name: "Inspector" }),
+  ).toHaveClass("sr-only");
+  expect(dialog.querySelector(".command-palette-header-end")).toContainElement(
+    within(dialog).getByRole("button", { name: "Done" }),
+  );
 });
 
 afterEach(() => vi.restoreAllMocks());
