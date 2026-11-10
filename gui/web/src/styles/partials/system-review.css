@@ -437,7 +437,7 @@ button.sys-queue-row--decided {
   font-size: var(--font-size-body);
 }
 
-.sys-confidence {
+.sys-dots {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
@@ -445,11 +445,11 @@ button.sys-queue-row--decided {
   font-size: var(--font-size-small);
 }
 
-.sys-confidence-label {
+.sys-dots-label {
   margin-inline-end: var(--space-1);
 }
 
-.sys-confidence-dot {
+.sys-dots-dot {
   inline-size: 0.5rem;
   block-size: 0.5rem;
   border: 1px solid var(--color-border-strong);
@@ -457,9 +457,17 @@ button.sys-queue-row--decided {
   box-sizing: border-box;
 }
 
-.sys-confidence-dot[data-filled] {
+.sys-dots-dot[data-filled] {
   border-color: var(--color-accent);
   background: var(--color-accent);
+}
+
+@media (forced-colors: active) {
+  .sys-dots-dot[data-filled] {
+    forced-color-adjust: none;
+    border-color: CanvasText;
+    background: CanvasText;
+  }
 }
 
 .sys-decision-fields {

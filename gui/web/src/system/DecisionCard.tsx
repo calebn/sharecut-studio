@@ -15,7 +15,7 @@ import {
   type ActionPromptProps,
 } from "./ActionBarInline";
 import type { AuditionSide } from "./auditionWindow";
-import { ConfidenceMeter } from "./ConfidenceMeter";
+import { DotMeter } from "./DotMeter";
 import { type DecisionKind, KIND_META } from "./decisionKinds";
 import { Skeleton } from "./Skeleton";
 import { StatusRow } from "./StatusRow";
@@ -455,7 +455,7 @@ export function DecisionCard(props: DecisionCardProps) {
         ) : null}
         {why ? <p className="sys-decision-why">{why}</p> : null}
         {confidence === undefined ? null : (
-          <ConfidenceMeter confidence={confidence} />
+          <DotMeter label="Confidence" value={confidence} />
         )}
         {children}
         {takes && !readOnly ? <TakeSwitcher {...takes} /> : null}
