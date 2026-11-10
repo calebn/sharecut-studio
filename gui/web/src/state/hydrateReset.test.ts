@@ -55,6 +55,7 @@ const RESET_ON_SWITCH: Reset = {
   jobResultStarts: new Map(),
   spokenJobResultIds: [],
   feedbackToast: null,
+  knownPeople: [],
   stage: "edit",
   stageViews: {},
   openSheet: null,

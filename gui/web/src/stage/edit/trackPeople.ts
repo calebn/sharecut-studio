@@ -1,3 +1,4 @@
+import { useDawStore } from "../../state/dawStore";
 import type { PickerPerson } from "../../system/PersonPicker";
 import type { TrackView } from "../../types/project";
 import { speakerColorIndex } from "./script/scriptModel";
@@ -20,4 +21,23 @@ export function episodePeople(
     });
   });
   return [...people.values()];
+}
+
+export function withKnownPeople(
+  onTracks: readonly PickerPerson[],
+  known: readonly PickerPerson[],
+): readonly PickerPerson[] {
+  const shown = new Set(onTracks.map((p) => p.id));
+  return [...onTracks, ...known.filter((p) => !shown.has(p.id))];
+}
+
+/**
+ * The people the Person picker lists: those on tracks, plus anyone you
+ * switched a track away from before in this project.
+ */
+export function useEpisodePeople(
+  tracks: readonly TrackView[],
+): readonly PickerPerson[] {
+  const known = useDawStore((s) => s.knownPeople);
+  return withKnownPeople(episodePeople(tracks), known);
 }

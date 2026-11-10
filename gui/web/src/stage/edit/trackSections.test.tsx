@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setEffectBypass } from "../../api";
@@ -59,6 +66,7 @@ beforeEach(() => {
   clearRegisteredCommands();
   registerDawCommands();
   useDawStore.getState().setLayerVisible("showLevels", false);
+  useDawStore.setState({ knownPeople: [] });
 });
 
 afterEach(() => {
@@ -131,6 +139,86 @@ describe("track content", () => {
     );
     await user.click(within(people).getByRole("radio", { name: /Mira/ }));
     expect(setTrackMetaCommand).toHaveBeenCalledTimes(1);
+  });
+
+  describe("a person whose only track went to someone else", () => {
+    const names = () =>
+      within(screen.getByRole("radiogroup", { name: "Person" }))
+        .getAllByRole("radio")
+        .map((radio) => radio.querySelector(".sys-picker-name")?.textContent);
+    const setHostSpeaker = (speaker: string) =>
+      act(() => {
+        const project = useDawStore.getState().project;
+        if (!project) throw new Error("no project");
+        useDawStore.setState({
+          project: {
+            ...project,
+            tracks: project.tracks.map((t) =>
+              t.id === "host" ? { ...t, speaker } : t,
+            ),
+          },
+        });
+      });
+
+    it("stays in the list after you pick someone else for the track", async () => {
+      const user = userEvent.setup();
+      setTrackMetaCommand.mockResolvedValue({});
+      open({ ...hostTrack, speaker: "Mira" }, [], undefined, "track", [
+        sampleTrack({ id: "guest", label: "Guest", speaker: "Tomas" }),
+      ]);
+      expect(names()).toEqual(["Mira", "Tomas"]);
+      await user.click(
+        within(screen.getByRole("radiogroup", { name: "Person" })).getByRole(
+          "radio",
+          { name: /Tomas/ },
+        ),
+      );
+      setHostSpeaker("Tomas");
+      expect(names()).toEqual(["Tomas", "Mira"]);
+    });
+
+    it("is not kept when the save is refused", async () => {
+      const user = userEvent.setup();
+      setTrackMetaCommand.mockRejectedValue(new Error("no"));
+      open({ ...hostTrack, speaker: "Mira" }, [], undefined, "track", [
+        sampleTrack({ id: "guest", label: "Guest", speaker: "Tomas" }),
+      ]);
+      await user.click(
+        within(screen.getByRole("radiogroup", { name: "Person" })).getByRole(
+          "radio",
+          { name: /Tomas/ },
+        ),
+      );
+      await waitFor(() => expect(setTrackMetaCommand).toHaveBeenCalled());
+      await act(async () => {});
+      setHostSpeaker("Mria");
+      expect(names()).toEqual(["Mria", "Tomas"]);
+    });
+
+    it("is not kept when the person still has another track", async () => {
+      const user = userEvent.setup();
+      setTrackMetaCommand.mockResolvedValue({});
+      open({ ...hostTrack, speaker: "Mira" }, [], undefined, "track", [
+        sampleTrack({ id: "guest", label: "Guest", speaker: "Tomas" }),
+        sampleTrack({ id: "other", label: "Other", speaker: "Mira" }),
+      ]);
+      await user.click(
+        within(screen.getByRole("radiogroup", { name: "Person" })).getByRole(
+          "radio",
+          { name: /Tomas/ },
+        ),
+      );
+      setHostSpeaker("Tomas");
+      expect(useDawStore.getState().knownPeople).toEqual([]);
+    });
+
+    it("is gone when the name was changed some other way", () => {
+      open({ ...hostTrack, speaker: "Mria" }, [], undefined, "track", [
+        sampleTrack({ id: "guest", label: "Guest", speaker: "Tomas" }),
+      ]);
+      setHostSpeaker("Mira");
+      expect(names()).toEqual(["Mira", "Tomas"]);
+    });
   });
 
   it("adds a new person from Add person on Enter", async () => {
