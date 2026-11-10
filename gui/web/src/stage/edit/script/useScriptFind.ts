@@ -44,7 +44,6 @@ export type ScriptFind = ScriptFindState & {
   previous: () => void;
   selectAll: () => void;
   cutAll: () => Promise<void>;
-  /** Why Replace waits on the current hit, or undefined when it can go. */
   replaceOneReason: string | undefined;
   replaceOne: () => Promise<void>;
   replaceAll: () => Promise<number>;

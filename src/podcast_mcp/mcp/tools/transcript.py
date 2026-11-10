@@ -336,6 +336,7 @@ def find_replace_transcript_tool(
     ``ReplaceTranscriptMatches`` in one undo step, and ``replaced`` gives the count.
     ``only`` is the 0-based position in the preview's ``matches`` of the one match to
     replace (the Find bar's Replace); it cannot be combined with ``dry_run``.
+    For one word use ``correct_transcript_tool``.
     """
     if dry_run and only is not None:
         raise CodedValueError("only cannot be combined with dry_run.", code="invalid_arguments")
