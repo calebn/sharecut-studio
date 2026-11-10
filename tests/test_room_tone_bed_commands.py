@@ -14,7 +14,7 @@ from podcast_mcp.edits.record_placement import place_room_tone
 from podcast_mcp.engines.room_tone import RecordedBedSample, room_tone_bed
 from podcast_mcp.gui.assembler import build_track_views
 from podcast_mcp.mcp.tools import timeline as mcp_timeline
-from podcast_mcp.models import load_project, save_project
+from podcast_mcp.models import TrackRole, load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document_sync import DocumentSyncService, ViewProjection
 from podcast_mcp.services.document_sync.errors import DocumentConflictError
@@ -77,6 +77,20 @@ def test_extract_with_no_clean_stretch_says_why_and_changes_nothing(tmp_path: Pa
 
     assert result["extracted"] is False
     assert result["reason"] in NO_CLEAN_STRETCH
+    assert load_project(path).model_dump_json() == before
+
+
+def test_extract_refuses_a_track_that_is_not_dialogue(tmp_path: Path) -> None:
+    project = _project(tmp_path, _host_audio(SPEECH_THEN_ROOM))
+    project.track_by_id("host").role = TrackRole.MUSIC
+    project.ensure_dirs()
+    path = save_project(project)
+    before = load_project(path).model_dump_json()
+
+    result = _extract(path)
+
+    assert result["extracted"] is False
+    assert result["reason"] == "not_dialogue_track"
     assert load_project(path).model_dump_json() == before
 
 

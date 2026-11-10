@@ -15,6 +15,7 @@ const REASONS: Record<string, string> = {
   already_extracted: "already has a room tone cut from this audio",
   no_bed: "has no cut room tone to remove",
   missing_media: "has no audio yet",
+  not_dialogue_track: "is not a voice track, so it has no room tone to cut",
   voice_detector_missing:
     "cannot be checked for speech until the voice detector is installed",
   digital_silence: "is digital silence, so there is no room tone to cut",
