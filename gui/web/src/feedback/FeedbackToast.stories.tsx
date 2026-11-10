@@ -23,6 +23,8 @@ const toast = (over: Partial<FeedbackToastState>): FeedbackToastState => ({
   returnFocus: null,
   gesture: false,
   action: null,
+  kind: null,
+  merged: null,
   ...over,
 });
 
@@ -80,6 +82,28 @@ export const WithUndo: Story = {
   play: async ({ canvasElement }) => {
     await expect(
       await within(canvasElement.ownerDocument.body).findByText("Trimmed Mira"),
+    ).toBeVisible();
+  },
+};
+
+export const MergedCuts: Story = {
+  parameters: {
+    episode: {
+      state: {
+        feedbackToast: toast({
+          undo: head,
+          message: "3 cuts",
+          kind: "cut",
+          merged: { count: 3, entries: [head, head, head] },
+        }),
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await expect(await body.findByText("3 cuts")).toBeVisible();
+    await expect(
+      await body.findByRole("button", { name: "Undo all" }),
     ).toBeVisible();
   },
 };

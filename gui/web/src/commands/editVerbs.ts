@@ -446,7 +446,10 @@ async function removeRecord(
   try {
     const undo = await remove(s.projectPath, id);
     useDawStore.getState().setSelection(null);
-    useDawStore.getState().announceStatus(`${noun} removed`, { undo });
+    useDawStore.getState().announceStatus(`${noun} removed`, {
+      undo,
+      kind: "delete",
+    });
     return OK;
   } catch (error) {
     return disabled(errorMessage(error));

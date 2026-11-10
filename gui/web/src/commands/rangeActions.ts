@@ -214,7 +214,11 @@ export async function runRangeAction(
               ? `Range ${action} applied. Use Undo to restore it.`
               : "Range suggestion sent for host review",
           applies
-            ? { undo: replyHistoryHead(result), action: shown?.action }
+            ? {
+                undo: replyHistoryHead(result),
+                action: shown?.action,
+                ...(action === "cut" ? { kind: "cut" as const } : {}),
+              }
             : {},
         );
       }
