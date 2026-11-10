@@ -10,6 +10,7 @@ import { registerDawCommands } from "../../commands/register";
 import { useDawStore } from "../../state/dawStore";
 import {
   minimalProject,
+  pendingEditView,
   sampleComment,
   sampleTrack,
 } from "../../test/fixtures";
@@ -301,6 +302,42 @@ describe("EditWorkspace arrangements", () => {
       useDawStore.setState({ scriptFocus: true });
       render(<EditWorkspace />);
       expect(strip()).toHaveClass("sys-overview--32");
+    });
+
+    it("shows suggestion ticks to the host and hides unsure ones on a guest share", () => {
+      const project = minimalProject({
+        tracks: [sampleTrack()],
+        pending_edits: [
+          pendingEditView({ id: "a", timeline_start: 6 }),
+          pendingEditView({
+            id: "b",
+            timeline_start: 30,
+            unsure_words: [{} as never],
+          }),
+        ],
+      });
+      useDawStore.setState({ project, scriptFocus: true });
+      const host = render(<EditWorkspace />);
+      expect(
+        strip()?.querySelectorAll("line.sys-overview-tick--suggestion"),
+      ).toHaveLength(2);
+      host.unmount();
+      render(<EditWorkspace guestShare />);
+      expect(
+        strip()?.querySelectorAll("line.sys-overview-tick--suggestion"),
+      ).toHaveLength(1);
+    });
+
+    it("draws no strip for an episode with no length", () => {
+      useDawStore.setState({
+        project: minimalProject({
+          tracks: [sampleTrack()],
+          timeline_duration_sec: 0,
+        }),
+        scriptFocus: true,
+      });
+      render(<EditWorkspace />);
+      expect(strip()).toBeNull();
     });
 
     it("moves the playhead when tapped", () => {

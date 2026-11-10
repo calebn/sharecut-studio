@@ -1,40 +1,38 @@
 import { memo, useCallback, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { seekTransport } from "../../commands/seek";
-import { needsReview } from "../../review/reviewItems";
+import { suggestionTimesOf } from "../../review/reviewItems";
 import { useDawStore } from "../../state/dawStore";
 import { OverviewStrip } from "../../system/OverviewStrip";
 import { clamp } from "../../utils/math";
 import { transportTimecode } from "../../utils/time";
-import { overviewTicks } from "./overviewTicks";
+import { playerTicks } from "../frame/playerModel";
 
 const NONE: readonly never[] = [];
 
 export interface EditOverviewProps {
   height: 16 | 32;
+  /** A guest never sees the cuts over an unsure word, which only the host decides. */
+  guest: boolean;
 }
 
-function EditOverviewView({ height }: EditOverviewProps) {
-  const { comments, pendingEdits, duration, guest } = useDawStore(
+function EditOverviewView({ height, guest }: EditOverviewProps) {
+  const { comments, pendingEdits, duration } = useDawStore(
     useShallow((s) => ({
       comments: s.project?.comments,
       pendingEdits: s.project?.pending_edits,
       duration: s.project?.timeline_duration_sec ?? 0,
-      guest: s.guestMode !== null,
     })),
   );
   const playheadSec = useDawStore((s) => s.playheadSec);
   const ticks = useMemo(
     () =>
-      overviewTicks({
-        commentTimes: (comments ?? NONE).map((c) => c.timeline_start),
-        suggestionTimes: (pendingEdits ?? NONE)
-          .filter((e) => needsReview(e) && !(guest && e.unsure_words?.length))
-          .flatMap((e) =>
-            e.timeline_start === null ? [] : [e.timeline_start],
-          ),
-        durationSec: duration,
-      }),
+      playerTicks(
+        [],
+        (comments ?? NONE).map((c) => c.timeline_start),
+        duration,
+        suggestionTimesOf(pendingEdits ?? NONE, guest),
+      ),
     [comments, pendingEdits, duration, guest],
   );
   const onSeek = useCallback(
