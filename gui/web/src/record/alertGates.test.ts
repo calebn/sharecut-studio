@@ -51,7 +51,7 @@ describe("mutedSpeechGate", () => {
 
   function run(
     steps: readonly { ms: number; db: number | null }[],
-    options: { active?: boolean; counting?: boolean } = {},
+    options: { counting?: boolean } = {},
     from: MutedSpeechState = MUTED_SPEECH_INITIAL,
   ) {
     let state = from;
@@ -62,7 +62,6 @@ describe("mutedSpeechGate", () => {
         state = mutedSpeechGate(state, {
           nowMs,
           levelDb: db,
-          active: options.active ?? true,
           counting: options.counting ?? true,
         });
       }
@@ -122,18 +121,6 @@ describe("mutedSpeechGate", () => {
     expect(run([{ ms: 60_000, db: MID }]).fired).toBe(false);
   });
 
-  it("resets on unmute, so re-muting needs a fresh 10 s", () => {
-    const fired = run([{ ms: 11_000, db: LOUD }]);
-    const unmuted = mutedSpeechGate(fired, {
-      nowMs: 20_000,
-      levelDb: LOUD,
-      active: false,
-      counting: true,
-    });
-    expect(unmuted).toEqual(MUTED_SPEECH_INITIAL);
-    expect(run([{ ms: 9_000, db: LOUD }], {}, unmuted).fired).toBe(false);
-  });
-
   it("freezes while paused and resumes where it left off", () => {
     const early = run([{ ms: 6_000, db: LOUD }]);
     const paused = run([{ ms: 30_000, db: QUIET }], { counting: false }, early);
@@ -154,7 +141,6 @@ describe("mutedSpeechGate", () => {
     const late = mutedSpeechGate(early, {
       nowMs: (early.lastTickMs ?? 0) + 20_000,
       levelDb: LOUD,
-      active: true,
       counting: true,
     });
     expect(late.speechMs).toBe(early.speechMs);
