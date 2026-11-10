@@ -10,7 +10,6 @@ import {
   joinHere,
   joinMic,
   ownSaving,
-  savingStatus,
   tookPart,
 } from "./guestRoomModel";
 import { roomPeople } from "./roomPeople";
@@ -409,26 +408,6 @@ describe("guestRoomAlerts", () => {
       kind: "host-offline",
       name: undefined,
     });
-  });
-});
-
-describe("savingStatus", () => {
-  it("shows percent while saving", () => {
-    expect(savingStatus(upload({ acked: 1, total: 4 }))).toBe(
-      "Saving · 25% · keep this page open",
-    );
-    expect(savingStatus(upload({ acked: 4, total: 4 }))).toBe(
-      "Saving · 100% · keep this page open",
-    );
-  });
-
-  it("is quiet with nothing to save, once saved or when failed", () => {
-    expect(savingStatus(null)).toBeNull();
-    expect(savingStatus(upload())).toBeNull();
-    expect(
-      savingStatus(upload({ acked: 1, total: 4, fileAck: true })),
-    ).toBeNull();
-    expect(savingStatus(upload({ acked: 1, total: 4, error: "x" }))).toBeNull();
   });
 });
 

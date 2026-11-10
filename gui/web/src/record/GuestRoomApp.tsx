@@ -28,7 +28,6 @@ import {
   joinHere,
   joinMic,
   ownSaving,
-  savingStatus,
   tookPart,
 } from "./guestRoomModel";
 import { liveTakeOpen, NOTES_CLOSED_REASON } from "./liveCommentQueue";
@@ -431,7 +430,6 @@ function GuestRoomSession({
         onLeave={() => send("Leave", {})}
         onSelfPress={producer || !me ? undefined : () => setDeviceOpen(true)}
         leaveDisabledReason={heldLeave ? LEAVE_HELD_REASON : undefined}
-        status={producer ? undefined : (savingStatus(upload) ?? undefined)}
         declined={declined}
         takes={
           clippedTakes.length > 0 ? (

@@ -314,19 +314,6 @@ export function guestRoomAlerts(
   return alerts;
 }
 
-export function savingStatus(
-  upload: RecordUploadProgress | null | undefined,
-): string | null {
-  if (!upload || upload.fileAck || upload.error || upload.total <= 0) {
-    return null;
-  }
-  const percent = Math.min(
-    100,
-    Math.floor((upload.acked / upload.total) * 100),
-  );
-  return `Saving · ${percent}% · keep this page open`;
-}
-
 type CoverSource = {
   bootError: string | null;
   error: string | null;
