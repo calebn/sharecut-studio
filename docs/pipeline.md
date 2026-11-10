@@ -48,6 +48,8 @@ step skips it, as for any step. Turning the switch off does not remove beds alre
 extracted; one History undo of `after extract_room_tone_beds` does, per run, not per bed.
 Music, intro, outro and gated tracks are never given a bed.
 
+There is no per-track extract or clear command yet (slice B of the room-tone work). Until it lands, the step is reached from the CLI (`--set room_tone.extract_bed=true`, `--only`), MCP `pipeline_run` and the GUI Advanced switch under Clean and level, and the History undo above reverts it.
+
 | Setting | Default | Meaning |
 |---|---|---|
 | `room_tone.extract_bed` | `false` | Cut a bed for every dialogue track that has none. A recorded or assigned bed is never replaced; a bed extracted from audio that has since changed is cut again. |
