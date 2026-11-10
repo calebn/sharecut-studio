@@ -69,8 +69,8 @@ const messageOf = (reason: unknown) =>
  * reports words only.
  *
  * A commit the host refuses leaves the field open, read only while the host
- * works, with the reason under it. Only Enter, Tab and a leaving click or
- * focus commit: a field that is removed (undo, a remote edit, another
+ * works, with the reason under it. Only Enter and, while leaving commits, Tab
+ * and a leaving click or focus commit: a field that is removed (undo, a remote edit, another
  * selection) saves no draft.
  */
 export function FixTextField({
