@@ -66,7 +66,7 @@ beforeEach(() => {
   });
 });
 describe("shared range action policy and commands", () => {
-  it("blocks guest playback of an old mix while retaining host live rendering", async () => {
+  it("lets a guest play a range while the live project is stale, since they hear the frozen review version", async () => {
     useDawStore.setState({
       project: {
         ...p,
@@ -81,11 +81,9 @@ describe("shared range action policy and commands", () => {
       guestMode: "view",
       shareCapabilities: ["view"],
     });
-    expect(await runRangeAction("play")).toEqual({
-      status: "disabled",
-      reason:
-        "Mix out of date. Ask the host to Refresh before playing this range.",
-    });
+    expect(
+      rangeActionDescriptors(useDawStore.getState(), target)[0].reason,
+    ).toBeNull();
   });
   it("exposes the same six actions with host labels", () =>
     expect(

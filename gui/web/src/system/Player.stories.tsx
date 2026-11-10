@@ -32,6 +32,7 @@ const meta: Meta<typeof Player> = {
     playing: false,
     time: "12:04",
     total: "52:10",
+    duration: 3130,
     title: "Episode 14",
     chapters,
     chapter: 0,

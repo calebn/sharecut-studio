@@ -21,7 +21,6 @@ import type { DawState } from "../state/types";
 import { DocumentCommand } from "../types/documentCommands.generated";
 import type { ExactRangeTarget } from "../types/project";
 import { ApiError, errorMessage, readApiError } from "../utils/apiError";
-import { staleRenderBreakdown } from "../utils/staleRender";
 import { openCommentDraft } from "./comments";
 import { cutToastOf } from "./cutToastHost";
 import { registerCommand } from "./execute";
@@ -30,8 +29,6 @@ import { submitRangeEdit } from "./submitRangeEdit";
 import type { ExecuteResult } from "./types";
 
 export const PLAY_DENIED_REASON = "This share cannot play audio";
-export const PLAY_STALE_REASON =
-  "Mix out of date. Ask the host to Refresh before playing this range.";
 
 export type RangeAction =
   | "play"
@@ -110,13 +107,6 @@ export function rangeActionDescriptors(
       !hasShareCapability(state.shareCapabilities, "play")
     )
       reason = PLAY_DENIED_REASON;
-    if (
-      !reason &&
-      action === "play" &&
-      guest &&
-      staleRenderBreakdown(state.project).stale
-    )
-      reason = PLAY_STALE_REASON;
     if (
       !reason &&
       action === "comment" &&

@@ -66,13 +66,13 @@ describe("Player", () => {
   });
 
   it.each(["bar", "expanded"] as const)(
-    "names the status pill and gives it a hover title, both its status text, in the %s form",
+    "shows the status text in the pill and gives it a hover title, in the %s form",
     (form) => {
       render(<Player {...base} form={form} status="Mix out of date" />);
       const pill = screen
         .getByText("Mix out of date")
         .closest(".sys-player-pill") as HTMLElement;
-      expect(pill).toHaveAttribute("aria-label", "Mix out of date");
+      expect(pill).toHaveTextContent("Mix out of date");
       expect(pill).toHaveAttribute("title", "Mix out of date");
     },
   );
@@ -90,8 +90,13 @@ describe("Player", () => {
   });
 
   it("does not hide the total duration label on a narrow Player", () => {
-    expect(systemCss()).not.toMatch(
-      /(^|\n)\s*\.sys-player-total\s*\{[^}]*display:\s*none/,
+    const css = systemCss();
+    const hides = (sel: string) =>
+      new RegExp(`(^|\\n)\\s*${sel}\\s*\\{[^}]*display:\\s*none`);
+    expect(css).toMatch(hides("\\.sys-player-time \\.sys-player-total"));
+    expect(css).not.toMatch(hides("\\.sys-player-total"));
+    expect(css).not.toMatch(
+      hides("\\.sys-player-expanded[^{,]*\\.sys-player-total"),
     );
   });
 

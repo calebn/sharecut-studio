@@ -43,10 +43,10 @@ describe("usePlayerProps status for a guest", () => {
     },
   );
 
-  it("passes no No-mix-yet status to a guest when Play found nothing to preview", () => {
+  it("keeps No mix yet for a guest when Play found nothing to preview", () => {
     join("comment");
     useDawStore.setState({ audioError: NO_PREVIEW_ERROR });
-    expect(props().status).toBeUndefined();
+    expect(props().status).toBe("No mix yet");
   });
 
   it("keeps the play-unavailable reason for a guest", () => {
