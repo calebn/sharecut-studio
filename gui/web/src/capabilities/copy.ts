@@ -649,7 +649,6 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   trackLane: "daw.track.add",
   drop: "daw.media.import",
   "transcript.ignore": "daw.transcript.ignore",
-  "inspector.word.ignore": "daw.transcript.ignore",
   "transcript.showCutAway": "daw.view.showCutAway",
   "timeline.clip.trimHandle": "daw.edit.trimClipEdge",
   "timeline.clip.body": "daw.edit.moveClips",

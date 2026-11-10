@@ -503,7 +503,14 @@ describe("automatic reduction sheet content", () => {
       expect(
         screen.getByText("Restore choice saved for this recording."),
       ).toBeVisible();
-      expect(screen.getByText("Saved restores")).toBeVisible();
+      for (const label of [
+        "Clip",
+        "Reduction",
+        "Audio",
+        "Saved choice",
+        "Saved restores",
+      ])
+        expect(screen.getByText(label)).toBeVisible();
       expect(screen.getByText("20.000 to 20.500 s")).toBeVisible();
       expect(
         screen.getByText(/Saved choices are pending in the next render/),

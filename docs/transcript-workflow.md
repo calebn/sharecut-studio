@@ -448,8 +448,8 @@ MCP/CLI callers (`correct_transcript_tool`, `correct_transcript_phrase_tool`,
 Ignore do not re-capture: the fix for a rejected edit there is to re-read the transcript
 and redo it against its current text.
 
-**Ignore vs. suppress (#633):** `set_words_ignored_tool` (MCP), the Action bar's
-Ignore/Restore on a selected Script range, and the word Inspector's Ignore action all call
+**Ignore vs. suppress (#633):** `set_words_ignored_tool` (MCP) and the Action bar's
+Mute row (Restore ignored words once ignored) on a selected Script range both call
 `set_words_ignored` — a text-and-audio hide for review passes. The word (or word
 range) stays struck through in the transcript and in `combined.json`; only its
 audio is muted, computed from the transcript at render time and never written to
