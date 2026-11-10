@@ -53,10 +53,8 @@ type Props = {
   onUndo?: () => void;
   /** The action's name when "Undo" is not enough ("Undo all" on a merged toast). */
   undoLabel?: string;
-  /** A second button before Undo ("Cut all"). Needs `onUndo`: it lives as long as the entry it belongs to. */
   actionLabel?: string;
   onAction?: () => void;
-  /** Why the action is unavailable. Disables it and pauses auto-dismiss. */
   actionDisabledReason?: string;
   /** A decorative glyph before the message (the design system toast leads with an icon). */
   icon?: ReactNode;

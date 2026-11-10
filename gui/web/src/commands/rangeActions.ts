@@ -185,7 +185,7 @@ export async function runRangeAction(
         rangeEditMode(state.projectPath, state.shareCapabilities) === "edit";
       const cutToast =
         action === "cut" && applies && selection?.kind === "transcriptRange"
-          ? cutToastOf(state.project, selection, target, epoch, applies)
+          ? cutToastOf(state.project, selection, target, epoch)
           : null;
       const result = await submitRangeEdit(action, [target]);
       const live = useDawStore.getState();

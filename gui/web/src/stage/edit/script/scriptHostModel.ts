@@ -22,11 +22,8 @@ export const NO_TRACKS: readonly TrackView[] = [];
 
 export type ScriptHostModel = {
   model: ScriptModel;
-  /** The text of each word, by window index. */
   texts: readonly string[];
-  /** Window indices of words that sit only in a muted bleed row: never active, never unsure. */
   silent: ReadonlySet<number>;
-  /** Window indices of the words the transcript is unsure of, in order, bleed rows and words with no project index excluded. */
   unsure: readonly number[];
   hasWords: boolean;
 };
@@ -65,7 +62,6 @@ export function scriptHostModelOf(
   const cutAway = new Set<string>();
   for (const utterance of utterances) {
     for (const word of wordsForUtterance(utterance)) {
-      // A word with no project index is never looked up, as in the model.
       if (word.word_index == null) continue;
       const ref: ScriptWordRef = {
         trackId: utterance.track_id,
@@ -96,7 +92,6 @@ export function scriptHostModelOf(
   return { model, texts, silent, unsure, hasWords: model.refs.length > 0 };
 }
 
-/** The Script model of a project snapshot, for callers outside React. */
 export function scriptModelFor(project: ProjectView): ScriptHostModel {
   return scriptHostModelOf(
     {

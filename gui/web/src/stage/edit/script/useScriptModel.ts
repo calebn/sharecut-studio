@@ -10,8 +10,6 @@ import {
   scriptHostModelOf,
 } from "./scriptHostModel";
 
-export type { ScriptHostModel };
-
 /**
  * The project's transcript as the Script pane's model. One field per store
  * read, and the model is rebuilt only when the utterances, cuts, suggestions
