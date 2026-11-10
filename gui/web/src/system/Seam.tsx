@@ -1,6 +1,7 @@
 import {
   type KeyboardEvent,
   type PointerEvent,
+  useEffect,
   useId,
   useRef,
   useState,
@@ -160,6 +161,14 @@ function useRollGesture(roll: SeamRoll, onTap?: () => void) {
       void Promise.resolve(saving).finally(() => roll.onPreview?.(null));
     } else roll.onPreview?.(null);
   };
+  const preview = useRef(roll.onPreview);
+  preview.current = roll.onPreview;
+  useEffect(
+    () => () => {
+      if (drag.current) preview.current?.(null);
+    },
+    [],
+  );
   const consumeMoved = () => {
     const was = moved.current;
     moved.current = false;
@@ -254,6 +263,7 @@ export function Seam(props: SeamProps) {
         onPointerUp={rollHandlers?.onPointerUp}
         onPointerCancel={rollHandlers?.onPointerCancel}
         onKeyDown={(event) => {
+          gesture.consumeMoved();
           if (event.key === "Escape" && gesture.cancel()) {
             event.preventDefault();
             event.stopPropagation();

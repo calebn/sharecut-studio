@@ -2,6 +2,7 @@ import { useCallback, useMemo } from "react";
 import { commitSeamRoll, seamRollLimits } from "../commands/seamRoll";
 import type { RollPreview } from "../edit/clipEdgePreview";
 import { type Seam, seamsOnTrack, seamTitle } from "../edit/seam";
+import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import { Seam as SeamMark, type SeamRoll } from "../system/Seam";
@@ -38,6 +39,7 @@ function SeamDiamond({
   zoomPxPerSec,
   rolledSec,
   selected,
+  rollable,
   onSelect,
   onRollPreview,
 }: {
@@ -45,6 +47,7 @@ function SeamDiamond({
   zoomPxPerSec: number;
   rolledSec: number;
   selected: boolean;
+  rollable: boolean;
   onSelect: (seamId: string) => void;
   onRollPreview: (preview: RollPreview | null) => void;
 }) {
@@ -82,7 +85,10 @@ function SeamDiamond({
         detail={seamDetail(seam)}
         selected={selected}
         roll={roll}
-        hit={hitTargetProps("roll", seam.right.id, seam.joinSec, { selected })}
+        hit={hitTargetProps("roll", seam.right.id, seam.joinSec, {
+          selected,
+          fixed: !rollable,
+        })}
         onSelect={() => onSelect(seam.id)}
       />
     </span>
@@ -100,6 +106,9 @@ export function SeamLayer({
   const project = useDaw((s) => s.project);
   const selectedId = useDaw((s) =>
     s.selection?.kind === "seam" ? s.selection.id : null,
+  );
+  const canEdit = useDaw((s) =>
+    canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities),
   );
   const seams = useMemo(
     () => (project ? seamsOnTrack(project, trackId) : []),
@@ -124,6 +133,7 @@ export function SeamLayer({
                 : 0
             }
             selected={selectedId === seam.id}
+            rollable={canEdit && seam.abuts}
             onSelect={onSelectSeam}
             onRollPreview={onRollPreview}
           />

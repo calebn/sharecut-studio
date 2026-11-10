@@ -962,12 +962,12 @@ test("#1135: a long-press at a join offers the ripple trim, which shows where la
   const finger = await newFinger(context, page, browserName);
   const commands = watchCommands(page);
   // The join at 40 s. Selecting the clip after it shows its trim strips, so
-  // the seam's roll and that clip's ripple trim crowd one spot.
+  // the Seam diamond and that clip's ripple trim crowd one spot.
   const seam = await centerOf(
     page,
     `${lane} .seam-mark .sys-seam-hit[data-hit-kind="roll"] >> nth=1`,
   );
-  await tap(page, finger, { x: seam.x + 60, y: seam.y });
+  await tap(page, finger, { x: seam.x + 60, y: seam.y + 40 });
   const crowded = await centerOf(
     page,
     `${lane} .seam-mark .sys-seam-hit[data-hit-kind="roll"] >> nth=1`,
@@ -1006,7 +1006,7 @@ test("#1135: a long-press at a join offers the ripple trim, which shows where la
     lanes,
     commands: commands.map((c) => ({ type: c.type, payload: c.payload })),
   });
-  expect(chips.some((label) => /^Seam, Roll at /.test(label ?? ""))).toBe(true);
+  expect(chips.some((label) => /^Seam, /.test(label ?? ""))).toBe(true);
   // The trimmed start sheds time on the reference lane: its later clip (50 s)
   // moves back by that much.
   const [moved] = lanes[TRACK].arrows;

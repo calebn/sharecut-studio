@@ -189,7 +189,7 @@ async function liveHandlesInReach(page: Page, at: Point): Promise<string[]> {
 }
 
 for (const viewport of VIEWPORTS) {
-  test(`${viewport.name}: a held press at a band edge opens the chooser only where a second live target is in reach`, async ({
+  test(`${viewport.name}: a held press at a band edge opens the chooser only where a second live target is in reach, and the Seam diamond at the lane top is out of reach of the band`, async ({
     page,
   }) => {
     const cdp = await page.context().newCDPSession(page);
@@ -227,22 +227,13 @@ for (const viewport of VIEWPORTS) {
     };
     expect(await liveHandlesInReach(page, atJoin)).toEqual([]);
     await touch(cdp, "touchStart", [atJoin]);
+    await expect.poll(() => pressedBands(page)).toEqual([true, false]);
     await holdPastLongPress(page);
-    await expect
-      .poll(() => chooserLabels(page))
-      .toEqual([
-        "Seam, Roll at 00:10.000",
-        "Suggestion, Automatic audio reduction at 00:10.000",
-      ]);
-    await touch(cdp, "touchEnd");
-    const band = page.getByRole("menuitem", {
-      name: "Suggestion, Automatic audio reduction at 00:10.000",
-    });
-    await settle(() => band.boundingBox());
-    await touch(cdp, "touchStart", [centre(await boxOf(band))]);
+    await expect(chooserItems(page)).toHaveCount(0);
+    await expect(createMenu(page)).toHaveCount(0);
+    expect(await pressedBands(page)).toEqual([true, false]);
     await touch(cdp, "touchEnd");
     await expect(chooserItems(page)).toHaveCount(0);
-    await expect.poll(() => pressedBands(page)).toEqual([true, false]);
 
     expect(commands.map((c) => c.type)).toEqual([]);
     expect(fs.readFileSync(projectPath, "utf8")).toBe(before);
@@ -300,7 +291,7 @@ for (const viewport of VIEWPORTS) {
       .not.toBe(before);
   });
 
-  test(`${viewport.name}: the band selector sits farther from a comment pin than the touch reach, and each opens its own chooser`, async ({
+  test(`${viewport.name}: the band selector sits farther from a comment pin than the touch reach, the band opens none and the pin opens its own chooser`, async ({
     page,
   }) => {
     const cdp = await page.context().newCDPSession(page);
@@ -315,20 +306,15 @@ for (const viewport of VIEWPORTS) {
     const bandBox = await boxOf(picks(page).nth(0));
     const overBand = { x: bandBox.x + 3, y: bandBox.y + 1 };
     await touch(cdp, "touchStart", [overBand]);
-    await expect
-      .poll(() => chooserLabels(page))
-      .toEqual([
-        "Seam, Roll at 00:10.000",
-        "Suggestion, Automatic audio reduction at 00:10.000",
-      ]);
+    await expect.poll(() => pressedBands(page)).toEqual([true, false]);
+    await expect(chooserItems(page)).toHaveCount(0);
     await touch(cdp, "touchEnd");
-    await page.keyboard.press("Escape");
     await expect(chooserItems(page)).toHaveCount(0);
 
     await touch(cdp, "touchStart", [centre(await boxOf(pin(page)))]);
     await expect
       .poll(() => chooserLabels(page))
-      .toEqual(["Seam, Join at 00:10.000", "Comment, Ada at 00:10.000"]);
+      .toEqual(["Seam, 00:10.000", "Comment, Ada at 00:10.000"]);
     await touch(cdp, "touchEnd");
     const comment = page.getByRole("menuitem", {
       name: "Comment, Ada at 00:10.000",

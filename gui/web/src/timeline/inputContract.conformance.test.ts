@@ -245,65 +245,6 @@ describe("touch paths", () => {
   });
 });
 
-const OUTRANKS = HIT_KIND_NAMES.flatMap((winner) =>
-  HIT_KINDS[winner].outranks.map((loser) => [winner, loser] as const),
-);
-
-describe.each(OUTRANKS)("%s outranks %s (#1135)", (winner, loser) => {
-  it("names a real kind", () => {
-    expect(HIT_KIND_NAMES).toContain(loser);
-  });
-
-  /** The join cluster: a wide roll seam under a nearer, narrow trim strip. */
-  function cluster() {
-    const wide = lone(winner);
-    const narrow = button(hitTargetProps(loser as HitKind, "c3", 10), {
-      left: 198,
-      top: 100,
-      right: 206,
-      bottom: 160,
-    });
-    const both = { wide, narrow };
-    for (const el of [wide, narrow])
-      el.setAttribute("data-hit-selected", "true");
-    root.append(narrow);
-    narrow.addEventListener("pointerdown", (e) => {
-      if (isReplayed(e)) log.push("loser:pointerdown");
-    });
-    return both;
-  }
-
-  it("takes a plain mouse grab though the other is nearer", () => {
-    const { narrow } = cluster();
-    narrow.dispatchEvent(
-      new PointerEvent("pointerdown", {
-        bubbles: true,
-        cancelable: true,
-        pointerId: 1,
-        pointerType: "mouse",
-        clientX: 202,
-        clientY: 112,
-      }),
-    );
-
-    expect(log).toEqual(["pointerdown@202,112"]);
-  });
-
-  it("leaves the other in the chooser for a long press", () => {
-    const views: string[][] = [];
-    router.dispose();
-    router = attachHitRouting(root, {
-      onChooser: (view) =>
-        view && views.push(view.hits.map((h) => h.candidate.kind)),
-    });
-    const { narrow } = cluster();
-    press(narrow, "pointerdown", 202, 112);
-    router.longPress();
-
-    expect(views[0]).toEqual([winner, loser]);
-  });
-});
-
 describe.each(HIT_KIND_NAMES)("%s", (kind) => {
   const contract = HIT_KINDS[kind];
 

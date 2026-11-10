@@ -59,12 +59,6 @@ export interface HitKindContract {
    */
   command: KindCommand | null;
   /**
-   * Kinds this one beats wherever both are in reach, however near the
-   * other is: a plain grab at a join rolls it rather than ripple-trimming
-   * the clip beside it (#1135). The chooser still lists both.
-   */
-  outranks: readonly string[];
-  /**
    * The wide area behind the other targets (a clip body). A finger reaches
    * it only by landing on it with no other target in reach, so it never
    * crowds the chooser, and a long-press there arms it instead of opening the
@@ -101,7 +95,6 @@ export const HIT_KINDS = {
     soft: false,
     keys: "activate",
     command: null,
-    outranks: [],
     body: false,
     directOnly: true,
   },
@@ -113,7 +106,6 @@ export const HIT_KINDS = {
     soft: true,
     keys: "activate",
     command: null,
-    outranks: [],
     body: false,
   },
   "pending-start": {
@@ -124,7 +116,6 @@ export const HIT_KINDS = {
     soft: true,
     keys: "activate",
     command: null,
-    outranks: [],
     body: false,
   },
   "pending-end": {
@@ -135,7 +126,6 @@ export const HIT_KINDS = {
     soft: true,
     keys: "activate",
     command: null,
-    outranks: [],
     body: false,
   },
   "pending-flag": {
@@ -146,7 +136,6 @@ export const HIT_KINDS = {
     soft: false,
     keys: "activate",
     command: null,
-    outranks: [],
     body: false,
   },
   roll: {
@@ -157,7 +146,6 @@ export const HIT_KINDS = {
     soft: true,
     keys: "activate",
     command: "edit.rollClipJoin",
-    outranks: [],
     body: false,
     surfaceTap: MARK_SURFACE_TAP,
   },
@@ -169,7 +157,6 @@ export const HIT_KINDS = {
     soft: true,
     keys: "arrows",
     command: "edit.setClipFade",
-    outranks: [],
     body: false,
   },
   "fade-out": {
@@ -180,7 +167,6 @@ export const HIT_KINDS = {
     soft: true,
     keys: "arrows",
     command: "edit.setClipFade",
-    outranks: [],
     body: false,
   },
   // A trim of the start ripples: the clip's start stays put and its content
@@ -193,7 +179,6 @@ export const HIT_KINDS = {
     soft: false,
     keys: "arrows",
     command: "edit.trimClipEdge",
-    outranks: [],
     body: false,
   },
   "trim-out": {
@@ -204,7 +189,6 @@ export const HIT_KINDS = {
     soft: true,
     keys: "arrows",
     command: "edit.trimClipEdge",
-    outranks: [],
     body: false,
   },
   chapter: {
@@ -215,7 +199,6 @@ export const HIT_KINDS = {
     soft: true,
     keys: "activate",
     command: null,
-    outranks: [],
     body: false,
   },
   comment: {
@@ -226,7 +209,6 @@ export const HIT_KINDS = {
     soft: false,
     keys: "activate",
     command: null,
-    outranks: [],
     body: false,
     reach: "row",
   },
@@ -238,7 +220,6 @@ export const HIT_KINDS = {
     soft: true,
     keys: "activate",
     command: null,
-    outranks: [],
     body: false,
   },
   // A touch move keeps the clip in its lane; a mouse drag can still change it.
@@ -250,7 +231,6 @@ export const HIT_KINDS = {
     soft: true,
     keys: "activate",
     command: "edit.moveClips",
-    outranks: [],
     body: true,
   },
 } as const satisfies Record<string, HitKindContract>;
@@ -286,11 +266,6 @@ export function tapAction(_kind: HitKind): TapAction {
 
 export function longPressAction(kind: HitKind): LongPressAction {
   return HIT_KINDS[kind].axis === "none" ? "select" : "arm";
-}
-
-/** `winner` beats `loser` wherever both are in reach (`outranks`). */
-export function outranks(winner: HitKind, loser: HitKind): boolean {
-  return (HIT_KINDS[winner].outranks as readonly string[]).includes(loser);
 }
 
 export function secondFingerAction(_kind: HitKind): SecondFingerAction {

@@ -23,11 +23,7 @@ import type { ClipRow } from "../types/project";
 import { EMPTY_ARR } from "../utils/empty";
 import { clipDrawsPieces, clipMediaStartSec } from "../waveform/mediaRef";
 import { type MediaRef, refKind } from "../waveform/types";
-import {
-  ClipBlockView,
-  type ClipHandle,
-  type ClipHitHandlers,
-} from "./ClipBlockView";
+import { ClipBlockView, type ClipHitHandlers } from "./ClipBlockView";
 import { clipBlockGeometry } from "./clipBlockGeometry";
 import { useHitRouter } from "./hitRouterContext";
 import { HIT_KINDS } from "./inputContract";
@@ -429,13 +425,6 @@ export function ClipBlockLive({
     });
   };
 
-  const onHandlePointerDown = (
-    handle: ClipHandle,
-    e: ReactPointerEvent<HTMLButtonElement>,
-  ) => {
-    return edgeHandles.onPointerDown(handle, e);
-  };
-
   const hitHandlers: ClipHitHandlers = {
     onPointerDown: onBodyDown,
     onPointerMove: onBodyMove,
@@ -536,7 +525,7 @@ export function ClipBlockLive({
         ) : null
       }
       hitHandlers={interactive ? hitHandlers : undefined}
-      onHandlePointerDown={onHandlePointerDown}
+      onHandlePointerDown={edgeHandles.onPointerDown}
       onHandlePointerMove={edgeHandles.onPointerMove}
       onHandlePointerUp={edgeHandles.onPointerUp}
       onHandlePointerCancel={edgeHandles.onPointerCancel}

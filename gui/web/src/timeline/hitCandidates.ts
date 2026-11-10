@@ -11,7 +11,6 @@ import {
   type HitKind,
   type HitKindContract,
   needsDirectHit,
-  outranks,
 } from "./inputContract";
 
 /** Viewport px box, as `getBoundingClientRect` reports it. */
@@ -173,26 +172,5 @@ export function rankHitTargets<T extends HitTarget>(
     );
   });
   if (ranked.length === 0 && body) return [body];
-  return applyOutranks(ranked);
-}
-
-/**
- * Moves each candidate ahead of every equally selected one its kind
- * outranks (`HIT_KINDS[kind].outranks`), keeping the rest of the order.
- */
-function applyOutranks<T extends { candidate: HitCandidate }>(
-  ranked: T[],
-): T[] {
-  const out = [...ranked];
-  for (let i = 0; i < out.length; i += 1) {
-    const loser = out[i].candidate;
-    const w = out.findIndex(
-      ({ candidate }, j) =>
-        j > i &&
-        candidate.selected === loser.selected &&
-        outranks(candidate.kind, loser.kind),
-    );
-    if (w > i) out.splice(i, 0, ...out.splice(w, 1));
-  }
-  return out;
+  return ranked;
 }

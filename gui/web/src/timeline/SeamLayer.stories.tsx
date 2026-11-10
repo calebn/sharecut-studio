@@ -1,6 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { type ReactNode, useState } from "react";
-import { expect, fireEvent, fn, userEvent, within } from "storybook/test";
+import {
+  expect,
+  fireEvent,
+  fn,
+  userEvent,
+  waitFor,
+  within,
+} from "storybook/test";
 import type { RollPreview } from "../edit/clipEdgePreview";
 import { useDawStore } from "../state/dawStore";
 import { portaledOverlayParameters } from "../storybook/storyLayout";
@@ -139,9 +146,11 @@ export const Rolling: Story = {
     });
     await fireEvent.pointerDown(hit, { pointerId: 1, button: 0, clientX: 160 });
     await fireEvent.pointerMove(hit, { pointerId: 1, clientX: 180 });
-    await expect(
-      canvasElement.querySelector(".sys-seam-readout"),
-    ).toHaveTextContent("+500 ms");
+    await waitFor(() =>
+      expect(
+        canvasElement.querySelector(".sys-seam-readout"),
+      ).toHaveTextContent("+500 ms"),
+    );
     await fireEvent.pointerCancel(hit, { pointerId: 1 });
   },
 };

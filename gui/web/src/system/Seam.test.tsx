@@ -496,6 +496,21 @@ describe("Seam diamond rolling", () => {
     expect(onCommit).toHaveBeenCalledExactlyOnceWith(300);
   });
 
+  it("clears the preview when it unmounts mid-drag", () => {
+    const onPreview = vi.fn();
+    const { unmount } = render(
+      <Seam
+        {...diamond}
+        roll={{ ...room, pxPerSec: 100, onCommit: vi.fn(), onPreview }}
+      />,
+    );
+    fireEvent.pointerDown(hit(), { pointerId: 1, button: 0, clientX: 100 });
+    fireEvent.pointerMove(hit(), { pointerId: 1, clientX: 130 });
+    onPreview.mockClear();
+    unmount();
+    expect(onPreview).toHaveBeenCalledExactlyOnceWith(null);
+  });
+
   it("does not select on the click that follows a cancelled drag", () => {
     const onSelect = vi.fn();
     render(

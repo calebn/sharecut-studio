@@ -554,6 +554,17 @@ describe("tap on a surface near an edit mark", () => {
       expect(marks("seam")).toEqual([]);
     });
 
+    it("selects a fixed seam on a long press instead of arming it", () => {
+      const el = touchMark(2, "seam");
+      el.setAttribute("data-hit-fixed", "true");
+      press(el, "pointerdown", 200, 90);
+      router.longPress();
+      press(el, "pointerup", 200, 90);
+
+      expect(armed).toEqual([]);
+      expect(el.hasAttribute(ARMED_ATTR)).toBe(false);
+    });
+
     it("takes a finger in the gutter above the corner for the seam", () => {
       const seam = touchMark(2, "seam");
       tapAndClick(seam, 200, 90);

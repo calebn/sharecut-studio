@@ -16,6 +16,7 @@ import { type HitKind, isHitKind, surfaceTapReach } from "./inputContract";
 const KIND_ATTR = "data-hit-kind";
 const SURFACE_ATTR = "data-hit-surface";
 const OWN_TAP_ATTR = "data-hit-own-tap";
+export const FIXED_ATTR = "data-hit-fixed";
 
 export type HitTargetAttrs = {
   "data-hit-kind": HitKind;
@@ -27,13 +28,20 @@ export type HitTargetAttrs = {
   "data-hit-detail"?: string;
   /** A body's length in seconds from `data-hit-time`, its start. */
   "data-hit-span"?: string;
+  /** A target that selects but never arms: its drag is not open to this person. */
+  "data-hit-fixed"?: "true";
 };
 
 export function hitTargetProps(
   kind: HitKind,
   id: string,
   timeSec: number,
-  opts: { selected?: boolean; detail?: string; spanSec?: number } = {},
+  opts: {
+    selected?: boolean;
+    detail?: string;
+    spanSec?: number;
+    fixed?: boolean;
+  } = {},
 ): HitTargetAttrs {
   return {
     "data-hit-kind": kind,
@@ -42,6 +50,7 @@ export function hitTargetProps(
     ...(opts.selected ? { "data-hit-selected": "true" } : {}),
     ...(opts.detail != null ? { "data-hit-detail": opts.detail } : {}),
     ...(opts.spanSec != null ? { "data-hit-span": String(opts.spanSec) } : {}),
+    ...(opts.fixed ? { "data-hit-fixed": "true" } : {}),
   };
 }
 
