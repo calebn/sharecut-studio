@@ -198,7 +198,7 @@ function StatusLine({
 }: Pick<PlayerProps, "status"> & { id: string }) {
   return status ? (
     <span id={id} className="sys-player-status">
-      <Pill className="sys-player-pill" aria-label={status} title={status}>
+      <Pill className="sys-player-pill" title={status}>
         <SystemIcon name="triangle-alert" size={12} />
         <span className="sys-player-pill-text">{status}</span>
       </Pill>

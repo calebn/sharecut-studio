@@ -2,8 +2,7 @@ import { hasShareCapability, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { transportAvailability } from "../state/transportAvailability";
 import { playTimelineRange } from "../utils/playRange";
-import { staleRenderBreakdown } from "../utils/staleRender";
-import { PLAY_DENIED_REASON, PLAY_STALE_REASON } from "./rangeActions";
+import { PLAY_DENIED_REASON } from "./rangeActions";
 import { seekTransport } from "./seek";
 import type { ExecuteResult } from "./types";
 
@@ -15,7 +14,6 @@ function playGate(s: DawState): string | null {
   const guest = isShareProjectKey(s.projectPath) || s.guestMode !== null;
   if (guest && !hasShareCapability(s.shareCapabilities, "play"))
     return PLAY_DENIED_REASON;
-  if (guest && staleRenderBreakdown(s.project).stale) return PLAY_STALE_REASON;
   return null;
 }
 

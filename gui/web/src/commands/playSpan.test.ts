@@ -18,6 +18,20 @@ beforeEach(() => {
 });
 
 describe("playSpan", () => {
+  it("plays for a guest while the live project is stale", () => {
+    const p = useDawStore.getState().project;
+    useDawStore.setState({
+      project: p && {
+        ...p,
+        render_status: { ...p.render_status, needs_rerender: true },
+      },
+      projectPath: "share:token",
+      guestMode: "view",
+      shareCapabilities: ["view", "play"],
+    });
+    expect(playSpan(10, 12, 0.5)).toEqual({ status: "ok" });
+  });
+
   it("plays the padded span and ends armed with its stop bound", () => {
     expect(playSpan(10, 12, 0.5)).toEqual({ status: "ok" });
     const s = useDawStore.getState();

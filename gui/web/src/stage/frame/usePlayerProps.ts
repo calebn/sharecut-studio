@@ -142,11 +142,12 @@ export function usePlayerProps(
     isPlaying,
     playStartSec,
   }).togglePlay;
-  const mixStatus = guest
-    ? undefined
-    : audioError === NO_PREVIEW_ERROR
+  // A guest hears the frozen review version, so the live project's staleness
+  // is not theirs to see; only the missing-mix reason stays.
+  const mixStatus =
+    audioError === NO_PREVIEW_ERROR
       ? staleMixLabel({ premixMissing: true })
-      : project && breakdown.stale
+      : project && breakdown.stale && !guest
         ? staleMixLabel(breakdown)
         : undefined;
   const mayComment = canComment(projectPath, guestMode, shareCapabilities);
