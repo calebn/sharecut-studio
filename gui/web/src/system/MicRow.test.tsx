@@ -142,6 +142,49 @@ describe("MicRow input chip", () => {
     expect(screen.queryByRole("menu")).toBeNull();
   });
 
+  it("closes the open menu and commits nothing when the lock flips on", async () => {
+    const onInputChange = vi.fn();
+    const { rerender } = render(
+      <MicRow mic={ready()} notes={[]} onInputChange={onInputChange} />,
+    );
+    await userEvent.click(chip());
+    const row = screen.getByRole("menuitemradio", { name: "MacBook Mic" });
+    rerender(
+      <MicRow
+        mic={ready({ inputLocked: true })}
+        notes={[]}
+        onInputChange={onInputChange}
+      />,
+    );
+    expect(screen.queryByRole("menu")).toBeNull();
+    row.click();
+    expect(onInputChange).not.toHaveBeenCalled();
+  });
+
+  it("opens the menu with ArrowDown or ArrowUp on the closed chip", async () => {
+    render(<MicRow mic={ready()} notes={[]} />);
+    chip().focus();
+    await userEvent.keyboard("{ArrowDown}");
+    expect(chip()).toHaveAttribute("aria-expanded", "true");
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).toBeNull();
+    await userEvent.keyboard("{ArrowUp}");
+    expect(chip()).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("keeps a device with an empty id apart from Default", async () => {
+    const devices = [{ id: "", label: "Unnamed mic" }, ...DEVICES];
+    render(<MicRow mic={ready({ devices, inputId: "" })} notes={[]} />);
+    expect(chip()).toHaveAccessibleName("Input: Default");
+    await userEvent.click(chip());
+    expect(
+      screen.getByRole("menuitemradio", { name: "Default" }),
+    ).toHaveAttribute("aria-checked", "true");
+    expect(
+      screen.getAllByRole("menuitemradio", { checked: true }),
+    ).toHaveLength(1);
+  });
+
   it("keeps a lost input's chip usable between takes", async () => {
     const onInputChange = vi.fn();
     render(

@@ -246,6 +246,19 @@ describe("DeviceSheet", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it("closes only the open input menu on Escape, not the sheet", async () => {
+    const onClose = vi.fn();
+    render(sheet({ onClose }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Input: USB Mic" }),
+    );
+    expect(screen.getByRole("menu", { name: "Input" })).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Devices" })).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("is a bottom sheet on the phone", () => {
     render(sheet({ viewerWidth: "phone" }));
     expect(screen.getByRole("dialog", { name: "Devices" })).toBeInTheDocument();

@@ -1,4 +1,4 @@
-import { type CSSProperties, useState } from "react";
+import { type CSSProperties, useEffect, useState } from "react";
 import { Button, Field, Menu, MenuItem } from "../ui";
 import type { FieldControlProps } from "../ui/Field";
 import {
@@ -23,9 +23,19 @@ function InputMenu({
   onInputChange?: (inputId: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const picked = devices.find((device) => device.id === inputId);
+  // An empty input id means Default, so a device whose id is "" never matches.
+  const picked = inputId
+    ? devices.find((device) => device.id === inputId)
+    : undefined;
   const current = picked?.label ?? JOIN_TEXT.defaultInput;
-  const choices = [{ id: "", label: JOIN_TEXT.defaultInput }, ...devices];
+  const choices = [
+    { id: "", label: JOIN_TEXT.defaultInput, isDefault: true },
+    ...devices.map((device) => ({ ...device, isDefault: false })),
+  ];
+  // A take starting while the menu is open must not leave live rows behind.
+  useEffect(() => {
+    if (locked) setOpen(false);
+  }, [locked]);
   return (
     <Menu
       open={open}
@@ -38,6 +48,12 @@ function InputMenu({
           {...control}
           className="sys-mic-input"
           aria-label={`Input: ${current}`}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+              event.preventDefault();
+              if (!locked) setOpen(true);
+            }
+          }}
           disabledReason={locked ? JOIN_TEXT.inputLocked : undefined}
         >
           <span className="sys-mic-input-name">{current}</span>
@@ -45,12 +61,18 @@ function InputMenu({
         </Button>
       )}
     >
-      {choices.map((choice) => (
+      {choices.map((choice, index) => (
         <MenuItem
-          key={choice.id}
-          checked={choice.id === (picked?.id ?? "")}
+          // biome-ignore lint/suspicious/noArrayIndexKey: device ids can repeat or be empty
+          key={`${index}:${choice.id}`}
+          checked={
+            picked
+              ? !choice.isDefault && choice.id === picked.id
+              : choice.isDefault
+          }
           onSelect={() => {
             setOpen(false);
+            if (locked) return;
             onInputChange?.(choice.id);
           }}
         >
