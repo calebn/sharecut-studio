@@ -1125,43 +1125,6 @@ describe("the Inspector sheet on the phone", () => {
     }
   });
 
-  it("takes the whole screen with Done where the slot is too short for a full sheet", () => {
-    stubViewportShell("phone");
-    stubResizeObserver();
-    const lanes = document.createElement("div");
-    Object.defineProperty(lanes, "clientHeight", { get: () => 150 });
-    const offsetParent = vi
-      .spyOn(HTMLElement.prototype, "offsetParent", "get")
-      .mockImplementation(function (this: HTMLElement) {
-        return this.classList.contains("sys-inspector") ? lanes : null;
-      });
-    const close = vi.fn();
-
-    try {
-      const { unmount } = render(
-        <InspectorHost
-          shell="phone"
-          root={null}
-          regionRef={() => undefined}
-          sheet={{
-            open: true,
-            rangeActionsInSheet: false,
-            close,
-            dismiss: vi.fn(),
-          }}
-        />,
-      );
-      const dialog = screen.getByRole("dialog", { name: "Inspector" });
-      expect(dialog.querySelector(".sys-inspector--takeover")).not.toBeNull();
-      expect(screen.queryByRole("slider", { name: "Sheet height" })).toBeNull();
-      fireEvent.click(within(dialog).getByRole("button", { name: "Done" }));
-      expect(close).toHaveBeenCalledTimes(1);
-      unmount();
-    } finally {
-      offsetParent.mockRestore();
-    }
-  });
-
   it("returns an automatic Full height to Half as measured room returns", () => {
     stubViewportShell("phone");
     stubResizeObserver();

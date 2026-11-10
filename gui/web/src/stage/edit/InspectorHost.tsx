@@ -314,7 +314,11 @@ function Card({
     };
   }, [measure, anchor.moves, anchor.visible]);
   useResizeObserver(root, measure);
-  const sections = useBodySections(sheet.rangeActionsInSheet, true);
+  const takeover =
+    placement !== null &&
+    !cardFits(placement.bounds.height, scaledMinBlock(rootFontPx()));
+  // The takeover has no Action bar beside it, so the sheet keeps the verbs.
+  const sections = useBodySections(sheet.rangeActionsInSheet, !takeover);
   // The Action bar hides the same way when its anchor scrolls out.
   const shown = placement !== null && (anchor.visible || selection === null);
   const focus = useInspectorFocus(popoverId ? panel : box, shown);
@@ -347,11 +351,7 @@ function Card({
         />
       );
   } else if (placement) {
-    const roomy = cardFits(
-      placement.bounds.height,
-      scaledMinBlock(rootFontPx()),
-    );
-    card = roomy ? (
+    card = !takeover ? (
       <InspectorSheet
         form="card"
         {...heading}
@@ -415,11 +415,11 @@ function Phone({
 }) {
   const [detent, setDetent] = useState<InspectorDetent>("half");
   const [tight, setTight] = useState(false);
-  // The lanes node is read once, from the phone sheet's first mount, so the
-  // slot can still be measured after the takeover has replaced that sheet.
   const [takeover, setTakeover] = useState(false);
   const chosen = useRef(false);
   const box = useRef<HTMLDivElement>(null);
+  // Read once, from the phone sheet's first mount, so the slot can still be
+  // measured after the takeover has replaced that sheet.
   const [lanes, setLanes] = useState<HTMLElement | null>(null);
   useLayoutEffect(() => {
     const parent =
@@ -451,7 +451,10 @@ function Phone({
     setFocusFields(false);
     if (box.current) focusFirstControl(box.current);
   }, [focusFields]);
-  const sections = useBodySections(sheet.rangeActionsInSheet, dockShown);
+  const sections = useBodySections(
+    sheet.rangeActionsInSheet,
+    dockShown && !takeover,
+  );
   const focus = useInspectorFocus(box, true);
   return (
     <div
