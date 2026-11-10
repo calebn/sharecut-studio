@@ -30,6 +30,7 @@ const ROW_STEPS: Readonly<Record<ReadyRowId, readonly string[]>> = {
     "precorrect_transcript",
   ],
   clean: [
+    "extract_room_tone_beds",
     "fill_gate_holes",
     "clean_audio",
     "compress_tracks",

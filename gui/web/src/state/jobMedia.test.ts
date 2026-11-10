@@ -11,6 +11,7 @@ const STEPS = [
   "transcribe_tracks",
   "align_tracks",
   "require_align_accept",
+  "extract_room_tone_beds",
   "merge_transcript",
   "render_dialogue_stems",
   "reconcile_transcript",

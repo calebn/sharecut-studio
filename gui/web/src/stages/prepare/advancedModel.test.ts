@@ -36,6 +36,7 @@ describe("advancedGroups", () => {
     expect(groups.flatMap((g) => g.steps.map((s) => s.id))).toEqual([
       "transcribe_tracks",
       "align_tracks",
+      "extract_room_tone_beds",
       "fill_gate_holes",
       "analyze_fillers_pauses",
       "apply_sound_actions",
@@ -80,8 +81,10 @@ describe("advancedGroups", () => {
         },
       ],
     });
-    const gaps = advancedGroups(cfg, job)[2].steps[0];
-    expect(gaps.result).toBe("12 gaps filled");
+    const gaps = advancedGroups(cfg, job)[2].steps.find(
+      (step) => step.id === "fill_gate_holes",
+    );
+    expect(gaps?.result).toBe("12 gaps filled");
   });
 });
 
@@ -161,6 +164,40 @@ describe("the sound scan row", () => {
     );
     expect(off.enabled_steps).not.toContain("apply_sound_actions");
     expect(off.config).toMatchObject({ tighten: { apply_non_speech: false } });
+  });
+});
+
+describe("the room-tone bed switch", () => {
+  const bed = (c: typeof cfg) =>
+    advancedGroups(c, null)
+      .flatMap((g) => g.steps)
+      .find((step) => step.id === "extract_room_tone_beds");
+
+  it("reads on only while its setting is on, as the pipeline would run it", () => {
+    const listed = {
+      ...cfg,
+      enabled_steps: [...cfg.enabled_steps, "extract_room_tone_beds"],
+    };
+    expect(bed(cfg)).toMatchObject({ optional: true, enabled: false });
+    expect(bed(listed)?.enabled).toBe(false);
+    const on = {
+      ...listed,
+      config: { ...cfg.config, room_tone: { extract_bed: true } },
+    };
+    expect(bed(on)?.enabled).toBe(true);
+  });
+
+  it("moves the step and its setting together", () => {
+    const on = withStepSwitch(cfg, "extract_room_tone_beds", true);
+    expect(on.enabled_steps).toContain("extract_room_tone_beds");
+    expect(on.config).toMatchObject({ room_tone: { extract_bed: true } });
+    const off = withStepSwitch(
+      { ...cfg, enabled_steps: on.enabled_steps, config: on.config! },
+      "extract_room_tone_beds",
+      false,
+    );
+    expect(off.enabled_steps).not.toContain("extract_room_tone_beds");
+    expect(off.config).toMatchObject({ room_tone: { extract_bed: false } });
   });
 });
 

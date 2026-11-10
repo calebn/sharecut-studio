@@ -36,6 +36,8 @@ type StepDef = {
   id: string;
   name: string;
   optional: boolean;
+  /** The setting that gates the step; the switch is on only while it is true. */
+  gate?: string;
   params: readonly ParamDef[];
 };
 
@@ -47,6 +49,14 @@ const TIGHTEN_ENABLED_PATH = "tighten.enabled";
 const TIGHTEN_STEPS = new Set([
   "analyze_fillers_pauses",
   "tighten_from_transcript",
+]);
+
+const ROOM_TONE_STEP = "extract_room_tone_beds";
+const ROOM_TONE_PATH = "room_tone.extract_bed";
+/** A switch on one of these also turns its gating setting on or off. */
+const GATED_STEPS: ReadonlyMap<string, string> = new Map([
+  [SOUND_SCAN_STEP, SOUND_SCAN_PATH],
+  [ROOM_TONE_STEP, ROOM_TONE_PATH],
 ]);
 
 const SECONDS = ["second", "seconds"] as const;
@@ -101,6 +111,13 @@ const ADVANCED_DEFS: readonly GroupDef[] = [
     title: "Clean and level",
     steps: [
       {
+        id: ROOM_TONE_STEP,
+        name: "Cut a room-tone bed from each track's quiet stretch",
+        optional: true,
+        gate: ROOM_TONE_PATH,
+        params: [],
+      },
+      {
         id: "fill_gate_holes",
         name: "Fill gaps from the recorder's noise gate",
         optional: true,
@@ -146,6 +163,7 @@ const ADVANCED_DEFS: readonly GroupDef[] = [
         id: SOUND_SCAN_STEP,
         name: "Apply sound actions",
         optional: true,
+        gate: SOUND_SCAN_PATH,
         params: [],
       },
     ],
@@ -225,8 +243,7 @@ export function advancedGroups(
         optional: step.optional,
         enabled:
           cfg.enabled_steps.includes(step.id) &&
-          (step.id !== SOUND_SCAN_STEP ||
-            getByPath(cfg.config, SOUND_SCAN_PATH) === true),
+          (!step.gate || getByPath(cfg.config, step.gate) === true),
         params: step.params.map((param) => {
           const value = getByPath(cfg.config, param.path);
           const fallback = getByPath(cfg.defaults, param.path);
@@ -286,8 +303,9 @@ export function withStepSwitch(
   const patch: { enabled_steps: string[]; config?: Record<string, unknown> } = {
     enabled_steps: [...set],
   };
-  if (stepId === SOUND_SCAN_STEP) {
-    patch.config = setByPath(current.config, SOUND_SCAN_PATH, enabled);
+  const gate = GATED_STEPS.get(stepId);
+  if (gate) {
+    patch.config = setByPath(current.config, gate, enabled);
   }
   if (TIGHTEN_STEPS.has(stepId)) {
     patch.config = setByPath(
