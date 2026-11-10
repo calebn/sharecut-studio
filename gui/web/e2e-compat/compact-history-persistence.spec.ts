@@ -35,6 +35,15 @@ for (const name of ["portrait", "landscape"] as const) {
             document.documentElement.style.fontSize = `${px}px`;
           }, rootPx);
           await page.waitForTimeout(400);
+          const takeover = page.locator(".sys-inspector-takeover");
+          if (await takeover.isVisible()) {
+            // Too short for any sheet at this text size: the Inspector takes
+            // the screen and has no height grip to persist.
+            await expect(
+              takeover.getByRole("button", { name: "Done" }),
+            ).toBeVisible();
+            return;
+          }
           const grip = page.getByRole("slider", { name: "Sheet height" });
           for (const key of ["End", "Home"]) {
             await grip.focus();

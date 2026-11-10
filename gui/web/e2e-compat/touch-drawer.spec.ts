@@ -721,17 +721,28 @@ test("a pending edit's review card tops the sheet and its Approve and Reject sta
       const card = page.locator(".pending-actionbar");
       await expect(card.getByRole("button", { name: "Approve" })).toBeVisible();
       // Half does not fit a phone held sideways, nor 32 px text: full-only.
-      const fullOnly = size === "landscape-636" || rootFont === 32;
-      await expect(sheet(page)).toHaveAttribute(
-        "data-detent",
-        fullOnly ? "full" : "half",
-      );
-      await expect(
-        sheet(page).getByRole("button", { name: "Close" }),
-      ).toBeVisible();
-      await expect(
-        sheet(page).getByRole("spinbutton", { name: "Source start" }),
-      ).toBeAttached();
+      // Sideways at 32 px even the full sheet is under 8.75 rem: the Inspector
+      // takes the whole screen as a dialog with a Done button.
+      const takeover = size === "landscape-636" && rootFont === 32;
+      if (takeover) {
+        const dialog = page.locator(".sys-inspector-takeover");
+        await expect(dialog).toBeVisible();
+        await expect(
+          dialog.getByRole("button", { name: "Done" }),
+        ).toBeVisible();
+      } else {
+        const fullOnly = size === "landscape-636" || rootFont === 32;
+        await expect(sheet(page)).toHaveAttribute(
+          "data-detent",
+          fullOnly ? "full" : "half",
+        );
+        await expect(
+          sheet(page).getByRole("button", { name: "Close" }),
+        ).toBeVisible();
+        await expect(
+          sheet(page).getByRole("spinbutton", { name: "Source start" }),
+        ).toBeAttached();
+      }
       await page.waitForTimeout(700);
       await frame(
         page,
