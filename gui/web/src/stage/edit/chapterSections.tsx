@@ -40,7 +40,6 @@ export function useChapterSections(
   };
 
   const commitTitle = (text: string) => {
-    if (busy) return;
     const next = text.trim();
     if (next === title) return;
     if (!next) {
@@ -62,6 +61,7 @@ export function useChapterSections(
               label="Title"
               value={title}
               onCommit={commitTitle}
+              readOnly={busy}
               className="inspector-text-field"
             />
           ) : (
