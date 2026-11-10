@@ -741,6 +741,57 @@ describe("clip join rows", () => {
     ).toBeDisabled();
   });
 
+  it("disables the join controls while a clip save is running", async () => {
+    let finish: (value: { undo: null }) => void = () => {};
+    vi.mocked(saveClipEdge).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    open([clip, second], {}, second);
+    await key("Source start", "ArrowUp");
+    expect(
+      group("Start join").getByRole("button", { name: "Hard edge" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("spinbutton", { name: "Start join length" }),
+    ).toHaveAttribute("aria-readonly", "true");
+    await act(async () => finish({ undo: null }));
+  });
+
+  it("disables Ripple delete and the auto reduction button while a join saves", () => {
+    open([clip, second], {}, second);
+    act(() => useDawStore.setState({ joinMutationInFlight: true }));
+    expect(
+      screen.getByRole("button", { name: "Ripple delete" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Inspect automatic audio reduction" }),
+    ).toBeDisabled();
+  });
+
+  it("clears a join refusal when the clip's own fade changes", async () => {
+    vi.mocked(rollSeam).mockResolvedValueOnce({
+      status: "failed",
+      message: "The seam moved before the roll saved. Nothing changed.",
+    });
+    open([clip, second], {}, second);
+    await type("Start join offset", "5");
+    expect(screen.getByText(/The seam moved/)).toBeVisible();
+    act(() => {
+      const lane = [clip, { ...second, fade_in_ms: 40 }];
+      useDawStore.getState().hydrate(
+        "/tmp/ep.json",
+        minimalProject({
+          tracks: [sampleTrack({ id: "host", speaker: "Mira" })],
+          clips: { tracks: { host: lane }, clip_count: 2 },
+          edit_boundaries: editBoundaries(lane),
+        }),
+      );
+    });
+    expect(screen.queryByText(/The seam moved/)).toBeNull();
+  });
+
   it("shows a refused join type in the sheet", async () => {
     vi.mocked(setClipJoin).mockRejectedValueOnce(new Error("Join refused"));
     open([clip, second], {}, second);

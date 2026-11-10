@@ -85,7 +85,7 @@ const rowId = (f: SeamJoinFields, id: string) =>
 export function useSeamJoinFields(
   seamId: string | null,
   scope: SeamJoinScope | null = null,
-  host?: { busy: boolean; onEdit: () => void },
+  host?: { busy: boolean; onEdit: () => void; resetKey: string },
 ): SeamJoinFields | null {
   const {
     project,
@@ -126,6 +126,11 @@ export function useSeamJoinFields(
       if (live.joinDraft?.id === rightId) live.setJoinDraft(null);
     };
   }, [seamId, rightId]);
+
+  const resetKey = host?.resetKey;
+  useEffect(() => {
+    setError(null);
+  }, [resetKey]);
 
   const seamKey = seam?.id;
   const leftEnd = seam?.left.source_end;
