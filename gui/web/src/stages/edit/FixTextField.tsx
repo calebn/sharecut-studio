@@ -43,7 +43,8 @@ type FixTextFieldProps = {
   validate?: (text: string) => string | undefined;
   /**
    * Leaving the field commits, as the stage rules say (design-system 1.4). Off,
-   * leaving cancels: a rename inside a popover applies on Enter only.
+   * leaving cancels: a rename inside a popover applies on Enter only, and Tab
+   * moves focus on like any leave instead of committing.
    */
   commitOnBlur?: boolean;
   /** Typing to start from instead of `value`, for a field that was remounted. */
@@ -167,7 +168,7 @@ export function FixTextField({
       event.preventDefault();
       event.stopPropagation();
       void finish("escape");
-    } else if (event.key === "Tab" && !event.shiftKey) {
+    } else if (event.key === "Tab" && !event.shiftKey && commitOnBlur) {
       event.preventDefault();
       void finish("tab");
     }
