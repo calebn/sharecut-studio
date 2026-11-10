@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
 import type { DiagnosticsBundleResult } from "../api";
 import type { HelpStep } from "../state/types";
-import { SystemIcon } from "../system/SystemIcon";
 import type { SystemIconName } from "../system/icons";
+import { SystemIcon } from "../system/SystemIcon";
 import { Button, Dialog, InlineError } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
 

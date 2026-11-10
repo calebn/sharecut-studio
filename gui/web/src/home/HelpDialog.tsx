@@ -6,8 +6,8 @@ import {
   fetchDiagnosticsReportStatus,
   submitDiagnosticsReport,
 } from "../api";
-import { errorMessage } from "../utils/apiError";
 import type { HelpStep } from "../state/types";
+import { errorMessage } from "../utils/apiError";
 import { HelpDialogView } from "./HelpDialogView";
 
 type Props = {
