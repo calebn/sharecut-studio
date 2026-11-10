@@ -3,16 +3,21 @@ import { joinModeOf } from "../utils/editMarkerRegistry";
 import { appliedJoinLength } from "./joinRender";
 import type { Seam } from "./seam";
 
-export type JoinTypeOption = {
+export const JOIN_TYPE_OPTIONS = [
+  { value: "cut", label: "Hard edge", icon: "minus" },
+  { value: "fade", label: "Fade", icon: "fade" },
+  { value: "crossfade", label: "Crossfade", icon: "crossfade" },
+] as const satisfies readonly {
   value: JoinMode;
   label: string;
-};
+  icon: string;
+}[];
 
-export const JOIN_TYPE_OPTIONS: readonly JoinTypeOption[] = [
-  { value: "cut", label: "Hard edge" },
-  { value: "fade", label: "Fade" },
-  { value: "crossfade", label: "Crossfade" },
-];
+export type JoinTypeOption = (typeof JOIN_TYPE_OPTIONS)[number];
+
+export const JOIN_MODES: readonly JoinMode[] = JOIN_TYPE_OPTIONS.map(
+  (option) => option.value,
+);
 
 export function joinTypeLabel(mode: JoinMode): string {
   return JOIN_TYPE_OPTIONS.find((option) => option.value === mode)?.label ?? "";

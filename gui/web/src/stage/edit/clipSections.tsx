@@ -42,7 +42,7 @@ function joinRows(fields: SeamJoinFields | null) {
   return [
     ...joinTypeRows(fields),
     ...joinLengthRows(fields),
-    ...(fields.interval ? joinOffsetRows(fields) : []),
+    ...joinOffsetRows(fields),
   ];
 }
 

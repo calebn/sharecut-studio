@@ -16,6 +16,7 @@ import {
 import { note } from "./sheetNote";
 import { AB_CLAMPED_REASON, useSeamAudition } from "./useSeamAudition";
 
+const NOT_TOUCHING_NOTE = "The clips do not touch";
 const AB_GUEST_REASON = "A/B needs the host app";
 const AB_UNROLLED_REASON = "Roll the seam to compare";
 const AB_BUSY_REASON = "A/B is ready once the roll saves";
@@ -67,6 +68,9 @@ export function useSeamSections(
         ...(appliedBy ? [{ id: "appliedBy", control: note(appliedBy) }] : []),
         ...joinLengthRows(fields),
         ...joinOffsetRows(fields),
+        ...(interval
+          ? []
+          : [{ id: "offsetNote", control: note(NOT_TOUCHING_NOTE) }]),
         ...(interval
           ? [
               {
