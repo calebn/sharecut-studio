@@ -1,4 +1,4 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { loadTranscriptVocabulary, startPipelineRun } from "../../api";
@@ -135,6 +135,42 @@ describe("Run again from here and the audio an ok job covers", () => {
     expect(start.mock.calls[0][1]).toMatchObject({
       fromStep: "align_tracks",
       forceTranscribe: false,
+    });
+  });
+
+  describe("while only an activity job holds the slot", () => {
+    async function pressWhileBusy(step: string) {
+      useDawStore.setState({
+        project: proj([A, B], ["a"]),
+        activityJob: pipelineJobSnapshot({ id: "j-busy", status: "running" }),
+        statusAnnouncement: undefined,
+      });
+      const v = renderHook(() => usePrepareModel(), { wrapper });
+      await act(async () => {
+        v.result.current.advanced.props.onRunFromHere(step);
+      });
+      return v;
+    }
+
+    it("announces Transcribe and drops it, so the slot freeing starts nothing", async () => {
+      await pressWhileBusy("transcribe_tracks");
+      expect(start).not.toHaveBeenCalled();
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "Another job is running. Try again when it finishes.",
+      );
+      await act(async () => useDawStore.setState({ activityJob: null }));
+      expect(start).not.toHaveBeenCalled();
+    });
+
+    it("queues any other step and starts it when the slot frees", async () => {
+      await pressWhileBusy("align_tracks");
+      expect(start).not.toHaveBeenCalled();
+      expect(useDawStore.getState().statusAnnouncement).toBeUndefined();
+      await act(async () => useDawStore.setState({ activityJob: null }));
+      await waitFor(() => expect(start).toHaveBeenCalledTimes(1));
+      expect(start.mock.calls[0][1]).toMatchObject({
+        fromStep: "align_tracks",
+      });
     });
   });
 });

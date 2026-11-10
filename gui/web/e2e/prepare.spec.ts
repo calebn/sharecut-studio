@@ -64,7 +64,8 @@ test("Prepare: audio added next to transcribed tracks waits for Process new audi
         return;
       }
       posts += 1;
-      body = route.request().postDataJSON();
+      // The refused run is retried while waiting; only the first post is the click's own request.
+      body ??= route.request().postDataJSON();
       await route.fulfill({
         status: 409,
         headers: { "X-Sharecut-Error-Code": "pipeline_busy" },
