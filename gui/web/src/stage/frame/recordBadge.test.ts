@@ -45,6 +45,7 @@ const source = {
   receivedAtMs: 40,
   dropped: false,
   away: true,
+  mutedSpeech: false,
 } as const;
 
 describe("recordBadge", () => {
@@ -197,6 +198,18 @@ describe("recordBadge", () => {
     expect(
       recordBadge(roomOf({ participants: [guest("a")] }, failing), source),
     ).toEqual({ kind: "alert" });
+  });
+
+  it("dots the badge for muted speech, not for a mute alone", () => {
+    const room = roomOf(
+      { state: "recording" },
+      { host: guest("p_host", { role: "host", muted: true }) },
+    );
+    expect(recordBadge(room, source)).toMatchObject({ alert: false });
+    expect(recordBadge(room, { ...source, mutedSpeech: true })).toMatchObject({
+      kind: "live",
+      alert: true,
+    });
   });
 
   it("leaves alerts to the Record stage while on it", () => {

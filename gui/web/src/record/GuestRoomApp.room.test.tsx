@@ -13,6 +13,14 @@ vi.mock("./useGuestRoom", () => ({
   useGuestRoom: () => current.room,
 }));
 
+const speech = vi.hoisted(() => ({ heard: false, calls: [] as unknown[][] }));
+vi.mock("./useMutedSpeech", () => ({
+  useMutedSpeech: (...args: unknown[]) => {
+    speech.calls.push(args);
+    return speech.heard;
+  },
+}));
+
 const me = recordParticipant({ participant_id: "p_g", display_name: "Ava" });
 const host = recordParticipant({
   participant_id: "p_host",
@@ -143,6 +151,8 @@ const leave = () => screen.getByRole("button", { name: "Leave room" });
 
 describe("GuestRoomApp in the room", () => {
   beforeEach(() => {
+    speech.heard = false;
+    speech.calls = [];
     current.room = null;
   });
 
@@ -351,6 +361,30 @@ describe("GuestRoomApp in the room", () => {
     rerender(<GuestRoomApp token="t" />);
     expect(spoken(container)).toContain("Take 1 segment 2: Saved to project");
     await expectNoA11yViolations(container);
+  });
+
+  it("shows You're muted only once muted speech is heard", () => {
+    const stream = {} as MediaStream;
+    const muted = { ...me, muted: true };
+    fakeRoom({ me: muted, mic: { stream } });
+    const { rerender } = render(<GuestRoomApp token="t" />);
+    expect(screen.queryByText("You're muted.")).toBeNull();
+    expect(speech.calls.at(-1)).toEqual([
+      stream,
+      { muted: true, counting: true },
+    ]);
+    speech.heard = true;
+    rerender(<GuestRoomApp token="t" />);
+    expect(screen.getByText("You're muted.")).toBeVisible();
+  });
+
+  it("gives a producer no mic to listen to", () => {
+    fakeRoom({ producer: true, me: { ...me, role: "producer", muted: true } });
+    render(<GuestRoomApp token="t" />);
+    expect(speech.calls.at(-1)).toEqual([
+      null,
+      { muted: false, counting: true },
+    ]);
   });
 
   it("badges the guest's own tile on the first clip and alerts only after the third within 30 s", () => {
