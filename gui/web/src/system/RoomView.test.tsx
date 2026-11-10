@@ -785,10 +785,11 @@ describe("RoomView as the host", () => {
       expect(
         container.querySelectorAll(".sys-room-tile--skeleton"),
       ).toHaveLength(4);
-      expect(screen.getByText("Joining the room…")).toHaveAttribute(
-        "role",
-        "status",
-      );
+      expect(screen.getByText("Joining the room…")).not.toHaveAttribute("role");
+      expect(
+        screen.getByText("Joining the room…").closest("[aria-busy]"),
+      ).not.toBeNull();
+      expect(screen.getAllByRole("status")).toHaveLength(1);
       expect(
         screen.getByRole("heading", { level: 1, name: "Episode 14" }),
       ).toBeInTheDocument();
@@ -797,6 +798,14 @@ describe("RoomView as the host", () => {
       expect(container.querySelector(".sys-room-view-rail")).toBeNull();
       expect(container.querySelector(".sys-room-view-peek")).toBeNull();
       expect(screen.queryByText(/Looking for|Loading studio/)).toBeNull();
+    });
+
+    it("focuses the title only when asked", () => {
+      const { unmount } = renderRoom({ loading: true, people: [] });
+      expect(document.body).toHaveFocus();
+      unmount();
+      renderRoom({ loading: true, people: [], focusTitle: true });
+      expect(screen.getByRole("heading", { level: 1 })).toHaveFocus();
     });
 
     it("keeps the dock inert and opens no sheet", () => {
@@ -825,8 +834,8 @@ describe("RoomView as the host", () => {
       expect(
         screen.getByRole("button", { name: "Retry" }).closest("[aria-busy]"),
       ).toBeNull();
-      // The alert supersedes the join line: one status region, not two.
       expect(screen.queryByText("Joining the room…")).toBeNull();
+      expect(screen.getAllByRole("status")).toHaveLength(1);
       await user.click(screen.getByRole("button", { name: "Retry" }));
       expect(onAction).toHaveBeenCalledOnce();
     });

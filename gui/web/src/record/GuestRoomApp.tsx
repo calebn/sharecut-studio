@@ -76,6 +76,7 @@ export function GuestRoomApp({ token }: { token: string }) {
     <GuestRoomSession
       key={attempt}
       token={token}
+      retried={attempt > 0}
       onRetry={() => setAttempt((n) => n + 1)}
     />
   );
@@ -83,9 +84,11 @@ export function GuestRoomApp({ token }: { token: string }) {
 
 function GuestRoomSession({
   token,
+  retried,
   onRetry,
 }: {
   token: string;
+  retried: boolean;
   onRetry: () => void;
 }) {
   const [rejoinOpen, setRejoinOpen] = useState(false);
@@ -350,6 +353,7 @@ function GuestRoomSession({
     return (
       <RoomView
         loading
+        focusTitle={retried}
         page
         seat="guest"
         title="Recording"
