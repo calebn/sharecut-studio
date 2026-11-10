@@ -47,17 +47,9 @@ export function navigableHits(
   cutKeys: ReadonlySet<string>,
 ) {
   const { refs } = host.model;
-  return cuttableHits(host, words, cutKeys).filter((hit) => {
-    const first = refs[hit.indices[0]];
-    return hit.indices.every((index) => {
-      const ref = refs[index];
-      return (
-        ref.wordIndex != null &&
-        ref.trackId === first.trackId &&
-        ref.sourceId === first.sourceId
-      );
-    });
-  });
+  return cuttableHits(host, words, cutKeys).filter((hit) =>
+    hit.indices.every((index) => refs[index].wordIndex != null),
+  );
 }
 
 function cutAllAction(

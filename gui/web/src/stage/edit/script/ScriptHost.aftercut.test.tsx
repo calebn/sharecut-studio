@@ -417,6 +417,18 @@ describe("Tab after a words cut", () => {
     other.remove();
   });
 
+  it("keeps Tab ours on a seam pill in the Script", async () => {
+    await startCut();
+    cutAway([0, 1], "h1");
+    const pill = document.createElement("button");
+    pill.className = "sys-seam-hit";
+    document.querySelector(".sys-script-body")!.append(pill);
+    pill.focus();
+    expect(tab().defaultPrevented).toBe(true);
+    expect(selected()).not.toBeNull();
+    pill.remove();
+  });
+
   it("carries earlier cuts across a chain so Tab never comes back to them", async () => {
     const user = await startCut();
     expect(tab().defaultPrevented).toBe(true);

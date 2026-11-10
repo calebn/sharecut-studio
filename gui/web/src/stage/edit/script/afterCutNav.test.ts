@@ -137,4 +137,37 @@ describe("after-cut navigation", () => {
       ),
     ).toBeNull();
   });
+
+  it("leaves out a hit that has a word without an index and never joins words of two sources", () => {
+    const spanning = minimalProject({
+      tracks: [
+        sampleTrack({ id: "host", speaker: "Maya" }),
+        sampleTrack({ id: "guest", speaker: "Anneke" }),
+      ],
+      transcript: {
+        utterances: [
+          scriptUtterance("host", "Maya", [
+            scriptWord("so", 0, 10),
+            scriptWord("you", 1, 10.5),
+          ]),
+          scriptUtterance(
+            "host",
+            "Maya",
+            [scriptWord("know", 2, 11), scriptWord("you", 3, 12)],
+            { source_id: "other" },
+          ),
+          scriptUtterance("host", "Maya", [
+            scriptWord("know", undefined as never, 12.5),
+          ]),
+          scriptUtterance("guest", "Anneke", [
+            scriptWord("you", 0, 20),
+            scriptWord("know", 1, 20.5),
+          ]),
+        ],
+      },
+    });
+    const pick = afterCutPick(spanning, cut({ cutKeys: ["host::9"] }), "next");
+    expect(pick?.at).toEqual(at("guest", 0));
+    expect([pick?.ordinal, pick?.total]).toEqual([1, 1]);
+  });
 });
