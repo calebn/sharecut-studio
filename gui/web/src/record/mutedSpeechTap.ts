@@ -1,3 +1,5 @@
+import { linearToDb } from "../utils/audio";
+
 export type MutedSpeechTap = {
   /** Block RMS in dBFS, or null once disposed. */
   readDb: () => number | null;
@@ -42,7 +44,7 @@ export function createMutedSpeechTap(
         let sum = 0;
         for (const sample of samples) sum += sample * sample;
         const rms = Math.sqrt(sum / samples.length);
-        return rms > 0 ? Math.max(FLOOR_DB, 20 * Math.log10(rms)) : FLOOR_DB;
+        return Math.max(FLOOR_DB, linearToDb(rms));
       },
       dispose: () => {
         if (disposed) return;
