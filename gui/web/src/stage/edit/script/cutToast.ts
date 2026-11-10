@@ -41,6 +41,25 @@ export function cuttableHits(
   );
 }
 
+export function navigableHits(
+  host: ScriptHostModel,
+  words: string,
+  cutKeys: ReadonlySet<string>,
+) {
+  const { refs } = host.model;
+  return cuttableHits(host, words, cutKeys).filter((hit) => {
+    const first = refs[hit.indices[0]];
+    return hit.indices.every((index) => {
+      const ref = refs[index];
+      return (
+        ref.wordIndex != null &&
+        ref.trackId === first.trackId &&
+        ref.sourceId === first.sourceId
+      );
+    });
+  });
+}
+
 function cutAllAction(
   words: string,
   epoch: number,
@@ -97,11 +116,19 @@ function buildCutToast(
   }
   const words = cutTexts.join(" ");
   if (words === "") return null;
+  const previous = useDawStore.getState().afterCut;
+  const base = project.history?.head_id ?? null;
+  if (
+    previous &&
+    previous.epoch === epoch &&
+    (base === previous.head || base === previous.baseHead)
+  )
+    for (const key of previous.cutKeys) cutKeys.add(key);
   const seconds = target.intervals.reduce(
     (sum, span) => sum + span.end - span.start,
     0,
   );
-  const more = cuttableHits(hostModel, words, cutKeys).length;
+  const more = navigableHits(hostModel, words, cutKeys).length;
   const head = `Cut "${shortWords(words)}" · ${formatSeconds(seconds)}`;
   if (more === 0) return { message: head };
   return {

@@ -154,7 +154,7 @@ beforeEach(() => {
   registerCutToast();
   resetQueuedCutsForTests();
   resetFeedbackRepeatForTests();
-  useDawStore.setState({ feedbackToast: null });
+  useDawStore.setState({ feedbackToast: null, afterCut: null });
   vi.mocked(submitDocumentCommand).mockResolvedValue({
     type: "Applied",
     history_head_id: "h1",
@@ -178,7 +178,33 @@ describe("cut toast after a words cut", () => {
     expect(toast()?.message).toContain("2 more");
     select("host", 3, 4);
     await runRangeAction("cut");
+    expect(toast()?.message).toContain("1 more");
+  });
+
+  it("counts only the occurrences Tab can step to", async () => {
+    seed([
+      ...knows(),
+      scriptUtterance("guest", "Anneke", [
+        scriptWord("you", 2, 30),
+        scriptWord("know", 3, 30.5, { word_index: undefined }),
+      ]),
+    ]);
+    select("host", 0, 1);
+    await runRangeAction("cut");
     expect(toast()?.message).toContain("2 more");
+  });
+
+  it("carries the earlier cut of the same words into the next follow", async () => {
+    seed();
+    select("host", 0, 1);
+    await runRangeAction("cut");
+    useDawStore.setState({ selection: null });
+    select("host", 3, 4);
+    await runRangeAction("cut");
+    expect(useDawStore.getState().afterCut?.cutKeys).toEqual(
+      expect.arrayContaining(["host::0", "host::1", "host::3", "host::4"]),
+    );
+    expect(toast()?.message).toContain("1 more");
   });
 
   it("follows the words only while other occurrences are left", async () => {

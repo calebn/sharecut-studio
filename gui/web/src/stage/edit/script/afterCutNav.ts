@@ -4,7 +4,7 @@ import {
 } from "../../../commands/afterCutHost";
 import type { AfterCut, AfterCutDirection } from "../../../state/afterCutSlice";
 import type { ProjectView } from "../../../types/project";
-import { cuttableHits, shortWords } from "./cutToast";
+import { navigableHits, shortWords } from "./cutToast";
 import { scriptModelFor } from "./scriptHostModel";
 import { wordKey } from "./scriptModel";
 
@@ -14,22 +14,13 @@ function stopsOf(project: ProjectView, afterCut: AfterCut) {
   const host = scriptModelFor(project);
   const { refs } = host.model;
   const stops: Stop[] = [];
-  for (const hit of cuttableHits(
+  for (const hit of navigableHits(
     host,
     afterCut.words,
     new Set(afterCut.cutKeys),
   )) {
     const first = refs[hit.indices[0]];
     const last = refs[hit.indices[hit.indices.length - 1]];
-    const whole = hit.indices.every((index) => {
-      const ref = refs[index];
-      return (
-        ref.wordIndex != null &&
-        ref.trackId === first.trackId &&
-        ref.sourceId === first.sourceId
-      );
-    });
-    if (!whole) continue;
     stops.push({
       first: hit.indices[0],
       at: {

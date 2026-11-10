@@ -78,7 +78,9 @@ function editUnsaved(projectPath: string): boolean {
 
 function scriptBodyFocused(): boolean {
   const el = document.activeElement;
-  return el instanceof Element && el.closest(".sys-script-body") !== null;
+  if (!(el instanceof Element)) return false;
+  if (el.closest(".sys-script-word") !== null) return true;
+  return el.classList.contains("sys-script-body");
 }
 
 function sameWords(a: Selection, b: Selection): boolean {
@@ -95,7 +97,7 @@ function sameWords(a: Selection, b: Selection): boolean {
 
 function afterCutActive(s: DawStore, direction: AfterCutDirection): boolean {
   const cut = s.afterCut;
-  if (!cut || !s.project) return false;
+  if (!cut || !s.project || s.rangeBusy) return false;
   if (
     cut.epoch !== s.projectEpoch ||
     s.stage !== "edit" ||
