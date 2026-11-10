@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  type RefObject,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   createDiagnosticsBundle,
   type DiagnosticsBundleResult,
@@ -12,6 +18,7 @@ import { HelpDialogView } from "./HelpDialogView";
 
 type Props = {
   open: boolean;
+  anchorRef?: RefObject<HTMLElement | null>;
   onClose: () => void;
   initialStep?: HelpStep;
   onOpenShortcuts?: () => void;
@@ -20,6 +27,7 @@ type Props = {
 
 export function HelpDialog({
   open,
+  anchorRef,
   onClose,
   initialStep = "menu",
   onOpenShortcuts,
@@ -167,6 +175,7 @@ export function HelpDialog({
   return (
     <HelpDialogView
       open={open}
+      anchorRef={anchorRef}
       onClose={onClose}
       step={step}
       onStepChange={setStep}

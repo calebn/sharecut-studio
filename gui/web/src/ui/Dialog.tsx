@@ -27,6 +27,8 @@ type Props = {
   closeDisabled?: boolean;
   /** Actions pinned below the scrolling body, such as the primary action. */
   footer?: ReactNode;
+  /** A control before the title, such as Back on a pushed step. */
+  headerStart?: ReactNode;
   /**
    * A dialog about a spot the person must keep seeing (the join under the
    * timeline) stays a non-modal panel beside it on every shell, in the top
@@ -59,6 +61,7 @@ export function Dialog({
   initialFocusRef,
   closeDisabled = false,
   footer,
+  headerStart,
   anchor,
   panelId,
   descriptionId,
@@ -145,7 +148,14 @@ export function Dialog({
         aria-describedby={anchored ? descriptionId : undefined}
       >
         <div className="command-palette-header">
-          <h2 id={titleId}>{title}</h2>
+          {headerStart ? (
+            <div className="command-palette-heading">
+              {headerStart}
+              <h2 id={titleId}>{title}</h2>
+            </div>
+          ) : (
+            <h2 id={titleId}>{title}</h2>
+          )}
           <CloseButton
             ref={closeRef}
             onClick={(event) => {

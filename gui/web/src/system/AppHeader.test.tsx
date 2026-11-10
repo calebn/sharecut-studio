@@ -682,6 +682,26 @@ describe("AppHeader Project menu", () => {
     expect(onPalette).toHaveBeenCalledTimes(1);
   });
 
+  it("ends with Settings, Connect agent and Help, each reported by its row id", async () => {
+    const user = userEvent.setup();
+    const onMenuCommand = vi.fn();
+    render(<AppHeader title="Episode" onMenuCommand={onMenuCommand} />);
+    const trigger = screen.getByRole("button", { name: /Episode/ });
+    expect(trigger).toHaveAttribute("data-app-menu");
+    await user.click(trigger);
+    const rows = screen.getAllByRole("menuitem").map((row) => row.textContent);
+    expect(rows.slice(-3)).toEqual(["Settings", "Connect agent", "Help"]);
+    for (const [name, command] of [
+      ["Settings", "settings"],
+      ["Connect agent", "agent"],
+      ["Help", "help"],
+    ]) {
+      await user.click(screen.getByRole("menuitem", { name }));
+      expect(onMenuCommand).toHaveBeenLastCalledWith(command);
+      await user.click(trigger);
+    }
+  });
+
   it("has no Project menu on a shared link", () => {
     render(
       <AppHeader

@@ -92,7 +92,9 @@ describe("HelpDialog", () => {
     expect(await screen.findByText(/Saved to/)).toHaveTextContent(
       "sharecut-diagnostics-20260919T120000Z-ab12cd.zip",
     );
-    expect(screen.getByRole("status")).toHaveAttribute("aria-live", "polite");
+    expect(
+      screen.getByText(/Saved to/).closest('[role="status"]'),
+    ).toHaveAttribute("aria-live", "polite");
     expect(screen.getByText(/reveal the zip/i)).toBeInTheDocument();
     expect(screen.getByText("Preview what's included")).toBeInTheDocument();
     expect(screen.getByText("report.json")).toBeInTheDocument();
@@ -372,6 +374,30 @@ describe("HelpDialog fallback", () => {
     expect(screen.getByRole("button", { name: "Export" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("dialog", { name: "Help" })).toBeInTheDocument();
+  });
+
+  it("puts Back beside the report step's title and announces each step change", async () => {
+    const user = userEvent.setup();
+    render(<HelpDialog open onClose={() => undefined} />);
+    await waitForDialogFocus();
+    const announced = () =>
+      screen
+        .getAllByRole("status")
+        .map((region) => region.textContent)
+        .join("");
+    expect(announced()).toBe("");
+    expect(screen.queryByRole("button", { name: "Back" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: /Report a problem/ }));
+    const title = screen.getByRole("heading", { name: "Report a problem" });
+    const back = screen.getByRole("button", { name: "Back" });
+    expect(back.parentElement).toBe(title.parentElement);
+    expect(back.compareDocumentPosition(title)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(announced()).toBe("Report a problem");
+    await user.click(back);
+    expect(screen.getByRole("dialog", { name: "Help" })).toBeInTheDocument();
+    expect(announced()).toBe("Help");
   });
 
   it("reopens on the menu with no stale report step on the first commit", async () => {

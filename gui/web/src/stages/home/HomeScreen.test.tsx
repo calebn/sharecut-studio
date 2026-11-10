@@ -96,6 +96,14 @@ function render(ui: ReactElement, ready = true) {
   });
 }
 
+async function chooseAppMenuRow(
+  user: ReturnType<typeof userEvent.setup>,
+  name: string,
+) {
+  await user.click(screen.getByRole("button", { name: "ShareCut" }));
+  await user.click(screen.getByRole("menuitem", { name }));
+}
+
 describe("HomeScreen", () => {
   const assign = vi.fn();
 
@@ -1321,33 +1329,55 @@ describe("HomeScreen", () => {
       ).toHaveAttribute("aria-activedescendant", first.id);
     });
 
-    it("opens the Help sheet from the Help button with three rows and restores focus on close", async () => {
+    it("has no Help or More button: the wordmark is the app menu", async () => {
       const user = userEvent.setup();
-      const { container } = render(<HomeScreen />);
+      render(<HomeScreen />);
       await screen.findByRole("list", { name: "Recent episodes" });
-      const content = container.querySelector<HTMLElement>(
-        "[data-daw-app-chrome]",
-      );
-      const trigger = screen.getByRole("button", { name: /^Help$/ });
-      await user.click(trigger);
+      expect(screen.queryByRole("button", { name: /^Help/ })).toBeNull();
+      expect(screen.queryByRole("button", { name: "More" })).toBeNull();
+      await user.click(screen.getByRole("button", { name: "ShareCut" }));
+      expect(
+        within(screen.getByRole("menu", { name: "App menu" }))
+          .getAllByRole("menuitem")
+          .map((row) => row.textContent),
+      ).toEqual(["Settings", "Connect agent", "Help"]);
+    });
+
+    it("opens Models from the app menu's Settings row and Connect agent from its row", async () => {
+      const user = userEvent.setup();
+      render(<HomeScreen />);
+      await screen.findByRole("list", { name: "Recent episodes" });
+      await chooseAppMenuRow(user, "Settings");
+      expect(useDawStore.getState().chrome.modelsSheetOpen).toBe(true);
+      useDawStore.getState().setModelsSheetOpen(false);
+      await chooseAppMenuRow(user, "Connect agent");
+      expect(useDawStore.getState().chrome.hostMcpDialogOpen).toBe(true);
+      useDawStore.getState().setHostMcpDialogOpen(false);
+    });
+
+    it("opens the Help popover under the app menu with three rows and restores focus on close", async () => {
+      const user = userEvent.setup();
+      render(<HomeScreen />);
+      await screen.findByRole("list", { name: "Recent episodes" });
+      await chooseAppMenuRow(user, "Help");
       const sheet = await screen.findByRole("dialog", { name: "Help" });
+      expect(sheet).toHaveAttribute("aria-modal", "false");
       expect(
         within(within(sheet).getByRole("list", { name: "Help" }))
           .getAllByRole("button")
           .map((button) => button.textContent),
       ).toEqual(["Shortcuts and gestures", "Report a problem", "Guides"]);
-      expect(content?.inert).toBe(true);
       await user.keyboard("{Escape}");
-      expect(content?.inert).toBe(false);
-      expect(trigger).toHaveFocus();
+      expect(screen.queryByRole("dialog", { name: "Help" })).toBeNull();
+      expect(screen.getByRole("button", { name: "ShareCut" })).toHaveFocus();
     });
 
-    it("opens the palette from the Shortcuts and gestures row and returns focus to Help", async () => {
+    it("opens the palette from the Shortcuts and gestures row and returns focus to the app menu", async () => {
       const user = userEvent.setup();
       render(<HomeScreen />);
       await screen.findByRole("list", { name: "Recent episodes" });
-      const trigger = screen.getByRole("button", { name: /^Help$/ });
-      await user.click(trigger);
+      const trigger = screen.getByRole("button", { name: "ShareCut" });
+      await chooseAppMenuRow(user, "Help");
       await user.click(
         await screen.findByRole("button", { name: /Shortcuts and gestures/ }),
       );
@@ -1376,7 +1406,7 @@ describe("HomeScreen", () => {
       const user = userEvent.setup();
       render(<HomeScreen />);
       await screen.findByRole("list", { name: "Recent episodes" });
-      await user.click(screen.getByRole("button", { name: /^Help$/ }));
+      await chooseAppMenuRow(user, "Help");
       await user.click(
         await screen.findByRole("button", { name: /Report a problem/ }),
       );
@@ -1399,7 +1429,7 @@ describe("HomeScreen", () => {
       const open = vi.spyOn(window, "open").mockReturnValue(null);
       render(<HomeScreen />);
       await screen.findByRole("list", { name: "Recent episodes" });
-      await user.click(screen.getByRole("button", { name: /^Help$/ }));
+      await chooseAppMenuRow(user, "Help");
       await user.click(await screen.findByRole("button", { name: /Guides/ }));
       expect(open).toHaveBeenCalledWith(
         "https://docs.sharecut.studio/",

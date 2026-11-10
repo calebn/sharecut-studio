@@ -22,10 +22,9 @@ function setup(props: Partial<HomeViewProps> = {}) {
     onRetrySetup: vi.fn(),
     onDismissSetup: vi.fn(),
     onDismissHint: vi.fn(),
-    onHelp: vi.fn(),
-    onModels: vi.fn(),
-    onConnectAgent: vi.fn(),
     onSettings: vi.fn(),
+    onConnectAgent: vi.fn(),
+    onHelp: vi.fn(),
   };
   render(
     <HomeView
@@ -114,6 +113,24 @@ describe("HomeView", () => {
     await user.click(screen.getByRole("button", { name: "More about setup" }));
     await user.click(screen.getByRole("menuitem", { name: "Not now" }));
     expect(onDismissSetup).toHaveBeenCalledOnce();
+  });
+
+  it("folds Help and More into the wordmark's app menu", async () => {
+    const { user, onSettings, onConnectAgent, onHelp } = setup();
+    expect(screen.queryByRole("button", { name: /^Help/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "More" })).toBeNull();
+    const trigger = screen.getByRole("button", { name: "ShareCut" });
+    expect(trigger).toHaveAttribute("data-app-menu");
+    for (const [name, handler] of [
+      ["Settings", onSettings],
+      ["Connect agent", onConnectAgent],
+      ["Help", onHelp],
+    ] as const) {
+      await user.click(trigger);
+      await user.click(screen.getByRole("menuitem", { name }));
+      expect(handler).toHaveBeenCalledOnce();
+      expect(screen.queryByRole("menu")).toBeNull();
+    }
   });
 
   it("dismisses the install hint", async () => {

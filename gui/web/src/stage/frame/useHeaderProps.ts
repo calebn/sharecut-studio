@@ -18,12 +18,11 @@ import { useStageBarProps } from "./useStageBarProps";
 
 const reloadPage = () => window.location.reload();
 
-/** The Project menu rows the header reports, and the command each one runs. */
+/** The Project menu rows the header reports, and the command each one runs. Help opens its sheet at the three rows. */
 const MENU_COMMANDS: Record<string, string> = {
   projects: "project.home",
   settings: "models.open",
   agent: "mcp.connect",
-  help: "help.diagnosticsBundle",
 };
 
 /**
@@ -71,6 +70,10 @@ export function useHeaderProps(): Omit<
           },
         };
   const onMenuCommand = useCallback((command: string) => {
+    if (command === "help") {
+      useDawStore.getState().setHelpDialogOpen(true, "menu");
+      return;
+    }
     const id = MENU_COMMANDS[command];
     if (id) runPointerCommand(id);
   }, []);
