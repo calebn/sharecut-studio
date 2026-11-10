@@ -361,7 +361,7 @@ describe("guestRoomAlerts", () => {
     monitorError: null,
     transportError: null,
     clipping: false,
-    muted: false,
+    mutedSpeech: false,
   };
 
   it("is empty when nothing is wrong", () => {
@@ -400,7 +400,7 @@ describe("guestRoomAlerts", () => {
   it("adds host-offline for the guest's own dropped socket", () => {
     expect(
       guestRoomAlerts(
-        { ...source, dropped: true, muted: true },
+        { ...source, dropped: true, mutedSpeech: true },
         {},
         "Hana",
       ).map((alert) => alert.kind),

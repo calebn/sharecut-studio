@@ -17,7 +17,7 @@ export type RoomAlertSource = {
   transportError: string | null;
   hydrateError: string | null;
   clipping: boolean;
-  muted: boolean;
+  mutedSpeech: boolean;
   micCheckFailed?: boolean;
 };
 
@@ -72,7 +72,7 @@ export function roomAlerts(
   if (source.clipping && state === "recording") {
     alerts.push({ kind: "clipping" });
   }
-  if (source.muted && onAir) {
+  if (source.mutedSpeech && onAir) {
     alerts.push({ kind: "muted" });
   }
   const message = source.transportError ?? source.hydrateError;

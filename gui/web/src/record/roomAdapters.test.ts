@@ -253,11 +253,24 @@ describe("roomAlerts", () => {
     transportError: null,
     hydrateError: null,
     clipping: false,
-    muted: false,
+    mutedSpeech: false,
   };
 
   it("is empty when nothing is wrong", () => {
     expect(roomAlerts(quiet)).toEqual([]);
+  });
+
+  it("shows the muted alert only for muted speech while on air", () => {
+    expect(roomAlerts({ ...quiet, mutedSpeech: true })).toEqual([
+      { kind: "muted" },
+    ]);
+    expect(
+      roomAlerts({ ...quiet, state: "paused", mutedSpeech: true }),
+    ).toEqual([{ kind: "muted" }]);
+    expect(roomAlerts({ ...quiet, mutedSpeech: false })).toEqual([]);
+    expect(roomAlerts({ ...quiet, state: "lobby", mutedSpeech: true })).toEqual(
+      [],
+    );
   });
 
   it("reports mic loss and suppresses no audio under it", () => {
@@ -294,7 +307,7 @@ describe("roomAlerts", () => {
         recoverable: true,
         monitorError: "m",
         clipping: true,
-        muted: true,
+        mutedSpeech: true,
         transportError: "nope",
       },
       { recover: () => undefined },

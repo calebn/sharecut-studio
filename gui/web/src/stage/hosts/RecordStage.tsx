@@ -35,6 +35,7 @@ import {
   useHostRoomContext,
   useInputPeakDb,
   useLastEndedSession,
+  useMutedSpeech,
   useOpenSessionName,
   useRecordHostStore,
   useRoomToneAnnouncement,
@@ -358,6 +359,10 @@ function RecordStageBody({
     peerLevels,
     peerClipped,
   });
+  const mutedSpeech = useMutedSpeech(cap.stream ?? null, {
+    muted: host?.muted ?? false,
+    counting: state === "recording",
+  });
   const alerts = roomAlerts(
     {
       state,
@@ -371,7 +376,7 @@ function RecordStageBody({
       transportError: room.transportError,
       hydrateError: room.hydrateError,
       clipping: clippingGate(room.takeClipping?.regions ?? []),
-      muted: host?.muted ?? false,
+      mutedSpeech,
       micCheckFailed: cap.micCheckFailed,
     },
     {
