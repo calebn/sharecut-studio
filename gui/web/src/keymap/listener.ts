@@ -13,7 +13,12 @@ import {
   ignoresKeyRepeat,
   matchKeymapCommands,
 } from "./registry";
-import { isButtonActivation, isScrubValue, isTypingTarget } from "./typing";
+import {
+  isButtonActivation,
+  isChoiceControlArrow,
+  isScrubValue,
+  isTypingTarget,
+} from "./typing";
 
 /**
  * Sole window-level ShareCut Studio shortcut listener (governance choke-point).
@@ -26,7 +31,8 @@ import { isButtonActivation, isScrubValue, isTypingTarget } from "./typing";
  * Enter on its buttons) are left to the browser.
  *
  * A Scrub value (a `[role="spinbutton"]` span, `isScrubValue`) owns every key
- * but Escape while it has focus, as a text field does.
+ * but Escape while it has focus, as a text field does. A radio or a segment of
+ * a SegmentedControl owns the bare arrow keys (`isChoiceControlArrow`).
  *
  * When several keymap rows share a key (Backspace track or clip;
  * Escape follow or selection), try each match in the order
@@ -81,7 +87,8 @@ export function useDawKeymapListener(): void {
       if (
         isTypingTarget(e.target) ||
         (e.key !== "Escape" && isScrubValue(e.target)) ||
-        isButtonActivation(e)
+        isButtonActivation(e) ||
+        isChoiceControlArrow(e)
       ) {
         return;
       }
