@@ -94,6 +94,7 @@ from podcast_mcp.services.collaboration import (
     share_project_view,
     share_proxy_chunk_path,
     share_proxy_manifest,
+    share_review_peaks,
     share_set_action_done,
     share_upload_media,
 )
@@ -216,6 +217,29 @@ def get_review_audio(token: str):
         content_disposition_type="inline",
         headers={"Accept-Ranges": "bytes", "Cache-Control": "no-cache"},
     )
+
+
+@router.get("/api/review/{token}/peaks")
+def get_review_peaks(token: str) -> JSONResponse:
+    """Frozen review mix loudness envelope (``play``): 512 values 0..1, ``[]`` when unavailable.
+
+    Same ``audio`` rate class and slot as ``/audio``; the decode runs once per version.
+    """
+
+    try:
+        _check_token(token)
+        _rate_limit(token, "audio")
+        slot = _audio_slot(token)
+    except (HTTPException, GuardRefusal) as exc:
+        raise no_store_error(exc) from exc
+    try:
+        peaks = share_review_peaks(token)
+    except Exception as exc:
+        raise no_store_error(guest_http_error(exc, logger=log, operation="review peaks")) from exc
+    finally:
+        if slot is not None:
+            slot()
+    return JSONResponse(peaks, headers=NO_STORE)
 
 
 @router.get("/api/review/{token}/daw/project")
