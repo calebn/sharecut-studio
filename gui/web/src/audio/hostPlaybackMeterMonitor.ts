@@ -3,12 +3,16 @@ import { audioContextCtor } from "../utils/audio";
 import { createChannelPeakTap } from "./channelPeakTap";
 import { pcmWavHeader } from "./wavHeader";
 
-export type HostMeterTrack = {
+type HostMeterAsset = { url: string } & (
+  | { delivery: "native" }
+  | { delivery: "wav" | "probe"; readUrl: string }
+);
+
+export type HostMeterTrack = HostMeterAsset & {
   id: string;
-  url: string;
   gain: number;
   mediaSec: number | null;
-} & ({ delivery: "native" } | { delivery: "wav"; readUrl: string });
+};
 
 type HostMeterClock = { playbackRate: number };
 type ReaderTarget = {
@@ -89,8 +93,7 @@ type WavWindow = {
 };
 type WavEntry = {
   delivery: "wav";
-  url: string;
-  readUrl: string;
+  asset: HostMeterAsset & { delivery: "wav" | "probe" };
   abort: AbortController;
   state:
     | { kind: "opening" }
@@ -107,7 +110,7 @@ type WavEntry = {
     | { kind: "failed" };
 };
 type MonitorEntry =
-  | { delivery: "native"; url: string; reader: NativeReader }
+  | { delivery: "native"; asset: HostMeterAsset; reader: NativeReader }
   | WavEntry;
 
 const SILENCE = new Float32Array(2);
@@ -204,15 +207,26 @@ function fourcc(bytes: Uint8Array, offset = 0): string {
   return String.fromCharCode(...bytes.subarray(offset, offset + 4));
 }
 
-async function discoverWav(entry: WavEntry): Promise<PcmLayout> {
-  const prefix = await finiteRange(entry.url, 0, 12, entry.abort);
+function sameAsset(left: HostMeterAsset, right: HostMeterAsset): boolean {
+  return (
+    left.url === right.url &&
+    left.delivery === right.delivery &&
+    (left.delivery === "native" ||
+      (right.delivery !== "native" && left.readUrl === right.readUrl))
+  );
+}
+
+async function discoverWav(entry: WavEntry): Promise<PcmLayout | null> {
+  const unsupported = (): null => {
+    if (entry.asset.delivery !== "probe")
+      throw new Error("Unsupported meter format");
+    return null;
+  };
+  const prefix = await finiteRange(entry.asset.url, 0, 12, entry.abort);
+  if (fourcc(prefix.bytes) !== "RIFF" || fourcc(prefix.bytes, 8) !== "WAVE")
+    return unsupported();
   const riffEnd = new DataView(prefix.bytes.buffer).getUint32(4, true) + 8;
-  if (
-    fourcc(prefix.bytes) !== "RIFF" ||
-    fourcc(prefix.bytes, 8) !== "WAVE" ||
-    riffEnd < 12 ||
-    riffEnd > prefix.identity.total
-  )
+  if (riffEnd < 12 || riffEnd > prefix.identity.total)
     throw new Error("Invalid RIFF extent");
   let offset = 12;
   let format: {
@@ -222,7 +236,7 @@ async function discoverWav(entry: WavEntry): Promise<PcmLayout> {
   } | null = null;
   while (offset + 8 <= riffEnd) {
     const chunk = await finiteRange(
-      entry.readUrl,
+      entry.asset.readUrl,
       offset,
       8,
       entry.abort,
@@ -234,12 +248,12 @@ async function discoverWav(entry: WavEntry): Promise<PcmLayout> {
     if (next > riffEnd) throw new Error("Invalid WAV chunk extent");
     const id = fourcc(chunk.bytes);
     if (id === "fmt ") {
-      if (format || (size !== 16 && size !== 18))
-        throw new Error("Unsupported WAV format chunk");
+      if (format || size < 16 || size === 17)
+        throw new Error("Invalid WAV format chunk");
       const fmt = await finiteRange(
-        entry.readUrl,
+        entry.asset.readUrl,
         body,
-        size,
+        Math.min(size, 18),
         entry.abort,
         prefix.identity,
       );
@@ -250,6 +264,10 @@ async function discoverWav(entry: WavEntry): Promise<PcmLayout> {
       if (
         view.getUint16(0, true) !== 1 ||
         view.getUint16(14, true) !== 16 ||
+        (size !== 16 && size !== 18)
+      )
+        return unsupported();
+      if (
         channels === 0 ||
         sampleRate === 0 ||
         blockAlign !== channels * 2 ||
@@ -379,10 +397,8 @@ export function createHostPlaybackMeterMonitor(options: {
   ) => {
     if (disposed || !options.clock() || !isCurrent(id, entry)) return null;
     const track = tracks.find((item) => item.id === id);
-    return track?.delivery === entry.delivery &&
-      track.url === entry.url &&
-      (entry.delivery !== "wav" ||
-        (track.delivery === "wav" && track.readUrl === entry.readUrl)) &&
+    return track &&
+      sameAsset(track, entry.asset) &&
       (!eligible || (track.gain !== 0 && track.mediaSec !== null))
       ? track
       : null;
@@ -995,7 +1011,7 @@ export function createHostPlaybackMeterMonitor(options: {
       try {
         return (
           await finiteRange(
-            member.entry.readUrl,
+            member.entry.asset.readUrl,
             member.layout.dataOffset + first * member.layout.blockAlign,
             (end - first) * member.layout.blockAlign,
             abort,
@@ -1278,11 +1294,7 @@ export function createHostPlaybackMeterMonitor(options: {
         !track ||
         (entry.delivery === "native" &&
           entry.reader.state.kind === "released") ||
-        track.url !== entry.url ||
-        track.delivery !== entry.delivery ||
-        (entry.delivery === "wav" &&
-          track.delivery === "wav" &&
-          track.readUrl !== entry.readUrl)
+        !sameAsset(track, entry.asset)
       ) {
         release(entry);
         entries.delete(id);
@@ -1304,43 +1316,39 @@ export function createHostPlaybackMeterMonitor(options: {
       unavailable = true;
     }
   };
-  const createEntry = (track: HostMeterTrack): MonitorEntry | null => {
-    if (track.delivery === "native") {
-      const reader = createReader(() => {
-        const latest = currentTrack(track.id, entry, false);
-        const clock = options.clock();
-        if (!latest || !clock || entry.reader !== reader) return null;
-        if (
-          latest.gain === 0 ||
-          latest.mediaSec === null ||
-          latest.mediaSec < 0
-        )
-          return reader?.state.kind === "bound" ? "waiting" : null;
-        return {
-          localSec: latest.mediaSec,
-          gain: latest.gain,
-          playbackRate: clock.playbackRate,
-        };
-      }, "synchronized");
-      if (!reader) return null;
-      const entry: Extract<MonitorEntry, { delivery: "native" }> = {
-        delivery: "native",
-        url: track.url,
-        reader,
+  const createNativeEntry = (track: HostMeterTrack): MonitorEntry | null => {
+    const reader = createReader(() => {
+      const latest = currentTrack(track.id, entry, false);
+      const clock = options.clock();
+      if (!latest || !clock || entry.reader !== reader) return null;
+      if (latest.gain === 0 || latest.mediaSec === null || latest.mediaSec < 0)
+        return reader?.state.kind === "bound" ? "waiting" : null;
+      return {
+        localSec: latest.mediaSec,
+        gain: latest.gain,
+        playbackRate: clock.playbackRate,
       };
-      entries.set(track.id, entry);
-      try {
-        reader.media.src = track.url;
-      } catch {
-        unavailable = true;
-        releaseReader(reader, "failed");
-      }
-      return entry;
+    }, "synchronized");
+    if (!reader) return null;
+    const entry: Extract<MonitorEntry, { delivery: "native" }> = {
+      delivery: "native",
+      asset: track,
+      reader,
+    };
+    entries.set(track.id, entry);
+    try {
+      reader.media.src = track.url;
+    } catch {
+      unavailable = true;
+      releaseReader(reader, "failed");
     }
+    return entry;
+  };
+  const createEntry = (track: HostMeterTrack): MonitorEntry | null => {
+    if (track.delivery === "native") return createNativeEntry(track);
     const entry: WavEntry = {
       delivery: "wav",
-      url: track.url,
-      readUrl: track.readUrl,
+      asset: track,
       abort: new AbortController(),
       state: { kind: "opening" },
     };
@@ -1349,6 +1357,12 @@ export function createHostPlaybackMeterMonitor(options: {
       .then((layout) => {
         if (!currentTrack(track.id, entry) || entry.abort.signal.aborted) {
           retire(track.id, entry);
+          return;
+        }
+        if (layout === null) {
+          entry.abort.abort();
+          if (!createNativeEntry(track)) failWav(entry);
+          sync();
           return;
         }
         entry.state = {
@@ -1373,16 +1387,16 @@ export function createHostPlaybackMeterMonitor(options: {
         if (active) sync();
         return null;
       }
-      if (!active || snapshot.get(trackId)?.delivery === "wav") sync();
+      if (!active || snapshot.get(trackId)?.delivery !== "native") sync();
       const track = snapshot.get(trackId);
       if (!track) return null;
       if (track.gain === 0 || track.mediaSec === null) return SILENCE;
       if (unavailable || contextBarrier.closing) return null;
       try {
-        if (track.delivery === "wav")
+        if (track.delivery !== "native")
           for (const target of snapshot.values())
             if (
-              target.delivery === "wav" &&
+              target.delivery !== "native" &&
               target.gain !== 0 &&
               target.mediaSec !== null &&
               !entries.has(target.id)

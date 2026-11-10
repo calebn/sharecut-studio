@@ -1224,7 +1224,7 @@ describe("native playback progress before graph binding", () => {
 });
 
 let wavFixture = false;
-type WavTrack = HostMeterTrack & { delivery: "wav"; readUrl: string };
+type WavTrack = HostMeterTrack & { delivery: "wav" | "probe"; readUrl: string };
 type RangeCall = {
   url: string;
   start: number;
@@ -1293,7 +1293,11 @@ function literalPcm(rate: number, frames: number, values: number[]) {
   return bytes;
 }
 
-function setupWav(count = 1, bytes = wavBytes()) {
+function setupWav(
+  count = 1,
+  bytes = wavBytes(),
+  delivery: "wav" | "probe" = "wav",
+) {
   wavFixture = true;
   vi.stubGlobal("Blob", NodeBlob);
   vi.stubGlobal(
@@ -1357,9 +1361,15 @@ function setupWav(count = 1, bytes = wavBytes()) {
   let rate = 1;
   let tracks: WavTrack[] = Array.from({ length: count }, (_, voice) => ({
     id: `voice${voice}`,
-    url: `/stem/voice${voice}?rerender=true&hash=a`,
-    readUrl: `/stem/voice${voice}?hash=a`,
-    delivery: "wav",
+    url:
+      delivery === "probe"
+        ? `/raw/voice${voice}`
+        : `/stem/voice${voice}?rerender=true&hash=a`,
+    readUrl:
+      delivery === "probe"
+        ? `/raw/voice${voice}`
+        : `/stem/voice${voice}?hash=a`,
+    delivery,
     gain: 1,
     mediaSec: 12.25,
   }));
@@ -3000,3 +3010,179 @@ it.each([
     fixture.monitor.dispose();
   },
 );
+
+describe("raw format discovery", () => {
+  it.each([
+    "network",
+    "auth",
+    "full-body",
+    "etag",
+    "payload-etag",
+    "body",
+    "pcm",
+  ])(
+    "fails closed for raw %s without poisoning a healthy peer or retrying",
+    async (fault) => {
+      const fixture = setupWav(
+        2,
+        literalPcm(8000, 40 * 8000, [4096, -2048]),
+        "probe",
+      );
+      if (fault === "pcm")
+        new DataView(fixture.assets[0].buffer).setUint16(32, 1, true);
+      fixture.setResponder((call) => {
+        const valid = fixture.response(call);
+        if (!call.url.includes("voice0")) return valid;
+        if (fault === "network") return Promise.reject(new Error("network"));
+        if (fault === "auth") return new Response(null, { status: 403 });
+        if (fault === "full-body") return new Response(null, { status: 200 });
+        if (fault === "etag") valid.headers.delete("etag");
+        if (fault === "payload-etag" && call.start >= 44)
+          valid.headers.set("etag", '"changed"');
+        if (fault === "body")
+          return new Response(new Uint8Array(1), {
+            status: 206,
+            headers: valid.headers,
+          });
+        return valid;
+      });
+      await fixture.ready(["voice1"]);
+      expect(fixture.monitor.read("voice0")).toBeNull();
+      expect(fixture.monitor.read("voice1")).toEqual(
+        new Float32Array([1 / 32, -1 / 64]),
+      );
+      const count = fixture.calls.filter((call) =>
+        call.url.includes("voice0"),
+      ).length;
+      for (let i = 0; i < 3; i++) {
+        fixture.monitor.sync();
+        expect(fixture.monitor.read("voice0")).toBeNull();
+      }
+      expect(
+        fixture.calls.filter((call) => call.url.includes("voice0")),
+      ).toHaveLength(count);
+      expect(
+        FakeAudio.created.some((media) => media.src === "/raw/voice0"),
+      ).toBe(false);
+      fixture.monitor.dispose();
+      expect(fixture.blobs.size).toBe(0);
+    },
+  );
+
+  it("does not create a native fallback after a pending probe is disposed", async () => {
+    const bytes = literalPcm(8000, 64, [0]);
+    bytes.set(new TextEncoder().encode("fLaC"));
+    const fixture = setupWav(1, bytes, "probe");
+    let pending!: { call: RangeCall; resolve: (response: Response) => void };
+    fixture.setResponder(
+      (call) =>
+        new Promise<Response>((resolve) => {
+          pending = { call, resolve };
+        }),
+    );
+    fixture.monitor.read("voice0");
+    fixture.monitor.dispose();
+    expect(pending.call.signal.aborted).toBe(true);
+    pending.resolve(fixture.response(pending.call));
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(FakeAudio.created).toHaveLength(0);
+    expect(fixture.blobs.size).toBe(0);
+  });
+
+  it.each([8000, 48000])(
+    "reads literal raw PCM at separate source offsets with a %i Hz peer",
+    async (peerRate) => {
+      const guest = literalPcm(8000, 40 * 8000, [4096]);
+      const data = new DataView(guest.buffer);
+      for (let frame = 2 * 8000; frame < 4 * 8000; frame++)
+        data.setInt16(44 + frame * 2, 8192, true);
+      const fixture = setupWav(2, guest, "probe");
+      fixture.assets[1] = literalPcm(peerRate, 40 * peerRate, [4096, -2048]);
+      fixture.setTracks(
+        fixture.getTracks().map((track, index) => ({
+          ...track,
+          mediaSec: index ? 17.25 : 2.25,
+          gain: index ? 2 : 0.5,
+        })),
+      );
+      await fixture.ready();
+      expect(fixture.monitor.read("voice0")).toEqual(
+        new Float32Array([1 / 8, 0]),
+      );
+      expect(fixture.monitor.read("voice1")).toEqual(
+        new Float32Array([1 / 4, -1 / 8]),
+      );
+      expect(
+        [...localBytes.values()].map((bytes) =>
+          new DataView(bytes).getUint32(24, true),
+        ),
+      ).toContain(peerRate);
+      expect(
+        fixture.calls.every((call) => call.end - call.start + 1 <= 1048576),
+      ).toBe(true);
+      fixture.setTracks(
+        fixture.getTracks().map((track, index) => ({
+          ...track,
+          mediaSec: index ? 19.25 : 4.25,
+        })),
+      );
+      expect(fixture.monitor.read("voice0")).toBeNull();
+      await fixture.ready();
+      expect(fixture.monitor.read("voice0")).toEqual(
+        new Float32Array([1 / 16, 0]),
+      );
+      expect(fixture.monitor.read("voice1")).toEqual(
+        new Float32Array([1 / 4, -1 / 8]),
+      );
+      fixture.monitor.dispose();
+      expect(fixture.blobs.size).toBe(0);
+    },
+  );
+
+  it.each(["flac", "float-wav"])(
+    "keeps unsupported %s on native decoding without repeated probes",
+    async (format) => {
+      const bytes = literalPcm(8000, 64, [0, 0]);
+      if (format === "flac") bytes.set(new TextEncoder().encode("fLaC"));
+      else {
+        const view = new DataView(bytes.buffer);
+        view.setUint16(20, 3, true);
+        view.setUint16(22, 1, true);
+        view.setUint16(34, 32, true);
+      }
+      const fixture = setupWav(1, bytes, "probe");
+      fixture.setTracks(
+        fixture.getTracks().map((track) => ({ ...track, gain: 2 })),
+      );
+      expect(fixture.monitor.read("voice0")).toBeNull();
+      await vi.waitFor(() =>
+        expect(FakeAudio.created.map((media) => media.src)).toEqual([
+          "/raw/voice0",
+        ]),
+      );
+      const media = FakeAudio.created[0];
+      media.readyState = 2;
+      fixture.monitor.sync();
+      nativeProgress(media);
+      await Promise.resolve();
+      await Promise.resolve();
+      FakeContext.created[0].currentTime += 0.1;
+      expect(fixture.monitor.read("voice0")).toEqual(
+        new Float32Array([1, -0.5]),
+      );
+      const requests = fixture.calls.length;
+      for (let i = 0; i < 3; i++) {
+        fixture.monitor.sync();
+        expect(fixture.monitor.read("voice0")).toEqual(
+          new Float32Array([1, -0.5]),
+        );
+      }
+      expect(fixture.calls).toHaveLength(requests);
+      expect(FakeAudio.created).toHaveLength(1);
+      fixture.monitor.dispose();
+      expect(media.src).toBe("");
+    },
+  );
+});

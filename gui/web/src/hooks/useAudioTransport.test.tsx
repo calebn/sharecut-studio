@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { useLayoutEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as http from "../api/http";
 import { createHostPlaybackMeterMonitor } from "../audio/hostPlaybackMeterMonitor";
 import { playbackPositionSec } from "../audio/playbackClock";
 import { playbackMeterSource } from "../audio/playbackMeterSource";
@@ -94,6 +95,18 @@ describe("useAudioTransport project transitions", () => {
       const factory = vi.mocked(createHostPlaybackMeterMonitor);
       const original = factory.getMockImplementation()!;
       factory.mockImplementation(real.createHostPlaybackMeterMonitor);
+      const request = vi.spyOn(http, "apiSend").mockImplementation(async () => {
+        const bytes = new Uint8Array(12);
+        bytes.set(new TextEncoder().encode("fLaC"));
+        return new Response(bytes, {
+          status: 206,
+          headers: {
+            "content-range": "bytes 0-11/64",
+            "content-length": "12",
+            etag: '"raw"',
+          },
+        });
+      });
       const contexts: MeterContext[] = [];
       class MeterContext extends EventTarget {
         state = "running";
@@ -168,7 +181,13 @@ describe("useAudioTransport project transitions", () => {
         act(() => frame?.(0));
       };
       const prime = async () => {
+        const count = FakeAudio.instances.length;
         expect(playbackMeterSource()?.read("host")).toBeNull();
+        await act(async () => {
+          await vi.waitFor(() =>
+            expect(FakeAudio.instances.length).toBeGreaterThan(count),
+          );
+        });
         const meter = FakeAudio.instances.at(-1)!;
         meter.readyState = 4;
         act(() => frame?.(16));
@@ -238,6 +257,7 @@ describe("useAudioTransport project transitions", () => {
         for (const context of contexts) context.finishClose?.();
         await act(async () => {});
         factory.mockImplementation(original);
+        request.mockRestore();
       }
     },
   );
@@ -797,7 +817,7 @@ describe("useAudioTransport meter URL identity", () => {
     unmount();
   });
 
-  it("uses stable fresh-stem reads and retains raw media on the native path", () => {
+  it("uses stable fresh-stem reads and probes raw media without changing its URL", () => {
     useDawStore.getState().setProject(
       mixProject([sampleTrack()], true, {
         renderHash: { host: "render-18" },
@@ -823,7 +843,8 @@ describe("useAudioTransport meter URL identity", () => {
     expect(rawTrack).toEqual({
       id: "host",
       url: "/api/audio?path=%2Ftmp%2Fissue3411.json&kind=raw&track_id=host",
-      delivery: "native",
+      readUrl: "/api/audio?path=%2Ftmp%2Fissue3411.json&kind=raw&track_id=host",
+      delivery: "probe",
       gain: 1,
       mediaSec: 0,
     });
