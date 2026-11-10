@@ -40,7 +40,6 @@ type FindReplaceProps = {
    * Left out, the bar offers Replace all only.
    */
   onReplace?: () => void | Promise<void>;
-  /** Why Replace waits on the current hit while Replace all can still go. */
   oneReason?: string;
   /**
    * Replace every hit as one undo step. Returns how many were replaced, which
