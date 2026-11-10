@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  createEvent,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
@@ -96,18 +102,23 @@ const at = (clientY: number, pointerId = 1) => ({
   clientY,
 });
 
-const time = { ms: 0 };
-
-/** The sheet reads its flick speed from performance.now; the tests set it before each move. */
-function clock() {
-  time.ms = 0;
-  vi.spyOn(performance, "now").mockImplementation(() => time.ms);
+/** The sheet reads its flick speed from the events' own timeStamp; the tests set it on each one. */
+function pointerAt(
+  kind: "pointerMove" | "pointerUp",
+  clientY: number,
+  ms: number,
+  pointerId = 1,
+) {
+  const event = createEvent[kind](grip(), at(clientY, pointerId));
+  Object.defineProperty(event, "timeStamp", { value: ms });
+  fireEvent(grip(), event);
 }
 
-function moveTo(clientY: number, ms: number, pointerId = 1) {
-  time.ms = ms;
-  fireEvent.pointerMove(grip(), at(clientY, pointerId));
-}
+const moveTo = (clientY: number, ms: number, pointerId = 1) =>
+  pointerAt("pointerMove", clientY, ms, pointerId);
+
+const releaseAt = (clientY: number, ms: number, pointerId = 1) =>
+  pointerAt("pointerUp", clientY, ms, pointerId);
 
 const height = (sheet: HTMLElement) =>
   sheet.style.getPropertyValue("--sys-inspector-h");
@@ -414,7 +425,6 @@ describe("InspectorSheet phone", () => {
   });
 
   it("follows the finger and settles on the nearest detent when it is let go", () => {
-    clock();
     const { onDetentChange, onDismiss, sheet } = phone();
     fireEvent.pointerDown(grip(), at(700));
     moveTo(692, 0);
@@ -424,26 +434,24 @@ describe("InspectorSheet phone", () => {
     expect(height(sheet)).toBe("264px");
     moveTo(356, 200);
     expect(height(sheet)).toBe("400px");
-    fireEvent.pointerUp(grip(), at(356));
+    releaseAt(356, 200);
     expect(sheet).not.toHaveAttribute("data-dragging");
     expect(onDetentChange.mock.calls).toEqual([["half"]]);
     expect(onDismiss).not.toHaveBeenCalled();
   });
 
   it("stops at full and settles there after a flick", () => {
-    clock();
     const { onDetentChange, sheet } = phone({ detent: "half" });
     fireEvent.pointerDown(grip(), at(500));
     moveTo(492, 0);
     moveTo(450, 100);
     moveTo(-900, 110);
     expect(height(sheet)).toBe("736px");
-    fireEvent.pointerUp(grip(), at(-900));
+    releaseAt(-900, 110);
     expect(onDetentChange.mock.calls).toEqual([["full"]]);
   });
 
   it("dismisses when let go more than 24 px below the dock", () => {
-    clock();
     const { onDetentChange, onDismiss, sheet } = phone();
     fireEvent.pointerDown(grip(), at(700));
     moveTo(708, 0);
@@ -451,31 +459,55 @@ describe("InspectorSheet phone", () => {
     expect(height(sheet)).toBe("24px");
     moveTo(768, 200);
     expect(height(sheet)).toBe("4px");
-    fireEvent.pointerUp(grip(), at(768));
+    releaseAt(768, 200);
     expect(onDismiss).toHaveBeenCalledTimes(1);
     expect(onDetentChange).not.toHaveBeenCalled();
   });
 
   it("returns to the dock when let go slowly less than 24 px below it", () => {
-    clock();
     const { onDetentChange, onDismiss } = phone();
     fireEvent.pointerDown(grip(), at(700));
     moveTo(708, 0);
     moveTo(723, 1000);
-    fireEvent.pointerUp(grip(), at(723));
+    releaseAt(723, 1000);
     expect(onDismiss).not.toHaveBeenCalled();
     expect(onDetentChange).not.toHaveBeenCalled();
   });
 
   it("drops a flick when the finger rested before it lifted", () => {
-    clock();
     const { onDetentChange } = phone();
     fireEvent.pointerDown(grip(), at(700));
     moveTo(692, 0);
     moveTo(392, 10);
-    time.ms = 300;
-    fireEvent.pointerUp(grip(), at(392));
+    releaseAt(392, 300);
     expect(onDetentChange.mock.calls).toEqual([["half"]]);
+  });
+
+  it("settles on half when moves 60 ms apart are handled in a burst after a stall", () => {
+    let handled = 1000;
+    vi.spyOn(performance, "now").mockImplementation(() => (handled += 1));
+    const { onDetentChange } = phone({ detent: "full" });
+    fireEvent.pointerDown(grip(), at(100));
+    moveTo(108, 0);
+    moveTo(146, 60);
+    moveTo(183, 120);
+    moveTo(221, 180);
+    moveTo(258, 240);
+    releaseAt(258, 240);
+    expect(onDetentChange.mock.calls).toEqual([["half"]]);
+  });
+
+  it("still reads a flick whose moves were 8 ms apart when the handlers ran half a second late", () => {
+    let handled = 0;
+    vi.spyOn(performance, "now").mockImplementation(() => (handled += 500));
+    const { onDetentChange } = phone({ detent: "half" });
+    fireEvent.pointerDown(grip(), at(500));
+    moveTo(492, 0);
+    moveTo(467, 8);
+    moveTo(442, 16);
+    moveTo(417, 24);
+    releaseAt(417, 24);
+    expect(onDetentChange.mock.calls).toEqual([["full"]]);
   });
 
   it("reads a finger tap that drifts 5 px as a tap, and a mouse press that moves 5 px as a drag", () => {
@@ -503,13 +535,12 @@ describe("InspectorSheet phone", () => {
   });
 
   it("swallows the click a drag leaves behind", () => {
-    clock();
     const { onDetentChange } = phone();
     fireEvent.pointerDown(grip(), at(700));
     moveTo(692, 0);
     moveTo(492, 100);
     moveTo(356, 200);
-    fireEvent.pointerUp(grip(), at(356));
+    releaseAt(356, 200);
     fireEvent.click(grip(), { detail: 1 });
     expect(onDetentChange.mock.calls).toEqual([["half"]]);
   });
@@ -520,7 +551,6 @@ describe("InspectorSheet phone", () => {
       () => fireEvent.blur(window),
       () => fireEvent.pointerCancel(grip(), at(500)),
     ]) {
-      clock();
       const { onDetentChange, onDismiss, onClose, sheet, unmount } = phone();
       fireEvent.pointerDown(grip(), at(700));
       moveTo(500, 100);
@@ -536,7 +566,6 @@ describe("InspectorSheet phone", () => {
   });
 
   it("ignores a second pointer while one has hold", () => {
-    clock();
     const { onDetentChange, sheet } = phone();
     fireEvent.pointerDown(grip(), at(700));
     moveTo(692, 0);
@@ -547,12 +576,11 @@ describe("InspectorSheet phone", () => {
     fireEvent.pointerUp(grip(), at(50, 2));
     expect(sheet).toHaveAttribute("data-dragging");
     moveTo(356, 200);
-    fireEvent.pointerUp(grip(), at(356));
+    releaseAt(356, 200);
     expect(onDetentChange.mock.calls).toEqual([["half"]]);
   });
 
   it("reports nothing when it unmounts mid-drag", () => {
-    clock();
     const { onDetentChange, onDismiss, unmount } = phone();
     fireEvent.pointerDown(grip(), at(700));
     moveTo(500, 100);

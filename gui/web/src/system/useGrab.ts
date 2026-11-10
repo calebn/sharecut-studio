@@ -27,8 +27,10 @@ type GrabOptions<G> = {
     pointer: GrabPointer,
     press: GrabPointer,
   ) => boolean | undefined;
-  onMove: (grip: G, move: GrabMove) => void;
-  onEnd: (grip: G, committed: boolean) => void;
+  /** `at` is the move event's `timeStamp`, ms on the `performance.now` clock: when the finger was there, however late the handler runs. */
+  onMove: (grip: G, move: GrabMove, at: number) => void;
+  /** `at` is the release event's `timeStamp`; an abort has no event and reads `performance.now()`. */
+  onEnd: (grip: G, committed: boolean, at: number) => void;
 };
 
 type Grab<G> = {
@@ -102,7 +104,7 @@ export function useGrab<G>(options: GrabOptions<G>) {
     held.current = null;
     if (!grab.moved) return;
     dragged.current = true;
-    onEnd(grab.grip, false);
+    onEnd(grab.grip, false, performance.now());
   });
   const escapeDrag = useStableCallback((event: globalThis.KeyboardEvent) => {
     if (event.key !== "Escape" || !held.current?.moved) return;
@@ -164,11 +166,15 @@ export function useGrab<G>(options: GrabOptions<G>) {
         // A synthetic pointer id has nothing to capture.
       }
     }
-    onMove(grab.grip, {
-      ...pointerOf(event),
-      dx: event.clientX - grab.fromX,
-      dy: event.clientY - grab.fromY,
-    });
+    onMove(
+      grab.grip,
+      {
+        ...pointerOf(event),
+        dx: event.clientX - grab.fromX,
+        dy: event.clientY - grab.fromY,
+      },
+      event.timeStamp,
+    );
   };
   const finish = (committed: boolean) => (event: PointerEvent<HTMLElement>) => {
     const grab = held.current;
@@ -177,7 +183,7 @@ export function useGrab<G>(options: GrabOptions<G>) {
     stopWatching();
     if (!grab.moved) return;
     dragged.current = true;
-    onEnd(grab.grip, committed);
+    onEnd(grab.grip, committed, event.timeStamp);
   };
 
   const up = finish(true);

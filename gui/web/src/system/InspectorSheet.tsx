@@ -322,15 +322,14 @@ function Phone({
         rootRem() * DOCK_REM ||
         DOCK_PX;
       drag.current = { start, container, dock, height: start };
-      samples.current = [{ t: performance.now(), height: start }];
+      samples.current = [];
       setDragging(start);
       return true;
     },
-    onMove: (_grip, move) => {
+    onMove: (_grip, move, t) => {
       const gesture = drag.current;
       if (!gesture) return;
       gesture.height = dragHeight(gesture.start, move.dy, gesture.container);
-      const t = performance.now();
       samples.current = [
         ...samples.current.filter(
           (sample) => t - sample.t <= VELOCITY_WINDOW_MS,
@@ -339,14 +338,14 @@ function Phone({
       ];
       setDragging(gesture.height);
     },
-    onEnd: (_grip, committed) => {
+    onEnd: (_grip, committed, at) => {
       const gesture = drag.current;
       drag.current = null;
       setDragging(null);
       if (!gesture || !committed) return;
       const next = settleDetent(
         gesture.height,
-        riseVelocity(samples.current, performance.now()),
+        riseVelocity(samples.current, at),
         gesture.container,
         gesture.start <= gesture.dock + DOCK_TOLERANCE_PX,
         gesture.dock,
