@@ -55,7 +55,7 @@ Podcast MCP supports agent-driven editing in any **MCP-capable client**. Editing
 | `add_comment_action_tool` / `set_comment_action_done_tool` / `resolve_comment_tool` / `delete_comment_tool` | Comment action items + resolve |
 | `add_effect_tool` / `list_effects_tool` | Per-track FFmpeg effects. Supported chain effects: `highpass`, `acompressor`, `loudnorm`, `afftdn`, `arnndn`, `bandreject`, `deesser`, `agate`, `equalizer`. Unsupported effects such as `volume` and `alimiter` are refused; saved unsupported entries remain visible with a warning and are skipped during rendering. |
 | `correct_transcript_tool` / `correct_transcript_phrase_tool` / `apply_transcript_cleanup_tool` / `low_confidence_words_tool` | Transcript fixes (history-safe; prefer batch cleanup for undo; cleanup and `verify_transcript_tool` submit through the document plane, so an open Studio tab sees them); pass `expected_text` to refuse a fix whose word indices changed meanwhile (#650) |
-| `find_replace_transcript_tool` | Replace a literal word or phrase everywhere (whole words, every track and recording) in one undo step; `dry_run=true` returns `matches` / `count` / `skipped_words` only. Same preview and `ReplaceTranscriptMatches` as Studio Find and replace |
+| `find_replace_transcript_tool` | Replace a literal word or phrase everywhere (whole words, every track and recording) in one undo step; `dry_run=true` returns `matches` / `count` / `skipped_words` only; `only=N` replaces just the Nth (0-based) preview match, as the Find bar's Replace does, and cannot combine with `dry_run`. Same preview and `ReplaceTranscriptMatches` as Studio Find and replace |
 | `set_word_timing_tool` | Set one word's `start` / `end` in source seconds (`source_id` for a recording's own transcript, optional `expected_text` guard); same `SetTranscriptWordTiming` as the Studio Adjust word timing |
 | `check_loudness_tool` | Measures the existing export WAV, falling back to premix. `pass` is the LUFS verdict. `stale` and `stale_reason` report known render age without writing audio; an explicit unrelated file has `stale: null` |
 | `analyze_cleanup_tool` | Gate risk, low-audibility words, bleed flags, fade recommendations, reconciliation staleness |
@@ -163,6 +163,7 @@ podcast edit propose-range-cut --project ... --start 41.2 --end 43.0 --tracks ho
 podcast edit copy-segment --project ... --start 41.2 --end 43.0 > clip.json     # --tracks host for one lane
 podcast edit paste-segment --project ... --at 120 --clipboard clip.json         # - reads stdin; --mode gap pastes over in place
 podcast transcript find-replace --project ... --search "Jon" --replace "John" --dry-run
+podcast transcript find-replace --project ... --search "Jon" --replace "John" --only 0
 podcast transcript set-word-timing --project ... --track host --word-index 812 --start 1201.40 --end 1201.62
 podcast edit analyze-cleanup --project ...
 podcast edit recommend-fades --project ...

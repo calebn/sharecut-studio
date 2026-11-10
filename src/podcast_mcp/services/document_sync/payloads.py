@@ -438,6 +438,14 @@ class TranscriptReplacementOptions(BaseModel):
 
 class ReplaceTranscriptMatchesPayload(TranscriptReplacementOptions):
     preview_token: str = Field(pattern=r"^[0-9a-f]{64}$")
+    only: int | None = Field(
+        default=None,
+        description=(
+            "Replace only the match at this 0-based position in the preview's matches. "
+            "Omit to replace every match. A position outside the preview is refused with "
+            "replacement_match_out_of_range."
+        ),
+    )
 
 
 _SOURCE_ID_DESCRIPTION = (

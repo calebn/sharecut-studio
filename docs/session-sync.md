@@ -568,7 +568,7 @@ Do **not** expose Swagger on the public relay (`docs_url=None`). Host OpenAPI de
 | `SetEffectBypass` | `AnalysisService.set_effect_bypass` | `track_id`, `effect_index`, `bypass` |
 | `SetTrackFader` | `EpisodeService.set_track_volume` | `track_id`, `fader_db` (−60 to +12; saved volume on top of staging `gain_db`) |
 | `SetTrackMute` | `EpisodeService.set_track_mute` | `track_id`, `muted` (saved mix mute) |
-| `ReplaceTranscriptMatches` | `TranscriptService.replace_transcript_matches` | `search`, `replacement`, `match_case`, `preview_token` (host and Editors; full source-keyed preview, one history action) |
+| `ReplaceTranscriptMatches` | `TranscriptService.replace_transcript_matches` | `search`, `replacement`, `match_case`, `preview_token`, optional `only` (0-based preview match; out of range is `replacement_match_out_of_range`) (host and Editors; full source-keyed preview, one history action) |
 | `ApplyTranscriptCleanup` | `TranscriptService.apply_transcript_cleanup` | `track_id`, `words?` (`word_index`, `text`), `phrases?` (`start_word_index`, `end_word_index`, `text`) — one undo step; reply `{track_id, applied}` |
 | `VerifyTranscript` | `TranscriptService.verify_transcript` | `track_id`, `corrections[]` (`word_index`, `text`) — reply `{verified}` |
 | `CorrectTranscriptWord` | `TranscriptService.correct_word` | `track_id`, `source_id?`, `word_index`, `text`, `expected_text?` |

@@ -70,6 +70,7 @@ _GUEST_MESSAGES = {
     "review_artifacts_not_private": "The host's review files need attention; ask the host to check them.",
     "review_media_not_found": "This review's audio isn't available right now; ask the host to republish.",
     "record_consent_required": "Confirm your consent for this take before uploading.",
+    "replacement_match_out_of_range": "That match changed. Preview again and retry.",
     "replacement_token_invalid": "Each replacement word needs a letter or number.",
     "roll_needs_abutting_clips": "These clips need to touch before their join can be rolled. Move one clip to the other or trim an edge.",
     "share_capability_required": "This action isn't available on this link. Ask the host to update its access.",

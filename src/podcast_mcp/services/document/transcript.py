@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
@@ -520,7 +520,13 @@ class TranscriptService(WorkspaceService):
             ).preview()
 
     def replace_transcript_matches(
-        self, search: str, replacement: str, preview_token: str, *, match_case: bool = False
+        self,
+        search: str,
+        replacement: str,
+        preview_token: str,
+        *,
+        match_case: bool = False,
+        only: int | None = None,
     ) -> int:
         with self.ws.transaction() as project:
             plan = plan_transcript_replacement(project, search, replacement, match_case=match_case)
@@ -528,6 +534,13 @@ class TranscriptService(WorkspaceService):
                 raise TranscriptTextChangedError(
                     "Transcript changed since the preview. Preview again before replacing."
                 )
+            if only is not None:
+                if not 0 <= only < len(plan.matches):
+                    raise CodedValueError(
+                        "That match is no longer in the preview. Preview again before replacing.",
+                        code="replacement_match_out_of_range",
+                    )
+                plan = replace(plan, matches=(plan.matches[only],))
             if not plan.matches:
                 return 0
             return self.ws.mutate(

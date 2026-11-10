@@ -6354,6 +6354,19 @@
           "title": "Match Case",
           "type": "boolean"
         },
+        "only": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Replace only the match at this 0-based position in the preview's matches. Omit to replace every match. A position outside the preview is refused with replacement_match_out_of_range.",
+          "title": "Only"
+        },
         "preview_token": {
           "pattern": "^[0-9a-f]{64}$",
           "title": "Preview Token",
