@@ -14,6 +14,7 @@ import {
   roomTileStatus,
   savingFraction,
 } from "./roomTileModel";
+import { SkeletonBlock } from "./Skeleton";
 import { SystemIcon } from "./SystemIcon";
 
 const SIGNAL: Record<RoomConnection, { icon: SystemIconName; title: string }> =
@@ -248,6 +249,16 @@ export function ListenerAvatar({
       </span>
       <span className="sr-only">{`${name}, listening`}</span>
     </li>
+  );
+}
+
+/** A tile-shaped placeholder while the room loads: an avatar disc over a name bar. */
+export function RoomTileSkeleton() {
+  return (
+    <div className="sys-room-tile sys-room-tile--skeleton" aria-hidden="true">
+      <SkeletonBlock circle />
+      <SkeletonBlock />
+    </div>
   );
 }
 

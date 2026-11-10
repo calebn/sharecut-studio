@@ -191,6 +191,19 @@ function savingStatus(phase: RoomPhase): string | null {
     : `Saving · ${percent}% · keep this page open`;
 }
 
+/** The tile grid's column count for a viewer width and a tile count. */
+export function gridColumns(
+  viewerWidth: ViewerWidth,
+  tiles: number,
+): 1 | 2 | 3 | 4 {
+  if (viewerWidth === "desktop") {
+    return tiles > 1 ? 2 : 1;
+  }
+  return viewerWidth === "phone-landscape"
+    ? (Math.min(4, Math.max(1, tiles)) as 1 | 2 | 3 | 4)
+    : 2;
+}
+
 export function roomViewModel(input: RoomViewInput): RoomViewModel {
   const { role, people, phase, viewerWidth } = input;
 
@@ -230,13 +243,7 @@ export function roomViewModel(input: RoomViewInput): RoomViewModel {
     viewerWidth === "phone"
       ? notePeek(input.notes ?? [], role, input.selfName ?? "")
       : null;
-  const columns = !desktop
-    ? viewerWidth === "phone-landscape"
-      ? (Math.min(4, Math.max(1, tiles.length)) as 1 | 2 | 3 | 4)
-      : 2
-    : tiles.length > 1
-      ? 2
-      : 1;
+  const columns = gridColumns(viewerWidth, tiles.length);
 
   // The derived alert is named, so it replaces a caller's nameless host-offline:
   // RoomAlert keeps the first alert of each kind.

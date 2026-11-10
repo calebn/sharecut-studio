@@ -2,6 +2,7 @@
 
 | State | Where surfaced |
 |-------|----------------|
+| **Loading record room** | `/rec/{token}` before the room lookup returns: the Room shell with grey placeholders for the title and four tiles and a dimmed, inert dock appears at once (no 300 ms blank, no "Loading studio…"); at 4 s “Still connecting…” with Retry joins the alert slot and Retry looks the room up again. See Guest / record › Loading |
 | **Pending edits** | Host Review queue · chips · edit overlay · inspector (guests: Timeline/inspector, not the queue) |
 | **Mix out of date** | Stage bar badge · Player bar mix ring (reads **Mix out of date**, or **No mix yet** when nothing is rendered; the host's mix rebuilds on its own and the pill reads **Updating mix…** meanwhile; Refresh mix in the palette updates it now); the mix ring’s tooltip reads **Mix out of date** or **No mix yet** (**· Refresh** only on a share that refreshes by hand). On an edit share, Refresh mix starts a host job immediately; the guest waits on token-scoped status reads, then hears the refreshed mix or sees a failure. While another render holds the lock, a rerender request plays the previous render (the audio response carries `X-Sharecut-Render-Busy: 1`, which the Player bar does not read yet; the Mix out of date chip stays because the stem was not rebuilt). |
 | **Transcript stale / reconcile** | Stage bar **Reconcile** badge · Script affordances |

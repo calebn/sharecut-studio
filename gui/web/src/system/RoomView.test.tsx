@@ -767,4 +767,72 @@ describe("RoomView as the host", () => {
       expect(screen.getByRole("tabpanel")).toHaveTextContent("take list");
     });
   });
+
+  describe("loading", () => {
+    it("draws the shell with placeholders, a busy root and one status line", () => {
+      const { container } = renderRoom({ loading: true, people: [] });
+      expect(container.querySelector(".sys-room-view")).toHaveAttribute(
+        "aria-busy",
+        "true",
+      );
+      expect(
+        container.querySelectorAll(".sys-room-tile--skeleton"),
+      ).toHaveLength(4);
+      expect(
+        container.querySelectorAll(".sys-skeleton-block[aria-hidden='true']")
+          .length,
+      ).toBeGreaterThanOrEqual(9);
+      expect(screen.getByText("Joining the room…")).toHaveAttribute(
+        "role",
+        "status",
+      );
+      expect(
+        screen.getByRole("heading", { level: 1, name: "Episode 14" }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("banner")).toBeVisible();
+      expect(container.querySelector(".sys-pill")).toBeNull();
+      expect(container.querySelector(".sys-room-view-rail")).toBeNull();
+      expect(container.querySelector(".sys-room-view-peek")).toBeNull();
+      expect(screen.queryByText(/Looking for|Loading studio/)).toBeNull();
+    });
+
+    it("keeps the dock inert and opens no sheet", () => {
+      const { container } = renderRoom({
+        loading: true,
+        people: [],
+        viewerWidth: "phone",
+      });
+      expect(container.querySelector(".sys-room-view-dock")).toHaveAttribute(
+        "inert",
+      );
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+
+    it("shows a connecting alert with a reachable Retry", async () => {
+      const user = userEvent.setup();
+      const onAction = vi.fn();
+      renderRoom({
+        loading: true,
+        people: [],
+        alerts: [{ kind: "connecting", onAction }],
+      });
+      expect(screen.getByText("Still connecting…")).toBeVisible();
+      await user.click(screen.getByRole("button", { name: "Retry" }));
+      expect(onAction).toHaveBeenCalledOnce();
+    });
+
+    it("animates nothing", () => {
+      const css = readFileSync(
+        join(SRC_ROOT, "styles/partials/system-record.css"),
+        "utf8",
+      );
+      const rules = css
+        .split("}")
+        .filter((rule) => /skeleton|data-loading/.test(rule));
+      expect(rules.length).toBeGreaterThan(0);
+      for (const rule of rules) {
+        expect(rule).not.toMatch(/animation|transition/);
+      }
+    });
+  });
 });

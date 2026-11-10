@@ -140,7 +140,7 @@ const meta: Meta<typeof RoomView> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          'The Record room for every seat: a 48 px header with the wordmark, the session title and the status pill; the record alert slot (0 or 44 px); the person tile grid with the listener row; the Notes rail, 320 px beside the grid and open by default for a producer; and the dock at the foot. Composed from the merged pieces: RoomTile, ListenerRow, RoomAlert, RoomStatusPill, RecordDock and NotesRail. The page never scrolls in the live phase. The host seat adds the Record button, Invite tiles for the empty seats and the saving line after Stop. The phone form puts the tiles in a square 2x2 grid, a Notes peek line (the latest note, one line) above the dock, and the Notes rail in a bottom Sheet; a landscape phone puts the tiles in one row with the dock as a vertical bar on the right edge.\n\nNotes can be held with a reason (`notesDisabledReason`), the Everyone toggle shows for a producer only with `noteVisibility`, a saving phase may carry a `percent` for the upload, tiles key on `RoomPerson.id`, and `page` makes a bare page fill 100dvh.\n\nThe Declined phase (`declined`) dims the tiles to 40% under a light scrim and docks a 72 px peek bar: "You\'re not being recorded." and Join recording, held with "You can join after this take." until the room is waiting again; the rest of the room goes inert.\n\n**Motion.** None yet. Later: the level ring animates, the new note settles into the list, and the Declined scrim fades in with `--motion-state`.',
+          'The Record room for every seat: a 48 px header with the wordmark, the session title and the status pill; the record alert slot (0 or 44 px); the person tile grid with the listener row; the Notes rail, 320 px beside the grid and open by default for a producer; and the dock at the foot. Composed from the merged pieces: RoomTile, ListenerRow, RoomAlert, RoomStatusPill, RecordDock and NotesRail. The page never scrolls in the live phase. The host seat adds the Record button, Invite tiles for the empty seats and the saving line after Stop. The phone form puts the tiles in a square 2x2 grid, a Notes peek line (the latest note, one line) above the dock, and the Notes rail in a bottom Sheet; a landscape phone puts the tiles in one row with the dock as a vertical bar on the right edge.\n\nNotes can be held with a reason (`notesDisabledReason`), the Everyone toggle shows for a producer only with `noteVisibility`, a saving phase may carry a `percent` for the upload, tiles key on `RoomPerson.id`, and `page` makes a bare page fill 100dvh.\n\nThe Declined phase (`declined`) dims the tiles to 40% under a light scrim and docks a 72 px peek bar: "You\'re not being recorded." and Join recording, held with "You can join after this take." until the room is waiting again; the rest of the room goes inert.\n\nWhile `loading`, the header, tiles and dock are placeholders (aria-busy, one screen-reader status line, no pill, rail or Notes sheet, the dock dimmed and inert); `alerts` still shows the slow \"Still connecting…\" with Retry.\n\n**Motion.** None yet. Later: the level ring animates, the new note settles into the list, and the Declined scrim fades in with `--motion-state`.',
       },
     },
   },
@@ -402,6 +402,47 @@ export const GuestWaitingPhone: Story = {
       "Notes",
       "Leave room",
     ]);
+  },
+};
+
+const skeletonTiles = (root: HTMLElement) =>
+  root.querySelectorAll(".sys-room-tile--skeleton").length;
+
+export const Loading: Story = {
+  args: { loading: true, people: [], notes: [] },
+  play: async ({ canvasElement }) => {
+    await expect(skeletonTiles(canvasElement)).toBe(4);
+    await expect(canvasElement.querySelector("[aria-busy]")).not.toBeNull();
+    await expect(alertRows(canvasElement)).toBe(0);
+    await expect(
+      canvasElement.querySelector(".sys-room-view-dock"),
+    ).toHaveAttribute("inert");
+    await expect(
+      within(canvasElement).queryByText(/Loading/),
+    ).not.toBeInTheDocument();
+  },
+};
+
+export const LoadingSlow: Story = {
+  args: {
+    loading: true,
+    people: [],
+    notes: [],
+    alerts: [{ kind: "connecting", onAction: fn() }],
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("Still connecting…")).toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: "Retry" }));
+    await expect(args.alerts?.[0]?.onAction).toHaveBeenCalledOnce();
+  },
+};
+
+export const LoadingPhone: Story = {
+  args: { ...phone, loading: true, people: [], notes: [] },
+  play: async ({ canvasElement }) => {
+    await expect(skeletonTiles(canvasElement)).toBe(4);
+    await expect(canvasElement.querySelector(".sys-room-view-peek")).toBeNull();
   },
 };
 
