@@ -4,7 +4,8 @@ import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { minimalProject } from "../../test/fixtures";
 import type { TranscriptWordView } from "../../types/project";
-import { WordFacts } from "./WordParts";
+import { wordSelection } from "../../utils/rangeSelect";
+import { useWordSections } from "./wordSections";
 
 const TIP = "Possible transcription with no matching speech";
 
@@ -39,7 +40,22 @@ function projectWith(extra: Partial<TranscriptWordView>) {
   });
 }
 
-describe("WordFacts hallucination line", () => {
+function Sheet() {
+  const sections = useWordSections(
+    wordSelection({ trackId: "host", sourceId: null, wordIndex: 0 }),
+  );
+  return (
+    <div>
+      {sections?.flatMap((section) =>
+        section.rows.map((row) => (
+          <div key={`${section.id}:${row.id}`}>{row.control}</div>
+        )),
+      )}
+    </div>
+  );
+}
+
+describe("word sheet hallucination line", () => {
   beforeEach(() => {
     useDawStore.setState({ projectPath: "/tmp/ep", selection: null });
   });
@@ -48,9 +64,7 @@ describe("WordFacts hallucination line", () => {
     useDawStore.setState({
       project: projectWith({ suspect_hallucination: true }),
     });
-    const { container } = render(
-      <WordFacts trackId="host" sourceId={null} wordIndex={0} />,
-    );
+    const { container } = render(<Sheet />);
     expect(screen.getByText(TIP)).toBeInTheDocument();
     await expectNoA11yViolations(container);
   });
@@ -64,7 +78,7 @@ describe("WordFacts hallucination line", () => {
     ["an ignored flagged word", { suspect_hallucination: true, ignored: true }],
   ] as const)("shows nothing for %s", (_name, extra) => {
     useDawStore.setState({ project: projectWith(extra) });
-    render(<WordFacts trackId="host" sourceId={null} wordIndex={0} />);
+    render(<Sheet />);
     expect(screen.queryByText(TIP)).not.toBeInTheDocument();
   });
 });

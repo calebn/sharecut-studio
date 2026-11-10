@@ -37,7 +37,6 @@ vi.mock("../../api", async (orig) => ({
   correctTranscriptPhrase: vi.fn(async () => {}),
   setTranscriptWordSuppressed: vi.fn(async () => {}),
   setTranscriptWordAutomatic: vi.fn(async () => {}),
-  setTranscriptWordsIgnored: vi.fn(async () => {}),
 }));
 
 vi.mock("../../commands/execute", () => ({
@@ -49,7 +48,6 @@ import {
   correctTranscriptWord,
   setTranscriptWordAutomatic,
   setTranscriptWordSuppressed,
-  setTranscriptWordsIgnored,
 } from "../../api";
 
 function project() {
@@ -139,7 +137,6 @@ describe("word sections", () => {
   beforeEach(() => {
     vi.mocked(correctTranscriptWord).mockClear();
     vi.mocked(correctTranscriptPhrase).mockClear();
-    vi.mocked(setTranscriptWordsIgnored).mockClear();
     vi.mocked(setTranscriptWordSuppressed).mockClear();
     vi.mocked(setTranscriptWordAutomatic).mockClear();
     useDawStore.setState({
@@ -150,12 +147,12 @@ describe("word sections", () => {
     });
   });
 
-  it("shows the lock state and its explanation next to Suppressed for a locked word (#813)", () => {
+  it("shows the lock explanation with Unsuppress for a locked suppressed word (#813)", () => {
     useDawStore.setState({ project: projectWithLockedWord() });
     render(<Word trackId="host" wordIndex={1} />);
-    expect(screen.getByText("Suppressed").nextSibling).toHaveTextContent(
-      "yes (locked)",
-    );
+    expect(
+      screen.getByRole("button", { name: "Unsuppress" }),
+    ).toBeInTheDocument();
     expect(
       screen.getByText(
         /Suppression locked: set directly, not by a heuristic pass\. Reconcile and auto-suppress leave it alone\./,
@@ -163,9 +160,32 @@ describe("word sections", () => {
     ).toBeInTheDocument();
   });
 
+  it("lists the word's text and a 5-dot confidence meter, and none of the removed readouts", () => {
+    render(<Word trackId="host" wordIndex={1} />);
+    expect(screen.getByText("there")).toBeVisible();
+    expect(
+      screen.getByRole("img", { name: "Confidence 5 of 5" }),
+    ).toBeVisible();
+    for (const gone of [/^Suppressed$/, /^Ignored$/])
+      expect(screen.queryByText(gone)).not.toBeInTheDocument();
+    for (const name of ["Ignore", "Restore", "Seek", "Play word"])
+      expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
+  });
+
+  it("shows no confidence meter for a word without a confidence", () => {
+    const bare = project();
+    delete bare.transcript!.utterances[0].words![1].confidence;
+    useDawStore.setState({ project: bare });
+    render(<Word trackId="host" wordIndex={1} />);
+    expect(screen.getByText("there")).toBeVisible();
+    expect(screen.queryByRole("img", { name: /^Confidence/ })).toBeNull();
+  });
+
   it("hides the lock explanation for a word that is not locked", () => {
     render(<Word trackId="host" wordIndex={1} />);
-    expect(screen.getByText("Suppressed").nextSibling).toHaveTextContent("no");
+    expect(
+      screen.getByRole("button", { name: "Suppress" }),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/Suppression locked/)).not.toBeInTheDocument();
   });
 
@@ -234,7 +254,9 @@ describe("word sections", () => {
       screen.queryByRole("button", { name: "Return to automatic" }),
     ).toBeNull();
     expect(screen.getByTestId("anchor")).toHaveFocus();
-    expect(screen.getByText("Suppressed").nextSibling).toHaveTextContent("yes");
+    expect(
+      screen.getByRole("button", { name: "Unsuppress" }),
+    ).toBeInTheDocument();
   });
 
   it("records a detached unlock failure under the lock flag", async () => {
@@ -267,46 +289,6 @@ describe("word sections", () => {
       originalText: "there",
       flag: { name: "audibility_locked", was: true },
       message: "Could not update “there”: unlock failed",
-    });
-  });
-
-  it("Ignore calls setTranscriptWordsIgnored(i, i, true) with the displayed text", async () => {
-    render(<Word trackId="host" wordIndex={0} />);
-    fireEvent.click(screen.getByRole("button", { name: "Ignore" }));
-    await vi.waitFor(() => {
-      expect(setTranscriptWordsIgnored).toHaveBeenCalledWith(
-        "/tmp/ep",
-        "host",
-        0,
-        0,
-        true,
-        "hello",
-        null,
-      );
-    });
-  });
-
-  it("Restore calls setTranscriptWordsIgnored(i, i, false) with the displayed text for an ignored word", async () => {
-    const withIgnored = project();
-    withIgnored.transcript!.utterances[0].words![0].ignored = true;
-    useDawStore.setState({ project: withIgnored, projectPath: "/tmp/ep" });
-    render(<Word trackId="host" wordIndex={0} />);
-    expect(screen.getByRole("button", { name: "Restore" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Restore" })).toHaveAttribute(
-      "title",
-      expect.stringMatching(/^Restore:/),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Restore" }));
-    await vi.waitFor(() => {
-      expect(setTranscriptWordsIgnored).toHaveBeenCalledWith(
-        "/tmp/ep",
-        "host",
-        0,
-        0,
-        false,
-        "hello",
-        null,
-      );
     });
   });
 
@@ -371,23 +353,6 @@ describe("word sections", () => {
     });
   });
 
-  it("Ignore sends null expected text for a duplicated index that disagrees", async () => {
-    useDawStore.setState({ project: projectWithDisagreeingDuplicate() });
-    render(<Word trackId="host" wordIndex={1} />);
-    fireEvent.click(screen.getByRole("button", { name: "Ignore" }));
-    await vi.waitFor(() => {
-      expect(setTranscriptWordsIgnored).toHaveBeenCalledWith(
-        "/tmp/ep",
-        "host",
-        1,
-        1,
-        true,
-        null,
-        null,
-      );
-    });
-  });
-
   it("marks which action changes audio", () => {
     render(<Word trackId="host" wordIndex={0} />);
     const suppress = screen.getByRole("button", { name: "Suppress" });
@@ -396,12 +361,6 @@ describe("word sections", () => {
       expect.stringMatching(/audio is unchanged/),
     );
     expect(suppress.className).not.toMatch(/\bprimary\b/);
-    const ignore = screen.getByRole("button", { name: "Ignore" });
-    expect(ignore.className).toMatch(/\bprimary\b/);
-    expect(ignore).toHaveAttribute(
-      "title",
-      expect.stringMatching(/^Ignore:.*mute/),
-    );
   });
 
   it("sends a failure that settles after the selection moved to the late-failure banner, not the next word (#634)", async () => {
@@ -429,34 +388,6 @@ describe("word sections", () => {
       wordIndex: 0,
       originalText: "hello",
       flag: { name: "suppressed", was: false },
-      message: "Could not update “hello”: boom",
-    });
-  });
-
-  it("records a late Ignore failure under the ignored flag (#634)", async () => {
-    let reject!: (e: Error) => void;
-    vi.mocked(setTranscriptWordsIgnored).mockImplementationOnce(
-      () =>
-        new Promise((_, r) => {
-          reject = r;
-        }),
-    );
-    const { rerender } = render(
-      <Word key="host:0" trackId="host" wordIndex={0} />,
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Ignore" }));
-    rerender(<Word key="host:1" trackId="host" wordIndex={1} />);
-    await act(async () => {
-      reject(new Error("boom"));
-    });
-    expect(screen.queryByRole("alert")).toBeNull();
-    expect(useDawStore.getState().transcriptInlineEditFailure).toEqual({
-      projectPath: "/tmp/ep",
-      trackId: "host",
-      sourceId: null,
-      wordIndex: 0,
-      originalText: "hello",
-      flag: { name: "ignored", was: false },
       message: "Could not update “hello”: boom",
     });
   });
@@ -495,6 +426,14 @@ describe("which sections a transcript range gets", () => {
 
   it("gives a host's single word its facts and actions after the range, with no text form", () => {
     expect(ids(word)?.map((s) => s.id)).toEqual(["range", "word", "actions"]);
+  });
+
+  it("labels the word's first row Text and leaves the meter to name itself", () => {
+    const rows = ids(word)?.find((s) => s.id === "word")?.rows;
+    expect(rows?.map((r) => [r.id, r.label])).toEqual([
+      ["text", "Text"],
+      ["confidence", undefined],
+    ]);
   });
 
   it("gives a guest on a share link the range only", () => {
