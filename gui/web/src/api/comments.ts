@@ -5,8 +5,8 @@ import {
 import { commentFromCommandResult } from "../document/projectPatch";
 import { isShareProjectKey } from "../shareMode";
 import { DocumentCommand } from "../types/documentCommands.generated";
-import type { TimelineComment } from "../types/project";
-import { submitDocumentCommand } from "./documentEdits";
+import type { HistoryEntryId, TimelineComment } from "../types/project";
+import { replyHistoryHead, submitDocumentCommand } from "./documentEdits";
 import { apiFetch } from "./http";
 
 export async function createComment(
@@ -98,6 +98,21 @@ export async function patchComment(
     throw new Error(`${type} did not return a comment`);
   }
   return comment;
+}
+
+export async function deleteComment(
+  projectPath: string,
+  commentId: string,
+): Promise<HistoryEntryId | null> {
+  if (isShareProjectKey(projectPath)) {
+    throw new Error("Removing comments is not available for shared guests");
+  }
+  const reply = await submitDocumentCommand(
+    projectPath,
+    DocumentCommand.DeleteComment,
+    { comment_id: commentId },
+  );
+  return reply ? replyHistoryHead(reply) : null;
 }
 
 export async function setCommentActionDone(

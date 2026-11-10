@@ -41,6 +41,7 @@ export {
 export {
   addCommentReply,
   createComment,
+  deleteComment,
   patchComment,
   setCommentActionDone,
 } from "./api/comments";

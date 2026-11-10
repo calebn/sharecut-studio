@@ -295,7 +295,7 @@ export const AutoReduction: Story = {
       canvas.getByRole("button", { name: /^Automatic reduction Timeline/ }),
     ).toHaveAttribute("aria-pressed", "true");
     await expect(
-      canvas.getByRole("button", { name: "Restore original audio" }),
+      canvas.getByRole("button", { name: "Refresh regions" }),
     ).toBeVisible();
   },
 };
@@ -317,7 +317,7 @@ export const Comment: Story = {
     await expect(
       canvas.getByRole("textbox", { name: "Reply to comment" }),
     ).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "Resolve" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Reply" })).toBeVisible();
   },
 };
 

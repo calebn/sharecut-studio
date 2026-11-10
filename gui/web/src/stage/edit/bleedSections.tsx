@@ -1,15 +1,12 @@
 import type { ReactNode } from "react";
-import {
-  clipBleedDisabledReason,
-  undoClipBleed,
-} from "../../commands/clipBleed";
-import { executePointerCommand } from "../../commands/pointer";
+import { undoClipBleed } from "../../commands/clipBleed";
 import {
   BLEED_ATTENUATION_LABELS,
   type BleedAttenuationInspection,
   bleedAttenuationRegionKey,
   bleedAttenuationSpanLabel,
 } from "../../edit/bleedAttenuation";
+import { bleedBusyLabel, CHECKING } from "../../edit/bleedRestoreReason";
 import {
   type ClipBleedRead,
   clipBleedSession,
@@ -18,7 +15,6 @@ import { useDawStore } from "../../state/dawStore";
 import type { InspectorSection } from "../../system/InspectorSheet";
 import type { Selection } from "../../types/project";
 import { Button, DefItem, DefinitionList, InlineError } from "../../ui";
-import { bleedRestoreReason, CHECKING } from "./bleedRestoreReason";
 import { note } from "./sheetNote";
 import { useBleedSession } from "./useBleedSession";
 
@@ -112,19 +108,7 @@ export function useBleedSections(
   const selected = inspection?.regions.find(
     (region) => bleedAttenuationRegionKey(region) === selectedKey,
   );
-  const busy = action?.state === "saving" || action?.state === "undoing";
-  const busyLabel = busy
-    ? action.state === "saving"
-      ? "Saving Restore choice…"
-      : "Undoing Restore choice…"
-    : null;
-  const restoreReason = bleedRestoreReason({
-    busyLabel,
-    read,
-    stale: action?.state === "error" && action.code === "STALE_TARGET",
-    permissionReason: clipBleedDisabledReason(),
-    selected,
-  });
+  const busyLabel = bleedBusyLabel(action);
   const seconds = session.elapsedSeconds;
   const undo = active?.undo;
 
@@ -144,30 +128,6 @@ export function useBleedSections(
 
   const actions = host ? (
     <>
-      <Button
-        variant="primary"
-        disabledReason={restoreReason}
-        onClick={() => {
-          if (selected?.restore.state !== "available") return;
-          const generation = active?.generation;
-          void executePointerCommand("edit.restoreClipBleed").then((result) => {
-            const current = clipBleedSession.getSnapshot();
-            if (
-              current?.generation === generation &&
-              current?.occurrence.trackId === trackId &&
-              current.occurrence.clipId === clipId &&
-              result.status === "disabled" &&
-              current.action.state !== "error"
-            )
-              useDawStore
-                .getState()
-                .announceStatus(result.reason, { tone: "error" });
-          });
-        }}
-      >
-        Restore original audio
-      </Button>
-      {restoreReason ? note(restoreReason) : null}
       <Button
         disabledReason={
           busyLabel ?? (read.state === "loading" ? CHECKING : undefined)
@@ -258,7 +218,7 @@ export function useBleedSections(
       section(
         "help",
         note(
-          "Restore applies only to the selected source interval in this clip. Other copies keep their automatic reduction. Listen after the rendered audio is current.",
+          "Keep restores the original audio for the selected source interval in this clip only. Other copies keep their automatic reduction. Listen after the rendered audio is current.",
         ),
       ),
     );

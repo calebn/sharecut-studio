@@ -53,15 +53,24 @@ describe("comment sheet sections", () => {
     useDawStore.getState().setSelection(null);
   });
 
-  it("resolves through the shared command", async () => {
+  it("reopens through the shared command and offers no Resolve beside the bar's", async () => {
     const user = userEvent.setup();
-    open();
-    await user.click(screen.getByRole("button", { name: "Resolve" }));
+    open(
+      ["/tmp/p.json"],
+      sampleComment({ resolved: true, resolved_by: "Mira" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Reopen" }));
     expect(patchComment).toHaveBeenCalledWith(
       "/tmp/p.json",
       "c1",
-      expect.objectContaining({ resolved: true, by: expect.any(String) }),
+      expect.objectContaining({ resolved: false, by: expect.any(String) }),
     );
+  });
+
+  it("leaves Resolve to the action bar on an open comment", () => {
+    open();
+    expect(screen.queryByRole("button", { name: "Resolve" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reopen" })).toBeNull();
   });
 
   it("offers Reopen on a resolved comment", () => {
@@ -152,7 +161,7 @@ describe("comment sheet sections", () => {
 
   it("renders a comment whose linked decision is no longer pending", () => {
     open(["/tmp/p.json"], sampleComment({ edit_decision_id: "gone-edit" }));
-    expect(screen.getByRole("button", { name: "Resolve" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Reply" })).toBeVisible();
     expect(screen.getByText("Needs a tighter open")).toBeVisible();
   });
 

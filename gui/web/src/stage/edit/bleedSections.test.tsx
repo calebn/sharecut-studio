@@ -8,8 +8,11 @@ import {
   type OpaqueBleedRestoreTarget,
   restoreClipBleed,
 } from "../../api/clipBleed";
-import { registerClipBleedCommands } from "../../commands/clipBleed";
-import { clearRegisteredCommands } from "../../commands/execute";
+import {
+  bleedKeepReason,
+  registerClipBleedCommands,
+} from "../../commands/clipBleed";
+import { clearRegisteredCommands, execute } from "../../commands/execute";
 import {
   _resetHistoryMovesForTests,
   registerHistoryCommands,
@@ -111,6 +114,11 @@ function setHead(next = head) {
     project: { ...project, history: { ...project.history, head_id: next } },
   });
 }
+const keepReason = () => bleedKeepReason();
+const keep = () =>
+  act(async () => {
+    await execute("edit.restoreClipBleed", {}, { skipWhen: true });
+  });
 async function ready() {
   return screen.findByRole("button", {
     name: /^Automatic reduction Timeline /,
@@ -183,10 +191,7 @@ describe("automatic reduction sheet content", () => {
       { ...occurrence, projectPath: path },
       expect.any(AbortSignal),
     );
-    const restore = screen.getByRole("button", {
-      name: "Restore original audio",
-    });
-    expect(restore).toBeDisabled();
+    expect(keepReason()).toBeDefined();
     await userEvent.click(region);
     expect(useDawStore.getState().selection).toEqual({
       kind: "bleedAttenuation",
@@ -194,7 +199,7 @@ describe("automatic reduction sheet content", () => {
       trackId: occurrence.trackId,
       regionKey,
     });
-    await userEvent.click(restore);
+    await keep();
     const undo = await screen.findByRole("button", { name: "Undo Restore" });
     expect(restoreClipBleed).toHaveBeenCalledExactlyOnceWith(path, target);
     expect(loadClipBleedInspection).toHaveBeenCalledTimes(1);
@@ -212,9 +217,7 @@ describe("automatic reduction sheet content", () => {
     render(<SectionsBody withRange={false} />);
     const region = await ready();
     await waitFor(() => expect(region).toHaveAttribute("aria-pressed", "true"));
-    expect(
-      screen.getByRole("button", { name: "Restore original audio" }),
-    ).toBeEnabled();
+    expect(keepReason()).toBeUndefined();
     act(() => select(occurrence, null));
     await waitFor(() =>
       expect(region).toHaveAttribute("aria-pressed", "false"),
@@ -248,19 +251,16 @@ describe("automatic reduction sheet content", () => {
   it("clears a selected region on direct refresh and requires a new selection", async () => {
     render(<SectionsBody withRange={false} />);
     await userEvent.click(await ready());
-    const restore = screen.getByRole("button", {
-      name: "Restore original audio",
-    });
-    expect(restore).toBeEnabled();
+    expect(keepReason()).toBeUndefined();
     await userEvent.click(
       screen.getByRole("button", { name: "Refresh regions" }),
     );
     const region = await ready();
     expect(loadClipBleedInspection).toHaveBeenCalledTimes(2);
     expect(region).toHaveAttribute("aria-pressed", "false");
-    expect(restore).toBeDisabled();
+    expect(keepReason()).toBeDefined();
     await userEvent.click(region);
-    expect(restore).toBeEnabled();
+    expect(keepReason()).toBeUndefined();
   });
 
   it("keeps a saving action visible, disables duplicate presses and leaves Refresh explicit", async () => {
@@ -268,11 +268,10 @@ describe("automatic reduction sheet content", () => {
     vi.mocked(restoreClipBleed).mockReturnValueOnce(reply.promise);
     render(<SectionsBody withRange={false} />);
     await userEvent.click(await ready());
-    const restore = screen.getByRole("button", {
-      name: "Restore original audio",
-    });
     vi.useFakeTimers();
-    await act(async () => restore.click());
+    await act(async () => {
+      void execute("edit.restoreClipBleed", {}, { skipWhen: true });
+    });
     expect(screen.getByRole("status")).toHaveTextContent(
       "Saving Restore choice…",
     );
@@ -285,7 +284,7 @@ describe("automatic reduction sheet content", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "Saving Restore choice…",
     );
-    expect(restore).toBeDisabled();
+    expect(keepReason()).toBe("Saving Restore choice…");
     expect(
       screen.getByRole("button", { name: "Refresh regions" }),
     ).toBeDisabled();
@@ -295,7 +294,7 @@ describe("automatic reduction sheet content", () => {
         .filter((button) => button.closest(".sys-inspector-rows"))
         .every((button) => button.hasAttribute("disabled")),
     ).toBe(true);
-    await userEvent.click(restore);
+    await keep();
     expect(restoreClipBleed).toHaveBeenCalledTimes(1);
     await act(async () => {
       setHead();
@@ -312,25 +311,19 @@ describe("automatic reduction sheet content", () => {
     );
     render(<SectionsBody withRange={false} />);
     await userEvent.click(await ready());
-    await userEvent.click(
-      screen.getByRole("button", { name: "Restore original audio" }),
-    );
+    await keep();
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "This region changed. Refresh regions and select it again.",
     );
     expect(useDawStore.getState().selection).toMatchObject({ regionKey: null });
-    expect(
-      screen.getByRole("button", { name: "Restore original audio" }),
-    ).toBeDisabled();
+    expect(keepReason()).toBeDefined();
     expect(loadClipBleedInspection).toHaveBeenCalledTimes(1);
     await userEvent.click(
       screen.getByRole("button", { name: "Refresh regions" }),
     );
     const region = await ready();
     expect(region).toHaveAttribute("aria-pressed", "false");
-    expect(
-      screen.getByRole("button", { name: "Restore original audio" }),
-    ).toBeDisabled();
+    expect(keepReason()).toBeDefined();
   });
 
   it("retires the old occurrence and ignores its late inspection", async () => {
@@ -351,9 +344,7 @@ describe("automatic reduction sheet content", () => {
   it("starts a fresh inspection after an opening change and does not retain old Undo", async () => {
     const view = render(<SectionsBody withRange={false} />);
     await userEvent.click(await ready());
-    await userEvent.click(
-      screen.getByRole("button", { name: "Restore original audio" }),
-    );
+    await keep();
     expect(
       await screen.findByRole("button", { name: "Undo Restore" }),
     ).toBeVisible();
@@ -385,9 +376,6 @@ describe("automatic reduction sheet content", () => {
       ).toBeVisible();
       expect(loadClipBleedInspection).not.toHaveBeenCalled();
       expect(
-        screen.queryByRole("button", { name: "Restore original audio" }),
-      ).not.toBeInTheDocument();
-      expect(
         screen.queryByRole("button", { name: "Refresh regions" }),
       ).not.toBeInTheDocument();
     },
@@ -408,9 +396,7 @@ describe("automatic reduction sheet content", () => {
   it("shows no Undo Restore to a guest even when a session holds an undo receipt", async () => {
     render(<SectionsBody withRange={false} />);
     await userEvent.click(await ready());
-    await userEvent.click(
-      screen.getByRole("button", { name: "Restore original audio" }),
-    );
+    await keep();
     expect(
       await screen.findByRole("button", { name: "Undo Restore" }),
     ).toBeVisible();
@@ -420,9 +406,6 @@ describe("automatic reduction sheet content", () => {
     });
     expect(
       screen.queryByRole("button", { name: "Undo Restore" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Restore original audio" }),
     ).not.toBeInTheDocument();
   });
 
@@ -446,8 +429,6 @@ describe("automatic reduction sheet content", () => {
           ...inspection(request),
           ...patch,
         }));
-    const restoreButton = () =>
-      screen.getByRole("button", { name: "Restore original audio" });
 
     it("submits only the selected region's target, with Enter and Space on a region", async () => {
       load({
@@ -460,7 +441,7 @@ describe("automatic reduction sheet content", () => {
       expect(
         screen.getByText("Check the recording and refresh regions."),
       ).toBeVisible();
-      expect(restoreButton()).toBeDisabled();
+      expect(keepReason()).toBeDefined();
       const mute = screen.getByRole("button", {
         name: /^Automatic speaker mute Timeline /,
       });
@@ -470,7 +451,7 @@ describe("automatic reduction sheet content", () => {
       await userEvent.keyboard(" ");
       expect(mute).toHaveAttribute("aria-pressed", "true");
       expect(restoreClipBleed).not.toHaveBeenCalled();
-      await userEvent.click(restoreButton());
+      await keep();
       expect(restoreClipBleed).toHaveBeenCalledExactlyOnceWith(
         path,
         second.restore.target,
@@ -497,7 +478,7 @@ describe("automatic reduction sheet content", () => {
       expect(screen.getByText("Selected source interval")).toBeVisible();
       expect(screen.getByText("Restore source interval")).toBeVisible();
       expect(screen.getByText("20.500 to 21.000 s")).toBeVisible();
-      await userEvent.click(restoreButton());
+      await keep();
       expect(restoreClipBleed).toHaveBeenCalledTimes(1);
       expect(vi.mocked(restoreClipBleed).mock.calls[0][1]).toBe(target);
     });
@@ -506,12 +487,8 @@ describe("automatic reduction sheet content", () => {
       render(<SectionsBody withRange={false} />);
       await userEvent.click(await ready());
       useDawStore.setState({ rangeBusy: true });
-      await waitFor(() =>
-        expect(restoreButton()).toHaveAccessibleDescription(
-          "Wait for the range edit to finish.",
-        ),
-      );
-      await userEvent.click(restoreButton());
+      expect(keepReason()).toBe("Wait for the range edit to finish.");
+      await keep();
       expect(restoreClipBleed).not.toHaveBeenCalled();
     });
 
@@ -573,7 +550,7 @@ describe("automatic reduction sheet content", () => {
             name: /^Automatic speaker mute Timeline /,
           }),
         );
-        await userEvent.click(restoreButton());
+        await keep();
         expect(vi.mocked(restoreClipBleed).mock.calls[0][1]).toBe(
           second.restore.target,
         );
@@ -591,7 +568,7 @@ describe("automatic reduction sheet content", () => {
       });
       const saved = render(<SectionsBody withRange={false} />);
       await userEvent.click(await ready());
-      expect(restoreButton()).toHaveAccessibleDescription(
+      expect(keepReason()).toBe(
         "A Restore choice already covers this interval.",
       );
       saved.unmount();
@@ -609,7 +586,7 @@ describe("automatic reduction sheet content", () => {
       });
       render(<SectionsBody withRange={false} />);
       await userEvent.click(await ready());
-      expect(restoreButton()).toHaveAccessibleDescription(
+      expect(keepReason()).toBe(
         "The recording is missing. Restore it and refresh regions.",
       );
     });
