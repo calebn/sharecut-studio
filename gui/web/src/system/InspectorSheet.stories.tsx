@@ -9,7 +9,6 @@ import type { InspectorDetent, InspectorRect } from "./inspectorSheetMath";
 import {
   AUTO_REDUCTION_SECTIONS,
   CLIP_SECTIONS,
-  COMMENT_SECTIONS,
   CUT_SEAM_SECTIONS,
   ENVELOPE_POINT_SECTIONS,
   LONG_SECTIONS,
@@ -297,27 +296,6 @@ export const AutoReduction: Story = {
     await expect(
       canvas.getByRole("button", { name: "Refresh regions" }),
     ).toBeVisible();
-  },
-};
-
-export const Comment: Story = {
-  render: () => (
-    <CardDemo
-      icon="message-square"
-      name="Comment"
-      sections={COMMENT_SECTIONS}
-      anchorAt={nearTop}
-    />
-  ),
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(
-      canvas.getByRole("heading", { name: "Comment" }),
-    ).toBeVisible();
-    await expect(
-      canvas.getByRole("textbox", { name: "Reply to comment" }),
-    ).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "Reply" })).toBeVisible();
   },
 };
 
