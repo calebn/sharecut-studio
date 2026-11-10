@@ -10,7 +10,6 @@ import { acquireMeterContext } from "./sharedMeterContext";
 const POLL_MS = 100;
 
 type Options = {
-  /** The seat is muted. */
   muted: boolean;
   /** The take is recording; false (paused) freezes the count. */
   counting: boolean;
@@ -53,7 +52,6 @@ export function useMutedSpeech(
           gate = mutedSpeechGate(gate, {
             nowMs: performance.now(),
             levelDb: reading.readDb(),
-            active: true,
             counting: countingRef.current,
           });
           setSpeech(gate.fired);
