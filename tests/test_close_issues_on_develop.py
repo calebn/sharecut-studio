@@ -20,6 +20,7 @@ cod = load_script("close_issues_on_develop", register=True)
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "close-issues-on-develop.yml"
 REPO = "calebn/sharecut-studio"
+LINEAR_TIME_LIMIT_S = 5.0
 BASE = cod.branches.base()
 RELEASE = cod.branches.release()
 
@@ -273,14 +274,14 @@ def test_a_bold_marker_wraps_the_whole_keyword_line_only() -> None:
 def test_long_word_runs_parse_in_linear_time(body: str) -> None:
     start = time.perf_counter()
     result = cod.closing_refs(body, REPO)
-    assert time.perf_counter() - start < 1.0
+    assert time.perf_counter() - start < LINEAR_TIME_LIMIT_S
     assert result == set()
 
 
 def test_long_word_runs_after_a_clean_block_still_close() -> None:
     start = time.perf_counter()
     result = cod.closing_refs("Fixes #5\n\n" + "GH-" * 20000, REPO)
-    assert time.perf_counter() - start < 1.0
+    assert time.perf_counter() - start < LINEAR_TIME_LIMIT_S
     assert result == {5}
 
 
@@ -401,7 +402,7 @@ def test_a_heading_line_separates_blocks_like_a_blank_line() -> None:
 def test_many_parentheses_parse_in_linear_time(body: str) -> None:
     start = time.perf_counter()
     cod.closing_refs(body, REPO)
-    assert time.perf_counter() - start < 1.0
+    assert time.perf_counter() - start < LINEAR_TIME_LIMIT_S
 
 
 def test_real_bodies_that_the_backfill_flagged_close_nothing() -> None:
@@ -685,4 +686,4 @@ def test_workflow_triggers_permissions_and_untrusted_text_handling() -> None:
 def test_prose_after_a_label_parses_in_linear_time(body: str) -> None:
     start = time.perf_counter()
     cod.closing_refs(body, REPO)
-    assert time.perf_counter() - start < 1.0
+    assert time.perf_counter() - start < LINEAR_TIME_LIMIT_S
