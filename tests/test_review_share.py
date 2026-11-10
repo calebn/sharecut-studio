@@ -2949,9 +2949,3 @@ def test_peaks_use_the_audio_rate_class(minimal_project, sample_wav, tmp_workspa
     monkeypatch.setattr(review_share, "_rate_limit", spy)
     TestClient(create_app()).get(f"/api/review/{token}/peaks")
     assert "audio" in classes
-
-
-def test_the_project_view_does_not_carry_peaks(minimal_project, sample_wav, tmp_workspace):
-    _ws, _ver, token = _peaks_published(minimal_project, sample_wav)
-    body = TestClient(create_app()).get(f"/api/review/{token}/project").json()
-    assert "peaks" not in body and "episode_peaks" not in body

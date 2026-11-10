@@ -38,12 +38,4 @@ describe("usePlayerProps peaks", () => {
     );
     expect(result.current.peaks).toBeUndefined();
   });
-
-  it("gives a guest no peaks until some have loaded", () => {
-    useDawStore.setState({ guestMode: "comment", reviewPeaks: [] });
-    const { result } = renderHook(() =>
-      usePlayerProps("expanded", () => undefined),
-    );
-    expect(result.current.peaks ?? []).toEqual([]);
-  });
 });

@@ -166,7 +166,6 @@ export function usePlayerProps(
     playUnavailable: unavailable !== undefined,
     hearOriginal: auditionMode === "raw",
     guest,
-    // The episode waveform is the guest's; a host's strip stays as it was.
     peaks: guest ? reviewPeaks : undefined,
     following: followingClientId
       ? {
