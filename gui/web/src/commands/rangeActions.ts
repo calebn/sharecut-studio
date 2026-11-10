@@ -136,7 +136,6 @@ export function rangeActionDescriptors(
 
 let previewUrl: string | null = null;
 
-/** One command for all targets, so one Undo restores them. */
 export function submitRangeEdit(
   action: "cut" | "mute",
   targets: readonly ExactRangeTarget[],

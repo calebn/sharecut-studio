@@ -196,6 +196,12 @@ export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
           : undefined;
   const { note: replaceNote, describedBy: replaceDescribedBy } =
     useDisabledReasonNote(replace?.open ? replaceWait : undefined);
+  const cutNote = useDisabledReasonNote(
+    !idle && !replace?.open ? BUSY_REASON : undefined,
+  );
+  const cutDescribedBy = replace?.open
+    ? replaceDescribedBy
+    : cutNote.describedBy;
   const replaceUnavailable =
     replace?.open && unavailableReason(replaceWait) !== undefined;
   const closeBar = () => {
@@ -312,6 +318,7 @@ export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
             type="button"
             className="sys-icon-btn"
             aria-label="Show replace"
+            title="Show replace"
             aria-expanded={replace.open}
             aria-controls={replace.open ? replaceId : undefined}
             onClick={() => replace.onOpenChange(!replace.open)}
@@ -338,7 +345,8 @@ export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
             type="button"
             className="sys-text-btn sys-edit-find-all"
             aria-keyshortcuts="Control+Shift+Enter Meta+Shift+Enter"
-            disabled={!idle}
+            aria-disabled={!idle || undefined}
+            {...(idle ? {} : cutDescribedBy)}
             onClick={cutAll}
             onKeyDown={onButtonKey}
           >
@@ -400,6 +408,7 @@ export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
         </div>
       ) : null}
       {replaceNote}
+      {cutNote.note}
       <InlineError message={error ?? failure} />
     </div>
   );

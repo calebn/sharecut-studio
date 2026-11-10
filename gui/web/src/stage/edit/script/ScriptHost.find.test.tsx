@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { submitDocumentCommand } from "../../../api/documentEdits";
@@ -426,9 +426,62 @@ describe("ScriptHost Find", () => {
     expect(useDawStore.getState().rangeBusy).toBe(false);
   });
 
+  it("does not claim an audio check for another reason the server holds a cut", async () => {
+    seedScript({ project: { clips: CLIPS } });
+    vi.mocked(submitDocumentCommand).mockRejectedValue(
+      new ApiError(
+        "A selected cut was not applied because the selected audio no longer has one complete, continuous placement.",
+        "cut_scope_changed",
+        409,
+      ),
+    );
+    await openFind();
+    await userEvent.type(findField(), "maya");
+    await userEvent.click(screen.getByRole("button", { name: "Cut all 1" }));
+    expect(
+      await screen.findByText("Nothing was cut. The edit was not applied."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/audio check/)).toBeNull();
+  });
+
+  it("says what to do when targets overlap on one track", async () => {
+    seedScript({ project: { clips: CLIPS } });
+    vi.mocked(submitDocumentCommand).mockRejectedValue(
+      new ApiError(
+        "Two targets cover the same audio.",
+        "overlapping_targets",
+        409,
+      ),
+    );
+    await openFind();
+    await userEvent.type(findField(), "maya");
+    await userEvent.click(screen.getByRole("button", { name: "Cut all 1" }));
+    expect(
+      await screen.findByText(
+        "Some matches overlap on one track, so nothing was cut. Try a narrower search or cut them in the timeline.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("does not say nothing was cut when the server turned the cut into a proposal", async () => {
+    seedScript({ project: { clips: CLIPS } });
+    vi.mocked(submitDocumentCommand).mockResolvedValue({
+      type: "Applied",
+      command: { payload: { result: { proposed: true } } },
+    });
+    await openFind();
+    await userEvent.type(findField(), "maya");
+    await userEvent.click(screen.getByRole("button", { name: "Cut all 1" }));
+    await waitFor(() =>
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "Cut all was suggested for review. Nothing was cut yet.",
+      ),
+    );
+  });
+
   it("does not say Cut when the server did not apply the edit", async () => {
     seedScript({ project: { clips: CLIPS } });
-    vi.mocked(submitDocumentCommand).mockResolvedValue({ type: "Proposed" });
+    vi.mocked(submitDocumentCommand).mockResolvedValue({ type: "Rejected" });
     await openFind();
     await userEvent.type(findField(), "maya");
     await userEvent.click(screen.getByRole("button", { name: "Cut all 1" }));
@@ -458,6 +511,33 @@ describe("ScriptHost Find", () => {
       ),
     );
     vi.restoreAllMocks();
+  });
+
+  it("refuses the same queued cut again after the project object is replaced, but not a different search", async () => {
+    seedScript({ project: { clips: CLIPS } });
+    vi.mocked(submitDocumentCommand).mockResolvedValue({ queued: true });
+    await openFind();
+    await userEvent.type(findField(), "maya");
+    await userEvent.click(screen.getByRole("button", { name: "Cut all 1" }));
+    await waitFor(() =>
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "Cut all queued. Still sending.",
+      ),
+    );
+    act(() => {
+      useDawStore.setState({ project: { ...useDawStore.getState().project! } });
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Cut all 1" }));
+    expect(
+      await screen.findByText(
+        "Cut all is already queued. Wait for it to send.",
+      ),
+    ).toBeInTheDocument();
+    expect(submitDocumentCommand).toHaveBeenCalledTimes(1);
+    await userEvent.clear(findField());
+    await userEvent.type(findField(), "so");
+    await userEvent.click(screen.getByRole("button", { name: /^Cut all/ }));
+    await waitFor(() => expect(submitDocumentCommand).toHaveBeenCalledTimes(2));
   });
 
   it("queues a Cut all once and refuses a second click until the project changes", async () => {
