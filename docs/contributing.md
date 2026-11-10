@@ -199,9 +199,11 @@ prerequisites before implementation.
 At the first code-ready head, keep that outcome fixed. Use native batched
 fix-forward for demonstrated defects in the PR, introduced regressions, agreed
 acceptance failures, and required verification or integration blockers.
-Record independent, nonblocking discoveries as linked follow-up issues with
-evidence and their own acceptance criteria. Keep optional polish, adjacent
-redesigns, and speculative hardening out of the current run.
+Triage independent, nonblocking discoveries with
+[File follow-ups](../.agents/skills/sharecut-poteto/references/issue-claims.md#file-follow-ups):
+file an issue, with evidence and its own acceptance criteria, only for reachable
+harm. Keep optional polish, adjacent redesigns, and speculative hardening out of
+the current run.
 
 If safe completion needs a materially larger outcome, explain the evidence and
 the smallest safe options before expanding. Do not relabel a valid blocker as
