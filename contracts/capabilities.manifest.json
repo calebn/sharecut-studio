@@ -3045,8 +3045,7 @@
       "surfaces": {
         "command": "transcript.ignoreWords",
         "gui": [
-          "transcript.ignore",
-          "inspector.word.ignore"
+          "transcript.ignore"
         ],
         "mcp": [
           "set_words_ignored_tool"
