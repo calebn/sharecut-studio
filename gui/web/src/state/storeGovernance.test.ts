@@ -480,6 +480,11 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
     reason: "publishes the live playhead and scroll position to presence",
   },
   {
+    file: "stage/edit/EditOverview.tsx",
+    reason:
+      "the overview strip's playhead follows the live playhead; only this memoized leaf renders it, so the Edit adapter does not re-render per frame",
+  },
+  {
     file: "stage/frame/usePlayerProps.ts",
     reason:
       "the Player bar's time readout and overview position follow the live playhead; only the PlayerBar subtree renders it",

@@ -203,6 +203,8 @@ const SURFACE_GESTURES: Record<string, string> = {
     "the Close control's capture-phase pointer observer runs before default focus transfer and matches focus restoration to the press; it starts no gesture and takes no pointer capture, while InspectorSheet and useGrab own the detent drag",
   "stage/edit/ScriptDivider.tsx":
     "divider: a drag resizes the Script pane beside the timeline; the arrow keys, Enter and double-click do the same by key",
+  "system/OverviewStrip.tsx":
+    "the whole-episode strip: a press is captured and reported as a seek to the pressed fraction (a tick near the pointer wins) and a drag keeps seeking until release; it edits nothing and owns no timeline target, and Left, Right, Page, Home and End do the same by key",
   "system/Player.tsx":
     "hold to hear: a press on A hears the original and letting go after a hold goes back; a quick release latches it, and the A and B buttons do the same by key",
   "stage/edit/TrackColumn.tsx":
@@ -270,6 +272,8 @@ const SRC_ARROW_ALLOWLIST: Record<string, string> = {
   "commands/focusedClipHandle.ts":
     "the focused-handle registry the timeline's arrow edits run through",
   "keymap/registry.ts": "the keymap rows that bind the arrows",
+  "system/OverviewStrip.tsx":
+    "a focused overview strip is a slider on the playhead: the arrows seek 1 percent of the episode, 10 percent with Shift, and it only seeks",
   "system/SuggestionWaveform.tsx":
     "a focused suggestion handle moves its edge with the arrows, 0.05 s and 0.5 s with Shift, like a slider",
   "stages/deliver/ClipTrimWave.tsx":
