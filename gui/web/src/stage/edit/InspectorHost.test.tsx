@@ -168,8 +168,10 @@ describe("the Inspector card on the desktop and the tablet", () => {
         );
 
         const card = screen.getByRole("dialog", { name: "Inspector" });
-        expect(card.style.insetBlockStart).toBe("118px");
-        expect(card.style.maxBlockSize).toBe("41px");
+        // 41px of room below the lane is under the card's floor, so the card
+        // keeps its 60 % height and covers the lane instead of thinning out.
+        expect(card.style.maxBlockSize).toBe("100.2px");
+        expect(card.style.insetBlockStart).toBe("58.8px");
       } finally {
         root.remove();
         document.querySelector("body > .sys-actions--floating")?.remove();
