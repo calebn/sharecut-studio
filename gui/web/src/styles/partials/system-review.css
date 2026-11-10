@@ -464,9 +464,11 @@ button.sys-queue-row--decided {
 
 @media (forced-colors: active) {
   .sys-dots-dot[data-filled] {
+    --sys-dots-ink: CanvasText;
+
     forced-color-adjust: none;
-    border-color: CanvasText;
-    background: CanvasText;
+    border-color: var(--sys-dots-ink);
+    background: var(--sys-dots-ink);
   }
 }
 
