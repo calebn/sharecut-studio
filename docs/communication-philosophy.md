@@ -101,7 +101,7 @@ to UX partners; for UI copy, this table wins.
 | Reading copy | The optional paragraph-style `readable.txt` transcript export in Deliver. Detailed text remains the timestamped TXT export and Copy output | "Text" when the paragraph-style file is meant |
 | Likely laugh | The label on a Queue suggestion whose sound rises and falls like a laugh. It is a hint, and its suggested action is Lower (when another speaker talks over it, otherwise it is left) | "Laugh detected", "filler:acoustic:likely_laugh" |
 | Possible missed word | The label on a Queue suggestion that the project's speech recogniser, hearing that sound alone, writes down as a word the transcript missed. It is a hint, and its suggested action is Leave, so applying suggested actions (agent and CLI only) keeps the audio and dismisses the suggestion (#1434) | "Missed word detected", "Rejected", "filler:acoustic:possible_word" |
-| Edit marker | The in-lane symbol for one join at any zoom: `|` cut, `╲╱` fade, `✕` crossfade, each in its own hue. Tapping one opens the join's popover. Named like "Fade join at 0:05.0" | "badge", "join badge" |
+| Seam diamond | The 6 px diamond on the lane's top edge at each seam: filled for a cut, hollow for a split. Click selects the Seam; dragging rolls it. Named like "Split at 0:05.0" | "badge", "join badge", "edit marker" |
 | Edit group | The count chip that stands in for joins closer than 24 px. Named like "3 edits: 2 cuts, 1 crossfade. Zoom in"; tapping it zooms until they separate | "cluster", "stack" |
 | Cut all | A Review Queue group's bulk button, and the Find bar's button for every match: the verb and the count, `Cut all 3`; one cuttable item says plain `Cut`. One undo reverts the group or the whole search. Each row's own Cut and Keep decide one hit | "Apply all", "Accept all", "Apply eligible" |
 | Suggested action | What the app proposes for a sound: cut, shorten, lower or leave, picked from one table per kind of sound. The label under each hit says which | "Auto-fix", "Safe", "Eligible" |
@@ -630,6 +630,7 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
 - 2026-10-23 Tighten's confirmed **Apply suggested actions** shows an in-place **Applying N suggested actions…** line, a pulse and elapsed time after two seconds. Apply is busy and disabled until the command returns. Submitted rows say **Applying…** where the Status column is visible; on phones the working line and disabled Apply and Skip controls show the work in progress. The result keeps its toast and Undo. A queued outcome leaves **Still sending**, without claiming the server applied it (#2165).
 
 - 2026-10-22 — Added "Edit marker" and "Edit group" (#2076): joins show as a typed symbol at any zoom, and joins that crowd each other fold into a count that zooms in on tap.
+- 2026-11-10 — Replaced "Edit marker" and "Edit group" with "Seam diamond" (#2294): one diamond per seam selects and rolls it; count chips are gone.
 - 2026-09-21 — Initial draft from the 6-surface interaction audit.
 - 2026-10-06 — Landed as canon (#1025). Reconciled with the UI philosophy,
   aligned with non-expiring share links, and scheduled oxlint `no-alert`

@@ -71,7 +71,8 @@ const STARTS: Record<string, (page: Page) => Promise<Point | null>> = {
     centerOf(page, `${lane} [role="slider"][aria-label="Envelope point 3"]`),
   "crowded envelope point": (page) =>
     centerOf(page, `${lane} [role="slider"][aria-label="Envelope point 2"]`),
-  "join glyph": (page) => centerOf(page, `${lane} .edit-mark >> nth=-1`),
+  "seam diamond": (page) =>
+    centerOf(page, `${lane} .seam-mark .sys-seam-hit >> nth=-1`),
   "pending region": (page) =>
     centerOf(page, `${lane} .pending-overlay .pending-hit`),
   "fade corner": (page) => centerOf(page, `${lane} .fade-corner.in`),
@@ -161,7 +162,7 @@ test("a tap still selects or opens what it lands on", async ({
   await buildFixture(page, projectPath, CLIENT_ID);
   const rows: Record<string, unknown>[] = [];
   for (const viewport of Object.keys(VIEWPORTS) as ViewportName[]) {
-    for (const start of ["clip body", "lone envelope point", "join glyph"]) {
+    for (const start of ["clip body", "lone envelope point", "seam diamond"]) {
       const { page: p, cdp } = await newTouchPage(context);
       await openTimeline(p, projectPath, viewport, "dark");
       await setZoom(p, 3);
@@ -176,7 +177,7 @@ test("a tap still selects or opens what it lands on", async ({
         activated:
           start === "clip body"
             ? after.selectedClips.length === 1
-            : start === "join glyph"
+            : start === "seam diamond"
               ? after.selectedJoin != null
               : after.pressedPoint === "Envelope point 3",
         after,

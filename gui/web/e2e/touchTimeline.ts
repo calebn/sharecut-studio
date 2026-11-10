@@ -284,14 +284,14 @@ export async function pickState(page: Page) {
         ?.getAttribute("data-hit-id") ?? null,
     selectedJoinId:
       document
-        .querySelector('.edit-mark[aria-pressed="true"]')
+        .querySelector('.seam-mark .sys-seam-hit[aria-pressed="true"]')
         ?.getAttribute("data-hit-id") ?? null,
     selectedClips: [...document.querySelectorAll(".clip-block.selected")].map(
       (el) => el.getAttribute("data-clip-id"),
     ),
     selectedJoin:
       document
-        .querySelector('.edit-mark[aria-pressed="true"]')
+        .querySelector('.seam-mark .sys-seam-hit[aria-pressed="true"]')
         ?.getAttribute("aria-label") ?? null,
     focused: document.activeElement?.getAttribute("aria-label") ?? null,
     sheet: document.querySelector(".bottom-sheet-root") != null,

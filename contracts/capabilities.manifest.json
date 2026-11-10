@@ -3326,7 +3326,7 @@
         ]
       },
       "omit": {
-        "keyboard_reason": "pointer join diamond or Seam pill; Alt+Arrow on the focused pill, no industry-standard key"
+        "keyboard_reason": "pointer Seam diamond or Seam pill; Alt+Arrow on the focused Seam, no industry-standard key"
       },
       "presence": {
         "cursor": "time",
@@ -3377,8 +3377,7 @@
       "surfaces": {
         "command": "edit.setClipJoin",
         "gui": [
-          "inspector.clip.joinType",
-          "timeline.join.badge"
+          "inspector.clip.joinType"
         ],
         "mcp": [
           "set_clip_join_tool"
@@ -3386,7 +3385,7 @@
         "cli": "podcast edit set-clip-join"
       },
       "omit": {
-        "keyboard_reason": "clip inspector join type and join marker; no industry-standard key"
+        "keyboard_reason": "clip inspector join type and the Seam action bar; no industry-standard key"
       },
       "presence": {
         "cursor": "time",

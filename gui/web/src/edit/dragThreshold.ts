@@ -4,9 +4,6 @@
  */
 import { HANDLE_DRAG_MIN_PX } from "../hooks/gestureConstants";
 
-/** A roll whose clamped delta is under this is a no-op (the clamp can shrink a real drag). */
-export const ROLL_COMMIT_MIN_PX = 0.5;
-
 /**
  * True when a handle moved far enough between pointerdown and pointerup to be
  * an edit. Only the net displacement counts: a drag that comes back to within

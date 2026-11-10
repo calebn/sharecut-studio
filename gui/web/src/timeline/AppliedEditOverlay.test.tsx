@@ -22,35 +22,7 @@ describe("AppliedEditOverlay", () => {
     }),
   ];
 
-  it("positions seam ticks by the projected timeline second, no inline width", () => {
-    const { container } = render(
-      <AppliedEditOverlay
-        records={[
-          appliedEditRecord({
-            id: "ripple",
-            operation: "ripple_delete",
-            timeline_start: 40,
-            timeline_end: 50,
-            source_start: null,
-            source_end: null,
-            params: { per_track_source: { "mira-voice": [2, 3] } },
-          }),
-        ]}
-        clips={clips}
-        trackId="mira-voice"
-        zoomPxPerSec={20}
-      />,
-    );
-    const layer = container.querySelector(".applied-edit-layer");
-    expect(layer).not.toBeNull();
-    expect(layer).toHaveAttribute("aria-hidden", "true");
-    const tick = container.querySelector<HTMLElement>(".applied-tick--seam");
-    expect(tick).not.toBeNull();
-    expect(tick).toHaveStyle({ left: "40px" });
-    expect(tick?.style.width).toBe("");
-  });
-
-  it("colors a mute record's ticks by type, apart from a cut's", () => {
+  it("positions mute ticks by the projected timeline second, no inline width", () => {
     const { container } = render(
       <AppliedEditOverlay
         records={[
@@ -61,6 +33,27 @@ describe("AppliedEditOverlay", () => {
             source_end: 1,
             params: { mute: true },
           }),
+        ]}
+        clips={clips}
+        trackId="mira-voice"
+        zoomPxPerSec={20}
+      />,
+    );
+    const layer = container.querySelector(".applied-edit-layer");
+    expect(layer).not.toBeNull();
+    expect(layer).toHaveAttribute("aria-hidden", "true");
+    const ticks = container.querySelectorAll<HTMLElement>(
+      ".applied-tick--mute",
+    );
+    expect(ticks).toHaveLength(2);
+    expect(ticks[0]?.style.width).toBe("");
+    expect(ticks[0]?.style.left).toBe("10px");
+  });
+
+  it("draws no tick for a cut, which is a Seam diamond", () => {
+    const { container } = render(
+      <AppliedEditOverlay
+        records={[
           appliedEditRecord({
             id: "ripple",
             operation: "ripple_delete",
@@ -76,8 +69,8 @@ describe("AppliedEditOverlay", () => {
         zoomPxPerSec={20}
       />,
     );
-    expect(container.querySelectorAll(".applied-tick--mute")).toHaveLength(2);
-    expect(container.querySelectorAll(".applied-tick--seam")).toHaveLength(1);
+    expect(container.querySelector(".applied-edit-layer")).toBeNull();
+    expect(container.querySelectorAll(".applied-tick")).toHaveLength(0);
   });
 
   it("filters other tracks and unmapped records, and renders no layer when empty", () => {
@@ -107,12 +100,11 @@ describe("AppliedEditOverlay", () => {
       <AppliedEditOverlay
         records={[
           appliedEditRecord({
-            id: "ripple",
-            operation: "ripple_delete",
-            reason: null,
-            source_start: null,
-            source_end: null,
-            params: { per_track_source: { "mira-voice": [2, 3] } },
+            id: "mute",
+            operation: "approve_edits",
+            source_start: 0.5,
+            source_end: 1,
+            params: { mute: true },
           }),
         ]}
         clips={clips}
@@ -130,11 +122,11 @@ describe("AppliedEditOverlay", () => {
       <AppliedEditOverlay
         records={[
           appliedEditRecord({
-            id: "ripple",
-            operation: "ripple_delete",
-            source_start: null,
-            source_end: null,
-            params: { per_track_source: { "mira-voice": [2, 3] } },
+            id: "mute",
+            operation: "approve_edits",
+            source_start: 0.5,
+            source_end: 1,
+            params: { mute: true },
           }),
         ]}
         clips={clips}
@@ -147,16 +139,16 @@ describe("AppliedEditOverlay", () => {
     expect(queryByRole("button")).toBeNull();
   });
 
-  it("has no axe violations with a seam tick", async () => {
+  it("has no axe violations with a mute tick", async () => {
     const { container } = render(
       <AppliedEditOverlay
         records={[
           appliedEditRecord({
-            id: "ripple",
-            operation: "ripple_delete",
-            source_start: null,
-            source_end: null,
-            params: { per_track_source: { "mira-voice": [2, 3] } },
+            id: "mute",
+            operation: "approve_edits",
+            source_start: 0.5,
+            source_end: 1,
+            params: { mute: true },
           }),
         ]}
         clips={clips}

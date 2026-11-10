@@ -36,7 +36,7 @@ const bar = (page: Page) =>
   page.getByRole("group", { name: /^(Selection|Edit) actions$/ });
 
 const glyphs = (page: Page) =>
-  page.locator(".lane-row").first().locator(".edit-mark");
+  page.locator(".lane-row").first().locator(".seam-mark .sys-seam-hit");
 
 async function historyLength(page: Page): Promise<number> {
   const body = (await projectJson(page, projectPath)) as unknown as {

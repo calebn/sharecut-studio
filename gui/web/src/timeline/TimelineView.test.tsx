@@ -1723,7 +1723,7 @@ describe("TimelineView render isolation", () => {
       throw new Error("snapshot dropped the project");
     }
     act(() => useDawStore.getState().setProject(next));
-    expect([...renders.clips].sort()).toEqual(["host-1", "host-2", "host-3"]);
+    expect([...renders.clips].sort()).toEqual(["host-1", "host-2"]);
     // Only the edited lane re-renders: `reuseUnchanged` keeps the untouched
     // envelopes/pending_edits/applied_edits identical, and the per-lane
     // overlay slices keep every other track's slice by reference too.

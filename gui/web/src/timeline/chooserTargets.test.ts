@@ -87,8 +87,6 @@ describe("chooserTargetsOf", () => {
       "trim-in": "clip",
       "fade-out": "clip",
       roll: "seam",
-      join: "seam",
-      "edit-chip": "seam",
       "pending-start": "suggestion",
       "pending-flag": "suggestion",
       "bleed-attenuation": "suggestion",
@@ -117,7 +115,7 @@ describe("chooserTargetsOf", () => {
     expect(labels(hit("clip", { time: 3 }))).toEqual(["00:03.000"]);
     expect(labels(hit("chapter", { time: 5 }))).toEqual(["00:05.000"]);
     expect(labels(hit("social-clip", { time: 12 }))).toEqual(["00:12.000"]);
-    expect(labels(hit("roll", { time: 10 }))).toEqual(["Roll at 00:10.000"]);
+    expect(labels(hit("roll", { time: 10 }))).toEqual(["00:10.000"]);
     expect(labels(hit("bleed-attenuation", { time: 10 }))).toEqual([
       "Automatic audio reduction at 00:10.000",
     ]);

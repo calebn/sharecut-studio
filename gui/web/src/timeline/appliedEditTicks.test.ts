@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { appliedEditRecord, clipRow } from "../test/fixtures";
 import type { ExactRangeTarget } from "../types/project";
-import {
-  appliedEditTicks,
-  appliedEditTitle,
-  appliedRecordOnTimeline,
-} from "./appliedEditTicks";
+import { appliedEditTicks, appliedEditTitle } from "./appliedEditTicks";
 
 const TRACK = "mira-voice";
 
@@ -62,14 +58,8 @@ describe("appliedEditTicks", () => {
       }),
     ];
     expect(
-      appliedEditTicks([record], TRACK, clips).map((tick) => [
-        tick.kind,
-        tick.sec,
-      ]),
-    ).toEqual([
-      ["edge", 2],
-      ["edge", 2.25],
-    ]);
+      appliedEditTicks([record], TRACK, clips).map((tick) => tick.sec),
+    ).toEqual([2, 2.25]);
     expect(
       appliedEditTicks([record], TRACK, [clips[0], clips[2]]).map(
         (tick) => tick.sec,
@@ -135,74 +125,14 @@ describe("appliedEditTicks", () => {
               },
             ];
       const ticks = appliedEditTicks([record], TRACK, [firstCopy, ...kept]);
-      expect(ticks.map((t) => t.sec)).toEqual([11, 12, 13, 14]);
-      expect(
-        ticks.every((t) => t.kind === (action === "mute" ? "edge" : "seam")),
-      ).toBe(true);
+      expect(ticks.map((t) => t.sec)).toEqual(
+        action === "mute" ? [11, 12, 13, 14] : [],
+      );
       expect(appliedEditTitle(record)).toBe(action === "mute" ? "Mute" : "Cut");
       expect(appliedEditTicks([record], "peer", [firstCopy])).toEqual([]);
     },
   );
-  it("keeps second-occurrence Cut edges after clip ids disappear, including a fully removed clip", () => {
-    const selected = clipRow({
-      id: "second",
-      track_id: TRACK,
-      source_id: "recording",
-      source_start: 0,
-      source_end: 4,
-      timeline_start: 10,
-      timeline_end: 14,
-    });
-    const overlapping = clipRow({
-      ...selected,
-      id: "overlap",
-      source_id: "other",
-      source_start: 10,
-      source_end: 12,
-      timeline_start: 11,
-      timeline_end: 13,
-    });
-    const target: ExactRangeTarget = {
-      kind: "exact_range",
-      intervals: [
-        { start: 11, end: 12 },
-        { start: 12.5, end: 13 },
-      ],
-      track_ids: [TRACK],
-      clips: [
-        { ...selected, mute_regions: [] },
-        { ...overlapping, mute_regions: [] },
-      ],
-      media_seals: { [TRACK]: "seal" },
-    };
-    const record = appliedEditRecord({
-      operation: "edit_selected_range",
-      source_start: null,
-      source_end: null,
-      params: { action: "cut", exact_range: target },
-    });
-    const first = {
-      ...selected,
-      id: "first",
-      timeline_start: 2,
-      timeline_end: 6,
-    };
-    expect(
-      appliedEditTicks([record], TRACK, [first]).map((t) => t.sec),
-    ).toEqual([11, 12, 12.5, 13]);
-    const removed = {
-      ...record,
-      params: {
-        action: "cut",
-        exact_range: { ...target, intervals: [{ start: 10, end: 14 }] },
-      },
-    };
-    expect(appliedEditTicks([removed], TRACK, []).map((t) => t.sec)).toEqual([
-      10, 14, 11, 13,
-    ]);
-  });
-
-  it("projects two stacked ripples plus a trim onto the post-edit seams, zero width", () => {
+  it("draws no tick for stacked ripples, only for the trim", () => {
     const clips = [
       clipRow({
         id: "c1",
@@ -256,13 +186,9 @@ describe("appliedEditTicks", () => {
 
     const ticks = appliedEditTicks([rippleA, rippleB, trim], TRACK, clips);
 
-    expect(ticks).toHaveLength(3);
-    expect(
-      ticks.map((t) => ({ recordId: t.recordId, kind: t.kind, sec: t.sec })),
-    ).toEqual([
-      { recordId: "ripple-a", kind: "seam", sec: 30 },
-      { recordId: "ripple-b", kind: "seam", sec: 5 },
-      { recordId: "trim", kind: "edge", sec: 38 },
+    expect(ticks).toHaveLength(1);
+    expect(ticks.map((t) => ({ recordId: t.recordId, sec: t.sec }))).toEqual([
+      { recordId: "trim", sec: 38 },
     ]);
     for (const t of ticks) {
       expect(t.sec).toBeLessThanOrEqual(38);
@@ -325,7 +251,7 @@ describe("appliedEditTicks", () => {
     });
     const ticks = appliedEditTicks([split], TRACK, clips);
     expect(ticks).toHaveLength(1);
-    expect(ticks[0]).toMatchObject({ kind: "edge", sec: 5 });
+    expect(ticks[0]).toMatchObject({ sec: 5 });
   });
 
   it("gives nothing for approve_split without split_source_by_track, even with a decision source clock", () => {
@@ -355,37 +281,6 @@ describe("appliedEditTicks", () => {
     expect(appliedEditTicks([approveSplit], TRACK, clips)).toEqual([]);
   });
 
-  it("gives two seam ticks for a punch_delete hole", () => {
-    const clips = [
-      clipRow({
-        id: "before",
-        source_start: 0,
-        source_end: 5,
-        timeline_start: 0,
-        timeline_end: 5,
-      }),
-      clipRow({
-        id: "after",
-        source_start: 8,
-        source_end: 10,
-        timeline_start: 8,
-        timeline_end: 10,
-      }),
-    ];
-    const punch = appliedEditRecord({
-      id: "punch",
-      operation: "punch_delete",
-      timeline_start: 5,
-      timeline_end: 8,
-      source_start: null,
-      source_end: null,
-      params: { per_track_source: { [TRACK]: [5, 8] } },
-    });
-    const ticks = appliedEditTicks([punch], TRACK, clips);
-    expect(ticks.map((t) => t.sec)).toEqual([5, 8]);
-    expect(ticks.every((t) => t.kind === "seam")).toBe(true);
-  });
-
   it("gives one edge tick for a roll_clip_join", () => {
     const clips = [
       clipRow({
@@ -411,7 +306,7 @@ describe("appliedEditTicks", () => {
     });
     const ticks = appliedEditTicks([roll], TRACK, clips);
     expect(ticks).toHaveLength(1);
-    expect(ticks[0]).toMatchObject({ kind: "edge", sec: 20 });
+    expect(ticks[0]).toMatchObject({ sec: 20 });
   });
 
   it("gives two edge ticks for a mute inside a clip", () => {
@@ -433,7 +328,6 @@ describe("appliedEditTicks", () => {
     });
     const ticks = appliedEditTicks([mute], TRACK, clips);
     expect(ticks.map((t) => t.sec)).toEqual([22, 23]);
-    expect(ticks.every((t) => t.kind === "edge")).toBe(true);
     expect(ticks.every((t) => t.mute)).toBe(true);
   });
 
@@ -474,7 +368,7 @@ describe("appliedEditTicks", () => {
     });
     const ticks = appliedEditTicks([move], TRACK, clips);
     expect(ticks).toHaveLength(1);
-    expect(ticks[0]).toMatchObject({ kind: "edge", sec: 12 });
+    expect(ticks[0]).toMatchObject({ sec: 12 });
   });
 
   it("drops a removal whose anchor edge was later trimmed away", () => {
@@ -495,45 +389,6 @@ describe("appliedEditTicks", () => {
       params: { per_track_source: { [TRACK]: [2, 3] } },
     });
     expect(appliedEditTicks([ripple], TRACK, clips)).toEqual([]);
-  });
-
-  it("binds a seam to the adjacent clip pair when the same source edge repeats", () => {
-    // "dup" reuses material ending at source 5 earlier in the episode; the cut's
-    // join is c1 (ends at 5) -> c2 (starts at 9), not dup's end.
-    const clips = [
-      clipRow({
-        id: "dup",
-        source_start: 2,
-        source_end: 5,
-        timeline_start: 0,
-        timeline_end: 3,
-      }),
-      clipRow({
-        id: "c1",
-        source_start: 0,
-        source_end: 5,
-        timeline_start: 3,
-        timeline_end: 8,
-      }),
-      clipRow({
-        id: "c2",
-        source_start: 9,
-        source_end: 20,
-        timeline_start: 8,
-        timeline_end: 19,
-      }),
-    ];
-    const ripple = appliedEditRecord({
-      id: "ripple",
-      operation: "ripple_delete",
-      timeline_start: null,
-      timeline_end: null,
-      source_start: null,
-      source_end: null,
-      params: { per_track_source: { [TRACK]: [5, 9] } },
-    });
-    const ticks = appliedEditTicks([ripple], TRACK, clips);
-    expect(ticks.map((t) => t.sec)).toEqual([8]);
   });
 
   it("breaks a single-edge tie by the record's stored timeline clock", () => {
@@ -610,49 +465,5 @@ describe("appliedEditTitle", () => {
     expect(
       appliedEditTitle(appliedEditRecord({ operation: "remove", reason: "x" })),
     ).toBe("Remove: x");
-  });
-});
-
-describe("appliedRecordOnTimeline", () => {
-  it("is true when the record maps to a tick on any of its tracks", () => {
-    const record = appliedEditRecord({
-      operation: "ripple_delete",
-      track_ids: [TRACK],
-      source_start: null,
-      source_end: null,
-      params: { per_track_source: { [TRACK]: [2, 3] } },
-    });
-    const clipsByTrack = {
-      [TRACK]: [
-        clipRow({
-          id: "c1",
-          source_start: 0,
-          source_end: 2,
-          timeline_start: 0,
-          timeline_end: 2,
-        }),
-        clipRow({
-          id: "c2",
-          source_start: 3,
-          source_end: 9,
-          timeline_start: 2,
-          timeline_end: 8,
-        }),
-      ],
-    };
-    expect(appliedRecordOnTimeline(record, clipsByTrack)).toBe(true);
-  });
-
-  it("is false when no track maps", () => {
-    const record = appliedEditRecord({
-      operation: "ripple_delete",
-      track_ids: [TRACK],
-      source_start: null,
-      source_end: null,
-      params: {},
-    });
-    expect(appliedRecordOnTimeline(record, { [TRACK]: [clipRow()] })).toBe(
-      false,
-    );
   });
 });

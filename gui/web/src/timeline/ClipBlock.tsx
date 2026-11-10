@@ -7,12 +7,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { rollClipJoin } from "../api";
-import {
-  type BoundaryGeometryClip,
-  type BoundaryTarget,
-  loadBoundaryContext,
-} from "../api/boundary";
 import { runPointerCommand } from "../commands/pointer";
 import { type RollPreview } from "../edit/clipEdgePreview";
 import {
@@ -20,18 +14,11 @@ import {
   type ClipSelectMods,
   waveformTicksToTimeline,
 } from "../edit/clipMove";
-import { isHandleDrag, ROLL_COMMIT_MIN_PX } from "../edit/dragThreshold";
 import { rippleTrimOf } from "../edit/ripplePreview";
-import {
-  clampToRollInterval,
-  type RollJoinInterval,
-  rollJoinInterval,
-} from "../edit/rollLimits";
 import { MOVE_THRESHOLD_PX } from "../hooks/gestureConstants";
 import { useSnapTicks, useSplitGuideOnClip } from "../hooks/useSnapTicks";
 import { hasShareCapability, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
-import { trackEditSave } from "../state/documentSendOrder";
 import type { ClipRow } from "../types/project";
 import { EMPTY_ARR } from "../utils/empty";
 import { clipDrawsPieces, clipMediaStartSec } from "../waveform/mediaRef";
@@ -69,8 +56,6 @@ export interface ClipBlockProps {
   selected: boolean;
   /** Media the clip draws (`waveform/mediaRef.clipMediaRef`). */
   mediaRef: MediaRef;
-  /** Previous clip on this track when it abuts this one (a join, which a roll moves); null if first or past a gap. */
-  prevClip: ClipRow | null;
   /** Next clip on this track (roll clamp); null if last. */
   nextClip: ClipRow | null;
   /** Source clamp: previous clip source_end (or 0). */
@@ -82,7 +67,6 @@ export interface ClipBlockProps {
    * Only the two clips of the join get it; the rest get null.
    */
   rollPreview: RollPreview | null;
-  onRollPreview: (preview: RollPreview | null) => void;
   /** Select-only (e.g. fade drag start). Callbacks take the clip id first,
    *  so a lane passes one stable function to every clip. */
   onSelect: (clipId: string) => void;
@@ -104,14 +88,6 @@ export interface ClipBlockProps {
   onBodyStart?: (clipId: string) => boolean;
   onBodyEnd?: (clipId: string) => void;
 }
-
-type RollDrag = {
-  originX: number;
-  interval: RollJoinInterval;
-  expectedGeometry: BoundaryGeometryClip[];
-  projectPath: string;
-  projectEpoch: number;
-};
 
 type BodyDrag = {
   clip: ClipRow;
@@ -139,12 +115,10 @@ export function ClipBlockLive({
   color,
   selected,
   mediaRef,
-  prevClip,
   nextClip,
   neighborSourceLo,
   neighborSourceHi,
   rollPreview,
-  onRollPreview,
   onSelect,
   onSelectClip,
   canMove = false,
@@ -165,7 +139,6 @@ export function ClipBlockLive({
       !isShareProjectKey(s.projectPath) ||
       hasShareCapability(s.shareCapabilities, "edit"),
   );
-  const rollDragRef = useRef<RollDrag | null>(null);
   const bodyRef = useRef<BodyDrag | null>(null);
   const bodyMovedRef = useRef(false);
   const pointerHandledRef = useRef(false);
@@ -297,165 +270,11 @@ export function ClipBlockLive({
   }, [ticks]);
   const waveKind = refKind(mediaRef);
 
-  const boundaryGeometry = (...clips: ClipRow[]): BoundaryGeometryClip[] =>
-    clips.map(
-      ({ id, source_start, source_end, timeline_start, source_id }) => ({
-        id,
-        source_start,
-        source_end,
-        timeline_start,
-        source_id,
-      }),
-    );
-
-  const rollIsCurrent = (drag: RollDrag): boolean => {
-    const state = useDawStore.getState();
-    if (
-      state.projectPath !== drag.projectPath ||
-      state.projectEpoch !== drag.projectEpoch
-    )
-      return false;
-    const interval = rollJoinInterval(
-      state.projectEditBasis()?.clips.tracks[drag.interval.right.track_id] ??
-        [],
-      drag.interval.left.id,
-      drag.interval.right.id,
-    );
-    if (
-      !interval ||
-      interval.lo !== drag.interval.lo ||
-      interval.hi !== drag.interval.hi
-    )
-      return false;
-    return boundaryGeometry(interval.left, interval.right).every(
-      (clip, index) => {
-        const captured = drag.expectedGeometry[index];
-        return (
-          captured !== undefined &&
-          clip.id === captured.id &&
-          clip.source_start === captured.source_start &&
-          clip.source_end === captured.source_end &&
-          clip.timeline_start === captured.timeline_start &&
-          clip.source_id === captured.source_id
-        );
-      },
-    );
-  };
-
-  const commitRoll = async (state: RollDrag, clientX: number) => {
-    const dxSec = (clientX - state.originX) / zoomPxPerSec;
-    const delta = clampToRollInterval(dxSec, state.interval);
-    try {
-      // A click (under the drag threshold) only selects; a roll the clamp
-      // shrinks under ROLL_COMMIT_MIN_PX is a no-op.
-      if (
-        !useDawStore.getState().joinMutationInFlight &&
-        rollIsCurrent(state) &&
-        isHandleDrag(state.originX, clientX) &&
-        Math.abs(delta) * zoomPxPerSec >= ROLL_COMMIT_MIN_PX
-      ) {
-        const path = state.projectPath;
-        const target: BoundaryTarget = {
-          kind: "roll",
-          left_clip_id: state.interval.left.id,
-          right_clip_id: state.interval.right.id,
-        };
-        await trackEditSave(
-          path,
-          (async () => {
-            const context = await loadBoundaryContext(
-              path,
-              target,
-              state.expectedGeometry,
-            );
-            if (
-              useDawStore.getState().joinMutationInFlight ||
-              !rollIsCurrent(state)
-            )
-              return;
-            await rollClipJoin(
-              path,
-              state.interval.left.id,
-              state.interval.right.id,
-              delta,
-              context.token,
-            );
-          })(),
-        );
-      }
-    } finally {
-      rollDragRef.current = null;
-      onRollPreview(null);
-    }
-  };
-
-  const startRollDrag = (e: ReactPointerEvent) => {
-    if (
-      !editable ||
-      !prevClip ||
-      edgeHandles.active ||
-      useDawStore.getState().joinMutationInFlight
-    ) {
-      return;
-    }
-    const project = useDawStore.getState();
-    const interval = rollJoinInterval(
-      project.projectEditBasis()?.clips.tracks[clip.track_id] ?? [],
-      prevClip.id,
-      clip.id,
-    );
-    if (!interval) return;
-    e.stopPropagation();
-    e.preventDefault();
-    try {
-      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    } catch {
-      // optional
-    }
-    rollDragRef.current = {
-      originX: e.clientX,
-      interval,
-      expectedGeometry: boundaryGeometry(interval.left, interval.right),
-      projectPath: project.projectPath,
-      projectEpoch: project.projectEpoch,
-    };
-    onRollPreview({
-      leftClipId: prevClip.id,
-      rightClipId: clip.id,
-      deltaSec: 0,
-    });
-    onSelect(clip.id);
-  };
-
-  const onDragMove = (e: ReactPointerEvent) => {
-    const d = rollDragRef.current;
-    if (!d) {
-      return;
-    }
-    if (!rollIsCurrent(d)) {
-      rollDragRef.current = null;
-      onRollPreview(null);
-      return;
-    }
-    const dxSec = (e.clientX - d.originX) / zoomPxPerSec;
-    onRollPreview({
-      leftClipId: d.interval.left.id,
-      rightClipId: d.interval.right.id,
-      deltaSec: clampToRollInterval(dxSec, d.interval),
-    });
-  };
-
-  const onDragUp = (e: ReactPointerEvent) => {
-    const d = rollDragRef.current;
-    if (d) void commitRoll(d, e.clientX);
-  };
-
   const extraTicks = () => waveformTicksToTimeline(clip, ticks);
 
   const onBodyDown = (e: ReactPointerEvent) => {
     if (
       bodyRef.current ||
-      rollDragRef.current ||
       isSplitModifier(e) ||
       !interactive ||
       edgeHandles.active ||
@@ -614,8 +433,6 @@ export function ClipBlockLive({
     handle: ClipHandle,
     e: ReactPointerEvent<HTMLButtonElement>,
   ) => {
-    if (rollDragRef.current) return;
-    if (handle === "roll") return startRollDrag(e);
     return edgeHandles.onPointerDown(handle, e);
   };
 
@@ -666,7 +483,6 @@ export function ClipBlockLive({
       color={color}
       selected={selected}
       geometry={geometry}
-      prevClip={prevClip}
       nextClip={nextClip}
       showHandles={editable && interactive}
       canMove={canMove}
@@ -721,14 +537,8 @@ export function ClipBlockLive({
       }
       hitHandlers={interactive ? hitHandlers : undefined}
       onHandlePointerDown={onHandlePointerDown}
-      onHandlePointerMove={(e) => {
-        onDragMove(e);
-        edgeHandles.onPointerMove(e);
-      }}
-      onHandlePointerUp={(e) => {
-        onDragUp(e);
-        edgeHandles.onPointerUp(e);
-      }}
+      onHandlePointerMove={edgeHandles.onPointerMove}
+      onHandlePointerUp={edgeHandles.onPointerUp}
       onHandlePointerCancel={edgeHandles.onPointerCancel}
       onHandleFocus={edgeHandles.onFocus}
       onHandleBlur={edgeHandles.onBlur}

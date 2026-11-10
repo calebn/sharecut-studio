@@ -82,12 +82,7 @@ function clipLabel(speaker: string, duration: string, width: number): string {
 
 const NO_TICKS: readonly number[] = [];
 
-export type ClipHandle =
-  | "roll"
-  | "fade-in"
-  | "fade-out"
-  | "trim-in"
-  | "trim-out";
+export type ClipHandle = "fade-in" | "fade-out" | "trim-in" | "trim-out";
 export type ClipHitHandlers = Pick<
   ButtonHTMLAttributes<HTMLButtonElement>,
   | "onPointerDown"
@@ -112,11 +107,9 @@ export interface ClipBlockViewProps {
   selected: boolean;
   /** `clipBlockGeometry` for the committed clip or the live preview. */
   geometry: ClipBlockGeometry;
-  /** Previous clip on this track: draws the roll seam. */
-  prevClip: ClipRow | null;
   /** Next clip on this track: a cut join into it hides this fade-out. */
   nextClip: ClipRow | null;
-  /** Editable project and interactive clip: draw trim, fade and roll handles. */
+  /** Editable project and interactive clip: draw trim and fade handles. */
   showHandles: boolean;
   canMove?: boolean;
   moving?: boolean;
@@ -166,7 +159,6 @@ export function ClipBlockView({
   color,
   selected,
   geometry,
-  prevClip,
   nextClip,
   showHandles,
   canMove = false,
@@ -227,7 +219,6 @@ export function ClipBlockView({
   });
   const label = clipLabel(labels.speaker, labels.duration, width);
   const trimTip = capabilityTooltip("daw.edit.trimClipEdge");
-  const rollTip = capabilityTooltip("daw.edit.rollClipJoin");
   const fadeTip = capabilityTooltip("daw.edit.setClipFade");
   const moveTip = capabilityTooltip("daw.edit.moveClips");
   const title =
@@ -270,24 +261,6 @@ export function ClipBlockView({
           onBlur={hitHandlers?.onBlur}
           onClick={hitHandlers?.onClick}
           onDoubleClick={hitHandlers?.onDoubleClick}
-        />
-      ) : null}
-      {showHandles && prevClip ? (
-        <button
-          type="button"
-          className="join-seam"
-          {...hitTargetProps("roll", clip.id, savedStart, { selected })}
-          title={`${rollTip} · join: ${clip.join_in_mode}`}
-          aria-label={rollTip}
-          onPointerDown={(e) => onHandlePointerDown?.("roll", e)}
-          onPointerMove={onHandlePointerMove}
-          onPointerUp={onHandlePointerUp}
-        />
-      ) : interactive && prevClip ? (
-        <span
-          className="join-seam"
-          title={`Join: ${clip.join_in_mode}`}
-          aria-hidden="true"
         />
       ) : null}
       {landing ? (

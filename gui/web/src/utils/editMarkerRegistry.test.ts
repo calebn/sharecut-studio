@@ -4,12 +4,9 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   appliedKind,
-  EDIT_GLYPH_PATH,
   EDIT_MARKERS,
   type EditMarkerKind,
-  JOIN_KINDS,
   joinKind,
-  joinMarkLabel,
   markerLabel,
   markerVariant,
   pendingKind,
@@ -24,33 +21,12 @@ const KINDS = Object.keys(EDIT_MARKERS) as EditMarkerKind[];
 const TYPES = [...new Set(KINDS.map((kind) => EDIT_MARKERS[kind].type))];
 
 describe("edit marker registry", () => {
-  it("gives every kind a label and a type, and every join kind a glyph", () => {
+  it("gives every kind a label and a type", () => {
     expect(KINDS).toHaveLength(9);
     expect(TYPES).toHaveLength(5);
     for (const kind of KINDS) {
       expect(markerLabel(kind).length).toBeGreaterThan(0);
     }
-    for (const kind of JOIN_KINDS) {
-      expect(EDIT_GLYPH_PATH[EDIT_MARKERS[kind].type]).toMatch(/^M/);
-    }
-  });
-
-  it("draws one distinct glyph per join type", () => {
-    expect(new Set(Object.values(EDIT_GLYPH_PATH)).size).toBe(3);
-    expect(EDIT_GLYPH_PATH.cut).toBe("M6 1V11");
-    expect(EDIT_GLYPH_PATH.fade).toBe("M1 2L6 10L11 2");
-    expect(EDIT_GLYPH_PATH.crossfade).toBe("M1 1L11 11M11 1L1 11");
-  });
-
-  it.each([
-    ["join-crossfade", 120, "Crossfade 120 ms"],
-    ["join-crossfade", 0, "Crossfade"],
-    ["join-fade", 80, "Fade 80 ms"],
-    ["join-fade", 0, "Fade"],
-    ["join-cut", 80, "Cut"],
-    ["join-fade", 79.6, "Fade 80 ms"],
-  ] as const)("labels a %s of %f ms as %s", (kind, ms, text) => {
-    expect(joinMarkLabel(kind, ms)).toBe(text);
   });
 
   it("reads an unknown join mode as fade, as render does", () => {
@@ -96,7 +72,9 @@ describe("edit marker registry", () => {
       [theme("theme-light.css"), 2],
     ] as const;
     for (const [css, count] of blocks) {
-      for (const type of TYPES) {
+      for (const type of TYPES.filter(
+        (t) => t !== "fade" && t !== "crossfade",
+      )) {
         const defined = css.match(
           new RegExp(`^\\s*--color-mark-${type}:`, "gm"),
         );

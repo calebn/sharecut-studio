@@ -64,13 +64,13 @@ for (const width of [1280, 390]) {
         await page.setViewportSize({ width, height: 844 });
         await phone.showTimeline(page);
       }
-      const badge = lane.locator(".edit-mark");
+      const badge = lane.locator(".seam-mark .sys-seam-hit");
       await badge.click();
       const joinType = page
         .getByRole("group", { name: /^(Selection|Edit) actions$/ })
         .getByRole("group", { name: "Join type" });
       await joinType.getByRole("button", { name: "Crossfade" }).click();
-      await expect(badge).toHaveClass(/crossfade/);
+      await expect(badge).toHaveAccessibleName(/Crossfade join/);
       await expect(badge).toHaveAttribute("aria-pressed", "true");
       const initial = await snapshot(page);
       const trackId = await lane.getAttribute("data-track-id");

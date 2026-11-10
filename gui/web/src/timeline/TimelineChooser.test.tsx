@@ -220,7 +220,7 @@ describe("TimelineChooser", () => {
     show({ hits: many });
     expect(chips().map((c) => c.getAttribute("aria-label"))).toEqual([
       "Clip, Trim start at 00:00.000",
-      "Seam, Roll at 00:01.000",
+      "Seam, 00:01.000",
       "Suggestion, Pending start at 00:02.000",
       "Comment, 00:03.000",
       "Clip, Trim end at 00:06.000, selected",

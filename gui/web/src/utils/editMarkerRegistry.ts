@@ -40,32 +40,12 @@ export const EDIT_MARKERS = {
   "applied-mute": { type: "mute", label: "Mute" },
 } as const satisfies Record<EditMarkerKind, EditMarkerSpec>;
 
-export const EDIT_GLYPH_PATH: Record<JoinMode, string> = {
-  cut: "M6 1V11",
-  fade: "M1 2L6 10L11 2",
-  crossfade: "M1 1L11 11M11 1L1 11",
-};
-
-export const JOIN_KINDS: readonly JoinMarkerKind[] = [
-  "join-cut",
-  "join-fade",
-  "join-crossfade",
-];
-
 export function markerLabel(kind: EditMarkerKind): string {
   return EDIT_MARKERS[kind].label;
 }
 
 export function markerVariant(kind: EditMarkerKind): string {
   return kind.slice(kind.indexOf("-") + 1);
-}
-
-/** A join's on-timeline text: its type, then its length when it has one ("Crossfade 120 ms", "Fade 80 ms", "Cut"). */
-export function joinMarkLabel(kind: JoinMarkerKind, lengthMs: number): string {
-  const label = markerLabel(kind);
-  return kind === "join-cut" || !(lengthMs > 0)
-    ? label
-    : `${label} ${Math.round(lengthMs)} ms`;
 }
 
 export function joinKind(right: Pick<ClipRow, "join_in_mode">): JoinMarkerKind {

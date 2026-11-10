@@ -22,13 +22,6 @@ const geometry = (
     ...previews,
   });
 
-const prev = clipRow({
-  id: "story-clip-1",
-  source_start: 0,
-  source_end: 4,
-  timeline_start: 0,
-  timeline_end: 4,
-});
 const clip = clipRow({
   id: "story-clip-2",
   source_start: 5,
@@ -60,7 +53,6 @@ const meta: Meta<typeof ClipBlockView> = {
     color: laneColor("dialogue", 0),
     selected: false,
     geometry: geometry(clip),
-    prevClip: prev,
     nextClip: null,
     showHandles: true,
     canMove: true,
@@ -179,7 +171,6 @@ export const ReadOnly: Story = {
     await expect(canvasElement.querySelectorAll(".trim-handle")).toHaveLength(
       0,
     );
-    await expect(canvasElement.querySelector("span.join-seam")).not.toBeNull();
   },
 };
 

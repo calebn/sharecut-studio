@@ -245,7 +245,7 @@ test("crossfade length saves block competing pointer fades until acknowledged", 
   await page.keyboard.press("Shift+ArrowRight");
   await page.keyboard.press("ControlOrMeta+K");
   await expect(lane.locator(".clip-block")).toHaveCount(2);
-  await lane.locator(".edit-mark").click();
+  await lane.locator(".seam-mark .sys-seam-hit").click();
   await page
     .getByRole("group", { name: /^(Selection|Edit) actions$/ })
     .getByRole("group", { name: "Join type" })

@@ -32,16 +32,10 @@ const point: HitTarget = {
   rect: { left: 195, top: 115, right: 205, bottom: 125 },
   selected: false,
 };
-const join: HitTarget = {
-  kind: "join",
-  id: "clip-b",
-  rect: { left: 192, top: 100, right: 208, bottom: 106 },
-  selected: false,
-};
 const seam: HitTarget = {
   kind: "roll",
   id: "clip-b",
-  rect: { left: 188, top: 128, right: 212, bottom: 152 },
+  rect: { left: 192, top: 100, right: 208, bottom: 106 },
   selected: false,
 };
 const chapter: HitTarget = {
@@ -50,7 +44,7 @@ const chapter: HitTarget = {
   rect: { left: 192, top: 40, right: 208, bottom: 56 },
   selected: false,
 };
-const cluster = [seam, chapter, join, point, fadeIn, trimOut, trimIn];
+const cluster = [seam, chapter, point, fadeIn, trimOut, trimIn];
 const finger = { x: 203, y: 116 };
 
 function ranked(
@@ -69,7 +63,7 @@ describe("rankHitTargets", () => {
     selected: true,
   };
 
-  it.each([trimIn, trimOut, fadeIn, point, join, seam])(
+  it.each([trimIn, trimOut, fadeIn, point, seam])(
     "keeps a selected band out of a $kind press even inside its bounds",
     (handle) => {
       expect(ranked([band, handle], 22, handle).map((c) => c.kind)).toEqual([
@@ -93,17 +87,8 @@ describe("rankHitTargets", () => {
     ]);
   });
 
-  it("ranks a same-time cluster at a clip edge: the roll first, as it outranks the trims (#1135), then by core distance and priority", () => {
+  it("ranks a same-time cluster at a clip edge by core distance, then priority", () => {
     expect(ranked(cluster, 22)).toEqual([
-      {
-        kind: "roll",
-        id: "clip-b",
-        x: 200,
-        y: 140,
-        distance: Math.hypot(3, 24),
-        priority: 6,
-        selected: false,
-      },
       {
         kind: "trim-in",
         id: "clip-b",
@@ -141,7 +126,7 @@ describe("rankHitTargets", () => {
         selected: false,
       },
       {
-        kind: "join",
+        kind: "roll",
         id: "clip-b",
         x: 203,
         y: 103,
@@ -160,9 +145,9 @@ describe("rankHitTargets", () => {
       ),
     ).toEqual([
       "fade-in:true",
-      "roll:false",
       "trim-in:false",
       "envelope-point:false",
+      "roll:false",
     ]);
   });
 
@@ -363,7 +348,8 @@ describe("a body", () => {
 
 describe("corePoint", () => {
   it("is the centre of a square and the centre line of a strip", () => {
-    expect(corePoint(seam.rect, { x: 0, y: 0 })).toEqual({ x: 200, y: 140 });
+    const square = { left: 188, top: 128, right: 212, bottom: 152 };
+    expect(corePoint(square, { x: 0, y: 0 })).toEqual({ x: 200, y: 140 });
     expect(corePoint(trimIn.rect, { x: 0, y: 150 })).toEqual({
       x: 204,
       y: 150,

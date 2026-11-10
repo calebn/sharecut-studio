@@ -4,7 +4,7 @@ import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { partial, rule } from "../test/cssRules";
-import { minimalProject, sampleTrack } from "../test/fixtures";
+import { editBoundaries, minimalProject, sampleTrack } from "../test/fixtures";
 import type { ClipRow, TrackView } from "../types/project";
 import { TrackLane } from "./TrackLane";
 
@@ -263,7 +263,7 @@ describe("TrackLane waveform status hint", () => {
   });
 });
 
-describe("TrackLane join marks", () => {
+describe("TrackLane seam marks", () => {
   const left: ClipRow = {
     ...clip,
     id: "c0",
@@ -289,6 +289,7 @@ describe("TrackLane join marks", () => {
       project: minimalProject({
         tracks: [props.track ?? track],
         clips: { tracks: { host: [...clips] }, clip_count: clips.length },
+        edit_boundaries: editBoundaries(clips),
       }),
     });
     return render(
@@ -301,95 +302,78 @@ describe("TrackLane join marks", () => {
       />,
     );
   };
+  const diamonds = (container: HTMLElement) =>
+    container.querySelectorAll<HTMLElement>(".seam-mark");
 
   afterEach(() => {
     useDawStore.setState({ project: null, projectPath: "" });
   });
 
-  it("draws one glyph at the seam", () => {
+  it("draws one hollow diamond at a split seam", () => {
     const { container } = lane();
-    const badges = container.querySelectorAll(".edit-mark");
-    expect(badges).toHaveLength(1);
-    const badge = screen.getByRole("button", { name: "Fade join at 0:05.0" });
-    expect((badge as HTMLElement).style.left).toBe("500px");
+    expect(diamonds(container)).toHaveLength(1);
+    expect(diamonds(container)[0]?.style.left).toBe("500px");
+    expect(container.querySelector(".sys-seam")).toHaveAttribute(
+      "data-kind",
+      "split",
+    );
+    expect(
+      screen.getByRole("button", { name: "Split at 0:05.0, Fade join" }),
+    ).toBeInTheDocument();
   });
 
-  it("draws no glyph for a single clip", () => {
+  it("draws a filled diamond where a cut left the clips touching", () => {
+    const { container } = lane({
+      clips: [left, { ...right, source_start: 7 }],
+    });
+    expect(container.querySelector(".sys-seam")).toHaveAttribute(
+      "data-kind",
+      "cut",
+    );
+  });
+
+  it("draws no diamond for a single clip", () => {
     const { container } = render(
       <TrackLane {...baseProps} onSeek={vi.fn()} onSelectClip={vi.fn()} />,
     );
-    expect(container.querySelector(".edit-mark")).toBeNull();
+    expect(diamonds(container)).toHaveLength(0);
   });
 
-  it("types a cut and a blocked crossfade", () => {
-    const { container, rerender } = lane({
-      clips: [left, { ...right, join_in_mode: "cut" }],
-    });
-    expect(container.querySelector(".edit-mark--cut")).toBeTruthy();
-    rerender(
-      <TrackLane
-        {...baseProps}
-        clips={[
-          left,
-          {
-            ...right,
-            join_in_mode: "crossfade",
-            join_crossfade_blocked: "no_fade_in",
-          },
-        ]}
-        onSeek={vi.fn()}
-        onSelectClip={vi.fn()}
-      />,
-    );
-    expect(
-      container.querySelector(".edit-mark--crossfade.edit-mark--blocked"),
-    ).toBeTruthy();
-  });
-
-  it("draws no glyph for a mismatched join id", () => {
-    const { container } = lane({
-      clips: [left, { ...right, join_left_clip_id: "cx" }],
-    });
-    expect(container.querySelector(".edit-mark")).toBeNull();
-  });
-
-  it("draws no glyph across a gap", () => {
+  it("draws no diamond across a gap that cut nothing", () => {
     const { container } = lane({
       clips: [left, { ...right, timeline_start: 6, timeline_end: 11 }],
     });
+    expect(diamonds(container)).toHaveLength(0);
+  });
+
+  it("marks the diamond as the roll target of its right clip", () => {
+    const { container } = lane();
+    const hit = container.querySelector<HTMLElement>(
+      '.seam-mark [data-hit-kind="roll"]',
+    );
+    expect(hit?.getAttribute("data-hit-id")).toBe("c1");
+    expect(container.querySelector(".join-seam")).toBeNull();
     expect(container.querySelector(".edit-mark")).toBeNull();
   });
 
-  it("offers no roll across a gap: the seam is drawn only where clips abut", () => {
-    const gapped = {
-      clips: [left, { ...right, timeline_start: 10, timeline_end: 15 }],
-    };
-    const { container } = lane(gapped);
-    expect({
-      seams: container.querySelectorAll(".join-seam").length,
-      rolls: container.querySelectorAll('[data-hit-kind="roll"]').length,
-    }).toEqual({ seams: 0, rolls: 0 });
-  });
-
-  it("draws the glyph at a zoom where the clips are a few pixels wide", () => {
+  it("draws the diamond at a zoom where the clips are a few pixels wide", () => {
     const { container } = lane({ zoomPxPerSec: 4, width: 40 });
-    const glyph = container.querySelector<HTMLElement>(".edit-mark");
-    expect(glyph?.style.left).toBe("20px");
+    expect(diamonds(container)[0]?.style.left).toBe("20px");
   });
 
-  it("draws no glyph while a neighbour is being moved", () => {
+  it("draws no diamond while a neighbour is being moved", () => {
     const { container: previewContainer } = lane({
       previewStartById: { c1: 7 },
     });
-    expect(previewContainer.querySelector(".edit-mark")).toBeNull();
+    expect(diamonds(previewContainer)).toHaveLength(0);
 
     const { container: hiddenContainer } = lane({
       hideClipIds: new Set(["c0"]),
     });
-    expect(hiddenContainer.querySelector(".edit-mark")).toBeNull();
+    expect(diamonds(hiddenContainer)).toHaveLength(0);
   });
 
-  it("draws two glyphs for three abutting clips", () => {
+  it("draws two diamonds for three abutting clips", () => {
     const c2: ClipRow = {
       ...clip,
       id: "c2",
@@ -400,71 +384,28 @@ describe("TrackLane join marks", () => {
       join_left_clip_id: "c1",
     };
     const { container } = lane({ clips: [left, right, c2], width: 1500 });
-    const badges = Array.from(container.querySelectorAll(".edit-mark"));
-    expect(badges).toHaveLength(2);
-    expect(badges.map((b) => (b as HTMLElement).style.left)).toEqual([
+    expect(Array.from(diamonds(container)).map((b) => b.style.left)).toEqual([
       "500px",
       "1000px",
     ]);
   });
 
-  it("keeps the join seam alongside the glyph", () => {
-    const { container } = lane();
-    expect(container.querySelector(".join-seam")).toBeTruthy();
-    expect(container.querySelector(".edit-mark")).toBeTruthy();
-  });
-
-  it("moves the glyph with a live roll of its join", () => {
-    const { container } = lane();
-    const seam = container.querySelector<HTMLElement>("button.join-seam")!;
-    // 50 px at 100 px/s rolls the c0 | c1 join 0.5 s right.
-    fireEvent.pointerDown(seam, { clientX: 100, pointerId: 7 });
-    fireEvent.pointerMove(seam, { clientX: 150, pointerId: 7 });
-    const badge = container.querySelector<HTMLElement>(".edit-mark")!;
-    expect(badge.style.left).toBe("550px");
-  });
-
-  it("folds joins closer than 24 px into one count chip", () => {
-    const clips: ClipRow[] = [left];
-    for (let i = 1; i <= 3; i += 1) {
-      clips.push({
-        ...clip,
-        id: `n${i}`,
-        source_start: i * 0.1,
-        source_end: i * 0.1 + 0.1,
-        timeline_start: i * 0.1,
-        timeline_end: i * 0.1 + 0.1,
-        join_left_clip_id: i === 1 ? "c0" : `n${i - 1}`,
-        join_in_mode: i === 2 ? "cut" : "fade",
-      });
-    }
-    const { container } = lane({
-      clips: [
-        { ...left, source_end: 0.1, timeline_end: 0.1 },
-        ...clips.slice(1),
-      ],
-      zoomPxPerSec: 10,
-      width: 100,
-    });
-    expect(container.querySelectorAll(".edit-mark")).toHaveLength(0);
-    const chip = container.querySelector<HTMLElement>(".edit-chip");
-    expect(chip?.getAttribute("aria-label")).toBe(
-      "3 edits: 1 cut, 2 fades. Zoom in",
-    );
-    expect(
-      container.querySelectorAll('[data-hit-kind="edit-chip"]'),
-    ).toHaveLength(1);
-  });
-
-  it("selects the seam of a join when its glyph is pressed", () => {
+  it("selects the seam when its diamond is pressed", () => {
     const onSelectSeam = vi.fn();
     lane({ onSelectSeam });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Fade join at 0:05.0" }),
-    );
-    expect(onSelectSeam).toHaveBeenCalledExactlyOnceWith(
-      "host",
-      expect.stringMatching(/^eb:.+:.+$/),
+    fireEvent.click(screen.getByRole("button", { name: /^Split at 0:05\.0/ }));
+    expect(onSelectSeam).toHaveBeenCalledExactlyOnceWith("host", "eb:c0:c1");
+  });
+
+  it("moves the diamond and both clips with a live roll", () => {
+    const { container } = lane();
+    const hit = screen.getByRole("button", { name: /^Split at 0:05\.0/ });
+    // 50 px at 100 px/s rolls the c0 | c1 seam 0.5 s right.
+    fireEvent.pointerDown(hit, { clientX: 100, pointerId: 7, button: 0 });
+    fireEvent.pointerMove(hit, { clientX: 150, pointerId: 7 });
+    expect(diamonds(container)[0]?.style.left).toBe("550px");
+    expect(container.querySelector(".sys-seam-readout")).toHaveTextContent(
+      "+500 ms",
     );
   });
 });

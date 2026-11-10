@@ -302,7 +302,7 @@ describe("clip body", () => {
 });
 
 describe("tap on a surface near an edit mark", () => {
-  function mark(kind: "join" | "edit-chip" = "join"): HTMLButtonElement {
+  function mark(kind: "roll" = "roll"): HTMLButtonElement {
     const el = button(hitTargetProps(kind, "clip-b", 2), {
       left: 192,
       top: 100,
@@ -333,7 +333,7 @@ describe("tap on a surface near an edit mark", () => {
       }),
     );
 
-  function opensFromClick(kind: "join" | "edit-chip"): void {
+  function opensFromClick(kind: "roll"): void {
     const el = lane();
     mark(kind);
     tap(el, 228, 104);
@@ -345,12 +345,8 @@ describe("tap on a surface near an edit mark", () => {
     expect(seeks()).toEqual([]);
   }
 
-  it("opens the join from the browser's click when a finger lands 20 px beside it", () => {
-    opensFromClick("join");
-  });
-
-  it("opens the edit chip from the browser's click when a finger lands 20 px beside it", () => {
-    opensFromClick("edit-chip");
+  it("opens the Seam from the browser's click when a finger lands 20 px beside it", () => {
+    opensFromClick("roll");
   });
 
   it("opens the mark once when no browser click follows the tap", () => {
@@ -359,7 +355,7 @@ describe("tap on a surface near an edit mark", () => {
     tap(el, 228, 104);
     vi.runAllTimers();
 
-    expect(marks("join")).toEqual(["join:click@228,104"]);
+    expect(marks("roll")).toEqual(["roll:click@228,104"]);
     expect(router.claimsClick(new MouseEvent("click"))).toBe(false);
   });
 
@@ -370,7 +366,7 @@ describe("tap on a surface near an edit mark", () => {
     nativeClick(target, 228, 104);
     vi.runAllTimers();
 
-    expect(marks("join")).toEqual([]);
+    expect(marks("roll")).toEqual([]);
   });
 
   it("drops a pending tap when its pointer is cancelled", () => {
@@ -381,7 +377,7 @@ describe("tap on a surface near an edit mark", () => {
     nativeClick(el, 228, 104);
     vi.runAllTimers();
 
-    expect(marks("join")).toEqual([]);
+    expect(marks("roll")).toEqual([]);
   });
 
   it("drops a pending tap when the next press starts", () => {
@@ -391,7 +387,7 @@ describe("tap on a surface near an edit mark", () => {
     press(el, "pointerdown", 600, 104);
     vi.runAllTimers();
 
-    expect(marks("join")).toEqual([]);
+    expect(marks("roll")).toEqual([]);
   });
 
   it("claims the browser's own click on the surface after a tap sent to a mark, once", () => {
@@ -404,7 +400,7 @@ describe("tap on a surface near an edit mark", () => {
     nativeClick(el, 228, 104);
 
     expect(claims).toEqual([true, false]);
-    expect(marks("join").at(-1)).toBe("join:click@228,104");
+    expect(marks("roll").at(-1)).toBe("roll:click@228,104");
   });
 
   it("does not claim a click after a tap that stayed on its own target", () => {
@@ -438,7 +434,7 @@ describe("tap on a surface near an edit mark", () => {
     tap(el, 200, 144);
     nativeClick(el, 200, 144);
 
-    expect(marks("join")).toEqual(["join:click@200,144"]);
+    expect(marks("roll")).toEqual(["roll:click@200,144"]);
     expect(seeks()).toEqual([]);
   });
 
@@ -454,7 +450,7 @@ describe("tap on a surface near an edit mark", () => {
     mark();
     tap(region, 228, 104);
 
-    expect(marks("join")).toEqual([]);
+    expect(marks("roll")).toEqual([]);
     expect(marks("pending")).toEqual([
       "pending:pointerdown@228,104",
       "pending:pointerup@228,104",
@@ -466,7 +462,7 @@ describe("tap on a surface near an edit mark", () => {
     mark();
     tap(el, 238, 104);
 
-    expect(marks("join")).toEqual([]);
+    expect(marks("roll")).toEqual([]);
     expect(seeks()).toEqual([
       "lane:pointerdown@238,104",
       "lane:pointerup@238,104",
@@ -478,7 +474,7 @@ describe("tap on a surface near an edit mark", () => {
     mark();
     tap(el, 200, 160);
 
-    expect(marks("join")).toEqual([]);
+    expect(marks("roll")).toEqual([]);
     expect(seeks()).toHaveLength(2);
   });
 
@@ -487,20 +483,11 @@ describe("tap on a surface near an edit mark", () => {
     mark();
     tap(above, 200, 90);
 
-    expect(marks("join")).toEqual([]);
+    expect(marks("roll")).toEqual([]);
     expect(seeks()).toEqual([
       "lane:pointerdown@200,90",
       "lane:pointerup@200,90",
     ]);
-  });
-
-  it("stays a seek under a chip", () => {
-    const el = lane();
-    mark("edit-chip");
-    tap(el, 200, 170);
-
-    expect(marks("edit-chip")).toEqual([]);
-    expect(seeks()).toHaveLength(2);
   });
 
   it("never takes a mouse click, which has no finger to miss with", () => {
@@ -508,7 +495,7 @@ describe("tap on a surface near an edit mark", () => {
     mark();
     tap(el, 228, 104, "mouse");
 
-    expect(marks("join")).toEqual([]);
+    expect(marks("roll")).toEqual([]);
   });
 
   it("gives a press on a trim handle at the same seam to the handle", () => {
@@ -528,7 +515,7 @@ describe("tap on a surface near an edit mark", () => {
       "trim:pointerdown@200,130",
       "trim:pointerup@200,130",
     ]);
-    expect(marks("join")).toEqual([]);
+    expect(marks("roll")).toEqual([]);
     expect(seeks()).toEqual([]);
     expect(el.isConnected).toBe(true);
   });
@@ -540,7 +527,7 @@ describe("tap on a surface near an edit mark", () => {
     router.longPress();
 
     expect(creates.at(-1)?.surface).toBe(el);
-    expect(marks("join")).toEqual([]);
+    expect(marks("roll")).toEqual([]);
   });
 
   it("opens the create menu on a long press in the lane above", () => {
@@ -571,7 +558,7 @@ describe("tap on a surface near an edit mark", () => {
       "trim:pointerdown@200,130",
       "trim:pointerup@200,130",
     ]);
-    expect(marks("join")).toEqual([]);
+    expect(marks("roll")).toEqual([]);
     expect(el.isConnected).toBe(true);
   });
 });
