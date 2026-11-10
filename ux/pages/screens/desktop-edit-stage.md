@@ -34,7 +34,7 @@ In the desktop transcript, Shift-click extends a range from the original word on
 | Command | Key | Effect |
 |---------|-----|--------|
 | Show or hide Script (`view.toggleScript`) | `T` | Hides the Script pane for more lane width, or brings it back |
-| Script focus (`view.scriptFocus`) | `Shift+T` | Grows the Script pane and shrinks the timeline |
+| Script focus (`view.scriptFocus`) | `Shift+T` | Grows the Script pane and replaces the timeline with a 32 px overview strip of the whole episode: tap or drag it to seek, or use the arrows, Home and End when it is focused |
 | Resize Script | Divider: drag, arrows, Home/End, Enter or double-click resets | Sets the pane width; saved as a browser preference |
 
 The old layout presets (Restore layout, Maximize timeline, Maximize transcript, Review layout) and their `Mod+1` to `Mod+4` keys were removed; those keys now go to stages. Every stage keeps the header, Player bar and banner rows in place (geometry guard: `stage/frame/StageFrame.test.tsx`).

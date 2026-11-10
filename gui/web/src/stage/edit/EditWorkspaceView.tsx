@@ -26,6 +26,8 @@ export interface EditWorkspaceViewProps {
   corner: ReactNode;
   divider: ReactNode;
   script: ReactNode;
+  /** The whole-episode strip: on a phone inside `phone`, in Script focus above the Script. */
+  overview?: ReactNode;
   /** Replaces everything on a phone. */
   phone?: ReactNode;
   /** The Inspector, a card beside the selection or the phone's bottom sheet. */
@@ -53,6 +55,7 @@ export function EditWorkspaceView({
   corner,
   divider,
   script,
+  overview,
   phone,
   sheet,
   bindings,
@@ -106,6 +109,7 @@ export function EditWorkspaceView({
       ) : null}
       {scriptShown ? (
         <div ref={bindings?.script} className="edit-script" tabIndex={-1}>
+          {scriptFocus ? overview : null}
           {script}
         </div>
       ) : null}

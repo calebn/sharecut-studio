@@ -498,13 +498,25 @@ export const reviewEntriesOf = (
     .filter(needsReview)
     .map((edit) => entryOf(edit, tracks, eligibleWords));
 
+const reviewableBy = (e: PendingEditView, guest: boolean) =>
+  needsReview(e) && !(guest && e.unsure_words?.length);
+
 /** `guest` leaves out the cuts over an unsure word, which only the host decides. */
 export const reviewCountOf = (
   pending: readonly PendingEditView[],
   guest = false,
-): number =>
-  pending.filter((e) => needsReview(e) && !(guest && e.unsure_words?.length))
-    .length;
+): number => pending.filter((e) => reviewableBy(e, guest)).length;
+
+/** Where each cut waiting for this reader's review starts on the timeline; unmapped cuts have no time. */
+export const suggestionTimesOf = (
+  pending: readonly PendingEditView[],
+  guest: boolean,
+): number[] =>
+  pending.flatMap((e) =>
+    reviewableBy(e, guest) && e.timeline_start !== null
+      ? [e.timeline_start]
+      : [],
+  );
 
 const firstLine = (body: string) => body.trim().split("\n", 1)[0] ?? "";
 

@@ -27,6 +27,7 @@ import {
   sessionIdOf,
   sessionItemId,
   sessionStartSec,
+  suggestionTimesOf,
   takeToPlace,
   unsureEntriesOf,
   wordIdOf,
@@ -1675,5 +1676,23 @@ describe("pickupConfirmation", () => {
     expect(pickupConfirmation(ask([]), tracks)).toBe(
       "This also removes speech from another track.",
     );
+  });
+});
+
+describe("suggestionTimesOf", () => {
+  const edits = [
+    pendingEditView({ id: "a", timeline_start: 5 }),
+    pendingEditView({
+      id: "b",
+      timeline_start: 9,
+      unsure_words: [{} as PendingUnsureWord],
+    }),
+    pendingEditView({ id: "c", timeline_start: null }),
+    pendingEditView({ id: "d", timeline_start: 20, applied: true }),
+  ];
+
+  it("lists the starts of cuts waiting for review, and hides the unsure ones from a guest", () => {
+    expect(suggestionTimesOf(edits, false)).toEqual([5, 9]);
+    expect(suggestionTimesOf(edits, true)).toEqual([5]);
   });
 });
