@@ -18,77 +18,54 @@ function object(value: unknown): Record<string, unknown> {
   return Object.fromEntries(Object.entries(value));
 }
 
-function stereoTone(hot: boolean): Buffer {
-  const rate = 48000;
-  const frames = rate * 60;
-  const samples = Buffer.alloc(frames * 4);
+type MeterSource = { rate: number; channels: number; wav: Buffer };
+type MeterSources = Record<"reference" | "guest", MeterSource>;
+
+const FIXTURE_SECONDS = 60;
+
+function pcmWav(
+  rate: number,
+  channels: number,
+  sampleAt: (frame: number, channel: number) => number,
+): MeterSource {
+  const frames = rate * FIXTURE_SECONDS;
+  const samples = Buffer.alloc(frames * channels * 2);
   for (let frame = 0; frame < frames; frame += 1) {
+    for (let channel = 0; channel < channels; channel += 1) {
+      samples.writeInt16LE(
+        Math.round(32767 * sampleAt(frame, channel)),
+        (frame * channels + channel) * 2,
+      );
+    }
+  }
+  return {
+    rate,
+    channels,
+    wav: Buffer.concat([
+      Buffer.from(pcmWavHeader(samples.length, rate, channels)),
+      samples,
+    ]),
+  };
+}
+
+function stereoTone(hot: boolean): MeterSource {
+  const rate = 48000;
+  return pcmWav(rate, 2, (frame, channel) => {
     const amplitude = hot ? (frame < rate * 2 ? 0.98 : 0.05) : 0.25;
     const frequency = hot ? 440 : 660;
-    const sample = Math.round(
-      amplitude * 32767 * Math.sin((2 * Math.PI * frequency * frame) / rate),
-    );
-    samples.writeInt16LE(sample, frame * 4);
-    samples.writeInt16LE(hot ? sample : -sample, frame * 4 + 2);
-  }
-  return Buffer.concat([
-    Buffer.from(pcmWavHeader(samples.length, rate, 2)),
-    samples,
-  ]);
+    const sample =
+      amplitude * Math.sin((2 * Math.PI * frequency * frame) / rate);
+    return hot || channel === 0 ? sample : -sample;
+  });
 }
 
-function monoTone(rate: number, seconds: number): Buffer {
-  const frames = rate * seconds;
-  const samples = Buffer.alloc(frames * 2);
-  for (let frame = 0; frame < frames; frame += 1) {
-    samples.writeInt16LE(
-      Math.round(0.5 * 32767 * Math.sin((2 * Math.PI * 440 * frame) / rate)),
-      frame * 2,
-    );
-  }
-  return Buffer.concat([
-    Buffer.from(pcmWavHeader(samples.length, rate, 1)),
-    samples,
-  ]);
-}
-
-function createMixedRateProject(prefix: string) {
-  const fixture = createMeterProject(prefix);
-  const parsed: unknown = JSON.parse(
-    fs.readFileSync(fixture.projectPath, "utf8"),
-  );
-  const project = object(parsed);
-  const timeline = object(project.timeline);
-  if (!Array.isArray(timeline.tracks))
-    throw new Error("Missing fixture tracks");
-  for (const value of timeline.tracks) {
-    const track = object(value);
-    if (track.id !== "guest" && track.name !== "guest") continue;
-    const media = object(track.media);
-    media.channels = 1;
-    media.sample_rate = 8000;
-    track.media = media;
-  }
-  fs.writeFileSync(
-    fixture.projectPath,
-    `${JSON.stringify(project, null, 2)}\n`,
-  );
-  fs.writeFileSync(
-    path.join(fixture.workspaceDir, "raw/guest.wav"),
-    monoTone(8000, 60),
-  );
-  const silence = Buffer.alloc(48000 * 60 * 4);
-  fs.writeFileSync(
-    path.join(fixture.workspaceDir, "raw/reference.wav"),
-    Buffer.concat([
-      Buffer.from(pcmWavHeader(silence.length, 48000, 2)),
-      silence,
-    ]),
-  );
-  return fixture;
-}
-
-function createMeterProject(prefix: string) {
+function createMeterProject(
+  prefix: string,
+  sources: MeterSources = {
+    reference: stereoTone(true),
+    guest: stereoTone(false),
+  },
+) {
   const fixture = createRelocatedE2eProject(prefix);
   const parsed: unknown = JSON.parse(
     fs.readFileSync(fixture.projectPath, "utf8"),
@@ -99,9 +76,10 @@ function createMeterProject(prefix: string) {
     throw new Error("Missing fixture tracks");
   timeline.tracks = timeline.tracks.map((value: unknown) => {
     const track = object(value);
+    const source = sources[track.id === "guest" ? "guest" : "reference"];
     const media = object(track.media);
-    media.channels = 2;
-    media.sample_rate = 48000;
+    media.channels = source.channels;
+    media.sample_rate = source.rate;
     track.media = media;
     track.gain_db = 0;
     track.muted = false;
@@ -116,13 +94,24 @@ function createMeterProject(prefix: string) {
   );
   fs.writeFileSync(
     path.join(fixture.workspaceDir, "raw/reference.wav"),
-    stereoTone(true),
+    sources.reference.wav,
   );
   fs.writeFileSync(
     path.join(fixture.workspaceDir, "raw/guest.wav"),
-    stereoTone(false),
+    sources.guest.wav,
   );
   return fixture;
+}
+
+function createMixedRateProject(prefix: string) {
+  return createMeterProject(prefix, {
+    reference: pcmWav(48000, 2, () => 0),
+    guest: pcmWav(
+      8000,
+      1,
+      (frame) => 0.5 * Math.sin((2 * Math.PI * 440 * frame) / 8000),
+    ),
+  });
 }
 
 async function renderPreview(page: Page, projectPath: string) {
@@ -338,7 +327,7 @@ test("reduced motion freezes meter bars while real playback clipping remains det
   }
 });
 
-test("a mixed-rate raw guest lights its own meter while a silent 48 kHz track stays dark", async ({
+test("a mixed-rate raw guest keeps its own meter lit through a seek while a silent 48 kHz track stays dark", async ({
   browser,
 }) => {
   test.setTimeout(120000);
@@ -356,7 +345,18 @@ test("a mixed-rate raw guest lights its own meter while a silent 48 kHz track st
         expect(
           await ringLevel(trackHeaderOf(trackHeaderButton(page, "reference"))),
         ).toBe(0);
-        await page.getByRole("button", { name: "Pause", exact: true }).click();
+        const position = page.getByRole("slider", {
+          name: "Timeline position",
+        });
+        await position.click({ position: { x: 600, y: 4 } });
+        const seekedTo = Number(await position.getAttribute("aria-valuenow"));
+        expect(seekedTo).toBeGreaterThan(30);
+        await expect
+          .poll(async () =>
+            Number(await position.getAttribute("aria-valuenow")),
+          )
+          .toBeGreaterThan(seekedTo + 2);
+        await expect.poll(() => ringLevel(guestHeader)).toBeGreaterThan(0.1);
       },
       undefined,
       createMixedRateProject,
