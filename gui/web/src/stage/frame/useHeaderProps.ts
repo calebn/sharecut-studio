@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { runPointerCommand } from "../../commands/pointer";
 import { useRenameProject } from "../../hooks/useRenameProject";
+import { useReviewPeaks } from "../../hooks/useReviewPeaks";
 import { useReviewVersion } from "../../hooks/useReviewVersion";
 import { type ThemePreference, useTheme } from "../../hooks/useTheme";
 import { useDawStore } from "../../state/dawStore";
@@ -41,6 +42,7 @@ export function useHeaderProps(): Omit<
   const onRename = useRenameProject();
   const save = useSaveIndicator();
   const version = useReviewVersion();
+  useReviewPeaks(version);
   const history = useHistoryControls();
   const stages = useStageBarProps();
   const { preference, setPreference } = useTheme();
