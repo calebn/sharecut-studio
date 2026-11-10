@@ -204,7 +204,7 @@ on a laptop with headphones. Spec:
 ```mermaid
 flowchart TD
   open[Open record link] --> sheet[Join sheet over the room: name]
-  sheet --> devices[Allow microphone, device picker, own level]
+  sheet --> devices[Allow microphone, device chip and menu, own level]
   devices --> phones[Headphones toggle + storage check]
   phones --> join[Join and record = consent]
   join --> wait[Pill: Waiting for host to start]
@@ -232,7 +232,7 @@ flowchart TD
 1. Guest lands on the shared room with the **Join sheet** over it ("Join the
    room", or "Ava is here" once others are in).
 2. **Your name**, then browser **Allow microphone** (explicit grant, a direct
-   click), then the device picker and your own level with a clip light; nobody
+   click), then the device chip and menu and your own level with a clip light; nobody
    else's meter is shown. A blocked microphone reads "Microphone blocked" with
    **How to allow**, which retries; a lost device offers **Retry**. Then the
    **I'm wearing headphones** toggle. A **Storage** row comes first when the storage

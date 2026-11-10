@@ -27,7 +27,7 @@ export type JoinMic =
       level: number;
       /** A clip in the last 2 s. */
       clipped?: boolean;
-      /** The inputs to pick from; the picker shows when there are two or more. */
+      /** The inputs to pick from; the chip shows for one or more. */
       devices?: JoinInput[];
       /** The picked input's id; empty is the default input. */
       inputId?: string;
