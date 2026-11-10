@@ -80,7 +80,8 @@ export function HelpDialogView({
     const prev = seen.current;
     seen.current = { open, step };
     if (!open || !prev.open || prev.step === step) return;
-    (step === "report" ? createRef : reportRowRef).current?.focus();
+    const target = (step === "report" ? createRef : reportRowRef).current;
+    if (target && !target.disabled) target.focus();
   }, [open, step]);
   const stepRef = useRef(step);
   useLayoutEffect(() => {
@@ -89,7 +90,11 @@ export function HelpDialogView({
   const initialFocusRef = useMemo(
     () => ({
       get current() {
-        return (stepRef.current === "report" ? createRef : firstRowRef).current;
+        const target = (stepRef.current === "report" ? createRef : firstRowRef)
+          .current;
+        // A busy Export button is disabled and cannot take focus; null lets
+        // the Dialog fall back to Close instead of leaving focus on body.
+        return target?.disabled ? null : target;
       },
     }),
     [],

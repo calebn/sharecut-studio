@@ -48,6 +48,14 @@ html[data-frame-short][data-shell="phone"] {
   );
 }
 
+/* Home has no tab bar, Player or app header, so sheets and the toast rest on
+   the screen edge (the safe area), not above phantom chrome. Sheets portal to
+   the body, so this keys off the root (useShellAttributes("home")). */
+html[data-surface="home"][data-shell] {
+  --frame-bottom-chrome: env(safe-area-inset-bottom);
+  --frame-header-end: env(safe-area-inset-top);
+}
+
 /* Touch frames sit fixed to the viewport, so a page scroll never moves them
    against the fixed sheets (#1077). */
 @media (pointer: coarse) {

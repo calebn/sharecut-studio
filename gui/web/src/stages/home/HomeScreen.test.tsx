@@ -1347,6 +1347,7 @@ describe("HomeScreen", () => {
         const { unmount } = render(<HomeScreen />);
         await screen.findByRole("list", { name: "Recent episodes" });
         expect(document.documentElement.dataset.shell).toBe("phone");
+        expect(document.documentElement.dataset.surface).toBe("home");
         await chooseAppMenuRow(user, "Help");
         const sheet = await screen.findByRole("dialog", { name: "Help" });
         expect(sheet).toHaveAttribute("aria-modal", "true");
@@ -1354,6 +1355,7 @@ describe("HomeScreen", () => {
         expect(sheet.querySelector(".help-sheet-panel")).not.toBeNull();
         unmount();
         expect(document.documentElement.dataset.shell).toBeUndefined();
+        expect(document.documentElement.dataset.surface).toBeUndefined();
       } finally {
         vi.unstubAllGlobals();
       }

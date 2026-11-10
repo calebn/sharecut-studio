@@ -8,8 +8,14 @@ import type { ShellBreakpoint } from "../../state/types";
  * The viewport class, written to the store and to `data-shell` on the root.
  * `shellBreakpoint` feeds many hooks and CSS rules, so the frame keeps
  * publishing it.
+ *
+ * `surface: "home"` also marks the root `data-surface="home"`: Home has no tab
+ * bar, Player or app header, so the sheets and toast that rest above that
+ * chrome (stage-frame.css) rest on the screen edge instead.
  */
-export function useShellAttributes(): ShellBreakpoint {
+export function useShellAttributes(
+  surface: "frame" | "home" = "frame",
+): ShellBreakpoint {
   const shell = useViewportClass();
   useViewportPan();
   const setShellBreakpoint = useDawStore((s) => s.setShellBreakpoint);
@@ -17,11 +23,12 @@ export function useShellAttributes(): ShellBreakpoint {
     setShellBreakpoint(shell);
     document.documentElement.dataset.shell = shell;
   }, [shell, setShellBreakpoint]);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    if (surface === "home") document.documentElement.dataset.surface = "home";
+    return () => {
       delete document.documentElement.dataset.shell;
-    },
-    [],
-  );
+      delete document.documentElement.dataset.surface;
+    };
+  }, [surface]);
   return shell;
 }
