@@ -936,46 +936,24 @@ describe("PrepareView: audio added after a run", () => {
     );
   });
 
-  it("offers Run everything again behind the more button next to Advanced", async () => {
-    const onRunAll = vi.fn();
-    render(<PrepareView {...props({ ...NEW, onRunAll })} />);
-    await userEvent.click(
-      screen.getByRole("button", { name: "More ways to run" }),
-    );
-    await userEvent.click(
-      screen.getByRole("menuitem", { name: "Run everything again" }),
-    );
-    expect(onRunAll).toHaveBeenCalledOnce();
-  });
-
-  it("opens a menu that holds Run everything again", async () => {
-    render(<PrepareView {...props({ ...NEW, onRunAll: vi.fn() })} />);
-    await userEvent.click(
-      screen.getByRole("button", { name: "More ways to run" }),
-    );
-    const menu = screen.getByRole("menu");
-    expect(
-      within(menu).getByRole("menuitem", { name: "Run everything again" }),
-    ).toBeVisible();
-  });
-
-  it("leaves the more button out where Run everything again is not offered", () => {
-    render(<PrepareView {...props(NEW)} />);
+  it.each([
+    ["ready", NEW],
+    ["working", {}],
+  ])("has no more-ways-to-run menu while %s", (_name, extra) => {
+    render(<PrepareView {...props(extra)} />);
     expect(
       screen.queryByRole("button", { name: "More ways to run" }),
     ).toBeNull();
+    expect(
+      screen.queryByRole("menuitem", { name: /Run everything again/ }),
+    ).toBeNull();
   });
 
-  it("holds Run everything again while the work runs", async () => {
-    const onRunAll = vi.fn();
-    render(<PrepareView {...props({ onRunAll })} />);
-    await userEvent.click(
-      screen.getByRole("button", { name: "More ways to run" }),
-    );
-    const item = screen.getByRole("menuitem", { name: /Run everything again/ });
-    expect(item).toHaveAttribute("aria-disabled", "true");
-    await userEvent.click(item);
-    expect(onRunAll).not.toHaveBeenCalled();
+  it("holds only Advanced beside the handoff", () => {
+    const { container } = render(<PrepareView {...props(NEW)} />);
+    const tools = container.querySelector(".sys-prepare-tools");
+    const buttons = within(tools as HTMLElement).getAllByRole("button");
+    expect(buttons.map((b) => b.textContent)).toEqual(["Advanced"]);
   });
 
   it("says what the last run reused, in one line, and returns to Review", () => {

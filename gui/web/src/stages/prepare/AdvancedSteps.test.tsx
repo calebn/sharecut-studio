@@ -42,11 +42,17 @@ describe("AdvancedSteps", () => {
     ).toBeVisible();
   });
 
-  it("lists Apply sound actions under Listen for sounds, off, with a switch", () => {
+  it("lists Apply sound actions second under Find suggestions, off, with a switch", () => {
     render(<Host />);
-    const group = screen.getByRole("region", { name: "Listen for sounds" });
-    expect(within(group).getByText("Apply sound actions")).toBeVisible();
-    expect(within(group).getByText("Off")).toBeVisible();
+    expect(
+      screen.queryByRole("region", { name: "Listen for sounds" }),
+    ).toBeNull();
+    const group = screen.getByRole("region", { name: "Find suggestions" });
+    expect(
+      within(group)
+        .getAllByRole("switch")
+        .map((s) => s.getAttribute("aria-label") ?? s.textContent),
+    ).toEqual(["Find fillers and pauses", "Apply sound actions"]);
     expect(
       within(group).getByRole("switch", { name: "Apply sound actions" }),
     ).not.toBeChecked();
@@ -59,12 +65,12 @@ describe("AdvancedSteps", () => {
     await user.click(
       screen.getByRole("switch", { name: "Apply sound actions" }),
     );
-    expect(onToggle).toHaveBeenCalledWith("scan", true);
+    expect(onToggle).toHaveBeenCalledWith("apply_sound_actions", true);
   });
 
   it("shows the scan's cost and help, and the person's own start choice", async () => {
     const user = userEvent.setup();
-    render(<Host selected="scan" />);
+    render(<Host selected="apply_sound_actions" />);
     expect(
       screen.getByText(
         "Off. Can take about 2½ minutes for 30 minutes of audio when analysis is needed.",
@@ -91,7 +97,7 @@ describe("AdvancedSteps", () => {
 
   it("moves the cost line with the switch instead of keeping the Off hint", async () => {
     const user = userEvent.setup();
-    render(<Host selected="scan" />);
+    render(<Host selected="apply_sound_actions" />);
     expect(screen.getByText(/^Off\. Can take about/)).toBeVisible();
     await user.click(
       screen.getByRole("switch", { name: "Apply sound actions" }),
@@ -108,9 +114,11 @@ describe("AdvancedSteps", () => {
     const user = userEvent.setup();
     const onPersonal = vi.fn();
     const onToggle = vi.fn();
-    render(<Host selected="scan" spy={{ onPersonal, onToggle }} />);
+    render(
+      <Host selected="apply_sound_actions" spy={{ onPersonal, onToggle }} />,
+    );
     await user.click(screen.getByRole("button", { name: "On" }));
-    expect(onPersonal).toHaveBeenCalledWith("scan", true);
+    expect(onPersonal).toHaveBeenCalledWith("apply_sound_actions", true);
     expect(onToggle).not.toHaveBeenCalled();
   });
 
@@ -130,7 +138,6 @@ describe("AdvancedSteps", () => {
       "Line up tracks",
       "Clean and level",
       "Find suggestions",
-      "Listen for sounds",
     ]);
     expect(screen.getAllByRole("listitem")).toHaveLength(5);
   });

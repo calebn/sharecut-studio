@@ -142,12 +142,6 @@ const ADVANCED_DEFS: readonly GroupDef[] = [
           },
         ],
       },
-    ],
-  },
-  {
-    id: "sounds",
-    title: "Listen for sounds",
-    steps: [
       {
         id: SOUND_SCAN_STEP,
         name: "Apply sound actions",

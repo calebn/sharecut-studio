@@ -37,13 +37,18 @@ const ROW_STEPS: Readonly<Record<ReadyRowId, readonly string[]>> = {
     "assemble_timeline",
   ],
   suggest: ["analyze_fillers_pauses", "apply_sound_actions"],
-  scan: [],
 };
 
 type PlanOperation = {
   step: string;
   label: string;
   enabledPath?: string;
+};
+
+const SOUND_OPERATION: PlanOperation = {
+  step: "apply_sound_actions",
+  label: "Apply sound actions",
+  enabledPath: "tighten.apply_non_speech",
 };
 
 const PLAN_OPERATIONS: Readonly<Record<ReadyRowId, readonly PlanOperation[]>> =
@@ -59,13 +64,6 @@ const PLAN_OPERATIONS: Readonly<Record<ReadyRowId, readonly PlanOperation[]>> =
       { step: "clean_audio", label: "Clean" },
       { step: "compress_tracks", label: "Compress" },
       { step: "balance_tracks", label: "Balance" },
-    ],
-    scan: [
-      {
-        step: "apply_sound_actions",
-        label: "Apply sound actions",
-        enabledPath: "tighten.apply_non_speech",
-      },
     ],
     suggest: [
       {
@@ -104,7 +102,7 @@ export function oneRunSkipSteps(
 ): string[] {
   const rowSteps = new Set(
     [...skipped].flatMap((row) =>
-      PLAN_OPERATIONS[row].map((operation) => operation.step),
+      ownOperations(row).map((operation) => operation.step),
     ),
   );
   return cfg.step_names.filter(
@@ -125,7 +123,6 @@ const ROW_TITLE: Record<ReadyRowId, string> = {
   transcribe: "Transcribe",
   align: "Line up tracks",
   clean: "Clean and level",
-  scan: "Apply sound actions",
   suggest: "Find suggestions",
 };
 
@@ -134,7 +131,6 @@ const ROW_ACTIVITY: Record<ReadyRowId, string> = {
   transcribe: "Transcribing",
   align: "Lining up tracks",
   clean: "Cleaning",
-  scan: "Applying sound actions",
   suggest: "Finding suggestions",
 };
 
@@ -352,8 +348,8 @@ export type RerunPlan = {
   skipped: ReadonlySet<ReadyRowId>;
   settings: PlanSettings | null;
   settingsError?: string | null;
-  /** Present while automatic sound actions are on. */
-  scan?: { time: string } | null;
+  /** How long sound actions take; set only while they are on. */
+  soundScanTime?: string | null;
 };
 
 function joined(names: readonly string[]): string {
@@ -396,8 +392,9 @@ function planRows(plan: RerunPlan): ReadyRowData[] {
     transcribe: `Skipped this time. ${who} will have no transcript or suggestions.`,
     align: `Skipped this time. ${who} ${are} not lined up with the others.`,
     clean: `Skipped this time. ${who} ${are} not cleaned or levelled.`,
-    scan: "Skipped this time. Sound actions are not applied automatically.",
-    suggest: "Skipped this time. Filler and pause analysis is skipped.",
+    suggest: plan.soundScanTime
+      ? "Skipped this time. Filler and pause analysis and sound actions are skipped."
+      : "Skipped this time. Filler and pause analysis is skipped.",
   };
   const row = (id: ReadyRowId, detail: string): ReadyRowData => {
     const settings = plan.settings;
@@ -436,6 +433,28 @@ function planRows(plan: RerunPlan): ReadyRowData[] {
       action: { label: "Skip", run: "skip" },
     };
   };
+  const suggestRow = (): ReadyRowData => {
+    const time = plan.soundScanTime;
+    if (!time || !plan.settings) return row("suggest", "Whole episode");
+    const analysis = enabledPlanOperations(plan.settings, "suggest").length > 0;
+    if (analysis)
+      return row("suggest", `Whole episode · sound actions ${time}`);
+    if (plan.skipped.has("suggest"))
+      return {
+        id: "suggest",
+        state: "queued",
+        title: ROW_TITLE.suggest,
+        detail: "Skipped this time. Apply sound actions will not run.",
+        action: { label: "Include", run: "include" },
+      };
+    return {
+      id: "suggest",
+      state: "queued",
+      title: ROW_TITLE.suggest,
+      detail: `Apply sound actions · Whole episode · ${time}`,
+      action: { label: "Skip", run: "skip" },
+    };
+  };
   return [
     {
       id: "add",
@@ -446,8 +465,7 @@ function planRows(plan: RerunPlan): ReadyRowData[] {
     row("transcribe", scope),
     row("align", joins),
     row("clean", everyone),
-    ...(plan.scan ? [row("scan", `Whole episode · ${plan.scan.time}`)] : []),
-    row("suggest", "Whole episode"),
+    suggestRow(),
   ];
 }
 
@@ -484,7 +502,7 @@ type TerminalRowResult =
 
 function ownOperations(row: ReadyRowId): readonly PlanOperation[] {
   return row === "suggest"
-    ? [...PLAN_OPERATIONS.suggest, ...PLAN_OPERATIONS.scan]
+    ? [...PLAN_OPERATIONS.suggest, SOUND_OPERATION]
     : PLAN_OPERATIONS[row];
 }
 

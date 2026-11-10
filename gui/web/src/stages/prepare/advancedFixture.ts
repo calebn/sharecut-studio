@@ -88,7 +88,7 @@ const FILLERS: AdvancedStep = {
 };
 
 export const SCAN: AdvancedStep = {
-  id: "scan",
+  id: "apply_sound_actions",
   name: "Apply sound actions",
   result:
     "Off. Can take about 2½ minutes for 30 minutes of audio when analysis is needed.",
@@ -108,8 +108,7 @@ export const GROUPS: readonly AdvancedGroup[] = [
   { id: "transcribe", title: "Transcribe", steps: [TRANSCRIBE] },
   { id: "line-up", title: "Line up tracks", steps: [ALIGN] },
   { id: "clean", title: "Clean and level", steps: [FILL_GAPS] },
-  { id: "suggest", title: "Find suggestions", steps: [FILLERS] },
-  { id: "sounds", title: "Listen for sounds", steps: [SCAN] },
+  { id: "suggest", title: "Find suggestions", steps: [FILLERS, SCAN] },
 ];
 
 export const RUNNING = {

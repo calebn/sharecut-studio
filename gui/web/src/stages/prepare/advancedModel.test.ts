@@ -25,14 +25,13 @@ const cfg = pipelineConfig({
 });
 
 describe("advancedGroups", () => {
-  it("lists only the steps that have a row, and the sound scan", () => {
+  it("lists only the steps that have a row, the sound scan under Find suggestions", () => {
     const groups = advancedGroups(cfg, null);
     expect(groups.map((g) => g.title)).toEqual([
       "Transcribe",
       "Line up tracks",
       "Clean and level",
       "Find suggestions",
-      "Listen for sounds",
     ]);
     expect(groups.flatMap((g) => g.steps.map((s) => s.id))).toEqual([
       "transcribe_tracks",
@@ -88,9 +87,9 @@ describe("advancedGroups", () => {
 
 describe("the sound scan row", () => {
   const scan = (config = cfg, personal?: { soundScanStart: boolean }) =>
-    advancedGroups(config, null, personal)[4].steps[0];
+    advancedGroups(config, null, personal)[3].steps[1];
 
-  it("is an optional step in its own group, off unless the project turned it on", () => {
+  it("is the second optional step under Find suggestions, off unless the project turned it on", () => {
     expect(scan()).toMatchObject({
       id: "apply_sound_actions",
       name: "Apply sound actions",
@@ -130,7 +129,7 @@ describe("the sound scan row", () => {
         },
       ],
     });
-    expect(advancedGroups(on, job)[4].steps[0].result).toBe("3 sounds lowered");
+    expect(advancedGroups(on, job)[3].steps[1].result).toBe("3 sounds lowered");
   });
 
   it("carries the person's own start choice, off unless they turned it on", () => {
@@ -146,8 +145,8 @@ describe("the sound scan row", () => {
 
   it("has no personal setting on the other steps", () => {
     const others = advancedGroups(cfg, null)
-      .slice(0, 4)
-      .flatMap((g) => g.steps);
+      .flatMap((g) => g.steps)
+      .filter((step) => step.id !== "apply_sound_actions");
     expect(others.every((step) => step.personal === undefined)).toBe(true);
   });
 
