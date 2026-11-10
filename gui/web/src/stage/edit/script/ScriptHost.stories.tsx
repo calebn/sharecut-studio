@@ -104,6 +104,7 @@ export const AfterCutNextOccurrence: Story = {
       baseHead: store.project?.history?.head_id ?? null,
       epoch: store.projectEpoch,
       focused: true,
+      holdUntil: Number.MAX_SAFE_INTEGER,
       selected: null,
       at: null,
       startedAt: null,

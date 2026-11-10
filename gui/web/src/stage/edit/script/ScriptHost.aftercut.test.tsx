@@ -246,18 +246,115 @@ describe("Tab after a words cut", () => {
     expect(document.activeElement?.closest(".sys-script-body")).not.toBeNull();
   });
 
-  it("holds Tab even when the loading Script has handed focus to a button", async () => {
+  it("leaves Tab native while the refresh is pending when focus is on another control", async () => {
     await startCut();
     cutAway([0, 1], "h1");
     hydrating(true);
     await act(async () => {});
-    const other = document.createElement("button");
-    document.body.append(other);
-    other.focus();
+    screen.getByRole("button", { name: "Undo" }).focus();
+    expect(tab().defaultPrevented).toBe(false);
+    screen.getByRole("button", { name: "Cut all" }).focus();
+    expect(tab().defaultPrevented).toBe(false);
+    expect(state().afterCut).not.toBeNull();
+  });
+
+  describe("when the refresh never lands", () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("hands Tab back and clears the chain after the cap", async () => {
+      await act(async () => {
+        render(<Harness />);
+      });
+      act(() => {
+        screen.getAllByRole("button", { name: "you" })[0]!.click();
+        state().setSelection(range(0, 1));
+      });
+      act(() => {
+        document.body.dispatchEvent(
+          new KeyboardEvent("keydown", {
+            key: "Backspace",
+            bubbles: true,
+            cancelable: true,
+          }),
+        );
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(state().afterCut).not.toBeNull();
+      cutAway([0, 1], "h1");
+      hydrating(true);
+      expect(tab().defaultPrevented).toBe(true);
+      expect(tab().defaultPrevented).toBe(true);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_001);
+      });
+      expect(state().afterCut).toBeNull();
+      expect(vi.getTimerCount()).toBe(0);
+      expect(selected()).toBeNull();
+      expect(tab().defaultPrevented).toBe(false);
+    });
+
+    it("stops holding after the cap even if the chain is still set", async () => {
+      await act(async () => {
+        render(<Harness />);
+      });
+      act(() => {
+        screen.getAllByRole("button", { name: "you" })[0]!.click();
+        state().setSelection(range(0, 1));
+      });
+      act(() => {
+        document.body.dispatchEvent(
+          new KeyboardEvent("keydown", {
+            key: "Backspace",
+            bubbles: true,
+            cancelable: true,
+          }),
+        );
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      cutAway([0, 1], "h1");
+      hydrating(true);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_001);
+      });
+      expect(tab().defaultPrevented).toBe(false);
+    });
+  });
+
+  it("does not pick once focus has moved to another control while Tab waited", async () => {
+    await startCut();
+    cutAway([0, 1], "h1");
+    hydrating(true);
+    await act(async () => {});
     expect(tab().defaultPrevented).toBe(true);
-    other.remove();
+    screen.getByRole("button", { name: "Undo" }).focus();
     hydrating(false);
-    await waitFor(() => expect(selected()).toEqual([3, 4]));
+    await act(async () => {});
+    expect(selected()).toBeNull();
+    expect(document.activeElement).toHaveTextContent("Undo");
+  });
+
+  it("ends the chain on the first Escape after Tab picked a word", async () => {
+    const user = await startCut();
+    cutAway([0, 1], "h1");
+    expect(tab().defaultPrevented).toBe(true);
+    await waitFor(() =>
+      expect(
+        document.activeElement?.closest(".sys-script-body"),
+      ).not.toBeNull(),
+    );
+    await user.keyboard("{Escape}");
+    expect(selected()).toBeNull();
+    expect(state().afterCut).toBeNull();
+    expect(tab().defaultPrevented).toBe(false);
   });
 
   it("drops a held Tab when another key ends the chain before the refresh lands", async () => {

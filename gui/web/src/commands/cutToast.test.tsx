@@ -226,6 +226,7 @@ describe("cut toast after a words cut", () => {
         baseHead: head,
         epoch,
         focused: true,
+        holdUntil: Number.MAX_SAFE_INTEGER,
         selected: null,
         at: null,
         startedAt: null,

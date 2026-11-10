@@ -47,6 +47,7 @@ const cut = (extra: Partial<AfterCut> = {}): AfterCut => ({
   baseHead: null,
   epoch: 1,
   focused: true,
+  holdUntil: Number.MAX_SAFE_INTEGER,
   selected: null,
   at: null,
   startedAt: null,

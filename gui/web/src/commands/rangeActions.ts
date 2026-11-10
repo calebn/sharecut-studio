@@ -21,7 +21,7 @@ import type { DawState } from "../state/types";
 import { DocumentCommand } from "../types/documentCommands.generated";
 import type { ExactRangeTarget } from "../types/project";
 import { ApiError, errorMessage, readApiError } from "../utils/apiError";
-import { scriptBodyFocused } from "./afterCutWindow";
+import { scriptBodyFocused, WAIT_MS } from "./afterCutWindow";
 import { openCommentDraft } from "./comments";
 import { cutToastOf } from "./cutToastHost";
 import { registerCommand } from "./execute";
@@ -180,6 +180,8 @@ export async function runRangeAction(
           : null;
       const baseHead = state.project.history?.head_id ?? null;
       const focused = scriptBodyFocused();
+      const holdUntil = Date.now() + WAIT_MS;
+      if (state.afterCut) state.setAfterCut({ ...state.afterCut, holdUntil });
       const result = await submitRangeEdit(action, [target]);
       const live = useDawStore.getState();
       if (live.projectEpoch !== epoch) return { status: "ok" };
@@ -226,6 +228,7 @@ export async function runRangeAction(
                 baseHead,
                 epoch,
                 focused,
+                holdUntil: Date.now() + WAIT_MS,
                 selected: null,
                 at: null,
                 startedAt: null,
