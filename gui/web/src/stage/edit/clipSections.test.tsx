@@ -1,12 +1,17 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setClipFade, setClipJoin } from "../../api";
 import { executePointerCommand } from "../../commands/pointer";
+import { rollSeam } from "../../commands/seamCommands";
 import { saveClipEdge, TRIM_MODE } from "../../edit/clipEdgeSave";
 import { getClipPlacement } from "../../edit/clipPlacement";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
-import { minimalProject, sampleTrack } from "../../test/fixtures";
+import {
+  editBoundaries,
+  minimalProject,
+  sampleTrack,
+} from "../../test/fixtures";
 import type { ClipRow } from "../../types/project";
 import { inspectorHeading } from "./inspectorHeading";
 import { SectionsBody } from "./SectionsBody";
@@ -19,6 +24,10 @@ vi.mock("../../api", async (importOriginal) => ({
 vi.mock("../../edit/clipEdgeSave", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../edit/clipEdgeSave")>()),
   saveClipEdge: vi.fn(async () => ({ undo: null })),
+}));
+vi.mock("../../commands/seamCommands", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../commands/seamCommands")>()),
+  rollSeam: vi.fn(async () => ({ status: "done" }) as const),
 }));
 vi.mock("../../commands/pointer", () => ({
   executePointerCommand: vi.fn(async () => ({ status: "ok" })),
@@ -59,6 +68,7 @@ function open(
     minimalProject({
       tracks,
       clips: { tracks: { host: clips }, clip_count: clips.length },
+      edit_boundaries: editBoundaries(clips),
     }),
   );
   useDawStore.setState({
@@ -88,6 +98,7 @@ const type = async (name: string, text: string) => {
 beforeEach(() => {
   vi.mocked(setClipFade).mockReset().mockResolvedValue(null);
   vi.mocked(setClipJoin).mockReset().mockResolvedValue(undefined);
+  vi.mocked(rollSeam).mockReset().mockResolvedValue({ status: "done" });
   vi.mocked(saveClipEdge).mockClear();
   vi.mocked(executePointerCommand).mockClear();
 });
@@ -432,31 +443,152 @@ describe("clip fades", () => {
   });
 });
 
-describe("clip join", () => {
-  it("hides the join on a track's first clip", () => {
-    open();
-    expect(screen.queryByLabelText("Incoming transition")).toBeNull();
+describe("clip join rows", () => {
+  const third: ClipRow = {
+    ...second,
+    id: "c3",
+    source_start: 5,
+    source_end: 7,
+    timeline_start: 4,
+    timeline_end: 6,
+    join_left_clip_id: "c2",
+  };
+  const group = (name: string) => within(screen.getByRole("group", { name }));
+
+  it("gives a track's first clip only its end join", () => {
+    open([clip, second]);
+    expect(screen.queryByRole("group", { name: "Start join" })).toBeNull();
+    expect(screen.getByRole("group", { name: "End join" })).toBeVisible();
+    expect(
+      screen.getByRole("spinbutton", { name: "End join length" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("spinbutton", { name: "End join offset" }),
+    ).toBeVisible();
   });
 
-  it("sets the mode with the default length", async () => {
+  it("gives a track's last clip only its start join", () => {
+    open([clip, second], {}, second);
+    expect(screen.queryByRole("group", { name: "End join" })).toBeNull();
+    expect(screen.getByRole("group", { name: "Start join" })).toBeVisible();
+  });
+
+  it("shows both joins of a middle clip, each with its own type, length and offset", () => {
+    open([clip, second, third], {}, second);
+    for (const side of ["Start join", "End join"]) {
+      expect(screen.getByRole("group", { name: side })).toBeVisible();
+      expect(
+        screen.getByRole("spinbutton", { name: `${side} length` }),
+      ).toBeVisible();
+      expect(
+        screen.getByRole("spinbutton", { name: `${side} offset` }),
+      ).toBeVisible();
+    }
+  });
+
+  it("offers Hard edge, Fade and Crossfade with the clip's type pressed", () => {
+    open([clip, second], {}, second);
+    const start = group("Start join");
+    expect(start.getByRole("button", { name: "Fade" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(start.getByRole("button", { name: "Hard edge" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    expect(start.getByRole("button", { name: "Crossfade" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+  });
+
+  it("sets the type of the join into the clip at the length it holds", async () => {
     open([clip, second], {}, second);
     await act(async () => {
-      fireEvent.change(screen.getByLabelText("Incoming transition"), {
-        target: { value: "crossfade" },
-      });
+      fireEvent.click(
+        group("Start join").getByRole("button", { name: "Crossfade" }),
+      );
     });
+    expect(setClipJoin).toHaveBeenCalledTimes(1);
     expect(setClipJoin).toHaveBeenCalledWith(
       "/tmp/ep.json",
       "c1",
       "c2",
       "crossfade",
+      20,
+    );
+  });
+
+  it("sets the type of the join out of the clip on the next clip", async () => {
+    open([clip, second]);
+    await act(async () => {
+      fireEvent.click(
+        group("End join").getByRole("button", { name: "Hard edge" }),
+      );
+    });
+    expect(setClipJoin).toHaveBeenCalledWith(
+      "/tmp/ep.json",
+      "c1",
+      "c2",
+      "cut",
       null,
     );
   });
 
-  it("applies a typed length once to the current mode", async () => {
+  it("leaves Crossfade out where the next clip has no room or fade to overlap", () => {
+    open(
+      [clip, { ...second, join_crossfade_blocked: "no_fade_in" }],
+      {},
+      second,
+    );
+    expect(
+      group("Start join").queryByRole("button", { name: "Crossfade" }),
+    ).toBeNull();
+  });
+
+  it("shows the join type as text and the fields read-only without edit access", () => {
+    useDawStore.getState().hydrate(
+      "share:tok",
+      minimalProject({
+        tracks: [sampleTrack({ id: "host", speaker: "Mira" })],
+        clips: { tracks: { host: [clip, second] }, clip_count: 2 },
+        edit_boundaries: editBoundaries([clip, second]),
+      }),
+    );
+    useDawStore.setState({
+      selection: { kind: "clip", id: "c2", trackId: "host" },
+      shareCapabilities: [],
+    });
+    render(<SectionsBody withRange={false} />);
+    expect(screen.queryByRole("group", { name: "Start join" })).toBeNull();
+    expect(screen.getByText("Fade")).toBeVisible();
+    expect(
+      screen.getByRole("spinbutton", { name: "Start join offset" }),
+    ).toHaveAttribute("aria-readonly", "true");
+  });
+
+  it("shows no join rows where a gap separates the neighbours", () => {
+    const apart = { ...second, timeline_start: 3, timeline_end: 5 };
+    open([clip, apart], {}, apart);
+    expect(screen.queryByRole("group", { name: "Start join" })).toBeNull();
+    expect(screen.queryByRole("spinbutton", { name: /join/ })).toBeNull();
+  });
+
+  it("shows the applied length with its value and text", () => {
+    const applied = { ...second, fade_in_ms: 120 };
+    open([{ ...clip, fade_out_ms: 80 }, applied], {}, applied);
+    const field = screen.getByRole("spinbutton", {
+      name: "Start join length",
+    });
+    expect(field).toHaveAttribute("aria-valuenow", "120");
+    expect(field).toHaveAttribute("aria-valuetext", "120 ms");
+  });
+
+  it("applies a typed length once to the current type", async () => {
     open([clip, second], {}, second);
-    await type("Transition length", "120");
+    await type("Start join length", "120");
+    expect(setClipJoin).toHaveBeenCalledTimes(1);
     expect(setClipJoin).toHaveBeenCalledWith(
       "/tmp/ep.json",
       "c1",
@@ -466,65 +598,40 @@ describe("clip join", () => {
     );
   });
 
-  it("shows the applied length with its value and text", () => {
-    open(
-      [
-        { ...clip, fade_out_ms: 80 },
-        { ...second, fade_in_ms: 120 },
-      ],
-      {},
-      {
-        ...second,
-        fade_in_ms: 120,
-      },
-    );
-    const field = screen.getByRole("spinbutton", { name: "Transition length" });
-    expect(field).toHaveAttribute("aria-valuenow", "120");
-    expect(field).toHaveAttribute("aria-valuetext", "120 ms");
-    expect(screen.queryByText("Not set")).toBeNull();
-  });
-
   it("shows the new length after it is applied", async () => {
     open([clip, second], {}, second);
-    await type("Transition length", "120");
+    await type("Start join length", "120");
     act(() => {
+      const lane = [
+        { ...clip, fade_out_ms: 120 },
+        { ...second, fade_in_ms: 120 },
+      ];
       useDawStore.getState().hydrate(
         "/tmp/ep.json",
         minimalProject({
           tracks: [sampleTrack({ id: "host", speaker: "Mira" })],
-          clips: {
-            tracks: {
-              host: [
-                { ...clip, fade_out_ms: 120 },
-                { ...second, fade_in_ms: 120 },
-              ],
-            },
-            clip_count: 2,
-          },
+          clips: { tracks: { host: lane }, clip_count: 2 },
+          edit_boundaries: editBoundaries(lane),
         }),
       );
     });
     expect(
-      screen.getByRole("spinbutton", { name: "Transition length" }),
+      screen.getByRole("spinbutton", { name: "Start join length" }),
     ).toHaveAttribute("aria-valuenow", "120");
   });
 
-  it("steps the applied length from its current value", async () => {
+  it("steps the applied length from its current value and jumps to the bounds", async () => {
     const applied = { ...second, fade_in_ms: 120 };
     open([clip, applied], {}, applied);
-    await key("Transition length", "ArrowUp");
-    expect(setClipJoin).toHaveBeenCalledWith(
+    await key("Start join length", "ArrowUp");
+    expect(setClipJoin).toHaveBeenLastCalledWith(
       "/tmp/ep.json",
       "c1",
       "c2",
       "fade",
       121,
     );
-  });
-
-  it("jumps to the bounds with Home and End", async () => {
-    open([clip, second], {}, second);
-    await key("Transition length", "Home");
+    await key("Start join length", "Home");
     expect(setClipJoin).toHaveBeenLastCalledWith(
       "/tmp/ep.json",
       "c1",
@@ -534,49 +641,67 @@ describe("clip join", () => {
     );
   });
 
-  it("finds the left clip by its id, not by lane position", () => {
-    const between = { ...clip, id: "c0", join_left_clip_id: null };
-    const applied = { ...second, fade_in_ms: 120 };
-    open([clip, between, applied], {}, applied);
+  it.each([
+    ["a fractional", "1.5"],
+    ["a negative", "-5"],
+    ["a zero", "0"],
+  ])(
+    "refuses %s crossfade length without calling the server",
+    async (_name, text) => {
+      const crossfade = { ...second, join_in_mode: "crossfade" as const };
+      open([clip, crossfade], {}, crossfade);
+      await type("Start join length", text);
+      expect(setClipJoin).not.toHaveBeenCalled();
+    },
+  );
+
+  it("has no length at a hard edge but keeps the type and offset", () => {
+    const cut = { ...second, join_in_mode: "cut" as const };
+    open([clip, cut], {}, cut);
     expect(
-      screen.getByRole("spinbutton", { name: "Transition length" }),
-    ).toHaveAttribute("aria-valuenow", "120");
+      screen.queryByRole("spinbutton", { name: "Start join length" }),
+    ).toBeNull();
+    expect(
+      group("Start join").getByRole("button", { name: "Hard edge" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(
+      screen.getByRole("spinbutton", { name: "Start join offset" }),
+    ).toBeVisible();
   });
 
-  it("refuses a fractional length without calling the server", async () => {
+  it("rolls the join into the clip once with the typed offset from where it opened", async () => {
     open([clip, second], {}, second);
-    await type("Transition length", "1.5");
-    expect(setClipJoin).not.toHaveBeenCalled();
+    await type("Start join offset", "5");
+    expect(rollSeam).toHaveBeenCalledTimes(1);
+    const [snapshot, deltaMs] = vi.mocked(rollSeam).mock.calls[0] ?? [];
+    expect(snapshot?.id).toBe("eb:c1:c2");
+    expect(deltaMs).toBeCloseTo(5, 9);
   });
 
-  it("refuses a negative length without calling the server", async () => {
-    open([clip, second], {}, second);
-    await type("Transition length", "-5");
-    expect(setClipJoin).not.toHaveBeenCalled();
+  it("rolls the join out of the clip as the same seam", async () => {
+    open([clip, second]);
+    await type("End join offset", "-4");
+    const [snapshot, deltaMs] = vi.mocked(rollSeam).mock.calls[0] ?? [];
+    expect(snapshot?.id).toBe("eb:c1:c2");
+    expect(deltaMs).toBeCloseTo(-4, 9);
   });
 
-  it("refuses a zero crossfade length", async () => {
-    open(
-      [clip, { ...second, join_in_mode: "crossfade" }],
-      {},
-      {
-        ...second,
-        join_in_mode: "crossfade",
-      },
-    );
-    await type("Transition length", "0");
-    expect(setClipJoin).not.toHaveBeenCalled();
+  it("shows a refused roll in the sheet", async () => {
+    vi.mocked(rollSeam).mockResolvedValueOnce({
+      status: "failed",
+      message: "The seam moved before the roll saved. Nothing changed.",
+    });
+    open([clip, second]);
+    await type("End join offset", "5");
+    expect(
+      screen.getByText(
+        "The seam moved before the roll saved. Nothing changed.",
+      ),
+    ).toBeVisible();
   });
 
-  it("has no length at a cut join", () => {
-    open(
-      [clip, { ...second, join_in_mode: "cut" }],
-      {},
-      {
-        ...second,
-        join_in_mode: "cut",
-      },
-    );
-    expect(screen.queryByLabelText("Transition length")).toBeNull();
+  it("has no axe violations with both joins showing", async () => {
+    const { container } = open([clip, second, third], {}, second);
+    await expectNoA11yViolations(container);
   });
 });

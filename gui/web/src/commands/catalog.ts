@@ -975,7 +975,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     when: "canApplyPass12",
     paletteRunnable: false,
     notes:
-      "Join glyph popover on the timeline; Incoming transition select and Transition length field in the clip inspector",
+      "Join type on the Seam bar and in the clip inspector, Length in the clip inspector and the Seam sheet",
   },
   "edit.moveClips": {
     id: "edit.moveClips",

@@ -3,7 +3,7 @@ import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
 import { inspectSelection, openProject } from "./stageNav";
 
-test.describe("Clip inspector join control", () => {
+test.describe("Clip inspector join rows", () => {
   test("is axe-clean with a left neighbour and keeps focus order", async ({
     page,
   }) => {
@@ -29,13 +29,20 @@ test.describe("Clip inspector join control", () => {
       await expect(actions).toHaveCount(0);
       await lanes.first().locator(".clip-block").nth(1).click();
       await inspectSelection(page);
-      const joinMode = page.getByLabel("Incoming transition");
-      await expect(joinMode).toBeVisible();
+      const joinType = page.getByRole("group", { name: "Start join" });
+      await expect(joinType).toBeVisible();
+      await expect(page.getByRole("group", { name: "End join" })).toHaveCount(
+        0,
+      );
       await expectPageAxeClean(page, ".sys-inspector");
-      await joinMode.focus();
+      await joinType.getByRole("button").last().focus();
       await page.keyboard.press("Tab");
       await expect(
-        page.getByRole("spinbutton", { name: "Transition length" }),
+        page.getByRole("spinbutton", { name: "Start join length" }),
+      ).toBeFocused();
+      await page.keyboard.press("Tab");
+      await expect(
+        page.getByRole("spinbutton", { name: "Start join offset" }),
       ).toBeFocused();
       await expectPageAxeClean(page, ".sys-inspector");
     } finally {
