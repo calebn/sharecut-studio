@@ -150,22 +150,26 @@ export const Popover: Story = {
   play: async ({ canvasElement, viewMode }) => {
     if (viewMode === "docs") return;
     const dialog = await openDialog(canvasElement, "Help");
-    const anchor = canvasElement.querySelector("[data-story-anchor]");
     await expect(dialog).toHaveAttribute("aria-modal", "false");
     const panel = dialog.closest(".help-sheet-panel");
-    // Left-aligned under the anchor, clamped to half a rem inside the viewport
-    // when the sweep's 360 px frame leaves too little room to the right of it.
+    const anchor = canvasElement.querySelector("[data-story-anchor]");
+    if (!panel || !anchor) throw new Error("Popover panel or anchor missing");
     const rootPx = Number.parseFloat(
       getComputedStyle(document.documentElement).fontSize,
     );
-    const farthestLeft =
-      window.innerWidth -
-      0.5 * rootPx -
-      (panel?.getBoundingClientRect().width ?? 0);
-    await expect(panel?.getBoundingClientRect().left).toBeCloseTo(
-      Math.min(anchor?.getBoundingClientRect().left ?? -1, farthestLeft),
-      0,
-    );
+    // Mirror visualViewportBox; innerWidth would also count a scrollbar.
+    const vv = window.visualViewport;
+    const minLeft = (vv?.offsetLeft ?? 0) + 0.5 * rootPx;
+    const maxRight = minLeft + (vv?.width ?? window.innerWidth) - rootPx;
+    const anchorLeft = anchor.getBoundingClientRect().left;
+    const rect = panel.getBoundingClientRect();
+    await expect(rect.left).toBeGreaterThanOrEqual(minLeft - 0.5);
+    await expect(rect.right).toBeLessThanOrEqual(maxRight + 0.5);
+    if (anchorLeft + rect.width <= maxRight) {
+      await expect(rect.left).toBeCloseTo(anchorLeft, 0);
+    } else {
+      await expect(rect.right).toBeCloseTo(maxRight, 0);
+    }
   },
 };
 
