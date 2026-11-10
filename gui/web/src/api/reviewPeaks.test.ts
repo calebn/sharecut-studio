@@ -26,7 +26,7 @@ describe("loadReviewPeaks", () => {
     await expect(loadReviewPeaks("tok", "v1")).resolves.toEqual(PEAKS);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(requestUrl(fetchMock.mock.calls[0]![0])).toBe(
-      "/api/review/tok/peaks",
+      "/api/review/tok/peaks?version_id=v1",
     );
   });
 
@@ -65,6 +65,23 @@ describe("loadReviewPeaks", () => {
     );
     await expect(loadReviewPeaks("tok", "v1")).resolves.toEqual([]);
     ok = true;
+    await expect(loadReviewPeaks("tok", "v1")).resolves.toEqual(PEAKS);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("asks for the version it remembers the answer under", async () => {
+    const fetchMock = stubFetch(() => Response.json(PEAKS));
+    await loadReviewPeaks("tok", "v 2/x");
+    expect(requestUrl(fetchMock.mock.calls[0]![0])).toBe(
+      "/api/review/tok/peaks?version_id=v%202%2Fx",
+    );
+  });
+
+  it("does not remember an empty 200, so a decode error is asked again", async () => {
+    let body: number[] = [];
+    const fetchMock = stubFetch(() => Response.json(body));
+    await expect(loadReviewPeaks("tok", "v1")).resolves.toEqual([]);
+    body = PEAKS;
     await expect(loadReviewPeaks("tok", "v1")).resolves.toEqual(PEAKS);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });

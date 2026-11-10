@@ -247,7 +247,7 @@ PROBES: dict[tuple[str, str], Probe] = {
     ("GET", "/api/review/{token}/project"): Probe(_review("share_project_view")),
     ("GET", "/api/review/{token}/features"): Probe(_review("share_features_manifest")),
     ("GET", "/api/review/{token}/audio"): Probe(_review("share_audio_path")),
-    ("GET", "/api/review/{token}/peaks"): Probe(_review("share_review_peaks"), no_store=True),
+    ("GET", "/api/review/{token}/peaks"): Probe(_review("review_peaks_target"), no_store=True),
     ("GET", "/api/review/{token}/daw/project"): Probe(_review("share_daw_project_view")),
     ("GET", "/api/review/{token}/feed"): Probe(_review("FeedService")),
     ("GET", "/api/review/{token}/daw/meta"): Probe(_review("share_daw_meta")),
