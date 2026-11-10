@@ -77,7 +77,7 @@ describe("openKeeperTap", () => {
     (node.port.onmessage as (e: { data: Float32Array }) => void)({ data });
     expect(onPcm).toHaveBeenCalledWith(data, 48000);
     tap.stop();
-    expect(node?.port.onmessage).toBeNull();
+    expect(node.port.onmessage).toBeNull();
     expect(closeSpy).toHaveBeenCalled();
   });
   it("swallows a rejected close on a double stop", async () => {
