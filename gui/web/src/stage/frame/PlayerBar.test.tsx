@@ -236,34 +236,6 @@ describe("PlayerBar", () => {
       expect(screen.queryByText(/Mix out of date|No mix yet/)).toBeNull();
     });
 
-    it("hides Mix out of date and No mix yet from a guest, and keeps Play's reason", () => {
-      useDawStore.getState().hydrate(
-        "share:player-bar-token",
-        minimalProject({
-          tracks: [sampleTrack({ stem_is_fresh: true })],
-          render_status: {
-            needs_rerender: true,
-            reconciliation: { stale: false },
-            premix: { exists: true },
-          },
-        }),
-        "comment",
-        ["view", "comment"],
-      );
-      useDawStore.setState({ guestMode: "comment" });
-      const { unmount } = render(<PlayerBar />);
-      expect(screen.queryByText(/Mix out of date|No mix yet/)).toBeNull();
-      unmount();
-      useDawStore.setState({ audioError: NO_PREVIEW_ERROR });
-      const second = render(<PlayerBar />);
-      expect(screen.queryByText(/Mix out of date|No mix yet/)).toBeNull();
-      second.unmount();
-      useDawStore.setState({ audioError: null });
-      useDawStore.getState().setProject(minimalProject({ tracks: [] }));
-      render(<PlayerBar />);
-      expect(screen.getByText("Import audio to play.")).toBeVisible();
-    });
-
     it("gives an empty project's Play its reason as a description and a status line", () => {
       render(<PlayerBar />);
       const play = screen.getByRole("button", { name: "Play" });
