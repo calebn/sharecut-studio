@@ -303,6 +303,8 @@ const SRC_ARROW_ALLOWLIST: Record<string, string> = {
     "the Script pill's key path to its edge drag: Alt with Left or Right rolls the seam 1 ms, saved as one roll; the host decides whether the clips can roll",
   "system/TakeSwitcher.tsx":
     "the take switcher steps to the previous or next take with the arrows and stops there, like a radio group; the host selects the take",
+  "system/AppearanceControl.tsx":
+    "the Appearance radiogroup steps to the previous or next theme with the arrows and stops there, like a radio group; the host sets the theme",
   "ui/Tabs.tsx": "the ARIA tablist pattern: arrows move among the tabs",
   "ui/useMenuKeyboard.ts": "arrows step through the items of an open menu",
 };
