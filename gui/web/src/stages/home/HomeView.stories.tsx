@@ -40,7 +40,7 @@ const meta: Meta<typeof HomeView> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "Home: the Import audio and Record tiles over the recent episodes, with the Setup card between them and Recent when models are missing, and the Add to Home Screen hint at the top of Recent. Below 40rem the tiles become a 72 px bar in the thumb zone and the cards become 72 px rows. On an empty Home Import audio is the filled primary tile, centred in the page. Presentational: data in, callbacks out.\n\nA card opens a menu on right-click, long-press or the Menu key: Open, Reveal in folder, Duplicate, Remove from list. On the phone a row also swipes left to show Remove from list. Home binds Mod+I (Import), R (Record), Mod+O (Open other) and ? (Help).\n\n**Motion.** Hover and drag-hover use `--motion-hover`; the Setup card leaves with `--motion-panel` when dismissed.",
+          "Home: the Import audio and Record tiles over the recent episodes, with the Setup card between them and Recent when models are missing, and the Add to Home Screen hint at the top of Recent. Below 40rem the tiles become a 72 px bar in the thumb zone and the cards become 72 px rows. On an empty Home Import audio is the filled primary tile, centred in the page. Presentational: data in, callbacks out.\n\nA card opens a menu on right-click, long-press or the Menu key: Open, Reveal in folder, Duplicate, Remove from list. On the phone a row also swipes left to show Remove from list. Home binds Mod+I (Import), R (Record), Mod+O (Open other) and ? (command palette).\n\n**Motion.** Hover and drag-hover use `--motion-hover`; the Setup card leaves with `--motion-panel` when dismissed.",
       },
     },
   },

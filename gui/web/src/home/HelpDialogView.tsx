@@ -1,8 +1,12 @@
+import { useEffect, useRef } from "react";
 import type { DiagnosticsBundleResult } from "../api";
+import type { HelpStep } from "../state/types";
+import { SystemIcon } from "../system/SystemIcon";
+import type { SystemIconName } from "../system/icons";
 import { Button, Dialog, InlineError } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
 
-export type HelpStep = "menu" | "report";
+export type { HelpStep };
 
 export type HelpDialogViewProps = {
   open: boolean;
@@ -51,12 +55,46 @@ export function HelpDialogView({
   onCreate,
   onSubmit,
 }: HelpDialogViewProps) {
+  const reportRowRef = useRef<HTMLButtonElement>(null);
+  const createRef = useRef<HTMLButtonElement>(null);
+  const seen = useRef({ open, step });
+  useEffect(() => {
+    const prev = seen.current;
+    seen.current = { open, step };
+    if (!open || !prev.open || prev.step === step) return;
+    (step === "report" ? createRef : reportRowRef).current?.focus();
+  }, [open, step]);
+
+  const rows: {
+    label: string;
+    icon: SystemIconName;
+    onSelect: () => void;
+    ariaLabel?: string;
+  }[] = [
+    {
+      label: "Shortcuts and gestures",
+      icon: "keyboard",
+      onSelect: onOpenShortcuts,
+    },
+    {
+      label: "Report a problem",
+      icon: "message-square",
+      onSelect: () => onStepChange("report"),
+    },
+    {
+      label: "Guides",
+      icon: "book-open",
+      onSelect: onOpenGuides,
+      ariaLabel: "Guides, opens in a new tab",
+    },
+  ];
+
   return (
     <Dialog
       open={open}
       onClose={onClose}
       title={step === "menu" ? "Help" : "Report a problem"}
-      panelClassName="share-dialog-panel"
+      panelClassName="help-sheet-panel"
       footer={
         step === "menu" ? undefined : (
           <div className="share-dialog-actions">
@@ -68,6 +106,7 @@ export function HelpDialogView({
               Back
             </Button>
             <Button
+              ref={createRef}
               variant={bundle ? "default" : "primary"}
               type="button"
               disabledReason={busy ? BUSY_REASON : undefined}
@@ -102,19 +141,22 @@ export function HelpDialogView({
     >
       {step === "menu" ? (
         <ul className="help-sheet-rows" aria-label="Help">
-          {[
-            ["Shortcuts and gestures", onOpenShortcuts],
-            ["Report a problem", () => onStepChange("report")],
-            ["Guides", onOpenGuides],
-          ].map(([label, run]) => (
-            <li key={label as string}>
+          {rows.map((row) => (
+            <li key={row.label}>
               <button
+                ref={
+                  row.label === "Report a problem" ? reportRowRef : undefined
+                }
                 type="button"
                 className="help-sheet-row"
-                onClick={run as () => void}
+                aria-label={row.ariaLabel}
+                onClick={row.onSelect}
               >
-                <span>{label as string}</span>
-                <span aria-hidden="true">›</span>
+                <span className="help-sheet-row-label">
+                  <SystemIcon name={row.icon} />
+                  {row.label}
+                </span>
+                <SystemIcon name="chevron-right" />
               </button>
             </li>
           ))}
@@ -122,9 +164,8 @@ export function HelpDialogView({
       ) : (
         <div className="share-dialog-body stack">
           <p className="host-mcp-lead">
-            Create a sanitized diagnostics zip on this computer. Nothing is
-            uploaded when you create it. Preview it before deciding whether to
-            send. The zip contains no audio, transcripts, or project JSON.
+            Includes logs and settings. No audio, transcripts or project files.
+            Nothing is uploaded when you create it.
           </p>
           {bundle ? (
             <div className="stack" role="status" aria-live="polite">
@@ -135,7 +176,14 @@ export function HelpDialogView({
                 Bundle size: {(bundle.size_bytes / 1024).toFixed(1)} KiB. App
                 version: {bundle.app_version}.
               </p>
-              <p>Files: {bundle.files.join(", ")}</p>
+              <details>
+                <summary>Preview what's included</summary>
+                <ul>
+                  {bundle.files.map((file) => (
+                    <li key={file}>{file}</li>
+                  ))}
+                </ul>
+              </details>
               <label htmlFor="report-description">Describe the problem</label>
               <p id="report-description-hint">
                 Enter at least 10 characters to submit a report.

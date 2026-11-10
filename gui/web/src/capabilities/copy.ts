@@ -350,8 +350,8 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     tooltip: "Connect agent…",
   },
   "daw.help.diagnosticsBundle": {
-    label: "Export diagnostics…",
-    tooltip: "Create a sanitized diagnostics bundle",
+    label: "Report a problem…",
+    tooltip: "Describe a problem and send a diagnostics bundle",
   },
   "daw.help.guides": {
     label: "Guides",

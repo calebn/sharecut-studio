@@ -2118,7 +2118,7 @@
     },
     {
       "id": "daw.help.diagnosticsBundle",
-      "label": "Export diagnostics\u2026",
+      "label": "Report a problem\u2026",
       "effect": "view",
       "service": "DiagnosticsService",
       "industry_standard_key": false,

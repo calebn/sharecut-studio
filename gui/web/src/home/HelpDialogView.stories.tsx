@@ -6,10 +6,13 @@ import { DialogLauncher } from "../test/DialogLauncher";
 import { openDialogByLauncher, useArgState } from "../test/storyDialog";
 import { HelpDialogView } from "./HelpDialogView";
 
-const openDialog = (canvasElement: HTMLElement) =>
+const openDialog = (
+  canvasElement: HTMLElement,
+  dialogName = "Report a problem",
+) =>
   openDialogByLauncher(canvasElement, {
     launcherName: "Open help dialog",
-    dialogName: "Report a problem",
+    dialogName,
   });
 
 const SUPPORT = "https://github.com/example/sharecut/issues";
@@ -30,12 +33,18 @@ function HelpDialogPreview({
 }: ComponentProps<typeof HelpDialogView> & { initiallyOpen: boolean }) {
   const [description, setDescription] = useArgState(args.description);
   const [consent, setConsent] = useArgState(args.consent);
+  const [step, setStep] = useArgState(args.step);
   return (
     <DialogLauncher label="Open help dialog" initiallyOpen={initiallyOpen}>
       {(open, close) => (
         <HelpDialogView
           {...args}
           open={open}
+          step={step}
+          onStepChange={(next) => {
+            setStep(next);
+            args.onStepChange(next);
+          }}
           description={description}
           consent={consent}
           onClose={() => {
@@ -97,18 +106,39 @@ export const Menu: Story = {
   args: { step: "menu" },
   play: async ({ args, canvasElement, viewMode }) => {
     if (viewMode === "docs") return;
-    const dialog = await openDialogByLauncher(canvasElement, {
-      launcherName: "Open help dialog",
-      dialogName: "Help",
-    });
+    const dialog = await openDialog(canvasElement, "Help");
     await userEvent.click(
       within(dialog).getByRole("button", { name: /Report a problem/ }),
     );
     await expect(args.onStepChange).toHaveBeenCalledWith("report");
+    const create = await within(dialog).findByRole("button", {
+      name: "Create diagnostics bundle",
+    });
+    await expect(create).toHaveFocus();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Back" }));
+    await expect(
+      within(dialog).getByRole("button", { name: /Report a problem/ }),
+    ).toHaveFocus();
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: /Report a problem/ }),
+    );
+    await userEvent.click(within(dialog).getByRole("button", { name: "Back" }));
     await userEvent.click(
       within(dialog).getByRole("button", { name: /Guides/ }),
     );
     await expect(args.onOpenGuides).toHaveBeenCalledOnce();
+  },
+};
+
+export const Phone: Story = {
+  args: { step: "menu" },
+  globals: { viewport: { value: "mobile360", isRotated: false } },
+  play: async ({ canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await openDialog(canvasElement, "Help");
+    await expect(
+      within(dialog).getByRole("button", { name: /Shortcuts and gestures/ }),
+    ).toBeVisible();
   },
 };
 
@@ -157,6 +187,16 @@ export const BundleReady: Story = {
     await expect(
       within(dialog).getByRole("button", { name: "Submit report" }),
     ).toBeDisabled();
+  },
+};
+
+export const ReportPreview: Story = {
+  args: { bundle },
+  play: async ({ canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await openDialog(canvasElement);
+    await userEvent.click(within(dialog).getByText("Preview what's included"));
+    await expect(within(dialog).getByText("app.log")).toBeVisible();
   },
 };
 

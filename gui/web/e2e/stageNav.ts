@@ -302,7 +302,7 @@ export async function startBounce(page: Page): Promise<void> {
 }
 
 /** Rows with no menu item; the palette runs them. */
-const PALETTE_ONLY_ITEMS = new Set(["Export diagnostics…"]);
+const PALETTE_ONLY_ITEMS = new Set(["Report a problem…"]);
 
 /**
  * Open the Project menu and choose the entry named `item`. A name the old

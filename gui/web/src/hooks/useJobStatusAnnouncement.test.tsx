@@ -53,7 +53,9 @@ it("speaks a failed job's message without its internals", () => {
   });
   return Promise.resolve().then(() => {
     expect(useDawStore.getState().statusAnnouncement).not.toMatch(/PODCAST/);
-    expect(useDawStore.getState().statusAnnouncement).toMatch(/Export/);
+    expect(useDawStore.getState().statusAnnouncement).toMatch(
+      /report a problem/,
+    );
   });
 });
 
@@ -441,7 +443,7 @@ describe("owned outcome transactions", () => {
       status: "error",
       message: "Could not write audio: write_failed at /tmp/ep/export/ep.mp3",
       spoken:
-        "Activity failed. Could not write audio. Export diagnostics from the command palette and try again. 2 activities",
+        "Activity failed. Could not write audio. Try again, or report a problem from the command palette. 2 activities",
     },
   ])("keeps $status detail punctuation before the activity count", (job) => {
     render(<StatusLive />);
@@ -586,7 +588,7 @@ describe("owned outcome transactions", () => {
     const unsafe =
       "Could not write audio: write_failed at /tmp/ep/export/ep.mp3";
     const safe =
-      "Could not write audio. Export diagnostics from the command palette and try again.";
+      "Could not write audio. Try again, or report a problem from the command palette.";
     act(() => st().announceStatus(unsafe, { tone: "error" }));
     expect(screen.getByRole("status").textContent).toBe(safe);
 
@@ -718,7 +720,7 @@ describe("public feedback beside job reconciliation", () => {
     const raw = "Export failed: write_failed at /tmp/ep/export/output.wav";
     act(() => store().announceStatus(raw, { tone: "error", toast: false }));
     expect(screen.getByRole("status").textContent).toBe(
-      "Export failed. Export diagnostics from the command palette and try again.",
+      "Export failed. Try again, or report a problem from the command palette.",
     );
     const seq = store().statusAnnouncementSeq;
     act(() => {

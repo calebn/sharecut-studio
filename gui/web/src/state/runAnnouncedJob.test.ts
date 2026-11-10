@@ -529,7 +529,7 @@ it("stages a sanitized receipt failure and rethrows the original decoder error",
   const s = useDawStore.getState();
   s.reconcileJobAnnouncements(null, "j1", false);
   expect(useDawStore.getState().statusAnnouncement).toBe(
-    "Export failed. Export diagnostics from the command palette and try again.",
+    "Export failed. Try again, or report a problem from the command palette.",
   );
   expect(useDawStore.getState().feedbackToast).toBeNull();
 });

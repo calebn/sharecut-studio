@@ -1015,7 +1015,7 @@ describe("FeedbackToast", () => {
     expect(card).toHaveClass("ui-toast--error");
     expect(
       screen.getByText(
-        "Refresh failed. Export diagnostics from the command palette and try again.",
+        "Refresh failed. Try again, or report a problem from the command palette.",
       ),
     ).toBeVisible();
     expect(useDawStore.getState().statusAnnouncement).not.toMatch(/PODCAST/);

@@ -1307,7 +1307,7 @@ describe("HomeScreen", () => {
       const options = within(palette)
         .getAllByRole("option")
         .map((option) => option.textContent ?? "");
-      expect(options[0]).toContain("Export diagnostics");
+      expect(options[0]).toContain("Report a problem");
       expect(options.some((text) => text.includes("Guides"))).toBe(true);
       expect(options.some((text) => text.includes("Gestures"))).toBe(false);
       expect(
@@ -1334,27 +1334,53 @@ describe("HomeScreen", () => {
       await user.click(trigger);
       const sheet = await screen.findByRole("dialog", { name: "Help" });
       expect(
-        within(sheet)
+        within(within(sheet).getByRole("list", { name: "Help" }))
           .getAllByRole("button")
-          .map((button) => button.textContent)
-          .filter((text) => text?.includes("›")),
-      ).toEqual(["Shortcuts and gestures›", "Report a problem›", "Guides›"]);
+          .map((button) => button.textContent),
+      ).toEqual(["Shortcuts and gestures", "Report a problem", "Guides"]);
       expect(content?.inert).toBe(true);
       await user.keyboard("{Escape}");
       expect(content?.inert).toBe(false);
       expect(trigger).toHaveFocus();
     });
 
-    it("opens the palette from the Shortcuts and gestures row", async () => {
+    it("opens the palette from the Shortcuts and gestures row and returns focus to Help", async () => {
       const user = userEvent.setup();
       render(<HomeScreen />);
       await screen.findByRole("list", { name: "Recent episodes" });
-      await user.click(screen.getByRole("button", { name: /^Help$/ }));
+      const trigger = screen.getByRole("button", { name: /^Help$/ });
+      await user.click(trigger);
       await user.click(
         await screen.findByRole("button", { name: /Shortcuts and gestures/ }),
       );
+      const palette = await screen.findByRole("dialog", {
+        name: "Commands and shortcuts",
+      });
+      expect(screen.queryByRole("dialog", { name: "Help" })).toBeNull();
+      const search = within(palette).getByRole("combobox", {
+        name: "Search commands",
+      });
+      await waitFor(() => expect(search).toHaveFocus());
+      await user.keyboard("{Escape}");
+      await waitFor(() => expect(trigger).toHaveFocus());
+    });
+
+    it("opens the palette, not the Help sheet, on ?", async () => {
+      const user = userEvent.setup();
+      render(<HomeScreen />);
+      await screen.findByRole("list", { name: "Recent episodes" });
+      await user.keyboard("?");
       await screen.findByRole("dialog", { name: "Commands and shortcuts" });
       expect(screen.queryByRole("dialog", { name: "Help" })).toBeNull();
+    });
+
+    it("titles the Help button Help", async () => {
+      render(<HomeScreen />);
+      await screen.findByRole("list", { name: "Recent episodes" });
+      expect(screen.getByRole("button", { name: /^Help$/ })).toHaveAttribute(
+        "title",
+        "Help",
+      );
     });
 
     it("steps into Report a problem inside the Help sheet and back", async () => {
@@ -1394,13 +1420,13 @@ describe("HomeScreen", () => {
       open.mockRestore();
     });
 
-    it("reports a problem from the palette Help group straight on the report step", async () => {
+    it("opens Report a problem… from the palette Help group straight on the report step", async () => {
       const user = userEvent.setup();
       render(<HomeScreen />);
       await screen.findByRole("list", { name: "Recent episodes" });
       await user.keyboard("?");
       await user.click(
-        await screen.findByRole("option", { name: /Export diagnostics/ }),
+        await screen.findByRole("option", { name: /Report a problem/ }),
       );
       expect(
         await screen.findByRole("dialog", { name: "Report a problem" }),

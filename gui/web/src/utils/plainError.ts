@@ -7,7 +7,7 @@ const WINDOWS_PATH =
 const SNAKE_CODE = /\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/;
 const UUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/;
 
-const NEXT_STEP = "Export diagnostics from the command palette and try again.";
+const NEXT_STEP = "Try again, or report a problem from the command palette.";
 
 const hasPath = (text: string) =>
   new RegExp(POSIX_PATH.source).test(text) ||
