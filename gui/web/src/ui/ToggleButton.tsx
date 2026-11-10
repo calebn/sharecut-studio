@@ -24,8 +24,8 @@ export function ToggleButton({
   ...rest
 }: Props) {
   const attrs = disabledAttrs(disabledReason);
-  const menuitemRadio = rest.role === "menuitemradio";
-  const stateProps = menuitemRadio
+  const checkable = rest.role === "menuitemradio" || rest.role === "radio";
+  const stateProps = checkable
     ? { "aria-checked": pressed }
     : { "aria-pressed": pressed };
   const classes = [

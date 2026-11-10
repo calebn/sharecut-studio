@@ -1377,13 +1377,14 @@ describe("HomeScreen", () => {
       ).toEqual(["Settings", "Connect agent", "Help"]);
     });
 
-    it("opens Models from the app menu's Settings row and Connect agent from its row", async () => {
+    it("opens Settings from the app menu's Settings row and Connect agent from its row", async () => {
       const user = userEvent.setup();
       render(<HomeScreen />);
       await screen.findByRole("list", { name: "Recent episodes" });
       await chooseAppMenuRow(user, "Settings");
-      expect(useDawStore.getState().chrome.modelsSheetOpen).toBe(true);
-      useDawStore.getState().setModelsSheetOpen(false);
+      expect(useDawStore.getState().chrome.settingsSheetOpen).toBe(true);
+      expect(useDawStore.getState().chrome.modelsSheetOpen).toBe(false);
+      useDawStore.getState().setSettingsSheetOpen(false);
       await chooseAppMenuRow(user, "Connect agent");
       expect(useDawStore.getState().chrome.hostMcpDialogOpen).toBe(true);
       useDawStore.getState().setHostMcpDialogOpen(false);

@@ -8,11 +8,10 @@ import {
   Menu,
   MenuItem,
   MenuSection,
-  SegmentedControl,
-  ToggleButton,
   useOutsidePointerDown,
   useResizeObserver,
 } from "../ui";
+import { AppearanceControl } from "./AppearanceControl";
 import { AppMenuItems } from "./AppMenuItems";
 import { type CoachHint, CoachTip } from "./CoachTip";
 import type { SystemIconName } from "./icons";
@@ -167,12 +166,6 @@ function RoleHint({ guest }: { guest: NonNullable<AppHeaderProps["guest"]> }) {
   );
 }
 
-const APPEARANCE: readonly { id: ThemePreference; label: string }[] = [
-  { id: "system", label: "System" },
-  { id: "light", label: "Light" },
-  { id: "dark", label: "Dark" },
-];
-
 function Row({ icon, children }: { icon: SystemIconName; children: string }) {
   return (
     <>
@@ -189,21 +182,7 @@ function AppearanceSection({
   return (
     <MenuSection label="Appearance">
       {/* Radios keep the menu open so the themes can be compared in place. */}
-      <SegmentedControl role="none">
-        {APPEARANCE.map((option) => (
-          <ToggleButton
-            key={option.id}
-            quiet
-            role="menuitemradio"
-            tabIndex={-1}
-            pressed={value === option.id}
-            aria-checked={value === option.id}
-            onClick={() => onChange(option.id)}
-          >
-            {option.label}
-          </ToggleButton>
-        ))}
-      </SegmentedControl>
+      <AppearanceControl value={value} onChange={onChange} variant="menu" />
     </MenuSection>
   );
 }

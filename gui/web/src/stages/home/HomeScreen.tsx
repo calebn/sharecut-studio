@@ -9,6 +9,7 @@ import {
   type RecentProject,
   revealRecentProject,
 } from "../../api";
+import { runPointerCommand } from "../../commands/pointer";
 import { registerDawCommands } from "../../commands/register";
 import { desktopCloseGuardArmed } from "../../desktop/useDesktopCloseGuard";
 import { FeedbackToast } from "../../feedback/FeedbackToast";
@@ -16,6 +17,7 @@ import { HelpHost } from "../../home/HelpHost";
 import { useWindowFileDrop } from "../../hooks/useWindowFileDrop";
 import { ingestIntoNewProject, pickAudioFiles } from "../../ingest/ingestFiles";
 import { ModelsSheet, useModels } from "../../models";
+import { SettingsHost } from "../../settings/SettingsHost";
 import { CommandPalette } from "../../stage/dialogs/CommandPalette";
 import { HostMcpDialog } from "../../stage/dialogs/HostMcpDialog";
 import { useShellAttributes } from "../../stage/frame/useShellAttributes";
@@ -495,7 +497,7 @@ export function HomeScreen() {
           dismissHomeScreenHint();
           setHintShown(false);
         }}
-        onSettings={() => setModelsSheetOpen(true)}
+        onSettings={() => runPointerCommand("settings.open")}
         onConnectAgent={() => setHostMcpDialogOpen(true)}
         onHelp={() => setHelpDialogOpen(true, "menu")}
       />
@@ -510,6 +512,7 @@ export function HomeScreen() {
         onClose={() => setModelsSheetOpen(false)}
       />
       <HelpHost />
+      <SettingsHost />
       <FeedbackToast />
       <StatusLiveRegion message={announcement} seq={announcementSeq} />
     </>

@@ -3,8 +3,11 @@ import type { ReactNode } from "react";
 type Props = {
   /** Accessible group name (omit when the segments are menu radios). */
   label?: string;
-  /** Use `none` when the segments render as `menuitemradio` rows in a Menu. */
-  role?: "group" | "none";
+  /**
+   * `radiogroup` when the segments are `radio` buttons. Use `none` when they
+   * render as `menuitemradio` rows in a Menu.
+   */
+  role?: "group" | "radiogroup" | "none";
   className?: string;
   /** Id of the help text that describes the group. */
   describedBy?: string;
@@ -27,7 +30,7 @@ export function SegmentedControl({
     <div
       className={className ? `ui-segmented ${className}` : "ui-segmented"}
       role={role}
-      aria-label={role === "group" ? label : undefined}
+      aria-label={role === "none" ? undefined : label}
       aria-describedby={describedBy}
     >
       {children}

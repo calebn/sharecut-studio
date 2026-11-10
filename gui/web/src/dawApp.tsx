@@ -20,6 +20,7 @@ import { useRecordMonitor } from "./record/monitor/useRecordMonitor";
 import { useHostKeeperCapture } from "./record/useHostKeeperCapture";
 import { useHostRoom } from "./record/useHostRoom";
 import { useOutputDevice } from "./record/useOutputDevice";
+import { SettingsHost } from "./settings/SettingsHost";
 import { isShareProjectKey } from "./shareMode";
 import { CommandPalette } from "./stage/dialogs/CommandPalette";
 import { HostMcpDialog } from "./stage/dialogs/HostMcpDialog";
@@ -248,6 +249,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
                 hasProject={hasProject}
               />
               <HelpHost />
+              <SettingsHost />
               {syncEnabled ? (
                 <ModelsSheet
                   open={modelsSheetOpen}
