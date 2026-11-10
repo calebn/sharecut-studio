@@ -245,8 +245,8 @@ The Script pane has no modes, so one grammar covers mouse, touch and keys
 - A mouse or pen drag from a word selects to the word under the pointer,
   across turns. A pill or a suggested run in the way is taken whole.
   Shift-click and Shift-drag extend from the selection's anchor.
-- A double-click or double-tap on a word, and Enter or F2 on a selected word,
-  start Fix text. Typing never does: every letter stays a shortcut.
+- A triple-click on a word selects its sentence. A double-tap on a word (touch
+  or pen), and Enter or F2 on a selected word, start Fix text. Typing never does: every letter stays a shortcut.
 - On touch, a long press selects the word and shows the 44 px grips; moving
   on from the hold extends it under the finger, and it commits when the
   finger lifts. A finger that moves before the hold scrolls and selects

@@ -13,7 +13,10 @@ export type PickerPerson = PersonData & {
   id: string;
   /** Tells two people with the same name apart: "Track 2, 5:11 of audio". */
   detail?: string;
-  /** Why this person cannot be picked. The row stays in the list, dimmed, and says why. */
+  /**
+   * Why this person cannot be picked. The row stays in the list, dimmed, and
+   * says why.
+   */
   unavailable?: string;
 };
 
