@@ -11,7 +11,7 @@ import {
   type RangeEditMode,
   rangeEditMode,
 } from "../shareMode";
-import type { AfterCutDirection } from "../state/afterCutSlice";
+import type { AfterCut, AfterCutDirection } from "../state/afterCutSlice";
 import { useDawStore } from "../state/dawStore";
 import { documentActivityBusy } from "../state/documentSendOrder";
 import { type RoomKeyHandlers, roomKeys } from "../state/roomKeys";
@@ -21,7 +21,11 @@ import type { Selection } from "../types/project";
 import type { StageId } from "../types/stage";
 import { splitSpeakersBlocker } from "../utils/speakerSplit";
 import { afterCutPick } from "./afterCutHost";
-import { scriptBodyFocused, transcriptLoading } from "./afterCutWindow";
+import {
+  holdFocusOk,
+  scriptBodyFocused,
+  transcriptLoading,
+} from "./afterCutWindow";
 import { focusedClipHandleKind } from "./focusedClipHandle";
 import type { ContextPredicateId } from "./types";
 
@@ -110,12 +114,16 @@ export function afterCutHolds(s: DawStore): boolean {
   return sameWords(s.selection, cut.selected);
 }
 
+function heldInTime(cut: AfterCut): boolean {
+  return Date.now() < cut.holdUntil && holdFocusOk();
+}
+
 function afterCutActive(s: DawStore, direction: AfterCutDirection): boolean {
   const cut = s.afterCut;
   if (!cut || !s.project || !afterCutInEdit(s)) return false;
-  if (s.rangeBusy) return cut.focused;
+  if (s.rangeBusy) return cut.focused && heldInTime(cut);
   if (!afterCutHolds(s)) return false;
-  if (transcriptLoading(s.project)) return cut.focused;
+  if (transcriptLoading(s.project)) return cut.focused && heldInTime(cut);
   return (
     scriptBodyFocused() && afterCutPick(s.project, cut, direction) !== null
   );

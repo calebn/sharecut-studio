@@ -15,6 +15,7 @@ export type AfterCut = Readonly<{
   baseHead: HistoryEntryId | null;
   epoch: number;
   focused: boolean;
+  holdUntil: number;
   selected: TranscriptRange | null;
   at: EditWordReveal | null;
   startedAt: EditWordReveal | null;

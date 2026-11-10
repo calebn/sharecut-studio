@@ -83,7 +83,9 @@ export function useScriptSelection(
     setCaret(before);
   });
   const onClearSelection = useStableCallback(() => {
-    useDawStore.getState().setSelection(null);
+    const { setSelection, setAfterCut } = useDawStore.getState();
+    setSelection(null);
+    setAfterCut(null);
   });
   const onSeamSelect = useStableCallback((id: string) => {
     const { project, setSelection } = useDawStore.getState();

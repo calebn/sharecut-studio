@@ -1,6 +1,10 @@
 import { useDawStore } from "../state/dawStore";
 import { afterCutPick } from "./afterCutHost";
-import { transcriptLoading, untilCutSettled } from "./afterCutWindow";
+import {
+  holdFocusOk,
+  transcriptLoading,
+  untilCutSettled,
+} from "./afterCutWindow";
 import { afterCutHolds } from "./context";
 import { registerCommand } from "./execute";
 import type { ExecuteResult } from "./types";
@@ -42,8 +46,12 @@ export function registerAfterCutCommands(): void {
     const state = useDawStore.getState();
     if (!state.rangeBusy && !transcriptLoading(state.project))
       return jump(shift);
-    return untilCutSettled(state.projectEpoch).then((settled) =>
-      settled ? jump(shift) : NONE,
-    );
+    const queued = state.afterCut;
+    return untilCutSettled(state.projectEpoch).then((settled) => {
+      if (settled) return holdFocusOk() ? jump(shift) : NONE;
+      const live = useDawStore.getState();
+      if (queued && live.afterCut === queued) live.setAfterCut(null);
+      return NONE;
+    });
   });
 }
