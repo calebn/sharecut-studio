@@ -312,6 +312,7 @@ describe("stable callback source governance", () => {
         .sort(),
     ).toEqual([
       "stage/edit/script/ScriptHost.tsx:onSelect",
+      "stage/edit/script/useScriptFind.ts:advance",
       "stage/edit/script/useScriptFind.ts:closeBar",
       "stage/edit/script/useScriptFind.ts:openBar",
       "stage/edit/script/useScriptFixText.tsx:commit",
