@@ -312,7 +312,7 @@ export const Search: Story = {
       "export",
     );
     await expect(within(dialog).getByRole("status")).toHaveTextContent(
-      "2 commands. Enter runs Export deliverables…. Tab remaps",
+      "1 command. Enter runs Export deliverables…. Tab remaps",
     );
     await expect(within(dialog).queryByText("Split at playhead")).toBeNull();
     await userEvent.keyboard("{Enter}");
