@@ -35,7 +35,11 @@ const result = {
 };
 
 describe("splitSpeakersBlocker", () => {
-  const track = { media_path: "raw/room.wav", speaker_split_id: null };
+  const track = {
+    media_path: "raw/room.wav",
+    role: "dialogue",
+    speaker_split_id: null,
+  };
 
   it("allows a host's track that has audio and is not a lane of a split", () => {
     expect(splitSpeakersBlocker(track, true)).toBeNull();
@@ -50,6 +54,16 @@ describe("splitSpeakersBlocker", () => {
       "This track is already split by speaker. Undo the split to split it again.",
     ],
     [{ ...track, media_path: null }, true, "Import this track's audio first"],
+    [
+      { ...track, role: "music" },
+      true,
+      "Only a voice track can be split by speaker",
+    ],
+    [
+      { ...track, role: "sfx" },
+      true,
+      "Only a voice track can be split by speaker",
+    ],
   ])("says why it cannot run: %#", (candidate, canManage, reason) => {
     expect(splitSpeakersBlocker(candidate, canManage)).toBe(reason);
   });
