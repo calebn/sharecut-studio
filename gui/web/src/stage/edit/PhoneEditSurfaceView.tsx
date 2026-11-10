@@ -10,6 +10,8 @@ export interface PhoneEditSurfaceViewProps {
   corner: ReactNode;
   lanes: ReactNode;
   script: ReactNode;
+  /** The whole-episode strip between the bar and the surface. */
+  overview?: ReactNode;
   /** Opens the Mix sheet; absent for a link that cannot change the mix. */
   onOpenMix?: () => void;
   /** Focus regions: the timeline side keeps timeline keys, the Script does not. */
@@ -58,6 +60,7 @@ export function PhoneEditSurfaceView({
   corner,
   lanes,
   script,
+  overview,
   onOpenMix,
   bindings,
 }: PhoneEditSurfaceViewProps) {
@@ -79,6 +82,7 @@ export function PhoneEditSurfaceView({
           </Button>
         ) : null}
       </div>
+      {overview}
       {surface === "lanes" ? (
         <div ref={bindings?.lanes} className="phone-edit-timeline">
           <div className="phone-edit-lanes">

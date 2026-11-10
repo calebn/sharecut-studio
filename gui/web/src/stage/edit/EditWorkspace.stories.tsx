@@ -295,6 +295,9 @@ export const ScriptFocus: Story = {
     await expect(
       canvasElement.querySelector<HTMLElement>(".edit-timeline-col")?.hidden,
     ).toBe(true);
+    await expect(
+      canvas.getByRole("slider", { name: "Episode overview" }),
+    ).toHaveClass("sys-overview--32");
   },
 };
 
@@ -376,6 +379,9 @@ export const PhoneTimeline: Story = {
     await expect(
       canvas.getByRole("button", { name: "Timeline" }),
     ).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      canvas.getByRole("slider", { name: "Episode overview" }),
+    ).toHaveClass("sys-overview--16");
   },
 };
 
@@ -391,6 +397,9 @@ export const PhoneScript: Story = {
     await expect(
       canvas.getByRole("button", { name: "Script" }),
     ).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      canvas.getByRole("slider", { name: "Episode overview" }),
+    ).toHaveClass("sys-overview--16");
     await userEvent.click(canvas.getByRole("button", { name: "Timeline" }));
     await waitFor(() =>
       expect(useDawStore.getState().editSurface).toBe("lanes"),

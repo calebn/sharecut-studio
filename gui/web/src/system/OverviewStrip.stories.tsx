@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { viewportStoryParameters } from "../storybook/storyLayout";
 import { OverviewStrip, type OverviewTick } from "./OverviewStrip";
 
@@ -91,5 +91,17 @@ export const Player64: Story = {
     await expect(
       strip.querySelector(".sys-overview-playhead")?.getAttribute("style"),
     ).toContain("40%");
+  },
+};
+export const Seek16: Story = {
+  args: { height: 16, ticks, onSeek: fn(), valueText: "0:24 of 1:00" },
+  play: async ({ canvasElement, args }) => {
+    const slider = within(canvasElement).getByRole("slider", {
+      name: "Episode overview",
+    });
+    await expect(slider).toHaveAttribute("aria-valuenow", "40");
+    slider.focus();
+    await userEvent.keyboard("{End}");
+    await expect(args.onSeek).toHaveBeenLastCalledWith(1);
   },
 };

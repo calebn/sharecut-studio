@@ -1325,6 +1325,16 @@ html[data-frame-short] .sys-header-project .sys-header-title {
   background: var(--color-bg-sunken);
 }
 
+.sys-overview--seek {
+  cursor: pointer;
+  touch-action: none;
+}
+
+.sys-overview--seek:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+}
+
 .sys-overview--16 {
   block-size: 1rem;
 }
