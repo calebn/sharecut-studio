@@ -421,7 +421,6 @@ export interface DawState {
   setZoomPxPerSec: (z: number) => void;
   setScrollLeft: (x: number) => void;
   setSelection: (sel: Selection) => void;
-  /** A chapter's id is its title, so a rename or move gives it a new identity. Points the selection, and an open Inspector, at it. Does nothing once something else is selected. */
   followChapter: (from: ChapterSelection, to: ChapterSelection) => void;
   selectFromInspector: (sel: Selection) => void;
   selectClip: (
