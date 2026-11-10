@@ -7,12 +7,6 @@ type TranscriptRange = Extract<Selection, { kind: "transcriptRange" }>;
 
 export type AfterCutDirection = "next" | "prev";
 
-/**
- * What a words cut left to follow: the cut words, where they were, and the
- * state that proves the cut is still the latest thing the person did. It is
- * live only while `selected` equals the live selection and the history head is
- * `head` or `baseHead` (`commands/context.ts` `afterCutActive`).
- */
 export type AfterCut = Readonly<{
   words: string;
   cutKeys: readonly string[];
