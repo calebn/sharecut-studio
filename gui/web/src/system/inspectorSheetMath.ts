@@ -27,8 +27,13 @@ export const CARD_WIDTH_PX = 320;
 const CARD_GAP_PX = 8;
 const CARD_EDGE_PX = 8;
 const CARD_MAX_SHARE = 0.6;
-/** The least a card can be and still show its header and a few rows: 14 rem at the default root size. */
+/** The least a card or a full sheet can be and still show its header and a few rows: 14 rem at the default root size. */
 export const CARD_MIN_BLOCK_PX = 224;
+
+/** Whether a card in a frame this tall (a frame not yet measured counts as fitting), or a full sheet in a slot this tall, can hold `minBlock`; below it the Inspector takes the screen. */
+export function cardFits(height: number, minBlock = CARD_MIN_BLOCK_PX) {
+  return height <= 0 || height * CARD_MAX_SHARE >= minBlock;
+}
 
 export type InspectorRect = {
   x: number;
@@ -129,8 +134,9 @@ export function steppedDetent(
  * Below the anchor when the card's tallest form (60 % of the bounds) fits
  * there, otherwise above, otherwise on the side with more room, shortened to it.
  * The room never takes the card under `minBlock` (14 rem at the default root
- * size), but the 60 % height still caps it: on a frame too short for that, the
- * card is 60 % tall and covers the part of the anchor it overlaps.
+ * size), so a card squeezed between its anchor and an edge covers the part of
+ * the anchor it overlaps. A frame too short for `minBlock` at 60 % (`cardFits`)
+ * gets no card: the host takes the screen instead.
  */
 export function placeCard(
   anchor: InspectorRect,

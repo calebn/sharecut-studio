@@ -598,3 +598,57 @@ describe("InspectorSheet phone", () => {
     await expectNoA11yViolations(second.container);
   });
 });
+
+describe("InspectorSheet takeover", () => {
+  it("is a modal dialog with the name, every section and Done, and Done closes it", async () => {
+    const onClose = vi.fn();
+    render(
+      <InspectorSheet
+        form="takeover"
+        icon="sliders-horizontal"
+        name="Maya"
+        onRename={vi.fn()}
+        sections={sections}
+        onClose={onClose}
+      />,
+    );
+    const dialog = screen.getByRole("dialog", { name: "Maya" });
+    expect(within(dialog).getByRole("textbox", { name: "Name" })).toHaveValue(
+      "Maya",
+    );
+    expect(
+      within(dialog).getByRole("button", { name: "Timing" }),
+    ).toBeVisible();
+    expect(within(dialog).getByText("Start field")).toBeVisible();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Done" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes on Escape", async () => {
+    const onClose = vi.fn();
+    render(
+      <InspectorSheet
+        form="takeover"
+        icon="sliders-horizontal"
+        name="Maya"
+        sections={sections}
+        onClose={onClose}
+      />,
+    );
+    await userEvent.keyboard("{Escape}");
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("has no axe violations", async () => {
+    render(
+      <InspectorSheet
+        form="takeover"
+        icon="sliders-horizontal"
+        name="Maya"
+        sections={sections}
+        onClose={vi.fn()}
+      />,
+    );
+    await expectNoA11yViolations(document.body);
+  });
+});

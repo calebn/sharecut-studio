@@ -7215,3 +7215,24 @@ textarea.sys-inline-edit {
     fill: none;
   }
 }
+
+/* The Inspector taking the whole screen where a card or sheet cannot hold a
+   field (large text on a short frame): a full-bleed modal with Done. */
+.ui-dialog-root > .command-palette-panel.sys-inspector-takeover {
+  inline-size: 100vw;
+  block-size: 100dvh;
+  max-inline-size: none;
+  max-block-size: none;
+  margin: 0;
+  border-width: 0;
+  border-radius: 0;
+}
+
+.sys-inspector--takeover {
+  position: static;
+  inline-size: auto;
+  max-inline-size: none;
+  block-size: auto;
+  border: none;
+  background: transparent;
+}

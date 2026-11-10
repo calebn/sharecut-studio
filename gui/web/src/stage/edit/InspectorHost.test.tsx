@@ -99,7 +99,7 @@ describe("the Inspector card on the desktop and the tablet", () => {
   it("anchors the card to the floating Action bar instead of the selected lane", () => {
     vi.stubGlobal("IntersectionObserver", undefined);
     const root = document.createElement("div");
-    root.getBoundingClientRect = () => new DOMRect(20, 50, 360, 167);
+    root.getBoundingClientRect = () => new DOMRect(20, 50, 360, 400);
     const lane = document.createElement("div");
     lane.className = "lane-row";
     lane.dataset.trackId = "host";
@@ -126,8 +126,8 @@ describe("the Inspector card on the desktop and the tablet", () => {
       );
 
       const card = screen.getByRole("dialog", { name: "Inspector" });
-      expect(card.style.insetBlockEnd).toBe("48px");
-      expect(card.style.maxBlockSize).toBe("100.2px");
+      expect(card.style.insetBlockStart).toBe("168px");
+      expect(card.style.maxBlockSize).toBe("224px");
     } finally {
       root.remove();
     }
@@ -138,7 +138,7 @@ describe("the Inspector card on the desktop and the tablet", () => {
     (barPlacement) => {
       vi.stubGlobal("IntersectionObserver", undefined);
       const root = document.createElement("div");
-      root.getBoundingClientRect = () => new DOMRect(20, 50, 360, 167);
+      root.getBoundingClientRect = () => new DOMRect(20, 50, 360, 400);
       const lane = document.createElement("div");
       lane.className = "lane-row";
       lane.dataset.trackId = "host";
@@ -168,17 +168,51 @@ describe("the Inspector card on the desktop and the tablet", () => {
         );
 
         const card = screen.getByRole("dialog", { name: "Inspector" });
-        // 41px of room below the lane is under the card's floor, and this frame
-        // is too short for the floor, so the card takes its 60 % height and
-        // covers the lane instead of thinning out.
-        expect(card.style.maxBlockSize).toBe("100.2px");
-        expect(card.style.insetBlockStart).toBe("58.8px");
+        expect(card.style.insetBlockStart).toBe("118px");
+        expect(card.style.maxBlockSize).toBe("240px");
       } finally {
         root.remove();
         document.querySelector("body > .sys-actions--floating")?.remove();
       }
     },
   );
+
+  it("takes the whole screen with Done where the frame is too short for a card", () => {
+    vi.stubGlobal("IntersectionObserver", undefined);
+    const root = document.createElement("div");
+    root.getBoundingClientRect = () => new DOMRect(20, 50, 360, 167);
+    const lane = document.createElement("div");
+    lane.className = "lane-row";
+    lane.dataset.trackId = "host";
+    lane.getBoundingClientRect = () => new DOMRect(200, 100, 40, 60);
+    root.append(lane);
+    document.body.append(root);
+    const close = vi.fn();
+
+    try {
+      render(
+        <InspectorHost
+          shell="desktop"
+          root={root}
+          regionRef={() => undefined}
+          sheet={{
+            open: true,
+            rangeActionsInSheet: false,
+            close,
+            dismiss: vi.fn(),
+          }}
+        />,
+      );
+
+      const dialog = screen.getByRole("dialog", { name: "Inspector" });
+      expect(dialog.className).not.toContain("sys-inspector--card");
+      expect(dialog.querySelector(".sys-inspector--takeover")).not.toBeNull();
+      fireEvent.click(within(dialog).getByRole("button", { name: "Done" }));
+      expect(close).toHaveBeenCalledTimes(1);
+    } finally {
+      root.remove();
+    }
+  });
 
   it("moves focus into the card on open and back to the opener on Escape", async () => {
     stubViewportShell("desktop");
@@ -1054,6 +1088,43 @@ describe("the I key", () => {
 });
 
 describe("the Inspector sheet on the phone", () => {
+  it("takes the whole screen with Done where the slot is too short for a full sheet", () => {
+    stubViewportShell("phone");
+    stubResizeObserver();
+    const lanes = document.createElement("div");
+    Object.defineProperty(lanes, "clientHeight", { get: () => 150 });
+    const offsetParent = vi
+      .spyOn(HTMLElement.prototype, "offsetParent", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        return this.classList.contains("sys-inspector") ? lanes : null;
+      });
+    const close = vi.fn();
+
+    try {
+      const { unmount } = render(
+        <InspectorHost
+          shell="phone"
+          root={null}
+          regionRef={() => undefined}
+          sheet={{
+            open: true,
+            rangeActionsInSheet: false,
+            close,
+            dismiss: vi.fn(),
+          }}
+        />,
+      );
+      const dialog = screen.getByRole("dialog", { name: "Inspector" });
+      expect(dialog.querySelector(".sys-inspector--takeover")).not.toBeNull();
+      expect(screen.queryByRole("slider", { name: "Sheet height" })).toBeNull();
+      fireEvent.click(within(dialog).getByRole("button", { name: "Done" }));
+      expect(close).toHaveBeenCalledTimes(1);
+      unmount();
+    } finally {
+      offsetParent.mockRestore();
+    }
+  });
+
   it("offers the dock and Full only where the measured slot is too short for Half", () => {
     stubViewportShell("phone");
     stubResizeObserver();
