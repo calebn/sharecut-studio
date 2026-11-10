@@ -2,8 +2,8 @@ import { type RefObject, useMemo, useRef, useState } from "react";
 import {
   previewTranscriptReplacement,
   replaceTranscriptMatches,
+  replyHistoryHead,
 } from "../../../api";
-import { replyHistoryHead } from "../../../api/documentEdits";
 import { submitRangeEdit } from "../../../commands/rangeActions";
 import { makeRangeTarget } from "../../../edit/rangeSelection";
 import { isShareProjectKey } from "../../../shareMode";
@@ -17,7 +17,7 @@ import { useDawStore } from "../../../state/dawStore";
 import type { FindHit } from "../../../system/scriptPieces";
 import { ApiError } from "../../../utils/apiError";
 import { useStableCallback } from "../../../utils/useStableCallback";
-import { cutAllMessage, matchCutOf } from "./findCut";
+import { cutAllMessage, cutKey, matchCutOf } from "./findCut";
 import type { ScriptModel } from "./scriptModel";
 
 export type ScriptFindState = {
@@ -46,7 +46,6 @@ export type ScriptFind = ScriptFindState & {
   next: () => void;
   previous: () => void;
   selectAll: () => void;
-  /** Rejects with a message the bar shows. */
   cutAll: () => Promise<void>;
   replaceAll: () => Promise<number>;
 };
@@ -55,21 +54,29 @@ function cutAllFailure(error: unknown): unknown {
   if (!(error instanceof ApiError)) return error;
   if (error.code === "cut_scope_changed")
     return new Error(
-      "Some of these matches are held for an audio check. Nothing was cut.",
+      /need audio review/.test(error.message)
+        ? "Some of these matches are held for an audio check. Nothing was cut."
+        : "Nothing was cut. The edit was not applied.",
     );
   if (error.code === "overlapping_targets")
     return new Error(
-      "Some matches overlap the same audio on one track. Narrow the search.",
+      "Some matches overlap on one track, so nothing was cut. Try a narrower search or cut them in the timeline.",
     );
   return error;
+}
+
+function wasProposed(result: Record<string, unknown>): boolean {
+  const command = result.command as
+    | { payload?: { result?: { proposed?: unknown } } }
+    | undefined;
+  return command?.payload?.result?.proposed === true;
 }
 
 /**
  * Find over the whole transcript (the model's turns, not the window), the
  * hits the pane highlights, and the host's Replace all through the backend's
  * preview and its token. Replace all is queued when the host is offline, so
- * its toast never carries a count. Cut all sends one target per speaker in one
- * command. A single Replace is left out until the backend can address one match.
+ * its toast never carries a count.
  */
 export function useScriptFind(
   model: ScriptModel,
@@ -84,7 +91,7 @@ export function useScriptFind(
     replaceOpen: false,
     replaceText: "",
   });
-  const queuedAgainst = useRef<unknown>(null);
+  const queued = useRef<{ epoch: number; key: string } | null>(null);
   const [at, setAt] = useState(0);
   const [stepped, setStepped] = useState(0);
   const { query, caseSensitive, replaceText } = state;
@@ -158,8 +165,10 @@ export function useScriptFind(
     const plan = matchCutOf(project, model, matches);
     if (plan.targets.length === 0)
       throw new Error("No audible words in these matches.");
-    if (queuedAgainst.current === project)
+    const key = cutKey(plan.targets);
+    if (queued.current?.epoch === epoch && queued.current.key === key)
       throw new Error("Cut all is already queued. Wait for it to send.");
+    const offline = navigator.onLine === false;
     setRangeBusy(true);
     try {
       const result = await submitRangeEdit("cut", plan.targets).catch(
@@ -169,11 +178,17 @@ export function useScriptFind(
       );
       if (useDawStore.getState().projectEpoch !== epoch) return;
       if (result.queued === true) {
-        queuedAgainst.current = project;
+        queued.current = { epoch, key };
         announceStatus(
-          isShareProjectKey(projectPath) && navigator.onLine === false
+          isShareProjectKey(projectPath) && offline
             ? "Cut all queued as a suggestion for host review. Reconnect to send it."
             : "Cut all queued. Still sending.",
+        );
+        return;
+      }
+      if (wasProposed(result)) {
+        announceStatus(
+          "Cut all was suggested for review. Nothing was cut yet.",
         );
         return;
       }

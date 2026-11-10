@@ -72,13 +72,12 @@
   font-weight: 500;
 }
 
-.sys-icon-btn:hover:not(:disabled, [aria-disabled="true"]) {
+.sys-icon-btn:hover:not(:disabled) {
   background: var(--color-hover);
   color: var(--color-text-primary);
 }
 
-.sys-icon-btn:disabled,
-.sys-icon-btn[aria-disabled="true"] {
+.sys-icon-btn:disabled {
   opacity: 0.4;
   cursor: default;
 }
@@ -5590,6 +5589,16 @@ input.sys-edit-fix {
   align-items: center;
   gap: var(--space-1);
   white-space: nowrap;
+}
+
+.sys-edit-find .sys-icon-btn[aria-disabled="true"] {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.sys-edit-find .sys-icon-btn[aria-disabled="true"]:hover {
+  background: transparent;
+  color: var(--color-text-secondary);
 }
 
 /* Clip (element 17) */

@@ -3,7 +3,7 @@ import { findMatches } from "../../../stages/edit/findMatches";
 import { clipRow, minimalProject, sampleTrack } from "../../../test/fixtures";
 import { scriptUtterance, scriptWord } from "../../../test/scriptHostKit";
 import type { CombinedUtterance, ProjectView } from "../../../types/project";
-import { cutAllMessage, matchCutOf } from "./findCut";
+import { cutAllMessage, cutKey, matchCutOf } from "./findCut";
 import { buildScriptModel } from "./scriptModel";
 
 const person = (trackId: string) => ({
@@ -164,15 +164,15 @@ describe("matchCutOf", () => {
     });
   });
 
-  it("refuses more targets than the server takes in one command", () => {
-    const ids = Array.from({ length: 65 }, (_, i) => `t${i}`);
+  const manyTracks = (count: number) => {
+    const ids = Array.from({ length: count }, (_, i) => `t${i}`);
     const utterances = ids.map((id, i) =>
       scriptUtterance(id, id, [scriptWord("um", 0, i * 2)]),
     );
     const project: ProjectView = minimalProject({
       tracks: ids.map((id) => sampleTrack({ id })),
       clips: {
-        clip_count: 65,
+        clip_count: count,
         tracks: Object.fromEntries(
           ids.map((id) => [
             id,
@@ -195,10 +195,32 @@ describe("matchCutOf", () => {
       pending: [],
       person: () => ({ name: "x", colorIndex: 0 }),
     });
-    expect(() =>
-      matchCutOf(project, model, findMatches(model.turns, "um", false)),
-    ).toThrow(
+    return { project, model, hits: findMatches(model.turns, "um", false) };
+  };
+
+  it("refuses more targets than the server takes in one command", () => {
+    const { project, model, hits } = manyTracks(65);
+    expect(() => matchCutOf(project, model, hits)).toThrow(
       "These matches are spread over too many tracks to cut at once. Narrow the search.",
+    );
+  });
+
+  it("takes exactly 64 targets", () => {
+    const { project, model, hits } = manyTracks(64);
+    expect(matchCutOf(project, model, hits).targets).toHaveLength(64);
+  });
+
+  it("takes exactly 1000 intervals in one target", () => {
+    const words = Array.from({ length: 1000 }, (_, i) =>
+      scriptWord("um", i, i * 2),
+    );
+    const { project, model, hits } = setup(
+      [scriptUtterance("host", "Maya", words)],
+      "um",
+      3000,
+    );
+    expect(matchCutOf(project, model, hits).targets[0]?.intervals).toHaveLength(
+      1000,
     );
   });
 
@@ -228,5 +250,24 @@ describe("cutAllMessage", () => {
       "Cut 12 matches",
       "Cut 10 of 12 matches. 2 could not be placed. Cut those in the timeline.",
     ]);
+  });
+});
+
+describe("cutKey", () => {
+  it("is the same for the same cut and differs for another", () => {
+    const { project, model, hits } = setup(
+      [
+        scriptUtterance("host", "Maya", [
+          scriptWord("um", 0, 10),
+          scriptWord("um", 1, 20),
+        ]),
+      ],
+      "um",
+    );
+    const all = matchCutOf(project, model, hits).targets;
+    const again = matchCutOf(project, model, hits).targets;
+    const one = matchCutOf(project, model, hits.slice(0, 1)).targets;
+    expect(cutKey(all)).toBe(cutKey(again));
+    expect(cutKey(all)).not.toBe(cutKey(one));
   });
 });

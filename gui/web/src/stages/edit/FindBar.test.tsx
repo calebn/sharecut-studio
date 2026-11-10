@@ -174,6 +174,19 @@ describe("FindBar", () => {
     }
   });
 
+  it("titles the Show replace toggle and explains a busy Cut all without the Replace row", () => {
+    const { rerender } = render(
+      <FindBar {...props({ replace: replaceProps() })} />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Show replace" }),
+    ).toHaveAttribute("title", "Show replace");
+    rerender(<FindBar {...props({ busy: true })} />);
+    expect(
+      screen.getByRole("button", { name: "Cut all 12" }),
+    ).toHaveAccessibleDescription(BUSY_REASON);
+  });
+
   it("draws no Replace button when the host has no single replace", async () => {
     const user = userEvent.setup();
     const replace = replaceProps({ onReplace: undefined });
@@ -314,7 +327,12 @@ describe("FindBar", () => {
       replace: replaceProps(),
     });
     render(<FindBar {...handlers} />);
-    expect(screen.getByRole("button", { name: "Cut all 12" })).toBeDisabled();
+    const cut = screen.getByRole("button", { name: "Cut all 12" });
+    expect(cut).toHaveAttribute("aria-disabled", "true");
+    expect(cut).not.toBeDisabled();
+    expect(cut).toHaveAccessibleDescription(BUSY_REASON);
+    await user.click(cut);
+    expect(handlers.onCutAll).not.toHaveBeenCalled();
     for (const name of ["Replace", "Replace all"]) {
       const button = screen.getByRole("button", { name });
       expect(button).toHaveAttribute("aria-disabled", "true");

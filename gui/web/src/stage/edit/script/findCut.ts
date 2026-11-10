@@ -10,25 +10,15 @@ import type {
 } from "../../../types/project";
 import type { ScriptModel } from "./scriptModel";
 
-/** The server accepts this many intervals in one target. */
-export const MAX_CUT_INTERVALS = 1000;
-
-/** The server accepts this many targets in one command. */
-export const MAX_CUT_TARGETS = 64;
+const MAX_CUT_INTERVALS = 1000;
+const MAX_CUT_TARGETS = 64;
 
 export type MatchCut = {
   targets: ExactRangeTarget[];
   cut: number;
-  /** Hits with no audible words, no placement or no track left, not sent. */
   skipped: number;
 };
 
-/**
- * Cuts every hit as if its words were selected in the Script and cut by hand:
- * each hit resolves to the track set that plays it, hits on one track set share a
- * target, and touching spans merge. A hit never reaches into the other
- * speaker's audio, even when they talk over each other.
- */
 export function matchCutOf(
   project: ProjectView,
   model: ScriptModel,
@@ -61,9 +51,10 @@ export function matchCutOf(
       skipped++;
       continue;
     }
-    const key = target.track_ids.join("\0");
+    const trackIds = [...target.track_ids].sort();
+    const key = trackIds.join("\0");
     const group = groups.get(key) ?? {
-      trackIds: target.track_ids,
+      trackIds,
       spans: [],
       hits: 0,
     };
@@ -94,4 +85,10 @@ export function cutAllMessage(cut: number, skipped: number): string {
   const matches = (n: number) => `${n} ${n === 1 ? "match" : "matches"}`;
   if (skipped === 0) return `Cut ${matches(cut)}`;
   return `Cut ${cut} of ${matches(cut + skipped)}. ${skipped} could not be placed. Cut those in the timeline.`;
+}
+
+export function cutKey(targets: readonly ExactRangeTarget[]): string {
+  return JSON.stringify(
+    targets.map((target) => [target.track_ids, target.intervals]),
+  );
 }

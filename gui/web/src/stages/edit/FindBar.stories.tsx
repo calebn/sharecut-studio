@@ -24,7 +24,6 @@ type SurfaceProps = {
   replaceText?: string;
   phone?: boolean;
   guest?: boolean;
-  /** Draw Replace all only, as the Script does until a single Replace has a command. */
   allOnly?: boolean;
 };
 
