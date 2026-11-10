@@ -126,11 +126,11 @@ describe("inspectorSheetMath detents", () => {
 
 describe("inspectorSheetMath cardFits", () => {
   it("fits a card whose 60 % holds the minimum, and counts an unmeasured frame as fitting", () => {
-    expect(cardFits(267)).toBe(true);
-    expect(cardFits(266)).toBe(false);
+    expect(cardFits(234)).toBe(true);
+    expect(cardFits(233)).toBe(false);
     expect(cardFits(0)).toBe(true);
-    expect(cardFits(533, 320)).toBe(false);
-    expect(cardFits(534, 320)).toBe(true);
+    expect(cardFits(466, 280)).toBe(false);
+    expect(cardFits(467, 280)).toBe(true);
   });
 });
 
@@ -138,14 +138,14 @@ describe("inspectorSheetMath card placement", () => {
   const desktop = { width: 1280, height: 800 };
 
   it("keeps a floor under the card where both sides are short, covering the anchor", () => {
-    const sideways = { width: 740, height: 360 };
+    const sideways = { width: 740, height: 300 };
     const placed = placeCard(
-      { x: 300, y: 150, width: 80, height: 40 },
+      { x: 300, y: 130, width: 80, height: 40 },
       sideways,
     );
-    expect(placed.maxBlock).toBe(160);
+    expect(placed.maxBlock).toBe(140);
     expect(placed.block).toBeGreaterThanOrEqual(8);
-    expect(placed.block + placed.maxBlock).toBeLessThanOrEqual(360 - 8 + 0.001);
+    expect(placed.block + placed.maxBlock).toBeLessThanOrEqual(300 - 8 + 0.001);
   });
 
   it("leaves a card alone where the room already holds the floor, and never passes 60 % of the frame", () => {

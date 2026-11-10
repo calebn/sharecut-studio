@@ -309,7 +309,7 @@ system 9a; `InspectorSheet form="phone"` in `stage/edit/InspectorHost.tsx`), a
 bottom sheet with three detents: the **dock** (4 rem: the Action bar alone), **half**
 (50%) and **full** (92%). It opens at half, or at full where half does not
 fit the lanes (a phone held sideways, a small portrait phone at large text);
-there the dock is dropped at full so the fields get the room. Where even the full sheet would be under 10 rem tall (large text on a phone held sideways), the Inspector takes the whole screen as a dialog with a **Done** button instead of a sliver. The dock is the
+there the dock is dropped at full so the fields get the room. Where even the full sheet would be under 8.75 rem tall (large text on a phone held sideways), the Inspector takes the whole screen as a dialog with a **Done** button instead of a sliver. The dock is the
 Action bar: the selected object's icon and short name on the left (96 px at
 most), up to five 48 px verb buttons (icon over a 10 px label) and **More**. A
 verb that opens fields (Fix text on a chapter, Adjust bounds, Fade, Move to
