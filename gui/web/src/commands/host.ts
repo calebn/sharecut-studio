@@ -233,7 +233,7 @@ export function registerHostCommands(): void {
     if (!canManageProjects(s.projectPath)) {
       return {
         status: "disabled",
-        reason: "Export diagnostics is host-only",
+        reason: "Report a problem is host-only",
       };
     }
     s.setHelpDialogOpen(true, "report");
