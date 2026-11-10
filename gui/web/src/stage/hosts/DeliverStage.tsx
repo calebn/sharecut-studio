@@ -40,6 +40,7 @@ import { lowConfidenceStops } from "../../transcript/lowConfidence";
 import type { LoudnessId } from "../../types/pipeline";
 import type { HistoryEntryId } from "../../types/project";
 import { useCommand } from "../../ui/useCommand";
+import { shownTitle } from "../../utils/clipTitle";
 import { mediaSignature } from "../../waveform/mediaRef";
 import { ListenLinkRow } from "../frame/invite/ListenLinkRow";
 import { useStageScroll } from "../useStageScroll";
@@ -66,7 +67,6 @@ import {
   fixRoute,
   sameChapters,
   sameClips,
-  shownTitle,
 } from "./deliverModel";
 import { shareOptionsOf } from "./deliverShare";
 import { useExportFlow } from "./exportFlowContext";
