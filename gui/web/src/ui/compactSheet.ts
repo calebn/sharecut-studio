@@ -10,6 +10,16 @@ export function inspectorSheetPanel(): HTMLElement | null {
   return document.querySelector<HTMLElement>(`.${PHONE_SHEET_CLASS}`);
 }
 
+/** The full-screen Inspector that replaces the sheet where no sheet can hold a field. */
+export const TAKEOVER_CLASS = "sys-inspector--takeover";
+
+/** The open Inspector surface a pending-edit bar docks into: the phone sheet, or the full-screen takeover. */
+export function inspectorDockPanel(): HTMLElement | null {
+  return document.querySelector<HTMLElement>(
+    `.${PHONE_SHEET_CLASS}, .${TAKEOVER_CLASS}`,
+  );
+}
+
 function restingTop(panel: HTMLElement | null): number | null {
   if (!panel) return null;
   const root = panel.closest(".bottom-sheet-root");

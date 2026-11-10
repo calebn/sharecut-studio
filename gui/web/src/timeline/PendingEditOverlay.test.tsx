@@ -794,6 +794,36 @@ describe("PendingEditOverlayView", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("docks the review actionbar into the full-screen Inspector takeover", async () => {
+    const panel = document.createElement("div");
+    panel.className = "sys-inspector--takeover";
+    const chrome = document.createElement("div");
+    chrome.className = "sys-inspector-scroll";
+    panel.append(chrome);
+    document.body.append(panel);
+    selectPending();
+    render(
+      <PendingEditOverlayView
+        edits={[edit]}
+        trackId="host"
+        zoomPxPerSec={10}
+        timelineWidthPx={1000}
+        selectedId="cut_1"
+        projectPath="/tmp/p.json"
+        clipsByTrack={{}}
+        canAdjust
+        canApply
+        onSelect={vi.fn()}
+        onCommitSpan={vi.fn()}
+        onReviewAction={vi.fn(async () => ({ queued: false }))}
+      />,
+    );
+    await waitFor(() =>
+      expect(chrome.querySelector(".pending-actionbar--docked")).not.toBeNull(),
+    );
+    panel.remove();
+  });
+
   it("moves the single review actionbar into the Inspector sheet's body and restores focus when it closes", async () => {
     const root = document.createElement("div");
     root.className = "bottom-sheet-root";

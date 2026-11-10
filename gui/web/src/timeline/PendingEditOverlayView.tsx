@@ -20,7 +20,11 @@ import { canRetimePendingEdit, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { ClipRow, PendingEditView } from "../types/project";
 import { Button } from "../ui/Button";
-import { inspectorSheetPanel, inspectorSheetTop } from "../ui/compactSheet";
+import {
+  inspectorDockPanel,
+  inspectorSheetPanel,
+  inspectorSheetTop,
+} from "../ui/compactSheet";
 import { BUSY_REASON } from "../ui/disabledReason";
 import { useResizeObserver } from "../ui/useResizeObserver";
 import {
@@ -564,7 +568,7 @@ function PendingEditRegion({
             Number.parseFloat(panelStyle.borderBottomWidth);
           const rem = rootRem();
           const sheetTop = inspectorSheetTop();
-          setDocked(sheetTop !== null);
+          setDocked(inspectorDockPanel() !== null);
           const placement = placePendingActionbar(
             {
               left: anchor.left,
@@ -652,7 +656,7 @@ function PendingEditRegion({
       actionbarHost.remove();
       return;
     }
-    const sheet = docked ? inspectorSheetPanel() : null;
+    const sheet = docked ? inspectorDockPanel() : null;
     const destination =
       sheet?.querySelector<HTMLElement>(".sys-inspector-scroll") ??
       document.body;
