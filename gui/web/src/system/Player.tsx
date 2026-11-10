@@ -198,7 +198,7 @@ function StatusLine({
 }: Pick<PlayerProps, "status"> & { id: string }) {
   return status ? (
     <span id={id} className="sys-player-status">
-      <Pill className="sys-player-pill">
+      <Pill className="sys-player-pill" aria-label={status} title={status}>
         <SystemIcon name="triangle-alert" size={12} />
         <span className="sys-player-pill-text">{status}</span>
       </Pill>
@@ -532,7 +532,9 @@ export function Player(props: PlayerProps) {
       />
       <p className="sys-player-readout">
         <span className="sys-player-now">{time}</span>
-        <span className="sys-player-total">{` / ${total}`}</span>
+        {(props.duration ?? 0) > 0 ? (
+          <span className="sys-player-total">{` / ${total}`}</span>
+        ) : null}
         <CutsPill cuts={props.cuts} />
         <StatusLine status={props.status} id={statusId} />
         <StatePills {...props} />

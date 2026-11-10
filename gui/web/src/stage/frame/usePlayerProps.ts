@@ -142,8 +142,9 @@ export function usePlayerProps(
     isPlaying,
     playStartSec,
   }).togglePlay;
-  const mixStatus =
-    audioError === NO_PREVIEW_ERROR
+  const mixStatus = guest
+    ? undefined
+    : audioError === NO_PREVIEW_ERROR
       ? staleMixLabel({ premixMissing: true })
       : project && breakdown.stale
         ? staleMixLabel(breakdown)
