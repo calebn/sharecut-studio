@@ -1329,6 +1329,16 @@ describe("HomeScreen", () => {
       ).toHaveAttribute("aria-activedescendant", first.id);
     });
 
+    it("publishes the shell, so a dialog on Home rises as a sheet on a phone", async () => {
+      const { unmount } = render(<HomeScreen />);
+      await screen.findByRole("list", { name: "Recent episodes" });
+      expect(document.documentElement.dataset.shell).toBe(
+        useDawStore.getState().shellBreakpoint,
+      );
+      unmount();
+      expect(document.documentElement.dataset.shell).toBeUndefined();
+    });
+
     it("has no Help or More button: the wordmark is the app menu", async () => {
       const user = userEvent.setup();
       render(<HomeScreen />);

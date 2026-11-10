@@ -18,6 +18,7 @@ import { ingestIntoNewProject, pickAudioFiles } from "../../ingest/ingestFiles";
 import { ModelsSheet, useModels } from "../../models";
 import { CommandPalette } from "../../stage/dialogs/CommandPalette";
 import { HostMcpDialog } from "../../stage/dialogs/HostMcpDialog";
+import { useShellAttributes } from "../../stage/frame/useShellAttributes";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
 import type { ProjectCardData } from "../../system/ProjectCard";
@@ -143,6 +144,7 @@ function wantsPathField(): boolean {
 }
 
 export function HomeScreen() {
+  useShellAttributes();
   const models = useModels();
   const [recents, setRecents] = useState<RecentProject[] | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
