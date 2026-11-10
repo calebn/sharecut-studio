@@ -1,26 +1,25 @@
-import { cutHits } from "../stage/edit/script/cutHits";
 import {
-  type ScriptHostModel,
-  scriptModelFor,
-} from "../stage/edit/script/scriptHostModel";
-import { wordKey } from "../stage/edit/script/scriptModel";
-import { findMatches } from "../stages/edit/findMatches";
-import { useDawStore } from "../state/dawStore";
-import type { ToastAction } from "../state/types";
-import { formatSeconds } from "../system/seconds";
+  type CutToast,
+  registerCutToastBuilder,
+} from "../../../commands/cutToastHost";
+import { findMatches } from "../../../stages/edit/findMatches";
+import { useDawStore } from "../../../state/dawStore";
+import type { ToastAction } from "../../../state/types";
+import { formatSeconds } from "../../../system/seconds";
 import type {
   ExactRangeTarget,
   ProjectView,
   Selection,
-} from "../types/project";
-import { errorMessage } from "../utils/apiError";
+} from "../../../types/project";
+import { errorMessage } from "../../../utils/apiError";
+import { cutHits } from "./cutHits";
+import { type ScriptHostModel, scriptModelFor } from "./scriptHostModel";
+import { wordKey } from "./scriptModel";
 
 const CUT_ALL_MAX_HITS = 64;
 const WORDS_MAX = 24;
 
 type TranscriptRange = Extract<Selection, { kind: "transcriptRange" }>;
-
-export type CutToast = { message: string; action?: ToastAction };
 
 function shortWords(words: string): string {
   return words.length <= WORDS_MAX
@@ -75,7 +74,7 @@ function cutAllAction(
   return action;
 }
 
-export function cutToastOf(
+function buildCutToast(
   project: ProjectView,
   selection: TranscriptRange,
   target: ExactRangeTarget,
@@ -112,4 +111,8 @@ export function cutToastOf(
         ? cutAllAction(words, epoch, cutKeys)
         : undefined,
   };
+}
+
+export function registerCutToast(): void {
+  registerCutToastBuilder(buildCutToast);
 }

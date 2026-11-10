@@ -29,7 +29,7 @@ export type ScriptHostModel = {
   hasWords: boolean;
 };
 
-export type ScriptModelSource = {
+type ScriptModelSource = {
   utterances: readonly CombinedUtterance[];
   boundaries: readonly EditBoundaryView[];
   pending: readonly PendingEditView[];

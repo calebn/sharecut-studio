@@ -4,12 +4,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { submitDocumentCommand } from "../api/documentEdits";
 import { FeedbackToast } from "../feedback/FeedbackToast";
 import { resetQueuedCutsForTests } from "../stage/edit/script/cutHits";
+import { registerCutToast } from "../stage/edit/script/cutToast";
 import { useDawStore } from "../state/dawStore";
 import { resetFeedbackRepeatForTests } from "../state/uiSlice";
 import { deferred } from "../test/deferred";
 import { COMMENTER_CAPABILITIES, clipRow } from "../test/fixtures";
 import { scriptUtterance, scriptWord, seedScript } from "../test/scriptHostKit";
 import type { CombinedUtterance, HistoryEntryId } from "../types/project";
+import { registerCutToastBuilder } from "./cutToastHost";
 import { runRangeAction } from "./rangeActions";
 
 vi.mock("../api/documentEdits", async (orig) => ({
@@ -149,6 +151,7 @@ afterEach(() => {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  registerCutToast();
   resetQueuedCutsForTests();
   resetFeedbackRepeatForTests();
   useDawStore.setState({ feedbackToast: null });
@@ -259,6 +262,18 @@ describe("cut toast after a words cut", () => {
       },
     });
     await runRangeAction("cut");
+    expect(toast()?.message).toBe("Range cut applied. Use Undo to restore it.");
+    expect(toast()?.action).toBeNull();
+  });
+
+  it("still cuts with the range copy when building the toast throws", async () => {
+    seed(knows());
+    registerCutToastBuilder(() => {
+      throw new Error("model failed");
+    });
+    select("host", 0, 1);
+    await runRangeAction("cut");
+    expect(submitDocumentCommand).toHaveBeenCalledTimes(1);
     expect(toast()?.message).toBe("Range cut applied. Use Undo to restore it.");
     expect(toast()?.action).toBeNull();
   });
