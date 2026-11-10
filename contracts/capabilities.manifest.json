@@ -3268,7 +3268,7 @@
         ]
       },
       "omit": {
-        "keyboard_reason": "Select a region in the Auto reduction inspector; no default shortcut",
+        "keyboard_reason": "Select a region in the Auto reduction inspector, then Keep on the Action bar",
         "guest": true
       },
       "presence": {

@@ -4,7 +4,11 @@ import {
   type BleedAttenuationRegion,
   bleedAttenuationRegionKey,
 } from "../edit/bleedAttenuation";
-import { bleedBusyLabel, bleedRestoreReason } from "../edit/bleedRestoreReason";
+import {
+  bleedBusyLabel,
+  bleedRestoreReason,
+  REFRESH_FIRST,
+} from "../edit/bleedRestoreReason";
 import {
   type ClipBleedUndoReceipt,
   clipBleedSession,
@@ -59,7 +63,7 @@ export function selectedBleedRegion():
 
 export function bleedKeepReason(): string | undefined {
   const snapshot = clipBleedSession.getSnapshot();
-  if (!snapshot) return "Refresh regions before restoring audio.";
+  if (!snapshot) return REFRESH_FIRST;
   const { action } = snapshot;
   return bleedRestoreReason({
     busyLabel: bleedBusyLabel(action),
@@ -88,6 +92,8 @@ export function registerClipBleedCommands(): void {
   registerCommand("edit.restoreClipBleed", () => {
     const reason = clipBleedDisabledReason();
     if (reason) return { status: "disabled", reason };
+    const unrestorable = bleedKeepReason();
+    if (unrestorable) return { status: "disabled", reason: unrestorable };
     const captured = clipBleedSession.currentTarget();
     const regionKey = clipBleedSession.getSnapshot()?.selectedKey;
     if (

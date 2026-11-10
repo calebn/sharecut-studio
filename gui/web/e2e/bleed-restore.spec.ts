@@ -60,7 +60,7 @@ for (const viewport of [
         });
         await expect(region).toBeVisible();
         const restore = page.getByRole("button", {
-          name: "Restore original audio",
+          name: "Keep",
           exact: true,
         });
         await expect(restore).toBeDisabled();

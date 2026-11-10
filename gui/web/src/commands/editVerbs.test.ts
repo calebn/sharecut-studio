@@ -1651,6 +1651,20 @@ describe("comment, bleed and social verbs", () => {
     bleed.reason = undefined;
   });
 
+  it("offers Undo on a resolve that reopens the comment", async () => {
+    host(EDIT_SELECTIONS.comment);
+    await runEditVerb("resolve", factsOf()!);
+    const reverse = useDawStore.getState().feedbackToast?.reverse;
+    expect(reverse?.done).toBe("Comment reopened");
+    vi.mocked(api.patchComment).mockClear();
+    await reverse?.run();
+    expect(api.patchComment).toHaveBeenCalledWith(
+      "/tmp/episode",
+      "open",
+      expect.objectContaining({ resolved: false }),
+    );
+  });
+
   it("resolves an open comment from the primary verb and says so", async () => {
     host(EDIT_SELECTIONS.comment);
     const facts = factsOf()!;

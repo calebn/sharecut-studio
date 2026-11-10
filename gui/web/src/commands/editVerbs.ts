@@ -42,7 +42,12 @@ import { inspectorOpenFor, selectedClipIdsOf } from "../state/selection";
 import type { PendingRecordTarget } from "../state/stageSlice";
 import type { BarItem, BarOption } from "../system/actionBarSlots";
 import { type BarId, resolveBar } from "../system/editActionSets";
-import type { JoinMode, ProjectView, Selection } from "../types/project";
+import type {
+  HistoryEntryId,
+  JoinMode,
+  ProjectView,
+  Selection,
+} from "../types/project";
 import { BUSY_REASON } from "../ui/disabledReason";
 import { errorMessage } from "../utils/apiError";
 import { commitCommentActor } from "../utils/commentAuthor";
@@ -250,8 +255,7 @@ async function hearSide(
 }
 
 /**
- * Plays the selected automatic region with a second of lead-in: before is the source audio
- * as recorded, after is the full mix with the reduction applied.
+ * Before is the source audio as recorded, after is the full mix with the reduction applied.
  */
 async function hearBleed(before: boolean): Promise<ExecuteResult> {
   const region = selectedBleedRegion();
@@ -419,33 +423,39 @@ async function approveSocial(): Promise<ExecuteResult> {
   }
 }
 
-async function removeSocial(id: string): Promise<ExecuteResult> {
+async function removeRecord(
+  id: string,
+  noun: string,
+  hostReason: string,
+  remove: (path: string, id: string) => Promise<HistoryEntryId | null>,
+): Promise<ExecuteResult> {
   const s = useDawStore.getState();
-  if (!canManageProjects(s.projectPath))
-    return disabled("Only the host can remove a social clip");
+  if (!canManageProjects(s.projectPath)) return disabled(hostReason);
   try {
-    const undo = await deleteSocialClip(s.projectPath, id);
+    const undo = await remove(s.projectPath, id);
     useDawStore.getState().setSelection(null);
-    useDawStore.getState().announceStatus("Social clip removed", { undo });
+    useDawStore.getState().announceStatus(`${noun} removed`, { undo });
     return OK;
   } catch (error) {
     return disabled(errorMessage(error));
   }
 }
 
-async function removeComment(id: string): Promise<ExecuteResult> {
-  const s = useDawStore.getState();
-  if (!canManageProjects(s.projectPath))
-    return disabled("Only the host can remove a comment");
-  try {
-    const undo = await deleteComment(s.projectPath, id);
-    useDawStore.getState().setSelection(null);
-    useDawStore.getState().announceStatus("Comment removed", { undo });
-    return OK;
-  } catch (error) {
-    return disabled(errorMessage(error));
-  }
-}
+const removeSocial = (id: string) =>
+  removeRecord(
+    id,
+    "Social clip",
+    "Only the host can remove a social clip",
+    deleteSocialClip,
+  );
+
+const removeComment = (id: string) =>
+  removeRecord(
+    id,
+    "Comment",
+    "Only the host can remove a comment",
+    deleteComment,
+  );
 
 async function resolveComment(): Promise<ExecuteResult> {
   const s = useDawStore.getState();
@@ -454,13 +464,29 @@ async function resolveComment(): Promise<ExecuteResult> {
     undefined,
     commentRole(s.projectPath, s.guestMode),
   );
+  const commentId = s.selection.id;
   const result = await executePointerCommand("comment.resolve", {
-    commentId: s.selection.id,
+    commentId,
     resolved: true,
     by,
   });
   if (result.status === "ok")
-    useDawStore.getState().announceStatus("Comment resolved");
+    useDawStore.getState().announceStatus("Comment resolved", {
+      reverse: {
+        run: async () => {
+          if (useDawStore.getState().projectPath !== s.projectPath)
+            return false;
+          const back = await executePointerCommand("comment.resolve", {
+            commentId,
+            resolved: false,
+            by,
+          });
+          if (back.status !== "ok") throw new Error("Reopen failed");
+          return true;
+        },
+        done: "Comment reopened",
+      },
+    });
   return result;
 }
 
