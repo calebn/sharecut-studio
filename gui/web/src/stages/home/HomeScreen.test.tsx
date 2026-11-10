@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BootstrapJobSnapshot, RecentProject } from "../../api";
 import * as api from "../../api";
 import { CREATE_LABEL, REPORT_TITLE } from "../../home/HelpDialogView";
-import { TABLET_MQ } from "../../hooks/useViewportClass";
+import { PHONE_MQ, TABLET_MQ } from "../../hooks/useViewportClass";
 import * as ingest from "../../ingest/ingestFiles";
 import { ModelsProvider } from "../../models/ModelsProvider";
 import { ModelsContext, useModels } from "../../models/useModels";
@@ -1332,13 +1332,31 @@ describe("HomeScreen", () => {
     });
 
     it("publishes the shell, so a dialog on Home rises as a sheet on a phone", async () => {
-      const { unmount } = render(<HomeScreen />);
-      await screen.findByRole("list", { name: "Recent episodes" });
-      expect(document.documentElement.dataset.shell).toBe(
-        useDawStore.getState().shellBreakpoint,
+      vi.stubGlobal(
+        "matchMedia",
+        (query: string) =>
+          ({
+            media: query,
+            matches: query === PHONE_MQ || query === TABLET_MQ,
+            addEventListener: () => {},
+            removeEventListener: () => {},
+          }) as unknown as MediaQueryList,
       );
-      unmount();
-      expect(document.documentElement.dataset.shell).toBeUndefined();
+      try {
+        const user = userEvent.setup();
+        const { unmount } = render(<HomeScreen />);
+        await screen.findByRole("list", { name: "Recent episodes" });
+        expect(document.documentElement.dataset.shell).toBe("phone");
+        await chooseAppMenuRow(user, "Help");
+        const sheet = await screen.findByRole("dialog", { name: "Help" });
+        expect(sheet).toHaveAttribute("aria-modal", "true");
+        expect(sheet).toHaveClass("command-palette-root");
+        expect(sheet.querySelector(".help-sheet-panel")).not.toBeNull();
+        unmount();
+        expect(document.documentElement.dataset.shell).toBeUndefined();
+      } finally {
+        vi.unstubAllGlobals();
+      }
     });
 
     it("has no Help or More button: the wordmark is the app menu", async () => {

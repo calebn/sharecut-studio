@@ -1,4 +1,11 @@
-import { type RefObject, useEffect, useRef, useState } from "react";
+import {
+  type RefObject,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { DiagnosticsBundleResult } from "../api";
 import type { HelpStep } from "../state/types";
 import type { SystemIconName } from "../system/icons";
@@ -75,6 +82,18 @@ export function HelpDialogView({
     if (!open || !prev.open || prev.step === step) return;
     (step === "report" ? createRef : reportRowRef).current?.focus();
   }, [open, step]);
+  const stepRef = useRef(step);
+  useLayoutEffect(() => {
+    stepRef.current = step;
+  }, [step]);
+  const initialFocusRef = useMemo(
+    () => ({
+      get current() {
+        return (stepRef.current === "report" ? createRef : firstRowRef).current;
+      },
+    }),
+    [],
+  );
   const title = step === "menu" ? "Help" : REPORT_TITLE;
 
   const rows: {
@@ -274,7 +293,7 @@ export function HelpDialogView({
     panelClassName: "help-sheet-panel",
     headerStart: back,
     footer,
-    initialFocusRef: firstRowRef,
+    initialFocusRef,
   };
 
   return anchorRef ? (

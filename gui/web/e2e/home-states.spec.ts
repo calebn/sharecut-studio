@@ -118,7 +118,7 @@ test.describe("Home at a large root font", () => {
     await mockBootstrap(page);
     await mockRecents(page, [RECENT]);
     await openHome(page);
-    const row = ["ShareCut", "Record"].map((name) =>
+    const row = ["ShareCut app menu", "Record"].map((name) =>
       page.getByRole("button", { name, exact: name !== "Record" }).first(),
     );
     const heights = () =>
@@ -133,7 +133,7 @@ test.describe("Home at a large root font", () => {
       )
       .toBe(true);
     await expectNoHorizontalScroll(page);
-    for (const name of ["ShareCut", "Record"]) {
+    for (const name of ["ShareCut app menu", "Record"]) {
       const box = (await page
         .getByRole("button", { name, exact: name !== "Record" })
         .first()
