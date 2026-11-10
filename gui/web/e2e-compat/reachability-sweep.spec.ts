@@ -322,7 +322,7 @@ async function sweepCell(
 
 /**
  * A copy of the fixture whose first track carries a volume envelope and an effect
- * chain, so the track surface shows the Bypass toggles and its first point opens in the Inspector.
+ * chain, so the track surface shows the effect switches and its first point opens in the Inspector.
  */
 function seededProject(prefix: string) {
   const fixture = createRelocatedE2eProject(prefix);
@@ -372,9 +372,7 @@ async function sweepSeededTrack(
     await trigger.press("Enter");
     const surface = SHEET;
     await expect(page.locator(surface)).toBeVisible();
-    await expect(
-      page.getByRole("checkbox", { name: /^Bypass / }).first(),
-    ).toBeVisible();
+    await expect(page.getByRole("switch").first()).toBeVisible();
     await settle(page);
     const track = await reachFailures(page, {
       scope: surface,

@@ -195,7 +195,7 @@ Shipped:
 
 - `ProcessingEffect.bypass` (default false); `build_track_filter` skips bypassed effects
 - Document command `SetEffectBypass` (`track_id`, `effect_index`, `bypass`) + MCP `set_effect_bypass_tool`
-- Track inspector per-effect Bypass toggles; chain length unchanged
+- Track inspector per-effect on/off switches (off = bypassed); chain length unchanged
 - FX transport: stale stems request `/api/audio?rerender=true` with cache-bust so A/B is audible
 
 **Done when:** toggling bypass changes processed audition without removing the effect from the chain.
