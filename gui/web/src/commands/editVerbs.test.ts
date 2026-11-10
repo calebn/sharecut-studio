@@ -1302,9 +1302,10 @@ describe("barModelOf", () => {
     },
   );
 
-  it("puts Remove, More and Inspect on a track, with the reorder rows in More and no Mute", () => {
+  it("puts Hear, Remove, More and Inspect on a track, with the reorder rows in More and no Mute", () => {
     const first = model({ kind: "track", trackId: MIRA });
     expect(first.items.map((item) => item.id)).toEqual([
+      "hear",
       "remove",
       "more",
       "inspect",
@@ -1336,6 +1337,56 @@ describe("barModelOf", () => {
       "Media ingest not allowed",
       EDITING_OFF_REASON,
     ]);
+  });
+
+  it("shows the ingest gate on Remove up front, like the Move rows", () => {
+    const view = {
+      projectPath: "share:tok",
+      guestMode: "edit",
+      shareCapabilities: ["view", "play", "suggest"],
+    };
+    expect(
+      model({ kind: "track", trackId: MIRA }, view).items.find(
+        (item) => item.id === "remove",
+      ),
+    ).toEqual({ id: "remove", disabledReason: "Media ingest not allowed" });
+    expect(
+      model({ kind: "track", trackId: MIRA }).items.find(
+        (item) => item.id === "remove",
+      ),
+    ).toEqual({ id: "remove" });
+  });
+
+  it("names Select one track to remove on the bar when two tracks are held", () => {
+    host({ kind: "track", trackId: MIRA });
+    useDawStore.getState().selectTracks([MIRA, JONAS]);
+    expect(
+      barModelOf(factsOf()!, useDawStore.getState()).items.find(
+        (item) => item.id === "remove",
+      ),
+    ).toEqual({ id: "remove", disabledReason: "Select one track to remove" });
+  });
+
+  it("hears the track from the playhead when it sits inside the track, else from its first clip", async () => {
+    host({ kind: "track", trackId: MIRA });
+    const clips = editFixtureProject().clips.tracks[MIRA]!;
+    const first = Math.min(...clips.map((c) => c.timeline_start));
+    const last = Math.max(...clips.map((c) => c.timeline_end));
+    useDawStore.setState({ playheadSec: last + 100 });
+    await runEditVerb("hear", factsOf()!);
+    expect(playRange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ start: first, end: Math.min(last, first + 6) }),
+    );
+  });
+
+  it("says a track with no clips has nothing to hear", async () => {
+    const project = editFixtureProject();
+    project.clips.tracks[MIRA] = [];
+    host({ kind: "track", trackId: MIRA }, { project });
+    expect(await runEditVerb("hear", factsOf()!)).toEqual({
+      status: "disabled",
+      reason: "This track has no audio to hear",
+    });
   });
 
   it("smooths every join on the selected track from More", async () => {
