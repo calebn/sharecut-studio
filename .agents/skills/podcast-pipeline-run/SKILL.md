@@ -18,26 +18,27 @@ Transcript hub: **podcast-transcript-workflow** — [docs/transcript-workflow.md
 2. transcribe_tracks
 3. align_tracks — conversation clock (bleed/gaps); default on; skip for unrelated clips
 4. require_align_accept — hard agent gate (`podcast align done` / waive; auto-waive small moves if `--unattended`, never moves above `align.large_move_sec`)
-5. merge_transcript
-6. render_dialogue_stems — pass-1 stems for audibility
-7. reconcile_transcript — **pass 1** (suppress bleed/inaudible)
-8. precorrect_transcript — glossary, cross-track sync, report
-9. require_transcript_refine — hard agent gate (`refine-done` / waive; auto-waive if `--unattended`)
-10. analyze_prosody (`prosody.enabled` in pipeline.yaml, **on by default**) — caches a per-track prosody profile (pitch, rate, energy, prominent words, boundaries) for `audition_context` to read; runs after `precorrect_transcript` (a standalone `--only analyze_prosody` needs reconcile/precorrect done first); a no-op with a clear summary if `praat-parselmouth` (the `prosody` extra) is not installed. See [docs/pipeline.md § Prosody profile](../../docs/pipeline.md#prosody-profile).
-11. analyze_focus_cuts (`focus.enabled` in pipeline.yaml) — an outline (`artifacts/focus_outline.md`), **not a cut list**; when off it writes nothing and only reports `skipped (focus.enabled=false)`
-12. focus_from_transcript (no-op unless `focus.auto_apply: true`)
-13. analyze_fillers_pauses (no-op unless `tighten.enabled: true`)
-14. tighten_from_transcript (no-op unless `tighten.enabled: true`)
-15. apply_sound_actions (`tighten.apply_non_speech`, **on by default**, independent of `tighten.enabled`) — applies each non-speech sound's suggested action (a laugh with another speaker over it is lowered, an unclear sound is left, a cut is ripple across every dialogue track) in one undo step; the summary names what it applied and how many cuts went over another speaker. Filler, pause, repetition and restart proposals are not touched. When tighten analysis did not run, the step finds those sounds itself without the Whisper word probe (#1608). Undo `after apply_sound_actions` to revert it; set `tighten.apply_non_speech: false` to leave the sounds pending.
-16. fill_gate_holes (`gate_fill.mode`, **auto by default**) — room tone under the digital silence a recorder's noise gate (Zoom) leaves between words on each dialogue track: its recorded bed, else comfort noise matched to its own noise under its speech; never another track. The bleed-gate step fills its own mutes with the lane's room tone separately ([Bleed mute fill](../../../docs/audio-engineering.md#bleed-mute-fill)). The summary names each track's holes, seconds filled and level, or why it stayed silent. Undo `after fill_gate_holes` to remove it. See [docs/pipeline.md § Gate fill](../../docs/pipeline.md#gate-fill).
-17. clean_audio
-18. compress_tracks
-19. balance_tracks
-20. assemble_timeline — final stems (edits + FX)
-21. reconcile_transcript — **pass 2** (post-FX audibility refresh)
-22. mix_with_music
-23. master_loudness
-24. export_deliverables
+5. extract_room_tone_beds (`room_tone.extract_bed`, **off by default**) — cuts a room-tone bed from each dialogue track that has none, from its own quiet stretch, ahead of every step that picks a fill; a recorded bed is never replaced; off, it reads no audio and changes nothing
+6. merge_transcript
+7. render_dialogue_stems — pass-1 stems for audibility
+8. reconcile_transcript — **pass 1** (suppress bleed/inaudible)
+9. precorrect_transcript — glossary, cross-track sync, report
+10. require_transcript_refine — hard agent gate (`refine-done` / waive; auto-waive if `--unattended`)
+11. analyze_prosody (`prosody.enabled` in pipeline.yaml, **on by default**) — caches a per-track prosody profile (pitch, rate, energy, prominent words, boundaries) for `audition_context` to read; runs after `precorrect_transcript` (a standalone `--only analyze_prosody` needs reconcile/precorrect done first); a no-op with a clear summary if `praat-parselmouth` (the `prosody` extra) is not installed. See [docs/pipeline.md § Prosody profile](../../docs/pipeline.md#prosody-profile).
+12. analyze_focus_cuts (`focus.enabled` in pipeline.yaml) — an outline (`artifacts/focus_outline.md`), **not a cut list**; when off it writes nothing and only reports `skipped (focus.enabled=false)`
+13. focus_from_transcript (no-op unless `focus.auto_apply: true`)
+14. analyze_fillers_pauses (no-op unless `tighten.enabled: true`)
+15. tighten_from_transcript (no-op unless `tighten.enabled: true`)
+16. apply_sound_actions (`tighten.apply_non_speech`, **on by default**, independent of `tighten.enabled`) — applies each non-speech sound's suggested action (a laugh with another speaker over it is lowered, an unclear sound is left, a cut is ripple across every dialogue track) in one undo step; the summary names what it applied and how many cuts went over another speaker. Filler, pause, repetition and restart proposals are not touched. When tighten analysis did not run, the step finds those sounds itself without the Whisper word probe (#1608). Undo `after apply_sound_actions` to revert it; set `tighten.apply_non_speech: false` to leave the sounds pending.
+17. fill_gate_holes (`gate_fill.mode`, **auto by default**) — room tone under the digital silence a recorder's noise gate (Zoom) leaves between words on each dialogue track: its recorded bed, else comfort noise matched to its own noise under its speech; never another track. The bleed-gate step fills its own mutes with the lane's room tone separately ([Bleed mute fill](../../../docs/audio-engineering.md#bleed-mute-fill)). The summary names each track's holes, seconds filled and level, or why it stayed silent. Undo `after fill_gate_holes` to remove it. See [docs/pipeline.md § Gate fill](../../docs/pipeline.md#gate-fill).
+18. clean_audio
+19. compress_tracks
+20. balance_tracks
+21. assemble_timeline — final stems (edits + FX)
+22. reconcile_transcript — **pass 2** (post-FX audibility refresh)
+23. mix_with_music
+24. master_loudness
+25. export_deliverables
 
 **Alignment:** After ASR, `align_tracks` places whole-file dialogue clips on one session clock (see **podcast-align-audio**). Unattended runs keep the scorer result and waive `require_align_accept` when `align.accept.mode` is `waive_unattended`. Agents clear the gate with listen + `podcast align done`.
 
@@ -63,7 +64,7 @@ The default pipeline cuts no content: focus and tighten are off, so a raw sessio
    ```
    MCP: `suggest_handoff_cut_tool`, `ripple_delete_tool`, `search_transcript_tool`.
 2. **Tighten the kept range:** `podcast propose-edits --project episode.sharecut` (**podcast-tighten-dialogue**). Removed words are gone, so proposals fall only in kept material. Reject tighten proposals made before the cut (`podcast edit reject --ids …`). The refine decision stays clear: cuts and renders never stale it.
-3. `analyze_focus_cuts` is an outline, not a cut list (see step 11 above). Use **podcast-focus-episode** for the editorial judgment.
+3. `analyze_focus_cuts` is an outline, not a cut list (see step 12 above). Use **podcast-focus-episode** for the editorial judgment.
 
 Rationale and details: [docs/pipeline.md § Long raw sessions](../../../docs/pipeline.md#long-raw-sessions-content-cut-before-tighten).
 
