@@ -257,7 +257,7 @@ def _download(artifact: Artifact, destination: Path) -> None:
     verify_archive(destination, artifact.sha256)
 
 
-RENAME_ATTEMPTS = 6
+RENAME_ATTEMPTS = 8
 RENAME_FIRST_DELAY_S = 0.2
 
 
@@ -273,11 +273,24 @@ def _rename(source: Path, destination: Path) -> None:
         try:
             source.rename(destination)
             return
-        except PermissionError:
+        except PermissionError as locked:
             if attempt == RENAME_ATTEMPTS - 1:
                 raise
+            print(
+                f"Payload directory {source.name} is locked (errno {locked.errno}, "
+                f"winerror {getattr(locked, 'winerror', None)}); "
+                f"retry {attempt + 2}/{RENAME_ATTEMPTS} in {delay:g} s",
+                file=sys.stderr,
+            )
             time.sleep(delay)
             delay *= 2
+
+
+def _discard(path: Path) -> None:
+    try:
+        shutil.rmtree(path)
+    except OSError as error:
+        print(f"Could not remove {path} (left for the next run): {error}", file=sys.stderr)
 
 
 def ensure_payload(
@@ -332,14 +345,14 @@ def ensure_payload(
         except BaseException as failure:
             if previous.exists() and not output.exists():
                 try:
-                    previous.rename(output)
+                    _rename(previous, output)
                 except BaseException as recovery:
                     failure.add_note(f"Previous payload retained at {previous}: {recovery}")
             raise
         if previous.exists():
-            shutil.rmtree(previous)
+            _discard(previous)
     finally:
-        shutil.rmtree(work)
+        _discard(work)
     return manifest
 
 
