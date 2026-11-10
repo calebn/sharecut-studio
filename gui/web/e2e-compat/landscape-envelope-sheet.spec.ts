@@ -301,30 +301,31 @@ async function fieldLayout(
     await openPoint(page);
     const time = await field(page, "Time").boundingBox();
     const level = await field(page, "Level").boundingBox();
-    const help = await pointSheet(page)
-      .getByText(/^Level multiplies this track/)
-      .boundingBox();
+    const removal = await remove(page).boundingBox();
     return {
       oneRow: Math.abs(time!.y - level!.y) < 1,
-      helpHeight: help?.height ?? 0,
+      levelClearsTime: level!.y >= time!.y + time!.height - 1,
+      removalClearsLevel: removal!.y >= level!.y + level!.height - 1,
     };
   });
 }
 
-test("1194x834 iPad landscape keeps Time and Level stacked with their visible help", async ({
+test("1194x834 iPad landscape keeps Time and Level stacked with Remove below them", async ({
   page,
 }) => {
   const layout = await fieldLayout(page, { width: 1194, height: 834 });
   expect(layout.oneRow).toBe(false);
-  expect(layout.helpHeight).toBeGreaterThan(8);
+  expect(layout.levelClearsTime).toBe(true);
+  expect(layout.removalClearsLevel).toBe(true);
 });
 
-test("932x430 phone landscape keeps Time and Level stacked with their help, in the Inspector card", async ({
+test("932x430 phone landscape keeps Time and Level stacked with Remove below them, in the Inspector card", async ({
   page,
 }) => {
   const layout = await fieldLayout(page, { width: 932, height: 430 });
   expect(layout.oneRow).toBe(false);
-  expect(layout.helpHeight).toBeGreaterThan(8);
+  expect(layout.levelClearsTime).toBe(true);
+  expect(layout.removalClearsLevel).toBe(true);
 });
 
 test("914x331 idle: a touch tap on the guest track header opens its details and reaches Show volume envelope", async ({

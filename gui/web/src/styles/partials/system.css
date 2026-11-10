@@ -1319,10 +1319,14 @@ html[data-frame-short] .sys-header-project .sys-header-title {
 
 .sys-overview {
   position: relative;
+  display: flex;
+  align-items: center;
   inline-size: 100%;
-  overflow: hidden;
-  border-radius: var(--radius-md);
-  background: var(--color-bg-sunken);
+}
+
+.sys-overview--seek.sys-overview--16,
+.sys-overview--seek.sys-overview--32 {
+  min-block-size: var(--touch-min);
 }
 
 .sys-overview--seek {
@@ -1335,23 +1339,32 @@ html[data-frame-short] .sys-header-project .sys-header-title {
   outline-offset: calc(var(--focus-ring-width) * -1);
 }
 
-.sys-overview--16 {
+.sys-overview-face {
+  position: relative;
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-sunken);
+}
+
+.sys-overview--16 > .sys-overview-face {
   block-size: 1rem;
 }
 
-.sys-overview--32 {
+.sys-overview--32 > .sys-overview-face {
   block-size: 2rem;
 }
 
-.sys-overview--48 {
+.sys-overview--48 > .sys-overview-face {
   block-size: 3rem;
 }
 
-.sys-overview--64 {
+.sys-overview--64 > .sys-overview-face {
   block-size: 4rem;
 }
 
-.sys-overview svg {
+.sys-overview-face svg {
   display: block;
   inline-size: 100%;
   block-size: 100%;
@@ -2261,7 +2274,7 @@ html:not([data-shell="phone"])
   border-radius: var(--radius-md);
 }
 
-.sys-project--row .sys-overview {
+.sys-project--row .sys-overview-face {
   block-size: 2.5rem;
 }
 
