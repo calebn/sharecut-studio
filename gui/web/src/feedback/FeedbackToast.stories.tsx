@@ -104,8 +104,11 @@ export const Cut: Story = {
     await expect(
       await body.findByRole("button", { name: "Cut all" }),
     ).toBeVisible();
+    const card = await body.findByRole("region", {
+      name: "Status messages",
+    });
     await expect(
-      await body.findByRole("button", { name: "Undo" }),
+      await within(card).findByRole("button", { name: "Undo" }),
     ).toBeVisible();
   },
 };

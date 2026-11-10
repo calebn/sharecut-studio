@@ -2,6 +2,7 @@ import { clearRegisteredCommands } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
 import { useRecordHostStore } from "../record/hostStore";
 import type { RecordSnapshot } from "../record/types";
+import { registerCutToast } from "../stage/edit/script/cutToast";
 import { useDawStore } from "../state/dawStore";
 import type { DawStore } from "../state/types";
 import { resetFeedbackRepeatForTests } from "../state/uiSlice";
@@ -127,6 +128,7 @@ export function hydrateEpisode(
   const restoreStorage = snapshotLocalStorage();
   const stubs = installStubs(config.responses ?? {}, config.hang ?? []);
   registerDawCommands();
+  registerCutToast();
   const { guestMode, capabilities } = ROLE_SHARE[role];
   const episodeProject = project ?? episode();
   previous.hydrate(

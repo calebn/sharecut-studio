@@ -24,6 +24,7 @@ import { isShareProjectKey } from "./shareMode";
 import { CommandPalette } from "./stage/dialogs/CommandPalette";
 import { HostMcpDialog } from "./stage/dialogs/HostMcpDialog";
 import { EDIT_SHEETS } from "./stage/edit/editSheets";
+import { registerCutToast } from "./stage/edit/script/cutToast";
 import { StageFrame } from "./stage/frame/StageFrame";
 import { useLandingStage } from "./stage/frame/useLandingStage";
 import { BounceFlowProvider } from "./stage/hosts/bounceFlow";
@@ -127,6 +128,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
   useEffect(() => {
     if (!commandsRegistered) {
       registerDawCommands();
+      registerCutToast();
       commandsRegistered = true;
     }
   }, []);

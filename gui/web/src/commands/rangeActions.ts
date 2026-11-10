@@ -23,7 +23,7 @@ import type { ExactRangeTarget } from "../types/project";
 import { ApiError, errorMessage, readApiError } from "../utils/apiError";
 import { staleRenderBreakdown } from "../utils/staleRender";
 import { openCommentDraft } from "./comments";
-import { cutToastOf } from "./cutToast";
+import { cutToastOf } from "./cutToastHost";
 import { registerCommand } from "./execute";
 import { commandLabel } from "./labels";
 import { submitRangeEdit } from "./submitRangeEdit";
