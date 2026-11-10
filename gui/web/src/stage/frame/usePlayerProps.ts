@@ -9,7 +9,6 @@ import { suggestionTimesOf } from "../../review/reviewItems";
 import {
   canComment,
   canReviewPendingEdit,
-  guestHearsMixOnly,
   isShareProjectKey,
 } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
@@ -122,7 +121,7 @@ export function usePlayerProps(
   );
 
   const clock = transportTimecode(playheadSec, duration);
-  const guest = guestHearsMixOnly(guestMode);
+  const guest = isShareProjectKey(projectPath) || guestMode !== null;
   const leader = followingClientId
     ? rosterEntry(sessionClients, followingClientId)
     : undefined;
@@ -142,8 +141,6 @@ export function usePlayerProps(
     isPlaying,
     playStartSec,
   }).togglePlay;
-  // A guest hears the frozen review version, so the live project's staleness
-  // is not theirs to see; only the missing-mix reason stays.
   const mixStatus =
     audioError === NO_PREVIEW_ERROR
       ? staleMixLabel({ premixMissing: true })
