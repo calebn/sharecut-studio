@@ -9,7 +9,7 @@ export function useTrackMetaMutation(trackId: string) {
       await sendTrackMeta(trackId, fields);
       return true;
     });
-  /** Saves the speaker and answers with why it was refused, or nothing. */
+  /** `run` swallows a refusal, so the reason is kept here for Add person to show. */
   const saveSpeaker = async (speaker: string): Promise<string | undefined> => {
     let reason: string | undefined;
     await mutation.run(async () => {
