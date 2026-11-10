@@ -191,10 +191,31 @@ The cutover PR flipped `base` to `develop` in `config/branches.json`, `target-br
 
 ### Closing issues from develop
 
-`Fixes #N` closes an issue only when the PR merges into the default branch, and lane PRs merge into `develop`. `.github/workflows/close-issues-on-develop.yml` runs `scripts/close_issues_on_develop.py` when a same-repository PR is merged into `develop`. The script re-fetches the PR through the API, checks it is merged into `develop`, and reads the PR body only (GitHub ignores titles; commit messages are not read). A keyword counts only on a line that starts a paragraph or follows a blank line, another keyword line or a list-bullet line, directly before the issue, with nothing but punctuation after it (a `**` bold marker must wrap the whole line, balanced at both ends: `**Fixes #5**` closes, while `**Fixes** #5`, `**Fixes #5` and `Fixes #5**` close nothing; `__` is not accepted; an issue number has at most 9 digits); the next line in the paragraph must again be a keyword line or a bullet. It closes, as completed, the issues the body references with `close(s/d)`, `fix(es/ed)` or `resolve(s/d)`, with or without a colon, as `#N` or `calebn/sharecut-studio#N`, and comments with the PR and merge commit (marker `<!-- close-on-develop pr=N -->`; a re-run never comments twice and only finishes a missed close).
+`Fixes #N` closes an issue only when the PR merges into the default branch, and lane PRs merge into `develop`. `.github/workflows/close-issues-on-develop.yml` runs `scripts/close_issues_on_develop.py` when a same-repository PR is merged into `develop`. The script re-fetches the PR through the API, checks it is merged into `develop`, and reads the PR body only (GitHub ignores titles; commit messages are not read). It closes, as completed, each issue the body references with `close(s/d)`, `fix(es/ed)` or `resolve(s/d)` (colon optional), as `#N` or `calebn/sharecut-studio#N`, and comments with the PR and merge commit (marker `<!-- close-on-develop pr=N -->`; a re-run never comments twice and only finishes a missed close).
 
-- **Skipped:** an issue in this repository that the body also names on a line with `Part of`, `Part N of`, `Step N of`, `Partial`/`Partially`/`Partly`, `Toward`/`Towards`, `Relates to`, `Related to`, `Refs` or `References` (as `#N`, `GH-N`, `calebn/sharecut-studio#N` or an issue URL) stays open (these phrases cancel only references to issues of the same repository); `Fixes #N items 1-4` and `Fixes #5 is not in this PR` close nothing because words follow the number (the tail rule, not the partial-phrase list); a keyword line followed by prose in the same paragraph (treated as partial; a partial-phrase line that names an issue counts as a neighbouring keyword line, so in `Fixes #5` then `Part of #9 and more prose` the first line is not made partial by the second, though `#9` stays open); two keywords on one line (put each on its own line), other repositories, pull request numbers, closed issues, and issues labelled `needs-user-input` or `owner-check`. Put `owner-check` on an issue that needs the owner's confirmation before it closes.
-- **Ignored text:** fenced and inline code, indented code (four or more spaces, or a tab), HTML comments, blockquote paragraphs and checkbox lines (`- [x] Fixes #5` closes nothing). When the parse is ambiguous it does not close. A sentence that merely mentions a keyword, such as "does not fix #5", is not at a line start, or follows prose in its paragraph, and closes nothing.
+A keyword counts only when the whole line is the keyword and one issue, so write one closing line per issue. Because a missed close only leaves the issue open, the parser errs on not closing; the dry-run (workflow_dispatch with `dry-run`, see Backfill) shows what it would close.
+
+**Write it like this (closes):**
+
+- `Fixes #123` on its own line.
+- `- Fixes #123.` (a list bullet and trailing punctuation are fine).
+- `**Fixes #123**` (the bold marker must wrap the whole line).
+- `Fixes calebn/sharecut-studio#123`.
+- Two issues, two lines: `Fixes #12` then `Fixes #13`, or two bullets.
+- An explanation goes after a blank line: `Fixes #123`, blank line, `Beta blocker.` still closes #123.
+
+**Not like this (closes nothing):**
+
+- `Fixes #123 (beta:blocker).` Words after the number defeat it, including the repo's common `(beta:blocker)` style. Put the explanation on the next line after a blank line, or drop the parenthetical.
+- `Fixes #123 items 1-4`, `Fixes #12 and #13` and `Fixes #12, closes #13`. Anything after the number but punctuation, and two keywords on one line, close nothing.
+- A keyword mid-sentence: `This does not fix #5`.
+- `Fixes #5` directly followed or preceded by a prose line with no blank line between (it is treated as partial).
+- `Part of #5` or `Refs #5` anywhere in the body for the same issue. This also covers `Relates to`, `Related to`, `Toward(s)`, `Partial(ly)`, `Partly`, `Step N of` and `References`, as `#N`, `GH-N`, `calebn/sharecut-studio#N` or an issue URL; they cancel only issues of this repository.
+- `Fixes` inside fenced or inline code, a quote, an HTML comment, a checkbox line (`- [x] Fixes #5`), or indented 4+ spaces (or a tab).
+
+Other repositories, pull request numbers and closed issues are also skipped. Details that are easy to trip on: `**Fixes** #5`, `**Fixes #5` and `Fixes #5**` close nothing, `__` is not accepted, and an issue number has at most 9 digits.
+
+- **Opt-out labels:** an issue labelled `needs-user-input` or `owner-check` stays open. Put `owner-check` on an issue that needs the owner's confirmation before it closes.
 - **Failures:** one failing issue does not stop the others; the run then fails with an `::error::` line per issue.
 - **Not triggered:** a body edited after the merge, and merges made with the Actions `GITHUB_TOKEN`, which start no workflows.
 - **Backfill:** dispatch the workflow with the merged PR's number (`pr`) and `dry-run` (on by default; untick it to write). It reads the body as it is now, and re-closes an issue someone reopened.
