@@ -145,6 +145,32 @@ it("gives a focused button native Space activation but keeps canvas Space for tr
   );
 });
 
+it("keeps the bare arrows on a focused segment or radio while the canvas still gets them", async () => {
+  const user = userEvent.setup();
+  render(
+    <>
+      <KeymapHost />
+      <div className="ui-segmented" role="group" aria-label="Kind">
+        <button type="button" aria-pressed="false">
+          Voice
+        </button>
+      </div>
+      <div role="radiogroup" aria-label="Person">
+        <button type="button" role="radio" aria-checked="false">
+          Maya
+        </button>
+      </div>
+    </>,
+  );
+  screen.getByRole("button", { name: "Voice" }).focus();
+  await user.keyboard("{ArrowUp}{ArrowDown}{ArrowLeft}{ArrowRight}");
+  screen.getByRole("radio", { name: "Maya" }).focus();
+  await user.keyboard("{ArrowUp}{ArrowDown}{ArrowLeft}{ArrowRight}");
+  expect(vi.mocked(execute)).not.toHaveBeenCalled();
+  fireEvent.keyDown(screen.getByTestId("canvas"), { key: "ArrowRight" });
+  await waitFor(() => expect(vi.mocked(execute)).toHaveBeenCalled());
+});
+
 it("consumes a denied focused fade arrow without moving the playhead", async () => {
   useDawStore.getState().hydrate("share:readonly", minimalProject());
   useDawStore.getState().setPlayheadSec(1);

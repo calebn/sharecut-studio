@@ -47,3 +47,19 @@ export function hasCommandModifier(e: {
 export function isScrubValue(el: EventTarget | null): boolean {
   return el instanceof HTMLElement && el.matches('[role="spinbutton"]');
 }
+
+const ARROWS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
+
+/**
+ * A choice control owns the bare arrow keys: a radio, and a segment of a
+ * SegmentedControl. The arrows there pick or move among the choices, so the
+ * window keymap must not run Move track or a playhead nudge from them.
+ */
+export function isChoiceControlArrow(e: KeyboardEvent): boolean {
+  return (
+    ARROWS.has(e.key) &&
+    !hasCommandModifier(e) &&
+    e.target instanceof HTMLElement &&
+    e.target.matches('[role="radio"], .ui-segmented button')
+  );
+}

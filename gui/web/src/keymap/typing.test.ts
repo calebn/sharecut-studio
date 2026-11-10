@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { hasCommandModifier, isButtonActivation, isScrubValue } from "./typing";
+import {
+  hasCommandModifier,
+  isButtonActivation,
+  isChoiceControlArrow,
+  isScrubValue,
+} from "./typing";
 
 const mods = (
   m: Partial<{
@@ -64,5 +69,51 @@ describe("isScrubValue", () => {
     expect(isScrubValue(span)).toBe(true);
     expect(isScrubValue(document.createElement("button"))).toBe(false);
     expect(isScrubValue(null)).toBe(false);
+  });
+});
+
+describe("isChoiceControlArrow", () => {
+  const press = (target: HTMLElement, init: KeyboardEventInit) => {
+    const event = new KeyboardEvent("keydown", init);
+    Object.defineProperty(event, "target", { value: target });
+    return event;
+  };
+  const segment = () => {
+    const group = document.createElement("div");
+    group.className = "ui-segmented";
+    const button = document.createElement("button");
+    group.append(button);
+    return button;
+  };
+  const radio = () => {
+    const button = document.createElement("button");
+    button.setAttribute("role", "radio");
+    return button;
+  };
+
+  it.each([
+    ["a segmented-control segment", segment],
+    ["a radio", radio],
+  ])("reserves the bare arrows for %s", (_name, make) => {
+    for (const key of ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]) {
+      expect(isChoiceControlArrow(press(make(), { key }))).toBe(true);
+      expect(isChoiceControlArrow(press(make(), { key, shiftKey: true }))).toBe(
+        true,
+      );
+    }
+  });
+
+  it("leaves chords, other keys and other buttons to the keymap", () => {
+    expect(
+      isChoiceControlArrow(press(segment(), { key: "ArrowUp", metaKey: true })),
+    ).toBe(false);
+    expect(
+      isChoiceControlArrow(press(segment(), { key: "ArrowUp", altKey: true })),
+    ).toBe(false);
+    expect(isChoiceControlArrow(press(segment(), { key: "Backspace" }))).toBe(
+      false,
+    );
+    const plain = document.createElement("button");
+    expect(isChoiceControlArrow(press(plain, { key: "ArrowUp" }))).toBe(false);
   });
 });
