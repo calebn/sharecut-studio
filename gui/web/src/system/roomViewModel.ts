@@ -191,7 +191,6 @@ function savingStatus(phase: RoomPhase): string | null {
     : `Saving · ${percent}% · keep this page open`;
 }
 
-/** The tile grid's column count for a viewer width and a tile count. */
 export function gridColumns(
   viewerWidth: ViewerWidth,
   tiles: number,

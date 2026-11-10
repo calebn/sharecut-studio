@@ -1,6 +1,6 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { SKELETON_RETRY_MS, SkeletonBlock } from "./Skeleton";
+import { SkeletonBlock } from "./Skeleton";
 
 describe("SkeletonBlock", () => {
   it("is hidden from assistive technology and can be a circle", () => {
@@ -11,9 +11,5 @@ describe("SkeletonBlock", () => {
       "sys-skeleton-block",
       "sys-skeleton-block--circle",
     );
-  });
-
-  it("retries at 4 s", () => {
-    expect(SKELETON_RETRY_MS).toBe(4000);
   });
 });

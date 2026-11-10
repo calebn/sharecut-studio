@@ -4,10 +4,8 @@ import { Button } from "../ui";
 
 type Phase = "blank" | "blocks" | "slow";
 
-/** When "Still loading…" or "Still connecting…" and Retry appear, in ms. */
 export const SKELETON_RETRY_MS = 4000;
 
-/** One grey placeholder block; a surface that draws its own layout composes these. */
 export function SkeletonBlock({
   circle = false,
   className,
@@ -97,7 +95,7 @@ export function Skeleton({
               ))
             : Array.from({ length: rows }, (_, row) => (
                 // biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
-                <span key={row} className="sys-skeleton-block" />
+                <SkeletonBlock key={row} />
               ))}
         </div>
       )}

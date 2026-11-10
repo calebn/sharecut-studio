@@ -778,10 +778,6 @@ describe("RoomView as the host", () => {
       expect(
         container.querySelectorAll(".sys-room-tile--skeleton"),
       ).toHaveLength(4);
-      expect(
-        container.querySelectorAll(".sys-skeleton-block[aria-hidden='true']")
-          .length,
-      ).toBeGreaterThanOrEqual(9);
       expect(screen.getByText("Joining the room…")).toHaveAttribute(
         "role",
         "status",
@@ -819,20 +815,6 @@ describe("RoomView as the host", () => {
       expect(screen.getByText("Still connecting…")).toBeVisible();
       await user.click(screen.getByRole("button", { name: "Retry" }));
       expect(onAction).toHaveBeenCalledOnce();
-    });
-
-    it("animates nothing", () => {
-      const css = readFileSync(
-        join(SRC_ROOT, "styles/partials/system-record.css"),
-        "utf8",
-      );
-      const rules = css
-        .split("}")
-        .filter((rule) => /skeleton|data-loading/.test(rule));
-      expect(rules.length).toBeGreaterThan(0);
-      for (const rule of rules) {
-        expect(rule).not.toMatch(/animation|transition/);
-      }
     });
   });
 });

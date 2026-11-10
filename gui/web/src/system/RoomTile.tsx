@@ -252,7 +252,6 @@ export function ListenerAvatar({
   );
 }
 
-/** A tile-shaped placeholder while the room loads: an avatar disc over a name bar. */
 export function RoomTileSkeleton() {
   return (
     <div className="sys-room-tile sys-room-tile--skeleton" aria-hidden="true">

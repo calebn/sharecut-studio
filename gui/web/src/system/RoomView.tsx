@@ -34,7 +34,6 @@ import { Sheet } from "./Sheet";
 import { SkeletonBlock } from "./Skeleton";
 import { SystemIcon } from "./SystemIcon";
 
-const LOADING_TILES = 4;
 const LOADING_TILE_KEYS = ["a", "b", "c", "d"] as const;
 
 /** The phase's identity for the time chip: a new take or state is a new key. */
@@ -97,11 +96,7 @@ export type RoomViewProps = {
   target?: ReactNode;
   /** A bare page: the room fills 100dvh and clears the top safe area. */
   page?: boolean;
-  /**
-   * The room is still loading: placeholder tiles and header, a dimmed inert
-   * dock, no pill, rail or Notes sheet. The alert slot still shows `alerts`
-   * (the slow "Still connecting…" with Retry).
-   */
+  /** Placeholder tiles and title, an inert dock, no pill, rail or Notes sheet. */
   loading?: boolean;
 };
 
@@ -325,7 +320,7 @@ export function RoomView({
             style={
               {
                 "--sys-room-view-columns": loading
-                  ? gridColumns(viewerWidth, LOADING_TILES)
+                  ? gridColumns(viewerWidth, LOADING_TILE_KEYS.length)
                   : model.columns,
               } as CSSProperties
             }
