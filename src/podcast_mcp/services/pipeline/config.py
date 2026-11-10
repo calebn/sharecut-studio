@@ -104,6 +104,9 @@ FOCUS_STEPS = ("analyze_focus_cuts", "focus_from_transcript")
 TIGHTEN_STEPS = ("analyze_fillers_pauses", "tighten_from_transcript")
 # Gated by tighten.apply_non_speech, not tighten.enabled (#1434).
 SOUND_ACTION_STEP = "apply_sound_actions"
+# Gated by room_tone.extract_bed; off by default, so the param alone turns it on.
+ROOM_TONE_STEP = "extract_room_tone_beds"
+SWITCHED_STEPS = (SOUND_ACTION_STEP, ROOM_TONE_STEP)
 
 # Analyze flags a track whose astats noise floor sits within this of the track's own voice
 # level (-50 dBFS against the lab tape's -15.3 dBFS voice level), so a quieter recording of
@@ -132,7 +135,7 @@ def default_enabled_steps(config: dict[str, Any] | None = None) -> list[str]:
             if tighten_on:
                 enabled.add(name)
             continue
-        if name == SOUND_ACTION_STEP:
+        if name in SWITCHED_STEPS:
             if step_noop_reason(name, cfg) is None:
                 enabled.add(name)
             continue
@@ -193,8 +196,8 @@ def editorial_enabled_flags(config: dict[str, Any]) -> tuple[bool, bool]:
     return focus_on, tighten_on
 
 
-def _sound_actions_on(config: dict[str, Any]) -> bool:
-    return step_noop_reason(SOUND_ACTION_STEP, config) is None
+def _switched_steps_on(config: dict[str, Any]) -> tuple[bool, ...]:
+    return tuple(step_noop_reason(step_id, config) is None for step_id in SWITCHED_STEPS)
 
 
 def sync_editorial_enabled_steps(
@@ -214,10 +217,11 @@ def sync_editorial_enabled_steps(
     else:
         for step_id in TIGHTEN_STEPS:
             result = cascade_disable(result, step_id)
-    if step_noop_reason(SOUND_ACTION_STEP, config) is None:
-        result = expand_enable(result | {SOUND_ACTION_STEP})
-    else:
-        result = cascade_disable(result, SOUND_ACTION_STEP)
+    for step_id in SWITCHED_STEPS:
+        if step_noop_reason(step_id, config) is None:
+            result = expand_enable(result | {step_id})
+        else:
+            result = cascade_disable(result, step_id)
     return order_enabled_steps(result)
 
 
@@ -435,7 +439,7 @@ class PipelineConfigStore:
             previous_enabled = set(default_enabled_steps(ws.config))
         else:
             previous_enabled = set(ws.enabled_steps)
-        prev_editorial = (*editorial_enabled_flags(ws.config), _sound_actions_on(ws.config))
+        prev_editorial = (*editorial_enabled_flags(ws.config), *_switched_steps_on(ws.config))
         if merged is not None:
             ws.config = merged
         if enabled_steps is not None:
@@ -445,7 +449,7 @@ class PipelineConfigStore:
             )
         elif config is not None and prev_editorial != (
             *editorial_enabled_flags(ws.config),
-            _sound_actions_on(ws.config),
+            *_switched_steps_on(ws.config),
         ):
             ws.enabled_steps = sync_editorial_enabled_steps(
                 previous_enabled,

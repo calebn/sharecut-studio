@@ -12,11 +12,12 @@ from podcast_mcp.project.merge import ProjectMergeConflict
 def test_pipeline_step_order():
     assert STEP_NAMES[0] == "ingest_tracks"
     assert STEP_NAMES[-1] == "export_deliverables"
-    assert len(_STEP_MAP) == 23
-    assert len(ORDERED_STEP_NAMES) == 24
+    assert len(_STEP_MAP) == 24
+    assert len(ORDERED_STEP_NAMES) == 25
     assert STEP_NAMES[STEP_NAMES.index("transcribe_tracks") + 1] == "align_tracks"
     assert STEP_NAMES[STEP_NAMES.index("align_tracks") + 1] == "require_align_accept"
-    assert STEP_NAMES[STEP_NAMES.index("require_align_accept") + 1] == "merge_transcript"
+    assert STEP_NAMES[STEP_NAMES.index("require_align_accept") + 1] == "extract_room_tone_beds"
+    assert STEP_NAMES[STEP_NAMES.index("extract_room_tone_beds") + 1] == "merge_transcript"
     assert STEP_NAMES[STEP_NAMES.index("merge_transcript") + 1] == "render_dialogue_stems"
     assert STEP_NAMES[STEP_NAMES.index("render_dialogue_stems") + 1] == "reconcile_transcript"
     assert STEP_NAMES[STEP_NAMES.index("precorrect_transcript") + 1] == "require_transcript_refine"

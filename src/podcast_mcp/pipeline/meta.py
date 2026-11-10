@@ -144,6 +144,20 @@ _STEP_DEFS: dict[str, StepMeta] = {
         depends_on=("align_tracks",),
         param_sections=("align",),
     ),
+    "extract_room_tone_beds": StepMeta(
+        id="extract_room_tone_beds",
+        group="transcript",
+        title="Extract room-tone beds",
+        summary=(
+            "Cut a room-tone bed from each dialogue track that has none, from its own quiet "
+            "stretch (no-op unless room_tone.extract_bed)."
+        ),
+        depends_on=("require_align_accept",),
+        requires_components=("ffmpeg",),
+        param_sections=("room_tone",),
+        enabled_by_default=False,
+        noop_unless="room_tone.extract_bed",
+    ),
     "merge_transcript": StepMeta(
         id="merge_transcript",
         group="transcript",
@@ -931,6 +945,18 @@ _PARAM_SPECS: tuple[_ParamSpec, ...] = (
         affects=("balance_tracks",),
     ),
     _ParamSpec(
+        path="room_tone.extract_bed",
+        label="Extract room-tone beds",
+        description=(
+            "Cut a room-tone bed from each dialogue track that has none, from its own quiet "
+            "stretch, before any step that picks a fill. A recorded bed is never replaced; off "
+            "runs nothing and leaves beds already extracted in place."
+        ),
+        group="common",
+        section="room_tone",
+        affects=("extract_room_tone_beds",),
+    ),
+    _ParamSpec(
         path="gate_fill.mode",
         label="Gate fill",
         description=(
@@ -1125,6 +1151,7 @@ ALLOWED_CONFIG_TOP_KEYS = frozenset(
         "balance",
         "compression",
         "gate_fill",
+        "room_tone",
         "prosody",
         "focus",
         "tighten",

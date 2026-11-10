@@ -21,6 +21,7 @@
     "edit.mute-off-speaker",
     "export",
     "export_deliverables",
+    "extract_room_tone_beds",
     "feed.fields",
     "feed.set",
     "feed.show",

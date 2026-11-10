@@ -334,7 +334,7 @@ class _PlayPending(_PlayCompose, _PlayHeadroom):
                 "window": [round(window.play_start, 3), round(window.play_end, 3)],
                 "pad_sec": round(window.pad_sec, 3),
                 # Bump when a side renders differently for the same inputs.
-                "render_rev": 6,
+                "render_rev": 7,
                 # The Current side is cut from a fresh premix, else adaptive tracks from fresh stems.
                 "premix": master_source_hash(self.project)
                 if side == "current" and self._fresh_premix() is not None

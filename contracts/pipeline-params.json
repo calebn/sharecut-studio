@@ -211,6 +211,11 @@
       "type": "number"
     },
     {
+      "default": false,
+      "path": "room_tone.extract_bed",
+      "type": "boolean"
+    },
+    {
       "default": true,
       "path": "tighten.acoustic_gap_filler.enabled",
       "type": "boolean"
