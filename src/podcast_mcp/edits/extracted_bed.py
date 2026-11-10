@@ -6,7 +6,7 @@ from typing import Any
 
 from podcast_mcp.edits.record_placement import place_extracted_room_tone
 from podcast_mcp.engines.room_tone_extract import EXTRACTOR_REV, ExtractedBed, source_matches
-from podcast_mcp.models import EpisodeProject, Track
+from podcast_mcp.models import EpisodeProject, Track, TrackRole
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.workspace_paths import resolve_under_workspace
 
@@ -14,6 +14,8 @@ from podcast_mcp.util.workspace_paths import resolve_under_workspace
 def _blocked(track: Track | None) -> str | None:
     if track is None:
         return "missing_track"
+    if track.role != TrackRole.DIALOGUE:
+        return "not_dialogue_track"
     if track.media is None:
         return "missing_media"
     if track.room_tone is not None and track.room_tone_origin is None:
@@ -39,7 +41,7 @@ def _current(project: EpisodeProject, track: Track) -> str | None:
 
 
 def bedless_reason(project: EpisodeProject, tid: str) -> str | None:
-    """Why ``tid`` takes no new extracted bed (has one, no media, unchanged audio), else None."""
+    """Why ``tid`` takes no new extracted bed (not a dialogue track, has one, no media, unchanged audio), else None."""
     track = project.track_by_id(tid)
     reason = _blocked(track)
     if reason is not None or track is None:
