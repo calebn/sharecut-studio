@@ -1,4 +1,5 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { useEffect } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DeviceSheet } from "../system/DeviceSheet";
@@ -73,25 +74,25 @@ describe("guest input change with the real mic hook", () => {
 
   it("keeps the same focused select until the new stream opens", async () => {
     const { rerender } = render(<Harness deviceId="a" />);
-    const select = await screen.findByLabelText("Input");
-    await waitFor(() => expect(select).toHaveValue("a"));
+    const select = await screen.findByRole("button", { name: /^Input:/ });
+    await waitFor(() => expect(select).toHaveAccessibleName("Input: USB Mic"));
     select.focus();
     rerender(<Harness deviceId="b" />);
     await waitFor(() => expect(waiters.b).toBeDefined());
-    expect(screen.getByLabelText("Input")).toBe(select);
+    expect(screen.getByRole("button", { name: /^Input:/ })).toBe(select);
     expect(select).toHaveFocus();
-    expect(select).toHaveValue("b");
+    expect(select).toHaveAccessibleName("Input: Headset");
     await act(async () => {
       waiters.b?.resolve(fakeStream("b"));
     });
     await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(2));
-    expect(screen.getByLabelText("Input")).toBe(select);
+    expect(screen.getByRole("button", { name: /^Input:/ })).toBe(select);
     expect(select).toHaveFocus();
   });
 
   it("keeps the Input menu with the default choice when the pick fails to open", async () => {
     const { rerender } = render(<Harness deviceId="a" />);
-    await screen.findByLabelText("Input");
+    await screen.findByRole("button", { name: /^Input:/ });
     rerender(<Harness deviceId="b" />);
     await waitFor(() => expect(waiters.b).toBeDefined());
     await act(async () => {
@@ -100,8 +101,11 @@ describe("guest input change with the real mic hook", () => {
       );
     });
     await screen.findByRole("button", { name: "Retry microphone" });
-    const select = screen.getByLabelText("Input");
-    expect(select).toHaveValue("b");
-    expect(screen.getByRole("option", { name: "Default" })).toBeInTheDocument();
+    const select = screen.getByRole("button", { name: /^Input:/ });
+    expect(select).toHaveAccessibleName("Input: Headset");
+    await userEvent.click(select);
+    expect(
+      screen.getByRole("menuitemradio", { name: "Default" }),
+    ).toBeInTheDocument();
   });
 });

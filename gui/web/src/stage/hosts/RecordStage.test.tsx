@@ -1305,7 +1305,10 @@ describe("Record stage capture and storage", () => {
     setRoom({ participants: [hostPerson()] });
     const { unmount } = mount(capture);
     await openDevices();
-    await userEvent.selectOptions(screen.getByLabelText("Input"), "b");
+    await userEvent.click(screen.getByRole("button", { name: /^Input:/ }));
+    await userEvent.click(
+      screen.getByRole("menuitemradio", { name: "Headset" }),
+    );
     expect(onDeviceChange).toHaveBeenCalledWith("b");
     unmount();
     setRoom({
@@ -1315,7 +1318,7 @@ describe("Record stage capture and storage", () => {
     });
     mount(capture);
     await openDevices();
-    expect(screen.getByLabelText("Input")).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Input:/ })).toBeDisabled();
   });
 
   it("offers Retry in Devices when the host mic is denied", async () => {
@@ -1351,7 +1354,7 @@ describe("Record stage capture and storage", () => {
     });
     const { unmount } = mount({ ...capture, keeperFinalizing: true });
     await openDevices();
-    expect(screen.getByLabelText("Input")).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Input:/ })).toBeDisabled();
     unmount();
     mount(capture);
     await openDevices();
