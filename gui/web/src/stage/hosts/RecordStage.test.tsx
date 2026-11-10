@@ -1642,18 +1642,81 @@ describe("Record stage Room tone", () => {
     );
   });
 
-  it("stays available while a guest has not yet consented, a finished round is open, or the host mic is off", async () => {
+  const hostOff = () =>
+    recordParticipant({
+      participant_id: "p_host",
+      role: "host",
+      display_name: "Host",
+      consented: false,
+    });
+  const pendingGuest = (id: string) =>
+    recordParticipant({
+      participant_id: id,
+      role: "guest",
+      display_name: id,
+      consented: null,
+    });
+
+  it("stays available when a finished round is open", async () => {
     setRoom({
       participants: [avaGuest()],
-      start_blockers: [
-        { code: "consent_pending", participant_id: "p_g", display_name: "Ava" },
-      ],
       room_tone: ROUND,
       countdown_left_ms: 0,
     });
     mount();
     const dialog = await openMore();
     expect(tone(dialog)).toBeEnabled();
+  });
+
+  it("stays available with the host mic off once a guest has accepted", async () => {
+    setRoom({ participants: [hostOff(), avaGuest()] });
+    mount();
+    const dialog = await openMore();
+    expect(
+      within(dialog).getByRole("button", { name: "Record my mic" }),
+    ).toHaveAttribute("aria-pressed", "false");
+    expect(tone(dialog)).toBeEnabled();
+  });
+
+  it("waits while every guest is still pending", async () => {
+    setRoom({
+      participants: [hostPerson(), pendingGuest("p_a")],
+      start_blockers: [
+        { code: "consent_pending", participant_id: "p_a", display_name: "A" },
+      ],
+    });
+    mount();
+    const dialog = await openMore();
+    expect(tone(dialog)).toBeDisabled();
+    expect(tone(dialog)).toHaveAccessibleDescription(
+      "Room tone starts once a guest has accepted recording.",
+    );
+  });
+
+  it("stays available when one guest accepted and another is pending", async () => {
+    setRoom({
+      participants: [avaGuest(), pendingGuest("p_b")],
+      start_blockers: [
+        { code: "consent_pending", participant_id: "p_b", display_name: "B" },
+      ],
+    });
+    mount();
+    const dialog = await openMore();
+    expect(tone(dialog)).toBeEnabled();
+  });
+
+  it("is unavailable while a host command is in flight", async () => {
+    setRoom({ participants: [hostPerson(), avaGuest()] });
+    postTransport.mockImplementation(() => new Promise<void>(() => undefined));
+    mount();
+    const dialog = await openMore();
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "Record my mic" }),
+    );
+    await waitFor(() =>
+      expect(tone(dialog)).toHaveAccessibleDescription(BUSY_REASON),
+    );
+    expect(tone(dialog)).toBeDisabled();
   });
 });
 

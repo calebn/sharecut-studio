@@ -181,6 +181,7 @@ describe("moreRoomToneReason", () => {
   const open = {
     state: "lobby" as const,
     noRecorder: false,
+    noAcceptedGuest: false,
     roundLeftMs: 0,
     hostCapturing: false,
   };
@@ -191,7 +192,12 @@ describe("moreRoomToneReason", () => {
   });
 
   it("holds a running or paused take first", () => {
-    const all = { noRecorder: true, roundLeftMs: 5, hostCapturing: true };
+    const all = {
+      noRecorder: true,
+      noAcceptedGuest: true,
+      roundLeftMs: 5,
+      hostCapturing: true,
+    };
     expect(moreRoomToneReason({ ...open, ...all, state: "recording" })).toBe(
       TAKE_REASON,
     );
@@ -201,13 +207,26 @@ describe("moreRoomToneReason", () => {
   });
 
   it("names the first of the remaining reasons", () => {
-    const rest = { noRecorder: true, roundLeftMs: 5, hostCapturing: true };
+    const rest = {
+      noRecorder: true,
+      noAcceptedGuest: true,
+      roundLeftMs: 5,
+      hostCapturing: true,
+    };
     expect(moreRoomToneReason({ ...open, ...rest })).toBe(
       "Room tone starts once someone has joined the room.",
     );
     expect(moreRoomToneReason({ ...open, ...rest, noRecorder: false })).toBe(
-      "Room tone is already recording.",
+      "Room tone starts once a guest has accepted recording.",
     );
+    expect(
+      moreRoomToneReason({
+        ...open,
+        ...rest,
+        noRecorder: false,
+        noAcceptedGuest: false,
+      }),
+    ).toBe("Room tone is already recording.");
     expect(moreRoomToneReason({ ...open, hostCapturing: true })).toBe(
       "Your own room tone is recording.",
     );

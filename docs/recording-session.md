@@ -1381,10 +1381,13 @@ cannot. Every button runs the same `record.*` command as the palette.
   line reads "Asks guests for 1 minute of quiet. Record your own in Devices."
   because only guests react to a round. It is disabled, with the reason in
   that line, during a take ("Record room tone between takes."), before anyone
-  has joined ("Room tone starts once someone has joined the room."), while a
-  round runs ("Room tone is already recording."), while the host's own capture
+  has joined ("Room tone starts once someone has joined the room."), until a
+  guest has accepted recording ("Room tone starts once a guest has accepted
+  recording."; the room list holds only guests who accepted, and only guests
+  react to a round), while a round runs ("Room tone is already recording."), while the host's own capture
   records ("Your own room tone is recording.") and while a host command is in
-  flight. Pending consent or a host mic that is off does not disable it. A
+  flight. A host mic that is off does not disable it once a guest has accepted;
+  a guest who is still pending does not count. A
   started round is announced as "Room tone started. Quiet please."; a refusal
   shows in the Record stage alert. **Record 1 minute of room tone** is in the
   Devices sheet and works only in the lobby or after Stop; otherwise it is
