@@ -8,7 +8,7 @@ import { HelpDialogView } from "./HelpDialogView";
 
 const openDialog = (
   canvasElement: HTMLElement,
-  dialogName = "Report a problem",
+  dialogName = "Export diagnostics",
 ) =>
   openDialogByLauncher(canvasElement, {
     launcherName: "Open help dialog",
@@ -112,7 +112,7 @@ export const Menu: Story = {
     );
     await expect(args.onStepChange).toHaveBeenCalledWith("report");
     const create = await within(dialog).findByRole("button", {
-      name: "Create diagnostics bundle",
+      name: "Export",
     });
     await expect(create).toHaveFocus();
     await userEvent.click(within(dialog).getByRole("button", { name: "Back" }));
@@ -143,7 +143,7 @@ export const Idle: Story = {
     if (viewMode === "docs") return;
     const dialog = await openDialog(canvasElement);
     await userEvent.click(
-      within(dialog).getByRole("button", { name: "Create diagnostics bundle" }),
+      within(dialog).getByRole("button", { name: "Export" }),
     );
     await expect(args.onCreate).toHaveBeenCalledOnce();
     await expect(
@@ -158,7 +158,7 @@ export const Creating: Story = {
     if (viewMode === "docs") return;
     const dialog = await openDialog(canvasElement);
     await expect(
-      within(dialog).getByRole("button", { name: "Creating…" }),
+      within(dialog).getByRole("button", { name: "Exporting…" }),
     ).toBeDisabled();
   },
 };

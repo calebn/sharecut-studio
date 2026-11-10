@@ -85,7 +85,7 @@ describe("HelpDialog", () => {
     );
     await expectNoA11yViolations(container);
     const create = screen.getByRole("button", {
-      name: "Create diagnostics bundle",
+      name: "Export",
     });
     expect(create).not.toHaveAttribute("aria-busy");
     await user.click(create);
@@ -127,10 +127,10 @@ describe("HelpDialog", () => {
     );
     await renderOpenHelp();
     const create = screen.getByRole("button", {
-      name: "Create diagnostics bundle",
+      name: "Export",
     });
     await user.click(create);
-    expect(screen.getByRole("button", { name: "Creating…" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Exporting…" })).toHaveAttribute(
       "aria-busy",
       "true",
     );
@@ -151,9 +151,7 @@ describe("HelpDialog", () => {
     metaMock.mockRejectedValue(new Error("offline"));
     createMock.mockRejectedValue(new Error("disk full"));
     await renderOpenHelp();
-    await user.click(
-      screen.getByRole("button", { name: "Create diagnostics bundle" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Export" }));
     expect(await screen.findByText("disk full")).toBeInTheDocument();
   });
 
@@ -189,9 +187,7 @@ describe("HelpDialog", () => {
         : { status: "queued", issue_url: null },
     );
     await renderOpenHelp();
-    await user.click(
-      screen.getByRole("button", { name: "Create diagnostics bundle" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Export" }));
     await screen.findByText(/report-a.zip/);
     await user.type(
       screen.getByLabelText("Describe the problem"),
@@ -216,9 +212,7 @@ describe("HelpDialog", () => {
     ).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "Submit report" }));
     expect(submitMock).toHaveBeenCalledTimes(1);
-    await user.click(
-      screen.getByRole("button", { name: "Create diagnostics bundle" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Export" }));
     await screen.findByText(/report-b.zip/);
     expect(
       screen.queryByRole("link", { name: "Open published issue" }),
@@ -269,9 +263,7 @@ describe("HelpDialog", () => {
         status_url: "https://relay.test/api/reports/b",
       });
     const { rerender } = await renderOpenHelp();
-    await user.click(
-      screen.getByRole("button", { name: "Create diagnostics bundle" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Export" }));
     await screen.findByText(/report-a.zip/);
     await user.type(
       screen.getByLabelText("Describe the problem"),
@@ -285,9 +277,7 @@ describe("HelpDialog", () => {
       <HelpDialog open initialStep="report" onClose={() => undefined} />,
     );
     await waitForDialogFocus();
-    await user.click(
-      screen.getByRole("button", { name: "Create diagnostics bundle" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Export" }));
     await screen.findByText(/report-b.zip/);
     await user.type(
       screen.getByLabelText("Describe the problem"),
@@ -331,9 +321,7 @@ describe("HelpDialog fallback", () => {
       created_at: "2026-09-26T00:00:00Z",
     });
     await renderOpenHelp();
-    await user.click(
-      screen.getByRole("button", { name: "Create diagnostics bundle" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Export" }));
     fireEvent.change(screen.getByLabelText("Describe the problem"), {
       target: { value: "Episode cannot open" },
     });
@@ -370,9 +358,7 @@ describe("HelpDialog fallback", () => {
       "Report a problem",
       "Guides",
     ]);
-    expect(
-      screen.queryByRole("button", { name: "Create diagnostics bundle" }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Export" })).toBeNull();
     await user.click(
       screen.getByRole("button", { name: /Shortcuts and gestures/ }),
     );
@@ -381,11 +367,9 @@ describe("HelpDialog fallback", () => {
     expect(onGuides).toHaveBeenCalledOnce();
     await user.click(screen.getByRole("button", { name: /Report a problem/ }));
     expect(
-      screen.getByRole("dialog", { name: "Report a problem" }),
+      screen.getByRole("dialog", { name: "Export diagnostics" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Create diagnostics bundle" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Export" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("dialog", { name: "Help" })).toBeInTheDocument();
   });
@@ -397,16 +381,12 @@ describe("HelpDialog fallback", () => {
     );
     await waitForDialogFocus();
     await user.click(screen.getByRole("button", { name: /Report a problem/ }));
-    expect(
-      screen.getByRole("button", { name: "Create diagnostics bundle" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Export" })).toBeInTheDocument();
     rerender(
       <HelpDialog open={false} initialStep="menu" onClose={() => undefined} />,
     );
     rerender(<HelpDialog open initialStep="menu" onClose={() => undefined} />);
-    expect(
-      screen.queryByRole("button", { name: "Create diagnostics bundle" }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Export" })).toBeNull();
     expect(screen.getByRole("dialog", { name: "Help" })).toBeInTheDocument();
     await waitForDialogFocus();
     expect(
@@ -414,9 +394,7 @@ describe("HelpDialog fallback", () => {
         .getByRole("dialog", { name: "Help" })
         .contains(document.activeElement),
     ).toBe(true);
-    expect(document.activeElement).not.toHaveAccessibleName(
-      "Create diagnostics bundle",
-    );
+    expect(document.activeElement).not.toHaveAccessibleName("Export");
   });
 
   it("keeps the step and description when initialStep changes while open", async () => {
@@ -434,9 +412,7 @@ describe("HelpDialog fallback", () => {
       <HelpDialog open initialStep="report" onClose={() => undefined} />,
     );
     await waitForDialogFocus();
-    await user.click(
-      screen.getByRole("button", { name: "Create diagnostics bundle" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Export" }));
     await user.type(
       await screen.findByLabelText("Describe the problem"),
       "Keeps this text",
@@ -454,9 +430,7 @@ describe("HelpDialog fallback", () => {
     await waitForDialogFocus();
     await user.click(screen.getByRole("button", { name: /Report a problem/ }));
     await waitFor(() =>
-      expect(
-        screen.getByRole("button", { name: "Create diagnostics bundle" }),
-      ).toHaveFocus(),
+      expect(screen.getByRole("button", { name: "Export" })).toHaveFocus(),
     );
     await user.click(screen.getByRole("button", { name: "Back" }));
     await waitFor(() =>

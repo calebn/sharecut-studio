@@ -1381,11 +1381,11 @@ describe("HomeScreen", () => {
         await screen.findByRole("button", { name: /Report a problem/ }),
       );
       const report = await screen.findByRole("dialog", {
-        name: "Report a problem",
+        name: "Export diagnostics",
       });
       expect(
         within(report).getByRole("button", {
-          name: "Create diagnostics bundle",
+          name: "Export",
         }),
       ).toBeInTheDocument();
       await user.click(within(report).getByRole("button", { name: "Back" }));
@@ -1418,7 +1418,7 @@ describe("HomeScreen", () => {
         await screen.findByRole("option", { name: /Report a problem/ }),
       );
       expect(
-        await screen.findByRole("dialog", { name: "Report a problem" }),
+        await screen.findByRole("dialog", { name: "Export diagnostics" }),
       ).toBeInTheDocument();
     });
 
