@@ -27,22 +27,20 @@ class RangeEditResult(TypedDict):
 
 
 def _refuse_overlapping(targets: Sequence[ExactRangeTarget]) -> None:
-    by_track: dict[str, list[tuple[float, float, int]]] = {}
-    for n, target in enumerate(targets):
+    by_track: dict[str, list[tuple[float, float]]] = {}
+    for target in targets:
         for track_id in target.track_ids:
-            by_track.setdefault(track_id, []).extend((x.start, x.end, n) for x in target.intervals)
+            by_track.setdefault(track_id, []).extend((x.start, x.end) for x in target.intervals)
     for spans in by_track.values():
         spans.sort()
         reach = float("-inf")
-        owner = -1
-        for start, end, n in spans:
-            if reach > start and owner != n:
+        for start, end in spans:
+            if reach > start:
                 raise CodedValueError(
                     "Two targets cover the same audio on one track. Send each stretch once.",
                     code="overlapping_targets",
                 )
-            if end > reach:
-                reach, owner = end, n
+            reach = max(reach, end)
 
 
 def edit_selected_range(
