@@ -718,12 +718,14 @@ test("a pending edit's review card tops the sheet and its Approve and Reject sta
       await page.evaluate((font) => {
         document.documentElement.style.fontSize = `${font}px`;
       }, rootFont);
-      const card = page.locator(".pending-actionbar");
+      // Sideways at 32 px even the full sheet is under 8.75 rem: the Inspector
+      // takes the whole screen as a dialog, and the verbs stay in its body.
+      const takeover = size === "landscape-636" && rootFont === 32;
+      const card = takeover
+        ? page.locator(".sys-inspector-takeover")
+        : page.locator(".pending-actionbar");
       await expect(card.getByRole("button", { name: "Approve" })).toBeVisible();
       // Half does not fit a phone held sideways, nor 32 px text: full-only.
-      // Sideways at 32 px even the full sheet is under 8.75 rem: the Inspector
-      // takes the whole screen as a dialog with a Done button.
-      const takeover = size === "landscape-636" && rootFont === 32;
       if (takeover) {
         const dialog = page.locator(".sys-inspector-takeover");
         await expect(dialog).toBeVisible();
@@ -752,8 +754,10 @@ test("a pending edit's review card tops the sheet and its Approve and Reject sta
       rows.push({
         size,
         rootFont,
-        ...(await page.evaluate(() => {
-          const bar = document.querySelector(".pending-actionbar");
+        ...(await page.evaluate((inTakeover) => {
+          const bar = document.querySelector(
+            inTakeover ? ".sys-inspector-takeover" : ".pending-actionbar",
+          );
           const scroll = document.querySelector(".sys-inspector-scroll");
           const reach = (name: string) => {
             const button = [...(bar?.querySelectorAll("button") ?? [])].find(
@@ -773,13 +777,15 @@ test("a pending edit's review card tops the sheet and its Approve and Reject sta
                 r.bottom <= innerHeight &&
                 r.left >= 0 &&
                 r.right <= innerWidth,
-              onTop: hit?.closest(".pending-actionbar") === bar,
+              onTop: Boolean(bar && hit && bar.contains(hit)),
               minTarget: r.width >= 44 && r.height >= 44,
-              docked: Boolean(
-                bar &&
-                  scroll?.contains(bar) &&
-                  scroll.firstElementChild?.contains(bar),
-              ),
+              docked:
+                inTakeover ||
+                Boolean(
+                  bar &&
+                    scroll?.contains(bar) &&
+                    scroll.firstElementChild?.contains(bar),
+                ),
             };
           };
           return {
@@ -789,7 +795,7 @@ test("a pending edit's review card tops the sheet and its Approve and Reject sta
               (b) => b.textContent?.trim() === "Edit timing",
             ).length,
           };
-        })),
+        }, takeover)),
       });
     }
   }
