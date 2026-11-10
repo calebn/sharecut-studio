@@ -1,7 +1,8 @@
-import { type RefObject, useMemo, useState } from "react";
+import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import {
   previewTranscriptReplacement,
   replaceTranscriptMatches,
+  replyHistoryHead,
 } from "../../../api";
 import { makeRangeTarget } from "../../../edit/rangeSelection";
 import type { FindBarHandle } from "../../../stages/edit/FindBar";
@@ -43,14 +44,17 @@ export type ScriptFind = ScriptFindState & {
   previous: () => void;
   selectAll: () => void;
   cutAll: () => Promise<void>;
+  /** Why Replace waits on the current hit, or undefined when it can go. */
+  replaceOneReason: string | undefined;
+  replaceOne: () => Promise<void>;
   replaceAll: () => Promise<number>;
 };
 
 /**
  * Find over the whole transcript (the model's turns, not the window), the
- * hits the pane highlights, and the host's Replace all through the backend's
- * preview and its token. Replace all is queued when the host is offline, so
- * its toast never carries a count.
+ * hits the pane highlights, and the host's Replace and Replace all through the
+ * backend's preview and its token. Both are queued when the host is offline, so
+ * a queued toast never carries a count.
  */
 export function useScriptFind(
   model: ScriptModel,
@@ -124,6 +128,77 @@ export function useScriptFind(
 
   const cutAll = () => cutHits(model, matches);
 
+  const refsOf = (hit: FindHit | undefined) => {
+    const refs = (hit?.indices ?? []).map((index) => model.refs[index]);
+    const first = refs[0];
+    const last = refs[refs.length - 1];
+    if (!first || !last || first.wordIndex === null || last.wordIndex === null)
+      return null;
+    return { first, last, from: hit?.indices[0] ?? 0 };
+  };
+  const replaceOneReason =
+    current >= 0 && refsOf(matches[current]) === null
+      ? "This match has no saved word position yet. Use Replace all."
+      : undefined;
+
+  const pendingAdvance = useRef<{
+    turns: ScriptModel["turns"];
+    from: number;
+  } | null>(null);
+  const advance = useStableCallback(() => {
+    const job = pendingAdvance.current;
+    if (!job || job.turns === model.turns) return;
+    pendingAdvance.current = null;
+    if (matches.length === 0) return;
+    const to = matches.findIndex((hit) => hit.indices[0] >= job.from);
+    go(matches, to === -1 ? matches.length - 1 : to);
+  });
+  useEffect(advance, [model.turns, advance]);
+
+  const replaceOne = async () => {
+    const hit = matches[current];
+    const where = refsOf(hit);
+    if (!hit || !where) throw new Error(replaceOneReason);
+    if (replacementChanges(model.turns, [hit], replaceText).length === 0)
+      throw new Error("That match already reads this way.");
+    const { projectPath, announceStatus } = useDawStore.getState();
+    const options = {
+      search: query,
+      replacement: replaceText,
+      match_case: caseSensitive,
+    };
+    const preview = await previewTranscriptReplacement(projectPath, options);
+    const only = preview.matches.findIndex(
+      (match) =>
+        match.track_id === where.first.trackId &&
+        (match.source_id ?? null) === where.first.sourceId &&
+        match.start_word_index === where.first.wordIndex &&
+        match.end_word_index === where.last.wordIndex,
+    );
+    if (only < 0) throw new Error("That match changed. Find it again.");
+    pendingAdvance.current = {
+      turns: model.turns,
+      from: where.from + replaceText.split(/\s+/).filter(Boolean).length,
+    };
+    try {
+      const result = await replaceTranscriptMatches(
+        projectPath,
+        options,
+        preview.preview_token,
+        only,
+      );
+      if (result.queued) {
+        pendingAdvance.current = null;
+        announceStatus("Replace queued. Still sending.");
+        return;
+      }
+      announceStatus("Replaced 1", { undo: replyHistoryHead(result) });
+    } catch (error) {
+      pendingAdvance.current = null;
+      throw error;
+    }
+  };
+
   const replaceAll = async () => {
     const { projectPath, announceStatus } = useDawStore.getState();
     const options = {
@@ -164,6 +239,8 @@ export function useScriptFind(
     previous: () => step(-1),
     selectAll,
     cutAll,
+    replaceOneReason,
+    replaceOne,
     replaceAll,
   };
 }

@@ -51,6 +51,7 @@ export async function replaceTranscriptMatches(
   projectPath: string,
   options: TranscriptReplacementOptions,
   previewToken: string,
+  only?: number,
 ) {
   requireHost(projectPath);
   return submitDocumentCommand(
@@ -59,6 +60,7 @@ export async function replaceTranscriptMatches(
     {
       ...options,
       preview_token: previewToken,
+      ...(only === undefined ? {} : { only }),
     },
   );
 }
