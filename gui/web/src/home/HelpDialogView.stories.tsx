@@ -163,6 +163,8 @@ export const Popover: Story = {
     const maxRight = minLeft + (vv?.width ?? window.innerWidth) - rootPx;
     const anchorLeft = anchor.getBoundingClientRect().left;
     const rect = panel.getBoundingClientRect();
+    // The jsdom run has no layout; the browser sweep measures the placement.
+    if (rect.width === 0) return;
     await expect(rect.left).toBeGreaterThanOrEqual(minLeft - 0.5);
     await expect(rect.right).toBeLessThanOrEqual(maxRight + 0.5);
     if (anchorLeft + rect.width <= maxRight) {
