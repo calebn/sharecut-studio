@@ -47,8 +47,11 @@ describe("useInputSwitching", () => {
     const { rerender } = render(
       <Harness stream={streamA} status="granted" deviceId="a" {...props} />,
     );
-    const select = screen.getByLabelText("Input");
-    await userEvent.selectOptions(select, "b");
+    const select = screen.getByRole("button", { name: /^Input:/ });
+    await userEvent.click(select);
+    await userEvent.click(
+      screen.getByRole("menuitemradio", { name: "Headset" }),
+    );
     expect(picks).toEqual(["b"]);
     expect(select).toHaveFocus();
 
@@ -58,16 +61,16 @@ describe("useInputSwitching", () => {
     rerender(
       <Harness stream={null} status="prompting" deviceId="b" {...props} />,
     );
-    expect(screen.getByLabelText("Input")).toBe(select);
+    expect(screen.getByRole("button", { name: /^Input:/ })).toBe(select);
     expect(select).toHaveFocus();
     expect(select).toBeEnabled();
-    expect(select).toHaveValue("b");
+    expect(select).toHaveAccessibleName("Input: Headset");
     expect(screen.queryByText("Waiting for your browser…")).toBeNull();
 
     rerender(
       <Harness stream={streamB} status="granted" deviceId="b" {...props} />,
     );
-    expect(screen.getByLabelText("Input")).toBe(select);
+    expect(screen.getByRole("button", { name: /^Input:/ })).toBe(select);
     expect(select).toHaveFocus();
   });
 
@@ -77,11 +80,11 @@ describe("useInputSwitching", () => {
       <Harness stream={streamA} status="granted" deviceId="a" {...props} />,
     );
     rerender(<Harness stream={null} status="denied" deviceId="b" {...props} />);
-    expect(screen.queryByLabelText("Input")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Input:/ })).toBeNull();
     rerender(
       <Harness stream={null} status="prompting" deviceId="b" {...props} />,
     );
-    expect(screen.queryByLabelText("Input")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Input:/ })).toBeNull();
   });
 
   it("is not switching before any stream or after the mic is turned off", () => {
@@ -89,12 +92,12 @@ describe("useInputSwitching", () => {
     const { rerender } = render(
       <Harness stream={null} status="prompting" deviceId="b" {...props} />,
     );
-    expect(screen.queryByLabelText("Input")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Input:/ })).toBeNull();
     rerender(
       <Harness stream={streamA} status="granted" deviceId="b" {...props} />,
     );
     rerender(<Harness stream={null} status="idle" deviceId="b" {...props} />);
-    expect(screen.queryByLabelText("Input")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Input:/ })).toBeNull();
   });
 
   it("forgets the old input when the mic is released, so a later pick is not a switch", () => {
@@ -104,6 +107,6 @@ describe("useInputSwitching", () => {
     );
     rerender(<Harness stream={null} status="idle" deviceId="a" {...props} />);
     rerender(<Harness stream={null} status="idle" deviceId="b" {...props} />);
-    expect(screen.queryByLabelText("Input")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Input:/ })).toBeNull();
   });
 });
