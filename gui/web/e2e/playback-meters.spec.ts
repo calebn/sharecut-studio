@@ -77,6 +77,14 @@ function createMixedRateProject(prefix: string) {
     path.join(fixture.workspaceDir, "raw/guest.wav"),
     monoTone(8000, 60),
   );
+  const silence = Buffer.alloc(48000 * 60 * 4);
+  fs.writeFileSync(
+    path.join(fixture.workspaceDir, "raw/reference.wav"),
+    Buffer.concat([
+      Buffer.from(pcmWavHeader(silence.length, 48000, 2)),
+      silence,
+    ]),
+  );
   return fixture;
 }
 
@@ -330,7 +338,7 @@ test("reduced motion freezes meter bars while real playback clipping remains det
   }
 });
 
-test("a mixed-rate raw guest keeps its own live meter while a 48 kHz track plays", async ({
+test("a mixed-rate raw guest lights its own meter while a silent 48 kHz track stays dark", async ({
   browser,
 }) => {
   test.setTimeout(120000);
@@ -345,6 +353,9 @@ test("a mixed-rate raw guest keeps its own live meter while a 48 kHz track plays
         const guestHeader = trackHeaderOf(trackHeaderButton(page, "guest"));
         await play(page);
         await expect.poll(() => ringLevel(guestHeader)).toBeGreaterThan(0.1);
+        expect(
+          await ringLevel(trackHeaderOf(trackHeaderButton(page, "reference"))),
+        ).toBe(0);
         await page.getByRole("button", { name: "Pause", exact: true }).click();
       },
       undefined,
