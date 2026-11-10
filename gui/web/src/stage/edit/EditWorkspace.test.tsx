@@ -295,6 +295,17 @@ describe("EditWorkspace arrangements", () => {
       expect(strip()).toHaveClass("sys-overview--16");
     });
 
+    it("shares the bar row with the surface switch so it adds no height", () => {
+      stubViewportShell("phone");
+      useDawStore.setState({
+        project: minimalProject({ tracks: [sampleTrack()] }),
+      });
+      render(<EditWorkspace />);
+      expect(strip()?.closest(".phone-edit-bar")).toContainElement(
+        screen.getByRole("group", { name: "Edit surface" }),
+      );
+    });
+
     it("shows in Script focus at 32 px and not on the side by side stage", () => {
       const { unmount } = render(<EditWorkspace />);
       expect(strip()).toBeNull();
