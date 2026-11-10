@@ -27,10 +27,39 @@ import branches
 
 GH_TIMEOUT_SECONDS = 60
 OPT_OUT_LABELS = frozenset({"needs-user-input", "owner-check"})
+_BULLET = r"(?:[-*+]|\d{1,9}[.)])[ \t]+"
 _CLOSING = re.compile(
-    r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b:?[ \t]+(?:([\w.-]+/[\w.-]+))?#(\d+)\b",
+    rf"^[ \t]*(?:{_BULLET})?(?P<bold>\*\*)?(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b:?[ \t]+"
+    r"(?:(?P<repo>[\w.-]{1,100}/[\w.-]{1,100}))?#(?P<num>\d{1,9})\b(?P<rest>.*)$",
     re.IGNORECASE | re.ASCII,
 )
+_CLOSING_TAIL = re.compile(r"[\s.,;:!)_]*")
+_CLOSING_TAIL_BOLD = re.compile(r"[\s.,;:!)_]*\*\*[\s.,;:!)_]*")
+_LABEL = re.compile(r"[ \t]*\((?P<text>[^()\n]{1,40})\)")
+_LABEL_STOP = re.compile(
+    r"\b(?:partial(?:ly)?|partly|part|items?|not|only|except|but|until|after|once|if|when|still"
+    r"|some|half)\b",
+    re.IGNORECASE | re.ASCII,
+)
+_HEADING_LINE = re.compile(r"^ {0,3}#{1,6}[ \t]+\S")
+_BULLET_LINE = re.compile(rf"^[ \t]*{_BULLET}")
+_PARTIAL = re.compile(
+    r"\b(?:part(?:[ \t-]+\d+)?[ \t-]+of|step[ \t-]+\d+[ \t-]+of|partial(?:ly)?|partly|towards?"
+    r"|relates?[ \t]+to|related[ \t]+to|refs?|references?)\b",
+    re.IGNORECASE | re.ASCII,
+)
+_ISSUE_REFS = (
+    re.compile(
+        r"(?<![\w/])(?:(?<![.-])(?P<repo>[\w.-]{1,100}/[\w.-]{1,100}))?#(?P<num>\d{1,9})\b",
+        re.ASCII,
+    ),
+    re.compile(r"\bGH-(?P<num>\d{1,9})\b", re.IGNORECASE | re.ASCII),
+    re.compile(
+        r"https?://github\.com/(?P<repo>[\w.-]{1,100}/[\w.-]{1,100})/(?:issues|pull)/(?P<num>\d{1,9})\b",
+        re.IGNORECASE | re.ASCII,
+    ),
+)
+_FENCE_LINE = re.compile(r"^ {0,3}(?:`{3,}|~{3,})")
 _FENCE_OPEN = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 _BACKTICK_RUN = re.compile(r"`+")
 
@@ -49,15 +78,19 @@ def _visible_lines(body: str, *, fences: bool) -> str:
             closer = re.fullmatch(rf" {{0,3}}({re.escape(fence[0])}{{{fence[1]},}})[ \t]*", line)
             if closer:
                 fence = None
+                kept.append("")
             continue
         opener = _FENCE_OPEN.match(line) if fences else None
         if opener and not (opener[1][0] == "`" and "`" in opener[2]):
             fence = (opener[1][0], len(opener[1]))
             quoted = False
+            kept.append("")
             continue
         if not line.strip():
             quoted = False
         elif line.lstrip(" ").startswith(">") and len(line) - len(line.lstrip(" ")) < 4:
+            if not quoted:
+                kept.append("")
             quoted = True
             continue
         elif quoted:
@@ -86,19 +119,88 @@ def _without_code_spans(paragraph: str) -> str:
     return " ".join(out)
 
 
+def _mentions(line: str) -> list[tuple[str | None, int]]:
+    return [
+        (match.groupdict().get("repo"), int(match["num"]))
+        for pattern in _ISSUE_REFS
+        for match in pattern.finditer(line)
+    ]
+
+
+def _is_indented_code(line: str) -> bool:
+    lead = line[: len(line) - len(line.lstrip(" \t"))]
+    return "\t" in lead or len(lead) >= 4
+
+
+def _closes_cleanly(match: re.Match[str]) -> bool:
+    bold = bool(match["bold"])
+    tail = _CLOSING_TAIL_BOLD if bold else _CLOSING_TAIL
+    rest = match["rest"]
+    if tail.fullmatch(rest):
+        return True
+    label = _LABEL.match(rest)
+    if not label or _LABEL_STOP.search(label["text"]):
+        return False
+    after = rest[label.end() :]
+    return bool(tail.fullmatch(after)) or (not bold and after[:1] in {".", ";", ":", "!"})
+
+
+def _scan_block(lines: Sequence[str], repo: str, found: set[int], partial: set[int]) -> None:
+    kinds: list[str] = []
+    numbers: list[int | None] = []
+    for line in lines:
+        mentions = _mentions(line)
+        has_phrase = bool(_PARTIAL.search(line))
+        if has_phrase:
+            partial.update(num for owner, num in mentions if _same_repo(owner, repo))
+        number = None
+        indented = _is_indented_code(line)
+        match = None if indented else _CLOSING.match(line)
+        if match:
+            kind = "chain"
+            if _closes_cleanly(match) and _same_repo(match["repo"], repo):
+                number = int(match["num"])
+        elif not indented and (_BULLET_LINE.match(line) or (has_phrase and mentions)):
+            kind = "chain"
+        else:
+            kind = "prose"
+        kinds.append(kind)
+        numbers.append(number)
+    for i, number in enumerate(numbers):
+        before_ok = i == 0 or kinds[i - 1] == "chain"
+        after_ok = i == len(kinds) - 1 or kinds[i + 1] == "chain"
+        if number is not None and before_ok and after_ok:
+            found.add(number)
+
+
 def _refs(body: str, repo: str, *, fences: bool) -> set[int]:
     text = re.sub(r"<!--.*?(?:-->|\Z)", " ", _visible_lines(body, fences=fences), flags=re.S)
     found: set[int] = set()
+    partial: set[int] = set()
     for paragraph in re.split(r"\n[ \t]*\n", text):
-        for match in _CLOSING.finditer(_without_code_spans(paragraph)):
-            owner_repo = match.group(1)
-            if owner_repo is None or owner_repo.lower() == repo.lower():
-                found.add(int(match.group(2)))
-    return found
+        segment: list[str] = []
+        for line in _without_code_spans(paragraph).split("\n"):
+            if not line.strip() or _FENCE_LINE.match(line) or _HEADING_LINE.match(line):
+                _scan_block(segment, repo, found, partial)
+                segment = []
+            else:
+                segment.append(line)
+        _scan_block(segment, repo, found, partial)
+    return found - partial
+
+
+def _same_repo(owner_repo: str | None, repo: str) -> bool:
+    return owner_repo is None or owner_repo.lower() == repo.lower()
 
 
 def closing_refs(body: str | None, repo: str) -> set[int]:
     """Issues in `repo` that `body` closes outside code, comments and quotes.
+
+    A keyword counts only on a line that starts a paragraph or follows a blank line, another
+    keyword line or a list bullet, directly before `#N`, with nothing but punctuation after the
+    number (or one short parenthetical label without partial words such as "not" or "items", then
+    punctuation or, after a sentence stop, free prose), and only when the next line in the paragraph is again a keyword line or a bullet.
+    A markdown heading line ends a block like a blank line. An issue the body also names with "Part of", "Refs", "Related to" and the like stays open.
 
     Fences and inline code interact (a ``` line can open a fence or close a span), so the body is
     read both ways and only issues both readings close count: when in doubt, do not close.

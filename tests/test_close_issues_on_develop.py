@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import time
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -90,7 +91,16 @@ def test_every_closing_keyword_form_counts(keyword: str, form: str) -> None:
 
 
 def test_only_closing_keywords_and_this_repo_count() -> None:
-    text = "Part of #1. Refs #2. See #3. Fixes #4, closes other/repo#5, Resolves CALEBN/Sharecut-Studio#6 prefix #8"
+    text = "\n".join(
+        [
+            "Part of #1. Refs #2. See #3.",
+            "Fixes #4",
+            "closes other/repo#5",
+            f"Resolves {REPO.upper()}#6",
+            "",
+            "prefix #8",
+        ]
+    )
     assert cod.closing_refs(text, REPO) == {4, 6}
     assert cod.closing_refs(None, REPO) == set()
     assert cod.closing_refs("Fixes#9 and prefixes #10", REPO) == set()
@@ -140,7 +150,7 @@ def test_text_that_is_code_comment_or_quote_closes_nothing(body: str) -> None:
     "body",
     [
         "`````\n```\nFixes #28\n`````\nFixes #29",
-        "`code` then\nFixes #29",
+        "`code`\nFixes #29",
         "> quoted\n\nFixes #29",
         "<!-- c -->Fixes #29",
         "`unmatched\n\nFixes #29",
@@ -157,8 +167,240 @@ def test_non_ascii_digits_do_not_close_anything() -> None:
     assert cod.closing_refs("Fixes #12", REPO) == {12}
 
 
-def test_negation_is_not_understood() -> None:
-    assert cod.closing_refs("This does not fix #5", REPO) == {5}
+@pytest.mark.parametrize(
+    "body",
+    [
+        "This does not fix #5",
+        "Fixes #5 is deliberately not in the PR description; the final PR closes it.",
+        "Fixes #5 and #6",
+        "Fixes #5, closes #6",
+        "Fixes #5 (partly)",
+        "Part of #5\n\nFixes #5",
+        "Refs #5\nFixes #5",
+        "Related to #5\nFixes #5",
+        "Towards #5\nFixes #5",
+        "This does not\nfix #5",
+        "If merged this\ncloses #5",
+        "para\n\n    Fixes #5",
+        "\tFixes #5",
+        "Fixes #5\nPart of #4 and #5",
+        "Fixes #5\nPart of: #4, #5",
+        "Fixes #5\nPartial fix for #5",
+        "Fixes #5\nStep 1 of #5",
+        "Fixes #5\nRelates to #5",
+        "Fixes #5\nReferences #5",
+        "Fixes #5\nPart of GH-5",
+        "Fixes #5\nPart of [#5](u)",
+        f"Fixes #5\nPart of https://github.com/{REPO}/issues/5",
+        "Fixes #5\nPart-of #5",
+        "Fixes #5\nonly the first half",
+        "**Fixes** #12",
+        "**close** #12.",
+        "**Fixes:** #12",
+        "__Fixes__ #12",
+        "__Fixes #12",
+        "__closes calebn/sharecut-studio#7",
+        "**Fixes #12",
+        "Fixes #12**",
+        "Refs #5\n\nFixes #5",
+        "Towards #5\n\nFixes #5",
+        "Step 2 of #5\n\nFixes #5",
+        "Partial #5\n\nFixes #5",
+        "Part 1 of #5\n\nFixes #5",
+        "Part of GH-5\n\nFixes #5",
+        "Part of https://github.com/calebn/sharecut-studio/issues/5\n\nFixes #5",
+        "Part of https://github.com/calebn/sharecut-studio/pull/5\n\nFixes #5",
+        "a/b/c#5 refs\nFixes #5",
+        "1234567890. Fixes #5",
+        "<!-- \n\n Fixes calebn/sharecut-studio#7\n",
+        "Fixes #5\nDoes not close #5",
+        "Fixes #5\nStill open: #5",
+        "Fixes #5\r\nMore",
+        "- [x] Fixes #5",
+        "> Fixes #5",
+        "`code` then\nFixes #29",
+    ],
+)
+def test_partial_negated_and_inline_mentions_close_nothing(body: str) -> None:
+    assert cod.closing_refs(body, REPO) == set()
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "- Fixes #5",
+        "* Fixes #5.",
+        "1. Closes: #5",
+        "**Fixes #5**",
+        "Fixes #5\n\nxPart of #5",
+        "  Fixes #5,",
+        "## Why\n\nFixes #5\n\nMore",
+        "Fixes #5\r\n\r\nMore",
+        "Part of other/repo#5\nFixes #5",
+        "Fixes #5\nPart of other/repo#5",
+        "Intro\n\n- Fixes #5\n- note",
+    ],
+)
+def test_line_start_and_bullet_forms_close(body: str) -> None:
+    assert cod.closing_refs(body, REPO) == {5}
+
+
+def test_issue_numbers_are_capped_at_nine_digits() -> None:
+    assert cod.closing_refs("Fixes #" + "9" * 5000, REPO) == set()
+    assert cod.closing_refs("Fixes #123456789", REPO) == {123456789}
+    assert cod.closing_refs("Fixes #1234567890", REPO) == set()
+
+
+def test_a_bold_marker_wraps_the_whole_keyword_line_only() -> None:
+    assert cod.closing_refs("**Fixes #12**", REPO) == {12}
+    assert cod.closing_refs("**Fixes** #12", REPO) == set()
+    assert cod.closing_refs("**close** #12.", REPO) == set()
+    assert cod.closing_refs("**Fixes:** #12", REPO) == set()
+    assert cod.closing_refs("**Fixes #12", REPO) == set()
+    assert cod.closing_refs("Fixes #12**", REPO) == set()
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "Fixes #5\n" + "GH-" * 20000,
+        "Fixes #5\nhttps://github.com/" + "a-" * 25000,
+        "Fixes #5\n" + "part-" * 10000,
+        "Fixes #5\n" + "a/" * 20000 + "#",
+        "Fixes #5\n" + "a." * 25000,
+    ],
+)
+def test_long_word_runs_parse_in_linear_time(body: str) -> None:
+    start = time.perf_counter()
+    result = cod.closing_refs(body, REPO)
+    assert time.perf_counter() - start < 1.0
+    assert result == set()
+
+
+def test_long_word_runs_after_a_clean_block_still_close() -> None:
+    start = time.perf_counter()
+    result = cod.closing_refs("Fixes #5\n\n" + "GH-" * 20000, REPO)
+    assert time.perf_counter() - start < 1.0
+    assert result == {5}
+
+
+def test_consecutive_keyword_lines_and_bullets_all_close() -> None:
+    assert cod.closing_refs("Fixes #12\nFixes #13", REPO) == {12, 13}
+    assert cod.closing_refs("- Fixes #12\n- Closes #13\n1. Resolves #14", REPO) == {12, 13, 14}
+    assert cod.closing_refs("  Fixes #30", REPO) == {30}
+
+
+PR_3482_SUMMARY = (
+    "## Summary\n"
+    "Fixes #3481 (beta:blocker). `inspector-sheet.spec.ts:170` failed 6 of 6 on develop because "
+    "the Closing story shared `SEAM_SECTIONS`, which c375d3137 (C3a-1) rewrote from titled "
+    "Offset/Join sections to one untitled section. The Offset heading and spinbutton the spec "
+    "walks no longer existed.\n"
+    "\n"
+    "- The Closing story now renders `CLIP_SECTIONS` (titled Timing section with a Start "
+    "scrub), so it no longer depends on the Seam fixture.\n"
+)
+
+
+def test_real_body_with_a_label_and_prose_after_it_closes() -> None:
+    assert cod.closing_refs(PR_3482_SUMMARY, REPO) == {3481}
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "Fixes #3481 (beta:blocker).",
+        "Fixes #5 (J4).",
+        "Closes #7 (regression)",
+        "Fixes #5(J4)",
+        "- Fixes #5 (x)",
+        "**Fixes #5 (x)**",
+        "Fixes #5 (J4). Not the second half.",
+        "Fixes #5 (J4); see the notes below",
+        "Fixes #5 (" + "x" * 40 + ")",
+        "## Summary\nFixes #5",
+        "Fixes #5\n## Next",
+        "# T\nFixes #5\n###### U\nprose",
+    ],
+)
+def test_short_label_and_heading_forms_close(body: str) -> None:
+    assert cod.closing_refs(body, REPO)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "Fixes #5 (partial)",
+        "Fixes #5 (partly)",
+        "Fixes #5 (part 1)",
+        "Fixes #5 (only the first half)",
+        "Fixes #5 (not the second half)",
+        "Fixes #5 (items 1-4)",
+        "Fixes #5 (item 2)",
+        "Fixes #5 (except the last)",
+        "Fixes #5 (but not all)",
+        "Fixes #5 (until later)",
+        "Fixes #5 (after the merge)",
+        "Fixes #5 (once green)",
+        "Fixes #5 (if possible)",
+        "Fixes #5 (when ready)",
+        "Fixes #5 (still open)",
+        "Fixes #5 (some of it)",
+        "Fixes #5 (HALF)",
+        "Fixes #5 (a)(b)",
+        "Fixes #5 (a (b))",
+        "Fixes #5 (" + "x" * 41 + ")",
+        "Fixes #5 (" + "x" * 50 + ")",
+        "Fixes #5 ()",
+        "Fixes #5 (a\nb)",
+        "Fixes #5 (a) and #6",
+        "Fixes #5 (a) more words",
+        "**Fixes #5 (a)**. prose",
+        "Fixes #5. Not the second half.",
+        "Fixes #5 is not in this PR",
+        "Fixes #5 and #6",
+        "    ## Next\n    Fixes #5",
+        "Fixes #5\n    ## Next\nprose",
+        "Fixes #5\n#6 prose",
+    ],
+)
+def test_labels_with_partial_words_and_other_trailing_text_close_nothing(body: str) -> None:
+    assert cod.closing_refs(body, REPO) == set()
+
+
+def test_a_heading_line_separates_blocks_like_a_blank_line() -> None:
+    assert cod.closing_refs("## Summary\nFixes #12", REPO) == {12}
+    assert cod.closing_refs("Fixes #12\n## Next", REPO) == {12}
+    assert cod.closing_refs("intro\n## Summary\nFixes #12\n## Next\nmore", REPO) == {12}
+    assert cod.closing_refs("intro\nFixes #12", REPO) == set()
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "Fixes #5 (" + "(" * 50000,
+        "Fixes #5 " + "(" * 50000 + ")",
+        "Fixes #5 " + "(a" * 25000,
+        "Fixes #5 (a)" * 20000,
+        "Fixes #5 (" + "x" * 30 + ")" + "(" * 50000,
+        "\n".join("Fixes #5 (" for _ in range(20000)),
+        "## " * 20000,
+    ],
+)
+def test_many_parentheses_parse_in_linear_time(body: str) -> None:
+    start = time.perf_counter()
+    cod.closing_refs(body, REPO)
+    assert time.perf_counter() - start < 1.0
+
+
+def test_real_bodies_that_the_backfill_flagged_close_nothing() -> None:
+    pr_3378 = "Fixes #3003 items 3, 4, 9, 10, 11, 12 and the drag-commit announcement (3b)."
+    pr_3490 = (
+        "Part of #3486 (PR 1 of 2) and #2298. PR 2 closes the rest of #3486.\n\n"
+        "Fixes #3486 is deliberately not in the PR description; the final PR closes it."
+    )
+    assert cod.closing_refs(pr_3378, REPO) == set()
+    assert cod.closing_refs(pr_3490, REPO) == set()
 
 
 def test_title_is_ignored() -> None:
@@ -184,7 +426,7 @@ def test_opt_out_labels_skip(label: str) -> None:
 
 def test_pull_requests_missing_and_closed_issues_skip() -> None:
     client = FakeClient(
-        pr(body="Fixes #5 fixes #6 fixes #404"),
+        pr(body="Fixes #5\nfixes #6\nfixes #404"),
         issues={5: open_issue(is_pr=True), 6: open_issue(state="closed")},
     )
     assert go(client) == 0
@@ -227,7 +469,7 @@ def test_a_comment_without_a_body_is_tolerated() -> None:
 
 
 def test_issues_are_closed_in_ascending_order() -> None:
-    client = FakeClient(pr(body="Fixes #9, fixes #3"), issues={3: open_issue(), 9: open_issue()})
+    client = FakeClient(pr(body="Fixes #9\nfixes #3"), issues={3: open_issue(), 9: open_issue()})
     go(client)
     assert client.closed == [3, 9]
 
@@ -246,7 +488,7 @@ def test_dry_run_writes_nothing() -> None:
 def test_one_failure_does_not_stop_the_rest_and_fails_the_run(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    client = FakeClient(pr(body="Fixes #5, fixes #6"), issues={5: open_issue(), 6: open_issue()})
+    client = FakeClient(pr(body="Fixes #5\nfixes #6"), issues={5: open_issue(), 6: open_issue()})
     client.fail_comment.add(5)
     assert go(client) == 1
     assert client.closed == [6]
@@ -260,7 +502,7 @@ def test_an_unexpected_error_on_one_issue_does_not_abort_the_rest() -> None:
                 raise ValueError("bad")
             super().comment(number, body)
 
-    client = Broken(pr(body="Fixes #5, fixes #6"), issues={5: open_issue(), 6: open_issue()})
+    client = Broken(pr(body="Fixes #5\nfixes #6"), issues={5: open_issue(), 6: open_issue()})
     assert go(client) == 1
     assert client.closed == [6]
 
@@ -281,7 +523,7 @@ def test_unreadable_issue_fails_the_run_but_not_the_others() -> None:
                 raise RuntimeError("HTTP 502")
             return super().issue(number)
 
-    client = Flaky(pr(body="Fixes #5, fixes #6"), issues={6: open_issue()})
+    client = Flaky(pr(body="Fixes #5\nfixes #6"), issues={6: open_issue()})
     assert go(client) == 1
     assert client.closed == [6]
 
