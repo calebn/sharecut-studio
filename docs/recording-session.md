@@ -425,7 +425,8 @@ MM4 asserts the monitor drop; keeper mute zeros are covered by keeper session te
 Mute zeros never trigger the silent PCM watchdog (it is disarmed while muted).
 While muted during a take the page listens to a local clone of the mic only to
 detect speech for the "You're muted." alert; that audio feeds a level reading,
-is never sent, recorded or stored, and the clone is dropped on unmute.
+is never sent, recorded or stored, and the clone is dropped on unmute or take stop.
+The alert clears on unmute, take stop, or after 4 s of quiet.
 
 ## Progressive upload and recovery
 
@@ -851,7 +852,9 @@ polled every 100 ms, starts speech at -45 dBFS and holds it down to -50 dBFS plu
 the count and clears the alert, unmuting or the take stopping resets it (the
 clone is dropped and the next take starts from zero), a pause freezes it, and a
 tick gap over 500 ms (a throttled tab) credits nothing, so the alert cannot fire
-while the tab is hidden. The shared mic track is disabled by mute, so the level
+from a throttled or hidden tab, nor while the audio context is suspended (on iOS
+the away badge can open a context that stays suspended, so it never alerts; the
+alert is for a seat that is muted while on air, recording or paused). The shared mic track is disabled by mute, so the level
 comes from a clone of the stream (`record/mutedSpeechTap.ts`), opened only while
 muted during a take (recording or paused) and read only while the shared audio
 context is running. Guest, host stage
