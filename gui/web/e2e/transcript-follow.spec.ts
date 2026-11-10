@@ -140,15 +140,18 @@ type Sample = {
 async function sample(list: Locator): Promise<Sample> {
   const top = await settledScrollTop(list);
   const max = await list.evaluate((el) => el.scrollHeight - el.clientHeight);
-  const view = await list.evaluate((el) => el.clientHeight);
-  const lead = await list.evaluate((el) => {
+  const { view, lead } = await list.evaluate((el) => {
     const word = el.querySelector<HTMLElement>(
       ".sys-script-word[data-playing]",
     );
-    if (!word) return null;
+    const view = el.clientHeight;
+    if (!word) return { view, lead: null };
     const offset = el.scrollTop - el.getBoundingClientRect().top;
     const box = word.getBoundingClientRect();
-    return { top: box.top + offset, bottom: box.bottom + offset };
+    return {
+      view,
+      lead: { top: box.top + offset, bottom: box.bottom + offset },
+    };
   });
   return { top, max, view, lead };
 }
@@ -169,6 +172,10 @@ async function sweep(
 
 /** Within a few px of the bottom, where an active turn's height moves the maximum. */
 const BOTTOM_SLACK_PX = 8;
+
+function trace(label: string, samples: Sample[]): string {
+  return `${label} ${samples.map((f) => `${f.top}/${f.lead?.top}`).join(",")}`;
+}
 
 /**
  * Steps where scrollTop moved away from the leading playing word. Overlapping
@@ -255,24 +262,12 @@ for (const viewport of viewports) {
       await seekTo(page, 0);
       const forward = await sweep(page, list, "ArrowRight", 54);
       expect(forward.at(-1)?.top).toBeGreaterThan(forward[0].top);
-      expect(
-        reversals(forward),
-        `forward ${forward.map((f) => `${f.top}/${f.lead?.top}`).join(",")}`,
-      ).toBe(0);
-      expect(
-        needlessScrolls(forward),
-        `forward ${forward.map((f) => `${f.top}/${f.lead?.top}`).join(",")}`,
-      ).toBe(0);
+      expect(reversals(forward), trace("forward", forward)).toBe(0);
+      expect(needlessScrolls(forward), trace("forward", forward)).toBe(0);
       const backward = await sweep(page, list, "ArrowLeft", 54);
       expect(backward.at(-1)?.top).toBeLessThan(backward[0].top);
-      expect(
-        reversals(backward),
-        `backward ${backward.map((f) => `${f.top}/${f.lead?.top}`).join(",")}`,
-      ).toBe(0);
-      expect(
-        needlessScrolls(backward),
-        `backward ${backward.map((f) => `${f.top}/${f.lead?.top}`).join(",")}`,
-      ).toBe(0);
+      expect(reversals(backward), trace("backward", backward)).toBe(0);
+      expect(needlessScrolls(backward), trace("backward", backward)).toBe(0);
     });
   });
 }
