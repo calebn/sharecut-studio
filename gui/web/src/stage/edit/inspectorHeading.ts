@@ -25,10 +25,6 @@ const RANGE: InspectorHeading = {
   name: "Range",
 };
 
-/**
- * A voice track wears its person's colour, the one the Person picker shows;
- * any other track, or a voice track nobody speaks on, wears its lane colour.
- */
 function trackMarkColorIndex(
   project: ProjectView,
   track: TrackView,
