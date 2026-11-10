@@ -91,6 +91,7 @@ using MCP; REST `/comments*` is the HTTP twin for clients that do not use docume
 | `GET` | `…/feed` | `view` | Podcast listing: the facts and the item XML (an Editor edits it with SetFeedField) |
 | `POST` | `…/feed/edit` | `Editor` | Change one plain show value (not the hosting address, not choosing the show, not artwork named by a file path) |
 | `POST` | `…/feed/write` | `Editor` | Write the episode's podcast feed file; returns the listing view |
+| `GET` | `…/peaks` | `play` | Frozen review mix overview peaks: 512 values 0..1, [] when unavailable |
 | `GET` | `…/project` | `token` | Review-share project JSON: capabilities, guest mode, review version |
 | `GET` | `…rec/bootstrap` | `kind=record` | Record lobby bootstrap JSON (no review mix) |
 | `GET` | `…rec/features` | `kind=record` | Extension / feature manifest |

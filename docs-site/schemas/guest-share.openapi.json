@@ -16529,6 +16529,42 @@
         }
       }
     },
+    "/api/review/{token}/peaks": {
+      "get": {
+        "description": "Frozen review mix loudness envelope (``play``): 512 values 0..1, ``[]`` when unavailable.\n\nSame ``audio`` rate class and slot as ``/audio``; the decode runs once per version.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
     "/api/review/{token}/project": {
       "get": {
         "parameters": [

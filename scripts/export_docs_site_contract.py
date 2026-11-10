@@ -45,6 +45,10 @@ _ROUTE_NOTES: dict[tuple[str, str], tuple[str, str]] = {
     ),
     ("GET", "/api/review/{token}/features"): ("view", "Extension / feature manifest"),
     ("GET", "/api/review/{token}/audio"): ("play", "Frozen review mix (link previews, agents)"),
+    ("GET", "/api/review/{token}/peaks"): (
+        "play",
+        "Frozen review mix overview peaks: 512 values 0..1, [] when unavailable",
+    ),
     ("GET", "/api/review/{token}/daw/project"): ("view", "Sanitized ProjectView (no host paths)"),
     ("GET", "/api/review/{token}/feed"): (
         "view",
@@ -282,6 +286,7 @@ _ROUTE_AGENT: dict[tuple[str, str], str] = {
     ("GET", "/api/review/{token}/project"): "guest_get_review_summary",
     ("GET", "/api/review/{token}/features"): "http-only: extension manifest for ShareCut Studio",
     ("GET", "/api/review/{token}/audio"): "guest_audio_info",
+    ("GET", "/api/review/{token}/peaks"): "http-only: ShareCut Studio overview strip",
     ("GET", "/api/review/{token}/daw/project"): "guest_get_project",
     ("GET", "/api/review/{token}/daw/document/state"): "http-only: sequenced DAW recovery",
     ("GET", "/api/review/{token}/feed"): (

@@ -43,6 +43,7 @@ if TYPE_CHECKING:
     )
     from podcast_mcp.services.collaboration.record_share import record_bootstrap
     from podcast_mcp.services.collaboration.review import ReviewService
+    from podcast_mcp.services.collaboration.review_peaks import share_review_peaks
     from podcast_mcp.services.collaboration.review_shares import (
         effective_review_version_id,
         list_shares,
@@ -249,6 +250,7 @@ __all__ = [
     "share_proxy_chunk_path",
     "share_proxy_manifest",
     "share_public_origin",
+    "share_review_peaks",
     "share_review_source",
     "share_selected_range_audio",
     "share_set_action_done",
@@ -313,6 +315,7 @@ _MODULE_BY_NAME = {
     "share_add_reply": "share",
     "share_allows_mcp": "share",
     "share_audio_path": "share",
+    "share_review_peaks": "review_peaks",
     "share_audition_context_cached": "share",
     "share_audition_context_image": "share",
     "share_audition_context_image_cached": "share",
