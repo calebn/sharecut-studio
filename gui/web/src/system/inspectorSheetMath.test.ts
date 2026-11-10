@@ -95,17 +95,18 @@ describe("inspectorSheetMath detents", () => {
       { t: 180, height: 587 },
       { t: 185, height: 550 },
     ];
-    expect(riseVelocity(steady, 185)).toBeCloseTo((-137 / 125) * 1, 0);
+    expect(riseVelocity(steady, 185)).toBeCloseTo(-75 / 65, 10);
     expect(settleDetent(550, riseVelocity(steady, 185), 760)).toBe("half");
   });
 
   it("only looks back 100 ms", () => {
-    const slow = [
-      { t: 0, height: 100 },
-      { t: 150, height: 400 },
-      { t: 200, height: 410 },
+    const samples = [
+      { t: 0, height: 0 },
+      { t: 120, height: 500 },
+      { t: 190, height: 520 },
+      { t: 200, height: 510 },
     ];
-    expect(riseVelocity(slow, 200)).toBe(0.2);
+    expect(riseVelocity(samples, 200)).toBe(0.125);
   });
 
   it("toggles half and dock, steps full down to half, and steps one detent held at the ends", () => {
