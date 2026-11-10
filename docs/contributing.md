@@ -191,9 +191,15 @@ The cutover PR flipped `base` to `develop` in `config/branches.json`, `target-br
 
 ### Closing issues from develop
 
-`Fixes #N` closes an issue only when the PR merges into the default branch, and lane PRs merge into `develop`. `.github/workflows/close-issues-on-develop.yml` runs `scripts/close_issues_on_develop.py` when a PR is merged into `develop`. The script re-fetches the PR through the API, checks it is merged into `develop`, and reads the PR body only (GitHub ignores titles, and commit messages are not read). Text in fenced or inline code, HTML comments and `>` quote lines is ignored. Negation is not understood: "does not fix #5" still closes #5. It closes the issues the body references with `close(s/d)`, `fix(es/ed)` or `resolve(s/d)`, with or without a colon, as `#N` or `calebn/sharecut-studio#N`, as completed, and comments with the PR and merge commit (marker `<!-- close-on-develop pr=N -->`, so a re-run never comments twice and only finishes a missed close). It skips `Part of` and `Refs`, other repositories, pull request numbers, closed issues, and issues labelled `needs-user-input` or `owner-check`. Put `owner-check` on an issue that needs the owner's confirmation before it closes. A body edited after the merge is not seen. One failing issue does not stop the others; the run then fails with an `::error::` line per issue.
+`Fixes #N` closes an issue only when the PR merges into the default branch, and lane PRs merge into `develop`. `.github/workflows/close-issues-on-develop.yml` runs `scripts/close_issues_on_develop.py` when a same-repository PR is merged into `develop`. The script re-fetches the PR through the API, checks it is merged into `develop`, and reads the PR body only (GitHub ignores titles; commit messages are not read). It closes, as completed, the issues the body references with `close(s/d)`, `fix(es/ed)` or `resolve(s/d)`, with or without a colon, as `#N` or `calebn/sharecut-studio#N`, and comments with the PR and merge commit (marker `<!-- close-on-develop pr=N -->`; a re-run never comments twice and only finishes a missed close).
 
-Backfill by dispatching the workflow with the merged PR's number (`pr`) and `dry-run` (on by default; untick it to write). A PR dispatched again re-closes an issue someone reopened. The job has only `issues: write`, `contents: read` and `pull-requests: read`, and PR text reaches it as API data, never through `${{ }}` into a shell command.
+- **Skipped:** `Part of` and `Refs`, other repositories, pull request numbers, closed issues, and issues labelled `needs-user-input` or `owner-check`. Put `owner-check` on an issue that needs the owner's confirmation before it closes.
+- **Ignored text:** fenced and inline code, HTML comments and blockquote paragraphs. When the parse is ambiguous it does not close. Negation is not understood: "does not fix #5" still closes #5.
+- **Failures:** one failing issue does not stop the others; the run then fails with an `::error::` line per issue.
+- **Not triggered:** a body edited after the merge, and merges made with the Actions `GITHUB_TOKEN`, which start no workflows.
+- **Backfill:** dispatch the workflow with the merged PR's number (`pr`) and `dry-run` (on by default; untick it to write). It reads the body as it is now, and re-closes an issue someone reopened.
+
+The job has only `issues: write`, `contents: read` and `pull-requests: read`, and PR text reaches it as API data, never through `${{ }}` into a shell command.
 
 ### Bound the outcome before coding
 
