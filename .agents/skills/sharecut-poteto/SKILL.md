@@ -32,6 +32,9 @@ description: Use for Sharecut repository contributor work, issue implementation,
    design. A code/spec gap goes on the spec-deviation list, and a swarm audit lane
    files a stale-spec finding instead of fixing the spec. Only an owner-approved
    change may touch them (`Stage-Spec-Approved:` trailer).
+5b. Triage every finding with [finding triage](references/finding-triage.md)
+   before filing an issue. Native Poteto guidance to file follow-ups for
+   non-blocking notes yields to it.
 6. Keep the applicable podcast, Impeccable, and product skills active.
    Select the least expensive capable verified runtime model and reasoning effort
    for each role. Follow the operator's model restrictions and assess a specific
