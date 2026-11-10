@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { systemCss } from "../test/systemCss";
 import { Player, type PlayerProps } from "./Player";
 
 const base: PlayerProps = {
@@ -61,6 +62,36 @@ describe("Player", () => {
     expect(screen.getByText("Mix out of date")).toBeVisible();
     expect(screen.getByRole("button", { name: "Play" })).not.toHaveAttribute(
       "aria-disabled",
+    );
+  });
+
+  it.each(["bar", "expanded"] as const)(
+    "names the status pill and gives it a hover title, both its status text, in the %s form",
+    (form) => {
+      render(<Player {...base} form={form} status="Mix out of date" />);
+      const pill = screen
+        .getByText("Mix out of date")
+        .closest(".sys-player-pill") as HTMLElement;
+      expect(pill).toHaveAttribute("aria-label", "Mix out of date");
+      expect(pill).toHaveAttribute("title", "Mix out of date");
+    },
+  );
+
+  it("shows the total duration under the expanded strip when the episode has one", () => {
+    render(<Player {...base} form="expanded" total="52:10" duration={3130} />);
+    expect(document.querySelector(".sys-player-total")).toHaveTextContent(
+      "52:10",
+    );
+  });
+
+  it("shows no total duration when the episode has none yet", () => {
+    render(<Player {...base} form="expanded" total="00:00.000" duration={0} />);
+    expect(document.querySelector(".sys-player-total")).toBeNull();
+  });
+
+  it("does not hide the total duration label on a narrow Player", () => {
+    expect(systemCss()).not.toMatch(
+      /(^|\n)\s*\.sys-player-total\s*\{[^}]*display:\s*none/,
     );
   });
 

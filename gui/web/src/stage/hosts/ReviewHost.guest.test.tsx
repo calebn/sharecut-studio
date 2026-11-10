@@ -15,6 +15,7 @@ import {
   minimalProject,
   pendingEditView,
   sampleComment,
+  sampleTrack,
   sessionSuggestionView,
 } from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
@@ -815,5 +816,33 @@ describe("Review queue for a guest", () => {
     join("comment");
     const { container } = render(<ReviewHost guestShare />);
     await expectNoA11yViolations(container);
+  });
+});
+
+describe("Player card for a guest", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    stubViewportShell("desktop");
+    useDawStore.setState({ shellBreakpoint: "desktop" });
+  });
+
+  it("shows no mix status, even when the live project is stale, and shows the total duration", () => {
+    join("comment");
+    useDawStore.getState().setProject(
+      minimalProject({
+        tracks: [sampleTrack({ stem_is_fresh: true })],
+        timeline_duration_sec: 600,
+        render_status: {
+          needs_rerender: true,
+          reconciliation: { stale: false },
+          premix: { exists: true },
+        },
+      }),
+    );
+    render(<ReviewHost guestShare />);
+    const card = document.querySelector(".sys-player--expanded") as HTMLElement;
+    expect(card).not.toBeNull();
+    expect(card.textContent).not.toMatch(/Mix out of date|No mix yet/);
+    expect(card.querySelector(".sys-player-total")).toHaveTextContent("10:00");
   });
 });
