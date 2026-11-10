@@ -174,6 +174,12 @@ SNAPSHOT: dict[str, tuple[str, str, str]] = {
     "InsertGap": ("InsertGapPayload", "edits.insert_gap", "editor"),
     "InsertSegment": ("InsertSegmentPayload", "edits.insert_segment", "host"),
     "FillRoomTone": ("FillRoomTonePayload", "edits.fill_room_tone", "editor"),
+    "ExtractRoomToneBed": ("ExtractRoomToneBedPayload", "edits.extract_room_tone_bed", "host"),
+    "ClearExtractedRoomToneBed": (
+        "ClearExtractedRoomToneBedPayload",
+        "edits.clear_extracted_room_tone_bed",
+        "host",
+    ),
     "ApplyAutoEdits": ("ApplyAutoEditsPayload", "edits.apply_auto_edits", "editor"),
     "ProposeTighten": ("ProposeTightenPayload", "edits.propose_tighten", "editor"),
     "ApplyEditPlan": ("ApplyEditPlanPayload", "edits.apply_edit_plan", "editor"),
@@ -235,7 +241,7 @@ def _access(command_type: str) -> str:
 
 def test_snapshot_covers_every_command_type() -> None:
     assert set(SNAPSHOT) == set(get_args(DocumentCommandType))
-    assert len(SNAPSHOT) == 87
+    assert len(SNAPSHOT) == 89
 
 
 @pytest.mark.parametrize("command_type", sorted(SNAPSHOT))

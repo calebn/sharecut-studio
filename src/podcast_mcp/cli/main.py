@@ -24,6 +24,7 @@ from podcast_mcp.cli import (
     segment,
     session_cmd,
     speaker,
+    track,
     transcript_cmd,
     tunnel,
 )
@@ -86,6 +87,7 @@ app.add_typer(doc.doc_app, name="doc")
 app.add_typer(feed.feed_app, name="feed")
 app.add_typer(review.review_app, name="review")
 app.add_typer(segment.segment_app, name="segment")
+app.add_typer(track.track_app, name="track")
 app.add_typer(kit.kit_app, name="kit")
 app.add_typer(ingest.ingest_app, name="ingest")
 app.add_typer(align_cmd.align_app, name="align")

@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { setEffectBypass } from "../../api";
 import { executePointerCommand } from "../../commands/pointer";
+import { roomToneBedBlocker } from "../../commands/roomToneBed";
 import { useTrackMetaMutation } from "../../hooks/useTrackMetaMutation";
 import { ingestFiles, pickAudioFiles } from "../../ingest/ingestFiles";
 import {
@@ -14,7 +15,7 @@ import type { InspectorSection } from "../../system/InspectorSheet";
 import { ScrubField } from "../../system/ScrubField";
 import { TrackMuteSoloButtons } from "../../tracks/TrackMuteSoloButtons";
 import { TrackPlaybackMeter } from "../../tracks/TrackPlaybackMeter";
-import type { Selection } from "../../types/project";
+import type { Selection, TrackView } from "../../types/project";
 import { Button, CommandButton } from "../../ui";
 import { BUSY_REASON } from "../../ui/disabledReason";
 import {
@@ -31,6 +32,42 @@ import { TrackLevelNote } from "./TrackLevelNote";
 import { AddTrackPerson, TrackPerson } from "./TrackPerson";
 import { kindOf, roleForKind, TRACK_KINDS } from "./trackKind";
 import { episodePeople } from "./trackPeople";
+
+function roomToneRows(track: TrackView, disabledReason: string | undefined) {
+  if (track.room_tone === "recorded")
+    return [
+      {
+        id: "roomTone",
+        label: "Room tone",
+        control: "Recorded for this track",
+      },
+    ];
+  const extracted = track.room_tone === "extracted";
+  return [
+    {
+      id: "roomTone",
+      label: "Room tone",
+      control: extracted
+        ? "Cut from this track's own quiet stretch"
+        : "None. Fills use comfort noise.",
+    },
+    {
+      id: "roomToneAction",
+      control: (
+        <CommandButton
+          commandId={
+            extracted ? "track.clearRoomTone" : "track.extractRoomTone"
+          }
+          className="track-sheet-action"
+          args={{ trackId: track.id }}
+          disabledReason={disabledReason}
+        >
+          {extracted ? "Remove extracted room tone" : "Extract room tone"}
+        </CommandButton>
+      ),
+    },
+  ];
+}
 
 export function useTrackSections(
   selection: Selection,
@@ -79,6 +116,7 @@ export function useTrackSections(
   const hostCanSplit = canManageProjects(projectPath);
   const splitBlocker = splitSpeakersBlocker(track, hostCanSplit);
   const busyReason = busy ? BUSY_REASON : undefined;
+  const bedBlocker = roomToneBedBlocker(track, hostCanSplit);
 
   const pickPerson = (speaker: string) => {
     if (!busy) void saveSpeaker(speaker);
@@ -254,6 +292,9 @@ export function useTrackSections(
                   ]
                 : []),
             ]
+          : []),
+        ...(voice && hostCanSplit && track.media_path
+          ? roomToneRows(track, busyReason ?? bedBlocker ?? undefined)
           : []),
         ...(error
           ? [

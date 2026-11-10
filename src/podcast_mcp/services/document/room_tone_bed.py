@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from podcast_mcp.edits.extracted_bed import bedless_reason, register_extracted_bed
+from podcast_mcp.edits.extracted_bed import (
+    bedless_reason,
+    clear_extracted_bed,
+    register_extracted_bed,
+)
 from podcast_mcp.engines.room_tone import SampleAbsent
 from podcast_mcp.engines.room_tone_extract import plan_extracted_bed
 from podcast_mcp.services.document.service_base import WorkspaceService
@@ -39,5 +43,26 @@ class RoomToneBedService(WorkspaceService):
             "after extracting room tone",
             lambda p: register_extracted_bed(p, tid, plan),
             operation="extract_room_tone_bed",
+            params={"track_id": tid},
+        )
+
+    def clear_extracted_room_tone_bed(
+        self, *, track_id: str | None = None, speaker: str | None = None
+    ) -> dict[str, Any]:
+        """Take the bed the pipeline cut off ``track_id``, in one undo step.
+
+        A recorded or assigned bed is never removed, and a track with no bed is left as it is;
+        the reply says why. Fills already laid keep sounding the same, since they hold their
+        own copy. History undo brings the bed back.
+        """
+        tid = self._resolve(track_id, speaker)
+        track = self.ws.project.track_by_id(tid)
+        if track is None or track.room_tone is None or track.room_tone_origin is None:
+            return clear_extracted_bed(self.ws.project, tid)
+        return self.ws.mutate(
+            "before clearing extracted room tone",
+            "after clearing extracted room tone",
+            lambda p: clear_extracted_bed(p, tid),
+            operation="clear_extracted_room_tone_bed",
             params={"track_id": tid},
         )

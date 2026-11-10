@@ -700,6 +700,22 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             mcp=named("fill_with_room_tone_tool"),
             cli=named(GENERIC_CLI),
         ),
+        "ExtractRoomToneBed": CommandSpec(
+            payload=p.ExtractRoomToneBedPayload,
+            handler=edits.extract_room_tone_bed,
+            host_only_reason="decodes the track's whole source audio on the host, which a share link never reaches",
+            gui=GUI_SENT,
+            mcp=named("extract_room_tone_bed_tool"),
+            cli=named("podcast track room-tone extract"),
+        ),
+        "ClearExtractedRoomToneBed": CommandSpec(
+            payload=p.ClearExtractedRoomToneBedPayload,
+            handler=edits.clear_extracted_room_tone_bed,
+            host_only_reason="undoes a host-side extraction, which a share link never makes",
+            gui=GUI_SENT,
+            mcp=named("clear_extracted_room_tone_bed_tool"),
+            cli=named("podcast track room-tone clear"),
+        ),
         "ApplyAutoEdits": CommandSpec(
             payload=p.ApplyAutoEditsPayload,
             handler=edits.apply_auto_edits,

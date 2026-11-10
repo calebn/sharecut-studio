@@ -18,6 +18,7 @@ from podcast_mcp.gui.mapper import (
     social_clips_for_view,
 )
 from podcast_mcp.gui.schemas import ProjectView, TrackView
+from podcast_mcp.models import Track
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import (
     AnalysisService,
@@ -94,6 +95,12 @@ def _effects_by_track(ws: ProjectWorkspace) -> dict[str, list[dict[str, Any]]]:
     return out
 
 
+def _room_tone_kind(track: Track) -> Literal["none", "recorded", "extracted"]:
+    if track.room_tone is None:
+        return "none"
+    return "recorded" if track.room_tone_origin is None else "extracted"
+
+
 def build_track_views(
     ws: ProjectWorkspace,
     *,
@@ -133,6 +140,7 @@ def build_track_views(
                 media_path=track.media.path if track.media else None,
                 speaker_split_id=split.id if split else None,
                 fade_max_ms=track_fade_max_ms(track, defaults),
+                room_tone=_room_tone_kind(track),
             )
         )
     return track_views
