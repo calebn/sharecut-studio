@@ -46,7 +46,7 @@ off, it decodes nothing and changes nothing. Turning the switch on later does no
 fill an earlier run already baked; it shapes the fills chosen after it runs. `--from` a later
 step skips it, as for any step. Turning the switch off does not remove beds already
 extracted; one History undo of `after extract_room_tone_beds` does, per run, not per bed.
-Music, intro, outro and gated tracks are never given a bed.
+Music, intro, outro and fully gated tracks are never given a bed.
 
 The switch is on by default, so a run on a project whose dialogue tracks have no recorded bed cuts one for each (once per track; later runs keep the bed and report it as kept). Projects that already ran before the default changed get the beds the next time they run the pipeline. A guest-started run cuts beds into the host project too, under the same "before pipeline run" checkpoint, so the host can undo. A staged step list that leaves the step unchecked keeps it off even with the switch on; reset the list or toggle the switch. A partly gated track can still get a bed, and gate fill then prefers it over comfort noise. Turn the switch off in Prepare's Advanced list or with `--set room_tone.extract_bed=false` to run without it.
 
