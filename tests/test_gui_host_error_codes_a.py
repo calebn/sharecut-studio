@@ -56,6 +56,11 @@ def test_project_switch_refused_for_remote_peer(remote):
         403,
         "project_recent_not_allowed",
     )
+    _assert(
+        remote.post("/api/project/reveal", json={"path": "/x"}),
+        403,
+        "reveal_not_allowed",
+    )
 
 
 def test_open_project_bad_paths(local, tmp_path):

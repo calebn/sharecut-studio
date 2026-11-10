@@ -20,7 +20,7 @@ from podcast_mcp.gui.audio import (
     resolve_viewer_transport,
 )
 from podcast_mcp.gui.host_file_dialog import pick_episode_project_path
-from podcast_mcp.gui.host_reveal import reveal_in_file_manager
+from podcast_mcp.gui.host_reveal import REVEAL_UNAVAILABLE, reveal_in_file_manager
 from podcast_mcp.gui.poll_meta import project_meta
 from podcast_mcp.gui.routes.deps import (
     bad_request_error,
@@ -28,6 +28,7 @@ from podcast_mcp.gui.routes.deps import (
     coded_http_error,
     peer_host,
     require_host,
+    require_loopback_peer,
     resolve_project,
 )
 from podcast_mcp.gui.routes.handoff import set_served_project
@@ -276,6 +277,22 @@ def reveal_recent_project(
         raise coded_http_error(
             409, "This computer couldn't open its file manager.", code="reveal_unavailable"
         )
+    return {"revealed": True}
+
+
+@router.post("/api/project/reveal")
+def reveal_project(
+    body: OpenProjectBody,
+    request: Request,
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> dict[str, bool]:
+    """Show the served episode's project file in this computer's file manager (Settings' "Saved in")."""
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    require_loopback_peer(request)
+    path = _require_episode_path(str(resolve_project(body.path, request)))
+    if not reveal_in_file_manager(path):
+        raise coded_http_error(409, REVEAL_UNAVAILABLE, code="reveal_unavailable")
     return {"revealed": True}
 
 
