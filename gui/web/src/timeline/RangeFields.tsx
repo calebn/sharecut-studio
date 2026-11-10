@@ -69,9 +69,7 @@ export function RangeFields({
   const outSec = span?.end ?? 0;
   const scope =
     target?.track_ids ??
-    (drafting
-      ? rangeDraft.trackIds
-      : (state.agentRangeScope ?? []));
+    (drafting ? rangeDraft.trackIds : (state.agentRangeScope ?? []));
   const editable = showNumeric && span !== null && (always || drafting);
   const agent = showNumeric && sessionRegion && (rangeArmed || !target);
   const unresolved =
