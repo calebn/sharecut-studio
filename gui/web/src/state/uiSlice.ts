@@ -44,6 +44,7 @@ import type {
   FeedbackToast,
   JobFeedback,
   JobStartToken,
+  KnownPerson,
   LaneHeightMode,
   LayerVisibility,
   PointerKind,
@@ -208,6 +209,7 @@ type UiSlice = Pick<
   | "statusAnnouncement"
   | "statusAnnouncementSeq"
   | "feedbackToast"
+  | "knownPeople"
   | "jobFeedback"
   | "jobResultStarts"
   | "beginJobResultStart"
@@ -220,6 +222,7 @@ type UiSlice = Pick<
   | "setRenderPreviewBusy"
   | "setIngestBusy"
   | "setIngestDropTrackId"
+  | "rememberPerson"
   | "announceStatus"
   | "endGestureFeedback"
   | "dismissFeedbackToast"
@@ -350,6 +353,7 @@ export function uiProjectInitial() {
     bounceRangeTarget: null,
     prepareFocusTrackId: null,
     feedbackToast: null,
+    knownPeople: [] as readonly KnownPerson[],
     jobFeedback: new Map<string, JobFeedback>(),
     jobResultStarts: new Map<JobStartToken, AnnouncedJobKind>(),
     spokenJobResultIds: [] as readonly string[],
@@ -386,6 +390,13 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     setIngestBusy: (ingestBusy, ingestFileCount = 0) =>
       set({ ingestBusy, ingestFileCount }),
     setIngestDropTrackId: (ingestDropTrackId) => set({ ingestDropTrackId }),
+    rememberPerson: (person) =>
+      set((s) => ({
+        knownPeople: [
+          ...s.knownPeople.filter((p) => p.id !== person.id),
+          person,
+        ],
+      })),
     announceStatus: (rawMessage, options = {}) =>
       set((s) => {
         return feedbackPatch(s, { kind: "public", rawMessage, options });

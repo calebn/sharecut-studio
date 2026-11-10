@@ -1,21 +1,20 @@
 import { AddPerson } from "../../stages/edit/AddPerson";
 import type { FixTextAnswer } from "../../stages/edit/FixTextField";
-import { PersonPicker } from "../../system/PersonPicker";
+import { PersonPicker, type PickerPerson } from "../../system/PersonPicker";
 import type { TrackView } from "../../types/project";
-import { episodePeople, personId } from "./trackPeople";
+import { personId } from "./trackPeople";
 
 const NAME_REQUIRED = "Enter a person's name.";
 
 export function TrackPerson({
   track,
-  tracks,
+  people,
   onPick,
 }: {
   track: TrackView;
-  tracks: readonly TrackView[];
+  people: readonly PickerPerson[];
   onPick: (speaker: string) => void;
 }) {
-  const people = episodePeople(tracks);
   const current = personId(track.speaker);
   return people.length > 0 ? (
     <PersonPicker
@@ -33,14 +32,13 @@ export function TrackPerson({
 
 export function AddTrackPerson({
   track,
-  tracks,
+  people,
   onPick,
 }: {
   track: TrackView;
-  tracks: readonly TrackView[];
+  people: readonly PickerPerson[];
   onPick: (speaker: string) => FixTextAnswer;
 }) {
-  const people = episodePeople(tracks);
   return (
     <AddPerson
       label="Add person"

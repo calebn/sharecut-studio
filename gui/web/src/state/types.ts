@@ -29,6 +29,13 @@ import type {
 } from "./projectSlice";
 import type { StageSliceState } from "./stageSlice";
 
+/** A person kept in the Person picker after their last track went to someone else. */
+export type KnownPerson = {
+  id: string;
+  name: string;
+  colorIndex: number;
+};
+
 export type HelpStep = "menu" | "report";
 
 export type RangeDraft = TimelineSpan & { trackIds: readonly string[] };
@@ -381,6 +388,11 @@ export interface DawState {
   statusAnnouncementSeq: number;
   /** Visible twin of the last announcement that has one; null once dismissed. */
   feedbackToast: FeedbackToast | null;
+  /**
+   * People the Person picker keeps after a track was switched away from them,
+   * so one can be picked again. Reset with the project.
+   */
+  knownPeople: readonly KnownPerson[];
   jobResultStarts: ReadonlyMap<JobStartToken, AnnouncedJobKind>;
   jobFeedback: ReadonlyMap<string, JobFeedback>;
   /**
@@ -533,6 +545,7 @@ export interface DawState {
   setRenderPreviewBusy: (on: boolean) => void;
   setIngestBusy: (on: boolean, fileCount?: number) => void;
   setIngestDropTrackId: (trackId: string | null) => void;
+  rememberPerson: (person: KnownPerson) => void;
   /** Speak `message` in the live region and show it as a toast (see `AnnounceOptions`). */
   announceStatus: (message: string, options?: AnnounceOptions) => void;
   /** Clears the toast a gesture raised, when that gesture ends. */

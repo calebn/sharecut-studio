@@ -30,7 +30,7 @@ import { TrackKindControl } from "./TrackKindControl";
 import { TrackLevelNote } from "./TrackLevelNote";
 import { AddTrackPerson, TrackPerson } from "./TrackPerson";
 import { kindOf, roleForKind, TRACK_KINDS } from "./trackKind";
-import { episodePeople } from "./trackPeople";
+import { personId, useEpisodePeople } from "./trackPeople";
 
 export function useTrackSections(
   selection: Selection,
@@ -43,6 +43,7 @@ export function useTrackSections(
     layers,
     setLayerVisible,
     rangeArmed,
+    rememberPerson,
   } = useDaw((s) => ({
     project: s.project,
     projectPath: s.projectPath,
@@ -51,6 +52,7 @@ export function useTrackSections(
     layers: s.layers,
     setLayerVisible: s.setLayerVisible,
     rangeArmed: s.rangeArmed,
+    rememberPerson: s.rememberPerson,
   }));
   const trackId =
     selection?.kind === "track" || selection?.kind === "envelope"
@@ -62,6 +64,7 @@ export function useTrackSections(
   useEffect(() => {
     setError(null);
   }, [track?.id, track?.speaker, setError]);
+  const people = useEpisodePeople(project?.tracks ?? []);
   if (trackId === null) return null;
   if (rangeArmed && selection?.kind === "track") return [];
   if (!track)
@@ -81,12 +84,21 @@ export function useTrackSections(
   const busyReason = busy ? BUSY_REASON : undefined;
 
   const pickPerson = (speaker: string) => {
-    if (!busy) void saveSpeaker(speaker);
+    if (busy) return;
+    const leavingId = personId(track.speaker);
+    const leaving = project?.tracks.some(
+      (t) => t.id !== track.id && personId(t.speaker) === leavingId,
+    )
+      ? undefined
+      : people.find((p) => p.id === leavingId);
+    void saveSpeaker(speaker).then((refused) => {
+      if (leaving && refused === undefined) rememberPerson(leaving);
+    });
   };
   const addPerson = (speaker: string) =>
     busy ? BUSY_REASON : saveSpeaker(speaker);
   const voice = kindOf(track.role) === "voice";
-  const hasPeople = episodePeople(project?.tracks ?? []).length > 0;
+  const hasPeople = people.length > 0;
   const personRows = !voice
     ? []
     : mayIngest
@@ -98,7 +110,7 @@ export function useTrackSections(
                   control: (
                     <TrackPerson
                       track={track}
-                      tracks={project?.tracks ?? []}
+                      people={people}
                       onPick={pickPerson}
                     />
                   ),
@@ -110,7 +122,7 @@ export function useTrackSections(
             control: (
               <AddTrackPerson
                 track={track}
-                tracks={project?.tracks ?? []}
+                people={people}
                 onPick={addPerson}
               />
             ),
