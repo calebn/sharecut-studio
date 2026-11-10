@@ -2,6 +2,10 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { submitDocumentCommand } from "../../../api/documentEdits";
+import {
+  loadCommandQueue,
+  loadHostCommandQueue,
+} from "../../../services/offlineQueue/offlineStore";
 import { useDawStore } from "../../../state/dawStore";
 import {
   COMMENTER_CAPABILITIES,
@@ -28,14 +32,15 @@ vi.mock("../../../api/documentEdits", async (original) => ({
   submitDocumentCommand: vi.fn(),
 }));
 const queueRows = vi.hoisted(() => ({
-  rows: [] as { command_id: string }[],
+  host: [] as { command_id: string }[],
+  share: [] as { command_id: string }[],
 }));
 vi.mock("../../../services/offlineQueue/offlineStore", async (original) => ({
   ...(await original<
     typeof import("../../../services/offlineQueue/offlineStore")
   >()),
-  loadHostCommandQueue: vi.fn(async () => queueRows.rows),
-  loadCommandQueue: vi.fn(async () => queueRows.rows),
+  loadHostCommandQueue: vi.fn(async () => queueRows.host),
+  loadCommandQueue: vi.fn(async () => queueRows.share),
 }));
 vi.mock("../../../commands/seek", () => ({ seekTransport: vi.fn() }));
 const scrolled = vi.hoisted(() => ({ to: [] as number[] }));
@@ -109,7 +114,10 @@ beforeEach(() => {
     preview_token: "tok-1",
   });
   replace.mockResolvedValue({ queued: false });
-  queueRows.rows = [];
+  queueRows.host = [];
+  queueRows.share = [];
+  vi.mocked(loadHostCommandQueue).mockClear();
+  vi.mocked(loadCommandQueue).mockClear();
   vi.mocked(submitDocumentCommand).mockReset();
   vi.mocked(submitDocumentCommand).mockResolvedValue({
     type: "Applied",
@@ -530,7 +538,7 @@ describe("ScriptHost Find", () => {
       queued: true,
       command_id: "c1",
     });
-    queueRows.rows = [{ command_id: "c1" }];
+    queueRows.host = [{ command_id: "c1" }];
     await openFind();
     await userEvent.type(findField(), "maya");
     await userEvent.click(screen.getByRole("button", { name: "Cut all 1" }));
@@ -561,7 +569,7 @@ describe("ScriptHost Find", () => {
       queued: true,
       command_id: "c1",
     });
-    queueRows.rows = [{ command_id: "c1" }];
+    queueRows.host = [{ command_id: "c1" }];
     await openFind();
     await userEvent.type(findField(), "maya");
     const button = screen.getByRole("button", { name: "Cut all 1" });
@@ -581,13 +589,228 @@ describe("ScriptHost Find", () => {
     expect(useDawStore.getState().rangeBusy).toBe(false);
   });
 
+  async function cutAllFor(query: string) {
+    await userEvent.clear(findField());
+    await userEvent.type(findField(), query);
+    await userEvent.click(screen.getByRole("button", { name: /^Cut all/ }));
+  }
+
+  it("refuses a cut queued earlier even after another cut was queued since", async () => {
+    seedScript({ project: { clips: CLIPS } });
+    vi.mocked(submitDocumentCommand)
+      .mockResolvedValueOnce({ queued: true, command_id: "c1" })
+      .mockResolvedValueOnce({ queued: true, command_id: "c2" });
+    queueRows.host = [{ command_id: "c1" }, { command_id: "c2" }];
+    await openFind();
+    await cutAllFor("maya");
+    await waitFor(() => expect(submitDocumentCommand).toHaveBeenCalledTimes(1));
+    await cutAllFor("so");
+    await waitFor(() => expect(submitDocumentCommand).toHaveBeenCalledTimes(2));
+    await cutAllFor("maya");
+    expect(
+      await screen.findByText(
+        "Cut all is already queued. Wait for it to send.",
+      ),
+    ).toBeInTheDocument();
+    expect(submitDocumentCommand).toHaveBeenCalledTimes(2);
+  });
+
+  it("cuts again once only its own row has left the queue", async () => {
+    seedScript({ project: { clips: CLIPS } });
+    vi.mocked(submitDocumentCommand)
+      .mockResolvedValueOnce({ queued: true, command_id: "c1" })
+      .mockResolvedValueOnce({ queued: true, command_id: "c2" });
+    queueRows.host = [{ command_id: "c1" }, { command_id: "c2" }];
+    await openFind();
+    await cutAllFor("maya");
+    await waitFor(() => expect(submitDocumentCommand).toHaveBeenCalledTimes(1));
+    await cutAllFor("so");
+    await waitFor(() => expect(submitDocumentCommand).toHaveBeenCalledTimes(2));
+    queueRows.host = [{ command_id: "c2" }];
+    await cutAllFor("maya");
+    await waitFor(() => expect(submitDocumentCommand).toHaveBeenCalledTimes(3));
+  });
+
+  it("is not blocked by an unrelated row in the queue", async () => {
+    seedScript({ project: { clips: CLIPS } });
+    vi.mocked(submitDocumentCommand).mockResolvedValue({
+      queued: true,
+      command_id: "c1",
+    });
+    queueRows.host = [{ command_id: "other" }];
+    await openFind();
+    await cutAllFor("maya");
+    await waitFor(() => expect(submitDocumentCommand).toHaveBeenCalledTimes(1));
+    await cutAllFor("maya");
+    await waitFor(() => expect(submitDocumentCommand).toHaveBeenCalledTimes(2));
+  });
+
+  it("cuts the same search again in a new project even if its row is still queued", async () => {
+    seedScript({ project: { clips: CLIPS } });
+    vi.mocked(submitDocumentCommand).mockResolvedValue({
+      queued: true,
+      command_id: "c1",
+    });
+    queueRows.host = [{ command_id: "c1" }];
+    await openFind();
+    await cutAllFor("maya");
+    await waitFor(() => expect(submitDocumentCommand).toHaveBeenCalledTimes(1));
+    act(() => {
+      useDawStore.setState({
+        projectEpoch: useDawStore.getState().projectEpoch + 1,
+      });
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Cut all 1" }));
+    await waitFor(() => expect(submitDocumentCommand).toHaveBeenCalledTimes(2));
+  });
+
+  it("reads the host queue for a host project and never the share queue", async () => {
+    seedScript({ project: { clips: CLIPS } });
+    vi.mocked(submitDocumentCommand).mockResolvedValue({
+      queued: true,
+      command_id: "c1",
+    });
+    queueRows.host = [{ command_id: "c1" }];
+    queueRows.share = [];
+    await openFind();
+    await cutAllFor("maya");
+    await waitFor(() => expect(submitDocumentCommand).toHaveBeenCalledTimes(1));
+    await cutAllFor("maya");
+    expect(
+      await screen.findByText(
+        "Cut all is already queued. Wait for it to send.",
+      ),
+    ).toBeInTheDocument();
+    expect(loadHostCommandQueue).toHaveBeenCalledWith(
+      useDawStore.getState().projectPath,
+    );
+    expect(loadCommandQueue).not.toHaveBeenCalled();
+  });
+
+  it("reads the share queue by token for a share project and never the host queue", async () => {
+    seedScript({
+      projectPath: "share:abc",
+      guestMode: "edit",
+      shareCapabilities: EDITOR_CAPABILITIES,
+      project: { clips: CLIPS },
+    });
+    vi.mocked(submitDocumentCommand).mockResolvedValue({
+      queued: true,
+      command_id: "c1",
+    });
+    queueRows.host = [];
+    queueRows.share = [{ command_id: "c1" }];
+    await openFind();
+    await cutAllFor("maya");
+    await waitFor(() => expect(submitDocumentCommand).toHaveBeenCalledTimes(1));
+    await cutAllFor("maya");
+    expect(
+      await screen.findByText(
+        "Cut all is already queued. Wait for it to send.",
+      ),
+    ).toBeInTheDocument();
+    expect(loadCommandQueue).toHaveBeenCalledWith("abc");
+    expect(loadHostCommandQueue).not.toHaveBeenCalled();
+  });
+
+  it("submits nothing to a new project when the project switches during the queue read", async () => {
+    seedScript({ project: { clips: CLIPS } });
+    vi.mocked(submitDocumentCommand).mockResolvedValue({
+      queued: true,
+      command_id: "c1",
+    });
+    queueRows.host = [{ command_id: "c1" }];
+    await openFind();
+    await cutAllFor("maya");
+    await waitFor(() => expect(submitDocumentCommand).toHaveBeenCalledTimes(1));
+    let finish!: (rows: { command_id: string }[]) => void;
+    vi.mocked(loadHostCommandQueue).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve as typeof finish;
+        }) as ReturnType<typeof loadHostCommandQueue>,
+    );
+    await cutAllFor("maya");
+    await waitFor(() => expect(useDawStore.getState().rangeBusy).toBe(true));
+    act(() => {
+      useDawStore.setState({
+        projectPath: "/other/project",
+        projectEpoch: useDawStore.getState().projectEpoch + 1,
+        rangeBusy: false,
+      });
+    });
+    await act(async () => {
+      finish([]);
+    });
+    expect(submitDocumentCommand).toHaveBeenCalledTimes(1);
+    expect(useDawStore.getState().rangeBusy).toBe(false);
+  });
+
+  it("says nothing was cut and releases rangeBusy when the queue cannot be read", async () => {
+    seedScript({ project: { clips: CLIPS } });
+    vi.mocked(submitDocumentCommand).mockResolvedValue({
+      queued: true,
+      command_id: "c1",
+    });
+    queueRows.host = [{ command_id: "c1" }];
+    await openFind();
+    await cutAllFor("maya");
+    await waitFor(() => expect(submitDocumentCommand).toHaveBeenCalledTimes(1));
+    vi.mocked(loadHostCommandQueue).mockRejectedValueOnce(
+      new Error("IDB closed"),
+    );
+    await cutAllFor("maya");
+    expect(
+      await screen.findByText("Nothing was cut. Try again."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("IDB closed")).toBeNull();
+    expect(submitDocumentCommand).toHaveBeenCalledTimes(1);
+    expect(useDawStore.getState().rangeBusy).toBe(false);
+  });
+
+  it("says there are no audible words when no match can be placed", async () => {
+    seedScript();
+    await openFind();
+    await userEvent.type(findField(), "maya");
+    await userEvent.click(screen.getByRole("button", { name: /^Cut all/ }));
+    expect(
+      await screen.findByText("No audible words in these matches."),
+    ).toBeInTheDocument();
+    expect(submitDocumentCommand).not.toHaveBeenCalled();
+    expect(useDawStore.getState().rangeBusy).toBe(false);
+  });
+
+  it("tells an editing guest the host has to review an edit that needs another review", async () => {
+    seedScript({
+      projectPath: "share:abc",
+      guestMode: "edit",
+      shareCapabilities: EDITOR_CAPABILITIES,
+      project: { clips: CLIPS },
+    });
+    vi.mocked(submitDocumentCommand).mockRejectedValue(
+      new ApiError(
+        "This edit needs another review. Ask the host to review it in the editor before applying it.",
+        "cut_scope_changed",
+        400,
+      ),
+    );
+    await openFind();
+    await userEvent.type(findField(), "maya");
+    await userEvent.click(screen.getByRole("button", { name: "Cut all 1" }));
+    expect(
+      await screen.findByText(
+        "Nothing was cut. The host has to review this edit first.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("cuts again when the queued Cut all was rejected on replay", async () => {
     seedScript({ project: { clips: CLIPS } });
     vi.mocked(submitDocumentCommand).mockResolvedValueOnce({
       queued: true,
       command_id: "c1",
     });
-    queueRows.rows = [{ command_id: "c1" }];
+    queueRows.host = [{ command_id: "c1" }];
     await openFind();
     await userEvent.type(findField(), "maya");
     const button = screen.getByRole("button", { name: "Cut all 1" });
@@ -597,7 +820,7 @@ describe("ScriptHost Find", () => {
         "Cut all queued. Still sending.",
       ),
     );
-    queueRows.rows = [];
+    queueRows.host = [];
     await userEvent.click(button);
     await waitFor(() =>
       expect(useDawStore.getState().statusAnnouncement).toBe("Cut 1 match"),
@@ -611,7 +834,7 @@ describe("ScriptHost Find", () => {
       queued: true,
       command_id: "c1",
     });
-    queueRows.rows = [{ command_id: "c1" }];
+    queueRows.host = [{ command_id: "c1" }];
     await openFind();
     await userEvent.type(findField(), "maya");
     const button = screen.getByRole("button", { name: "Cut all 1" });
@@ -621,7 +844,7 @@ describe("ScriptHost Find", () => {
         "Cut all queued. Still sending.",
       ),
     );
-    queueRows.rows = [];
+    queueRows.host = [];
     act(() => {
       useDawStore.setState({ project: { ...useDawStore.getState().project! } });
     });

@@ -318,7 +318,7 @@ export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
             type="button"
             className="sys-icon-btn"
             aria-label="Show replace"
-            title="Show replace"
+            title={replace.open ? "Hide replace" : "Show replace"}
             aria-expanded={replace.open}
             aria-controls={replace.open ? replaceId : undefined}
             onClick={() => replace.onOpenChange(!replace.open)}

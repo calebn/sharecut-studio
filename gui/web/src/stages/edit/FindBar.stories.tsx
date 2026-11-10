@@ -252,6 +252,9 @@ export const FindReplaceAllOnly: Story = {
     await expect(
       canvas.getByRole("button", { name: "Show replace" }),
     ).toHaveAttribute("aria-expanded", "true");
+    await expect(
+      canvas.getByRole("button", { name: "Show replace" }),
+    ).toHaveAttribute("title", "Hide replace");
   },
 };
 

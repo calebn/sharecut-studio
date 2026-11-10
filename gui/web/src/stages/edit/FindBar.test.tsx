@@ -148,11 +148,15 @@ describe("FindBar", () => {
     const { rerender } = render(<FindBar {...props({ replace })} />);
     const toggle = screen.getByRole("button", { name: "Show replace" });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveAttribute("title", "Show replace");
     expect(screen.queryByRole("textbox", { name: "Replace with" })).toBeNull();
     await user.click(toggle);
     expect(replace.onOpenChange).toHaveBeenCalledWith(true);
     const open = replaceProps();
     rerender(<FindBar {...props({ replace: open })} />);
+    expect(
+      screen.getByRole("button", { name: "Show replace" }),
+    ).toHaveAttribute("title", "Hide replace");
     expect(screen.getByRole("textbox", { name: "Replace with" })).toHaveValue(
       "space",
     );
@@ -180,7 +184,7 @@ describe("FindBar", () => {
     );
     expect(
       screen.getByRole("button", { name: "Show replace" }),
-    ).toHaveAttribute("title", "Show replace");
+    ).toHaveAttribute("title", "Hide replace");
     rerender(<FindBar {...props({ busy: true })} />);
     expect(
       screen.getByRole("button", { name: "Cut all 12" }),
