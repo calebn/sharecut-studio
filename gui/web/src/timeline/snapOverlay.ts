@@ -7,7 +7,6 @@ export type SnapTick = {
 const MAGNET_PX = 8;
 const SNAP_TICK_SCALE = 10 ** SNAP_TICK_DECIMALS;
 
-/** Snap is on in the toolbar, inverted by Alt for the one gesture or commit that holds it. */
 export function snapActive(snapEnabled: boolean, altKey: boolean): boolean {
   return snapEnabled !== altKey;
 }

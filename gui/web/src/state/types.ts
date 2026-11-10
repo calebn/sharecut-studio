@@ -316,7 +316,6 @@ export interface DawState {
   inspectorSelection: Selection;
   /** A timeline drag is under way; the compact inspector stows itself. */
   timelineDragging: boolean;
-  /** Snap is on: drags and the suggestion Start/End commit pull to nearby cut points. Alt inverts it for one gesture (`snapActive`). */
   snapEnabled: boolean;
   laneHeightMode: LaneHeightMode;
   laneHeightPx: number;

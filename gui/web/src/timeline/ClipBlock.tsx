@@ -45,6 +45,7 @@ import { clipBlockGeometry } from "./clipBlockGeometry";
 import { useHitRouter } from "./hitRouterContext";
 import { HIT_KINDS } from "./inputContract";
 import { PieceWaveforms } from "./PieceWaveforms";
+import { snapActive } from "./snapOverlay";
 import { useHoldTimelineMetrics } from "./timelineMetrics";
 import { useClipEdgeHandles } from "./useClipEdgeHandles";
 import type { RangeGesture } from "./useRangeGesture";
@@ -650,7 +651,10 @@ export function ClipBlockLive({
   // but draw only where they explain an edit: trimming, or the Alt-click Split
   // guide resting on this clip.
   const splitting = useSplitGuideOnClip(clip);
-  const drawTicks = trimPreview != null || splitting;
+  const snapEnabled = useDawStore((st) => st.snapEnabled);
+  const trimSnapping =
+    trimPreview != null && snapActive(snapEnabled, edgeHandles.altHeld);
+  const drawTicks = trimSnapping || splitting;
 
   return (
     <ClipBlockView

@@ -169,10 +169,9 @@ export function registerViewCommands(): void {
   registerCommand("view.toggleSnap", () => {
     const s = useDawStore.getState();
     if (!s.project) return NO_PROJECT;
-    s.setSnapEnabled(!s.snapEnabled);
-    s.announceStatus(
-      useDawStore.getState().snapEnabled ? "Snap on" : "Snap off",
-    );
+    const snapEnabled = !s.snapEnabled;
+    s.setSnapEnabled(snapEnabled);
+    s.announceStatus(snapEnabled ? "Snap on" : "Snap off");
     return { status: "ok" };
   });
 

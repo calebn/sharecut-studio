@@ -158,6 +158,7 @@ export function useClipEdgeHandles(context: Context) {
   const [draft, setDraft] = useState<Draft | null>(null);
   /** A held arrow stopped at a soft boundary or limit: the handle it stopped. */
   const [bumped, setBumped] = useState<ClipHandle | null>(null);
+  const [altHeld, setAltHeld] = useState(false);
   /** The key's auto-repeat stopped; only a fresh press steps on. */
   const keyStopped = useRef(false);
   /** A pointer drag is pressed against a hard limit. */
@@ -547,6 +548,7 @@ export function useClipEdgeHandles(context: Context) {
     handle.startsWith("fade") ? "edit.setClipFade" : "edit.trimClipEdge";
   return {
     bumped,
+    altHeld,
     fadePreview: draft?.kind === "fade" ? draft.preview : null,
     trimPreview: draft?.kind === "trim" ? draft.preview : null,
     active: draft != null,
@@ -617,6 +619,7 @@ export function useClipEdgeHandles(context: Context) {
         d.input.pointerId !== event.pointerId
       )
         return;
+      setAltHeld(event.altKey);
       drag(d, pointerCandidate(d, d.input.originX, event));
     },
     onPointerUp: (event: PointerEvent<HTMLButtonElement>) => {

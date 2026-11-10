@@ -770,7 +770,6 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
         set({ timelineDragging });
     },
     setSnapEnabled: (snapEnabled) => {
-      if (get().snapEnabled === snapEnabled) return;
       set({ snapEnabled });
       writeSnapPref(snapEnabled);
     },

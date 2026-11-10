@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
-import { SNAP_STORAGE_KEY } from "../utils/snapPref";
 import { clearRegisteredCommands, execute } from "./execute";
 import { registerDawCommands } from "./register";
 
@@ -23,12 +22,12 @@ describe("view.toggleSnap", () => {
     expect((await execute("view.toggleSnap")).status).toBe("ok");
     expect(useDawStore.getState().snapEnabled).toBe(false);
     expect(useDawStore.getState().statusAnnouncement).toBe("Snap off");
-    expect(localStorage.getItem(SNAP_STORAGE_KEY)).toBe("off");
+    expect(localStorage.getItem("sharecut.snap")).toBe("off");
 
     expect((await execute("view.toggleSnap")).status).toBe("ok");
     expect(useDawStore.getState().snapEnabled).toBe(true);
     expect(useDawStore.getState().statusAnnouncement).toBe("Snap on");
-    expect(localStorage.getItem(SNAP_STORAGE_KEY)).toBe("on");
+    expect(localStorage.getItem("sharecut.snap")).toBe("on");
   });
 
   it("is unavailable with no project open", async () => {

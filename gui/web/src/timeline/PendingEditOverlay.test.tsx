@@ -492,6 +492,8 @@ describe("PendingEditOverlay handles", () => {
     async (_name, snapEnabled, altKey, expected) => {
       useDawStore.setState({ snapEnabled });
       vi.mocked(useWaveformSnapTicks).mockReturnValue(snapResource([4.3]));
+      const resource = snapResource([4.3]);
+      vi.mocked(useWaveformSnapTicks).mockReturnValue(resource);
       const { container } = setup(10);
       const end = container.querySelector(".pending-handle.end") as HTMLElement;
       fireEvent.pointerDown(end, { clientX: 100, pointerId: 3 });
@@ -505,6 +507,9 @@ describe("PendingEditOverlay handles", () => {
           expected,
           false,
         ),
+      );
+      expect(resource.resolveTicks).toHaveBeenCalledTimes(
+        snapEnabled !== altKey ? 1 : 0,
       );
       useDawStore.setState({ snapEnabled: true });
     },

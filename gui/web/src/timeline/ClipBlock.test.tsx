@@ -1228,6 +1228,29 @@ describe("ClipBlock waveform", () => {
       return vi.mocked(trimClipEdge).mock.calls[0]?.[3];
     };
 
+    it.each([
+      ["draws", true, false, 1],
+      ["draws none", false, false, 0],
+      ["draws none under Alt with Snap on", true, true, 0],
+      ["draws under Alt with Snap off", false, true, 1],
+    ])(
+      "a trim %s of the magnet lines",
+      async (_name, snapEnabled, altKey, count) => {
+        const { container } = renderWithKeymap(clip);
+        useDawStore.setState({ playheadSec: 0.5, snapEnabled });
+        await waitFor(() => expect(loadWaveformSnap).toHaveBeenCalled());
+        await new Promise((r) => setTimeout(r, 0));
+        const handle = container.querySelector(
+          "button.trim-handle.in",
+        ) as HTMLElement;
+        fireEvent.pointerDown(handle, { pointerId: 5, clientX: 150 });
+        fireEvent.pointerMove(handle, { pointerId: 5, clientX: 174, altKey });
+        expect(container.querySelectorAll(".clip-waveform-snap")).toHaveLength(
+          count,
+        );
+      },
+    );
+
     it("pulls the edge to a nearby cut point while Snap is on", async () => {
       expect(await trimInTo(true, false)).toBeCloseTo(0.5, 6);
     });
