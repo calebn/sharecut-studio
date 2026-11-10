@@ -705,3 +705,129 @@ describe("GuestRoomApp in the room", () => {
     expect(live()).toHaveTextContent("Nia joined");
   });
 });
+
+describe("GuestRoomApp dock outside the saving phase", () => {
+  const SAVING = /Saving · \d+%/;
+  const open = { acked: 3, total: 3, fileAck: false, uploading: false };
+  const dock = () => ({
+    mute: screen.queryByRole("button", { name: /^(Mute|Unmute)/ }),
+    comment: screen.queryByRole("button", { name: /^Comment/ }),
+    notes: screen.queryByRole("button", { name: /^Notes/ }),
+  });
+  const expectControls = () => {
+    const { mute, comment, notes } = dock();
+    expect(mute).toBeInTheDocument();
+    expect(comment).toBeInTheDocument();
+    expect(notes).toBeInTheDocument();
+    expect(screen.queryByText(SAVING)).toBeNull();
+  };
+
+  beforeEach(() => {
+    speech.heard = false;
+    speech.calls = [];
+    current.room = null;
+  });
+
+  it("keeps the controls after pause and resume with segment 1 open", () => {
+    fakeRoom({ snapshot: { state: "recording" }, upload: open });
+    render(<GuestRoomApp token="t" />);
+    expectControls();
+    expect(screen.getByRole("button", { name: /^Mute/ })).toBeInTheDocument();
+  });
+
+  it("shows Unmute and the other controls when muted after resume", () => {
+    fakeRoom({
+      snapshot: { state: "recording" },
+      me: { ...me, muted: true },
+      upload: open,
+    });
+    render(<GuestRoomApp token="t" />);
+    expectControls();
+    expect(screen.getByRole("button", { name: /^Unmute/ })).toBeInTheDocument();
+  });
+
+  it.each([
+    ["segment 0 acked", true],
+    ["segment 0 not yet acked", false],
+  ])("keeps the controls while paused with %s", (_label, fileAck) => {
+    fakeRoom({ snapshot: { state: "paused" }, upload: { ...open, fileAck } });
+    render(<GuestRoomApp token="t" />);
+    expectControls();
+  });
+
+  it("shows the full saving line and hides the controls after Stop", () => {
+    fakeRoom({
+      snapshot: stopped,
+      upload: { acked: 1, total: 3, uploading: true },
+    });
+    render(<GuestRoomApp token="t" />);
+    expect(
+      screen.getByText("Saving · 33% · keep this page open"),
+    ).toBeInTheDocument();
+    const { mute, comment, notes } = dock();
+    expect(mute).toBeNull();
+    expect(comment).toBeNull();
+    expect(notes).toBeNull();
+    expect(leave()).toBeDisabled();
+  });
+
+  it("returns the controls once the stopped take is file-ACK'd", () => {
+    fakeRoom({
+      snapshot: stopped,
+      upload: { acked: 3, total: 3, fileAck: true, landed: true },
+    });
+    render(<GuestRoomApp token="t" />);
+    expect(screen.queryByText(SAVING)).toBeNull();
+    expect(dock().notes).toBeInTheDocument();
+  });
+
+  it("shows no saving line in the lobby with a leftover upload", () => {
+    fakeRoom({
+      snapshot: { state: "lobby" },
+      upload: { acked: 1, total: 3, fileAck: false },
+    });
+    render(<GuestRoomApp token="t" />);
+    expect(screen.queryByText(SAVING)).toBeNull();
+    expect(dock().notes).toBeInTheDocument();
+  });
+
+  it.each(["recording", "paused", "stopped"] as const)(
+    "never shows the saving line to a producer while %s",
+    (state) => {
+      fakeRoom({
+        producer: true,
+        me: { ...me, role: "producer" },
+        snapshot: { state },
+        upload: { acked: 1, total: 3, uploading: true },
+      });
+      render(<GuestRoomApp token="t" />);
+      expect(screen.queryByText(SAVING)).toBeNull();
+      expect(dock().notes).toBeInTheDocument();
+      if (state !== "stopped") expect(dock().comment).toBeInTheDocument();
+    },
+  );
+
+  it("keeps the controls on a stuck partial take and offers Finish saving", () => {
+    fakeRoom({
+      snapshot: stopped,
+      upload: { acked: 1, total: 3, recoverable: true },
+    });
+    render(<GuestRoomApp token="t" />);
+    expect(screen.queryByText(SAVING)).toBeNull();
+    expect(dock().notes).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Finish saving" }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the controls after an upload error", () => {
+    fakeRoom({
+      snapshot: stopped,
+      upload: { acked: 1, total: 3, error: "x" },
+    });
+    render(<GuestRoomApp token="t" />);
+    expect(screen.queryByText(SAVING)).toBeNull();
+    expect(dock().notes).toBeInTheDocument();
+    expect(screen.getByText("Saving stopped")).toBeInTheDocument();
+  });
+});
