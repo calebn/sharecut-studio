@@ -7,7 +7,9 @@ import type {
 
 /** Why Split speakers cannot run on `track`, or null when it can. */
 export function splitSpeakersBlocker(
-  track: Pick<TrackView, "media_path" | "speaker_split_id"> | undefined,
+  track:
+    | Pick<TrackView, "media_path" | "role" | "speaker_split_id">
+    | undefined,
   canManage: boolean,
 ): string | null {
   if (!canManage) {
@@ -15,6 +17,9 @@ export function splitSpeakersBlocker(
   }
   if (!track) {
     return "Select a track to split";
+  }
+  if (track.role !== "dialogue") {
+    return "Only a voice track can be split by speaker";
   }
   if (track.speaker_split_id) {
     return "This track is already split by speaker. Undo the split to split it again.";

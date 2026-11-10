@@ -243,7 +243,7 @@ export function useTrackSections(
                   </Button>
                 ),
               },
-              ...(hostCanSplit
+              ...(hostCanSplit && track.role === "dialogue"
                 ? [
                     {
                       id: "split",

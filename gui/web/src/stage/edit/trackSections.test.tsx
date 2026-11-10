@@ -564,6 +564,16 @@ describe("track content", () => {
       expect(screen.getByText(reason, { selector: "p" })).toBeVisible();
     });
 
+    it.each([
+      ["music", "music"],
+      ["sfx", "other"],
+    ])("is not offered on a %s track (%s kind)", (role) => {
+      open({ ...withAudio, role });
+      expect(
+        screen.queryByRole("button", { name: "Split speakers…" }),
+      ).toBeNull();
+    });
+
     it("is not offered on a review link", () => {
       open(withAudio, [], "edit");
       expect(
