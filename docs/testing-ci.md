@@ -444,8 +444,8 @@ with axe before the collected results are asserted.
 | 914x331: Level and Remove run from inside the sheet | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | an open envelope point survives rotating from portrait to landscape | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the Edit corner covers no lane at 844x390, and every guest M and S is hit-testable | `gui/web/e2e-compat/edit-corner-lanes.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| 1194x834 iPad landscape keeps Time and Level stacked with their visible help | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| 932x430 phone landscape keeps Time and Level stacked with their help, in the Inspector card | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| 1194x834 iPad landscape keeps Time and Level stacked with Remove below them | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| 932x430 phone landscape keeps Time and Level stacked with Remove below them, in the Inspector card | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 914x331 idle: a touch tap on the guest track header opens its details and reaches Show volume envelope | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 667x375 phone shell idle: the marker rows scroll with the lanes | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 667x500 phone shell idle: the marker rows stay pinned under the ruler | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
