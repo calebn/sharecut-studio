@@ -685,6 +685,33 @@ describe("FeedbackToast", () => {
     expect(screen.getByText("Undone: 2 cuts")).toBeVisible();
   });
 
+  it("keeps Undo all on screen while the head walks back through a 3-edit chain", async () => {
+    const user = userEvent.setup();
+    render(<FeedbackToast />);
+    const say = (id: string) =>
+      act(() => {
+        useDawStore
+          .getState()
+          .announceStatus("Cut", { undo: entry(id), kind: "cut" });
+      });
+    say("host-reorder");
+    atHead("host-reorder");
+    say("e2");
+    atHead("e2");
+    say("e3");
+    atHead("e3");
+    const seen: boolean[] = [];
+    vi.mocked(undoHistory).mockImplementation(async (_p, opts) => {
+      const walk = { e3: "e2", e2: "host-reorder" } as Record<string, string>;
+      act(() => atHead(walk[opts.expectedHeadId as string] ?? "base"));
+      seen.push(!!screen.queryByRole("button", { name: "Undo all" }));
+      return null;
+    });
+    await user.click(screen.getByRole("button", { name: "Undo all" }));
+    expect(undoHistory).toHaveBeenCalledTimes(3);
+    expect(seen.slice(0, 2)).toEqual([true, true]);
+  });
+
   it("Undo all stops at the first refusal and says how far it got", async () => {
     const user = userEvent.setup();
     render(<FeedbackToast />);

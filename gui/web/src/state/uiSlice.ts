@@ -152,13 +152,15 @@ function mergedEdits(
     standing.gesture
   )
     return null;
-  if (baseHead !== standing.undo && baseHead !== standing.baseHead) return null;
-  const earlier = standing.merged ?? { count: 1, entries: [standing.undo] };
-  if (earlier.count >= MERGE_CAP) return null;
-  return {
-    count: earlier.count + 1,
-    entries: [options.undo, ...earlier.entries],
-  };
+  if (
+    baseHead !== standing.undo &&
+    baseHead !== standing.baseHead &&
+    baseHead !== options.undo
+  )
+    return null;
+  const earlier = standing.merged?.entries ?? [standing.undo];
+  if (earlier.length >= MERGE_CAP) return null;
+  return { entries: [options.undo, ...earlier] };
 }
 
 export function mergedToastLabel(kind: ToastKind, count: number): string {
@@ -211,7 +213,7 @@ function feedbackPatch(s: DawStore, input: FeedbackInput): Partial<DawStore> {
             id,
             message:
               merged && options.kind
-                ? mergedToastLabel(options.kind, merged.count)
+                ? mergedToastLabel(options.kind, merged.entries.length)
                 : input.kind === "jobs"
                   ? input.verifiedToast
                   : message,

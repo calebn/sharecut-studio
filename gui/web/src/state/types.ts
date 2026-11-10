@@ -195,7 +195,7 @@ export interface FeedbackToast {
 export type ToastKind = "cut" | "delete" | "split";
 
 export interface MergedEdits {
-  count: number;
+  /** Newest first; `entries[0]` is the toast's `undo`. */
   entries: readonly HistoryEntryId[];
 }
 

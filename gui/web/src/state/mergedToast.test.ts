@@ -29,7 +29,7 @@ describe("merged edit toasts", () => {
     say("Cut to clipboard", { undo: "h2", kind: "cut" });
     expect(toast()?.message).toBe("2 cuts");
     expect(toast()?.undo).toBe("h2");
-    expect(toast()?.merged).toEqual({ count: 2, entries: ["h2", "h1"] });
+    expect(toast()?.merged).toEqual({ entries: ["h2", "h1"] });
   });
 
   it("keeps the newest entry as Undo and grows the count", () => {
@@ -77,6 +77,59 @@ describe("merged edit toasts", () => {
     expect(toast()?.merged).toBeNull();
   });
 
+  it("merges when the reply beats the snapshot (head already at the standing baseHead)", () => {
+    headAt("h0");
+    say("Cut", { undo: "h1", kind: "cut" });
+    headAt("h0");
+    say("Cut", { undo: "h2", kind: "cut" });
+    expect(toast()?.merged?.entries).toEqual(["h2", "h1"]);
+  });
+
+  it("merges when the snapshot already shows the new entry", () => {
+    headAt("h0");
+    say("Cut", { undo: "h1", kind: "cut" });
+    headAt("h2");
+    say("Cut", { undo: "h2", kind: "cut" });
+    expect(toast()?.merged?.entries).toEqual(["h2", "h1"]);
+  });
+
+  it("never folds the same entry twice", () => {
+    headAt("h0");
+    say("Cut", { undo: "h1", kind: "cut" });
+    headAt("h1");
+    say("Cut", { undo: "h1", kind: "cut" });
+    expect(toast()?.merged).toBeNull();
+  });
+
+  it("does not merge an error, a gesture or a reverse", () => {
+    headAt("h0");
+    say("Cut", { undo: "h1", kind: "cut" });
+    headAt("h1");
+    say("Cut failed", { undo: "h2", kind: "cut", tone: "error" });
+    expect(toast()?.merged).toBeNull();
+    headAt("h2");
+    say("Cut", { undo: "h3", kind: "cut", gesture: true });
+    expect(toast()?.merged).toBeNull();
+  });
+
+  it("gives a merged toast a fresh id so its lifetime restarts", () => {
+    headAt("h0");
+    say("Cut", { undo: "h1", kind: "cut" });
+    const first = toast()?.id;
+    headAt("h1");
+    say("Cut", { undo: "h2", kind: "cut" });
+    expect(toast()?.id).not.toBe(first);
+  });
+
+  it("starts again at one after the toast is dismissed", () => {
+    headAt("h0");
+    say("Cut", { undo: "h1", kind: "cut" });
+    useDawStore.getState().dismissFeedbackToast(toast()!.id);
+    headAt("h1");
+    say("Cut", { undo: "h2", kind: "cut" });
+    expect(toast()?.merged).toBeNull();
+  });
+
   it("stops folding at 25 edits and starts a new toast", () => {
     headAt("h0");
     say("Cut", { undo: "e1", kind: "cut" });
@@ -84,7 +137,7 @@ describe("merged edit toasts", () => {
       headAt(`e${i - 1}`);
       say("Cut", { undo: `e${i}`, kind: "cut" });
     }
-    expect(toast()?.merged?.count).toBe(25);
+    expect(toast()?.merged?.entries).toHaveLength(25);
     headAt("e25");
     say("Cut", { undo: "e26", kind: "cut" });
     expect(toast()?.merged).toBeNull();
