@@ -235,6 +235,13 @@ def test_auth_refusals(auth_client):
         400,
         "password_too_short",
     )
+    c.post("/auth/password/register", json={"email": "dup@b.co", "password": "longenough"})
+    _assert(
+        c.post("/auth/password/register", json={"email": "dup@b.co", "password": "different1"}),
+        409,
+        "account_exists",
+    )
+    c.cookies.clear()
     _assert(
         c.post("/auth/password/login", json={"email": "a@b.co", "password": "wrongwrong"}),
         401,

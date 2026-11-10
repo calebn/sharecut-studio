@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 from datetime import UTC
 from pathlib import Path
 
@@ -32,6 +33,12 @@ from podcast_mcp.services.share_auth.store import (
     ShareIdentityStore,
     reset_identity_store_for_tests,
 )
+
+
+def _verified_user(store: ShareIdentityStore, email: str) -> dict:
+    user = store.create_or_get_email_user(email, email_verified=True)
+    store.set_password(user["id"], "password1")
+    return user
 
 
 @pytest.fixture
@@ -394,9 +401,7 @@ def test_body_share_token_auth_faults_use_the_generic_guest_error(
 
 
 def test_passkey_register_and_login(identity_store: ShareIdentityStore) -> None:
-    user = identity_store.create_or_get_email_user(
-        "pk@example.com", password="password1", email_verified=True
-    )
+    user = _verified_user(identity_store, "pk@example.com")
     begin = begin_registration(identity_store, user)
     challenge = begin["publicKey"]["challenge"]
     finish_registration(
@@ -547,9 +552,7 @@ def test_authorization_url_unconfigured(monkeypatch) -> None:
 
 
 def test_store_acl_sessions_revoke(identity_store: ShareIdentityStore) -> None:
-    user = identity_store.create_or_get_email_user(
-        "acl@ex.com", password="password1", email_verified=True
-    )
+    user = _verified_user(identity_store, "acl@ex.com")
     identity_store.invite_to_share("tok-1", email="acl@ex.com", role="editor")
     assert identity_store.acl_allows("tok-1", user["id"])["role"] == "editor"
     assert identity_store.revoke_acl("tok-1", email="acl@ex.com") is True
@@ -571,9 +574,7 @@ def test_passkey_hmac_mode_and_http_routes(identity_store, monkeypatch) -> None:
     import hmac
 
     monkeypatch.setenv("PODCAST_WEBAUTHN_TEST_MODE", "0")
-    user = identity_store.create_or_get_email_user(
-        "pk2@ex.com", password="password1", email_verified=True
-    )
+    user = _verified_user(identity_store, "pk2@ex.com")
     begin = begin_registration(identity_store, user)
     # registration still works in test when attestation omitted (falls through)
     monkeypatch.setenv("PODCAST_WEBAUTHN_TEST_MODE", "1")
@@ -853,7 +854,7 @@ def test_oauth_flow_unconfigured_and_token_failures(monkeypatch) -> None:
 
 def test_passkey_error_paths(identity_store: ShareIdentityStore, monkeypatch) -> None:
 
-    user = identity_store.create_or_get_email_user("err@ex.com", password="password1")
+    user = identity_store.register_email_password("err@ex.com", "password1")[0]
     with pytest.raises(ValueError, match="registration challenge"):
         finish_registration(
             identity_store,
@@ -880,7 +881,7 @@ def test_passkey_error_paths(identity_store: ShareIdentityStore, monkeypatch) ->
             challenge=auth["publicKey"]["challenge"],
         )
     auth = begin_authentication(identity_store, email="err@ex.com")
-    other = identity_store.create_or_get_email_user("other2@ex.com", password="password1")
+    other = identity_store.register_email_password("other2@ex.com", "password1")[0]
     begin2 = begin_registration(identity_store, other)
     finish_registration(
         identity_store,
@@ -913,7 +914,7 @@ def test_passkey_error_paths(identity_store: ShareIdentityStore, monkeypatch) ->
 def test_auth_me_bearer_and_oauth_errors(identity_store, monkeypatch) -> None:
     client = TestClient(create_app())
     store = identity_store
-    user = store.create_or_get_email_user("bear@ex.com", password="password1")
+    user = store.register_email_password("bear@ex.com", "password1")[0]
     session = store.create_session(user["id"])
     me = client.get("/auth/me", headers={"Authorization": f"Bearer {session}"})
     assert me.status_code == 200
@@ -1010,7 +1011,7 @@ def test_magic_link_redirects_to_share(identity_store, monkeypatch) -> None:
 
 def test_passkey_webauthn_stub_paths(identity_store, monkeypatch) -> None:
     monkeypatch.setenv("PODCAST_WEBAUTHN_TEST_MODE", "0")
-    user = identity_store.create_or_get_email_user("wa@ex.com", password="password1")
+    user = identity_store.register_email_password("wa@ex.com", "password1")[0]
     begin = begin_registration(identity_store, user)
     with pytest.raises(RuntimeError, match=r"webauthn|configure"):
         finish_registration(
@@ -1052,7 +1053,7 @@ def test_expired_session_and_policy_bearer(identity_store: ShareIdentityStore) -
 
     from podcast_mcp.services.share_auth.policy import extract_bearer
 
-    user = identity_store.create_or_get_email_user("exp@ex.com", password="password1")
+    user = identity_store.register_email_password("exp@ex.com", "password1")[0]
     raw = identity_store.create_session(user["id"])
     th = __import__("hashlib").sha256(raw.encode()).hexdigest()
     identity_store._conn.execute(
@@ -1187,7 +1188,7 @@ def test_expired_agent_and_require_sign_in_flag(identity_store: ShareIdentitySto
 
     from podcast_mcp.services.share_auth.access import access_required
 
-    user = identity_store.create_or_get_email_user("ag@ex.com", password="password1")
+    user = identity_store.register_email_password("ag@ex.com", "password1")[0]
     raw = identity_store.mint_agent_credential("share-t", user["id"], ttl_hours=1)
     th = __import__("hashlib").sha256(raw.encode()).hexdigest()
     identity_store._conn.execute(
@@ -1207,7 +1208,7 @@ def test_resolve_principal_from_headers(identity_store: ShareIdentityStore) -> N
         resolve_principal_from_headers,
     )
 
-    user = identity_store.create_or_get_email_user("hdr@ex.com", password="password1")
+    user = identity_store.register_email_password("hdr@ex.com", "password1")[0]
     raw_agent = identity_store.mint_agent_credential("tok-a", user["id"], ttl_hours=1)
     assert (
         resolve_principal_from_headers(
@@ -1246,3 +1247,71 @@ def test_resolve_principal_from_headers(identity_store: ShareIdentityStore) -> N
     )
     assert session is not None
     assert session.source == "session"
+
+
+def test_register_existing_password_conflict(identity_store: ShareIdentityStore) -> None:
+    client = TestClient(create_app())
+    first = client.post(
+        "/auth/password/register", json={"email": "dup@ex.com", "password": "password1"}
+    )
+    assert first.status_code == 200
+    second = TestClient(create_app()).post(
+        "/auth/password/register", json={"email": "dup@ex.com", "password": "password2"}
+    )
+    assert second.status_code == 409
+    assert second.headers["X-Sharecut-Error-Code"] == "account_exists"
+    login = TestClient(create_app())
+    assert (
+        login.post(
+            "/auth/password/login", json={"email": "dup@ex.com", "password": "password1"}
+        ).status_code
+        == 200
+    )
+    assert (
+        login.post(
+            "/auth/password/login", json={"email": "dup@ex.com", "password": "password2"}
+        ).status_code
+        == 401
+    )
+
+
+def test_register_same_password_signs_in(identity_store: ShareIdentityStore) -> None:
+    body = {"email": "same@ex.com", "password": "password1"}
+    assert TestClient(create_app()).post("/auth/password/register", json=body).status_code == 200
+    again = TestClient(create_app()).post("/auth/password/register", json=body)
+    assert again.status_code == 200
+    assert again.json()["session"]
+
+
+def test_register_claims_invited_passwordless_email(identity_store: ShareIdentityStore) -> None:
+    identity_store.invite_to_share("tok-claim", email="invited@ex.com")
+    client = TestClient(create_app())
+    reg = client.post(
+        "/auth/password/register", json={"email": "invited@ex.com", "password": "password1"}
+    )
+    assert reg.status_code == 200
+    login = TestClient(create_app()).post(
+        "/auth/password/login", json={"email": "invited@ex.com", "password": "password1"}
+    )
+    assert login.status_code == 200
+
+
+def test_register_concurrent_passwordless_single_winner(
+    identity_store: ShareIdentityStore,
+) -> None:
+    identity_store.create_or_get_email_user("race@ex.com")
+    barrier = threading.Barrier(2)
+    results: dict[str, str] = {}
+
+    def attempt(password: str) -> None:
+        barrier.wait()
+        results[password] = identity_store.register_email_password("race@ex.com", password)[1]
+
+    threads = [threading.Thread(target=attempt, args=(pw,)) for pw in ("password1", "password2")]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert sorted(results.values()) == ["conflict", "password_set"]
+    winner = next(pw for pw, outcome in results.items() if outcome == "password_set")
+    assert identity_store.verify_email_password("race@ex.com", winner) is not None

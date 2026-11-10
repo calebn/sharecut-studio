@@ -861,6 +861,11 @@ The magic sign-in link is printed and returned as `dev_link` only on a loopback,
 non-relayed request with `PODCAST_MAGIC_LINK_PRINT=1`; otherwise it is neither
 logged nor returned.
 
+`POST /auth/password/register` never replaces an existing password: it returns
+409 `account_exists` unless the password matches the stored one. An account with
+no password (invited, magic-link or OAuth) can still be claimed by registering
+its email, because there is no email verification yet (stub, accounts mode only).
+
 ## Security notes
 
 - On **link** shares the token **is** the capability set (`play` / `view` /

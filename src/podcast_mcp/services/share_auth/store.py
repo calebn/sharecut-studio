@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import sqlite3
+import threading
 import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -127,6 +128,7 @@ class ShareIdentityStore:
             setup=schema_setup(_SCHEMA),
         )
         self._connection_finalizer = sqlite_connection_finalizer(self, self._conn)
+        self._register_lock = threading.Lock()
         try:
             self._conn.commit()
             with contextlib.suppress(OSError):  # pragma: no cover - platform may refuse chmod
@@ -239,29 +241,70 @@ class ShareIdentityStore:
         self,
         email: str,
         *,
-        password: str | None = None,
         email_verified: bool = False,
         display_name: str | None = None,
     ) -> dict[str, Any]:
         email_n = email.strip().lower()
         existing = self.get_user_by_email(email_n)
         if existing:
-            if password:
-                self.set_password(existing["id"], password)
-                refreshed = self.get_user(existing["id"])
-                assert refreshed is not None
-                return refreshed
             return existing
         uid = uuid.uuid4().hex
-        pw = hash_password(password) if password else None
         self._conn.execute(
-            "INSERT INTO users (id, email, email_verified, display_name, password_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-            (uid, email_n, 1 if email_verified else 0, display_name, pw, _iso(_now())),
+            "INSERT INTO users (id, email, email_verified, display_name, created_at) VALUES (?, ?, ?, ?, ?)",
+            (uid, email_n, 1 if email_verified else 0, display_name, _iso(_now())),
         )
         self._conn.commit()
         user = self.get_user(uid)
         assert user is not None
         return user
+
+    def register_email_password(
+        self,
+        email: str,
+        password: str,
+        *,
+        display_name: str | None = None,
+    ) -> tuple[dict[str, Any], str]:
+        email_n = email.strip().lower()
+        with self._register_lock:
+            existing = self.get_user_by_email(email_n)
+            if existing is None:
+                pw_hash = hash_password(password)
+                uid = uuid.uuid4().hex
+                try:
+                    self._conn.execute(
+                        "INSERT INTO users (id, email, display_name, password_hash, created_at) VALUES (?, ?, ?, ?, ?)",
+                        (uid, email_n, display_name, pw_hash, _iso(_now())),
+                    )
+                    self._conn.commit()
+                except sqlite3.IntegrityError:
+                    self._conn.rollback()
+                    existing = self.get_user_by_email(email_n)
+                    if existing is None:
+                        raise
+                else:
+                    created = self.get_user(uid)
+                    assert created is not None
+                    return created, "created"
+            if not existing["has_password"]:
+                pw_hash = hash_password(password)
+                cur = self._conn.execute(
+                    "UPDATE users SET password_hash = ?, display_name = COALESCE(display_name, ?) "
+                    "WHERE id = ? AND password_hash IS NULL",
+                    (pw_hash, display_name, existing["id"]),
+                )
+                self._conn.commit()
+                if cur.rowcount == 1:
+                    updated = self.get_user(existing["id"])
+                    assert updated is not None
+                    return updated, "password_set"
+            row = self._conn.execute(
+                "SELECT password_hash FROM users WHERE id = ?", (existing["id"],)
+            ).fetchone()
+            stored = row["password_hash"] if row else None
+            if stored and verify_password(password, stored):
+                return existing, "signed_in"
+            return existing, "conflict"
 
     def set_password(self, user_id: str, password: str) -> None:
         self._conn.execute(
