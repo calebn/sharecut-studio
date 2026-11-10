@@ -352,10 +352,17 @@ test("System/InspectorSheet at a 20 px root font a flick down from the dock dism
       Object.assign(window, { stepNow: now });
     }, ms);
   await page.evaluate(() => {
-    const real = performance.now.bind(performance);
+    const real = Object.getOwnPropertyDescriptor(Event.prototype, "timeStamp");
+    if (!real) throw new Error("Event.prototype.timeStamp is missing");
     Object.assign(window, { stepNow: 0 });
-    performance.now = () => (window as unknown as { stepNow: number }).stepNow;
-    Object.assign(window, { restoreClock: () => (performance.now = real) });
+    Object.defineProperty(Event.prototype, "timeStamp", {
+      configurable: true,
+      get: () => (window as unknown as { stepNow: number }).stepNow,
+    });
+    Object.assign(window, {
+      restoreClock: () =>
+        Object.defineProperty(Event.prototype, "timeStamp", real),
+    });
   });
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
