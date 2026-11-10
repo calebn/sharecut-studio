@@ -13,7 +13,7 @@ import type { ScriptModel } from "./scriptModel";
 const MAX_CUT_INTERVALS = 1000;
 const MAX_CUT_TARGETS = 64;
 
-export type MatchCut = {
+type MatchCut = {
   targets: ExactRangeTarget[];
   cut: number;
   skipped: number;
