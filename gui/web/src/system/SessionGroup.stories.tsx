@@ -36,7 +36,7 @@ const meta: Meta<typeof SessionGroup> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          'A group of takes recorded together. The header carries the numbers ("3 people · 2 takes · 14:20", wrapping, never cut), where the session goes, and how far transcription has got as a ring with words. While it runs the status is a progressbar with "Transcribing, 40%". The footer hands off to the next stage: secondary until the work is done, then primary; full width on a phone. A stage that owns the one hand-off (Prepare) omits `handoff` and the footer goes.\n\n**Motion.** None.',
+          'A group of takes recorded together. The header carries the numbers ("3 people · 2 takes · 14:20", wrapping, never cut), where the session goes, and how far transcription has got as a ring with words. While it runs the status is a progressbar with "Transcribing, 40%". The footer hands off to the next stage: secondary until the work is done, then primary; full width on a phone. A stage that owns the one hand-off (Prepare) omits `handoff` and the footer goes. A group with no transcription state or target times (Record, for its previous session) omits `status` and `target`, and the ring and chip go; `handoffVariant` then sets the weight of the hand-off. `onRename` adds a Rename button beside the title.\n\n**Motion.** None.',
       },
     },
   },
@@ -161,6 +161,25 @@ export const NoHandoff: Story = {
     await expect(
       within(canvasElement).queryByRole("button", { name: "Open in Edit" }),
     ).toBeNull();
+  },
+};
+
+export const RecordedSession: Story = {
+  render: withTakes,
+  args: {
+    status: undefined,
+    target: undefined,
+    handoffVariant: "primary",
+    name: "Cold open",
+    nameMaxLength: 80,
+    onRename: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.queryByText("Not started")).toBeNull();
+    await expect(
+      canvas.getByRole("button", { name: "Rename session" }),
+    ).toBeVisible();
   },
 };
 

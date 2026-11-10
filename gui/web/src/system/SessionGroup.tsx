@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useRef, useState } from "react";
+import { Button } from "../ui";
+import { InlineEdit } from "./InlineEdit";
 import { clampUnit, percentOf } from "./progress";
 import { type PrepareTarget, SessionTargetChip } from "./SessionTargetChip";
 import { StageHandoff, type StageHandoffProps } from "./StageHandoff";
@@ -12,16 +14,27 @@ export type SessionGroupProps = {
   takes: number;
   /** "14:20". */
   duration: string;
-  target: PrepareTarget;
+  /** Omit when the group has no target times to show; the chip goes. */
+  target?: PrepareTarget;
   targetLocked?: boolean;
   onTarget?: (target: PrepareTarget) => void;
   /** Names the session in the target control so two sessions differ. */
   targetFor?: string;
-  status: SessionGroupStatus;
+  /** Omit when the group has no transcription state to show; the ring goes. */
+  status?: SessionGroupStatus;
   /** 0 to 1 while running. */
   progress?: number;
   /** The takes. Empty groups say so. */
   children?: ReactNode;
+  /** Saves the group's name; an empty name clears it. A Rename button beside the title opens the field. */
+  onRename?: (name: string) => void;
+  /** The name `onRename` edits, empty when none is set. */
+  name?: string;
+  nameMaxLength?: number;
+  /** Shuts Rename and says why. */
+  renameDisabledReason?: string;
+  /** Defaults to primary once `status` is done, else secondary. */
+  handoffVariant?: "secondary" | "primary";
   /** Omit when the stage owns the one hand-off (Prepare). */
   handoff?: Pick<
     StageHandoffProps,
@@ -46,8 +59,15 @@ export function SessionGroup({
   status,
   progress = 0,
   children,
+  onRename,
+  name = "",
+  nameMaxLength,
+  renameDisabledReason,
+  handoffVariant,
   handoff,
 }: SessionGroupProps) {
+  const [renaming, setRenaming] = useState(false);
+  const renameButton = useRef<HTMLButtonElement>(null);
   const percent = percentOf(progress);
   const statusText =
     status === "running"
@@ -59,24 +79,25 @@ export function SessionGroup({
           : status === "new"
             ? "New audio waiting"
             : "Not started";
-  const ring = (
-    <>
-      <StatusGlyph
-        text={false}
-        state={
-          status === "running"
-            ? "running"
-            : status === "done"
-              ? "done"
-              : status === "failed"
-                ? "failed"
-                : "not-yet"
-        }
-        progress={status === "running" ? clampUnit(progress) : undefined}
-      />
-      <span className="sys-group-status-text">{statusText}</span>
-    </>
-  );
+  const ring =
+    status === undefined ? null : (
+      <>
+        <StatusGlyph
+          text={false}
+          state={
+            status === "running"
+              ? "running"
+              : status === "done"
+                ? "done"
+                : status === "failed"
+                  ? "failed"
+                  : "not-yet"
+          }
+          progress={status === "running" ? clampUnit(progress) : undefined}
+        />
+        <span className="sys-group-status-text">{statusText}</span>
+      </>
+    );
   return (
     <section
       className="sys-group"
@@ -86,6 +107,33 @@ export function SessionGroup({
     >
       <header className="sys-group-header">
         <h3 className="sys-group-title">{title}</h3>
+        {onRename && !renaming ? (
+          <Button
+            ref={renameButton}
+            aria-label="Rename session"
+            disabledReason={renameDisabledReason}
+            onClick={() => setRenaming(true)}
+          >
+            Rename
+          </Button>
+        ) : null}
+        {onRename && renaming ? (
+          <InlineEdit
+            focusOnMount
+            className="sys-group-rename"
+            label="Session name"
+            maxLength={nameMaxLength}
+            placeholder="Session name"
+            value={name}
+            onCommit={onRename}
+            onEnd={(how) => {
+              setRenaming(false);
+              if (how !== "blur") {
+                queueMicrotask(() => renameButton.current?.focus());
+              }
+            }}
+          />
+        ) : null}
         <p className="sys-group-stats">
           {[
             plural(people, "person", "people"),
@@ -93,13 +141,15 @@ export function SessionGroup({
             duration,
           ].join(" · ")}
         </p>
-        <SessionTargetChip
-          target={target}
-          locked={targetLocked}
-          onTarget={onTarget}
-          session={targetFor}
-        />
-        {status === "running" ? (
+        {target ? (
+          <SessionTargetChip
+            target={target}
+            locked={targetLocked}
+            onTarget={onTarget}
+            session={targetFor}
+          />
+        ) : null}
+        {status === undefined ? null : status === "running" ? (
           <span
             className="sys-group-status"
             role="progressbar"
@@ -125,7 +175,9 @@ export function SessionGroup({
           <StageHandoff
             {...handoff}
             size={48}
-            variant={status === "done" ? "primary" : "secondary"}
+            variant={
+              handoffVariant ?? (status === "done" ? "primary" : "secondary")
+            }
           />
         </footer>
       ) : null}

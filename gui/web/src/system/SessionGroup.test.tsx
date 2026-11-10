@@ -126,4 +126,72 @@ describe("SessionGroup", () => {
     expect(bar).toHaveAttribute("aria-valuenow", now);
     expect(bar).toHaveAttribute("aria-valuetext", text);
   });
+
+  it("hides the ring and the target chip when they are omitted", () => {
+    render(<Group status={undefined} target={undefined} />);
+    expect(screen.queryByText("Not started")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /Where this session goes/ }),
+    ).toBeNull();
+    expect(screen.getByRole("region")).not.toHaveAttribute("data-status");
+    expect(screen.getByText("3 people · 2 takes · 14:20")).toBeVisible();
+  });
+
+  it("takes the hand-off variant over the status", () => {
+    const { rerender } = render(
+      <Group status="idle" handoffVariant="primary" />,
+    );
+    const button = () => screen.getByRole("button", { name: "Open in Edit" });
+    expect(button()).toHaveClass("primary");
+    rerender(<Group status="done" handoffVariant="secondary" />);
+    expect(button()).not.toHaveClass("primary");
+  });
+
+  describe("renaming", () => {
+    it("has no Rename without a handler", () => {
+      render(<Group />);
+      expect(
+        screen.queryByRole("button", { name: "Rename session" }),
+      ).toBeNull();
+    });
+
+    it("opens a focused field with the name and its limit; Enter saves and returns focus", async () => {
+      const onRename = vi.fn();
+      render(<Group onRename={onRename} name="Cold open" nameMaxLength={80} />);
+      await userEvent.click(
+        screen.getByRole("button", { name: "Rename session" }),
+      );
+      const field = screen.getByRole("textbox", { name: "Session name" });
+      expect(field).toHaveFocus();
+      expect(field).toHaveValue("Cold open");
+      expect(field).toHaveAttribute("maxlength", "80");
+      await userEvent.clear(field);
+      await userEvent.type(field, "Interview{Enter}");
+      expect(onRename).toHaveBeenCalledExactlyOnceWith("Interview");
+      expect(
+        screen.getByRole("button", { name: "Rename session" }),
+      ).toHaveFocus();
+    });
+
+    it("Escape cancels without saving", async () => {
+      const onRename = vi.fn();
+      render(<Group onRename={onRename} />);
+      await userEvent.click(
+        screen.getByRole("button", { name: "Rename session" }),
+      );
+      await userEvent.type(
+        screen.getByRole("textbox", { name: "Session name" }),
+        "Draft{Escape}",
+      );
+      expect(onRename).not.toHaveBeenCalled();
+      expect(screen.queryByRole("textbox")).toBeNull();
+    });
+
+    it("is shut with a reason", () => {
+      render(<Group onRename={vi.fn()} renameDisabledReason="Busy" />);
+      expect(
+        screen.getByRole("button", { name: "Rename session" }),
+      ).toBeDisabled();
+    });
+  });
 });

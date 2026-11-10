@@ -404,6 +404,7 @@ describe("Record stage", () => {
       expect(within(card).getByRole("listitem").textContent).toBe(
         "Ava → to New track",
       );
+      expect(within(card).getByText("1 person · 1 take · 1:01")).toBeVisible();
       const create = screen.getByRole("button", { name: "Start Session 2" });
       expect(
         card.compareDocumentPosition(create) & Node.DOCUMENT_POSITION_FOLLOWING,

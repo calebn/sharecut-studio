@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { RecordSessionSummary } from "../../record";
 import { expectNoA11yViolations } from "../../test/a11y";
-import { EndedSessionCard } from "./EndedSessionCard";
+import { EndedSessionCard, formatRecordingClock } from "./EndedSessionCard";
 
 const base: RecordSessionSummary = {
   session_id: "s1",
@@ -32,18 +32,29 @@ const mount = (over: Partial<RecordSessionSummary> = {}) =>
   );
 
 describe("EndedSessionCard", () => {
-  it("shows the numbered heading with the date, the take line and mapping rows", async () => {
+  it("shows the numbered heading with the date, the people, takes and duration, and mapping rows", async () => {
     const { container } = mount();
     const region = screen.getByRole("region", {
       name: "Session 2 · Sun 25 Oct",
     });
-    expect(within(region).getByText("3 takes · 12:04")).toBeInTheDocument();
+    expect(
+      within(region).getByText("2 people · 3 takes · 12:04"),
+    ).toBeInTheDocument();
     const rows = within(region).getAllByRole("listitem");
     expect(rows.map((r) => r.textContent)).toEqual([
       "Ava → to Ava",
       "Sam → to New track",
     ]);
     await expectNoA11yViolations(container);
+  });
+
+  it("hides the transcription ring and the target chip", () => {
+    mount();
+    expect(screen.queryByText("Not started")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Where this session goes/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("region")).not.toHaveAttribute("data-status");
   });
 
   it("falls back to Last session and omits a missing date", () => {
@@ -84,9 +95,9 @@ describe("EndedSessionCard", () => {
     ]);
   });
 
-  it("says No takes and formats hours", () => {
+  it("counts no takes and formats hours", () => {
     const { rerender } = mount({ takes: [] });
-    expect(screen.getByText("No takes")).toBeInTheDocument();
+    expect(screen.getByText("2 people · 0 takes · 0:00")).toBeInTheDocument();
     rerender(
       <EndedSessionCard
         session={{
@@ -96,7 +107,7 @@ describe("EndedSessionCard", () => {
         trackNames={names}
       />,
     );
-    expect(screen.getByText("1 take · 1:02:05")).toBeInTheDocument();
+    expect(screen.getByText("2 people · 1 take · 1:02:05")).toBeInTheDocument();
   });
 
   describe("Edit hand-off", () => {
@@ -121,6 +132,7 @@ describe("EndedSessionCard", () => {
       const { onEdit, baseElement } = edit();
       const button = screen.getByRole("button", { name: "Edit Session 2" });
       expect(button).toHaveClass("primary");
+      expect(button.closest("footer")).not.toBeNull();
       await expectNoA11yViolations(baseElement);
       await userEvent.click(button);
       expect(onEdit).toHaveBeenCalledTimes(1);
@@ -438,5 +450,16 @@ describe("EndedSessionCard", () => {
       const { container } = await open({ name: "Cold open" });
       await expectNoA11yViolations(container);
     });
+  });
+});
+
+describe("formatRecordingClock", () => {
+  it.each([
+    [0, "0:00"],
+    [-5, "0:00"],
+    [64_000, "1:04"],
+    [3_725_000, "1:02:05"],
+  ])("formats %s ms as %s", (ms, text) => {
+    expect(formatRecordingClock(ms)).toBe(text);
   });
 });
