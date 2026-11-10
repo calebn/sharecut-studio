@@ -336,6 +336,14 @@ export const COMMANDS: Record<string, CommandDef> = {
     notes:
       "Escape: drop an armed range draft if there is one, else close the Inspector if it is open, else clear the selection, track targeting included",
   },
+  "edit.nextOccurrence": {
+    id: "edit.nextOccurrence",
+    category: "edit",
+    label: "Next occurrence",
+    when: "afterCutActive",
+    notes:
+      "Tab after a words cut: select the next place the same words were said; Shift+Tab the previous. Ends on any other key, edit or selection",
+  },
   "edit.rippleDelete": {
     id: "edit.rippleDelete",
     mutates: true,

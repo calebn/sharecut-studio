@@ -11,12 +11,16 @@ import {
   type RangeEditMode,
   rangeEditMode,
 } from "../shareMode";
+import type { AfterCutDirection } from "../state/afterCutSlice";
 import { useDawStore } from "../state/dawStore";
 import { documentActivityBusy } from "../state/documentSendOrder";
 import { type RoomKeyHandlers, roomKeys } from "../state/roomKeys";
 import { stageRoleOf, stagesForRole } from "../state/stageRoutes";
+import type { DawStore } from "../state/types";
+import type { Selection } from "../types/project";
 import type { StageId } from "../types/stage";
 import { splitSpeakersBlocker } from "../utils/speakerSplit";
+import { afterCutPick } from "./afterCutHost";
 import { focusedClipHandleKind } from "./focusedClipHandle";
 import type { ContextPredicateId } from "./types";
 
@@ -61,6 +65,7 @@ export type CommandContext = {
   splitSpeakersBlocker: string | null;
   /** Any inspector selection (clip, track, comment, …). */
   hasInspectorSelection: boolean;
+  afterCutActive: boolean;
   suggestionSelected: boolean;
   following: boolean;
   recordStageActive: boolean;
@@ -71,7 +76,46 @@ function editUnsaved(projectPath: string): boolean {
   return documentActivityBusy(projectPath) || hasDocumentDrafts();
 }
 
-export function buildCommandContext(): CommandContext {
+function scriptBodyFocused(): boolean {
+  const el = document.activeElement;
+  return el instanceof Element && el.closest(".sys-script-body") !== null;
+}
+
+function sameWords(a: Selection, b: Selection): boolean {
+  if (a === b) return true;
+  return (
+    a?.kind === "transcriptRange" &&
+    b?.kind === "transcriptRange" &&
+    a.trackId === b.trackId &&
+    (a.sourceId ?? null) === (b.sourceId ?? null) &&
+    a.startWordIndex === b.startWordIndex &&
+    a.endWordIndex === b.endWordIndex
+  );
+}
+
+function afterCutActive(s: DawStore, direction: AfterCutDirection): boolean {
+  const cut = s.afterCut;
+  if (!cut || !s.project) return false;
+  if (
+    cut.epoch !== s.projectEpoch ||
+    s.stage !== "edit" ||
+    s.shellBreakpoint === "phone" ||
+    rangeEditMode(s.projectPath, s.shareCapabilities) !== "edit"
+  )
+    return false;
+  const history = s.project.history;
+  const head = history?.head_id ?? null;
+  if (head !== cut.head && head !== cut.baseHead) return false;
+  if (head !== cut.head && history?.can_redo) return false;
+  if (!sameWords(s.selection, cut.selected)) return false;
+  return (
+    scriptBodyFocused() && afterCutPick(s.project, cut, direction) !== null
+  );
+}
+
+export function buildCommandContext(
+  key?: Pick<KeyboardEvent, "shiftKey">,
+): CommandContext {
   const s = useDawStore.getState();
   const transcriptFocused =
     s.stage === "edit" &&
@@ -145,6 +189,7 @@ export function buildCommandContext(): CommandContext {
       canManageProjects(s.projectPath),
     ),
     hasInspectorSelection: selection != null || s.rangeArmed,
+    afterCutActive: afterCutActive(s, key?.shiftKey ? "prev" : "next"),
     suggestionSelected: selection?.kind === "pending",
     following: s.followingClientId != null,
     recordStageActive: s.stage === "record",
@@ -368,6 +413,10 @@ export function evaluateWhen(
       return ctx.hasInspectorSelection
         ? { ok: true }
         : { ok: false, reason: "Nothing selected" };
+    case "afterCutActive":
+      return ctx.afterCutActive
+        ? { ok: true }
+        : { ok: false, reason: "No other matches to jump to" };
     case "following":
       return ctx.following
         ? { ok: true }

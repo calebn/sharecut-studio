@@ -259,6 +259,22 @@
       "tooltip": "Clear selection"
     },
     {
+      "id": "daw.edit.nextOccurrence",
+      "label": "Next occurrence",
+      "effect": "session",
+      "service": "ShareCut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "afterCutActive"
+      ],
+      "surfaces": {
+        "command": "edit.nextOccurrence",
+        "keyboard": "Tab"
+      },
+      "omit": {},
+      "tooltip": "Jump to the next place you said the same words"
+    },
+    {
       "id": "daw.create.menu",
       "label": "Create here",
       "effect": "view",

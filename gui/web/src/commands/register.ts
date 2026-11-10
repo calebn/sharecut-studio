@@ -1,4 +1,5 @@
 /** Stable entry point for the DAW command registry. Keep registration order here. */
+import { registerAfterCutCommands } from "./afterCut";
 import { registerChapterCommands } from "./chapters";
 import { registerClipBleedCommands } from "./clipBleed";
 import { registerCommentCommands } from "./comments";
@@ -35,6 +36,7 @@ export { _resetTrackMutateChainForTests } from "./trackMutation";
 export function registerDawCommands(): void {
   registerClipBleedCommands();
   registerRangeCommands();
+  registerAfterCutCommands();
   registerSpeakerMoveLaneSpanCommands();
   registerRoomToneBedCommands();
   registerNavigationCommands();

@@ -45,6 +45,7 @@ export type ContextPredicateId =
   | "canMoveSelectedTrackDown"
   | "canSplitSpeakers"
   | "hasInspectorSelection"
+  | "afterCutActive"
   | "following"
   | "recordStageActive"
   | "roomTakeIdle"

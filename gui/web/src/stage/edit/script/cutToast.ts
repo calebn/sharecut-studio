@@ -21,13 +21,13 @@ const WORDS_MAX = 24;
 
 type TranscriptRange = Extract<Selection, { kind: "transcriptRange" }>;
 
-function shortWords(words: string): string {
+export function shortWords(words: string): string {
   return words.length <= WORDS_MAX
     ? words
     : `${words.slice(0, WORDS_MAX - 1)}…`;
 }
 
-function cuttableHits(
+export function cuttableHits(
   { model, cutAway }: ScriptHostModel,
   words: string,
   cutKeys: ReadonlySet<string>,
@@ -106,6 +106,7 @@ function buildCutToast(
   if (more === 0) return { message: head };
   return {
     message: `${head} · ${more} more`,
+    follow: { words, cutKeys: [...cutKeys] },
     action:
       more <= CUT_ALL_MAX_HITS
         ? cutAllAction(words, epoch, cutKeys)

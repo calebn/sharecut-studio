@@ -181,6 +181,40 @@ describe("cut toast after a words cut", () => {
     expect(toast()?.message).toContain("2 more");
   });
 
+  it("follows the words only while other occurrences are left", async () => {
+    seed();
+    select("host", 0, 1);
+    await runRangeAction("cut");
+    expect(useDawStore.getState().afterCut).toMatchObject({
+      words: "you know",
+      cutKeys: ["host::0", "host::1"],
+      head: "h1",
+      selected: null,
+    });
+    select("host", 2, 2);
+    await runRangeAction("cut");
+    expect(useDawStore.getState().afterCut).toBeNull();
+  });
+
+  it("follows nothing for a cut that is queued, suggested or on the phone", async () => {
+    seed();
+    vi.mocked(submitDocumentCommand).mockResolvedValue({
+      type: "Applied",
+      queued: true,
+    } as never);
+    select("host", 0, 1);
+    await runRangeAction("cut");
+    expect(useDawStore.getState().afterCut).toBeNull();
+    vi.mocked(submitDocumentCommand).mockResolvedValue({
+      type: "Applied",
+      history_head_id: "h1",
+    });
+    useDawStore.setState({ shellBreakpoint: "phone" });
+    select("host", 0, 1);
+    await runRangeAction("cut");
+    expect(useDawStore.getState().afterCut).toBeNull();
+  });
+
   it("shows the length alone when no other occurrence is left", async () => {
     seed();
     select("host", 2, 2);

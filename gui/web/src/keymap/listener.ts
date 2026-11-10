@@ -20,6 +20,24 @@ import {
   isTypingTarget,
 } from "./typing";
 
+const KEEPS_AFTER_CUT = new Set([
+  "Tab",
+  "Backspace",
+  "Delete",
+  "Shift",
+  "Control",
+  "Alt",
+  "Meta",
+  "CapsLock",
+]);
+
+function endsAfterCut(e: KeyboardEvent): void {
+  const { afterCut, setAfterCut } = useDawStore.getState();
+  if (!afterCut) return;
+  if (KEEPS_AFTER_CUT.has(e.key) || (e.key === " " && e.shiftKey)) return;
+  setAfterCut(null);
+}
+
 /**
  * Sole window-level ShareCut Studio shortcut listener (governance choke-point).
  * Component-local Escape (e.g. BottomSheet) may use separate listeners —
@@ -85,6 +103,7 @@ export function useDawKeymapListener(): void {
       if (handedOn?.length === 0) {
         return;
       }
+      endsAfterCut(e);
       if (
         isTypingTarget(e.target) ||
         (e.key !== "Escape" && isScrubValue(e.target)) ||
@@ -99,7 +118,7 @@ export function useDawKeymapListener(): void {
       if (!matches.length) {
         return;
       }
-      const ctx = buildCommandContext();
+      const ctx = buildCommandContext(e);
       void (async () => {
         for (const cmd of matches) {
           const def = COMMANDS[cmd.id];

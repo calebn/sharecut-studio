@@ -100,8 +100,12 @@ export function scriptHostModelOf(
   };
 }
 
+const modelsByProject = new WeakMap<ProjectView, ScriptHostModel>();
+
 export function scriptModelFor(project: ProjectView): ScriptHostModel {
-  return scriptHostModelOf(
+  const known = modelsByProject.get(project);
+  if (known) return known;
+  const built = scriptHostModelOf(
     {
       utterances: project.transcript?.utterances ?? NO_UTTERANCES,
       boundaries: project.edit_boundaries ?? NO_BOUNDARIES,
@@ -110,4 +114,6 @@ export function scriptModelFor(project: ProjectView): ScriptHostModel {
     },
     personOf(project.tracks),
   );
+  modelsByProject.set(project, built);
+  return built;
 }
