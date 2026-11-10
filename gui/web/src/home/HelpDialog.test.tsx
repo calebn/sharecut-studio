@@ -591,6 +591,54 @@ describe("HelpDialog fallback", () => {
     );
   });
 
+  it("keeps a new draft typed after a reopen when the old submit resolves late", async () => {
+    const user = userEvent.setup();
+    createMock.mockResolvedValue(bundleResult);
+    let accept: (value: { status: string; status_url: string }) => void = () =>
+      undefined;
+    submitMock.mockReturnValue(
+      new Promise((resolve) => {
+        accept = resolve;
+      }),
+    );
+    const { rerender } = render(
+      <HelpDialog open initialStep="report" onClose={() => undefined} />,
+    );
+    await waitForDialogFocus();
+    await user.click(screen.getByRole("button", { name: CREATE_LABEL }));
+    await user.type(
+      await screen.findByLabelText("Describe the problem"),
+      "Opening an episode fails",
+    );
+    await user.click(screen.getByRole("checkbox"));
+    await user.click(screen.getByRole("button", { name: "Submit report" }));
+    await waitFor(() => expect(submitMock).toHaveBeenCalledOnce());
+    rerender(
+      <HelpDialog
+        open={false}
+        initialStep="report"
+        onClose={() => undefined}
+      />,
+    );
+    rerender(
+      <HelpDialog open initialStep="report" onClose={() => undefined} />,
+    );
+    const field = await (async () => {
+      await user.click(
+        await screen.findByRole("button", { name: CREATE_LABEL }),
+      );
+      return screen.findByLabelText("Describe the problem");
+    })();
+    await user.clear(field);
+    await user.type(field, "A different problem");
+    await act(async () => {
+      accept({ status: "queued", status_url: "https://relay.example.test/r" });
+    });
+    expect(screen.getByLabelText("Describe the problem")).toHaveValue(
+      "A different problem",
+    );
+  });
+
   it("focuses Export diagnostics when it opens straight on the report step", async () => {
     render(<HelpDialog open initialStep="report" onClose={() => undefined} />);
     await waitFor(() =>

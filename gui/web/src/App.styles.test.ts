@@ -143,4 +143,26 @@ describe("App styles", () => {
     expect(body).toMatch(/box-shadow:\s*inset/);
     expect(body).not.toMatch(/outline-offset/);
   });
+
+  it("rests Home sheets and toasts on the screen edge, not phantom frame chrome", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const frame = readFileSync(
+      join(here, "styles/partials/stage-frame.css"),
+      "utf8",
+    );
+    const home = frame.match(
+      /html\[data-surface="home"\]\[data-shell\]\s*\{([^}]*)}/,
+    );
+    expect(home).toBeTruthy();
+    expect(home![1]).toMatch(
+      /--frame-bottom-chrome:\s*env\(safe-area-inset-bottom\)/,
+    );
+    expect(home![1]).toMatch(
+      /--frame-header-end:\s*env\(safe-area-inset-top\)/,
+    );
+    // It must come after every rule that sets the variable from the shell.
+    const reset = frame.indexOf('html[data-surface="home"][data-shell]');
+    const lastShell = frame.lastIndexOf("--frame-bottom-chrome: calc(");
+    expect(reset).toBeGreaterThan(lastShell);
+  });
 });

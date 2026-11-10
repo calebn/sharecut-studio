@@ -142,6 +142,7 @@ export function HelpDialog({
   const onSubmit = useCallback(async () => {
     if (!bundle || !consent || submitted || submitting.current) return;
     const generation = requestGeneration.current;
+    const sentDescription = description;
     submitting.current = true;
     setBusy(true);
     setError(null);
@@ -154,7 +155,10 @@ export function HelpDialog({
         consent,
       });
       if (!open || generation !== requestGeneration.current) {
-        setDescription("");
+        // Clear only the draft that was sent, not one typed since a reopen.
+        setDescription((current) =>
+          current === sentDescription ? "" : current,
+        );
         return;
       }
       activeReportUrl.current = result.status_url;

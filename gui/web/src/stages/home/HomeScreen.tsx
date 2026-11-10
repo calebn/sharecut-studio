@@ -144,7 +144,7 @@ function wantsPathField(): boolean {
 }
 
 export function HomeScreen() {
-  useShellAttributes();
+  useShellAttributes("home");
   const models = useModels();
   const [recents, setRecents] = useState<RecentProject[] | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
