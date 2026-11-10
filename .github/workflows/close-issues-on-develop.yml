@@ -1,0 +1,48 @@
+name: close-issues-on-develop
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+    inputs:
+      before:
+        description: Start of the range (exclusive); empty checks only the after commit
+        required: false
+        default: ""
+      after:
+        description: End of the range (inclusive); empty means the dispatched ref's tip
+        required: false
+        default: ""
+      dry-run:
+        description: Print what would be closed and write nothing
+        type: boolean
+        default: true
+
+permissions:
+  issues: write
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: close-issues-on-develop
+  cancel-in-progress: false
+
+jobs:
+  close:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - name: Close the issues the merged PRs reference
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BEFORE: ${{ github.event_name == 'push' && github.event.before || inputs.before }}
+          AFTER: ${{ github.event_name == 'push' && github.sha || inputs.after || github.sha }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run || 'false' }}
+        run: python scripts/close_issues_on_develop.py
