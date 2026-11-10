@@ -20,20 +20,17 @@ type AppliedMarkerKind = Extract<EditMarkerKind, `applied-${string}`>;
 interface EditMarkerSpec {
   type: EditType;
   label: string;
-  longLabel?: string;
 }
 
 export const EDIT_MARKERS = {
-  "join-cut": { type: "cut", label: "Cut", longLabel: "Cut (no fade)" },
+  "join-cut": { type: "cut", label: "Cut" },
   "join-fade": {
     type: "fade",
     label: "Fade",
-    longLabel: "Fade at join (dip)",
   },
   "join-crossfade": {
     type: "crossfade",
     label: "Crossfade",
-    longLabel: "Crossfade (overlap both clips)",
   },
   "pending-remove": { type: "cut", label: "Cut" },
   "pending-mute": { type: "mute", label: "Mute" },

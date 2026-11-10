@@ -62,7 +62,6 @@ export type SeamJoinFields = {
   originEnd: number;
   sinceOpenSec: number;
   error: string | null;
-  setError: (message: string | null) => void;
   supersede: () => void;
   setType: (mode: JoinMode) => Promise<void>;
   length: {
@@ -223,7 +222,6 @@ export function useSeamJoinFields(
     originEnd,
     sinceOpenSec,
     error,
-    setError,
     supersede: replay.supersede,
     setType,
     length: {
