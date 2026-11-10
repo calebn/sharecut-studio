@@ -14,7 +14,7 @@ import {
 import { useDawStore } from "../../state/dawStore";
 import type { InspectorSection } from "../../system/InspectorSheet";
 import type { Selection } from "../../types/project";
-import { Button, DefItem, DefinitionList, InlineError } from "../../ui";
+import { Button, InlineError } from "../../ui";
 import { note } from "./sheetNote";
 import { useBleedSession } from "./useBleedSession";
 
@@ -47,40 +47,42 @@ const section = (id: string, ...controls: ReactNode[]): InspectorSection => ({
 });
 
 type Inspection = BleedAttenuationInspection<unknown>;
+type InspectorRow = InspectorSection["rows"][number];
 
 const spanRow = (
+  id: string,
   label: string,
   span: Parameters<typeof bleedAttenuationSpanLabel>[0],
-) => <DefItem label={label}>{bleedAttenuationSpanLabel(span)}</DefItem>;
+): InspectorRow => ({
+  id,
+  label,
+  control: <span>{bleedAttenuationSpanLabel(span)}</span>,
+});
 
-const facts = (inspection: Inspection) => {
-  return (
-    <div className="inspector edit-sheet-part">
-      <DefinitionList>
-        <DefItem label="Clip">{inspection.clipLabel}</DefItem>
-        <DefItem label="Automatic reduction">
-          {PLAN_LABELS[inspection.planState]}
-        </DefItem>
-        {inspection.planReasons.length ? (
-          <DefItem label="Why">{inspection.planReasons.join(" ")}</DefItem>
-        ) : null}
-        <DefItem label="Rendered audio">
-          {ARTIFACT_LABELS[inspection.artifactState]}
-        </DefItem>
-        <DefItem label="Saved choice">
-          {RESTORE_LABELS[inspection.restoreState]}
-        </DefItem>
-        {inspection.savedSourceSpans.length ? (
-          <DefItem label="Saved source intervals">
-            {inspection.savedSourceSpans
-              .map(bleedAttenuationSpanLabel)
-              .join(", ")}
-          </DefItem>
-        ) : null}
-      </DefinitionList>
-    </div>
-  );
-};
+const factRows = (inspection: Inspection): InspectorRow[] => [
+  { id: "clip", label: "Clip", control: <span>{inspection.clipLabel}</span> },
+  { id: "plan", control: note(PLAN_LABELS[inspection.planState]) },
+  ...(inspection.planReasons.length
+    ? [{ id: "why", control: note(inspection.planReasons.join(" ")) }]
+    : []),
+  { id: "artifact", control: note(ARTIFACT_LABELS[inspection.artifactState]) },
+  { id: "restore", control: note(RESTORE_LABELS[inspection.restoreState]) },
+  ...(inspection.savedSourceSpans.length
+    ? [
+        {
+          id: "saved",
+          label: "Saved restores",
+          control: (
+            <span>
+              {inspection.savedSourceSpans
+                .map(bleedAttenuationSpanLabel)
+                .join(", ")}
+            </span>
+          ),
+        },
+      ]
+    : []),
+];
 
 export function useBleedSections(
   selection: Selection,
@@ -159,7 +161,7 @@ export function useBleedSections(
   if (statusRows.length) sections.push(section("status", ...statusRows));
   if (inspection) {
     sections.push(
-      section("facts", facts(inspection)),
+      { id: "facts", rows: factRows(inspection) },
       section(
         "regions",
         inspection.regions.length ? (
@@ -199,26 +201,30 @@ export function useBleedSections(
             "No automatic regions in this clip. Refresh regions to check again.",
           )
         ),
-        ...(selected
-          ? [
-              <div key="detail" className="inspector edit-sheet-part">
-                <DefinitionList>
-                  {spanRow("Selected source interval", selected.sourceSpan)}
-                  {selected.restore.state === "available"
-                    ? spanRow(
-                        "Restore source interval",
-                        selected.restore.sourceSpan,
-                      )
-                    : null}
-                </DefinitionList>
-              </div>,
-            ]
-          : []),
       ),
+      ...(selected
+        ? [
+            {
+              id: "detail",
+              rows: [
+                spanRow("selected", "Selected range", selected.sourceSpan),
+                ...(selected.restore.state === "available"
+                  ? [
+                      spanRow(
+                        "restores",
+                        "Restores",
+                        selected.restore.sourceSpan,
+                      ),
+                    ]
+                  : []),
+              ],
+            },
+          ]
+        : []),
       section(
         "help",
         note(
-          "Keep restores the original audio for the selected source interval in this clip only. Other copies keep their automatic reduction. Listen after the rendered audio is current.",
+          "Keep restores the original audio for the selected range in this clip only. Other copies keep their automatic reduction. Listen after the rendered audio is current.",
         ),
       ),
     );

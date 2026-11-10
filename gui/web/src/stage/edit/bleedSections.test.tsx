@@ -474,9 +474,11 @@ describe("automatic reduction sheet content", () => {
       });
       render(<SectionsBody withRange={false} />);
       await userEvent.click(await ready());
-      expect(screen.getByText("Selected source interval")).toBeVisible();
-      expect(screen.getByText("Restore source interval")).toBeVisible();
+      expect(screen.getByText("Selected range")).toBeVisible();
+      expect(screen.getByText("Restores")).toBeVisible();
+      expect(screen.getByText("20.000 to 21.000 s")).toBeVisible();
       expect(screen.getByText("20.500 to 21.000 s")).toBeVisible();
+      expect(screen.queryByText(/source interval/i)).toBeNull();
       await keep();
       expect(restoreClipBleed).toHaveBeenCalledTimes(1);
       expect(vi.mocked(restoreClipBleed).mock.calls[0][1]).toBe(target);
@@ -501,6 +503,7 @@ describe("automatic reduction sheet content", () => {
       expect(
         screen.getByText("Restore choice saved for this recording."),
       ).toBeVisible();
+      expect(screen.getByText("Saved restores")).toBeVisible();
       expect(screen.getByText("20.000 to 20.500 s")).toBeVisible();
       expect(
         screen.getByText(/Saved choices are pending in the next render/),
