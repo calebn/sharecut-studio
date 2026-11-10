@@ -423,6 +423,9 @@ span. File stays continuous (no length change), so clocks still line up. No
 separate "pause my recording" button in MVP. Host cannot unmute a guest. Test
 MM4 asserts the monitor drop; keeper mute zeros are covered by keeper session tests.
 Mute zeros never trigger the silent PCM watchdog (it is disarmed while muted).
+While muted during a take the page listens to a local clone of the mic only to
+detect speech for the "You're muted." alert; that audio feeds a level reading,
+is never sent, recorded or stored, and the clone is dropped on unmute.
 
 ## Progressive upload and recovery
 
@@ -841,8 +844,16 @@ fed the take's clip regions from `useTakeClipping`; guest, host and the away
 badge dot use the same gate). One or two clips, or three spread over more than
 30 s, show the badge but no alert. The alert stays while the take's regions hold
 that condition and starts clean with the next take. The "You're muted." alert
-still shows on mute; its 10 s-of-speech gate is a follow-up that needs a second
-meter on a cloned mic stream, because muting silences the shared track. The Join
+shows only after 10 s of speech while the seat is muted (`mutedSpeechGate` in
+`record/alertGates.ts`, run by `useMutedSpeech`): block RMS of 1024 samples,
+polled every 100 ms, starts speech at -45 dBFS and holds it down to -50 dBFS plus
+400 ms, and the 10 s is accumulated rather than consecutive. 4 s of quiet resets
+the count and clears the alert, unmuting or the take stopping resets it, a pause
+freezes it, and a tick gap over 500 ms (a throttled tab) credits nothing. The
+shared mic track is disabled by mute, so the level comes from a clone of the
+stream (`record/mutedSpeechTap.ts`), opened only while muted. Guest, host stage
+and the away badge dot use the same gate; producers have no mic and never see
+it. If the clone cannot be tapped, no alert shows. The Join
 sheet shows a clip indicator while the guest checks their mic. On the host
 Record stage a landed take's row in the Takes tray jumps (Hear) to the earliest clipped span of anyone in the take (source -> timeline via the landed source id
 `rec-{session}-{take}-{participant}-{segment}`), disabled until the take lands. The
@@ -1166,7 +1177,8 @@ stopped." (**Reconnect mic**), "No sound is reaching the recorder." (**Check mic
 "This device couldn't save the recording.", "Saving stopped." (**Resume saving**,
 **Save a copy**), "We found part of your recording." (**Finish saving**),
 "{Host} dropped. You're still recording on this device.", "You're clipping. Move
-back a little." (after the third clip in 30 s) and "You're muted.". Hidden screen-reader lines announce
+back a little." (after the third clip in 30 s) and "You're muted." (after 10 s of
+speech while muted). Hidden screen-reader lines announce
 "Recording in full quality on this device.", "Hearing the room.", joins, leaves and
 other people's new notes. **Leave** is held until the file ACK. Covers replace the
 room for an invalid link, "The room is full" (**Try again**), "Invite link

@@ -53,6 +53,7 @@ import { useGuestRoom } from "./useGuestRoom";
 import { useGuestRoomTone } from "./useGuestRoomTone";
 import { useInputPeakDb } from "./useInputPeakDb";
 import { useLateRoomTone } from "./useLateRoomTone";
+import { useMutedSpeech } from "./useMutedSpeech";
 import { recordSyncErrorCopy } from "./useRecordSync";
 import { useRoomToneAnnouncement } from "./useRoomToneAnnouncement";
 import { useRosterAnnouncer } from "./useRosterAnnouncer";
@@ -262,6 +263,10 @@ function GuestRoomSession({
     meterRef.current.resume();
   };
 
+  const mutedSpeech = useMutedSpeech(producer ? null : mic.stream, {
+    muted: recorded && (me?.muted ?? false),
+    counting: state === "recording",
+  });
   const dropped = !connected && onAir && recorded;
   const micNeedsAttention =
     recorded && onAir && (mic.lost || mic.stream === null);
@@ -285,7 +290,7 @@ function GuestRoomSession({
       monitorError: monitor.error,
       transportError: recordSyncErrorCopy(error),
       clipping: !producer && clippingGate(takeClipping?.regions ?? []),
-      muted: recorded && (me?.muted ?? false),
+      mutedSpeech,
       dropped,
       micCheckFailed: keeper.micCheckFailed,
       notice: keeperActions.notice,

@@ -214,6 +214,20 @@ export const GuestLiveMuted: Story = {
   },
 };
 
+export const GuestLiveMutedSpeaking: Story = {
+  args: {
+    muted: true,
+    alerts: [{ kind: "muted" }],
+    people: [HOST, { ...JON_YOU, muted: true, level: 0.6 }, ANNEKE_GUEST],
+  },
+  play: async ({ canvasElement }) => {
+    await expect(alertRows(canvasElement)).toBe(1);
+    await expect(
+      within(canvasElement).getByText("You're muted."),
+    ).toBeInTheDocument();
+  },
+};
+
 export const GuestMicLost: Story = {
   args: {
     alerts: [{ kind: "mic-lost", onAction: fn() }],

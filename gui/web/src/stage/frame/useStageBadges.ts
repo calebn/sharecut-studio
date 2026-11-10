@@ -1,6 +1,10 @@
 import { useEffect } from "react";
 import { shallow } from "zustand/shallow";
-import { useHostRoomSelector, useRecordHostStore } from "../../record";
+import {
+  useHostRoomSelector,
+  useMutedSpeech,
+  useRecordHostStore,
+} from "../../record";
 import { reviewCountOf } from "../../review/reviewItems";
 import { canReviewPendingEdit, isShareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
@@ -94,10 +98,25 @@ export function useRecordBadge(): RecordBadge {
   const captureHealth = useRecordHostStore((s) => s.captureHealth);
   const receivedAtMs = useRecordHostStore((s) => s.receivedAtMs);
   const dropped = useRecordHostStore((s) => s.dropped);
+  const mic = useHostRoomSelector(
+    (room) => ({
+      stream: room?.capture.stream ?? null,
+      muted: room?.host?.muted ?? false,
+      counting: room?.state === "recording",
+    }),
+    shallow,
+  );
+  const mutedSpeech = useMutedSpeech(away ? mic.stream : null, mic);
   return useHostRoomSelector(
     (room): RecordBadge =>
       room
-        ? recordBadge(room, { captureHealth, receivedAtMs, dropped, away })
+        ? recordBadge(room, {
+            captureHealth,
+            receivedAtMs,
+            dropped,
+            away,
+            mutedSpeech,
+          })
         : { kind: "idle" },
     shallow,
   );

@@ -71,5 +71,6 @@ export {
 } from "./useHostRoom";
 export { useInputPeakDb } from "./useInputPeakDb";
 export { useLastEndedSession } from "./useLastEndedSession";
+export { useMutedSpeech } from "./useMutedSpeech";
 export { useOpenSessionName } from "./useOpenSessionName";
 export { useRoomToneAnnouncement } from "./useRoomToneAnnouncement";

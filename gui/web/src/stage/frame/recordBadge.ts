@@ -29,6 +29,8 @@ type RecordBadgeSource = {
   receivedAtMs: number | null;
   /** The record socket closed after being open; a local clock is no longer the room's. */
   dropped: boolean;
+  /** The host mic has heard 10 s of speech while muted (`useMutedSpeech`). */
+  mutedSpeech: boolean;
   /** Alerts are the Record stage's own to show; away from it they earn a dot. */
   away: boolean;
 };
@@ -83,7 +85,7 @@ export function recordBadge(
         transportError: room.transportError,
         hydrateError: room.hydrateError,
         clipping: clippingGate(room.takeClipping?.regions ?? []),
-        muted: room.host?.muted ?? false,
+        mutedSpeech: source.mutedSpeech,
         micCheckFailed: room.capture.micCheckFailed,
       },
       { recover: NO_ACTION },
