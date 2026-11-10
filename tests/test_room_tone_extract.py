@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
+from podcast_mcp.edits.extracted_bed import register_extracted_bed
 from podcast_mcp.edits.record_placement import place_room_tone
 from podcast_mcp.engines import room_tone as room_tone_module
 from podcast_mcp.engines import room_tone_extract
@@ -436,7 +437,7 @@ def test_audio_changed_between_plan_and_register_is_not_registered(tmp_path: Pat
     result = ws.mutate(
         "before",
         "after",
-        lambda p: RoomToneBedService._register(p, "host", plan),
+        lambda p: register_extracted_bed(p, "host", plan),
         operation="extract_room_tone_bed",
         params={"track_id": "host"},
     )
@@ -462,7 +463,7 @@ def test_a_recorded_bed_landing_between_plan_and_register_wins(tmp_path: Path) -
     result = ws.mutate(
         "before",
         "after",
-        lambda p: RoomToneBedService._register(p, "host", plan),
+        lambda p: register_extracted_bed(p, "host", plan),
         operation="extract_room_tone_bed",
         params={"track_id": "host"},
     )
@@ -556,7 +557,7 @@ def test_changed_assets_between_plan_and_registration_are_refused(
         _write_wav(plan.path, _noise(-70.0, seed=9))
     before = ws.project.model_dump_json()
 
-    result = RoomToneBedService._register(ws.project, "host", plan)
+    result = register_extracted_bed(ws.project, "host", plan)
 
     assert result["extracted"] is False
     assert result["reason"] == ("source_changed" if change.startswith("source") else "bed_changed")
