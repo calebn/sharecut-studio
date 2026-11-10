@@ -481,8 +481,7 @@ async function resolveComment(): Promise<ExecuteResult> {
             resolved: false,
             by,
           });
-          if (back.status !== "ok") throw new Error("Reopen failed");
-          return true;
+          return back.status === "ok";
         },
         done: "Comment reopened",
       },
