@@ -7,7 +7,6 @@ import { cancelClipPlacement } from "../../edit/clipPlacement";
 import { edgeFadeMaxMs, maxFadeMs } from "../../edit/fadeLimits";
 import {
   clipIdsBeforeCut,
-  clipsAbut,
   cutFadeHint,
   isCutJoin,
   JOIN_AUDITION_PAD_SEC,
@@ -38,7 +37,7 @@ import {
 import { note } from "./sheetNote";
 
 function joinRows(fields: SeamJoinFields | null) {
-  if (!fields || !clipsAbut(fields.seam.left, fields.seam.right)) return [];
+  if (!fields?.seam.abuts) return [];
   return [
     ...joinTypeRows(fields),
     ...joinLengthRows(fields),
@@ -51,14 +50,21 @@ const FADE_LIMIT_LOADING = "The fade limit is still loading. Wait a moment.";
 export function useClipSections(
   selection: Selection,
 ): readonly InspectorSection[] | null {
-  const { project, projectPath, projectEpoch, guestMode, shareCapabilities } =
-    useDaw((s) => ({
-      project: s.project,
-      projectPath: s.projectPath,
-      projectEpoch: s.projectEpoch,
-      guestMode: s.guestMode,
-      shareCapabilities: s.shareCapabilities,
-    }));
+  const {
+    project,
+    projectPath,
+    projectEpoch,
+    guestMode,
+    shareCapabilities,
+    joinBusy,
+  } = useDaw((s) => ({
+    joinBusy: s.joinMutationInFlight,
+    project: s.project,
+    projectPath: s.projectPath,
+    projectEpoch: s.projectEpoch,
+    guestMode: s.guestMode,
+    shareCapabilities: s.shareCapabilities,
+  }));
   const { busy, error, setError, run } = useProjectMutation();
   const id = selection?.kind === "clip" ? selection.id : null;
   const selectedIds = selectedClipIdsOf(selection);
@@ -70,6 +76,7 @@ export function useClipSections(
           .find((candidate) => candidate.id === id);
   const track = project?.tracks.find((t) => t.id === clip?.track_id);
   const capMs = track === undefined ? undefined : (track.fade_max_ms ?? null);
+  const joinHost = { busy, onEdit: cancelClipPlacement };
   const seams =
     project && clip && selectedIds.length <= 1
       ? seamsOnTrack(project, clip.track_id)
@@ -77,10 +84,12 @@ export function useClipSections(
   const leading = useSeamJoinFields(
     seams.find((seam) => seam.right.id === clip?.id)?.id ?? null,
     "start",
+    joinHost,
   );
   const trailing = useSeamJoinFields(
     seams.find((seam) => seam.left.id === clip?.id)?.id ?? null,
     "end",
+    joinHost,
   );
   useEffect(() => {
     setError(null);
@@ -130,7 +139,7 @@ export function useClipSections(
     clip.source_start,
     clip.source_end,
   );
-  const locked = !editable || busy;
+  const locked = !editable || busy || joinBusy;
 
   const trim = async (edge: "in" | "out", value: number) => {
     if (locked) return;
@@ -359,12 +368,15 @@ export function useClipSections(
             </Button>
           ),
         },
-        ...[error, leading?.error, trailing?.error]
-          .filter((message): message is string => !!message)
-          .map((message) => ({
-            id: `error:${message}`,
-            control: note(message, "alert"),
-          })),
+        ...(
+          [
+            ["error", error],
+            ["error-start", leading?.error],
+            ["error-end", trailing?.error],
+          ] as const
+        ).flatMap(([id, message]) =>
+          message ? [{ id, control: note(message, "alert") }] : [],
+        ),
       ],
     },
     {
