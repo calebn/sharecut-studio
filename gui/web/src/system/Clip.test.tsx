@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import {
   CLIP_LABEL_MIN_WIDTH,
@@ -301,16 +301,11 @@ describe("Clip handles", () => {
     const user = userEvent.setup();
     const above = vi.fn();
     const onNudge = vi.fn();
-    render(
-      <div
-        role="toolbar"
-        tabIndex={-1}
-        aria-label="keymap"
-        onKeyDown={(event) => event.key.startsWith("Arrow") && above()}
-      >
-        <Clip {...base} selected onNudge={onNudge} />
-      </div>,
-    );
+    const keymap = (event: KeyboardEvent) =>
+      event.key.startsWith("Arrow") && above();
+    window.addEventListener("keydown", keymap);
+    onTestFinished(() => window.removeEventListener("keydown", keymap));
+    render(<Clip {...base} selected onNudge={onNudge} />);
     const handle = (name: string) =>
       screen.getByRole("slider", { name: new RegExp(`^${name}`) });
     handle("Trim end").focus();

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { TrackHeader, type TrackHeaderProps } from "./TrackHeader";
 
@@ -278,16 +278,11 @@ describe("TrackHeader reordering", () => {
     const user = userEvent.setup();
     const onMove = vi.fn();
     const seen = vi.fn();
-    render(
-      <div
-        role="toolbar"
-        tabIndex={-1}
-        aria-label="keymap"
-        onKeyDown={(event) => event.key.startsWith("Arrow") && seen(event.key)}
-      >
-        <TrackHeader {...base} onMove={onMove} />
-      </div>,
-    );
+    const keymap = (event: KeyboardEvent) =>
+      event.key.startsWith("Arrow") && seen(event.key);
+    window.addEventListener("keydown", keymap);
+    onTestFinished(() => window.removeEventListener("keydown", keymap));
+    render(<TrackHeader {...base} onMove={onMove} />);
     select().focus();
     await user.keyboard(
       "{ArrowUp}{Shift>}{ArrowUp}{ArrowDown}{ArrowLeft}{/Shift}",
