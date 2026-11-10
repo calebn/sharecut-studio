@@ -504,6 +504,17 @@ for (const profile of [
             session_scope: sessionScope,
           },
         );
+        await expect(
+          sheet
+            .getByRole("region", { name: "Find suggestions" })
+            .getByRole("button", { name: /^Apply sound actions/ }),
+        ).toBeVisible();
+        await expect(
+          sheet.getByRole("region", { name: "Listen for sounds" }),
+        ).toHaveCount(0);
+        await expect(
+          page.getByRole("button", { name: "More ways to run" }),
+        ).toHaveCount(0);
         await sheet
           .getByRole("button", { name: /^Apply sound actions/ })
           .click();

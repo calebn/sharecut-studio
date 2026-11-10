@@ -221,14 +221,12 @@ export function usePrepareModel(): PrepareModel {
         skipped: skippedRows,
         settings: cfg,
         settingsError: workingSet.loadError,
-        scan:
+        soundScanTime:
           cfg?.enabled_steps.includes(SOUND_SCAN_STEP) &&
           getByPath(cfg.config, SOUND_SCAN_PATH) === true
-            ? {
-                time: soundScanTime(
-                  sourcesNow.reduce((sum, t) => sum + (t.duration_sec ?? 0), 0),
-                ),
-              }
+            ? soundScanTime(
+                sourcesNow.reduce((sum, t) => sum + (t.duration_sec ?? 0), 0),
+              )
             : null,
       }
     : null;
@@ -361,7 +359,8 @@ export function usePrepareModel(): PrepareModel {
     },
     onRunFromHere: (id) => {
       setAdvancedOpen(false);
-      void run.run("run", false, id);
+      if (id === "transcribe_tracks") run.retranscribe();
+      else void run.run("run", false, id);
     },
     onCancel: () => void run.cancel(),
   };
@@ -375,10 +374,6 @@ export function usePrepareModel(): PrepareModel {
       ? planNote(plan)
       : job && !running && jobCoversMedia
         ? reuseNote(job)
-        : undefined,
-    onRunAll:
-      canIngest && sourcesNow.length > untranscribed.length
-        ? run.retranscribe
         : undefined,
     terms: vocabulary.terms,
     onTermsChange: vocabulary.onTermsChange,

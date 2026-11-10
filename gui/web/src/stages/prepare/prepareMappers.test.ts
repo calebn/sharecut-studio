@@ -933,7 +933,7 @@ describe("the plan for audio added after a run", () => {
   });
 
   it("says kept only for Transcribe, the one step that skips finished tracks (#2890 for the rest)", () => {
-    const text = rows(plan({ scan: { time: "about 1 min" } })).map(
+    const text = rows(plan({ soundScanTime: "about 1 min" })).map(
       (r) => r.detail,
     );
     expect(text.filter((d) => /kept|reused/.test(d ?? ""))).toEqual([
@@ -962,21 +962,82 @@ describe("the plan for audio added after a run", () => {
     );
   });
 
-  it("adds the sound scan row, with its cost, only while the project has it on", () => {
-    const withScan = rows(plan({ scan: { time: "about 1 min 10 s" } }));
-    expect(withScan.map((r) => r.id)).toEqual([
-      "add",
-      "transcribe",
-      "align",
-      "clean",
-      "scan",
-      "suggest",
-    ]);
-    expect(withScan[4]).toMatchObject({
-      title: "Apply sound actions",
-      detail: "Whole episode · about 1 min 10 s",
+  describe("Find suggestions with sound actions", () => {
+    const time = "about 1 min 10 s";
+    const analysisOff = {
+      ...PLAN_SETTINGS,
+      config: { tighten: { enabled: false, apply_non_speech: true } },
+    };
+    const suggest = (p: RerunPlan) => rows(p).find((r) => r.id === "suggest");
+
+    it("never adds a sixth row", () => {
+      for (const p of [plan(), plan({ soundScanTime: time })]) {
+        expect(rows(p).map((r) => r.id)).toEqual([
+          "add",
+          "transcribe",
+          "align",
+          "clean",
+          "suggest",
+        ]);
+      }
     });
-    expect(rows(plan()).some((r) => r.id === "scan")).toBe(false);
+
+    it("keeps the plain copy while sound actions are off", () => {
+      expect(suggest(plan())).toMatchObject({
+        detail: "Whole episode",
+        action: { label: "Skip", run: "skip" },
+      });
+    });
+
+    it("adds the cost to the whole-episode detail while they are on", () => {
+      expect(suggest(plan({ soundScanTime: time }))).toMatchObject({
+        title: "Find suggestions",
+        detail: "Whole episode · sound actions about 1 min 10 s",
+        action: { label: "Skip", run: "skip" },
+      });
+    });
+
+    it("says what runs when only sound actions are on", () => {
+      expect(
+        suggest(plan({ settings: analysisOff, soundScanTime: time })),
+      ).toMatchObject({
+        detail: "Apply sound actions · Whole episode · about 1 min 10 s",
+        action: { label: "Skip", run: "skip" },
+      });
+    });
+
+    it("is off in Advanced when neither runs", () => {
+      const row = suggest(plan({ settings: analysisOff }));
+      expect(row?.detail).toBe("Off in Advanced");
+      expect(row?.action).toBeUndefined();
+    });
+
+    it("names both when both are skipped", () => {
+      expect(
+        suggest(plan({ soundScanTime: time, skipped: new Set(["suggest"]) }))
+          ?.detail,
+      ).toBe(
+        "Skipped this time. Filler and pause analysis and sound actions are skipped.",
+      );
+    });
+
+    it("keeps the existing skipped copy while sound actions are off", () => {
+      expect(suggest(plan({ skipped: new Set(["suggest"]) }))?.detail).toBe(
+        "Skipped this time. Filler and pause analysis is skipped.",
+      );
+    });
+
+    it("names only sound actions when analysis is off and it is skipped", () => {
+      expect(
+        suggest(
+          plan({
+            settings: analysisOff,
+            soundScanTime: time,
+            skipped: new Set(["suggest"]),
+          }),
+        )?.detail,
+      ).toBe("Skipped this time. Apply sound actions will not run.");
+    });
   });
 
   it("is the usual rows without a plan", () => {
@@ -1058,7 +1119,7 @@ describe("what a one-run Skip may leave out", () => {
   it("never omits the steps that build the transcript and the stems", () => {
     const skipped = oneRunSkipSteps(
       { step_names: all, enabled_steps: all },
-      new Set(["transcribe", "align", "clean", "scan", "suggest"]),
+      new Set(["transcribe", "align", "clean", "suggest"]),
     );
     for (const kept of [
       "merge_transcript",
@@ -1079,8 +1140,8 @@ describe("what a one-run Skip may leave out", () => {
     );
   });
 
-  it("says plainly what Clean, Scan and Suggestions leave undone", () => {
-    const text = (id: "clean" | "scan" | "suggest") =>
+  it("says plainly what Clean and Suggestions leave undone", () => {
+    const text = (id: "clean" | "suggest") =>
       readyRows({
         ...base,
         sourceCount: 4,
@@ -1089,17 +1150,14 @@ describe("what a one-run Skip may leave out", () => {
           settings: PLAN_SETTINGS,
           kept: 3,
           skipped: new Set([id]),
-          scan: { time: "about 1 min" },
+          soundScanTime: "about 1 min",
         },
       }).find((r) => r.id === id)?.detail;
     expect(text("clean")).toBe(
       "Skipped this time. Priya is not cleaned or levelled.",
     );
-    expect(text("scan")).toBe(
-      "Skipped this time. Sound actions are not applied automatically.",
-    );
     expect(text("suggest")).toBe(
-      "Skipped this time. Filler and pause analysis is skipped.",
+      "Skipped this time. Filler and pause analysis and sound actions are skipped.",
     );
   });
 
@@ -1148,16 +1206,14 @@ describe("skipping for one run", () => {
     ]);
   });
 
-  it("leaves the sound scan out when its row is skipped", () => {
+  it("skips the analysis and the sound scan together when Find suggestions is skipped", () => {
     const on = {
       ...cfg,
       enabled_steps: [...cfg.enabled_steps, "apply_sound_actions"],
     };
-    expect(oneRunSkipSteps(on, new Set(["scan"]))).toEqual([
-      "apply_sound_actions",
-    ]);
     expect(oneRunSkipSteps(on, new Set(["suggest"]))).toEqual([
       "analyze_fillers_pauses",
+      "apply_sound_actions",
     ]);
   });
 });

@@ -10,14 +10,7 @@ import { StatusRow, type StatusRowState } from "../../system/StatusRow";
 import { SystemIcon } from "../../system/SystemIcon";
 import { Button } from "../../ui";
 
-/** `scan` has a row only in the plan, while the sound scan is on. */
-export type ReadyRowId =
-  | "add"
-  | "transcribe"
-  | "align"
-  | "clean"
-  | "scan"
-  | "suggest";
+export type ReadyRowId = "add" | "transcribe" | "align" | "clean" | "suggest";
 
 export type ReadyAction =
   | "try-again"

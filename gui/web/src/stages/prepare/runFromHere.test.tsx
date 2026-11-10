@@ -125,7 +125,16 @@ describe("Run again from here and the audio an ok job covers", () => {
     const result = await runFromHere("transcribe_tracks");
     expect(start.mock.calls[0][1]).toMatchObject({
       fromStep: "transcribe_tracks",
+      forceTranscribe: true,
     });
     expect(result.current.view.phase).toBe("done");
+  });
+
+  it("from any other step does not force a new transcription", async () => {
+    await runFromHere("align_tracks");
+    expect(start.mock.calls[0][1]).toMatchObject({
+      fromStep: "align_tracks",
+      forceTranscribe: false,
+    });
   });
 });

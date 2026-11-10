@@ -144,7 +144,7 @@ export const Phone: Story = {
 };
 
 export const ScanForSounds: Story = {
-  render: live("scan"),
+  render: live("apply_sound_actions"),
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
@@ -154,7 +154,10 @@ export const ScanForSounds: Story = {
     ).toBeVisible();
     const project = canvas.getByRole("switch", { name: "Apply sound actions" });
     await userEvent.click(project);
-    await expect(args.onToggle).toHaveBeenCalledWith("scan", true);
+    await expect(args.onToggle).toHaveBeenCalledWith(
+      "apply_sound_actions",
+      true,
+    );
     const mine = canvas.getByRole("group", {
       name: "New projects start with this",
     });
@@ -162,13 +165,16 @@ export const ScanForSounds: Story = {
       within(mine).getByRole("button", { name: "Off" }),
     ).toHaveAttribute("aria-pressed", "true");
     await userEvent.click(within(mine).getByRole("button", { name: "On" }));
-    await expect(args.onPersonal).toHaveBeenCalledWith("scan", true);
+    await expect(args.onPersonal).toHaveBeenCalledWith(
+      "apply_sound_actions",
+      true,
+    );
     await expect(args.onToggle).toHaveBeenCalledTimes(1);
   },
 };
 
 export const PhoneScanForSounds: Story = {
-  render: live("scan"),
+  render: live("apply_sound_actions"),
   globals: phone,
   play: async ({ canvasElement }) => {
     await expect(

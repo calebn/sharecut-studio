@@ -56,7 +56,7 @@ export function useAdvancedDemo(
         ...step,
         enabled,
         result:
-          step.id === "scan"
+          step.id === "apply_sound_actions"
             ? soundScanResult(enabled, undefined)
             : step.result,
       }));
