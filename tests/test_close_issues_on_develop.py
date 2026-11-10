@@ -96,6 +96,7 @@ def test_only_closing_keywords_and_this_repo_count() -> None:
             "Fixes #4",
             "closes other/repo#5",
             f"Resolves {REPO.upper()}#6",
+            "",
             "prefix #8",
         ]
     )
@@ -148,7 +149,7 @@ def test_text_that_is_code_comment_or_quote_closes_nothing(body: str) -> None:
     "body",
     [
         "`````\n```\nFixes #28\n`````\nFixes #29",
-        "`code` then\nFixes #29",
+        "`code`\nFixes #29",
         "> quoted\n\nFixes #29",
         "<!-- c -->Fixes #29",
         "`unmatched\n\nFixes #29",
@@ -169,13 +170,35 @@ def test_non_ascii_digits_do_not_close_anything() -> None:
     "body",
     [
         "This does not fix #5",
-        "Fixes #3003 items 3, 4, 9, 10, 11, 12 and the drag-commit announcement",
         "Fixes #5 is deliberately not in the PR description; the final PR closes it.",
         "Fixes #5 and #6",
         "Fixes #5, closes #6",
         "Fixes #5 (partly)",
         "Part of #5\n\nFixes #5",
         "Refs #5\nFixes #5",
+        "Related to #5\nFixes #5",
+        "Towards #5\nFixes #5",
+        "This does not\nfix #5",
+        "If merged this\ncloses #5",
+        "para\n\n    Fixes #5",
+        "\tFixes #5",
+        "Fixes #5\nPart of #4 and #5",
+        "Fixes #5\nPart of: #4, #5",
+        "Fixes #5\nPartial fix for #5",
+        "Fixes #5\nStep 1 of #5",
+        "Fixes #5\nRelates to #5",
+        "Fixes #5\nReferences #5",
+        "Fixes #5\nPart of GH-5",
+        "Fixes #5\nPart of [#5](u)",
+        f"Fixes #5\nPart of https://github.com/{REPO}/issues/5",
+        "Fixes #5\nPart-of #5",
+        "Fixes #5\nonly the first half",
+        "Fixes #5\nDoes not close #5",
+        "Fixes #5\nStill open: #5",
+        "Fixes #5\r\nMore",
+        "- [x] Fixes #5",
+        "> Fixes #5",
+        "`code` then\nFixes #29",
     ],
 )
 def test_partial_negated_and_inline_mentions_close_nothing(body: str) -> None:
@@ -191,10 +214,20 @@ def test_partial_negated_and_inline_mentions_close_nothing(body: str) -> None:
         "**Fixes #5**",
         "  Fixes #5,",
         "## Why\n\nFixes #5\n\nMore",
+        "Fixes #5\r\n\r\nMore",
+        "Part of other/repo#5\nFixes #5",
+        "Fixes #5\nPart of other/repo#5",
+        "Intro\n\n- Fixes #5\n- note",
     ],
 )
 def test_line_start_and_bullet_forms_close(body: str) -> None:
     assert cod.closing_refs(body, REPO) == {5}
+
+
+def test_consecutive_keyword_lines_and_bullets_all_close() -> None:
+    assert cod.closing_refs("Fixes #12\nFixes #13", REPO) == {12, 13}
+    assert cod.closing_refs("- Fixes #12\n- Closes #13\n1. Resolves #14", REPO) == {12, 13, 14}
+    assert cod.closing_refs("  Fixes #30", REPO) == {30}
 
 
 def test_real_bodies_that_the_backfill_flagged_close_nothing() -> None:

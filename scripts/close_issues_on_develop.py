@@ -28,20 +28,28 @@ import branches
 GH_TIMEOUT_SECONDS = 60
 OPT_OUT_LABELS = frozenset({"needs-user-input", "owner-check"})
 _MARK = r"(?:\*\*|__)?"
+_BULLET = r"(?:[-*+]|\d{1,9}[.)])[ \t]+"
 _CLOSING = re.compile(
-    r"^[ \t]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)?"
-    + _MARK
-    + r"(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b:?"
-    + _MARK
-    + r"[ \t]+(?:([\w.-]+/[\w.-]+))?#(\d+)\b(?P<rest>.*)$",
-    re.IGNORECASE | re.ASCII | re.MULTILINE,
-)
-_CLOSING_TAIL = re.compile(r"[ \t]*(?:[.,;:!)]|\*\*|__)*[ \t]*")
-_PARTIAL = re.compile(
-    r"\b(?:part(?:ly|ially)? of|partial(?:ly)?|refs?|related to|towards?)\b:?[ \t]+"
-    r"(?:([\w.-]+/[\w.-]+))?#(\d+)\b",
+    rf"^[ \t]*(?:{_BULLET})?{_MARK}(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b:?{_MARK}[ \t]+"
+    r"(?:(?P<repo>[\w.-]+/[\w.-]+))?#(?P<num>\d+)\b(?P<rest>.*)$",
     re.IGNORECASE | re.ASCII,
 )
+_CLOSING_TAIL = re.compile(r"[\s.,;:!)*_]*")
+_BULLET_LINE = re.compile(rf"^[ \t]*{_BULLET}")
+_PARTIAL = re.compile(
+    r"\b(?:part(?:[ \t-]+\d+)?[ \t-]+of|step[ \t-]+\d+[ \t-]+of|partial(?:ly)?|partly|towards?"
+    r"|relates?[ \t]+to|related[ \t]+to|refs?|references?)\b",
+    re.IGNORECASE | re.ASCII,
+)
+_ISSUE_REFS = (
+    re.compile(r"(?<![\w/])(?:(?P<repo>[\w.-]+/[\w.-]+))?#(?P<num>\d+)\b", re.ASCII),
+    re.compile(r"\bGH-(?P<num>\d+)\b", re.IGNORECASE | re.ASCII),
+    re.compile(
+        r"https?://github\.com/(?P<repo>[\w.-]+/[\w.-]+)/(?:issues|pull)/(?P<num>\d+)\b",
+        re.IGNORECASE | re.ASCII,
+    ),
+)
+_FENCE_LINE = re.compile(r"^ {0,3}(?:`{3,}|~{3,})")
 _FENCE_OPEN = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 _BACKTICK_RUN = re.compile(r"`+")
 
@@ -60,15 +68,19 @@ def _visible_lines(body: str, *, fences: bool) -> str:
             closer = re.fullmatch(rf" {{0,3}}({re.escape(fence[0])}{{{fence[1]},}})[ \t]*", line)
             if closer:
                 fence = None
+                kept.append("")
             continue
         opener = _FENCE_OPEN.match(line) if fences else None
         if opener and not (opener[1][0] == "`" and "`" in opener[2]):
             fence = (opener[1][0], len(opener[1]))
             quoted = False
+            kept.append("")
             continue
         if not line.strip():
             quoted = False
         elif line.lstrip(" ").startswith(">") and len(line) - len(line.lstrip(" ")) < 4:
+            if not quoted:
+                kept.append("")
             quoted = True
             continue
         elif quoted:
@@ -97,18 +109,60 @@ def _without_code_spans(paragraph: str) -> str:
     return " ".join(out)
 
 
+def _mentions(line: str) -> list[tuple[str | None, int]]:
+    return [
+        (match.groupdict().get("repo"), int(match["num"]))
+        for pattern in _ISSUE_REFS
+        for match in pattern.finditer(line)
+    ]
+
+
+def _is_indented_code(line: str) -> bool:
+    lead = line[: len(line) - len(line.lstrip(" \t"))]
+    return "\t" in lead or len(lead) >= 4
+
+
+def _scan_block(lines: Sequence[str], repo: str, found: set[int], partial: set[int]) -> None:
+    kinds: list[str] = []
+    numbers: list[int | None] = []
+    for line in lines:
+        mentions = _mentions(line)
+        has_phrase = bool(_PARTIAL.search(line))
+        if has_phrase:
+            partial.update(num for owner, num in mentions if _same_repo(owner, repo))
+        number = None
+        indented = _is_indented_code(line)
+        match = None if indented else _CLOSING.match(line)
+        if match:
+            kind = "chain"
+            if _CLOSING_TAIL.fullmatch(match["rest"]) and _same_repo(match["repo"], repo):
+                number = int(match["num"])
+        elif not indented and (_BULLET_LINE.match(line) or (has_phrase and mentions)):
+            kind = "chain"
+        else:
+            kind = "prose"
+        kinds.append(kind)
+        numbers.append(number)
+    for i, number in enumerate(numbers):
+        before_ok = i == 0 or kinds[i - 1] == "chain"
+        after_ok = i == len(kinds) - 1 or kinds[i + 1] == "chain"
+        if number is not None and before_ok and after_ok:
+            found.add(number)
+
+
 def _refs(body: str, repo: str, *, fences: bool) -> set[int]:
     text = re.sub(r"<!--.*?(?:-->|\Z)", " ", _visible_lines(body, fences=fences), flags=re.S)
     found: set[int] = set()
     partial: set[int] = set()
     for paragraph in re.split(r"\n[ \t]*\n", text):
-        visible = _without_code_spans(paragraph)
-        for match in _CLOSING.finditer(visible):
-            if _CLOSING_TAIL.fullmatch(match["rest"]) and _same_repo(match.group(1), repo):
-                found.add(int(match.group(2)))
-        for match in _PARTIAL.finditer(visible):
-            if _same_repo(match.group(1), repo):
-                partial.add(int(match.group(2)))
+        segment: list[str] = []
+        for line in _without_code_spans(paragraph).split("\n"):
+            if not line.strip() or _FENCE_LINE.match(line):
+                _scan_block(segment, repo, found, partial)
+                segment = []
+            else:
+                segment.append(line)
+        _scan_block(segment, repo, found, partial)
     return found - partial
 
 
@@ -119,9 +173,10 @@ def _same_repo(owner_repo: str | None, repo: str) -> bool:
 def closing_refs(body: str | None, repo: str) -> set[int]:
     """Issues in `repo` that `body` closes outside code, comments and quotes.
 
-    A keyword counts only at the start of a line (after a list bullet or bold marks) and directly
-    before `#N`, with nothing but punctuation after it, so "Fixes #3 items 1-4" and "Fixes #3 is
-    not in this PR" close nothing. An issue the body also calls "Part of" or "Refs" stays open.
+    A keyword counts only on a line that starts a paragraph or follows a blank line, another
+    keyword line or a list bullet, directly before `#N`, with nothing but punctuation after the
+    number, and only when the next line in the paragraph is again a keyword line or a bullet.
+    An issue the body also names with "Part of", "Refs", "Related to" and the like stays open.
 
     Fences and inline code interact (a ``` line can open a fence or close a span), so the body is
     read both ways and only issues both readings close count: when in doubt, do not close.
