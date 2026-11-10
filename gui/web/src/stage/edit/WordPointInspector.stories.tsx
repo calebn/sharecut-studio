@@ -113,6 +113,7 @@ export const Word: Story = {
 };
 
 export const WordLowConfidence: Story = {
+  render: () => <PointCard selection={selections.lowConfidenceWord} />,
   parameters: {
     episode: {
       project: episode(),
