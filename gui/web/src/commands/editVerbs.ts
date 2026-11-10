@@ -38,7 +38,11 @@ import {
   rangeEditMode,
 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
-import { inspectorOpenFor, selectedClipIdsOf } from "../state/selection";
+import {
+  inspectorOpenFor,
+  selectedClipIdsOf,
+  selectedTrackIdsOf,
+} from "../state/selection";
 import type { PendingRecordTarget } from "../state/stageSlice";
 import type { BarItem } from "../system/actionBarSlots";
 import { type BarId, resolveBar } from "../system/editActionSets";
@@ -65,6 +69,7 @@ import { registerCommand } from "./execute";
 import { decideThroughSheet, sheetBusyReason } from "./pendingDecision";
 import { playSpan } from "./playSpan";
 import { executePointerCommand } from "./pointer";
+import { REMOVE_ONE_TRACK } from "./projectMedia";
 import {
   armRangeDraft,
   PLAY_FULL_MIX_LABEL,
@@ -125,6 +130,7 @@ export function currentEditFacts(
 
 const HEAR_PAD_SEC = 1;
 const MARKER_HEAR_SEC = 3;
+const TRACK_HEAR_SEC = 6;
 
 function currentSeam(): Seam | null {
   const { project, selection } = useDawStore.getState();
@@ -187,6 +193,17 @@ async function hearVerb(facts: EditFacts): Promise<ExecuteResult> {
         : disabled("Nothing to hear here");
     case "suggestion":
       return hearSide(facts, null);
+    case "track": {
+      const s = useDawStore.getState();
+      const span = trackHearSpan(
+        s.project,
+        selectedTrackIdsOf(s.selection),
+        s.playheadSec,
+      );
+      return span
+        ? playSpan(span.start, span.end, 0)
+        : disabled("This track has no audio to hear");
+    }
     case "envelopePoint": {
       const s = useDawStore.getState();
       const at = envelopePointTime(s.project, s.selection);
@@ -197,6 +214,20 @@ async function hearVerb(facts: EditFacts): Promise<ExecuteResult> {
     default:
       return disabled("Nothing to hear here");
   }
+}
+
+function trackHearSpan(
+  project: ProjectView | null,
+  trackIds: readonly string[],
+  playheadSec: number,
+): { start: number; end: number } | null {
+  const clips = trackIds.flatMap((id) => project?.clips.tracks[id] ?? []);
+  if (clips.length === 0) return null;
+  const first = Math.min(...clips.map((clip) => clip.timeline_start));
+  const last = Math.max(...clips.map((clip) => clip.timeline_end));
+  const start =
+    playheadSec >= first && playheadSec < last ? playheadSec : first;
+  return { start, end: Math.min(last, start + TRACK_HEAR_SEC) };
 }
 
 function envelopePointTime(
@@ -781,7 +812,7 @@ export const WIRED_VERBS: Readonly<Record<EditKind, readonly BarId[]>> = {
   chapter: ["hear", "fixText", "remove", "inspect"],
   social: ["hear", "comment", "remove", "inspect"],
   comment: ["remove", "inspect"],
-  track: ["remove", "more", "inspect"],
+  track: ["hear", "remove", "more", "inspect"],
   envelope: ["inspect"],
   envelopePoint: ["hear", "remove", "inspect"],
   bleed: ["hearBefore", "hearAfter", "keep", "inspect"],
@@ -862,6 +893,15 @@ type BarModel = {
   readonly more: readonly BarItem[];
   readonly primary: (BarItem & { readonly disabledReason?: string }) | null;
 };
+
+function trackRemoveReason(facts: EditFacts): string | null {
+  const gate = evaluateWhen(
+    COMMANDS["track.remove"].when,
+    buildCommandContext(),
+  );
+  if (!gate.ok) return gate.reason;
+  return facts.count > 1 ? REMOVE_ONE_TRACK : null;
+}
 
 const RESTORE_IGNORED_LABEL = "Restore ignored words";
 const SPEAKER_HOST_ONLY =
@@ -952,6 +992,10 @@ export function barModelOf(facts: EditFacts, s: DawState): BarModel {
         const reason = bleedKeepReason();
         return reason ? { id, disabledReason: reason } : item;
       }
+      if (id === "remove" && facts.kind === "track") {
+        const reason = trackRemoveReason(facts);
+        return reason ? { id, disabledReason: reason } : item;
+      }
       if (id === "record")
         return { id, label: rangeLike ? "Re-record" : "Record here" };
       return item;
@@ -961,7 +1005,6 @@ export function barModelOf(facts: EditFacts, s: DawState): BarModel {
   for (const id of resolved.more) {
     if (!WIRED_MORE.has(id)) continue;
     if (id === "mute") {
-      if (facts.kind === "track") continue;
       if (facts.kind === "clip" && selectedClipIdsOf(s.selection).length !== 1)
         continue;
       const d = descriptor("mute");

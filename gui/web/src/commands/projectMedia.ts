@@ -26,6 +26,7 @@ const PROJECT_SWITCH_BLOCKED =
 
 let projectOpenInFlight = false;
 let projectNewInFlight = false;
+export const REMOVE_ONE_TRACK = "Select one track to remove";
 /** Studio New stops waiting for the unpin after this long and stays open. */
 export const PROJECT_CLOSE_TIMEOUT_MS = 10_000;
 /** If the page is still here this long after navigating Home (a leave-page prompt answered Stay), New works again. */
@@ -271,7 +272,7 @@ export function registerProjectMediaCommands(): void {
       typeof args.trackId !== "string" &&
       selectedTrackIdsOf(asked.selection).length > 1
     ) {
-      return { status: "disabled", reason: "Select one track to remove" };
+      return { status: "disabled", reason: REMOVE_ONE_TRACK };
     }
     const label =
       asked.project?.tracks.find((t) => t.id === trackId)?.label || trackId;

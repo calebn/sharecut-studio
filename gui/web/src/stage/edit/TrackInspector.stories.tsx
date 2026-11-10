@@ -10,6 +10,7 @@ import {
 import { AnchorMark, Framed } from "../../system/inspectorSheetFixtures";
 import { episode, MIRA, selections } from "../../test/episodeFixture";
 import { episodeBeforeEach, withEpisode } from "../../test/withEpisode";
+import { EditActionBar } from "./EditActionBar";
 import { inspectorHeading } from "./inspectorHeading";
 import { useTrackSections } from "./trackSections";
 
@@ -149,5 +150,16 @@ export const TrackReadOnly: Story = {
     await expect(
       canvas.queryByRole("button", { name: "Remove track" }),
     ).toBeNull();
+  },
+};
+
+export const TrackActionBar: Story = {
+  render: () => (
+    <Framed>{() => <EditActionBar form="dock" root={null} />}</Framed>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    for (const name of ["Hear", "Remove", "More", "Inspect"])
+      await expect(await canvas.findByRole("button", { name })).toBeEnabled();
   },
 };
