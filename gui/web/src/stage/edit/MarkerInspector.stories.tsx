@@ -70,9 +70,12 @@ const chapterCard = (phone = false) => (
   />
 );
 
-const socialCard = (phone = false) => (
+const socialCard = (
+  phone = false,
+  selection: Selection = selections.social,
+) => (
   <MarkerCard
-    selection={selections.social}
+    selection={selection}
     icon="send"
     name="Social clip"
     phone={phone}
@@ -177,7 +180,7 @@ export const SocialClip: Story = {
 const MANUAL_CLIP = "manual_ab12cd34ef";
 
 export const SocialClipManual: Story = {
-  render: () => socialCard(),
+  render: () => socialCard(false, { kind: "social", id: MANUAL_CLIP }),
   parameters: {
     episode: {
       project: episode({
