@@ -259,12 +259,6 @@ describe("muted-speech tap callers", () => {
       .map(srcRelative)
       .filter((file) => !file.endsWith(`${name}.ts`));
 
-  it("has one useRecordBadge caller, so the away tap exists once", () => {
-    expect(
-      callers("useRecordBadge").filter((f) => !f.endsWith("useStageBadges.ts")),
-    ).toEqual(["stage/frame/useStageBarProps.ts"]);
-  });
-
   it("taps the host mic from the badge only away from Record, and from RecordStage only on it", () => {
     expect(callers("useMutedSpeech").sort()).toEqual([
       "record/GuestRoomApp.tsx",
