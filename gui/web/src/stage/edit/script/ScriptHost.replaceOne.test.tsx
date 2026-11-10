@@ -208,6 +208,43 @@ describe("ScriptHost single Replace", () => {
       expect(screen.getByRole("search")).toHaveTextContent("2 matches"),
     );
     expect(screen.getByRole("search")).not.toHaveTextContent("of 2");
+    await userEvent.click(screen.getByRole("button", { name: "Next match" }));
+    expect(screen.getByRole("search")).toHaveTextContent("1 of 2");
+  });
+
+  it("steps back to the last hit when no hit is current", async () => {
+    preview.mockResolvedValue({
+      matches: [row("host", null, 0, "cat")],
+      count: 1,
+      skipped_words: 0,
+      preview_token: "tok-1",
+    });
+    replace.mockImplementation(async () => {
+      act(() => {
+        seedScript({
+          utterances: [
+            scriptUtterance("host", "Maya", [
+              scriptWord("cat", 0, 10),
+              scriptWord("cat", 1, 10.5),
+            ]),
+          ],
+        });
+        useDawStore.getState().setTranscriptFindReplaceOpen(true);
+      });
+      return { type: "Applied", history_head_id: "h1" };
+    });
+    seedScript({
+      utterances: [scriptUtterance("host", "Maya", [scriptWord("cat", 0, 10)])],
+    });
+    await openReplace("cat", "cat cat");
+    await userEvent.click(screen.getByRole("button", { name: "Replace" }));
+    await waitFor(() =>
+      expect(screen.getByRole("search")).toHaveTextContent("2 matches"),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Previous match" }),
+    );
+    expect(screen.getByRole("search")).toHaveTextContent("2 of 2");
   });
 
   it("lands on the hit before the replaced span when none follows", async () => {
@@ -304,5 +341,65 @@ describe("ScriptHost single Replace", () => {
         "Replace queued. Still sending.",
       ),
     );
+  });
+
+  it("replaces again after the preview failed", async () => {
+    preview.mockRejectedValueOnce(new Error("Host is busy."));
+    await openReplace("maya", "Maia");
+    const button = screen.getByRole("button", { name: "Replace" });
+    await userEvent.click(button);
+    expect(await screen.findByText("Host is busy.")).toBeInTheDocument();
+    await userEvent.click(button);
+    await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
+    expect(preview).toHaveBeenCalledTimes(2);
+  });
+
+  it("replaces again after a queued replace", async () => {
+    replace.mockResolvedValueOnce({ queued: true });
+    await openReplace("maya", "Maia");
+    const button = screen.getByRole("button", { name: "Replace" });
+    await userEvent.click(button);
+    await waitFor(() =>
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "Replace queued. Still sending.",
+      ),
+    );
+    await userEvent.click(button);
+    await waitFor(() => expect(replace).toHaveBeenCalledTimes(2));
+  });
+
+  it("replaces again after the replacement is edited when the model has not changed", async () => {
+    await openReplace("maya", "Maia");
+    const button = screen.getByRole("button", { name: "Replace" });
+    await userEvent.click(button);
+    await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
+    await userEvent.click(button);
+    expect(preview).toHaveBeenCalledTimes(1);
+    await userEvent.type(replaceField(), "a");
+    await userEvent.click(button);
+    await waitFor(() => expect(replace).toHaveBeenCalledTimes(2));
+  });
+
+  it("tells two matches apart by their source", async () => {
+    seedScript({
+      utterances: [
+        scriptUtterance("host", "Maya", [scriptWord("Maya", 0, 10)], {
+          source_id: "a",
+        }),
+        scriptUtterance("host", "Maya", [scriptWord("Maya", 0, 14)], {
+          source_id: "b",
+        }),
+      ],
+    });
+    preview.mockResolvedValue({
+      matches: [row("host", "b", 0), row("host", "a", 0)],
+      count: 2,
+      skipped_words: 0,
+      preview_token: "tok-1",
+    });
+    await openReplace("maya", "Maia");
+    await userEvent.click(screen.getByRole("button", { name: "Replace" }));
+    await waitFor(() => expect(replace).toHaveBeenCalled());
+    expect(replace.mock.calls[0][3]).toBe(1);
   });
 });

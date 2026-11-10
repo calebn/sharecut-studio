@@ -103,7 +103,8 @@ export function useScriptFind(
   const step = (by: number) => {
     if (matches.length === 0) return;
     setStepped((n) => n + 1);
-    go(matches, (Math.max(current, 0) + by + matches.length) % matches.length);
+    if (current < 0) return go(matches, by > 0 ? 0 : matches.length - 1);
+    go(matches, (current + by + matches.length) % matches.length);
   };
 
   const selectAll = () => {
