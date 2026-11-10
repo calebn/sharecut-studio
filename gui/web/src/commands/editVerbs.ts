@@ -16,7 +16,7 @@ import {
   type EditRole,
   editFacts,
 } from "../edit/editSelection";
-import { appliedJoinLength } from "../edit/joinRender";
+import { JOIN_MODES, joinTypeChoices } from "../edit/joinType";
 import {
   lastClipEndSec,
   replaceableSpan,
@@ -40,14 +40,9 @@ import {
 import { useDawStore } from "../state/dawStore";
 import { inspectorOpenFor, selectedClipIdsOf } from "../state/selection";
 import type { PendingRecordTarget } from "../state/stageSlice";
-import type { BarItem, BarOption } from "../system/actionBarSlots";
+import type { BarItem } from "../system/actionBarSlots";
 import { type BarId, resolveBar } from "../system/editActionSets";
-import type {
-  HistoryEntryId,
-  JoinMode,
-  ProjectView,
-  Selection,
-} from "../types/project";
+import type { HistoryEntryId, ProjectView, Selection } from "../types/project";
 import { BUSY_REASON } from "../ui/disabledReason";
 import { errorMessage } from "../utils/apiError";
 import { commitCommentActor } from "../utils/commentAuthor";
@@ -138,8 +133,6 @@ function currentSeam(): Seam | null {
     : null;
 }
 
-const JOIN_MODES: readonly JoinMode[] = ["cut", "fade", "crossfade"];
-
 async function setJoinType(arg: VerbArg): Promise<ExecuteResult> {
   const mode = JOIN_MODES.find((candidate) => candidate === arg);
   const seam = currentSeam();
@@ -152,14 +145,6 @@ async function setJoinType(arg: VerbArg): Promise<ExecuteResult> {
   return OK;
 }
 
-const JOIN_TYPE_OPTIONS: readonly (Omit<BarOption, "pressed"> & {
-  value: JoinMode;
-})[] = [
-  { value: "cut", label: "Hard edge", icon: "minus" },
-  { value: "fade", label: "Fade", icon: "fade" },
-  { value: "crossfade", label: "Crossfade", icon: "crossfade" },
-];
-
 function joinTypeItem(s: DawState): BarItem | null {
   const { project, selection } = s;
   if (
@@ -171,17 +156,13 @@ function joinTypeItem(s: DawState): BarItem | null {
   const seam = seamById(project, selection.id);
   if (!seam?.abuts) return null;
   const mode = joinModeOf(seam.right);
-  const fadeMax =
-    project.tracks.find((t) => t.id === seam.trackId)?.fade_max_ms ?? null;
-  const room = appliedJoinLength(seam.left, seam.right, fadeMax).max;
-  const crossfadeOk = !seam.right.join_crossfade_blocked && room >= 1;
   return {
     id: "joinType",
     ...(s.joinMutationInFlight ? { disabledReason: BUSY_REASON } : {}),
-    options: JOIN_TYPE_OPTIONS.filter(
-      (option) =>
-        option.value !== "crossfade" || crossfadeOk || mode === "crossfade",
-    ).map((option) => ({ ...option, pressed: option.value === mode })),
+    options: joinTypeChoices(seam, project).map((option) => ({
+      ...option,
+      pressed: option.value === mode,
+    })),
   };
 }
 

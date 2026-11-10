@@ -18,7 +18,6 @@ import { canApplyPass12 } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
 import type { InspectorSection } from "../../system/InspectorSheet";
-import type { SystemIconName } from "../../system/icons";
 import { ScrubField } from "../../system/ScrubField";
 import { SystemIcon } from "../../system/SystemIcon";
 import type { JoinMode, ProjectView } from "../../types/project";
@@ -32,7 +31,6 @@ type Rows = InspectorSection["rows"];
 
 const MAX_JOIN_LENGTH_MS = 500;
 const NO_ROOM_NOTE = "The clips leave no room to roll";
-const NOT_TOUCHING_NOTE = "The clips do not touch";
 
 const CROSSFADE_BLOCKED_REASON: Record<string, string> = {
   not_abutting: "the clips do not touch",
@@ -40,12 +38,6 @@ const CROSSFADE_BLOCKED_REASON: Record<string, string> = {
   no_fade_in: "this clip has no fade-in",
   no_headroom: "the recordings have no room past the cut to overlap",
 };
-
-const JOIN_TYPE_ICON = {
-  cut: "minus",
-  fade: "fade",
-  crossfade: "crossfade",
-} as const satisfies Record<JoinMode, SystemIconName>;
 
 const SCOPE_NAME = { start: "Start join", end: "End join" } as const;
 
@@ -267,7 +259,7 @@ export function joinTypeRows(f: SeamJoinFields): Rows {
               disabledReason={f.busy ? BUSY_REASON : undefined}
               onClick={() => void f.setType(option.value)}
             >
-              <SystemIcon name={JOIN_TYPE_ICON[option.value]} size={16} />
+              <SystemIcon name={option.icon} size={16} />
             </ToggleButton>
           ))}
         </SegmentedControl>
@@ -334,10 +326,8 @@ export function joinLengthRows(f: SeamJoinFields): Rows {
 }
 
 export function joinOffsetRows(f: SeamJoinFields): Rows {
-  if (!f.interval) {
-    return [{ id: rowId(f, "offsetNote"), control: note(NOT_TOUCHING_NOTE) }];
-  }
   const { interval } = f;
+  if (!interval) return [];
   const { valueMs, draftMs, roomToRoll } = f.offset;
   const label = named(f, "Offset");
   return [
