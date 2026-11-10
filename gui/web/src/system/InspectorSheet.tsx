@@ -31,6 +31,7 @@ import {
 import { PersonAvatar, type PersonData } from "./Person";
 import { SystemIcon } from "./SystemIcon";
 import { useGrab } from "./useGrab";
+import { VerbButton } from "./VerbButton";
 
 type InspectorRow = {
   id: string;
@@ -76,12 +77,23 @@ export type InspectorPhoneProps = InspectorBase & {
   onDismiss: () => void;
 };
 
+export type InspectorHistory = {
+  canUndo: boolean;
+  canRedo: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
+};
+
 /**
  * The Inspector taking the whole screen, as a modal dialog with Done: for a
  * frame too short to hold a card or a sheet with a field in it (large text on a
  * phone held sideways).
  */
-export type InspectorTakeoverProps = InspectorBase & { form: "takeover" };
+export type InspectorTakeoverProps = InspectorBase & {
+  form: "takeover";
+  /** Undo and Redo in the header, since the app header is covered. Absent where history is not the person's to run. */
+  history?: InspectorHistory;
+};
 
 type InspectorSheetProps =
   | InspectorCardProps
@@ -475,23 +487,56 @@ function Takeover({
   label,
   onRename,
   sections,
+  history,
   onClose,
 }: InspectorTakeoverProps) {
+  const done = useRef<HTMLButtonElement>(null);
   return (
     <Dialog
       open
+      fullScreen
       onClose={onClose}
       title={label ?? name}
       panelClassName="sys-inspector-takeover"
       shortcuts={["history.undo", "history.redo"]}
-      footer={
-        <button
-          type="button"
-          className="ui-control modifier-action primary"
-          onClick={onClose}
-        >
-          Done
-        </button>
+      initialFocusRef={done}
+      headerStart={
+        <div className="sys-inspector-header sys-inspector-header--takeover">
+          {mark ? (
+            <PersonAvatar person={mark} size={24} />
+          ) : (
+            <SystemIcon name={icon} size={16} />
+          )}
+          <span className="sys-sheet-title">
+            <Name name={name} onRename={onRename} />
+          </span>
+        </div>
+      }
+      headerEnd={
+        <>
+          {history ? (
+            <>
+              <VerbButton
+                verb="undo"
+                disabled={!history.canUndo}
+                onClick={history.onUndo}
+              />
+              <VerbButton
+                verb="redo"
+                disabled={!history.canRedo}
+                onClick={history.onRedo}
+              />
+            </>
+          ) : null}
+          <button
+            ref={done}
+            type="button"
+            className="ui-control modifier-action primary"
+            onClick={onClose}
+          >
+            Done
+          </button>
+        </>
       }
     >
       <div
@@ -499,7 +544,6 @@ function Takeover({
         className="sys-inspector sys-inspector--takeover"
         onKeyDown={keepEscapeFromField}
       >
-        <Header icon={icon} mark={mark} name={name} onRename={onRename} />
         <Sections sections={sections} />
       </div>
     </Dialog>

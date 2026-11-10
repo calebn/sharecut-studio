@@ -4,6 +4,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -702,6 +703,54 @@ describe("InspectorSheet takeover", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(opener).toHaveFocus();
     opener.remove();
+  });
+
+  it("keeps the name, Undo, Redo and Done in one header row with a single way to close", async () => {
+    const onClose = vi.fn();
+    const onUndo = vi.fn();
+    const onRedo = vi.fn();
+    render(
+      <InspectorSheet
+        form="takeover"
+        icon="sliders-horizontal"
+        name="Maya"
+        label="Inspector"
+        onRename={vi.fn()}
+        sections={sections}
+        history={{ canUndo: true, canRedo: false, onUndo, onRedo }}
+        onClose={onClose}
+      />,
+    );
+    const dialog = screen.getByRole("dialog", { name: "Inspector" });
+    const header = dialog.querySelector(".command-palette-header");
+    expect(header).not.toBeNull();
+    const row = within(header as HTMLElement);
+    expect(row.getByRole("textbox", { name: "Name" })).toBeVisible();
+    await waitFor(() =>
+      expect(row.getByRole("button", { name: "Done" })).toHaveFocus(),
+    );
+    await userEvent.click(row.getByRole("button", { name: /^Undo/ }));
+    expect(onUndo).toHaveBeenCalledTimes(1);
+    expect(row.getByRole("button", { name: /^Redo/ })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Close Inspector" }),
+    ).toBeNull();
+    expect(dialog.querySelector(".command-palette-footer")).toBeNull();
+  });
+
+  it("leaves Undo and Redo out where history is not the person's to run", () => {
+    render(
+      <InspectorSheet
+        form="takeover"
+        icon="sliders-horizontal"
+        name="Maya"
+        sections={sections}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: /^Undo/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "Done" })).toBeVisible();
   });
 
   it("has no axe violations", async () => {

@@ -65,7 +65,11 @@ for (const { cell: width, theme } of withAppearance([667, 767])) {
             ".sys-inspector--phone, .sys-inspector-takeover",
           );
           await expect(panel).toBeVisible();
-          for (const name of ["Close"]) {
+          // The takeover closes with Done and has no Close button.
+          const isTakeover = await panel.evaluate((element) =>
+            element.classList.contains("sys-inspector-takeover"),
+          );
+          for (const name of [isTakeover ? "Done" : "Close"]) {
             const header = await controlGeometry(
               panel.getByRole("button", { name, exact: true }),
             );

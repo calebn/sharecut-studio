@@ -7244,6 +7244,26 @@ html
   border-radius: 0;
 }
 
+/* One header row: who it is, then Undo, Redo and Done (the icon buttons keep their touch size from .sys-icon-btn). */
+.sys-inspector-takeover .command-palette-header {
+  gap: var(--space-3);
+}
+
+.sys-inspector-header--takeover {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-inline-size: 0;
+  flex: 1 1 auto;
+}
+
+.command-palette-header-end {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: 0 0 auto;
+}
+
 /* The Dialog body scrolls the takeover, so the sections must not trap the wheel. */
 .sys-inspector--takeover .sys-inspector-scroll {
   overflow: visible;

@@ -16,6 +16,7 @@ import { SelectionSheetBody } from "../../inspector/SelectionSheetBody";
 import { useDaw } from "../../state/useDaw";
 import type { BarId } from "../../system/editActionSets";
 import {
+  type InspectorHistory,
   type InspectorSection,
   InspectorSheet,
 } from "../../system/InspectorSheet";
@@ -28,6 +29,7 @@ import {
 } from "../../system/inspectorSheetMath";
 import { openerControl } from "../../ui/pressedControl";
 import { useResizeObserver } from "../../ui/useResizeObserver";
+import { useHistoryControls } from "../frame/useHistoryControls";
 import { CommentPopover } from "./CommentPopover";
 import { commentTarget } from "./commentSections";
 import { compactTarget } from "./compactTarget";
@@ -314,6 +316,7 @@ function Card({
     };
   }, [measure, anchor.moves, anchor.visible]);
   useResizeObserver(root, measure);
+  const history = useTakeoverHistory();
   const takeover =
     placement !== null &&
     !cardFits(placement.bounds.height, scaledMinBlock(rootFontPx()));
@@ -365,6 +368,7 @@ function Card({
       <InspectorSheet
         form="takeover"
         {...heading}
+        history={history}
         label="Inspector"
         sections={sections}
         onClose={close}
@@ -415,6 +419,7 @@ function Phone({
 }) {
   const [detent, setDetent] = useState<InspectorDetent>("half");
   const [tight, setTight] = useState(false);
+  const history = useTakeoverHistory();
   const [takeover, setTakeover] = useState(false);
   const chosen = useRef(false);
   const box = useRef<HTMLDivElement>(null);
@@ -470,6 +475,7 @@ function Phone({
         <InspectorSheet
           form="takeover"
           {...heading}
+          history={history}
           label="Inspector"
           sections={sections}
           onClose={() => {
@@ -552,4 +558,10 @@ export function InspectorHost({
       )}
     </div>
   );
+}
+
+/** Undo and Redo for the full-screen Inspector, which covers the app header. */
+function useTakeoverHistory(): InspectorHistory | undefined {
+  const { history, onUndo, onRedo } = useHistoryControls();
+  return history ? { ...history, onUndo, onRedo } : undefined;
 }
