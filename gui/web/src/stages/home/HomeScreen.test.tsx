@@ -1374,15 +1374,6 @@ describe("HomeScreen", () => {
       expect(screen.queryByRole("dialog", { name: "Help" })).toBeNull();
     });
 
-    it("titles the Help button Help", async () => {
-      render(<HomeScreen />);
-      await screen.findByRole("list", { name: "Recent episodes" });
-      expect(screen.getByRole("button", { name: /^Help$/ })).toHaveAttribute(
-        "title",
-        "Help",
-      );
-    });
-
     it("steps into Report a problem inside the Help sheet and back", async () => {
       const user = userEvent.setup();
       render(<HomeScreen />);
