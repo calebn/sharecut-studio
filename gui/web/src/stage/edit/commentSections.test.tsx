@@ -93,7 +93,7 @@ describe("comment sheet sections", () => {
     expect(screen.queryByRole("button", { name: "Resolve" })).toBeNull();
   });
 
-  it("shows replies and locks action items for a viewer", () => {
+  it("shows replies and keeps action items read-only for a viewer", () => {
     const item = { id: "a1", text: "Trim the open", done: false };
     const view = open(
       ["/tmp/p.json"],
@@ -111,9 +111,8 @@ describe("comment sheet sections", () => {
       ["share:token", "view", ["view"]],
       sampleComment({ action_items: [item as never] }),
     );
-    expect(
-      screen.getByRole("checkbox", { name: "Trim the open" }),
-    ).toBeDisabled();
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(screen.getByText("Trim the open")).toBeVisible();
   });
 
   it("seeks to the comment time", async () => {
@@ -127,7 +126,7 @@ describe("comment sheet sections", () => {
   it("names its reply input and posts the typed reply", async () => {
     const user = userEvent.setup();
     const { container } = open();
-    const input = screen.getByRole("textbox", { name: "Reply to comment" });
+    const input = screen.getByRole("textbox", { name: "Reply to caleb" });
     await expectNoA11yViolations(container);
     await user.type(input, "Keep this section");
     await user.click(screen.getByRole("button", { name: "Reply" }));
@@ -141,7 +140,7 @@ describe("comment sheet sections", () => {
   it("hides the reply form from shares without reply permission", () => {
     open(["share:token", "view", ["view"]]);
     expect(
-      screen.queryByRole("textbox", { name: "Reply to comment" }),
+      screen.queryByRole("textbox", { name: "Reply to caleb" }),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Reply" }),
@@ -151,7 +150,7 @@ describe("comment sheet sections", () => {
   it("offers the named reply form when a share has comment permission", () => {
     open(["share:token", "comment", ["comment"]]);
     expect(
-      screen.getByRole("textbox", { name: "Reply to comment" }),
+      screen.getByRole("textbox", { name: "Reply to caleb" }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Resolve" }),

@@ -2,6 +2,7 @@ import {
   type FocusEvent,
   type MouseEvent,
   type PointerEvent,
+  type ReactNode,
   type RefCallback,
   type RefObject,
   useCallback,
@@ -24,6 +25,8 @@ import type {
   InspectorRect,
 } from "../../system/inspectorSheetMath";
 import { useResizeObserver } from "../../ui/useResizeObserver";
+import { CommentPopover } from "./CommentPopover";
+import { commentTarget } from "./commentSections";
 import { compactTarget } from "./compactTarget";
 import { EditActionBar } from "./EditActionBar";
 import { useEnvelopePointSections } from "./envelopePointSections";
@@ -230,6 +233,10 @@ function Card({
   root: HTMLElement | null;
 }) {
   const selection = useDaw((s) => s.selection);
+  const thread = useDaw(
+    (s) => commentTarget(s.selection, s.project) === "thread",
+  );
+  const popover = thread && !sheet.rangeActionsInSheet;
   const anchor = useSelectionAnchor(root, selection, true);
   const [anchorTrackId, setAnchorTrackId] = useState<string | null>(null);
   useLayoutEffect(() => {
@@ -242,6 +249,7 @@ function Card({
   }, [selection, anchor.ref, anchor.moves]);
   useRevealEditedLane(anchorTrackId);
   const box = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
   const [placement, setPlacement] = useState<Placement | null>(null);
   const measure = useCallback(() => {
     if (!root) return;
@@ -288,7 +296,36 @@ function Card({
   const sections = useBodySections(sheet.rangeActionsInSheet, true);
   // The Action bar hides the same way when its anchor scrolls out.
   const shown = placement !== null && (anchor.visible || selection === null);
-  const focus = useInspectorFocus(box, shown);
+  const focus = useInspectorFocus(popover ? panel : box, shown);
+  const close = () => {
+    focus.close();
+    sheet.close();
+  };
+  let card: ReactNode = null;
+  if (popover && selection?.kind === "comment") {
+    if (shown)
+      card = (
+        <CommentPopover
+          commentId={selection.id}
+          anchor={anchor}
+          root={root}
+          panelRef={panel}
+          onClose={close}
+        />
+      );
+  } else if (placement) {
+    card = (
+      <InspectorSheet
+        form="card"
+        {...heading}
+        label="Inspector"
+        sections={sections}
+        anchor={placement.anchor}
+        bounds={placement.bounds}
+        onClose={close}
+      />
+    );
+  }
   return (
     <div
       ref={box}
@@ -300,20 +337,7 @@ function Card({
       onPointerCancelCapture={focus.onPointerCancelCapture}
       onPointerDownCapture={focus.onPointerDownCapture}
     >
-      {placement ? (
-        <InspectorSheet
-          form="card"
-          {...heading}
-          label="Inspector"
-          sections={sections}
-          anchor={placement.anchor}
-          bounds={placement.bounds}
-          onClose={() => {
-            focus.close();
-            sheet.close();
-          }}
-        />
-      ) : null}
+      {card}
     </div>
   );
 }
