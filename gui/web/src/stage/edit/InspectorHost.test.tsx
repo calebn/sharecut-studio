@@ -126,8 +126,8 @@ describe("the Inspector card on the desktop and the tablet", () => {
       );
 
       const card = screen.getByRole("dialog", { name: "Inspector" });
-      expect(card.style.insetBlockStart).toBe("168px");
-      expect(card.style.maxBlockSize).toBe("224px");
+      expect(card.style.insetBlockStart).toBe("175px");
+      expect(card.style.maxBlockSize).toBe("217px");
     } finally {
       root.remove();
     }
@@ -1125,16 +1125,17 @@ describe("the Inspector sheet on the phone", () => {
     }
   });
 
-  it("offers the dock and Full only where the measured slot is too short for Half", () => {
+  it("takes the whole screen with Done where the slot is too short for a full sheet", () => {
     stubViewportShell("phone");
     stubResizeObserver();
     const lanes = document.createElement("div");
-    Object.defineProperty(lanes, "clientHeight", { get: () => 400 });
+    Object.defineProperty(lanes, "clientHeight", { get: () => 150 });
     const offsetParent = vi
       .spyOn(HTMLElement.prototype, "offsetParent", "get")
       .mockImplementation(function (this: HTMLElement) {
         return this.classList.contains("sys-inspector") ? lanes : null;
       });
+    const close = vi.fn();
 
     try {
       const { unmount } = render(
@@ -1145,23 +1146,16 @@ describe("the Inspector sheet on the phone", () => {
           sheet={{
             open: true,
             rangeActionsInSheet: false,
-            close: vi.fn(),
+            close,
             dismiss: vi.fn(),
           }}
         />,
       );
-      const sheet = screen.getByRole("dialog", { name: "Inspector" });
-      const grip = screen.getByRole("slider", { name: "Sheet height" });
-      expect(sheet).toHaveAttribute("data-detent", "full");
-      expect(grip).toHaveAttribute("aria-valuemax", "1");
-      fireEvent.keyDown(grip, { key: "ArrowDown" });
-      expect(sheet).toHaveAttribute("data-detent", "dock");
-      fireEvent.keyDown(grip, { key: "ArrowUp" });
-      expect(sheet).toHaveAttribute("data-detent", "full");
-      fireEvent.click(grip);
-      expect(sheet).toHaveAttribute("data-detent", "dock");
-      fireEvent.click(grip);
-      expect(sheet).toHaveAttribute("data-detent", "full");
+      const dialog = screen.getByRole("dialog", { name: "Inspector" });
+      expect(dialog.querySelector(".sys-inspector--takeover")).not.toBeNull();
+      expect(screen.queryByRole("slider", { name: "Sheet height" })).toBeNull();
+      fireEvent.click(within(dialog).getByRole("button", { name: "Done" }));
+      expect(close).toHaveBeenCalledTimes(1);
       unmount();
     } finally {
       offsetParent.mockRestore();
