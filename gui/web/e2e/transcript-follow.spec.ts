@@ -115,6 +115,9 @@ async function settledScrollTop(list: Locator): Promise<number> {
         }),
     );
   }
+  if (stable < 3) {
+    throw new Error(`scrollTop never settled, last read ${previous}`);
+  }
   return previous;
 }
 
@@ -188,8 +191,14 @@ function reversals(samples: Sample[]): number {
     const pinned =
       now.top >= now.max - BOTTOM_SLACK_PX &&
       prev.top >= prev.max - BOTTOM_SLACK_PX;
-    if (pinned || now.lead === null || prev.lead === null) return false;
-    return (now.top - prev.top) * (now.lead.top - prev.lead.top) < -0.5;
+    if (pinned || now.lead === null) return false;
+    const delta = now.top - prev.top;
+    const awayFromLead =
+      (delta < -0.5 && now.lead.top >= prev.top + prev.view) ||
+      (delta > 0.5 && now.lead.bottom <= prev.top);
+    if (awayFromLead) return true;
+    if (prev.lead === null) return false;
+    return delta * (now.lead.top - prev.lead.top) < -0.5;
   }).length;
 }
 
