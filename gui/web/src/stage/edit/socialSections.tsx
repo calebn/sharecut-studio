@@ -69,7 +69,6 @@ export function useSocialSections(
   );
 
   const retitle = (text: string) => {
-    if (busy) return;
     const next = text.trim();
     if (next === (clip.title_suggestion ?? "")) return;
     void run(() =>
@@ -93,6 +92,7 @@ export function useSocialSections(
               placeholder="Untitled clip"
               maxLength={200}
               onCommit={retitle}
+              readOnly={busy}
               className="inspector-text-field"
             />
           ) : (

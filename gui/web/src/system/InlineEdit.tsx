@@ -20,6 +20,8 @@ type Props = {
   placeholder?: string;
   /** The longest text the field takes. */
   maxLength?: number;
+  /** The field shows its text but takes no typing. */
+  readOnly?: boolean;
   className?: string;
 };
 
@@ -34,6 +36,7 @@ export function InlineEdit({
   describedBy,
   placeholder,
   maxLength,
+  readOnly = false,
   className,
 }: Props) {
   const [text, setText] = useState(value);
@@ -88,6 +91,8 @@ export function InlineEdit({
     value: text,
     placeholder,
     maxLength,
+    readOnly,
+    "aria-busy": readOnly || undefined,
     ref: (el: HTMLInputElement | HTMLTextAreaElement | null) => {
       field.current = el;
     },

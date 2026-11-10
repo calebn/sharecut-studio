@@ -168,6 +168,28 @@ describe("chapter content", () => {
     expect(fireEvent.keyDown(title, { key: "Escape" })).toBe(true);
   });
 
+  it("holds the title read-only while a save is in flight", async () => {
+    let settle: () => void = () => undefined;
+    vi.mocked(updateChapter).mockImplementationOnce(
+      () =>
+        new Promise<undefined>(
+          (resolve) => (settle = () => resolve(undefined)),
+        ),
+    );
+    const user = userEvent.setup();
+    open();
+    await typeScrub("Time", "6");
+    const title = screen.getByRole("textbox", { name: "Title" });
+    expect(title).toHaveAttribute("readonly");
+    expect(title).toHaveAttribute("aria-busy", "true");
+    await user.type(title, "X");
+    expect(title).toHaveValue("Opening");
+    await act(async () => settle());
+    expect(title).not.toHaveAttribute("readonly");
+    await user.type(title, "!");
+    expect(title).toHaveValue("Opening!");
+  });
+
   it("refuses a time outside the episode", async () => {
     open();
     await typeScrub("Time", "4000");

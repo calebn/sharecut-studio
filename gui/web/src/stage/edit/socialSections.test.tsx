@@ -181,6 +181,28 @@ describe("social clip content", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Save failed");
   });
 
+  it("holds the title read-only while a save is in flight", async () => {
+    let settle: () => void = () => undefined;
+    vi.mocked(updateSocialClip).mockImplementationOnce(
+      () =>
+        new Promise<undefined>(
+          (resolve) => (settle = () => resolve(undefined)),
+        ),
+    );
+    const user = userEvent.setup();
+    open();
+    await typeScrub("Start", "30");
+    const title = screen.getByRole("textbox", { name: "Title" });
+    expect(title).toHaveAttribute("readonly");
+    expect(title).toHaveAttribute("aria-busy", "true");
+    await user.type(title, "X");
+    expect(title).toHaveValue("A loaf tells you when it is ready");
+    await act(async () => settle());
+    expect(title).not.toHaveAttribute("readonly");
+    await user.type(title, "!");
+    expect(title).toHaveValue("A loaf tells you when it is ready!");
+  });
+
   it("shows the range read-only and offers no mutation on a share", async () => {
     const { container } = open("share");
     expect(screen.getByRole("spinbutton", { name: "Start" })).toHaveAttribute(
