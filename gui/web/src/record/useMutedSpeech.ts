@@ -20,7 +20,8 @@ type Options = {
 /**
  * True once the mic has heard 10 s of speech while muted (`mutedSpeechGate`).
  * The tap on a mic clone exists only while muted and on air; unmute, take stop,
- * unmount or a new stream drops it and resets the count (a pause only freezes it). If it cannot start, this stays false.
+ * unmount or a new stream drops it and resets the count (a pause only freezes
+ * it). If it cannot start, this stays false.
  */
 export function useMutedSpeech(
   stream: MediaStream | null,
