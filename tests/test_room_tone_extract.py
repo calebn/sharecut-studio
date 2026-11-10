@@ -32,6 +32,7 @@ from podcast_mcp.models import (
     RoomToneOrigin,
     Track,
     TrackRole,
+    save_project,
 )
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document.history import HistoryService
@@ -783,3 +784,191 @@ def test_service_refuses_asset_changes_at_the_registration_boundary(
     assert reopened.project.tracks[0].room_tone is None
     assert reopened.project.tracks[0].room_tone_origin is None
     assert reopened.project.source_by_id("room-tone-host") is None
+
+
+# --- the pipeline step (room_tone.extract_bed) ---------------------------------------
+
+STEP = "extract_room_tone_beds"
+ON = {"room_tone": {"extract_bed": True}}
+OFF = {"room_tone": {"extract_bed": False}}
+
+
+def _add_track(project: EpisodeProject, tid: str, role: TrackRole, audio: np.ndarray) -> None:
+    root = Path(project.workspace_path())
+    _write_wav(root / "raw" / f"{tid}.wav", audio)
+    project.tracks.append(
+        Track(
+            id=tid,
+            label=tid,
+            role=role,
+            media=MediaAsset(path=f"raw/{tid}.wav", duration_sec=DURATION_SEC),
+        )
+    )
+
+
+def _episode(tmp_path: Path) -> EpisodeProject:
+    """Host and guest with clean room to cut, a track with a recorded bed, and a music track."""
+    project = _project(tmp_path, _host_audio(SPEECH_THEN_ROOM))
+    _add_track(project, "guest", TrackRole.DIALOGUE, _host_audio(SPEECH_THEN_ROOM))
+    _add_track(project, "recorded", TrackRole.DIALOGUE, _host_audio(SPEECH_THEN_ROOM))
+    _add_track(project, "score", TrackRole.MUSIC, _host_audio(SPEECH_THEN_ROOM))
+    _write_wav(tmp_path / "raw" / "recorded-bed.wav", _noise(FLOOR_DB, seed=7))
+    place_room_tone(
+        project,
+        track_id="recorded",
+        rel="raw/recorded-bed.wav",
+        duration_s=DURATION_SEC,
+        sample_rate=SR,
+        channels=1,
+        label="recorded",
+    )
+    return project
+
+
+def _step(project: EpisodeProject, config: dict) -> str | None:
+    from podcast_mcp.pipeline.steps import extract_room_tone_beds
+
+    return extract_room_tone_beds(project, config)
+
+
+def test_the_step_is_off_by_default_and_names_its_switch() -> None:
+    from podcast_mcp.config.defaults import load_defaults
+    from podcast_mcp.pipeline.meta import step_meta, step_noop_reason
+    from podcast_mcp.services.pipeline.config import default_enabled_steps
+
+    assert step_meta(STEP).enabled_by_default is False
+    assert step_noop_reason(STEP, load_defaults()) == "room_tone.extract_bed=false"
+    assert STEP not in default_enabled_steps(load_defaults())
+
+
+def test_the_step_off_decodes_nothing_and_changes_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _episode(tmp_path)
+    before = project.model_dump_json()
+
+    def forbidden(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("decoded audio with room_tone.extract_bed off")
+
+    monkeypatch.setattr(room_tone_extract, "plan_extracted_bed", forbidden)
+    monkeypatch.setattr(room_tone_extract, "track_floor", forbidden, raising=False)
+
+    for config in (OFF, {}):
+        assert _step(project, config) == "skipped (room_tone.extract_bed=false)"
+    assert project.model_dump_json() == before
+    assert not (tmp_path / EXTRACT_DIR).exists()
+
+
+def test_the_step_on_gives_each_bedless_dialogue_track_one_bed(tmp_path: Path) -> None:
+    project = _episode(tmp_path)
+    recorded = project.track_by_id("recorded").model_dump_json()
+
+    summary = _step(project, ON)
+
+    assert summary is not None
+    assert summary.startswith("2 beds extracted (host ")
+    for tid in ("host", "guest"):
+        track = project.track_by_id(tid)
+        assert track.room_tone is not None
+        assert track.room_tone_origin is not None
+        assert track.room_tone_origin.source_start >= 5.0
+        assert (tmp_path / track.room_tone.path).is_file()
+    assert len(list((tmp_path / EXTRACT_DIR).glob("*.wav"))) == 2
+    assert project.track_by_id("recorded").model_dump_json() == recorded
+    assert "recorded: has_bed" in summary
+
+
+def test_the_step_skips_tracks_that_are_not_dialogue(tmp_path: Path) -> None:
+    project = _episode(tmp_path)
+
+    summary = _step(project, ON)
+
+    score = project.track_by_id("score")
+    assert score.room_tone is None
+    assert score.room_tone_origin is None
+    assert "score" not in (summary or "")
+    assert not list((tmp_path / EXTRACT_DIR).glob("score-*"))
+
+
+def test_a_second_run_adds_no_bed_and_changes_nothing(tmp_path: Path) -> None:
+    project = _episode(tmp_path)
+    _step(project, ON)
+    after_first = project.model_dump_json()
+    files = sorted(p.name for p in (tmp_path / EXTRACT_DIR).glob("*.wav"))
+
+    summary = _step(project, ON)
+
+    assert summary is not None
+    assert summary.startswith("0 beds extracted")
+    assert "host: already_extracted" in summary
+    assert project.model_dump_json() == after_first
+    assert sorted(p.name for p in (tmp_path / EXTRACT_DIR).glob("*.wav")) == files
+
+
+def test_a_track_with_no_clean_stretch_stays_bedless_and_the_rest_still_extract(
+    tmp_path: Path,
+) -> None:
+    project = _episode(tmp_path)
+    _add_track(project, "talker", TrackRole.DIALOGUE, _host_audio(((0.2, 9.8),)))
+
+    summary = _step(project, ON)
+
+    assert summary is not None
+    assert summary.startswith("2 beds extracted")
+    talker = project.track_by_id("talker")
+    assert talker.room_tone is None
+    assert talker.room_tone_origin is None
+    assert any(f"talker: {cause}" in summary for cause in NO_CLEAN_STRETCH)
+
+
+def test_a_bed_recorded_after_the_run_began_is_not_replaced(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.util import project_state
+
+    project = _episode(tmp_path)
+    live = project.model_copy(deep=True)
+    place_room_tone(
+        live,
+        track_id="guest",
+        rel="raw/recorded-bed.wav",
+        duration_s=DURATION_SEC,
+        sample_rate=SR,
+        label="recorded",
+        channels=1,
+    )
+    with project_state.step_copy(live, project):
+        summary = _step(project, ON)
+
+    assert summary is not None
+    assert "guest: has_bed" in summary
+    assert project.track_by_id("guest").room_tone is None
+    assert project.track_by_id("host").room_tone is not None
+
+
+def test_the_step_in_a_run_lands_one_history_entry_and_undo_removes_the_beds(
+    tmp_path: Path,
+) -> None:
+    from podcast_mcp.models import load_project
+    from podcast_mcp.services.pipeline import PipelineService
+
+    project = _episode(tmp_path)
+    project.ensure_dirs()
+    project_file = save_project(project)
+    ws = ProjectWorkspace.open(project_file)
+
+    result = PipelineService(ws).run(only_step=STEP, config=ON)
+
+    assert result.steps[-1].step == STEP
+    assert "2 beds extracted" in (result.steps[-1].message or "")
+    extracted = load_project(project_file)
+    assert extracted.track_by_id("host").room_tone is not None
+    assert extracted.source_by_id("room-tone-host") is not None
+
+    HistoryService(ProjectWorkspace.open(project_file)).undo()
+
+    undone = load_project(project_file)
+    for tid in ("host", "guest"):
+        assert undone.track_by_id(tid).room_tone is None
+        assert undone.track_by_id(tid).room_tone_origin is None
+        assert undone.source_by_id(f"room-tone-{tid}") is None
