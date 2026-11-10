@@ -10,6 +10,8 @@ COMMENT_COMMANDS: frozenset[str] = commands_in_family("comments")
 TRACK_SLICE_COMMANDS: frozenset[str] = frozenset(
     {
         "ReorderTrack",
+        "ExtractRoomToneBed",
+        "ClearExtractedRoomToneBed",
     }
 )
 

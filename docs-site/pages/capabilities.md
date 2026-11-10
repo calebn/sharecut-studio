@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**149** capabilities · **115** ShareCut Studio commands · **64** keyed · **213** MCP tools · **17** skills on rows (+ **19** hub skills).
+**151** capabilities · **117** ShareCut Studio commands · **64** keyed · **215** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -49,6 +49,8 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Cut selection | project | `edit.delete` | `Backspace` | — | `clipInspector`, `actionBar` | `delete_clips_tool` | `podcast edit delete-clips` | — | — | none · none |
 | Remove track | project | `track.remove` | `Backspace` | — | `trackInspector` | `track_remove_tool` | `podcast doc submit` | — | — | none · none |
 | Split speakers… | project | `track.splitSpeakers` | — (opens Prepare at the track's split prompt, which asks for the speaker count; reached from the track inspector and the command palette) | — | `SourceCard`, `trackInspector` | `speaker_split_tool` | `podcast speaker split` | `podcast-speaker-attribution` | — | none · none |
+| Extract room tone | project | `track.extractRoomTone` | — (Host action in the track inspector; also the command palette, MCP and CLI) | — | `trackInspector` | `extract_room_tone_bed_tool` | `podcast track room-tone extract` | `podcast-audio-cleanup` | — | none · none |
+| Remove extracted room tone | project | `track.clearRoomTone` | — (Host action in the track inspector; also the command palette, MCP and CLI) | — | `trackInspector` | `clear_extracted_room_tone_bed_tool` | `podcast track room-tone clear` | `podcast-audio-cleanup` | — | none · none |
 | Reorder track | project | `track.reorder` | — (drag headers or move up/down keys) | — | `trackHeader`, `SourceCard` | `track_reorder_tool` | `podcast episode reorder-track` | — | — | anchor · none |
 | Move track up | project | `track.moveUp` | `ArrowUp` | — | `trackInspector` | `track_reorder_tool` | `podcast episode reorder-track` | — | — | none · none |
 | Move track down | project | `track.moveDown` | `ArrowDown` | — | `trackInspector` | `track_reorder_tool` | `podcast episode reorder-track` | — | — | none · none |

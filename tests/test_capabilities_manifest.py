@@ -151,7 +151,7 @@ def test_cli_entry_that_names_no_real_command_is_an_error() -> None:
         "project",
         {
             "cli": [
-                "podcast track",
+                "podcast no-such-group",
                 "podcast edit no-such-cmd",
                 "podcast edit delete-clips --no-such-flag",
                 "uv run podcast edit approve",
@@ -159,7 +159,7 @@ def test_cli_entry_that_names_no_real_command_is_an_error() -> None:
         },
     )
     assert mod.cli_surface_errors(row, mod._cli_root()) == [
-        "daw.example: cli 'podcast track' has no command `podcast track`",
+        "daw.example: cli 'podcast no-such-group' has no command `podcast no-such-group`",
         "daw.example: cli 'podcast edit no-such-cmd' has no command `podcast edit no-such-cmd`",
         "daw.example: cli 'podcast edit delete-clips --no-such-flag' "
         "`podcast edit delete-clips` has no option --no-such-flag",

@@ -47,6 +47,19 @@ def bedless_reason(project: EpisodeProject, tid: str) -> str | None:
     return _current(project, track)
 
 
+def clear_extracted_bed(project: EpisodeProject, tid: str) -> dict[str, Any]:
+    """Take the extracted bed off ``tid``; a recorded or assigned bed, or none, is left alone."""
+    track = project.track_by_id(tid)
+    if track is None:
+        return {"track_id": tid, "cleared": False, "reason": "missing_track"}
+    if track.room_tone is None or track.room_tone_origin is None:
+        reason = "recorded_bed" if track.room_tone is not None else "no_bed"
+        return {"track_id": tid, "cleared": False, "reason": reason}
+    track.room_tone = None
+    track.room_tone_origin = None
+    return {"track_id": tid, "cleared": True}
+
+
 def register_extracted_bed(project: EpisodeProject, tid: str, plan: ExtractedBed) -> dict[str, Any]:
     """Give ``tid`` the planned bed on ``project`` itself, or say why the plan no longer fits."""
     track = project.track_by_id(tid)

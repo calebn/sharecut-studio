@@ -163,6 +163,8 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Manage models… | `models.open` | Host project management | Host-only sheet listing every model by what it does, with its state, size and a Get |
 | Open project… | `project.open` | Host project management | No key (Mod+O is project.home); OS dialog via local engine; Home's Open other… path field when there is none. Args: { path?: string } opens that episode without the picker (the palette's Projects group) |
 | Split speakers… | `track.splitSpeakers` | editStageSplitSpeakers | Opens Prepare at the split prompt for the inspector track (args { trackId? }); the split runs as a job and is one undo step |
+| Extract room tone | `track.extractRoomTone` | editStageTrackInspector | Cuts a room-tone bed from the inspector track's own quiet stretch (args { trackId? }); later fills use it. ExtractRoomToneBed, one undo step; a recorded bed is left alone |
+| Remove extracted room tone | `track.clearRoomTone` | editStageTrackInspector | Takes the cut room-tone bed off the inspector track (args { trackId? }); a recorded bed is never removed. ClearExtractedRoomToneBed, one undo step |
 | Reorder track | `track.reorder` | editStageIngest | Args: { trackId?, index }: ReorderTrack; drag headers use skipWhen |
 | Adjust word timing | `transcript.adjustTiming` | Loaded host project | Source-clock boundaries for the selected transcript word |
 | Find and replace transcript | `transcript.findReplace` | Loaded host project | Finds, counts and highlights a phrase even when another speaker's turn sits between its words; only the phrase's own words are highlighted, selected and replaced |

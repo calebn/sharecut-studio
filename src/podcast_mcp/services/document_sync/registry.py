@@ -43,7 +43,7 @@ from podcast_mcp.services.document_sync.handlers import (
 )
 from podcast_mcp.util.coded_error import CodedValueError
 
-Handler = Callable[[ProjectWorkspace, dict[str, Any]], dict[str, Any]]
+Handler = Callable[[ProjectWorkspace, dict[str, Any]], Mapping[str, Any]]
 Family = Literal["comments", "transcript", "structural"]
 
 
@@ -700,6 +700,22 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             mcp=named("fill_with_room_tone_tool"),
             cli=named(GENERIC_CLI),
         ),
+        "ExtractRoomToneBed": CommandSpec(
+            payload=p.ExtractRoomToneBedPayload,
+            handler=edits.extract_room_tone_bed,
+            host_only_reason="decodes the track's whole source audio on the host, which a share link never reaches",
+            gui=GUI_SENT,
+            mcp=named("extract_room_tone_bed_tool"),
+            cli=named("podcast track room-tone extract"),
+        ),
+        "ClearExtractedRoomToneBed": CommandSpec(
+            payload=p.ClearExtractedRoomToneBedPayload,
+            handler=edits.clear_extracted_room_tone_bed,
+            host_only_reason="undoes a host-side extraction, which a share link never makes",
+            gui=GUI_SENT,
+            mcp=named("clear_extracted_room_tone_bed_tool"),
+            cli=named("podcast track room-tone clear"),
+        ),
         "ApplyAutoEdits": CommandSpec(
             payload=p.ApplyAutoEditsPayload,
             handler=edits.apply_auto_edits,
@@ -938,7 +954,7 @@ def apply_command(
         raise CodedValueError(
             f"unknown document command: {command_type}", code="document_command_unknown"
         )
-    return spec.handler(ws, payload)
+    return dict(spec.handler(ws, payload))
 
 
 def edit_surface_commands() -> Mapping[str, Mapping[str, Any]]:
