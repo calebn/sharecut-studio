@@ -90,7 +90,7 @@ for (const { shell, viewport } of SHELLS) {
               ).toHaveCount(0);
 
             const people = dialog.getByRole("radiogroup", {
-              name: "Who is this voice?",
+              name: "Person",
               exact: true,
             });
             await people.scrollIntoViewIfNeeded();

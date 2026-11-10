@@ -389,7 +389,7 @@ for (const {
             for (const control of [
               trackInspector.getByLabel("Name", { exact: true }),
               trackInspector
-                .getByRole("radiogroup", { name: "Who is this voice?" })
+                .getByRole("radiogroup", { name: "Person" })
                 .getByRole("radio")
                 .first(),
               trackInspector.getByLabel("Kind", { exact: true }),

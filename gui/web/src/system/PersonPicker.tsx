@@ -20,7 +20,7 @@ export type PickerPerson = PersonData & {
   unavailable?: string;
 };
 
-const LABEL = "Who is this voice?";
+const DEFAULT_LABEL = "Who is this voice?";
 
 export type PersonPickerProps = {
   people: readonly PickerPerson[];
@@ -40,6 +40,12 @@ export type PersonPickerProps = {
    * click, Space or Enter picks.
    */
   apply?: "change" | "activate";
+  /**
+   * The group name. The default asks the question a clip speaker popover
+   * needs; the track Inspector names the row Person, as its read-only row and
+   * the docs do.
+   */
+  label?: string;
 };
 
 const MOVES: Record<string, -1 | 1 | "first" | "last"> = {
@@ -66,6 +72,7 @@ export function PersonPicker({
   renamingId,
   renderRename,
   apply = "change",
+  label = DEFAULT_LABEL,
 }: PersonPickerProps) {
   const group = useId();
   const fixButtons = useRef(new Map<string, HTMLButtonElement>());
@@ -97,9 +104,9 @@ export function PersonPicker({
     }
   }, [renamingId]);
   return (
-    <div className="sys-picker" role="radiogroup" aria-label={LABEL}>
+    <div className="sys-picker" role="radiogroup" aria-label={label}>
       <p className="sys-picker-label" aria-hidden="true">
-        {LABEL}
+        {label}
       </p>
       {people.map((person) =>
         renamingId === person.id && renderRename ? (
