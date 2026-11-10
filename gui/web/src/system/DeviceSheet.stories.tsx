@@ -94,7 +94,7 @@ const meta: Meta<DeviceSheetProps> = {
       ...isolatedStoryParameters.docs,
       description: {
         component:
-          "Opened by pressing your own tile, or from the room's More menu. One Sheet over the live room: the microphone row (input menu when there are two or more, a level meter with a clip tick, and the same states as the Join sheet's mic row), the headphone toggle where the seat has one, a Speaker menu only where the browser can route the room's audio (absent, not disabled, elsewhere), and Record room tone (1 minute, for someone who joined after the countdown). Every control applies as it changes, so there is no Apply. The input menu locks while a take is running, and room tone waits for the gap between takes. Desktop is a centred card; the phone is a bottom Sheet. Presentational: the caller owns the microphone, the meter and the room tone.",
+          "Opened by pressing your own tile, or from the room's More menu. One Sheet over the live room: the microphone row (input menu when there is at least one input, a level meter with a clip tick, and the same states as the Join sheet's mic row), the headphone toggle where the seat has one, a Speaker menu only where the browser can route the room's audio (absent, not disabled, elsewhere), and Record room tone (1 minute, for someone who joined after the countdown). Every control applies as it changes, so there is no Apply. The input menu locks while a take is running, and room tone waits for the gap between takes. Desktop is a centred card; the phone is a bottom Sheet. Presentational: the caller owns the microphone, the meter and the room tone.",
       },
     },
   },
