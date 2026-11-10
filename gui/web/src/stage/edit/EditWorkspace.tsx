@@ -9,7 +9,7 @@ import {
 } from "../../hooks/useMediaQueryStore";
 import { useTimelineFocusRegion } from "../../hooks/useTimelineFocusRegion";
 import { useViewportClass } from "../../hooks/useViewportClass";
-import { canEditMix, canIngestMedia } from "../../shareMode";
+import { canEditMix, canIngestMedia, commentRole } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { mediaKeyOf } from "../../state/jobMedia";
 import { Skeleton } from "../../system/Skeleton";
@@ -22,6 +22,7 @@ import type { LoadFailure } from "../hosts/hostModels";
 import { useStageScroll } from "../useStageScroll";
 import { EditActionBar } from "./EditActionBar";
 import { EditCorner } from "./EditCorner";
+import { EditOverview } from "./EditOverview";
 import { type EditArrangement, EditWorkspaceView } from "./EditWorkspaceView";
 import { EmptySession } from "./EmptySession";
 import { InspectorHost } from "./InspectorHost";
@@ -88,6 +89,8 @@ function EditWorkspaceAdapter({
       : shell === "tablet" && !wide
         ? "stacked"
         : "side";
+  const overviewGuest =
+    commentRole(projectPath, guestMode, guestShare) === "guest";
   const size = useScriptSize();
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
 
@@ -271,6 +274,7 @@ function EditWorkspaceAdapter({
         />
       }
       script={script}
+      overview={<EditOverview height={32} guest={overviewGuest} />}
       phone={
         <PhoneEditSurfaceView
           surface={editSurface}
@@ -280,6 +284,7 @@ function EditWorkspaceAdapter({
           corner={corner}
           lanes={timeline}
           script={script}
+          overview={<EditOverview height={16} guest={overviewGuest} />}
           bindings={{ lanes: timelineRegion, script: scriptRegion }}
           onOpenMix={
             canEditMix(projectPath, guestMode, shareCapabilities)

@@ -5,7 +5,7 @@ import { useStaleRenderBreakdown } from "../../hooks/useStaleRenderBreakdown";
 import { rosterDisplayName } from "../../presence/colors";
 import { followDetail } from "../../presence/followSync";
 import { rosterEntry } from "../../presence/roster";
-import { needsReview } from "../../review/reviewItems";
+import { suggestionTimesOf } from "../../review/reviewItems";
 import {
   canComment,
   canReviewPendingEdit,
@@ -116,13 +116,7 @@ export function usePlayerProps(
         chapters,
         (comments ?? NONE).map((c) => c.timeline_start),
         duration,
-        suggestionsShown
-          ? (pendingEdits ?? NONE)
-              .filter((e) => needsReview(e) && !e.unsure_words?.length)
-              .flatMap((e) =>
-                e.timeline_start === null ? [] : [e.timeline_start],
-              )
-          : NONE,
+        suggestionsShown ? suggestionTimesOf(pendingEdits ?? NONE, true) : NONE,
       ),
     [chapters, comments, duration, suggestionsShown, pendingEdits],
   );
