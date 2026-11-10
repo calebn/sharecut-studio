@@ -63,13 +63,7 @@ export function useWordSections(
         ? [
             {
               id: "confidence",
-              control: (
-                <DotMeter
-                  label="Confidence"
-                  value={shown.confidence}
-                  showLabel={false}
-                />
-              ),
+              control: <DotMeter label="Confidence" value={shown.confidence} />,
             },
           ]
         : []),
