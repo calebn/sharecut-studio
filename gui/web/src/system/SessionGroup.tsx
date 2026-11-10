@@ -1,4 +1,4 @@
-import { type ReactNode, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Button } from "../ui";
 import { InlineEdit } from "./InlineEdit";
 import { clampUnit, percentOf } from "./progress";
@@ -70,7 +70,17 @@ export function SessionGroup({
   handoff,
 }: SessionGroupProps) {
   const [renaming, setRenaming] = useState(false);
+  const [refocusRename, setRefocusRename] = useState(false);
   const renameButton = useRef<HTMLButtonElement>(null);
+  const renameShut = renameDisabledReason !== undefined;
+  useEffect(() => {
+    if (!refocusRename || renaming || renameShut) return;
+    setRefocusRename(false);
+    const active = document.activeElement;
+    if (active === null || active === document.body) {
+      renameButton.current?.focus();
+    }
+  }, [refocusRename, renaming, renameShut]);
   const Heading = headingLevel === 2 ? "h2" : "h3";
   const percent = percentOf(progress);
   const statusText =
@@ -132,9 +142,7 @@ export function SessionGroup({
             onCommit={onRename}
             onEnd={(how) => {
               setRenaming(false);
-              if (how !== "blur") {
-                queueMicrotask(() => renameButton.current?.focus());
-              }
+              if (how !== "blur") setRefocusRename(true);
             }}
           />
         ) : null}

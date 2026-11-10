@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { RecordSessionSummary } from "../../record";
 import { expectNoA11yViolations } from "../../test/a11y";
+import { BUSY_REASON } from "../../ui/disabledReason";
 import { EndedSessionCard } from "./EndedSessionCard";
 
 const base: RecordSessionSummary = {
@@ -48,7 +49,7 @@ describe("EndedSessionCard", () => {
     await expectNoA11yViolations(container);
   });
 
-  it("titles the group with an h2, a sibling of the stage's own h2", () => {
+  it("renders an h2 heading", () => {
     mount();
     expect(screen.getAllByRole("heading").map((h) => h.tagName)).toEqual([
       "H2",
@@ -439,9 +440,9 @@ describe("EndedSessionCard", () => {
           busy
         />,
       );
-      expect(
-        screen.getByRole("button", { name: "Rename session" }),
-      ).toBeDisabled();
+      const rename = screen.getByRole("button", { name: "Rename session" });
+      expect(rename).toBeDisabled();
+      expect(rename).toHaveAttribute("title", BUSY_REASON);
     });
 
     it("has no axe violations while editing", async () => {
