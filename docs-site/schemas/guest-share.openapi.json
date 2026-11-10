@@ -4293,7 +4293,7 @@
                 "items": {
                   "type": "string"
                 },
-                "maxItems": 24,
+                "maxItems": 25,
                 "type": "array"
               },
               {
