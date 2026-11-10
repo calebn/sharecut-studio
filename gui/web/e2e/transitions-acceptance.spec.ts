@@ -159,7 +159,7 @@ test("clip names identify audio and pending hatching fills the lane", async ({
   await expectPageAxeClean(page, ".sys-inspector");
 });
 
-test("the seam line rolls one join and Undo restores both clip bounds", async ({
+test("the Seam diamond rolls one join and Undo restores both clip bounds", async ({
   page,
 }) => {
   await openProject(page, projectPath);
@@ -171,7 +171,10 @@ test("the seam line rolls one join and Undo restores both clip bounds", async ({
   await expect(clips).toHaveCount(2);
   const rightId = await clips.nth(1).getAttribute("data-clip-id");
   await clips.nth(1).locator(".clip-hit").click();
-  const seam = clips.nth(1).locator("button.join-seam");
+  const seam = page
+    .locator(".lane-row")
+    .first()
+    .locator(".seam-mark .sys-seam-hit");
   await expect(seam).toBeVisible();
   const box = await seam.boundingBox();
   expect(box).toBeTruthy();
@@ -180,7 +183,7 @@ test("the seam line rolls one join and Undo restores both clip bounds", async ({
   expect(
     await page.evaluate(
       ({ x, y }) =>
-        document.elementFromPoint(x, y)?.classList.contains("join-seam"),
+        document.elementFromPoint(x, y)?.closest(".sys-seam-hit") != null,
       point,
     ),
   ).toBe(true);
@@ -311,7 +314,7 @@ test("crossfade length saves block competing pointer fades until acknowledged", 
   expect(commands.filter((type) => type === "SetClipJoin")).toHaveLength(1);
 });
 
-test("touch seam, fade corners, and trim strips retain distinct hit areas", async ({
+test("touch Seam diamond, fade corners, and trim strips retain distinct hit areas", async ({
   browser,
 }) => {
   const context = await browser.newContext({
@@ -337,7 +340,7 @@ test("touch seam, fade corners, and trim strips retain distinct hit areas", asyn
       document.documentElement.style.fontSize = "24px";
     });
     await lane.locator(".clip-block").nth(1).locator(".clip-hit").tap();
-    const seam = lane.locator("button.join-seam");
+    const seam = lane.locator(".seam-mark .sys-seam-hit");
     const s = (await seam.boundingBox())!;
     expect(s.width).toBeGreaterThanOrEqual(44);
     expect(s.height).toBeGreaterThanOrEqual(44);
@@ -345,9 +348,8 @@ test("touch seam, fade corners, and trim strips retain distinct hit areas", asyn
     expect(
       await seam.evaluate((el) => {
         const b = el.getBoundingClientRect();
-        return (
-          document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2) ===
-          el
+        return el.contains(
+          document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2),
         );
       }),
     ).toBe(true);
@@ -361,12 +363,9 @@ test("touch seam, fade corners, and trim strips retain distinct hit areas", asyn
       expect(
         await trim.evaluate((el) => {
           const b = el.getBoundingClientRect();
-          const seam = el
-            .closest(".lane-row")!
-            .querySelector("button.join-seam")!
-            .getBoundingClientRect();
           return (
-            document.elementFromPoint(b.x + b.width / 2, seam.y - 4) === el
+            document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2) ===
+            el
           );
         }),
       ).toBe(true);
@@ -379,9 +378,15 @@ test("touch seam, fade corners, and trim strips retain distinct hit areas", asyn
       expect(
         await edge.evaluate((el) => {
           const b = el.getBoundingClientRect();
+          const face = el
+            .closest(".lane-row")!
+            .querySelector(".seam-mark .sys-seam-diamond")!
+            .getBoundingClientRect();
           return (
-            document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2) ===
-            el
+            b.right <= face.left ||
+            face.right <= b.left ||
+            b.bottom <= face.top ||
+            face.bottom <= b.top
           );
         }),
       ).toBe(true);

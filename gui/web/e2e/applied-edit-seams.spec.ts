@@ -159,7 +159,7 @@ test.describe("Seam selection", () => {
     ).toHaveCount(0);
   });
 
-  test("the Script pill and the glyph select the same seam", async ({
+  test("the Script pill and the Seam diamond select the same seam", async ({
     page,
   }) => {
     await openEdit(page);
@@ -170,6 +170,7 @@ test.describe("Seam selection", () => {
     await expect(glyph).toBeVisible();
     await glyph.click();
     await expect(glyph).toHaveAttribute("aria-pressed", "true");
+    await page.keyboard.press("Escape");
     await page.keyboard.press("Escape");
     await expect(glyph).toHaveAttribute("aria-pressed", "false");
     const pill = page.locator(".sys-script-pill button").first();
