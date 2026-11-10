@@ -355,6 +355,23 @@ html[data-frame-short] .edit-dock {
   box-shadow: var(--shadow-floating);
 }
 
+.sys-inspector--popover {
+  position: fixed;
+  z-index: var(--z-menu);
+  inset: auto;
+  margin: 0;
+  box-sizing: border-box;
+  inline-size: var(--anchored-card-width);
+  max-inline-size: calc(100vw - var(--space-4));
+  max-block-size: 70dvh;
+  overflow: hidden;
+}
+
+.sys-inspector-slot > .comment-thread {
+  flex: 1 1 auto;
+  margin-inline: calc(-1 * var(--space-5));
+}
+
 .view-popover-chips {
   display: flex;
   gap: var(--space-1);

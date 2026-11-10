@@ -25,7 +25,7 @@ test.afterEach(async ({ page }) => {
   if (workspaceDir) removeRelocatedE2eProject(workspaceDir);
 });
 
-test("a pin-selected comment opens a usable Inspector card at 1440", async ({
+test("a pin-selected comment opens a usable comment popover at 1440", async ({
   page,
 }) => {
   await postDocumentCommand(
@@ -42,14 +42,14 @@ test("a pin-selected comment opens a usable Inspector card at 1440", async ({
     .click();
   await stageTab(page, "edit").click();
   await inspectSelection(page);
-  const card = page.locator("section.sys-inspector--card");
+  const card = page.locator("section.sys-inspector--popover");
   await expect(card.getByRole("heading", { name: "Comment" })).toBeVisible();
   await expect(card.getByText("Tighten this open")).toBeVisible();
   await expect
     .poll(async () => (await card.boundingBox())?.height ?? 0)
     .toBeGreaterThan(100);
   await expectPageAxeClean(page, ".sys-inspector");
-  await card.getByRole("textbox", { name: "Reply to comment" }).fill("On it");
+  await card.getByRole("textbox", { name: "Reply to Ada" }).fill("On it");
   await card.getByRole("button", { name: "Reply" }).click();
   await expect(card.getByText("On it")).toBeVisible();
   await page.getByRole("button", { name: "Resolve", exact: true }).click();
