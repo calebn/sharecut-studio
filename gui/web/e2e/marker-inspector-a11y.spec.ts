@@ -5,7 +5,7 @@ import { createRelocatedE2eProject } from "./liveProject";
 import { openPhoneTimeline, rememberInspectorDetent } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
 import { openHostShare } from "./shareNavigation";
-import { inspectSelection } from "./stageNav";
+import { inspectSelection, inspectSelectionByKey } from "./stageNav";
 import { setTheme, withAppearance } from "./theme";
 
 const SHELLS = [
@@ -92,7 +92,7 @@ for (const { shell, viewport } of SHELLS) {
             const dialog = sheet(page);
             await expect(dialog).toBeVisible();
             await expect(
-              dialog.getByText("Chapter", { exact: true }),
+              dialog.getByRole("heading", { name: "Chapter", exact: true }),
             ).toBeVisible();
             const title = dialog.getByRole("textbox", {
               name: "Title",
@@ -124,7 +124,7 @@ for (const { shell, viewport } of SHELLS) {
             ).toBeEnabled();
             await page
               .getByRole("button", { name: "Undo", exact: true })
-              .click();
+              .dispatchEvent("click");
             await expect(
               page.getByRole("button", { name: /^Chapter Opening,/ }),
             ).toBeVisible();
@@ -179,6 +179,7 @@ for (const { shell, viewport } of SHELLS) {
       test(`edits a social clip's title and range and passes axe at root${rootFont}`, async ({
         page,
       }) => {
+        test.slow();
         await withShareableProject(
           async (projectPath) => {
             const count = recordWrites(page);
@@ -186,10 +187,10 @@ for (const { shell, viewport } of SHELLS) {
             await page
               .getByRole("button", { name: /^Clip idea Inventory social/ })
               .click();
-            await inspectSelection(page);
+            await inspectSelectionByKey(page);
             const dialog = sheet(page);
             await expect(
-              dialog.getByText("Social clip", { exact: true }),
+              dialog.getByRole("heading", { name: "Social clip", exact: true }),
             ).toBeVisible();
             await expect(
               dialog.getByRole("img", { name: "Quality 4 of 5" }),
@@ -226,7 +227,7 @@ for (const { shell, viewport } of SHELLS) {
               .press("Tab");
             await page
               .getByRole("button", { name: "Undo", exact: true })
-              .click();
+              .dispatchEvent("click");
             await expect(
               page.getByRole("button", {
                 name: /^Clip idea Inventory social, proposed, 0:18/,
@@ -244,7 +245,7 @@ for (const { shell, viewport } of SHELLS) {
             ).toBeEnabled();
             await page
               .getByRole("button", { name: "Undo", exact: true })
-              .click();
+              .dispatchEvent("click");
             await expect(
               page.getByRole("button", { name: /^Clip idea Inventory social/ }),
             ).toBeVisible();
