@@ -39,7 +39,7 @@ describe("help.diagnosticsBundle", () => {
     );
     expect(result).toEqual({
       status: "disabled",
-      reason: "Export diagnostics is host-only",
+      reason: "Report a problem is host-only",
     });
     expect(useDawStore.getState().chrome.helpDialogOpen).toBe(false);
   });
