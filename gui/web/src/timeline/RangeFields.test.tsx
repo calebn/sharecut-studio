@@ -25,6 +25,25 @@ const project = minimalProject({
     clip_count: 1,
   },
 });
+const twoTrackProject = () => {
+  const clips = (id: string) => [
+    clipRow({
+      track_id: id,
+      timeline_start: 0,
+      timeline_end: 5,
+      source_start: 0,
+      source_end: 5,
+    }),
+  ];
+  return minimalProject({
+    tracks: [
+      sampleTrack({ id: "a", label: "Speaker", range_media_seal: "seal" }),
+      sampleTrack({ id: "b", label: "Guest", range_media_seal: "seal" }),
+    ],
+    clips: { tracks: { a: clips("a"), b: clips("b") }, clip_count: 2 },
+  });
+};
+
 const target = makeRangeTarget(project, [{ start: 1, end: 2 }], ["a"])!;
 
 beforeEach(() =>
@@ -177,6 +196,69 @@ describe("range fields", () => {
     });
     expect(useDawStore.getState().playheadSec).toBe(9);
     expect(useDawStore.getState().followingClientId).toBe("agent");
+  });
+  it("holds a scope picked before the agent range is adopted, then adopts onto it", async () => {
+    const user = userEvent.setup();
+    useDawStore.setState({
+      project: twoTrackProject(),
+      selection: null,
+      rangeDraft: null,
+      sessionRegion: { start_sec: 3, end_sec: 4 },
+    });
+    render(<RangeFields sheet />);
+    const guest = screen.getByRole("button", { name: "Guest" });
+    expect(guest).toHaveAttribute("aria-pressed", "false");
+    await user.click(guest);
+    expect(guest).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Speaker" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    expect(useDawStore.getState().agentRangeScope).toEqual(["b"]);
+    await user.click(
+      screen.getByRole("button", {
+        name: "Use agent range on selected tracks",
+      }),
+    );
+    expect(useDawStore.getState().selection).toMatchObject({
+      kind: "range",
+      target: { track_ids: ["b"], intervals: [{ start: 3, end: 4 }] },
+    });
+    expect(useDawStore.getState().agentRangeScope).toBeNull();
+  });
+  it("shows the draft's scope over a scope picked before adoption", () => {
+    useDawStore.setState({
+      project: twoTrackProject(),
+      selection: null,
+      sessionRegion: { start_sec: 3, end_sec: 4 },
+      agentRangeScope: ["b"],
+    });
+    useDawStore.getState().armRange({ start: 0, end: 5, trackIds: ["a"] });
+    useDawStore.getState().setAgentRangeScope(["b"]);
+    render(<RangeFields sheet />);
+    expect(screen.getByRole("button", { name: "Speaker" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "Guest" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+  });
+  it("ignores a picked track that no longer exists", () => {
+    useDawStore.setState({
+      project: twoTrackProject(),
+      selection: null,
+      rangeDraft: null,
+      sessionRegion: { start_sec: 3, end_sec: 4 },
+      agentRangeScope: ["gone"],
+    });
+    render(<RangeFields sheet />);
+    for (const name of ["Speaker", "Guest"])
+      expect(screen.getByRole("button", { name })).toHaveAttribute(
+        "aria-pressed",
+        "false",
+      );
   });
   it("drops the draft once the agent range is adopted", async () => {
     const user = userEvent.setup();

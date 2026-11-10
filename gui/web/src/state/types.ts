@@ -260,7 +260,12 @@ export interface DawState {
   selection: Selection;
   rangeArmed: boolean;
   rangeDraft: RangeDraft | null;
-  /** The tracks an agent range will be adopted onto, chosen before it is adopted; null until chosen. */
+  /**
+   * The tracks picked before any span exists (an agent range waiting to be
+   * adopted). A `RangeDraft` needs a span, so it cannot hold them. Cleared when
+   * a range is armed, disarmed or committed, and on a project switch; it
+   * survives the agent region coming and going.
+   */
   agentRangeScope: readonly string[] | null;
   rangeBusy: boolean;
   /**
@@ -275,7 +280,7 @@ export interface DawState {
   setRangeArmed: (armed: boolean) => void;
   armRange: (draft: RangeDraft) => void;
   setRangeDraft: (draft: RangeDraft) => void;
-  setAgentRangeScope: (ids: readonly string[] | null) => void;
+  setAgentRangeScope: (ids: readonly string[]) => void;
   setRangeBusy: (busy: boolean) => void;
   userZoomed: boolean;
   layers: LayerVisibility;

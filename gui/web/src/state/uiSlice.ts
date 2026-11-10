@@ -582,8 +582,10 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       get().setTimelineViewportWidth(
         estimateTimelineViewportWidth(get().shellBreakpoint),
       ),
-    setRangeArmed: (rangeArmed) => set({ rangeArmed, rangeDraft: null }),
-    armRange: (rangeDraft) => set({ rangeArmed: true, rangeDraft }),
+    setRangeArmed: (rangeArmed) =>
+      set({ rangeArmed, rangeDraft: null, agentRangeScope: null }),
+    armRange: (rangeDraft) =>
+      set({ rangeArmed: true, rangeDraft, agentRangeScope: null }),
     setRangeDraft: (rangeDraft) => set({ rangeDraft }),
     setAgentRangeScope: (agentRangeScope) => set({ agentRangeScope }),
     setRangeBusy: (rangeBusy) => set({ rangeBusy }),
