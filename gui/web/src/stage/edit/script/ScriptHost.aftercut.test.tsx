@@ -112,6 +112,19 @@ function cutAway(upTo: readonly number[], newHead: string) {
   });
 }
 
+function hydrating(loading: boolean) {
+  const { project } = state();
+  useDawStore.setState({
+    project: {
+      ...project!,
+      meta: {
+        ...project!.meta,
+        hydration: { transcript_words: !loading },
+      },
+    },
+  });
+}
+
 async function startCut(start = 0, end = 1) {
   const user = userEvent.setup();
   render(<Harness />);
@@ -175,6 +188,7 @@ beforeEach(() => {
     stage: "edit",
     projectEpoch: 1,
     rangeBusy: false,
+    shellBreakpoint: "desktop",
     feedbackToast: null,
     afterCut: null,
     scriptCollapsed: false,
@@ -195,6 +209,7 @@ describe("Tab after a words cut", () => {
   it("steps through the other occurrences and ends when none are left", async () => {
     const user = await startCut();
     expect(state().feedbackToast?.message).toContain("2 more");
+    expect(state().afterCut?.focused).toBe(true);
     cutAway([0, 1], "h1");
     expect(tab().defaultPrevented).toBe(true);
     expect(selected()).toEqual([3, 4]);
@@ -211,6 +226,66 @@ describe("Tab after a words cut", () => {
     await user.keyboard("{Backspace}");
     await waitFor(() => expect(submitDocumentCommand).toHaveBeenCalledTimes(3));
     cutAway([0, 1, 3, 4, 6, 7], "h3");
+    expect(tab().defaultPrevented).toBe(false);
+  });
+
+  it("holds Tab while the cut's refresh has not landed and picks once it has", async () => {
+    await startCut();
+    cutAway([0, 1], "h1");
+    hydrating(true);
+    await act(async () => {});
+    expect(document.activeElement).toBe(document.body);
+    expect(tab().defaultPrevented).toBe(true);
+    expect(selected()).toBeNull();
+    expect(state().afterCut).not.toBeNull();
+    hydrating(false);
+    await waitFor(() => expect(selected()).toEqual([3, 4]));
+    await waitFor(() =>
+      expect(document.activeElement).toHaveTextContent("you"),
+    );
+    expect(document.activeElement?.closest(".sys-script-body")).not.toBeNull();
+  });
+
+  it("holds Tab even when the loading Script has handed focus to a button", async () => {
+    await startCut();
+    cutAway([0, 1], "h1");
+    hydrating(true);
+    await act(async () => {});
+    const other = document.createElement("button");
+    document.body.append(other);
+    other.focus();
+    expect(tab().defaultPrevented).toBe(true);
+    other.remove();
+    hydrating(false);
+    await waitFor(() => expect(selected()).toEqual([3, 4]));
+  });
+
+  it("drops a held Tab when another key ends the chain before the refresh lands", async () => {
+    const user = await startCut();
+    cutAway([0, 1], "h1");
+    hydrating(true);
+    await act(async () => {});
+    expect(tab().defaultPrevented).toBe(true);
+    await user.keyboard("x");
+    hydrating(false);
+    await act(async () => {});
+    expect(selected()).toBeNull();
+    expect(state().afterCut).toBeNull();
+  });
+
+  it("leaves Tab native while the refresh is pending when the cut did not start in the Script", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(screen.getAllByRole("button", { name: "you" })[0]);
+    act(() => state().setSelection(range(0, 1)));
+    act(() => (document.activeElement as HTMLElement | null)?.blur());
+    expect(document.activeElement).toBe(document.body);
+    fireEvent.keyDown(document.body, { key: "Backspace" });
+    await waitFor(() => expect(state().afterCut).not.toBeNull());
+    expect(state().afterCut?.focused).toBe(false);
+    cutAway([0, 1], "h1");
+    hydrating(true);
+    await act(async () => {});
     expect(tab().defaultPrevented).toBe(false);
   });
 
@@ -285,6 +360,42 @@ describe("Tab after a words cut", () => {
     });
 
     it.each([
+      [
+        "the phone layout",
+        () => useDawStore.setState({ shellBreakpoint: "phone" }),
+      ],
+      [
+        "a suggest-only session",
+        () =>
+          useDawStore.setState({
+            shareCapabilities: COMMENTER_CAPABILITIES,
+            projectPath: "share:tok",
+            guestMode: "comment",
+          }),
+      ],
+    ])("is left native on %s", async (_name, change) => {
+      await startCut();
+      cutAway([0, 1], "h1");
+      document.querySelector<HTMLElement>(".sys-script-word")?.focus();
+      act(() => {
+        change();
+      });
+      expect(tab().defaultPrevented).toBe(false);
+    });
+
+    it.each([
+      ["another source", { ...range(3, 4), sourceId: "s2" }],
+      ["more words", range(3, 5)],
+    ])("a Tab-picked selection moved to %s", async (_name, moved) => {
+      await startCut();
+      cutAway([0, 1], "h1");
+      expect(tab().defaultPrevented).toBe(true);
+      expect(selected()).toEqual([3, 4]);
+      act(() => state().setSelection(moved));
+      expect(tab().defaultPrevented).toBe(false);
+    });
+
+    it.each([
       ["Escape", "{Escape}"],
       ["a letter", "x"],
     ])("%s", async (_name, keys) => {
@@ -293,6 +404,28 @@ describe("Tab after a words cut", () => {
       await user.keyboard(keys);
       expect(state().afterCut).toBeNull();
       expect(tab().defaultPrevented).toBe(false);
+    });
+
+    it.each([
+      ["Delete", { key: "Delete" }],
+      ["Control", { key: "Control", ctrlKey: true }],
+      ["Alt", { key: "Alt", altKey: true }],
+      ["Meta", { key: "Meta", metaKey: true }],
+      ["CapsLock", { key: "CapsLock" }],
+      ["Shift+Space", { key: " ", shiftKey: true }],
+    ])("keeps the chain across %s", async (_name, init) => {
+      await startCut();
+      cutAway([0, 1], "h1");
+      act(() => {
+        document.body.dispatchEvent(
+          new KeyboardEvent("keydown", {
+            ...init,
+            bubbles: true,
+            cancelable: true,
+          }),
+        );
+      });
+      expect(state().afterCut).not.toBeNull();
     });
 
     it("keeps the chain across a bare Shift press", async () => {
@@ -370,6 +503,20 @@ describe("Tab after a words cut", () => {
     expect(selected()).toEqual([6, 7]);
   });
 
+  it("puts focus on the word it picks", async () => {
+    await startCut();
+    cutAway([0, 1], "h1");
+    const pill = document.createElement("button");
+    pill.className = "sys-seam-hit";
+    document.querySelector(".sys-script-body")!.append(pill);
+    pill.focus();
+    expect(tab().defaultPrevented).toBe(true);
+    await waitFor(() =>
+      expect(document.activeElement).toHaveAttribute("data-selected"),
+    );
+    pill.remove();
+  });
+
   it("is left native while a menu holds the keyboard", async () => {
     await startCut();
     cutAway([0, 1], "h1");
@@ -442,7 +589,7 @@ describe("Tab after a words cut", () => {
     expect(selected()).toEqual([6, 7]);
   });
 
-  it("does not move the selection while a later cut is in flight", async () => {
+  it("holds Tab while a later cut is in flight and picks once its reply lands", async () => {
     const user = await startCut();
     expect(tab().defaultPrevented).toBe(true);
     let release: () => void = () => {};
@@ -455,9 +602,11 @@ describe("Tab after a words cut", () => {
     );
     await user.keyboard("{Backspace}");
     await waitFor(() => expect(state().rangeBusy).toBe(true));
-    expect(tab().defaultPrevented).toBe(false);
+    expect(tab().defaultPrevented).toBe(true);
     expect(selected()).toEqual([3, 4]);
+    cutAway([0, 1, 3, 4], "h2");
     await act(async () => release());
+    await waitFor(() => expect(selected()).toEqual([6, 7]));
   });
 
   it("keeps the chain through a toolbar Undo and Redo of the cut", async () => {

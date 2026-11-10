@@ -39,10 +39,16 @@ const focusInScript = (page: Page) =>
     () => document.activeElement?.closest(".sys-script-body") != null,
   );
 
-test("Tab then Backspace walks every remaining occurrence with focus kept in the Script", async ({
-  page,
-}) => {
+async function walkChain(page: Page, settled: boolean) {
   await servePendingEditsCleared(page);
+  if (!settled)
+    await page.route(
+      /\/api\/document\/state\?.*phase=detail/,
+      async (route) => {
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        await route.continue();
+      },
+    );
   await openProject(page, projectPath);
   const body = await openScript(page);
   const first = body.locator(SCRIPT_WORD).filter({ hasText: /^the$/ }).first();
@@ -52,7 +58,7 @@ test("Tab then Backspace walks every remaining occurrence with focus kept in the
   await expect(toast).toContainText(/Cut .* · \d+ more/);
   const remaining = Number(/(\d+) more/.exec(await toast.innerText())![1]);
   expect(remaining).toBeGreaterThan(1);
-  await expect.poll(() => focusInScript(page)).toBe(true);
+  if (settled) await expect.poll(() => focusInScript(page)).toBe(true);
 
   const picked = page.locator(SCRIPT_SELECTED);
   for (let left = remaining; left > 0; left -= 1) {
@@ -61,10 +67,23 @@ test("Tab then Backspace walks every remaining occurrence with focus kept in the
     await expect(picked).toHaveText("the");
     await page.keyboard.press("Backspace");
     await expect(picked).toHaveCount(0);
-    await expect.poll(() => focusInScript(page)).toBe(true);
+    if (settled) await expect.poll(() => focusInScript(page)).toBe(true);
   }
 
+  await expect.poll(() => focusInScript(page)).toBe(true);
   await page.keyboard.press("Tab");
   await expect.poll(() => focusInScript(page)).toBe(false);
   await expect(picked).toHaveCount(0);
+}
+
+test("Tab then Backspace walks every remaining occurrence with focus kept in the Script", async ({
+  page,
+}) => {
+  await walkChain(page, true);
+});
+
+test("a Tab pressed while the cut's transcript refresh is still loading waits for it", async ({
+  page,
+}) => {
+  await walkChain(page, false);
 });

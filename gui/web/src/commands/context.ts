@@ -21,6 +21,7 @@ import type { Selection } from "../types/project";
 import type { StageId } from "../types/stage";
 import { splitSpeakersBlocker } from "../utils/speakerSplit";
 import { afterCutPick } from "./afterCutHost";
+import { scriptBodyFocused, transcriptLoading } from "./afterCutWindow";
 import { focusedClipHandleKind } from "./focusedClipHandle";
 import type { ContextPredicateId } from "./types";
 
@@ -76,13 +77,6 @@ function editUnsaved(projectPath: string): boolean {
   return documentActivityBusy(projectPath) || hasDocumentDrafts();
 }
 
-function scriptBodyFocused(): boolean {
-  const el = document.activeElement;
-  if (!(el instanceof Element)) return false;
-  if (el.closest(".sys-script-word, .sys-seam-hit") !== null) return true;
-  return el.classList.contains("sys-script-body");
-}
-
 function sameWords(a: Selection, b: Selection): boolean {
   if (a === b) return true;
   return (
@@ -95,21 +89,33 @@ function sameWords(a: Selection, b: Selection): boolean {
   );
 }
 
-function afterCutActive(s: DawStore, direction: AfterCutDirection): boolean {
+function afterCutInEdit(s: DawStore): boolean {
+  return (
+    s.afterCut !== null &&
+    s.project !== null &&
+    s.afterCut.epoch === s.projectEpoch &&
+    s.stage === "edit" &&
+    s.shellBreakpoint !== "phone" &&
+    rangeEditMode(s.projectPath, s.shareCapabilities) === "edit"
+  );
+}
+
+export function afterCutHolds(s: DawStore): boolean {
   const cut = s.afterCut;
-  if (!cut || !s.project || s.rangeBusy) return false;
-  if (
-    cut.epoch !== s.projectEpoch ||
-    s.stage !== "edit" ||
-    s.shellBreakpoint === "phone" ||
-    rangeEditMode(s.projectPath, s.shareCapabilities) !== "edit"
-  )
-    return false;
+  if (!cut || !s.project || s.rangeBusy || !afterCutInEdit(s)) return false;
   const history = s.project.history;
   const head = history?.head_id ?? null;
   if (head !== cut.head && head !== cut.baseHead) return false;
   if (head !== cut.head && history?.can_redo) return false;
-  if (!sameWords(s.selection, cut.selected)) return false;
+  return sameWords(s.selection, cut.selected);
+}
+
+function afterCutActive(s: DawStore, direction: AfterCutDirection): boolean {
+  const cut = s.afterCut;
+  if (!cut || !s.project || !afterCutInEdit(s)) return false;
+  if (s.rangeBusy) return cut.focused;
+  if (!afterCutHolds(s)) return false;
+  if (transcriptLoading(s.project)) return cut.focused;
   return (
     scriptBodyFocused() && afterCutPick(s.project, cut, direction) !== null
   );
