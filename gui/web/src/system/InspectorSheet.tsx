@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 import { HANDLE_DRAG_MIN_PX } from "../hooks/gestureConstants";
-import { CloseButton } from "../ui";
+import { CloseButton, Dialog } from "../ui";
 import type { SystemIconName } from "./icons";
 import { isImeKey } from "./imeKey";
 import {
@@ -82,7 +82,17 @@ export type InspectorPhoneProps = InspectorBase & {
   onDismiss: () => void;
 };
 
-type InspectorSheetProps = InspectorCardProps | InspectorPhoneProps;
+/**
+ * The Inspector taking the whole screen, as a modal dialog with Done: for a
+ * frame too short to hold a card or a sheet with a field in it (large text on a
+ * phone held sideways).
+ */
+export type InspectorTakeoverProps = InspectorBase & { form: "takeover" };
+
+type InspectorSheetProps =
+  | InspectorCardProps
+  | InspectorPhoneProps
+  | InspectorTakeoverProps;
 
 const DETENT_TEXT: Record<InspectorDetent, string> = {
   dock: "Dock",
@@ -130,7 +140,8 @@ function Header({
   name,
   onRename,
   onClose,
-}: Pick<InspectorBase, "icon" | "mark" | "name" | "onRename" | "onClose">) {
+}: Pick<InspectorBase, "icon" | "mark" | "name" | "onRename"> &
+  Partial<Pick<InspectorBase, "onClose">>) {
   return (
     <div className="sys-sheet-header sys-inspector-header">
       {mark ? (
@@ -141,7 +152,7 @@ function Header({
       <h2 className="sys-sheet-title">
         <Name name={name} onRename={onRename} />
       </h2>
-      <CloseButton onClick={onClose} />
+      {onClose ? <CloseButton onClick={onClose} /> : null}
     </div>
   );
 }
@@ -456,5 +467,40 @@ function Phone({
  * values, which apply as they change.
  */
 export function InspectorSheet(props: InspectorSheetProps) {
-  return props.form === "card" ? <Card {...props} /> : <Phone {...props} />;
+  if (props.form === "card") return <Card {...props} />;
+  if (props.form === "takeover") return <Takeover {...props} />;
+  return <Phone {...props} />;
+}
+
+function Takeover({
+  icon,
+  mark,
+  name,
+  label,
+  onRename,
+  sections,
+  onClose,
+}: InspectorTakeoverProps) {
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title={label ?? name}
+      panelClassName="sys-inspector-takeover"
+      footer={
+        <button
+          type="button"
+          className="ui-control modifier-action primary sys-inspector-done"
+          onClick={onClose}
+        >
+          Done
+        </button>
+      }
+    >
+      <div className="sys-inspector sys-inspector--takeover">
+        <Header icon={icon} mark={mark} name={name} onRename={onRename} />
+        <Sections sections={sections} />
+      </div>
+    </Dialog>
+  );
 }

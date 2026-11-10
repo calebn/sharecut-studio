@@ -19,10 +19,12 @@ import {
   type InspectorSection,
   InspectorSheet,
 } from "../../system/InspectorSheet";
-import type {
-  InspectorBounds,
-  InspectorDetent,
-  InspectorRect,
+import {
+  CARD_MIN_BLOCK_PX,
+  cardFits,
+  type InspectorBounds,
+  type InspectorDetent,
+  type InspectorRect,
 } from "../../system/inspectorSheetMath";
 import { openerControl } from "../../ui/pressedControl";
 import { useResizeObserver } from "../../ui/useResizeObserver";
@@ -345,7 +347,11 @@ function Card({
         />
       );
   } else if (placement) {
-    card = (
+    const roomy = cardFits(
+      placement.bounds.height,
+      CARD_MIN_BLOCK_PX * (rootFontPx() / DEFAULT_ROOT_FONT_PX),
+    );
+    card = roomy ? (
       <InspectorSheet
         form="card"
         {...heading}
@@ -353,6 +359,14 @@ function Card({
         sections={sections}
         anchor={placement.anchor}
         bounds={placement.bounds}
+        onClose={close}
+      />
+    ) : (
+      <InspectorSheet
+        form="takeover"
+        {...heading}
+        label="Inspector"
+        sections={sections}
         onClose={close}
       />
     );
@@ -370,6 +384,15 @@ function Card({
     >
       {card}
     </div>
+  );
+}
+
+const DEFAULT_ROOT_FONT_PX = 16;
+
+function rootFontPx() {
+  return (
+    Number.parseFloat(getComputedStyle(document.documentElement).fontSize) ||
+    DEFAULT_ROOT_FONT_PX
   );
 }
 
@@ -395,6 +418,9 @@ function Phone({
   // Unmeasured (room 0, as before the first layout) counts as fitting, so half
   // is dropped only for a slot measured too short for the dock and a field.
   const [halfFits, setHalfFits] = useState(true);
+  // A slot too short for a full sheet to hold its header and a few rows hands
+  // the Inspector the whole screen, with Done.
+  const [takeover, setTakeover] = useState(false);
   const detent = !halfFits && chosenDetent === "half" ? "full" : chosenDetent;
   const chosen = useRef(false);
   const box = useRef<HTMLDivElement>(null);
@@ -406,11 +432,13 @@ function Phone({
   }, []);
   const fit = useCallback(() => {
     const room = lanes?.clientHeight ?? 0;
-    const rootPx =
-      Number.parseFloat(getComputedStyle(document.documentElement).fontSize) ||
-      16;
+    const rootPx = rootFontPx();
     const short = room * SHEET_FULL < DOCK_ROOM_REM * rootPx;
     setTight(short);
+    setTakeover(
+      room > 0 &&
+        room * SHEET_FULL < CARD_MIN_BLOCK_PX * (rootPx / DEFAULT_ROOT_FONT_PX),
+    );
     setHalfFits(!(room > 0 && short));
     if (room > 0 && !chosen.current) setDetent(short ? "full" : "half");
   }, [lanes]);
@@ -443,33 +471,46 @@ function Phone({
       onPointerCancelCapture={focus.onPointerCancelCapture}
       onPointerDownCapture={focus.onPointerDownCapture}
     >
-      <InspectorSheet
-        form="phone"
-        {...heading}
-        label="Inspector"
-        sections={sections}
-        dock={
-          dockShown ? (
-            <EditActionBar
-              form="dock"
-              root={null}
-              inInspector
-              onRan={raiseForFields}
-            />
-          ) : null
-        }
-        detent={detent}
-        halfFits={halfFits}
-        onDetentChange={(next) => {
-          chosen.current = true;
-          setDetent(next);
-        }}
-        onDismiss={sheet.dismiss}
-        onClose={() => {
-          focus.close();
-          sheet.close();
-        }}
-      />
+      {takeover ? (
+        <InspectorSheet
+          form="takeover"
+          {...heading}
+          label="Inspector"
+          sections={sections}
+          onClose={() => {
+            focus.close();
+            sheet.close();
+          }}
+        />
+      ) : (
+        <InspectorSheet
+          form="phone"
+          {...heading}
+          label="Inspector"
+          sections={sections}
+          dock={
+            dockShown ? (
+              <EditActionBar
+                form="dock"
+                root={null}
+                inInspector
+                onRan={raiseForFields}
+              />
+            ) : null
+          }
+          detent={detent}
+          halfFits={halfFits}
+          onDetentChange={(next) => {
+            chosen.current = true;
+            setDetent(next);
+          }}
+          onDismiss={sheet.dismiss}
+          onClose={() => {
+            focus.close();
+            sheet.close();
+          }}
+        />
+      )}
     </div>
   );
 }

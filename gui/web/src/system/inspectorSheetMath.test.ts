@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  cardFits,
   detentHeight,
   detentsFor,
   dragHeight,
@@ -142,6 +143,16 @@ describe("inspectorSheetMath detents without half", () => {
     expect(steppedDetent("full", -1, dockFull)).toBe("dock");
     expect(toggledDetent("dock", dockFull)).toBe("full");
     expect(toggledDetent("full", dockFull)).toBe("dock");
+  });
+});
+
+describe("inspectorSheetMath cardFits", () => {
+  it("fits a card whose 60 % holds the minimum, and counts an unmeasured frame as fitting", () => {
+    expect(cardFits(374)).toBe(true);
+    expect(cardFits(373)).toBe(false);
+    expect(cardFits(0)).toBe(true);
+    expect(cardFits(700, 448)).toBe(false);
+    expect(cardFits(750, 448)).toBe(true);
   });
 });
 
