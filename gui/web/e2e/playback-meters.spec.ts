@@ -8,6 +8,7 @@ import { createRelocatedE2eProject } from "./liveProject";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
 import { openHostShare } from "./shareNavigation";
+import { setAudition } from "./stageNav";
 import { trackHeaderButton, trackHeaderOf } from "./trackHeader";
 
 function object(value: unknown): Record<string, unknown> {
@@ -34,6 +35,49 @@ function stereoTone(hot: boolean): Buffer {
     Buffer.from(pcmWavHeader(samples.length, rate, 2)),
     samples,
   ]);
+}
+
+function monoTone(rate: number, seconds: number): Buffer {
+  const frames = rate * seconds;
+  const samples = Buffer.alloc(frames * 2);
+  for (let frame = 0; frame < frames; frame += 1) {
+    samples.writeInt16LE(
+      Math.round(0.5 * 32767 * Math.sin((2 * Math.PI * 440 * frame) / rate)),
+      frame * 2,
+    );
+  }
+  return Buffer.concat([
+    Buffer.from(pcmWavHeader(samples.length, rate, 1)),
+    samples,
+  ]);
+}
+
+function createMixedRateProject(prefix: string) {
+  const fixture = createMeterProject(prefix);
+  const parsed: unknown = JSON.parse(
+    fs.readFileSync(fixture.projectPath, "utf8"),
+  );
+  const project = object(parsed);
+  const timeline = object(project.timeline);
+  if (!Array.isArray(timeline.tracks))
+    throw new Error("Missing fixture tracks");
+  for (const value of timeline.tracks) {
+    const track = object(value);
+    if (track.id !== "guest" && track.name !== "guest") continue;
+    const media = object(track.media);
+    media.channels = 1;
+    media.sample_rate = 8000;
+    track.media = media;
+  }
+  fs.writeFileSync(
+    fixture.projectPath,
+    `${JSON.stringify(project, null, 2)}\n`,
+  );
+  fs.writeFileSync(
+    path.join(fixture.workspaceDir, "raw/guest.wav"),
+    monoTone(8000, 60),
+  );
+  return fixture;
 }
 
 function createMeterProject(prefix: string) {
@@ -280,6 +324,31 @@ test("reduced motion freezes meter bars while real playback clipping remains det
       },
       undefined,
       createMeterProject,
+    );
+  } finally {
+    await page.close();
+  }
+});
+
+test("a mixed-rate raw guest keeps its own live meter while a 48 kHz track plays", async ({
+  browser,
+}) => {
+  test.setTimeout(120000);
+  const page = await browser.newPage({
+    viewport: { width: 1440, height: 900 },
+  });
+  try {
+    await withShareableProject(
+      async (projectPath) => {
+        await openHostShare(page, projectPath);
+        await setAudition(page, "raw");
+        const guestHeader = trackHeaderOf(trackHeaderButton(page, "guest"));
+        await play(page);
+        await expect.poll(() => ringLevel(guestHeader)).toBeGreaterThan(0.1);
+        await page.getByRole("button", { name: "Pause", exact: true }).click();
+      },
+      undefined,
+      createMixedRateProject,
     );
   } finally {
     await page.close();
