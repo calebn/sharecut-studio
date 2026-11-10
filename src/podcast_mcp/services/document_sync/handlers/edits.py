@@ -15,6 +15,8 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import (
     AnalysisService,
     EditService,
+    RoomToneBedReply,
+    RoomToneBedService,
     TimelineService,
     insert_saved_segment,
 )
@@ -380,6 +382,14 @@ def fill_room_tone(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
         speaker=p.get("speaker"),
         within=(float(start), float(end)) if start is not None and end is not None else None,
     )
+
+
+def extract_room_tone_bed(ws: ProjectWorkspace, p: dict[str, Any]) -> RoomToneBedReply:
+    return RoomToneBedService(ws).extract_room_tone_bed(track_id=p["track_id"])
+
+
+def clear_extracted_room_tone_bed(ws: ProjectWorkspace, p: dict[str, Any]) -> RoomToneBedReply:
+    return RoomToneBedService(ws).clear_extracted_room_tone_bed(track_id=p["track_id"])
 
 
 def apply_auto_edits(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:

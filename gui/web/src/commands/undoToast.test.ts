@@ -175,6 +175,14 @@ const COVERED: Record<string, Proof> = {
     file: "commands/trackRemoveNav.test.ts",
     test: "offers Undo for the entry its reply names",
   },
+  "track.extractRoomTone": {
+    file: "commands/roomToneBed.test.ts",
+    test: "extracts for the track in its args and offers Undo",
+  },
+  "track.clearRoomTone": {
+    file: "commands/roomToneBed.test.ts",
+    test: "falls back to the track the inspector shows",
+  },
   "track.splitSpeakers": {
     file: "stages/prepare/usePrepareSources.test.tsx",
     test: "splits with the chosen voice count, then refreshes and says it with Undo",

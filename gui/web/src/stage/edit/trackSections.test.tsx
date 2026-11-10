@@ -8,7 +8,11 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { setEffectBypass } from "../../api";
+import {
+  clearExtractedRoomToneBedCommand,
+  extractRoomToneBedCommand,
+  setEffectBypass,
+} from "../../api";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { shareProjectKey } from "../../shareMode";
@@ -27,6 +31,14 @@ vi.mock("../../api", async (importOriginal) => ({
   setTrackMetaCommand: (...args: unknown[]) => setTrackMetaCommand(...args),
   setTrackFaderCommand: (...args: unknown[]) => setTrackFaderCommand(...args),
   setEffectBypass: vi.fn(async () => undefined),
+  extractRoomToneBedCommand: vi.fn(async () => ({
+    done: true,
+    historyHead: null,
+  })),
+  clearExtractedRoomToneBedCommand: vi.fn(async () => ({
+    done: true,
+    historyHead: null,
+  })),
 }));
 
 const hostTrack: TrackView = sampleTrack({
@@ -569,6 +581,49 @@ describe("track content", () => {
       expect(
         screen.queryByRole("button", { name: "Split speakers…" }),
       ).toBeNull();
+    });
+  });
+
+  describe("Room tone", () => {
+    it("offers Extract on a voice track with audio and no bed", async () => {
+      const user = userEvent.setup();
+      open(withAudio);
+      expect(screen.getByText("None. Fills use comfort noise.")).toBeVisible();
+      await user.click(
+        screen.getByRole("button", { name: "Extract room tone" }),
+      );
+      expect(extractRoomToneBedCommand).toHaveBeenCalledWith(
+        "/tmp/ep.json",
+        "host",
+      );
+    });
+
+    it("offers Remove for a bed cut from the track's own audio", async () => {
+      const user = userEvent.setup();
+      open({ ...withAudio, room_tone_kind: "extracted" });
+      expect(
+        screen.getByText("Cut from this track's own quiet stretch"),
+      ).toBeVisible();
+      await user.click(
+        screen.getByRole("button", { name: "Remove extracted room tone" }),
+      );
+      expect(clearExtractedRoomToneBedCommand).toHaveBeenCalledWith(
+        "/tmp/ep.json",
+        "host",
+      );
+    });
+
+    it("shows a recorded bed with no button, so it cannot be removed here", () => {
+      open({ ...withAudio, room_tone_kind: "recorded" });
+      expect(screen.getByText("Recorded for this track")).toBeVisible();
+      expect(screen.queryByRole("button", { name: /room tone/i })).toBeNull();
+    });
+
+    it("is not offered without audio or on a review link", () => {
+      open(hostTrack);
+      expect(screen.queryByText("Room tone")).toBeNull();
+      open(withAudio, [], "edit");
+      expect(screen.queryByText("Room tone")).toBeNull();
     });
   });
 

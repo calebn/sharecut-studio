@@ -537,6 +537,9 @@ class TrackView(BaseModel):
     # the cap set_clip_fade enforces at write time (same track_fade_max_ms resolver); every
     # TRACKS/CLIPS slice, including the one after each SetClipFade, rebuilds it.
     fade_max_ms: int | None = None
+    # Whose room-tone bed the track holds: none, one recorded or assigned, or one the pipeline
+    # cut from the track's own audio (the only kind Clear removes).
+    room_tone_kind: Literal["none", "recorded", "extracted"] = "none"
 
 
 class ProjectView(BaseModel):
