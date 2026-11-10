@@ -108,7 +108,7 @@ function generatedBody(linkStyle: "docs" | "ux"): string {
   );
   lines.push("");
   lines.push(
-    "Shortcuts dispatch through the ShareCut Studio command bus (`execute(id)`). Character keys (letters, digits, Space) are scoped by context (WCAG 2.1.4). **Mod** = ⌘ on macOS / Ctrl elsewhere. A **Scrub field** is a draggable number in the Inspector or a track header; while it has focus it keeps every key except Escape, so these shortcuts (Mod+Z, S, Backspace and the rest) do not run from it.",
+    "Shortcuts dispatch through the ShareCut Studio command bus (`execute(id)`). Character keys (letters, digits, Space) are scoped by context (WCAG 2.1.4). **Mod** = ⌘ on macOS / Ctrl elsewhere. A **Scrub field** is a draggable number in the Inspector or a track header; while it has focus it keeps every key except Escape, so these shortcuts (Mod+Z, S, Backspace and the rest) do not run from it. A focused radio (a Person choice) or a segment of a segmented control (the track Kind) likewise keeps the bare arrow keys: Arrow Up or Down there does not move the track, and Arrow Left or Right does not nudge the playhead.",
   );
   lines.push("");
   lines.push(
