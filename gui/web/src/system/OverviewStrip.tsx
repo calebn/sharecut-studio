@@ -1,5 +1,6 @@
 import { type KeyboardEvent, type PointerEvent, useRef } from "react";
 import { clamp } from "../utils/math";
+import { snapToTick } from "./overviewSnap";
 
 export type OverviewTick = {
   /** 0 to 1 across the episode. */
@@ -8,25 +9,7 @@ export type OverviewTick = {
   current?: boolean;
 };
 
-export const SNAP_PX = 10;
-
-/** The tick whose position is within `tolerance` (a fraction) of `fraction`, else `fraction` itself. */
-export function snapToTick(
-  fraction: number,
-  ticks: readonly OverviewTick[],
-  tolerance: number,
-): number {
-  let best = fraction;
-  let gap = tolerance;
-  for (const tick of ticks) {
-    const away = Math.abs(tick.at - fraction);
-    if (away <= gap) {
-      best = tick.at;
-      gap = away;
-    }
-  }
-  return best;
-}
+const SNAP_PX = 10;
 
 const KEY_STEP = 0.01;
 const KEY_STEP_BIG = 0.1;

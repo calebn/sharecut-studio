@@ -1,7 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
-import { OverviewStrip, snapToTick } from "./OverviewStrip";
+import { OverviewStrip } from "./OverviewStrip";
+import { snapToTick } from "./overviewSnap";
 
 const TICKS = [
   { at: 0.25, kind: "comment" as const },
