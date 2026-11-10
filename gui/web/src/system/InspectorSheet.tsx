@@ -12,7 +12,6 @@ import { CloseButton, Dialog } from "../ui";
 import type { SystemIconName } from "./icons";
 import { isImeKey } from "./imeKey";
 import {
-  CARD_MIN_BLOCK_PX,
   CARD_WIDTH_PX,
   DOCK_PX,
   detentsFor,
@@ -23,6 +22,7 @@ import {
   placeCard,
   riseVelocity,
   type Sample,
+  scaledMinBlock,
   settleDetent,
   steppedDetent,
   toggledDetent,
@@ -246,7 +246,7 @@ function Card({
     anchor,
     bounds,
     CARD_WIDTH_PX * scale,
-    CARD_MIN_BLOCK_PX * scale,
+    scaledMinBlock(rootRem()),
   );
   const style: CSSProperties = {
     insetInlineStart: place.inline,
@@ -490,7 +490,7 @@ function Takeover({
       footer={
         <button
           type="button"
-          className="ui-control modifier-action primary sys-inspector-done"
+          className="ui-control modifier-action primary"
           onClick={onClose}
         >
           Done

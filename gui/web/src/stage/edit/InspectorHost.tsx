@@ -20,11 +20,11 @@ import {
   InspectorSheet,
 } from "../../system/InspectorSheet";
 import {
-  CARD_MIN_BLOCK_PX,
   cardFits,
   type InspectorBounds,
   type InspectorDetent,
   type InspectorRect,
+  scaledMinBlock,
 } from "../../system/inspectorSheetMath";
 import { openerControl } from "../../ui/pressedControl";
 import { useResizeObserver } from "../../ui/useResizeObserver";
@@ -349,7 +349,7 @@ function Card({
   } else if (placement) {
     const roomy = cardFits(
       placement.bounds.height,
-      CARD_MIN_BLOCK_PX * (rootFontPx() / DEFAULT_ROOT_FONT_PX),
+      scaledMinBlock(rootFontPx()),
     );
     card = roomy ? (
       <InspectorSheet
@@ -418,8 +418,8 @@ function Phone({
   // Unmeasured (room 0, as before the first layout) counts as fitting, so half
   // is dropped only for a slot measured too short for the dock and a field.
   const [halfFits, setHalfFits] = useState(true);
-  // A slot too short for a full sheet to hold its header and a few rows hands
-  // the Inspector the whole screen, with Done.
+  // The lanes node is read once, from the phone sheet's first mount, so the
+  // slot can still be measured after the takeover has replaced that sheet.
   const [takeover, setTakeover] = useState(false);
   const detent = !halfFits && chosenDetent === "half" ? "full" : chosenDetent;
   const chosen = useRef(false);
@@ -435,10 +435,7 @@ function Phone({
     const rootPx = rootFontPx();
     const short = room * SHEET_FULL < DOCK_ROOM_REM * rootPx;
     setTight(short);
-    setTakeover(
-      room > 0 &&
-        room * SHEET_FULL < CARD_MIN_BLOCK_PX * (rootPx / DEFAULT_ROOT_FONT_PX),
-    );
+    setTakeover(room > 0 && room * SHEET_FULL < scaledMinBlock(rootPx));
     setHalfFits(!(room > 0 && short));
     if (room > 0 && !chosen.current) setDetent(short ? "full" : "half");
   }, [lanes]);
