@@ -322,7 +322,11 @@ export function registerHostCommands(): void {
 
   registerCommand("record.start", () => runRecordTransportCommand("Start"));
   registerCommand("record.roomTone", () =>
-    runRecordTransportCommand("RoomToneCountdown"),
+    runRecordCommand(async () => {
+      await submitHostRecordTransport("RoomToneCountdown");
+      useDawStore.getState().announceStatus("Room tone started. Quiet please.");
+      return { status: "ok" };
+    }),
   );
   registerCommand("record.setTarget", (args) =>
     runRecordCommand(async () => {

@@ -10,6 +10,8 @@ export {
 } from "./deviceSheet";
 export {
   landGate,
+  moreRoomToneReason,
+  roomToneRoundLeftMs,
   type StartBlockerItem,
 } from "./hostControls";
 export { useHostRoomContext, useHostRoomSelector } from "./hostRoomContext";

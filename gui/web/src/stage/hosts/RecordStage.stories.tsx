@@ -329,6 +329,57 @@ export const MoreSheetGuestsSeeNotes: Story = {
   },
 };
 
+const openMoreSheet = async (canvasElement: HTMLElement) => {
+  await userEvent.click(
+    await within(canvasElement).findByRole("button", { name: "More" }),
+  );
+  return within(document.body).findByRole("dialog", { name: "More" });
+};
+
+export const MoreSheetRoomTone: Story = {
+  parameters: withRoom(
+    room({ state: "lobby", take_index: -1, recording_ms: 0 }),
+  ),
+  play: async ({ canvasElement }) => {
+    const dialog = await openMoreSheet(canvasElement);
+    await expect(
+      within(dialog).getByRole("button", { name: "Room tone" }),
+    ).toBeEnabled();
+  },
+};
+
+export const MoreSheetRoomToneDuringTake: Story = {
+  parameters: withRoom(
+    room({ state: "recording", take_index: 0, recording_ms: 5_000 }),
+  ),
+  play: async ({ canvasElement }) => {
+    const dialog = await openMoreSheet(canvasElement);
+    await expect(
+      within(dialog).getByRole("button", { name: "Room tone" }),
+    ).toHaveAccessibleDescription("Record room tone between takes.");
+  },
+};
+
+export const MoreSheetRoomToneNobodyJoined: Story = {
+  parameters: withRoom(
+    room({
+      state: "lobby",
+      take_index: -1,
+      recording_ms: 0,
+      participants: [host],
+      start_blockers: [{ code: "no_recorder" }],
+    }),
+  ),
+  play: async ({ canvasElement }) => {
+    const dialog = await openMoreSheet(canvasElement);
+    await expect(
+      within(dialog).getByRole("button", { name: "Room tone" }),
+    ).toHaveAccessibleDescription(
+      "Room tone starts once someone has joined the room.",
+    );
+  },
+};
+
 export const EndSessionDisabled: Story = {
   parameters: withRoom(
     room({ state: "recording", take_index: 0, recording_ms: 5_000 }),
