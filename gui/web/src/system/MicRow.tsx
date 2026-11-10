@@ -61,10 +61,9 @@ function InputMenu({
         </Button>
       )}
     >
-      {choices.map((choice, index) => (
+      {choices.map((choice) => (
         <MenuItem
-          // biome-ignore lint/suspicious/noArrayIndexKey: device ids can repeat or be empty
-          key={`${index}:${choice.id}`}
+          key={choice.isDefault ? "default" : `device:${choice.id}`}
           checked={
             picked
               ? !choice.isDefault && choice.id === picked.id
