@@ -17,7 +17,7 @@ const DATE = new Intl.DateTimeFormat("en-GB", {
   month: "short",
 });
 
-export function formatRecordingClock(ms: number): string {
+function clock(ms: number): string {
   const total = Math.max(0, Math.round(ms / 1000));
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);
@@ -44,9 +44,7 @@ function heading({
 }
 
 function totalClock({ takes }: RecordSessionSummary): string {
-  return formatRecordingClock(
-    takes.reduce((sum, t) => sum + t.recording_ms, 0),
-  );
+  return clock(takes.reduce((sum, t) => sum + t.recording_ms, 0));
 }
 
 export type EndedSessionCardProps = {
