@@ -50,7 +50,9 @@ afterEach(() => {
 });
 
 async function renderOpenHelp() {
-  const view = render(<HelpDialog open onClose={() => undefined} />);
+  const view = render(
+    <HelpDialog open initialStep="report" onClose={() => undefined} />,
+  );
   await waitForDialogFocus();
   return view;
 }
@@ -271,7 +273,9 @@ describe("HelpDialog", () => {
     await user.click(screen.getByRole("button", { name: "Submit report" }));
     expect(submitMock).toHaveBeenCalledTimes(1);
     rerender(<HelpDialog open={false} onClose={() => undefined} />);
-    rerender(<HelpDialog open onClose={() => undefined} />);
+    rerender(
+      <HelpDialog open initialStep="report" onClose={() => undefined} />,
+    );
     await waitForDialogFocus();
     await user.click(
       screen.getByRole("button", { name: "Create diagnostics bundle" }),
@@ -335,5 +339,47 @@ describe("HelpDialog fallback", () => {
       ),
     );
     expect(link.getAttribute("href")).toContain("version=1.0");
+  });
+
+  it("opens on the three-row menu and steps into the report and back", async () => {
+    const user = userEvent.setup();
+    const onShortcuts = vi.fn();
+    const onGuides = vi.fn();
+    render(
+      <HelpDialog
+        open
+        onClose={() => undefined}
+        onOpenShortcuts={onShortcuts}
+        onOpenGuides={onGuides}
+      />,
+    );
+    await waitForDialogFocus();
+    const rows = screen
+      .getAllByRole("button")
+      .map((button) => button.textContent)
+      .filter((text) => text?.includes("›"));
+    expect(rows).toEqual([
+      "Shortcuts and gestures›",
+      "Report a problem›",
+      "Guides›",
+    ]);
+    expect(
+      screen.queryByRole("button", { name: "Create diagnostics bundle" }),
+    ).toBeNull();
+    await user.click(
+      screen.getByRole("button", { name: /Shortcuts and gestures/ }),
+    );
+    expect(onShortcuts).toHaveBeenCalledOnce();
+    await user.click(screen.getByRole("button", { name: /Guides/ }));
+    expect(onGuides).toHaveBeenCalledOnce();
+    await user.click(screen.getByRole("button", { name: /Report a problem/ }));
+    expect(
+      screen.getByRole("dialog", { name: "Report a problem" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Create diagnostics bundle" }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("dialog", { name: "Help" })).toBeInTheDocument();
   });
 });

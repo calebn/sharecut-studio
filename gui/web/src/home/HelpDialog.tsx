@@ -7,14 +7,25 @@ import {
   submitDiagnosticsReport,
 } from "../api";
 import { errorMessage } from "../utils/apiError";
-import { HelpDialogView } from "./HelpDialogView";
+import { type HelpStep, HelpDialogView } from "./HelpDialogView";
 
 type Props = {
   open: boolean;
   onClose: () => void;
+  /** Where the sheet opens: the three-row menu, or straight to the report step. */
+  initialStep?: HelpStep;
+  onOpenShortcuts?: () => void;
+  onOpenGuides?: () => void;
 };
 
-export function HelpDialog({ open, onClose }: Props) {
+export function HelpDialog({
+  open,
+  onClose,
+  initialStep = "menu",
+  onOpenShortcuts,
+  onOpenGuides,
+}: Props) {
+  const [step, setStep] = useState<HelpStep>(initialStep);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [bundle, setBundle] = useState<DiagnosticsBundleResult | null>(null);
@@ -30,6 +41,7 @@ export function HelpDialog({ open, onClose }: Props) {
   const [supportUrl, setSupportUrl] = useState<string | null>(null);
 
   useEffect(() => {
+    if (open) setStep(initialStep);
     if (!open) {
       requestGeneration.current += 1;
       setBusy(false);
@@ -58,7 +70,7 @@ export function HelpDialog({ open, onClose }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, initialStep]);
 
   useEffect(() => {
     if (!open || !submitted || issueUrl || reportStatus === "failed") return;
@@ -152,6 +164,10 @@ export function HelpDialog({ open, onClose }: Props) {
     <HelpDialogView
       open={open}
       onClose={onClose}
+      step={step}
+      onStepChange={setStep}
+      onOpenShortcuts={onOpenShortcuts ?? (() => undefined)}
+      onOpenGuides={onOpenGuides ?? (() => undefined)}
       busy={busy}
       error={error}
       bundle={bundle}

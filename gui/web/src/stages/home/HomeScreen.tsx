@@ -12,6 +12,7 @@ import {
 import { registerDawCommands } from "../../commands/register";
 import { desktopCloseGuardArmed } from "../../desktop/useDesktopCloseGuard";
 import { FeedbackToast } from "../../feedback/FeedbackToast";
+import { openGuides } from "../../commands/host";
 import { HelpDialog } from "../../home/HelpDialog";
 import { useWindowFileDrop } from "../../hooks/useWindowFileDrop";
 import { ingestIntoNewProject, pickAudioFiles } from "../../ingest/ingestFiles";
@@ -161,14 +162,21 @@ export function HomeScreen() {
   const [hintShown, setHintShown] = useState(() =>
     homeScreenHintDue(readHomeScreenEnv(), countHomeVisit()),
   );
-  const { mcpOpen, helpOpen, modelsOpen, announcement, announcementSeq } =
-    useDaw((s) => ({
-      mcpOpen: s.chrome.hostMcpDialogOpen,
-      helpOpen: s.chrome.helpDialogOpen,
-      modelsOpen: s.chrome.modelsSheetOpen,
-      announcement: s.statusAnnouncement,
-      announcementSeq: s.statusAnnouncementSeq,
-    }));
+  const {
+    mcpOpen,
+    helpOpen,
+    helpStep,
+    modelsOpen,
+    announcement,
+    announcementSeq,
+  } = useDaw((s) => ({
+    mcpOpen: s.chrome.hostMcpDialogOpen,
+    helpOpen: s.chrome.helpDialogOpen,
+    helpStep: s.chrome.helpDialogStep,
+    modelsOpen: s.chrome.modelsSheetOpen,
+    announcement: s.statusAnnouncement,
+    announcementSeq: s.statusAnnouncementSeq,
+  }));
   const { setHostMcpDialogOpen, setHelpDialogOpen, setModelsSheetOpen } =
     useDawStore.getState();
   const openPalette = useDawStore.getState().setCommandPaletteOpen;
@@ -493,7 +501,7 @@ export function HomeScreen() {
           dismissHomeScreenHint();
           setHintShown(false);
         }}
-        onHelp={() => openPalette(true)}
+        onHelp={() => setHelpDialogOpen(true, "menu")}
         onModels={() => setModelsSheetOpen(true)}
         onConnectAgent={() => setHostMcpDialogOpen(true)}
       />
@@ -507,7 +515,16 @@ export function HomeScreen() {
         open={modelsOpen}
         onClose={() => setModelsSheetOpen(false)}
       />
-      <HelpDialog open={helpOpen} onClose={() => setHelpDialogOpen(false)} />
+      <HelpDialog
+        open={helpOpen}
+        initialStep={helpStep}
+        onClose={() => setHelpDialogOpen(false)}
+        onOpenShortcuts={() => {
+          setHelpDialogOpen(false);
+          openPalette(true);
+        }}
+        onOpenGuides={openGuides}
+      />
       <FeedbackToast />
       <StatusLiveRegion message={announcement} seq={announcementSeq} />
     </>

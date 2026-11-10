@@ -356,6 +356,7 @@ export function chromeInitial(): ChromeFlags {
     transcriptRequested: false,
     hostMcpDialogOpen: false,
     helpDialogOpen: false,
+    helpDialogStep: "menu",
     modelsSheetOpen: false,
     transcriptFindReplaceOpen: false,
   };
@@ -816,8 +817,10 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       set((s) => ({ chrome: { ...s.chrome, transcriptRequested: on } })),
     setHostMcpDialogOpen: (on) =>
       set((s) => ({ chrome: { ...s.chrome, hostMcpDialogOpen: on } })),
-    setHelpDialogOpen: (on) =>
-      set((s) => ({ chrome: { ...s.chrome, helpDialogOpen: on } })),
+    setHelpDialogOpen: (on, step = "menu") =>
+      set((s) => ({
+        chrome: { ...s.chrome, helpDialogOpen: on, helpDialogStep: step },
+      })),
     setModelsSheetOpen: (on) =>
       set((s) => ({ chrome: { ...s.chrome, modelsSheetOpen: on } })),
     setJoinMutationInFlight: (joinMutationInFlight) =>
