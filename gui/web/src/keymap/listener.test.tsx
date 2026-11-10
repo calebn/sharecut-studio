@@ -145,8 +145,19 @@ it("gives a focused button native Space activation but keeps canvas Space for tr
   );
 });
 
-it("keeps the bare arrows on a focused segment or radio while the canvas still gets them", async () => {
+it("keeps Up and Down on a focused Kind segment and every arrow on a radio, so the selected track does not move", async () => {
   const user = userEvent.setup();
+  useDawStore.getState().hydrate(
+    "/tmp/keymap-project",
+    minimalProject({
+      tracks: [
+        sampleTrack({ id: "a" }),
+        sampleTrack({ id: "b" }),
+        sampleTrack({ id: "c" }),
+      ],
+    }),
+  );
+  useDawStore.setState({ selection: { kind: "track", trackId: "b" } });
   render(
     <>
       <KeymapHost />
@@ -162,13 +173,30 @@ it("keeps the bare arrows on a focused segment or radio while the canvas still g
       </div>
     </>,
   );
+  const moved = () =>
+    vi
+      .mocked(execute)
+      .mock.calls.filter(
+        ([id]) => id === "track.moveUp" || id === "track.moveDown",
+      );
   screen.getByRole("button", { name: "Voice" }).focus();
-  await user.keyboard("{ArrowUp}{ArrowDown}{ArrowLeft}{ArrowRight}");
+  await user.keyboard("{ArrowUp}{ArrowDown}");
   screen.getByRole("radio", { name: "Maya" }).focus();
   await user.keyboard("{ArrowUp}{ArrowDown}{ArrowLeft}{ArrowRight}");
   expect(vi.mocked(execute)).not.toHaveBeenCalled();
-  fireEvent.keyDown(screen.getByTestId("canvas"), { key: "ArrowRight" });
-  await waitFor(() => expect(vi.mocked(execute)).toHaveBeenCalled());
+
+  screen.getByRole("button", { name: "Voice" }).focus();
+  await user.keyboard("{ArrowRight}");
+  await waitFor(() =>
+    expect(vi.mocked(execute)).toHaveBeenCalledWith(
+      "navigation.nudgePlayheadForward",
+      expect.anything(),
+      expect.anything(),
+    ),
+  );
+
+  fireEvent.keyDown(screen.getByTestId("canvas"), { key: "ArrowDown" });
+  await waitFor(() => expect(moved()).toHaveLength(1));
 });
 
 it("consumes a denied focused fade arrow without moving the playhead", async () => {
