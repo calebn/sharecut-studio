@@ -218,7 +218,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 |---|---|
 | Layers: Pending edits, Comments, Markers | Always on. Suggestions, comments and markers are the product; they are never hidden in Edit |
 | Layers: Volume envelope | Shown on a track when its envelope has points or when "Volume" is chosen from the clip/track ⋯ |
-| Layers: Silence shading, Snap points | Silence shading on by default and drawn lightly; snap points drawn only during a drag (where they matter) |
+| Layers: Silence shading, Snap points | Silence shading on by default and drawn lightly; snap points drawn only during a drag (where they matter); whether drags snap is the Snap toggle in the corner cluster |
 | Layers: Prosody | Eye popover (below) |
 | Waveform scale, amplitude ±, post-fader | Eye popover; plus Shift+scroll or vertical pinch over a lane changes amplitude directly |
 | Zoom in/out, Fit | Corner zoom cluster |
@@ -316,7 +316,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
   - Lane: track color as a 3 px left edge on the header and a 6 % tint behind the lane. Clips draw as rounded 6 px rectangles in the track color with the waveform at 70 % contrast.
   - Playhead: 2 px accent line across ruler and lanes with a 10 px triangle on the ruler; on phone it is fixed at the horizontal center (existing fixed-playhead behavior) and content scrolls under it.
   - Suggestions draw in-lane as hatched regions (shared Suggestion element); applied cuts draw as Seam marks.
-  - Corner zoom cluster: bottom-right of the lanes, floating 8 px inside, a 3-button pill: Fit (arrows-out), Zoom out, Zoom in; plus the eye button. 32 px buttons, 44 px on touch.
+  - Corner zoom cluster: bottom-right of the lanes, floating 8 px inside, a 3-button pill: Fit (arrows-out), Zoom out, Zoom in; plus the eye button and the Snap toggle (magnet; pressed while snapping is on, shown on every pointer because a finger has no Alt). 32 px buttons, 44 px on touch.
   - "+" row under the last lane in the header column: 32 px button opening Import audio / Empty track / Record a take (goes to Record with "add to this project" preselected).
 - **Primary action:** select (click) on content.
 - **Anticipated next action:** after selecting, a verb; the action bar is already beside the object.
@@ -647,7 +647,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 
 - **Today:** INS-PENDING--desktop-light.png, --phone-light.png. Interaction cost: Approve/Reject plus two source fields with eight step buttons, "Apply timing" and "Snap to silence". Language: "Review required", "Boundary inaudible".
 - **Fate:** restyle; full decision flow is the Review stage (spec-review).
-- **Spec:** header: kind glyph + "Filler · Jon · 0.8 s". Rows: Why (one sentence from the suggester), Start and End Scrub fields with snap-to-silence as the default behavior (Alt disables while dragging), Confidence as a 5-dot meter. Verbs on the action bar (Hear A/B, Cut, Keep). After Cut or Keep, the sheet follows the selection to the next suggestion.
+- **Spec:** header: kind glyph + "Filler · Jon · 0.8 s". Rows: Why (one sentence from the suggester), Start and End Scrub fields that follow the Snap toggle (on by default, snapping to silence; holding Alt while dragging or committing inverts it for that one gesture), Confidence as a 5-dot meter. Verbs on the action bar (Hear A/B, Cut, Keep). After Cut or Keep, the sheet follows the selection to the next suggestion.
 - **Story to build:** `Edit/InspectorSheet` stories `Suggestion`, `SuggestionLowConfidence`.
 
 ### INS-APPLIED · Applied edit
@@ -835,14 +835,14 @@ Each interaction uses the object selection model above. Every edit is one undo s
 
 - **Today:** INS-CLIP--desktop-light.png ("Move clip" button). Interaction cost: a form for a drag.
 - **Fate:** restyle.
-- **Spec:** drag the clip body; ghost on destination lane; snapping to seams, playhead, word boundaries and other clip edges within 8 px (snap lines draw only during drag); Shift locks time (lane change only); Alt disables snapping; Esc cancels. Touch: select first, then drag the body. Exact time via Inspect Start.
+- **Spec:** drag the clip body; ghost on destination lane; snapping to seams, playhead, word boundaries and other clip edges within 8 px (snap lines draw only during drag); Shift locks time (lane change only); the Snap toggle turns snapping off and on, and holding Alt inverts it for the drag; Esc cancels. Touch: select first, then drag the body. Exact time via Inspect Start.
 - **Story to build:** `Edit/Clip` story `Moving`.
 
 ### INT-TRIM · Trim
 
 - **Today:** storied TrimPreview. Direct manipulation: handles invisible until hovered.
 - **Fate:** restyle per CMP-CLIP.
-- **Spec:** drag edge; readout chip shows delta and new time; ←/→ on a focused handle 10 ms (Shift 100 ms); trimming a dialogue clip offers snap to word boundaries (magnet). Anticipation: after trimming an edge, the action bar shows Hear (plays 2 s across the new edge) as its first verb.
+- **Spec:** drag edge; readout chip shows delta and new time; ←/→ on a focused handle 10 ms (Shift 100 ms); trimming a dialogue clip offers snap to word boundaries (magnet), under the same Snap toggle and Alt inversion as a move. Anticipation: after trimming an edge, the action bar shows Hear (plays 2 s across the new edge) as its first verb.
 - **Story to build:** `Edit/Clip` story `Trimming`.
 
 ### INT-SPLIT · Split and blade
@@ -969,7 +969,7 @@ Existing vocabulary used: Stage bar (spec'd here), Transport (as Player bar), Ob
 
 **NEW: Marker lane.** One 24 px lane for chapters (flag), comments (bubble pin), social clips (bracket span). Replaces three unlabeled rows.
 
-**NEW: Corner zoom cluster.** Floating pill at the timeline's bottom-right: Fit, zoom out, zoom in, eye (view popover).
+**NEW: Corner zoom cluster.** Floating pill at the timeline's bottom-right: Fit, zoom out, zoom in, eye (view popover), Snap toggle.
 
 **NEW: Readout chip.** 22 px chip above the pointer during any drag: delta and resulting value. Used for trim, fade, move, roll, envelope, level, marker drag.
 
