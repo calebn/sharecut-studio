@@ -11,6 +11,7 @@ import { AnchorMark, Framed } from "../../system/inspectorSheetFixtures";
 import { episode, MIRA, selections } from "../../test/episodeFixture";
 import { episodeBeforeEach, withEpisode } from "../../test/withEpisode";
 import type { Selection } from "../../types/project";
+import { useEnvelopePointSections } from "./envelopePointSections";
 import { inspectorHeading } from "./inspectorHeading";
 import { useSelectionSections } from "./selectionSections";
 
@@ -29,8 +30,9 @@ function PointCard({
 }) {
   const project = useDawStore((s) => s.project);
   const heading = inspectorHeading(selection, project);
-  const sections: readonly InspectorSection[] =
-    useSelectionSections(selection) ?? [];
+  const rebuilt = useSelectionSections(selection);
+  const envelope = useEnvelopePointSections(selection);
+  const sections: readonly InspectorSection[] = rebuilt ?? envelope ?? [];
   const [detent, setDetent] = useState<"half" | "full" | "dock">("half");
   return (
     <Framed>
