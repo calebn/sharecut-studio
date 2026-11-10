@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { InlineEdit } from "./InlineEdit";
@@ -58,6 +58,17 @@ describe("InlineEdit", () => {
     await user.click(screen.getByRole("button", { name: "Elsewhere" }));
     expect(onCommit).not.toHaveBeenCalled();
     expect(onEnd).toHaveBeenCalledExactlyOnceWith("escape");
+  });
+
+  it("takes an Escape that had text to put back and lets an unchanged one through", async () => {
+    const { user, onEnd } = setup();
+    await user.click(field());
+    await user.keyboard("zzz");
+    expect(fireEvent.keyDown(field(), { key: "Escape" })).toBe(false);
+    expect(field()).toHaveValue("Ana");
+    expect(fireEvent.keyDown(field(), { key: "Escape" })).toBe(true);
+    expect(onEnd).toHaveBeenNthCalledWith(1, "escape");
+    expect(onEnd).toHaveBeenNthCalledWith(2, "escape");
   });
 
   it("sends the same text again when the parent ignored the first commit", async () => {

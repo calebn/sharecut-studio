@@ -25,8 +25,8 @@ type Props = {
 
 /**
  * A text value edited where it is read. It looks like text until hovered or
- * focused. Enter and blur commit a text that differs from `value`, and Escape
- * puts `value` back.
+ * focused. Enter and blur commit a text that differs from `value`. Escape puts
+ * `value` back and is taken only when there was something to put back.
  */
 export function InlineEdit({
   label,
@@ -71,7 +71,7 @@ export function InlineEdit({
   };
   const keys = (event: React.KeyboardEvent) => {
     if (event.key === "Escape") {
-      event.preventDefault();
+      if (text !== value) event.preventDefault();
       ended.current = true;
       setText(value);
       onEnd?.("escape");
