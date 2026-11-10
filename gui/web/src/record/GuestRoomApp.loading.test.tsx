@@ -106,6 +106,23 @@ describe("GuestRoomApp loading", () => {
     expect(connecting()).toBeInTheDocument();
   });
 
+  it("Retry moves focus to the title, and a first load does not", async () => {
+    render(<GuestRoomApp token="guest-tok" />);
+    const title = () => screen.getByRole("heading", { level: 1 });
+    expect(title()).not.toHaveFocus();
+    await tick(4000);
+    retry()?.focus();
+    act(() => retry()?.click());
+    expect(title()).toHaveFocus();
+  });
+
+  it("keeps exactly one status region while loading, with and without the alert", async () => {
+    render(<GuestRoomApp token="guest-tok" />);
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    await tick(4000);
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+  });
+
   it("leaves no connecting alert when the lookup resolves early", async () => {
     const { container } = render(<GuestRoomApp token="guest-tok" />);
     await tick(1000);

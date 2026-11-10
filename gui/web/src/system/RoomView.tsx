@@ -2,7 +2,9 @@ import {
   type CSSProperties,
   type ReactNode,
   useCallback,
+  useEffect,
   useId,
+  useRef,
   useState,
 } from "react";
 import { BrandLockup } from "../ui";
@@ -98,6 +100,8 @@ export type RoomViewProps = {
   page?: boolean;
   /** Placeholder tiles and title, an inert dock, no pill, rail or Notes sheet. */
   loading?: boolean;
+  /** With `loading`: focus the title when this shell mounts (after a Retry remount). */
+  focusTitle?: boolean;
 };
 
 type RailTab = "notes" | "takes";
@@ -183,7 +187,12 @@ export function RoomView({
   target,
   page = false,
   loading = false,
+  focusTitle = false,
 }: RoomViewProps) {
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (loading && focusTitle) titleRef.current?.focus();
+  }, [loading, focusTitle]);
   const tabId = useId();
   const [railTab, setRailTab] = useState<RailTab>("notes");
   const [notesChoice, setNotesChoice] = useState<boolean | undefined>(
@@ -298,7 +307,11 @@ export function RoomView({
           aria-busy={loading ? true : undefined}
         >
           <BrandLockup name="ShareCut" className="sys-room-view-wordmark" />
-          <h1 className="sys-room-view-title">
+          <h1
+            className="sys-room-view-title"
+            ref={titleRef}
+            tabIndex={loading && focusTitle ? -1 : undefined}
+          >
             {loading ? (
               <>
                 <span className="sr-only">{title}</span>
@@ -328,6 +341,9 @@ export function RoomView({
               } as CSSProperties
             }
           >
+            {loading && model.alerts.length === 0 ? (
+              <p className="sr-only">Joining the room…</p>
+            ) : null}
             {loading
               ? LOADING_TILE_KEYS.map((key) => <RoomTileSkeleton key={key} />)
               : model.tiles.map((tile) =>
@@ -432,11 +448,6 @@ export function RoomView({
           onLeave={onLeave}
         />
       </Dockbar>
-      {loading && model.alerts.length === 0 ? (
-        <p className="sr-only" role="status">
-          Joining the room…
-        </p>
-      ) : null}
       {declined && !loading ? (
         <DeclinedScrim phase={phase} onJoin={declined.onJoin} />
       ) : null}
