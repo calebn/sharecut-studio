@@ -1,4 +1,11 @@
-import { act, fireEvent, render, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { loadWaveformSnap, setClipFade, trimClipEdge } from "../api";
 import { clearRegisteredCommands } from "../commands/execute";
@@ -10,6 +17,7 @@ import { expectNoA11yViolations } from "../test/a11y";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import { place, press } from "../test/hitDom";
 import type { ClipRow, ProjectView } from "../types/project";
+import { _resetCoachTipsForTests, coachTipOwner } from "../utils/coachTip";
 import { ClipBlock } from "./ClipBlock";
 import { ClipBlockView } from "./ClipBlockView";
 import { clipBlockGeometry } from "./clipBlockGeometry";
@@ -2437,6 +2445,285 @@ describe("ClipBlock snap points", () => {
     await waitFor(() =>
       expect(container.querySelectorAll(".clip-waveform-snap").length).toBe(1),
     );
+  });
+});
+
+describe("ClipBlock trim tip", () => {
+  const TIP = "Drag the edges to trim";
+  const KEY = "sharecut.coachTipSeen.trim";
+  const dialogueRole = "dialogue";
+
+  beforeEach(() => {
+    localStorage.clear();
+    _resetCoachTipsForTests();
+    useDawStore.setState({ projectPath: "", pointerKind: "coarse" });
+    HTMLElement.prototype.setPointerCapture = vi.fn();
+    HTMLCanvasElement.prototype.getContext = vi.fn(() => ({
+      setTransform: vi.fn(),
+      clearRect: vi.fn(),
+      fillRect: vi.fn(),
+      fillStyle: "",
+    })) as unknown as typeof HTMLCanvasElement.prototype.getContext;
+  });
+  afterEach(() => {
+    useDawStore.setState({ projectPath: "", pointerKind: "fine" });
+    vi.restoreAllMocks();
+    vi.stubGlobal("innerHeight", 768);
+  });
+
+  const rect = (left: number, top: number, right: number, bottom: number) =>
+    ({
+      left,
+      top,
+      right,
+      bottom,
+      x: left,
+      y: top,
+      width: right - left,
+      height: bottom - top,
+    }) as DOMRect;
+  const layout = (clipBox: DOMRect) =>
+    vi
+      .spyOn(Element.prototype, "getBoundingClientRect")
+      .mockImplementation(function (this: Element) {
+        if (this.classList.contains("clip-block")) return clipBox;
+        if (this.classList.contains("sys-coach-tip"))
+          return rect(0, 0, 194, 52);
+        return rect(0, 0, 0, 0);
+      });
+
+  function Selectable({
+    startSelected = false,
+    moving = false,
+  }: {
+    startSelected?: boolean;
+    moving?: boolean;
+  }) {
+    const [selected, setSelected] = useState(startSelected);
+    return (
+      <main>
+        <ClipBlock
+          clip={clip}
+          trackId="host"
+          role={dialogueRole}
+          zoomPxPerSec={50}
+          color="var(--color-clip-dialogue-0)"
+          selected={selected}
+          mediaRef="track:host"
+          nextClip={null}
+          neighborSourceLo={0}
+          neighborSourceHi={10}
+          rollPreview={null}
+          onSelect={vi.fn()}
+          onSelectClip={() => setSelected(true)}
+          moving={moving}
+          canMove
+        />
+      </main>
+    );
+  }
+
+  const touchDown = (container: HTMLElement) => {
+    const hit = container.querySelector(".clip-hit") as HTMLElement;
+    fireEvent.pointerDown(hit, {
+      pointerType: "touch",
+      isPrimary: true,
+      pointerId: 4,
+      clientX: 40,
+      clientY: 10,
+    });
+    return hit;
+  };
+
+  it("shows beside the start handle when a touch selects the clip, and stays through the press", () => {
+    layout(rect(100, 300, 400, 352));
+    const { container } = render(<Selectable />);
+    expect(document.querySelector("[role=note]")).toBeNull();
+    touchDown(container);
+    expect(screen.getByRole("note").textContent).toContain(TIP);
+    expect(container.querySelector(".clip-block [role=note]")).toBeNull();
+  });
+
+  it("hangs above the clip at its start, and below it when the ruler is above", () => {
+    layout(rect(100, 300, 400, 352));
+    const above = render(<Selectable />);
+    touchDown(above.container);
+    const note = screen.getByRole("note");
+    expect([note.style.left, note.style.top]).toEqual(["100px", "244px"]);
+    above.unmount();
+    _resetCoachTipsForTests();
+    layout(rect(100, 20, 400, 72));
+    const below = render(<Selectable />);
+    touchDown(below.container);
+    const low = screen.getByRole("note");
+    expect([low.style.left, low.style.top]).toEqual(["100px", "76px"]);
+  });
+
+  it("starts at the visible edge when the clip's start is scrolled off", () => {
+    layout(rect(-500, 300, 400, 352));
+    const { container } = render(<Selectable />);
+    touchDown(container);
+    expect(screen.getByRole("note").style.left).toBe("8px");
+  });
+
+  it("does not raise, and is not spent, where no spot shows all of it", () => {
+    vi.stubGlobal("innerHeight", 60);
+    layout(rect(100, 20, 400, 40));
+    const { container } = render(<Selectable />);
+    touchDown(container);
+    expect(document.querySelector("[role=note]")).toBeNull();
+    expect(coachTipOwner()).toBeNull();
+    expect(localStorage.getItem(KEY)).toBeNull();
+  });
+
+  it("lets go, unseen, when the clip starts to move, and stays gone after the drop", () => {
+    layout(rect(100, 300, 400, 352));
+    const { container, rerender } = render(<Selectable />);
+    touchDown(container);
+    expect(document.querySelector("[role=note]")).not.toBeNull();
+    rerender(<Selectable moving />);
+    expect(document.querySelector("[role=note]")).toBeNull();
+    rerender(<Selectable moving={false} />);
+    expect(document.querySelector("[role=note]")).toBeNull();
+    expect(coachTipOwner()).toBeNull();
+    expect(localStorage.getItem(KEY)).toBeNull();
+  });
+
+  it("keeps every press on the tip away from the clip and its lane", () => {
+    layout(rect(100, 300, 400, 352));
+    const lane = vi.fn();
+    const { container } = render(
+      <div
+        role="presentation"
+        onPointerDown={lane}
+        onPointerMove={lane}
+        onPointerUp={lane}
+        onPointerCancel={lane}
+        onClick={lane}
+        onDoubleClick={lane}
+      >
+        <Selectable />
+      </div>,
+    );
+    touchDown(container);
+    lane.mockClear();
+    const note = screen.getByRole("note");
+    for (const fire of [
+      fireEvent.pointerDown,
+      fireEvent.pointerMove,
+      fireEvent.pointerUp,
+      fireEvent.pointerCancel,
+      fireEvent.click,
+      fireEvent.doubleClick,
+    ])
+      fire(note, { pointerType: "touch" });
+    expect(lane).not.toHaveBeenCalled();
+    expect(document.querySelector("[role=note]")).not.toBeNull();
+  });
+
+  it("goes on the next press elsewhere and is remembered", () => {
+    layout(rect(100, 300, 400, 352));
+    const { container } = render(<Selectable />);
+    touchDown(container);
+    expect(document.querySelector("[role=note]")).not.toBeNull();
+    fireEvent.pointerDown(document.body);
+    expect(document.querySelector("[role=note]")).toBeNull();
+    expect(localStorage.getItem(KEY)).toBe("1");
+  });
+
+  it("is dismissed by its close button without a press on the clip, and focus goes to the clip", () => {
+    layout(rect(100, 300, 400, 352));
+    const { container } = render(<Selectable />);
+    touchDown(container);
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss hint" }));
+    expect(document.querySelector("[role=note]")).toBeNull();
+    expect(localStorage.getItem(KEY)).toBe("1");
+    expect(document.activeElement).toBe(container.querySelector(".clip-hit"));
+  });
+
+  it("does not come back once seen", () => {
+    layout(rect(100, 300, 400, 352));
+    const first = render(<Selectable />);
+    touchDown(first.container);
+    expect(document.querySelector("[role=note]")).not.toBeNull();
+    fireEvent.pointerDown(document.body);
+    first.unmount();
+    const { container } = render(<Selectable />);
+    touchDown(container);
+    expect(document.querySelector("[role=note]")).toBeNull();
+    expect(coachTipOwner()).toBeNull();
+  });
+
+  it("says nothing to a mouse or a pen, and spends nothing", () => {
+    layout(rect(100, 300, 400, 352));
+    useDawStore.setState({ pointerKind: "fine" });
+    const { container } = render(<Selectable />);
+    touchDown(container);
+    expect(document.querySelector("[role=note]")).toBeNull();
+    expect(coachTipOwner()).toBeNull();
+    expect(localStorage.getItem(KEY)).toBeNull();
+  });
+
+  it("says nothing when the touch lands on a clip that was already selected", () => {
+    layout(rect(100, 300, 400, 352));
+    const { container } = render(<Selectable startSelected />);
+    touchDown(container);
+    expect(document.querySelector("[role=note]")).toBeNull();
+    expect(coachTipOwner()).toBeNull();
+  });
+
+  it("says nothing where the trim handles are not drawn", () => {
+    layout(rect(100, 300, 400, 352));
+    useDawStore.setState({ projectPath: "share:tok", shareCapabilities: [] });
+    const { container } = render(<Selectable />);
+    touchDown(container);
+    expect(container.querySelector(".trim-handle")).toBeNull();
+    expect(document.querySelector("[role=note]")).toBeNull();
+    expect(coachTipOwner()).toBeNull();
+    useDawStore.setState({ shareCapabilities: null });
+  });
+
+  const hinted = (flags: { selected: boolean; moving?: boolean }) => (
+    <ClipBlockView
+      clip={clip}
+      role={dialogueRole}
+      zoomPxPerSec={50}
+      color="var(--lane-1)"
+      selected={flags.selected}
+      moving={flags.moving}
+      geometry={clipBlockGeometry({
+        clip,
+        zoomPxPerSec: 50,
+        rollPreview: null,
+        trimPreview: null,
+        fadePreview: null,
+        previewTimelineStart: null,
+      })}
+      nextClip={null}
+      showHandles
+      trimHint={{ text: TIP, shown: true, onDismiss: vi.fn() }}
+    />
+  );
+
+  it("goes when the clip is deselected", () => {
+    layout(rect(100, 300, 400, 352));
+    const { rerender } = render(hinted({ selected: true }));
+    expect(document.querySelector("[role=note]")).not.toBeNull();
+    rerender(hinted({ selected: false }));
+    expect(document.querySelector("[role=note]")).toBeNull();
+  });
+
+  it("draws nothing while the clip is moving", () => {
+    layout(rect(100, 300, 400, 352));
+    render(hinted({ selected: true, moving: true }));
+    expect(document.querySelector("[role=note]")).toBeNull();
+  });
+
+  it("passes axe with the tip up", async () => {
+    layout(rect(100, 300, 400, 352));
+    const { container } = render(<Selectable />);
+    touchDown(container);
+    await expectNoA11yViolations(document.body);
   });
 });
 

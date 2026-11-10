@@ -238,6 +238,7 @@ decided-by: issue #2294 implementation
 evidence:
 - #2294 G2, survey row D-16: spec-edit DLG-GESTURES gives each touch gesture one line, 240 px at most, dismissed by any action, never repeated
 - Undo tip trigger broadened from the first Cut to the first undoable edit (D-late-12, a default the owner can override)
+- #3554 trim tip: a fixed overlay at the clip's start, not a CoachTip around the anchor and with no arrow, because inside the clip it spilled under neighbours, was spent unseen when the start was scrolled off and overflowed at 200% text (D-late-18)
 enforced-by:
 - gui/web/src/utils/coachTip.test.ts::holds the four lines the spec names
 - gui/web/src/system/useCoachTip.test.tsx::goes on the next press elsewhere and is remembered
@@ -245,6 +246,13 @@ enforced-by:
 - gui/web/src/system/ScriptPane.select.test.tsx::draws the hint beside the grips, hung off the pane
 - gui/web/src/system/handleHintPlace.test.ts::flips above the start grip when the end sits near the foot of the view
 - gui/web/src/system/handleHintPlace.test.ts::returns null when the tip is taller than what is on screen
+- gui/web/src/timeline/ClipBlock.test.tsx::shows beside the start handle when a touch selects the clip, and stays through the press
+- gui/web/src/timeline/ClipBlock.test.tsx::says nothing when the touch lands on a clip that was already selected
+- gui/web/src/timeline/ClipBlock.test.tsx::does not raise, and is not spent, where no spot shows all of it
+- gui/web/src/timeline/ClipBlock.test.tsx::lets go, unseen, when the clip starts to move, and stays gone after the drop
+- gui/web/src/timeline/trimHintPlace.test.ts::returns null when no spot shows the whole tip
+- gui/web/src/timeline/trimHintPlace.test.ts::fits exactly against each edge of the view
+- gui/web/src/timeline/TrimHint.test.tsx::is placed again when the lanes scroll or the window resizes
 -->
 
 A touch user sees each gesture hint once, at the moment of first need.
@@ -253,7 +261,7 @@ A touch user sees each gesture hint once, at the moment of first need.
 
 | Tip | Raised by | Shown at |
 | --- | --- | --- |
-| Drag the edges to trim | not shipped in this part; the first tap that selects an editable clip, once #3541 lands | the clip's trim handle |
+| Drag the edges to trim | the first touch that selects an editable clip | drawn on the screen and portaled to `main`, not inside the clip: at the selected clip's start, above it, else below it, else over it past the handle, held inside the lanes' visible window |
 | Drag the handles to adjust | the first touch selection in the Script | beside the end grip, in the pane's text |
 | Two-finger tap to undo | the first toast that offers history Undo, on the phone shell only | at the header's inline end, below the stage's control bar, so no header control or the surface switch is covered |
 | Drag across a lane to select | the first press that arms the Select range toggle, on the tablet and desktop shells | over the toggle |
@@ -264,7 +272,8 @@ A touch user sees each gesture hint once, at the moment of first need.
    raise while the slot is taken is dropped. The range and handles tips come
    again at the next qualifying event; the Undo tip is raised once per toast, so
    a refused raise waits for the next undoable toast. The handles tip frees the
-   slot, unseen, when its selection clears without a press. The Undo tip also
+   slot, unseen, when its selection clears without a press. The trim tip frees it,
+   unseen, when its clip starts to move or no spot shows all of it. The Undo tip also
    waits while a guest's Role chip hint is up, since both sit at the header's
    edge.
 3. **Dismissed by any action.** The next pointer press or key outside the bubble
@@ -279,9 +288,16 @@ A touch user sees each gesture hint once, at the moment of first need.
    never to the toast, so the toast dock can move without touching it.
 6. **Within 15 rem.** Every tip caps at `min(15rem, 90vw)`, the Undo tip
    included. At large text the line wraps rather than overflow the frame.
-7. **Never hidden or covering.** On a phone, arming the range toggle opens the
+7. **Covering no control or handle.** On a phone, arming the range toggle opens the
    docked Range sheet over the corner, so the range tip is not raised there and
    is not spent. The Undo tip covers no control (`e2e-storybook/coach-tip.spec.ts`).
+   The trim tip is drawn on the screen, outside the clip, so no lane or the
+   ruler hides it. It never lies over the start handle and wraps inside the
+   lanes' window at large text, but it can cover part of a neighbouring lane's
+   clip, and the window ignores the floating action bar and bottom sheets. It is
+   not raised, nor spent, when no spot shows all of it. Its close button hands
+   focus back to the clip. A press on the bubble stops there and never reaches
+   the clip.
 
 The owner can still narrow the Undo tip to the first Cut by changing
 `undoTipMoment` once a toast carries a `kind`.

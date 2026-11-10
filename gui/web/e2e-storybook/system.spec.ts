@@ -2660,6 +2660,7 @@ const COACH_STORIES = [
   "system-coachtip--undo-hint",
   "system-coachtip--selection-handles-hint",
   "system-coachtip--range-toggle-hint",
+  "system-coachtip--trim-hint",
 ] as const;
 
 for (const id of COACH_STORIES) {
