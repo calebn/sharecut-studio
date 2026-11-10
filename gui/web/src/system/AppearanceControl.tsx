@@ -63,6 +63,7 @@ export function AppearanceControl({
             key={option.id}
             quiet
             role="radio"
+            aria-checked={value === option.id}
             data-theme-option={option.id}
             tabIndex={value === option.id ? 0 : -1}
             pressed={value === option.id}
