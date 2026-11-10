@@ -1056,11 +1056,11 @@ podcast doctor --bundle --out DIR  # optional output directory
 # prints the zip path and configured support URL; `--open` opens it in a browser
 ```
 
-In the app: **Home → Help → Report a problem → Export**. The dialog shows the zip path, size, file list, and version. Add a description and approve the public upload to **Submit report**, or reveal the zip in your file manager and use **Open support**.
+In the app: **Home → ShareCut app menu → Help → Report a problem → Export**. The dialog shows the zip path, size, file list, and version. Add a description and approve the public upload to **Submit report**, or reveal the zip in your file manager and use **Open support**.
 
 The zip includes doctor results, versions, a sidecar log tail, and counts (tracks/clips/decisions/comments) — not audio, transcripts, project JSON, share tokens, or `shares.json` / `sync.db`. Guests / review links cannot create a bundle (host-only).
 
-Creating the zip runs doctor checks and (when a project is open) per-track timebase QC, then packs a log tail. On a large episode that can take tens of seconds; wait for the Help button to leave **Exporting…** or for the CLI to print the path. The host API runs the work in a worker thread. Help uses a local busy label — it is not a StatusBar/SSE job.
+Creating the zip runs doctor checks and (when a project is open) per-track timebase QC, then packs a log tail. On a large episode that can take tens of seconds; wait for the report step's **Export** button to leave **Exporting…** or for the CLI to print the path. The host API runs the work in a worker thread. The dialog uses a local busy label — it is not a StatusBar/SSE job.
 
 The zip filename is `sharecut-diagnostics-<UTC>-<nonce>.zip` so two bundles in the same second do not overwrite. Host Help shows the local filesystem path so you can attach the file; that path is not uploaded. `GET /api/diagnostics/bundle/{name}` only serves zips registered by a POST in this Studio process.
 

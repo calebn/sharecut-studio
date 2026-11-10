@@ -65,8 +65,10 @@ function mountHomeModels(refusal?: {
   render(<App />);
   const deletes = () => calls.filter((call) => call.method === "DELETE");
   const openRemove = async () => {
-    await user.click(await screen.findByRole("button", { name: "More" }));
-    await user.click(await screen.findByRole("menuitem", { name: /Models/ }));
+    await user.click(
+      await screen.findByRole("button", { name: "ShareCut app menu" }),
+    );
+    await user.click(await screen.findByRole("menuitem", { name: "Settings" }));
     const sheet = await screen.findByRole("dialog", { name: "Models" });
     expect(within(sheet).getByText("Installed · 0.3 MB")).toBeVisible();
     await user.click(
