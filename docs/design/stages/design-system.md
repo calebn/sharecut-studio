@@ -239,7 +239,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 - Story: `System/ScriptPane` (states), `Stages/Edit/ScriptPane` (compositions).
 
 **15. Timeline**
-- Ruler 24 px, which also carries the **session bands** (alternating tint per session with an "S2" pill). Marker lane 24 px. Lanes fill the height (72 to 240 px each). Corner zoom cluster at the bottom-right of the lanes (Fit, −, +, `eye`). Playhead is a 2 px accent line.
+- Ruler 24 px, which also carries the **session bands** (alternating tint per session with an "S2" pill). Marker lane 24 px. Lanes fill the height (72 to 240 px each). Corner zoom cluster at the bottom-right of the lanes (Fit, −, +, `eye`, Snap). Playhead is a 2 px accent line.
 - The live take band in the lanes becomes the session band on the ruler when it lands.
 - Used: CMP-TIMELINE, CMP-RULER, CMP-MARKERS, OVL-RECORDING, OVL-RANGE, OVL-PRESENCE, SCR-PHONE-TIMELINE.
 - Replaces: corner zoom cluster and marker lane (edit, now parts of this element), the Session marker in the marker lane (record).
