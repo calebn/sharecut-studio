@@ -46,6 +46,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `ApplySuggestedActions` | — | `ids` (array \| null), `override_audio_checks` (boolean), `overrides` (object), `revise` (boolean), `skip_unsure` (boolean) |
 | `ApplyTranscriptCleanup` | `track_id` (string) | `phrases` (array \| null), `words` (array \| null) |
 | `ApproveEdits` | `ids` (array[string]) | `hold_blocked` (boolean), `override_audio_checks` (boolean), `skip_unsure` (boolean) |
+| `ClearExtractedRoomToneBed` | `track_id` (string) | — |
 | `ClearFeedField` | `key` (string) | — |
 | `CorrectTranscriptPhrase` | `end_word_index` (integer), `start_word_index` (integer), `text` (string), `track_id` (string) | `expected_text` (string \| null), `source_id` (string \| null) |
 | `CorrectTranscriptWord` | `text` (string), `track_id` (string), `word_index` (integer) | `expected_text` (string \| null), `source_id` (string \| null) |
@@ -57,6 +58,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `DeleteSocialClip` | `id` (string) | — |
 | `DuplicateSegment` | `insert_at` (number), `source_end` (number), `source_start` (number) | — |
 | `EditSelectedRange` | `action` (cut \| mute), `targets` (array[object]) | `override_audio_checks` (boolean) |
+| `ExtractRoomToneBed` | `track_id` (string) | — |
 | `FadeJoins` | — | `dry_run` (boolean \| null), `fade_ms` (integer \| null), `speaker` (string \| null), `track_id` (string \| null) |
 | `FillRoomTone` | — | `end_sec` (number \| null), `speaker` (string \| null), `start_sec` (number \| null), `track_id` (string \| null) |
 | `InsertGap` | `at_time` (number) | `duration_sec` (number) |
@@ -119,7 +121,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `UpdateSocialClipDetails` | `id` (string) | `approved` (boolean \| null), `title` (string \| null) |
 | `VerifyTranscript` | `corrections` (array[object]), `track_id` (string) | — |
 
-_Generated 87 command types._
+_Generated 89 command types._
 
 - Regenerate: `make schema-export`
 - CI / pre-commit: `make generated-check`

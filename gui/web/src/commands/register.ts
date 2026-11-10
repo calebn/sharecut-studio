@@ -14,6 +14,7 @@ import { registerHostCommands } from "./host";
 import { registerNavigationCommands } from "./navigation";
 import { registerProjectMediaCommands } from "./projectMedia";
 import { registerRangeCommands } from "./rangeActions";
+import { registerRoomToneBedCommands } from "./roomToneBed";
 import { registerSpeakerMoveLaneSpanCommands } from "./speakerMoveLaneSpan";
 import { registerSpeakerSplitCommands } from "./speakerSplit";
 import { registerStageHandoffCommand } from "./stageHandoff";
@@ -35,6 +36,7 @@ export function registerDawCommands(): void {
   registerClipBleedCommands();
   registerRangeCommands();
   registerSpeakerMoveLaneSpanCommands();
+  registerRoomToneBedCommands();
   registerNavigationCommands();
   registerStageHandoffCommand();
   registerPrimaryEditingCommands();

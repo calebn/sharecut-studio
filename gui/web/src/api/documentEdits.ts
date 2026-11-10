@@ -1057,6 +1057,57 @@ export async function removeTrackCommand(
   });
 }
 
+export type RoomToneBedOutcome =
+  | { done: true; historyHead: HistoryEntryId | null }
+  | { done: false; reason: string };
+
+function roomToneBedOutcome(
+  reply: Record<string, unknown>,
+  doneKey: "extracted" | "cleared",
+): RoomToneBedOutcome {
+  const command = reply.command;
+  const payload = isSuggestionRecord(command) ? command.payload : null;
+  const result = isSuggestionRecord(payload) ? payload.result : null;
+  if (!isSuggestionRecord(result))
+    throw new Error("The room tone reply is missing its result.");
+  if (result[doneKey] === true)
+    return { done: true, historyHead: replyHistoryHead(reply) };
+  return {
+    done: false,
+    reason: typeof result.reason === "string" ? result.reason : "unknown",
+  };
+}
+
+/** Cut a room-tone bed for the track from its own quiet stretch; one undo step. */
+export async function extractRoomToneBedCommand(
+  projectPath: string,
+  trackId: string,
+): Promise<RoomToneBedOutcome> {
+  return roomToneBedOutcome(
+    await submitDocumentCommand(
+      projectPath,
+      DocumentCommand.ExtractRoomToneBed,
+      { track_id: trackId },
+    ),
+    "extracted",
+  );
+}
+
+/** Take the track's extracted bed off (a recorded bed stays); one undo step. */
+export async function clearExtractedRoomToneBedCommand(
+  projectPath: string,
+  trackId: string,
+): Promise<RoomToneBedOutcome> {
+  return roomToneBedOutcome(
+    await submitDocumentCommand(
+      projectPath,
+      DocumentCommand.ClearExtractedRoomToneBed,
+      { track_id: trackId },
+    ),
+    "cleared",
+  );
+}
+
 export async function reorderTrackCommand(
   projectPath: string,
   trackId: string,

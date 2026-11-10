@@ -839,6 +839,20 @@ class FillRoomTonePayload(BaseModel):
         return self
 
 
+class ExtractRoomToneBedPayload(BaseModel):
+    track_id: str = Field(
+        description="The track to cut a room-tone bed for from its own audio. A recorded or "
+        "assigned bed, or unchanged audio, leaves it as it is and the reply says why."
+    )
+
+
+class ClearExtractedRoomToneBedPayload(BaseModel):
+    track_id: str = Field(
+        description="The track to take its extracted room-tone bed off. A recorded or "
+        "assigned bed is never removed."
+    )
+
+
 class ApplyAutoEditsPayload(BaseModel):
     pass
 
@@ -1367,6 +1381,16 @@ class InsertSegmentCommand(DocumentCommandEnvelope):
     payload: InsertSegmentPayload
 
 
+class ExtractRoomToneBedCommand(DocumentCommandEnvelope):
+    type: Literal["ExtractRoomToneBed"] = "ExtractRoomToneBed"
+    payload: ExtractRoomToneBedPayload
+
+
+class ClearExtractedRoomToneBedCommand(DocumentCommandEnvelope):
+    type: Literal["ClearExtractedRoomToneBed"] = "ClearExtractedRoomToneBed"
+    payload: ClearExtractedRoomToneBedPayload
+
+
 class FillRoomToneCommand(DocumentCommandEnvelope):
     type: Literal["FillRoomTone"] = "FillRoomTone"
     payload: FillRoomTonePayload
@@ -1546,6 +1570,8 @@ DocumentCommandBody = Annotated[
     | InsertGapCommand
     | InsertSegmentCommand
     | FillRoomToneCommand
+    | ExtractRoomToneBedCommand
+    | ClearExtractedRoomToneBedCommand
     | ApplyAutoEditsCommand
     | ProposeTightenCommand
     | ApplyEditPlanCommand

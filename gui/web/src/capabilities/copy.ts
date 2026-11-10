@@ -91,6 +91,14 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Split speakers…",
     tooltip: "Split this track into one track per speaker",
   },
+  "daw.track.extractRoomTone": {
+    label: "Extract room tone",
+    tooltip: "Cut a room-tone bed from this track's own quiet stretch",
+  },
+  "daw.track.clearRoomTone": {
+    label: "Remove extracted room tone",
+    tooltip: "Take the cut room-tone bed off this track",
+  },
   "daw.track.reorder": {
     label: "Reorder track",
     tooltip: "Reorder track",

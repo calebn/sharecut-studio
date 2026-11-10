@@ -850,6 +850,26 @@ export const COMMANDS: Record<string, CommandDef> = {
     notes:
       "Opens Prepare at the split prompt for the inspector track (args { trackId? }); the split runs as a job and is one undo step",
   },
+  "track.extractRoomTone": {
+    id: "track.extractRoomTone",
+    mutates: true,
+    category: "edit",
+    label: "Extract room tone",
+    keywords: ["ambience", "noise floor", "silence", "fill", "bed"],
+    when: "editStageTrackInspector",
+    notes:
+      "Cuts a room-tone bed from the inspector track's own quiet stretch (args { trackId? }); later fills use it. ExtractRoomToneBed, one undo step; a recorded bed is left alone",
+  },
+  "track.clearRoomTone": {
+    id: "track.clearRoomTone",
+    mutates: true,
+    category: "edit",
+    label: "Remove extracted room tone",
+    keywords: ["ambience", "noise floor", "bed"],
+    when: "editStageTrackInspector",
+    notes:
+      "Takes the cut room-tone bed off the inspector track (args { trackId? }); a recorded bed is never removed. ClearExtractedRoomToneBed, one undo step",
+  },
   "track.reorder": {
     id: "track.reorder",
     mutates: true,

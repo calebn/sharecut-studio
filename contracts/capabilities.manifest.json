@@ -505,6 +505,64 @@
       }
     },
     {
+      "id": "daw.track.extractRoomTone",
+      "label": "Extract room tone",
+      "effect": "project",
+      "service": "RoomToneBedService (via the document command bus)",
+      "industry_standard_key": false,
+      "gates": [
+        "editStageTrackInspector"
+      ],
+      "surfaces": {
+        "command": "track.extractRoomTone",
+        "gui": [
+          "trackInspector"
+        ],
+        "mcp": [
+          "extract_room_tone_bed_tool"
+        ],
+        "cli": "podcast track room-tone extract",
+        "skill": "podcast-audio-cleanup"
+      },
+      "omit": {
+        "keyboard_reason": "Host action in the track inspector; also the command palette, MCP and CLI"
+      },
+      "tooltip": "Cut a room-tone bed from this track's own quiet stretch",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.track.clearRoomTone",
+      "label": "Remove extracted room tone",
+      "effect": "project",
+      "service": "RoomToneBedService (via the document command bus)",
+      "industry_standard_key": false,
+      "gates": [
+        "editStageTrackInspector"
+      ],
+      "surfaces": {
+        "command": "track.clearRoomTone",
+        "gui": [
+          "trackInspector"
+        ],
+        "mcp": [
+          "clear_extracted_room_tone_bed_tool"
+        ],
+        "cli": "podcast track room-tone clear",
+        "skill": "podcast-audio-cleanup"
+      },
+      "omit": {
+        "keyboard_reason": "Host action in the track inspector; also the command palette, MCP and CLI"
+      },
+      "tooltip": "Take the cut room-tone bed off this track",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
       "id": "daw.track.reorder",
       "label": "Reorder track",
       "effect": "project",
