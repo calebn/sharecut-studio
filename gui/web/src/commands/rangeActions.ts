@@ -23,8 +23,10 @@ import type { ExactRangeTarget } from "../types/project";
 import { ApiError, errorMessage, readApiError } from "../utils/apiError";
 import { staleRenderBreakdown } from "../utils/staleRender";
 import { openCommentDraft } from "./comments";
+import { cutToastOf } from "./cutToast";
 import { registerCommand } from "./execute";
 import { commandLabel } from "./labels";
+import { submitRangeEdit } from "./submitRangeEdit";
 import type { ExecuteResult } from "./types";
 
 export const PLAY_DENIED_REASON = "This share cannot play audio";
@@ -136,17 +138,6 @@ export function rangeActionDescriptors(
 
 let previewUrl: string | null = null;
 
-export function submitRangeEdit(
-  action: "cut" | "mute",
-  targets: readonly ExactRangeTarget[],
-) {
-  return submitDocumentCommand(
-    useDawStore.getState().projectPath,
-    DocumentCommand.EditSelectedRange,
-    { action, targets },
-  );
-}
-
 export async function runRangeAction(
   action: RangeAction,
   override?: ExactRangeTarget,
@@ -190,11 +181,15 @@ export async function runRangeAction(
         selection,
       );
     if (action === "cut" || action === "mute") {
+      const applies =
+        rangeEditMode(state.projectPath, state.shareCapabilities) === "edit";
+      const cutToast =
+        action === "cut" && applies && selection?.kind === "transcriptRange"
+          ? cutToastOf(state.project, selection, target, epoch, applies)
+          : null;
       const result = await submitRangeEdit(action, [target]);
       const live = useDawStore.getState();
       if (live.projectEpoch !== epoch) return { status: "ok" };
-      const applies =
-        rangeEditMode(state.projectPath, state.shareCapabilities) === "edit";
       if (action === "cut" && applies && result.type === "Applied") {
         const start = target.intervals[0]!.start,
           end = target.intervals.at(-1)!.end;
@@ -221,11 +216,16 @@ export async function runRangeAction(
         live.announceStatus("Range suggestion queued. Reconnect to send it.");
       else {
         if (live.selection === selection) live.setSelection(null);
+        const shown = result.type === "Applied" ? cutToast : null;
         live.announceStatus(
+          shown
+            ? shown.message
+            : applies
+              ? `Range ${action} applied. Use Undo to restore it.`
+              : "Range suggestion sent for host review",
           applies
-            ? `Range ${action} applied. Use Undo to restore it.`
-            : "Range suggestion sent for host review",
-          applies ? { undo: replyHistoryHead(result) } : {},
+            ? { undo: replyHistoryHead(result), action: shown?.action }
+            : {},
         );
       }
       return { status: "ok" };

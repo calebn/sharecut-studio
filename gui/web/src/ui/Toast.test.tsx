@@ -14,6 +14,51 @@ describe("Toast", () => {
     document.body.replaceChildren();
   });
 
+  it("shows the action before Undo, disables it with a reason and keeps the toast up meanwhile", () => {
+    vi.useFakeTimers();
+    const onAction = vi.fn();
+    const onDismiss = vi.fn();
+    const { rerender } = render(
+      <Toast
+        toast={{ id: 1, message: "Cut" }}
+        onDismiss={onDismiss}
+        onUndo={vi.fn()}
+        actionLabel="Cut all"
+        onAction={onAction}
+      />,
+    );
+    const names = screen.getAllByRole("button").map((b) => b.textContent);
+    expect(names).toEqual(["Cut all", "Undo", "Dismiss"]);
+    fireEvent.click(screen.getByRole("button", { name: "Cut all" }));
+    expect(onAction).toHaveBeenCalledOnce();
+    rerender(
+      <Toast
+        toast={{ id: 1, message: "Cut" }}
+        onDismiss={onDismiss}
+        onUndo={vi.fn()}
+        actionLabel="Cut all"
+        onAction={onAction}
+        actionDisabledReason={BUSY_REASON}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Cut all" })).toBeDisabled();
+    act(() => {
+      vi.advanceTimersByTime(TOAST_UNDO_MS * 2);
+    });
+    expect(onDismiss).not.toHaveBeenCalled();
+  });
+
+  it("shows no action without a handler", () => {
+    render(
+      <Toast
+        toast={{ id: 1, message: "Cut" }}
+        onDismiss={vi.fn()}
+        actionLabel="Cut all"
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Cut all" })).toBeNull();
+  });
+
   it("uses the current return target when a surviving card closes", () => {
     const oldTarget = document.createElement("button");
     const currentTarget = document.createElement("button");
