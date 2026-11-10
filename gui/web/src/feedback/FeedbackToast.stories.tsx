@@ -94,7 +94,7 @@ export const MergedCuts: Story = {
           undo: head,
           message: "3 cuts",
           kind: "cut",
-          merged: { count: 3, entries: [head, head, head] },
+          merged: { entries: [head, head, head] },
         }),
       },
     },

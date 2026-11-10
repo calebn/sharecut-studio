@@ -155,7 +155,9 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
   const undoEntry =
     toast?.undo != null &&
     headId != null &&
-    (toast.undo === headId || headId === toast.baseHead)
+    (toast.undo === headId ||
+      headId === toast.baseHead ||
+      toast.merged?.entries.includes(headId))
       ? toast.undo
       : null;
 
@@ -226,9 +228,12 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
           );
       }
     } catch (e) {
-      useDawStore.getState().announceStatus(`Undo failed: ${errorMessage(e)}`, {
-        tone: "error",
-      });
+      useDawStore
+        .getState()
+        .announceStatus(
+          `Undo failed${undone > 0 ? ` after ${undone} of ${entries.length}` : ""}: ${errorMessage(e)}`,
+          { tone: "error" },
+        );
     } finally {
       setUndoing(false);
     }
@@ -275,12 +280,14 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
   const reversal = toast?.reverse ?? null;
   const onUndo =
     toast && undoEntry
-      ? () =>
+      ? () => {
+          if (undoing) return;
           void undo(
             toast.message,
             toast.merged?.entries ?? [undoEntry],
             toast.onUndone,
-          )
+          );
+        }
       : reversal
         ? () => void reverse(reversal, toast?.returnFocus ?? null)
         : undefined;
