@@ -103,6 +103,7 @@ export const AfterCutNextOccurrence: Story = {
       head: store.project?.history?.head_id ?? null,
       baseHead: store.project?.history?.head_id ?? null,
       epoch: store.projectEpoch,
+      focused: true,
       selected: null,
       at: null,
       startedAt: null,

@@ -207,6 +207,41 @@ describe("cut toast after a words cut", () => {
     expect(toast()?.message).toContain("1 more");
   });
 
+  it.each([
+    ["another project epoch", { epoch: 99 }],
+    [
+      "a history head that is neither of its heads",
+      { head: "zz", baseHead: "yy" },
+    ],
+  ])("does not carry the earlier cut of %s", async (_name, change) => {
+    seed();
+    const epoch = useDawStore.getState().projectEpoch;
+    const head = useDawStore.getState().project?.history?.head_id ?? null;
+    useDawStore.setState({
+      afterCut: {
+        words: "you know",
+        cutKeys: ["host::0", "host::1"],
+        from: { trackId: "host", sourceId: null, wordIndex: 0 },
+        head,
+        baseHead: head,
+        epoch,
+        focused: true,
+        selected: null,
+        at: null,
+        startedAt: null,
+        direction: null,
+        ...change,
+      } as never,
+    });
+    select("host", 3, 4);
+    await runRangeAction("cut");
+    expect(toast()?.message).toContain("2 more");
+    expect(useDawStore.getState().afterCut?.cutKeys).toEqual([
+      "host::3",
+      "host::4",
+    ]);
+  });
+
   it("follows the words only while other occurrences are left", async () => {
     seed();
     select("host", 0, 1);

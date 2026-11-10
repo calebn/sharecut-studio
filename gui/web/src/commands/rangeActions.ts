@@ -21,6 +21,7 @@ import type { DawState } from "../state/types";
 import { DocumentCommand } from "../types/documentCommands.generated";
 import type { ExactRangeTarget } from "../types/project";
 import { ApiError, errorMessage, readApiError } from "../utils/apiError";
+import { scriptBodyFocused } from "./afterCutWindow";
 import { openCommentDraft } from "./comments";
 import { cutToastOf } from "./cutToastHost";
 import { registerCommand } from "./execute";
@@ -178,6 +179,7 @@ export async function runRangeAction(
           ? cutToastOf(state.project, selection, target, epoch)
           : null;
       const baseHead = state.project.history?.head_id ?? null;
+      const focused = scriptBodyFocused();
       const result = await submitRangeEdit(action, [target]);
       const live = useDawStore.getState();
       if (live.projectEpoch !== epoch) return { status: "ok" };
@@ -223,6 +225,7 @@ export async function runRangeAction(
                 head: replyHistoryHead(result),
                 baseHead,
                 epoch,
+                focused,
                 selected: null,
                 at: null,
                 startedAt: null,
