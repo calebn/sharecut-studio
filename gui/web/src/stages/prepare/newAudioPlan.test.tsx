@@ -25,6 +25,7 @@ const { config, STEPS, SAVED } = vi.hoisted(() => {
     "transcribe_tracks",
     "align_tracks",
     "require_align_accept",
+    "extract_room_tone_beds",
     "fill_gate_holes",
     "clean_audio",
     "compress_tracks",
