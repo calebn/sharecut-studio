@@ -108,7 +108,8 @@ describe("envelope point content", () => {
   it("drops the level help sentence but keeps the removal consequence", () => {
     open();
     expect(screen.queryByText(/is silent/)).toBeNull();
-    expect(screen.getByRole("spinbutton", { name: "Level" })).toBeVisible();
+    expect(screen.getByRole("spinbutton", { name: "Level" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Remove point" })).toBeVisible();
   });
 
   it("removes the point, and the last one removes the envelope", async () => {

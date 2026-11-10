@@ -61,12 +61,30 @@ const spanRow = (
 
 const factRows = (inspection: Inspection): InspectorRow[] => [
   { id: "clip", label: "Clip", control: <span>{inspection.clipLabel}</span> },
-  { id: "plan", control: note(PLAN_LABELS[inspection.planState]) },
+  {
+    id: "plan",
+    label: "Reduction",
+    control: note(PLAN_LABELS[inspection.planState]),
+  },
   ...(inspection.planReasons.length
-    ? [{ id: "why", control: note(inspection.planReasons.join(" ")) }]
+    ? [
+        {
+          id: "why",
+          label: "Why",
+          control: note(inspection.planReasons.join(" ")),
+        },
+      ]
     : []),
-  { id: "artifact", control: note(ARTIFACT_LABELS[inspection.artifactState]) },
-  { id: "restore", control: note(RESTORE_LABELS[inspection.restoreState]) },
+  {
+    id: "artifact",
+    label: "Audio",
+    control: note(ARTIFACT_LABELS[inspection.artifactState]),
+  },
+  {
+    id: "restore",
+    label: "Saved choice",
+    control: note(RESTORE_LABELS[inspection.restoreState]),
+  },
   ...(inspection.savedSourceSpans.length
     ? [
         {
