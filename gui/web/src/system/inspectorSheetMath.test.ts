@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   detentHeight,
+  detentsFor,
   dragHeight,
   placeCard,
   riseVelocity,
@@ -123,8 +124,47 @@ describe("inspectorSheetMath detents", () => {
   });
 });
 
+describe("inspectorSheetMath detents without half", () => {
+  const dockFull = ["dock", "full"] as const;
+
+  it("offers the dock and full only", () => {
+    expect(detentsFor(true)).toEqual(["dock", "half", "full"]);
+    expect(detentsFor(false)).toEqual(dockFull);
+  });
+
+  it("settles on the nearer of dock and full", () => {
+    expect(settleDetent(300, 0, 800, false, 64, dockFull)).toBe("dock");
+    expect(settleDetent(500, 0, 800, false, 64, dockFull)).toBe("full");
+  });
+
+  it("steps and toggles between dock and full", () => {
+    expect(steppedDetent("dock", 1, dockFull)).toBe("full");
+    expect(steppedDetent("full", -1, dockFull)).toBe("dock");
+    expect(toggledDetent("dock", dockFull)).toBe("full");
+    expect(toggledDetent("full", dockFull)).toBe("dock");
+  });
+});
+
 describe("inspectorSheetMath card placement", () => {
   const desktop = { width: 1280, height: 800 };
+
+  it("keeps a floor under the card where both sides are short, covering the anchor", () => {
+    const sideways = { width: 740, height: 360 };
+    const placed = placeCard(
+      { x: 300, y: 150, width: 80, height: 40 },
+      sideways,
+    );
+    expect(placed.maxBlock).toBe(216);
+    expect(placed.block).toBeGreaterThanOrEqual(8);
+    expect(placed.block + placed.maxBlock).toBeLessThanOrEqual(360 - 8 + 0.001);
+  });
+
+  it("never lets the floor pass the card's 60 % height", () => {
+    const sideways = { width: 1000, height: 400 };
+    const anchor = { x: 300, y: 180, width: 80, height: 40 };
+    expect(placeCard(anchor, sideways, 320, 224).maxBlock).toBe(224);
+    expect(placeCard(anchor, sideways, 640, 448).maxBlock).toBe(240);
+  });
 
   it("opens below an anchor with room, centred on it", () => {
     expect(
