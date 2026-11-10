@@ -85,22 +85,28 @@ const rowId = (f: SeamJoinFields, id: string) =>
 export function useSeamJoinFields(
   seamId: string | null,
   scope: SeamJoinScope | null = null,
+  host?: { busy: boolean; onEdit: () => void },
 ): SeamJoinFields | null {
-  const { project, projectPath, guestMode, shareCapabilities, busy } = useDaw(
-    (s) => ({
-      project: s.project,
-      projectPath: s.projectPath,
-      guestMode: s.guestMode,
-      shareCapabilities: s.shareCapabilities,
-      busy: s.joinMutationInFlight,
-    }),
-  );
+  const {
+    project,
+    projectPath,
+    guestMode,
+    shareCapabilities,
+    busy: joinBusy,
+  } = useDaw((s) => ({
+    project: s.project,
+    projectPath: s.projectPath,
+    guestMode: s.guestMode,
+    shareCapabilities: s.shareCapabilities,
+    busy: s.joinMutationInFlight,
+  }));
   const [draftMs, setDraftMs] = useState<number | null>(null);
   const [draftOffsetMs, setDraftOffsetMs] = useState<number | null>(null);
   const [origin, setOrigin] = useState<{ id: string; end: number } | null>(
     null,
   );
   const gesture = useRef<Seam | null>(null);
+  const seen = useRef<{ id: string; end: number; start: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const replay = useSeamReplay();
   const seam = project && seamId ? seamById(project, seamId) : null;
@@ -121,7 +127,32 @@ export function useSeamJoinFields(
     };
   }, [seamId, rightId]);
 
+  const seamKey = seam?.id;
+  const leftEnd = seam?.left.source_end;
+  const rightStart = seam?.right.source_start;
+  useEffect(() => {
+    const before = seen.current;
+    if (
+      seamKey === undefined ||
+      leftEnd === undefined ||
+      rightStart === undefined
+    ) {
+      seen.current = null;
+      return;
+    }
+    seen.current = { id: seamKey, end: leftEnd, start: rightStart };
+    if (before?.id !== seamKey) return;
+    const trimmed = leftEnd - before.end;
+    if (Math.abs(rightStart - before.start) > 1e-9 || Math.abs(trimmed) < 1e-9)
+      return;
+    setOrigin((was) =>
+      was?.id === seamKey ? { id: seamKey, end: was.end + trimmed } : was,
+    );
+  }, [seamKey, leftEnd, rightStart]);
+
   if (!seam || !project) return null;
+  const busy = joinBusy || (host?.busy ?? false);
+  const beginEdit = () => host?.onEdit();
 
   const editable = canApplyPass12(projectPath, guestMode, shareCapabilities);
   const { left, right } = seam;
@@ -163,10 +194,12 @@ export function useSeamJoinFields(
     if (result.status === "failed") setError(result.message);
   };
   const setType = async (next: JoinMode) => {
+    beginEdit();
     setError(null);
     settle(await replay.commit(seam.id, () => setSeamJoin(seam, next, null)));
   };
   const preview = (value: number) => {
+    beginEdit();
     replay.supersede();
     setDraftMs(value);
     if (crossfade) {
@@ -174,6 +207,7 @@ export function useSeamJoinFields(
     }
   };
   const commit = async (value: number) => {
+    beginEdit();
     clearDraft();
     setError(null);
     settle(await replay.commit(seam.id, () => setSeamJoin(seam, mode, value)));
@@ -184,11 +218,13 @@ export function useSeamJoinFields(
     setDraftOffsetMs(null);
   };
   const previewOffset = (value: number) => {
+    beginEdit();
     replay.supersede();
     gesture.current ??= seam;
     setDraftOffsetMs(value);
   };
   const commitOffset = async (value: number) => {
+    beginEdit();
     const snapshot = gesture.current ?? seam;
     clearOffsetDraft();
     setError(null);

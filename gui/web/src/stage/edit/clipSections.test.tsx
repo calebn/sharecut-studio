@@ -700,6 +700,94 @@ describe("clip join rows", () => {
     ).toBeVisible();
   });
 
+  it("cancels a pending placement when a join is edited", async () => {
+    open([clip, second], {}, second);
+    previewStart();
+    expect(getClipPlacement().kind).toBe("preview");
+    await type("Start join length", "120");
+    expect(getClipPlacement()).toEqual({ kind: "idle" });
+  });
+
+  it("locks the join controls and the trim and fade fields while a join saves", () => {
+    open([clip, second], {}, second);
+    act(() => useDawStore.setState({ joinMutationInFlight: true }));
+    expect(
+      screen.getByRole("spinbutton", { name: "Start join length" }),
+    ).toHaveAttribute("aria-readonly", "true");
+    expect(screen.getByRole("spinbutton", { name: "Fade in" })).toHaveAttribute(
+      "aria-readonly",
+      "true",
+    );
+    expect(
+      group("Start join").getByRole("button", { name: "Hard edge" }),
+    ).toBeDisabled();
+  });
+
+  it("shows a refused join type in the sheet", async () => {
+    vi.mocked(setClipJoin).mockRejectedValueOnce(new Error("Join refused"));
+    open([clip, second], {}, second);
+    await act(async () => {
+      fireEvent.click(
+        group("Start join").getByRole("button", { name: "Hard edge" }),
+      );
+    });
+    expect(screen.getByText("Join refused")).toBeVisible();
+  });
+
+  it("shows the same refusal on both joins without a duplicate row key", async () => {
+    const failed = {
+      status: "failed",
+      message: "The seam moved before the roll saved. Nothing changed.",
+    } as const;
+    vi.mocked(rollSeam).mockResolvedValue(failed);
+    const warn = vi.spyOn(console, "error").mockImplementation(() => {});
+    open([clip, second, third], {}, second);
+    await type("Start join offset", "5");
+    await type("End join offset", "5");
+    expect(screen.getAllByText(failed.message)).toHaveLength(2);
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("clears the crossfade draft of each join when its drag ends", async () => {
+    const mid = { ...second, join_in_mode: "crossfade" as const };
+    const last = { ...third, join_in_mode: "crossfade" as const };
+    open([clip, mid, last], {}, mid);
+    for (const [name, rightId] of [
+      ["Start join length", "c2"],
+      ["End join length", "c3"],
+    ] as const) {
+      const field = screen.getByRole("spinbutton", { name });
+      fireEvent.pointerDown(field, { clientX: 100, pointerId: 1, button: 0 });
+      fireEvent.pointerMove(field, { clientX: 110, pointerId: 1 });
+      fireEvent.pointerMove(field, { clientX: 130, pointerId: 1 });
+      expect(useDawStore.getState().joinDraft?.id).toBe(rightId);
+      await act(async () => {
+        fireEvent.pointerUp(field, { clientX: 130, pointerId: 1 });
+      });
+      expect(useDawStore.getState().joinDraft).toBeNull();
+    }
+  });
+
+  it("keeps a trim of the clip's source end out of the End join offset", () => {
+    open([clip, second]);
+    const offset = () =>
+      screen.getByRole("spinbutton", { name: "End join offset" });
+    expect(offset()).toHaveAttribute("aria-valuenow", "0");
+    act(() => {
+      const lane = [{ ...clip, source_end: 2.5 }, second];
+      useDawStore.getState().hydrate(
+        "/tmp/ep.json",
+        minimalProject({
+          tracks: [sampleTrack({ id: "host", speaker: "Mira" })],
+          clips: { tracks: { host: lane }, clip_count: 2 },
+          edit_boundaries: editBoundaries(lane),
+        }),
+      );
+    });
+    expect(offset()).toHaveAttribute("aria-valuenow", "0");
+  });
+
   it("has no axe violations with both joins showing", async () => {
     const { container } = open([clip, second, third], {}, second);
     await expectNoA11yViolations(container);
