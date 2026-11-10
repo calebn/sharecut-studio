@@ -253,6 +253,7 @@ enforced-by:
 - gui/web/src/timeline/trimHintPlace.test.ts::returns null when no spot shows the whole tip
 - gui/web/src/timeline/trimHintPlace.test.ts::fits exactly against each edge of the view
 - gui/web/src/timeline/TrimHint.test.tsx::is placed again when the lanes scroll or the window resizes
+- gui/web/e2e/coach-tips-real-app.spec.ts::selecting a clip shows the tip clear of its handle, a press clears it, it never returns
 -->
 
 A touch user sees each gesture hint once, at the moment of first need.
