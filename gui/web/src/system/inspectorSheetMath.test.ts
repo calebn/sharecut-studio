@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   cardFits,
   detentHeight,
-  detentsFor,
   dragHeight,
   placeCard,
   riseVelocity,
@@ -125,34 +124,13 @@ describe("inspectorSheetMath detents", () => {
   });
 });
 
-describe("inspectorSheetMath detents without half", () => {
-  const dockFull = ["dock", "full"] as const;
-
-  it("offers the dock and full only", () => {
-    expect(detentsFor(true)).toEqual(["dock", "half", "full"]);
-    expect(detentsFor(false)).toEqual(dockFull);
-  });
-
-  it("settles on the nearer of dock and full", () => {
-    expect(settleDetent(300, 0, 800, false, 64, dockFull)).toBe("dock");
-    expect(settleDetent(500, 0, 800, false, 64, dockFull)).toBe("full");
-  });
-
-  it("steps and toggles between dock and full", () => {
-    expect(steppedDetent("dock", 1, dockFull)).toBe("full");
-    expect(steppedDetent("full", -1, dockFull)).toBe("dock");
-    expect(toggledDetent("dock", dockFull)).toBe("full");
-    expect(toggledDetent("full", dockFull)).toBe("dock");
-  });
-});
-
 describe("inspectorSheetMath cardFits", () => {
   it("fits a card whose 60 % holds the minimum, and counts an unmeasured frame as fitting", () => {
-    expect(cardFits(374)).toBe(true);
-    expect(cardFits(373)).toBe(false);
+    expect(cardFits(267)).toBe(true);
+    expect(cardFits(266)).toBe(false);
     expect(cardFits(0)).toBe(true);
-    expect(cardFits(700, 448)).toBe(false);
-    expect(cardFits(750, 448)).toBe(true);
+    expect(cardFits(533, 320)).toBe(false);
+    expect(cardFits(534, 320)).toBe(true);
   });
 });
 
@@ -165,16 +143,16 @@ describe("inspectorSheetMath card placement", () => {
       { x: 300, y: 150, width: 80, height: 40 },
       sideways,
     );
-    expect(placed.maxBlock).toBe(216);
+    expect(placed.maxBlock).toBe(160);
     expect(placed.block).toBeGreaterThanOrEqual(8);
     expect(placed.block + placed.maxBlock).toBeLessThanOrEqual(360 - 8 + 0.001);
   });
 
-  it("never lets the floor pass the card's 60 % height", () => {
+  it("leaves a card alone where the room already holds the floor, and never passes 60 % of the frame", () => {
     const sideways = { width: 1000, height: 400 };
     const anchor = { x: 300, y: 180, width: 80, height: 40 };
-    expect(placeCard(anchor, sideways, 320, 224).maxBlock).toBe(224);
-    expect(placeCard(anchor, sideways, 640, 448).maxBlock).toBe(240);
+    expect(placeCard(anchor, sideways, 320).maxBlock).toBe(164);
+    expect(placeCard(anchor, sideways, 640, 320).maxBlock).toBe(240);
   });
 
   it("opens below an anchor with room, centred on it", () => {

@@ -1,4 +1,5 @@
 import {
+  act,
   createEvent,
   fireEvent,
   render,
@@ -666,6 +667,9 @@ describe("InspectorSheet takeover", () => {
         ]}
         onClose={onClose}
       />,
+    );
+    await act(
+      () => new Promise((resolve) => requestAnimationFrame(() => resolve(0))),
     );
     screen.getByRole("textbox", { name: "Chapter title" }).focus();
     await userEvent.keyboard("{Escape}");

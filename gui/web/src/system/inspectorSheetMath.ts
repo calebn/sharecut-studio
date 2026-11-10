@@ -8,11 +8,6 @@ export const INSPECTOR_DETENTS: readonly InspectorDetent[] = [
   "full",
 ];
 
-/** The detents a sheet offers: all three, or dock and full where half is too short to hold the dock and a field. */
-export function detentsFor(halfFits: boolean): readonly InspectorDetent[] {
-  return halfFits ? INSPECTOR_DETENTS : ["dock", "full"];
-}
-
 /** The dock is 4 rem, so this is its height at the default root size; the sheet measures the real one. */
 export const DOCK_PX = 64;
 const HALF_SHARE = 0.5;
@@ -27,8 +22,8 @@ export const CARD_WIDTH_PX = 320;
 const CARD_GAP_PX = 8;
 const CARD_EDGE_PX = 8;
 const CARD_MAX_SHARE = 0.6;
-/** The least a card or a full sheet can be and still show its header and a few rows: 14 rem at the default root size. */
-export const CARD_MIN_BLOCK_PX = 224;
+/** The least a card or a full sheet can be and still show its header and a few rows: 10 rem at the default root size. */
+export const CARD_MIN_BLOCK_PX = 160;
 
 /** `CARD_MIN_BLOCK_PX` at this root font size; an unreadable root size counts as the default 16 px. */
 export function scaledMinBlock(rootPx: number) {
@@ -99,14 +94,13 @@ export function settleDetent(
   container: number,
   fromDock = false,
   dock = DOCK_PX,
-  detents: readonly InspectorDetent[] = INSPECTOR_DETENTS,
 ): InspectorDetent | "dismiss" {
   const projected = height + velocity * FLICK_MS;
   const bar = dock - DISMISS_PX;
   if (height < bar || (fromDock && projected < bar)) return "dismiss";
   let best: InspectorDetent = "dock";
   let bestGap = Number.POSITIVE_INFINITY;
-  for (const detent of detents) {
+  for (const detent of INSPECTOR_DETENTS) {
     const gap = Math.abs(projected - detentHeight(detent, container, dock));
     if (gap < bestGap) {
       best = detent;
@@ -116,29 +110,26 @@ export function settleDetent(
   return best;
 }
 
-/** A tap on the grip: half and dock swap, and full steps down to half. With no half, full and dock swap. */
-export function toggledDetent(
-  detent: InspectorDetent,
-  detents: readonly InspectorDetent[] = INSPECTOR_DETENTS,
-): InspectorDetent {
-  if (!detents.includes("half")) return detent === "dock" ? "full" : "dock";
-  return detent === "half" ? "dock" : "half";
+/** A tap on the grip: half and dock swap, and full steps down to half. */
+export function toggledDetent(detent: InspectorDetent): InspectorDetent {
+  return detent === "dock" ? "half" : detent === "half" ? "dock" : "half";
 }
 
 /** One step up or down the detents, held at the ends. */
 export function steppedDetent(
   detent: InspectorDetent,
   direction: 1 | -1,
-  detents: readonly InspectorDetent[] = INSPECTOR_DETENTS,
 ): InspectorDetent {
-  const at = detents.indexOf(detent) + direction;
-  return detents[clamp(at, 0, detents.length - 1)] ?? detent;
+  const at = INSPECTOR_DETENTS.indexOf(detent) + direction;
+  return (
+    INSPECTOR_DETENTS[clamp(at, 0, INSPECTOR_DETENTS.length - 1)] ?? detent
+  );
 }
 
 /**
  * Below the anchor when the card's tallest form (60 % of the bounds) fits
  * there, otherwise above, otherwise on the side with more room, shortened to it.
- * The room never takes the card under `minBlock` (14 rem at the default root
+ * The room never takes the card under `minBlock` (10 rem at the default root
  * size), so a card squeezed between its anchor and an edge covers the part of
  * the anchor it overlaps. A frame too short for `minBlock` at 60 % (`cardFits`)
  * gets no card: the host takes the screen instead.

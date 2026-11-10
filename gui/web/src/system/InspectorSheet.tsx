@@ -14,8 +14,8 @@ import { isImeKey } from "./imeKey";
 import {
   CARD_WIDTH_PX,
   DOCK_PX,
-  detentsFor,
   dragHeight,
+  INSPECTOR_DETENTS,
   type InspectorBounds,
   type InspectorDetent,
   type InspectorRect,
@@ -71,12 +71,6 @@ export type InspectorPhoneProps = InspectorBase & {
   /** The first detent. */
   dock?: ReactNode;
   detent: InspectorDetent;
-  /**
-   * False where half the slot cannot hold the dock and a field (a phone held
-   * sideways at large text): the sheet offers the dock and full only. The host
-   * keeps `detent` off half then.
-   */
-  halfFits?: boolean;
   onDetentChange: (detent: InspectorDetent) => void;
   /** Dragged down past the dock: the host clears the selection. */
   onDismiss: () => void;
@@ -312,11 +306,9 @@ function Phone({
   onClose,
   dock,
   detent,
-  halfFits = true,
   onDetentChange,
   onDismiss,
 }: InspectorPhoneProps) {
-  const detents = detentsFor(halfFits);
   const sheet = useRef<HTMLElement>(null);
   const samples = useRef<Sample[]>([]);
   const drag = useRef<Drag | null>(null);
@@ -371,7 +363,6 @@ function Phone({
         gesture.container,
         gesture.start <= gesture.dock + DOCK_TOLERANCE_PX,
         gesture.dock,
-        detents,
       );
       if (next === "dismiss") onDismiss();
       else if (next !== detent) onDetentChange(next);
@@ -380,15 +371,15 @@ function Phone({
   const onGripKey = (event: KeyboardEvent<HTMLElement>) => {
     const next =
       event.key === "ArrowUp" || event.key === "ArrowRight"
-        ? steppedDetent(detent, 1, detents)
+        ? steppedDetent(detent, 1)
         : event.key === "ArrowDown" || event.key === "ArrowLeft"
-          ? steppedDetent(detent, -1, detents)
+          ? steppedDetent(detent, -1)
           : event.key === "Home"
             ? "dock"
             : event.key === "End"
               ? "full"
               : event.key === "Enter" || event.key === " "
-                ? toggledDetent(detent, detents)
+                ? toggledDetent(detent)
                 : null;
     if (!next) return;
     event.preventDefault();
@@ -427,13 +418,13 @@ function Phone({
           aria-label="Sheet height"
           aria-orientation="vertical"
           aria-valuemin={0}
-          aria-valuemax={detents.length - 1}
-          aria-valuenow={detents.indexOf(detent)}
+          aria-valuemax={2}
+          aria-valuenow={INSPECTOR_DETENTS.indexOf(detent)}
           aria-valuetext={DETENT_TEXT[detent]}
           {...grab.handlers("grip")}
           onClick={(event) => {
             if (grab.consumeClick(event)) return;
-            onDetentChange(toggledDetent(detent, detents));
+            onDetentChange(toggledDetent(detent));
           }}
           onKeyDown={onGripKey}
         >
@@ -492,6 +483,7 @@ function Takeover({
       onClose={onClose}
       title={label ?? name}
       panelClassName="sys-inspector-takeover"
+      shortcuts={["history.undo", "history.redo"]}
       footer={
         <button
           type="button"

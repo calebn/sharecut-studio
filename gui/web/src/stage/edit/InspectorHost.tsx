@@ -413,15 +413,11 @@ function Phone({
   sheet: InspectorOpen;
   heading: InspectorHeading;
 }) {
-  const [chosenDetent, setDetent] = useState<InspectorDetent>("half");
+  const [detent, setDetent] = useState<InspectorDetent>("half");
   const [tight, setTight] = useState(false);
-  // Unmeasured (room 0, as before the first layout) counts as fitting, so half
-  // is dropped only for a slot measured too short for the dock and a field.
-  const [halfFits, setHalfFits] = useState(true);
   // The lanes node is read once, from the phone sheet's first mount, so the
   // slot can still be measured after the takeover has replaced that sheet.
   const [takeover, setTakeover] = useState(false);
-  const detent = !halfFits && chosenDetent === "half" ? "full" : chosenDetent;
   const chosen = useRef(false);
   const box = useRef<HTMLDivElement>(null);
   const [lanes, setLanes] = useState<HTMLElement | null>(null);
@@ -436,7 +432,6 @@ function Phone({
     const short = room * SHEET_FULL < DOCK_ROOM_REM * rootPx;
     setTight(short);
     setTakeover(room > 0 && room * SHEET_FULL < scaledMinBlock(rootPx));
-    setHalfFits(!(room > 0 && short));
     if (room > 0 && !chosen.current) setDetent(short ? "full" : "half");
   }, [lanes]);
   useLayoutEffect(fit, [fit]);
@@ -496,7 +491,6 @@ function Phone({
             ) : null
           }
           detent={detent}
-          halfFits={halfFits}
           onDetentChange={(next) => {
             chosen.current = true;
             setDetent(next);
