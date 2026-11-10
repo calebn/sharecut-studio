@@ -150,6 +150,43 @@ describe("track content", () => {
     expect(screen.getByRole("button", { name: "Add person" })).toHaveFocus();
   });
 
+  it("keeps the typed name open with the reason when the host refuses Add person", async () => {
+    const user = userEvent.setup();
+    setTrackMetaCommand.mockRejectedValue(
+      new Error("Only the host can do that"),
+    );
+    open({ ...hostTrack, speaker: "Mira" });
+    await user.click(screen.getByRole("button", { name: "Add person" }));
+    const field = screen.getByRole("textbox", {
+      name: "Name of the new person",
+    });
+    await user.type(field, "Priya{Enter}");
+    expect(
+      await screen.findAllByText("Only the host can do that"),
+    ).not.toHaveLength(0);
+    expect(field).toHaveValue("Priya");
+    expect(screen.queryByRole("button", { name: "Add person" })).toBeNull();
+  });
+
+  it("sends one speaker write while the first is still saving", async () => {
+    const user = userEvent.setup();
+    let settle: (value: object) => void = () => undefined;
+    setTrackMetaCommand.mockReturnValue(
+      new Promise((resolve) => {
+        settle = resolve;
+      }),
+    );
+    open({ ...hostTrack, speaker: "Mira" }, [], undefined, "track", [
+      sampleTrack({ id: "guest", label: "Guest", speaker: "Tomas" }),
+      sampleTrack({ id: "third", label: "Third", speaker: "Priya" }),
+    ]);
+    const people = screen.getByRole("radiogroup", { name: "Person" });
+    await user.click(within(people).getByRole("radio", { name: /Tomas/ }));
+    await user.click(within(people).getByRole("radio", { name: /Priya/ }));
+    expect(setTrackMetaCommand).toHaveBeenCalledTimes(1);
+    settle({});
+  });
+
   it("sends nothing when Add person is given the track's own speaker", async () => {
     const user = userEvent.setup();
     open({ ...hostTrack, speaker: "Mira" });

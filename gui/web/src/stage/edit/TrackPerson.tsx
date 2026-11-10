@@ -1,4 +1,5 @@
 import { AddPerson } from "../../stages/edit/AddPerson";
+import type { FixTextAnswer } from "../../stages/edit/FixTextField";
 import { PersonPicker } from "../../system/PersonPicker";
 import type { TrackView } from "../../types/project";
 import { episodePeople, personId } from "./trackPeople";
@@ -37,7 +38,7 @@ export function AddTrackPerson({
 }: {
   track: TrackView;
   tracks: readonly TrackView[];
-  onPick: (speaker: string) => void;
+  onPick: (speaker: string) => FixTextAnswer;
 }) {
   const people = episodePeople(tracks);
   return (
@@ -48,7 +49,7 @@ export function AddTrackPerson({
       onAdd={(name) => {
         const id = personId(name);
         if (id === personId(track.speaker)) return;
-        onPick(people.find((p) => p.id === id)?.name ?? name.trim());
+        return onPick(people.find((p) => p.id === id)?.name ?? name.trim());
       }}
     />
   );

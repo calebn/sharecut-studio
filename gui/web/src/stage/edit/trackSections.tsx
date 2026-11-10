@@ -57,9 +57,8 @@ export function useTrackSections(
       ? selection.trackId
       : null;
   const track = project?.tracks.find((t) => t.id === trackId);
-  const { busy, error, setError, run, saveMetaFields } = useTrackMetaMutation(
-    trackId ?? "",
-  );
+  const { busy, error, setError, run, saveMetaFields, saveSpeaker } =
+    useTrackMetaMutation(trackId ?? "");
   useEffect(() => {
     setError(null);
   }, [track?.id, track?.speaker, setError]);
@@ -81,7 +80,11 @@ export function useTrackSections(
   const splitBlocker = splitSpeakersBlocker(track, hostCanSplit);
   const busyReason = busy ? BUSY_REASON : undefined;
 
-  const sendSpeaker = (speaker: string) => void saveMetaFields({ speaker });
+  const pickPerson = (speaker: string) => {
+    if (!busy) void saveSpeaker(speaker);
+  };
+  const addPerson = (speaker: string) =>
+    busy ? BUSY_REASON : saveSpeaker(speaker);
   const voice = kindOf(track.role) === "voice";
   const hasPeople = episodePeople(project?.tracks ?? []).length > 0;
   const personRows = !voice
@@ -96,7 +99,7 @@ export function useTrackSections(
                     <TrackPerson
                       track={track}
                       tracks={project?.tracks ?? []}
-                      onPick={sendSpeaker}
+                      onPick={pickPerson}
                     />
                   ),
                 },
@@ -108,7 +111,7 @@ export function useTrackSections(
               <AddTrackPerson
                 track={track}
                 tracks={project?.tracks ?? []}
-                onPick={sendSpeaker}
+                onPick={addPerson}
               />
             ),
           },
