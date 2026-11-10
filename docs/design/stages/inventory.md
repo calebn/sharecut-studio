@@ -475,5 +475,5 @@ Tally of the 154 non-interaction items, counted from the Story columns: 67 yes, 
 
 - `ux/pages/screen-inventory.md` lists Share, Connect agent and Help as the host dialogs; code also has Models, Model gate, Whisper picker, Split speakers, Export, Bounce, Precision boundary, Record room, Gestures, Commands and shortcuts, Step parameters, and Ask (confirm and text).
 - `docs/design-system.md` says the live `TransportBar`, full Listen and More bodies, connected panels and full DAW page remain outside Storybook. This inventory confirms it: every full panel (Transcript, Comments, History, Impact, Tighten, Pipeline) has no story, and 11 of the 14 inspector rows have none.
-- "Manage models…" has no menu item; it exists as a command (palette) and as a Home button.
+- "Manage models…" has no menu item; it exists as a command (palette) and, on Home, through the ShareCut app menu > Settings.
 - Quirk: the `?` shortcut and Menu > Help > "Commands and shortcuts" both open DLG-PALETTE; the phone More hub exposes it as the search row.
