@@ -22,7 +22,7 @@ test.describe("Script Fix text", () => {
     await expect(input).toHaveCount(0);
     await expect(word).toBeFocused();
   });
-  test("double-click, type, Enter commits one undoable step; Mod+Z restores", async ({
+  test("F2, type, Enter commits one undoable step; Mod+Z restores", async ({
     page,
   }) => {
     await withShareableProject(async (projectPath) => {
@@ -37,14 +37,18 @@ test.describe("Script Fix text", () => {
       let committed = false;
       try {
         await withDocumentCommandTypes(page, async (commands) => {
-          await original.dblclick();
           const input = list.getByRole("textbox", { name: "Fix text" });
+          await original.dblclick();
+          await expect(input).toHaveCount(0);
+          await original.focus();
+          await page.keyboard.press("F2");
           await expect(input).toBeFocused();
           await input.press("Escape");
           await expect(input).toHaveCount(0);
           expect(commands).not.toContain("CorrectTranscriptWord");
 
-          await original.dblclick();
+          await original.focus();
+          await page.keyboard.press("F2");
           await expect(input).toBeFocused();
           await expectPageAxeClean(page, ".sys-script");
           await input.fill("My");
