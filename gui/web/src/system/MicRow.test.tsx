@@ -8,6 +8,18 @@ import { expectNoA11yViolations } from "../test/a11y";
 import type { JoinMic } from "./joinSheetModel";
 import { MicRow } from "./MicRow";
 
+// Lets one test hold back effects so the commit that carries a new `locked`
+// prop can be observed before the close-on-lock effect runs.
+const effects = vi.hoisted(() => ({ paused: false }));
+vi.mock("react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react")>();
+  return {
+    ...actual,
+    useEffect: (fn: () => void | (() => void), deps?: unknown[]) =>
+      actual.useEffect(() => (effects.paused ? undefined : fn()), deps),
+  };
+});
+
 const DEVICES = [
   { id: "usb", label: "USB Condenser" },
   { id: "built-in", label: "MacBook Mic" },
@@ -49,6 +61,12 @@ describe("MicRow input chip", () => {
     expect(chip()).toHaveAttribute("aria-expanded", "true");
     const menu = screen.getByRole("menu", { name: "Input" });
     expect(within(menu).getAllByRole("menuitemradio")).toHaveLength(3);
+    // Menu focus moves on a frame, so wait for it before sending keys.
+    await waitFor(() =>
+      expect(
+        within(menu).getByRole("menuitemradio", { name: "Default" }),
+      ).toHaveFocus(),
+    );
     await userEvent.keyboard("{ArrowDown}{ArrowDown}{Enter}");
     expect(onInputChange).toHaveBeenCalledWith("built-in");
     expect(screen.queryByRole("menu")).toBeNull();
@@ -142,13 +160,12 @@ describe("MicRow input chip", () => {
     expect(screen.queryByRole("menu")).toBeNull();
   });
 
-  it("closes the open menu and commits nothing when the lock flips on", async () => {
+  it("closes the open menu when the lock flips on", async () => {
     const onInputChange = vi.fn();
     const { rerender } = render(
       <MicRow mic={ready()} notes={[]} onInputChange={onInputChange} />,
     );
     await userEvent.click(chip());
-    const row = screen.getByRole("menuitemradio", { name: "MacBook Mic" });
     rerender(
       <MicRow
         mic={ready({ inputLocked: true })}
@@ -157,8 +174,32 @@ describe("MicRow input chip", () => {
       />,
     );
     expect(screen.queryByRole("menu")).toBeNull();
-    row.click();
     expect(onInputChange).not.toHaveBeenCalled();
+  });
+
+  it("commits nothing when a row is picked after the lock flips but before the close effect runs", async () => {
+    const onInputChange = vi.fn();
+    const { rerender } = render(
+      <MicRow mic={ready()} notes={[]} onInputChange={onInputChange} />,
+    );
+    await userEvent.click(chip());
+    effects.paused = true;
+    try {
+      rerender(
+        <MicRow
+          mic={ready({ inputLocked: true })}
+          notes={[]}
+          onInputChange={onInputChange}
+        />,
+      );
+    } finally {
+      effects.paused = false;
+    }
+    // The close effect was held back, so the row is still attached.
+    const row = screen.getByRole("menuitemradio", { name: "MacBook Mic" });
+    await userEvent.click(row);
+    expect(onInputChange).not.toHaveBeenCalled();
+    expect(screen.queryByRole("menu")).toBeNull();
   });
 
   it("opens the menu with ArrowDown or ArrowUp on the closed chip", async () => {
