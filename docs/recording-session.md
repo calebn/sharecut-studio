@@ -1099,10 +1099,11 @@ Record stage is unaffected.
 Device permission is an **explicit grant step**: recorded clients click **Allow
 microphone**, which is the only `getUserMedia` call (`useMicPermission` →
 `useMicStream`) and runs directly in that click. The sheet then shows a level fill
-with clip guidance and an input chip (the input's name, or Default) that opens the shared
-Menu of inputs, one choice checked ("Can't change while a take is running." disables the
-chip during a take; Join sheet and Device sheet share `system/MicRow`). A blocked mic reads "Microphone blocked" with
-**How to allow**, which retries; a lost device reads "Your microphone isn't
+with clip guidance and an input chip (the input's name, or Default) that opens the
+shared Menu of inputs, one choice checked ("Can't change while a take is running."
+disables the chip during a take; Join sheet and Device sheet share `system/MicRow`).
+A blocked mic reads "Microphone blocked" with **How to allow**, which retries; a
+lost device reads "Your microphone isn't
 available." with **Retry**. The reusable peak meter hook shares one metering
 `AudioContext`, one worklet module load, and one animation-frame scheduler across
 concurrent mic meters. Each mic keeps its own worklet node, peak hold, and clip
