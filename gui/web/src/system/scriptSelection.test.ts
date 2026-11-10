@@ -11,6 +11,7 @@ import {
   type StopRects,
   selectionSummary,
   selectionText,
+  sentenceSpan,
   spanOf,
   stepEdge,
   trackSpans,
@@ -144,6 +145,31 @@ describe("spanOf", () => {
     expect(spanOf(words(7, 3))).toEqual({ start: 3, end: 7 });
     expect(spanOf({ kind: "cut", id: "c" })).toBeNull();
     expect(spanOf(null)).toBeNull();
+  });
+});
+
+describe("sentenceSpan", () => {
+  const first = SCRIPT_TURNS[0].words;
+  it("runs from after the previous full stop to the next one", () => {
+    expect(sentenceSpan(first, 12)).toEqual({ start: 5, end: 19 });
+    expect(sentenceSpan(first, 2)).toEqual({ start: 0, end: 4 });
+    expect(sentenceSpan(first, 4)).toEqual({ start: 0, end: 4 });
+    expect(sentenceSpan(first, 5)).toEqual({ start: 5, end: 19 });
+  });
+  it("takes a turn with no stop as one sentence and ignores an index outside it", () => {
+    const words = SCRIPT_TURNS[3].words;
+    expect(sentenceSpan(words, 47)).toEqual({ start: 45, end: 53 });
+    expect(sentenceSpan(words, 9)).toBeNull();
+  });
+  it("lets a closing quote or bracket follow the stop", () => {
+    const quoted = [
+      { index: 0, text: "Said" },
+      { index: 1, text: "\u201cstop.\u201d" },
+      { index: 2, text: "Then" },
+      { index: 3, text: "went!)" },
+    ];
+    expect(sentenceSpan(quoted, 0)).toEqual({ start: 0, end: 1 });
+    expect(sentenceSpan(quoted, 2)).toEqual({ start: 2, end: 3 });
   });
 });
 

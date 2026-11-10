@@ -41,12 +41,16 @@ beforeEach(() => {
 });
 
 describe("ScriptHost speaker popover", () => {
-  it("lists the turn's speaker and its sibling lanes, not other tracks", async () => {
+  it("lists the turn's speaker and its sibling lanes, and other speakers as rows that say why they cannot take the turn", async () => {
     render(<ScriptHost />);
     await userEvent.click(speakerButton("Maya"));
     expect(screen.getByRole("radio", { name: /Maya/ })).toBeChecked();
     expect(screen.getByRole("radio", { name: /Anneke/ })).toBeInTheDocument();
-    expect(screen.queryByRole("radio", { name: /Zed/ })).toBeNull();
+    const zed = screen.getByRole("radio", { name: /Zed/ });
+    expect(zed).toHaveAttribute("aria-disabled", "true");
+    expect(zed).toHaveTextContent("Turns move only within a split.");
+    await userEvent.click(zed);
+    expect(moveLane).not.toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: "Add speaker" })).toBeNull();
   });
 

@@ -13,6 +13,8 @@ export type PickerPerson = PersonData & {
   id: string;
   /** Tells two people with the same name apart: "Track 2, 5:11 of audio". */
   detail?: string;
+  /** Why this person cannot be picked. The row stays in the list, dimmed, and says why. */
+  unavailable?: string;
 };
 
 const LABEL = "Who is this voice?";
@@ -117,8 +119,11 @@ export function PersonPicker({
                 }}
                 className="sys-picker-option"
                 data-checked={person.id === currentId ? "" : undefined}
+                aria-disabled={person.unavailable ? true : undefined}
                 tabIndex={person.id === tabStop ? 0 : -1}
-                onClick={() => onPick(person.id)}
+                onClick={() => {
+                  if (!person.unavailable) onPick(person.id);
+                }}
                 onKeyDown={(event) => moveRing(event, person.id)}
               >
                 <span className="sys-picker-mark" aria-hidden="true">
@@ -129,8 +134,10 @@ export function PersonPicker({
                 <PersonAvatar person={person} size={24} />
                 <span className="sys-picker-text">
                   <span className="sys-picker-name">{person.name}</span>
-                  {person.detail ? (
-                    <span className="sys-picker-detail">{person.detail}</span>
+                  {person.unavailable || person.detail ? (
+                    <span className="sys-picker-detail">
+                      {person.unavailable ?? person.detail}
+                    </span>
                   ) : null}
                 </span>
               </button>

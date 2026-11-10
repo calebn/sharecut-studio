@@ -77,6 +77,7 @@ import {
   type StopRects,
   selectionSummary,
   selectionText,
+  sentenceSpan,
   spanOf,
   stepEdge,
 } from "./scriptSelection";
@@ -536,8 +537,9 @@ const GUEST_SCRIPT_LABEL: Record<ScriptGuest, string> = {
  *
  * Pointer gestures (design-system element 14, `useScriptGestures`). The body
  * owns the browser's text selection (off) and the pointer: a mouse drag, a
- * touch long press then drag, Shift-click, a click that selects a word and a
- * double-click or double-tap that asks for Fix text. They need `onSelect`.
+ * touch long press then drag, Shift-click, a click that selects a word, a
+ * triple-click that selects its sentence and a double-tap that asks for
+ * Fix text. They need `onSelect`.
  *
  * Live region. The pane has the one polite region of the script. It says the
  * selection when it changes (once, on release, while a grip is dragged),
@@ -630,7 +632,7 @@ export type ScriptPaneProps = {
   ) => void;
   /**
    * Fix text was asked for on `span`: Enter or F2 on a selected word, or a
-   * double-click or double-tap on a word. Typing never asks. Without this
+   * double-tap on a word. Typing never asks. Without this
    * callback Enter on a selected word runs `onPrimary` and F2 reaches the
    * keymap.
    */
@@ -1435,17 +1437,28 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
           now.props.onCaret?.(index);
           now.props.onSeek?.(index);
           now.props.onSelect?.({ kind: "words", anchor: index, head: index });
-          const at = Date.now();
           const touch = gestures.lastKind.current === "touch";
-          const double = touch
-            ? isDoubleTap(lastTap.current, index, at)
-            : event.detail === 2;
+          if (!touch) {
+            if (event.detail >= 3) {
+              const turn = now.turns.find((t) =>
+                t.words.some((word) => word.index === index),
+              );
+              const sentence = turn && sentenceSpan(turn.words, index);
+              if (sentence) {
+                now.props.onSelect?.({
+                  kind: "words",
+                  anchor: sentence.start,
+                  head: sentence.end,
+                });
+              }
+            }
+            return;
+          }
+          const at = Date.now();
+          const double = isDoubleTap(lastTap.current, index, at);
           lastTap.current = double ? null : { index, at };
           if (double) {
-            now.props.onFixText?.(
-              { start: index, end: index },
-              touch ? "double-tap" : "double-click",
-            );
+            now.props.onFixText?.({ start: index, end: index }, "double-tap");
           }
         },
         key: (event, start) => {
