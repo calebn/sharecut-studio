@@ -226,9 +226,9 @@ export interface AnnounceOptions {
   toast?: false;
 }
 
-/** Public DAW API — same shape as the former Context value. */
 type ChapterSelection = Extract<Selection, { kind: "chapter" }>;
 
+/** Public DAW API — same shape as the former Context value. */
 export interface DawState {
   sourcePreview: SourcePreviewRequest | null;
   sourcePreviewGeneration: number;

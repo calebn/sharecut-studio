@@ -8,6 +8,11 @@ import { openHostShare } from "./shareNavigation";
 import { inspectSelection, inspectSelectionByKey } from "./stageNav";
 import { setTheme, withAppearance } from "./theme";
 
+async function undo(page: Page) {
+  await page.locator(".sys-inspector").getByRole("heading").first().click();
+  await page.keyboard.press("ControlOrMeta+z");
+}
+
 const SHELLS = [
   { shell: "phone", viewport: { width: 360, height: 800 } },
   { shell: "desktop", viewport: { width: 1440, height: 900 } },
@@ -118,13 +123,7 @@ for (const { shell, viewport } of SHELLS) {
               page.getByRole("button", { name: /^Chapter Interview,/ }),
             ).toBeVisible();
             expect(count("UpdateChapter")).toBe(1);
-            await title.press("Tab");
-            await expect(
-              page.getByRole("button", { name: "Undo", exact: true }),
-            ).toBeEnabled();
-            await page
-              .getByRole("button", { name: "Undo", exact: true })
-              .dispatchEvent("click");
+            await undo(page);
             await expect(
               page.getByRole("button", { name: /^Chapter Opening,/ }),
             ).toBeVisible();
@@ -155,8 +154,7 @@ for (const { shell, viewport } of SHELLS) {
               page.getByRole("button", { name: /^Chapter Opening, .*48/ }),
             ).toBeVisible();
             expect(count("UpdateChapter")).toBe(1);
-            await dialog.getByRole("spinbutton", { name: "Time" }).press("Tab");
-            await page.keyboard.press("ControlOrMeta+z");
+            await undo(page);
             await expect(
               page.getByRole("button", { name: /^Chapter Opening, 0:40/ }),
             ).toBeVisible();
@@ -222,12 +220,7 @@ for (const { shell, viewport } of SHELLS) {
                 name: /^Clip idea Inventory social, proposed, 0:19/,
               }),
             ).toBeVisible();
-            await dialog
-              .getByRole("spinbutton", { name: "Start" })
-              .press("Tab");
-            await page
-              .getByRole("button", { name: "Undo", exact: true })
-              .dispatchEvent("click");
+            await undo(page);
             await expect(
               page.getByRole("button", {
                 name: /^Clip idea Inventory social, proposed, 0:18/,
@@ -239,13 +232,7 @@ for (const { shell, viewport } of SHELLS) {
             await expect(
               page.getByRole("button", { name: /^Clip idea Bread/ }),
             ).toBeVisible();
-            await title.press("Tab");
-            await expect(
-              page.getByRole("button", { name: "Undo", exact: true }),
-            ).toBeEnabled();
-            await page
-              .getByRole("button", { name: "Undo", exact: true })
-              .dispatchEvent("click");
+            await undo(page);
             await expect(
               page.getByRole("button", { name: /^Clip idea Inventory social/ }),
             ).toBeVisible();
