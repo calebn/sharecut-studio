@@ -512,7 +512,14 @@ async function smoothJoins(): Promise<ExecuteResult> {
   if (!canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities))
     return disabled(EDITING_OFF_REASON);
   try {
-    await applyFadeRecommendations(s.projectPath, selection.trackId);
+    const joins = await applyFadeRecommendations(
+      s.projectPath,
+      selection.trackId,
+    );
+    if (joins === 0)
+      useDawStore
+        .getState()
+        .announceStatus("No joins on this track need smoothing");
     return OK;
   } catch (error) {
     const reason = errorMessage(error);

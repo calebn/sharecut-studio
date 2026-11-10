@@ -1426,6 +1426,25 @@ describe("barModelOf", () => {
     );
   });
 
+  it("says so when no join on the track needs smoothing", async () => {
+    host({ kind: "track", trackId: MIRA });
+    vi.mocked(api.applyFadeRecommendations).mockResolvedValueOnce(0);
+    expect(await runEditVerb("smoothJoins", factsOf()!)).toEqual({
+      status: "ok",
+    });
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      message: "No joins on this track need smoothing",
+    });
+  });
+
+  it("stays quiet when the reply carries no join count", async () => {
+    host({ kind: "track", trackId: MIRA });
+    useDawStore.setState({ feedbackToast: null });
+    vi.mocked(api.applyFadeRecommendations).mockResolvedValueOnce(null);
+    await runEditVerb("smoothJoins", factsOf()!);
+    expect(useDawStore.getState().feedbackToast).toBeNull();
+  });
+
   it("refuses Smooth all joins on two tracks and announces a host refusal in the error tone", async () => {
     host({ kind: "track", trackId: MIRA });
     useDawStore.getState().selectTracks([MIRA, JONAS]);
