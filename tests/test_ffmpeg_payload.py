@@ -85,6 +85,20 @@ def install(payload, output):
     return owner.ensure_payload(output, target=TARGET, catalog=catalog)
 
 
+@pytest.fixture
+def sleeps(payload, monkeypatch):
+    waits = []
+    monkeypatch.setattr(payload[0].time, "sleep", waits.append)
+    return waits
+
+
+@pytest.fixture
+def no_retry(payload, monkeypatch):
+    monkeypatch.setattr(
+        payload[0].time, "sleep", lambda *_: pytest.fail("retried a non-lock failure")
+    )
+
+
 def test_acquire_reuse_and_corrupt_pair_repair_preserve_provenance(payload, tmp_path, monkeypatch):
     owner, origin, _, catalog, manifest, _, proofs = payload
     output = tmp_path / "installed"
@@ -190,7 +204,7 @@ def test_bounded_archive_refused_before_extraction(payload, tmp_path, monkeypatc
 @pytest.mark.parametrize("failure", [OSError("publication failed"), KeyboardInterrupt("Ctrl-C")])
 @pytest.mark.parametrize("boundary", ["old-moved", "new-publication"])
 def test_failed_replacement_restores_prior_payload(
-    payload, tmp_path, monkeypatch, failure, boundary
+    payload, tmp_path, monkeypatch, failure, boundary, no_retry
 ):
     output = tmp_path / "installed"
     install(payload, output)
@@ -211,11 +225,6 @@ def test_failed_replacement_restores_prior_payload(
         return rename(path, destination)
 
     monkeypatch.setattr(Path, "rename", fail_stage)
-    monkeypatch.setattr(
-        load_script("ffmpeg_payload", register=True).time,
-        "sleep",
-        lambda *_: pytest.fail("retried a non-lock failure"),
-    )
     with pytest.raises(type(failure)) as caught:
         install(payload, output)
     assert caught.value is failure
@@ -230,11 +239,9 @@ def test_failed_replacement_restores_prior_payload(
 
 
 def test_publication_waits_out_a_transient_lock_and_gives_up_on_a_held_one(
-    payload, tmp_path, monkeypatch, capsys
+    payload, tmp_path, monkeypatch, capsys, sleeps
 ):
-    owner = load_script("ffmpeg_payload", register=True)
-    sleeps = []
-    monkeypatch.setattr(owner.time, "sleep", sleeps.append)
+    owner = payload[0]
     rename = Path.rename
     denied = {"left": 2}
 
@@ -277,10 +284,7 @@ def payload_bytes(directory):
     }
 
 
-def test_replacement_waits_out_a_locked_existing_payload(payload, tmp_path, monkeypatch):
-    owner = load_script("ffmpeg_payload", register=True)
-    sleeps = []
-    monkeypatch.setattr(owner.time, "sleep", sleeps.append)
+def test_replacement_waits_out_a_locked_existing_payload(payload, tmp_path, monkeypatch, sleeps):
     output = tmp_path / "installed"
     install(payload, output)
     (output / "unexpected").write_bytes(b"force repair")
@@ -303,11 +307,8 @@ def test_replacement_waits_out_a_locked_existing_payload(payload, tmp_path, monk
 
 
 def test_held_publication_restores_prior_payload_through_a_locked_restore(
-    payload, tmp_path, monkeypatch
+    payload, tmp_path, monkeypatch, sleeps
 ):
-    owner = load_script("ffmpeg_payload", register=True)
-    sleeps = []
-    monkeypatch.setattr(owner.time, "sleep", sleeps.append)
     output = tmp_path / "installed"
     install(payload, output)
     (output / "unexpected").write_bytes(b"force repair")
@@ -331,12 +332,12 @@ def test_held_publication_restores_prior_payload_through_a_locked_restore(
     assert payload_bytes(output) == prior
     assert not previous.exists()
     assert not (tmp_path / ".installed.work").exists()
-    assert len(sleeps) == owner.RENAME_ATTEMPTS - 1 + 1
+    assert len(sleeps) == payload[0].RENAME_ATTEMPTS
 
 
 @pytest.mark.parametrize("target", [".installed.previous", ".installed.work"])
 def test_cleanup_lock_never_replaces_the_result(payload, tmp_path, monkeypatch, capsys, target):
-    owner = load_script("ffmpeg_payload", register=True)
+    owner = payload[0]
     output = tmp_path / "installed"
     install(payload, output)
     (output / "unexpected").write_bytes(b"force repair")
@@ -377,7 +378,7 @@ def test_cleanup_lock_never_replaces_the_result(payload, tmp_path, monkeypatch, 
 
 @pytest.mark.parametrize("recovery_failure", [OSError("sharing violation"), KeyboardInterrupt()])
 def test_failed_restore_retains_previous_for_retry(
-    payload, tmp_path, monkeypatch, recovery_failure
+    payload, tmp_path, monkeypatch, recovery_failure, no_retry
 ):
     output = tmp_path / "installed"
     install(payload, output)
@@ -395,11 +396,6 @@ def test_failed_restore_retains_previous_for_retry(
         return rename(path, destination)
 
     monkeypatch.setattr(Path, "rename", fail_publication_and_restore)
-    monkeypatch.setattr(
-        load_script("ffmpeg_payload", register=True).time,
-        "sleep",
-        lambda *_: pytest.fail("retried a non-lock failure"),
-    )
     with pytest.raises(KeyboardInterrupt) as caught:
         install(payload, output)
     assert caught.value is failure
