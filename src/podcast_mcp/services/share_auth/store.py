@@ -281,7 +281,7 @@ class ShareIdentityStore:
         cur = self._conn.execute(
             "UPDATE users SET password_hash = ?, display_name = COALESCE(display_name, ?) "
             "WHERE id = ? AND (password_hash IS NULL OR password_hash = '') "
-            "AND email_verified = 0",
+            "AND email_verified = 0 AND google_sub IS NULL AND github_sub IS NULL",
             (pw_hash, display_name, existing["id"]),
         )
         self._conn.commit()

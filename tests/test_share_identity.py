@@ -1308,6 +1308,23 @@ def test_register_verified_passwordless_account_is_conflict(
     assert identity_store.verify_email_password("oidc@ex.com", "password1") is None
 
 
+def test_register_unverified_oidc_account_is_conflict(
+    identity_store: ShareIdentityStore,
+) -> None:
+    identity_store.upsert_user_from_oidc(
+        provider="google",
+        subject="g-unverified",
+        email="unv@ex.com",
+        email_verified=False,
+    )
+    reg = TestClient(create_app()).post(
+        "/auth/password/register", json={"email": "unv@ex.com", "password": "password1"}
+    )
+    assert reg.status_code == 409
+    assert reg.headers["X-Sharecut-Error-Code"] == "account_exists"
+    assert identity_store.verify_email_password("unv@ex.com", "password1") is None
+
+
 def test_register_concurrent_passwordless_single_winner(
     identity_store: ShareIdentityStore,
 ) -> None:
