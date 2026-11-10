@@ -114,6 +114,29 @@ Filing rules:
 5. Fix test-quality and doc notes in the same PR, or drop them. Never file them.
 6. A regression your PR caused blocks the PR. Never file it as a follow-up.
 
+## Close issues
+
+Closing keywords such as `Fixes #N` close an issue only when the commit reaches
+`main`. Lanes merge to `develop`, so the issue stays open until the next
+promote unless you close it. This applies to every agent and lane, including
+Codex.
+
+1. When your PR merges to `develop`, close each issue it fixes yourself, with a
+   comment that links the PR. Keep it open only when the issue names a check
+   still owed, such as an owner listening or device check, and say so in the
+   comment.
+2. Before a PR that changes a screen or stage merges, search the open issues
+   for that screen or stage. Close each one the PR fixed or made moot, with a
+   comment that links the PR and says which. A follow-up list with items left
+   stays open. Note the done items in a comment.
+3. On the day you file an issue, close an existing open issue by fixing it or
+   by step 2. A lane that cannot close one does not file. It adds a Ledger line
+   or holds the finding until it can. Data loss, a security exposure and a
+   `beta:blocker` are filed at once, and the close follows.
+4. Close an issue only with evidence: the merged PR, the test that now covers
+   it, or the reason the screen it describes no longer exists. Never close
+   `needs-user-input` issues or an issue with another agent's live claim.
+
 ## Ask the owner
 
 Never wait on the owner and never message them. When work needs a product

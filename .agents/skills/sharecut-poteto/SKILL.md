@@ -36,6 +36,9 @@ description: Use for Sharecut repository contributor work, issue implementation,
    [File follow-ups](references/issue-claims.md#file-follow-ups) before filing
    an issue. It overrides any native guidance to file non-blocking notes as
    follow-up issues.
+5c. At merge, follow [Close issues](references/issue-claims.md#close-issues).
+   Close the issues the PR fixed or made moot, and close one existing issue on
+   the day you file one.
 6. Keep the applicable podcast, Impeccable, and product skills active.
    Select the least expensive capable verified runtime model and reasoning effort
    for each role. Follow the operator's model restrictions and assess a specific
