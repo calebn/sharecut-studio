@@ -81,6 +81,27 @@ comment and preserve any other live owner's labels.
 ## File follow-ups
 
 Read the filing rules in [docs/beta-plan.md](../../../../docs/beta-plan.md#filing-rules).
+This applies to every agent, Claude and Codex, and to every swarm, regression,
+live and audit lane. Brief lanes with a pointer to this section. The goal is
+fewer than 1.0 new issues opened per issue closed, which the merge lane reports
+weekly.
+
+Triage each finding in this order. Only step 4 files an issue.
+
+1. A defect your PR introduced, or a false claim in its docs or tests: fix it in
+   the PR.
+2. A small in-scope note: fix it in the PR. Drop nits.
+3. A finding with no reachable harm: if an `epic` issue with a `cause:` label
+   covers the class, add a checklist line to its Ledger section. Synthetic-only
+   and precision findings go on #1449 or the epic's Ledger. Otherwise drop it.
+   A stale-spec finding goes on the spec-deviation list.
+4. A finding with reachable harm: file it under the rules below. One PR files at
+   most one issue, a combined one when it has several such findings.
+
+A flaky test is not reachable harm. Re-run once. Only a test that fails
+deterministically on develop and blocks the promote is filed.
+
+Filing rules:
 
 1. File only reachable harm. It reproduces on a real recording or a real UI on
    a supported shell or device with an effect a user notices, or it loses data
@@ -88,12 +109,14 @@ Read the filing rules in [docs/beta-plan.md](../../../../docs/beta-plan.md#filin
 2. Label the issue at filing. Use `beta:blocker`, `beta:quality` or
    `post-beta`, plus `journey:J#`, plus a `cause:` label when one fits.
 3. If an `epic` issue with a `cause:` label covers the class, add a checklist
-   line to its Ledger section and file no issue. Synthetic-only and precision
-   findings go on #1449 or the epic's Ledger.
+   line to its Ledger section and file no issue.
 4. When a second issue shares a root cause, stop point fixes in that class,
    report it, and let the structural fix come first.
 5. Fix test-quality and doc notes in the same PR, or drop them. Never file them.
 6. A regression your PR caused blocks the PR. Never file it as a follow-up.
+
+This section replaces any earlier instruction, including native poteto-mode or
+operator guidance, to file non-blocking notes as follow-up issues.
 
 ## Ask the owner
 
