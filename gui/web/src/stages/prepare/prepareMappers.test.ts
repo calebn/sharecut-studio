@@ -869,7 +869,6 @@ const PLAN_SETTINGS = {
     "transcribe_tracks",
     "align_tracks",
     "require_align_accept",
-    "extract_room_tone_beds",
     "fill_gate_holes",
     "clean_audio",
     "compress_tracks",
@@ -911,20 +910,6 @@ describe("the plan for audio added after a run", () => {
     expect(many[1].detail).toBe("3 new tracks only · 1 kept");
     expect(planNote(plan({ newNames: ["A", "B", "C"], kept: 1 }))).toBe(
       "3 tracks have new audio. The other track keeps its transcript.",
-    );
-  });
-
-  it("lists the bed cut under Clean only while its step is enabled", () => {
-    const clean = (p: RerunPlan) => rows(p).find((r) => r.id === "clean");
-    expect(clean(plan())?.detail).toBe("All 4 tracks");
-    const noBed = {
-      ...PLAN_SETTINGS,
-      enabled_steps: PLAN_SETTINGS.enabled_steps.filter(
-        (name) => name !== "extract_room_tone_beds",
-      ),
-    };
-    expect(clean(plan({ settings: noBed }))?.detail).toBe(
-      "All 4 tracks · Fill gate holes, clean, compress, balance",
     );
   });
 
@@ -1222,18 +1207,6 @@ describe("skipping for one run", () => {
     ]);
   });
 
-  it("skips the room-tone bed step with the Clean row", () => {
-    const withBed = {
-      step_names: ["align_tracks", "extract_room_tone_beds", "clean_audio"],
-      enabled_steps: ["align_tracks", "extract_room_tone_beds", "clean_audio"],
-    };
-    expect(oneRunSkipSteps(withBed, new Set())).toEqual([]);
-    expect(oneRunSkipSteps(withBed, new Set(["clean"]))).toEqual([
-      "extract_room_tone_beds",
-      "clean_audio",
-    ]);
-  });
-
   it("skips the analysis and the sound scan together when Find suggestions is skipped", () => {
     const on = {
       ...cfg,
@@ -1426,7 +1399,6 @@ describe("successful selected work", () => {
         [step("assemble_timeline", "ok", { summary: "stems assembled" })],
         {
           skip_steps: [
-            "extract_room_tone_beds",
             "fill_gate_holes",
             "clean_audio",
             "compress_tracks",

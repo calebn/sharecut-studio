@@ -61,7 +61,6 @@ const PLAN_OPERATIONS: Readonly<Record<ReadyRowId, readonly PlanOperation[]>> =
       { step: "require_align_accept", label: "Check alignment" },
     ],
     clean: [
-      { step: "extract_room_tone_beds", label: "Cut room-tone beds" },
       { step: "fill_gate_holes", label: "Fill gate holes" },
       { step: "clean_audio", label: "Clean" },
       { step: "compress_tracks", label: "Compress" },
