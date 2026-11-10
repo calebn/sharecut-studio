@@ -231,7 +231,6 @@ describe("range fields", () => {
       project: twoTrackProject(),
       selection: null,
       sessionRegion: { start_sec: 3, end_sec: 4 },
-      agentRangeScope: ["b"],
     });
     useDawStore.getState().armRange({ start: 0, end: 5, trackIds: ["a"] });
     useDawStore.getState().setAgentRangeScope(["b"]);
