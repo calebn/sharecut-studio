@@ -237,7 +237,11 @@ def auth_password_register(body: PasswordRegisterRequest, response: Response) ->
         raise coded_http_error(
             409, "an account with this email already exists", code="account_exists"
         )
-    session = store.create_session(user["id"])
+    session = store.create_registration_session(user["id"])
+    if session is None:
+        raise coded_http_error(
+            409, "an account with this email already exists", code="account_exists"
+        )
     _set_session_cookie(response, session)
     return {"user": store.get_user(user["id"]), "session": session}
 

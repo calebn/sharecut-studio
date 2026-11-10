@@ -1424,3 +1424,67 @@ def test_magic_link_for_new_email_creates_verified_user(
         identity_store.resolve_session(identity_store.create_session(consumed["user"]["id"]))
         is not None
     )
+
+
+def _session_count(store: ShareIdentityStore, user_id: str) -> int:
+    row = store._conn.execute(
+        "SELECT COUNT(*) AS n FROM sessions WHERE user_id = ?", (user_id,)
+    ).fetchone()
+    return int(row["n"])
+
+
+def _verify_after_register(monkeypatch) -> None:
+    original = ShareIdentityStore.register_email_password
+
+    def racing(self, email, password, **kwargs):
+        user, outcome = original(self, email, password, **kwargs)
+        self.mark_email_verified(user["id"])
+        return user, outcome
+
+    monkeypatch.setattr(ShareIdentityStore, "register_email_password", racing)
+
+
+def test_register_signed_in_path_rejects_session_when_verified_mid_flight(
+    identity_store: ShareIdentityStore, monkeypatch
+) -> None:
+    client = TestClient(create_app())
+    body = {"email": "race-in@example.com", "password": "password1"}
+    assert client.post("/auth/password/register", json=body).status_code == 200
+    client.cookies.clear()
+    _verify_after_register(monkeypatch)
+    resp = client.post("/auth/password/register", json=body)
+    assert resp.status_code == 409
+    assert resp.headers["X-Sharecut-Error-Code"] == "account_exists"
+    assert not resp.cookies
+    user = identity_store.get_user_by_email("race-in@example.com")
+    assert user is not None
+    assert _session_count(identity_store, user["id"]) == 0
+
+
+def test_register_password_set_path_rejects_session_when_verified_mid_flight(
+    identity_store: ShareIdentityStore, monkeypatch
+) -> None:
+    invited = identity_store.create_or_get_email_user("race-set@example.com")
+    _verify_after_register(monkeypatch)
+    client = TestClient(create_app())
+    resp = client.post(
+        "/auth/password/register",
+        json={"email": "race-set@example.com", "password": "password1"},
+    )
+    assert resp.status_code == 409
+    assert resp.headers["X-Sharecut-Error-Code"] == "account_exists"
+    assert not resp.cookies
+    assert _session_count(identity_store, invited["id"]) == 0
+
+
+def test_register_normal_flow_returns_working_session(
+    identity_store: ShareIdentityStore,
+) -> None:
+    client = TestClient(create_app())
+    resp = client.post(
+        "/auth/password/register",
+        json={"email": "normal-reg@example.com", "password": "password1"},
+    )
+    assert resp.status_code == 200
+    assert resp.cookies
+    assert identity_store.resolve_session(resp.json()["session"]) is not None
