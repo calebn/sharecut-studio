@@ -545,6 +545,23 @@ describe("ScriptPane touch", () => {
     expect(onFixText).toHaveBeenCalledTimes(1);
   });
 
+  it("a pen double tap starts Fix text like a finger's, and a pen click does not", () => {
+    const { onFixText } = setup();
+    const PEN = { pointerId: 9, pointerType: "pen", isPrimary: true } as const;
+    const tap = () => {
+      fireEvent.pointerDown(word("small"), { ...PEN, ...centre(12) });
+      fireEvent.pointerUp(word("small"), { ...PEN, ...centre(12) });
+      fireEvent.click(word("small"), { detail: 1 });
+    };
+    tap();
+    expect(onFixText).not.toHaveBeenCalled();
+    advance(100);
+    tap();
+    expect(onFixText.mock.calls).toEqual([
+      [{ start: 12, end: 12 }, "double-tap"],
+    ]);
+  });
+
   it("a second tap too late, or on another word, is only a tap", () => {
     const { onFixText } = setup();
     const tap = (at: number) => {

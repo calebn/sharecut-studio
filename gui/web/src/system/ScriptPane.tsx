@@ -1437,8 +1437,8 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
           now.props.onCaret?.(index);
           now.props.onSeek?.(index);
           now.props.onSelect?.({ kind: "words", anchor: index, head: index });
-          const touch = gestures.lastKind.current === "touch";
-          if (!touch) {
+          const mouse = gestures.lastKind.current === "mouse";
+          if (mouse) {
             if (event.detail >= 3) {
               const turn = now.turns.find((t) =>
                 t.words.some((word) => word.index === index),
