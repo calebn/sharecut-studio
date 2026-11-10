@@ -13,21 +13,23 @@ type Options = {
   muted: boolean;
   /** The take is recording; false (paused) freezes the count. */
   counting: boolean;
+  /** A take is recording or paused; false (lobby, stopped) drops the tap and the count. */
+  onAir: boolean;
 };
 
 /**
  * True once the mic has heard 10 s of speech while muted (`mutedSpeechGate`).
- * The tap on a mic clone exists only while muted and is dropped on unmute,
- * stop, unmount or a new stream. If it cannot start, this stays false.
+ * The tap on a mic clone exists only while muted and on air; unmute, take stop,
+ * unmount or a new stream drops it and resets the count (a pause only freezes it). If it cannot start, this stays false.
  */
 export function useMutedSpeech(
   stream: MediaStream | null,
-  { muted, counting }: Options,
+  { muted, counting, onAir }: Options,
 ): boolean {
   const [speech, setSpeech] = useState(false);
   const countingRef = useRef(counting);
   countingRef.current = counting;
-  const listening = muted && stream !== null;
+  const listening = muted && onAir && stream !== null;
 
   useEffect(() => {
     if (!listening || !stream) return;

@@ -266,6 +266,7 @@ function GuestRoomSession({
   const mutedSpeech = useMutedSpeech(producer ? null : mic.stream, {
     muted: recorded && (me?.muted ?? false),
     counting: state === "recording",
+    onAir,
   });
   const dropped = !connected && onAir && recorded;
   const micNeedsAttention =

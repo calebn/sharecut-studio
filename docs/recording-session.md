@@ -848,10 +848,13 @@ shows only after 10 s of speech while the seat is muted (`mutedSpeechGate` in
 `record/alertGates.ts`, run by `useMutedSpeech`): block RMS of 1024 samples,
 polled every 100 ms, starts speech at -45 dBFS and holds it down to -50 dBFS plus
 400 ms, and the 10 s is accumulated rather than consecutive. 4 s of quiet resets
-the count and clears the alert, unmuting or the take stopping resets it, a pause
-freezes it, and a tick gap over 500 ms (a throttled tab) credits nothing. The
-shared mic track is disabled by mute, so the level comes from a clone of the
-stream (`record/mutedSpeechTap.ts`), opened only while muted. Guest, host stage
+the count and clears the alert, unmuting or the take stopping resets it (the
+clone is dropped and the next take starts from zero), a pause freezes it, and a
+tick gap over 500 ms (a throttled tab) credits nothing, so the alert cannot fire
+while the tab is hidden. The shared mic track is disabled by mute, so the level
+comes from a clone of the stream (`record/mutedSpeechTap.ts`), opened only while
+muted during a take (recording or paused) and read only while the shared audio
+context is running. Guest, host stage
 and the away badge dot use the same gate; producers have no mic and never see
 it. If the clone cannot be tapped, no alert shows. The Join
 sheet shows a clip indicator while the guest checks their mic. On the host
