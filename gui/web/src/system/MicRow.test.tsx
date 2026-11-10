@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -19,6 +22,14 @@ const ready = (extra: Partial<Extract<JoinMic, { status: "ready" }>> = {}) =>
     inputId: "usb",
     ...extra,
   }) satisfies JoinMic;
+
+const css = readFileSync(
+  join(
+    dirname(fileURLToPath(import.meta.url)),
+    "../styles/partials/system-record.css",
+  ),
+  "utf8",
+);
 
 const chip = () => screen.getByRole("button", { name: /^Input:/ });
 
@@ -159,5 +170,14 @@ describe("MicRow input chip", () => {
     await expectNoA11yViolations(container);
     await userEvent.click(chip());
     await expectNoA11yViolations(container);
+  });
+
+  it("sizes the chip and its menu rows to --touch-min on every pointer", () => {
+    expect(css).toMatch(
+      /\.sys-mic-input-root \{\s*--menu-item-min-block-size: var\(--touch-min\);/,
+    );
+    expect(css).toMatch(
+      /\.sys-mic-input \{[^}]*min-block-size: var\(--touch-min\);/,
+    );
   });
 });
