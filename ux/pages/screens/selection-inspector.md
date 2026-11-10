@@ -8,6 +8,7 @@
 | **Phone** | Ordinary modifier sheets use half or full height. Heading, actions, fields, errors, and audition footer scroll together. Scroll to the top for Close, Expand, and Collapse. Ordinary modifiers use a taller half height. The compact inspector uses peek, half, and full heights with its header pinned outside one bounded body scroller. Feedback and fields scroll in that body. A clip's trim and fade fields, a suggestion's Source start and end, and an envelope point's Time and Level each carry the strip's fine and coarse minus and plus nudge buttons (hold to repeat) beside the field. Sheets never stack. |
 | **Tablet** | The Inspector card anchors to the floating Action bar in the Edit workspace, with the selected element or workspace bottom edge as fallback. Its heading stays fixed while its body scrolls. |
 | **Desktop** | The Inspector card anchors to the floating Action bar in the Edit workspace, with the selected element or workspace bottom edge as fallback. Its heading stays fixed while its body scrolls. |
+| **Focus** | Close returns focus to the control that opened the Inspector, including a phone sheet opened from a track header. Focus you moved elsewhere before Close stays where it is. |
 | **Empty** | “Select a clip, edit, or word” |
 | **Out of scope** | Deep nested wizards; one panel per MCP tool name |
 
