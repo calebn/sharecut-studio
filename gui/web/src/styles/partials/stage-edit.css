@@ -276,8 +276,8 @@ html[data-frame-short] .edit-dock {
 
 .phone-edit-bar > .edit-overview {
   order: 3;
-  flex: 1 0 100%;
   padding: 0;
+  flex: 1 0 100%;
 }
 
 .phone-edit-mix {
@@ -343,7 +343,7 @@ html[data-frame-short] .edit-dock {
     grid-area: 1 / 2;
     order: 0;
     min-inline-size: 0;
-    padding: 0;
+    margin-inline: var(--space-3);
   }
 
   .phone-edit-lanes,

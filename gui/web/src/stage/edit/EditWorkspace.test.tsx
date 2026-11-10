@@ -295,7 +295,7 @@ describe("EditWorkspace arrangements", () => {
       expect(strip()).toHaveClass("sys-overview--16");
     });
 
-    it("shares the bar row with the surface switch so it adds no height", () => {
+    it("mounts inside the bar with the surface switch", () => {
       stubViewportShell("phone");
       useDawStore.setState({
         project: minimalProject({ tracks: [sampleTrack()] }),
