@@ -13,11 +13,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from podcast_mcp.config.defaults import load_defaults
+from podcast_mcp.gui.routes import review_share
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp.tools.review import create_review_share_tool
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.review import ReviewService
+from podcast_mcp.services.collaboration.review_versions import get_version
 from podcast_mcp.services.collaboration.share import (
     ShareService,
     share_add_reply,
@@ -2815,3 +2817,141 @@ def test_record_token_on_the_review_page_serves_the_app(
     ws = _seed_premix(minimal_project, sample_wav)
     token = ShareService(ws).create_record_room()["guest"]["token"]
     _assert_shell(_shell_client(tmp_path).get(f"/r/{token}"), token)
+
+
+# --- GET /api/review/{token}/peaks (issue #3486, PR 2b) ---
+
+PEAK_COUNT = 512
+
+
+def _peaks_published(minimal_project, sample_wav, capabilities=("play", "comment")):
+    ws = _seed_premix(minimal_project, sample_wav)
+    ver = ReviewService(ws).publish(label="Peaks")
+    share = ShareService(ws).create(review_version_id=ver["id"], capabilities=list(capabilities))
+    return ws, ver, share["token"]
+
+
+def _peaks_sidecar(ws: ProjectWorkspace, version_id: str) -> Path:
+    return Path(ws.project.workspace_dir) / "artifacts" / "review" / version_id / "peaks.json"
+
+
+def test_peaks_are_512_rounded_floats_in_unit_range_with_a_peak_at_one(
+    minimal_project, sample_wav, tmp_workspace
+):
+    _ws, _ver, token = _peaks_published(minimal_project, sample_wav)
+    r = TestClient(create_app()).get(f"/api/review/{token}/peaks")
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("application/json")
+    peaks = r.json()
+    assert isinstance(peaks, list)
+    assert len(peaks) == PEAK_COUNT
+    assert all(isinstance(p, (int, float)) and 0.0 <= p <= 1.0 for p in peaks)
+    assert all(round(p, 2) == p for p in peaks)
+    assert max(peaks) == 1.0
+
+
+def test_peaks_require_the_play_capability(minimal_project, sample_wav, tmp_workspace):
+    _ws, _ver, token = _peaks_published(minimal_project, sample_wav, capabilities=("comment",))
+    client = TestClient(create_app())
+    audio = client.get(f"/api/review/{token}/audio")
+    assert audio.status_code == 403
+    r = client.get(f"/api/review/{token}/peaks")
+    assert r.status_code == audio.status_code
+    assert not isinstance(r.json(), list)
+
+
+def test_peaks_are_empty_when_the_audio_file_is_missing_locally(
+    minimal_project, sample_wav, tmp_workspace
+):
+    _ws, ver, token = _peaks_published(minimal_project, sample_wav)
+    project = load_project(minimal_project)
+    version = get_version(project, ver["id"])
+    root = project.workspace_path()
+    for rel in (version.audio_relpath, version.mp3_relpath):
+        if rel:
+            (root / rel).unlink(missing_ok=True)
+    r = TestClient(create_app()).get(f"/api/review/{token}/peaks")
+    assert r.status_code == 200
+    assert r.json() == []
+
+
+def test_peaks_are_decoded_once_and_cached_on_disk_per_version(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, ver, token = _peaks_published(minimal_project, sample_wav)
+    from podcast_mcp.services.collaboration import review_peaks
+
+    calls: list[Path] = []
+    real = review_peaks.peak_envelope
+
+    def counting(path, *args, **kwargs):
+        calls.append(Path(path))
+        return real(path, *args, **kwargs)
+
+    monkeypatch.setattr(review_peaks, "peak_envelope", counting)
+    client = TestClient(create_app())
+    first = client.get(f"/api/review/{token}/peaks").json()
+    second = client.get(f"/api/review/{token}/peaks").json()
+    assert first == second and len(first) == PEAK_COUNT
+    assert len(calls) == 1
+    sidecar = _peaks_sidecar(ws, ver["id"])
+    assert sidecar.is_file()
+    assert json.loads(sidecar.read_text(encoding="utf-8")) == first
+
+
+def test_peaks_sidecar_from_an_earlier_process_is_served_without_decoding(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, ver, token = _peaks_published(minimal_project, sample_wav)
+    sidecar = _peaks_sidecar(ws, ver["id"])
+    sidecar.parent.mkdir(parents=True, exist_ok=True)
+    marker = [round(i / (PEAK_COUNT - 1), 2) for i in range(PEAK_COUNT)]
+    sidecar.write_text(json.dumps(marker), encoding="utf-8")
+
+    from podcast_mcp.services.collaboration import review_peaks
+
+    def boom(*_a, **_k):
+        raise AssertionError("must not decode when the sidecar exists")
+
+    monkeypatch.setattr(review_peaks, "peak_envelope", boom)
+    r = TestClient(create_app()).get(f"/api/review/{token}/peaks")
+    assert r.status_code == 200
+    assert r.json() == marker
+
+
+def test_peaks_hold_an_audio_slot_like_audio(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _ws, _ver, token = _peaks_published(minimal_project, sample_wav)
+    taken: list[str] = []
+    released: list[str] = []
+
+    def slot(tok):
+        taken.append(tok)
+        return lambda: released.append(tok)
+
+    monkeypatch.setattr(review_share, "_audio_slot", slot)
+    r = TestClient(create_app()).get(f"/api/review/{token}/peaks")
+    assert r.status_code == 200
+    assert taken == [token]
+    assert released == [token]
+
+
+def test_peaks_use_the_audio_rate_class(minimal_project, sample_wav, tmp_workspace, monkeypatch):
+    _ws, _ver, token = _peaks_published(minimal_project, sample_wav)
+    classes: list[str] = []
+    real = review_share._rate_limit
+
+    def spy(tok, kind):
+        classes.append(kind)
+        return real(tok, kind)
+
+    monkeypatch.setattr(review_share, "_rate_limit", spy)
+    TestClient(create_app()).get(f"/api/review/{token}/peaks")
+    assert "audio" in classes
+
+
+def test_the_project_view_does_not_carry_peaks(minimal_project, sample_wav, tmp_workspace):
+    _ws, _ver, token = _peaks_published(minimal_project, sample_wav)
+    body = TestClient(create_app()).get(f"/api/review/{token}/project").json()
+    assert "peaks" not in body and "episode_peaks" not in body
