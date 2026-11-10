@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from copy import deepcopy
 
 import pytest
@@ -9,7 +10,7 @@ from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.cut_application import approve_edits
 from podcast_mcp.edits.decisions import update_pending_edit
 from podcast_mcp.edits.edit_log import plan_restores
-from podcast_mcp.edits.range_edits import edit_selected_range
+from podcast_mcp.edits.range_edits import _refuse_overlapping, edit_selected_range
 from podcast_mcp.edits.range_target import RangeChangedError, range_geometry, range_media_seal
 from podcast_mcp.models import (
     Clip,
@@ -967,6 +968,66 @@ def test_a_derived_id_cannot_reuse_an_id_another_command_chose(tmp_path):
         )
     assert refused.value.code == "edit_id_taken"
     assert [e.id for e in project.edit_decisions] == ["batch:1"]
+
+
+def test_an_empty_target_list_is_refused(tmp_path):
+    project = one_speaker_project(tmp_path)
+    with pytest.raises(ValueError, match="at least one target") as refused:
+        cut_targets(project, [])
+    assert refused.value.code == "no_targets"
+
+
+def test_an_applied_command_id_cannot_be_reused_by_a_derived_id(tmp_path):
+    project = one_speaker_project(tmp_path)
+    cut_targets(project, [target(project, ((10, 11),), ("a",))], action_id="batch:1")
+    with pytest.raises(ValueError, match="batch:1 is already used") as refused:
+        cut_targets(
+            project,
+            [target(project, ((20, 21),), ("a",)), target(project, ((20, 21),), ("b",))],
+        )
+    assert refused.value.code == "edit_id_taken"
+    assert len(project.editorial.edit_log) == 1
+
+
+def wide_targets(count, per_target, tracks):
+    return [
+        ExactRangeTarget.model_construct(
+            kind="exact_range",
+            intervals=[
+                RangeInterval(start=n * 2000 + i * 2, end=n * 2000 + i * 2 + 1)
+                for i in range(per_target)
+            ],
+            track_ids=tracks,
+            clips=[],
+            media_seals={},
+        )
+        for n in range(count)
+    ]
+
+
+def test_the_overlap_check_is_fast_at_the_payload_limits():
+    started = time.perf_counter()
+    _refuse_overlapping(wide_targets(64, 1000, ["a"]))
+    assert time.perf_counter() - started < 1
+
+
+def test_the_overlap_check_finds_one_late_clash_among_many_targets():
+    targets = wide_targets(64, 1000, ["a"])
+    clash = wide_targets(1, 1, ["a"])[0]
+    object.__setattr__(
+        clash, "intervals", [RangeInterval(start=63 * 2000 + 10.5, end=63 * 2000 + 11.5)]
+    )
+    with pytest.raises(ValueError, match="Two targets cover the same audio"):
+        _refuse_overlapping([*targets, clash])
+
+
+def test_the_limits_of_64_targets_and_1000_intervals_are_accepted():
+    targets = wide_targets(64, 1000, ["a"])
+    payload = {
+        "action": "cut",
+        "targets": [t.model_dump(mode="json") for t in targets],
+    }
+    assert len(validate_payload("EditSelectedRange", payload)["targets"]) == 64
 
 
 def test_a_cut_all_record_is_restored_through_history_like_a_hand_cut(tmp_path):

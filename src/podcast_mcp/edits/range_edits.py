@@ -27,16 +27,27 @@ class RangeEditResult(TypedDict):
 
 
 def _refuse_overlapping(targets: Sequence[ExactRangeTarget]) -> None:
-    """Two targets over the same track and time would be removed twice and counted twice."""
-    for n, a in enumerate(targets):
-        for b in targets[n + 1 :]:
-            if set(a.track_ids).isdisjoint(b.track_ids):
-                continue
-            if any(x.start < y.end and y.start < x.end for x in a.intervals for y in b.intervals):
+    by_track: dict[str, list[tuple[float, float, int]]] = {}
+    for n, target in enumerate(targets):
+        for track_id in target.track_ids:
+            by_track.setdefault(track_id, []).extend((x.start, x.end, n) for x in target.intervals)
+    for spans in by_track.values():
+        spans.sort()
+        best = (float("-inf"), -1)
+        runner = (float("-inf"), -1)
+        for start, end, n in spans:
+            other = runner if best[1] == n else best
+            if other[0] > start and start < end:
                 raise CodedValueError(
                     "Two targets cover the same audio on one track. Send each stretch once.",
                     code="overlapping_targets",
                 )
+            if best[1] == n:
+                best = (max(best[0], end), n)
+            elif end > best[0]:
+                runner, best = best, (end, n)
+            elif end > runner[0]:
+                runner = (end, n)
 
 
 def edit_selected_range(
@@ -51,11 +62,8 @@ def edit_selected_range(
     boundary_intent: CutIntent = CutIntent.PROGRAMMATIC,
     defaults: EffectiveConfig,
 ) -> RangeEditResult:
-    """Cut or mute every target in one pass, so the caller's mutation is one history step.
-
-    Each target is one speaker's track set. Ids are ``action_id`` then ``action_id:1``,
-    ``action_id:2`` so a retried command reuses them.
-    """
+    if not targets:
+        raise CodedValueError("Send at least one target to edit.", code="no_targets")
     base_id = action_id or f"range_{uuid4().hex}"
     _refuse_overlapping(targets)
     edits: list[EditDecision] = []
@@ -90,7 +98,13 @@ def edit_selected_range(
                 boundary_intent=boundary_intent,
             )
         )
-    taken = {e.id for e in project.edit_decisions} & {e.id for e in edits}
+    used = {e.id for e in project.edit_decisions}
+    for record in project.editorial.edit_log:
+        used.update(record.decision_ids)
+        applied_id = record.params.get("action_id")
+        if isinstance(applied_id, str):
+            used.add(applied_id)
+    taken = used & {e.id for e in edits}
     if taken:
         raise CodedValueError(
             f"Edit id {sorted(taken)[0]} is already used. Send a different command_id.",
