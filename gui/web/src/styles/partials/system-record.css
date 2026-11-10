@@ -1040,6 +1040,26 @@ html:not([data-shell="phone"], [data-shell="tablet"])
   inline-size: 100%;
 }
 
+.sys-mic-input-root {
+  display: block;
+  inline-size: 100%;
+}
+
+.sys-mic-input {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  inline-size: 100%;
+  min-block-size: var(--touch-min);
+  text-align: start;
+}
+
+.sys-mic-input-name {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
 .sys-join-input:focus-visible {
   border-color: var(--color-accent);
 }

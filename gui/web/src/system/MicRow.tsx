@@ -1,10 +1,69 @@
-import type { CSSProperties } from "react";
-import { Field } from "../ui";
-import { JOIN_TEXT, type JoinMic, type JoinNote } from "./joinSheetModel";
+import { type CSSProperties, useState } from "react";
+import { Button, Field, Menu, MenuItem } from "../ui";
+import type { FieldControlProps } from "../ui/Field";
+import {
+  JOIN_TEXT,
+  type JoinInput,
+  type JoinMic,
+  type JoinNote,
+} from "./joinSheetModel";
 import { SystemIcon } from "./SystemIcon";
 
+function InputMenu({
+  control,
+  devices,
+  inputId,
+  locked,
+  onInputChange,
+}: {
+  control: FieldControlProps;
+  devices: JoinInput[];
+  inputId: string;
+  locked?: boolean;
+  onInputChange?: (inputId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const current =
+    devices.find((device) => device.id === inputId)?.label ??
+    JOIN_TEXT.defaultInput;
+  const choices = [{ id: "", label: JOIN_TEXT.defaultInput }, ...devices];
+  return (
+    <Menu
+      open={open}
+      onOpenChange={setOpen}
+      label="Input"
+      className="ui-menu-root sys-mic-input-root"
+      trigger={(props) => (
+        <Button
+          {...props}
+          {...control}
+          className="sys-mic-input"
+          aria-label={`Input: ${current}`}
+          disabledReason={locked ? JOIN_TEXT.inputLocked : undefined}
+        >
+          <span className="sys-mic-input-name">{current}</span>
+          <SystemIcon name="chevron-down" size={14} />
+        </Button>
+      )}
+    >
+      {choices.map((choice) => (
+        <MenuItem
+          key={choice.id}
+          checked={choice.id === inputId}
+          onSelect={() => {
+            setOpen(false);
+            onInputChange?.(choice.id);
+          }}
+        >
+          {choice.label}
+        </MenuItem>
+      ))}
+    </Menu>
+  );
+}
+
 /**
- * The mic row's control: the input menu when there are two or more inputs,
+ * The mic row's control: the input chip that opens the input menu,
  * the level meter with its clip tick, and the notes under it. Shared by the
  * Join sheet and the Device sheet.
  */
@@ -27,20 +86,13 @@ export function MicRow({
           className="sys-join-field"
         >
           {(control) => (
-            <select
-              {...control}
-              className="sys-join-input"
-              value={mic.inputId ?? ""}
-              disabled={mic.inputLocked}
-              onChange={(event) => onInputChange?.(event.target.value)}
-            >
-              <option value="">{JOIN_TEXT.defaultInput}</option>
-              {mic.devices?.map((device) => (
-                <option key={device.id} value={device.id}>
-                  {device.label}
-                </option>
-              ))}
-            </select>
+            <InputMenu
+              control={control}
+              devices={mic.devices ?? []}
+              inputId={mic.inputId ?? ""}
+              locked={mic.inputLocked}
+              onInputChange={onInputChange}
+            />
           )}
         </Field>
       ) : null}

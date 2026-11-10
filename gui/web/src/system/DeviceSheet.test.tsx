@@ -39,13 +39,18 @@ describe("DeviceSheet", () => {
   it("applies an input change at once", async () => {
     const onInputChange = vi.fn();
     render(sheet({ onInputChange }));
-    await userEvent.selectOptions(screen.getByLabelText("Input"), "b");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Input: USB Mic" }),
+    );
+    await userEvent.click(
+      screen.getByRole("menuitemradio", { name: "Headset" }),
+    );
     expect(onInputChange).toHaveBeenCalledWith("b");
   });
 
   it("locks the input menu while a take is running", () => {
     render(sheet({ mic: { ...READY, inputLocked: true } }));
-    expect(screen.getByLabelText("Input")).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Input:/ })).toBeDisabled();
     expect(
       screen.getByText("Can't change while a take is running."),
     ).toBeVisible();
@@ -58,9 +63,9 @@ describe("DeviceSheet", () => {
       inputId: "a",
     } satisfies DeviceMic;
     const { rerender } = render(sheet({ mic: { ...lost, inputLocked: true } }));
-    expect(screen.getByLabelText("Input")).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Input:/ })).toBeDisabled();
     rerender(sheet({ mic: lost }));
-    expect(screen.getByLabelText("Input")).toBeEnabled();
+    expect(screen.getByRole("button", { name: /^Input:/ })).toBeEnabled();
   });
 
   it("toggles headphones, and omits the toggle without a handler", async () => {
@@ -205,7 +210,7 @@ describe("DeviceSheet", () => {
     const { baseElement } = render(
       sheet({ mic: { status: "denied" }, onMicAction }),
     );
-    expect(screen.queryByLabelText("Input")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Input:/ })).toBeNull();
     await userEvent.click(
       screen.getByRole("button", { name: "How to allow the microphone" }),
     );

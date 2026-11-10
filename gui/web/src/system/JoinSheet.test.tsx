@@ -207,17 +207,30 @@ describe("JoinSheet input, storage and rejoin", () => {
         onInputChange={onInputChange}
       />,
     );
-    const picker = screen.getByRole("combobox", { name: "Input" });
-    expect(picker).toHaveValue("built-in");
-    await userEvent.selectOptions(picker, "usb");
+    const chip = screen.getByRole("button", { name: "Input: MacBook Mic" });
+    expect(chip).toHaveAttribute("aria-haspopup", "menu");
+    await userEvent.click(chip);
+    const menu = screen.getByRole("menu", { name: "Input" });
+    const rows = within(menu).getAllByRole("menuitemradio");
+    expect(rows.map((row) => row.textContent)).toEqual([
+      "Default",
+      "USB Condenser",
+      "MacBook Mic",
+    ]);
+    expect(rows[2]).toHaveAttribute("aria-checked", "true");
+    await userEvent.click(rows[1]);
     expect(onInputChange).toHaveBeenCalledWith("usb");
-    await userEvent.selectOptions(picker, "Default");
+    expect(screen.queryByRole("menu")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /^Input:/ }));
+    await userEvent.click(
+      screen.getByRole("menuitemradio", { name: "Default" }),
+    );
     expect(onInputChange).toHaveBeenLastCalledWith("");
   });
 
   it("locks the picker while a take runs and says why", () => {
     render(<Harness {...READY} mic={withDevices({ inputLocked: true })} />);
-    expect(screen.getByRole("combobox", { name: "Input" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Input:/ })).toBeDisabled();
     expect(
       screen.getByText("Can't change while a take is running."),
     ).toBeVisible();
@@ -225,9 +238,9 @@ describe("JoinSheet input, storage and rejoin", () => {
 
   it("shows no picker without devices or before the mic is ready", () => {
     const { rerender } = render(<Harness {...READY} />);
-    expect(screen.queryByRole("combobox")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Input:/ })).toBeNull();
     rerender(<Harness {...READY} mic={{ status: "idle" }} />);
-    expect(screen.queryByRole("combobox")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Input:/ })).toBeNull();
   });
 
   it("names the storage blocker first and offers its action", async () => {

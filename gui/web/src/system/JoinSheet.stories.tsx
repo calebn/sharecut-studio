@@ -283,9 +283,13 @@ export const GuestStaleInput: Story = {
     await expect(
       dialog.getByText(/saved microphone isn't available/),
     ).toBeVisible();
-    await userEvent.selectOptions(
-      dialog.getByRole("combobox", { name: "Input" }),
-      "usb",
+    await userEvent.click(
+      dialog.getByRole("button", { name: "Input: Default" }),
+    );
+    await userEvent.click(
+      await within(document.body).findByRole("menuitemradio", {
+        name: "USB Condenser",
+      }),
     );
     await expect(args.onInputChange).toHaveBeenCalledWith("usb");
   },
