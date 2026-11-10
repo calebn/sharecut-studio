@@ -56,6 +56,24 @@ describe("inspectorHeading for a track selection", () => {
     expect(heading.onRename).toBeTypeOf("function");
   });
 
+  it("marks a voice track with its person's colour, the one the Person picker shows", () => {
+    const people = minimalProject({
+      tracks: [
+        sampleTrack({ id: "a", label: "A", speaker: "Mira" }),
+        sampleTrack({ id: "b", label: "B", speaker: "Jonas" }),
+        sampleTrack({ id: "c", label: "C", speaker: "jonas" }),
+        sampleTrack({ id: "d", label: "D", speaker: null }),
+        sampleTrack({ id: "m", label: "M", role: "music", speaker: "Mira" }),
+      ],
+    });
+    const colour = (trackId: string) =>
+      inspectorHeading({ kind: "track", trackId }, people).mark?.colorIndex;
+    expect(colour("c")).toBe(1);
+    expect(colour("b")).toBe(1);
+    expect(colour("d")).toBe(0);
+    expect(colour("m")).toBe(4);
+  });
+
   it("leaves a missing track unmarked and a multi-track selection on the icon", () => {
     expect(
       inspectorHeading({ kind: "track", trackId: "gone" }, project),
