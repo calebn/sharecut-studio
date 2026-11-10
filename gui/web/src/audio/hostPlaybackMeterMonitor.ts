@@ -261,11 +261,7 @@ async function discoverWav(entry: WavEntry): Promise<PcmLayout | null> {
       const channels = view.getUint16(2, true);
       const sampleRate = view.getUint32(4, true);
       const blockAlign = view.getUint16(12, true);
-      if (
-        view.getUint16(0, true) !== 1 ||
-        view.getUint16(14, true) !== 16 ||
-        (size !== 16 && size !== 18)
-      )
+      if (view.getUint16(0, true) !== 1 || view.getUint16(14, true) !== 16)
         return unsupported();
       if (
         channels === 0 ||
@@ -275,6 +271,7 @@ async function discoverWav(entry: WavEntry): Promise<PcmLayout | null> {
         (size === 18 && view.getUint16(16, true) !== 0)
       )
         throw new Error("Processed meter WAV must be 16-bit PCM");
+      if (size !== 16 && size !== 18) return unsupported();
       format = { channels, sampleRate, blockAlign };
     } else if (id === "data") {
       if (!format || size === 0 || size % format.blockAlign !== 0)
