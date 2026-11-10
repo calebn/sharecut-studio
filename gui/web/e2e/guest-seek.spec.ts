@@ -170,6 +170,16 @@ function settleFrames(page: Page): Promise<void> {
   );
 }
 
+test("the expanded Player shows the 60 s total duration on a phone", async ({
+  browser,
+}) => {
+  await withGuest(browser, PHONE, "light", async (guest) => {
+    const total = guest.page.locator(".sys-player--expanded .sys-player-total");
+    await expect(total).toBeVisible();
+    await expect(total).toContainText("01:00");
+  });
+});
+
 test("a click on the strip at 73% puts the clock at 73% of the episode", async ({
   browser,
 }) => {
