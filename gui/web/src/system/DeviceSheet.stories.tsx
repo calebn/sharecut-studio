@@ -133,7 +133,12 @@ export const Ready: Story = {
     if (viewMode === "docs") return;
     const dialog = await sheet();
     await expect(state()).toBe("ready");
-    await userEvent.selectOptions(dialog.getByLabelText("Input"), "usb");
+    await userEvent.click(dialog.getByRole("button", { name: /^Input:/ }));
+    await userEvent.click(
+      await within(document.body).findByRole("menuitemradio", {
+        name: "Shure MV7",
+      }),
+    );
     await expect(args.onInputChange).toHaveBeenCalledWith("usb");
     await userEvent.click(
       dialog.getByRole("button", { name: "Record 1 minute of room tone" }),
@@ -260,7 +265,7 @@ export const Phone: Story = {
   play: async ({ viewMode }) => {
     if (viewMode === "docs") return;
     const dialog = await sheet();
-    await expect(dialog.getByLabelText("Input")).toBeVisible();
+    await expect(dialog.getByRole("button", { name: /^Input:/ })).toBeVisible();
     await expect(
       dialog.getByRole("button", { name: "Record 1 minute of room tone" }),
     ).toBeVisible();

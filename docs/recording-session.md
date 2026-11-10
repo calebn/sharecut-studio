@@ -52,7 +52,7 @@ Category SOTA is **Riverside / Zencastr / SquadCast / Descript Rooms**, not Zoom
 - After stop: **upload status until confirmed**, then tracks on one timeline;
   late joiners **padded at the start**.
 - Join link is a **studio/room**, not a review/listen link.
-- Join sheet: **name, microphone (Allow microphone, device picker, level),
+- Join sheet: **name, microphone (Allow microphone, input chip and menu, level),
   storage check and headphones** before a guest joins; the host starts the
   optional one-minute room tone from the room.
 - While recording: a persistent **status pill** (`m:ss · Take N`) in the room header and on the host Record stage, plus a start notification. PAUSED, saving and local capture failure remain distinct text states and alerts.
@@ -1099,8 +1099,9 @@ Record stage is unaffected.
 Device permission is an **explicit grant step**: recorded clients click **Allow
 microphone**, which is the only `getUserMedia` call (`useMicPermission` →
 `useMicStream`) and runs directly in that click. The sheet then shows a level fill
-with clip guidance and, with several inputs, an input picker ("Can't change while a
-take is running." during a take). A blocked mic reads "Microphone blocked" with
+with clip guidance and an input chip (the input's name, or Default) that opens the shared
+Menu of inputs, one choice checked ("Can't change while a take is running." disables the
+chip during a take; Join sheet and Device sheet share `system/MicRow`). A blocked mic reads "Microphone blocked" with
 **How to allow**, which retries; a lost device reads "Your microphone isn't
 available." with **Retry**. The reusable peak meter hook shares one metering
 `AudioContext`, one worklet module load, and one animation-frame scheduler across
