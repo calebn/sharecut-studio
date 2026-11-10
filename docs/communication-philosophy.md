@@ -185,7 +185,7 @@ is the fix, enforced in copy review.
   focusable, guards activation, and points to a visible reason beside it
   (`aria-describedby`). Remove the reason to restore activation. Applies to
   transport Play, Land mid-take, Start with blockers, Leave while uploads pend,
-  Find's Replace and All ("No matches to replace. Change the search
+  Find's Replace all ("No matches to replace. Change the search
   first.", "Enter text to find first.", "Enter replacement text with a letter or a number to replace."),
   the track inspector's Clear clip light ("No clipping to clear."), the
   Inspector footer's play action (for a guest who hears the full mix only, or a share that cannot play audio; the
@@ -621,7 +621,7 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   results enter the success toast. Target-only export staleness uses neutral
   wording.
 
-- 2026-10-30 Unavailable controls say what is missing (#1686): the clip and pending-edit nudges, Find's Replace and All, the track inspector's Clear clip light and a read-only boundary mark in the Script stay focusable, show their reason in text and describe themselves with it, instead of a native `disabled` with a hover title. Two reasons were rewritten to say how to fix: room tone ("Room tone starts once this device has joined the session and can store audio. Wait a moment, then try again; if it stays like this, reload the page.") and the guest audition lock ("Guest links play the Full mix only. Ask the host to play a track on its own.").
+- 2026-10-30 Unavailable controls say what is missing (#1686): the clip and pending-edit nudges, Find's Replace all, the track inspector's Clear clip light and a read-only boundary mark in the Script stay focusable, show their reason in text and describe themselves with it, instead of a native `disabled` with a hover title. Two reasons were rewritten to say how to fix: room tone ("Room tone starts once this device has joined the session and can store audio. Wait a moment, then try again; if it stays like this, reload the page.") and the guest audition lock ("Guest links play the Full mix only. Ask the host to play a track on its own.").
 
 - 2026-10-29 Bounce moved from a dialog into the Deliver stage (#2449): the section holds the Source choice, the region and MP3 toggles and a range fixed in Edit, shows progress with Cancel, and lists the files it wrote. **Bounce…**, `Mod+E` with a range selected, and Range actions → Bounce go to Deliver and focus it.
 
