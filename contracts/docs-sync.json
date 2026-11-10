@@ -396,6 +396,27 @@
       }
     },
     {
+      "id": "room-tone-extraction",
+      "when": "Extracted room-tone bed (`extract_room_tone_beds` step, `room_tone.extract_bed`, bed planning and registration)",
+      "update": "`docs/pipeline.md` § Room-tone extraction, `docs/audio-engineering.md` § Extracted room-tone bed, `docs/filler-cut-quality.md` § Where room tone comes from, `docs/persistence.md`, `.agents/defaults/pipeline.yaml` → `room_tone`, skills `podcast-pipeline-run`, `podcast-pipeline-tune`",
+      "docs": [
+        "docs/pipeline.md",
+        "docs/audio-engineering.md",
+        "docs/filler-cut-quality.md",
+        "docs/persistence.md",
+        ".agents/defaults/pipeline.yaml",
+        ".agents/skills/podcast-pipeline-run/",
+        ".agents/skills/podcast-pipeline-tune/"
+      ],
+      "gate": {
+        "include": [
+          "src/podcast_mcp/engines/room_tone_extract.py",
+          "src/podcast_mcp/edits/extracted_bed.py",
+          "src/podcast_mcp/services/document/room_tone_bed.py"
+        ]
+      }
+    },
+    {
       "id": "bounce-stem-range-export",
       "when": "Bounce / stem range export (GUI + MCP)",
       "update": "`docs/gui-integration.md`, `docs/daw-editing.md`, `.agents/skills/podcast-bounce-export/`",
