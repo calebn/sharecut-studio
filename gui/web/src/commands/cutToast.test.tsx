@@ -91,6 +91,34 @@ function withoutWords(trackId: string, keep: number) {
   });
 }
 
+function markCut(trackId: string, upTo: number) {
+  const { project } = useDawStore.getState();
+  useDawStore.setState({
+    project: {
+      ...project!,
+      transcript: {
+        utterances: project!.transcript!.utterances.map((u) =>
+          u.track_id === trackId
+            ? {
+                ...u,
+                words: u.words!.map((w, at) =>
+                  at < upTo
+                    ? {
+                        ...w,
+                        mappable: false,
+                        timeline_start: null,
+                        timeline_end: null,
+                      }
+                    : w,
+                ),
+              }
+            : u,
+        ),
+      },
+    },
+  });
+}
+
 function stubObserver() {
   vi.stubGlobal(
     "IntersectionObserver",
@@ -156,6 +184,19 @@ describe("cut toast after a words cut", () => {
     await runRangeAction("cut");
     expect(toast()?.message).toBe('Cut "so" · 0.4 s');
     expect(toast()?.action).toBeNull();
+  });
+
+  it("does not count earlier cut words kept in the transcript", async () => {
+    const earlier = knows();
+    earlier[0].words = earlier[0].words!.map((w, at) =>
+      at < 2
+        ? { ...w, mappable: false, timeline_start: null, timeline_end: null }
+        : w,
+    );
+    seed(earlier);
+    select("host", 3, 4);
+    await runRangeAction("cut");
+    expect(toast()?.message).toContain("1 more");
   });
 
   it("shortens long words to 24 characters", async () => {
@@ -242,6 +283,34 @@ describe("Cut all on the toast", () => {
     ];
     return payload.targets.flatMap((t) => t.intervals).length;
   };
+
+  it("leaves out cut words that stay in the transcript as unmappable", async () => {
+    seed();
+    select("host", 0, 1);
+    await runRangeAction("cut");
+    markCut("host", 2);
+    await toast()!.action!.run();
+    expect(intervalsOf(1)).toBe(2);
+  });
+
+  it("leaves out the words just cut before the project updates", async () => {
+    seed();
+    select("host", 0, 1);
+    await runRangeAction("cut");
+    await toast()!.action!.run();
+    expect(intervalsOf(1)).toBe(2);
+    expect(useDawStore.getState().statusAnnouncement).toBe("Cut 2 matches");
+  });
+
+  it("keeps the first cut's Undo when Cut all fails", async () => {
+    seed();
+    select("host", 0, 1);
+    await runRangeAction("cut");
+    useDawStore.setState({ rangeBusy: true });
+    await toast()!.action!.run();
+    expect(toast()?.tone).toBe("error");
+    expect(toast()?.undo).toBe("h1");
+  });
 
   it("cuts the other occurrences as one command", async () => {
     seed();

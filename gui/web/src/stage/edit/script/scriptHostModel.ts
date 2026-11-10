@@ -25,6 +25,7 @@ export type ScriptHostModel = {
   texts: readonly string[];
   silent: ReadonlySet<number>;
   unsure: readonly number[];
+  cutAway: ReadonlySet<string>;
   hasWords: boolean;
 };
 
@@ -89,7 +90,14 @@ export function scriptHostModelOf(
       }
     }
   }
-  return { model, texts, silent, unsure, hasWords: model.refs.length > 0 };
+  return {
+    model,
+    texts,
+    silent,
+    unsure,
+    cutAway,
+    hasWords: model.refs.length > 0,
+  };
 }
 
 export function scriptModelFor(project: ProjectView): ScriptHostModel {
